@@ -156,6 +156,21 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
     fi
   done
 
+  log "4c) stop C.R.E.E.D. on boston-2 + revert Beacon :8086 back to hub..."
+  CREED_DIR=/opt/archie-products/creed
+  [ -f "$CREED_DIR/docker-compose.yml" ] \
+    && ( cd "$CREED_DIR" && docker compose down >/dev/null 2>&1 ) \
+    && log "   CREED stopped on boston-2." \
+    || log "   (CREED was not running on boston-2 — nothing to stop)"
+  if [ -f "$FLEET_KEY" ]; then
+    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
+      "sed -i.bak-fb 's|http://$DR_MESH:8086|http://$HUB_MESH:8086|' /etc/caddy/Caddyfile \
+       && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
+       && systemctl reload caddy" >/dev/null 2>&1 \
+      && log "   Beacon creed entry back to hub ($HUB_MESH:8086)." \
+      || log "   WARN: Beacon creed reverse-repoint failed (manual: sed Caddyfile $DR_MESH:8086->$HUB_MESH:8086 + reload)"
+  fi
+
   if [ -z "${HUB_PUBLIC_IP:-}" ]; then
     HUB_PUBLIC_IP=$(ssh -i "$FLEET_KEY" -o ConnectTimeout=10 -o BatchMode=yes "$HUB_SSH" \
       "curl -s --max-time 8 https://api.ipify.org 2>/dev/null || dig -4 +short myip.opendns.com @resolver1.opendns.com 2>/dev/null" 2>/dev/null | tr -d '[:space:]')

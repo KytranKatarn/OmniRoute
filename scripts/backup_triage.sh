@@ -56,6 +56,17 @@ else
     rm -f "$RUN/database/wtf_${TS}.dump"
 fi
 
+# CREED DB (standalone creed_postgres — non-fatal; data used by failover.sh 4e)
+if docker ps --filter name=creed_postgres --filter status=running -q 2>/dev/null | grep -q .; then
+    if docker exec creed_postgres pg_dump -U creed -d creed -Fc -Z 6 \
+           > "$RUN/database/creed_${TS}.dump" 2>>"$LOG"; then
+        log "  CREED DB dump OK ($(stat -c %s "$RUN/database/creed_${TS}.dump") bytes)"
+    else
+        log "  CREED DB dump FAILED (non-fatal)"
+        rm -f "$RUN/database/creed_${TS}.dump"
+    fi
+fi
+
 # ----- [2/4] Code tar -----
 log "[2/4] Code tar..."
 if tar -czf "$RUN/code/archie_code_${TS}.tar.gz" \
@@ -159,6 +170,22 @@ if [[ "${DR_STATUS:-failed}" == "success" ]]; then
             log "  WARN: $sub refresh failed (non-fatal)"
         fi
     done
+fi
+
+# Refresh CREED source on boston-2 (enables failover.sh 4e to start CREED there)
+# Excludes data/ so postgres bind-mount on boston-2 is NOT overwritten.
+# secrets/ IS included — boston-2 is a trusted DR node and needs the DB password.
+if [[ "${DR_STATUS:-failed}" == "success" ]]; then
+    log "Refreshing CREED source on boston-2..."
+    if rsync -a --delete \
+             --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' \
+             --exclude='data/' \
+             -e "ssh -i $SSH_KEY -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new" \
+             "/mnt/archie_brain/kytran-creed/" "root@${DR_NODE}:/opt/archie-products/creed/" >>"$LOG" 2>&1; then
+        log "  CREED source refreshed on boston-2 (/opt/archie-products/creed/)"
+    else
+        log "  WARN: CREED source refresh failed (non-fatal; failover.sh 4e will warn if missing)"
+    fi
 fi
 
 # ----- Retention: keep 14 most-recent triage dailies on primary, 7 on USB -----

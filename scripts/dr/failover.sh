@@ -154,6 +154,44 @@ done
   && log "  $watch_flip watch products repointed to boston-2 DRP." \
   || log "  (no watch .env files contained hub URLs — skipping)"
 
+# ---- 4e. C.R.E.E.D.: restore latest DB dump + start on boston-2 + flip Beacon :8086 ----
+# Pre-condition: backup_triage.sh nightly rsyncs /mnt/archie_brain/kytran-creed/ ->
+# /opt/archie-products/creed/ on this node (excluding data/ so postgres is not overwritten).
+# Non-fatal: if source not staged or dump missing, CREED stays down but failover continues.
+CREED_DIR=/opt/archie-products/creed
+log "Starting C.R.E.E.D. on boston-2 (DR mode)..."
+if [ -f "$CREED_DIR/docker-compose.yml" ]; then
+    # Start postgres first, wait for healthy (up to 60s)
+    ( cd "$CREED_DIR" && docker compose up -d postgres >/dev/null 2>&1 )
+    for i in $(seq 1 12); do
+        docker exec creed_postgres pg_isready -U creed >/dev/null 2>&1 && break || sleep 5
+    done
+    # Restore latest CREED dump (custom format, piped via stdin)
+    CREED_DUMP=$(ls -t "$DR/backups/"*_Daily_Triage/database/creed_*.dump 2>/dev/null | head -1)
+    if [ -n "$CREED_DUMP" ]; then
+        cat "$CREED_DUMP" | docker exec -i creed_postgres \
+            pg_restore -U creed -d creed --clean --if-exists --no-owner >/dev/null 2>&1 \
+            && log "  CREED DB restored from $(basename "$CREED_DUMP")" \
+            || log "  WARN: CREED DB restore failed — CREED will start with existing/empty DB"
+    else
+        log "  WARN: no CREED DB dump found in $DR/backups/ — starting with existing/empty DB"
+    fi
+    ( cd "$CREED_DIR" && docker compose up -d >/dev/null 2>&1 ) \
+        && log "  CREED started on boston-2 (:8086)" \
+        || log "  WARN: CREED docker compose up failed on boston-2"
+    # Flip Beacon creed entry hub:8086 -> boston-2:8086
+    if [ -f "$FLEET_KEY" ]; then
+        ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
+            "sed -i.bak-dr 's|http://$HUB_MESH:8086|http://$DR_MESH:8086|' /etc/caddy/Caddyfile \
+             && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
+             && systemctl reload caddy" >/dev/null 2>&1 \
+            && log "  Beacon creed.kytranempowerment.com -> boston-2 ($DR_MESH:8086)" \
+            || log "  WARN: Beacon creed flip failed (manual: sed Caddyfile $HUB_MESH:8086->$DR_MESH:8086 + reload)"
+    fi
+else
+    log "  WARN: CREED not staged at $CREED_DIR (run backup_triage.sh to pre-stage) — skipping"
+fi
+
 # ---- 5. PUBLIC INGRESS (Caddy) + DNS FLIP (Phase 5) ----
 log "Starting public HTTPS ingress (Caddy)..."
 if [ -f "$DR/ingress/docker-compose.caddy.yml" ]; then

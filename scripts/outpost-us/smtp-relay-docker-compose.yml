@@ -1,0 +1,23 @@
+services:
+  smtp-relay:
+    image: boky/postfix
+    container_name: archie_smtp_relay
+    restart: unless-stopped
+    ports:
+      - "25:587"
+    environment:
+      - ALLOWED_SENDER_DOMAINS=kytranempowerment.com
+      - HOSTNAME=mail.kytranempowerment.com
+      - RELAYHOST=
+      - MYNETWORKS=100.64.0.0/10 172.16.0.0/12 10.0.0.0/8 142.169.21.199/32
+      - TZ=UTC
+      # Secondary MX: accept inbound for the domain, relay to hub via mesh.
+      # When hub (100.64.0.4:25) is unreachable, Postfix queues and retries
+      # automatically (default 5-day lifetime, 4h max retry interval).
+      - POSTFIX_relay_domains=kytranempowerment.com
+      - POSTFIX_transport_maps=inline:{kytranempowerment.com=smtp:[100.64.0.4]:25}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"

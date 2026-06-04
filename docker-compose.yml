@@ -36,6 +36,9 @@ services:
       - "100.64.0.4:5432:5432"      # Mesh access for VPS modules (#2142 wtf-db move)
     networks:
       - archie_internal
+    # Entrypoint wrapper removes stale postmaster.pid left by a power cut before
+    # PostgreSQL starts — without this, PID collision causes exit 255 on reboot.
+    entrypoint: ["/bin/bash", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec /usr/local/bin/docker-entrypoint.sh \"$@\"", "--"]
     command: ["postgres", "-c", "listen_addresses=*", "-c", "max_connections=200"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U archie -d archie"]

@@ -69,9 +69,26 @@ class _PooledConnection:
         if not self._released:
             object.__setattr__(self, "_released", True)
             try:
-                self._pool.putconn(self._conn)
+                # If the connection is in an aborted-transaction state, roll back
+                # before returning to the pool so the next caller gets a clean conn.
+                # If rollback fails the connection is broken — discard it (close=True)
+                # instead of poisoning the pool.
+                tx = self._conn.get_transaction_status()
+                if tx == 3:  # INERROR
+                    try:
+                        self._conn.rollback()
+                        self._pool.putconn(self._conn)
+                    except Exception:
+                        self._pool.putconn(self._conn, close=True)
+                elif self._conn.closed or tx == 4:  # UNKNOWN / TCP gone
+                    self._pool.putconn(self._conn, close=True)
+                else:
+                    self._pool.putconn(self._conn)
             except Exception:
-                pass
+                try:
+                    self._pool.putconn(self._conn, close=True)
+                except Exception:
+                    pass
 
     def __getattr__(self, name):
         return getattr(self._conn, name)
@@ -97,7 +114,25 @@ def get_db():
         _PooledConnection wrapping a psycopg2 connection
     """
     p = _get_pool()
-    return _PooledConnection(p.getconn(), p)
+    conn = p.getconn()
+    # Validate: discard connections that were closed by the server (e.g. after
+    # a DB container restart) or left in an aborted-transaction state by a
+    # previous caller whose rollback silently failed.
+    # psycopg2 transaction status codes: IDLE=0 ACTIVE=1 INTRANS=2 INERROR=3 UNKNOWN=4
+    try:
+        tx = conn.get_transaction_status()
+        if conn.closed or tx == 4:  # UNKNOWN → TCP gone
+            p.putconn(conn, close=True)
+            conn = p.getconn()
+        elif tx == 3:  # INERROR → aborted txn, clear it
+            try:
+                conn.rollback()
+            except Exception:
+                p.putconn(conn, close=True)
+                conn = p.getconn()
+    except Exception:
+        pass  # If we can't check, proceed and let normal error handling catch it
+    return _PooledConnection(conn, p)
 
 
 def release_db(conn):

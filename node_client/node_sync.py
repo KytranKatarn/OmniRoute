@@ -763,6 +763,16 @@ def send_heartbeat(config):
     if agent_welfare:
         payload["agent_welfare"] = agent_welfare
 
+    # Advertise egress capabilities for external_fetch routing (#2881/#2884)
+    egress_regions_raw = os.getenv("EGRESS_REGIONS", "")
+    if egress_regions_raw:
+        residential = os.getenv("EGRESS_RESIDENTIAL", "false").lower() == "true"
+        payload["egress_metadata"] = {
+            "egress_regions": [r.strip().upper() for r in egress_regions_raw.split(",") if r.strip()],
+            "residential": residential,
+            "datacenter_ip": not residential,
+        }
+
     url = f"{config['hub_url']}/tools/department-hq/api/nodes/{config['node_id']}/heartbeat"
     status, resp = http_post(url, payload, _auth_headers(config))
 

@@ -1878,6 +1878,16 @@ def register_node_routes(bp, login_required, admin_required):
                     ),
                 )
 
+                # Persist egress_metadata when heartbeat advertises it (#2884)
+                egress_meta = data.get("egress_metadata")
+                if egress_meta and isinstance(egress_meta, dict):
+                    import json as _ejson
+
+                    cur.execute(
+                        "UPDATE remote_nodes SET egress_metadata = %s::jsonb WHERE id = %s",
+                        (_ejson.dumps(egress_meta), node["id"]),
+                    )
+
                 # Persist OS info into extra_capabilities when provided
                 os_type = data.get("os_type", "")
                 os_name = data.get("os_name", "")

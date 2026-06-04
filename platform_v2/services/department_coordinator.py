@@ -184,6 +184,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "social_account_provision": "Operations & Infrastructure",  # B.A.S.E. provisions
     "deploy_static": "Operations & Infrastructure",  # Hostinger zip deploy (B.A.S.E. Lv5)
     "deploy_vps": "Operations & Infrastructure",  # VPS SSH rsync + docker rebuild (B.A.S.E. Lv5)
+    "external_fetch": "Operations & Infrastructure",  # egress-aware HTTP proxy via B.A.S.E. (Lv4)
     "facilities_management": "Operations & Infrastructure",
     "grounds_maintenance": "Operations & Infrastructure",
     "capacity_modeling": "Operations & Infrastructure",

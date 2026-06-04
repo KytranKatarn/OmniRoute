@@ -228,6 +228,89 @@ def find_best_node_for_model(
     return best_db_id
 
 
+def score_node_for_egress(
+    node: dict[str, Any],
+    preferred_region: Optional[str] = None,
+    *,
+    prefer_residential: bool = True,
+) -> Optional[float]:
+    """Score a fleet node as an HTTP egress proxy for external_fetch requests.
+
+    Returns float (higher = better) or None to disqualify.
+    Residential IPs score highest for gov-API scraping (datacenter IPs are blocked).
+    Region match adds a strong bonus for geo-diverse egress.
+    """
+    if not node or is_stale(node):
+        return None
+
+    egress = node.get("egress_metadata") or {}
+    if not isinstance(egress, dict):
+        egress = {}
+
+    egress_regions = egress.get("egress_regions") or []
+    residential = bool(egress.get("residential", False))
+
+    score = 1.0
+
+    if prefer_residential:
+        score += 2.0 if residential else -0.5
+
+    if preferred_region and egress_regions:
+        pref = preferred_region.upper()
+        if pref in egress_regions:
+            score += 1.5
+        elif any(pref[:2] == r[:2] for r in egress_regions):
+            score += 0.5  # partial match (e.g. "GB" ~ "EU")
+
+    max_conc = max(int(_safe(node.get("max_concurrent"), 1)), 1)
+    cur_load = max(int(_safe(node.get("current_load"), 0)), 0)
+    score -= 0.3 * (cur_load / max_conc)
+
+    return score if score > 0 else None
+
+
+def find_best_egress_node(
+    preferred_region: Optional[str] = None,
+    *,
+    prefer_residential: bool = True,
+) -> int:
+    """Return the DB id of the best online node for an external_fetch request.
+
+    Scores all active nodes using egress_metadata. Falls back to hub (id=68)
+    when no node qualifies — hub's residential CA/US IP is the safe default.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                """
+                SELECT id, current_load, max_concurrent, last_heartbeat, egress_metadata
+                FROM remote_nodes
+                WHERE is_active = TRUE
+                  AND status = 'online'
+                  AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                ORDER BY priority DESC NULLS LAST
+                """
+            )
+            nodes = [dict(r) for r in cur.fetchall()]
+    except Exception:
+        return 68  # hub fallback
+
+    best_id: Optional[int] = None
+    best_score: Optional[float] = None
+
+    for node in nodes:
+        score = score_node_for_egress(node, preferred_region, prefer_residential=prefer_residential)
+        if score is None:
+            continue
+        if best_score is None or score > best_score:
+            best_score = score
+            best_id = node["id"]
+
+    return best_id if best_id is not None else 68
+
+
 def should_dispatch_to_node(node: dict[str, Any], model: str, enforce: bool) -> tuple[bool, str]:
     """Pre-dispatch capacity guard.
 

@@ -43,6 +43,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "run_misroute_to_proposal_adapter",
     "deploy_static",
     "deploy_vps",
+    "external_fetch",
     "portrait_refinement",
     "translation_coverage_scan",
     "visual_scan",  # P.R.O.B.E. Playwright visual verification — logs and completes
@@ -516,6 +517,52 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 "metadata": result.metadata,
             },
         }
+
+    if capability == "external_fetch":
+        import os as _os
+
+        import requests as _req
+
+        url = (payload.get("url") or "").strip()
+        if not url:
+            return {"success": False, "summary": "external_fetch: url is required"}
+
+        region = payload.get("region") or payload.get("preferred_region")
+        prefer_residential = payload.get("prefer_residential", True)
+        method = (payload.get("method") or "GET").upper()
+        extra_headers = payload.get("headers") or {}
+        body = payload.get("body")
+        timeout = min(int(payload.get("timeout") or 30), 120)
+
+        from services.fleet_resource_router import find_best_egress_node
+
+        best_node_id = find_best_egress_node(preferred_region=region, prefer_residential=prefer_residential)
+
+        # Hub cluster_proxy is the only deployed proxy endpoint today.
+        # When outpost node_api gains /api/proxy/fetch, route to mesh IP of best_node_id instead.
+        proxy_key = _os.environ.get("CLUSTER_PROXY_KEY", "")
+        proxy_url = "http://127.0.0.1:3000/api/proxy/fetch"
+
+        try:
+            resp = _req.post(
+                proxy_url,
+                json={"url": url, "method": method, "headers": extra_headers, "body": body, "timeout": timeout},
+                headers={"X-Proxy-Key": proxy_key},
+                timeout=timeout + 10,
+            )
+            data = resp.json() if "application/json" in resp.headers.get("Content-Type", "") else {}
+            ok = resp.status_code == 200 and not data.get("error")
+            return {
+                "success": ok,
+                "summary": (
+                    f"external_fetch {method} {url[:60]} → "
+                    f"{data.get('status_code', resp.status_code)} "
+                    f"({data.get('elapsed_ms', 0)}ms) via node={best_node_id}"
+                ),
+                "result": data,
+            }
+        except Exception as exc:
+            return {"success": False, "summary": f"external_fetch failed: {exc}"}
 
     if capability == "translation_coverage_scan":
         # Orchestrator does per-source isolation + ON CONFLICT upserts on

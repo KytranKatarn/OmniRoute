@@ -137,12 +137,12 @@ fi
 
 # ---- 4c. BEACON front-door: flip its Caddy upstream hub -> boston-2 so the public
 # DNS that points at Beacon keeps reaching the platform (now the DR standby). Non-fatal. ----
-BEACON_HOST="${BEACON_HOST:-root@100.64.0.11}"
+BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"  # public IP — mesh may be down during failover
 DR_MESH="${DR_MESH:-100.64.0.10}"
 if [ -f "$FLEET_KEY" ]; then
   log "Repointing Beacon front-door Caddy upstream -> boston-2 ($DR_MESH)..."
   if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
-       "sed -i.bak-dr 's#reverse_proxy http://$HUB_MESH:3000#reverse_proxy http://$DR_MESH:3000#' /etc/caddy/Caddyfile && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 && systemctl reload caddy" >/dev/null 2>&1; then
+       "sed -i.bak-dr 's|$HUB_MESH|$DR_MESH|g' /etc/caddy/Caddyfile && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 && systemctl reload caddy" >/dev/null 2>&1; then
     log "  Beacon front-door now points at the boston-2 standby."
   else
     log "  WARN: Beacon repoint failed (manual: on Beacon sed Caddyfile $HUB_MESH->$DR_MESH + systemctl reload caddy)."
@@ -159,7 +159,7 @@ watch_flip=0
 for product_dir in gov-watch legal-watch what-the-fact; do
   env_file="/opt/archie-products/$product_dir/.env"
   if [ -f "$env_file" ] && grep -q "100.64.0.4:3000" "$env_file"; then
-    if sed -i.bak-dr "s|http://100.64.0.4:3000|http://$DR_MESH:3000|g" "$env_file" 2>/dev/null; then
+    if sed -i.bak-dr "s|100.64.0.4|$DR_MESH|g" "$env_file" 2>/dev/null; then
       ( cd "/opt/archie-products/$product_dir" && docker compose up -d >/dev/null 2>&1 ) \
         && log "  $product_dir: hub URLs flipped + containers restarted" \
         || log "  WARN: $product_dir restart failed (env flipped — manual: docker compose up -d)"

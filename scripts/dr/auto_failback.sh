@@ -22,7 +22,7 @@ DR="${DR:-/opt/archie-dr}"
 HUB_MESH="${HUB_MESH:-100.64.0.4}"
 DR_MESH="${DR_MESH:-100.64.0.10}"
 FLEET_KEY="${FLEET_KEY:-$DR/.fleet_key}"
-BEACON_HOST="${BEACON_HOST:-root@100.64.0.11}"
+BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"  # public IP — works when mesh is down
 LOG="$DR/auto_failback.log"
 
 . "$DR/tg_notify.sh" 2>/dev/null || tg_notify(){ :; }
@@ -55,7 +55,7 @@ log "3) Reverting watch-series hub URLs -> hub..."
 for product_dir in gov-watch legal-watch what-the-fact; do
   env_file="/opt/archie-products/$product_dir/.env"
   if [ -f "$env_file" ] && grep -q "$DR_MESH:3000" "$env_file"; then
-    sed -i.bak-recover "s|http://$DR_MESH:3000|http://$HUB_MESH:3000|g" "$env_file"
+    sed -i.bak-recover "s|$DR_MESH|$HUB_MESH|g" "$env_file"
     ( cd "/opt/archie-products/$product_dir" && docker compose up -d >/dev/null 2>&1 )
     log "  $product_dir: watch URLs -> hub"
   fi
@@ -79,10 +79,7 @@ HS_DIR="$DR/headscale"
 log "6) Reverting Beacon entries -> hub..."
 if [ -f "$FLEET_KEY" ]; then
   ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" "
-    sed -i.bak-recover \
-      's|http://$DR_MESH:3000|http://$HUB_MESH:3000|g;
-       s|http://$DR_MESH:8086|http://$HUB_MESH:8086|g;
-       s|http://$DR_MESH:8095|http://$HUB_MESH:8095|g' /etc/caddy/Caddyfile \
+    sed -i.bak-recover 's|$DR_MESH|$HUB_MESH|g' /etc/caddy/Caddyfile \
     && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
     && systemctl reload caddy" >/dev/null 2>&1 \
     && log "  Beacon: all entries -> hub" \

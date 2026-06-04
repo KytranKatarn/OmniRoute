@@ -82,8 +82,14 @@ log "  DB write check: ${WOK:-FAILED}"
 # only — MagicDNS dies with the hub. Non-fatal: failover proceeds per-node.
 DR_MESH=100.64.0.10
 FLEET_KEY="$DR/.ssh/id_ed25519"
-# Surviving global outposts (root@, /opt/archie-node). LAN Starships die with a
-# Montreal-site outage. outpost-us (kytran@, /opt/archie-outpost) = TODO (divergent path).
+# Surviving global outposts (root@, /opt/archie-node).
+# LAN Starships (100.64.0.3 / .6, Famil@ SSH, Windows Docker Desktop):
+#   NOT repointed here — they self-heal via node_sync.py DR auto-failover:
+#   after 5 consecutive heartbeat failures (~2.5 min) node_sync.py switches
+#   hub_url to DR_HUB_URL (default: http://100.64.0.10:3000) and re-registers
+#   on boston-2. Auto-fails-back when primary recovers for 3 checks. No SSH
+#   needed. Requires node_sync.py v3.0.0+ (docker-compose.node.yml image).
+# outpost-us (kytran@, /opt/archie-outpost): watch-product URLs handled in 4d above.
 FLEET_NODES=( "root@100.64.0.5" "root@100.64.0.7" "root@100.64.0.8" )
 log "Repointing surviving fleet nodes -> boston-2 ($DR_MESH)..."
 if [ -f "$FLEET_KEY" ]; then

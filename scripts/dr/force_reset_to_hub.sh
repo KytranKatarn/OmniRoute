@@ -69,3 +69,7 @@ rm -f "$DR/.failed_over"    && log "  .failed_over: cleared"
 rm -f "$DR/.awaiting_rebuild" && log "  .awaiting_rebuild: cleared"
 
 log "=== force_reset_to_hub COMPLETE — watchdog re-armed, all products on hub ==="
+log ""
+log "NOTE: if the Headscale mesh is still down (nodes offline), run FROM THE HUB:"
+log "  bash /mnt/archie_brain/scripts/dr/mesh_bootstrap.sh"
+log "  This creates reverse SSH tunnels + reconnects nodes using a fresh pre-auth key."

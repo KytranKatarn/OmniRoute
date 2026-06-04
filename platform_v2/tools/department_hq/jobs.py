@@ -319,9 +319,9 @@ def automated_module_audit(flask_app):
         # --- Phase 3: Route Telegram summary through A.R.C.H.I.E. inbox ---
         if violations > 0 or total_dispatched > 0:
             try:
-                from services.telegram_service import send as _tg_send
+                from services.director_report_service import submit_via_inbox as _forge_inbox
 
-                _tg_send(
+                _forge_inbox(
                     category="system",
                     title="Weekly Repair Cycle Complete",
                     message=(
@@ -330,8 +330,8 @@ def automated_module_audit(flask_app):
                         f"Proposals: {total_proposals} created, {total_dispatched} dispatched"
                     ),
                     source_agent="F.O.R.G.E.",
-                    source_department="Engineering & Technology",
-                    source_module="jobs",
+                    severity="info",
+                    department="Engineering & Technology",
                 )
             except Exception as tg_err:
                 logger.debug("Repair cycle Telegram summary failed: %s", tg_err)

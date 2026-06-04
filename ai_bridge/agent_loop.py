@@ -5941,6 +5941,7 @@ class AgentLoop:
                 _mark_kytran_approval_sent,
             )
             from tools.repair_bay.services.github_service import merge_pr  # noqa: PLC0415
+            from services.director_report_service import submit_via_inbox as _forge_inbox  # noqa: PLC0415
             from services.telegram_service import send_info  # noqa: PLC0415
 
             reviews = list_reviews(state="open", review_status="reviewed")
@@ -5960,10 +5961,13 @@ class AgentLoop:
                     result = merge_pr(pr_num, "squash")
                     if result.get("merged"):
                         _mark_tier_processed(pr_num, tier=1)
-                        send_info(
+                        _forge_inbox(
+                            category="pr_reviewed",
                             title=f"F.O.R.G.E. auto-merged PR #{pr_num}",
                             message=f"*{title}*\nTier 1 auto-merge (small, approved).",
                             source_agent="F.O.R.G.E.",
+                            severity="info",
+                            department="Engineering & Technology",
                         )
                         processed += 1
                     else:

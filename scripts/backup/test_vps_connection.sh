@@ -3,7 +3,7 @@
 # Tries mesh IP first, falls back to public IP. Reports which worked.
 set -u
 
-MESH_IP="${MESH_IP:-100.64.0.1}"
+MESH_IP="${MESH_IP:-100.64.0.2}"
 PUB_IP="${PUB_IP:-76.13.107.109}"
 VPS_USER="${VPS_USER:-kytran}"
 REMOTE_DIR="${VPS_BACKUP_DIR:-/home/kytran/backups/archie}"

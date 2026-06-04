@@ -16,8 +16,17 @@ RUN_DIR="${1:?run_dir required}"
 OUT_DIR="$RUN_DIR/vps_pull"
 mkdir -p "$OUT_DIR"
 
-VPS_HOST="${BACKUP_VPS_HOST:-100.64.0.1}"
-VPS_USER="${BACKUP_VPS_USER:-kytran}"
+# ⚠️ STALE — NEEDS REWORK OR DEPRECATION (flagged 2026-06-04):
+#  - The watch-product DBs MOVED to Citadel / boston-2 (mesh 100.64.0.10, #3727),
+#    and Citadel is ALREADY backed up by the DR flow (scripts/backup_triage.sh) +
+#    the warm replica — so this pull is largely redundant.
+#  - The old .1 default was the HUB's subnet-router, never a backup host (bug).
+#  - This script still assumes US-Outpost DB naming ("${db}_db", -U postgres) and
+#    SSH kytran@; Citadel uses root@ and gov_watch_db / kytran_* containers.
+#  Default repointed to Citadel below so it stops hitting the bogus .1, but do NOT
+#  rely on it until reworked for Citadel's container/user scheme (or removed).
+VPS_HOST="${BACKUP_VPS_HOST:-100.64.0.10}"
+VPS_USER="${BACKUP_VPS_USER:-root}"
 
 START=$(date +%s)
 

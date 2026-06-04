@@ -7,13 +7,18 @@ All VPS fleet nodes follow this pattern. Hard-won from outpost-us setup.
 
 ## Global Outpost Map
 
-| Node | Public IP | Mesh IP | Region | Provider | DB ID | Status |
-|------|-----------|---------|--------|----------|-------|--------|
-| outpost-us | 76.13.107.109 | 100.64.0.2 | us-east (Ashburn VA) | Hostinger KVM2 | 93 | Online |
-| outpost-asia | 156.67.217.86 | 100.64.0.5 | asia-east (Singapore) | Hostinger KVM2 | 125 | Pending approval |
-| outpost-eu | 72.62.112.210 | 100.64.0.7 | eu-west (Vilnius, LT) | Hostinger KVM | 126 | Pending approval |
+Names below are the 2026-06-04 canonical set (display `node_name` / mesh `given_name`). Full roster + ship-class + audit: `fleet.md` + KB #270521.
 
-**Update this table when each node enrolls (mesh IP + DB ID).**
+| Display name | mesh given_name | Public IP | Mesh IP | Region | DB ID | Status |
+|------|------|-----------|---------|--------|-------|--------|
+| Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | us-east (Ashburn VA) | 93 | Online (CPU outpost; SSH `kytran@`) |
+| Outpost - Singapore | outpost-singapore | 156.67.217.86 | 100.64.0.5 | asia-east (Singapore) | 125 | Online |
+| Outpost - Lithuania | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | eu-west (Vilnius, LT) | 126 | Online |
+| Outpost - United Kingdom | outpost-uk | 2.24.130.153 | 100.64.0.8 | eu-west (Manchester, UK) | 127 | Online |
+| Citadel - United States | citadel-us | 2.25.133.122 | 100.64.0.10 | us-east (Boston) | 128 | Online — **DR warm-standby base** (boston-2): watch products + DR replica. SSH `root@` |
+| Beacon | beacon | 2.25.170.252 | 100.64.0.11 | us-east (Boston) | 129 | Online — **front-door ingress** (Caddy; no Ollama/agents) |
+
+**Update this table when each node enrolls (mesh IP + DB ID).** Renames are display-only (`node_name` + headscale `given_name`); `node_id` is unchanged.
 
 ---
 

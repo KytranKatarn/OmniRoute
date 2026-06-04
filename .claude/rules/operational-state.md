@@ -46,7 +46,7 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 | Node | IP | Mesh IP | Role | Containers |
 |------|-----|---------|------|------------|
 | Hub | 192.168.1.200 | 100.79.11.3 | Primary server | All above |
-| US Outpost | 76.13.107.109 | 100.64.0.1 | Fleet node | Caddy, KSO, SMTP relay, Market/Civic/Legal/Gov Watch, WTF (consumer+tech+ingest) |
+| US Outpost | 76.13.107.109 | 100.64.0.2 | Fleet node | Caddy, KSO, SMTP relay, Market/Civic/Legal/Gov Watch, WTF (consumer+tech+ingest) |
 | Node .246 | 192.168.1.246 | — | Offline | RTX 3070, 32GB RAM, awaiting Docker |
 | Node .245 | 192.168.1.245 | — | Offline | RTX 3070, fresh machine |
 

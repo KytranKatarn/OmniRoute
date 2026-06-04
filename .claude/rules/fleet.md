@@ -10,14 +10,31 @@ Department HQ Fleet tab owns all fleet management (merged from Starbase Command 
 
 ## Mesh Node Map (ALWAYS use mesh IPs for inter-cluster calls)
 
-| Node | LAN IP | Mesh IP | GPU | RAM | Role |
-|------|--------|---------|-----|-----|------|
-| Hub | 192.168.1.200 | 100.64.0.4 | Quadro M4000 8GB | 128GB | Platform core, large models |
-| Outpost-us | 76.13.107.109 | 100.64.0.2 | None | 8GB | VPS standalones, small CPU agents |
-| Starship-246 | 192.168.1.246 | 100.64.0.3 | RTX 3070 8GB | 32GB | Mid-tier 7B GPU agents |
-| Starship-245 | 192.168.1.245 | 100.64.0.6 | RTX 3050 Laptop 4GB | 12GB | Light GPU, small models |
+Names below are the 2026-06-04 canonical set (display `node_name` + headscale `given_name`). `node_id` is unchanged (renames are display-only). Full roster + audit: KB #270521.
+
+| Display name | mesh given_name | LAN/Public IP | Mesh IP | DB id | GPU / VRAM | RAM | Role |
+|------|------|--------|---------|-----|-----|-----|------|
+| Archie Starbase (hub) | archie-starbase | 192.168.1.200 | 100.64.0.4 | 68 | Quadro M4000 8GB | 128GB | Platform core / dispatch hub. `BRIDGE_URL=100.64.0.4:3000` |
+| Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | 93 | None | 8GB | CPU outpost (Ashburn). **SSH `kytran@`** |
+| Starship - Defiant - USS-246 | starship-246 | 192.168.1.246 | 100.64.0.3 | 115 | RTX 3070 8GB (**Defiant**) | 32GB | LAN GPU, 7B. SSH `Famil@` |
+| Starship - Runabout - USS-245 | starship-245 | 192.168.1.245 | 100.64.0.6 | 120 | RTX 3050 4GB (**Runabout**) | 12GB | LAN GPU, small. SSH `Famil@` |
+| Outpost - Singapore | outpost-singapore | 156.67.217.86 | 100.64.0.5 | 125 | None | 8GB | CPU outpost |
+| Outpost - Lithuania | outpost-lithuania | 72.62.112.210 | 100.64.0.7 | 126 | None | 8GB | CPU outpost |
+| Outpost - United Kingdom | outpost-uk | 2.24.130.153 | 100.64.0.8 | 127 | None | 8GB | CPU outpost |
+| Citadel - United States | citadel-us | 2.25.133.122 | 100.64.0.10 | 128 | None | 31GB | **DR warm-standby base** (boston-2): watch products + DR replica + ingress Caddy. SSH `root@` |
+| Beacon | beacon | 2.25.170.252 | 100.64.0.11 | 129 | None | 4GB | Front-door ingress (Caddy). No Ollama/agents, `bridge_off` |
 
 **NEVER** use public hostnames (`platform.kytranempowerment.com`) for inter-cluster traffic — Hostinger CDN caps at 60s, bypasses queue.
+
+### Naming tiers & ship-class
+- Tiers by role/scale: **Starbase** (hub) > **Citadel** (DR warm-standby base) > **Outpost** (CPU VPS, regional) > **Starship - `<class>` - USS-`<lan-octet>`** (LAN GPU) > **Beacon** (ingress satellite).
+- GPU nodes auto-class from live `remote_nodes.gpu_vram_gb` via `ship_classes` table + `v_fleet_ship_class` view (migration 398). Ladder by VRAM: Runabout ≤4 / Nova 6 / Defiant 8 / Intrepid 12 / Constitution 16 / Galaxy 24 / Sovereign 48 / Dreadnought 80 / Armada (multi-GPU). Re-tune via `UPDATE ship_classes` (no deploy). Hub + CPU outposts = NULL class.
+
+### Hub has THREE tailscale presences (don't confuse — KB #270520)
+- `.4 archie-starbase` = host headscale tailscaled (`/var/lib/tailscale-hs`, `--tun=tailscale1`) — THE platform/dispatch hub (`BRIDGE_URL`, :3000, direct via public IP).
+- `.1 archie-starbase-subnet` = the `archie_tailscale` Docker container (docker-compose.yml ~L714) — hub-LAN subnet router (`--advertise-routes=192.168.1.0/24 --ssh`). Route currently **Enabled=false** (dormant; platform reaches hub via `.4`). Do NOT delete — re-registers via authkey.
+- `100.79.11.3` = host's Tailscale.com client — a SEPARATE tailnet, not the mesh.
+- `.9 shuttle-kytran` = Kytran personal device (not a fleet node).
 
 ## Fleet Route Files (`tools/department_hq/`)
 

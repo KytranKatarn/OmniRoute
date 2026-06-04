@@ -129,14 +129,14 @@ If drill fails, file a `mistake_learned` entry, investigate the restore path, an
 | Primary    | `/mnt/data2/backups/`            | Everything — current + rolling retention       | None (filesystem ACL)     |
 | USB Hot    | `/mnt/external-backup/`          | DB, code, gitbundles, config, volumes          | Config tier: AES-256-CBC  |
 | GDrive Cold| Work Suite OAuth Drive           | DB, code, gitbundles, config, kb_export, monthly | AES-256-CBC client-side |
-| VPS Geo    | `kytran@100.64.0.1:/var/backups/archie/` | DB, gitbundles, config            | AES-256-CBC client-side   |
+| VPS Geo    | `kytran@100.64.0.2:/var/backups/archie/` | DB, gitbundles, config            | AES-256-CBC client-side   |
 
 ---
 
 ## Known Runtime Blockers (track until resolved)
 
 - **GDrive tier:** OAuth refresh token stale — reconnect at `/tools/google-work-suite`. Until then, gdrive rows log `skipped: oauth not configured`.
-- **VPS tier:** Mesh `100.64.0.1` unreachable (Headscale dark); public `76.13.107.109` SSH key not deployed. Until fixed, vps rows log `skipped: mesh/ssh unreachable`.
+- **VPS tier:** Mesh `100.64.0.2` unreachable (Headscale dark); public `76.13.107.109` SSH key not deployed. Until fixed, vps rows log `skipped: mesh/ssh unreachable`.
 - **Primary path:** Still `/mnt/data2/backups/` (873 GB unused on `/mnt/data/` blocked by root perms).
 
 See `backup_log` for live status. Watchdog alerts at 14 d of skipping per tier.

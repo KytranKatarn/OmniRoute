@@ -29,7 +29,7 @@ VPS_REMOTE_ROOT="${BACKUP_VPS_REMOTE_ROOT:-/home/kytran/backups/archie}"
 if [[ -n "${BACKUP_VPS_HOST:-}" ]]; then
     VPS_HOSTS=( "$BACKUP_VPS_HOST" )
 else
-    VPS_HOSTS=( "100.64.0.1" "76.13.107.109" )
+    VPS_HOSTS=( "100.64.0.2" "76.13.107.109" )
 fi
 
 RUN_DIR="${1:?run_dir required}"

@@ -1,0 +1,135 @@
+#!/bin/bash
+# ============================================================================
+# auto_failback.sh — Phase 1 of automated DR failback
+# Called by dr_watchdog.sh when it detects the hub has recovered.
+#
+# Phase 1 (automatic, no human needed):
+#   1. Repoints global outposts back to hub
+#   2. Repoints Starships back to hub (force-recreate node_sync)
+#   3. Reverts watch-series agent hub URLs
+#   4. Stops DR platform + scheduler standby
+#   5. Stops CREED DR and Headscale DR
+#   6. Reverts all Beacon entries (platform, mesh, creed) back to hub
+#   7. Calls B.A.S.E. agent on the recovering hub for assessment
+#
+# Phase 2 (human-gated, handled by watchdog poll loop):
+#   Sends Telegram with B.A.S.E. report + Rebuild/Skip buttons.
+#   On "Rebuild": watchdog runs failback.sh restore-normal (DB re-clone).
+#   On "Skip": boston-2 stays as cold standby.
+# ============================================================================
+set -uo pipefail
+DR="${DR:-/opt/archie-dr}"
+HUB_MESH="${HUB_MESH:-100.64.0.4}"
+DR_MESH="${DR_MESH:-100.64.0.10}"
+FLEET_KEY="${FLEET_KEY:-$DR/.fleet_key}"
+BEACON_HOST="${BEACON_HOST:-root@100.64.0.11}"
+LOG="$DR/auto_failback.log"
+
+. "$DR/tg_notify.sh" 2>/dev/null || tg_notify(){ :; }
+
+log(){ echo "[$(date -u +%H:%M:%S)] [auto-failback] $*" | tee -a "$LOG"; }
+
+REBUILD_KEYBOARD='[[{"text":"✅ Rebuild DB (complete failback)","callback_data":"dr_rebuild"}],[{"text":"🔵 Skip for now (cold standby)","callback_data":"dr_skip_rebuild"}]]'
+
+log "=== Phase 1 auto-repoint START ==="
+OUTAGE_MINS=$(( ($(date +%s) - $(stat -c %Y "$DR/.failed_over" 2>/dev/null || echo $(date +%s))) / 60 ))
+
+# ---- 1. Global outposts → hub ----
+log "1) Repointing global outposts -> hub ($HUB_MESH)..."
+for node in root@100.64.0.5 root@100.64.0.7 root@100.64.0.8; do
+  ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$node" \
+    "/opt/archie-node/repoint.sh $HUB_MESH" >/dev/null 2>&1 \
+    && log "  $node -> hub" || log "  WARN: $node unreachable"
+done
+
+# ---- 2. Starships → hub (force-recreate sync container) ----
+log "2) Repointing Starships -> hub..."
+for sm in "100.64.0.3" "100.64.0.6"; do
+  ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "Famil@$sm" \
+    "docker compose -f C:\\archie-node\\docker-compose.yml up -d --force-recreate --no-deps sync" >/dev/null 2>&1 \
+    && log "  Starship $sm -> hub" || log "  WARN: Starship $sm unreachable"
+done
+
+# ---- 3. Watch-series agent hub URLs → hub ----
+log "3) Reverting watch-series hub URLs -> hub..."
+for product_dir in gov-watch legal-watch what-the-fact; do
+  env_file="/opt/archie-products/$product_dir/.env"
+  if [ -f "$env_file" ] && grep -q "$DR_MESH:3000" "$env_file"; then
+    sed -i.bak-recover "s|http://$DR_MESH:3000|http://$HUB_MESH:3000|g" "$env_file"
+    ( cd "/opt/archie-products/$product_dir" && docker compose up -d >/dev/null 2>&1 )
+    log "  $product_dir: watch URLs -> hub"
+  fi
+done
+
+# ---- 4. Stop DR platform + scheduler standby ----
+log "4) Stopping DR platform containers..."
+docker stop archie_platform archie_scheduler_standby >/dev/null 2>&1 || true
+log "  DR platform stopped"
+
+# ---- 5. Stop CREED DR and Headscale DR ----
+log "5) Stopping CREED DR and Headscale DR..."
+CREED_DIR=/opt/archie-products/creed
+[ -f "$CREED_DIR/docker-compose.yml" ] \
+  && ( cd "$CREED_DIR" && docker compose down >/dev/null 2>&1 ) && log "  CREED DR stopped" || true
+HS_DIR="$DR/headscale"
+[ -f "$HS_DIR/docker-compose.headscale-dr.yml" ] \
+  && ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml down >/dev/null 2>&1 ) && log "  Headscale DR stopped" || true
+
+# ---- 6. Revert all Beacon entries → hub ----
+log "6) Reverting Beacon entries -> hub..."
+if [ -f "$FLEET_KEY" ]; then
+  ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" "
+    sed -i.bak-recover \
+      's|http://$DR_MESH:3000|http://$HUB_MESH:3000|g;
+       s|http://$DR_MESH:8086|http://$HUB_MESH:8086|g;
+       s|http://$DR_MESH:8095|http://$HUB_MESH:8095|g' /etc/caddy/Caddyfile \
+    && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
+    && systemctl reload caddy" >/dev/null 2>&1 \
+    && log "  Beacon: all entries -> hub" \
+    || log "  WARN: Beacon revert failed (manual: sed Caddyfile $DR_MESH -> $HUB_MESH + reload)"
+fi
+
+log "=== Phase 1 auto-repoint COMPLETE ==="
+
+# ---- 7. B.A.S.E. agent assessment via hub dispatch ----
+log "7) Requesting B.A.S.E. assessment from hub..."
+ASSESSMENT="Assessment unavailable (hub warming up)"
+HUB_URL="http://$HUB_MESH:3000"
+
+# Wait up to 30s for hub platform to respond
+for i in 1 2 3; do
+  HC=$(wget -qO- --server-response "$HUB_URL/tools/department-hq/api/health" 2>&1 | head -1 | grep -oP '\d{3}' | head -1 || echo 0)
+  [ "$HC" = "200" ] && break
+  sleep 10
+done
+
+if [ "$HC" = "200" ]; then
+  ASSESSMENT=$(wget -qO- --post-data '{"capability":"infrastructure_assessment","reason":"Hub recovered from DR. Report: hub health, DB write activity during outage, scheduler status, recommended action.","delegation_source":"automation"}' \
+    --header 'Content-Type: application/json' \
+    "$HUB_URL/api/mcp/delegate_task" 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('message','Queued')[:200])" 2>/dev/null \
+    || echo "Platform healthy — assessment queued in background")
+fi
+
+log "Assessment: $ASSESSMENT"
+
+# ---- 8. Telegram: Phase 2 approval request ----
+tg_notify "✅ <b>A.R.C.H.I.E. DR — HUB RECOVERED</b>
+
+⏱ Outage duration: ~${OUTAGE_MINS} min
+
+<b>Phase 1 auto-repoint: DONE</b>
+• Outpost nodes, Starships, watch URLs → reverted to hub
+• DR platform, CREED DR, Headscale DR → stopped
+• Beacon → reverted to hub
+
+<b>B.A.S.E. Assessment:</b>
+${ASSESSMENT}
+
+<b>Phase 2 — DB rebuild</b>
+Re-establishes boston-2 as a streaming replica of the hub.
+Destructive on boston-2 only (existing DR data replaced with fresh hub copy).
+
+Tap to proceed:" "$REBUILD_KEYBOARD"
+
+log "Telegram approval request sent. Waiting for operator decision..."

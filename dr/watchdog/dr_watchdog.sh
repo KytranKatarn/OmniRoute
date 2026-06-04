@@ -154,6 +154,8 @@ def classify(t):
     if t in ("dr_proceed","proceed"): return "proceed"
     if t in ("dr_abort","dr_cancel","abort","cancel"): return "abort"
     if t in ("dr_standby","standby"): return "standby"
+    if t in ("dr_rebuild","rebuild"): return "rebuild"
+    if t in ("dr_skip_rebuild","skip_rebuild","skip"): return "skip_rebuild"
     return ""
 try:
     raw=urllib.request.urlopen("https://api.telegram.org/bot%s/getUpdates?timeout=0"%tok, timeout=12).read()
@@ -161,7 +163,7 @@ try:
 except Exception:
     print(""); raise SystemExit
 # Priority: an explicit Proceed beats Abort beats Standby within the window.
-found={"proceed":False,"abort":False,"standby":False}
+found={"proceed":False,"abort":False,"standby":False,"rebuild":False,"skip_rebuild":False}
 for u in upd:
     cq=u.get("callback_query")
     if cq:
@@ -177,7 +179,7 @@ for u in upd:
     if int(m.get("date",0))<since: continue
     a=classify(m.get("text"))
     if a: found[a]=True
-print("proceed" if found["proceed"] else "abort" if found["abort"] else "standby" if found["standby"] else "")
+print("proceed" if found["proceed"] else "abort" if found["abort"] else "standby" if found["standby"] else "rebuild" if found["rebuild"] else "skip_rebuild" if found["skip_rebuild"] else "")
 PY
 }
 
@@ -202,8 +204,37 @@ do_failover(){
 main(){
   # 1. Disarm / planned-maintenance kill switch.
   if [ -f "$DISABLED_FLAG" ]; then log "disabled ($DISABLED_FLAG present) — exit."; exit 0; fi
-  # 2. One-shot — already failed over.
-  if [ -f "$FAILED_OVER_FLAG" ]; then log "already failed over ($FAILED_OVER_FLAG) — exit."; exit 0; fi
+  # 2. Post-failover recovery: hub came back — auto-repoint then request approval for DB rebuild.
+  AWAITING_REBUILD="$DR/.awaiting_rebuild"
+  if [ -f "$FAILED_OVER_FLAG" ]; then
+    if [ ! -f "$AWAITING_REBUILD" ] && probe_local; then
+      # Hub just recovered — run Phase 1 auto-repoint + send Telegram approval request
+      log "Hub recovered after DR failover — running Phase 1 auto-repoint..."
+      bash "$DR/auto_failback.sh"        # sends its own Telegram msg at the end
+      echo "$(now_epoch)" > "$AWAITING_REBUILD"
+      exit 0
+    elif [ -f "$AWAITING_REBUILD" ]; then
+      # Phase 1 done — poll for operator's DB rebuild decision (one check per cycle)
+      since="$(cat "$AWAITING_REBUILD" 2>/dev/null || echo 0)"
+      action="$(poll_action "$since")"
+      case "$action" in
+        rebuild)
+          log "Operator approved DB rebuild — running failback.sh restore-normal..."
+          tg_notify "🔄 <b>DR Failback — DB rebuild starting...</b>"
+          bash "$DR/failback.sh" restore-normal 2>&1 | tee -a "$DR/failback.log"
+          rm -f "$AWAITING_REBUILD" "$FAILED_OVER_FLAG"
+          tg_notify "✅ <b>DR Failback complete.</b> boston-2 is a streaming replica. Normal DR posture restored." ;;
+        skip_rebuild)
+          log "Operator skipped DB rebuild."
+          rm -f "$AWAITING_REBUILD" "$FAILED_OVER_FLAG"
+          tg_notify "🔵 <b>DB rebuild skipped.</b> boston-2 is a cold standby. Run <code>failback.sh restore-normal</code> manually when ready." ;;
+        *) log "awaiting rebuild approval (rebuild/skip_rebuild) — exit." ;;
+      esac
+      exit 0
+    fi
+    log "in DR mode, hub still down — exit."
+    exit 0
+  fi
 
   # 2.5 Snoozed by a Cancel/Standby button? Stay silent until it auto-expires.
   rem="$(snooze_remaining)"

@@ -86,14 +86,29 @@ for repo in /mnt/archie_brain /mnt/archie_brain/kytran-business-suite /mnt/archi
     fi
 done
 
-# ----- [4/4] Config tar (plaintext; Phase 2 Task 8 adds encryption) -----
-log "[4/4] Config tar..."
+# ----- [4/4] Config tar — AES-256-CBC encrypted (BACKUP_CONFIG_PASSPHRASE) -----
+# Decrypt: scripts/backup/decrypt_restore.sh <file>.enc BACKUP_CONFIG_PASSPHRASE
+log "[4/4] Config tar (encrypting with AES-256-CBC)..."
 tar --ignore-failed-read -czf "$RUN/config/config_${TS}.tar.gz" \
     -C /mnt/archie_brain \
     .env docker-compose.yml .mcp.json CLAUDE.md \
     .claude/rules nginx secrets 2>>"$LOG" || true
-SZ=$(stat -c %s "$RUN/config/config_${TS}.tar.gz" 2>/dev/null || echo 0)
-log "  config tar OK ($SZ bytes)"
+if [[ -n "${BACKUP_CONFIG_PASSPHRASE:-}" ]] && [[ -s "$RUN/config/config_${TS}.tar.gz" ]]; then
+    if openssl enc -aes-256-cbc -pbkdf2 -iter 200000 \
+        -in  "$RUN/config/config_${TS}.tar.gz" \
+        -out "$RUN/config/config_${TS}.tar.gz.enc" \
+        -pass env:BACKUP_CONFIG_PASSPHRASE 2>>"$LOG"; then
+        rm -f "$RUN/config/config_${TS}.tar.gz"
+        SZ=$(stat -c %s "$RUN/config/config_${TS}.tar.gz.enc" 2>/dev/null || echo 0)
+        log "  config tar encrypted OK ($SZ bytes, .tar.gz.enc)"
+    else
+        STATUS=failed; FAIL_REASON="${FAIL_REASON}; config encrypt failed"
+        log "  WARN: config tar encryption FAILED — plaintext tar kept (secrets exposed in backup)"
+    fi
+else
+    SZ=$(stat -c %s "$RUN/config/config_${TS}.tar.gz" 2>/dev/null || echo 0)
+    log "  WARN: BACKUP_CONFIG_PASSPHRASE not set — config tar is PLAINTEXT ($SZ bytes). Set it in .env."
+fi
 
 # ----- Copy to USB via docker exec (USB is root-owned) -----
 log "Copying to USB via docker exec archie_platform..."

@@ -34,6 +34,22 @@ REBUILD_KEYBOARD='[[{"text":"✅ Rebuild DB (complete failback)","callback_data"
 log "=== Phase 1 auto-repoint START ==="
 OUTAGE_MINS=$(( ($(date +%s) - $(stat -c %Y "$DR/.failed_over" 2>/dev/null || echo $(date +%s))) / 60 ))
 
+# ---- 0. STOP DR HEADSCALE FIRST — this MUST be the first action. ----
+# Running archie_headscale_dr simultaneously with hub's Headscale = split-brain:
+# two servers with identical keys give nodes contradictory routing info and they
+# cannot reconnect to the mesh even after the hub is back. Confirmed 2026-06-04:
+# mesh was down for 4+ hours because this container was still running.
+# Stop it unconditionally before touching anything else.
+log "0) Stopping Headscale DR (split-brain prevention — MUST run first)..."
+HS_DIR="$DR/headscale"
+if [ -f "$HS_DIR/docker-compose.headscale-dr.yml" ]; then
+  ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml down >/dev/null 2>&1 ) \
+    && log "  Headscale DR: stopped." \
+    || log "  WARN: Headscale DR stop failed — check manually (docker stop archie_headscale_dr)"
+else
+  docker stop archie_headscale_dr >/dev/null 2>&1 && log "  Headscale DR: stopped (direct)." || log "  (Headscale DR was not running)"
+fi
+
 # ---- 1. Global outposts → hub ----
 log "1) Repointing global outposts -> hub ($HUB_MESH)..."
 for node in root@100.64.0.5 root@100.64.0.7 root@100.64.0.8; do

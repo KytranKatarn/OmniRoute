@@ -1,0 +1,132 @@
+# Beacon front-door Caddyfile — Phase 3: all hub subdomains
+# Route: public DNS -> Beacon (2.25.170.252) -> Headscale mesh -> hub/boston-2
+#
+# (platform_backend) is the ONE line failover.sh flips hub<->boston-2 in DR:
+#   sed 's#reverse_proxy http://100.64.0.4:3000#reverse_proxy http://100.64.0.10:3000#'
+# All platform aliases use `import platform_backend` so one flip covers them all.
+#
+# EXCLUDED from Beacon (DNS stays at hub IP 173.182.133.96):
+#   mail, mail-admin, mta-sts  — SMTP/IMAP clients use the A record directly
+#   n8n, voice                 — no known running service; dead DNS entries
+#
+# Hub mesh IP: 100.64.0.4  |  DR (boston-2) mesh IP: 100.64.0.10
+
+(platform_backend) {
+	reverse_proxy http://100.64.0.4:3000
+}
+
+# ---------------------------------------------------------------------------
+# PLATFORM + ALIASES  (all -> archie_platform :3000; DR-flippable)
+# ---------------------------------------------------------------------------
+
+platform.kytranempowerment.com {
+	import platform_backend
+}
+
+api.kytranempowerment.com {
+	import platform_backend
+}
+
+bridge.kytranempowerment.com {
+	import platform_backend
+}
+
+consciousness.kytranempowerment.com {
+	import platform_backend
+}
+
+devhq.kytranempowerment.com {
+	import platform_backend
+}
+
+mediahub.kytranempowerment.com {
+	import platform_backend
+}
+
+# ---------------------------------------------------------------------------
+# HUB SERVICES  (hub-only; unavailable during hub outage)
+# ---------------------------------------------------------------------------
+
+archie.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:3002
+}
+
+claude.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:3002
+}
+
+business.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8091
+}
+
+shop.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8091
+}
+
+store.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8091
+}
+
+server.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8085
+}
+
+creed.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8086
+}
+
+media.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8105
+}
+
+mesh.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8095
+}
+
+nagios.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8082
+}
+
+plex.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:32400
+}
+
+jellyfin.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8096
+}
+
+sandbox.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:3003
+}
+
+proxy.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8098
+}
+
+terminal.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:7681
+}
+
+brainstorm.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:52000
+}
+
+adguard.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:5354
+}
+
+# ---------------------------------------------------------------------------
+# MAIL-ADJACENT WEB UIs  (SMTP/IMAP ports stay at hub IP; web-only here)
+# ---------------------------------------------------------------------------
+
+webmail.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8880
+}
+
+# ---------------------------------------------------------------------------
+# TEST (keep for smoke-testing the front-door)
+# ---------------------------------------------------------------------------
+
+fdtest.kytranempowerment.com {
+	import platform_backend
+}

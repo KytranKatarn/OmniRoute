@@ -6193,6 +6193,30 @@ class DepartmentDispatcher:
                 error=f"Blocked: routing_mode=local_cloud, model={model} is paid external",
             )
 
+        # 3c-fix (#3665): escalation_mode=local_only also blocks explicit :cloud
+        # model_override — without this check, callers that pass model_override=:cloud
+        # bypass _try_cloud_escalation (which has the escalation_mode guard) entirely.
+        if is_cloud and model_override:
+            _escalation_mode = self._get_escalation_mode()
+            if _escalation_mode == "local_only":
+                logger.warning(
+                    "[BridgeDispatcher] Blocked by escalation_mode=local_only "
+                    "(explicit cloud override): model='%s' cap='%s' module='%s'",
+                    model,
+                    capability,
+                    module_id,
+                )
+                return DispatchResult(
+                    success=False,
+                    response="",
+                    agent_name=agent_name,
+                    agent_id=agent.get("id"),
+                    model_used=model,
+                    department=dispatch_department,
+                    capability=capability,
+                    error=f"Blocked: escalation_mode=local_only, model_override={model_override} is cloud",
+                )
+
         # 3d. Throughput escalation — if agent is busy, try cloud contractors
         # Exclude the caller's own job_id so a batch operation doesn't
         # escalate its own sub-dispatches to cloud.

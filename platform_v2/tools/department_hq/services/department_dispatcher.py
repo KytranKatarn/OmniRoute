@@ -5504,8 +5504,8 @@ class DepartmentDispatcher:
                                     department=dispatch_department,
                                     capability=capability,
                                     duration_ms=_pn_dur,
-                                    prompt_tokens=_pn_res.get("prompt_tokens", 0),
-                                    completion_tokens=_pn_res.get("completion_tokens", 0),
+                                    prompt_tokens=_pn_res.get("prompt_tokens", _pn_res.get("prompt_eval_count", 0)),
+                                    completion_tokens=_pn_res.get("completion_tokens", _pn_res.get("eval_count", 0)),
                                     provider="fleet_node",
                                     metadata={
                                         "escalation": "preferred_node",
@@ -5579,8 +5579,8 @@ class DepartmentDispatcher:
                             department=dispatch_department,
                             capability=capability,
                             duration_ms=_dur_ms,
-                            prompt_tokens=_fleet_res.get("prompt_tokens", 0),
-                            completion_tokens=_fleet_res.get("completion_tokens", 0),
+                            prompt_tokens=_fleet_res.get("prompt_tokens", _fleet_res.get("prompt_eval_count", 0)),
+                            completion_tokens=_fleet_res.get("completion_tokens", _fleet_res.get("eval_count", 0)),
                             provider="fleet_node",
                             metadata={
                                 "escalation": "node_preferred",
@@ -5662,8 +5662,8 @@ class DepartmentDispatcher:
                             department=dispatch_department,
                             capability=capability,
                             duration_ms=_wp_dur,
-                            prompt_tokens=_wp_res.get("prompt_tokens", 0),
-                            completion_tokens=_wp_res.get("completion_tokens", 0),
+                            prompt_tokens=_wp_res.get("prompt_tokens", _wp_res.get("prompt_eval_count", 0)),
+                            completion_tokens=_wp_res.get("completion_tokens", _wp_res.get("eval_count", 0)),
                             provider="fleet_node",
                             metadata={
                                 "escalation": "score_routed",

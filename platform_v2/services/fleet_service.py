@@ -330,8 +330,16 @@ def get_fleet_map_data():
                 "node_id": node_id,
                 "name": n.get("node_name", "Unknown"),
                 "hostname": n.get("hostname", ""),
-                "lat": float(n["latitude"]) if n.get("latitude") else None,
-                "lon": float(n["longitude"]) if n.get("longitude") else None,
+                "lat": (
+                    float(n["latitude"])
+                    if n.get("latitude")
+                    else (float(caps["geo_lat"]) if caps.get("geo_lat") else None)
+                ),
+                "lon": (
+                    float(n["longitude"])
+                    if n.get("longitude")
+                    else (float(caps["geo_lon"]) if caps.get("geo_lon") else None)
+                ),
                 "status": n.get("status", "unknown"),
                 "gpu": n.get("gpu_model", ""),
                 "gpu_vram_gb": n.get("gpu_vram_gb"),

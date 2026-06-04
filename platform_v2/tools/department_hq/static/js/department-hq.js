@@ -3592,9 +3592,10 @@ function switchArmadaSection(s) {
         setTimeout(function() { if (fleetMap) fleetMap.invalidateSize(); }, 50);
     }
 
-    // CLUSTER: refresh live data
+    // CLUSTER: refresh live data + world map
     if (s === 'cluster') {
         loadQueueStatus(); loadClusterActivity(); loadClusterStats(); loadWtfAgentStatus();
+        loadClusterMap();
     }
 
     // ORCHESTRATION: move cluster-orchestration-panel into its section on first open
@@ -3622,6 +3623,7 @@ function loadFleet() {
         loadProviderManagement();
         loadQueueStatus();
         loadClusterActivity();
+        loadClusterMap();
         loadDispatchComponents();
         loadDispatchMode();
         if (typeof window.ahFetch === 'function') window.ahFetch(true);
@@ -3818,6 +3820,8 @@ function loadClusterActivity() {
 
             var totalActive = 0;
             grid.innerHTML = '';
+            grid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+            var allCards = [];
             Object.keys(nodeMap).forEach(function(nid) {
                 var n = nodeMap[nid];
                 var nodeName = n.node_name || n.name || nid;
@@ -3917,8 +3921,34 @@ function loadClusterActivity() {
                 }
 
                 card.innerHTML = header + counts + throughputLine + taskList + rosterHtml;
-                grid.appendChild(card);
+                allCards.push(card);
             });
+
+            // Render with fold-at-5: show first 5, "+N more" button if total > 5
+            var FOLD_LIMIT = 5;
+            allCards.forEach(function(c, i) {
+                if (i >= FOLD_LIMIT) c.style.display = 'none';
+                grid.appendChild(c);
+            });
+            var existingToggle = document.getElementById('clusterGridFoldBtn');
+            if (existingToggle) existingToggle.remove();
+            if (allCards.length > FOLD_LIMIT) {
+                var hidden = allCards.length - FOLD_LIMIT;
+                var toggleBtn = document.createElement('button');
+                toggleBtn.id = 'clusterGridFoldBtn';
+                toggleBtn.style.cssText = 'grid-column:1/-1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.15);color:var(--dhq-text-dim);border-radius:4px;padding:5px 12px;font-size:0.68rem;cursor:pointer;letter-spacing:1px;font-family:"IBM Plex Mono",monospace;';
+                var _folded = true;
+                function updateToggleLabel() {
+                    toggleBtn.textContent = _folded ? ('+ ' + hidden + ' MORE') : '▲ SHOW LESS';
+                }
+                updateToggleLabel();
+                toggleBtn.onclick = function() {
+                    _folded = !_folded;
+                    allCards.forEach(function(c, i) { if (i >= FOLD_LIMIT) c.style.display = _folded ? 'none' : ''; });
+                    updateToggleLabel();
+                };
+                grid.appendChild(toggleBtn);
+            }
 
             if (badge) {
                 while (badge.firstChild) badge.removeChild(badge.firstChild);
@@ -4194,6 +4224,68 @@ function initFleetMap() {
 }
 
 var fleetFpsRafId = null;
+/* ── Cluster World Map (#3230) ────────────────────────────────────────── */
+var _clusterGeoMap = null;
+var _clusterGeoMarkers = [];
+
+function loadClusterMap() {
+    var el = document.getElementById('clusterGeoMap');
+    if (!el) return;
+    if (!_clusterGeoMap) {
+        _clusterGeoMap = L.map('clusterGeoMap', {
+            center: [30, 10], zoom: 2,
+            zoomControl: true, attributionControl: false
+        });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 8
+        }).addTo(_clusterGeoMap);
+    }
+    _clusterGeoMarkers.forEach(function(m) { _clusterGeoMap.removeLayer(m); });
+    _clusterGeoMarkers = [];
+    fetch('/tools/department-hq/api/fleet-map')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var colorMap = {
+                'starbase': '#f5a623', 'starship': '#00ffff',
+                'outpost': '#a855f7', 'starbase_outpost': '#a855f7',
+                'satellite': '#3b82f6', 'citadel': '#f5a623'
+            };
+            var bounds = [];
+            var allNodes = (d.nodes || []);
+            if (d.hub && d.hub.lat && d.hub.lon) allNodes = [{
+                node_id: 'hub', name: d.hub.name || 'Hub',
+                lat: d.hub.lat, lon: d.hub.lon,
+                status: d.hub.status || 'online', deployment_mode: 'starbase',
+                location_city: d.hub.city || 'Montreal'
+            }].concat(allNodes);
+            allNodes.forEach(function(n) {
+                var lat = parseFloat(n.lat), lon = parseFloat(n.lon);
+                if (!lat || !lon || isNaN(lat) || isNaN(lon)) return;
+                var mode = n.deployment_mode || 'outpost';
+                var color = colorMap[mode] || '#888';
+                var online = (n.status || '').toLowerCase() === 'online';
+                var c = L.circleMarker([lat, lon], {
+                    radius: 7, fillColor: color, fillOpacity: online ? 0.85 : 0.3,
+                    color: color, weight: 2, opacity: online ? 1 : 0.4
+                }).addTo(_clusterGeoMap);
+                var label = n.name || n.node_id || '';
+                var city = n.location_city || '';
+                c.bindPopup(
+                    '<b style="color:' + color + ';">' + label + '</b>' +
+                    (city ? '<br><span style="color:#888;">' + city + '</span>' : '') +
+                    '<br>' + (online
+                        ? '<span style="color:#10b981;">online</span>'
+                        : '<span style="color:#555;">offline</span>')
+                );
+                _clusterGeoMarkers.push(c);
+                if (online) bounds.push([lat, lon]);
+            });
+            if (bounds.length >= 2) _clusterGeoMap.fitBounds(bounds, { padding: [30, 30] });
+            else if (_clusterGeoMarkers.length === 1 && bounds.length === 1) _clusterGeoMap.setView(bounds[0], 4);
+            setTimeout(function() { _clusterGeoMap.invalidateSize(); }, 50);
+        });
+}
+
 function _initFleetFpsOverlay() {
     var mapEl = document.getElementById('fleetMap');
     if (!mapEl || mapEl.querySelector('.fleet-fps-overlay')) return;

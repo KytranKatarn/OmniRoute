@@ -104,6 +104,19 @@ if [ -f "$FLEET_KEY" ]; then
 else
   log "  WARN: $FLEET_KEY missing — cannot repoint fleet (stage the DR key; DR plan 5b)."
 fi
+# Starship nodes (Windows, Famil@ SSH via mesh; firewall rule added 2026-06-04;
+# DR_HUB_URL=100.64.0.10:3000 baked in compose). Force-recreate sync container
+# so node_sync immediately reads DR_HUB_URL instead of waiting 2.5 min.
+if [ -f "$FLEET_KEY" ]; then
+  for starship_mesh in "100.64.0.3" "100.64.0.6"; do
+    if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "Famil@$starship_mesh" \
+         "docker compose -f C:\\archie-node\\docker-compose.yml up -d --force-recreate --no-deps sync" >/dev/null 2>&1; then
+      log "  Starship $starship_mesh: node_sync restarted (DR_HUB_URL=boston-2 active)"
+    else
+      log "  WARN: Starship $starship_mesh unreachable — self-healing fires in ~2.5 min"
+    fi
+  done
+fi
 
 # ---- 4b. WTF: repoint its DB to boston-2 so it keeps SERVING + SAVING in DR ----
 # WTF's data is the hub `wtf` DATABASE (NOT the empty archie.wtf schema — KB #270304),

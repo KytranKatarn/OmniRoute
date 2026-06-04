@@ -22,6 +22,20 @@ tests:
       json_contains:
         status: "ok"
 
+  # --- ingest freshness: /api/health computes ingest_fresh=false if nothing has
+  # been ingested within INGEST_FRESH_DAYS (default 3). Catches a SILENTLY-STALLED
+  # ingest that data-nonempty would miss (old rows still served). Critical. ---
+  - name: "ingest-fresh"
+    type: api
+    method: GET
+    path: /api/health
+    skip_auth: true
+    critical: true
+    expect:
+      status: [200]
+      json_contains:
+        ingest_fresh: true
+
   # --- data-nonempty: proactive disclosures wrap data in {ok, records} — assert
   # the nested list is non-empty via expect.path (35k+ records in the DB). ---
   - name: "proactive-recent-nonempty"

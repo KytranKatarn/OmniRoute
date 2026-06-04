@@ -35,10 +35,6 @@ consciousness.kytranempowerment.com {
 	import platform_backend
 }
 
-devhq.kytranempowerment.com {
-	import platform_backend
-}
-
 mediahub.kytranempowerment.com {
 	import platform_backend
 }

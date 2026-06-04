@@ -351,6 +351,26 @@
 
 <div style="max-width:1100px;margin:0 auto;padding:0 16px 24px;">
 
+  {% if creed_scan %}
+  <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+    <span style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;">C.R.E.E.D. Governance</span>
+    <span style="color:#a78bfa;font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
+    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
+    <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:#a78bfa;">{{ creed_scan.overall }}%</strong></span>
+    {% if creed_scan.event_count %}
+    <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
+    <span style="color:#6b7280;font-size:0.65rem;">{{ creed_scan.event_count }} events tracked</span>
+    {% endif %}
+    {% if creed_scan.by_category %}
+    <span style="color:#6b7280;font-size:0.65rem;margin-left:auto;">
+      {% for cat, score in creed_scan.by_category.items() %}
+      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ score }}%</span></span>
+      {% endfor %}
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
+
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
     <div style="color:#6b7280;font-size:0.65rem;letter-spacing:2px;text-transform:uppercase;">
       {{ total }} events &middot; page {{ page }} / {{ total_pages }}

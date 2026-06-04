@@ -1,0 +1,10 @@
+# DR secret files — staged ONLY on the DR node (boston-2:/opt/archie-dr/), mode 600.
+# NEVER commit these. The scripts read them at runtime (cat / source).
+.hostinger_token
+.telegram_env
+.replpw
+.env
+# operational/runtime artifacts
+*.bak*
+.watchdog_disabled
+.ssh/

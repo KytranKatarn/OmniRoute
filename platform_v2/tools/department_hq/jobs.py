@@ -2189,6 +2189,66 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered kin_workload_monitor job (every 5 min)")
 
+    # Job: Telegram low-priority DIGEST (KB #270619). Low-priority Telegrams (info/sync)
+    # are capped at 1/day by the anti-flood throttle and otherwise DROPPED — ~35/day were
+    # being silently lost. Instead of losing them, this batches the throttled low-priority
+    # messages since the last successful digest into ONE morning Telegram (sent with
+    # force=True to bypass the throttle and _privileged=True as A.R.C.H.I.E.'s own voice),
+    # so nothing important vanishes but there is still no flood.
+    # -------------------------------------------------------------------------
+    def _run_telegram_low_priority_digest():
+        try:
+            from database import get_db_cursor
+            from services.telegram_service import send as _tg_send
+
+            with get_db_cursor() as (_, _dcur):
+                _dcur.execute(
+                    """SELECT MAX(created_at) AS last FROM telegram_message_log
+                       WHERE source_module = 'telegram_digest' AND status = 'sent'"""
+                )
+                _lr = _dcur.fetchone()
+                _since = _lr["last"] if _lr and _lr["last"] else None
+                _dcur.execute(
+                    """SELECT title, source_agent, source_department
+                       FROM telegram_message_log
+                       WHERE status = 'throttled' AND priority = 'low'
+                         AND created_at > COALESCE(%s, NOW() - INTERVAL '24 hours')
+                       ORDER BY created_at DESC LIMIT 40""",
+                    (_since,),
+                )
+                _rows = _dcur.fetchall() or []
+            if not _rows:
+                logger.debug("[telegram_digest] no suppressed low-priority messages")
+                return
+            _lines = [f"{len(_rows)} low-priority update(s) were suppressed (anti-flood):", ""]
+            for _r in _rows[:30]:
+                _who = _r["source_agent"] or _r["source_department"] or "system"
+                _lines.append(f"• {_r['title']} — {_who}")
+            if len(_rows) > 30:
+                _lines.append(f"… and {len(_rows) - 30} more")
+            _tg_send(
+                "info",
+                "📋 Daily Digest",
+                "\n".join(_lines),
+                source_agent="A.R.C.H.I.E.",
+                source_department="Executive Office",
+                source_module="telegram_digest",
+                force=True,
+                _privileged=True,
+            )
+            logger.info("[telegram_digest] sent digest of %d suppressed messages", len(_rows))
+        except Exception as _dexc:
+            logger.warning("[telegram_digest] failed: %s", _dexc)
+
+    scheduler.add_job(
+        with_ctx(_run_telegram_low_priority_digest),
+        trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
+        id="telegram_low_priority_digest",
+        name="Telegram: daily digest of suppressed low-priority messages (08:00 ET)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered telegram_low_priority_digest job (daily 08:00 ET)")
+
     # Job #124: Fleet Agent Sync — activate/deactivate node_agents on node state change
     # Runs every 3 min. Lightweight complement to K.I.N. planning (4h).
     # When a node comes online or a new node registers, agents become active within 3min

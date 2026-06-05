@@ -1,7 +1,9 @@
-"""
-DOC Routes - Medical AI Assistant
-Phase 7: Standalone Apps - Uses archie_bridge for local-first AI with team agents
-Updated: 2026-01-21 - Now uses Dr. Amara (Medical Advisor) via archie_bridge
+"""Flask routes for the DOC medical assistant tool.
+
+This module serves the DOC web UI and API endpoints for health status,
+medical-assistant chat, symptom logging and analysis, model metadata, and
+user health data. AI responses are routed through the department dispatcher
+and must remain educational rather than diagnostic.
 """
 
 from flask import render_template, jsonify, request

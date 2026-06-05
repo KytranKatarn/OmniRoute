@@ -74,7 +74,13 @@ def register_work_routes(bp, admin_required):
                            COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '1 hour')  AS dispatches_1h,
                            COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '24 hours') AS dispatches_24h,
                            COUNT(*) FILTER (WHERE tel.created_at > COALESCE(ab.last_task_reset_at, NOW() - INTERVAL '24 hours'))
-                               AS dispatches_since_reset
+                               AS dispatches_since_reset,
+                           -- COORD-2 (KB #270619): real token load alongside dispatch count,
+                           -- so WELFARE/WORKLOAD shows the same token signal as ARMADA.
+                           COALESCE(SUM(tel.tokens_used) FILTER (WHERE tel.created_at > NOW() - INTERVAL '1 hour'), 0)
+                               AS tokens_1h,
+                           COALESCE(SUM(tel.tokens_used) FILTER (WHERE tel.created_at > NOW() - INTERVAL '24 hours'), 0)
+                               AS tokens_24h
                     FROM task_execution_log tel
                     LEFT JOIN agents a ON a.name = tel.agent_name
                     LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
@@ -200,6 +206,8 @@ def register_work_routes(bp, admin_required):
                     "dispatches_1h": d1h,
                     "dispatches_24h": d24h,
                     "dispatches_since_reset": d_reset,
+                    "tokens_1h": int(vel.get("tokens_1h") or 0),
+                    "tokens_24h": int(vel.get("tokens_24h") or 0),
                     "hours_to_limit": hours_to_limit,
                     "hours_worked_today": hours_worked_today,
                     "overwork_level": overwork_level,
@@ -363,28 +371,21 @@ def register_work_routes(bp, admin_required):
                 )
                 metrics = cur.fetchall()
 
-                # Live counts from bridge_jobs (last 7 days)
-                # Excludes restart-orphaned jobs (reap_reason='orphaned — platform restarted')
-                # so failure rates reflect real dispatch failures, not restart casualties.
+                # Live counts from task_execution_log (last 7 days). COORD-3 (KB #270619):
+                # was bridge_jobs (partial table → ~53% success), which diverged from the
+                # ARMADA tab that reads task_execution_log (~100%). Same source now, so the
+                # K.I.N. PERFORMANCE numbers match ARMADA, plus real token volume.
                 cur.execute(
                     """
                     SELECT a.department,
                            COUNT(*) AS total_jobs,
-                           COUNT(*) FILTER (WHERE bj.status = 'completed') AS completed,
-                           COUNT(*) FILTER (
-                               WHERE bj.status = 'failed'
-                               AND (bj.metadata->>'reap_reason' IS NULL
-                                    OR bj.metadata->>'reap_reason' NOT LIKE '%%platform restarted%%')
-                           ) AS failed,
-                           COUNT(*) FILTER (
-                               WHERE bj.status = 'failed'
-                               AND bj.metadata->>'reap_reason' LIKE '%%platform restarted%%'
-                           ) AS orphaned,
-                           AVG(EXTRACT(EPOCH FROM (bj.completed_at - bj.created_at)) * 1000)
-                               FILTER (WHERE bj.status = 'completed') AS avg_ms
-                    FROM bridge_jobs bj
-                    JOIN agents a ON a.name = bj.agent_name
-                    WHERE bj.created_at >= NOW() - INTERVAL '7 days'
+                           COUNT(*) FILTER (WHERE tel.success) AS completed,
+                           COUNT(*) FILTER (WHERE NOT tel.success) AS failed,
+                           COALESCE(SUM(tel.tokens_used), 0) AS tokens,
+                           AVG(tel.duration_ms) FILTER (WHERE tel.success) AS avg_ms
+                    FROM task_execution_log tel
+                    JOIN agents a ON a.name = tel.agent_name
+                    WHERE tel.created_at >= NOW() - INTERVAL '7 days'
                       AND a.department IS NOT NULL
                     GROUP BY a.department
                 """
@@ -401,6 +402,7 @@ def register_work_routes(bp, admin_required):
                 entry["live_jobs_7d"] = live.get("total_jobs", 0)
                 entry["live_completed_7d"] = live.get("completed", 0)
                 entry["live_failed_7d"] = live.get("failed", 0)
+                entry["live_tokens_7d"] = int(live.get("tokens") or 0)
                 entry["live_avg_ms_7d"] = round(live.get("avg_ms") or 0, 1)
                 result.append(entry)
 
@@ -436,15 +438,16 @@ def register_work_routes(bp, admin_required):
                 # Agent breakdown for this department (last 7 days)
                 cur.execute(
                     """
+                    -- COORD-3 (KB #270619): task_execution_log (matches ARMADA), was bridge_jobs.
                     SELECT a.id, a.name, a.display_name, a.shift_state, a.is_department_ai,
-                           COUNT(bj.id) AS total_jobs,
-                           COUNT(bj.id) FILTER (WHERE bj.status = 'completed') AS completed,
-                           COUNT(bj.id) FILTER (WHERE bj.status = 'failed') AS failed,
-                           AVG(EXTRACT(EPOCH FROM (bj.completed_at - bj.created_at)) * 1000)
-                               FILTER (WHERE bj.completed_at IS NOT NULL) AS avg_ms
+                           COUNT(tel.id) AS total_jobs,
+                           COUNT(tel.id) FILTER (WHERE tel.success) AS completed,
+                           COUNT(tel.id) FILTER (WHERE NOT tel.success) AS failed,
+                           COALESCE(SUM(tel.tokens_used), 0) AS tokens,
+                           AVG(tel.duration_ms) FILTER (WHERE tel.success) AS avg_ms
                     FROM agents a
-                    LEFT JOIN bridge_jobs bj ON bj.agent_name = a.name
-                        AND bj.created_at >= NOW() - INTERVAL '7 days'
+                    LEFT JOIN task_execution_log tel ON tel.agent_name = a.name
+                        AND tel.created_at >= NOW() - INTERVAL '7 days'
                     WHERE a.department = %s
                     GROUP BY a.id, a.name, a.display_name, a.shift_state, a.is_department_ai
                     ORDER BY a.is_department_ai DESC, total_jobs DESC
@@ -457,7 +460,10 @@ def register_work_routes(bp, admin_required):
                 {
                     "department": department,
                     "history": [dict(h) for h in history],
-                    "agents": [{**dict(a), "avg_ms": round(a["avg_ms"] or 0, 1)} for a in agents],
+                    "agents": [
+                        {**dict(a), "avg_ms": round(a["avg_ms"] or 0, 1), "tokens": int(a["tokens"] or 0)}
+                        for a in agents
+                    ],
                 }
             )
         except Exception as e:

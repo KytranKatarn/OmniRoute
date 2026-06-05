@@ -759,6 +759,7 @@ async function loadKinWelfare() {
                 + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">'
                 + (a.dispatches_since_reset || 0) + '/' + (a.task_limit || 1000) + ' dispatched'
                 + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + '/h</span>' : '')
+                + (a.tokens_24h ? ' · <span style="color:#a78bfa;">' + _dhqFmtTok(a.tokens_24h) + ' tok/24h</span>' : '')
                 + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
                 + '</div>'
                 + (a.rest_since
@@ -995,6 +996,10 @@ async function loadWorkSessions() {
                 + '<div style="font-size:0.85rem;font-weight:600;color:var(--dhq-text-main);">' + (s.jobs_completed + s.jobs_failed).toLocaleString() + '</div>'
                 + '<div style="font-size:0.65rem;color:var(--dhq-text-dim);">dispatches</div>'
                 + '</div>'
+                + '<div style="text-align:center;">'
+                + '<div style="font-size:0.85rem;font-weight:600;color:#a78bfa;">' + _dhqFmtTok(s.tokens_used) + '</div>'
+                + '<div style="font-size:0.65rem;color:var(--dhq-text-dim);">tokens</div>'
+                + '</div>'
                 + '<div style="text-align:right;font-size:0.72rem;">'
                 + '<div style="color:var(--dhq-text-dim);">' + avgSec + ' avg</div>'
                 + '<div style="color:var(--dhq-text-dim);font-size:0.65rem;">active ' + lastActive + '</div>'
@@ -1011,6 +1016,15 @@ async function loadWorkSessions() {
 // ───────────────────────────────────────────────────────────────
 // Performance
 // ───────────────────────────────────────────────────────────────
+
+// Compact token formatter (1.1M / 125k / 940) — COORD-5, so K.I.N. WELFARE/PERFORMANCE
+// show the same token signal as the ARMADA tab.
+function _dhqFmtTok(n) {
+    n = Number(n) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return Math.round(n / 1e3) + 'k';
+    return String(n);
+}
 
 async function loadPerformance() {
     var el = document.getElementById('perfContent');
@@ -1039,6 +1053,7 @@ async function loadPerformance() {
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val' + rateClass + '">' + completed + '</span><span class="dhq-perf-metric-label">Completed</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val' + failClass + '">' + failed + '</span><span class="dhq-perf-metric-label">Failed</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.live_avg_ms_7d || m.avg_response_ms || '\u2014') + '</span><span class="dhq-perf-metric-label">Avg ms</span></div>'
+                + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val" style="color:#a78bfa;">' + _dhqFmtTok(m.live_tokens_7d) + '</span><span class="dhq-perf-metric-label">Tokens (7d)</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.sessions_completed || 0) + '</span><span class="dhq-perf-metric-label">Sessions</span></div>'
                 + '<div class="dhq-perf-metric"><span class="dhq-perf-metric-val">' + (m.creed_score != null ? m.creed_score : '\u2014') + '</span><span class="dhq-perf-metric-label">C.R.E.E.D.</span></div>'
                 + '</div></div>';

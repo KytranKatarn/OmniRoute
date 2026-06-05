@@ -1,0 +1,29 @@
+# Codex CLI agent config (Phase A). See .claude/plans/codex-cli-integration-design.md
+codex:
+  model: "gpt-5-codex"            # set to the model your `codex` CLI exposes; informational for telemetry
+  auth_mode: "chatgpt_signin"     # phase A; phase B may use api_key
+  max_concurrent: 1
+  max_runtime_sec: 1800           # 30 min hard cap per task
+  max_files_changed: 25
+  allowed_paths:
+    - "platform_v2/tools/fitness/"
+    - "platform_v2/tools/therapy/"
+    - "platform_v2/tools/doc/"
+    - "platform_v2/tools/family_tree/"
+    - "platform_v2/tools/media_studio/"
+    - "platform_v2/tools/game_studio/"
+    - "platform_v2/tools/media_hub/"
+    - "platform_v2/tests/"
+  blocked_globs:                  # always denied even if under an allowed path
+    - "*.env"
+    - ".env*"
+    - "docker-compose*"
+    - "scripts/dr/*"
+    - ".github/*"
+  preflight:
+    - "git status --porcelain"    # must be empty in the fresh worktree
+  postflight:
+    - "git diff --check"          # whitespace / conflict markers
+    - "pre-commit run --files {changed}"
+  # secrets stripped from Codex's env (allowlist is the default; this list is documentation)
+  env_allowlist: ["HOME", "PATH", "TERM", "LANG", "CODEX_HOME"]

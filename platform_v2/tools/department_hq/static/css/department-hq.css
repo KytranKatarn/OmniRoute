@@ -670,6 +670,18 @@
 .dhq-roster-row { cursor: pointer; transition: background 0.15s; }
 .dhq-roster-row:hover { background: rgba(0, 229, 255, 0.06); }
 
+/* ── Fleet world map z-index containment ──
+   Leaflet's panes/controls default to z-index 400–1000, which overpowers the
+   sticky LCARS header (z-index 100) and renders the map OVER the nav bar on
+   scroll. Make each map container its own stacking context so all Leaflet
+   children stay confined below the header. (No !important — scoped to the maps.) */
+#fleetMapContainer,
+#clusterGeoMap {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+}
+
 /* ── Agent Detail Modal (LCARS) ── */
 #agentDetailOverlay {
     position: fixed;

@@ -2204,7 +2204,15 @@ def _attempt_re_registration(config):
     """
     Attempt to re-register with the hub using our existing node_id.
     Returns True on success.
+
+    IDENTITY GUARD (FIX3): never adopt a node_id from the hub that DIFFERS from our
+    env-locked / established identity. A DR re-registration storm (2026-06-04) once let
+    the hub hand back a fresh 'pending' node_id which the node persisted to disk,
+    abandoning its real approved identity and taking 7 of 9 fleet nodes offline. Key
+    rotation is fine (it doesn't change who we are); a changed node_id is not.
     """
+    locked_id = config.get("node_id") or os.environ.get("NODE_ID") or ""
+    id_locked = bool(os.environ.get("NODE_ID")) or bool(config.get("node_id"))
     url = f"{config['hub_url']}/tools/department-hq/api/nodes/register"
     payload = {
         "node_id": config["node_id"],
@@ -2220,10 +2228,21 @@ def _attempt_re_registration(config):
         logger.info("Re-registration successful: %s", resp)
         # Update config with any new values from hub
         if isinstance(resp, dict):
+            new_id = resp.get("node_id")
+            if new_id and new_id != locked_id:
+                if id_locked:
+                    logger.error(
+                        "Hub returned a DIFFERENT node_id (%s) but our identity is "
+                        "locked to %s — REFUSING to adopt it; keeping our identity.",
+                        new_id,
+                        locked_id,
+                    )
+                else:
+                    # Only a node that has never been enrolled may take a new id.
+                    config["node_id"] = new_id
+            # Key rotation is safe — identity (node_id) is preserved above.
             if resp.get("api_key"):
                 config["hub_api_key"] = resp["api_key"]
-            if resp.get("node_id"):
-                config["node_id"] = resp["node_id"]
             write_config(config)
         return True
     else:
@@ -2280,18 +2299,19 @@ def _heartbeat_thread(config):
                 _handle_heartbeat_failure(
                     config, heartbeat_failures, base_interval
                 )
-                if 3 <= heartbeat_failures < 10:
-                    current_interval = base_interval * 2
-                elif heartbeat_failures >= 10:
-                    logger.info(
-                        "[heartbeat-thread] Failure cycle reset after %d",
-                        heartbeat_failures,
-                    )
-                    heartbeat_failures = 0
-                    current_interval = base_interval
+                # FIX4: capped exponential backoff; NEVER reset the counter on a
+                # continued failure. The old strike-10 reset re-armed re-registration
+                # every ~10 failures, turning a one-shot blip into a perpetual storm.
+                current_interval = min(
+                    base_interval * (2 ** min(heartbeat_failures, 5)), 600
+                )
         except Exception as exc:
             logger.error("[heartbeat-thread] Error: %s", exc)
             heartbeat_failures += 1
+            _handle_heartbeat_failure(config, heartbeat_failures, base_interval)
+            current_interval = min(
+                base_interval * (2 ** min(heartbeat_failures, 5)), 600
+            )
 
         # Wait for next heartbeat or shutdown signal
         _shutdown_event.wait(timeout=current_interval)
@@ -2389,29 +2409,47 @@ def _maybe_dr_failover(config):
 
 
 def _handle_heartbeat_failure(config, failure_count, base_interval):
-    """Handle heartbeat failure with escalating recovery actions."""
+    """Handle heartbeat failure with escalating recovery actions.
+
+    FIX4: the caller applies capped exponential backoff and does NOT reset the
+    failure counter, so this is driven by a monotonically rising count.
+    FIX3: an ESTABLISHED node never re-registers (that path orphaned the fleet on
+    2026-06-04). It backs off, and — if a DR hub is configured — fails over to it
+    (which preserves identity). Re-registration is reserved for a node that has
+    never been enrolled.
+    """
     if failure_count == 3:
         logger.warning(
-            "Heartbeat failed %d consecutive times — doubling interval to %ds",
+            "Heartbeat failed %d consecutive times — backing off",
             failure_count,
-            base_interval * 2,
         )
-    elif failure_count == 5:
-        # Primary hub looks dead — try DR failover first, then (re)register
-        # against whichever hub is now active.
+
+    # DR failover: attempt at strike 5, then retry every 5th failure while still
+    # down (decoupled from the old strike-10 reset so it keeps trying).
+    if failure_count >= 5 and failure_count % 5 == 0:
         if _maybe_dr_failover(config):
             logger.warning("[DR] Heartbeat now targeting DR hub %s", config["hub_url"])
+            return
+
+    # Re-registration is ONLY for a node that has never been enrolled. An
+    # established node (env NODE_ID or a persisted node_id) backs off instead —
+    # re-registering would let a transient blip orphan its approved identity.
+    if failure_count == 5:
+        established = bool(os.environ.get("NODE_ID")) or bool(config.get("node_id"))
+        if established:
+            logger.error(
+                "Heartbeat down %d consecutive times — identity is established "
+                "(%s); backing off, NOT re-registering.",
+                failure_count,
+                config.get("node_id"),
+            )
         else:
             logger.warning(
-                "Heartbeat failed %d consecutive times — attempting re-registration",
+                "Heartbeat failed %d consecutive times — attempting first-time "
+                "registration",
                 failure_count,
             )
-        _attempt_re_registration(config)
-    elif failure_count == 10:
-        logger.warning(
-            "Heartbeat failed %d consecutive times — resetting cycle",
-            failure_count,
-        )
+            _attempt_re_registration(config)
 
 
 if __name__ == "__main__":

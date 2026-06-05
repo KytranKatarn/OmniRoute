@@ -475,6 +475,23 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # FIX8 (DR remediation): fleet-identity watchdog. Alerts on mass-offline or
+        # duplicate-identity rows — the re-registration-storm signatures that ran
+        # SILENT for ~13h on 2026-06-04. Alert-only; toggle: work key
+        # 'fleet_identity_monitor'. See .claude/dr-postmortem-and-remediation.md.
+        try:
+            from services.fleet_identity_monitor import check_fleet_identity
+
+            self.scheduler.add_job(
+                with_app_context(check_fleet_identity),
+                trigger=IntervalTrigger(minutes=5),
+                id="fleet_identity_monitor",
+                name="Agent Loop: Fleet Identity Monitor (FIX8)",
+                replace_existing=True,
+            )
+        except Exception as _fim_err:
+            logger.warning("Fleet identity monitor not scheduled: %s", _fim_err)
+
         self.scheduler.add_job(
             with_app_context(self._generate_reports),
             trigger=IntervalTrigger(minutes=15),

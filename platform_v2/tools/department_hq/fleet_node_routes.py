@@ -1381,13 +1381,96 @@ def register_node_routes(bp, login_required, admin_required):
                 node_hostname = _ok_host(data.get("hostname")) or _ok_host(request.remote_addr)
                 network_type = detect_network_type(node_hostname)
 
+                # --- FIX1 (DR identity preservation): reclaim, don't recreate ---
+                # A re-registration from hardware the hub already knows MUST refresh the
+                # existing row and return its original identity — never mint a new pending
+                # node_id. Minting-on-re-register orphaned the entire fleet during the
+                # 2026-06-04 DR window (postmortem: .claude/dr-postmortem-and-remediation.md).
+                # Reclaim is gated on a VERIFYING api-key (authoritative). A node_id alone is
+                # NOT sufficient — it would let an unauthenticated caller refresh node state
+                # and probe approval/tier. A known node_id presented without a valid key is
+                # rejected below; genuinely-new hardware falls through to enrollment.
+                node_id_in = (data.get("node_id") or "").strip()
+                incoming_key = request.headers.get("X-Node-API-Key")
+                incoming_hash = hash_api_key(incoming_key) if incoming_key else None
+
+                existing = None
+                if incoming_hash:
+                    cur.execute(
+                        """SELECT id, node_id, approval_status, deployment_mode
+                           FROM remote_nodes WHERE api_key_hash = %s
+                           ORDER BY (approval_status = 'approved') DESC, id ASC
+                           LIMIT 1""",
+                        (incoming_hash,),
+                    )
+                    existing = cur.fetchone()
+
+                if existing is not None:
+                    cur.execute(
+                        """UPDATE remote_nodes
+                           SET last_heartbeat = NOW(),
+                               is_active = TRUE,
+                               hostname = COALESCE(%s, hostname),
+                               client_version = COALESCE(%s, client_version)
+                           WHERE id = %s
+                           RETURNING node_id, approval_status, deployment_mode""",
+                        (node_hostname, data.get("client_version"), existing["id"]),
+                    )
+                    row = cur.fetchone()
+                    conn.commit()
+                    logger.info(
+                        "Re-registration RECLAIM: node %s kept identity " "(status=%s, mode=%s) — no new row minted",
+                        row["node_id"],
+                        row["approval_status"],
+                        row["deployment_mode"],
+                    )
+                    return (
+                        jsonify(
+                            {
+                                "success": True,
+                                "node_id": row["node_id"],
+                                # api_key intentionally OMITTED — the node keeps its current
+                                # credential. We never rotate on reclaim, which avoids the
+                                # persist-race the old path used to lose identity to.
+                                "approval_status": row["approval_status"],
+                                "reclaimed": True,
+                                "config": {
+                                    "heartbeat_interval": 30,
+                                    "capability_interval": 300,
+                                    "log_level": "INFO",
+                                },
+                                "message": "Existing node identity reclaimed — keep current credentials.",
+                            }
+                        ),
+                        200,
+                    )
+                # A known node_id presented WITHOUT a verifying api-key must not reclaim,
+                # mutate state, or leak approval/tier — reject it. Genuinely-new hardware
+                # (no matching node_id) falls through to enrollment below.
+                if node_id_in:
+                    cur.execute(
+                        "SELECT 1 FROM remote_nodes WHERE node_id = %s LIMIT 1",
+                        (node_id_in,),
+                    )
+                    if cur.fetchone():
+                        return (
+                            jsonify(
+                                {
+                                    "success": False,
+                                    "error": "valid api key required to reclaim an existing node",
+                                }
+                            ),
+                            401,
+                        )
+                # --- end FIX1 reclaim; brand-new hardware falls through to enrollment ---
+
                 # Clean up stale duplicate registrations for this hostname
                 if node_hostname:
                     cur.execute(
                         """
                         DELETE FROM remote_nodes
                         WHERE hostname = %s
-                          AND status IN ('pending', 'offline')
+                          AND approval_status <> 'approved'
                           AND (last_heartbeat IS NULL OR last_heartbeat < NOW() - INTERVAL '24 hours')
                         """,
                         (node_hostname,),
@@ -1410,11 +1493,11 @@ def register_node_routes(bp, login_required, admin_required):
                         docker_available, docker_version, nvidia_docker, wsl_available,
                         foocus_port, comfyui_port, auto1111_port,
                         iaae_compliant, priority, weight, max_concurrent, tags,
-                        approval_status, network_type
+                        approval_status, network_type, deployment_mode
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     RETURNING id, node_id, node_name, approval_status
                 """,
@@ -1460,6 +1543,10 @@ def register_node_routes(bp, login_required, admin_required):
                         data.get("tags", []),
                         "pending",  # New nodes start as pending
                         network_type,
+                        # FIX1/RC5: set deployment_mode explicitly so a re-enrolling
+                        # outpost/starship keeps its tier instead of silently becoming
+                        # 'standard' (the DB column default).
+                        data.get("deployment_mode") or "standard",
                     ),
                 )
 
@@ -1808,11 +1895,19 @@ def register_node_routes(bp, login_required, admin_required):
         try:
             with get_db_cursor() as (conn, cur):
 
-                # Verify node and API key
+                # FIX2 (DR self-heal): fetch by node_id WITHOUT the approval filter, then
+                # verify the api-key, THEN branch on approval. The old query gated on
+                # approval_status='approved' and 404'd a non-approved node before checking
+                # its credentials — turning a transient blip into a permanent orphan with
+                # no recovery path (RC3). Now a credential-valid node that the hub has seen
+                # before (ever heartbeated, or has approved_at) auto-re-approves; a
+                # genuinely-new node gets a distinct 409 'pending' so the client backs off
+                # instead of re-registering into a fresh pending duplicate.
                 cur.execute(
                     """
-                    SELECT id, api_key_hash, min_required_version
-                    FROM remote_nodes WHERE node_id = %s AND is_active = TRUE AND approval_status = 'approved'
+                    SELECT id, api_key_hash, min_required_version,
+                           approval_status, approved_at, last_heartbeat
+                    FROM remote_nodes WHERE node_id = %s AND is_active = TRUE
                 """,
                     (node_id,),
                 )
@@ -1831,6 +1926,49 @@ def register_node_routes(bp, login_required, admin_required):
                         node["api_key_hash"][:12],
                     )
                     return jsonify({"success": False, "error": "Invalid API key"}), 401
+
+                # Credentials are valid. If the node is not approved but is ESTABLISHED
+                # hardware (it has heartbeated before, or carries an approved_at), self-heal
+                # by re-approving it — this is the path that recovers a node orphaned into
+                # 'pending' by the DR re-registration storm. A node that has NEVER heartbeated
+                # and has no approved_at is genuinely new → 409 (distinct from 404) so the
+                # client knows to wait for admin approval, not to re-register.
+                if node["approval_status"] != "approved":
+                    # Self-heal is ONLY for a node orphaned into 'pending' by the DR
+                    # re-registration storm. It must NEVER auto-promote a 'rejected' (admin-
+                    # denied) node — that would be an authorization bypass; admin denials
+                    # must stick. The recoverable signal is: status == 'pending' AND the node
+                    # was genuinely approved before (approved_at set; migration 418 backfilled
+                    # it for every real node). approved_at is used INSTEAD of last_heartbeat
+                    # because FIX1's reclaim can set last_heartbeat on a junk pending row,
+                    # which would otherwise let a junk identity auto-approve as 'standard'
+                    # (observed on node_7e518… / USS-246 during recovery).
+                    recoverable = node["approval_status"] == "pending" and node["approved_at"] is not None
+                    if recoverable:
+                        cur.execute(
+                            "UPDATE remote_nodes SET approval_status = 'approved', "
+                            "approved_at = COALESCE(approved_at, NOW()) WHERE id = %s",
+                            (node["id"],),
+                        )
+                        conn.commit()
+                        logger.warning(
+                            "Heartbeat SELF-HEAL: re-approved storm-orphaned node %s "
+                            "on valid credentials (was pending, approved_at preserved)",
+                            node_id,
+                        )
+                    else:
+                        # 'rejected' (denied) or a never-approved 'pending' node: stay
+                        # blocked. 409 (not 404) so the client backs off, never re-registers.
+                        return (
+                            jsonify(
+                                {
+                                    "success": False,
+                                    "error": "node not approved",
+                                    "approval_status": node["approval_status"],
+                                }
+                            ),
+                            409,
+                        )
 
                 # Version check
                 client_version = data.get("client_version", DEFAULT_CLIENT_VERSION)

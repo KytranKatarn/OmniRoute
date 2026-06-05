@@ -1339,6 +1339,68 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered dispatch_zombie_reaper job (every 15 min)")
 
+    # K.I.N. stuck-agent reaper (FIX-6 + FIX-8, review KB #270619). Two leaks left
+    # agents permanently idle: (RC2) 'deployed' is a terminal black-hole — an agent
+    # placed on a node that stays steadily ONLINE never returns, because the only exit
+    # fires on a node OFFLINE→ONLINE flip; and select_agent scores any non-active agent
+    # 0.0, so it is unselectable. (RC3) an agent the dispatcher/welfare gate drops to
+    # 'winding_down' gets NO rest cycle, so the rest-reaper (which only restores agents
+    # whose cycle it closed) never sees it. This job closes both: it returns to active
+    # any agent that is safe to wake — node placement in node_agents is PRESERVED, only
+    # shift_state flips so the agent is dispatchable again.
+    def _run_kin_stuck_agent_reaper():
+        from database import get_db_cursor as _ksr_db
+
+        try:
+            with _ksr_db(commit=True) as (_, _ksr_cur):
+                # FIX-6: 'deployed' agents idle for 20 min (no recent dispatch) → active.
+                _ksr_cur.execute(
+                    """
+                    UPDATE agents a SET shift_state='active', updated_at=NOW()
+                     WHERE a.worker_type='ai' AND a.shift_state='deployed' AND a.status='active'
+                       AND NOT EXISTS (SELECT 1 FROM task_execution_log tel
+                                        WHERE tel.agent_name=a.name
+                                          AND tel.created_at > NOW() - INTERVAL '20 minutes')
+                    RETURNING name
+                    """
+                )
+                freed_deployed = [r["name"] for r in _ksr_cur.fetchall() or []]
+                # FIX-8: 'winding_down'/'cooldown' with cleared welfare (latest stress < 0.70)
+                # and NO open rest cycle → active. Catches dispatcher-downed agents that the
+                # rest-reaper can't see because they never got a rest cycle.
+                _ksr_cur.execute(
+                    """
+                    UPDATE agents a SET shift_state='active', updated_at=NOW()
+                     WHERE a.worker_type='ai' AND a.shift_state IN ('winding_down','cooldown')
+                       AND a.status='active'
+                       AND COALESCE((SELECT stress_level FROM agent_emotional_state
+                                       WHERE agent_id=a.id ORDER BY timestamp DESC LIMIT 1),0) < 0.70
+                       AND NOT EXISTS (SELECT 1 FROM agent_rest_cycles rc
+                                        WHERE rc.agent_id=a.id AND rc.ended_at IS NULL)
+                    RETURNING name
+                    """
+                )
+                freed_wind = [r["name"] for r in _ksr_cur.fetchall() or []]
+                total = len(freed_deployed) + len(freed_wind)
+                if total:
+                    logger.info(
+                        "[DeptHQ] K.I.N. stuck-agent reaper: restored %d → active " "(deployed=%s, winding_down=%s)",
+                        total,
+                        freed_deployed,
+                        freed_wind,
+                    )
+        except Exception as exc:
+            logger.error("[DeptHQ] K.I.N. stuck-agent reaper failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_kin_stuck_agent_reaper),
+        trigger=CronTrigger(minute="*/5", timezone="America/Toronto"),
+        id="kin_stuck_agent_reaper",
+        name="K.I.N.: Reap stuck deployed/winding_down agents → active",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered kin_stuck_agent_reaper job (every 5 min)")
+
     # Job #124: Dispatch Backfill Worker — re-dispatch stuck queue items to backup agents
     # Runs every 5 min. Converts the dead-letter queue into active gap-filling:
     # items stuck >10 min are re-dispatched via the DHQ dispatcher (which now

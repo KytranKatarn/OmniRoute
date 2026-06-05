@@ -16,6 +16,19 @@ HUB_MESH=100.64.0.4
 FORCE="${1:-}"
 log(){ echo "[$(date -u +%H:%M:%S)] $*"; }
 
+# ---- FIX6 (DR remediation): guard against an ACCIDENTAL interactive failover ----
+# A wholesale failover flips PRODUCTION DNS + promotes the DR replica — never run
+# it by reflex. The Phase-7 watchdog and cron invoke this NON-interactively (no
+# TTY), so they pass straight through and the automation is unaffected. Only a
+# human typing the command at a terminal is stopped, and only until they opt in
+# explicitly. For a drill, promote the replica + start the standby by hand instead.
+if [ -t 0 ] && [ "$FORCE" != "--force" ] && [ "${DR_CONFIRM:-}" != "FAILOVER-NOW" ]; then
+  echo "REFUSING interactive wholesale failover — this flips PRODUCTION DNS and" >&2
+  echo "promotes the DR replica to primary." >&2
+  echo "  If you truly mean it:  DR_CONFIRM=FAILOVER-NOW $0   (or: $0 --force)" >&2
+  exit 3
+fi
+
 # ---- Telegram alert helper (shared, sourced — NOT in git: see tg_notify.sh) ----
 # tg_notify() now lives in $DR/tg_notify.sh so failover.sh AND the Phase 7
 # watchdog use ONE implementation (DRY). DR + log() are defined above, so the

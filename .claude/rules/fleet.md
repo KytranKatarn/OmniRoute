@@ -97,3 +97,33 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 - After OTA model pull: manually update `extra_capabilities.comfyui_models` JSONB for the node
 - Starship-246 SSH: `Famil@192.168.1.246` (different username than hub)
 - FLEET_RESOURCE_ROUTING_ENABLED env gates fleet resource routing enforcement
+
+## Fleet Identity Invariants (2026-06-05, PR #1464 — HARD RULES)
+
+A DR window orphaned 7/9 nodes via a re-registration storm. Postmortem:
+`.claude/dr-postmortem-and-remediation.md`. KB mistakes **#270611** (storm) + **#270617**
+(connection leak). These invariants are NON-NEGOTIABLE — violating them re-breaks the fleet.
+
+- **`remote_nodes` has BOTH `id` (int PK) and `node_id` (varchar, e.g. `'outpost_us_001'`).**
+  NEVER pass the int `id` to a `WHERE node_id = %s` query — the varchar→int cast errors,
+  aborts the txn, and (without a `finally` cleanup) leaks the connection → pool exhaustion →
+  hub 96% CPU → heartbeats time out → nodes flap. This id-vs-node_id confusion is a recurring trap.
+- **Re-registration is IDENTITY-DESTRUCTIVE — reclaim, never recreate.** The hub
+  (`register_node`) MUST refresh an existing row + return its ORIGINAL `node_id`/`approval_status`
+  on a **verifying api-key**; it must NEVER mint a fresh `pending` id for known hardware. A node_id
+  alone (no key) → 401. Set `deployment_mode` explicitly on INSERT (never the `'standard'` default —
+  a node showing `standard` is a junk/orphan row).
+- **Heartbeat self-heals ONLY from `'pending'`.** A credential-valid node orphaned into `pending`
+  (with `approved_at`) re-approves on heartbeat; a `'rejected'` node STAYS rejected (no authz bypass);
+  a genuinely-new node gets `409` (not `404`) so it backs off instead of re-registering.
+- **node_sync must NEVER adopt a hub-returned `node_id` that differs from its env/established
+  identity** (FIX3, OTA pending). An established node backs off; only first-ever enrollment registers.
+- **REPOINT = recreate, not restart** (`HUB_URL` is baked env): `/opt/archie-node/repoint.sh <hub_mesh_ip>`
+  preserves `NODE_ID`+`HUB_API_KEY`. `docker restart` reloads env `NODE_ID` (clears an adopted junk id).
+- **Any raw DB connection MUST `rollback`+`close` in a `finally`** — a bare `except: log` leaks the conn.
+- **NEVER run `failover.sh` wholesale** — it flips prod DNS. Interactive runs require `--force`/
+  `DR_CONFIRM=FAILOVER-NOW` (FIX6); the watchdog/cron (no TTY) pass through.
+- **Recovery tool**: `scripts/dr/reconcile_fleet_identity.sh` (dry-run default) on the hub. After any
+  storm: deploy hub fixes FIRST → restart each sync container → `repoint.sh` DR-mispointed nodes →
+  delete FK-safe junk rows. **Monitor**: `fleet_identity_monitor` job (FIX8) alerts on mass-offline +
+  duplicate-identity. KB ref docs **#270612–270616**.

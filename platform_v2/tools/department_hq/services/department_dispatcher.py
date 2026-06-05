@@ -2270,23 +2270,49 @@ class DepartmentDispatcher:
             from psycopg2.extras import RealDictCursor
 
             node_row = None
+            _conn = None
+            _cur = None
             try:
                 _conn = self._get_db()
                 _cur = _conn.cursor(cursor_factory=RealDictCursor)
+                # agent_info["node_id"] may be the INTEGER remote_nodes.id OR the
+                # string node_id. Match the correct column — comparing the varchar
+                # node_id column to an int forces a cast that ERRORS, aborts the txn,
+                # and (because the close() below used to run only on success) leaked
+                # the connection in 'idle in transaction (aborted)' state. Enough of
+                # those exhaust the pool and pin the hub → fleet heartbeats time out
+                # (observed 2026-06-05 once the fleet came back online).
+                if isinstance(node_id, int) or (isinstance(node_id, str) and node_id.isdigit()):
+                    _where, _param = "id = %s", int(node_id)
+                else:
+                    _where, _param = "node_id = %s", node_id
                 _cur.execute(
-                    """
-                    SELECT node_id, node_name, gpu_available, gpu_vram_gb, ram_gb,
-                           current_load, max_concurrent, priority, last_heartbeat,
-                           extra_capabilities
-                      FROM remote_nodes WHERE node_id = %s
-                    """,
-                    (node_id,),
+                    "SELECT node_id, node_name, gpu_available, gpu_vram_gb, ram_gb, "
+                    "current_load, max_concurrent, priority, last_heartbeat, "
+                    "extra_capabilities FROM remote_nodes WHERE " + _where,
+                    (_param,),
                 )
                 node_row = _cur.fetchone()
-                _cur.close()
-                _conn.close()
             except Exception as fetch_err:
                 logger.debug(f"[BridgeDispatcher] capacity row fetch failed: {fetch_err}")
+                try:
+                    if _conn is not None:
+                        _conn.rollback()
+                except Exception:
+                    pass
+            finally:
+                # ALWAYS release the cursor + connection, even on error — otherwise an
+                # aborted txn leaks the connection and exhausts the pool.
+                try:
+                    if _cur is not None:
+                        _cur.close()
+                except Exception:
+                    pass
+                try:
+                    if _conn is not None:
+                        _conn.close()
+                except Exception:
+                    pass
 
             if node_row:
                 allowed, reason = should_dispatch_to_node(dict(node_row), model, enforce)

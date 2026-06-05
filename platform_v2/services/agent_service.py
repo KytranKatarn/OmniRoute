@@ -1606,10 +1606,14 @@ def update_welfare_after_task(agent_id, success=True):
     Returns dict with success, stress, energy, and mood.
     """
     with get_db_cursor(commit=True) as (conn, cur):
-        # Get 1-hour rolling window stats
+        # Get 1-hour rolling window stats. FIX-1 (KB #270619): include real TOKENS +
+        # DURATION so fatigue tracks compute load, not raw dispatch COUNT. The old
+        # COUNT(*)/20 utilization benched agents for doing many cheap calls.
         cur.execute(
             """
             SELECT COUNT(*) AS total,
+                   COALESCE(SUM(tokens_used), 0) AS toks,
+                   COALESCE(SUM(duration_ms), 0) AS dur_ms,
                    SUM(CASE WHEN success = false THEN 1 ELSE 0 END) AS failures
             FROM task_execution_log
             WHERE agent_id = %s
@@ -1621,15 +1625,23 @@ def update_welfare_after_task(agent_id, success=True):
         total = stats["total"] or 0
         failures = stats["failures"] or 0
 
-        # Calculate welfare metrics
-        utilization = min(total / 20.0, 1.0)  # 20 tasks/hr = full utilization
-        failure_rate = (failures / total) if total > 0 else 0.0
+        # Daily token budget for this agent (compute_token_load falls back if missing).
+        cur.execute(
+            "SELECT token_limit_per_day FROM agent_budgets WHERE agent_id = %s",
+            (agent_id,),
+        )
+        _budget = cur.fetchone()
+        token_limit = _budget["token_limit_per_day"] if _budget else None
 
-        # Stress: rises with utilization and failure rate
-        stress = round(min(0.2 + (utilization * 0.4) + (failure_rate * 0.3), 0.9), 2)
-        # Energy: drops with utilization
-        energy = round(max(0.9 - (utilization * 0.6) - (failure_rate * 0.2), 0.1), 2)
-        # Mood state machine (extended per LLM Ecosystem Redesign spec Section 9)
+        # Token-based load replaces the action-count utilization. ONE shared formula.
+        from services.welfare_load import compute_token_load, stress_energy_from_load
+
+        load = compute_token_load(stats["toks"], stats["dur_ms"], token_limit)
+        failure_rate = (failures / total) if total > 0 else 0.0
+        stress, energy = stress_energy_from_load(load, failures, total)
+
+        # Mood state machine (extended per LLM Ecosystem Redesign spec Section 9) —
+        # 'utilization' is now token-based 'load'.
         if stress > 0.7:
             mood = "exhausted"  # high stress → winding_down territory
         elif stress > 0.5:
@@ -1640,8 +1652,8 @@ def update_welfare_after_task(agent_id, success=True):
             mood = "concerned"
         elif total == 0:
             mood = "relaxed"  # no tasks, no stress → idle/resting
-        elif utilization > 0.8:
-            mood = "focused"  # high throughput, manageable stress
+        elif load > 0.8:
+            mood = "focused"  # high token throughput, manageable stress
         else:
             mood = "productive"
 

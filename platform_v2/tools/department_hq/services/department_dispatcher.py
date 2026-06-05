@@ -3959,59 +3959,21 @@ class DepartmentDispatcher:
             logger.warning(f"[ClaudeNotify] hook failed: {exc}")
 
     def _update_agent_welfare(self, agent_id: Optional[int], success: bool):
-        """Update agent emotional state after each dispatch using 1-hour rolling window."""
+        """Update agent emotional state after each dispatch.
+
+        FIX-2 (KB #270619): delegate to the SINGLE token-based welfare writer
+        (agent_service.update_welfare_after_task) instead of recomputing stress here
+        from COUNT(dispatches)/20. This duplicate action-count writer ran after every
+        dispatch and OVERWROTE the token-based value — undoing FIX-1 and re-benching
+        agents on raw activity. One writer, one (token-based) formula now.
+        """
         if not agent_id:
             return
         try:
-            conn = self._get_db()
-            cur = conn.cursor()
-            # Get 1-hour rolling window stats
-            cur.execute(
-                """
-                SELECT COUNT(*) as total,
-                       COUNT(*) FILTER (WHERE success = false) as failures
-                FROM task_execution_log
-                WHERE agent_id = %s
-                  AND created_at >= NOW() - INTERVAL '1 hour'
-                """,
-                (agent_id,),
-            )
-            row = cur.fetchone()
-            total = row[0] if row else 0
-            failures = row[1] if row else 0
+            from services.agent_service import update_welfare_after_task
 
-            if total == 0:
-                cur.close()
-                conn.close()
-                return
-
-            utilization = min(total / 20.0, 0.9)
-            error_rate = (failures / total) * 100 if total > 0 else 0
-            stress = min(utilization, 0.9)
-            energy = max(1.0 - stress * 0.5 - error_rate / 200, 0.1)
-
-            mood = "focused"
-            if stress >= 0.85:
-                mood = "overwhelmed"
-            elif stress >= 0.6:
-                mood = "busy"
-            elif energy <= 0.3:
-                mood = "fatigued"
-
-            mood_intensity = round(max(1.0 - stress * 0.3, 0.3), 3)
-            cur.execute(
-                """
-                UPDATE agent_emotional_state
-                SET stress_level = %s, energy_level = %s,
-                    current_mood = %s, mood_intensity = %s, timestamp = NOW()
-                WHERE agent_id = %s
-                """,
-                (round(stress, 3), round(energy, 3), mood, mood_intensity, agent_id),
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-            # Invalidate welfare cache so next dispatch sees fresh state
+            update_welfare_after_task(agent_id, success=success)
+            # Invalidate welfare cache so the next dispatch sees fresh state.
             self._welfare_cache_time = 0
         except Exception as e:
             logger.debug(f"[BridgeDispatcher] Welfare update skipped: {e}")

@@ -26,6 +26,35 @@ Backup is an **infra concern, not an ARCHIE feature.** Move *orchestration* to K
 | **KBS** | 🔧 **NOT done — DATA exists, UI + backend still need review/design/code** | **DEV TRACK, not a DR-placement decision yet.** Refine + build first; DR-place once it's actually built. Revenue product (24 plugins, Stripe, paywall, customer+payment data) → highest value, most care. |
 | Media Hub | family/personal | **OUT of DR scope** (not a Kytran Empowerment Inc. concern) |
 
+## DESIGN DECISIONS — 2026-06-04 (#3688 spike)
+
+**Q1: Evolve KSO vs new orchestrator?**
+→ **EVOLVE KSO.** KSO already ships `docker_routes.py`, `hub_client.py`, compliance, monitoring, firewall. No new deployment friction. Identity pivot: KSO becomes "fleet control plane" which fits — it was always about server management. New project owns the Phase 1 build.
+
+**Q2: Multi-node HA for control plane?**
+→ **2-node primary/secondary, watchdog-promoted** — same pattern as `archie_scheduler_standby`. Run KSO on hub (primary) and boston-2 (secondary). State: PostgreSQL (already replicated) + git-versioned config. Leader election: watchdog on boston-2 promotes KSO-standby when hub is down (same trigger as `failover.sh`). No raft needed at this scale.
+
+**Q3: Own project or stay under #368?**
+→ **Own project.** #368 is complete and closed. Control plane is broader — DR is just the first use case. New project = "KSO Mesh Control Plane — Phase 1".
+
+**Boundary with DHQ (critical — user confirmed "DHQ is part of platform"):**
+- KSO owns: Docker container lifecycle across nodes, host compliance, backup orchestration, host monitoring
+- DHQ owns: inference dispatch, agent lifecycle, model loading, fleet resource routing
+- The two systems communicate via the mesh but do NOT overlap. KSO is infra; DHQ is AI.
+
+**Phase 1 scope (build order):**
+1. Cross-node Docker visibility — KSO hub lists containers across all mesh nodes via KSO agents (extend `hub_client.py`)
+2. KSO on boston-2 as standby control plane — `failover.sh` promotes it the same as `archie_scheduler_standby`
+3. Remote Docker operations — restart/stop a container on any node from KSO hub UI
+4. Backup conductor — GFS schedule + job tracking + alerting in KSO; execution stays on data host via SSH
+
+**Phase 2 (after Phase 1 proven):**
+- Auto-reschedule: on node loss, hub KSO moves movable containers to healthy nodes
+- Backup executor migration: replace platform backup_manager scheduling with KSO conductor
+
+**Phase 3 (future):**
+- Marketplace + micro-transactions (Layer-2, still parked)
+
 ## NEXT-SESSION TARGET GOALS (priority order)
 1. **Phase 7 — auto-promote watchdog** (highest leverage). Today everything waits on a human running `failover.sh`. A watchdog on boston-2 + surviving-node quorum that auto-promotes on confirmed hub loss (no false-positive on a blip). This makes every other DR investment actually fire by itself.
 2. **C.R.E.E.D. into DR.** Replicate its DB + stage image on boston-2, start via `failover.sh`. Public scores API is the external surface (creed-ai.org + WTF depend on it).

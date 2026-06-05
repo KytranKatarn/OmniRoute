@@ -25,11 +25,19 @@ RUN_ENV=(env -i HOME="$HOME" PATH="$PATH" TERM="${TERM:-xterm}" LANG="${LANG:-C.
 
 # 4) run Codex on the scoped task (interactive/auto per your codex config)
 ASSIGN="Edit ONLY files under the allowed Applications/Concepts paths in config/agents/codex.yaml. Do not touch secrets, infra, deploy, or unrelated files. Task: $TASK"
+# KNOWN LIMITATION: Codex's own bubblewrap sandbox cannot start on this host — its
+# fs helper fails bringing up loopback (bwrap: RTM_NEWADDR Operation not permitted),
+# so every read/patch is blocked and this step currently no-ops (no changes -> no push).
+# DO NOT add --dangerously-bypass-approvals-and-sandbox here: that runs Codex at FULL
+# host privilege (can read ~/.codex/auth.json, .env files, ~/.ssh, reach the network),
+# and the post-hoc env-scrub + git-diff scope guard do NOT constrain what Codex does
+# mid-run (flagged HIGH by security review). Proper fix = run `codex exec` inside a
+# container that mounts ONLY $WT (rw) + a read-only auth.json, no host fs/secrets.
 ( cd "$WT" && "${RUN_ENV[@]}" codex exec "$ASSIGN" ) || echo "codex exited non-zero (continuing to gates)"
 
 # 5) scope guard (deny-by-default) — fail the run if anything out of scope changed
 CHANGED=$(git -C "$WT" diff --name-only)
-OUT=$(cd "$REPO/platform_v2" && python -c "
+OUT=$(cd "$REPO/platform_v2" && python3 -c "
 import sys, yaml
 from services.agents.codex_scope import check_diff_paths
 cfg=yaml.safe_load(open('$CFG'))['codex']
@@ -48,7 +56,12 @@ fi
 # 7) telemetry (always)
 DUR=$(( $(date +%s%3N) - START ))
 NFILES=$(echo "$CHANGED" | grep -c . || true)
-(cd "$REPO/platform_v2" && python -c "
+# telemetry runs on the HOST, where the Docker hostname 'archie_database' does not resolve.
+# Load DB creds from .env (literal parse, no shell eval — matches docker env_file semantics)
+# and point at the host-reachable address (192.168.1.200:5432 is published).
+while IFS='=' read -r _k _v; do export "$_k=$_v"; done < <(grep -E '^(DB_PORT|DB_NAME|DB_USER|DB_PASSWORD)=' "$REPO/.env")
+export DB_HOST=192.168.1.200
+(cd "$REPO/platform_v2" && python3 -c "
 from services.agents.codex_telemetry import record_codex_run
 record_codex_run(task_label='''$TASK''', branch='$BRANCH', prompt_tokens=0, completion_tokens=0,
   model='gpt-5-codex', files_changed='''$CHANGED'''.split(), tests='n/a',

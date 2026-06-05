@@ -1602,6 +1602,19 @@ def _build_fleet_agents():
         ) tok ON tok.agent_id = a.id
     """
 
+    # Per-agent task count for TODAY (America/Toronto day) — the /results page reads
+    # `tasks_completed_today`. Previously absent from this payload, so the public
+    # dashboard rendered "Tasks today: 0/—" even while task_execution_log had thousands.
+    tasks_subquery = """
+        LEFT JOIN (
+            SELECT agent_id, COUNT(*) AS tasks_today
+            FROM task_execution_log
+            WHERE (created_at AT TIME ZONE 'America/Toronto')::date
+                  = (NOW() AT TIME ZONE 'America/Toronto')::date
+            GROUP BY agent_id
+        ) tt ON tt.agent_id = a.id
+    """
+
     with get_db_cursor() as (conn, cur):
         # Fleet agents (stationed on remote nodes)
         cur.execute(
@@ -1617,7 +1630,8 @@ def _build_fleet_agents():
                    ) AS in_rest,
                    COUNT(os.id) FILTER (WHERE os.enabled = TRUE)  AS active_overflow_bids,
                    COUNT(os.id)                                     AS total_overflow_bids,
-                   COALESCE(tok.tokens_24h, 0)                     AS tokens_24h
+                   COALESCE(tok.tokens_24h, 0)                     AS tokens_24h,
+                   COALESCE(tt.tasks_today, 0)                     AS tasks_today
             FROM node_agents na
             JOIN agents a ON a.id = na.hub_agent_id
             JOIN remote_nodes rn ON rn.id = na.node_id
@@ -1629,11 +1643,12 @@ def _build_fleet_agents():
             ) ae ON ae.agent_id = a.id
             LEFT JOIN agent_overflow_skills os ON os.agent_id = a.id
             {tok_subquery}
+            {tasks_subquery}
             WHERE a.worker_type = 'ai'
               AND na.status = 'active'
             GROUP BY a.id, rn.node_name, rn.mesh_ip,
                      ae.stress_level, ae.energy_level, ae.current_mood,
-                     tok.tokens_24h
+                     tok.tokens_24h, tt.tasks_today
             ORDER BY rn.node_name, a.department
             """
         )
@@ -1652,7 +1667,8 @@ def _build_fleet_agents():
                    ) AS in_rest,
                    COUNT(os.id) FILTER (WHERE os.enabled = TRUE) AS active_overflow_bids,
                    COUNT(os.id)                                    AS total_overflow_bids,
-                   COALESCE(tok.tokens_24h, 0)                    AS tokens_24h
+                   COALESCE(tok.tokens_24h, 0)                    AS tokens_24h,
+                   COALESCE(tt.tasks_today, 0)                    AS tasks_today
             FROM agents a
             LEFT JOIN (
                 SELECT DISTINCT ON (agent_id)
@@ -1662,13 +1678,14 @@ def _build_fleet_agents():
             ) ae ON ae.agent_id = a.id
             LEFT JOIN agent_overflow_skills os ON os.agent_id = a.id
             {tok_subquery}
+            {tasks_subquery}
             WHERE a.worker_type = 'ai'
               AND a.shift_state NOT IN ('decommissioned')
               AND a.id NOT IN (
                   SELECT hub_agent_id FROM node_agents WHERE status = 'active'
               )
             GROUP BY a.id, ae.stress_level, ae.energy_level, ae.current_mood,
-                     tok.tokens_24h
+                     tok.tokens_24h, tt.tasks_today
             ORDER BY a.department
             """
         )
@@ -1708,6 +1725,7 @@ def _build_fleet_agents():
                 "active_overflow_bids": row["active_overflow_bids"] or 0,
                 "total_overflow_bids": row["total_overflow_bids"] or 0,
                 "tokens_24h": tokens_24h,
+                "tasks_completed_today": int(row.get("tasks_today") or 0),
                 "welfare_score": welfare_score,
             }
         )

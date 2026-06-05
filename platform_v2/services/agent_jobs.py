@@ -244,6 +244,15 @@ def track_agent_hr():
         # who accumulated hours before that point.
         today = datetime.now(_TORONTO).date()
 
+        # Wall-clock REAL compute hours per agent today (KB #270628): interval-UNION,
+        # not SUM(duration_ms), so concurrent dispatches are not counted multiple times;
+        # window resets after the agent's last completed rest (post-rest cooldown) so a
+        # just-rested agent cannot be re-flagged on stale hours. Single source of truth
+        # shared with the K.I.N. welfare route. Computed once; used by 2b + 2c below.
+        from services.agent_load_service import real_compute_hours_today
+
+        hours_map = real_compute_hours_today(cur)
+
         # 1. Aggregate today's task_execution_log into agent_daily_summary
         cur.execute(
             """
@@ -348,44 +357,20 @@ def track_agent_hr():
             )
 
         # 2b. Overwork — hours-based escalation
-        #   8-12h + at task queue limit (5000/5000): K.I.N. workload monitor handles (auto 30-min rest)
+        #   8-12h + at task queue limit: K.I.N. workload monitor handles (auto 30-min rest)
         #   10h+: A.R.C.H.I.E. asks Kytran for approval via Telegram (upsert — no spam)
         #   12h+: A.R.C.H.I.E. auto-approves immediately and advises Kytran (C.R.E.E.D. compliance)
-        # Overwork = REAL (non-internal) COMPUTE hours today, capped at elapsed since
-        # local midnight. KB #270619: was raw agent_daily_summary.total_duration_ms,
-        # which counted 0-token internal orchestration wall-clock (F.A.C.T. "30h",
-        # V.E.R.I.F.Y. "144h") and would have rested orchestrators that did no real work.
-        cur.execute(
-            """
-            WITH daystart AS (
-                SELECT (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                        AT TIME ZONE 'America/Toronto') AS t0,
-                       EXTRACT(EPOCH FROM (NOW() -
-                           (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                            AT TIME ZONE 'America/Toronto'))) * 1000 AS elapsed_ms
-            ),
-            compute AS (
-                SELECT tel.agent_id,
-                       COALESCE(SUM(tel.duration_ms)
-                           FILTER (WHERE tel.model_used IS DISTINCT FROM 'internal'), 0) AS compute_ms
-                FROM task_execution_log tel, daystart d
-                WHERE tel.created_at >= d.t0
-                GROUP BY tel.agent_id
-            )
-            SELECT a.id AS agent_id, a.name,
-                   LEAST(c.compute_ms, d.elapsed_ms) AS total_duration_ms
-            FROM agents a
-            JOIN compute c ON c.agent_id = a.id
-            CROSS JOIN daystart d
-            WHERE a.worker_type = 'ai'
-              AND LEAST(c.compute_ms, d.elapsed_ms) > 36000000
-              AND a.shift_state NOT IN ('winding_down', 'cooldown', 'barracked', 'off_duty')
-        """
-        )
-        for row in cur.fetchall():
-            # float() cast: psycopg2 returns BIGINT/NUMERIC as Decimal, which
-            # breaks json.dumps() inside _create_hr_alert (not JSON serializable).
-            hours = float(round(row["total_duration_ms"] / 3_600_000, 1))
+        # Overwork = REAL (non-internal) WALL-CLOCK compute hours today from hours_map
+        # (KB #270628: interval-UNION, NOT SUM(duration_ms) — concurrent dispatches are
+        # no longer counted N times, and the window resets after the agent's last
+        # completed rest so a just-rested agent is not re-flagged on stale hours, which
+        # ends the rest→reflag loop). 10h threshold; resting/off-shift agents skipped.
+        _OVERWORK_SKIP_STATES = {"winding_down", "cooldown", "barracked", "off_duty"}
+        overworked = [
+            row for row in hours_map.values() if row["hours"] > 10.0 and row["shift_state"] not in _OVERWORK_SKIP_STATES
+        ]
+        for row in overworked:
+            hours = float(row["hours"])
             is_auto_approve = hours >= 12.0
 
             alerts_created += _create_hr_alert(
@@ -568,14 +553,8 @@ def track_agent_hr():
         cur.execute(
             """
             SELECT ads.agent_id, ads.utilization_pct, ads.error_rate_pct,
-                   ROUND(
-                       LEAST(ads.total_duration_ms,
-                           EXTRACT(EPOCH FROM (
-                               NOW() AT TIME ZONE 'America/Toronto'
-                               - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                           )) * 1000
-                       ) / 3600000.0, 1
-                   ) AS hours_worked_today,
+                   -- hours-worked-today comes from hours_map (KB #270628 interval-union),
+                   -- NOT ads.total_duration_ms (raw SUM inflates under concurrency)
                    (SELECT COUNT(*) FROM agent_rest_cycles arc
                     WHERE arc.agent_id = ads.agent_id
                       AND arc.started_at <= NOW()
@@ -599,7 +578,7 @@ def track_agent_hr():
             (today,),
         )
         for row in cur.fetchall():
-            hours = float(row["hours_worked_today"] or 0)
+            hours = float((hours_map.get(row["agent_id"]) or {}).get("hours", 0) or 0)
             is_resting = int(row["is_resting"] or 0) > 0
 
             # FIX-5d (KB #270619): base stress from REAL token load via the shared

@@ -91,48 +91,25 @@ def register_work_routes(bp, admin_required):
                 )
                 velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
 
-                # Hours worked today using EDT (America/Toronto) day boundary.
-                # CURRENT_DATE is UTC — rolls to tomorrow at 8pm EDT, making agents
-                # invisible to overwork checks all night.  Use local date + local midnight
-                # for the LEAST cap so 42h raw sums cap at actual elapsed hours today.
-                # Hours worked today = REAL (non-internal) COMPUTE time, capped at elapsed
-                # hours since local (America/Toronto) midnight. KB #270619: overwork must
-                # reflect actual compute, NOT raw duration. Orchestrators (model_used=
-                # 'internal' — 0-token coordinator calls that mostly WAIT on sub-tasks) were
-                # inflating 'hours worked' and being falsely flagged overworked (F.A.C.T./
-                # K.I.N. showed ~14h with ~0 tokens). Mandatory rest now fires at 12h+ of
-                # REAL compute; the C.R.E.E.D. ultradian + 8h-equivalent standard.
-                cur.execute(
-                    """
-                    WITH daystart AS (
-                        SELECT (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                                AT TIME ZONE 'America/Toronto') AS t0,
-                               EXTRACT(EPOCH FROM (NOW() -
-                                   (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                                    AT TIME ZONE 'America/Toronto'))) * 1000 AS elapsed_ms
-                    ),
-                    compute AS (
-                        SELECT tel.agent_id,
-                               COALESCE(SUM(tel.duration_ms)
-                                   FILTER (WHERE tel.model_used IS DISTINCT FROM 'internal'), 0) AS compute_ms
-                        FROM task_execution_log tel, daystart d
-                        WHERE tel.created_at >= d.t0
-                        GROUP BY tel.agent_id
-                    )
-                    SELECT a.name AS agent_name,
-                           ROUND(LEAST(c.compute_ms, d.elapsed_ms) / 3600000.0, 1) AS hours_worked_today,
-                           CASE
-                             WHEN LEAST(c.compute_ms, d.elapsed_ms) > 43200000 THEN 'critical'  -- >12h real compute
-                             WHEN LEAST(c.compute_ms, d.elapsed_ms) > 28800000 THEN 'warning'   -- >8h real compute
-                             ELSE 'normal'
-                           END AS overwork_level
-                    FROM agents a
-                    JOIN compute c ON c.agent_id = a.id
-                    CROSS JOIN daystart d
-                    WHERE a.worker_type = 'ai'
-                    """
-                )
-                hours_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
+                # Hours worked today = REAL (non-internal) WALL-CLOCK compute time as the
+                # interval-UNION of overlapping dispatches, NOT SUM(duration_ms). KB #270628:
+                # SUM counted concurrent dispatches N times (V.E.R.I.F.Y. read 89h in a 15h
+                # day at ~6x parallelism); the LEAST(sum, elapsed) cap then pegged such
+                # agents at full elapsed hours and falsely flagged them overworked. The
+                # shared helper also resets the day's window to AFTER the agent's last
+                # completed rest (post-rest cooldown). Same source as the scheduler's
+                # track_agent_hr overwork check, so this DISPLAY == the ENFORCEMENT.
+                # (Orchestrators — model_used='internal', 0-token waits — stay excluded, as
+                # in KB #270619.) Thresholds align with enforcement: 12h rest, 8h warning.
+                from services.agent_load_service import real_compute_hours_today
+
+                hours_map = {}
+                for _hrec in real_compute_hours_today(cur).values():
+                    _h = _hrec["hours"]
+                    hours_map[_hrec["name"]] = {
+                        "hours_worked_today": _h,
+                        "overwork_level": ("critical" if _h >= 12.0 else "warning" if _h >= 8.0 else "normal"),
+                    }
 
                 # Pending K.I.N. 8h-rest approvals keyed by agent id, so the welfare card
                 # can show an Approve/Deny button right where the "rest approval pending"

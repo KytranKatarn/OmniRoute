@@ -124,6 +124,117 @@ def get_agent_load(agent_id: int | None = None, window: str = "1h") -> dict | li
     return out
 
 
+def real_compute_hours_today(cur=None) -> dict:
+    """Real (non-internal) compute time per AI agent for TODAY as WALL-CLOCK busy
+    time — the UNION of overlapping dispatch intervals, not the raw SUM of durations.
+
+    KB #270628: hours-worked-today was ``SUM(duration_ms)``, so an agent running N
+    concurrent dispatches had overlapping wall-clock counted N times (V.E.R.I.F.Y.
+    read 89h of "work" in a 15h day from ~6x parallelism). The ``LEAST(sum, elapsed)``
+    cap masked it by pegging such an agent at full elapsed time, so it tripped the 12h
+    mandatory-rest threshold, rested, got woken by the reaper, and was immediately
+    re-flagged on the same stale hours — a rest→reflag loop. This computes TRUE busy
+    time via ``range_agg`` interval-union (Postgres 14+; live DB is pg16) and resets
+    the day's window to AFTER the agent's last completed rest today (post-rest
+    cooldown) so a just-rested agent starts fresh and cannot re-trip on stale hours.
+
+    ``model_used = 'internal'`` (0-token orchestration that mostly WAITS on sub-tasks)
+    and ``fleet_warmup`` rows are excluded — same as the agent_daily_summary builder —
+    so orchestrators are not falsely flagged for coordinating.
+
+    Args:
+        cur: an existing ``RealDictCursor`` (callers — track_agent_hr, the K.I.N.
+            welfare route — are mid-transaction and pass theirs); omit to self-open.
+
+    Returns:
+        ``{agent_id: {agent_id, name, shift_state, compute_ms, elapsed_ms, hours,
+        window_start}}`` for every ``worker_type='ai'`` agent. ``hours`` is the
+        capped (``min(compute_ms, elapsed_ms)``) wall-clock busy hours, rounded to 0.1.
+        Agents with no real compute since their window start → ``0.0`` hours.
+    """
+    sql = """
+        WITH daystart AS (
+            SELECT (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                    AT TIME ZONE 'America/Toronto') AS t0
+        ),
+        restwin AS (
+            -- Most recent COMPLETED rest today; the day's hours window restarts here.
+            SELECT arc.agent_id, MAX(arc.ended_at) AS last_rest_end
+            FROM agent_rest_cycles arc, daystart d
+            WHERE arc.started_at >= d.t0
+              AND arc.ended_at IS NOT NULL
+              AND arc.ended_at <= NOW()
+            GROUP BY arc.agent_id
+        ),
+        win AS (
+            SELECT a.id AS agent_id, a.name, a.shift_state,
+                   GREATEST(d.t0, COALESCE(rw.last_rest_end, d.t0)) AS w0
+            FROM agents a
+            CROSS JOIN daystart d
+            LEFT JOIN restwin rw ON rw.agent_id = a.id
+            WHERE a.worker_type = 'ai'
+        ),
+        merged AS (
+            -- range_agg merges overlapping [start, start+duration] intervals into a
+            -- multirange, collapsing concurrent dispatches to real occupied time.
+            SELECT tel.agent_id,
+                   range_agg(tstzrange(
+                       tel.created_at,
+                       tel.created_at + (tel.duration_ms * INTERVAL '1 millisecond')
+                   )) AS mr
+            FROM task_execution_log tel
+            JOIN win w ON w.agent_id = tel.agent_id
+            WHERE tel.created_at >= w.w0
+              AND tel.model_used IS DISTINCT FROM 'internal'
+              AND tel.duration_ms IS NOT NULL
+              AND tel.duration_ms > 0
+              AND COALESCE(tel.module_source, '') != 'fleet_warmup'
+            GROUP BY tel.agent_id
+        ),
+        compute AS (
+            SELECT m.agent_id,
+                   COALESCE(SUM(EXTRACT(EPOCH FROM (upper(r) - lower(r))) * 1000), 0)
+                       AS compute_ms
+            FROM merged m, unnest(m.mr) AS r
+            GROUP BY m.agent_id
+        )
+        SELECT w.agent_id, w.name, w.shift_state,
+               COALESCE(c.compute_ms, 0)                  AS compute_ms,
+               EXTRACT(EPOCH FROM (NOW() - w.w0)) * 1000  AS elapsed_ms,
+               w.w0                                       AS window_start
+        FROM win w
+        LEFT JOIN compute c ON c.agent_id = w.agent_id
+    """
+
+    def _fetch(c):
+        c.execute(sql)
+        return c.fetchall() or []
+
+    if cur is not None:
+        rows = _fetch(cur)
+    else:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, c):
+            rows = _fetch(c)
+
+    out: dict = {}
+    for r in rows:
+        compute_ms = float(r["compute_ms"] or 0)
+        elapsed_ms = float(r["elapsed_ms"] or 0)
+        capped_ms = min(compute_ms, elapsed_ms)
+        out[r["agent_id"]] = {
+            "agent_id": r["agent_id"],
+            "name": r["name"],
+            "shift_state": r["shift_state"],
+            "compute_ms": compute_ms,
+            "elapsed_ms": elapsed_ms,
+            "hours": round(capped_ms / 3_600_000, 1),
+            "window_start": r["window_start"],
+        }
+    return out
+
+
 if __name__ == "__main__":  # pragma: no cover - live smoke test
     fleet = get_agent_load(window="24h")
     print(f"fleet rows (24h): {len(fleet)}")
@@ -136,3 +247,11 @@ if __name__ == "__main__":  # pragma: no cover - live smoke test
     if fleet:
         one = get_agent_load(agent_id=fleet[0]["agent_id"], window="1h")
         print(f"single agent 1h: {one['agent_name']} load={one['load']} tokens={one['tokens']}")
+
+    print("\nreal_compute_hours_today (interval-union, post-rest window) — KB #270628:")
+    hrs = real_compute_hours_today()
+    top = sorted(hrs.values(), key=lambda x: x["hours"], reverse=True)[:8]
+    for h in top:
+        raw = h["compute_ms"] / 3_600_000
+        elapsed = h["elapsed_ms"] / 3_600_000
+        print(f"  {h['name']:16} union={h['hours']:>5.1f}h  raw_union={raw:>5.1f}h  elapsed={elapsed:>5.1f}h")

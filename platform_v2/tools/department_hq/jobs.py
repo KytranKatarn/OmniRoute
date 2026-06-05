@@ -1752,6 +1752,14 @@ def _register_own_jobs(scheduler, flask_app):
             # signal below honest (token-based, not frozen). Each call manages its own
             # committed transaction; wrapped so a refresh failure never breaks the monitor.
             try:
+                # KB #270628 convergence: precompute REAL wall-clock hours for the whole
+                # fleet ONCE so each per-agent welfare recompute carries the hours-on-duty
+                # term (via the shared welfare_load formula) without a fleet scan per agent.
+                # This is why the refresh no longer strips hr_tracker's hours term — both
+                # writers now feed the same formula the same inputs (no staleness gate).
+                from services.agent_load_service import real_compute_hours_today
+
+                _hours_map = real_compute_hours_today()
                 with get_db_cursor() as (_rc, _rcur):
                     _rcur.execute(
                         """
@@ -1764,7 +1772,11 @@ def _register_own_jobs(scheduler, flask_app):
                 _refreshed = 0
                 for _aid in _refresh_ids:
                     try:
-                        _agent_svc.update_welfare_after_task(_aid, success=True)
+                        _agent_svc.update_welfare_after_task(
+                            _aid,
+                            success=True,
+                            hours_on_duty=(_hours_map.get(_aid) or {}).get("hours", 0.0),
+                        )
                         _refreshed += 1
                     except Exception as _wf_e:
                         logger.debug("[K.I.N.] welfare refresh failed for agent %s: %s", _aid, _wf_e)

@@ -581,42 +581,23 @@ def track_agent_hr():
             hours = float((hours_map.get(row["agent_id"]) or {}).get("hours", 0) or 0)
             is_resting = int(row["is_resting"] or 0) > 0
 
-            # FIX-5d (KB #270619): base stress from REAL token load via the shared
-            # welfare_load formula — NOT utilization_pct (work_hours / hours_elapsed),
-            # which benched agents for mere wall-clock presence or many cheap calls and
-            # fought update_welfare_after_task's token-based stress (the 0.9↔0.6 thrash
-            # that stranded V.E.R.I.F.Y./B.I.A.S./K.I.N.). Hours-on-duty fatigue stays as
-            # an explicit additive term below (C.R.E.E.D. work-life-balance / 12h rest).
-            from services.welfare_load import (
-                STRESS_BASE,
-                STRESS_LOAD_COEF,
-                compute_token_load,
-            )
+            # KB #270628 convergence: stress/energy from the ONE shared welfare_load
+            # formula — token load + failure rate + hours-on-duty fatigue + rest
+            # recovery. Previously hr_tracker hand-rolled the hours/rest terms here, so
+            # the K.I.N. decay refresh (token-only) stripped them every cycle and the two
+            # writers fought (the 0.9↔0.6 thrash that stranded V.E.R.I.F.Y./B.I.A.S./
+            # K.I.N.). Now all three writers call the same function with hours, so no
+            # writer can strip another's term — no staleness gate needed. error_rate_pct
+            # (0–100) maps to failure_rate via failures=error_rate_pct, total=100.
+            from services.welfare_load import compute_token_load, stress_energy_from_load
 
             _load = compute_token_load(row.get("toks_1h"), row.get("dur_ms_1h"), row.get("token_limit"))
-            base_stress = STRESS_BASE + _load * STRESS_LOAD_COEF  # 0.2 + load*0.4 (≤0.6)
-
-            # Hours fatigue bonus: more hours worked = more stress
-            if hours >= 12:
-                hours_stress = 0.30
-            elif hours >= 8:
-                hours_stress = 0.20
-            elif hours >= 4:
-                hours_stress = 0.10
-            else:
-                hours_stress = 0.0
-
-            # Rest recovery: active rest cycle lowers stress
-            rest_recovery = 0.20 if is_resting else 0.0
-
-            stress = max(0.0, min(0.95, base_stress + hours_stress - rest_recovery))
-            energy = max(
-                0.1,
-                1.0
-                - stress * 0.5
-                - float(row["error_rate_pct"]) / 200
-                - (hours * 0.01)  # gradual energy drain per hour worked
-                + (0.10 if is_resting else 0.0),  # energy recovery during rest
+            stress, energy = stress_energy_from_load(
+                _load,
+                failures=float(row["error_rate_pct"] or 0),
+                total=100.0,
+                hours_on_duty=hours,
+                is_resting=is_resting,
             )
 
             # Mood reflects combined state
@@ -3781,6 +3762,106 @@ def _run_warden_pre_deploy_verify():
         logger.warning("W.A.R.D.E.N. pre-deploy verify failed (non-fatal): %s", e)
 
 
+def recalibrate_token_budgets():
+    """Weekly: re-tune agent_budgets.token_limit_per_day from each agent's REAL usage.
+
+    KB #270628 follow-up. The one-off seed set token_limit_per_day = max(50k,
+    p90(daily tokens) x 1.3) per agent — model+role aware because it is each agent's
+    OWN history — to replace the flat 100k. This job keeps it current as usage drifts:
+    p90 of per-day SUM(tokens_used) over the last 30 days x 1.3, floored at 50k, for
+    any AI agent with >= 3 active days (less data is too noisy → skip, keep current).
+    Runs weekly (Mon 05:00 America/Toronto). The budget is the welfare token ceiling
+    (welfare_load.compute_token_load), so right-sizing it keeps fatigue honest — an
+    under-budgeted agent reads falsely overloaded; an over-budgeted one never registers.
+    """
+    from db import get_db
+    from psycopg2.extras import RealDictCursor
+
+    start = time.time()
+    updated = 0
+    skipped = 0
+    conn = None
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            WITH daily AS (
+                SELECT agent_id,
+                       (created_at AT TIME ZONE 'America/Toronto')::date AS d,
+                       SUM(COALESCE(tokens_used, 0)) AS toks
+                FROM task_execution_log
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+                  AND agent_id IS NOT NULL
+                GROUP BY agent_id, d
+            )
+            SELECT da.agent_id, a.name,
+                   percentile_cont(0.9) WITHIN GROUP (ORDER BY da.toks) AS p90,
+                   COUNT(*) AS active_days
+            FROM daily da
+            JOIN agents a ON a.id = da.agent_id AND a.worker_type = 'ai'
+            GROUP BY da.agent_id, a.name
+            """
+        )
+        rows = cur.fetchall() or []
+
+        FLOOR_TOKENS = 50_000
+        HEADROOM = 1.3
+        MIN_DAYS = 3
+        changes = []
+        for r in rows:
+            if (r["active_days"] or 0) < MIN_DAYS:
+                skipped += 1
+                continue
+            new_limit = max(FLOOR_TOKENS, int(round(float(r["p90"] or 0) * HEADROOM)))
+            # Only touch existing rows whose limit actually changes (no-op otherwise).
+            cur.execute(
+                """
+                UPDATE agent_budgets
+                SET token_limit_per_day = %s
+                WHERE agent_id = %s
+                  AND COALESCE(token_limit_per_day, 0) <> %s
+                """,
+                (new_limit, r["agent_id"], new_limit),
+            )
+            if cur.rowcount:
+                updated += 1
+                changes.append(f"{r['name']}={new_limit // 1000}k")
+        conn.commit()
+
+        duration_ms = int((time.time() - start) * 1000)
+        if updated:
+            logger.info(
+                "Token budget recalibration: %d updated, %d skipped (%s)",
+                updated,
+                skipped,
+                ", ".join(changes[:10]),
+            )
+        _log_cycle(
+            "budget_recalibration",
+            updated,
+            0,
+            duration_ms,
+            {"skipped": skipped, "changes": changes[:20]},
+        )
+    except Exception as e:
+        logger.error("Token budget recalibration failed: %s", e)
+        _log_cycle(
+            "budget_recalibration",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+    finally:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            conn.close()
+
+
 def register_agent_welfare_jobs(scheduler, flask_app):
     """Register all agent welfare/HR background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -3906,6 +3987,17 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         id="department_welfare_digest",
         name="Agent Loop: K.I.N. Department Welfare Digest",
         replace_existing=True,
+    )
+
+    # KB #270628 follow-up: weekly token-budget recalibration (p90 x1.3 per agent,
+    # floor 50k) so agent_budgets.token_limit_per_day tracks real usage drift.
+    scheduler.add_job(
+        with_ctx(recalibrate_token_budgets),
+        trigger=CronTrigger(day_of_week="mon", hour=5, minute=0, timezone="America/Toronto"),
+        id="agent_budget_recalibration",
+        name="Agent Loop: Weekly Token-Budget Recalibration",
+        replace_existing=True,
+        max_instances=1,
     )
 
     scheduler.add_job(

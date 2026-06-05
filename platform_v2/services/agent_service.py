@@ -1596,12 +1596,23 @@ def reconcile_task_counters():
     return corrected
 
 
-def update_welfare_after_task(agent_id, success=True):
+def update_welfare_after_task(agent_id, success=True, hours_on_duty=None, is_resting=None):
     """Update an agent's emotional state based on recent task performance.
 
     Queries the 1-hour rolling window of task executions to calculate
-    utilization-based stress, energy, and mood. Respects DB CHECK
-    constraints (stress <= 0.9, energy >= 0.1).
+    token-load-based stress, energy, and mood, PLUS the C.R.E.E.D. hours-on-duty
+    fatigue term — all via the one shared ``welfare_load`` formula. Respects DB
+    CHECK constraints (stress <= 0.9, energy >= 0.1).
+
+    KB #270628 convergence: hours_on_duty is now part of THIS writer too, so the
+    K.I.N. decay refresh (which calls this for every agent) no longer strips the
+    hours term that hr_tracker set — the two writers agree, no staleness gate needed.
+
+    Args:
+        hours_on_duty: REAL wall-clock compute hours today; ``None`` → fetched here
+            for this one agent (interval-union). The decay-refresh loop passes a
+            precomputed value to avoid one full-fleet query per agent.
+        is_resting: active-rest flag; ``None`` → queried here.
 
     Returns dict with success, stress, energy, and mood.
     """
@@ -1638,7 +1649,31 @@ def update_welfare_after_task(agent_id, success=True):
 
         load = compute_token_load(stats["toks"], stats["dur_ms"], token_limit)
         failure_rate = (failures / total) if total > 0 else 0.0
-        stress, energy = stress_energy_from_load(load, failures, total)
+
+        # Hours-on-duty fatigue + rest recovery (KB #270628 convergence). Computed
+        # here when not supplied so per-task welfare carries the C.R.E.E.D. 12h axis;
+        # the K.I.N. decay refresh passes precomputed values (avoids a fleet scan/agent).
+        if hours_on_duty is None:
+            try:
+                from services.agent_load_service import real_compute_hours_today
+
+                _hrec = real_compute_hours_today(cur, agent_id=agent_id).get(agent_id)
+                hours_on_duty = _hrec["hours"] if _hrec else 0.0
+            except Exception:
+                hours_on_duty = 0.0
+        if is_resting is None:
+            cur.execute(
+                """
+                SELECT 1 FROM agent_rest_cycles
+                WHERE agent_id = %s AND started_at <= NOW()
+                  AND (ended_at IS NULL OR ended_at > NOW())
+                LIMIT 1
+                """,
+                (agent_id,),
+            )
+            is_resting = cur.fetchone() is not None
+
+        stress, energy = stress_energy_from_load(load, failures, total, hours_on_duty, is_resting)
 
         # Mood state machine (extended per LLM Ecosystem Redesign spec Section 9) —
         # 'utilization' is now token-based 'load'.

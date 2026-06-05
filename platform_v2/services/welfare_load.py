@@ -50,6 +50,28 @@ ENERGY_LOAD_COEF = 0.6
 ENERGY_FAILURE_COEF = 0.2
 ENERGY_FLOOR = 0.1
 
+# Hours-on-duty fatigue (C.R.E.E.D. work-life-balance / 12h mandatory-rest axis).
+# Folded into THIS one formula so every welfare writer — per-task
+# (update_welfare_after_task), hr_tracker, and the K.I.N. decay refresh — agrees.
+# Previously the hours term lived only in hr_tracker, so the decay refresh (which
+# recomputes from token load alone) stripped it every cycle and the two writers
+# fought. With the term here, no writer can strip another's — no staleness gate needed.
+# `hours_on_duty` = REAL wall-clock compute hours today (agent_load_service
+# .real_compute_hours_today — interval-union, KB #270628), NOT raw duration sum.
+HOURS_STRESS_TIERS = ((12.0, 0.30), (8.0, 0.20), (4.0, 0.10))
+REST_RECOVERY_STRESS = 0.20  # active rest cycle lowers stress
+REST_RECOVERY_ENERGY = 0.10  # active rest cycle restores energy
+ENERGY_HOURS_DRAIN = 0.01  # gradual energy drain per hour on duty
+
+
+def hours_fatigue_stress(hours_on_duty) -> float:
+    """Additive stress from accumulated hours on duty today (0.0–0.30)."""
+    h = max(0.0, _num(hours_on_duty))
+    for threshold, value in HOURS_STRESS_TIERS:
+        if h >= threshold:
+            return value
+    return 0.0
+
 
 def _num(value, default: float = 0.0) -> float:
     """Coerce a possibly-None / non-numeric DB value to float."""
@@ -97,23 +119,45 @@ def compute_token_load(
     return min(TOKEN_WEIGHT * token_load + DURATION_WEIGHT * duration_load, 1.0)
 
 
-def stress_energy_from_load(load: float, failures, total) -> tuple[float, float]:
-    """Map a load (+ failure rate) to ``(stress, energy)`` in DB-valid ranges.
+def stress_energy_from_load(load, failures, total, hours_on_duty=0.0, is_resting=False) -> tuple[float, float]:
+    """Map load (+ failure rate + hours on duty + rest) to ``(stress, energy)``.
 
-    Replaces the action-count ``utilization`` term with ``load`` while keeping the
-    same coefficient shape, so existing welfare thresholds continue to apply.
+    THE single welfare formula. ``load`` (token+duration over the window) is the
+    compute term, ``failure_rate`` adds strain, ``hours_on_duty`` adds the C.R.E.E.D.
+    fatigue term, and an active rest cycle (``is_resting``) recovers both. With
+    ``hours_on_duty=0.0`` and ``is_resting=False`` the result is identical to the
+    pre-convergence formula, so existing callers are unaffected until they opt in.
+    Output stays within DB CHECK ranges (stress ≤ 0.9, energy ≥ 0.1).
     """
     load = max(0.0, min(_num(load), 1.0))
     total_n = _num(total)
     failure_rate = (_num(failures) / total_n) if total_n > 0 else 0.0
     failure_rate = max(0.0, min(failure_rate, 1.0))
+    hours = max(0.0, _num(hours_on_duty))
+
+    hours_stress = hours_fatigue_stress(hours)
+    rest_stress = REST_RECOVERY_STRESS if is_resting else 0.0
+    rest_energy = REST_RECOVERY_ENERGY if is_resting else 0.0
 
     stress = round(
-        min(STRESS_BASE + load * STRESS_LOAD_COEF + failure_rate * STRESS_FAILURE_COEF, STRESS_CEILING),
+        min(
+            max(
+                STRESS_BASE + load * STRESS_LOAD_COEF + failure_rate * STRESS_FAILURE_COEF + hours_stress - rest_stress,
+                0.0,
+            ),
+            STRESS_CEILING,
+        ),
         2,
     )
     energy = round(
-        max(ENERGY_BASE - load * ENERGY_LOAD_COEF - failure_rate * ENERGY_FAILURE_COEF, ENERGY_FLOOR),
+        max(
+            ENERGY_BASE
+            - load * ENERGY_LOAD_COEF
+            - failure_rate * ENERGY_FAILURE_COEF
+            - hours * ENERGY_HOURS_DRAIN
+            + rest_energy,
+            ENERGY_FLOOR,
+        ),
         2,
     )
     return stress, energy
@@ -137,4 +181,17 @@ if __name__ == "__main__":  # pragma: no cover - self-test
     assert 0.0 <= heavy <= 1.0 and 0.1 <= he <= 0.9
     # No-budget fallback must not peg load to 1.0 on modest tokens:
     assert compute_token_load(10_000, 0, None) < 0.5, "missing budget must not over-saturate"
+
+    # Hours-on-duty fatigue (KB #270628 convergence): the SAME work reads more
+    # stressed after 12h on duty; rest recovers; 0h/not-resting equals the legacy
+    # formula so existing callers are unaffected.
+    s0, e0 = stress_energy_from_load(heavy, 0, 10)
+    s12, e12 = stress_energy_from_load(heavy, 0, 10, hours_on_duty=12.0)
+    s12r, _ = stress_energy_from_load(heavy, 0, 10, hours_on_duty=12.0, is_resting=True)
+    assert s12 > s0, "12h on duty must raise stress vs 0h"
+    assert s12r < s12, "rest must recover stress"
+    assert e12 < e0, "hours on duty must drain energy"
+    assert stress_energy_from_load(heavy, 0, 10) == (s0, e0), "0h/not-resting must equal legacy"
+    assert hours_fatigue_stress(0) == 0.0 and hours_fatigue_stress(12) == 0.30
+    print(f"hours fatigue: 0h stress={s0} | 12h stress={s12} | 12h+rest stress={s12r}")
     print("welfare_load self-test: ALL PASS")

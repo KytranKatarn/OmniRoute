@@ -124,7 +124,7 @@ def get_agent_load(agent_id: int | None = None, window: str = "1h") -> dict | li
     return out
 
 
-def real_compute_hours_today(cur=None) -> dict:
+def real_compute_hours_today(cur=None, agent_id=None) -> dict:
     """Real (non-internal) compute time per AI agent for TODAY as WALL-CLOCK busy
     time — the UNION of overlapping dispatch intervals, not the raw SUM of durations.
 
@@ -145,6 +145,9 @@ def real_compute_hours_today(cur=None) -> dict:
     Args:
         cur: an existing ``RealDictCursor`` (callers — track_agent_hr, the K.I.N.
             welfare route — are mid-transaction and pass theirs); omit to self-open.
+        agent_id: restrict to one ``agents.id`` (returns a 1-entry dict) — used by
+            per-task ``update_welfare_after_task`` to fetch its own hours cheaply
+            without scanning the whole fleet; ``None`` → every ``worker_type='ai'`` agent.
 
     Returns:
         ``{agent_id: {agent_id, name, shift_state, compute_ms, elapsed_ms, hours,
@@ -173,6 +176,7 @@ def real_compute_hours_today(cur=None) -> dict:
             CROSS JOIN daystart d
             LEFT JOIN restwin rw ON rw.agent_id = a.id
             WHERE a.worker_type = 'ai'
+              {agent_filter}
         ),
         merged AS (
             -- range_agg merges overlapping [start, start+duration] intervals into a
@@ -206,8 +210,15 @@ def real_compute_hours_today(cur=None) -> dict:
         LEFT JOIN compute c ON c.agent_id = w.agent_id
     """
 
+    if agent_id is not None:
+        sql = sql.replace("{agent_filter}", "AND a.id = %s")
+        params = (agent_id,)
+    else:
+        sql = sql.replace("{agent_filter}", "")
+        params = None
+
     def _fetch(c):
-        c.execute(sql)
+        c.execute(sql, params)
         return c.fetchall() or []
 
     if cur is not None:

@@ -37,6 +37,7 @@ def register_work_routes(bp, admin_required):
                         ae.current_mood     AS mood,
                         ab.current_task_count AS task_count,
                         ab.task_queue_limit   AS task_limit,
+                        ab.token_limit_per_day AS token_limit_per_day,
                         ab.last_task_reset_at,
                         ab.task_reset_reason,
                         ab.task_reset_by,
@@ -94,33 +95,41 @@ def register_work_routes(bp, admin_required):
                 # CURRENT_DATE is UTC — rolls to tomorrow at 8pm EDT, making agents
                 # invisible to overwork checks all night.  Use local date + local midnight
                 # for the LEAST cap so 42h raw sums cap at actual elapsed hours today.
+                # Hours worked today = REAL (non-internal) COMPUTE time, capped at elapsed
+                # hours since local (America/Toronto) midnight. KB #270619: overwork must
+                # reflect actual compute, NOT raw duration. Orchestrators (model_used=
+                # 'internal' — 0-token coordinator calls that mostly WAIT on sub-tasks) were
+                # inflating 'hours worked' and being falsely flagged overworked (F.A.C.T./
+                # K.I.N. showed ~14h with ~0 tokens). Mandatory rest now fires at 12h+ of
+                # REAL compute; the C.R.E.E.D. ultradian + 8h-equivalent standard.
                 cur.execute(
                     """
+                    WITH daystart AS (
+                        SELECT (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                                AT TIME ZONE 'America/Toronto') AS t0,
+                               EXTRACT(EPOCH FROM (NOW() -
+                                   (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
+                                    AT TIME ZONE 'America/Toronto'))) * 1000 AS elapsed_ms
+                    ),
+                    compute AS (
+                        SELECT tel.agent_id,
+                               COALESCE(SUM(tel.duration_ms)
+                                   FILTER (WHERE tel.model_used IS DISTINCT FROM 'internal'), 0) AS compute_ms
+                        FROM task_execution_log tel, daystart d
+                        WHERE tel.created_at >= d.t0
+                        GROUP BY tel.agent_id
+                    )
                     SELECT a.name AS agent_name,
-                           ROUND(
-                               LEAST(ads.total_duration_ms,
-                                   EXTRACT(EPOCH FROM (
-                                       NOW() AT TIME ZONE 'America/Toronto'
-                                       - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                                   )) * 1000
-                               ) / 3600000.0, 1
-                           ) AS hours_worked_today,
+                           ROUND(LEAST(c.compute_ms, d.elapsed_ms) / 3600000.0, 1) AS hours_worked_today,
                            CASE
-                             WHEN LEAST(ads.total_duration_ms,
-                                      EXTRACT(EPOCH FROM (
-                                          NOW() AT TIME ZONE 'America/Toronto'
-                                          - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                                      )) * 1000) > 43200000 THEN 'critical'  -- >12h
-                             WHEN LEAST(ads.total_duration_ms,
-                                      EXTRACT(EPOCH FROM (
-                                          NOW() AT TIME ZONE 'America/Toronto'
-                                          - DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Toronto')
-                                      )) * 1000) > 28800000 THEN 'warning'   -- >8h
+                             WHEN LEAST(c.compute_ms, d.elapsed_ms) > 43200000 THEN 'critical'  -- >12h real compute
+                             WHEN LEAST(c.compute_ms, d.elapsed_ms) > 28800000 THEN 'warning'   -- >8h real compute
                              ELSE 'normal'
                            END AS overwork_level
-                    FROM agent_daily_summary ads
-                    JOIN agents a ON a.id = ads.agent_id
-                    WHERE ads.summary_date = (NOW() AT TIME ZONE 'America/Toronto')::date
+                    FROM agents a
+                    JOIN compute c ON c.agent_id = a.id
+                    CROSS JOIN daystart d
+                    WHERE a.worker_type = 'ai'
                     """
                 )
                 hours_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
@@ -208,6 +217,7 @@ def register_work_routes(bp, admin_required):
                     "dispatches_since_reset": d_reset,
                     "tokens_1h": int(vel.get("tokens_1h") or 0),
                     "tokens_24h": int(vel.get("tokens_24h") or 0),
+                    "token_limit_per_day": int(r["token_limit_per_day"]) if r["token_limit_per_day"] else 150000,
                     "hours_to_limit": hours_to_limit,
                     "hours_worked_today": hours_worked_today,
                     "overwork_level": overwork_level,

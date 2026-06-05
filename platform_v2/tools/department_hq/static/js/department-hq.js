@@ -885,42 +885,40 @@ async function loadKinWorkload() {
         table.innerHTML = '<thead><tr style="color:var(--dhq-text-dim);border-bottom:1px solid rgba(255,255,255,0.1);">'
             + '<th style="text-align:left;padding:4px 8px;font-family:Antonio,sans-serif;letter-spacing:1px;">AGENT</th>'
             + '<th style="text-align:right;padding:4px 8px;">DEPT</th>'
-            + '<th style="text-align:right;padding:4px 8px;">1H RATE</th>'
-            + '<th style="text-align:right;padding:4px 8px;">24H TOTAL</th>'
-            + '<th style="text-align:right;padding:4px 8px;">COUNT/LIMIT</th>'
-            + '<th style="text-align:right;padding:4px 8px;">HRS TODAY</th>'
-            + '<th style="text-align:right;padding:4px 8px;">ETA TO 1K</th>'
+            + '<th style="text-align:right;padding:4px 8px;">TOK/H</th>'
+            + '<th style="text-align:right;padding:4px 8px;">TOKENS 24H</th>'
+            + '<th style="text-align:right;padding:4px 8px;">TOKEN BUDGET</th>'
+            + '<th style="text-align:right;padding:4px 8px;">COMPUTE HRS</th>'
+            + '<th style="text-align:right;padding:4px 8px;">DISPATCH 24H</th>'
             + '</tr></thead>';
         var tbody = document.createElement('tbody');
         wl.forEach(function(a) {
-            var sinceReset = a.dispatches_since_reset || 0;
-            var limit = a.task_limit || 1000;
-            var pct = Math.min(100, Math.round(sinceReset / limit * 100));
-            var eta = a.hours_to_limit != null
-                ? (a.hours_to_limit < 1 ? Math.round(a.hours_to_limit * 60) + 'm' : a.hours_to_limit + 'h')
-                : '—';
-            var etaColor = a.hours_to_limit != null && a.hours_to_limit < 4 ? '#f59e0b' : 'var(--dhq-text-dim)';
+            // Token-based workload (KB #270619): capacity is the agent's DAILY TOKEN BUDGET
+            // (model-aware — small models get a smaller budget), not a dispatch count.
+            var tok24 = a.tokens_24h || 0;
+            var tokBudget = a.token_limit_per_day || 150000;
+            var tokPct = Math.min(100, Math.round(tok24 / tokBudget * 100));
+            var tokBarColor = tokPct > 90 ? '#ef4444' : tokPct > 70 ? '#f59e0b' : '#10b981';
             var tr = document.createElement('tr');
             tr.style.cssText = 'border-bottom:1px solid rgba(255,255,255,0.04);';
             tr.innerHTML = '<td style="padding:5px 8px;color:var(--dhq-text-main);font-family:Antonio,sans-serif;letter-spacing:0.5px;">' + a.name + '</td>'
                 + '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-dim);font-size:0.67rem;">' + (a.department || '').split(' & ')[0] + '</td>'
-                + '<td style="padding:5px 8px;text-align:right;color:#00bcd4;font-family:\'IBM Plex Mono\',monospace;">' + (a.dispatches_1h || 0) + '/h</td>'
-                + '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-main);">' + (a.dispatches_24h || 0).toLocaleString() + '</td>'
+                + '<td style="padding:5px 8px;text-align:right;color:#a78bfa;font-family:\'IBM Plex Mono\',monospace;">' + _dhqFmtTok(a.tokens_1h) + '/h</td>'
+                + '<td style="padding:5px 8px;text-align:right;color:#a78bfa;font-family:\'IBM Plex Mono\',monospace;">' + _dhqFmtTok(tok24) + '</td>'
                 + '<td style="padding:5px 8px;text-align:right;">'
                     + '<div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">'
                     + '<div style="width:60px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">'
-                    + '<div style="width:' + pct + '%;height:100%;background:' + (pct > 80 ? '#ef4444' : pct > 50 ? '#f59e0b' : '#10b981') + ';"></div>'
+                    + '<div style="width:' + tokPct + '%;height:100%;background:' + tokBarColor + ';"></div>'
                     + '</div>'
-                    + '<span style="color:var(--dhq-text-dim);min-width:70px;text-align:right;">' + sinceReset.toLocaleString() + '/' + limit.toLocaleString() + '</span>'
+                    + '<span style="color:var(--dhq-text-dim);min-width:80px;text-align:right;font-size:0.67rem;">' + _dhqFmtTok(tok24) + '/' + _dhqFmtTok(tokBudget) + '</span>'
                     + '</div></td>'
                 + (function() {
                 var hw = a.hours_worked_today || 0;
-                if (!hw) return '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-dim);">—</td>';
                 var hwColor = a.overwork_level === 'critical' ? '#ef4444' : a.overwork_level === 'warning' ? '#f59e0b' : 'var(--dhq-text-dim)';
-                var hwSuffix = a.overwork_level !== 'normal' ? ' ⚠' : '';
-                return '<td style="padding:5px 8px;text-align:right;font-family:\'IBM Plex Mono\',monospace;color:' + hwColor + ';">' + hw.toFixed(1) + 'h' + hwSuffix + '</td>';
+                var hwSuffix = a.overwork_level && a.overwork_level !== 'normal' ? ' ⚠' : '';
+                return '<td style="padding:5px 8px;text-align:right;font-family:\'IBM Plex Mono\',monospace;color:' + hwColor + ';">' + (hw ? hw.toFixed(1) + 'h' + hwSuffix : '—') + '</td>';
             })()
-            + '<td style="padding:5px 8px;text-align:right;color:' + etaColor + ';font-family:\'IBM Plex Mono\',monospace;">' + eta + '</td>';
+            + '<td style="padding:5px 8px;text-align:right;color:var(--dhq-text-dim);font-size:0.7rem;">' + (a.dispatches_24h || 0).toLocaleString() + '</td>';
             tbody.appendChild(tr);
         });
         table.appendChild(tbody);

@@ -449,12 +449,19 @@ def track_agent_hr():
                             str(row["agent_id"]),
                         ),
                     )
-                    # C.R.E.E.D. governance log
+                    # C.R.E.E.D. governance log. details is JSONB — the previous code
+                    # passed a plain string here, raising 'invalid input syntax for type
+                    # json' which aborted the whole COO enforcement txn (KB #270619). Human
+                    # text now goes in reason (text); structured payload in details (jsonb).
                     cur.execute(
                         """INSERT INTO governance_audit_log
-                               (event_category, event_type, action, details, timestamp)
-                           VALUES ('creed_compliance','coo_welfare_override','archie_coo',%s,NOW())""",
-                        (f"A.R.C.H.I.E. COO enforced 8h rest for {row['name']} ({hours}h worked — 12h threshold)",),
+                               (agent_id, event_category, event_type, action, reason, details, timestamp)
+                           VALUES (%s,'creed_compliance','coo_welfare_override','archie_coo',%s,%s::jsonb,NOW())""",
+                        (
+                            row["agent_id"],
+                            f"A.R.C.H.I.E. COO enforced 8h rest for {row['name']} ({hours}h worked — 12h threshold)",
+                            json.dumps({"agent": row["name"], "hours": hours, "threshold_hours": 12, "rest_hours": 8}),
+                        ),
                     )
                     # Telegram: A.R.C.H.I.E. advises Kytran of her decision
                     try:

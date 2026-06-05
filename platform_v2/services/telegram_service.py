@@ -304,6 +304,15 @@ def send(
             },
             timeout=10,
         )
+        if not resp.ok and resp.status_code == 400:
+            # The #1 Telegram 400 is a Markdown "can't parse entities" error (231 of 257
+            # sends over 7d) — content held chars our escaping missed. Retry once as PLAIN
+            # TEXT (drop parse_mode) so the message still lands instead of being dropped.
+            resp = requests.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": target, "text": text, "disable_web_page_preview": True},
+                timeout=10,
+            )
         _last_sent[category] = time.time()
 
         if resp.ok:
@@ -599,16 +608,33 @@ def send_with_buttons(
     }
 
     sent_count = 0
+    last_err = None
     for cid in chat_ids:
         try:
+            payload = {**payload_base, "chat_id": cid}
             resp = requests.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={**payload_base, "chat_id": cid},
+                json=payload,
                 timeout=15,
             )
+            if not resp.ok and resp.status_code == 400:
+                # The #1 Telegram 400 is a Markdown "can't parse entities" error
+                # (231 of 257 sends over 7d): content held chars our escaping missed.
+                # Retry once as PLAIN TEXT (drop parse_mode) so the approval still
+                # reaches the user instead of being silently dropped.
+                plain = {k: v for k, v in payload.items() if k != "parse_mode"}
+                resp = requests.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json=plain,
+                    timeout=15,
+                )
             if resp.ok:
                 sent_count += 1
+            else:
+                last_err = f"HTTP {resp.status_code}: {resp.text[:120]}"
+                logger.debug("send_with_buttons to %s: %s", cid, last_err)
         except Exception as exc:
+            last_err = str(exc)[:140]
             logger.debug("send_with_buttons to %s failed: %s", cid, exc)
 
     logger.info(
@@ -631,6 +657,7 @@ def send_with_buttons(
         source_department=source_department,
         source_module="telegram_approval",
         status="sent" if sent_count > 0 else "failed",
+        error_message=None if sent_count > 0 else last_err,
     )
 
     return {"sent": sent_count > 0, "sent_count": sent_count}

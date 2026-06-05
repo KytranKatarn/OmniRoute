@@ -402,13 +402,20 @@ def _run_analysis_job(items_data, category, batch_id, job_id):
                 total_input_tokens += result.input_tokens
                 total_output_tokens += result.output_tokens
 
-                # Log external call for HR/welfare tracking
+                # Log external call for HR/welfare tracking.
+                # FIX-3b (KB #270619): pass the REAL token counts so this row carries
+                # tokens_used instead of 0. The analyzer runs the LLM outside dispatch(),
+                # so this is the ONLY task_execution_log row for the analysis work — and
+                # token-based welfare (welfare_load) reads fatigue from tokens. Logging 0
+                # made heavy mistral:7b analysis look like idle/free work.
                 dispatcher.log_external_call(
                     capability="knowledge_analysis",
                     module_id="consciousness",
                     model_used=analyzer.get_current_model(),
                     duration_ms=result.processing_time_ms,
                     success=True,
+                    prompt_tokens=result.input_tokens or 0,
+                    completion_tokens=result.output_tokens or 0,
                 )
 
                 # Save cards + embeddings

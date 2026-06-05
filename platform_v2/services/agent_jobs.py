@@ -558,7 +558,20 @@ def track_agent_hr():
                    (SELECT COUNT(*) FROM agent_rest_cycles arc
                     WHERE arc.agent_id = ads.agent_id
                       AND arc.started_at <= NOW()
-                      AND (arc.ended_at IS NULL OR arc.ended_at > NOW())) AS is_resting
+                      AND (arc.ended_at IS NULL OR arc.ended_at > NOW())) AS is_resting,
+                   -- FIX-5d (KB #270619): real 1h token + duration load so base stress
+                   -- uses the shared welfare_load formula, not duration-utilization.
+                   (SELECT COALESCE(SUM(tl.tokens_used), 0)
+                      FROM task_execution_log tl
+                     WHERE tl.agent_id = ads.agent_id
+                       AND tl.created_at >= NOW() - INTERVAL '1 hour') AS toks_1h,
+                   (SELECT COALESCE(SUM(tl.duration_ms), 0)
+                      FROM task_execution_log tl
+                     WHERE tl.agent_id = ads.agent_id
+                       AND tl.created_at >= NOW() - INTERVAL '1 hour') AS dur_ms_1h,
+                   (SELECT ab.token_limit_per_day
+                      FROM agent_budgets ab
+                     WHERE ab.agent_id = ads.agent_id) AS token_limit
             FROM agent_daily_summary ads
             WHERE ads.summary_date = %s
         """,
@@ -568,8 +581,20 @@ def track_agent_hr():
             hours = float(row["hours_worked_today"] or 0)
             is_resting = int(row["is_resting"] or 0) > 0
 
-            # Base stress from task utilization
-            base_stress = min(float(row["utilization_pct"]) / 100, 0.9)
+            # FIX-5d (KB #270619): base stress from REAL token load via the shared
+            # welfare_load formula — NOT utilization_pct (work_hours / hours_elapsed),
+            # which benched agents for mere wall-clock presence or many cheap calls and
+            # fought update_welfare_after_task's token-based stress (the 0.9↔0.6 thrash
+            # that stranded V.E.R.I.F.Y./B.I.A.S./K.I.N.). Hours-on-duty fatigue stays as
+            # an explicit additive term below (C.R.E.E.D. work-life-balance / 12h rest).
+            from services.welfare_load import (
+                STRESS_BASE,
+                STRESS_LOAD_COEF,
+                compute_token_load,
+            )
+
+            _load = compute_token_load(row.get("toks_1h"), row.get("dur_ms_1h"), row.get("token_limit"))
+            base_stress = STRESS_BASE + _load * STRESS_LOAD_COEF  # 0.2 + load*0.4 (≤0.6)
 
             # Hours fatigue bonus: more hours worked = more stress
             if hours >= 12:

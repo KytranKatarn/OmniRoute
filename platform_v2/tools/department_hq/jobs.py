@@ -1742,57 +1742,88 @@ def _register_own_jobs(scheduler, flask_app):
             from database import get_db_cursor
             from services import agent_service as _agent_svc
 
+            # FIX-5 (KB #270619): welfare DECAY refresh. update_welfare_after_task only
+            # fires when an agent COMPLETES a dispatch, so an idle/winding_down agent's
+            # stress is frozen at whatever the last writer set — which stranded
+            # V.E.R.I.F.Y./B.I.A.S./K.I.N. at 0.90 from the pre-token-model era, where the
+            # kin_stuck_agent_reaper (stress<0.70 gate) could never free them. Recomputing
+            # each cycle from the live 1h token window decays stress for now-idle agents
+            # (→ ~0.2 baseline) so the reaper can release them, AND makes the overload
+            # signal below honest (token-based, not frozen). Each call manages its own
+            # committed transaction; wrapped so a refresh failure never breaks the monitor.
+            try:
+                with get_db_cursor() as (_rc, _rcur):
+                    _rcur.execute(
+                        """
+                        SELECT id FROM agents
+                        WHERE worker_type = 'ai'
+                          AND shift_state IN ('active', 'deployed', 'winding_down', 'cooldown')
+                        """
+                    )
+                    _refresh_ids = [r["id"] for r in (_rcur.fetchall() or [])]
+                _refreshed = 0
+                for _aid in _refresh_ids:
+                    try:
+                        _agent_svc.update_welfare_after_task(_aid, success=True)
+                        _refreshed += 1
+                    except Exception as _wf_e:
+                        logger.debug("[K.I.N.] welfare refresh failed for agent %s: %s", _aid, _wf_e)
+                if _refreshed:
+                    logger.debug("[K.I.N.] welfare decay refresh: %d agents recomputed", _refreshed)
+            except Exception as _wf_outer:
+                logger.warning("[K.I.N.] welfare decay refresh skipped: %s", _wf_outer)
+
             with get_db_cursor(commit=True) as (_, cur):
-                # --- Per-node dispatch counts (last 10 min) ---
+                # --- Per-node load: token-based (FIX-5, KB #270619). Raw dispatch COUNT
+                #     made a node doing many cheap 50-token pings look "busier" than one
+                #     doing a few heavy 40k-token analyses. SUM(tokens_used) is the real
+                #     compute load. Dispatch count kept only for display context. ---
                 cur.execute(
                     """
-                    SELECT rn.node_name, COUNT(*) AS dispatches
+                    SELECT rn.node_name,
+                           COUNT(*) AS dispatches,
+                           COALESCE(SUM(tel.tokens_used), 0) AS tokens
                     FROM task_execution_log tel
                     JOIN remote_nodes rn ON rn.id = tel.node_used_id
                     WHERE tel.created_at > NOW() - INTERVAL '10 minutes'
                       AND tel.node_used_id IS NOT NULL
                     GROUP BY rn.node_name
-                    ORDER BY dispatches DESC
+                    ORDER BY tokens DESC
                     """
                 )
                 node_loads = cur.fetchall() or []
 
-                # --- Agents approaching budget limit ---
-                # Catches BOTH concurrent-queue overload AND lifetime dispatch overload
-                # (dispatches_since_reset >= 80% of task_queue_limit since last reset)
+                # --- Genuinely strained agents (FIX-5, KB #270619) ---
+                # OLD: lifetime dispatch COUNT since reset / task_queue_limit — pure
+                # action count, so an agent firing 200 cheap pings read as "overloaded"
+                # and K.I.N. rested healthy agents (the exact action-vs-token bug).
+                # NEW: read the freshly-refreshed token-based welfare stress (set by the
+                # decay refresh above via the shared welfare_load formula). Pure
+                # heavy-but-successful work caps stress at ~0.6; only failure-driven
+                # strain (or accumulated duty hours from hr_tracker) pushes >=0.75 —
+                # which is what actually warrants rest. `utilisation_pct` is kept as the
+                # column name (= stress x 100) so the downstream rest loop, summary, and
+                # alert lines keep working unchanged.
                 cur.execute(
                     """
                     SELECT a.name, a.department, a.id AS agent_id,
                            ab.current_task_count, ab.task_queue_limit,
                            ab.last_task_reset_at,
-                           (SELECT COUNT(*) FROM task_execution_log tel
-                            WHERE tel.agent_name = a.name
-                              AND tel.created_at >= COALESCE(ab.last_task_reset_at,
-                                                             NOW() - INTERVAL '7 days')
-                           ) AS dispatches_since_reset,
-                           GREATEST(
-                               ROUND(100.0 * ab.current_task_count /
-                                   NULLIF(ab.task_queue_limit, 0), 1),
-                               ROUND(100.0 *
-                                   (SELECT COUNT(*) FROM task_execution_log tel
-                                    WHERE tel.agent_name = a.name
-                                      AND tel.created_at >= COALESCE(ab.last_task_reset_at,
-                                                                     NOW() - INTERVAL '7 days')
-                                   ) / NULLIF(ab.task_queue_limit, 0), 1)
-                           ) AS utilisation_pct
+                           ROUND(100.0 * aes.stress_level, 1) AS utilisation_pct,
+                           aes.stress_level
                     FROM agent_budgets ab
                     JOIN agents a ON a.id = ab.agent_id
-                    WHERE ab.task_queue_limit > 0
-                      AND (
-                          ab.current_task_count::float / ab.task_queue_limit > 0.7
-                          OR (
-                              SELECT COUNT(*) FROM task_execution_log tel
-                              WHERE tel.agent_name = a.name
-                                AND tel.created_at >= COALESCE(ab.last_task_reset_at,
-                                                               NOW() - INTERVAL '7 days')
-                          )::float / ab.task_queue_limit > 0.7
-                      )
-                    ORDER BY utilisation_pct DESC
+                    JOIN LATERAL (
+                        SELECT stress_level
+                        FROM agent_emotional_state
+                        WHERE agent_id = a.id
+                        ORDER BY timestamp DESC
+                        LIMIT 1
+                    ) aes ON TRUE
+                    WHERE a.worker_type = 'ai'
+                      AND a.shift_state IN ('active', 'deployed')
+                      AND aes.stress_level >= 0.75
+                    ORDER BY aes.stress_level DESC
                     LIMIT 10
                     """
                 )
@@ -1801,33 +1832,38 @@ def _register_own_jobs(scheduler, flask_app):
                 if not node_loads and not overloaded:
                     return  # nothing to report
 
-                # --- Calculate imbalance ratio ---
-                loads = [int(r["dispatches"]) for r in node_loads]
-                max_load = max(loads) if loads else 0
-                min_load = min(loads) if loads else 0
-                imbalance = max_load / max(min_load, 1)
+                # --- Token-based node imbalance (INFORMATIONAL only, FIX-5) ---
+                # The hub runs large models and CPU outposts run tiny ones, so a token
+                # disparity BETWEEN tiers is EXPECTED and not actionable. We record it for
+                # context but NEVER alert on it — alerting on raw node imbalance was the
+                # 279/day "Fleet Workload Imbalance" spam the user flagged (KB #270619).
+                toks = [int(r["tokens"]) for r in node_loads]
+                max_tok = max(toks) if toks else 0
+                min_tok = min(toks) if toks else 0
+                imbalance = max_tok / max(min_tok, 1)
 
                 summary = {
-                    "node_loads": {r["node_name"]: int(r["dispatches"]) for r in node_loads},
-                    "overloaded_agents": [
+                    "node_tokens": {r["node_name"]: int(r["tokens"]) for r in node_loads},
+                    "node_dispatches": {r["node_name"]: int(r["dispatches"]) for r in node_loads},
+                    "strained_agents": [
                         {
                             "name": r["name"],
-                            "utilisation_pct": float(r["utilisation_pct"] or 0),
+                            "stress": float(r["stress_level"] or 0),
                             "current": int(r["current_task_count"]),
                             "limit": int(r["task_queue_limit"]),
                         }
                         for r in overloaded
                     ],
-                    "imbalance_ratio": round(imbalance, 2),
+                    "token_imbalance_ratio": round(imbalance, 2),
                 }
 
-                # --- Governance log ---
+                # --- Governance log (always, for C.R.E.E.D. transparency) ---
                 cur.execute(
                     """
                     INSERT INTO governance_audit_log
                         (agent_id, event_category, event_type, action, reason, details, timestamp)
                     SELECT a.id, 'workload_balance', 'kin_workload_check', 'workload_monitor',
-                           'K.I.N. workload monitor: imbalance=' || %s || 'x, overloaded=' || %s,
+                           'K.I.N. workload monitor: token_imbalance=' || %s || 'x, strained=' || %s,
                            %s::jsonb, NOW()
                     FROM agents a WHERE a.name = 'K.I.N.' LIMIT 1
                     """,
@@ -1838,38 +1874,51 @@ def _register_own_jobs(scheduler, flask_app):
                     ),
                 )
 
-                # --- Alert if imbalance >3× or any agent >90% utilisation ---
-                critical = any(float(r["utilisation_pct"] or 0) > 90 for r in overloaded)
-                if imbalance > 3.0 or critical:
-                    busiest = node_loads[0]["node_name"] if node_loads else "?"
-                    quietest = node_loads[-1]["node_name"] if len(node_loads) > 1 else "?"
-                    lines = [f"🔄 Fleet imbalance: {imbalance:.1f}× ({busiest} vs {quietest})"]
-                    for r in overloaded[:3]:
-                        lines.append(
-                            f"⚠ {r['name']} ({r['department']}) "
-                            f"{r['current_task_count']}/{r['task_queue_limit']} "
-                            f"({r['utilisation_pct']}%)"
-                        )
+                # --- Alert ONLY on genuine agent strain, WITH a cooldown (FIX-5) ---
+                # Fires off `overloaded` (token-based stress >= 0.75), never node
+                # imbalance. Dedup: skip if an unread kin_workload_monitor strain alert
+                # already exists in the last 2h — this is what stops the 5-min spam.
+                if overloaded:
                     cur.execute(
                         """
-                        INSERT INTO system_notifications
-                            (title, message, type, source, is_read)
-                        VALUES ('K.I.N. — Fleet Workload Imbalance', %s,
-                                'warning', 'kin_workload_monitor', FALSE)
-                        """,
-                        ("\n".join(lines),),
+                        SELECT 1 FROM system_notifications
+                        WHERE source = 'kin_workload_monitor'
+                          AND title = 'K.I.N. — Agents Under Strain'
+                          AND is_read = FALSE
+                          AND created_at > NOW() - INTERVAL '2 hours'
+                        LIMIT 1
+                        """
                     )
-                    logger.warning(
-                        "[K.I.N.] Workload imbalance detected: %.1fx — %s",
-                        imbalance,
-                        ", ".join(f"{r['node_name']}:{r['dispatches']}" for r in node_loads),
-                    )
+                    if cur.fetchone():
+                        logger.debug(
+                            "[K.I.N.] %d strained agent(s); alert suppressed (2h cooldown)",
+                            len(overloaded),
+                        )
+                    else:
+                        lines = [f"⚠ {len(overloaded)} agent(s) under sustained strain:"]
+                        for r in overloaded[:5]:
+                            lines.append(
+                                f"• {r['name']} ({r['department']}) — stress " f"{float(r['stress_level'] or 0):.2f}"
+                            )
+                        cur.execute(
+                            """
+                            INSERT INTO system_notifications
+                                (title, message, type, source, is_read)
+                            VALUES ('K.I.N. — Agents Under Strain', %s,
+                                    'warning', 'kin_workload_monitor', FALSE)
+                            """,
+                            ("\n".join(lines),),
+                        )
+                        logger.warning(
+                            "[K.I.N.] %d agent(s) under strain: %s",
+                            len(overloaded),
+                            ", ".join(f"{r['name']}={float(r['stress_level'] or 0):.2f}" for r in overloaded),
+                        )
                 else:
                     logger.debug(
-                        "[K.I.N.] Workload OK: imbalance=%.1fx nodes=%d overloaded=%d",
+                        "[K.I.N.] Workload OK: token_imbalance=%.1fx nodes=%d strained=0",
                         imbalance,
                         len(node_loads),
-                        len(overloaded),
                     )
 
                 # --- Auto-rest: schedule rest for agents >80% capacity with no open cycle ---
@@ -3891,7 +3940,12 @@ def _register_own_jobs(scheduler, flask_app):
                            (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
                            VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
                                    %s, 'internal', %s, true, %s, 68)""",
-                        ("A.R.C.H.I.E.", "A.R.C.H.I.E.", elapsed_ms, "knowledge_analysis"),
+                        # FIX-3a (KB #270619): this non-LLM cluster-orchestration tick
+                        # (model_used='internal', ~1/min) was mislabeled capability
+                        # 'knowledge_analysis' — ~1366 fake 0-token rows/day polluting
+                        # A.R.C.H.I.E.'s knowledge_analysis capability stats. It is
+                        # cluster orchestration, not analysis.
+                        ("A.R.C.H.I.E.", "A.R.C.H.I.E.", elapsed_ms, "cluster_orchestration"),
                     )
             except Exception as _tel:
                 logger.debug("[ClusterOrchestration] task_execution_log write failed: %s", _tel)

@@ -6825,10 +6825,19 @@ class DepartmentDispatcher:
         success: bool = True,
         error: Optional[str] = None,
         user_id: Optional[int] = None,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
     ):
         """
         Log an AI call that happened outside the dispatcher (e.g., via archie_bridge).
         Ensures all AI activity appears in task_execution_log for HR tracking.
+
+        FIX-3b (KB #270619): callers that ran a real LLM outside dispatch() (e.g. the
+        Consciousness analysis loop via knowledge_analyzer) MUST pass real
+        prompt/completion token counts. Otherwise this logs 0 tokens for genuine
+        compute work — and since token-based welfare (welfare_load) keys fatigue off
+        tokens, that work is invisible to K.I.N. and the agent reads as idle. This is
+        exactly the 0-token-on-real-model case `_log_execution` flags as `[token-gap]`.
         """
         station_code = CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
         agent = get_dept_coordinator().select_agent(capability, station_code)
@@ -6851,6 +6860,8 @@ class DepartmentDispatcher:
             capability=capability,
             duration_ms=duration_ms,
             error=error,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
         )
         self._log_execution(result, module_id, user_id)
 

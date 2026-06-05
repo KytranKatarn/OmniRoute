@@ -660,6 +660,37 @@ async function loadKinTab() {
     }, 60000);
 }
 
+// Approve/Deny an 8h-rest welfare approval directly from the K.I.N. welfare card.
+// Hits the SAME endpoint as the Approvals tab + Telegram buttons, so all three surfaces
+// stay in sync (the approval is enforced on the agent by _approve_autonomy).
+async function _kinWelfareApprove(approvalId, approve, okBtn, noBtn) {
+    if (okBtn) okBtn.disabled = true;
+    if (noBtn) noBtn.disabled = true;
+    if (okBtn) okBtn.textContent = approve ? 'Approving…' : 'Denying…';
+    try {
+        var url = '/tools/department-hq/api/approvals/' + approvalId + '/' + (approve ? 'approve' : 'deny');
+        var opts = { method: 'POST' };
+        if (!approve) {
+            opts.headers = { 'Content-Type': 'application/json' };
+            opts.body = JSON.stringify({ reason: 'Denied from K.I.N. welfare card' });
+        }
+        var resp = await fetch(url, opts);
+        var data = await resp.json();
+        if (data && data.success) {
+            if (okBtn) okBtn.textContent = approve ? 'Rest granted ✓' : 'Denied ✓';
+            setTimeout(loadKinWelfare, 800);
+        } else {
+            if (okBtn) { okBtn.disabled = false; okBtn.textContent = '✅ Approve 8h rest'; }
+            if (noBtn) noBtn.disabled = false;
+            alert('Failed: ' + ((data && data.error) || 'unknown'));
+        }
+    } catch (e) {
+        if (okBtn) { okBtn.disabled = false; okBtn.textContent = '✅ Approve 8h rest'; }
+        if (noBtn) noBtn.disabled = false;
+        alert('Error: ' + e.message);
+    }
+}
+
 async function loadKinWelfare() {
     var el = document.getElementById('kinWelfareContent');
     if (el) el.textContent = 'Loading…';
@@ -765,6 +796,25 @@ async function loadKinWelfare() {
                     kinAvatar.style.cssText = 'width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;';
                 }
                 kinHdr.insertBefore(kinAvatar, kinHdr.firstChild);
+            }
+            // K.I.N. welfare approval — when an 8h-rest approval is pending for this
+            // agent, surface Approve/Deny right on the card (same backend as the Approvals
+            // tab + Telegram, "same result"). Previously the card only showed "rest
+            // approval pending" with no way to act here.
+            if (a.rest_approval_id) {
+                var actRow = document.createElement('div');
+                actRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
+                var okBtn = document.createElement('button');
+                okBtn.textContent = '✅ Approve 8h rest';
+                okBtn.style.cssText = 'flex:1;font-size:0.62rem;background:#10b981;color:#04241a;border:none;border-radius:4px;padding:5px 6px;cursor:pointer;font-weight:600;';
+                var noBtn = document.createElement('button');
+                noBtn.textContent = 'Deny';
+                noBtn.style.cssText = 'font-size:0.62rem;background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid #ef444455;border-radius:4px;padding:5px 12px;cursor:pointer;';
+                okBtn.onclick = function () { _kinWelfareApprove(a.rest_approval_id, true, okBtn, noBtn); };
+                noBtn.onclick = function () { _kinWelfareApprove(a.rest_approval_id, false, okBtn, noBtn); };
+                actRow.appendChild(okBtn);
+                actRow.appendChild(noBtn);
+                card.appendChild(actRow);
             }
             grid.appendChild(card);
         });

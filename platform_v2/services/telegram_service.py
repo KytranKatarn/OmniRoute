@@ -565,6 +565,18 @@ def send_with_buttons(
     target = _get_chat_id()
     if not target:
         logger.debug("send_with_buttons: no chat_id configured")
+        # Still record the attempt so the COMs tracking center shows it was raised but
+        # could not be delivered (no recipient configured).
+        _log_message(
+            category=category,
+            title=title,
+            message=message,
+            source_agent=source_agent,
+            source_department=source_department,
+            source_module="telegram_approval",
+            status="failed",
+            error_message="no chat_id configured",
+        )
         return {"sent": False, "reason": "no chat_id configured"}
 
     # Fetch all authorized users so escalation buttons reach every admin
@@ -606,4 +618,19 @@ def send_with_buttons(
         sent_count,
         len(chat_ids),
     )
+
+    # Log to telegram_message_log so the COMs tab (the report/tracking center) shows
+    # approval/escalation button messages too — previously send_with_buttons was the
+    # ONE send path that did not log, so welfare/escalation approvals never appeared in
+    # COMs ("i never got telegram for others there as well"). Best-effort; never blocks.
+    _log_message(
+        category=category,
+        title=title,
+        message=message,
+        source_agent=source_agent,
+        source_department=source_department,
+        source_module="telegram_approval",
+        status="sent" if sent_count > 0 else "failed",
+    )
+
     return {"sent": sent_count > 0, "sent_count": sent_count}

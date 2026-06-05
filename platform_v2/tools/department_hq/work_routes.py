@@ -119,6 +119,21 @@ def register_work_routes(bp, admin_required):
                 )
                 hours_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
 
+                # Pending K.I.N. 8h-rest approvals keyed by agent id, so the welfare card
+                # can show an Approve/Deny button right where the "rest approval pending"
+                # status appears (previously approvable only on the separate Approvals tab
+                # or Telegram, which users could not find).
+                cur.execute(
+                    """
+                    SELECT (action_data->>'agent_id')::int AS agent_id, id AS approval_id
+                    FROM autonomy_approval_queue
+                    WHERE action_type = 'welfare_rest_8h' AND status = 'pending'
+                      AND (expires_at IS NULL OR expires_at > NOW())
+                      AND action_data->>'agent_id' IS NOT NULL
+                    """
+                )
+                pending_rest_map = {r["agent_id"]: r["approval_id"] for r in (cur.fetchall() or [])}
+
                 # Last reset summary (latest reset across all agents)
                 cur.execute(
                     """
@@ -188,11 +203,21 @@ def register_work_routes(bp, admin_required):
                     "hours_to_limit": hours_to_limit,
                     "hours_worked_today": hours_worked_today,
                     "overwork_level": overwork_level,
+                    "rest_approval_id": pending_rest_map.get(r["id"]),
                     "avatar_url": ("/" + r["avatar_path"].lstrip("/") if r.get("avatar_path") else None),
                 }
 
-                # Welfare cards: resting, at task limit, high stress, OR overworked (>8h today)
-                if is_resting or at_limit or (r["stress"] or 0) > 0.7 or overwork_level != "normal":
+                # Welfare cards: resting, at task limit, high stress, overworked (>8h
+                # today), OR has a pending 8h-rest approval (so the Approve/Deny button is
+                # always visible where the action is needed, even if the agent has since
+                # dropped below the overwork threshold).
+                if (
+                    is_resting
+                    or at_limit
+                    or (r["stress"] or 0) > 0.7
+                    or overwork_level != "normal"
+                    or agent_data["rest_approval_id"]
+                ):
                     agents.append(agent_data)
 
                 # Workload table: all agents with any activity or task_count > 0

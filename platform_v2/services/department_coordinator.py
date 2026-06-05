@@ -527,6 +527,15 @@ class DepartmentCoordinator:
             # every active candidate is unskilled (#2166, 2026-04-19).
             score -= 1.0
 
+        # Consent / opt-out (C.R.E.E.D. welfare, KB #270626): a DISTRESSED agent — one
+        # with a sustained high failure rate on THIS capability over the last hour —
+        # steps back from work it keeps failing (Anthropic model-welfare: let models
+        # decline distressing tasks). Strong penalty so a healthy peer is preferred; NOT
+        # a hard block, so a genuine last-resort agent still gets the work rather than
+        # nobody. self._distress is refreshed (120s) in select_agent.
+        if capability and (agent_id, capability) in getattr(self, "_distress", set()):
+            score -= 1.5
+
         # Competency adjustment — reward/penalize based on tested capability (#2179)
         if capability:
             competency_scores = agent_info.get("competency_scores") or {}
@@ -578,6 +587,89 @@ class DepartmentCoordinator:
 
         return (max(score, 0.01), None)
 
+    def _refresh_distress(self) -> None:
+        """Compute (agent_id, capability) pairs in DISTRESS = sustained high failure.
+
+        Consent / opt-out (C.R.E.E.D. welfare, KB #270626): an agent failing the SAME
+        capability repeatedly over the last hour 'raises its hand' — it is penalised in
+        scoring so a healthy peer takes the work (Anthropic model-welfare: let models
+        decline distressing tasks). Cached 120s; logs an 'agent voice' governance event
+        on each NEW distress entry. Conservative thresholds (>=5 real-LLM tasks of the
+        capability, >=60% failures) so it fires only on genuine, sustained struggle.
+        """
+        import time as _t
+
+        now = _t.time()
+        if (now - getattr(self, "_distress_time", 0.0)) < 120:
+            return
+
+        prev = getattr(self, "_distress", set())
+        new_distress = set()
+        detail = {}
+        try:
+            from db import get_db
+
+            conn = get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT a.id, tel.capability,
+                       COUNT(*) AS total,
+                       COUNT(*) FILTER (WHERE NOT tel.success) AS fails
+                FROM task_execution_log tel
+                JOIN agents a ON a.name = tel.agent_name
+                WHERE tel.created_at > NOW() - INTERVAL '1 hour'
+                  AND tel.capability IS NOT NULL
+                  AND tel.model_used IS DISTINCT FROM 'internal'
+                GROUP BY a.id, tel.capability
+                HAVING COUNT(*) >= 5
+                   AND COUNT(*) FILTER (WHERE NOT tel.success)::float / COUNT(*) >= 0.6
+                """
+            )
+            for aid, cap, total, fails in cur.fetchall():
+                new_distress.add((aid, cap))
+                detail[(aid, cap)] = (fails, total)
+            cur.close()
+            conn.close()
+        except Exception as exc:
+            logger.debug("distress refresh failed: %s", exc)
+            self._distress_time = now
+            return
+
+        for key in new_distress - prev:
+            aid, cap = key
+            fails, total = detail.get(key, (0, 0))
+            try:
+                from db import get_db as _gdb
+                import json as _json
+
+                _c = _gdb()
+                _cur = _c.cursor()
+                _cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (agent_id, event_category, event_type, action, reason, details, timestamp)
+                    VALUES (%s, 'consent', 'agent_welfare', 'opt_out', %s, %s::jsonb, NOW())
+                    """,
+                    (
+                        aid,
+                        f"Distress opt-out: {fails}/{total} failures on '{cap}' in the last hour — "
+                        f"agent steps back, work routed to a healthy peer",
+                        _json.dumps(
+                            {"capability": cap, "failures": fails, "total": total, "trigger": "sustained_failure"}
+                        ),
+                    ),
+                )
+                _c.commit()
+                _cur.close()
+                _c.close()
+                logger.info("consent: agent id=%s opted out of '%s' (%d/%d failures)", aid, cap, fails, total)
+            except Exception as _e:
+                logger.debug("distress governance log failed: %s", _e)
+
+        self._distress = new_distress
+        self._distress_time = now
+
     def resolve_department(self, capability: str) -> str:
         """Map a capability to its home department."""
         return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
@@ -598,6 +690,7 @@ class DepartmentCoordinator:
         escalation whenever a qualified specialist exists on the bench.
         """
         self._refresh_caches()
+        self._refresh_distress()
 
         candidates = []
         for name, info in self._agent_cache.items():

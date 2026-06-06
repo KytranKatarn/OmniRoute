@@ -414,6 +414,10 @@ async function sendEmmanuel() {
     border: 1px solid var(--archie-border-default, var(--archie-border));
     border-radius: 4px;
 }
+.ac-overlay-bubble,
+.ac-overlay-window {
+    display: none !important;
+}
 .faith-crisis-alert {
     display: none;
     background: rgba(239, 68, 68, 0.12);
@@ -537,5 +541,4 @@ async function sendEmmanuel() {
     .module-tab-panel { width: 100%; }
 }
 </style>
-<script src="{{ url_for('static', filename='js/faith-chat.js') }}" defer></script>
 {% endblock %}

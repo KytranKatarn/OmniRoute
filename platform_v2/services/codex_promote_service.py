@@ -33,6 +33,12 @@ def promote_codex_pr(
     """
     if not pr_number:
         return {"success": False, "error": "pr_number is required"}
+    import re
+
+    # SECURITY: strict module allow-list (layer 1 of 3) — defence-in-depth against
+    # injection in the downstream host poller that builds URLs/log strings.
+    if module is not None and not re.fullmatch(r"[a-z0-9_-]{1,40}", str(module)):
+        return {"success": False, "error": f"invalid module: {module!r}"}
     try:
         from ai_bridge.agent_loop import request_approval
     except Exception as e:  # noqa: BLE001

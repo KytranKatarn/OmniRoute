@@ -19,23 +19,32 @@ HEALTH_TIMEOUT=90
 log(){ echo "$(date '+%F %T') $*" >>"$LOG"; echo "$*"; }
 psql_q(){ docker exec -i archie_database psql -U archie -d archie -tA "$@"; }
 
-tg(){ # tg <title> <msg> — Telegram via the platform service (no curl)
-  docker exec archie_platform python3 -c "
-import sys; sys.path.insert(0,'/app')
+tg(){ # tg <title> <msg> — Telegram via the platform service (argv; no interpolation)
+  docker exec archie_platform python3 -c 'import sys; sys.path.insert(0,"/app")
 from services import telegram_service as t
-t.send_system('''$1''','''$2''')" >>"$LOG" 2>&1 || true
+t.send_system(sys.argv[1], sys.argv[2])' "$1" "$2" >>"$LOG" 2>&1 || true
 }
 
 ROWS="$(psql_q -F'|' -c "
-  SELECT id, action_data->>'pr_number', COALESCE(action_data->>'module','')
+  SELECT id, action_data->>'pr_number', COALESCE(action_data->>'module',''), COALESCE(execution_result->>'merge_sha','')
   FROM autonomy_approval_queue
   WHERE action_type='codex_promote' AND execution_result->>'deploy_pending'='true'
   ORDER BY id;" 2>>"$LOG" || true)"
 [ -z "$ROWS" ] && exit 0
 
-echo "$ROWS" | while IFS='|' read -r AID PR MODULE; do
+echo "$ROWS" | while IFS='|' read -r AID PR MODULE MERGE_SHA; do
   [ -z "${AID:-}" ] && continue
-  log "deploy-pending: approval #$AID PR #$PR module='$MODULE' (LIVE=$LIVE)"
+  log "deploy-pending: approval #$AID PR #$PR module='$MODULE' sha=${MERGE_SHA:0:7} (LIVE=$LIVE)"
+  # SECURITY: strict allow-lists before any use (injection defence-in-depth).
+  if [ -n "$MODULE" ] && ! printf '%s' "$MODULE" | grep -qE '^[a-z0-9_-]{1,40}$'; then
+    log "REJECT #$AID — invalid module '$MODULE'"; continue
+  fi
+  if ! printf '%s' "$PR" | grep -qE '^[0-9]+$'; then
+    log "REJECT #$AID — invalid pr_number '$PR'"; continue
+  fi
+  if [ -n "$MERGE_SHA" ] && ! printf '%s' "$MERGE_SHA" | grep -qE '^[0-9a-f]{7,40}$'; then
+    log "REJECT #$AID — invalid merge_sha '$MERGE_SHA'"; continue
+  fi
   cd "$REPO"
 
   # SAFETY GUARD: never clobber active dev work.
@@ -50,11 +59,18 @@ echo "$ROWS" | while IFS='|' read -r AID PR MODULE; do
     continue
   fi
 
-  # ---- LIVE deploy ----
+  # ---- LIVE deploy (pinned to the APPROVED merge SHA — no ride-along of later
+  #      main commits without a fresh Telegram approval) ----
   PREV="$(git rev-parse HEAD)"
-  git fetch origin -q && git reset --hard origin/main -q
+  git fetch origin -q
+  if [ -z "$MERGE_SHA" ] || ! git merge-base --is-ancestor "$MERGE_SHA" origin/main 2>/dev/null; then
+    log "REFUSE #$AID — merge_sha '${MERGE_SHA:-<none>}' not an ancestor of origin/main; re-approval required"
+    tg "Codex deploy REFUSED" "PR #$PR: recorded merge_sha not on main — needs a fresh Telegram approval."
+    continue
+  fi
+  git reset --hard "$MERGE_SHA" -q
   NEW="$(git rev-parse --short HEAD)"
-  log "deploying main $NEW (was ${PREV:0:7}) — restarting archie_platform..."
+  log "deploying approved sha $NEW (was ${PREV:0:7}) — restarting archie_platform..."
   docker compose restart archie_platform >>"$LOG" 2>&1
 
   # health-gate
@@ -67,10 +83,10 @@ echo "$ROWS" | while IFS='|' read -r AID PR MODULE; do
 
   if [ "$ok" = "1" ]; then
     URL="https://platform.kytranempowerment.com/tools/${MODULE:-}"
-    CODE="$(python3 -c "import urllib.request,urllib.error
-try: print(urllib.request.urlopen('$URL',timeout=20).status)
+    CODE="$(python3 -c 'import urllib.request,urllib.error,sys
+try: print(urllib.request.urlopen(sys.argv[1],timeout=20).status)
 except urllib.error.HTTPError as e: print(e.code)
-except Exception: print('down')" 2>/dev/null || echo err)"
+except Exception: print("down")' "$URL" 2>/dev/null || echo err)"
     log "HEALTHY — verify $URL -> $CODE"
     psql_q -c "UPDATE autonomy_approval_queue SET execution_result=jsonb_set(COALESCE(execution_result,'{}'),'{deploy_pending}','false'), updated_at=NOW() WHERE id=$AID;" >>"$LOG" 2>&1 || true
     tg "Codex deploy LIVE" "PR #$PR is live in production (/tools/$MODULE, HTTP $CODE). main @ $NEW."

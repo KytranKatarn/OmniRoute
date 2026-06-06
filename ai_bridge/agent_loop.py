@@ -3745,6 +3745,17 @@ class AgentLoop:
                 _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                 from tools.repair_bay.services.github_service import merge_pr
 
+                import re as _re
+
+                # SECURITY: strict module allow-list (defence-in-depth vs injection
+                # in the downstream host poller, which builds URLs/log strings).
+                module = data.get("module")
+                if module is not None and not _re.fullmatch(r"[a-z0-9_-]{1,40}", str(module)):
+                    return {
+                        "executed": False,
+                        "error": f"invalid module: {module!r}",
+                        "deploy_pending": False,
+                    }
                 res = merge_pr(int(pr_number), "squash")
                 if not res.get("merged"):
                     return {
@@ -3752,15 +3763,20 @@ class AgentLoop:
                         "error": res.get("error", "merge failed"),
                         "deploy_pending": False,
                     }
+                # Pin the deploy to the EXACT approved merge commit (no ride-along of
+                # later main commits without a fresh approval).
+                merge_sha = res.get("sha") or ""
                 logger.info(
-                    "codex_promote: merged PR #%s — flagging deploy_pending for host poller",
+                    "codex_promote: merged PR #%s sha=%s — flagging deploy_pending",
                     pr_number,
+                    merge_sha[:7],
                 )
                 return {
                     "executed": True,
                     "merged": True,
                     "pr_number": int(pr_number),
-                    "module": data.get("module"),
+                    "module": module,
+                    "merge_sha": merge_sha,
                     "deploy_pending": True,
                 }
             except Exception as cp_err:

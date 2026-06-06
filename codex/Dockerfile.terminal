@@ -1,0 +1,19 @@
+# Sandboxed Codex web terminal — the codex image + ttyd/tmux for an interactive
+# browser terminal. The container is the isolation boundary (no host fs/secrets;
+# only a read-only auth.json seed + a read-scoped MCP bearer). See start_codex_terminal.sh.
+FROM archie_brain-archie_codex:latest
+
+# tmux from apt; ttyd is not in Debian repos → fetch the static release binary.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tmux curl ca-certificates \
+    && curl -fsSL https://github.com/tsl0922/ttyd/releases/download/1.7.7/ttyd.x86_64 -o /tmp/ttyd \
+    && echo "8a217c968aba172e0dbf3f34447218dc015bc4d5e59bf51db2f2cd12b7be4f55  /tmp/ttyd" | sha256sum -c - \
+    && install -m 0755 /tmp/ttyd /usr/local/bin/ttyd && rm /tmp/ttyd \
+    && apt-get purge -y curl && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY scripts/start_codex_terminal.sh /start.sh
+RUN chmod +x /start.sh
+
+EXPOSE 7681
+ENTRYPOINT ["/start.sh"]

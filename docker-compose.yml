@@ -1090,6 +1090,7 @@ services:
       - codex_db_ro
     networks:
       - archie_internal
+      - codex_terminal_net   # so the isolated codex terminal can reach the gateway
     depends_on:
       - archie_database
     healthcheck:
@@ -1098,9 +1099,47 @@ services:
       timeout: 5s
       retries: 3
 
+  # Sandboxed Codex web terminal — interactive `codex` in a browser, contained in a
+  # container (no host fs/secrets; only a read-only auth.json seed + a read-scoped KB
+  # bearer). ttyd bound to localhost; fronted by the admin auth proxy
+  # (ttyd-codex-auth-proxy.service :7682) → Beacon codex.kytranempowerment.com.
+  archie_codex_terminal:
+    build:
+      context: .
+      dockerfile: codex/Dockerfile.terminal
+    image: archie_brain-archie_codex_terminal:latest
+    container_name: archie_codex_terminal
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:17682:7681"
+    mem_limit: 1g
+    cpus: 1.0
+    cap_drop:
+      - ALL
+    environment:
+      TZ: America/Toronto
+      CODEX_HOME: /codex-home
+      ARCHIE_KB_GATEWAY: http://archie_mcp_gateway:7800/mcp
+    secrets:
+      - codex_kb_bearer
+      - codex_auth
+    volumes:
+      - codex_terminal_home:/codex-home
+      - codex_terminal_work:/work
+    networks:
+      # Dedicated network shared ONLY with the gateway — so no other container on
+      # archie_internal can reach the unauthenticated in-container ttyd (HIGH fix).
+      - codex_terminal_net
+    depends_on:
+      - archie_mcp_gateway
+
 secrets:
   codex_db_ro:
     file: ./secrets/codex/db_ro_password.txt
+  codex_kb_bearer:
+    file: ./secrets/codex/mcp_bearer.txt
+  codex_auth:
+    file: ./secrets/codex/codex_auth.json
   db_password:
     file: ./secrets/database/password.txt
   stripe_secret_key:
@@ -1117,11 +1156,21 @@ networks:
   network_tools_ext:
     external: true
     name: network_tools_network
+  # Dedicated net for the Codex web terminal — only the terminal + the read-only
+  # gateway join it, so the in-container ttyd is unreachable by other platform
+  # containers. NOT internal: the terminal needs outbound internet (OpenAI API);
+  # isolation comes from being a separate bridge, not from blocking egress.
+  codex_terminal_net:
+    driver: bridge
 
 volumes:
   archie_db:
     driver: local
     name: archie_database
+  codex_terminal_home:
+    driver: local
+  codex_terminal_work:
+    driver: local
   comfyui_output:
     driver: local
     name: archie_comfyui_output

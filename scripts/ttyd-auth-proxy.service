@@ -8,7 +8,10 @@ Type=simple
 User=kytran
 Group=kytran
 WorkingDirectory=/mnt/archie_brain
-ExecStart=/usr/bin/python3 /mnt/archie_brain/scripts/ttyd_auth_proxy.py
+# DB_HOST forced here: .env (EnvironmentFile) sets DB_HOST=archie_database and this
+# systemd version applies EnvironmentFile after Environment=, so we override in the shell
+# right before exec — guarantees the host-reachable DB address for SSO token validation.
+ExecStart=/bin/sh -c 'DB_HOST=192.168.1.200 exec /usr/bin/python3 /mnt/archie_brain/scripts/ttyd_auth_proxy.py'
 Restart=always
 RestartSec=5
 Environment=PROXY_HOST=0.0.0.0

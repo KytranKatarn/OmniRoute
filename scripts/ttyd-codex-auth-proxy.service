@@ -1,0 +1,36 @@
+[Unit]
+Description=Auth proxy for the sandboxed Codex web terminal (admin-only Basic Auth)
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=kytran
+Group=kytran
+WorkingDirectory=/mnt/archie_brain
+# DB_HOST forced here: .env (EnvironmentFile) sets DB_HOST=archie_database and this
+# systemd version applies EnvironmentFile after Environment=, so we override in the shell
+# right before exec — guarantees the host-reachable DB address for SSO token validation.
+ExecStart=/bin/sh -c 'DB_HOST=192.168.1.200 exec /usr/bin/python3 /mnt/archie_brain/scripts/ttyd_auth_proxy.py'
+Restart=always
+RestartSec=3
+# EnvironmentFile FIRST so the explicit Environment= lines below override it — .env sets
+# DB_HOST=archie_database (Docker-only hostname, unreachable from the host), which would
+# otherwise break SSO token validation. We keep DB_PASSWORD from .env, force DB_HOST to the
+# host-reachable address.
+EnvironmentFile=/mnt/archie_brain/.env
+# Public-facing auth proxy on :7683 -> codex ttyd container (published at 127.0.0.1:17682)
+# (7682 is taken by claude-proxy.service)
+Environment=PROXY_HOST=0.0.0.0
+Environment=PROXY_PORT=7683
+Environment=TTYD_HOST=127.0.0.1
+Environment=TTYD_PORT=17682
+Environment=DB_HOST=192.168.1.200
+Environment=DB_PORT=5432
+Environment=DB_NAME=archie
+Environment=DB_USER=archie
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

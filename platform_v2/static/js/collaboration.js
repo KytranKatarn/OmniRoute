@@ -163,6 +163,27 @@ async function openClaudeTerminal() {
     window.open(url, 'claude-terminal', 'width=900,height=600,menubar=no,toolbar=no');
 }
 
+async function openCodexTerminal() {
+    // Sandboxed Codex web terminal — same one-time-token SSO as the Claude terminal
+    // (shared terminal_auth_tokens), fronted by the admin auth proxy on :7683.
+    const host = window.location.hostname;
+    let url = 'http://' + host + ':7683';
+    try {
+        const response = await fetch('/tools/consciousness/api/terminal/token', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {'Content-Type': 'application/json'}
+        });
+        const data = await response.json();
+        if (data.success && data.token) {
+            url += '/?token=' + encodeURIComponent(data.token);
+        }
+    } catch (e) {
+        console.debug('Token fetch failed, falling back to Basic Auth:', e.message);
+    }
+    window.open(url, 'codex-terminal', 'width=900,height=600,menubar=no,toolbar=no');
+}
+
 // Collaboration Functions
 async function startCollaboration() {
     const topicInput = document.getElementById('collab-topic');

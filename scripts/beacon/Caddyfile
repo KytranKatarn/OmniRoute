@@ -103,6 +103,10 @@ terminal.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:7681
 }
 
+codex.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:7683
+}
+
 brainstorm.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:52000
 }

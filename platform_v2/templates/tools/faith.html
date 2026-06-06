@@ -41,80 +41,82 @@
 
   <!-- TAB: Chat -->
   <div id="faith-tab-chat" class="module-tab-panel">
-    <div id="faithMessages" class="chat-messages" style="min-height:300px;max-height:500px;overflow-y:auto;padding:12px;margin-bottom:12px;background:var(--archie-surface);border-radius:4px;"></div>
-    <div id="faithCrisisAlert" style="display:none;background:#2a0000;border:1px solid #f44;border-radius:4px;padding:10px;margin-bottom:10px;color:#fcc;">
+    <div id="faithMessages" class="chat-messages faith-panel" role="log" aria-live="polite" aria-busy="false"></div>
+    <div id="faithCrisisAlert" class="faith-crisis-alert">
       <strong>Crisis resources:</strong> Text HOME to 741741 &middot; Call/text 988
-      <button onclick="document.getElementById('faithCrisisAlert').style.display='none'" style="float:right;background:none;border:none;color:#f44;cursor:pointer;">&times;</button>
+      <button onclick="document.getElementById('faithCrisisAlert').style.display='none'" class="faith-alert-close" aria-label="Dismiss crisis resources">&times;</button>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:8px;">
+    <div class="faith-input-row">
       <textarea id="faithInput" placeholder="Ask F.A.I.T.H. about scripture, faith, prayer, doubt..." rows="2" class="form-control" style="flex:1;resize:none;"></textarea>
-      <button onclick="faithSendChat()" class="btn btn-primary">Send</button>
+      <button id="faithSendBtn" onclick="faithSendChat()" class="btn btn-primary">Send</button>
     </div>
-    <div style="text-align:right;">
+    <div class="faith-actions-right">
       <button onclick="openEmmanuelModal()" class="btn btn-secondary btn-sm">Connect with Emmanuel &rarr;</button>
     </div>
   </div>
 
   <!-- TAB: Practices -->
   <div id="faith-tab-practices" class="module-tab-panel" style="display:none;">
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:16px;">
-      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="loadDevotional()">
-        <div style="font-size:2em;">📅</div>
+    <div class="faith-practice-grid">
+      <div id="faithDevotionalCard" class="card faith-practice-card" role="button" tabindex="0" aria-disabled="false" onclick="loadDevotional()">
+        <div class="faith-practice-icon">📅</div>
         <h4>Daily Devotional</h4>
-        <p style="font-size:12px;color:var(--archie-text-muted);">Scripture + reflection for today</p>
+        <p class="faith-muted">Scripture + reflection for today</p>
       </div>
-      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openPrayerModal()">
-        <div style="font-size:2em;">🙏</div>
+      <div id="faithPrayerCard" class="card faith-practice-card" role="button" tabindex="0" aria-disabled="false" onclick="openPrayerModal()">
+        <div class="faith-practice-icon">🙏</div>
         <h4>Guided Prayer</h4>
-        <p style="font-size:12px;color:var(--archie-text-muted);">Structured prayer in 4 movements</p>
+        <p class="faith-muted">Structured prayer in 4 movements</p>
       </div>
-      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openScriptureModal()">
-        <div style="font-size:2em;">📜</div>
+      <div id="faithScriptureCard" class="card faith-practice-card" role="button" tabindex="0" aria-disabled="false" onclick="openScriptureModal()">
+        <div class="faith-practice-icon">📜</div>
         <h4>Scripture Search</h4>
-        <p style="font-size:12px;color:var(--archie-text-muted);">Find verses by topic or emotion</p>
+        <p class="faith-muted">Find verses by topic or emotion</p>
       </div>
-      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openLectioModal()">
-        <div style="font-size:2em;">✨</div>
+      <div id="faithLectioCard" class="card faith-practice-card" role="button" tabindex="0" aria-disabled="false" onclick="openLectioModal()">
+        <div class="faith-practice-icon">✨</div>
         <h4>Lectio Divina</h4>
-        <p style="font-size:12px;color:var(--archie-text-muted);">Guided slow reading of scripture</p>
+        <p class="faith-muted">Guided slow reading of scripture</p>
       </div>
-      <div class="card" style="cursor:pointer;text-align:center;padding:16px;" onclick="openCheckinModal()">
-        <div style="font-size:2em;">💚</div>
+      <div id="faithCheckinCard" class="card faith-practice-card" role="button" tabindex="0" aria-disabled="false" onclick="openCheckinModal()">
+        <div class="faith-practice-icon">💚</div>
         <h4>Faith Check-In</h4>
-        <p style="font-size:12px;color:var(--archie-text-muted);">How is your faith today?</p>
+        <p class="faith-muted">How is your faith today?</p>
       </div>
     </div>
-    <div id="practiceResult" style="display:none;background:var(--archie-surface);border-radius:4px;padding:16px;white-space:pre-wrap;line-height:1.6;"></div>
+    <div id="practiceResult" class="faith-result-panel" role="status" aria-live="polite" aria-busy="false"></div>
   </div>
 
   <!-- TAB: Journal -->
   <div id="faith-tab-journal" class="module-tab-panel" style="display:none;">
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
+    <div class="faith-input-row">
       <button onclick="showJournalForm()" class="btn btn-primary">+ New Entry</button>
       <button onclick="loadJournal()" class="btn btn-secondary">Refresh</button>
     </div>
-    <div id="journalForm" style="display:none;background:var(--archie-surface);border-radius:4px;padding:16px;margin-bottom:12px;">
+    <div id="journalForm" class="card faith-form-card">
       <input id="journalTitle" type="text" placeholder="Title (optional)" class="form-control" style="margin-bottom:8px;width:100%;">
       <textarea id="journalContent" placeholder="Your reflection..." rows="4" class="form-control" style="margin-bottom:8px;width:100%;"></textarea>
       <input id="journalScripture" type="text" placeholder="Scripture reference (optional)" class="form-control" style="margin-bottom:8px;width:100%;">
-      <div style="display:flex;gap:8px;">
-        <button onclick="saveJournal()" class="btn btn-primary">Save</button>
+      <div class="faith-input-row">
+        <button id="journalSaveBtn" onclick="saveJournal()" class="btn btn-primary">Save</button>
         <button onclick="document.getElementById('journalForm').style.display='none'" class="btn btn-secondary">Cancel</button>
       </div>
     </div>
-    <div id="journalEntries"></div>
+    <div id="journalFeedback" class="faith-feedback-slot" role="status" aria-live="polite"></div>
+    <div id="journalEntries" role="region" aria-live="polite" aria-busy="false"></div>
   </div>
 
   <!-- Emmanuel modal -->
-  <div id="emmanuelModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center;">
-    <div style="background:var(--archie-bg);border:1px solid var(--archie-primary);border-radius:8px;padding:24px;max-width:480px;width:90%;">
-      <h3 style="margin-bottom:4px;">Connect with Emmanuel Adeyemi</h3>
+  <div id="emmanuelModal" class="faith-modal-overlay">
+    <div class="card faith-modal-shell" role="dialog" aria-modal="true" aria-labelledby="emmanuelTitle">
+      <h3 id="emmanuelTitle" style="margin-bottom:4px;">Connect with Emmanuel Adeyemi</h3>
       <p style="color:var(--archie-text-muted);font-size:13px;margin-bottom:12px;">Spiritual Care Coordinator &amp; Chaplain — he will respond by email.</p>
       <textarea id="emmanuelMsg" placeholder="Share what's on your heart..." rows="4" class="form-control" style="width:100%;margin-bottom:10px;"></textarea>
-      <div style="display:flex;gap:8px;">
-        <button onclick="sendEmmanuel()" class="btn btn-primary">Send</button>
+      <div class="faith-input-row">
+        <button id="emmanuelSendBtn" onclick="sendEmmanuel()" class="btn btn-primary">Send</button>
         <button onclick="closeEmmanuelModal()" class="btn btn-secondary">Cancel</button>
       </div>
+      <div id="emmanuelFeedback" class="faith-feedback-slot" role="status" aria-live="polite"></div>
     </div>
   </div>
   </div><!-- /lcars-content -->
@@ -134,6 +136,55 @@ function switchFaithTab(tab, btn) {
 // Bridge LCARS header tabs → faith tab switch
 window.onLcarsTabSwitch = function(tabId) { switchFaithTab(tabId, null); };
 
+function faithFeedbackHtml(message, type) {
+  return "<div class='faith-feedback faith-feedback-" + (type || "error") + "'>" + escHtml(message) + "</div>";
+}
+
+function showFaithFeedback(regionId, message, type) {
+  var region = document.getElementById(regionId);
+  if (!region) return;
+  setHtml(region, faithFeedbackHtml(message, type));
+}
+
+function clearFaithFeedback(regionId) {
+  var region = document.getElementById(regionId);
+  if (region) setHtml(region, "");
+}
+
+function setRegionBusy(regionId, isBusy) {
+  var region = document.getElementById(regionId);
+  if (region) region.setAttribute("aria-busy", isBusy ? "true" : "false");
+}
+
+function isTriggerBusy(triggerId) {
+  var trigger = document.getElementById(triggerId);
+  return trigger && trigger.getAttribute("aria-disabled") === "true";
+}
+
+function setTriggerLoading(triggerId, isLoading) {
+  var trigger = document.getElementById(triggerId);
+  if (!trigger) return;
+  trigger.setAttribute("aria-disabled", isLoading ? "true" : "false");
+  trigger.classList.toggle("faith-loading", isLoading);
+  if ("disabled" in trigger) trigger.disabled = isLoading;
+}
+
+function showPracticeLoading(text) {
+  var el = document.getElementById("practiceResult");
+  el.style.display = "block";
+  setRegionBusy("practiceResult", true);
+  setHtml(el, "<span class='faith-spinner' aria-hidden='true'></span><span>" + escHtml(text) + "</span>");
+}
+
+document.addEventListener("keydown", function(event) {
+  var card = event.target.closest && event.target.closest(".faith-practice-card");
+  if (!card) return;
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    if (card.getAttribute("aria-disabled") !== "true") card.click();
+  }
+});
+
 async function faithSendChat() {
   var input = document.getElementById("faithInput");
   var msg = input.value.trim();
@@ -141,6 +192,8 @@ async function faithSendChat() {
   appendMsg("You", escHtml(msg));
   input.value = "";
   var loadEl = appendMsg("F.A.I.T.H.", "...");
+  setRegionBusy("faithMessages", true);
+  setTriggerLoading("faithSendBtn", true);
   try {
     var res = await fetch(FAITH_BASE + "/chat", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: msg})});
     var data = await res.json();
@@ -148,7 +201,10 @@ async function faithSendChat() {
     setHtml(loadEl.querySelector(".msg-body"), responseHtml);
     if (data.crisis_detected) document.getElementById("faithCrisisAlert").style.display = "block";
   } catch (err) {
-    setHtml(loadEl.querySelector(".msg-body"), "Error contacting F.A.I.T.H. Please try again.");
+    setHtml(loadEl.querySelector(".msg-body"), faithFeedbackHtml("Error contacting F.A.I.T.H. Please try again.", "error"));
+  } finally {
+    setRegionBusy("faithMessages", false);
+    setTriggerLoading("faithSendBtn", false);
   }
 }
 
@@ -170,13 +226,19 @@ function appendMsg(sender, bodyHtml) {
 }
 
 async function loadDevotional() {
-  showPracticeResult("Loading today's devotional...");
+  var triggerId = "faithDevotionalCard";
+  if (isTriggerBusy(triggerId)) return;
+  setTriggerLoading(triggerId, true);
+  showPracticeLoading("Loading today's devotional...");
   try {
     var res = await fetch(FAITH_BASE + "/devotional");
     var data = await res.json();
     showPracticeResult(data.response || "Could not load devotional.");
   } catch (err) {
     showPracticeResult("Error loading devotional.");
+  } finally {
+    setRegionBusy("practiceResult", false);
+    setTriggerLoading(triggerId, false);
   }
 }
 
@@ -187,56 +249,82 @@ function showPracticeResult(text) {
 }
 
 async function openScriptureModal() {
+  var triggerId = "faithScriptureCard";
+  if (isTriggerBusy(triggerId)) return;
   var query = prompt("What are you looking for? (topic, emotion, or situation)");
   if (!query) return;
-  showPracticeResult("Searching scripture...");
+  setTriggerLoading(triggerId, true);
+  showPracticeLoading("Searching scripture...");
   try {
     var res = await fetch(FAITH_BASE + "/scripture-search", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({query: query})});
     var data = await res.json();
     showPracticeResult(data.response || "No results found.");
   } catch (err) {
     showPracticeResult("Error searching scripture.");
+  } finally {
+    setRegionBusy("practiceResult", false);
+    setTriggerLoading(triggerId, false);
   }
 }
 
 async function openPrayerModal() {
+  var triggerId = "faithPrayerCard";
+  if (isTriggerBusy(triggerId)) return;
   var type = prompt("Prayer type (general / thanksgiving / confession / intercession / lament)", "general") || "general";
-  showPracticeResult("Preparing your prayer...");
+  setTriggerLoading(triggerId, true);
+  showPracticeLoading("Preparing your prayer...");
   try {
     var res = await fetch(FAITH_BASE + "/prayer", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({type: type})});
     var data = await res.json();
     showPracticeResult(data.response || "Could not generate prayer.");
   } catch (err) {
     showPracticeResult("Error generating prayer.");
+  } finally {
+    setRegionBusy("practiceResult", false);
+    setTriggerLoading(triggerId, false);
   }
 }
 
 async function openLectioModal() {
+  var triggerId = "faithLectioCard";
+  if (isTriggerBusy(triggerId)) return;
   var passage = prompt("Which passage? (leave blank for Psalm 23)") || "Psalm 23";
-  showPracticeResult("Preparing Lectio Divina...");
+  setTriggerLoading(triggerId, true);
+  showPracticeLoading("Preparing Lectio Divina...");
   try {
     var res = await fetch(FAITH_BASE + "/lectio", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({passage: passage})});
     var data = await res.json();
     showPracticeResult(data.response || "Could not load Lectio Divina.");
   } catch (err) {
     showPracticeResult("Error loading Lectio Divina.");
+  } finally {
+    setRegionBusy("practiceResult", false);
+    setTriggerLoading(triggerId, false);
   }
 }
 
 async function openCheckinModal() {
+  var triggerId = "faithCheckinCard";
+  if (isTriggerBusy(triggerId)) return;
   var score = prompt("How is your faith today? Rate 1 (struggling) to 5 (flourishing)");
   if (!score || isNaN(parseInt(score))) return;
   var reflection = prompt("Optional: share a brief reflection") || "";
+  setTriggerLoading(triggerId, true);
+  showPracticeLoading("Saving your check-in...");
   try {
     var res = await fetch(FAITH_BASE + "/checkin", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({score: parseInt(score), reflection: reflection})});
     var data = await res.json();
-    alert(data.success ? "Check-in saved. Thank you." : "Could not save check-in.");
+    showPracticeResult(data.success ? "Check-in saved. Thank you." : "Could not save check-in.");
   } catch (err) {
-    alert("Error saving check-in.");
+    showPracticeResult("Error saving check-in.");
+  } finally {
+    setRegionBusy("practiceResult", false);
+    setTriggerLoading(triggerId, false);
   }
 }
 
 async function loadJournal() {
+  setRegionBusy("journalEntries", true);
   try {
     var res = await fetch(FAITH_BASE + "/journal");
     var data = await res.json();
@@ -255,7 +343,9 @@ async function loadJournal() {
     }).join("");
     setHtml(container, html);
   } catch (err) {
-    setHtml(document.getElementById("journalEntries"), "<p style='color:var(--archie-text-muted)'>Error loading journal.</p>");
+    setHtml(document.getElementById("journalEntries"), faithFeedbackHtml("Error loading journal.", "error"));
+  } finally {
+    setRegionBusy("journalEntries", false);
   }
 }
 
@@ -263,7 +353,9 @@ function showJournalForm() { document.getElementById("journalForm").style.displa
 
 async function saveJournal() {
   var content = document.getElementById("journalContent").value.trim();
-  if (!content) { alert("Please write something first."); return; }
+  if (!content) { showFaithFeedback("journalFeedback", "Please write something first.", "error"); return; }
+  clearFaithFeedback("journalFeedback");
+  setTriggerLoading("journalSaveBtn", true);
   try {
     var res = await fetch(FAITH_BASE + "/journal", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({
       title: document.getElementById("journalTitle").value.trim(),
@@ -278,9 +370,14 @@ async function saveJournal() {
       document.getElementById("journalTitle").value = "";
       document.getElementById("journalScripture").value = "";
       loadJournal();
+      showFaithFeedback("journalFeedback", "Journal entry saved.", "success");
+    } else {
+      showFaithFeedback("journalFeedback", "Could not save journal entry.", "error");
     }
   } catch (err) {
-    alert("Error saving journal entry.");
+    showFaithFeedback("journalFeedback", "Error saving journal entry.", "error");
+  } finally {
+    setTriggerLoading("journalSaveBtn", false);
   }
 }
 
@@ -289,20 +386,146 @@ function closeEmmanuelModal() { document.getElementById("emmanuelModal").style.d
 
 async function sendEmmanuel() {
   var message = document.getElementById("emmanuelMsg").value.trim();
-  if (!message) { alert("Please write a message."); return; }
+  if (!message) { showFaithFeedback("emmanuelFeedback", "Please write a message.", "error"); return; }
+  clearFaithFeedback("emmanuelFeedback");
+  setTriggerLoading("emmanuelSendBtn", true);
   try {
     var res = await fetch(FAITH_BASE + "/connect-chaplain", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({message: message})});
     var data = await res.json();
-    alert(data.message || "Sent.");
-    closeEmmanuelModal();
+    showFaithFeedback("emmanuelFeedback", data.message || "Sent.", "success");
     document.getElementById("emmanuelMsg").value = "";
+    setTimeout(closeEmmanuelModal, 1200);
   } catch (err) {
-    alert("Error sending message.");
+    showFaithFeedback("emmanuelFeedback", "Error sending message.", "error");
+  } finally {
+    setTriggerLoading("emmanuelSendBtn", false);
   }
 }
 </script>
 <style>
 /* Faith module — frame-color + Fold 5 responsive */
+.faith-panel {
+    min-height: 300px;
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--archie-surface);
+    border: 1px solid var(--archie-border-default, var(--archie-border));
+    border-radius: 4px;
+}
+.faith-crisis-alert {
+    display: none;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid var(--archie-danger, #ff6b6b);
+    border-radius: 4px;
+    padding: 10px;
+    margin-bottom: 10px;
+    color: var(--archie-danger, #ffb4b4);
+}
+.faith-alert-close {
+    float: right;
+    background: none;
+    border: 0;
+    color: var(--archie-danger, #ff6b6b);
+    cursor: pointer;
+}
+.faith-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.faith-actions-right {
+    text-align: right;
+}
+.faith-practice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.faith-practice-card {
+    cursor: pointer;
+    text-align: center;
+    padding: 16px;
+}
+.faith-practice-card[aria-disabled="true"],
+.faith-practice-card.faith-loading {
+    cursor: wait;
+    opacity: 0.62;
+    pointer-events: none;
+}
+.faith-practice-icon {
+    font-size: 2rem;
+}
+.faith-muted {
+    font-size: 12px;
+    color: var(--archie-text-muted);
+}
+.faith-result-panel {
+    display: none;
+    background: var(--archie-surface);
+    border: 1px solid var(--archie-border-default, var(--archie-border));
+    border-radius: 4px;
+    padding: 16px;
+    white-space: pre-wrap;
+    line-height: 1.6;
+}
+.faith-spinner {
+    width: 18px;
+    height: 18px;
+    display: inline-block;
+    vertical-align: -3px;
+    margin-right: 10px;
+    border: 2px solid rgba(var(--frame-rgb, 14,165,233), 0.25);
+    border-top-color: var(--frame-color, var(--archie-primary));
+    border-radius: 50%;
+    animation: faith-spin 0.8s linear infinite;
+}
+.faith-feedback-slot {
+    margin: 8px 0 12px;
+}
+.faith-feedback {
+    border: 1px solid var(--archie-danger, #ff6b6b);
+    border-left: 6px solid var(--archie-danger, #ff6b6b);
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.12);
+    color: var(--archie-text-primary, #f0f6fc);
+    padding: 10px 12px;
+    font-size: 0.9rem;
+}
+.faith-feedback-success {
+    border-color: var(--archie-success, #22c55e);
+    border-left-color: var(--archie-success, #22c55e);
+    background: rgba(34, 197, 94, 0.12);
+}
+.faith-form-card {
+    display: none;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.faith-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+.faith-modal-shell {
+    padding: 24px;
+    max-width: 480px;
+    width: 90%;
+}
+.faith-loading[disabled],
+.btn[disabled] {
+    cursor: wait;
+    opacity: 0.65;
+}
+@keyframes faith-spin {
+    to { transform: rotate(360deg); }
+}
 .module-nav .module-tab.active {
     color: var(--frame-color, #10b981);
     border-bottom-color: var(--frame-color, #10b981);

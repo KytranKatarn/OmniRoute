@@ -1,4 +1,7 @@
-"""Faith module — spiritual care companion (F.A.I.T.H. + Emmanuel Adeyemi)."""
+"""Faith module — spiritual care companion (F.A.I.T.H. + Emmanuel Adeyemi).
+
+Routes registered under /tools/faith (see routes.py). Access gated by faith:access.
+"""
 
 from flask import Blueprint
 

@@ -1,5 +1,32 @@
 # Codex CLI Agent — Safety Policy, Task Template & Operating Guide
 
+## ⭐ ARCHITECTURE UPDATE (2026-06-05) — containerized + read-only KB MCP
+
+`run-codex-task.sh` now runs `codex exec` **inside a Docker container** (`codex/Dockerfile`,
+image `archie_brain-archie_codex`), which is the real isolation boundary. Because the
+container is the sandbox (mounts ONLY the worktree rw + repo `.git` ro, runs as the host
+uid, `--read-only` rootfs, `--cap-drop ALL`, no host fs/secrets), Codex runs with
+`--dangerously-bypass-approvals-and-sandbox` **safely** — Codex's own bwrap sandbox can't
+start on this host (`RTM_NEWADDR` loopback). **Do NOT run bare `codex exec` on the host
+with that flag** (full host privilege — security HIGH, KB #270646/#270647).
+
+Codex now has **full Kytran Empowerment / cluster grounding** via 3 context layers:
+1. **repo rules** — the prompt directs Codex to read `CLAUDE.md` + `.claude/rules/*` + the
+   module capability index from the worktree.
+2. **KB injection** — a host pre-step queries the read-only gateway and prepends top KB
+   excerpts into the prompt.
+3. **live MCP** — per-run `CODEX_HOME/config.toml` points the `archie_kb` MCP server at the
+   **read-only HTTP gateway** (`archie_mcp_gateway:7800`, `mcp-gateway/`), exposing only
+   `search_knowledge`/`search_mistakes`/`recall_context`. The container holds ONLY a
+   read-scoped bearer (`ARCHIE_KB_BEARER`, `secrets/codex/mcp_bearer.txt`) — **never DB
+   creds**. The gateway connects as the read-only `codex_ro` PG role (migrations 420/421).
+   Triple defense: container has no creds → bearer is read-scoped → DB role is read-only.
+
+Build images: `docker build -t archie_brain-archie_codex -f codex/Dockerfile codex/` and
+`docker compose build archie_mcp_gateway` (gateway runs via `docker compose up -d
+archie_mcp_gateway`). The sections below describe the original Phase A model; the safety
+policy + task template still apply.
+
 ## (a) What Codex Is — Phase A vs B
 
 **Codex CLI** (`@openai/codex`) is an OpenAI agentic coding tool that runs locally and

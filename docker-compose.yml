@@ -1059,7 +1059,48 @@ services:
       - 192.168.1.200
       - 1.1.1.1
 
+  # Read-only MCP HTTP gateway — gives the Codex container live KB access without
+  # ever holding DB creds (Codex sends only a read-scoped bearer). Internal-only.
+  # Text-search only (no embedding/inference) — stays compliant with ADR-013.
+  archie_mcp_gateway:
+    build:
+      context: .
+      dockerfile: mcp-gateway/Dockerfile
+    image: archie_brain-archie_mcp_gateway:latest
+    container_name: archie_mcp_gateway
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      # mcp_server/__init__ sets up a FileHandler at this path on import
+      - /mnt/archie_brain/logs:size=16m
+    mem_limit: 512m
+    cpus: 0.5
+    cap_drop:
+      - ALL
+    environment:
+      TZ: America/Toronto
+      DB_HOST: archie_database
+      DB_NAME: archie
+      DB_USER: codex_ro
+      DB_PASSWORD_FILE: /run/secrets/codex_db_ro
+      DB_PASSWORD: ""
+      PYTHONPATH: /app
+    secrets:
+      - codex_db_ro
+    networks:
+      - archie_internal
+    depends_on:
+      - archie_database
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:7800/health').read()==b'ok' else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 secrets:
+  codex_db_ro:
+    file: ./secrets/codex/db_ro_password.txt
   db_password:
     file: ./secrets/database/password.txt
   stripe_secret_key:

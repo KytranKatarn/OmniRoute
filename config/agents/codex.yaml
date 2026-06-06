@@ -9,6 +9,12 @@ codex:
     - "platform_v2/tools/fitness/"
     - "platform_v2/tools/therapy/"
     - "platform_v2/tools/doc/"
+    - "platform_v2/tools/faith/"
+    # faith UI lives outside the module code dir — module templates + static assets
+    # sit in shared trees, so allow faith's specific files (deny-by-default keeps
+    # every other module's template/static out of scope).
+    - "platform_v2/templates/tools/faith.html"
+    - "platform_v2/static/js/faith-chat.js"
     - "platform_v2/tools/family_tree/"
     - "platform_v2/tools/media_studio/"
     - "platform_v2/tools/game_studio/"

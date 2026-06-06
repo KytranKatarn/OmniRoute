@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Pre-push scope guard for the interactive Codex web terminal.
+
+SELF-CONTAINED + TAMPER-RESISTANT: the scope logic is vendored here (not imported
+from the cloned tree) and the allowlist is read from a BAKED image path
+(CODEX_ALLOWLIST_FILE, default /opt/codex-guard/allowlist.yaml) — NOT the working
+tree — so editing repo files cannot loosen the guard. Installed via core.hooksPath
+pointing at the baked /opt/codex-guard dir.
+
+A push is allowed ONLY IF every changed file (vs origin/main) is in scope AND the
+target branch is codex/* (never main). Fails CLOSED on any error.
+
+stdin (git pre-push protocol): "<local_ref> <local_sha> <remote_ref> <remote_sha>"
+"""
+from __future__ import annotations
+
+import fnmatch
+import os
+import posixpath
+import subprocess
+import sys
+
+ZERO = "0000000000000000000000000000000000000000"
+ALLOWLIST_FILE = os.environ.get("CODEX_ALLOWLIST_FILE", "/opt/codex-guard/allowlist.yaml")
+
+
+def _die(msg: str) -> None:
+    sys.stderr.write("\n\033[31m[codex scope-guard] PUSH BLOCKED\033[0m\n")
+    sys.stderr.write(msg.rstrip() + "\n\n")
+    sys.exit(1)
+
+
+def _run(args: list[str]) -> str:
+    return subprocess.check_output(args, text=True).strip()
+
+
+# --- vendored scope logic (mirror of platform_v2/services/agents/codex_scope.py) ---
+def _normalize(path: str):
+    if not path or not isinstance(path, str) or path.startswith("/"):
+        return None
+    norm = posixpath.normpath(path)
+    if norm in (".", "..") or norm.startswith("../") or norm.startswith("/"):
+        return None
+    return norm
+
+
+def _clean_prefix(prefix: str):
+    if not prefix or not isinstance(prefix, str):
+        return None
+    norm = posixpath.normpath(prefix)
+    if norm in (".", "/", "..") or norm.startswith("../") or norm.startswith("/"):
+        return None
+    return norm.rstrip("/") + "/"
+
+
+def _in_scope(path: str, allowed: list, blocked: list) -> bool:
+    p = _normalize(path)
+    if p is None:
+        return False
+    for pat in blocked:
+        if not pat:
+            continue
+        if fnmatch.fnmatch(p, pat) or fnmatch.fnmatch(p.split("/")[-1], pat):
+            return False
+        if pat.endswith("/*") and p.startswith(pat[:-1]):
+            return False
+    for prefix in allowed:
+        cp = _clean_prefix(prefix)
+        if cp is None:
+            continue
+        if (p + "/").startswith(cp):
+            return True
+    return False
+
+
+def main() -> None:
+    try:
+        import yaml  # type: ignore
+    except Exception as e:  # noqa: BLE001
+        _die(f"PyYAML unavailable ({e}) — refusing to push (fail-closed)")
+    try:
+        cfg = yaml.safe_load(open(ALLOWLIST_FILE))["codex"]
+        allowed = cfg.get("allowed_paths", []) or []
+        blocked = cfg.get("blocked_globs", []) or []
+        if not allowed:
+            _die(f"empty allowlist in {ALLOWLIST_FILE} — fail-closed")
+    except Exception as e:  # noqa: BLE001
+        _die(f"cannot read baked allowlist {ALLOWLIST_FILE}: {e}")
+
+    try:
+        _run(["git", "fetch", "-q", "origin", "main"])
+        base = "origin/main"
+    except Exception:
+        base = "main"
+
+    offending: list[str] = []
+    for line in sys.stdin:
+        parts = line.split()
+        if len(parts) < 4:
+            continue
+        _lref, lsha, rref, _rsha = parts[:4]
+        if lsha == ZERO:
+            continue
+        # rref is the full remote ref, e.g. "refs/heads/codex/foo" — strip the
+        # refs/heads/ prefix (do NOT rsplit on '/', that drops the 'codex/' part).
+        branch = rref[len("refs/heads/"):] if rref.startswith("refs/heads/") else rref
+        if branch in ("main", "master"):
+            _die("direct pushes to main are not allowed — push a codex/* branch + open a PR")
+        if not branch.startswith("codex/"):
+            _die(f"branch '{branch}' must start with 'codex/'")
+        try:
+            mb = _run(["git", "merge-base", base, lsha])
+            changed = _run(["git", "diff", "--name-only", mb, lsha]).splitlines()
+        except Exception as e:  # noqa: BLE001
+            _die(f"cannot compute changed files for {branch}: {e}")
+        offending.extend([p for p in changed if p and not _in_scope(p, allowed, blocked)])
+
+    if offending:
+        _die("these files are outside Codex's allowed scope:\n  " + "\n  ".join(sorted(set(offending))))
+
+
+if __name__ == "__main__":
+    main()

@@ -1123,6 +1123,7 @@ services:
     secrets:
       - codex_kb_bearer
       - codex_auth
+      - codex_github_token
     volumes:
       - codex_terminal_home:/codex-home
       - codex_terminal_work:/work
@@ -1140,6 +1141,8 @@ secrets:
     file: ./secrets/codex/mcp_bearer.txt
   codex_auth:
     file: ./secrets/codex/codex_auth.json
+  codex_github_token:
+    file: ./secrets/codex/github_token.txt
   db_password:
     file: ./secrets/database/password.txt
   stripe_secret_key:

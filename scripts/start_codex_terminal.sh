@@ -22,13 +22,23 @@ cat > "$CODEX_HOME/config.toml" <<EOF
 [projects."/work"]
 trust_level = "trusted"
 
+[projects."/work/archie-platform"]
+trust_level = "trusted"
+
 # Live read-only knowledge access — the container holds ONLY this bearer (no DB creds).
 [mcp_servers.archie_kb]
 url = "${ARCHIE_KB_GATEWAY:-http://archie_mcp_gateway:7800/mcp}"
 bearer_token_env_var = "ARCHIE_KB_BEARER"
 EOF
 
-cd /work
+# Prepare the working repo: clone/sync into /work, wire token credential helper,
+# install the scope-guard hook, expose codex-pr. No-op if the PAT secret is absent.
+sh /init-workspace.sh || echo "[start] init-workspace failed — launching without a repo"
+
+# Launch Codex inside the repo if present, else the bare /work volume.
+WORKDIR=/work
+[ -d /work/archie-platform/.git ] && WORKDIR=/work/archie-platform
+cd "$WORKDIR"
 tmux kill-session -t codex 2>/dev/null || true
 tmux new-session -d -s codex
 # --dangerously-bypass-approvals-and-sandbox is safe: the CONTAINER is the boundary

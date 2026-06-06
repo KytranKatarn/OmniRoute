@@ -3731,6 +3731,42 @@ class AgentLoop:
                 logger.error("deploy_approve execution failed: %s", da_err)
                 return {"executed": False, "error": str(da_err)}
 
+        elif action_type == "codex_promote":
+            # Telegram-approved promotion of a previewed Codex PR: merge to main,
+            # then flag deploy_pending so the HOST poller (codex-prod-deploy.sh)
+            # does git-pull + safe_restart + verify on the host (the deploy step
+            # can't run in-container). Merge only fires on this Tier-2 human approval.
+            pr_number = data.get("pr_number")
+            if not pr_number:
+                return {"executed": False, "error": "No pr_number in action_data"}
+            try:
+                import sys as _sys
+
+                _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from tools.repair_bay.services.github_service import merge_pr
+
+                res = merge_pr(int(pr_number), "squash")
+                if not res.get("merged"):
+                    return {
+                        "executed": False,
+                        "error": res.get("error", "merge failed"),
+                        "deploy_pending": False,
+                    }
+                logger.info(
+                    "codex_promote: merged PR #%s — flagging deploy_pending for host poller",
+                    pr_number,
+                )
+                return {
+                    "executed": True,
+                    "merged": True,
+                    "pr_number": int(pr_number),
+                    "module": data.get("module"),
+                    "deploy_pending": True,
+                }
+            except Exception as cp_err:
+                logger.error("codex_promote execution failed: %s", cp_err)
+                return {"executed": False, "error": str(cp_err)}
+
         elif action_type.startswith("compliance_fix_"):
             # Approved compliance fix — resume the apply pipeline from stage 3 (dry-run)
             scan_id = data.get("scan_id")

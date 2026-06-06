@@ -5,32 +5,32 @@ codex:
   max_concurrent: 1
   max_runtime_sec: 1800           # 30 min hard cap per task
   max_files_changed: 25
+  # SCOPE = exactly six low-data modules: fitness, family_tree, therapy, faith,
+  # brainstorm, doc (+ tests). media_studio/game_studio/media_hub were REMOVED
+  # (they hold real prod data — media_library 346, agent_portraits 154 — so they
+  # need DB isolation before Codex write-work; tracked as a future task).
   allowed_paths:
+    # module code dirs (family_tree + brainstorm keep templates/static under tools/<m>/)
     - "platform_v2/tools/fitness/"
+    - "platform_v2/tools/family_tree/"
     - "platform_v2/tools/therapy/"
-    - "platform_v2/tools/doc/"
     - "platform_v2/tools/faith/"
-    # --- Applications/Concepts module UI (shared trees, outside the code dirs) ---
-    # Module templates + static assets live in shared trees; allow each allowed
-    # module's specific files. Deny-by-default keeps every OTHER module out of scope.
-    # (family_tree + media_studio keep templates/static under their tools/<m>/ dir.)
-    - "platform_v2/templates/tools/faith.html"
+    - "platform_v2/tools/brainstorm/"
+    - "platform_v2/tools/doc/"
+    # module UI in the shared trees (templates + chat JS/CSS)
     - "platform_v2/templates/tools/fitness.html"
     - "platform_v2/templates/tools/therapy.html"
+    - "platform_v2/templates/tools/faith.html"
+    - "platform_v2/templates/tools/brainstorm.html"
     - "platform_v2/templates/tools/doc.html"
-    - "platform_v2/templates/tools/game_studio.html"
-    - "platform_v2/templates/tools/media_hub.html"
-    - "platform_v2/static/js/faith-chat.js"
     - "platform_v2/static/js/fitness-chat.js"
     - "platform_v2/static/js/therapy-chat.js"
-    - "platform_v2/static/js/doc-chat.js"
+    - "platform_v2/static/js/faith-chat.js"
     - "platform_v2/static/js/family-tree-chat.js"
+    - "platform_v2/static/js/doc-chat.js"
     - "platform_v2/static/css/fitness.css"
     - "platform_v2/static/css/therapy.css"
-    - "platform_v2/tools/family_tree/"
-    - "platform_v2/tools/media_studio/"
-    - "platform_v2/tools/game_studio/"
-    - "platform_v2/tools/media_hub/"
+    # tests
     - "platform_v2/tests/"
   blocked_globs:                  # always denied even if under an allowed path
     - "*.env"

@@ -12,15 +12,39 @@ pre-push scope guard **rejects** any push touching anything else — including i
 secrets, `docker-compose*`, `scripts/dr/*`, `agent_service.py`, and any
 `department_dispatcher.py`. Don't fight it; stay in your lane.
 
-## How the platform works (essentials)
+## Before you program — READ THESE (they're in this repo)
+1. `CLAUDE.md` (repo root) — platform overview, the 6 Rules, key files.
+2. `.claude/rules/*.md` — per-area conventions. Most relevant to you:
+   `department-hq-dispatch.md`, `ai-bridge.md`, `module-work-pattern.md`,
+   `frontend.md`, `database.md`, `timezone.md`, and the module's own rules file.
+3. **Search the knowledge base FIRST** via your `archie_kb` MCP tools (read-only):
+   `search_knowledge`, `search_mistakes`, `recall_context`. There are 290+ recorded
+   mistakes — check them before building so you don't repeat a known error.
 
-- **LLM calls go through the dispatcher**, never direct Ollama:
+## Infrastructure (so you don't introduce wrong calls)
+- The platform is a **hub + fleet of mesh nodes** (Headscale `100.64.0.x`). Inter-service
+  calls use **mesh IPs**, NEVER public hostnames. **Never** hardcode
+  `https://platform.kytranempowerment.com` or any public URL in code — it routes through a
+  CDN that caps at 60s and bypasses the queue. Use config/env, not literals.
+- Storage is **UTC**; user-facing strings are **EDT** via `services.time_utils` /
+  `|localtime` / `ArchieTime` — never emit raw `datetime.utcnow()` or literal "UTC" to users.
+- **DB**: PostgreSQL via `from database import get_db_cursor` →
+  `with get_db_cursor(commit=True) as (conn, cur):`. JSONB needs `psycopg2.Json()`.
+
+## The agent system (how work actually runs)
+- **ALL LLM / inference goes through the Department-HQ dispatcher — never call Ollama or any
+  model directly** (ADR-013):
   `from tools.department_hq.services.department_dispatcher import dispatch, dispatch_json`
-- **Long LLM calls must not block the web thread** — return `202` + poll a DB row
-  (some Applications modules still call synchronously; fixing that is welcome work).
-- **Templates** live in `platform_v2/templates/tools/<module>.html`; **static** in
-  `platform_v2/static/{js,css}/`. **DB**: `psycopg2`, `with get_db_cursor(commit=True)`.
-- Read `CLAUDE.md` and `.claude/rules/*` for module conventions before editing.
+  → check `result.success`, use `result.response`. Pick a `capability` that already exists in
+  `CAPABILITY_DEPARTMENT_MAP` (`services/department_coordinator.py`); it routes to the right
+  department/agent with welfare + cost tracking.
+- **Long LLM calls must NOT block the web thread** — return `202` + poll a DB row
+  (`module-work-pattern.md`). Several Applications modules still call synchronously; fixing
+  that to the async+poll pattern is welcome work.
+- **Never write the `agents` table directly** — go through `services/agent_service.py`
+  (single-writer guardrail; a pre-commit hook enforces it).
+- Templates live in `platform_v2/templates/tools/<module>.html`; static in
+  `platform_v2/static/{js,css}/`. Match the existing LCARS patterns in the file you edit.
 
 ## Workflow (interactive terminal)
 

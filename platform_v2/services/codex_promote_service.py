@@ -71,4 +71,31 @@ def promote_codex_pr(
         return {"success": False, "error": str(e)}
 
     logger.info("promote_codex_pr: queued approval #%s for PR #%s", approval_id, pr_number)
-    return {"success": True, "approval_id": approval_id, "pr_number": int(pr_number)}
+
+    # Send a DIRECT actionable Telegram message. The request_approval triage-inbox
+    # escalation is a PLAIN notification with no buttons, so without this the only
+    # approve path is the /approve command. approve_/reject_ callbacks are handled by
+    # the gateway's _callback_handler -> _process_approval (flips the queue status).
+    button_sent = False
+    try:
+        from services.telegram_service import send_with_buttons
+
+        res = send_with_buttons(
+            category="system",
+            title=f"Promote {label} -> PRODUCTION",
+            message=reason,
+            buttons=[
+                {"text": "✅ Approve", "callback_data": f"approve_{approval_id}"},
+                {"text": "❌ Deny", "callback_data": f"reject_{approval_id}"},
+            ],
+        )
+        button_sent = bool(res.get("sent")) if isinstance(res, dict) else bool(res)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("promote_codex_pr: button message send failed: %s", e)
+
+    return {
+        "success": True,
+        "approval_id": approval_id,
+        "pr_number": int(pr_number),
+        "button_sent": button_sent,
+    }

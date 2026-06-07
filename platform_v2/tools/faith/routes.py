@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import logging
+import json
+import re
 import sys
+from functools import lru_cache
+from pathlib import Path
 
 from flask import jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from . import faith_bp
 
-from tools.department_hq.services.department_dispatcher import dispatch_json
+from tools.department_hq.services.department_dispatcher import dispatch
 
 BRIDGE_AVAILABLE = True
 
@@ -20,6 +24,157 @@ logger = logging.getLogger(__name__)
 
 FAITH_AGENT_ID = 352
 EMMANUEL_EMAIL = "emmanuel@kytranempowerment.com"
+FAITH_DATA_DIR = Path(__file__).with_name("data")
+WEB_VPL_PATH = FAITH_DATA_DIR / "web_vpl.txt"
+JPS_VPL_PATH = FAITH_DATA_DIR / "tanakh_jps1917_vpl.txt"
+QURAN_RODWELL_PATH = FAITH_DATA_DIR / "quran_rodwell_gutenberg.txt"
+DHAMMAPADA_MULLER_PATH = FAITH_DATA_DIR / "dhammapada_muller_gutenberg.txt"
+BHAGAVAD_GITA_ARNOLD_PATH = FAITH_DATA_DIR / "bhagavad_gita_arnold_gutenberg.txt"
+TAO_LEGGE_PATH = FAITH_DATA_DIR / "tao_teh_king_legge_gutenberg.txt"
+ANALECTS_LEGGE_PATH = FAITH_DATA_DIR / "analects_legge_gutenberg.txt"
+ENCYCLOPEDIA_PATH = FAITH_DATA_DIR / "encyclopedia_seed.json"
+SCRIPTURE_COLLECTIONS = [
+    {
+        "id": "web",
+        "name": "World English Bible Classic",
+        "tradition": "Christianity",
+        "source": "eBible.org",
+        "license": "Public domain",
+        "local_path": "platform_v2/tools/faith/data/web_vpl.txt",
+    },
+    {
+        "id": "jps1917",
+        "name": "JPS Tanakh 1917",
+        "tradition": "Judaism",
+        "source": "eBible.org",
+        "license": "Public domain",
+        "local_path": "platform_v2/tools/faith/data/tanakh_jps1917_vpl.txt",
+    },
+    {
+        "id": "quran_rodwell",
+        "name": "The Koran (Rodwell)",
+        "tradition": "Islam",
+        "source": "Project Gutenberg",
+        "license": "Public domain in the USA",
+        "local_path": "platform_v2/tools/faith/data/quran_rodwell_gutenberg.txt",
+    },
+    {
+        "id": "dhammapada_muller",
+        "name": "Dhammapada (Max Muller)",
+        "tradition": "Buddhism",
+        "source": "Project Gutenberg",
+        "license": "Public domain in the USA",
+        "local_path": "platform_v2/tools/faith/data/dhammapada_muller_gutenberg.txt",
+    },
+    {
+        "id": "bhagavad_gita_arnold",
+        "name": "Bhagavad Gita (Edwin Arnold)",
+        "tradition": "Hinduism",
+        "source": "Project Gutenberg",
+        "license": "Public domain in the USA",
+        "local_path": "platform_v2/tools/faith/data/bhagavad_gita_arnold_gutenberg.txt",
+    },
+    {
+        "id": "tao_legge",
+        "name": "Tao Teh King (James Legge)",
+        "tradition": "Taoism",
+        "source": "Project Gutenberg",
+        "license": "Public domain in the USA",
+        "local_path": "platform_v2/tools/faith/data/tao_teh_king_legge_gutenberg.txt",
+    },
+    {
+        "id": "analects_legge",
+        "name": "Analects of Confucius (James Legge)",
+        "tradition": "Confucianism",
+        "source": "Project Gutenberg",
+        "license": "Public domain in the USA",
+        "local_path": "platform_v2/tools/faith/data/analects_legge_gutenberg.txt",
+    },
+]
+
+WEB_BOOK_NAMES = {
+    "GEN": "Genesis",
+    "EXO": "Exodus",
+    "LEV": "Leviticus",
+    "NUM": "Numbers",
+    "DEU": "Deuteronomy",
+    "JOS": "Joshua",
+    "JDG": "Judges",
+    "RUT": "Ruth",
+    "1SA": "1 Samuel",
+    "2SA": "2 Samuel",
+    "1KI": "1 Kings",
+    "2KI": "2 Kings",
+    "1CH": "1 Chronicles",
+    "2CH": "2 Chronicles",
+    "EZR": "Ezra",
+    "NEH": "Nehemiah",
+    "EST": "Esther",
+    "JOB": "Job",
+    "PSA": "Psalms",
+    "PRO": "Proverbs",
+    "ECC": "Ecclesiastes",
+    "SOL": "Song of Solomon",
+    "ISA": "Isaiah",
+    "JER": "Jeremiah",
+    "LAM": "Lamentations",
+    "EZE": "Ezekiel",
+    "DAN": "Daniel",
+    "HOS": "Hosea",
+    "JOE": "Joel",
+    "AMO": "Amos",
+    "OBA": "Obadiah",
+    "JON": "Jonah",
+    "MIC": "Micah",
+    "NAH": "Nahum",
+    "HAB": "Habakkuk",
+    "ZEP": "Zephaniah",
+    "HAG": "Haggai",
+    "ZEC": "Zechariah",
+    "MAL": "Malachi",
+    "TOB": "Tobit",
+    "JDT": "Judith",
+    "ESG": "Esther (Greek)",
+    "WIS": "Wisdom",
+    "SIR": "Sirach",
+    "BAR": "Baruch",
+    "1MA": "1 Maccabees",
+    "2MA": "2 Maccabees",
+    "1ES": "1 Esdras",
+    "PRM": "Prayer of Manasses",
+    "PSX": "Psalm 151",
+    "3MA": "3 Maccabees",
+    "4ES": "2 Esdras",
+    "4MA": "4 Maccabees",
+    "DNG": "Daniel (Greek)",
+    "MAT": "Matthew",
+    "MAR": "Mark",
+    "LUK": "Luke",
+    "JOH": "John",
+    "ACT": "Acts",
+    "ROM": "Romans",
+    "1CO": "1 Corinthians",
+    "2CO": "2 Corinthians",
+    "GAL": "Galatians",
+    "EPH": "Ephesians",
+    "PHI": "Philippians",
+    "COL": "Colossians",
+    "1TH": "1 Thessalonians",
+    "2TH": "2 Thessalonians",
+    "1TI": "1 Timothy",
+    "2TI": "2 Timothy",
+    "TIT": "Titus",
+    "PHM": "Philemon",
+    "HEB": "Hebrews",
+    "JAM": "James",
+    "1PE": "1 Peter",
+    "2PE": "2 Peter",
+    "1JO": "1 John",
+    "2JO": "2 John",
+    "3JO": "3 John",
+    "JUD": "Jude",
+    "REV": "Revelation",
+}
 
 CRISIS_KEYWORDS = [
     "can't go on",
@@ -57,6 +212,307 @@ experience, not theology. Never generic.]
 """
 
 
+@lru_cache(maxsize=1)
+def _load_web_bible() -> dict:
+    books: list[dict] = []
+    by_code: dict[str, dict] = {}
+    verses: list[dict] = []
+
+    with WEB_VPL_PATH.open("r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                code, rest = line.split(" ", 1)
+                if " " in rest:
+                    ref, text = rest.split(" ", 1)
+                else:
+                    ref, text = rest, ""
+                chapter_s, verse_s = ref.split(":", 1)
+                chapter = int(chapter_s)
+                verse = int(re.match(r"\d+", verse_s).group(0))
+            except (AttributeError, ValueError):
+                logger.warning("[Faith] Skipping malformed WEB line: %s", line[:80])
+                continue
+
+            if code not in by_code:
+                book = {
+                    "code": code,
+                    "name": WEB_BOOK_NAMES.get(code, code),
+                    "chapters": [],
+                }
+                by_code[code] = book
+                books.append(book)
+            book = by_code[code]
+            if chapter not in book["chapters"]:
+                book["chapters"].append(chapter)
+
+            verses.append(
+                {
+                    "book": code,
+                    "book_name": book["name"],
+                    "chapter": chapter,
+                    "verse": verse,
+                    "reference": f"{book['name']} {chapter}:{verse}",
+                    "text": text.strip(),
+                }
+            )
+
+    aliases = {}
+    for book in books:
+        aliases[book["code"].lower()] = book["code"]
+        aliases[book["name"].lower()] = book["code"]
+        aliases[book["name"].replace(" ", "").lower()] = book["code"]
+    return {"books": books, "verses": verses, "aliases": aliases}
+
+
+def _collection_meta(collection_id: str) -> dict:
+    return next((item for item in SCRIPTURE_COLLECTIONS if item["id"] == collection_id), {})
+
+
+def _scripture_record(collection_id: str, reference: str, text: str) -> dict:
+    meta = _collection_meta(collection_id)
+    normalized_text = " ".join(text.split())
+    search_text = " ".join(
+        [
+            meta.get("name", collection_id),
+            meta.get("tradition", ""),
+            reference,
+            normalized_text,
+        ]
+    ).lower()
+    return {
+        "collection": collection_id,
+        "collection_name": meta.get("name", collection_id),
+        "tradition": meta.get("tradition", ""),
+        "reference": reference,
+        "text": normalized_text,
+        "_search": search_text,
+    }
+
+
+def _public_scripture_record(record: dict) -> dict:
+    return {key: value for key, value in record.items() if not key.startswith("_")}
+
+
+@lru_cache(maxsize=1)
+def _load_jps_tanakh() -> list[dict]:
+    records: list[dict] = []
+    with JPS_VPL_PATH.open("r", encoding="utf-8-sig") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                code, rest = line.split(" ", 1)
+                ref, text = rest.split(" ", 1)
+                chapter_s, verse_s = ref.split(":", 1)
+                chapter = int(chapter_s)
+                verse = int(re.match(r"\d+", verse_s).group(0))
+            except (AttributeError, ValueError):
+                logger.warning("[Faith] Skipping malformed JPS line: %s", line[:80])
+                continue
+            book_name = WEB_BOOK_NAMES.get(code, code)
+            records.append(_scripture_record("jps1917", f"{book_name} {chapter}:{verse}", text))
+    return records
+
+
+def _gutenberg_body(path: Path, start_marker: str) -> list[str]:
+    lines = path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
+    start = 0
+    end = len(lines)
+    for i, line in enumerate(lines):
+        if start_marker in line:
+            start = i + 1
+            break
+    for i, line in enumerate(lines[start:], start):
+        if line.startswith("*** END OF THE PROJECT GUTENBERG EBOOK"):
+            end = i
+            break
+    return lines[start:end]
+
+
+@lru_cache(maxsize=1)
+def _load_quran_rodwell() -> list[dict]:
+    records: list[dict] = []
+    current_sura = ""
+    paragraph: list[str] = []
+
+    def flush() -> None:
+        nonlocal paragraph
+        text = " ".join(part.strip() for part in paragraph if part.strip())
+        paragraph = []
+        if current_sura and len(text) > 24:
+            records.append(_scripture_record("quran_rodwell", current_sura, text))
+
+    for raw in _gutenberg_body(QURAN_RODWELL_PATH, "*** START OF THE PROJECT GUTENBERG EBOOK"):
+        line = raw.strip()
+        if not line:
+            flush()
+            continue
+        if line.startswith("SURA") and line.upper() == line:
+            flush()
+            current_sura = re.sub(r"\s+", " ", line).strip(" .")
+            continue
+        if current_sura:
+            paragraph.append(line)
+    flush()
+    return records
+
+
+@lru_cache(maxsize=1)
+def _load_dhammapada_muller() -> list[dict]:
+    records: list[dict] = []
+    chapter = ""
+    verse_no = ""
+    verse_lines: list[str] = []
+
+    def flush() -> None:
+        nonlocal verse_no, verse_lines
+        if verse_no and verse_lines:
+            reference = f"Dhammapada {verse_no}" + (f" — {chapter}" if chapter else "")
+            records.append(_scripture_record("dhammapada_muller", reference, " ".join(verse_lines)))
+        verse_no = ""
+        verse_lines = []
+
+    for raw in _gutenberg_body(DHAMMAPADA_MULLER_PATH, "*** START OF THE PROJECT GUTENBERG EBOOK"):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("Chapter "):
+            flush()
+            chapter = line
+            continue
+        match = re.match(r"^(\d+)\.\s+(.*)", line)
+        if match:
+            flush()
+            verse_no = match.group(1)
+            verse_lines = [match.group(2)]
+        elif verse_no:
+            verse_lines.append(line)
+    flush()
+    return records
+
+
+def _gutenberg_sectioned_paragraphs(
+    collection_id: str,
+    path: Path,
+    default_reference: str,
+    section_patterns: list[tuple[str, str]],
+) -> list[dict]:
+    records: list[dict] = []
+    section = default_reference
+    paragraph: list[str] = []
+
+    def flush() -> None:
+        nonlocal paragraph
+        text = " ".join(part.strip() for part in paragraph if part.strip())
+        paragraph = []
+        if len(text) > 24:
+            records.append(_scripture_record(collection_id, section, text))
+
+    for raw in _gutenberg_body(path, "*** START"):
+        line = raw.strip()
+        if not line:
+            flush()
+            continue
+        matched_section = None
+        for pattern, label in section_patterns:
+            match = re.match(pattern, line, re.IGNORECASE)
+            if match:
+                matched_section = label.format(*match.groups()) if match.groups() else line
+                break
+        if matched_section:
+            flush()
+            section = matched_section
+            continue
+        paragraph.append(line)
+    flush()
+    return records
+
+
+@lru_cache(maxsize=1)
+def _load_bhagavad_gita_arnold() -> list[dict]:
+    return _gutenberg_sectioned_paragraphs(
+        "bhagavad_gita_arnold",
+        BHAGAVAD_GITA_ARNOLD_PATH,
+        "Bhagavad Gita",
+        [(r"^CHAPTER\s+([IVXLCDM]+)\s*$", "Bhagavad Gita Chapter {}")],
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_tao_legge() -> list[dict]:
+    return _gutenberg_sectioned_paragraphs(
+        "tao_legge",
+        TAO_LEGGE_PATH,
+        "Tao Teh King",
+        [(r"^Ch\.\s+(\d+)\.\s*(.*)$", "Tao Teh King Chapter {}")],
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_analects_legge() -> list[dict]:
+    return _gutenberg_sectioned_paragraphs(
+        "analects_legge",
+        ANALECTS_LEGGE_PATH,
+        "Analects",
+        [
+            (r"^BOOK\s+([IVXLCDM]+)\.\s*(.*)$", "Analects Book {}"),
+            (r"^\s*CHAPTER\s+([IVXLCDM]+)\.\s*(.*)$", "Analects Chapter {}"),
+        ],
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_scripture_corpus() -> dict:
+    web_records = [
+        _scripture_record("web", verse["reference"], verse["text"])
+        for verse in _load_web_bible()["verses"]
+    ]
+    passages = (
+        web_records
+        + _load_jps_tanakh()
+        + _load_quran_rodwell()
+        + _load_dhammapada_muller()
+        + _load_bhagavad_gita_arnold()
+        + _load_tao_legge()
+        + _load_analects_legge()
+    )
+    counts = {}
+    for passage in passages:
+        counts[passage["collection"]] = counts.get(passage["collection"], 0) + 1
+    collections = [{**item, "passage_count": counts.get(item["id"], 0)} for item in SCRIPTURE_COLLECTIONS]
+    return {"collections": collections, "passages": passages}
+
+
+@lru_cache(maxsize=1)
+def _load_encyclopedia_entries() -> list[dict]:
+    try:
+        return json.loads(ENCYCLOPEDIA_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("[Faith] Failed to load encyclopedia seed")
+        return []
+
+
+def _lookup_book_code(value: str) -> str | None:
+    if not value:
+        return None
+    bible = _load_web_bible()
+    key = value.strip().lower()
+    return bible["aliases"].get(key) or bible["aliases"].get(key.replace(" ", ""))
+
+
+def _serialize_book(book: dict) -> dict:
+    return {
+        "code": book["code"],
+        "name": book["name"],
+        "chapter_count": len(book["chapters"]),
+        "chapters": book["chapters"],
+    }
+
+
 @faith_bp.route("/")
 @login_required
 def index():
@@ -75,6 +531,150 @@ def status():
             "module": "faith",
         }
     )
+
+
+@faith_bp.route("/api/faith/bible/meta")
+@login_required
+def bible_meta():
+    bible = _load_web_bible()
+    return jsonify(
+        {
+            "success": True,
+            "translation": {
+                "id": "web",
+                "name": "World English Bible Classic",
+                "storage": "local_saved_copy",
+                "local_path": "platform_v2/tools/faith/data/web_vpl.txt",
+                "source": "eBible.org",
+                "license": "Public domain",
+                "source_url": "https://ebible.org/find/details.php?id=eng-web",
+                "verse_count": len(bible["verses"]),
+            },
+            "books": [_serialize_book(book) for book in bible["books"]],
+            "encyclopedia_sources": _load_encyclopedia_entries(),
+        }
+    )
+
+
+@faith_bp.route("/api/faith/bible/passage")
+@login_required
+def bible_passage():
+    code = _lookup_book_code(request.args.get("book", "GEN"))
+    if not code:
+        return jsonify({"success": False, "error": "unknown book"}), 404
+    try:
+        chapter = int(request.args.get("chapter", "1"))
+    except ValueError:
+        return jsonify({"success": False, "error": "chapter must be a number"}), 400
+
+    verses = [
+        v
+        for v in _load_web_bible()["verses"]
+        if v["book"] == code and v["chapter"] == chapter
+    ]
+    if not verses:
+        return jsonify({"success": False, "error": "passage not found"}), 404
+    return jsonify(
+        {
+            "success": True,
+            "translation": "World English Bible Classic",
+            "book": code,
+            "book_name": verses[0]["book_name"],
+            "chapter": chapter,
+            "reference": f"{verses[0]['book_name']} {chapter}",
+            "verses": verses,
+        }
+    )
+
+
+@faith_bp.route("/api/faith/bible/search")
+@login_required
+def bible_search():
+    query = (request.args.get("q") or "").strip()
+    if not query:
+        return jsonify({"success": False, "error": "query required"}), 400
+    try:
+        limit = min(max(int(request.args.get("limit", "25")), 1), 100)
+    except ValueError:
+        limit = 25
+
+    q = query.lower()
+    results = []
+    for verse in _load_web_bible()["verses"]:
+        haystack = f"{verse['reference']} {verse['text']}".lower()
+        if q in haystack:
+            results.append(verse)
+            if len(results) >= limit:
+                break
+    return jsonify({"success": True, "query": query, "results": results, "count": len(results)})
+
+
+@faith_bp.route("/api/faith/scriptures/meta")
+@login_required
+def scriptures_meta():
+    corpus = _load_scripture_corpus()
+    return jsonify(
+        {
+            "success": True,
+            "storage": "local_saved_copies",
+            "collections": corpus["collections"],
+            "passage_count": len(corpus["passages"]),
+        }
+    )
+
+
+@faith_bp.route("/api/faith/scriptures/search")
+@login_required
+def scriptures_search():
+    query = (request.args.get("q") or "").strip()
+    collection = (request.args.get("collection") or "all").strip()
+    if not query:
+        return jsonify({"success": False, "error": "query required"}), 400
+    try:
+        limit = min(max(int(request.args.get("limit", "40")), 1), 120)
+    except ValueError:
+        limit = 40
+
+    q = query.lower()
+    results = []
+    for passage in _load_scripture_corpus()["passages"]:
+        if collection != "all" and passage["collection"] != collection:
+            continue
+        if q in passage["_search"]:
+            results.append(_public_scripture_record(passage))
+            if len(results) >= limit:
+                break
+    return jsonify(
+        {
+            "success": True,
+            "query": query,
+            "collection": collection,
+            "results": results,
+            "count": len(results),
+        }
+    )
+
+
+@faith_bp.route("/api/faith/encyclopedia/search")
+@login_required
+def encyclopedia_search():
+    query = (request.args.get("q") or "").strip().lower()
+    entries = _load_encyclopedia_entries()
+    if query:
+        entries = [
+            entry
+            for entry in entries
+            if query
+            in " ".join(
+                [
+                    entry.get("title", ""),
+                    entry.get("category", ""),
+                    entry.get("summary", ""),
+                    " ".join(entry.get("tags", [])),
+                ]
+            ).lower()
+        ]
+    return jsonify({"success": True, "query": query, "entries": entries, "count": len(entries)})
 
 
 def _detect_crisis(text: str) -> bool:
@@ -106,16 +706,16 @@ def chat():
     _save_message(user_id, "user", message)
 
     try:
-        result = dispatch_json(
+        result = dispatch(
             capability="support",
             prompt=message,
             module_id="faith",
             system_prompt=FAITH_SYSTEM_PROMPT,
         )
-        response_text = result.get("response", "") if isinstance(result, dict) else str(result or "")
+        response_text = getattr(result, "response", "") if result else ""
         response_text = response_text.strip()
     except Exception as e:
-        logger.error(f"[Faith] dispatch_json failed: {e}")
+        logger.error(f"[Faith] dispatch failed: {e}")
         response_text = "F.A.I.T.H. is unavailable right now."
 
     _save_message(user_id, "assistant", response_text)
@@ -124,8 +724,8 @@ def chat():
         {
             "success": bool(response_text),
             "response": response_text,
-            "model": result.get("model_used", "dhq") if isinstance(result, dict) else "dhq",
-            "agent": "F.A.I.T.H.",
+            "model": getattr(result, "model_used", "dhq") if result else "dhq",
+            "agent": getattr(result, "agent_name", "F.A.I.T.H.") if result else "F.A.I.T.H.",
             "crisis_detected": crisis,
         }
     )
@@ -138,15 +738,27 @@ def chat():
 
 def _practice_dispatch(user_id: int, practice_type: str, prompt: str, notes: str = "") -> dict:
     if BRIDGE_AVAILABLE:
-        result = archie_bridge(
-            prompt=prompt,
-            user_id=user_id,
-            agent_id=FAITH_AGENT_ID,
-            system_prompt=FAITH_SYSTEM_PROMPT,
-            enable_memory=False,
-            try_local_first=True,
-            task_type="faith_practice",
-        )
+        try:
+            dispatch_result = dispatch(
+                capability="support",
+                prompt=prompt,
+                module_id="faith",
+                system_prompt=FAITH_SYSTEM_PROMPT,
+            )
+            result = {
+                "success": bool(dispatch_result and dispatch_result.success),
+                "response": getattr(dispatch_result, "response", "") if dispatch_result else "",
+                "model_used": getattr(dispatch_result, "model_used", "dhq") if dispatch_result else "dhq",
+                "agent": getattr(dispatch_result, "agent_name", "F.A.I.T.H.") if dispatch_result else "F.A.I.T.H.",
+            }
+        except Exception as e:
+            logger.error(f"[Faith] practice dispatch failed: {e}")
+            result = {
+                "success": False,
+                "response": "F.A.I.T.H. is unavailable.",
+                "model_used": "dhq",
+                "agent": "F.A.I.T.H.",
+            }
     else:
         result = {"success": False, "response": "F.A.I.T.H. is unavailable.", "model_used": "none", "agent": "none"}
 

@@ -10,6 +10,9 @@ Run: docker exec archie_platform python -m pytest tests/test_faith_routes.py -v
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
 from flask import Flask
 from flask_login import LoginManager, UserMixin
@@ -18,7 +21,8 @@ from flask_login import LoginManager, UserMixin
 @pytest.fixture(scope="module")
 def faith_client():
     """Minimal Flask test client with only the faith blueprint mounted."""
-    mini_app = Flask(__name__, template_folder="/app/templates")
+    template_dir = Path(__file__).resolve().parents[1] / "templates"
+    mini_app = Flask(__name__, template_folder=str(template_dir))
     mini_app.config["SECRET_KEY"] = "test-secret"
     mini_app.config["TESTING"] = True
     mini_app.config["WTF_CSRF_ENABLED"] = False
@@ -64,14 +68,14 @@ def test_faith_status_endpoint(faith_client):
 def test_faith_chat_returns_response(faith_client):
     from unittest.mock import patch
 
-    mock_result = {
-        "success": True,
-        "response": "Peace I leave with you.\n\n---\n**From the Chaplain**\nFaith walks in the dark.",
-        "model_used": "mistral:7b",
-        "agent": "F.A.I.T.H.",
-    }
+    mock_result = SimpleNamespace(
+        success=True,
+        response="Peace I leave with you.\n\n---\n**From the Chaplain**\nFaith walks in the dark.",
+        model_used="mistral:7b",
+        agent_name="F.A.I.T.H.",
+    )
     _login(faith_client)
-    with patch("tools.faith.routes.archie_bridge", return_value=mock_result), patch(
+    with patch("tools.faith.routes.dispatch", return_value=mock_result), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
     ), patch("tools.faith.routes.get_db_cursor"):
         resp = faith_client.post(
@@ -85,9 +89,9 @@ def test_faith_chat_returns_response(faith_client):
 def test_faith_chat_crisis_detection(faith_client):
     from unittest.mock import patch
 
-    mock_result = {"success": True, "response": "...", "model_used": "mistral:7b", "agent": "F.A.I.T.H."}
+    mock_result = SimpleNamespace(success=True, response="...", model_used="mistral:7b", agent_name="F.A.I.T.H.")
     _login(faith_client)
-    with patch("tools.faith.routes.archie_bridge", return_value=mock_result), patch(
+    with patch("tools.faith.routes.dispatch", return_value=mock_result), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
     ), patch("tools.faith.routes.get_db_cursor"):
         resp = faith_client.post(
@@ -101,9 +105,9 @@ def test_faith_chat_crisis_detection(faith_client):
 def test_faith_devotional(faith_client):
     from unittest.mock import patch
 
-    mock = {"success": True, "response": "John 14:27", "model_used": "mistral:7b", "agent": "F.A.I.T.H."}
+    mock = SimpleNamespace(success=True, response="John 14:27", model_used="mistral:7b", agent_name="F.A.I.T.H.")
     _login(faith_client)
-    with patch("tools.faith.routes.archie_bridge", return_value=mock), patch(
+    with patch("tools.faith.routes.dispatch", return_value=mock), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
     ), patch("tools.faith.routes.get_db_cursor"):
         resp = faith_client.get("/tools/faith/api/faith/devotional")
@@ -114,14 +118,101 @@ def test_faith_devotional(faith_client):
 def test_faith_scripture_search(faith_client):
     from unittest.mock import patch
 
-    mock = {"success": True, "response": "Psalm 34:18", "model_used": "mistral:7b", "agent": "F.A.I.T.H."}
+    mock = SimpleNamespace(success=True, response="Psalm 34:18", model_used="mistral:7b", agent_name="F.A.I.T.H.")
     _login(faith_client)
-    with patch("tools.faith.routes.archie_bridge", return_value=mock), patch(
+    with patch("tools.faith.routes.dispatch", return_value=mock), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
     ), patch("tools.faith.routes.get_db_cursor"):
         resp = faith_client.post("/tools/faith/api/faith/scripture-search", json={"query": "grief"})
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
+
+
+def test_faith_bible_meta(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/bible/meta")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["translation"]["id"] == "web"
+    assert data["translation"]["storage"] == "local_saved_copy"
+    assert data["translation"]["verse_count"] > 30000
+    assert any(book["code"] == "JOH" for book in data["books"])
+
+
+def test_faith_bible_passage(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/bible/passage?book=John&chapter=3")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["book"] == "JOH"
+    assert any(verse["verse"] == 16 for verse in data["verses"])
+
+
+def test_faith_bible_search(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/bible/search?q=God%20so%20loved")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert any(result["reference"] == "John 3:16" for result in data["results"])
+
+
+def test_faith_scriptures_meta(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/scriptures/meta")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    ids = {collection["id"] for collection in data["collections"]}
+    assert {
+        "web",
+        "jps1917",
+        "quran_rodwell",
+        "dhammapada_muller",
+        "bhagavad_gita_arnold",
+        "tao_legge",
+        "analects_legge",
+    }.issubset(ids)
+    assert data["passage_count"] > 65000
+
+
+def test_faith_scriptures_search_interfaith_texts(faith_client):
+    _login(faith_client)
+    cases = [
+        ("jps1917", "beginning", "Judaism"),
+        ("quran_rodwell", "merciful", "Islam"),
+        ("dhammapada_muller", "hatred", "Buddhism"),
+        ("bhagavad_gita_arnold", "Krishna", "Hinduism"),
+        ("tao_legge", "Tao", "Taoism"),
+        ("analects_legge", "Master", "Confucianism"),
+    ]
+    for collection, query, tradition in cases:
+        resp = faith_client.get(f"/tools/faith/api/faith/scriptures/search?collection={collection}&q={query}")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert any(result["tradition"] == tradition for result in data["results"])
+
+
+def test_faith_encyclopedia_search(faith_client):
+    _login(faith_client)
+    resp = faith_client.get("/tools/faith/api/faith/encyclopedia/search?q=fathers")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert any("Fathers" in entry["title"] for entry in data["entries"])
+
+
+def test_faith_encyclopedia_interfaith_sources(faith_client):
+    _login(faith_client)
+    for query in ("Jewish", "Islam", "Buddhism"):
+        resp = faith_client.get(f"/tools/faith/api/faith/encyclopedia/search?q={query}")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["success"] is True
+        assert data["entries"], f"Expected entries for {query}"
 
 
 def test_faith_checkin_saves(faith_client):

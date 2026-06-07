@@ -1,0 +1,119 @@
+[
+  {
+    "title": "World English Bible Classic",
+    "category": "Bible translation",
+    "summary": "Public-domain modern English Bible translation from eBible.org. This Faith module bundles the VPL text-only edition for local reading and search.",
+    "source": "eBible.org",
+    "url": "https://ebible.org/find/details.php?id=eng-web",
+    "license": "Public domain",
+    "tags": ["bible", "translation", "public-domain", "web"]
+  },
+  {
+    "title": "Catholic Encyclopedia",
+    "category": "Reference work",
+    "summary": "The 1907-1913 Catholic Encyclopedia is a public-domain reference work covering theology, church history, saints, councils, doctrine, and Catholic practice.",
+    "source": "New Advent / original 1913 Catholic Encyclopedia",
+    "url": "https://www.newadvent.org/cathen/",
+    "license": "Public domain text",
+    "tags": ["catholic", "encyclopedia", "church-history", "theology"]
+  },
+  {
+    "title": "The Jewish Encyclopedia",
+    "category": "Reference work",
+    "summary": "Public-domain early twentieth-century encyclopedia covering Jewish history, literature, religion, biblical figures, places, and customs.",
+    "source": "JewishEncyclopedia.com",
+    "url": "https://www.jewishencyclopedia.com/",
+    "license": "Public domain",
+    "tags": ["judaism", "encyclopedia", "old-testament", "history"]
+  },
+  {
+    "title": "Sefaria Jewish Text Library",
+    "category": "Jewish reference library",
+    "summary": "Open digital library for Jewish texts and study references, including Tanakh, Mishnah, Talmud, Midrash, halakhah, commentaries, and liturgy.",
+    "source": "Sefaria",
+    "url": "https://www.sefaria.org/",
+    "license": "Mixed open licenses by text; verify before bundling full text",
+    "tags": ["judaism", "jewish", "tanakh", "talmud", "mishnah", "midrash", "halakhah"]
+  },
+  {
+    "title": "Quran Corpus and Translation References",
+    "category": "Islamic reference library",
+    "summary": "Reference resources for Quranic Arabic, translations, word analysis, grammar, and study links. Use source licensing checks before bundling full translations.",
+    "source": "Quranic Arabic Corpus / open Islamic study references",
+    "url": "https://corpus.quran.com/",
+    "license": "Reference/link index; full translation licenses vary",
+    "tags": ["islam", "islamic", "quran", "qur'an", "hadith", "arabic", "tafsir"]
+  },
+  {
+    "title": "Sunnah and Hadith Reference Index",
+    "category": "Islamic reference library",
+    "summary": "Study reference index for major hadith collections and Islamic tradition topics, including Sahih al-Bukhari, Sahih Muslim, and related collections.",
+    "source": "Public Islamic reference indexes",
+    "url": "https://sunnah.com/",
+    "license": "Reference/link index; collection and translation licenses vary",
+    "tags": ["islam", "hadith", "sunnah", "bukhari", "muslim", "fiqh"]
+  },
+  {
+    "title": "Access to Insight Theravada Text Library",
+    "category": "Buddhist reference library",
+    "summary": "Theravada Buddhist study library with translations and essays from the Pali Canon tradition, useful for sutta references, doctrine, and practice topics.",
+    "source": "Access to Insight",
+    "url": "https://www.accesstoinsight.org/",
+    "license": "Mixed permissions by work; verify before bundling full text",
+    "tags": ["buddhism", "buddhist", "theravada", "pali-canon", "sutta", "dhamma"]
+  },
+  {
+    "title": "SuttaCentral Buddhist Text Library",
+    "category": "Buddhist reference library",
+    "summary": "Open Buddhist text library with early Buddhist texts, translations, parallels, and study references across Pali, Chinese, Sanskrit, and Tibetan traditions.",
+    "source": "SuttaCentral",
+    "url": "https://suttacentral.net/",
+    "license": "Mixed open licenses by text; verify before bundling full text",
+    "tags": ["buddhism", "buddhist", "sutta", "pali", "mahayana", "tibetan", "sutra"]
+  },
+  {
+    "title": "Bhagavad Gita (Edwin Arnold)",
+    "category": "Hindu scripture",
+    "summary": "Public-domain English poetic translation of the Bhagavad Gita, published as The Song Celestial and bundled locally for search.",
+    "source": "Project Gutenberg",
+    "url": "https://www.gutenberg.org/ebooks/2388",
+    "license": "Public domain in the USA",
+    "tags": ["hinduism", "hindu", "bhagavad-gita", "gita", "krishna", "arjuna"]
+  },
+  {
+    "title": "Tao Teh King (James Legge)",
+    "category": "Taoist scripture",
+    "summary": "Public-domain James Legge translation of the Tao Teh King, bundled locally for Taoist and comparative religion search.",
+    "source": "Project Gutenberg",
+    "url": "https://www.gutenberg.org/ebooks/216",
+    "license": "Public domain in the USA",
+    "tags": ["taoism", "tao", "dao", "tao-teh-king", "tao-te-ching", "laozi"]
+  },
+  {
+    "title": "Analects of Confucius (James Legge)",
+    "category": "Confucian reference library",
+    "summary": "Public-domain James Legge translation of the Analects of Confucius, bundled locally for Confucian ethics and comparative tradition search.",
+    "source": "Project Gutenberg",
+    "url": "https://www.gutenberg.org/ebooks/3330",
+    "license": "Public domain in the USA",
+    "tags": ["confucianism", "confucius", "analects", "ethics", "china"]
+  },
+  {
+    "title": "Early Church Fathers",
+    "category": "Primary sources",
+    "summary": "Public-domain English translations of Ante-Nicene, Nicene, and Post-Nicene Christian writings, useful for patristics and church history.",
+    "source": "Christian Classics Ethereal Library",
+    "url": "https://www.ccel.org/fathers",
+    "license": "Mostly public-domain source texts; site formatting may have separate rights",
+    "tags": ["church-fathers", "patristics", "primary-sources", "church-history"]
+  },
+  {
+    "title": "Creeds and Councils",
+    "category": "Doctrine",
+    "summary": "Historical Christian creeds and ecumenical council material for comparing doctrine across Catholic, Orthodox, and Protestant traditions.",
+    "source": "Public-domain historical texts",
+    "url": "https://www.ccel.org/creeds",
+    "license": "Public-domain historical texts where applicable",
+    "tags": ["creeds", "councils", "doctrine", "trinity", "christology"]
+  }
+]

@@ -13,6 +13,7 @@
 {% set module_back_url = '/dashboard' %}
 {% set header_tabs = [
     ("chat",      "Chat",      "message-circle"),
+    ("bible",     "Scriptures", "book-marked"),
     ("practices", "Practices", "book-open"),
     ("journal",   "Journal",   "pen-line"),
 ] %}
@@ -52,6 +53,50 @@
     </div>
     <div class="faith-actions-right">
       <button onclick="openEmmanuelModal()" class="btn btn-secondary btn-sm">Connect with Emmanuel &rarr;</button>
+    </div>
+  </div>
+
+  <!-- TAB: Scriptures -->
+  <div id="faith-tab-bible" class="module-tab-panel" style="display:none;">
+    <div class="faith-bible-meta">
+      <strong>Local Scripture Library</strong>
+      <span id="bibleMetaText">Saved local copies: Bible, Tanakh, Qur'an, Dhammapada, Gita, Tao, Analects</span>
+    </div>
+    <div class="faith-bible-reader-controls">
+      <select id="bibleBookSelect" class="form-control" aria-label="Bible book"></select>
+      <select id="bibleChapterSelect" class="form-control" aria-label="Bible chapter"></select>
+      <button id="bibleLoadBtn" onclick="loadBiblePassage()" class="btn btn-primary">Read</button>
+    </div>
+    <div id="bibleReader" class="faith-bible-reader" role="region" aria-live="polite" aria-busy="false"></div>
+    <div class="faith-bible-tools">
+      <input id="bibleQuery" type="text" class="form-control" placeholder="Search saved Bible copies" aria-label="Bible search">
+      <button id="bibleSearchBtn" onclick="searchBible()" class="btn btn-secondary">Search</button>
+    </div>
+    <div class="faith-bible-presets" aria-label="Common Bible searches">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="useBiblePreset('peace')">Peace</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="useBiblePreset('grief')">Grief</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="useBiblePreset('forgiveness')">Forgiveness</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="useBiblePreset('John 3:16')">John 3:16</button>
+    </div>
+    <div id="bibleResult" class="faith-result-panel faith-bible-result" role="status" aria-live="polite" aria-busy="false"></div>
+    <div class="faith-scripture-library">
+      <div class="faith-section-title">Saved Scriptures</div>
+      <div class="faith-bible-tools faith-scripture-tools">
+        <select id="scriptureCollectionSelect" class="form-control" aria-label="Scripture collection">
+          <option value="all">All saved copies</option>
+        </select>
+        <input id="scriptureQuery" type="text" class="form-control" placeholder="Search Bible, Tanakh, Qur'an, Dhammapada, Gita, Tao, Analects" aria-label="Saved scripture search">
+        <button id="scriptureSearchBtn" onclick="searchScriptures()" class="btn btn-secondary">Search</button>
+      </div>
+      <div id="scriptureResult" class="faith-result-panel faith-scripture-result" role="status" aria-live="polite" aria-busy="false"></div>
+    </div>
+    <div class="faith-encyclopedia">
+      <div class="faith-section-title">Encyclopedia</div>
+      <div class="faith-bible-tools">
+        <input id="encyclopediaQuery" type="text" class="form-control" placeholder="Search references: Jewish, Islam, Buddhism, Catholic, creeds..." aria-label="Encyclopedia search">
+        <button id="encyclopediaSearchBtn" onclick="searchEncyclopedia()" class="btn btn-secondary">Search</button>
+      </div>
+      <div id="encyclopediaResult" class="faith-encyclopedia-result" role="region" aria-live="polite" aria-busy="false"></div>
     </div>
   </div>
 
@@ -131,6 +176,7 @@ function switchFaithTab(tab, btn) {
   document.querySelectorAll(".module-tab").forEach(function(b) { b.classList.remove("active"); });
   document.getElementById("faith-tab-" + tab).style.display = "block";
   if (btn) btn.classList.add("active");
+  if (tab === "bible") loadBibleMeta();
   if (tab === "journal") loadJournal();
 }
 // Bridge LCARS header tabs → faith tab switch
@@ -246,6 +292,198 @@ function showPracticeResult(text) {
   var el = document.getElementById("practiceResult");
   el.style.display = "block";
   setHtml(el, escHtml(text).replace(/\n/g,"<br>").replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>"));
+}
+
+function showBibleResult(text) {
+  var el = document.getElementById("bibleResult");
+  el.style.display = "block";
+  setHtml(el, escHtml(text).replace(/\n/g,"<br>").replace(/\*\*(.*?)\*\*/g,"<strong>$1</strong>"));
+}
+
+var bibleMetaLoaded = false;
+var bibleBooks = [];
+var scriptureMetaLoaded = false;
+var scriptureCollections = [];
+
+async function loadBibleMeta() {
+  if (bibleMetaLoaded) return;
+  setRegionBusy("bibleReader", true);
+  try {
+    var res = await fetch(FAITH_BASE + "/bible/meta");
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || "Could not load Bible metadata.");
+    bibleBooks = data.books || [];
+    setHtml(document.getElementById("bibleMetaText"), escHtml(data.translation.name + " · " + data.translation.verse_count + " verses · local saved copy"));
+    var bookSelect = document.getElementById("bibleBookSelect");
+    setHtml(bookSelect, bibleBooks.map(function(book) {
+      return "<option value='" + escHtml(book.code) + "'>" + escHtml(book.name) + "</option>";
+    }).join(""));
+    bookSelect.value = "GEN";
+    bookSelect.onchange = populateBibleChapters;
+    populateBibleChapters();
+    renderEncyclopediaEntries(data.encyclopedia_sources || []);
+    bibleMetaLoaded = true;
+    loadScriptureMeta();
+    loadBiblePassage();
+  } catch (err) {
+    setHtml(document.getElementById("bibleReader"), faithFeedbackHtml("Error loading Bible data.", "error"));
+  } finally {
+    setRegionBusy("bibleReader", false);
+  }
+}
+
+function populateBibleChapters() {
+  var bookCode = document.getElementById("bibleBookSelect").value;
+  var book = bibleBooks.find(function(item) { return item.code === bookCode; });
+  var chapterSelect = document.getElementById("bibleChapterSelect");
+  if (!book) { setHtml(chapterSelect, ""); return; }
+  setHtml(chapterSelect, book.chapters.map(function(chapter) {
+    return "<option value='" + escHtml(String(chapter)) + "'>" + escHtml(String(chapter)) + "</option>";
+  }).join(""));
+}
+
+async function loadBiblePassage() {
+  var book = document.getElementById("bibleBookSelect").value || "GEN";
+  var chapter = document.getElementById("bibleChapterSelect").value || "1";
+  setRegionBusy("bibleReader", true);
+  setTriggerLoading("bibleLoadBtn", true);
+  setHtml(document.getElementById("bibleReader"), "<span class='faith-spinner' aria-hidden='true'></span><span>Loading passage...</span>");
+  try {
+    var res = await fetch(FAITH_BASE + "/bible/passage?book=" + encodeURIComponent(book) + "&chapter=" + encodeURIComponent(chapter));
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || "Passage not found.");
+    var html = "<h3>" + escHtml(data.reference) + "</h3>" + data.verses.map(function(verse) {
+      return "<p><sup>" + escHtml(String(verse.verse)) + "</sup> " + escHtml(verse.text) + "</p>";
+    }).join("");
+    setHtml(document.getElementById("bibleReader"), html);
+  } catch (err) {
+    setHtml(document.getElementById("bibleReader"), faithFeedbackHtml("Error loading passage.", "error"));
+  } finally {
+    setRegionBusy("bibleReader", false);
+    setTriggerLoading("bibleLoadBtn", false);
+  }
+}
+
+async function loadScriptureMeta() {
+  if (scriptureMetaLoaded) return;
+  try {
+    var res = await fetch(FAITH_BASE + "/scriptures/meta");
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || "Could not load scripture metadata.");
+    scriptureCollections = data.collections || [];
+    var select = document.getElementById("scriptureCollectionSelect");
+    var options = ["<option value='all'>All saved copies</option>"].concat(scriptureCollections.map(function(item) {
+      return "<option value='" + escHtml(item.id) + "'>" + escHtml(item.name + " · " + item.tradition) + "</option>";
+    }));
+    setHtml(select, options.join(""));
+  } catch (err) {
+    setHtml(document.getElementById("scriptureResult"), faithFeedbackHtml("Error loading saved scripture list.", "error"));
+  } finally {
+    scriptureMetaLoaded = true;
+  }
+}
+
+function useBiblePreset(query) {
+  var input = document.getElementById("bibleQuery");
+  input.value = query;
+  searchBible();
+}
+
+async function searchBible() {
+  var input = document.getElementById("bibleQuery");
+  var query = input.value.trim();
+  if (!query) { showBibleResult("Enter a word, phrase, or reference."); return; }
+  setRegionBusy("bibleResult", true);
+  setTriggerLoading("bibleSearchBtn", true);
+  var el = document.getElementById("bibleResult");
+  el.style.display = "block";
+  setHtml(el, "<span class='faith-spinner' aria-hidden='true'></span><span>Searching saved Bible copies...</span>");
+  try {
+    var res = await fetch(FAITH_BASE + "/bible/search?q=" + encodeURIComponent(query));
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || "Search failed.");
+    if (!data.results || data.results.length === 0) {
+      showBibleResult("No scripture results found.");
+      return;
+    }
+    var html = data.results.map(function(verse) {
+      return "<div class='faith-search-result'><strong>" + escHtml(verse.reference) + "</strong><p>" + escHtml(verse.text) + "</p></div>";
+    }).join("");
+    setHtml(el, html);
+  } catch (err) {
+    showBibleResult("Error searching scripture.");
+  } finally {
+    setRegionBusy("bibleResult", false);
+    setTriggerLoading("bibleSearchBtn", false);
+  }
+}
+
+async function searchScriptures() {
+  var query = document.getElementById("scriptureQuery").value.trim();
+  var collection = document.getElementById("scriptureCollectionSelect").value || "all";
+  var el = document.getElementById("scriptureResult");
+  if (!query) {
+    setHtml(el, faithFeedbackHtml("Enter a word or phrase to search saved scriptures.", "warning"));
+    return;
+  }
+  setRegionBusy("scriptureResult", true);
+  setTriggerLoading("scriptureSearchBtn", true);
+  setHtml(el, "<span class='faith-spinner' aria-hidden='true'></span><span>Searching saved scripture copies...</span>");
+  try {
+    var res = await fetch(FAITH_BASE + "/scriptures/search?q=" + encodeURIComponent(query) + "&collection=" + encodeURIComponent(collection));
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || "Search failed.");
+    if (!data.results || data.results.length === 0) {
+      setHtml(el, faithFeedbackHtml("No saved scripture results found.", "warning"));
+      return;
+    }
+    var html = data.results.map(function(item) {
+      return "<div class='faith-search-result'>" +
+        "<strong>" + escHtml(item.reference) + "</strong> " +
+        "<span class='faith-source-pill'>" + escHtml(item.collection_name) + " · " + escHtml(item.tradition) + "</span>" +
+        "<p>" + escHtml(item.text) + "</p>" +
+        "</div>";
+    }).join("");
+    setHtml(el, html);
+  } catch (err) {
+    setHtml(el, faithFeedbackHtml("Error searching saved scriptures.", "error"));
+  } finally {
+    setRegionBusy("scriptureResult", false);
+    setTriggerLoading("scriptureSearchBtn", false);
+  }
+}
+
+function renderEncyclopediaEntries(entries) {
+  var el = document.getElementById("encyclopediaResult");
+  if (!entries || entries.length === 0) {
+    setHtml(el, "<p class='faith-muted'>No encyclopedia entries found.</p>");
+    return;
+  }
+  var html = entries.map(function(entry) {
+    return "<div class='faith-encyclopedia-entry'>" +
+      "<div><strong>" + escHtml(entry.title) + "</strong> <span>" + escHtml(entry.category || "") + "</span></div>" +
+      "<p>" + escHtml(entry.summary || "") + "</p>" +
+      "<a href='" + escHtml(entry.url || "#") + "' target='_blank' rel='noopener'>" + escHtml(entry.source || "Source") + "</a>" +
+      "</div>";
+  }).join("");
+  setHtml(el, html);
+}
+
+async function searchEncyclopedia() {
+  var query = document.getElementById("encyclopediaQuery").value.trim();
+  setRegionBusy("encyclopediaResult", true);
+  setTriggerLoading("encyclopediaSearchBtn", true);
+  try {
+    var res = await fetch(FAITH_BASE + "/encyclopedia/search?q=" + encodeURIComponent(query));
+    var data = await res.json();
+    if (!data.success) throw new Error(data.error || "Search failed.");
+    renderEncyclopediaEntries(data.entries || []);
+  } catch (err) {
+    setHtml(document.getElementById("encyclopediaResult"), faithFeedbackHtml("Error searching encyclopedia.", "error"));
+  } finally {
+    setRegionBusy("encyclopediaResult", false);
+    setTriggerLoading("encyclopediaSearchBtn", false);
+  }
 }
 
 async function openScriptureModal() {
@@ -442,6 +680,132 @@ async function sendEmmanuel() {
 .faith-actions-right {
     text-align: right;
 }
+.faith-bible-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    color: var(--archie-text-primary, #f0f6fc);
+    font-size: 0.86rem;
+}
+.faith-bible-meta span {
+    color: var(--archie-text-muted);
+    font-size: 0.78rem;
+}
+.faith-bible-reader-controls {
+    display: grid;
+    grid-template-columns: minmax(160px, 1fr) minmax(84px, 120px) auto;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.faith-bible-reader {
+    min-height: 280px;
+    max-height: 520px;
+    overflow-y: auto;
+    background: var(--archie-surface);
+    border: 1px solid var(--archie-border-default, var(--archie-border));
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 12px;
+    line-height: 1.65;
+}
+.faith-bible-reader h3 {
+    margin: 0 0 12px;
+    color: var(--frame-color, var(--archie-primary));
+    font-size: 1rem;
+}
+.faith-bible-reader p {
+    margin: 0 0 8px;
+}
+.faith-bible-reader sup {
+    color: var(--frame-color, var(--archie-primary));
+    font-weight: 700;
+    margin-right: 4px;
+}
+.faith-bible-tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.faith-bible-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.faith-bible-result {
+    min-height: 220px;
+}
+.faith-search-result {
+    border-bottom: 1px solid var(--archie-border-default, var(--archie-border));
+    padding: 10px 0;
+}
+.faith-search-result:first-child {
+    padding-top: 0;
+}
+.faith-search-result:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+.faith-search-result strong {
+    color: var(--frame-color, var(--archie-primary));
+}
+.faith-source-pill {
+    display: inline-block;
+    margin-left: 6px;
+    color: var(--archie-text-muted);
+    font-size: 0.72rem;
+}
+.faith-search-result p {
+    margin: 4px 0 0;
+}
+.faith-scripture-library {
+    margin-top: 16px;
+}
+.faith-scripture-tools {
+    grid-template-columns: minmax(170px, 240px) minmax(0, 1fr) auto;
+}
+.faith-scripture-result {
+    min-height: 180px;
+}
+.faith-encyclopedia {
+    margin-top: 16px;
+}
+.faith-section-title {
+    color: var(--frame-color, var(--archie-primary));
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.92rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.faith-encyclopedia-result {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+}
+.faith-encyclopedia-entry {
+    border: 1px solid var(--archie-border-default, var(--archie-border));
+    border-radius: 4px;
+    background: var(--archie-surface);
+    padding: 12px;
+}
+.faith-encyclopedia-entry span {
+    color: var(--archie-text-muted);
+    font-size: 0.72rem;
+}
+.faith-encyclopedia-entry p {
+    margin: 8px 0;
+    color: var(--archie-text-muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+.faith-encyclopedia-entry a {
+    color: var(--frame-color, var(--archie-primary));
+    font-size: 0.78rem;
+}
 .faith-practice-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -539,6 +903,8 @@ async function sendEmmanuel() {
     .module-nav { gap: 2px; width: 100%; display: flex; }
     .module-nav .module-tab { flex: 1; text-align: center; padding: 10px 6px; font-size: 0.8rem; }
     .module-tab-panel { width: 100%; }
+    .faith-bible-reader-controls { grid-template-columns: 1fr; }
+    .faith-bible-tools { grid-template-columns: 1fr; }
 }
 </style>
 {% endblock %}

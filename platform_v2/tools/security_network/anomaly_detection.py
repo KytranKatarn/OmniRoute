@@ -26,7 +26,22 @@ BANDWIDTH_SPIKE_MULTIPLIER = 5.0  # alert if current > N x 7-day average
 BANDWIDTH_MIN_BYTES = 10_000_000  # ignore devices with < 10 MB average
 
 EXFIL_UPLOAD_RATIO = 1.5  # upload must exceed download by this factor
-EXFIL_MIN_UPLOAD_BYTES = 100_000_000  # at least 100 MB upload
+EXFIL_MIN_UPLOAD_BYTES = 2_000_000_000  # at least 2 GB upload (100 MB was trivially
+# exceeded by normal phone/TV cloud backups → constant false positives)
+
+# Device types that are upload-heavy by design (cloud backup, casting telemetry,
+# map sync) — exempt from exfiltration like IoT. Bandwidth-spike + DNS-tunneling
+# detectors still cover these if they go genuinely rogue.
+EXFIL_EXEMPT_DEVICE_TYPES = (
+    "streaming_device",
+    "robot_vacuum",
+    "phone",
+    "tablet",
+    "smart_tv",
+    "media_player",
+    "game_console",
+    "camera",
+)
 
 ODD_HOURS_START = 0  # midnight
 ODD_HOURS_END = 4  # up to 04:59 (EXTRACT HOUR BETWEEN 0 AND 4)
@@ -389,6 +404,34 @@ def _get_iot_ips() -> set:
         return set()
 
 
+def _get_upload_heavy_ips() -> set:
+    """Return IPs of devices whose device_type is upload-heavy by design.
+
+    Same MAC-fallback approach as _get_iot_ips so a DHCP lease change keeps the
+    device exempt. Used to suppress exfiltration false positives from streaming
+    sticks, robot vacuums, phones, cameras, etc. (EXFIL_EXEMPT_DEVICE_TYPES).
+    """
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT host(ip_address) AS ip, mac_address " "FROM network_devices WHERE device_type = ANY(%s)",
+                (list(EXFIL_EXEMPT_DEVICE_TYPES),),
+            )
+            rows = cur.fetchall()
+            ips = {row["ip"] for row in rows}
+            macs = [row["mac_address"].lower() for row in rows if row["mac_address"]]
+            if macs:
+                cur.execute(
+                    "SELECT DISTINCT host(ip_address) AS ip " "FROM network_devices WHERE LOWER(mac_address) = ANY(%s)",
+                    (macs,),
+                )
+                ips.update(row["ip"] for row in cur.fetchall())
+            return ips
+    except Exception as e:
+        logger.error("[AnomalyDetection] upload-heavy-IP lookup failed: %s", e)
+        return set()
+
+
 def _get_hub_ips() -> set:
     """Return IP addresses of the A.R.C.H.I.E. hub (platform host).
 
@@ -503,10 +546,13 @@ def run_all_anomaly_checks():
     exfil_raw = detect_exfiltration()
     exfil, suppressed = _filter_trusted(exfil_raw, trusted_ips)
     suppressed_total += len(suppressed)
-    iot_filtered = [e for e in exfil if e.get("device_ip", "") in iot_ips]
+    # Exempt IoT zone + upload-heavy device types (streaming sticks, vacuums,
+    # phones, cameras…) — all upload-only by design; the ratio fires every run.
+    exfil_exempt_ips = iot_ips | _get_upload_heavy_ips()
+    iot_filtered = [e for e in exfil if e.get("device_ip", "") in exfil_exempt_ips]
     suppressed_iot_exfil = len(iot_filtered)
     suppressed_total += suppressed_iot_exfil
-    exfil = [e for e in exfil if e.get("device_ip", "") not in iot_ips]
+    exfil = [e for e in exfil if e.get("device_ip", "") not in exfil_exempt_ips]
     for e in exfil:
         create_security_alert(
             "intrusion",

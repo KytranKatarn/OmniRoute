@@ -82,7 +82,7 @@ services:
       - .env
     environment:
       TZ: America/Toronto
-      PYTHONPATH: /mnt/archie_sandbox
+      PYTHONPATH: /mnt/archie_sandbox:/mnt/archie_sandbox/ai_bridge
       SECRET_KEY: ${SANDBOX_SECRET_KEY:?SANDBOX_SECRET_KEY must be set in .env}
       FLASK_SECRET_KEY: ${SANDBOX_FLASK_SECRET_KEY:?SANDBOX_FLASK_SECRET_KEY must be set in .env}
       FLASK_ENV: sandbox

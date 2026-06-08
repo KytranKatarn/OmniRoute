@@ -3661,12 +3661,13 @@ function switchArmadaSection(s) {
         var source = document.getElementById('panel-dispatch');
         if (target && source) {
             // Move all children (skipping the LCARS frame wrappers — grab the inner content div)
-            var inner = source.querySelector('[style*="padding:16px"]');
-            if (inner) {
-                while (inner.firstChild) target.appendChild(inner.firstChild);
-            } else {
-                while (source.firstChild) target.appendChild(source.firstChild);
-            }
+            var inner = source.querySelector('[style*="padding:16px"]') || source;
+            // Move ONLY this sub-tab's content. SKIP trafficPanelSection — it
+            // belongs to the TRAFFIC sub-tab; the old greedy move dragged the
+            // "DISPATCH TRAFFIC" panel in here, leaking it into the dispatch view.
+            Array.prototype.slice.call(inner.childNodes).forEach(function(ch) {
+                if (ch.id !== 'trafficPanelSection') target.appendChild(ch);
+            });
         }
         if (!loaded['dispatch']) { loaded['dispatch'] = true; loadDispatch(); }
         // The Dispatch History panel now lives only inside this A.R.M.A.D.A.

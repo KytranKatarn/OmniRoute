@@ -43,6 +43,7 @@ def register_work_routes(bp, admin_required):
                         ab.task_reset_by,
                         rc.rest_type,
                         rc.started_at AS rest_since,
+                        rc.ended_at   AS rest_until,
                         ap.canonical_image_path AS avatar_path
                     FROM agents a
                     LEFT JOIN LATERAL (
@@ -53,8 +54,13 @@ def register_work_routes(bp, admin_required):
                     ) ae ON TRUE
                     LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
                     LEFT JOIN LATERAL (
-                        SELECT rest_type, started_at FROM agent_rest_cycles
-                        WHERE agent_id = a.id AND ended_at IS NULL
+                        -- An ACTIVE rest cycle is open-ended (ended_at IS NULL) OR still
+                        -- inside its window (ended_at > NOW()). The old 'ended_at IS NULL'
+                        -- only check made bounded COO/approved 8h rests INVISIBLE here, so a
+                        -- resting agent showed no rest card + no recovery timer. Select
+                        -- ended_at too so the UI can show an accurate recovery countdown.
+                        SELECT rest_type, started_at, ended_at FROM agent_rest_cycles
+                        WHERE agent_id = a.id AND (ended_at IS NULL OR ended_at > NOW())
                         ORDER BY started_at DESC LIMIT 1
                     ) rc ON TRUE
                     LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
@@ -183,6 +189,7 @@ def register_work_routes(bp, admin_required):
                     "resting": is_resting,
                     "rest_type": r["rest_type"],
                     "rest_since": (r["rest_since"].isoformat() + "Z" if r["rest_since"] else None),
+                    "rest_until": (r["rest_until"].isoformat() + "Z" if r.get("rest_until") else None),
                     "at_limit": at_limit,
                     "task_count": task_count,
                     "task_limit": task_limit,

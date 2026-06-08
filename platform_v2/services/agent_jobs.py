@@ -399,9 +399,11 @@ def track_agent_hr():
                                'A.R.C.H.I.E. COO: 12h work threshold — C.R.E.E.D. mandatory rest',
                                NOW(), NOW() + INTERVAL '8 hours', 'archie_coo'
                         WHERE NOT EXISTS (
+                            -- block on ANY active rest cycle (overlap fix); the old 30-min
+                            -- window let a long (8h) rest started >30min ago slip past so a
+                            -- second cycle stacked and the agent was over-benched.
                             SELECT 1 FROM agent_rest_cycles
                             WHERE agent_id = %s
-                              AND started_at > NOW() - INTERVAL '30 minutes'
                               AND (ended_at IS NULL OR ended_at > NOW())
                         )
                         """,

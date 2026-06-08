@@ -842,9 +842,10 @@ class TelegramGateway:
                                'telegram_approval',
                                %s::jsonb, 0.9, 0.2
                         WHERE NOT EXISTS (
+                            -- block on ANY active rest cycle (overlap fix); the old 30-min
+                            -- window let a long active rest slip past and stack a duplicate.
                             SELECT 1 FROM agent_rest_cycles
                             WHERE agent_id = %s
-                              AND started_at > NOW() - INTERVAL '30 minutes'
                               AND (ended_at IS NULL OR ended_at > NOW())
                         )
                         """,

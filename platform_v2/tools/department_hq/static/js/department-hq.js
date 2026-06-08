@@ -765,11 +765,11 @@ async function loadKinWelfare() {
                 + (a.rest_since
                     ? '<div style="margin-top:6px;">'
                       + '<div style="background:rgba(255,255,255,0.08);border-radius:3px;height:3px;overflow:hidden;margin-bottom:4px;">'
-                      + '<div class="kinw-bar-fill" data-rest-at="' + new Date(a.rest_since).getTime() + '" style="height:100%;background:#f59e0b;border-radius:3px;width:0%;transition:width 0.5s linear;"></div>'
+                      + '<div class="kinw-bar-fill" data-rest-at="' + new Date(a.rest_since).getTime() + '" data-rest-until="' + (a.rest_until ? new Date(a.rest_until).getTime() : '') + '" style="height:100%;background:#f59e0b;border-radius:3px;width:0%;transition:width 0.5s linear;"></div>'
                       + '</div>'
                       + '<div style="display:flex;justify-content:space-between;font-size:0.63rem;color:#f59e0b;">'
                       + '<span>resting since ' + new Date(a.rest_since).toLocaleTimeString() + '</span>'
-                      + '<span class="kinw-countdown" data-rest-at="' + new Date(a.rest_since).getTime() + '">…</span>'
+                      + '<span class="kinw-countdown" data-rest-at="' + new Date(a.rest_since).getTime() + '" data-rest-until="' + (a.rest_until ? new Date(a.rest_until).getTime() : '') + '">…</span>'
                       + '</div>'
                       + '</div>'
                     : (a.at_limit
@@ -824,19 +824,24 @@ async function loadKinWelfare() {
         // Live countdown: updates every second — progress bar fill + "recovers in Xm Ys"
         if (window._kinRestTimer) clearInterval(window._kinRestTimer);
         window._kinRestTimer = setInterval(function () {
-            var REST_MS = 60 * 60 * 1000; // 1 hour rest period
+            var now = Date.now();
             document.querySelectorAll('.kinw-countdown').forEach(function (span) {
-                var restAt = parseInt(span.dataset.restAt, 10);
-                var remaining = restAt + REST_MS - Date.now();
+                var startAt = parseInt(span.dataset.restAt, 10);
+                // Use the REAL rest end time when present (rests vary 30 min – 8h); fall
+                // back to start+1h only for legacy open-ended cycles with no end time.
+                var endAt = parseInt(span.dataset.restUntil, 10) || (startAt + 3600000);
+                var remaining = endAt - now;
                 if (remaining <= 0) { span.textContent = 'recovery due'; return; }
-                var m = Math.floor(remaining / 60000);
+                var h = Math.floor(remaining / 3600000);
+                var m = Math.floor((remaining % 3600000) / 60000);
                 var s = Math.floor((remaining % 60000) / 1000);
-                span.textContent = 'recovers in ' + m + 'm ' + (s < 10 ? '0' : '') + s + 's';
+                span.textContent = 'recovers in ' + (h > 0 ? h + 'h ' + m + 'm' : m + 'm ' + (s < 10 ? '0' : '') + s + 's');
             });
             document.querySelectorAll('.kinw-bar-fill').forEach(function (bar) {
-                var restAt = parseInt(bar.dataset.restAt, 10);
-                var pct = Math.min(100, ((Date.now() - restAt) / REST_MS) * 100).toFixed(1);
-                bar.style.width = pct + '%';
+                var startAt = parseInt(bar.dataset.restAt, 10);
+                var endAt = parseInt(bar.dataset.restUntil, 10) || (startAt + 3600000);
+                var span = endAt - startAt;
+                bar.style.width = (span > 0 ? Math.min(100, ((now - startAt) / span) * 100).toFixed(1) : 0) + '%';
             });
         }, 1000);
 

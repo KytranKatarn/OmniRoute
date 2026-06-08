@@ -80,21 +80,26 @@ def _approve_autonomy(source_id: int, user_id: int):
                                'Kytran approved 8h rest via DHQ Approvals tab',
                                NOW(), NOW() + INTERVAL '8 hours', 'dhq_approval'
                         WHERE NOT EXISTS (
+                            -- Block on ANY active rest cycle (open-ended OR future-ended).
+                            -- The old 'started_at > NOW()-30min' clause let a long (8h)
+                            -- rest started >30min ago slip past, so a second cycle stacked
+                            -- on top and the agent was benched far longer than intended.
                             SELECT 1 FROM agent_rest_cycles
                             WHERE agent_id = %s
-                              AND started_at > NOW() - INTERVAL '30 minutes'
                               AND (ended_at IS NULL OR ended_at > NOW())
                         )
                         """,
                         (_agent_id, _agent_id),
                     )
-                    # Transition to winding_down + reset task counters
-                    cur.execute(
-                        """UPDATE agents SET shift_state='winding_down', updated_at=NOW()
-                            WHERE id=%s AND shift_state NOT IN
-                                ('winding_down','cooldown','barracked','off_duty')""",
-                        (_agent_id,),
-                    )
+                    # Transition to winding_down via the single-writer (agent_service) —
+                    # raw agents-table SQL is blocked by the K.I.N. guardrail. Mirrors the
+                    # COO path (agent_jobs.py). Idempotent if already resting.
+                    try:
+                        from services.agent_service import transition_shift_state as _ts
+
+                        _ts(_agent_id, "winding_down", "DHQ-approved 8h rest")
+                    except Exception as _ts_err:
+                        logger.warning("welfare_rest_8h shift transition failed: %s", _ts_err)
                     cur.execute(
                         """UPDATE agent_budgets
                               SET current_task_count=0, last_task_reset_at=NOW(),

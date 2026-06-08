@@ -465,6 +465,27 @@ def _mark_failed(task_id: int, error: str) -> None:
         log.error("model_dispatch: mark_failed failed for task %d: %s", task_id, exc)
 
 
+def _requeue_cold(task_id: int, model: str, where: str) -> None:
+    """Model still COLD at execute time → return the task to 'queued' to retry a later
+    cycle (WTF 'ready-or-queue' standard) instead of failing it 'no result'.
+
+    The node warm-filter (node_ollama_models.is_available) means PULLED, not LOADED, so a
+    claimed node task can still be cold. Rather than dispatch-into-a-cold-model and fail,
+    we re-queue; the next cycle's load step (or ensure_model_ready) warms it, then it
+    drains successfully. ``expires_at`` bounds the retries so this never loops forever.
+    Only re-queues a row we still hold ('running')."""
+    try:
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                "UPDATE dispatch_pending_queue SET status='queued', claimed_at=NULL "
+                "WHERE id=%s AND status='running'",
+                (task_id,),
+            )
+        log.info("model_dispatch: task #%d re-queued — %s still cold-loading on %s", task_id, model, where)
+    except Exception as exc:
+        log.error("model_dispatch: requeue failed for #%d: %s", task_id, exc)
+
+
 def _handle_failure_callback(cur: RealDictCursor, task_id: int, error: str) -> None:
     """Notify a delegation task that its queued dispatch failed/expired.
 
@@ -786,6 +807,18 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             disp = get_dispatcher()
+            # Readiness preflight (WTF 'ready-or-queue' standard): the node warm-filter is
+            # is_available=PULLED, not LOADED, so this node may be cold. ensure_model_ready
+            # loads it (blocking ~120s); if still not ready, RE-QUEUE instead of dispatching
+            # into a cold model and failing 'no result'.
+            try:
+                _rd = disp.ensure_model_ready(task.get("agent_name") or "model_dispatch", model, node_hostname)
+            except Exception as _re:
+                log.warning("model_dispatch: node ensure_model_ready(%s,%s) failed: %s", node_name, model, _re)
+                _rd = None
+            if not (_rd and _rd.get("ready")):
+                _requeue_cold(task_id, model, node_name)
+                return
             result = disp._dispatch_to_node(
                 agent_info={
                     "agent_name": task.get("agent_name", "unknown"),
@@ -819,6 +852,17 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             disp = get_dispatcher()
+            # Readiness preflight (WTF standard) — safety net vs the warm→evicted race on
+            # the hub. ensure_model_ready returns fast when already loaded; re-queue (not
+            # fail) if it can't be made ready.
+            try:
+                _rd = disp.ensure_model_ready(task.get("agent_name") or "model_dispatch", model, None)
+            except Exception as _re:
+                log.warning("model_dispatch: hub ensure_model_ready(%s) failed: %s", model, _re)
+                _rd = None
+            if not (_rd and _rd.get("ready")):
+                _requeue_cold(task_id, model, "hub")
+                return
             result = disp._execute_llm(
                 model=model,
                 prompt=task.get("prompt", ""),

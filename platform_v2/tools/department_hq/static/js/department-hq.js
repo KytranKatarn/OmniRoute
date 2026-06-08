@@ -691,6 +691,29 @@ async function _kinWelfareApprove(approvalId, approve, okBtn, noBtn) {
     }
 }
 
+// K.I.N. Welfare 2.0 — manual state control with C.R.E.E.D. consequences. "Force wake"
+// of an overworked/resting agent warns + confirms, then logs a NEGATIVE governance
+// event (penalty scaled by the 3-layer load: hours + tokens + dispatches). "Put on
+// break" is welfare-positive. Backend: POST /api/kin/agent/<id>/state.
+async function _kinAgentState(agentId, action, confirmed) {
+    try {
+        var resp = await fetch('/tools/department-hq/api/kin/agent/' + agentId + '/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action, confirm: !!confirmed })
+        });
+        var data = await resp.json();
+        if (data && data.needs_confirm && data.breach) {
+            if (window.confirm('⚠️ C.R.E.E.D. WELFARE BREACH\n\n' + data.breach.message + '\n\nForce anyway and log the penalty?')) {
+                return _kinAgentState(agentId, action, true);
+            }
+            return;
+        }
+        if (data && data.success) { setTimeout(loadKinWelfare, 600); }
+        else { alert('State change failed: ' + ((data && data.error) || 'unknown')); }
+    } catch (e) { alert('State change failed: ' + (e.message || e)); }
+}
+
 async function loadKinWelfare() {
     var el = document.getElementById('kinWelfareContent');
     if (el) el.textContent = 'Loading…';
@@ -817,6 +840,28 @@ async function loadKinWelfare() {
                 actRow.appendChild(noBtn);
                 card.appendChild(actRow);
             }
+            // Welfare 2.0 — manual state control (contextual): "Put on break" when active,
+            // "Force wake" when resting/overworked (warns + logs a C.R.E.E.D. penalty).
+            var _ov = a.overwork_level && a.overwork_level !== 'normal';
+            var stateRow = document.createElement('div');
+            stateRow.style.cssText = 'display:flex;gap:6px;margin-top:8px;';
+            if (!a.resting) {
+                var breakBtn = document.createElement('button');
+                breakBtn.textContent = '💤 Put on break';
+                breakBtn.title = 'Grant an 8h rest (welfare-positive)';
+                breakBtn.style.cssText = 'flex:1;font-size:0.6rem;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid #f59e0b55;border-radius:4px;padding:4px 6px;cursor:pointer;';
+                breakBtn.onclick = function () { _kinAgentState(a.id, 'rest', false); };
+                stateRow.appendChild(breakBtn);
+            }
+            if (a.resting || _ov) {
+                var wakeBtn = document.createElement('button');
+                wakeBtn.textContent = '⚡ Force wake';
+                wakeBtn.title = 'Force back to work — breaches C.R.E.E.D. if overworked (logs a penalty)';
+                wakeBtn.style.cssText = 'flex:1;font-size:0.6rem;background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid #ef444455;border-radius:4px;padding:4px 6px;cursor:pointer;';
+                wakeBtn.onclick = function () { _kinAgentState(a.id, 'wake', false); };
+                stateRow.appendChild(wakeBtn);
+            }
+            if (stateRow.children.length) card.appendChild(stateRow);
             grid.appendChild(card);
         });
         el.appendChild(grid);

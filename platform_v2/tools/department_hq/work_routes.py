@@ -252,6 +252,143 @@ def register_work_routes(bp, admin_required):
             return jsonify(success=False, error=str(e)[:200]), 500
 
     # ------------------------------------------------------------------
+    # K.I.N. manual state control — Wake / Rest / Cooldown with C.R.E.E.D.
+    # consequences. Forcing an overworked/resting agent back to work is a
+    # welfare BREACH → negative governance event scaled by a 3-LAYER load
+    # (hours + tokens + dispatches). Putting an overworked agent on break is
+    # welfare-positive. The frontend warns + confirms before a breach applies.
+    # ------------------------------------------------------------------
+    @bp.route("/api/kin/agent/<int:agent_id>/state", methods=["POST"])
+    @admin_required
+    def api_kin_agent_state(agent_id):
+        import json as _json
+
+        body = request.get_json(silent=True) or {}
+        action = body.get("action")
+        confirm = bool(body.get("confirm"))
+        if action not in ("wake", "rest", "cooldown"):
+            return jsonify(success=False, error="action must be wake|rest|cooldown"), 400
+        try:
+            from services.agent_load_service import real_compute_hours_today
+            from services.agent_service import transition_shift_state
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute("SELECT name FROM agents WHERE id=%s", (agent_id,))
+                arow = cur.fetchone()
+                if not arow:
+                    return jsonify(success=False, error="agent not found"), 404
+                aname = arow["name"]
+
+                # --- 3-layer load: hours + tokens + dispatches (worst layer drives severity) ---
+                hours = float(
+                    (real_compute_hours_today(cur=cur, agent_id=agent_id).get(agent_id, {}) or {}).get("hours", 0) or 0
+                )
+                cur.execute(
+                    "SELECT COALESCE(SUM(tokens_used),0) tok, COUNT(*) disp FROM task_execution_log "
+                    "WHERE agent_name=%s AND created_at > NOW() - INTERVAL '24 hours'",
+                    (aname,),
+                )
+                lr = cur.fetchone() or {}
+                tokens_24h = int(lr.get("tok") or 0)
+                disp_24h = int(lr.get("disp") or 0)
+                cur.execute("SELECT token_limit_per_day FROM agent_budgets WHERE agent_id=%s", (agent_id,))
+                budget = int((cur.fetchone() or {}).get("token_limit_per_day") or 150000)
+                cur.execute(
+                    "SELECT 1 FROM agent_rest_cycles WHERE agent_id=%s AND (ended_at IS NULL OR ended_at > NOW()) LIMIT 1",
+                    (agent_id,),
+                )
+                resting = cur.fetchone() is not None
+
+                hour_r, tok_r, disp_r = hours / 12.0, tokens_24h / max(budget, 1), disp_24h / 200.0
+                load = max(hour_r, tok_r, disp_r)
+                layers = {
+                    "hours": {"value": round(hours, 1), "ratio": round(hour_r, 2)},
+                    "tokens": {"value": tokens_24h, "ratio": round(tok_r, 2), "budget": budget},
+                    "dispatches": {"value": disp_24h, "ratio": round(disp_r, 2)},
+                }
+
+                # --- PUT ON BREAK (welfare-positive, always allowed) ---
+                if action in ("rest", "cooldown"):
+                    target = "cooldown" if action == "cooldown" else "winding_down"
+                    cur.execute(
+                        """INSERT INTO agent_rest_cycles
+                               (agent_id, rest_type, reason, started_at, ended_at, initiated_by)
+                           SELECT %s, 'manual_rest', 'Manual 8h rest via K.I.N. welfare tab',
+                                  NOW(), NOW()+INTERVAL '8 hours', 'kin_manual'
+                           WHERE NOT EXISTS (SELECT 1 FROM agent_rest_cycles
+                               WHERE agent_id=%s AND (ended_at IS NULL OR ended_at > NOW()))""",
+                        (agent_id, agent_id),
+                    )
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                               (agent_id, event_category, event_type, action, reason, details, timestamp)
+                           VALUES (%s,'creed_compliance','manual_rest_granted','kin_manual',%s,%s::jsonb,NOW())""",
+                        (
+                            agent_id,
+                            f"Manual rest for {aname}" + (f" (overworked {hours:.1f}h)" if hours >= 8 else ""),
+                            _json.dumps({"layers": layers, "welfare_positive": True}),
+                        ),
+                    )
+                    transition_shift_state(agent_id, target, "Manual rest via K.I.N. welfare tab")
+                    return jsonify(
+                        success=True,
+                        new_state=target,
+                        layers=layers,
+                        message=f"{aname} placed on break — recovers in 8h",
+                    )
+
+                # --- FORCE TO WORK (wake) — breach check + scaled penalty ---
+                is_breach = resting or hours >= 8.0 or tok_r >= 1.0
+                if load >= 1.6 or hours >= 20:
+                    severity, penalty = "severe", 20
+                elif load >= 1.2 or hours >= 16:
+                    severity, penalty = "serious", 10
+                elif load >= 0.9 or hours >= 12:
+                    severity, penalty = "moderate", 5
+                else:
+                    severity, penalty = "minor", 2
+                breach = {
+                    "is_breach": is_breach,
+                    "severity": severity,
+                    "penalty": penalty,
+                    "layers": layers,
+                    "message": (
+                        f"Forcing {aname} back to work breaches C.R.E.E.D. welfare ({severity}: "
+                        f"{hours:.1f}h · {tokens_24h:,}/{budget:,} tok · {disp_24h} dispatches) — −{penalty} pts."
+                    ),
+                }
+                if is_breach and not confirm:
+                    return jsonify(success=False, needs_confirm=True, breach=breach)
+
+                cur.execute(
+                    "UPDATE agent_rest_cycles SET ended_at=NOW(), notes=COALESCE(notes,'')||' [force-woken via K.I.N. welfare tab]' "
+                    "WHERE agent_id=%s AND (ended_at IS NULL OR ended_at > NOW())",
+                    (agent_id,),
+                )
+                if is_breach:
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                               (agent_id, event_category, event_type, action, reason, details, timestamp)
+                           VALUES (%s,'creed_compliance','forced_work_override','kin_manual_force',%s,%s::jsonb,NOW())""",
+                        (
+                            agent_id,
+                            breach["message"],
+                            _json.dumps(
+                                {
+                                    "severity": severity,
+                                    "penalty_points": penalty,
+                                    "layers": layers,
+                                    "welfare_breach": True,
+                                }
+                            ),
+                        ),
+                    )
+                transition_shift_state(agent_id, "active", "Manual wake via K.I.N. welfare tab")
+                return jsonify(success=True, new_state="active", breach=(breach if is_breach else None), applied=True)
+        except Exception as e:
+            return jsonify(success=False, error=str(e)[:200]), 500
+
+    # ------------------------------------------------------------------
     # Work Sessions
     # ------------------------------------------------------------------
     @bp.route("/api/work-sessions")

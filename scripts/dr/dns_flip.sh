@@ -1,4 +1,13 @@
 #!/bin/bash
+# ⚠️ DEPRECATED for the automated DR flow (task #3787, 2026-06-08).
+# platform.kytranempowerment.com now lives PERMANENTLY on the Beacon front-door
+# (2.25.170.252); failover is handled by flipping Beacon's Caddy upstream
+# (failover.sh step 4c), NOT by moving this A-record. failover.sh no longer calls
+# this script. Flipping platform off Beacon previously STRANDED it on boston-2
+# (failback forgot to flip it back). KEEP only as a MANUAL EMERGENCY tool for the
+# narrow case where Beacon ITSELF is down and you must point platform straight at
+# boston-2 (expect a fresh TLS provision on boston-2's Caddy).
+#
 # Phase 5 — DNS FLIP: point platform.kytranempowerment.com at boston-2 (DR).
 # Called by failover.sh during a real failover. SELF-CONTAINED on boston-2.
 #

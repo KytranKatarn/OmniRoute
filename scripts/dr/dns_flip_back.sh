@@ -1,4 +1,11 @@
 #!/bin/bash
+# ⚠️ DEPRECATED for the automated DR flow (task #3787, 2026-06-08).
+# platform.kytranempowerment.com stays PERMANENTLY on the Beacon front-door
+# (2.25.170.252) — it is never flipped off Beacon, so there is nothing to flip
+# back. failback.sh no longer calls this. This script pointed platform at the hub's
+# RAW public IP (bypassing Beacon), which was inconsistent with the front-door model.
+# KEEP only as a MANUAL EMERGENCY companion to dns_flip.sh (Beacon-down scenario).
+#
 # DNS FAILBACK — point platform.kytranempowerment.com A-record BACK to the hub.
 # The reverse of dns_flip.sh. Run on boston-2 during a Phase 6 failback, AFTER
 # the hub is live again at its (possibly NEW) public IP.

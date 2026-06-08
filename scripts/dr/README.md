@@ -23,9 +23,9 @@ Each is a plain file at `/opt/archie-dr/`, mode `600`. The scripts read them at 
 ## Scripts
 | Script | What it does |
 |--------|--------------|
-| `failover.sh` | Hub-outage failover: promote boston-2 replica → primary, start the standby platform + scheduler, repoint the fleet + WTF DB → boston-2, bring up the ingress Caddy, flip public DNS → boston-2, and **flip the Beacon front-door's Caddy upstream hub→boston-2** (step 4c). Telegram alerts via `tg_notify.sh`. Non-fatal sub-steps never abort the failover. |
-| `failback.sh` | Phased return to the hub: `precheck \| prep-source \| rebuild-hub \| switchover \| restore-normal \| verify`. Reverses the fleet / WTF / DNS / Beacon repoints. |
-| `dns_flip.sh` / `dns_flip_back.sh` | Hostinger DNS A-record flip `platform.kytranempowerment.com` → boston-2 (`2.25.133.122`) / back to the hub. |
+| `failover.sh` | Hub-outage failover: promote boston-2 replica → primary, start the standby platform + scheduler, repoint the fleet + WTF DB → boston-2, bring up the ingress Caddy, and **flip the Beacon front-door's Caddy upstream hub→boston-2** (step 4c). `platform.*` DNS STAYS on Beacon (`2.25.170.252`) — no A-record flip. Telegram alerts via `tg_notify.sh`. Non-fatal sub-steps never abort the failover. |
+| `failback.sh` | Phased return to the hub: `precheck \| prep-source \| rebuild-hub \| switchover \| restore-normal \| verify`. Reverses the fleet / WTF / Beacon-upstream repoints. (No `platform.*` DNS flip — it never left Beacon.) |
+| `dns_flip.sh` / `dns_flip_back.sh` | ⚠️ **DEPRECATED** (task #3787). `platform.*` lives permanently on Beacon (`2.25.170.252`); failover is the Beacon-upstream flip, not an A-record move. Retained ONLY as a manual EMERGENCY tool if **Beacon itself** is down (flip `platform` straight → boston-2 `2.25.133.122` / back). Not called by the automated flow. |
 | `tg_notify.sh` | Shared Telegram alert helper (sourced by failover/failback). Silently skips if `.telegram_env` is absent. |
 | `setup_replica.sh` | Initial `pg_basebackup` to (re)seed boston-2 as a hub streaming replica. |
 

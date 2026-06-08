@@ -185,16 +185,14 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
       || log "   WARN: Beacon creed reverse-repoint failed (manual: sed Caddyfile $DR_MESH:8086->$HUB_MESH:8086 + reload)"
   fi
 
-  if [ -z "${HUB_PUBLIC_IP:-}" ]; then
-    HUB_PUBLIC_IP=$(ssh -i "$FLEET_KEY" -o ConnectTimeout=10 -o BatchMode=yes "$HUB_SSH" \
-      "curl -s --max-time 8 https://api.ipify.org 2>/dev/null || dig -4 +short myip.opendns.com @resolver1.opendns.com 2>/dev/null" 2>/dev/null | tr -d '[:space:]')
-    log "   auto-discovered hub public IP: ${HUB_PUBLIC_IP:-<none>}"
-  fi
-  if [ -n "${HUB_PUBLIC_IP:-}" ] && [ -x "$DR/dns_flip_back.sh" ]; then
-    "$DR/dns_flip_back.sh" "$HUB_PUBLIC_IP" 2>&1 | sed 's/^/    /'
-  else
-    log "     MANUAL (auto-discovery failed): $DR/dns_flip_back.sh <hub_public_ip>  — get it on the hub: curl -s ifconfig.me"
-  fi
+  # NOTE (task #3787): platform.kytranempowerment.com DNS STAYS on the Beacon
+  # front-door (2.25.170.252) — it was never flipped off Beacon (see failover.sh),
+  # so there is nothing to flip back here. Failback is handled by reverting Beacon's
+  # Caddy upstream boston-2->hub (step 6 of auto_failback.sh / the Beacon revert).
+  # The old dns_flip_back.sh pointed platform at the hub's RAW IP (bypassing Beacon)
+  # and auto_failback never called it at all — that asymmetry stranded platform on
+  # boston-2. dns_flip_back.sh is retained ONLY for a manual Beacon-down emergency.
+  log "   platform DNS stays on Beacon (2.25.170.252); failback handled by Beacon upstream revert."
   log "5) re-establish boston-2 as a REPLICA of the hub (the normal direction):"
   log "     ON BOSTON-2: $DR/setup_replica.sh   (re-clones boston-2 from the hub; resumes streaming)"
   log "Then run: $0 verify"

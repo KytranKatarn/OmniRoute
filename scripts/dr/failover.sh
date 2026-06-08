@@ -267,12 +267,14 @@ if [ -f "$DR/ingress/docker-compose.caddy.yml" ]; then
 else
   log "WARN: Caddy ingress not staged — platform serves on 127.0.0.1:3000 only."
 fi
-log "Flipping public DNS (platform.kytranempowerment.com -> boston-2)..."
-if [ -x "$DR/dns_flip.sh" ] && [ -f "$DR/.hostinger_token" ]; then
-  "$DR/dns_flip.sh" 2>&1 | sed 's/^/    /'
-else
-  log "WARN: DNS flip NOT run (missing $DR/.hostinger_token). MANUAL: point platform A-record -> 2.25.133.122."
-fi
+# NOTE (task #3787): platform.kytranempowerment.com DNS STAYS on the Beacon
+# front-door (2.25.170.252) at all times — like every other hub subdomain.
+# Failover is handled by step 4c above (flip Beacon's Caddy upstream hub->boston-2),
+# so the public DNS that points at Beacon keeps reaching the DR standby. We do NOT
+# flip the platform A-record off Beacon: doing so previously stranded platform on
+# boston-2 when failback forgot to flip it back. dns_flip.sh is retained ONLY as a
+# manual EMERGENCY tool for a Beacon-itself-down scenario (see its header).
+log "platform DNS stays on Beacon (2.25.170.252); failover handled by Beacon upstream flip (4c)."
 
 # ---- verify the DR SCHEDULER actually came up (background jobs, not just the API) ----
 # Without this, a silently-dead scheduler means ingest/embedding/fleet-health/

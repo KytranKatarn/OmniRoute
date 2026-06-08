@@ -1412,6 +1412,88 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered kin_stuck_agent_reaper job (every 5 min)")
 
+    # Job: K.I.N. failure-standby — pull a repeatedly-FAILING agent OFF the floor for
+    # Academy/verification instead of pushing it more work (owner directive; welfare
+    # accounted only for SUCCESS until now — this is the failure half). An active AI
+    # agent with >=5 real-LLM dispatches AND >=50% failures in the last hour is benched
+    # to 'barracked' (standby that does NOT auto-recover like cooldown — it returns only
+    # when verified/woken), gets an agent_learning_records Academy entry, and a NEGATIVE
+    # C.R.E.E.D. governance event. Once benched it is no longer shift_state='active', so
+    # it won't re-match next cycle (natural dedup). Runs every 15 min.
+    def _run_kin_failure_standby():
+        import json as _fj
+        from database import get_db_cursor as _fdb
+
+        try:
+            standby = []
+            with _fdb(commit=True) as (_c, cur):
+                cur.execute(
+                    """
+                    SELECT a.id, a.name, COUNT(*) AS total,
+                           COUNT(*) FILTER (WHERE NOT tel.success) AS fails
+                    FROM agents a
+                    JOIN task_execution_log tel ON tel.agent_name = a.name
+                    WHERE a.worker_type='ai' AND a.shift_state='active'
+                      AND tel.created_at > NOW() - INTERVAL '1 hour'
+                      AND COALESCE(tel.model_used,'') <> 'internal'
+                    GROUP BY a.id, a.name
+                    HAVING COUNT(*) >= 5
+                       AND COUNT(*) FILTER (WHERE NOT tel.success)::float / COUNT(*) >= 0.5
+                    """
+                )
+                for o in cur.fetchall() or []:
+                    aid, aname = o["id"], o["name"]
+                    total, fails = int(o["total"]), int(o["fails"])
+                    pct = round(100.0 * fails / total)
+                    cur.execute(
+                        """INSERT INTO agent_learning_records
+                               (agent_id, learning_type, subject, lesson_learned, source_type)
+                           VALUES (%s,'failure_standby','reliability',%s,'kin_failure_monitor')""",
+                        (
+                            aid,
+                            f"{aname} pulled to standby: {pct}% failure rate ({fails}/{total} real-LLM "
+                            f"dispatches in 1h). Verify model/health (Academy) before returning to the floor.",
+                        ),
+                    )
+                    cur.execute(
+                        """INSERT INTO governance_audit_log
+                               (agent_id, event_category, event_type, action, reason, details, timestamp)
+                           VALUES (%s,'creed_compliance','failure_standby','kin_failure_monitor',%s,%s::jsonb,NOW())""",
+                        (
+                            aid,
+                            f"K.I.N. pulled {aname} to standby — {pct}% failure rate ({fails}/{total} in 1h). "
+                            f"Routed to Academy/verification, NOT more work.",
+                            _fj.dumps({"fail_pct": pct, "fails": fails, "total": total, "failure_driven": True}),
+                        ),
+                    )
+                    standby.append((aid, aname, pct))
+            # Bench via the single-writer (agents-table guardrail). 'barracked' = standby
+            # that does not auto-recover; the dispatcher routes around it.
+            if standby:
+                from services.agent_service import transition_shift_state as _ts
+
+                for aid, aname, pct in standby:
+                    try:
+                        _ts(aid, "barracked", f"K.I.N. failure standby — {pct}% fail/1h → Academy/verification")
+                    except Exception as _tse:
+                        logger.warning("[DeptHQ] failure-standby transition failed for %s: %s", aname, _tse)
+                logger.info(
+                    "[DeptHQ] K.I.N. failure-standby: benched %d failing agent(s): %s",
+                    len(standby),
+                    ", ".join(f"{n}({p}%)" for _, n, p in standby),
+                )
+        except Exception as exc:
+            logger.error("[DeptHQ] K.I.N. failure-standby failed: %s", exc)
+
+    scheduler.add_job(
+        with_ctx(_run_kin_failure_standby),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="kin_failure_standby",
+        name="K.I.N.: Pull failing agents to standby for Academy/verification",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered kin_failure_standby job (every 15 min)")
+
     # Job #124: Dispatch Backfill Worker — re-dispatch stuck queue items to backup agents
     # Runs every 5 min. Converts the dead-letter queue into active gap-filling:
     # items stuck >10 min are re-dispatched via the DHQ dispatcher (which now

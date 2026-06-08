@@ -29,6 +29,48 @@ def _safe(value, default=0):
     return value if value is not None else default
 
 
+# ── GPU performance weights (best-hardware routing) ──
+# Relative inference-speed weight by video-card type (higher = faster). The scorer
+# otherwise treats two 8GB GPUs as equal, so a 7B model tied between the slow hub
+# Quadro M4000 (~130-235s observed for 7B fact_check) and a fast RTX 3070 (~15-24s)
+# — colocation then pinned it to the hub. These weights let routing prefer the
+# FASTEST card that fits, with the next-fastest then the hub as failover. Matched by
+# substring of remote_nodes.gpu_model (most-specific first; first match wins).
+# Tunable — refine from observed per-card latency over time.
+_GPU_PERF_WEIGHTS = (
+    ("h100", 2.0),
+    ("a100", 1.8),
+    ("rtx 50", 1.5),
+    ("rtx 4090", 1.5),
+    ("rtx 4080", 1.35),
+    ("rtx 40", 1.3),
+    ("rtx 3090", 1.4),
+    ("rtx 3080", 1.2),
+    ("rtx 3070", 1.0),
+    ("rtx 3060", 0.7),
+    ("rtx 3050", 0.45),  # laptop 3050 — much weaker than desktop 30-series
+    ("rtx a", 1.1),  # workstation Ampere (A4000/A5000…)
+    ("rtx 20", 0.7),
+    ("gtx 16", 0.45),
+    ("gtx 10", 0.35),
+    ("quadro m", 0.12),
+    ("tesla m", 0.12),  # old Maxwell (hub Quadro M4000) — slow
+    ("quadro", 0.4),
+    ("tesla", 0.5),
+)
+
+
+def gpu_perf_weight(gpu_model) -> float:
+    """Relative inference-speed weight for a node's GPU (0 if no/unknown match)."""
+    m = (str(gpu_model) if gpu_model else "").strip().lower()
+    if not m:
+        return 0.3  # GPU present but model unknown — modest, still beats no-GPU
+    for key, weight in _GPU_PERF_WEIGHTS:
+        if key in m:
+            return weight
+    return 0.3
+
+
 def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     """Score a fleet node for a given model.
 
@@ -93,6 +135,20 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     else:
         # Allowed but not ideal (e.g. small model on hub GPU).
         score -= 0.3
+
+    # Best-hardware: offload heavy (prefer_gpu) inference to a DEDICATED GPU node
+    # (Starship, fast RTX) over the shared platform-core hub (slow Quadro M4000,
+    # reserved for platform core + ComfyUI). The scorer otherwise treats two 8GB
+    # GPUs as equal, so 7B work tied and the 80% home-colocation rule pinned it to
+    # the hub (130-235s) instead of the RTX (~15-24s). The bonus is sized to beat
+    # colocation; the hub still scores positively as a failover when no Starship is
+    # online/viable (e.g. the 8PM-6AM hardware rest window). Mirrors the lines above
+    # that keep small CPU models off the hub GPU. KB cluster-saturation diagnosis.
+    if footprint.prefer_gpu and gpu_avail and footprint.vram_gb <= gpu_vram:
+        # Rank by ACTUAL GPU performance so the fastest card that fits wins
+        # (RTX 3070 ~1.2 > RTX 3050 ~0.54 > hub Quadro M4000 ~0.14), with the
+        # next-fastest then the hub as failover. Sized to beat 80% home-colocation.
+        score += 1.2 * gpu_perf_weight(node.get("gpu_model"))
 
     # Load pressure — softer when the node is idle.
     max_conc = max(int(_safe(node.get("max_concurrent"), 1)), 1)
@@ -176,7 +232,7 @@ def find_best_node_for_model(
             cur.execute(
                 """
                 SELECT id, node_id, node_name, gpu_available, gpu_vram_gb,
-                       ram_gb, current_load, max_concurrent, priority,
+                       gpu_model, ram_gb, current_load, max_concurrent, priority,
                        last_heartbeat, extra_capabilities, deployment_mode
                 FROM remote_nodes
                 WHERE is_active = TRUE

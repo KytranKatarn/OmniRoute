@@ -872,7 +872,8 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             try:
                 with get_db_cursor() as (_conn, _cur):
                     _cur.execute(
-                        """SELECT node_name, hostname, mesh_ip, port
+                        """SELECT node_name, hostname, mesh_ip, port,
+                                  gpu_available, gpu_vram_gb, ram_gb, extra_capabilities
                            FROM remote_nodes WHERE id = %s""",
                         (node_id,),
                     )
@@ -888,6 +889,25 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             node_hostname = node_row.get("mesh_ip") or node_row.get("hostname") or ""
             node_port = node_row.get("port") or 11434
             node_name = node_row.get("node_name") or "unknown"
+
+            # P2a (#3802): capacity gate for the PREFERRED-node path. The general
+            # warm-discovery already runs can_node_run_model, but preferred-pinned
+            # tasks bypass it — without this a 7B pinned to a CPU node gets
+            # warm-booted there (disk-swap -> timeout -> re-queue). Fail the bad
+            # pin fast instead. Regular (already-gated) tasks pass as a no-op.
+            try:
+                from services.fleet_resource_router import can_node_run_model
+
+                if not can_node_run_model(node_row, model):
+                    log.warning(
+                        "model_dispatch: node %s cannot fit %s — failing pin (capacity)",
+                        node_name,
+                        model,
+                    )
+                    _mark_failed(task_id, f"node {node_name} cannot fit {model} (capacity gate)")
+                    return
+            except Exception:
+                pass  # fail-open: never block dispatch on a router import error
 
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 

@@ -289,11 +289,17 @@ def find_best_node_for_model(
     for node in nodes:
         if node.get("deployment_mode") == "starship" and _rest_active:
             continue
+        # P2a (#3802): admission = the FIT predicate (capacity-only, load-
+        # independent), matching the async queue gate, so the sync path can't
+        # disqualify a capable IDLE node via the noisy current_load/heartbeat
+        # terms score_node_for_model folds in. score is used ONLY to rank.
+        if not can_node_run_model(node, model):
+            continue
         score = score_node_for_model(node, model)
         if score is None:
-            continue
+            score = 0.001  # admitted by fit; rank last rather than disqualify
         # AGENT MOBILITY PROFILE bias — tiebreak only, consistent with the
-        # dispatcher's routing block 1a. Never un-disqualifies (None skips above).
+        # dispatcher's routing block 1a. Never un-disqualifies (fit gate above).
         if profile_pref == "gpu" and node.get("gpu_available"):
             score += 0.5
         elif profile_pref == "cpu" and not node.get("gpu_available"):

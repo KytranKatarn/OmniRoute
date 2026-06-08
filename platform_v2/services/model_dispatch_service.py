@@ -641,6 +641,28 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                             _json.dumps({"outcome": "completed", "chars": len(resp), "via": "queue_callback"}),
                         ),
                     )
+        elif cb_type == "pr_review_result":
+            # A queued F.O.R.G.E. code_review (model cold-load) finished. Write
+            # the verdict back to pr_reviews + flip review_status='reviewed' so
+            # the review is no longer stuck pending/queued. Mirrors
+            # pr_review_service.mark_review_done's UPDATE, inline (we already
+            # hold the cursor/transaction). NO auto-merge from the async path —
+            # a PR must not merge itself minutes later; the merge gate stays in
+            # the synchronous review flow / human hands.
+            pr_number = cb_data.get("pr_number")
+            repo = cb_data.get("repo") or "KytranKatarn/archie-platform"
+            resp = (response or "").strip()
+            if pr_number and resp:
+                cur.execute(
+                    """
+                    UPDATE pr_reviews
+                       SET review_status = 'reviewed', ai_summary = %s,
+                           ai_review_at = now(), updated_at = now()
+                     WHERE pr_number = %s AND repo = %s
+                    """,
+                    (resp, pr_number, repo),
+                )
+
         elif cb_type == "webhook":
             # Fire async — don't block the worker cycle
             import json as _json

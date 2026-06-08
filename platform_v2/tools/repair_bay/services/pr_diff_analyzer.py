@@ -56,10 +56,15 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
     try:
         mark_review_started(pr_number, _repo)
         diff = _fetch_diff(diff_url)
-        summary = _run_forge_review(_build_prompt(review, diff))
+        summary = _run_forge_review(_build_prompt(review, diff), pr_number, _repo)
         if not summary:
             mark_review_pending(pr_number, _repo)
-            return {"ok": False, "pr_number": pr_number, "error": "empty/queued review"}
+            return {
+                "ok": False,
+                "pr_number": pr_number,
+                "status": "queued",
+                "error": "queued — F.O.R.G.E. model cold-loading; verdict lands async via callback",
+            }
         mark_review_done(pr_number, summary, _repo)
         _notify_pr_reviewed(pr_number, _repo, review.get("title", ""), summary)
         # Single source of truth — same parser the merge gate + tier classifier use.
@@ -101,7 +106,7 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
 
             diff = _fetch_diff(diff_url)
             prompt = _build_prompt(review, diff)
-            summary = _run_forge_review(prompt)
+            summary = _run_forge_review(prompt, pr_number, repo)
 
             if summary:
                 mark_review_done(pr_number, summary, repo)
@@ -176,11 +181,45 @@ ISSUES
 VERDICT: APPROVE | REQUEST CHANGES | NEEDS REVIEW"""
 
 
-def _run_forge_review(prompt: str) -> str | None:
+def _attach_pr_review_callback(queue_id: int, pr_number: int, repo: str) -> None:
+    """Attach a ``pr_review_result`` callback to a queued code_review dispatch.
+
+    When the F.O.R.G.E. review model is cold/saturated the dispatcher enqueues
+    the job (dispatch_pending_queue) and returns ``queued=True`` immediately —
+    the synchronous call has no response yet. Without a callback the review was
+    left ``pending`` forever ("empty/queued review"). This mirrors
+    ``delegation_service._attach_delegation_callback``: when
+    ``model_dispatch_worker`` finishes the cold-load job, ``_handle_callback``
+    (model_dispatch_service) writes the verdict back to ``pr_reviews`` and flips
+    ``review_status='reviewed'``. Only rows still awaiting execution are tagged.
+    """
+    try:
+        import json
+
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE dispatch_pending_queue
+                   SET callback_type = 'pr_review_result',
+                       callback_data = %s::jsonb
+                 WHERE id = %s AND status IN ('queued', 'running')
+                """,
+                (json.dumps({"pr_number": pr_number, "repo": repo}), queue_id),
+            )
+    except Exception as exc:
+        logger.warning("[PR Review] failed to attach callback to queue #%s: %s", queue_id, exc)
+
+
+def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> str | None:
     """Dispatch the review prompt to F.O.R.G.E. via Bridge.
 
-    Returns:
-        Summary string from F.O.R.G.E., or None on failure.
+    Returns the summary string from F.O.R.G.E., or ``None``. ``None`` means
+    either a hard failure OR that the dispatch was deferred to the cold-load
+    queue — in the queued case an async ``pr_review_result`` callback is
+    attached (when ``pr_number`` is known) so the verdict lands when the model
+    warms, instead of the review staying stuck pending.
     """
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
@@ -191,7 +230,15 @@ def _run_forge_review(prompt: str) -> str | None:
             module_id="repair_bay",
         )
         if getattr(result, "queued", False):
-            logger.info("[PR Review] F.O.R.G.E. dispatch queued — model cold-loading, will retry")
+            qid = getattr(result, "queue_id", None)
+            if qid and pr_number:
+                _attach_pr_review_callback(qid, pr_number, repo)
+                logger.info(
+                    "[PR Review] F.O.R.G.E. dispatch queued (#%s) — callback attached, completes async",
+                    qid,
+                )
+            else:
+                logger.info("[PR Review] F.O.R.G.E. dispatch queued — model cold-loading, will retry")
             return None
         if result.success and result.response:
             return result.response.strip()

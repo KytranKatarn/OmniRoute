@@ -150,6 +150,21 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
                 result.setdefault(name, []).append(row["id"])
     except Exception as exc:
         log.debug("model_dispatch: all-nodes warm-model check failed: %s", exc)
+
+    # P2b/V8 (#3803): for CPU-tier (non-prefer_gpu) models, put the HUB (None) LAST
+    # in each model's node list so small work drains to idle outposts first instead
+    # of piling on the hub (which the fleet tier reserves for large/GPU + platform
+    # core). prefer_gpu models keep hub-first. Skip models warm ONLY on the hub
+    # (len 1) so nothing is stranded. Fail-open: ordering is best-effort.
+    try:
+        from services.model_sizes import lookup as _footprint
+
+        for _m, _nodes in result.items():
+            if len(_nodes) > 1 and None in _nodes and not _footprint(_m).prefer_gpu:
+                _nodes.remove(None)
+                _nodes.append(None)
+    except Exception:
+        pass
     return result
 
 

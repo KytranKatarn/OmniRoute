@@ -178,6 +178,34 @@ class TestExecuteKnownTools:
         assert "severity=info" in result["summary"]
         assert "window=24h" in result["summary"]
 
+    def test_run_qa_suite_without_suite_id_runs_all(self, delegation_service):
+        """A bare run_qa_suite (full health scan) runs every active suite and
+        succeeds even when some tests are red — the scan completing is success,
+        not a per-test pass. Previously this hard-failed 'requires suite_id'."""
+        suites = [{"id": 1, "name": "platform"}, {"id": 2, "name": "wtf"}]
+
+        def _fake_run(sid, **kw):
+            return {1: [{"status": "pass"}], 2: [{"status": "pass"}, {"status": "fail"}]}[sid]
+
+        with patch("services.qa_service.get_suites", return_value=suites), patch(
+            "services.qa_service.run_suite", side_effect=_fake_run
+        ):
+            result = delegation_service.execute_delegated_task(
+                {"id": 1, "delegation_args": {"capability": "run_qa_suite", "args": {}}}
+            )
+        assert result["success"] is True, "scan ran → success, despite a red test"
+        assert result["result"]["suites_ran"] == 2
+        assert result["result"]["failed"] == 1
+        assert result["result"]["suites_with_failures"] == ["wtf#2: 1/2"]
+
+    def test_run_qa_suite_no_active_suites_fails(self, delegation_service):
+        with patch("services.qa_service.get_suites", return_value=[]):
+            result = delegation_service.execute_delegated_task(
+                {"id": 1, "delegation_args": {"capability": "run_qa_suite", "args": {}}}
+            )
+        assert result["success"] is False
+        assert "no active QA suites" in result["summary"]
+
     def test_routes_translation_coverage_scan(self, delegation_service):
         with patch(
             "tools.consciousness.translation_scanners.orchestrator.run_translation_coverage_scan",

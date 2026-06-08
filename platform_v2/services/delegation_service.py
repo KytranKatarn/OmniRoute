@@ -25,7 +25,8 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+import time
+from typing import Any, Dict, List, Optional
 
 from database import get_db_cursor
 
@@ -442,7 +443,55 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
         suite_id = payload.get("suite_id")
         suite_name = payload.get("suite_name") or payload.get("suite") or "unknown"
         if not suite_id:
-            return {"success": False, "summary": "run_qa_suite requires suite_id in args"}
+            # No specific suite → run ALL active suites and aggregate. This is
+            # the "full health scan" intent (e.g. post-DR-test). It used to hard
+            # fail with "requires suite_id", which left the task blocked and
+            # escalated a Telegram warning forever. The SCAN COMPLETING is the
+            # success criterion here — individual test failures are reported as
+            # data, not as a delegation failure (a 75-suite scan almost always
+            # has some red, and that should not block/escalate the task).
+            from services.qa_service import get_suites as _get_suites
+
+            suites = _get_suites()
+            if not suites:
+                return {"success": False, "summary": "run_qa_suite: no active QA suites to run"}
+            total_passed = total_failed = total_tests = 0
+            ran = 0
+            per_suite = []
+            for s in suites:
+                sid = s.get("id")
+                sname = s.get("name") or f"#{sid}"
+                try:
+                    results = _run_suite(int(sid), triggered_by="delegate_task")
+                except Exception as exc:
+                    per_suite.append(f"{sname}#{sid}: ERROR {type(exc).__name__}")
+                    logger.warning("run_qa_suite all-scan: suite %s failed: %s", sid, exc)
+                    continue
+                p = sum(1 for r in results if r.get("status") == "pass")
+                f = sum(1 for r in results if r.get("status") in ("fail", "error"))
+                total_passed += p
+                total_failed += f
+                total_tests += len(results)
+                ran += 1
+                if f:
+                    per_suite.append(f"{sname}#{sid}: {p}/{p + f}")
+            red = ", ".join(per_suite[:15]) if per_suite else "none"
+            return {
+                # Success = the scan ran. Failures are reported, not escalated.
+                "success": ran > 0,
+                "summary": (
+                    f"QA full scan: {ran}/{len(suites)} suites ran, "
+                    f"passed={total_passed} failed={total_failed} (suites with red: {red})"
+                ),
+                "result": {
+                    "suites_ran": ran,
+                    "suites_total": len(suites),
+                    "passed": total_passed,
+                    "failed": total_failed,
+                    "total": total_tests,
+                    "suites_with_failures": per_suite,
+                },
+            }
         results = _run_suite(int(suite_id), triggered_by="delegate_task")
         passed = sum(1 for r in results if r.get("status") == "pass")
         failed = sum(1 for r in results if r.get("status") in ("fail", "error"))
@@ -899,9 +948,78 @@ def fetch_pending_delegations(limit: int = 10) -> list:
 def mark_task_in_progress(task_id: int) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE unified_tasks SET status = 'in_progress' WHERE id = %s",
+            "UPDATE unified_tasks SET status = 'in_progress', updated_at = now() WHERE id = %s",
             (task_id,),
         )
+
+
+def reclaim_stale_delegations(exclude_ids, idle_secs: int = 600, limit: int = 10) -> Dict[str, int]:
+    """Rescue delegation tasks stuck in ``in_progress`` with no activity.
+
+    A scheduler restart wipes the worker's in-memory carry-over list, so any
+    task the previous worker was executing is abandoned as ``in_progress`` with
+    nothing left to finish or fail it — it sits forever (observed: a doc task
+    stuck 237h). This reclaims those orphans: reset to ``pending`` for a fresh
+    attempt, or — after repeated reclaims — mark ``blocked`` so it can't loop.
+
+    Safety:
+      * ``exclude_ids`` = task ids the LIVE worker is currently tracking
+        (its inflight set) — never reclaim those (would double-execute).
+      * Only tasks with NO ``work_notes`` activity in the idle window are
+        eligible — this skips tasks legitimately awaiting an async cold-load
+        callback (they carry a recent ``delegation_queued`` note).
+      * ``updated_at`` clock is reset on each (re)claim, so a retried task gets
+        a full idle window before it could be reclaimed again.
+    """
+    exclude_ids = [int(x) for x in (exclude_ids or [])]
+    reclaimed = gave_up = 0
+    base_where = (
+        "delegation_source IS NOT NULL AND status = 'in_progress' "
+        "AND updated_at < now() - make_interval(secs => %s) "
+        "AND NOT EXISTS (SELECT 1 FROM work_notes w "
+        "WHERE w.task_id = t.id AND w.created_at > now() - make_interval(secs => %s))"
+    )
+    with get_db_cursor(commit=True) as (conn, cur):
+        if exclude_ids:
+            cur.execute(
+                f"SELECT id FROM unified_tasks t WHERE {base_where} " "AND id <> ALL(%s) ORDER BY updated_at LIMIT %s",
+                (idle_secs, idle_secs, exclude_ids, limit),
+            )
+        else:
+            cur.execute(
+                f"SELECT id FROM unified_tasks t WHERE {base_where} " "ORDER BY updated_at LIMIT %s",
+                (idle_secs, idle_secs, limit),
+            )
+        ids = [r["id"] if isinstance(r, dict) else r[0] for r in cur.fetchall()]
+        for tid in ids:
+            cur.execute(
+                "SELECT count(*) AS c FROM work_notes " "WHERE task_id = %s AND note_type = 'delegation_reclaimed'",
+                (tid,),
+            )
+            row = cur.fetchone()
+            prior = row["c"] if isinstance(row, dict) else row[0]
+            if prior >= 2:
+                cur.execute(
+                    "UPDATE unified_tasks SET status = 'blocked', updated_at = now() WHERE id = %s",
+                    (tid,),
+                )
+                note = f"Gave up reclaiming stale in_progress task after {prior} attempts"
+                gave_up += 1
+            else:
+                cur.execute(
+                    "UPDATE unified_tasks SET status = 'pending', updated_at = now() WHERE id = %s",
+                    (tid,),
+                )
+                note = f"Reclaimed stale in_progress task (orphaned, attempt {prior + 1})"
+                reclaimed += 1
+            cur.execute(
+                "INSERT INTO work_notes (task_id, note_type, content, metadata) "
+                "VALUES (%s, 'delegation_reclaimed', %s, %s::jsonb)",
+                (tid, note, json.dumps({"prior_reclaims": prior})),
+            )
+    if reclaimed or gave_up:
+        logger.info("reclaim_stale_delegations: reclaimed=%d gave_up=%d", reclaimed, gave_up)
+    return {"reclaimed": reclaimed, "gave_up": gave_up}
 
 
 def _attach_delegation_callback(queue_id: int, task_id: int, capability: str, reason: str) -> None:
@@ -994,3 +1112,252 @@ def mark_task_failed(task_id: int, error: str) -> None:
             """,
             (task_id, error, json.dumps({"outcome": "failed"})),
         )
+
+
+# ----------------------------------------------------------------------
+# Concurrent draining engine (Project #375 / handoff 2026-06-08)
+# ----------------------------------------------------------------------
+# The agent-loop worker used to drain delegations SERIALLY: a pool with
+# max_workers=1 plus a submit→future.result()→next loop meant one slow
+# 7B task (documentation, up to 660s) blocked every task behind it. With
+# 8 doc tasks queued that is ~40 minutes of head-of-line blocking per
+# task. ``run_delegation_cycle`` runs the claimed tasks CONCURRENTLY in a
+# bounded pool while preserving every safety property of the old loop:
+#
+#   * per-capability timeout shield (a hung layer never freezes the job),
+#   * the ``queued`` cold-load defer path (rows stay in_progress; the
+#     dispatch_pending_queue callback finishes them — #3636/#3637),
+#   * no double-claim (the caller keeps APScheduler ``max_instances=1``;
+#     claiming is non-atomic, so cycles must not overlap),
+#   * no ThreadPoolExecutor clog: a future that overruns its REAL
+#     deadline is marked blocked (retry-able) but KEEPS occupying its
+#     logical slot until the thread actually dies, so we never oversubmit
+#     into a pool whose workers are all stuck.
+#
+# State the caller owns and threads back in every cycle:
+#   pool      — a ThreadPoolExecutor(max_workers=concurrency), reused.
+#   inflight  — a list of carry-over entries (futures still running from
+#               a previous cycle). Mutated in place.
+
+
+def _parse_capability(task: Dict[str, Any]) -> str:
+    """Best-effort extract the ``capability`` string from a task row."""
+    args = task.get("delegation_args") or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except Exception:
+            args = {}
+    if isinstance(args, dict):
+        return args.get("capability", "unknown")
+    return "unknown"
+
+
+def run_delegation_cycle(
+    pool,
+    inflight: List[Dict[str, Any]],
+    *,
+    concurrency: int,
+    cycle_budget_secs: float,
+    capability_timeouts: Dict[str, int],
+    default_timeout: int,
+    log_cycle=None,
+    reclaim_idle_secs: int = 600,
+    reclaim_limit: int = 10,
+    _now=time.time,
+) -> Dict[str, int]:
+    """Run ONE concurrent draining cycle. Returns a stats dict.
+
+    ``pool`` and ``inflight`` are persistent state owned by the caller (the
+    agent-loop worker) so carry-over futures survive between 30s cycles.
+    Every delegation_service helper is called by name (not injected) so the
+    unit test can patch them exactly like the rest of the suite.
+    """
+    from concurrent.futures import FIRST_COMPLETED
+    from concurrent.futures import wait as _futures_wait
+
+    stats = {"claimed": 0, "completed": 0, "failed": 0, "queued": 0, "carried": 0}
+
+    def _handle_done(entry: Dict[str, Any]) -> None:
+        """Apply the real result of a finished future (completed/failed/queued)."""
+        task_id = entry["task_id"]
+        capability = entry["capability"]
+        source = entry["source"]
+        channel = entry["channel"]
+        try:
+            result = entry["future"].result()
+        except Exception as exc:  # executor raised
+            logger.exception("Delegate task #%s raised during execute", task_id)
+            _safe(mark_task_failed, task_id, f"Executor exception: {exc}")
+            _safe_emit(task_id, "fail", capability, f"Executor exception: {exc}", source, channel)
+            stats["failed"] += 1
+            return
+
+        if result.get("queued"):
+            # Cold-load defer (#269999): leave in_progress, the
+            # dispatch_pending_queue callback flips it later. NEVER fail it.
+            _safe(mark_task_queued, task_id, result.get("summary", ""))
+            logger.info("Delegate task #%s queued to fleet (async)", task_id)
+            stats["queued"] += 1
+        elif result.get("success"):
+            summary = result.get("summary", "")
+            resp = (result.get("result") or {}).get("response")
+            _safe(mark_task_completed, task_id, summary, response=resp)
+            _safe_emit(task_id, "complete", capability, summary, source, channel)
+            stats["completed"] += 1
+        else:
+            fail_summary = result.get("summary") or result.get("error") or "Unknown failure"
+            _safe(mark_task_failed, task_id, fail_summary)
+            _safe_emit(task_id, "fail", capability, fail_summary, source, channel)
+            stats["failed"] += 1
+
+    def _safe(fn, *a, **kw) -> None:
+        try:
+            fn(*a, **kw)
+        except Exception:
+            logger.exception("delegation cycle: %s failed", getattr(fn, "__name__", fn))
+
+    def _safe_emit(task_id, event, capability, summary, source, channel) -> None:
+        try:
+            emit_delegation_event(
+                task_id,
+                event,
+                capability=capability,
+                summary=summary,
+                delegation_source=source,
+                streaming_channel=channel,
+            )
+        except Exception:
+            pass
+
+    # 0) Rescue orphans: tasks stuck in_progress with no activity (e.g. abandoned
+    #    when a scheduler restart wiped this list). Exclude the live inflight set
+    #    so we never reclaim something this worker is actively running.
+    live_ids = [e["task_id"] for e in inflight]
+    try:
+        reclaim_stale_delegations(live_ids, idle_secs=reclaim_idle_secs, limit=reclaim_limit)
+    except Exception:
+        logger.exception("delegation cycle: reclaim_stale_delegations failed")
+
+    # 1) Advance carry-over futures from previous cycles. A still-running
+    #    future keeps its slot busy; one past its REAL deadline is marked
+    #    blocked once but kept until the thread truly finishes (no clog).
+    still: List[Dict[str, Any]] = []
+    for entry in inflight:
+        fut = entry["future"]
+        if fut.done():
+            if not entry.get("marked_blocked"):
+                _handle_done(entry)
+            # else: already blocked on a prior cycle — discard the late result.
+            continue
+        if _now() > entry["deadline"] and not entry.get("marked_blocked"):
+            summary = f"Delegate worker timed out after {entry['timeout']}s " f"(capability={entry['capability']})"
+            # Log + mark blocked (retry-able), but do NOT fire a Telegram WARNING:
+            # a worker timeout is an expected, recoverable condition (the row is
+            # visible in the Claude Requests queue), not an emergency. Pushing a
+            # warning per timeout just spams the owner. Real executor exceptions
+            # and dispatch failures still emit via _handle_done.
+            logger.error("Delegate task #%s %s — marking blocked, thread continues", entry["task_id"], summary)
+            _safe(mark_task_failed, entry["task_id"], summary)
+            entry["marked_blocked"] = True
+            stats["failed"] += 1
+        still.append(entry)
+    inflight[:] = still
+
+    # 2) Claim only as many new tasks as there are free slots.
+    busy = len(inflight)
+    free = max(0, concurrency - busy)
+    if free <= 0:
+        if log_cycle:
+            _safe(
+                log_cycle,
+                job_name="delegate_task_worker",
+                items_processed=0,
+                items_failed=stats["failed"],
+                duration_ms=0,
+                details={"note": "all slots busy with long-running tasks", "busy": busy},
+            )
+        return stats
+
+    try:
+        tasks = fetch_pending_delegations(limit=free)
+    except Exception:
+        logger.exception("delegation cycle: fetch_pending_delegations failed")
+        return stats
+    if not tasks and not inflight:
+        return stats  # nothing to do, stay silent (no autonomy_loop_log spam)
+
+    # 3) Submit all claimed tasks at once so they run concurrently.
+    start = _now()
+    active: Dict[Any, Dict[str, Any]] = {}
+    for task in tasks:
+        task_id = task["id"]
+        capability = _parse_capability(task)
+        source = task.get("delegation_source") or "mcp_client"
+        channel = task.get("streaming_channel")
+        timeout = capability_timeouts.get(capability, default_timeout)
+        _safe(mark_task_in_progress, task_id)
+        _safe_emit(task_id, "start", capability, "", source, channel)
+        future = pool.submit(execute_delegated_task, task)
+        active[future] = {
+            "future": future,
+            "task_id": task_id,
+            "capability": capability,
+            "source": source,
+            "channel": channel,
+            "timeout": timeout,
+            "deadline": start + timeout,
+            "marked_blocked": False,
+        }
+    stats["claimed"] = len(active)
+
+    # 4) Collect finishers within a short cycle budget so the job returns
+    #    promptly (keeps the 30s cadence responsive under max_instances=1).
+    #    Whatever is still running rolls into ``inflight`` for next cycle —
+    #    NOT marked blocked (its real per-capability deadline still applies).
+    budget_deadline = start + cycle_budget_secs
+    pending = dict(active)
+    while pending:
+        remaining = budget_deadline - _now()
+        if remaining <= 0:
+            break
+        done, _ = _futures_wait(list(pending), timeout=remaining, return_when=FIRST_COMPLETED)
+        if not done:
+            break
+        for fut in done:
+            entry = pending.pop(fut)
+            _handle_done(entry)
+
+    for fut, entry in pending.items():
+        inflight.append(entry)
+        stats["carried"] += 1
+
+    # 5) One cycle log row when there was activity.
+    if log_cycle and (stats["claimed"] or stats["completed"] or stats["failed"] or stats["queued"]):
+        duration_ms = int((_now() - start) * 1000)
+        _safe(
+            log_cycle,
+            job_name="delegate_task_worker",
+            items_processed=stats["completed"],
+            items_failed=stats["failed"],
+            duration_ms=duration_ms,
+            details={
+                "claimed": stats["claimed"],
+                "completed": stats["completed"],
+                "failed": stats["failed"],
+                "queued": stats["queued"],
+                "carried": stats["carried"],
+                "busy_carryover": busy,
+            },
+        )
+    if stats["claimed"] or stats["completed"] or stats["failed"] or stats["queued"]:
+        logger.info(
+            "delegate_task_worker: claimed=%d completed=%d failed=%d queued=%d carried=%d (busy_in=%d)",
+            stats["claimed"],
+            stats["completed"],
+            stats["failed"],
+            stats["queued"],
+            stats["carried"],
+            busy,
+        )
+    return stats

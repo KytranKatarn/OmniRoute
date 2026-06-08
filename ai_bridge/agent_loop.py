@@ -4642,7 +4642,11 @@ class AgentLoop:
         # (seconds), but a manual/broad delegate runs the full multi-pass scan.
         # 900s backstop so a broad scan can't false-block at the 360s default.
         "translation_coverage_scan": 900,
-        "run_qa_suite": 300,
+        # A bare run_qa_suite (no suite_id) runs ALL ~75 active suites and
+        # aggregates — a full health scan, ~400-600s. Single-suite runs finish
+        # in seconds; this generous ceiling only matters for the full scan,
+        # which the concurrent worker carries in the background (one of N slots).
+        "run_qa_suite": 1200,
         "run_misroute_audit": 120,
         "run_misroute_to_proposal_adapter": 120,
         "check_dep_drift": 60,
@@ -4650,6 +4654,19 @@ class AgentLoop:
         "check_platform_health": 30,
     }
     _DELEGATE_DEFAULT_TIMEOUT_SECS = 360  # dispatcher 300s + 60s buffer
+
+    # Concurrency: how many delegated tasks run in parallel. The old worker
+    # was serial (pool max_workers=1), so one slow 7B task blocked everything
+    # behind it. The DB pool (maxconn=50) and the cluster's own welfare/queue
+    # gating make a modest fan-out safe. Env-tunable; dial down if the cluster
+    # saturates under local_only escalation.
+    _DELEGATE_CONCURRENCY = int(os.getenv("DELEGATE_WORKER_CONCURRENCY", "4"))
+    # How long one invocation blocks collecting finishers before returning and
+    # letting the next 30s fire top up freed slots. Slightly under the 30s
+    # cadence so cycles never pile up under max_instances=1. Tasks still
+    # running at the budget roll into the carry-over list (NOT marked blocked —
+    # their real per-capability deadline still applies).
+    _DELEGATE_CYCLE_BUDGET_SECS = float(os.getenv("DELEGATE_WORKER_CYCLE_BUDGET_SECS", "25"))
 
     def _run_agent_kb_review(self):
         """#3534 Phase 3: C.O.D.E.X. reviews pending agent-proposed KB writes.
@@ -4796,197 +4813,42 @@ class AgentLoop:
         so the Dev HQ job-monitoring view (#2105 infrastructure) shows
         a timeline.
         """
-        start = time.time()
-        processed = 0
-        failed = 0
         try:
             import sys
-            from concurrent.futures import (
-                ThreadPoolExecutor,
-                TimeoutError as FutureTimeoutError,
-            )
+            from concurrent.futures import ThreadPoolExecutor
 
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-            from services.delegation_service import (
-                emit_delegation_event,
-                execute_delegated_task,
-                fetch_pending_delegations,
-                mark_task_completed,
-                mark_task_failed,
-                mark_task_in_progress,
-                mark_task_queued,
-            )
+            from services.delegation_service import run_delegation_cycle
 
-            tasks = fetch_pending_delegations(limit=3)
-            if not tasks:
-                # Silent no-op when queue is empty — avoids autonomy_loop_log spam.
-                return
-
-            # Lazy-init a dedicated single-thread executor. Reused across cycles.
-            # Single worker → one delegated task in flight at a time, matching the
-            # design's serial-claim model; the loop iterates 3 tasks max per cycle.
+            # Lazy-init persistent state, reused across 30s cycles:
+            #  _delegate_pool     — bounded executor (concurrency workers)
+            #  _delegate_inflight — carry-over futures still running from a
+            #                       previous cycle (keeps their slot busy so we
+            #                       never oversubmit the pool).
             if not hasattr(self, "_delegate_pool"):
                 self._delegate_pool = ThreadPoolExecutor(
-                    max_workers=1,
+                    max_workers=self._DELEGATE_CONCURRENCY,
                     thread_name_prefix="delegate-task",
                 )
+                self._delegate_inflight = []
 
-            for task in tasks:
-                task_id = task["id"]
-                mark_task_in_progress(task_id)
-
-                # Capability + source for Unified Comms event payload.
-                args = task.get("delegation_args") or {}
-                if isinstance(args, str):
-                    try:
-                        import json as _json
-
-                        args = _json.loads(args)
-                    except Exception:
-                        args = {}
-                capability = args.get("capability", "unknown")
-                delegation_source = task.get("delegation_source") or "mcp_client"
-                streaming_channel = task.get("streaming_channel")
-
-                emit_delegation_event(
-                    task_id,
-                    "start",
-                    capability=capability,
-                    delegation_source=delegation_source,
-                    streaming_channel=streaming_channel,
-                )
-
-                timeout_secs = self._DELEGATE_CAPABILITY_TIMEOUTS.get(
-                    capability, self._DELEGATE_DEFAULT_TIMEOUT_SECS
-                )
-
-                try:
-                    future = self._delegate_pool.submit(execute_delegated_task, task)
-                    try:
-                        result = future.result(timeout=timeout_secs)
-                    except FutureTimeoutError:
-                        # Outer shield fired. mark_task_failed sets status='blocked'
-                        # so the row is retry-able once the underlying issue clears.
-                        # The orphaned thread keeps running until it finishes/dies;
-                        # this is strictly better than freezing APScheduler.
-                        timeout_summary = (
-                            f"Delegate worker timed out after {timeout_secs}s "
-                            f"(capability={capability})"
-                        )
-                        logger.error(
-                            "Delegate task #%s %s — marking blocked, worker continues",
-                            task_id,
-                            timeout_summary,
-                        )
-                        try:
-                            mark_task_failed(task_id, timeout_summary)
-                            emit_delegation_event(
-                                task_id,
-                                "fail",
-                                capability=capability,
-                                summary=timeout_summary,
-                                delegation_source=delegation_source,
-                                streaming_channel=streaming_channel,
-                            )
-                        except Exception:
-                            pass
-                        failed += 1
-                        continue
-
-                    if result.get("queued"):
-                        # Layer-3 (#269999): the dispatch was deferred to the
-                        # cold-load queue (model warming). Leave the task
-                        # in_progress — the dispatch_pending_queue callback flips
-                        # it to completed/blocked when the queue row finishes.
-                        # Do NOT mark it failed (the bug that orphaned #3636/#3637).
-                        q_summary = result.get("summary", "")
-                        try:
-                            mark_task_queued(task_id, q_summary)
-                        except Exception:
-                            pass
-                        logger.info(
-                            "Delegate task #%s queued to fleet (async) — %s",
-                            task_id,
-                            q_summary,
-                        )
-                        continue
-
-                    if result.get("success"):
-                        summary = result.get("summary", "")
-                        _resp = (result.get("result") or {}).get("response")
-                        mark_task_completed(task_id, summary, response=_resp)
-                        emit_delegation_event(
-                            task_id,
-                            "complete",
-                            capability=capability,
-                            summary=summary,
-                            delegation_source=delegation_source,
-                            streaming_channel=streaming_channel,
-                        )
-                        processed += 1
-                    else:
-                        fail_summary = (
-                            result.get("summary")
-                            or result.get("error")
-                            or "Unknown failure"
-                        )
-                        mark_task_failed(task_id, fail_summary)
-                        emit_delegation_event(
-                            task_id,
-                            "fail",
-                            capability=capability,
-                            summary=fail_summary,
-                            delegation_source=delegation_source,
-                            streaming_channel=streaming_channel,
-                        )
-                        failed += 1
-                except Exception as task_err:
-                    logger.exception(
-                        "Delegate task #%s raised during execute", task_id
-                    )
-                    try:
-                        mark_task_failed(task_id, f"Executor exception: {task_err}")
-                        emit_delegation_event(
-                            task_id,
-                            "fail",
-                            capability=capability,
-                            summary=f"Executor exception: {task_err}",
-                            delegation_source=delegation_source,
-                            streaming_channel=streaming_channel,
-                        )
-                    except Exception:
-                        pass
-                    failed += 1
-
-            duration_ms = int((time.time() - start) * 1000)
-            self._log_cycle(
-                job_name="delegate_task_worker",
-                items_processed=processed,
-                items_failed=failed,
-                duration_ms=duration_ms,
-                details={
-                    "claimed": len(tasks),
-                    "completed": processed,
-                    "failed": failed,
-                },
+            run_delegation_cycle(
+                self._delegate_pool,
+                self._delegate_inflight,
+                concurrency=self._DELEGATE_CONCURRENCY,
+                cycle_budget_secs=self._DELEGATE_CYCLE_BUDGET_SECS,
+                capability_timeouts=self._DELEGATE_CAPABILITY_TIMEOUTS,
+                default_timeout=self._DELEGATE_DEFAULT_TIMEOUT_SECS,
+                log_cycle=self._log_cycle,
             )
-            if processed or failed:
-                logger.info(
-                    "delegate_task_worker: claimed=%d done=%d failed=%d in %dms",
-                    len(tasks),
-                    processed,
-                    failed,
-                    duration_ms,
-                )
         except Exception as e:
-            duration_ms = int((time.time() - start) * 1000)
             logger.error("delegate_task_worker failed: %s", e)
             try:
                 self._log_cycle(
                     job_name="delegate_task_worker",
-                    items_processed=processed,
-                    items_failed=max(failed, 1),
-                    duration_ms=duration_ms,
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=0,
                     error_message=str(e),
                 )
             except Exception:

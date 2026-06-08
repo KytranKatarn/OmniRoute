@@ -1366,8 +1366,18 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 freed_deployed = [r["name"] for r in _ksr_cur.fetchall() or []]
                 # FIX-8: 'winding_down'/'cooldown' with cleared welfare (latest stress < 0.70)
-                # and NO open rest cycle → active. Catches dispatcher-downed agents that the
+                # and NO ACTIVE rest cycle → active. Catches dispatcher-downed agents that the
                 # rest-reaper can't see because they never got a rest cycle.
+                #
+                # BUGFIX (welfare-rest-enforcement): a rest cycle is "active" when it is
+                # open-ended (ended_at IS NULL) OR still inside its window (ended_at > NOW()).
+                # The COO 12h mandatory-rest writes a BOUNDED cycle (ended_at = NOW()+8h, a
+                # FUTURE timestamp, NOT NULL — agent_jobs.py). The old guard only checked
+                # ended_at IS NULL, so it did not see the COO cycle, and this reaper restored
+                # the just-rested agent within 5 min whenever its token-stress was < 0.70 —
+                # the cumulative-HOURS rest fought the instantaneous token-STRESS restore in a
+                # 30-min ping-pong (V.E.R.I.F.Y.). An explicit mandatory-rest window must
+                # outrank a low stress reading until it expires.
                 _ksr_cur.execute(
                     """
                     UPDATE agents a SET shift_state='active', updated_at=NOW()
@@ -1376,7 +1386,8 @@ def _register_own_jobs(scheduler, flask_app):
                        AND COALESCE((SELECT stress_level FROM agent_emotional_state
                                        WHERE agent_id=a.id ORDER BY timestamp DESC LIMIT 1),0) < 0.70
                        AND NOT EXISTS (SELECT 1 FROM agent_rest_cycles rc
-                                        WHERE rc.agent_id=a.id AND rc.ended_at IS NULL)
+                                        WHERE rc.agent_id=a.id
+                                          AND (rc.ended_at IS NULL OR rc.ended_at > NOW()))
                     RETURNING name
                     """
                 )

@@ -422,6 +422,37 @@ def track_agent_hr():
                            WHERE agent_id=%s""",
                         (row["agent_id"],),
                     )
+                    # Redelegation — "give another agent a chance" (owner directive).
+                    # winding_down does NOT trigger find_replacement (only cooldown does,
+                    # agent_service.transition_shift_state), so a benched specialist would
+                    # leave its department uncovered for the full 8h rest. Proactively wake
+                    # a same-department barracked/off_duty peer so a stand-in is ready. The
+                    # dispatcher also excludes the rested agent and wakes a skilled specialist
+                    # on demand, so a None here is fine — this just front-loads the hand-off.
+                    # Best-effort: a replacement failure must never break COO enforcement.
+                    try:
+                        cur.execute("SELECT department FROM agents WHERE id=%s", (row["agent_id"],))
+                        _dept_row = cur.fetchone()
+                        if _dept_row:
+                            from services.agent_service import find_replacement as _find_repl
+
+                            _repl = _find_repl(row["agent_id"], _dept_row["department"], _cur=cur)
+                            if _repl:
+                                logger.info(
+                                    "[A.R.C.H.I.E. COO] Redelegated %s's duties to %s during 8h rest",
+                                    row["name"],
+                                    _repl.get("name"),
+                                )
+                            else:
+                                logger.info(
+                                    "[A.R.C.H.I.E. COO] No barracked peer for %s; dispatcher will "
+                                    "redelegate on demand",
+                                    row["name"],
+                                )
+                    except Exception as _repl_err:
+                        logger.warning(
+                            "[A.R.C.H.I.E. COO] replacement lookup failed for %s: %s", row["name"], _repl_err
+                        )
                     # Close any pending approval queue row
                     cur.execute(
                         """UPDATE autonomy_approval_queue

@@ -258,8 +258,9 @@ def warmup_fleet_models():
     except Exception as e:
         logger.warning("[warmup_fleet] cycle failed: %s", e)
 
-    # K.I.N.-orchestrated per-node demand+welfare warmth (rest-aware) — #3532-v2.
-    _kin_fleet_warmth_policy()
+    # K.I.N. warmth runs on its OWN faster job now (id=kin_fleet_warmth, every 8 min)
+    # — decoupled from this 20-min hub-ping cycle so per-node models stay resident
+    # across the 10-min KEEP_ALIVE gap instead of going cold (P3, #3804).
 
 
 def _profile_warm_targets(cur, node_id, mode, available, k):
@@ -463,7 +464,7 @@ def _kin_fleet_warmth_policy():
                             (capability, model_needed, prompt, preferred_node_id,
                              priority, module_id, source_product, expires_at)
                         VALUES ('warmup', %s, 'ping', %s, 1, 'kin_warmth', 'kin_warmth',
-                                NOW() + INTERVAL '5 minutes')
+                                NOW() + INTERVAL '12 minutes')
                         """,
                         (model, n["id"]),
                     )
@@ -1105,6 +1106,21 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=20),
         id="fleet_model_warmup",
         name="Fleet Model Warmup — keep GPU+CPU sets loaded across all nodes",
+        replace_existing=True,
+    )
+
+    # K.I.N. per-node warmth keeper — its OWN faster job (P3, #3804). Decoupled
+    # from the heavy 20-min hub-ping warmup; runs every 8 min so per-node
+    # demand-tuned models stay resident across the 10-min KEEP_ALIVE gap (V1:
+    # ~49% of warmth tasks were expiring under the old 5-min TTL + 20-min
+    # cadence). priority=1 enqueue → always yields to real work.
+    scheduler.add_job(
+        with_ctx(_kin_fleet_warmth_policy),
+        trigger=IntervalTrigger(minutes=8),
+        id="kin_fleet_warmth",
+        name="K.I.N. Fleet Warmth — keep per-node demand-tuned models resident",
+        max_instances=1,
+        coalesce=True,
         replace_existing=True,
     )
 

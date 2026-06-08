@@ -1,0 +1,13 @@
+# Codex Phase B — delegation poller (explicit-delegate v1).
+# Claims ONE 'deferred' codex_task per tick, runs the sandboxed Codex runner,
+# opens a PR, and queues the Telegram promote approval. The poller takes a
+# flock, so a long Codex run (up to 30 min) simply holds the lock and the
+# intervening minute-ticks no-op — safe to run every minute.
+#
+# Install (host, as root):
+#   sudo cp /mnt/archie_brain/scripts/agents/codex-delegation-worker.cron /etc/cron.d/codex-delegation-worker
+#   sudo chmod 644 /etc/cron.d/codex-delegation-worker
+#   sudo systemctl restart cron     # or: sudo service cron reload
+#
+# Runs as 'kytran' (needs docker + gh + git worktree access, same as run-codex-task.sh).
+* * * * * kytran /usr/bin/python3 /mnt/archie_brain/scripts/agents/codex-delegation-worker.py >> /tmp/codex-delegation-worker.log 2>&1

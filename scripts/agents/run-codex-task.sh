@@ -109,10 +109,17 @@ print('\n'.join(bad))
 if [ -n "$OUT" ]; then echo "SCOPE VIOLATION (blocked, no PR):"; echo "$OUT"; SUCCESS=false; else SUCCESS=true; fi
 
 # 6) postflight gates (only if in scope)
+# Two-pass pre-commit: the FIRST pass may REFORMAT files (black, end-of-file-fixer,
+# trailing-whitespace) and exit non-zero — that is benign, not a failure. Re-stage
+# and require a CLEAN SECOND pass, which still catches real lint/guardrail errors
+# (flake8, single-writer, dispatch-signature, timezone, secrets). Without this, any
+# Codex change that black touches silently fails the run and never opens a PR.
 if [ "$SUCCESS" = true ]; then
   git -C "$WT" add -A
   git -C "$WT" diff --cached --check || SUCCESS=false
-  ( cd "$WT" && pre-commit run --files $CHANGED ) || SUCCESS=false
+  ( cd "$WT" && pre-commit run --files $CHANGED ) || true   # pass 1: reformat allowed
+  git -C "$WT" add -A                                        # re-stage reformatted files
+  ( cd "$WT" && pre-commit run --files $CHANGED ) || SUCCESS=false  # pass 2: must be clean
 fi
 
 # 7) telemetry (always)

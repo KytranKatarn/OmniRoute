@@ -98,33 +98,46 @@ def delegate_task(
     }
     title = f"[DELEGATE:{delegation_source}] {capability}"[:500]
 
+    # Phase B: a codex_task is NOT cluster work — Codex (an external CLI coding
+    # agent) cannot run on Ollama. It is created 'deferred' so the pending-only
+    # delegate_task_worker never claims it; the host poller
+    # (scripts/agents/codex-delegation-worker.sh) reads 'deferred' codex rows,
+    # composes a prompt (project + task context) and runs the sandboxed Codex
+    # runner. Everything else stays 'pending' for the normal worker.
+    is_codex = capability == "codex_task"
+    status = "deferred" if is_codex else "pending"
+    task_metadata = {"codex": True, "project_id": project_id} if is_codex else None
+
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
             INSERT INTO unified_tasks
                 (project_id, title, description, status, priority, task_type,
-                 delegation_source, delegation_args, streaming_channel)
-            VALUES (%s, %s, %s, 'pending', %s, 'implementation',
-                    %s, %s::jsonb, %s)
+                 delegation_source, delegation_args, streaming_channel, metadata)
+            VALUES (%s, %s, %s, %s, %s, 'implementation',
+                    %s, %s::jsonb, %s, %s::jsonb)
             RETURNING id
             """,
             (
                 project_id,
                 title,
                 f"Delegated by {requested_by} via {delegation_source}: {reason}",
+                status,
                 priority,
                 delegation_source,
                 json.dumps(delegation_args),
                 streaming_channel,
+                json.dumps(task_metadata) if task_metadata else None,
             ),
         )
         task_id = cur.fetchone()["id"]
 
     logger.info(
-        "Delegated task #%d: capability=%s source=%s requested_by=%s",
+        "Delegated task #%d: capability=%s source=%s status=%s requested_by=%s",
         task_id,
         capability,
         delegation_source,
+        status,
         requested_by,
     )
     return {
@@ -132,6 +145,7 @@ def delegate_task(
         "task_id": task_id,
         "title": title,
         "uses_known_tool": capability in KNOWN_TOOL_CAPABILITIES,
+        "deferred_to": "codex" if is_codex else None,
     }
 
 

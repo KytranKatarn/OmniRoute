@@ -361,6 +361,70 @@ class TestExecutorExceptionHandling:
         assert result["error"] == "DB connection lost"
 
 
+class TestCodexDelegation:
+    """Phase B — capability='codex_task' must be DEFERRED, not dispatched.
+
+    The host poller (codex-delegation-worker.sh) owns these rows. Creating them
+    'deferred' makes them invisible to the pending-only delegate_task_worker, so
+    they never reach the cluster dispatcher (Codex can't run on Ollama).
+    """
+
+    @staticmethod
+    def _capturing_cm(row):
+        cur = MagicMock()
+        cur.fetchone.return_value = row
+        conn = MagicMock()
+
+        class _CM:
+            def __enter__(self):
+                return (conn, cur)
+
+            def __exit__(self, *args):
+                return False
+
+        return _CM(), cur
+
+    def test_codex_task_inserts_deferred_status(self, delegation_service):
+        cm, cur = self._capturing_cm({"id": 555})
+        with patch.object(delegation_service, "get_db_cursor", return_value=cm):
+            result = delegation_service.delegate_task(
+                capability="codex_task",
+                reason="add a docstring to faith routes",
+                delegation_source="claude",
+                project_id=310,
+            )
+        assert result["success"] is True
+        assert result["task_id"] == 555
+        assert result.get("deferred_to") == "codex"
+        sql, params = cur.execute.call_args.args
+        assert "INSERT INTO unified_tasks" in sql
+        # status param must be 'deferred', NOT 'pending'
+        assert "deferred" in params
+        assert "pending" not in params
+
+    def test_non_codex_task_stays_pending(self, delegation_service):
+        cm, cur = self._capturing_cm({"id": 556})
+        with patch.object(delegation_service, "get_db_cursor", return_value=cm):
+            result = delegation_service.delegate_task(
+                capability="run_qa_suite",
+                reason="run autonomy suite",
+                delegation_source="claude",
+            )
+        assert result["success"] is True
+        assert result.get("deferred_to") is None
+        sql, params = cur.execute.call_args.args
+        assert "pending" in params
+        assert "deferred" not in params
+
+    def test_pending_fetch_excludes_deferred(self, delegation_service):
+        """Regression guard: the pending-only worker query must keep its
+        status='pending' filter so deferred codex rows are never claimed."""
+        import inspect
+
+        src = inspect.getsource(delegation_service.fetch_pending_delegations)
+        assert "status = 'pending'" in src
+
+
 class TestEmitDelegationEvent:
     """Phase 3 — Unified Comms streaming. Verifies the shape of the
     message handed to telegram_service and that failures are suppressed

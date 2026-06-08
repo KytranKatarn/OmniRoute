@@ -1,4 +1,4 @@
-"""Faith module routes."""
+"""Faith routes for devotionals, profiles, multi-tradition scripture, reflection, and safety support."""
 
 from __future__ import annotations
 
@@ -467,10 +467,7 @@ def _load_analects_legge() -> list[dict]:
 
 @lru_cache(maxsize=1)
 def _load_scripture_corpus() -> dict:
-    web_records = [
-        _scripture_record("web", verse["reference"], verse["text"])
-        for verse in _load_web_bible()["verses"]
-    ]
+    web_records = [_scripture_record("web", verse["reference"], verse["text"]) for verse in _load_web_bible()["verses"]]
     passages = (
         web_records
         + _load_jps_tanakh()
@@ -567,11 +564,7 @@ def bible_passage():
     except ValueError:
         return jsonify({"success": False, "error": "chapter must be a number"}), 400
 
-    verses = [
-        v
-        for v in _load_web_bible()["verses"]
-        if v["book"] == code and v["chapter"] == chapter
-    ]
+    verses = [v for v in _load_web_bible()["verses"] if v["book"] == code and v["chapter"] == chapter]
     if not verses:
         return jsonify({"success": False, "error": "passage not found"}), 404
     return jsonify(

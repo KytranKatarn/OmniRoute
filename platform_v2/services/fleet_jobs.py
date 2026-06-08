@@ -1106,6 +1106,12 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=20),
         id="fleet_model_warmup",
         name="Fleet Model Warmup — keep GPU+CPU sets loaded across all nodes",
+        # V7 (P2b): the per-host load lock (P1.1) already stops a hub cold-load in
+        # this cycle from freezing the fleet (it serializes only hub loads now).
+        # Residual guard: a slow cycle (observed max ~513s) must not overlap the
+        # next 20-min trigger. coalesce collapses any missed runs into one.
+        max_instances=1,
+        coalesce=True,
         replace_existing=True,
     )
 

@@ -257,12 +257,12 @@ def log_model_request(
                 (response_ms, response_ms, node_id, model_name),
             )
 
-        # Update node load (simple increment, will be reset by heartbeat)
+        # Node request stats. current_load is now HUB-DERIVED in the heartbeat
+        # (V6) — no manual increment here (the old +5/cap-100 leaked/inflated).
         cur.execute(
             """
             UPDATE remote_nodes
-            SET current_load = LEAST(current_load + 5, 100),
-                total_requests = total_requests + 1,
+            SET total_requests = total_requests + 1,
                 successful_requests = successful_requests + %s,
                 failed_requests = failed_requests + %s,
                 updated_at = NOW()

@@ -1985,7 +1985,19 @@ def register_node_routes(bp, login_required, admin_required):
                     UPDATE remote_nodes
                     SET status = %s,
                         last_heartbeat = NOW(),
-                        current_load = %s,
+                        -- current_load is HUB-DERIVED, not node-reported (V6): the
+                        -- node's self-reported counter leaked (decrement skipped on
+                        -- error) and inflated unbounded, mis-routing + corrupting the
+                        -- ARMADA gauge. Derive a bounded, self-decaying value from the
+                        -- hub's own recent dispatch activity, capped at max_concurrent.
+                        current_load = LEAST(
+                            GREATEST(0, (
+                                SELECT COUNT(*) FROM task_execution_log t
+                                WHERE t.node_used_id = remote_nodes.id
+                                  AND t.created_at > NOW() - INTERVAL '2 minutes'
+                            )),
+                            COALESCE(max_concurrent, 5)
+                        ),
                         client_version = %s,
                         hostname = COALESCE(%s, hostname),
                         cpu_cores = COALESCE(%s, cpu_cores),
@@ -2022,7 +2034,6 @@ def register_node_routes(bp, login_required, admin_required):
                 """,
                     (
                         status,
-                        data.get("current_load", 0),
                         client_version,
                         data.get("hostname"),
                         data.get("cpu_cores"),
@@ -2506,15 +2517,8 @@ def register_node_routes(bp, login_required, admin_required):
                         }
                     )
 
-                # Increment load counter
-                cur.execute(
-                    """
-                    UPDATE remote_nodes
-                    SET current_load = current_load + 1
-                    WHERE id = %s
-                """,
-                    (node["id"],),
-                )
+                # current_load is now hub-derived in the heartbeat (V6) — no manual
+                # increment here (the old counter leaked and inflated unbounded).
 
                 from tools.department_hq.fleet_helpers import node_inter_cluster_host
 

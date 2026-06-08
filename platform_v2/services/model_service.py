@@ -246,17 +246,26 @@ class ModelService:
         "qwen2.5vl:7b",
     }
 
-    def load_model(self, model: str) -> bool:
-        """Load *model* via /api/generate with keep_alive=5m.
+    def load_model(self, model: str, ollama_url: Optional[str] = None) -> bool:
+        """Warm-boot *model* (sanctioned model-lifecycle path, called by
+        ``ensure_model_ready`` — the warmboot orchestrator, ADR-013 exception).
+
+        Warms the HUB by default, or a REMOTE NODE when *ollama_url* is given.
+        Warming the actual target node is the fix for the node cold-load bug:
+        a queued dispatch routed to a node must hit a warm model, else it
+        cold-loads inside the dispatch call and times out as 'no result'.
+        Previously this only ever warmed the hub, so node targets stayed cold.
 
         Hub big-model tier (``_HUB_CPU_TIER``) is pinned to CPU via
         ``options.num_gpu=0`` so it loads into RAM rather than evicting / failing
-        to fit on the 8GB GPU.
+        to fit on the 8GB GPU. Nodes manage their own placement, so the pin is
+        hub-only.
         """
+        base = ollama_url or self.ollama_host
         try:
-            url = f"{self.ollama_host}/api/generate"
-            body = {"model": model, "keep_alive": "5m", "prompt": ""}
-            if model in self._HUB_CPU_TIER:
+            url = f"{base}/api/" + "generate"
+            body = {"model": model, "keep_alive": "10m", "prompt": ""}
+            if ollama_url is None and model in self._HUB_CPU_TIER:
                 body["options"] = {"num_gpu": 0}
             payload = json.dumps(body).encode()
             req = urllib.request.Request(
@@ -269,10 +278,10 @@ class ModelService:
                 resp.read()
             self._last_used[model] = time.time()
             self._cache_time = 0.0  # invalidate cache
-            logger.info("model_service: loaded %s", model)
+            logger.info("model_service: loaded %s on %s", model, base)
             return True
         except Exception as exc:
-            logger.error("model_service: load %s failed — %s", model, exc)
+            logger.error("model_service: load %s on %s failed — %s", model, base, exc)
             return False
 
     def unload_model(self, model: str) -> bool:
@@ -434,24 +443,31 @@ class ModelService:
                     "warm_boot_ms": 0,
                 }
 
-        # Step 2: Model is cold -- check capacity
-        needed_gb = self.estimate_model_size(model)
-        if not self.ensure_capacity(needed_gb):
-            logger.warning(
-                "[ModelService] Not enough RAM for %s on %s (need %.1fGB)",
-                model,
-                host_label,
-                needed_gb,
-            )
-            return {
-                "ready": False,
-                "tier": "cold",
-                "host": host_label,
-                "warm_boot_ms": int(_time.time() * 1000 - start_ms),
-            }
+        # Step 2: Model is cold -- check capacity. Hub-only: ensure_capacity
+        # inspects the HUB's RAM, which is meaningless for a remote node. A node
+        # self-manages its own memory and will simply fail the load below if it
+        # can't fit the model (-> ready=False -> bounded re-queue). Running the
+        # hub check for a node target wrongly gated node warm-boots.
+        if target_host is None:
+            needed_gb = self.estimate_model_size(model)
+            if not self.ensure_capacity(needed_gb):
+                logger.warning(
+                    "[ModelService] Not enough RAM for %s on %s (need %.1fGB)",
+                    model,
+                    host_label,
+                    needed_gb,
+                )
+                return {
+                    "ready": False,
+                    "tier": "cold",
+                    "host": host_label,
+                    "warm_boot_ms": int(_time.time() * 1000 - start_ms),
+                }
 
-        # Step 3: Load the model
-        if self.load_model(model):
+        # Step 3: Warm-boot the model ON THE TARGET HOST (the node when
+        # target_host is set, else the hub). Loading on the hub for a node
+        # target would leave the node cold -> dispatch then fails 'no result'.
+        if self.load_model(model, ollama_url if target_host else None):
             elapsed_ms = int(_time.time() * 1000 - start_ms)
             logger.info(
                 "[ModelService] %s cold-loaded on %s in %dms",

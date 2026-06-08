@@ -91,11 +91,23 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
     """
     hub_warm = _get_warm_models_hub()
     result: dict[str, list] = {m: [None] for m in hub_warm}  # None = hub
+    # Capacity/affinity gate (#2516 / ADR-555): a model is only routed to a node
+    # that can actually hold it. Without this the warm-filter (is_available =
+    # PULLED) sends 7B onto 8GB CPU outposts that cold-load to disk and time out
+    # 'no result'; with Bug-B warm-boot it would instead *flood* them. score
+    # None == disqualified (capacity too small, or operator max_model_gb ceiling).
+    try:
+        from services.fleet_resource_router import score_node_for_model
+    except Exception:  # pragma: no cover - fail-open if router import breaks
+        score_node_for_model = None
     try:
         with get_db_cursor() as (_conn, cur):
             cur.execute(
                 """
-                SELECT rn.id, m.model_name
+                SELECT rn.id, m.model_name, rn.node_name,
+                       rn.gpu_available, rn.gpu_vram_gb, rn.ram_gb,
+                       rn.current_load, rn.gpu_model, rn.extra_capabilities,
+                       rn.last_heartbeat
                 FROM node_ollama_models m
                 JOIN remote_nodes rn ON rn.node_id = m.node_id
                 WHERE rn.is_active = TRUE
@@ -107,8 +119,23 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
             )
             for row in cur.fetchall():
                 name = row.get("model_name")
-                if name:
-                    result.setdefault(name, []).append(row["id"])
+                if not name:
+                    continue
+                # Skip nodes that can't safely run this model. Fail-open: any
+                # scoring error keeps the node (prior behaviour) so a router bug
+                # never starves the queue.
+                if score_node_for_model is not None:
+                    try:
+                        if score_node_for_model(row, name) is None:
+                            log.debug(
+                                "model_dispatch: %s skipped for %s — capacity gate",
+                                row.get("node_name"),
+                                name,
+                            )
+                            continue
+                    except Exception:
+                        pass
+                result.setdefault(name, []).append(row["id"])
     except Exception as exc:
         log.debug("model_dispatch: all-nodes warm-model check failed: %s", exc)
     return result

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
@@ -90,16 +91,24 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
     of first-wins monopolising all work for a given model.
     """
     hub_warm = _get_warm_models_hub()
-    result: dict[str, list] = {m: [None] for m in hub_warm}  # None = hub
-    # Capacity/affinity gate (#2516 / ADR-555): a model is only routed to a node
-    # that can actually hold it. Without this the warm-filter (is_available =
-    # PULLED) sends 7B onto 8GB CPU outposts that cold-load to disk and time out
-    # 'no result'; with Bug-B warm-boot it would instead *flood* them. score
-    # None == disqualified (capacity too small, or operator max_model_gb ceiling).
+    # DRP guard: on a promoted DR host (ARCHIE_DR_MODE=1) shed inference so the
+    # box's RAM/CPU stays with the standby platform + DR replica + watch products.
+    # Skip the LOCAL hub models entirely and drop CPU-only nodes below — only
+    # reachable GPU nodes keep serving; if none are reachable the queue simply
+    # waits (survival mode). Citadel/boston-2 is the DR base, so this is "Citadel
+    # sheds inference so failover gets the full box".
+    dr_mode = os.getenv("ARCHIE_DR_MODE", "0") == "1"
+    result: dict[str, list] = {} if dr_mode else {m: [None] for m in hub_warm}  # None = hub
+    # Capacity gate (#2516 / ADR-555): a model is only routed to a node that can
+    # actually hold it. Without this the warm-filter (is_available = PULLED) sends
+    # 7B onto 8GB CPU outposts that cold-load to disk and time out 'no result';
+    # with Bug-B warm-boot it would instead *flood* them. Uses the FIT-only
+    # predicate so the noisy current_load counter can't wrongly disqualify a
+    # capable, idle node.
     try:
-        from services.fleet_resource_router import score_node_for_model
+        from services.fleet_resource_router import can_node_run_model
     except Exception:  # pragma: no cover - fail-open if router import breaks
-        score_node_for_model = None
+        can_node_run_model = None
     try:
         with get_db_cursor() as (_conn, cur):
             cur.execute(
@@ -121,12 +130,15 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
                 name = row.get("model_name")
                 if not name:
                     continue
-                # Skip nodes that can't safely run this model. Fail-open: any
-                # scoring error keeps the node (prior behaviour) so a router bug
-                # never starves the queue.
-                if score_node_for_model is not None:
+                # DRP guard: in DR mode shed CPU inference (keep GPU nodes only).
+                if dr_mode and not row.get("gpu_available"):
+                    continue
+                # Skip nodes that can't safely hold this model. Fail-open: any
+                # error keeps the node (prior behaviour) so a router bug never
+                # starves the queue.
+                if can_node_run_model is not None:
                     try:
-                        if score_node_for_model(row, name) is None:
+                        if not can_node_run_model(row, name):
                             log.debug(
                                 "model_dispatch: %s skipped for %s — capacity gate",
                                 row.get("node_name"),

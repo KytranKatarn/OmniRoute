@@ -71,6 +71,34 @@ def gpu_perf_weight(gpu_model) -> float:
     return 0.3
 
 
+def can_node_run_model(node: dict[str, Any], model: str) -> bool:
+    """Capacity-only check: can this node physically hold *model*?
+
+    This is the FIT predicate, deliberately independent of transient load /
+    heartbeat freshness (unlike score_node_for_model, which folds those in for
+    RANKING). Routing gates should use this so a noisy current_load counter can
+    never wrongly disqualify a capable, idle node. Mirrors the disqualify branch
+    of score_node_for_model: a prefer_gpu model fits if it lands on a big-enough
+    GPU; otherwise it must fit the node's CPU ceiling (operator max_model_gb, else
+    ram_gb).
+    """
+    if not node or not model:
+        return False
+    footprint = lookup(model)
+    extra = node.get("extra_capabilities") or {}
+    if not isinstance(extra, dict):
+        extra = {}
+    gpu_avail = bool(node.get("gpu_available"))
+    gpu_vram = float(_safe(node.get("gpu_vram_gb"), 0))
+    ram_gb = float(_safe(node.get("ram_gb"), 0))
+    declared_cap = extra.get("max_model_gb")
+    if footprint.prefer_gpu and gpu_avail and footprint.vram_gb <= gpu_vram:
+        return True  # fits on GPU
+    cap = float(declared_cap) if declared_cap is not None else ram_gb
+    required = max(footprint.vram_gb, footprint.ram_gb)
+    return required <= cap
+
+
 def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     """Score a fleet node for a given model.
 

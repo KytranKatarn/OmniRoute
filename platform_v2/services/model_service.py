@@ -26,12 +26,29 @@ _DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB
 # Models required by the Consciousness / embedding pipeline — never evict first
 CONSCIOUSNESS_MODELS = {"arctic-embed-cpu:latest", "mistral:7b"}
 
-# Global serialisation lock — only one GPU model loads at a time.
-# Concurrent loads cause CUDA graph_reserve failures (compute buffer fragmentation).
-# Acquired by ensure_model_ready() regardless of caller (dispatcher, warmup, queue worker).
+# Per-HOST model-load serialisation. The original SINGLE global lock serialised
+# EVERY warm-boot fleet-wide, so one slow remote cold-load (e.g. ~84s on a CPU
+# node) blocked the hub + every Starship — the systemic dispatch stall. The only
+# invariant that must serialise is "one concurrent load per physical device"
+# (CUDA graph_reserve fragmentation on the hub's single GPU); that is per-HOST,
+# not global. Separate hosts (hub / each Starship / each outpost / Citadel) now
+# load concurrently. Keyed by the SAME host_label ensure_model_ready computes.
 import threading as _threading
 
-_MODEL_LOAD_LOCK = _threading.Lock()
+_MODEL_LOAD_LOCKS: dict = {}
+_MODEL_LOAD_LOCKS_GUARD = _threading.Lock()
+
+
+def _get_model_load_lock(host_label):
+    """Return (creating on first use) the per-host model-load lock for *host_label*."""
+    lk = _MODEL_LOAD_LOCKS.get(host_label)
+    if lk is None:
+        with _MODEL_LOAD_LOCKS_GUARD:
+            lk = _MODEL_LOAD_LOCKS.get(host_label)
+            if lk is None:
+                lk = _threading.Lock()
+                _MODEL_LOAD_LOCKS[host_label] = lk
+    return lk
 
 
 # ---------------------------------------------------------------------------
@@ -388,19 +405,31 @@ class ModelService:
 
         start_ms = _time.time() * 1000
 
-        # Serialise GPU loads — wait up to 150s for any concurrent load to finish.
-        # Prevents CUDA graph_reserve fragmentation when warmup / multiple jobs race.
-        if not _MODEL_LOAD_LOCK.acquire(timeout=150):
-            logger.warning("model_service: model_load_lock timeout waiting to load %s", model)
+        # Per-HOST serialisation (not global): only loads on the SAME physical
+        # device serialise. The hub's single GPU still loads one model at a time
+        # (CUDA graph_reserve), but a slow remote cold-load no longer blocks the
+        # hub or other nodes. host_label MUST match _ensure_model_ready_locked.
+        if target_host:
+            _h = target_host.get("hostname", "unknown")
+            _p = target_host.get("port", 11434)
+        else:
+            _h = self.ollama_host.replace("http://", "").replace("https://", "")
+            _p = 11434
+        host_label = f"{_h}:{_p}" if ":" not in str(_h) else str(_h)
+        load_lock = _get_model_load_lock(host_label)
+
+        # Wait up to 150s for any concurrent load ON THIS HOST to finish.
+        if not load_lock.acquire(timeout=150):
+            logger.warning("model_service: model_load_lock timeout waiting to load %s on %s", model, host_label)
             return {"ready": False, "tier": "cold", "host": str(target_host), "warm_boot_ms": 150000}
 
         try:
             return self._ensure_model_ready_locked(agent_name, model, target_host, start_ms)
         finally:
-            _MODEL_LOAD_LOCK.release()
+            load_lock.release()
 
     def _ensure_model_ready_locked(self, agent_name, model, target_host, start_ms):
-        """Actual ensure_model_ready logic — called while _MODEL_LOAD_LOCK is held."""
+        """Actual ensure_model_ready logic — called while the per-host load lock is held."""
         import time as _time
 
         if target_host:

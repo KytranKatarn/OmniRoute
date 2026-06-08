@@ -113,7 +113,7 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
         with get_db_cursor() as (_conn, cur):
             cur.execute(
                 """
-                SELECT rn.id, m.model_name, rn.node_name,
+                SELECT rn.id, m.model_name, rn.node_name, rn.deployment_mode,
                        rn.gpu_available, rn.gpu_vram_gb, rn.ram_gb,
                        rn.current_load, rn.gpu_model, rn.extra_capabilities,
                        rn.last_heartbeat
@@ -147,25 +147,49 @@ def _get_all_warm_nodes_for_models() -> dict[str, list[Optional[int]]]:
                             continue
                     except Exception:
                         pass
-                result.setdefault(name, []).append(row["id"])
+                # The hub (deployment_mode='starbase') is ALSO a remote_nodes row,
+                # so it shows up here as a node id (host.docker.internal) on top of
+                # the None sentinel from _get_warm_models_hub. Collapse it back to
+                # None — deduped + ordered last — so a prefer_gpu 7B is never drained
+                # to the hub as a "fleet node" (it would run on the hub's CPU and
+                # blow the 300s read-timeout; the #3809 root cause). Hub execution
+                # goes through the proven None/hub path.
+                lst = result.setdefault(name, [])
+                if row.get("deployment_mode") == "starbase":
+                    if None not in lst:
+                        lst.append(None)
+                else:
+                    lst.append(row["id"])
     except Exception as exc:
         log.debug("model_dispatch: all-nodes warm-model check failed: %s", exc)
 
-    # P2b/V8 (#3803): for CPU-tier (non-prefer_gpu) models, put the HUB (None) LAST
-    # in each model's node list so small work drains to idle outposts first instead
-    # of piling on the hub (which the fleet tier reserves for large/GPU + platform
-    # core). prefer_gpu models keep hub-first. Skip models warm ONLY on the hub
-    # (len 1) so nothing is stranded. Fail-open: ordering is best-effort.
-    try:
-        from services.model_sizes import lookup as _footprint
-
-        for _m, _nodes in result.items():
-            if len(_nodes) > 1 and None in _nodes and not _footprint(_m).prefer_gpu:
-                _nodes.remove(None)
-                _nodes.append(None)
-    except Exception:
-        pass
+    # Hub-last ordering (#3803 P2b/V8 + #3809 Fix B): the worker drains each model's
+    # node list IN ORDER, so the FIRST node claims the tasks. Put the HUB (None) LAST
+    # for every multi-node model so fleet nodes drain first and the hub is the
+    # last-resort fallback.
+    #   * CPU-tier models: keeps small work off the hub (drains to idle outposts).
+    #   * prefer_gpu 7B models (#3809): the hub's Quadro M4000 can't hold a 7B
+    #     alongside the warm set, so a 7B on the hub runs on CPU and blows the 300s
+    #     read-timeout (the F.O.R.G.E. code_review failure). A GPU fleet node (RTX
+    #     Starship) MUST drain it first. Previously prefer_gpu kept the hub FIRST,
+    #     which is exactly backwards for 7B.
+    # Models warm ONLY on the hub (len-1 list, e.g. gemma3:12b that fits nowhere
+    # else) are untouched. Fail-open: ordering is best-effort.
+    for _nodes in result.values():
+        _order_nodes_hub_last(_nodes)
     return result
+
+
+def _order_nodes_hub_last(nodes: list) -> None:
+    """In-place: move the hub sentinel (None) to the end of a multi-node list.
+
+    No-op for len<=1 (model warm only on one place — never strand it) or when the
+    hub isn't in the list. Pure + side-effect-free besides the in-place reorder, so
+    it's unit-testable without the DB.
+    """
+    if len(nodes) > 1 and None in nodes:
+        nodes.remove(None)
+        nodes.append(None)
 
 
 # ── Fleet model reconciliation + auto-heal (2026-05-29) ───────────────────────

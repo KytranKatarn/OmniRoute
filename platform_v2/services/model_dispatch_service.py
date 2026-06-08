@@ -783,6 +783,52 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
         log.debug("model_dispatch: callback failed for task %d: %s", task_id, exc)
 
 
+def _log_to_tel(task: dict, result: dict, model_used: str, node_id) -> None:
+    """Mirror a queue-drained dispatch into task_execution_log (P1.2, #3801).
+
+    The queue worker calls disp._dispatch_to_node()/_execute_llm() DIRECTLY,
+    bypassing request_work()/_log_execution — so queue-drained dispatches + their
+    tokens never reached TEL and were invisible in Token Economy + ARMADA (~1.4k
+    dispatches / ~209k tokens a day). Build a DispatchResult from the raw result
+    and reuse the canonical writer so every column + the token-gap instrumentation
+    match the sync path. Best-effort: never let logging break the drain.
+    """
+    try:
+        from tools.department_hq.services.department_dispatcher import (
+            DispatchResult,
+            get_dispatcher,
+        )
+
+        prompt_toks = int(result.get("prompt_eval_count") or result.get("prompt_tokens") or 0)
+        completion_toks = int(result.get("eval_count") or result.get("completion_tokens") or 0)
+        if prompt_toks == 0 and completion_toks == 0:
+            completion_toks = int(result.get("tokens_used") or 0)
+        # via= tags request_metadata so queue-drained rows are distinguishable
+        # from sync dispatch() rows (provenance + verification). node_id (when set)
+        # is read by _log_execution for the node_used_id column.
+        meta = {"via": "model_dispatch_worker"}
+        if node_id is not None:
+            meta["node_id"] = node_id
+        dr = DispatchResult(
+            success=True,
+            response=result.get("response", "") or "",
+            agent_name=task.get("agent_name") or "model_dispatch",
+            model_used=result.get("model") or model_used,
+            capability=task.get("capability", "") or "",
+            prompt_tokens=prompt_toks,
+            completion_tokens=completion_toks,
+            provider="ollama",
+            metadata=meta,
+            queued=False,
+        )
+        # source_product is the meaningful attribution (wtf_hub, wtf_dhq_*, …) so
+        # module_source is never a useless "unknown" bucket for queue work.
+        module_id = task.get("source_product") or task.get("module_id") or "model_dispatch"
+        get_dispatcher()._log_execution(dr, module_id, task.get("user_id"))
+    except Exception as exc:  # never let TEL logging break the drain
+        log.debug("model_dispatch: TEL log failed (non-fatal): %s", exc)
+
+
 def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
     """Run a single queued task through the dispatcher's LLM execution."""
     task_id = task["id"]
@@ -892,6 +938,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                     or result.get("tokens_used", 0)
                 )
                 _mark_done(task_id, result.get("response", ""), model, node_tokens, node_id)
+                _log_to_tel(task, result, model, node_id)
             else:
                 _mark_failed(task_id, result.get("error", "node dispatch failed") if result else "no result")
         else:
@@ -923,6 +970,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                 tokens = result.get("eval_count") or result.get("completion_tokens", 0)
                 response = result.get("response", "")
                 _mark_done(task_id, response, result.get("model", model), tokens, None)
+                _log_to_tel(task, result, result.get("model", model), None)
                 # Pipeline continuation: social draft → translate → Telegram approval
                 if task.get("capability") == "social_post_draft" and response:
                     _continue_signal_pipeline(task, response)

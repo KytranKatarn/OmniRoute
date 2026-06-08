@@ -3564,7 +3564,8 @@ function triggerPRAnalysis(prNumber) {
 
 function confirmMergePR(prNumber) {
     if (!confirm('Merge PR #' + prNumber + ' into main?')) return;
-    fetch('/tools/repair-bay/api/forge/deploy/' + prNumber, {method:'POST', headers:{'Content-Type':'application/json'}})
+    fetch('/tools/repair-bay/api/forge/prs/' + prNumber + '/merge',
+          {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({method:'squash'})})
         .then(function(r){ return r.json(); }).then(function(d) {
             if (d.success) { window.loadPRReviews(_prStateFilter); }
             else { alert('Merge failed: ' + (d.error || 'Unknown')); }

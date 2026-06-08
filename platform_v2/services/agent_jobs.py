@@ -3826,17 +3826,18 @@ def recalibrate_token_budgets():
                   AND agent_id IS NOT NULL
                 GROUP BY agent_id, d
             )
-            SELECT da.agent_id, a.name,
+            SELECT da.agent_id, a.name, a.model,
                    percentile_cont(0.9) WITHIN GROUP (ORDER BY da.toks) AS p90,
                    COUNT(*) AS active_days
             FROM daily da
             JOIN agents a ON a.id = da.agent_id AND a.worker_type = 'ai'
-            GROUP BY da.agent_id, a.name
+            GROUP BY da.agent_id, a.name, a.model
             """
         )
         rows = cur.fetchall() or []
 
-        FLOOR_TOKENS = 50_000
+        from services.welfare_load import clamp_budget_to_band
+
         HEADROOM = 1.3
         MIN_DAYS = 3
         changes = []
@@ -3844,7 +3845,9 @@ def recalibrate_token_budgets():
             if (r["active_days"] or 0) < MIN_DAYS:
                 skipped += 1
                 continue
-            new_limit = max(FLOOR_TOKENS, int(round(float(r["p90"] or 0) * HEADROOM)))
+            # Per-LLM clamp (item C): tune within [base*0.75, base*2] of the model's base
+            # budget — no flat 50k floor, no runaway balloon (the V.E.R.I.F.Y. 1.6M bug).
+            new_limit = clamp_budget_to_band(float(r["p90"] or 0) * HEADROOM, r.get("model"))
             # Only touch existing rows whose limit actually changes (no-op otherwise).
             cur.execute(
                 """

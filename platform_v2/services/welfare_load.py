@@ -33,6 +33,56 @@ PRODUCTIVE_HOURS_PER_DAY = 10.0
 # budget does NOT make every dispatch read as fully loaded (over-sensitive).
 DEFAULT_TOKEN_LIMIT_PER_DAY = 150_000
 
+# ── Per-LLM base daily token budgets — the C.R.E.E.D. welfare/capacity baseline ──
+# Each model tier gets a quota reflecting its sustainable daily compute load. This is
+# the BASE; weekly recalibration tunes within [base*BAND_LOW, base*BAND_HIGH] from real
+# p90 usage, so no agent balloons past a sane per-model ceiling (the V.E.R.I.F.Y. 1.6M
+# bug, where p90-of-overwork inflated the budget so the 'at limit' check never fired).
+# K.I.N. staffs against these: when a capability's agents exhaust their budgets, that is
+# the signal to reactivate a specialist or propose_hire a new agent. Tune freely.
+MODEL_TOKEN_BUDGETS = {
+    # small / fast — high small-task throughput
+    "qwen2.5:1.5b": 75_000,
+    "llama3.2:3b": 75_000,
+    # ~3-4b utility
+    "phi3.5:latest": 60_000,
+    "qwen25-classify": 60_000,
+    # 7b workhorses
+    "mistral:7b": 120_000,
+    "qwen2.5:7b": 120_000,
+    "qwen2.5-coder:7b": 120_000,
+    "qwen2.5vl:7b": 120_000,
+    "dolphin3:latest": 100_000,
+    # 12b heavy / slower — lower sustainable daily volume
+    "gemma3:12b": 90_000,
+    # embedding (non-conversational)
+    "arctic-embed-cpu:latest": 50_000,
+    "nomic-embed-text": 50_000,
+}
+
+# Recalibration band: real usage tunes a budget within these multiples of the model base.
+BUDGET_BAND_LOW = 0.75
+BUDGET_BAND_HIGH = 2.0
+
+
+def base_budget_for_model(model):
+    """Per-LLM base daily token budget. Unknown/None model → DEFAULT (never tiny/runaway)."""
+    if not model:
+        return DEFAULT_TOKEN_LIMIT_PER_DAY
+    return MODEL_TOKEN_BUDGETS.get(str(model).strip(), DEFAULT_TOKEN_LIMIT_PER_DAY)
+
+
+def clamp_budget_to_band(usage_derived_budget, model):
+    """Clamp a usage-derived budget (e.g. p90*headroom) into [base*0.75, base*2] for the model.
+
+    Prevents starvation (a busy agent floored too low) AND runaway balloon (an overworked
+    agent's p90 inflating its budget until welfare can never flag it)."""
+    base = base_budget_for_model(model)
+    low = int(base * BUDGET_BAND_LOW)
+    high = int(base * BUDGET_BAND_HIGH)
+    return max(low, min(high, int(round(usage_derived_budget))))
+
+
 # Tokens dominate (they are the real compute/cost signal); wall-clock duration is a
 # FLOOR so a long but token-cheap job still registers as occupancy.
 TOKEN_WEIGHT = 0.7

@@ -809,10 +809,18 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             disp = get_dispatcher()
             # Readiness preflight (WTF 'ready-or-queue' standard): the node warm-filter is
             # is_available=PULLED, not LOADED, so this node may be cold. ensure_model_ready
-            # loads it (blocking ~120s); if still not ready, RE-QUEUE instead of dispatching
-            # into a cold model and failing 'no result'.
+            # checks the node's live /api/ps (and warms it); if still not ready, RE-QUEUE
+            # instead of dispatching into a cold model and failing 'no result'.
+            # NOTE: target_host MUST be a dict {"hostname", "port"} — model_service does
+            # target_host.get("hostname"); passing a bare string raised
+            # "'str' object has no attribute 'get'" on EVERY node preflight, which silently
+            # re-queued all node-bound 7B work forever (regression from #1515).
             try:
-                _rd = disp.ensure_model_ready(task.get("agent_name") or "model_dispatch", model, node_hostname)
+                _rd = disp.ensure_model_ready(
+                    task.get("agent_name") or "model_dispatch",
+                    model,
+                    {"hostname": node_hostname, "port": node_port},
+                )
             except Exception as _re:
                 log.warning("model_dispatch: node ensure_model_ready(%s,%s) failed: %s", node_name, model, _re)
                 _rd = None

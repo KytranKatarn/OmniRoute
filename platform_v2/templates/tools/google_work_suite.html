@@ -56,7 +56,8 @@
       <div class="cs-ops-status" id="gwsOpsOnline">
         <span class="cs-ops-dot"></span> ONLINE
       </div>
-      <div class="gws-vault-chip" id="gwsVaultChip" title="Email Memory Vault — % of discovered mail sorted">
+      <div class="gws-vault-chip" id="gwsVaultChip" onclick="openVaultModal()"
+           style="cursor:pointer" title="Open your Memory Vault — profile + life timeline">
         <span class="gws-vault-chip-label">MEMORY VAULT</span>
         <div class="gws-vault-bar"><div class="gws-vault-fill" id="gwsVaultFill"></div></div>
         <span class="gws-vault-chip-pct" id="gwsVaultPct">—</span>
@@ -84,6 +85,20 @@
       <div id="gwsOpsAgents"></div>
       <div id="gwsOpsJobs"></div>
       <div class="cs-ops-commands" id="gwsOpsCommands"></div>
+    </div>
+  </div>
+
+  <!-- Memory Vault modal -->
+  <div class="gws-vault-overlay" id="gwsVaultOverlay" style="display:none"
+       onclick="if(event.target===this)closeVaultModal()">
+    <div class="gws-vault-modal">
+      <div class="gws-vault-modal-head">
+        <span class="gws-vault-modal-title">🧠 Your Memory Vault</span>
+        <button class="gws-btn gws-btn-ghost" onclick="closeVaultModal()">✕</button>
+      </div>
+      <div class="gws-vault-modal-body" id="gwsVaultModalBody">
+        <p class="gws-empty-state">Loading…</p>
+      </div>
     </div>
   </div>
 
@@ -625,6 +640,118 @@
     toast('Cloud AI (' + name + ') is a paid tier — coming soon. Enabling it would send your '
       + 'email content to ' + name + '. The Local tier keeps everything private on our cluster.', true);
   };
+
+  // ── Memory Vault modal — your profile + source-linked life timeline ──────
+  window.closeVaultModal = function () {
+    var o = document.getElementById('gwsVaultOverlay');
+    if (o) o.style.display = 'none';
+  };
+
+  function _vaultSectionTitle(text) {
+    var h = document.createElement('div');
+    h.className = 'gws-vault-section-title';
+    h.textContent = text;
+    return h;
+  }
+
+  window.openVaultModal = async function () {
+    var o = document.getElementById('gwsVaultOverlay');
+    var body = document.getElementById('gwsVaultModalBody');
+    if (!o || !body) return;
+    o.style.display = 'flex';
+    clearEl(body);
+    var loading = document.createElement('p');
+    loading.className = 'gws-empty-state';
+    loading.textContent = 'Loading your profile…';
+    body.appendChild(loading);
+    try {
+      var d = await api('GET', '/api/memory-vault/profile');
+      clearEl(body);
+      var p = d.profile;
+      if (p && p.summary) {
+        body.appendChild(_vaultSectionTitle('Who you are'));
+        var sum = document.createElement('p');
+        sum.className = 'gws-vault-summary';
+        sum.textContent = p.summary;
+        body.appendChild(sum);
+        if (p.default_voice) {
+          var v = document.createElement('p');
+          v.className = 'gws-vault-voice';
+          v.textContent = 'Voice: ' + p.default_voice;
+          body.appendChild(v);
+        }
+        if (p.timeline && p.timeline.length) {
+          body.appendChild(_vaultSectionTitle('Timeline'));
+          var tl = document.createElement('div');
+          tl.className = 'gws-vault-timeline';
+          p.timeline.forEach(function (ev) {
+            var row = document.createElement('div');
+            row.className = 'gws-vault-tl-row';
+            var dt = document.createElement('span');
+            dt.className = 'gws-vault-tl-date';
+            dt.textContent = ev.date || '';
+            row.appendChild(dt);
+            var et = document.createElement('span');
+            et.className = 'gws-vault-tl-event';
+            et.textContent = ev.event || '';
+            row.appendChild(et);
+            tl.appendChild(row);
+          });
+          body.appendChild(tl);
+        }
+      } else {
+        var none = document.createElement('p');
+        none.className = 'gws-empty-state';
+        none.textContent = 'No profile yet — the vault is still reading your mail. Check back soon.';
+        body.appendChild(none);
+      }
+      if (d.facts && d.facts.length) {
+        body.appendChild(_vaultSectionTitle('From your mail — click any to open the source'));
+        var fl = document.createElement('div');
+        fl.className = 'gws-vault-facts';
+        d.facts.forEach(function (f) {
+          var row = document.createElement('div');
+          row.className = 'gws-vault-fact';
+          if (f.gmail_id) {
+            row.style.cursor = 'pointer';
+            row.title = 'Open the source email';
+            row.addEventListener('click', function () { openVaultSource(f.account_id, f.gmail_id); });
+          }
+          var fd = document.createElement('span');
+          fd.className = 'gws-vault-fact-date';
+          fd.textContent = f.date || '';
+          row.appendChild(fd);
+          var ft = document.createElement('span');
+          ft.className = 'gws-vault-fact-type';
+          ft.textContent = f.type;
+          row.appendChild(ft);
+          var fc = document.createElement('span');
+          fc.className = 'gws-vault-fact-content';
+          fc.textContent = (f.subject ? f.subject + ': ' : '') + f.content;
+          row.appendChild(fc);
+          fl.appendChild(row);
+        });
+        body.appendChild(fl);
+      }
+    } catch (err) {
+      clearEl(body);
+      var e = document.createElement('p');
+      e.className = 'gws-empty-state';
+      e.textContent = 'Failed to load: ' + err.message;
+      body.appendChild(e);
+    }
+  };
+
+  function openVaultSource(accountId, gmailId) {
+    closeVaultModal();
+    if (accountId && String(accountId) !== String(_currentAccountId)) {
+      var sel = document.getElementById('gwsAccountSelect');
+      if (sel) { sel.value = String(accountId); }
+      if (typeof selectAccount === 'function') selectAccount(accountId);
+    }
+    if (typeof switchGwsTab === 'function') switchGwsTab('inbox');
+    if (typeof viewEmail === 'function') viewEmail(gmailId);
+  }
 
   document.addEventListener('DOMContentLoaded', function () {
     window.loadVaultProgress();

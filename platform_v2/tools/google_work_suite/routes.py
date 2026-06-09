@@ -122,7 +122,9 @@ def disconnect_account(account_id):
     if not acct:
         return jsonify({"error": "Account not found"}), 404
 
-    result = svc_disconnect(account_id, acct.get("owner_type", "user"), acct.get("owner_id"))
+    result = svc_disconnect(
+        account_id, acct.get("owner_type", "user"), acct.get("owner_id")
+    )
     if result.get("success"):
         return jsonify({"success": True})
     return jsonify({"error": result.get("error", "Failed to disconnect")}), 400
@@ -169,12 +171,14 @@ def memory_vault_progress():
 
         for a in rows:
             cur.execute(
-                "SELECT total_enumerated, enumeration_complete " "FROM profile_account_cursor WHERE account_id = %s",
+                "SELECT total_enumerated, enumeration_complete "
+                "FROM profile_account_cursor WHERE account_id = %s",
                 (a["id"],),
             )
             crow = cur.fetchone() or {}
             cur.execute(
-                "SELECT state, COUNT(*) AS n FROM profile_ingest_ledger " "WHERE account_id = %s GROUP BY state",
+                "SELECT state, COUNT(*) AS n FROM profile_ingest_ledger "
+                "WHERE account_id = %s GROUP BY state",
                 (a["id"],),
             )
             states = {r["state"]: r["n"] for r in cur.fetchall()}
@@ -187,7 +191,8 @@ def memory_vault_progress():
             triaged = important + bulk + error
             pct = round(100.0 * triaged / enumerated, 1) if enumerated else 0.0
             cur.execute(
-                "SELECT COALESCE(SUM(size_bytes), 0) AS b FROM profile_ingest_ledger " "WHERE account_id = %s",
+                "SELECT COALESCE(SUM(size_bytes), 0) AS b FROM profile_ingest_ledger "
+                "WHERE account_id = %s",
                 (a["id"],),
             )
             acct_bytes = int(cur.fetchone()["b"] or 0)
@@ -213,8 +218,61 @@ def memory_vault_progress():
             totals["error"] += error
             totals["size_bytes"] += acct_bytes
 
-    totals["percent"] = round(100.0 * totals["triaged"] / totals["enumerated"], 1) if totals["enumerated"] else 0.0
+    totals["percent"] = (
+        round(100.0 * totals["triaged"] / totals["enumerated"], 1)
+        if totals["enumerated"]
+        else 0.0
+    )
     return jsonify({"enabled": enabled, "accounts": accounts, "total": totals})
+
+
+@google_work_suite_bp.route("/api/memory-vault/profile")
+@login_required
+def memory_vault_profile():
+    """Read-only: the owner's synthesized profile + a chronological, source-linked fact timeline."""
+    from database import get_db_cursor
+
+    uid = current_user.id
+    profile = None
+    facts = []
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT summary, default_voice, timeline, updated_at "
+            "FROM profile_owner WHERE owner_id = %s",
+            (uid,),
+        )
+        prow = cur.fetchone()
+        if prow:
+            profile = {
+                "summary": prow["summary"],
+                "default_voice": prow["default_voice"],
+                "timeline": prow["timeline"] or [],
+                "updated_at": (
+                    prow["updated_at"].isoformat() if prow.get("updated_at") else None
+                ),
+            }
+        cur.execute(
+            "SELECT f.fact_type, f.subject, f.content, f.account_id, f.source_gmail_id, "
+            "       to_char(c.received_at, 'YYYY-MM-DD') AS d "
+            "FROM profile_facts f "
+            "LEFT JOIN google_email_cache c "
+            "  ON c.account_id = f.account_id AND c.gmail_id = f.source_gmail_id "
+            "WHERE f.owner_id = %s "
+            "ORDER BY c.received_at DESC NULLS LAST LIMIT 80",
+            (uid,),
+        )
+        for r in cur.fetchall():
+            facts.append(
+                {
+                    "type": r["fact_type"],
+                    "subject": r["subject"],
+                    "content": r["content"],
+                    "account_id": r["account_id"],
+                    "gmail_id": r["source_gmail_id"],
+                    "date": r["d"],
+                }
+            )
+    return jsonify({"profile": profile, "facts": facts})
 
 
 # ---------------------------------------------------------------------------
@@ -255,7 +313,12 @@ def get_labels(account_id):
                 "IMPORTANT",
             ):
                 try:
-                    detail = service.users().labels().get(userId="me", id=lbl["id"]).execute()
+                    detail = (
+                        service.users()
+                        .labels()
+                        .get(userId="me", id=lbl["id"])
+                        .execute()
+                    )
                     info["messagesTotal"] = detail.get("messagesTotal", 0)
                     info["messagesUnread"] = detail.get("messagesUnread", 0)
                 except Exception:
@@ -291,7 +354,9 @@ def get_inbox(account_id):
     if not messages and page == 1:
         try:
             svc_sync_inbox(account_id, label_ids=[label] if label else None)
-            messages = svc_get_inbox(account_id, page, per_page, label if label else None)
+            messages = svc_get_inbox(
+                account_id, page, per_page, label if label else None
+            )
         except Exception:
             pass
 
@@ -317,7 +382,9 @@ def get_email(account_id, gmail_id):
     return jsonify(result)
 
 
-@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/read", methods=["POST"])
+@google_work_suite_bp.route(
+    "/api/email/<int:account_id>/<gmail_id>/read", methods=["POST"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def mark_as_read(account_id, gmail_id):
@@ -328,7 +395,9 @@ def mark_as_read(account_id, gmail_id):
 
     try:
         service = get_gmail_client(account_id)
-        service.users().messages().modify(userId="me", id=gmail_id, body={"removeLabelIds": ["UNREAD"]}).execute()
+        service.users().messages().modify(
+            userId="me", id=gmail_id, body={"removeLabelIds": ["UNREAD"]}
+        ).execute()
         # Update local cache
         from database import get_db_cursor
 
@@ -342,7 +411,9 @@ def mark_as_read(account_id, gmail_id):
         return jsonify({"error": str(e)}), 500
 
 
-@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>", methods=["DELETE"])
+@google_work_suite_bp.route(
+    "/api/email/<int:account_id>/<gmail_id>", methods=["DELETE"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def trash_email(account_id, gmail_id):
@@ -413,7 +484,9 @@ def sync_inbox(account_id):
 # ---------------------------------------------------------------------------
 
 
-@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/analyze", methods=["POST"])
+@google_work_suite_bp.route(
+    "/api/email/<int:account_id>/<gmail_id>/analyze", methods=["POST"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def analyze_email_route(account_id, gmail_id):
@@ -428,7 +501,9 @@ def analyze_email_route(account_id, gmail_id):
     return jsonify({"success": True, **result})
 
 
-@google_work_suite_bp.route("/api/email/<int:account_id>/analyze-batch", methods=["POST"])
+@google_work_suite_bp.route(
+    "/api/email/<int:account_id>/analyze-batch", methods=["POST"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def analyze_batch_route(account_id):
@@ -443,7 +518,9 @@ def analyze_batch_route(account_id):
     return jsonify(result)
 
 
-@google_work_suite_bp.route("/api/email/<int:account_id>/<gmail_id>/file-kb", methods=["POST"])
+@google_work_suite_bp.route(
+    "/api/email/<int:account_id>/<gmail_id>/file-kb", methods=["POST"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def file_to_kb_route(account_id, gmail_id):
@@ -551,7 +628,9 @@ def create_rule(account_id):
     return jsonify({"success": True, "rule_id": rule_id})
 
 
-@google_work_suite_bp.route("/api/rules/<int:account_id>/<int:rule_id>", methods=["DELETE"])
+@google_work_suite_bp.route(
+    "/api/rules/<int:account_id>/<int:rule_id>", methods=["DELETE"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def delete_rule(account_id, rule_id):
@@ -569,7 +648,9 @@ def delete_rule(account_id, rule_id):
     return jsonify({"success": True})
 
 
-@google_work_suite_bp.route("/api/rules/<int:account_id>/<int:rule_id>", methods=["PATCH"])
+@google_work_suite_bp.route(
+    "/api/rules/<int:account_id>/<int:rule_id>", methods=["PATCH"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_EMAIL)
 def update_rule(account_id, rule_id):
@@ -598,7 +679,9 @@ def update_rule(account_id, rule_id):
     params.extend([rule_id, account_id])
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE google_email_rules SET " + ", ".join(sets) + " WHERE id = %s AND account_id = %s",
+            "UPDATE google_email_rules SET "
+            + ", ".join(sets)
+            + " WHERE id = %s AND account_id = %s",
             params,
         )
         updated = cur.rowcount
@@ -671,7 +754,9 @@ def create_calendar_event(account_id):
     return jsonify(result)
 
 
-@google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>", methods=["PUT"])
+@google_work_suite_bp.route(
+    "/api/calendar/<int:account_id>/events/<event_id>", methods=["PUT"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_CALENDAR)
 def update_calendar_event(account_id, event_id):
@@ -687,7 +772,9 @@ def update_calendar_event(account_id, event_id):
     return jsonify(result)
 
 
-@google_work_suite_bp.route("/api/calendar/<int:account_id>/events/<event_id>", methods=["DELETE"])
+@google_work_suite_bp.route(
+    "/api/calendar/<int:account_id>/events/<event_id>", methods=["DELETE"]
+)
 @login_required
 @require_permission(Permission.GOOGLE_CALENDAR)
 def delete_calendar_event(account_id, event_id):
@@ -794,7 +881,9 @@ def create_drive_file(account_id):
         elif file_type == "spreadsheet":
             result = create_spreadsheet(account_id, title=name, folder_id=folder_id)
         else:  # default: document
-            result = create_document(account_id, title=name, content=content or "", folder_id=folder_id)
+            result = create_document(
+                account_id, title=name, content=content or "", folder_id=folder_id
+            )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
@@ -803,7 +892,9 @@ def create_drive_file(account_id):
     return jsonify(result)
 
 
-@google_work_suite_bp.route("/api/drive/<int:account_id>/files/<file_id>/share", methods=["POST"])
+@google_work_suite_bp.route(
+    "/api/drive/<int:account_id>/files/<file_id>/share", methods=["POST"]
+)
 @login_required
 @require_any_permission(Permission.GOOGLE_EMAIL, Permission.GOOGLE_CALENDAR)
 def share_drive_file(account_id, file_id):

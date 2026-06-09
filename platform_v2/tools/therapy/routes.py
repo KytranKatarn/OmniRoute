@@ -337,23 +337,8 @@ def get_mood_encouragement(mood):
 
 @therapy_bp.route("/api/models", methods=["GET"])
 def get_available_models():
-    """Get available AI models via BridgeDispatcher"""
-    # Models come from the bridge dispatcher
-    models = []
-    if _dispatcher:
-        try:
-            status = _dispatcher.get_dispatch_status()
-            seen = set()
-            for station_info in status.get("stations", {}).values():
-                for agent in station_info.get("agents", []):
-                    m = agent.get("model", "")
-                    if m and m not in seen:
-                        models.append({"name": m, "size": 0, "modified": ""})
-                        seen.add(m)
-        except Exception:
-            pass
-    if not models:
-        models = [{"name": "default", "size": 0, "modified": ""}]
+    """Get available AI models"""
+    models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
 
 

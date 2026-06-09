@@ -1,8 +1,4 @@
-"""
-Therapy Routes - Mental Health AI Assistant
-Phase 7: Standalone Apps - Uses archie_bridge for local-first AI with team agents
-Updated: 2026-01-21 - Now uses River (Wellness Therapist) via archie_bridge
-"""
+"""Flask routes for the Therapy mental health companion tool."""
 
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user

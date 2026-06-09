@@ -1214,6 +1214,7 @@
           name: file.name,
           type: 'upload',
           content: b64,
+          mime_type: file.type || 'application/octet-stream',
           folder_id: _driveFolderStack[_driveFolderStack.length - 1].id,
         });
         toast('File uploaded');

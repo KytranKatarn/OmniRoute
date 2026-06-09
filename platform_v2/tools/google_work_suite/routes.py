@@ -112,11 +112,17 @@ def list_accounts():
 @login_required
 def disconnect_account(account_id):
     from .services import disconnect_account as svc_disconnect
+    from .services.google_api_service import get_account
 
     if not _verify_ownership(account_id):
         return jsonify({"error": "Not found or permission denied"}), 403
 
-    result = svc_disconnect(account_id, "user", current_user.id)
+    # Resolve the real owner so an admin can disconnect an agent-owned account
+    acct = get_account(account_id)
+    if not acct:
+        return jsonify({"error": "Account not found"}), 404
+
+    result = svc_disconnect(account_id, acct.get("owner_type", "user"), acct.get("owner_id"))
     if result.get("success"):
         return jsonify({"success": True})
     return jsonify({"error": result.get("error", "Failed to disconnect")}), 400
@@ -376,7 +382,14 @@ def bulk_operation_route(account_id):
     gmail_ids = data.get("gmail_ids", [])
     operation = data.get("operation", "")
 
-    if not gmail_ids or operation not in ("mark_read", "mark_unread", "star", "unstar", "archive", "trash"):
+    if not gmail_ids or operation not in (
+        "mark_read",
+        "mark_unread",
+        "star",
+        "unstar",
+        "archive",
+        "trash",
+    ):
         return jsonify({"error": "gmail_ids and valid operation required"}), 400
 
     result = bulk_operation(account_id, gmail_ids, operation)
@@ -399,7 +412,7 @@ def get_rules(account_id):
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            "SELECT id, account_id, name, conditions, actions, created_at, updated_at "
+            "SELECT id, account_id, name, conditions, actions, is_active, created_at "
             "FROM google_email_rules WHERE account_id = %s ORDER BY id",
             (account_id,),
         )
@@ -464,6 +477,45 @@ def delete_rule(account_id, rule_id):
             (rule_id, account_id),
         )
 
+    return jsonify({"success": True})
+
+
+@google_work_suite_bp.route("/api/rules/<int:account_id>/<int:rule_id>", methods=["PATCH"])
+@login_required
+@require_permission(Permission.GOOGLE_EMAIL)
+def update_rule(account_id, rule_id):
+    from database import get_db_cursor
+
+    if not _verify_ownership(account_id):
+        return jsonify({"error": "Not found or permission denied"}), 403
+
+    data = request.get_json() or {}
+    sets, params = [], []
+    if "is_active" in data:
+        sets.append("is_active = %s")
+        params.append(bool(data["is_active"]))
+    if data.get("name"):
+        sets.append("name = %s")
+        params.append(data["name"])
+    if "conditions" in data:
+        sets.append("conditions = %s")
+        params.append(psycopg2.extras.Json(data["conditions"]))
+    if "actions" in data:
+        sets.append("actions = %s")
+        params.append(psycopg2.extras.Json(data["actions"]))
+    if not sets:
+        return jsonify({"error": "no updatable fields provided"}), 400
+
+    params.extend([rule_id, account_id])
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE google_email_rules SET " + ", ".join(sets) + " WHERE id = %s AND account_id = %s",
+            params,
+        )
+        updated = cur.rowcount
+
+    if not updated:
+        return jsonify({"error": "rule not found"}), 404
     return jsonify({"success": True})
 
 
@@ -590,7 +642,7 @@ def list_drive_files(account_id):
 
     folder_id = request.args.get("folder_id", "root")
     q = request.args.get("q")
-    result = list_files(account_id, folder_id=folder_id, q=q)
+    result = list_files(account_id, folder_id=folder_id, query=q)
     return jsonify(result)
 
 
@@ -611,7 +663,14 @@ def get_drive_file(account_id, file_id):
 @login_required
 @require_any_permission(Permission.GOOGLE_EMAIL, Permission.GOOGLE_CALENDAR)
 def create_drive_file(account_id):
-    from .services.drive_service import create_file, upload_file
+    import base64
+
+    from .services.drive_service import (
+        create_document,
+        create_folder,
+        create_spreadsheet,
+        upload_file,
+    )
 
     if not _verify_ownership(account_id):
         return jsonify({"error": "Not found or permission denied"}), 403
@@ -625,10 +684,31 @@ def create_drive_file(account_id):
     if not name:
         return jsonify({"error": "name is required"}), 400
 
-    if file_type == "upload":
-        result = upload_file(account_id, name=name, content=content, folder_id=folder_id)
-    else:
-        result = create_file(account_id, name=name, file_type=file_type, folder_id=folder_id)
+    try:
+        if file_type == "upload":
+            if not content:
+                return jsonify({"error": "content is required for upload"}), 400
+            try:
+                content_bytes = base64.b64decode(content)
+            except (ValueError, TypeError) as exc:
+                return jsonify({"error": "invalid base64 content: %s" % exc}), 400
+            mime_type = data.get("mime_type") or "application/octet-stream"
+            result = upload_file(
+                account_id,
+                name=name,
+                content_bytes=content_bytes,
+                mime_type=mime_type,
+                folder_id=folder_id,
+            )
+        elif file_type == "folder":
+            result = create_folder(account_id, name=name, parent_id=folder_id)
+        elif file_type == "spreadsheet":
+            result = create_spreadsheet(account_id, title=name, folder_id=folder_id)
+        else:  # default: document
+            result = create_document(account_id, title=name, content=content or "", folder_id=folder_id)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
     if result.get("error"):
         return jsonify(result), 400
     return jsonify(result)
@@ -652,6 +732,7 @@ def share_drive_file(account_id, file_id):
     result = share_file(account_id, file_id, email=email, role=role)
     if result.get("error"):
         return jsonify(result), 400
+    return jsonify(result)
 
 
 # ---------------------------------------------------------------------------

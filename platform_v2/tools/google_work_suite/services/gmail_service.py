@@ -10,7 +10,10 @@ from email.mime.text import MIMEText
 
 import psycopg2.extras
 from database import get_db_cursor
-from tools.google_work_suite.services.google_api_service import get_gmail_client, get_account
+from tools.google_work_suite.services.google_api_service import (
+    get_gmail_client,
+    get_account,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -264,7 +267,12 @@ def send_email(account_id, to, subject, body, reply_to_id=None):
                 reply_msg = (
                     service.users()
                     .messages()
-                    .get(userId="me", id=reply_to_id, format="metadata", metadataHeaders=["Message-ID", "References"])
+                    .get(
+                        userId="me",
+                        id=reply_to_id,
+                        format="metadata",
+                        metadataHeaders=["Message-ID", "References"],
+                    )
                     .execute()
                 )
             except Exception as e:
@@ -291,7 +299,12 @@ def create_draft(account_id, to, subject, body, reply_to_id=None):
                 reply_msg = (
                     service.users()
                     .messages()
-                    .get(userId="me", id=reply_to_id, format="metadata", metadataHeaders=["Message-ID", "References"])
+                    .get(
+                        userId="me",
+                        id=reply_to_id,
+                        format="metadata",
+                        metadataHeaders=["Message-ID", "References"],
+                    )
                     .execute()
                 )
             except Exception as e:
@@ -372,22 +385,19 @@ def process_agent_inbox(account_id):
                 "WHERE account_id=%s AND is_read=FALSE ORDER BY received_at DESC LIMIT 50",
                 (account_id,),
             )
-            cols = [d[0] for d in cur.description]
-            unread = [dict(zip(cols, row)) for row in cur.fetchall()]
+            unread = [dict(row) for row in cur.fetchall()]
 
         if not unread:
             return {"processed": 0}
 
-        # Load automation rules for this account
+        # Load active automation rules for this account (conditions/actions are JSONB)
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                "SELECT id, rule_name, from_contains, subject_contains, body_contains, "
-                "action_type, action_value FROM google_email_rules "
-                "WHERE account_id=%s AND is_active=TRUE ORDER BY priority ASC",
+                "SELECT id, name, conditions, actions FROM google_email_rules "
+                "WHERE account_id=%s AND is_active=TRUE ORDER BY id ASC",
                 (account_id,),
             )
-            rule_cols = [d[0] for d in cur.description]
-            rules = [dict(zip(rule_cols, row)) for row in cur.fetchall()]
+            rules = [dict(row) for row in cur.fetchall()]
 
         processed = 0
         for email_row in unread:
@@ -397,15 +407,19 @@ def process_agent_inbox(account_id):
             matched = False
 
             for rule in rules:
-                from_match = not rule["from_contains"] or rule["from_contains"].lower() in sender.lower()
-                subj_match = not rule["subject_contains"] or rule["subject_contains"].lower() in subject.lower()
-                body_check = rule.get("body_contains")
+                conditions = rule.get("conditions") or {}
+                from_c = conditions.get("from") or ""
+                subj_c = conditions.get("subject_contains") or ""
+                body_c = conditions.get("body_contains") or ""
+
+                from_match = (not from_c) or from_c.lower() in sender.lower()
+                subj_match = (not subj_c) or subj_c.lower() in subject.lower()
                 body_match = True
-                if body_check:
+                if body_c:
                     try:
                         full = get_email(account_id, gmail_id)
-                        body_text = full.get("body_plain", "") + full.get("body_html", "")
-                        body_match = body_check.lower() in body_text.lower()
+                        body_text = (full.get("body_plain", "") or "") + (full.get("body_html", "") or "")
+                        body_match = body_c.lower() in body_text.lower()
                     except Exception:
                         body_match = False
 
@@ -431,7 +445,11 @@ def process_agent_inbox(account_id):
 
             processed += 1
 
-        logger.info("process_agent_inbox: %d emails processed for account %s", processed, account_id)
+        logger.info(
+            "process_agent_inbox: %d emails processed for account %s",
+            processed,
+            account_id,
+        )
         return {"processed": processed}
 
     except Exception as e:
@@ -440,28 +458,66 @@ def process_agent_inbox(account_id):
 
 
 def _execute_rule_action(account_id, gmail_id, rule):
-    """Apply a single automation rule action to a Gmail message."""
+    """Apply a rule's JSONB actions to a Gmail message (label / forward / auto-reply)."""
+    actions = rule.get("actions") or {}
+    rule_id = rule.get("id")
+
+    label = actions.get("label")
+    if label:
+        try:
+            apply_label(account_id, gmail_id, label)
+        except Exception as e:
+            logger.warning("Rule label failed (rule=%s, msg=%s): %s", rule_id, gmail_id, e)
+
+    forward_to = actions.get("forward_to")
+    auto_reply = actions.get("auto_reply")
+    if not (forward_to or auto_reply):
+        return
+
     try:
-        action = rule.get("action_type", "")
-        value = rule.get("action_value", "")
-        if action == "label":
-            apply_label(account_id, gmail_id, value)
-        elif action == "archive":
-            apply_label(account_id, gmail_id, "INBOX", remove=True)
-        elif action == "star":
-            apply_label(account_id, gmail_id, "STARRED")
-        elif action == "trash":
-            apply_label(account_id, gmail_id, "TRASH")
-        else:
-            logger.debug("Unknown rule action '%s' (rule=%s)", action, rule.get("id"))
+        original = get_email(account_id, gmail_id)
     except Exception as e:
-        logger.warning("Rule action failed (rule=%s, msg=%s): %s", rule.get("id"), gmail_id, e)
+        logger.warning("Rule action could not load email %s (rule=%s): %s", gmail_id, rule_id, e)
+        return
+
+    orig_subject = original.get("subject", "") or ""
+    orig_sender = original.get("sender", "") or ""
+    orig_body = original.get("body_plain") or original.get("snippet", "") or ""
+
+    if forward_to:
+        try:
+            fwd_body = (
+                "---------- Forwarded message ----------\n"
+                f"From: {orig_sender}\nSubject: {orig_subject}\n\n{orig_body}"
+            )
+            send_email(account_id, to=forward_to, subject=f"Fwd: {orig_subject}", body=fwd_body)
+        except Exception as e:
+            logger.warning("Rule forward failed (rule=%s, msg=%s): %s", rule_id, gmail_id, e)
+
+    if auto_reply:
+        try:
+            template = actions.get("auto_reply_template") or (
+                "Thank you for your message. This is an automated reply; "
+                "I will follow up personally as soon as possible."
+            )
+            subj = orig_subject if orig_subject.lower().startswith("re:") else f"Re: {orig_subject}"
+            send_email(
+                account_id,
+                to=orig_sender,
+                subject=subj,
+                body=template,
+                reply_to_id=gmail_id,
+            )
+        except Exception as e:
+            logger.warning("Rule auto-reply failed (rule=%s, msg=%s): %s", rule_id, gmail_id, e)
 
 
 def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
     """Ask Bridge AI to analyse an email and optionally auto-reply."""
     try:
-        from tools.department_hq.services.department_dispatcher import dispatch_json as _dhq_dispatch  # noqa: PLC0415
+        from tools.department_hq.services.department_dispatcher import (
+            dispatch_json as _dhq_dispatch,
+        )  # noqa: PLC0415
 
         gmail_id = email_row["gmail_id"]
         subject = email_row.get("subject", "")
@@ -480,7 +536,10 @@ def _dispatch_to_bridge(account_id, email_row, owner_id, permission_level):
         agent_name = f"agent_{owner_id}"
         try:
             with get_db_cursor() as (conn, cur):
-                cur.execute("SELECT display_name FROM google_accounts WHERE id = %s", (account_id,))
+                cur.execute(
+                    "SELECT display_name FROM google_accounts WHERE id = %s",
+                    (account_id,),
+                )
                 row = cur.fetchone()
                 if row and row["display_name"]:
                     agent_name = row["display_name"]
@@ -537,7 +596,12 @@ def _execute_email_action(account_id, gmail_id, sender, subject, decision):
 
             attendees = details.get("attendees") or [sender]
             preferred_time = details.get("preferred_time") or None
-            schedule_meeting(account_id, f"Meeting: {subject}", attendees, preferred_time=preferred_time)
+            schedule_meeting(
+                account_id,
+                f"Meeting: {subject}",
+                attendees,
+                preferred_time=preferred_time,
+            )
         elif action == "create_task":
             details = decision.get("task_details", {})
             with get_db_cursor(commit=True) as (conn, cur):
@@ -555,7 +619,12 @@ def _execute_email_action(account_id, gmail_id, sender, subject, decision):
             apply_label(account_id, gmail_id, "STARRED")
         # 'ignore' = mark read only (handled by caller)
     except Exception as e:
-        logger.warning("_execute_email_action failed (action=%s, msg=%s): %s", decision.get("action"), gmail_id, e)
+        logger.warning(
+            "_execute_email_action failed (action=%s, msg=%s): %s",
+            decision.get("action"),
+            gmail_id,
+            e,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -593,7 +662,12 @@ def analyze_email(account_id, gmail_id):
         )
 
         if not analysis or not isinstance(analysis, dict):
-            analysis = {"sentiment": "neutral", "priority": "medium", "category": "notification", "summary": subject}
+            analysis = {
+                "sentiment": "neutral",
+                "priority": "medium",
+                "category": "notification",
+                "summary": subject,
+            }
 
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -612,7 +686,10 @@ def analyze_email(account_id, gmail_id):
             )
 
         logger.info(
-            "Analyzed email %s: priority=%s, category=%s", gmail_id, analysis.get("priority"), analysis.get("category")
+            "Analyzed email %s: priority=%s, category=%s",
+            gmail_id,
+            analysis.get("priority"),
+            analysis.get("category"),
         )
         return analysis
     except Exception as e:
@@ -730,11 +807,17 @@ def bulk_operation(account_id, gmail_ids, operation):
             elif operation == "archive":
                 service.users().messages().modify(userId="me", id=gid, body={"removeLabelIds": ["INBOX"]}).execute()
                 with get_db_cursor(commit=True) as (conn, cur):
-                    cur.execute("DELETE FROM google_email_cache WHERE account_id=%s AND gmail_id=%s", (account_id, gid))
+                    cur.execute(
+                        "DELETE FROM google_email_cache WHERE account_id=%s AND gmail_id=%s",
+                        (account_id, gid),
+                    )
             elif operation == "trash":
                 service.users().messages().trash(userId="me", id=gid).execute()
                 with get_db_cursor(commit=True) as (conn, cur):
-                    cur.execute("DELETE FROM google_email_cache WHERE account_id=%s AND gmail_id=%s", (account_id, gid))
+                    cur.execute(
+                        "DELETE FROM google_email_cache WHERE account_id=%s AND gmail_id=%s",
+                        (account_id, gid),
+                    )
             count += 1
         except Exception as e:
             logger.warning("bulk_operation %s failed for %s: %s", operation, gid, e)

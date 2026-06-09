@@ -29,7 +29,11 @@ def _parse_event(event):
         "location": event.get("location"),
         "description": event.get("description"),
         "attendees": [
-            {"email": a.get("email"), "display_name": a.get("displayName"), "response": a.get("responseStatus")}
+            {
+                "email": a.get("email"),
+                "display_name": a.get("displayName"),
+                "response": a.get("responseStatus"),
+            }
             for a in event.get("attendees", [])
         ],
         "status": event.get("status"),
@@ -97,7 +101,12 @@ def create_event(account_id, summary, start, end, description=None, location=Non
             body["attendees"] = [{"email": e} for e in attendees]
 
         result = service.events().insert(calendarId="primary", body=body).execute()
-        logger.info("Created calendar event '%s' (id=%s) for account %s", summary, result.get("id"), account_id)
+        logger.info(
+            "Created calendar event '%s' (id=%s) for account %s",
+            summary,
+            result.get("id"),
+            account_id,
+        )
         return {"event_id": result["id"], "html_link": result.get("htmlLink")}
     except Exception as exc:
         logger.error("create_event failed for account %s: %s", account_id, exc)
@@ -108,11 +117,33 @@ def update_event(account_id, event_id, updates):
     """Patch an existing event with the provided field updates."""
     try:
         service = _get_service(account_id)
-        result = service.events().patch(calendarId="primary", eventId=event_id, body=updates).execute()
+        body = dict(updates or {})
+        # Frontend sends start/end as plain ISO strings; Calendar API needs {dateTime,timeZone}
+        if isinstance(body.get("start"), str):
+            body["start"] = {"dateTime": body["start"], "timeZone": "UTC"}
+        if isinstance(body.get("end"), str):
+            body["end"] = {"dateTime": body["end"], "timeZone": "UTC"}
+        # Map attendee email strings to API objects; drop empty list so we don't wipe attendees
+        if "attendees" in body:
+            att = body["attendees"]
+            if isinstance(att, list) and att and isinstance(att[0], str):
+                body["attendees"] = [{"email": e} for e in att]
+            elif not att:
+                body.pop("attendees")
+        # Don't blank optional text fields when the modal submits them empty
+        for _k in ("location", "description"):
+            if body.get(_k) == "":
+                body.pop(_k, None)
+        result = service.events().patch(calendarId="primary", eventId=event_id, body=body).execute()
         logger.info("Updated calendar event %s for account %s", event_id, account_id)
         return _parse_event(result)
     except Exception as exc:
-        logger.error("update_event failed for account %s, event %s: %s", account_id, event_id, exc)
+        logger.error(
+            "update_event failed for account %s, event %s: %s",
+            account_id,
+            event_id,
+            exc,
+        )
         raise
 
 
@@ -124,7 +155,12 @@ def delete_event(account_id, event_id):
         logger.info("Deleted calendar event %s for account %s", event_id, account_id)
         return {"success": True, "event_id": event_id}
     except Exception as exc:
-        logger.error("delete_event failed for account %s, event %s: %s", account_id, event_id, exc)
+        logger.error(
+            "delete_event failed for account %s, event %s: %s",
+            account_id,
+            event_id,
+            exc,
+        )
         raise
 
 
@@ -191,7 +227,10 @@ def auto_schedule_from_tasks(account_id, agent_name):
 
         service = _get_service(account_id)
         created = 0
-        for task_id, title, due_date in tasks:
+        for task in tasks:
+            task_id = task["id"]
+            title = task["title"]
+            due_date = task["due_date"]
             # Check if an event with this title already exists around the due date
             # Search window: ±1 day around due date
             search_min = (due_date - timedelta(days=1)).isoformat()
@@ -209,16 +248,25 @@ def auto_schedule_from_tasks(account_id, agent_name):
                 create_event(
                     account_id,
                     summary=title,
-                    start=slot_start.isoformat() if hasattr(slot_start, "isoformat") else str(slot_start),
-                    end=slot_end.isoformat() if hasattr(slot_end, "isoformat") else str(slot_end),
+                    start=(slot_start.isoformat() if hasattr(slot_start, "isoformat") else str(slot_start)),
+                    end=(slot_end.isoformat() if hasattr(slot_end, "isoformat") else str(slot_end)),
                     description=f"Auto-scheduled from ARCHIE task #{task_id}",
                 )
                 created += 1
 
-        logger.info("auto_schedule_from_tasks: created %d events for agent %s", created, agent_name)
+        logger.info(
+            "auto_schedule_from_tasks: created %d events for agent %s",
+            created,
+            agent_name,
+        )
         return {"events_created": created, "tasks_checked": len(tasks)}
     except Exception as exc:
-        logger.error("auto_schedule_from_tasks failed for account %s, agent %s: %s", account_id, agent_name, exc)
+        logger.error(
+            "auto_schedule_from_tasks failed for account %s, agent %s: %s",
+            account_id,
+            agent_name,
+            exc,
+        )
         raise
 
 
@@ -275,7 +323,12 @@ def schedule_meeting(account_id, summary, attendee_emails, preferred_time=None, 
             end=found_end.isoformat(),
             attendees=attendee_emails,
         )
-        logger.info("Scheduled meeting '%s' at %s for account %s", summary, found_start, account_id)
+        logger.info(
+            "Scheduled meeting '%s' at %s for account %s",
+            summary,
+            found_start,
+            account_id,
+        )
         return {
             "event_id": result["event_id"],
             "html_link": result["html_link"],

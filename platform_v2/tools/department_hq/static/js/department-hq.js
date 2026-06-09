@@ -714,6 +714,37 @@ async function _kinAgentState(agentId, action, confirmed) {
     } catch (e) { alert('State change failed: ' + (e.message || e)); }
 }
 
+// Task #3798: layered 24h recovery sparkline — per-hour token (purple) + dispatch
+// (cyan) layers over the rolling window. As the window advances on each 30s refresh,
+// the oldest bars age out, so recovery is VISIBLE as the layers drain left-to-right.
+function _kinRecoverySpark(a) {
+    var hist = a.recovery_24h || [];
+    if (!hist.length) return '';
+    var maxTok = 0, maxDisp = 0, any = false;
+    hist.forEach(function (b) {
+        if (b.tokens > maxTok) maxTok = b.tokens;
+        if (b.dispatches > maxDisp) maxDisp = b.dispatches;
+        if (b.tokens || b.dispatches) any = true;
+    });
+    if (!any) return '';
+    var bars = '';
+    hist.forEach(function (b) {
+        var th = maxTok ? Math.round(b.tokens / maxTok * 70) : 0;
+        var dh = maxDisp ? Math.round(b.dispatches / maxDisp * 25) : 0;
+        var hh = new Date(b.t).getHours();
+        bars += '<div title="' + (hh < 10 ? '0' : '') + hh + ':00 — ' + _dhqFmtTok(b.tokens) + ' tok · ' + b.dispatches + ' disp"'
+            + ' style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:1px;height:100%;min-width:2px;">'
+            + '<div style="height:' + th + '%;min-height:' + (b.tokens ? 1 : 0) + 'px;background:#a78bfa;border-radius:1px;"></div>'
+            + '<div style="height:' + dh + '%;min-height:' + (b.dispatches ? 1 : 0) + 'px;background:#00bcd4;border-radius:1px;"></div>'
+            + '</div>';
+    });
+    return '<div style="margin-top:6px;">'
+        + '<div style="display:flex;align-items:flex-end;gap:1px;height:26px;">' + bars + '</div>'
+        + '<div style="display:flex;justify-content:space-between;font-size:0.55rem;color:var(--dhq-text-dim);opacity:0.7;margin-top:2px;">'
+        + '<span>−24h</span><span style="color:#a78bfa;">■ tok</span><span style="color:#00bcd4;">■ disp</span><span>now</span>'
+        + '</div></div>';
+}
+
 async function loadKinWelfare() {
     var el = document.getElementById('kinWelfareContent');
     if (el) el.textContent = 'Loading…';
@@ -780,11 +811,15 @@ async function loadKinWelfare() {
                 + '<span style="flex-shrink:0;font-size:0.65rem;color:' + statusColor + ';">' + statusLabel + '</span>'
                 + '</div>'
                 + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">'
-                + (a.dispatches_since_reset || 0) + '/' + (a.task_limit || 1000) + ' dispatched'
-                + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + '/h</span>' : '')
-                + (a.tokens_24h ? ' · <span style="color:#a78bfa;">' + _dhqFmtTok(a.tokens_24h) + ' tok/24h</span>' : '')
+                /* Task #3799: token budget is the primary welfare signal (per-LLM
+                   C.R.E.E.D. capacity model); dispatch count is secondary context. */
+                + '<span style="color:#a78bfa;">' + _dhqFmtTok(a.tokens_24h || 0) + '/' + _dhqFmtTok(a.token_limit_per_day || 150000) + ' tok</span>'
+                + ' (' + Math.round((a.token_ratio || 0) * 100) + '%)'
+                + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + ' disp/h</span>' : '')
+                + ' · ' + (a.dispatches_24h || 0) + ' disp/24h'
                 + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
                 + '</div>'
+                + _kinRecoverySpark(a)
                 + (a.rest_since
                     ? '<div style="margin-top:6px;">'
                       + '<div style="background:rgba(255,255,255,0.08);border-radius:3px;height:3px;overflow:hidden;margin-bottom:4px;">'

@@ -5,6 +5,9 @@
 # See .claude/rules/codex-agent.md + .claude/plans/2026-06-05-codex-cli-phase-a-plan.md.
 set -euo pipefail
 
+# Ensure gh CLI is reachable in cron's restricted PATH.
+export PATH="/home/kytran/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
 REPO="/mnt/archie_brain"
 CFG="$REPO/config/agents/codex.yaml"
 TASK="${1:?usage: run-codex-task.sh \"<scoped task>\"}"

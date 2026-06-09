@@ -40,6 +40,7 @@ RUNNER = f"{REPO}/scripts/agents/run-codex-task.sh"
 LOCK = "/tmp/codex-delegation-worker.lock"
 RUNNER_TIMEOUT = 1800  # matches codex.yaml max runtime (30 min)
 BRANCH_RE = re.compile(r"codex/[a-z0-9-]+")
+PR_RE = re.compile(r"PR #(\d+) created:")
 
 
 def psql(sql: str) -> str:
@@ -169,23 +170,13 @@ def main() -> int:
         pass
     m = BRANCH_RE.search(out)
     branch = m.group(0) if m else None
-    if not branch or "PR-READY branch pushed" not in out:
-        set_status(tid, "blocked")
-        print(f"codex #{tid}: no branch pushed → blocked (full log: {logpath})\n{out[-500:]}")
-        return 0
-
-    # Open a PR for the pushed branch.
-    pr = subprocess.run(
-        ["gh", "pr", "create", "--base", "main", "--head", branch,
-         "--title", f"feat(codex): delegated task #{tid}",
-         "--body", (f"Codex delegated task #{tid} (project {task['project_id'] or 'n/a'}).\n\n"
-                    "Auto-opened by codex-delegation-worker. Review the diff + approve "
-                    "via Telegram (codex_promote) to merge to prod. 🤖 Codex (CLI)")],
-        capture_output=True, text=True, cwd=REPO, timeout=60,
-    )
-    prout = (pr.stdout or "") + (pr.stderr or "")
-    mp = re.search(r"/pull/(\d+)", prout)
+    # run-codex-task.sh prints "PR #N created: <url>" on success.
+    mp = PR_RE.search(out)
     pr_num = int(mp.group(1)) if mp else None
+    if not branch or not pr_num:
+        set_status(tid, "blocked")
+        print(f"codex #{tid}: no PR opened → blocked (full log: {logpath})\n{out[-500:]}")
+        return 0
 
     set_status(tid, "in_progress", {"codex_pr": pr_num, "codex_branch": branch})
     if pr_num:

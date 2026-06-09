@@ -97,6 +97,34 @@ def register_work_routes(bp, admin_required):
                 )
                 velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
 
+                # Task #3798: layered 24h recovery — hourly token/dispatch buckets per
+                # agent so the UI can show old work AGING OUT of the rolling window
+                # (recovery made visible, not just a number that shrinks).
+                cur.execute(
+                    """
+                    SELECT tel.agent_name,
+                           date_trunc('hour', tel.created_at) AS bucket,
+                           COUNT(*) AS dispatches,
+                           COALESCE(SUM(tel.tokens_used), 0) AS tokens
+                    FROM task_execution_log tel
+                    WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    GROUP BY tel.agent_name, bucket
+                    """
+                )
+                # Bucket keys MUST be normalized to UTC: the DB session runs in
+                # America/Toronto, so psycopg2 returns tz-aware timestamps at -04:00,
+                # while the slot grid below is built from now_utc() (+00:00). Equal
+                # instants, different isoformat strings — astimezone(utc) aligns them.
+                from datetime import timezone as _tz
+
+                history_map = {}
+                for hr in cur.fetchall() or []:
+                    _key = hr["bucket"].astimezone(_tz.utc).isoformat()
+                    history_map.setdefault(hr["agent_name"], {})[_key] = {
+                        "tokens": int(hr["tokens"] or 0),
+                        "dispatches": int(hr["dispatches"] or 0),
+                    }
+
                 # Hours worked today = REAL (non-internal) WALL-CLOCK compute time as the
                 # interval-UNION of overlapping dispatches, NOT SUM(duration_ms). KB #270628:
                 # SUM counted concurrent dispatches N times (V.E.R.I.F.Y. read 89h in a 15h
@@ -146,6 +174,15 @@ def register_work_routes(bp, admin_required):
                 )
                 reset_row = cur.fetchone()
 
+            # Task #3798: fixed 24-slot hour grid (oldest → newest) so every agent's
+            # recovery series has the same shape and empty hours render as zero.
+            from datetime import timedelta
+
+            from services.time_utils import now_utc
+
+            _now_h = now_utc().replace(minute=0, second=0, microsecond=0)
+            _hour_slots = [(_now_h - timedelta(hours=i)).isoformat() for i in range(23, -1, -1)]
+
             agents = []
             workload = []
             resting_count = 0
@@ -162,11 +199,18 @@ def register_work_routes(bp, admin_required):
                 d1h = int(vel.get("dispatches_1h") or 0)
                 d24h = int(vel.get("dispatches_24h") or 0)
                 d_reset = int(vel.get("dispatches_since_reset") or 0)
-                # at_limit: concurrent queue full OR lifetime dispatches since reset hit the limit
-                at_limit = at_limit or (d_reset >= task_limit)
-                # ETA to limit based on dispatches since last reset (counter that goes up)
-                if d1h > 0 and d_reset < task_limit:
-                    hours_to_limit = round((task_limit - d_reset) / d1h, 1)
+                tokens_1h_v = int(vel.get("tokens_1h") or 0)
+                tokens_24h_v = int(vel.get("tokens_24h") or 0)
+                token_limit = int(r["token_limit_per_day"]) if r["token_limit_per_day"] else 150000
+                token_ratio = (tokens_24h_v / token_limit) if token_limit > 0 else 0.0
+                # Task #3799: at_limit gates on TOKENS vs the per-LLM daily budget (the
+                # C.R.E.E.D. capacity model, KB #271838) — not dispatches-since-reset.
+                # A 200-dispatch classifier is fine; a 10-dispatch 40k-token analyst may
+                # not be. Concurrent queue-slot check (task_count >= task_limit) stays.
+                at_limit = at_limit or token_ratio >= 1.0
+                # ETA to limit from the token burn rate (tokens left / tokens-per-hour)
+                if tokens_1h_v > 0 and tokens_24h_v < token_limit:
+                    hours_to_limit = round((token_limit - tokens_24h_v) / tokens_1h_v, 1)
                 else:
                     hours_to_limit = None
 
@@ -199,9 +243,18 @@ def register_work_routes(bp, admin_required):
                     "dispatches_1h": d1h,
                     "dispatches_24h": d24h,
                     "dispatches_since_reset": d_reset,
-                    "tokens_1h": int(vel.get("tokens_1h") or 0),
-                    "tokens_24h": int(vel.get("tokens_24h") or 0),
-                    "token_limit_per_day": int(r["token_limit_per_day"]) if r["token_limit_per_day"] else 150000,
+                    "tokens_1h": tokens_1h_v,
+                    "tokens_24h": tokens_24h_v,
+                    "token_limit_per_day": token_limit,
+                    "token_ratio": round(token_ratio, 3),
+                    "recovery_24h": [
+                        {
+                            "t": slot,
+                            "tokens": (history_map.get(r["name"], {}).get(slot) or {}).get("tokens", 0),
+                            "dispatches": (history_map.get(r["name"], {}).get(slot) or {}).get("dispatches", 0),
+                        }
+                        for slot in _hour_slots
+                    ],
                     "hours_to_limit": hours_to_limit,
                     "hours_worked_today": hours_worked_today,
                     "overwork_level": overwork_level,
@@ -216,6 +269,7 @@ def register_work_routes(bp, admin_required):
                 if (
                     is_resting
                     or at_limit
+                    or token_ratio >= 0.9
                     or (r["stress"] or 0) > 0.7
                     or overwork_level != "normal"
                     or agent_data["rest_approval_id"]
@@ -226,8 +280,11 @@ def register_work_routes(bp, admin_required):
                 if d24h > 0 or task_count > 0:
                     workload.append(agent_data)
 
-            # Sort workload by 24h dispatch volume descending
-            workload.sort(key=lambda x: x["dispatches_24h"], reverse=True)
+            # Task #3799: rank by TOKEN load, not dispatch count. Welfare cards:
+            # resting agents first, then heaviest token-budget consumers. Workload
+            # table: heaviest 24h token consumers first.
+            agents.sort(key=lambda x: (not x["resting"], -x.get("token_ratio", 0.0)))
+            workload.sort(key=lambda x: x.get("tokens_24h", 0), reverse=True)
 
             last_reset = None
             if reset_row:

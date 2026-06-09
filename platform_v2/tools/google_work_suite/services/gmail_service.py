@@ -154,6 +154,25 @@ def sync_inbox(account_id, max_results=50, label_ids=None):
         raise
 
 
+def list_all_message_ids(account_id, page_token=None, max_per_page=500, query=""):
+    """
+    List message stubs ({id, threadId}) across the WHOLE mailbox (not just INBOX),
+    one page per call. Returns (messages, next_page_token).
+
+    Used by the Email Memory Vault crawler (Project #377) for cheap, resumable
+    full-history enumeration — IDs only, no per-message fetch (that cost lives in
+    the budgeted triage worker). includeSpamTrash=False skips Spam/Trash.
+    """
+    service = get_gmail_client(account_id)
+    kwargs = {"userId": "me", "maxResults": max_per_page, "includeSpamTrash": False}
+    if page_token:
+        kwargs["pageToken"] = page_token
+    if query:
+        kwargs["q"] = query
+    resp = service.users().messages().list(**kwargs).execute()
+    return resp.get("messages", []), resp.get("nextPageToken")
+
+
 def get_inbox(account_id, page=1, per_page=20, label=None):
     """Return cached inbox rows with optional label filter, paginated."""
     try:

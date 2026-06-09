@@ -129,6 +129,95 @@ def disconnect_account(account_id):
 
 
 # ---------------------------------------------------------------------------
+# Memory Vault — ingestion progress (Project #377, read-only, no inference)
+# ---------------------------------------------------------------------------
+
+
+@google_work_suite_bp.route("/api/memory-vault/progress")
+@login_required
+def memory_vault_progress():
+    from database import get_db_cursor
+
+    try:
+        from services.work_control_service import is_enabled
+
+        enabled = is_enabled("memory_vault", default=False)
+    except Exception:
+        enabled = False
+
+    is_admin = getattr(current_user, "is_admin", False)
+    accounts = []
+    totals = {
+        "enumerated": 0,
+        "triaged": 0,
+        "important": 0,
+        "bulk": 0,
+        "pending": 0,
+        "error": 0,
+        "size_bytes": 0,
+    }
+
+    with get_db_cursor() as (conn, cur):
+        if is_admin:
+            cur.execute("SELECT id, email FROM google_accounts ORDER BY id")
+        else:
+            cur.execute(
+                "SELECT id, email FROM google_accounts WHERE owner_id = %s ORDER BY id",
+                (current_user.id,),
+            )
+        rows = cur.fetchall()
+
+        for a in rows:
+            cur.execute(
+                "SELECT total_enumerated, enumeration_complete " "FROM profile_account_cursor WHERE account_id = %s",
+                (a["id"],),
+            )
+            crow = cur.fetchone() or {}
+            cur.execute(
+                "SELECT state, COUNT(*) AS n FROM profile_ingest_ledger " "WHERE account_id = %s GROUP BY state",
+                (a["id"],),
+            )
+            states = {r["state"]: r["n"] for r in cur.fetchall()}
+            ledger_total = sum(states.values())
+            enumerated = crow.get("total_enumerated") or ledger_total
+            new = states.get("new", 0)
+            important = states.get("triaged_important", 0)
+            bulk = states.get("triaged_bulk", 0)
+            error = states.get("error", 0)
+            triaged = important + bulk + error
+            pct = round(100.0 * triaged / enumerated, 1) if enumerated else 0.0
+            cur.execute(
+                "SELECT COALESCE(SUM(size_bytes), 0) AS b FROM profile_ingest_ledger " "WHERE account_id = %s",
+                (a["id"],),
+            )
+            acct_bytes = int(cur.fetchone()["b"] or 0)
+            accounts.append(
+                {
+                    "email": a["email"],
+                    "enumerated": enumerated,
+                    "triaged": triaged,
+                    "important": important,
+                    "bulk": bulk,
+                    "pending": new,
+                    "error": error,
+                    "percent": pct,
+                    "size_bytes": acct_bytes,
+                    "enumeration_complete": crow.get("enumeration_complete", False),
+                }
+            )
+            totals["enumerated"] += enumerated
+            totals["triaged"] += triaged
+            totals["important"] += important
+            totals["bulk"] += bulk
+            totals["pending"] += new
+            totals["error"] += error
+            totals["size_bytes"] += acct_bytes
+
+    totals["percent"] = round(100.0 * totals["triaged"] / totals["enumerated"], 1) if totals["enumerated"] else 0.0
+    return jsonify({"enabled": enabled, "accounts": accounts, "total": totals})
+
+
+# ---------------------------------------------------------------------------
 # Labels
 # ---------------------------------------------------------------------------
 

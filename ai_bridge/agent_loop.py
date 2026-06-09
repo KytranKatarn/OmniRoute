@@ -443,6 +443,53 @@ class AgentLoop:
             replace_existing=True,
         )
 
+        # Email Memory Vault — Phase 1 (Project #377). All three workers are gated
+        # behind the work-control flag 'memory_vault' (DEFAULT OFF) and no-op until
+        # the owner enables it from the Autonomy tab — so they register safely but
+        # do nothing until the Gmail accounts are re-authed + the flag is flipped.
+        try:
+            from tools.google_work_suite.services.memory_vault import (
+                gmail_full_ingest_crawler,
+                gmail_profile_extract_worker,
+                gmail_profile_progress_observer,
+                gmail_profile_triage_worker,
+            )
+
+            self.scheduler.add_job(
+                with_app_context(gmail_full_ingest_crawler),
+                trigger=IntervalTrigger(hours=6),
+                id="memory_vault_crawler",
+                name="Agent Loop: Memory Vault — Gmail Ingest Crawler",
+                replace_existing=True,
+            )
+            self.scheduler.add_job(
+                with_app_context(gmail_profile_triage_worker),
+                trigger=IntervalTrigger(minutes=3),
+                id="memory_vault_triage",
+                name="Agent Loop: Memory Vault — Triage Worker",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+            self.scheduler.add_job(
+                with_app_context(gmail_profile_extract_worker),
+                trigger=IntervalTrigger(minutes=10),
+                id="memory_vault_extract",
+                name="Agent Loop: Memory Vault — Phase 2 Extract Worker",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+            self.scheduler.add_job(
+                with_app_context(gmail_profile_progress_observer),
+                trigger=IntervalTrigger(minutes=30),
+                id="memory_vault_observer",
+                name="Agent Loop: Memory Vault — Progress Observer",
+                replace_existing=True,
+            )
+        except Exception as _mv_err:
+            logger.warning("Memory Vault workers not scheduled: %s", _mv_err)
+
         self.scheduler.add_job(
             with_app_context(self._forward_notifications_to_telegram),
             trigger=IntervalTrigger(seconds=15),

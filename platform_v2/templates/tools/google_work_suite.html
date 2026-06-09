@@ -56,6 +56,29 @@
       <div class="cs-ops-status" id="gwsOpsOnline">
         <span class="cs-ops-dot"></span> ONLINE
       </div>
+      <div class="gws-vault-chip" id="gwsVaultChip" title="Email Memory Vault — % of discovered mail sorted">
+        <span class="gws-vault-chip-label">MEMORY VAULT</span>
+        <div class="gws-vault-bar"><div class="gws-vault-fill" id="gwsVaultFill"></div></div>
+        <span class="gws-vault-chip-pct" id="gwsVaultPct">—</span>
+      </div>
+      <div class="gws-ai-providers" id="gwsAiProviders">
+        <span class="gws-ai-label">AI</span>
+        <button class="gws-ai-chip enabled active" data-provider="local"
+                onclick="gwsSelectAiProvider('local')"
+                title="A.R.C.H.I.E. Local — private, stays on our Canadian cluster (Local tier)">
+          <span class="gws-ai-dot"></span> Local
+        </button>
+        <button class="gws-ai-chip" data-provider="claude"
+                onclick="gwsSelectAiProvider('claude')"
+                title="Claude (Anthropic) — paid Cloud tier; email content would be sent to Anthropic">
+          <span class="gws-ai-dot"></span> Claude
+        </button>
+        <button class="gws-ai-chip" data-provider="chatgpt"
+                onclick="gwsSelectAiProvider('chatgpt')"
+                title="ChatGPT (OpenAI) — paid Cloud tier; email content would be sent to OpenAI">
+          <span class="gws-ai-dot"></span> ChatGPT
+        </button>
+      </div>
     </div>
     <div class="cs-ops-body">
       <div id="gwsOpsAgents"></div>
@@ -563,6 +586,50 @@
     var ops = _getGwsOps();
     if (ops) ops.render(jobData);
   }
+
+  // Memory Vault ingestion progress chip (Project #377). Read-only poll.
+  window.loadVaultProgress = function () {
+    fetch('/tools/google-work-suite/api/memory-vault/progress')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var fill = document.getElementById('gwsVaultFill');
+        var pct = document.getElementById('gwsVaultPct');
+        var chip = document.getElementById('gwsVaultChip');
+        if (!fill || !pct || !chip) return;
+        var t = d.total || {};
+        var p = t.percent || 0;
+        var mb = (t.size_bytes || 0) / 1048576;
+        var mbStr = mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb.toFixed(mb < 10 ? 1 : 0) + ' MB';
+        fill.style.width = p + '%';
+        if (!d.enabled) {
+          pct.textContent = 'off';
+          chip.title = 'Memory Vault disabled — enable from the Autonomy tab';
+        } else if (!t.enumerated) {
+          pct.textContent = '0%';
+          chip.title = 'Memory Vault enabled — waiting for first crawl pass';
+        } else {
+          pct.textContent = p + '% · ' + mbStr;
+          chip.title = (t.triaged || 0) + ' of ' + t.enumerated + ' discovered emails sorted ('
+            + (t.important || 0) + ' kept / ' + (t.bulk || 0) + ' bulk) — ' + mbStr + ' processed';
+        }
+      })
+      .catch(function () {});
+  };
+
+  // AI provider selector (tiered SaaS: Local premium/private vs paid Cloud).
+  // Local is the only wired provider; cloud chips show the paid-tier + consent
+  // affordance (routing/billing/consent = Phase 4, not a silent content-to-cloud toggle).
+  window.gwsSelectAiProvider = function (key) {
+    if (key === 'local') return;  // already active
+    var name = key === 'claude' ? 'Anthropic Claude' : 'OpenAI ChatGPT';
+    toast('Cloud AI (' + name + ') is a paid tier — coming soon. Enabling it would send your '
+      + 'email content to ' + name + '. The Local tier keeps everything private on our cluster.', true);
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    window.loadVaultProgress();
+    setInterval(window.loadVaultProgress, 30000);
+  });
 
   window.gwsStationSync = function() {
     if (_gwsStationAtCapacity) return;

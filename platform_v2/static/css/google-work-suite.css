@@ -794,3 +794,72 @@
 .gws-btn-sm { padding:0.2rem 0.5rem; border:1px solid var(--gws-border,#234); background:transparent; color:var(--gws-text,#aab); border-radius:3px; cursor:pointer; font-size:0.65rem; }
 .gws-btn-sm:hover { color:var(--gws-accent,#0cf); border-color:var(--gws-accent,#0cf); }
 .gws-input-sm { background:rgba(255,255,255,0.05); border:1px solid var(--gws-border,#234); color:var(--gws-text,#aab); padding:0.2rem 0.4rem; border-radius:3px; font-size:0.65rem; }
+
+/* ── Email Operations station commands: horizontal row ───────
+   Scoped to the GWS station instance (#gwsOpsCommands) so it does NOT
+   affect Consciousness / Repair Bay, which share the .cs-ops-commands
+   component. ID selector beats the shared class regardless of load order. */
+#gwsOpsCommands {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  align-items: stretch !important;
+}
+#gwsOpsCommands button,
+#gwsOpsCommands .stn-ops-cmd-btn {
+  width: auto !important;
+  flex: 0 0 auto !important;
+}
+
+/* ── Memory Vault ingestion chip (Email Operations header) ─── */
+.gws-vault-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  padding: 2px 10px;
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+}
+.gws-vault-chip-label { color: var(--gws-text, #aab); white-space: nowrap; }
+.gws-vault-bar {
+  width: 90px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.gws-vault-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 4px;
+  background: var(--gws-accent, #f59e0b);
+  transition: width 0.4s ease;
+}
+.gws-vault-chip-pct { color: var(--gws-accent, #f59e0b); min-width: 30px; text-align: right; }
+
+/* ── AI provider selector (Local / Claude / ChatGPT) — tiered SaaS ───
+   greyed = not enabled · color = enabled · accent+glow = active. */
+.gws-ai-providers { display: flex; align-items: center; gap: 6px; padding: 2px 10px; font-size: 0.6rem; }
+.gws-ai-label { color: var(--gws-text, #aab); letter-spacing: 1px; }
+.gws-ai-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  color: #667; font-size: 0.6rem; letter-spacing: 0.5px;
+  cursor: pointer; opacity: 0.4; transition: all 0.2s ease;
+}
+.gws-ai-chip .gws-ai-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.gws-ai-chip:hover { opacity: 0.7; }
+.gws-ai-chip.enabled { opacity: 1; color: var(--gws-text, #aab); border-color: rgba(255, 255, 255, 0.22); }
+.gws-ai-chip.enabled.active {
+  color: var(--gws-accent, #f59e0b);
+  border-color: var(--gws-accent, #f59e0b);
+  background: rgba(245, 158, 11, 0.12);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.25);
+}
+
+/* Done-state read-pane buttons (Read ✓ / Analyzed ✓ / Saved ✓) — greyed + inactive */
+.gws-btn:disabled { opacity: 0.45; cursor: default; pointer-events: none; }

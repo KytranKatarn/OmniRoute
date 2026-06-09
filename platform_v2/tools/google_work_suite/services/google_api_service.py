@@ -123,6 +123,8 @@ def handle_callback(code, state, code_verifier=None):
                  token_expiry, scopes, permission_level)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (email) DO UPDATE SET
+                owner_type      = EXCLUDED.owner_type,
+                owner_id        = EXCLUDED.owner_id,
                 access_token    = EXCLUDED.access_token,
                 refresh_token   = EXCLUDED.refresh_token,
                 token_expiry    = EXCLUDED.token_expiry,

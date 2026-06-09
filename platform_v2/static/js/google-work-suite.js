@@ -456,8 +456,13 @@
 
     const markReadBtn = document.createElement('button');
     markReadBtn.className = 'gws-btn gws-btn-secondary';
-    markReadBtn.textContent = 'Mark as Read';
-    markReadBtn.addEventListener('click', function () { markAsRead(gId); });
+    if (email.is_read) {
+      markReadBtn.textContent = 'Read ✓';
+      markReadBtn.disabled = true;
+    } else {
+      markReadBtn.textContent = 'Mark as Read';
+      markReadBtn.addEventListener('click', function () { markAsRead(gId); });
+    }
     actions.appendChild(markReadBtn);
 
     const replyBtn = document.createElement('button');
@@ -474,14 +479,24 @@
 
     const analyzeBtn = document.createElement('button');
     analyzeBtn.className = 'gws-btn gws-btn-secondary';
-    analyzeBtn.textContent = 'AI Analyze';
-    analyzeBtn.addEventListener('click', function () { analyzeEmailAction(gId); });
+    if (email.ai_priority || email.ai_category || email.ai_summary || email.ai_sentiment) {
+      analyzeBtn.textContent = 'Analyzed ✓';
+      analyzeBtn.disabled = true;
+    } else {
+      analyzeBtn.textContent = 'AI Analyze';
+      analyzeBtn.addEventListener('click', function () { analyzeEmailAction(gId); });
+    }
     actions.appendChild(analyzeBtn);
 
     const kbBtn = document.createElement('button');
     kbBtn.className = 'gws-btn gws-btn-secondary';
-    kbBtn.textContent = 'Save to KB';
-    kbBtn.addEventListener('click', function () { fileToKB(gId); });
+    if (email.filed_to_kb) {
+      kbBtn.textContent = 'Saved ✓';
+      kbBtn.disabled = true;
+    } else {
+      kbBtn.textContent = 'Save to KB';
+      kbBtn.addEventListener('click', function () { fileToKB(gId); });
+    }
     actions.appendChild(kbBtn);
 
     const deleteBtn = document.createElement('button');
@@ -525,7 +540,7 @@
         'From: ' + (email.sender || email.from || '') + '\n' +
         'Date: ' + (email.date || '') + '\n' +
         'Subject: ' + (email.subject || '') + '\n\n' +
-        (email.body || email.body_text || '');
+        (email.body_plain || email.body_html || email.body || email.body_text || '');
     }
   }
 
@@ -553,6 +568,10 @@
         '/' + encodeURIComponent(gmailId) + '/file-kb', {});
       if (data.success) {
         toast('Saved to Knowledge Base (#' + data.kb_id + ')');
+        if (_currentEmail && (_currentEmail.gmail_id || _currentEmail.id) === gmailId) {
+          _currentEmail.filed_to_kb = true;
+          renderEmailDetail(_currentEmail);
+        }
       } else {
         toast('Failed: ' + (data.error || ''), true);
       }
@@ -571,6 +590,10 @@
         if ((e.gmail_id || e.id) === gmailId) e.is_read = true;
       });
       renderEmailList();
+      if (_currentEmail && (_currentEmail.gmail_id || _currentEmail.id) === gmailId) {
+        _currentEmail.is_read = true;
+        renderEmailDetail(_currentEmail);
+      }
     } catch (err) {
       toast('Failed: ' + err.message, true);
     }
@@ -637,7 +660,7 @@
       if (bod) {
         bod.value =
           '\n\n---------- Original message ----------\n' +
-          (_currentEmail.body || _currentEmail.body_text || '');
+          (_currentEmail.body_plain || _currentEmail.body_html || _currentEmail.body || _currentEmail.body_text || '');
       }
     }
 

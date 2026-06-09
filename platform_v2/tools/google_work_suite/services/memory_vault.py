@@ -424,7 +424,7 @@ def gmail_profile_progress_observer():
 
 _FLAG_EXTRACT = "memory_vault_extract"  # gate Phase-2 extraction (default OFF)
 _EXTRACT_BATCH = (
-    8  # important emails analyzed per run (7B GPU, interleaved across accounts)
+    30  # important emails analyzed per run (7B GPU, interleaved across accounts)
 )
 _EXTRACT_BODY_CHARS = 6000  # body chars sent to the model (cost cap)
 
@@ -496,7 +496,7 @@ def gmail_profile_extract_worker():
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
                     "UPDATE profile_ingest_ledger SET state = 'extracted', "
-                    "extracted_at = now() WHERE id = %s",
+                    "extracted_at = now(), error = NULL WHERE id = %s",
                     (row["id"],),
                 )
             counts["extracted"] += 1

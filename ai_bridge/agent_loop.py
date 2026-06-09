@@ -475,7 +475,7 @@ class AgentLoop:
             )
             self.scheduler.add_job(
                 with_app_context(gmail_profile_extract_worker),
-                trigger=IntervalTrigger(minutes=10),
+                trigger=IntervalTrigger(minutes=5),
                 id="memory_vault_extract",
                 name="Agent Loop: Memory Vault — Phase 2 Extract Worker",
                 max_instances=1,

@@ -149,7 +149,8 @@ export DB_HOST=192.168.1.200
 from services.agents.codex_telemetry import record_codex_run
 record_codex_run(task_label='''$TASK''', branch='$BRANCH', prompt_tokens=0, completion_tokens=0,
   model='gpt-5-codex', files_changed='''$CHANGED'''.split(), tests='n/a',
-  success=$( [ "$SUCCESS" = true ] && echo True || echo False ), duration_ms=$DUR, estimated=True)
+  success=$( [ "$SUCCESS" = true ] && echo True || echo False ), duration_ms=$DUR, estimated=True,
+  project_id=376)
 ")
 
 # 8) outcome: commit + push + auto-open PR + register in Repair Bay + queue F.O.R.G.E. review

@@ -427,6 +427,16 @@ class AgentLoop:
             coalesce=True,
         )
 
+        self.scheduler.add_job(
+            with_app_context(self._archie_coo_approval_worker),
+            trigger=IntervalTrigger(seconds=90),
+            id="archie_coo_approvals",
+            name="Agent Loop: A.R.C.H.I.E. COO Approval Worker",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         # DISABLED 2026-04-14: 25 fails/day, old email integration — see Project #261
         # self.scheduler.add_job(
         #     with_app_context(self._check_email_inbox),
@@ -3427,6 +3437,133 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error(f"Send email digest failed: {e}")
+
+    # ------------------------------------------------------------------
+    # A.R.C.H.I.E. COO Approval Worker
+    # ------------------------------------------------------------------
+
+    def _archie_coo_approval_worker(self):
+        """A.R.C.H.I.E. auto-approves low-risk Tier-2 items as COO.
+
+        Reads 'archie_coo_approve' from autonomy_config (JSONB):
+          {"types": [...], "contractor_cost_ceiling_usd": 2.0}
+        Flips matching pending items to 'approved' so _process_approval_queue
+        executes them on its next 60s tick. Sends Kytran a Telegram notice
+        (informational — not a prompt) for transparency.
+        """
+        try:
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+
+            cur.execute(
+                "SELECT config_value FROM autonomy_config WHERE config_key = 'archie_coo_approve'"
+            )
+            row = cur.fetchone()
+            if not row:
+                cur.close()
+                conn.close()
+                return
+
+            cfg = row["config_value"] if isinstance(row["config_value"], dict) else {}
+            coo_types = cfg.get("types", [])
+            cost_ceiling = float(cfg.get("contractor_cost_ceiling_usd", 2.0))
+
+            if not coo_types:
+                cur.close()
+                conn.close()
+                return
+
+            cur.execute(
+                """
+                SELECT id, action_type, action_data, reason, requested_by
+                FROM autonomy_approval_queue
+                WHERE status = 'pending' AND tier = 2 AND action_type = ANY(%s)
+                ORDER BY created_at ASC
+                LIMIT 5
+                """,
+                (coo_types,),
+            )
+            items = cur.fetchall()
+
+            if not items:
+                cur.close()
+                conn.close()
+                return
+
+            approved_count = 0
+            for item in items:
+                try:
+                    adata = (
+                        item["action_data"]
+                        if isinstance(item["action_data"], dict)
+                        else json.loads(item["action_data"] or "{}")
+                    )
+
+                    # contractor_dispatch: enforce cost ceiling
+                    if item["action_type"] == "contractor_dispatch":
+                        est_cost = float(adata.get("estimated_cost_usd") or 0)
+                        if est_cost > cost_ceiling:
+                            logger.info(
+                                "[coo_approval] Skipping contractor #%s — cost $%.2f > ceiling $%.2f",
+                                item["id"],
+                                est_cost,
+                                cost_ceiling,
+                            )
+                            continue
+
+                    cur.execute(
+                        """
+                        UPDATE autonomy_approval_queue
+                        SET status = 'approved',
+                            approved_at = NOW(),
+                            execution_result = jsonb_build_object(
+                                'approved_by_role', 'coo',
+                                'approved_by_agent', 'A.R.C.H.I.E.',
+                                'auto_approval', true
+                            ),
+                            updated_at = NOW()
+                        WHERE id = %s AND status = 'pending'
+                        """,
+                        (item["id"],),
+                    )
+                    conn.commit()
+                    approved_count += 1
+                    logger.info(
+                        "[coo_approval] A.R.C.H.I.E. approved #%s: %s",
+                        item["id"],
+                        item["action_type"],
+                    )
+                    log_governance_event(
+                        "autonomy_approval",
+                        f"coo_approve:{item['action_type']}",
+                        "approved",
+                        {"approval_id": item["id"], "approved_by": "A.R.C.H.I.E."},
+                    )
+                    # Inform Kytran — non-blocking, non-fatal
+                    try:
+                        from services.telegram_service import send_info  # noqa: PLC0415
+
+                        reason_preview = (item["reason"] or "")[:160]
+                        send_info(
+                            f"COO auto-approved: {item['action_type']}\n"
+                            f"Requested by: {item['requested_by']}\n"
+                            f"Reason: {reason_preview}",
+                            source_agent="A.R.C.H.I.E.",
+                        )
+                    except Exception:
+                        pass
+
+                except Exception as item_exc:
+                    logger.error("[coo_approval] Error on #%s: %s", item["id"], item_exc)
+                    conn.rollback()
+
+            cur.close()
+            conn.close()
+            if approved_count:
+                logger.info("[coo_approval] %d item(s) approved this cycle", approved_count)
+
+        except Exception as exc:
+            logger.error("[coo_approval] Worker error: %s", exc)
 
     # ------------------------------------------------------------------
     # Approval Queue Processor

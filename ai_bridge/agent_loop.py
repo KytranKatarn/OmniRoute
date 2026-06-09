@@ -383,6 +383,8 @@ class AgentLoop:
             id="agent_email_queue",
             name="Agent Loop: Email Queue",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -390,7 +392,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=25),
             id="agent_embedding_keepwarm",
             name="Agent Loop: Embedding Keep-Warm",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -399,6 +403,8 @@ class AgentLoop:
             id="agent_scheduled_tasks",
             name="Agent Loop: Scheduled Tasks",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -406,7 +412,9 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=30),
             id="agent_reminders",
             name="Agent Loop: Reminders",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -415,6 +423,8 @@ class AgentLoop:
             id="agent_approvals",
             name="Agent Loop: Approval Queue",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # DISABLED 2026-04-14: 25 fails/day, old email integration — see Project #261
@@ -440,7 +450,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=30),
             id="resolve_email_oversight",
             name="Agent Loop: R.E.S.O.L.V.E. Email Oversight",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Email Memory Vault — Phase 1 (Project #377). All three workers are gated
@@ -462,6 +474,8 @@ class AgentLoop:
                 trigger=IntervalTrigger(hours=6),
                 id="memory_vault_crawler",
                 name="Agent Loop: Memory Vault — Gmail Ingest Crawler",
+                max_instances=1,
+                coalesce=True,
                 replace_existing=True,
             )
             self.scheduler.add_job(
@@ -487,6 +501,8 @@ class AgentLoop:
                 trigger=IntervalTrigger(minutes=30),
                 id="memory_vault_observer",
                 name="Agent Loop: Memory Vault — Progress Observer",
+                max_instances=1,
+                coalesce=True,
                 replace_existing=True,
             )
             self.scheduler.add_job(
@@ -515,7 +531,9 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=15),
             id="agent_telegram_notify",
             name="Agent Loop: Telegram Notifications",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -524,6 +542,8 @@ class AgentLoop:
             id="agent_browser_tasks",
             name="Agent Loop: Browser Tasks",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -531,7 +551,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="agent_briefings",
             name="Agent Loop: Briefings",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -540,6 +562,8 @@ class AgentLoop:
             id="agent_anomaly_detection",
             name="Agent Loop: Anomaly Detection",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # FIX8 (DR remediation): fleet-identity watchdog. Alerts on mass-offline or
@@ -554,6 +578,8 @@ class AgentLoop:
                 trigger=IntervalTrigger(minutes=5),
                 id="fleet_identity_monitor",
                 name="Agent Loop: Fleet Identity Monitor (FIX8)",
+                max_instances=1,
+                coalesce=True,
                 replace_existing=True,
             )
         except Exception as _fim_err:
@@ -564,7 +590,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=15),
             id="agent_reports",
             name="Agent Loop: Scheduled Reports",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -573,6 +601,8 @@ class AgentLoop:
             id="agent_email_telegram_notify",
             name="Agent Loop: Email Telegram Notifications",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Phase 5: Moved to services/agent_jobs.py
@@ -598,7 +628,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=2),
             id="agent_stale_job_reaper",
             name="Agent Loop: Stale Job Reaper",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -607,6 +639,8 @@ class AgentLoop:
             id="agent_stuck_job_watchdog",
             name="Agent Loop: Stuck Job Watchdog",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -614,7 +648,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=2),
             id="platform_watchdog",
             name="Agent Loop: Platform Watchdog (load/mem/swap)",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Path C: scheduler sidecar heartbeat. HTTP routes that previously
@@ -627,6 +663,8 @@ class AgentLoop:
             id="scheduler_heartbeat",
             name="Agent Loop: Scheduler Heartbeat (30s)",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -634,7 +672,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="comfyui_idle_stop",
             name="Agent Loop: ComfyUI Idle Stop (30min)",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -643,6 +683,8 @@ class AgentLoop:
             id="qa_scheduled_run",
             name="Agent Loop: P.R.O.B.E. QA Scheduled Run",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Phase 5: Moved to services/agent_jobs.py
@@ -660,7 +702,9 @@ class AgentLoop:
             trigger=CronTrigger(hour=7, minute=0, timezone="America/Toronto"),
             id="warden_user_audit",
             name="W.A.R.D.E.N.: Daily User Account Audit",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._run_warden_backup_verify),
@@ -668,13 +712,17 @@ class AgentLoop:
             id="warden_backup_verify",
             name="W.A.R.D.E.N.: Daily Backup Integrity Check",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._run_warden_compliance_check),
             trigger=CronTrigger(day_of_week="sun", hour=6, minute=0, timezone="America/Toronto"),
             id="warden_compliance_check",
             name="W.A.R.D.E.N.: Weekly Admin Compliance Scan",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._run_warden_wtf_rsync),
@@ -682,6 +730,8 @@ class AgentLoop:
             id="warden_wtf_rsync",
             name="W.A.R.D.E.N.: WTF Code Sync Hub→VPS",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -689,7 +739,9 @@ class AgentLoop:
             trigger=IntervalTrigger(hours=6),
             id="agent_proactive_scan",
             name="Agent Loop: Proactive Code Scan",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -698,6 +750,8 @@ class AgentLoop:
             id="dependency_audit",
             name="Agent Loop: Dependency CVE Audit",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # S.P.E.C.T.R.A. — nightly dispatch misroute audit (Project #272 / Task #2105).
@@ -707,7 +761,9 @@ class AgentLoop:
             trigger=IntervalTrigger(hours=24, start_date="2026-01-01 02:15:00"),
             id="spectra_misroute_audit",
             name="Agent Loop: S.P.E.C.T.R.A. Dispatch Misroute Audit",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # S.P.E.C.T.R.A. → Audit Pipeline adapter (Project #272 / Task #2186).
@@ -718,6 +774,8 @@ class AgentLoop:
             id="misroute_to_proposal_adapter",
             name="Agent Loop: S.P.E.C.T.R.A. Misroute → Proposal Adapter",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Archie-as-delegate worker (Project #276 / Task #2209).
@@ -728,8 +786,8 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=30),
             id="delegate_task_worker",
             name="Agent Loop: Archie Delegate Task Worker",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -755,8 +813,8 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=10),
             id="node_auto_provision",
             name="Agent Loop: Node Auto-Provision (warm-set)",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -780,8 +838,8 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=30),
             id="archie_triage_consumer",
             name="Agent Loop: A.R.C.H.I.E. Triage Consumer",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -793,6 +851,8 @@ class AgentLoop:
             id="kin_welfare_digest",
             name="Agent Loop: K.I.N. Welfare + Budget Digest",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # E.T.H.O.S. — weekly ethics brief (task #3277). Reviews K.I.N.'s agent
@@ -805,8 +865,8 @@ class AgentLoop:
             ),
             id="ethos_ethics_brief",
             name="Agent Loop: E.T.H.O.S. Weekly Ethics Brief",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -829,7 +889,9 @@ class AgentLoop:
             trigger=IntervalTrigger(hours=24, start_date="2026-01-01 03:15:00"),
             id="forge_dep_drift",
             name="Agent Loop: F.O.R.G.E. Dependency Drift Audit",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Fleet capacity report — recommends node upgrades when sustained high load
@@ -841,6 +903,8 @@ class AgentLoop:
             id="fleet_capacity_report",
             name="Agent Loop: Fleet Capacity Report",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # P.R.O.B.E. — daily agent-briefing health check (mistake #269358).
@@ -852,7 +916,9 @@ class AgentLoop:
             trigger=IntervalTrigger(hours=24, start_date="2026-01-01 04:15:00"),
             id="probe_briefing_health",
             name="Agent Loop: P.R.O.B.E. Briefing Health Check",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # F.O.R.G.E. — PR review polling (Project #247 Phase 1 / Task #1799).
@@ -873,8 +939,8 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=10),
             id="forge_pr_diff_analysis",
             name="Agent Loop: F.O.R.G.E. PR Diff Analysis",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -897,8 +963,8 @@ class AgentLoop:
             minute=0,
             id="forge_repo_health_check",
             name="Agent Loop: F.O.R.G.E. Repo Health Check",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -923,8 +989,8 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=10, timezone="America/Toronto"),
             id="forge_archie_pr_review",
             name="Agent Loop: Tiered PR Merge Authority (F.O.R.G.E./A.R.C.H.I.E./Kytran)",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -937,6 +1003,8 @@ class AgentLoop:
             id="codex_event_docs",
             name="Agent Loop: C.O.D.E.X. Event Auto-Documentation",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # V.I.G.I.L. — infra heartbeat (Project #272 Phase 2 / Task #2127).
@@ -947,7 +1015,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="vigil_infra_heartbeat",
             name="Agent Loop: V.I.G.I.L. Infrastructure Heartbeat",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -956,6 +1026,8 @@ class AgentLoop:
             id="ddns_ip_monitor",
             name="Agent Loop: DDNS Public IP Monitor",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Phase 5: Moved to services/agent_jobs.py
@@ -972,7 +1044,9 @@ class AgentLoop:
             trigger=IntervalTrigger(hours=6),
             id="agent_notification_cleanup",
             name="Agent Loop: Stale Notification Archiver",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Phase 5: Moved to services/agent_jobs.py
@@ -1008,6 +1082,8 @@ class AgentLoop:
             id="agent_media_generation",
             name="Agent Loop: Media Generation Schedules",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1017,6 +1093,7 @@ class AgentLoop:
             name="Agent Loop: Media Generation Worker (Creative & Design / M.U.S.E.)",
             max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1026,6 +1103,7 @@ class AgentLoop:
             name="Agent Loop: Portrait Refinement Worker (Creative & Design / M.U.S.E.)",
             max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1034,8 +1112,8 @@ class AgentLoop:
             id="model_dispatch_worker",
             name="Agent Loop: Model-Affinity Dispatch Queue Worker (Department HQ)",
             max_instances=1,
-            coalesce=True,
             replace_existing=True,
+            coalesce=True,
         )
 
         from apscheduler.triggers.cron import CronTrigger as _CronTrigger
@@ -1047,6 +1125,7 @@ class AgentLoop:
             name="Agent Loop: Website Deploy (Operations / B.A.S.E.)",
             max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1055,13 +1134,17 @@ class AgentLoop:
             id="media_analytics_snapshot",
             name="Agent Loop: Media Analytics Snapshot",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._process_agent_emails),
             trigger=IntervalTrigger(minutes=5),
             id="agent_email_processing",
             name="Agent Loop: Gmail Processing",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._process_world_events),
@@ -1069,13 +1152,17 @@ class AgentLoop:
             id="game_world_event_processor",
             name="Agent Loop: Game World Events",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._update_market_prices),
             trigger=IntervalTrigger(minutes=5),
             id="game_market_price_update",
             name="Agent Loop: Game Market Prices",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._agent_calendar_drive_tasks),
@@ -1083,13 +1170,17 @@ class AgentLoop:
             id="agent_calendar_drive",
             name="Agent Loop: Calendar + Drive Autonomy",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._update_stock_prices),
             trigger=IntervalTrigger(minutes=5),
             id="stock_price_updater",
             name="Agent Loop: Stock Price Updater",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         # Phase 5: Moved to consciousness/jobs.py
         # self.scheduler.add_job(
@@ -1113,13 +1204,17 @@ class AgentLoop:
             id="module_docs_updater",
             name="Agent Loop: Module Documentation",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._track_git_changes),
             trigger=IntervalTrigger(minutes=30),
             id="git_change_tracker",
             name="Agent Loop: Git Change Tracker",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         self.scheduler.add_job(
             with_app_context(self._monitor_ssh_logins),
@@ -1127,6 +1222,8 @@ class AgentLoop:
             id="agent_ssh_monitor",
             name="Agent Loop: SSH Login Monitor",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Phase 5: Moved to security_network/jobs.py
@@ -1177,7 +1274,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="agent_mission_schedule",
             name="Agent Loop: Mission Profile Schedule",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Phase 5: Moved to dev_hq/jobs.py
@@ -1233,6 +1332,8 @@ class AgentLoop:
             id="agent_uncommitted_check",
             name="Agent Loop: Uncommitted Change Monitor",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Job #47 — Chat memory extraction
@@ -1256,7 +1357,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=30),
             id="agent_auto_execute_proposals",
             name="Agent Loop: Auto-Execute Dev Proposals",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Phase 5: Moved to consciousness/jobs.py
@@ -1366,6 +1469,8 @@ class AgentLoop:
             id="dependabot_scan",
             name="Agent Loop: Dependabot Vulnerability Scan",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1378,7 +1483,9 @@ class AgentLoop:
             ),
             id="market_watch_cycle",
             name="Agent Loop: M.A.R.K.E.T. Trading Cycle (Market Hours)",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Phase 5: Moved to security_network/jobs.py
@@ -1406,6 +1513,8 @@ class AgentLoop:
             id="agent_batch_medium_issues",
             name="Agent Loop: Weekly Code Issue Batch",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Auto log ingestion (every 30 min)
@@ -1414,7 +1523,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=30),
             id="agent_auto_log_ingestion",
             name="Agent Loop: Auto Log Ingestion",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Weekly dependency scan (Sunday 4 AM)
@@ -1424,6 +1535,8 @@ class AgentLoop:
             id="agent_weekly_dependency_scan",
             name="Agent Loop: Weekly Dependency Scan",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # DISABLED 2026-04-14: 77 fails/day, "No module named tools.dev_hq" — see Project #261
@@ -1441,7 +1554,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="agent_crew_wellness_tick",
             name="Agent Loop: Crew Wellness Tick",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Ollama model health (every 30 min)
@@ -1451,6 +1566,8 @@ class AgentLoop:
             id="agent_ollama_model_health",
             name="Agent Loop: Ollama Model Health",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Ollama placement telemetry (every 5 min)
@@ -1459,6 +1576,7 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="ollama_placement_telemetry",
             name="Agent Loop: Ollama Placement Telemetry",
+            coalesce=True,
             replace_existing=True,
             max_instances=1,
         )
@@ -1469,7 +1587,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=10),
             id="agent_media_hub_health_check",
             name="Agent Loop: Media Hub Service Health",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Media queue cleanup (every 1h)
@@ -1480,6 +1600,8 @@ class AgentLoop:
             name="Agent Loop: Media Queue Cleanup",
             misfire_grace_time=300,
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Media export cleanup (every 1h)
@@ -1489,7 +1611,9 @@ class AgentLoop:
             id="agent_media_export_cleanup",
             name="Agent Loop: Media Export Cleanup",
             misfire_grace_time=300,
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Phase 5: Moved to services/fleet_jobs.py
@@ -1530,6 +1654,8 @@ class AgentLoop:
             id="social_video_generate",
             name="Social Video: Generate Content",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Job #63: Social video auto-approve (every 15 minutes)
@@ -1539,7 +1665,9 @@ class AgentLoop:
             minutes=15,
             id="social_video_auto_approve",
             name="Social Video: Auto-Approve",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Job #64: Social video publish scheduled items (every 5 minutes)
@@ -1550,6 +1678,8 @@ class AgentLoop:
             id="social_video_publish",
             name="Social Video: Publish Scheduled",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # Job #65: AutoShorts slideshow render (every 2 minutes)
@@ -1559,7 +1689,9 @@ class AgentLoop:
             minutes=2,
             id="social_video_slideshow_render",
             name="Social Video: Slideshow Renderer",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Job #66: S.I.G.N.A.L. Content Auto-Suggest (daily 8am)
@@ -1571,6 +1703,8 @@ class AgentLoop:
             id="social_content_auto_suggest",
             name="S.I.G.N.A.L.: Content Auto-Suggest",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # ── V.I.G.I.L. Security & Compliance Department Jobs ──
@@ -1580,7 +1714,9 @@ class AgentLoop:
             trigger=IntervalTrigger(seconds=60),
             id="vigilil_network_health",
             name="V.I.G.I.L.: Network Health Monitor",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1589,6 +1725,8 @@ class AgentLoop:
             id="vigilil_traffic_aggregator",
             name="V.I.G.I.L.: Traffic Aggregator",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1596,7 +1734,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=2),
             id="vigilil_nagios_sync",
             name="V.I.G.I.L.: Nagios Sync",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1605,6 +1745,8 @@ class AgentLoop:
             id="vigilil_device_watcher",
             name="V.I.G.I.L.: Device Watcher",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1612,7 +1754,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="vigilil_dns_anomaly",
             name="V.I.G.I.L.: DNS Anomaly Detector",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1621,6 +1765,8 @@ class AgentLoop:
             id="vigilil_log_health",
             name="V.I.G.I.L.: Log Health Monitor",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1628,7 +1774,9 @@ class AgentLoop:
             trigger=CronTrigger(hour=6, minute=0, timezone="America/Toronto"),
             id="vigilil_daily_report",
             name="V.I.G.I.L.: Daily Bandwidth Reporter",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1637,6 +1785,8 @@ class AgentLoop:
             id="vigilil_threat_responder",
             name="V.I.G.I.L.: Threat Responder",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1644,7 +1794,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="vigilil_vpn_scan",
             name="V.I.G.I.L.: VPN Usage Monitor",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         self.scheduler.add_job(
@@ -1653,6 +1805,8 @@ class AgentLoop:
             id="vigilil_bandwidth_alerts",
             name="V.I.G.I.L.: Bandwidth Threshold Monitor",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
 
         # All module jobs registered via Department HQ (centralized — Decision #440)
@@ -1669,7 +1823,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=30),
             id="quality_review",
             name="Knowledge Quality Review",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
         logger.info("Registered job: Knowledge Quality Review (every 30m)")
 
@@ -1680,6 +1836,8 @@ class AgentLoop:
             id="creed_governance_reporter",
             name="C.R.E.E.D. Governance Reporter",
             replace_existing=True,
+            max_instances=1,
+            coalesce=True,
         )
         logger.info("Registered job: C.R.E.E.D. Governance Reporter (every 5m)")
 
@@ -1688,7 +1846,9 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=30),
             id="login_anomaly_check",
             name="Agent Loop: Login Anomaly Check",
+            max_instances=1,
             replace_existing=True,
+            coalesce=True,
         )
 
         # Job #75: Cross-Watch alert generator — match signals to user follows (Task #3023)
@@ -1717,8 +1877,8 @@ class AgentLoop:
             trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
             id="email_morning_digest",
             name="Email HQ: Morning Digest",
-            replace_existing=True,
             max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
         logger.info("Registered job: Email HQ Morning Digest (08:00 EDT)")
@@ -6762,10 +6922,26 @@ class AgentLoop:
                     gpu_models.add(m["name"])
                     gpu_models.add(m["name"].replace(":latest", ""))
 
-            # Cap desired to the top 5 models (already dispatch-frequency-ordered by
-            # _get_agent_models). A 30-min cycle can keep ≤5 models warm without
-            # concurrent load contention. Remaining models load on-demand via dispatcher.
-            HEALTH_WARM_CAP = 5
+            # CPU-tier models are NOT proactively warmed — they load on demand via
+            # dispatch_pending_queue. Keeping them pre-loaded pins 20-40GB of RAM
+            # between tasks, crowding out concurrent agents. They cold-load in
+            # 30-600s when needed; that latency is acceptable (user decision).
+            # Only small GPU-tier models (≤3B, fit in VRAM) stay warm — their
+            # cold-load is ~3-10s so proactive warmup is still worth the VRAM.
+            _CPU_TIER_NO_WARMUP = {
+                "mistral:7b",
+                "gemma3:12b",
+                "dolphin3:latest",
+                "qwen2.5-coder:7b",
+                "phi4:14b",
+                "deepseek-coder-v2:16b",
+                "qwen3-coder-cpu:latest",
+                "qwen2.5:7b",
+            }
+            desired = {m: ep for m, ep in desired.items() if m not in _CPU_TIER_NO_WARMUP}
+
+            # Cap to top 3 GPU/embed models — small warm set, minimal VRAM footprint.
+            HEALTH_WARM_CAP = 3
             desired_capped = dict(list(desired.items())[:HEALTH_WARM_CAP])
 
             missing = {m for m in desired_capped if m not in loaded and f"{m}:latest" not in loaded}
@@ -6784,18 +6960,18 @@ class AgentLoop:
                 endpoint = desired_capped[model_name]
                 use_gpu = model_name in gpu_models or f"{model_name}:latest" in gpu_models
                 try:
-                    # keep_alive="15m" — was -1 which means "pin in RAM forever".
-                    # -1 defeated Department HQ's ability to auto-unload idle
-                    # agents and caused ~64GB of models to accumulate until
-                    # swap maxed out. 15m lets Dept HQ's lifecycle manager
-                    # reclaim idle model RAM.
+                    # keep_alive="5m" — GPU/embed models only reach this point
+                    # (CPU-tier filtered above). 5m is enough to absorb burst
+                    # traffic on small agents without pinning VRAM long-term;
+                    # frees VRAM between idle periods so more concurrent models
+                    # can warm-boot on demand.
                     if endpoint == "embed":
-                        data = {"model": model_name, "input": "health", "keep_alive": "15m"}
+                        data = {"model": model_name, "input": "health", "keep_alive": "5m"}
                     else:
                         opts = {"num_predict": 1}
                         if not use_gpu:
                             opts["num_gpu"] = 0
-                        data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": "15m"}
+                        data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": "5m"}
                     # 90s timeout for most models, 180s for coder models.
                     # Concurrent Ollama inference (quality scorer, dispatch) can cause
                     # contention; failures are retried next 30-min cycle.

@@ -247,6 +247,22 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
             (summary, pr_number, repo or _DEFAULT_REPO),
         )
 
+    # Telegram notification on every review completion (approved or not)
+    try:
+        from services.telegram_service import send_info  # noqa: PLC0415
+
+        _r = get_review(pr_number)
+        _pr_title = (_r or {}).get("title", f"PR #{pr_number}")
+        _verdict_label = "APPROVED ✅" if verdict_is_approved(summary) else "NEEDS CHANGES ⚠️"
+        send_info(
+            f"F.O.R.G.E. reviewed #{pr_number}",
+            f"{_verdict_label} — {_pr_title}\nCheck Repair Bay → PR Review for details.",
+            source_agent="F.O.R.G.E.",
+            source_department="Engineering & Technology",
+        )
+    except Exception as _tg_err:
+        logger.warning("[F.O.R.G.E.] Telegram notify error: %s", _tg_err)
+
     if not auto_merge:
         return
 

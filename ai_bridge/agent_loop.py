@@ -1893,8 +1893,23 @@ class AgentLoop:
         )
         logger.info("Registered job: Email HQ Morning Digest (08:00 EDT)")
 
+        # Job #77: Codex Auto-Queue — scan pending tasks in Codex-scoped projects
+        # and auto-delegate one per cycle to the host Codex poller (Phase B).
+        # Gated by platform_settings 'codex_auto_queue_enabled' = 'true'.
+        # Project IDs from 'codex_auto_queue_project_ids' (comma-separated).
+        self.scheduler.add_job(
+            with_app_context(self._codex_auto_queue),
+            trigger=CronTrigger(hour=1, minute=0, timezone="America/Toronto"),
+            id="codex_auto_queue",
+            name="Agent Loop: Codex Auto-Queue (scan + delegate scoped tasks)",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+        logger.info("Registered job: Codex Auto-Queue (01:00 ET daily)")
+
         self._running = True
-        logger.info("Agent loop started with 76 jobs")
+        logger.info("Agent loop started with 77 jobs")
 
     def _update_stock_prices(self):
         """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).
@@ -6316,6 +6331,92 @@ class AgentLoop:
                 elapsed,
                 error_message=str(e),
             )
+
+    # ------------------------------------------------------------------
+    # Codex Auto-Queue (Phase B — Job #77)
+    # ------------------------------------------------------------------
+
+    def _codex_auto_queue(self):
+        """Scan pending tasks in Codex-scoped projects and delegate one per run.
+
+        Reads ``codex_auto_queue_project_ids`` (comma-separated project IDs)
+        and ``codex_auto_queue_enabled`` from ``platform_settings``.  Picks the
+        highest-priority pending task that has NOT already been deferred to
+        Codex and calls ``delegate_task(capability='codex_task', ...)``.  The
+        host poller (``scripts/agents/codex-delegation-worker.py``, cron every
+        1 min) then claims the deferred row and runs the sandboxed runner.
+
+        One task per job fire — keeps the queue predictable and Codex from
+        building up a backlog faster than it can drain.
+        """
+        import json as _json
+
+        from database import get_db_cursor
+        from services.delegation_service import delegate_task
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT key, value FROM platform_settings "
+                    "WHERE key IN ('codex_auto_queue_enabled', 'codex_auto_queue_project_ids')"
+                )
+                rows = cur.fetchall()
+            settings = {r["key"]: r["value"] for r in (rows or [])}
+            if settings.get("codex_auto_queue_enabled", "false").lower() != "true":
+                logger.debug("codex_auto_queue: disabled via platform_settings — skipping")
+                return
+
+            raw_ids = settings.get("codex_auto_queue_project_ids", "")
+            project_ids = [int(x.strip()) for x in raw_ids.split(",") if x.strip().isdigit()]
+            if not project_ids:
+                logger.warning("codex_auto_queue: no project IDs configured — skipping")
+                return
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """
+                    SELECT ut.id, ut.title, ut.description, ut.project_id,
+                           up.name AS project_name
+                    FROM unified_tasks ut
+                    LEFT JOIN unified_projects up ON up.id = ut.project_id
+                    WHERE ut.project_id = ANY(%s)
+                      AND ut.status = 'pending'
+                      AND (ut.delegation_args IS NULL
+                           OR ut.delegation_args->>'capability' != 'codex_task')
+                    ORDER BY ut.priority DESC, ut.created_at ASC
+                    LIMIT 1
+                    """,
+                    (project_ids,),
+                )
+                task = cur.fetchone()
+
+            if not task:
+                logger.info("codex_auto_queue: no pending tasks in projects %s — nothing to queue", project_ids)
+                return
+
+            reason = task["description"] or task["title"] or "No description provided"
+            result = delegate_task(
+                capability="codex_task",
+                reason=reason,
+                delegation_source="automation",
+                requested_by="codex_auto_queue",
+                project_id=task["project_id"],
+                priority=task.get("priority") or 5,
+            )
+            if result.get("success"):
+                logger.info(
+                    "codex_auto_queue: queued task #%s '%s' (project %s '%s') → delegate task #%s",
+                    task["id"],
+                    task["title"],
+                    task["project_id"],
+                    task.get("project_name", ""),
+                    result.get("task_id"),
+                )
+            else:
+                logger.warning("codex_auto_queue: delegate_task failed: %s", result.get("error"))
+
+        except Exception as e:
+            logger.error("codex_auto_queue failed: %s", e)
 
     # ------------------------------------------------------------------
     # C.O.D.E.X. Event Auto-Documentation (Project #272 Phase 2 / Task #2108)

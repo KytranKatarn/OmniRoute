@@ -1897,16 +1897,22 @@ class AgentLoop:
         # and auto-delegate one per cycle to the host Codex poller (Phase B).
         # Gated by platform_settings 'codex_auto_queue_enabled' = 'true'.
         # Project IDs from 'codex_auto_queue_project_ids' (comma-separated).
+        # Every 30 min (was daily 01:00) — safe at this cadence because the
+        # K.I.N. load gates inside the job (daily run cap from agent_budgets,
+        # queue depth, owner-review backpressure, WP-007 failure standby)
+        # decide whether anything is actually queued.
         self.scheduler.add_job(
             with_app_context(self._codex_auto_queue),
-            trigger=CronTrigger(hour=1, minute=0, timezone="America/Toronto"),
+            trigger="interval",
+            minutes=30,
+            jitter=120,
             id="codex_auto_queue",
-            name="Agent Loop: Codex Auto-Queue (scan + delegate scoped tasks)",
+            name="Agent Loop: Codex Auto-Queue (K.I.N.-gated, every 30 min)",
             max_instances=1,
             replace_existing=True,
             coalesce=True,
         )
-        logger.info("Registered job: Codex Auto-Queue (01:00 ET daily)")
+        logger.info("Registered job: Codex Auto-Queue (every 30 min, K.I.N.-gated)")
 
         self._running = True
         logger.info("Agent loop started with 77 jobs")
@@ -6372,6 +6378,80 @@ class AgentLoop:
                 logger.warning("codex_auto_queue: no project IDs configured — skipping")
                 return
 
+            # ── K.I.N. load gates — queue-time pacing for an EXTERNAL worker.
+            # Codex burns the owner's ChatGPT-plan quota, so the cap is budget
+            # protection, not ceremony. Gates mirror the platform welfare
+            # model: capacity (agent_budgets), drain (queue depth), human
+            # attention (pending promote approvals), WP-007 failure standby.
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT ab.task_queue_limit FROM agent_budgets ab "
+                    "JOIN agents a ON a.id = ab.agent_id WHERE a.name = 'Codex'"
+                )
+                row = cur.fetchone()
+                daily_cap = int(row["task_queue_limit"]) if row and row.get("task_queue_limit") else 8
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM task_execution_log "
+                    "WHERE agent_name = 'Codex (CLI)' AND created_at > NOW() - INTERVAL '24 hours'"
+                )
+                runs_24h = int(cur.fetchone()["n"])
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM unified_tasks "
+                    "WHERE delegation_args->>'capability' = 'codex_task' "
+                    "  AND status NOT IN ('completed', 'blocked', 'cancelled')"
+                )
+                queue_depth = int(cur.fetchone()["n"])
+                cur.execute(
+                    "SELECT COUNT(*) AS n FROM autonomy_approval_queue "
+                    "WHERE action_type = 'codex_promote' AND status = 'pending'"
+                )
+                pending_promotes = int(cur.fetchone()["n"])
+                cur.execute(
+                    "SELECT success, created_at FROM task_execution_log "
+                    "WHERE agent_name = 'Codex (CLI)' ORDER BY created_at DESC LIMIT 3"
+                )
+                recent = cur.fetchall() or []
+
+            if runs_24h >= daily_cap:
+                logger.info(
+                    "codex_auto_queue: K.I.N. gate — daily cap reached (%s/%s runs in 24h)",
+                    runs_24h, daily_cap,
+                )
+                return
+            if queue_depth >= 2:
+                logger.info(
+                    "codex_auto_queue: K.I.N. gate — %s codex tasks already in flight, letting Codex drain",
+                    queue_depth,
+                )
+                return
+            if pending_promotes >= 3:
+                logger.info(
+                    "codex_auto_queue: K.I.N. gate — %s codex PRs awaiting owner review, not queuing more",
+                    pending_promotes,
+                )
+                return
+            if len(recent) == 3 and not any(bool(r["success"]) for r in recent):
+                logger.warning(
+                    "codex_auto_queue: K.I.N. FAILURE STANDBY — last 3 Codex runs failed; "
+                    "auto-queue paused until a run succeeds (WP-007)"
+                )
+                # Alert once, right after the third failure lands — not every fire.
+                from datetime import datetime, timedelta, timezone as _tz
+
+                newest = recent[0]["created_at"]
+                if newest and newest > datetime.now(_tz.utc) - timedelta(minutes=35):
+                    try:
+                        from services import telegram_service
+
+                        telegram_service.send_system(
+                            "Codex failure standby (K.I.N.)",
+                            "Last 3 Codex runs failed — auto-queue paused until a run "
+                            "succeeds. Check /tmp/codex-delegation-worker.log.",
+                        )
+                    except Exception as _e:
+                        logger.warning("codex_auto_queue: standby alert failed: %s", _e)
+                return
+
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
@@ -6382,7 +6462,8 @@ class AgentLoop:
                     WHERE ut.project_id = ANY(%s)
                       AND ut.status = 'pending'
                       AND (ut.delegation_args IS NULL
-                           OR ut.delegation_args->>'capability' != 'codex_task')
+                           OR (ut.delegation_args->>'capability' != 'codex_task'
+                               AND NOT ut.delegation_args ? 'codex_queued_delegate_id'))
                     ORDER BY ut.priority DESC, ut.created_at ASC
                     LIMIT 1
                     """,
@@ -6404,8 +6485,19 @@ class AgentLoop:
                 priority=task.get("priority") or 5,
             )
             if result.get("success"):
+                # Mark the SOURCE task so the next fire can't re-pick it —
+                # unmarked sources stayed 'pending' and were re-delegated on
+                # every fire (the duplicate Faith-module PR bug, #1551/#1553).
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        """UPDATE unified_tasks SET status = 'in_progress',
+                               delegation_args = COALESCE(delegation_args, '{}'::jsonb)
+                                   || jsonb_build_object('codex_queued_delegate_id', %s)
+                           WHERE id = %s""",
+                        (result.get("task_id"), task["id"]),
+                    )
                 logger.info(
-                    "codex_auto_queue: queued task #%s '%s' (project %s '%s') → delegate task #%s",
+                    "codex_auto_queue: queued task #%s '%s' (project %s '%s') → delegate task #%s (source marked in_progress)",
                     task["id"],
                     task["title"],
                     task["project_id"],

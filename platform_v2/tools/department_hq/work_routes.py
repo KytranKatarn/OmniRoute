@@ -64,7 +64,10 @@ def register_work_routes(bp, admin_required):
                         ORDER BY started_at DESC LIMIT 1
                     ) rc ON TRUE
                     LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
-                    WHERE a.worker_type = 'ai'
+                    WHERE (a.worker_type = 'ai'
+                           -- K.I.N. manages any agent with a budget row: external
+                           -- contract workers (Codex) get load governance too.
+                           OR (a.worker_type = 'contractor' AND ab.agent_id IS NOT NULL))
                       AND a.shift_state != 'decommissioned'
                     ORDER BY
                         (rc.rest_type IS NOT NULL) DESC,
@@ -95,7 +98,12 @@ def register_work_routes(bp, admin_required):
                     GROUP BY tel.agent_name
                     """
                 )
-                velocity_map = {r["agent_name"]: r for r in (cur.fetchall() or [])}
+                # Key by ROSTER name: external CLI workers log telemetry as
+                # '<Name> (CLI)' (Token Economy convention) but the agents row
+                # is plain '<Name>' — strip the suffix so Codex's load joins up.
+                velocity_map = {
+                    r["agent_name"].removesuffix(" (CLI)"): r for r in (cur.fetchall() or [])
+                }
 
                 # Task #3798: layered 24h recovery — hourly token/dispatch buckets per
                 # agent so the UI can show old work AGING OUT of the rolling window
@@ -120,7 +128,7 @@ def register_work_routes(bp, admin_required):
                 history_map = {}
                 for hr in cur.fetchall() or []:
                     _key = hr["bucket"].astimezone(_tz.utc).isoformat()
-                    history_map.setdefault(hr["agent_name"], {})[_key] = {
+                    history_map.setdefault(hr["agent_name"].removesuffix(" (CLI)"), {})[_key] = {
                         "tokens": int(hr["tokens"] or 0),
                         "dispatches": int(hr["dispatches"] or 0),
                     }
@@ -140,7 +148,7 @@ def register_work_routes(bp, admin_required):
                 hours_map = {}
                 for _hrec in real_compute_hours_today(cur).values():
                     _h = _hrec["hours"]
-                    hours_map[_hrec["name"]] = {
+                    hours_map[_hrec["name"].removesuffix(" (CLI)")] = {
                         "hours_worked_today": _h,
                         "overwork_level": ("critical" if _h >= 12.0 else "warning" if _h >= 8.0 else "normal"),
                     }

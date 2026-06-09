@@ -711,6 +711,14 @@ def gmail_profile_synthesis_worker():
                         psycopg2.extras.Json(data.get("timeline") or []),
                     ),
                 )
+            try:
+                _synthesize_contacts(owner_id)
+            except Exception as cexc:
+                logger.warning(
+                    "memory_vault contact synthesis failed for owner %s: %s",
+                    owner_id,
+                    cexc,
+                )
             done += 1
         except Exception as exc:
             logger.warning(
@@ -719,3 +727,228 @@ def gmail_profile_synthesis_worker():
 
     logger.info("memory_vault synthesis: %d owner profile(s) built", done)
     return {"synthesized": done}
+
+
+# ===========================================================================
+# Phase 2.4 — per-contact synthesis + embeddings + retrieval surface
+# ===========================================================================
+
+_CONTACT_SYNTH_LIMIT = 25  # top contacts (by fact volume) synthesized per run
+_CONTACT_MIN_FACTS = 2  # need at least this many facts to synthesize a contact
+_EMBED_BATCH = 100  # rows embedded per embed-worker run
+
+
+def _synthesize_contacts(owner_id):
+    """For the owner's most-corresponded contacts, roll their facts into a relationship
+    summary + communication-style fingerprint (research_synthesis -> D.A.R.W.I.N., local).
+    """
+    from tools.department_hq.services.department_dispatcher import dispatch_json
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT f.fact_type, f.content, c.sender "
+            "FROM profile_facts f "
+            "JOIN google_email_cache c "
+            "  ON c.account_id = f.account_id AND c.gmail_id = f.source_gmail_id "
+            "WHERE f.owner_id = %s AND c.sender IS NOT NULL "
+            "ORDER BY c.received_at DESC NULLS LAST LIMIT 1000",
+            (owner_id,),
+        )
+        rows = cur.fetchall()
+
+    by_contact = {}
+    for r in rows:
+        em = _norm_email(r["sender"])
+        if not em or "@" not in em:
+            continue
+        by_contact.setdefault(em, []).append((r["fact_type"], r["content"]))
+
+    ranked = sorted(by_contact.items(), key=lambda kv: len(kv[1]), reverse=True)
+    done = 0
+    for email, facts in ranked[:_CONTACT_SYNTH_LIMIT]:
+        if len(facts) < _CONTACT_MIN_FACTS:
+            continue
+        blob = "\n".join("- (%s) %s" % (t, c) for t, c in facts[:60])[:6000]
+        prompt = (
+            "Facts about the owner's correspondence with %s, drawn from their email:\n\n%s"
+            '\n\nSTRICT JSON: {"relationship": 1-2 sentences on who this is to the owner and '
+            'the nature of the relationship, "comm_style": 1 sentence on how the owner '
+            "communicates with them (tone/formality)}. Use only the facts; do not invent."
+            % (email, blob)
+        )
+        data = dispatch_json(
+            "research_synthesis",
+            prompt,
+            module_id="memory_vault_contact_synth",
+            system_prompt=_SYNTH_SYSTEM,
+            local_only=True,
+        )
+        if not isinstance(data, dict):
+            continue
+        import psycopg2.extras
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE profile_contacts SET relationship_summary = %s, comm_style = %s, "
+                "updated_at = now() WHERE owner_id = %s AND email = %s",
+                (
+                    (data.get("relationship") or "")[:2000],
+                    psycopg2.extras.Json({"style": data.get("comm_style") or ""}),
+                    owner_id,
+                    email,
+                ),
+            )
+        done += 1
+    logger.info(
+        "memory_vault contact synthesis: %d contact(s) for owner %s", done, owner_id
+    )
+    return done
+
+
+def _to_vec(emb):
+    """Format a python float list as a pgvector literal for ::vector casts."""
+    return "[" + ",".join(repr(float(x)) for x in emb) + "]"
+
+
+def profile_embed_worker():
+    """Embed un-embedded profile_facts / profile_contacts / profile_owner summaries with
+    nomic-embed-text (768) for semantic retrieval. Gated behind memory_vault."""
+    if not _enabled(_FLAG_MASTER):
+        return {"skipped": "memory_vault disabled"}
+
+    from embedding_service import generate_embedding
+
+    counts = {"facts": 0, "contacts": 0, "owner": 0, "error": 0}
+
+    def _embed_rows(select_sql, update_sql, key, text_key, params):
+        with get_db_cursor() as (conn, cur):
+            cur.execute(select_sql, params)
+            rows = cur.fetchall()
+        n = 0
+        for row in rows:
+            try:
+                txt = row[text_key]
+                if not txt:
+                    continue
+                emb = generate_embedding(txt)
+                if not emb:
+                    continue
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(update_sql, (_to_vec(emb), row[key]))
+                n += 1
+            except Exception as exc:
+                logger.debug("embed %s=%s failed: %s", key, row.get(key), exc)
+                counts["error"] += 1
+        return n
+
+    counts["facts"] = _embed_rows(
+        "SELECT id, content FROM profile_facts "
+        "WHERE embedding IS NULL AND content IS NOT NULL ORDER BY id LIMIT %s",
+        "UPDATE profile_facts SET embedding = %s::vector WHERE id = %s",
+        "id",
+        "content",
+        (_EMBED_BATCH,),
+    )
+    counts["contacts"] = _embed_rows(
+        "SELECT id, relationship_summary FROM profile_contacts "
+        "WHERE embedding IS NULL AND relationship_summary IS NOT NULL ORDER BY id LIMIT %s",
+        "UPDATE profile_contacts SET embedding = %s::vector WHERE id = %s",
+        "id",
+        "relationship_summary",
+        (_EMBED_BATCH,),
+    )
+    counts["owner"] = _embed_rows(
+        "SELECT owner_id, summary FROM profile_owner "
+        "WHERE embedding IS NULL AND summary IS NOT NULL",
+        "UPDATE profile_owner SET embedding = %s::vector WHERE owner_id = %s",
+        "owner_id",
+        "summary",
+        (),
+    )
+
+    logger.info("memory_vault embed run: %s", counts)
+    return counts
+
+
+# ---------------------------------------------------------------------------
+# Retrieval surface — read-only, NO inference. The mail agent + wellness apps
+# call these before drafting/acting so they speak with the owner's real context.
+# ---------------------------------------------------------------------------
+def get_owner_context(owner_id, max_facts=20):
+    """The owner's profile (summary, voice, timeline) + recent facts. Read-only."""
+    out = {"summary": None, "default_voice": None, "timeline": [], "facts": []}
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT summary, default_voice, timeline FROM profile_owner WHERE owner_id = %s",
+            (owner_id,),
+        )
+        row = cur.fetchone()
+        if row:
+            out["summary"] = row["summary"]
+            out["default_voice"] = row["default_voice"]
+            out["timeline"] = row["timeline"] or []
+        cur.execute(
+            "SELECT fact_type, subject, content FROM profile_facts "
+            "WHERE owner_id = %s ORDER BY id DESC LIMIT %s",
+            (owner_id, max_facts),
+        )
+        out["facts"] = [dict(r) for r in cur.fetchall()]
+    return out
+
+
+def get_contact_context(owner_id, sender, query=None, max_facts=12):
+    """What the owner knows about a correspondent (resolved by email). If `query` + embeddings
+    are present, the contact's facts are ranked semantically; else most-recent. Read-only.
+    """
+    email = _norm_email(sender or "")
+    out = {"email": email, "contact": None, "facts": []}
+    if not email or "@" not in email:
+        return out
+    like = "%" + email + "%"
+    q_emb = None
+    if query:
+        try:
+            from embedding_service import generate_embedding
+
+            q_emb = generate_embedding(query)
+        except Exception:
+            q_emb = None
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            "SELECT display_name, relationship_summary, comm_style, message_count "
+            "FROM profile_contacts WHERE owner_id = %s AND email = %s",
+            (owner_id, email),
+        )
+        c = cur.fetchone()
+        if c:
+            style = (
+                c["comm_style"].get("style")
+                if isinstance(c["comm_style"], dict)
+                else None
+            )
+            out["contact"] = {
+                "display_name": c["display_name"],
+                "relationship_summary": c["relationship_summary"],
+                "comm_style": style,
+                "message_count": c["message_count"],
+            }
+        if q_emb:
+            cur.execute(
+                "SELECT f.fact_type, f.subject, f.content FROM profile_facts f "
+                "JOIN google_email_cache gc "
+                "  ON gc.account_id = f.account_id AND gc.gmail_id = f.source_gmail_id "
+                "WHERE f.owner_id = %s AND lower(gc.sender) LIKE %s AND f.embedding IS NOT NULL "
+                "ORDER BY f.embedding <=> %s::vector LIMIT %s",
+                (owner_id, like, _to_vec(q_emb), max_facts),
+            )
+        else:
+            cur.execute(
+                "SELECT f.fact_type, f.subject, f.content FROM profile_facts f "
+                "JOIN google_email_cache gc "
+                "  ON gc.account_id = f.account_id AND gc.gmail_id = f.source_gmail_id "
+                "WHERE f.owner_id = %s AND lower(gc.sender) LIKE %s "
+                "ORDER BY gc.received_at DESC NULLS LAST LIMIT %s",
+                (owner_id, like, max_facts),
+            )
+        out["facts"] = [dict(r) for r in cur.fetchall()]
+    return out

@@ -454,6 +454,7 @@ class AgentLoop:
                 gmail_profile_progress_observer,
                 gmail_profile_synthesis_worker,
                 gmail_profile_triage_worker,
+                profile_embed_worker,
             )
 
             self.scheduler.add_job(
@@ -493,6 +494,15 @@ class AgentLoop:
                 trigger=CronTrigger(hour=2, minute=30, timezone="America/Toronto"),
                 id="memory_vault_synthesis",
                 name="Agent Loop: Memory Vault — Phase 2.2 Profile Synthesis",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+            self.scheduler.add_job(
+                with_app_context(profile_embed_worker),
+                trigger=IntervalTrigger(minutes=15),
+                id="memory_vault_embed",
+                name="Agent Loop: Memory Vault — Phase 2.4 Embeddings",
                 max_instances=1,
                 coalesce=True,
                 replace_existing=True,

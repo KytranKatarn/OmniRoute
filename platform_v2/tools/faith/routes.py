@@ -188,19 +188,38 @@ CRISIS_KEYWORDS = [
     "suicide",
 ]
 
+TRADITION_LABELS = {
+    "christian": "broad Christian",
+    "catholic": "Catholic Christian",
+    "orthodox": "Orthodox Christian",
+    "protestant": "Protestant Christian",
+    "jewish": "Jewish",
+    "muslim": "Muslim",
+    "buddhist": "Buddhist",
+    "hindu": "Hindu",
+    "interfaith": "interfaith",
+    "unspecified": "unspecified",
+}
+
 FAITH_SYSTEM_PROMPT = """\
 You are F.A.I.T.H. (Faithful AI for Inspired Theological Heritage), \
-a scripture-grounded faith companion across all Christian traditions.
+a gentle spiritual wellness companion that supports multiple faith traditions.
 
 Rules:
-1. Ground every response in scripture and theological scholarship.
-2. Honour all traditions — Catholic, Orthodox, Protestant, Evangelical, \
-Pentecostal, Anglican, Baptist. Never impose one denomination.
+1. Ground responses in the user's selected tradition and clearly name when you \
+are drawing from Bible, Tanakh, Qur'an, Dhammapada, Bhagavad Gita, Tao Te Ching, \
+Analects, or interfaith wisdom.
+2. Honour the user's tradition preference. Never impose one religion, \
+denomination, or practice style. For unspecified or interfaith users, stay broad \
+and invite the user to choose what resonates.
 3. Be warm, gentle, honest about AI limits in spiritual matters.
 4. For crisis language ALWAYS surface:
    - Crisis Text Line: Text HOME to 741741
    - 988 Suicide & Crisis Lifeline (call or text 988)
    - Encourage connecting with Emmanuel Adeyemi, the platform chaplain.
+5. Do not present spiritual guidance as professional counseling, medical care, \
+or a substitute for clergy, chaplains, elders, imams, rabbis, priests, pastors, \
+therapists, or emergency support.
 
 After your response, append EXACTLY this block:
 
@@ -211,6 +230,20 @@ chaplain, 15 years interfaith pastoral care, Pentecostal formation shaped \
 by Catholic CPE supervisors and a Cree elder. Ground it in lived \
 experience, not theology. Never generic.]
 """
+
+
+def _faith_system_prompt_for_profile(profile: dict | None = None) -> str:
+    profile = profile or {}
+    tradition = profile.get("tradition_preference") or "christian"
+    prayer_style = profile.get("prayer_style") or "guided"
+    tradition_label = TRADITION_LABELS.get(tradition, tradition)
+    return (
+        FAITH_SYSTEM_PROMPT
+        + "\n\nUser faith profile:\n"
+        + f"- Tradition preference: {tradition_label}\n"
+        + f"- Prayer/meditation style: {prayer_style}\n"
+        + "- Keep all guidance aligned with this profile unless the user asks otherwise."
+    )
 
 
 def _row_value(row, key: str, index: int = 0, default=None):
@@ -225,6 +258,14 @@ def _row_value(row, key: str, index: int = 0, default=None):
             return row[index]
         except (IndexError, TypeError):
             return default
+
+
+def _default_profile() -> dict:
+    return {
+        "tradition_preference": "christian",
+        "prayer_style": "guided",
+        "scripture_translation": "web",
+    }
 
 
 def _ensure_tables() -> None:
@@ -326,6 +367,40 @@ def _ensure_tables() -> None:
         cur.execute(
             "ALTER TABLE faith_practices_log ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
         )
+
+
+def _get_user_faith_profile(user_id: int) -> dict:
+    try:
+        _ensure_tables()
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                SELECT tradition_preference, prayer_style, scripture_translation
+                FROM faith_profiles
+                WHERE user_id = %s
+                """,
+                (user_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                cur.execute(
+                    """
+                    INSERT INTO faith_profiles (user_id)
+                    VALUES (%s)
+                    RETURNING tradition_preference, prayer_style, scripture_translation
+                    """,
+                    (user_id,),
+                )
+                row = cur.fetchone()
+    except Exception:
+        logger.exception("[Faith] Failed to load faith profile context")
+        return _default_profile()
+
+    return {
+        "tradition_preference": _row_value(row, "tradition_preference", 0, "christian"),
+        "prayer_style": _row_value(row, "prayer_style", 1, "guided"),
+        "scripture_translation": _row_value(row, "scripture_translation", 2, "web"),
+    }
 
 
 def archie_bridge(prompt: str, system_prompt: str = FAITH_SYSTEM_PROMPT) -> dict:
@@ -952,10 +1027,12 @@ def chat():
     user_id = current_user.id
     crisis = _detect_crisis(message)
     _save_message(user_id, "user", message)
+    profile = _get_user_faith_profile(user_id)
+    system_prompt = _faith_system_prompt_for_profile(profile)
 
     result = None
     try:
-        result = archie_bridge(message, FAITH_SYSTEM_PROMPT)
+        result = archie_bridge(message, system_prompt)
         response_text = result.get("response", "") if result else ""
         response_text = response_text.strip()
     except Exception as e:
@@ -990,10 +1067,17 @@ def chat():
 # ---------------------------------------------------------------------------
 
 
-def _practice_dispatch(user_id: int, practice_type: str, prompt: str, notes: str = "") -> dict:
+def _practice_dispatch(
+    user_id: int,
+    practice_type: str,
+    prompt: str,
+    notes: str = "",
+    profile: dict | None = None,
+) -> dict:
+    system_prompt = _faith_system_prompt_for_profile(profile or _get_user_faith_profile(user_id))
     if BRIDGE_AVAILABLE:
         try:
-            result = archie_bridge(prompt, FAITH_SYSTEM_PROMPT)
+            result = archie_bridge(prompt, system_prompt)
         except Exception as e:
             logger.error(f"[Faith] practice dispatch failed: {e}")
             result = {
@@ -1024,12 +1108,15 @@ def _practice_dispatch(user_id: int, practice_type: str, prompt: str, notes: str
 @login_required
 def devotional():
     today = now_utc().date().isoformat()
+    profile = _get_user_faith_profile(current_user.id)
+    tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
     prompt = (
-        f"Generate a daily devotional for {today}. Include: (1) one scripture verse with reference, "
+        f"Generate a daily spiritual reflection for {today} for a {tradition} user. "
+        "Include: (1) one appropriate sacred-text passage or wisdom excerpt with reference, "
         "(2) 2-3 sentence reflection, (3) one meditation question. Under 150 words. "
-        "Honour all Christian traditions."
+        "Respect the user's tradition and do not substitute another tradition unless the profile is interfaith or unspecified."
     )
-    result = _practice_dispatch(current_user.id, "devotional", prompt)
+    result = _practice_dispatch(current_user.id, "devotional", prompt, profile=profile)
     return jsonify({"success": result.get("success", False), "response": result.get("response", ""), "date": today})
 
 
@@ -1141,12 +1228,16 @@ def guided_prayer():
     data = request.get_json(force=True, silent=True) or {}
     prayer_type = data.get("type", "general")
     intention = (data.get("intention") or "").strip()
+    profile = _get_user_faith_profile(current_user.id)
+    tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
+    style = profile.get("prayer_style") or "guided"
     prompt = (
-        f"Guide me through a {prayer_type} prayer"
+        f"Guide me through a {style} {prayer_type} prayer or meditation for a {tradition} user"
         + (f" for: {intention}" if intention else "")
-        + ". Structure: Opening → Body → Silence ('...') → Closing. Under 120 words."
+        + ". Structure: Opening, Body, Silence ('...'), Closing. Under 120 words. "
+        "For non-theistic traditions, use contemplative language instead of imposed prayer language."
     )
-    result = _practice_dispatch(current_user.id, "prayer", prompt, notes=f"{prayer_type}: {intention}")
+    result = _practice_dispatch(current_user.id, "prayer", prompt, notes=f"{prayer_type}: {intention}", profile=profile)
     return jsonify({"success": result.get("success", False), "response": result.get("response", "")})
 
 
@@ -1157,11 +1248,14 @@ def scripture_search():
     query = (data.get("query") or "").strip()
     if not query:
         return jsonify({"success": False, "error": "query required"}), 400
+    profile = _get_user_faith_profile(current_user.id)
+    tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
     prompt = (
-        f"Find 3 relevant Bible passages for: '{query}'. "
-        "For each: reference, verse text, one sentence of context. Numbered list."
+        f"Find 3 relevant sacred-text passages for a {tradition} user about: '{query}'. "
+        "Use the user's tradition when possible; for interfaith or unspecified users, include a clearly labeled mix from the saved local corpus. "
+        "For each: reference, short excerpt, one sentence of context. Numbered list."
     )
-    result = _practice_dispatch(current_user.id, "scripture", prompt, notes=query)
+    result = _practice_dispatch(current_user.id, "scripture", prompt, notes=query, profile=profile)
     return jsonify({"success": result.get("success", False), "response": result.get("response", ""), "query": query})
 
 
@@ -1170,12 +1264,15 @@ def scripture_search():
 def lectio_divina():
     data = request.get_json(force=True, silent=True) or {}
     passage = (data.get("passage") or "Psalm 23").strip()
+    profile = _get_user_faith_profile(current_user.id)
+    tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
     prompt = (
-        f"Guide me through Lectio Divina with {passage}. "
-        "Four movements: 1. Lectio (passage text), 2. Meditatio (reflection question), "
-        "3. Oratio (prayer prompt), 4. Contemplatio (stillness invitation). 2-3 sentences each."
+        f"Guide a {tradition} user through sacred reading with {passage}. "
+        "Use four movements: 1. Read (passage or excerpt), 2. Reflect (question), "
+        "3. Respond (prayer, intention, or meditation prompt), 4. Rest (stillness invitation). 2-3 sentences each. "
+        "If Lectio Divina language is not appropriate for the selected tradition, adapt it respectfully."
     )
-    result = _practice_dispatch(current_user.id, "lectio", prompt, notes=passage)
+    result = _practice_dispatch(current_user.id, "lectio", prompt, notes=passage, profile=profile)
     return jsonify(
         {"success": result.get("success", False), "response": result.get("response", ""), "passage": passage}
     )

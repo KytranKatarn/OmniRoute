@@ -403,6 +403,18 @@ def gmail_profile_progress_observer():
             acct["enumeration_complete"] = row["enumeration_complete"]
             acct["total_enumerated"] = row["total_enumerated"]
 
+    # Reset rows stuck in 'extracting' > 15 min (worker crash / thread failure recovery).
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE profile_ingest_ledger "
+            "SET state = 'triaged_important', claimed_at = NULL "
+            "WHERE state = 'extracting' AND claimed_at < now() - INTERVAL '15 minutes'"
+        )
+        stuck = cur.rowcount
+    if stuck:
+        logger.warning("memory_vault observer: reset %d stuck 'extracting' rows", stuck)
+        report["_stuck_reset"] = stuck
+
     logger.info("memory_vault progress: %s", report)
 
     if error_total >= 50:
@@ -423,9 +435,8 @@ def gmail_profile_progress_observer():
 # ===========================================================================
 
 _FLAG_EXTRACT = "memory_vault_extract"  # gate Phase-2 extraction (default OFF)
-_EXTRACT_BATCH = (
-    30  # important emails analyzed per run (7B GPU, interleaved across accounts)
-)
+_EXTRACT_BATCH = 30  # reference total; fleet run uses _EXTRACT_BATCH_PER_NODE × n_nodes
+_EXTRACT_BATCH_PER_NODE = 10  # rows per fleet node per cycle; effective = n_nodes × 10
 _EXTRACT_BODY_CHARS = 6000  # body chars sent to the model (cost cap)
 
 _EXTRACT_SYSTEM = (
@@ -459,10 +470,11 @@ def _display_name(sender):
 
 def gmail_profile_extract_worker():
     """
-    Read each important email's body, extract evidence-linked facts via a LOCAL 7B agent
-    (capability='analyze', allow_cloud=False), write profile_facts + upsert profile_contacts.
-    Interleaved across accounts; gated behind the 'memory_vault_extract' flag.
-    Every fact carries source_gmail_id + ledger_id so the profile is traceable, never invented.
+    Fan extract work across online fleet nodes in parallel (fleet_batch_dispatcher).
+    Claims sub-batches atomically via FOR UPDATE SKIP LOCKED, dispatches each to a
+    different node via preferred_node hint, writes profile_facts + profile_contacts.
+    local_only=True is hard-pinned on all dispatch calls — email content never leaves
+    the cluster. Falls back to hub when no fleet nodes are available.
     """
     if not _enabled(_FLAG_MASTER):
         return {"skipped": "memory_vault disabled"}
@@ -470,54 +482,92 @@ def gmail_profile_extract_worker():
         return {"skipped": "extract disabled"}
 
     from .gmail_service import get_email
+    from services.fleet_batch_dispatcher import (
+        claim_sub_batches,
+        fan_out,
+        get_available_nodes,
+    )
 
-    with get_db_cursor() as (conn, cur):
-        cur.execute(
-            "SELECT id, account_id, gmail_id, account_context, owner_id FROM ("
-            "  SELECT l.id, l.account_id, l.gmail_id, l.account_context, ga.owner_id, "
-            "         ROW_NUMBER() OVER (PARTITION BY l.account_id ORDER BY l.id) AS rn "
-            "  FROM profile_ingest_ledger l JOIN google_accounts ga ON ga.id = l.account_id "
-            "  WHERE l.state = 'triaged_important'"
-            ") t ORDER BY rn, account_id LIMIT %s",
-            (_EXTRACT_BATCH,),
+    # 1. Discover available fleet nodes (30s TTL cache).
+    nodes = get_available_nodes("analyze")
+    n_nodes = len(nodes)  # always >= 1 (hub fallback appended by get_available_nodes)
+
+    # 2. Atomically claim sub-batches — FOR UPDATE SKIP LOCKED prevents double-claiming.
+    with get_db_cursor(commit=True) as (conn, cur):
+        sub_batches = claim_sub_batches(
+            cur,
+            table="profile_ingest_ledger",
+            state_col="state",
+            pending_val="triaged_important",
+            claiming_val="extracting",
+            id_col="id",
+            n_nodes=n_nodes,
+            batch_per_node=_EXTRACT_BATCH_PER_NODE,
+            account_col="account_id",
         )
-        rows = cur.fetchall()
 
-    if not rows:
-        return {"extracted": 0}
+    all_claimed = [id_ for batch in sub_batches for id_ in batch]
+    if not all_claimed:
+        return {"extracted": 0, "nodes": n_nodes}
 
-    counts = {"extracted": 0, "facts": 0, "error": 0}
-    for row in rows:
-        try:
-            full = get_email(row["account_id"], row["gmail_id"])
-            facts = _extract_facts(full, row["account_context"])
-            n = _store_facts(row, full, facts)
-            _upsert_contact(row, full)
-            with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute(
-                    "UPDATE profile_ingest_ledger SET state = 'extracted', "
-                    "extracted_at = now(), error = NULL WHERE id = %s",
-                    (row["id"],),
-                )
-            counts["extracted"] += 1
-            counts["facts"] += n
-        except Exception as exc:
-            logger.warning(
-                "memory_vault extract failed for ledger %s: %s", row["id"], exc
+    # 3. Define per-node work function (each thread processes its claimed IDs).
+    def dispatch_for_node(node_name, row_ids):
+        if not row_ids:
+            return {"extracted": 0, "facts": 0, "error": 0}
+        counts = {"extracted": 0, "facts": 0, "error": 0}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT l.id, l.account_id, l.gmail_id, l.account_context, ga.owner_id "
+                "FROM profile_ingest_ledger l "
+                "JOIN google_accounts ga ON ga.id = l.account_id "
+                "WHERE l.id = ANY(%s)",
+                (row_ids,),
             )
-            with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute(
-                    "UPDATE profile_ingest_ledger SET state = 'extract_error', "
-                    "error = %s WHERE id = %s",
-                    (("extract: " + str(exc))[:500], row["id"]),
+            rows = cur.fetchall()
+        for row in rows:
+            try:
+                full = get_email(row["account_id"], row["gmail_id"])
+                facts = _extract_facts(full, row["account_context"], preferred_node=node_name)
+                n = _store_facts(row, full, facts)
+                _upsert_contact(row, full)
+                with get_db_cursor(commit=True) as (conn2, cur2):
+                    cur2.execute(
+                        "UPDATE profile_ingest_ledger SET state = 'extracted', "
+                        "extracted_at = now(), error = NULL WHERE id = %s",
+                        (row["id"],),
+                    )
+                counts["extracted"] += 1
+                counts["facts"] += n
+            except Exception as exc:
+                logger.warning(
+                    "memory_vault extract failed for ledger %s (node=%s): %s",
+                    row["id"], node_name, exc,
                 )
-            counts["error"] += 1
+                with get_db_cursor(commit=True) as (conn2, cur2):
+                    cur2.execute(
+                        "UPDATE profile_ingest_ledger SET state = 'extract_error', "
+                        "error = %s WHERE id = %s",
+                        (("extract: " + str(exc))[:500], row["id"]),
+                    )
+                counts["error"] += 1
+        return counts
 
-    logger.info("memory_vault extract run: %s", counts)
-    return counts
+    # 4. Fan out across nodes in parallel threads.
+    node_work = [(nodes[i]["node_name"], sub_batches[i]) for i in range(n_nodes)]
+    thread_results = fan_out(node_work, dispatch_for_node, max_workers=n_nodes)
+
+    # 5. Aggregate totals.
+    totals: dict = {"extracted": 0, "facts": 0, "error": 0, "nodes": n_nodes}
+    for r in thread_results:
+        if r:
+            for k in ("extracted", "facts", "error"):
+                totals[k] += r.get(k, 0)
+
+    logger.info("memory_vault extract fleet run: %s", totals)
+    return totals
 
 
-def _extract_facts(full, context):
+def _extract_facts(full, context, preferred_node=None):
     """Dispatch the email body to a LOCAL 7B analyst; return the parsed fact JSON."""
     from tools.department_hq.services.department_dispatcher import dispatch_json
 
@@ -537,13 +587,14 @@ def _extract_facts(full, context):
         '  "sentiment": one word.\n'
         "Use [] when nothing applies. Extract only what the email evidences; do not invent."
     )
-    data = dispatch_json(
-        "analyze",
-        prompt,
+    kwargs = dict(
         module_id="memory_vault_extract",
         system_prompt=_EXTRACT_SYSTEM,
         local_only=True,  # hard-pin to local fleet — email content never leaves the cluster
     )
+    if preferred_node is not None:
+        kwargs["preferred_node"] = preferred_node
+    data = dispatch_json("analyze", prompt, **kwargs)
     return data or {}
 
 

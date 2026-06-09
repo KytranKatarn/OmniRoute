@@ -2,30 +2,31 @@
 """
 Ingest Codex CLI token usage into task_execution_log
 =====================================================
-Codex CLI (OpenAI, ChatGPT sign-in mode) is external compute driven from this hub.
-Each run of scripts/agents/run-codex-task.sh writes a JSON log to
-/mnt/archie_brain/logs/codex/<timestamp>_<branch>.json containing the telemetry
-already written to task_execution_log via services/agents/codex_telemetry.py.
+Two token sources are merged:
 
-WHY a host script (not a platform job): run-codex-task.sh executes on the HOST
-(not inside the container), so its JSON logs live on the host filesystem. This
-mirrors how scripts/ingest_claude_cli_tokens.py works for Claude Code sessions.
+SOURCE A — run logs (/mnt/archie_brain/logs/codex/*.json)
+  Written by run-codex-task.sh via codex_telemetry.py after each task.
+  Tokens are 0 in ChatGPT sign-in mode (estimated=True).
 
-Design decisions:
+SOURCE B — session JSONL files (~/.codex/sessions/**/*.jsonl)
+  The actual OpenAI API response objects flow through Codex's tool calls as
+  JSON-in-string payloads inside function_call_output events.  They contain
+  real "output_tokens" and "input_tokens" fields.
+  - completion_tokens = SUM(output_tokens) across events  [unique per call — add]
+  - prompt_tokens     = MAX(input_tokens) across events   [grows with context — take max]
+  Source B overrides Source A when real token data is found (estimated=False).
+
+Design:
   - One row per (day, model) in task_execution_log, idempotent (delete+reinsert).
   - provider='openai', worker_type='contract' (matches CHECK constraint).
-  - HEADLINE metric = tokens_used (prompt + completion). In sign-in mode Codex
-    does not expose per-call token counts, so tokens are 0 (estimated=True in meta).
-    If Codex ever emits usage lines, parse them in run-codex-task.sh and include
-    them in the JSON log.
-  - Dedup key: request_metadata->>'source' = 'codex_code_cli' (same pattern as
-    Claude ingest's 'claude_code_cli').
+  - Dedup key: request_metadata->>'source' = 'codex_code_cli'.
+  - Processed session files tracked in LOGS_DIR/.ingested_sessions.json.
 
 Usage:
   python3 scripts/ingest_codex_cli_tokens.py            # parse + write to DB
   python3 scripts/ingest_codex_cli_tokens.py --dry-run  # print SQL only
 
-Cron (add after Kytran installs + signs in Codex):
+Cron:
   45 3 * * * /usr/bin/python3 /mnt/archie_brain/scripts/ingest_codex_cli_tokens.py >> /tmp/codex_token_ingest.log 2>&1
 """
 
@@ -38,6 +39,8 @@ import subprocess
 import sys
 
 LOGS_DIR = os.path.expanduser("/mnt/archie_brain/logs/codex")
+SESSIONS_DIR = os.path.expanduser("~/.codex/sessions")
+STATE_FILE = os.path.join(LOGS_DIR, ".ingested_sessions.json")
 SOURCE_TAG = "codex_code_cli"
 AGENT_NAME = "Codex (CLI)"
 PROVIDER = "openai"
@@ -110,6 +113,111 @@ def parse_run_logs():
     return agg
 
 
+def parse_session_files(persist_state: bool = True):
+    """Return {(day, model): {prompt, completion, runs, branches, estimated}}.
+
+    Reads ~/.codex/sessions/**/*.jsonl.  Each file is one Codex task session.
+    Token data lives inside JSON-in-string payloads in function_call_output events:
+      completion_tokens = SUM(output_tokens)  — unique per API call, safe to add
+      prompt_tokens     = MAX(input_tokens)   — grows with context, take max not sum
+
+    Tracks processed files in STATE_FILE to avoid double-counting on re-runs.
+    """
+    if not os.path.isdir(SESSIONS_DIR):
+        return {}
+
+    # Load state: {filepath: mtime} so we skip already-ingested unchanged files.
+    state: dict = {}
+    if os.path.isfile(STATE_FILE):
+        try:
+            with open(STATE_FILE) as f:
+                state = json.load(f)
+        except Exception:
+            state = {}
+
+    agg: dict = {}
+    files = sorted(glob.glob(os.path.join(SESSIONS_DIR, "**", "*.jsonl"), recursive=True))
+    new_state = dict(state)
+
+    for fp in files:
+        try:
+            mtime = str(os.path.getmtime(fp))
+        except OSError:
+            continue
+        if state.get(fp) == mtime:
+            continue  # already ingested this exact file version
+
+        # Parse filename for day: rollout-YYYY-MM-DDTHH-MM-SS-...
+        basename = os.path.basename(fp)
+        day = None
+        m = re.match(r"^rollout-(\d{4})-(\d{2})-(\d{2})T", basename)
+        if m:
+            day = f"{m.group(1)}-{m.group(2)}-{m.group(3)}"
+
+        completion_sum = 0
+        prompt_max = 0
+        model = "codex-phase-a"  # Phase A (ChatGPT sign-in) has no model field
+
+        try:
+            with open(fp, errors="ignore") as fh:
+                for line in fh:
+                    try:
+                        d = json.loads(line)
+                    except Exception:
+                        continue
+
+                    # Fallback day from first timestamp line
+                    if day is None and d.get("timestamp"):
+                        ts = d["timestamp"]
+                        day = ts[:10]  # YYYY-MM-DD
+
+                    p = d.get("payload", {})
+                    pstr = json.dumps(p)
+
+                    # session_meta may carry model
+                    if d.get("type") == "session_meta" and p.get("model"):
+                        raw_model = str(p["model"])
+                        if MODEL_RE.match(raw_model):
+                            model = raw_model
+
+                    # Extract output_tokens (safe to sum — unique per response)
+                    for hit in re.finditer(r'"output_tokens":\s*(\d+)', pstr):
+                        completion_sum += int(hit.group(1))
+
+                    # Extract input_tokens (context grows — take running max)
+                    for hit in re.finditer(r'"input_tokens":\s*(\d+)', pstr):
+                        v = int(hit.group(1))
+                        if v > prompt_max:
+                            prompt_max = v
+        except Exception:
+            continue
+
+        if day is None or (completion_sum == 0 and prompt_max == 0):
+            new_state[fp] = mtime
+            continue
+
+        key = (day, model)
+        a = agg.setdefault(key, {"prompt": 0, "completion": 0, "runs": 0, "branches": [], "estimated": False})
+        a["completion"] += completion_sum
+        # prompt = max context window seen today across sessions
+        if prompt_max > a["prompt"]:
+            a["prompt"] = prompt_max
+        a["runs"] += 1
+        a["branches"].append(basename[:60])
+        new_state[fp] = mtime
+
+    # Persist state (skip during dry-run so re-running live still works)
+    if persist_state:
+        os.makedirs(LOGS_DIR, exist_ok=True)
+        try:
+            with open(STATE_FILE, "w") as f:
+                json.dump(new_state, f)
+        except Exception:
+            pass
+
+    return agg
+
+
 def _sql_str(s):
     return "'" + str(s).replace("'", "''") + "'"
 
@@ -161,12 +269,24 @@ def build_sql(agg):
 
 def main():
     dry = "--dry-run" in sys.argv
-    if not os.path.isdir(LOGS_DIR):
-        print(f"[codex-ingest] logs dir not found: {LOGS_DIR} — no runs yet", file=sys.stderr)
-        return 0  # not an error; Codex just hasn't run yet
-    agg = parse_run_logs()
+
+    # Source A: run logs (0 tokens estimated, Phase A sign-in mode)
+    agg = parse_run_logs() if os.path.isdir(LOGS_DIR) else {}
+
+    # Source B: session JSONL files — real token counts from OpenAI API responses
+    session_agg = parse_session_files(persist_state=not dry)
+
+    # Merge: Source B overrides Source A for same (day, model) key
+    for key, sb in session_agg.items():
+        if key in agg:
+            # Prefer real data; keep branches from both
+            combined_branches = list({*agg[key].get("branches", []), *sb.get("branches", [])})
+            agg[key] = {**agg[key], **sb, "branches": combined_branches[:20]}
+        else:
+            agg[key] = sb
+
     if not agg:
-        print("[codex-ingest] no codex run logs found — nothing to do")
+        print("[codex-ingest] no codex data found (run logs or session files) — nothing to do")
         return 0
     sql = build_sql(agg)
     total_tokens = sum(a["prompt"] + a["completion"] for a in agg.values())

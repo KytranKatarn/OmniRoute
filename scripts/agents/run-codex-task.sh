@@ -152,11 +152,35 @@ record_codex_run(task_label='''$TASK''', branch='$BRANCH', prompt_tokens=0, comp
   success=$( [ "$SUCCESS" = true ] && echo True || echo False ), duration_ms=$DUR, estimated=True)
 ")
 
-# 8) outcome: commit + push branch for F.O.R.G.E. review (NEVER merge to main)
+# 8) outcome: commit + push + auto-open PR + register in Repair Bay + queue F.O.R.G.E. review
+# NEVER merges to main — push branch only; human runs /merge-pr after F.O.R.G.E. approves.
 if [ "$SUCCESS" = true ] && [ "$NFILES" -gt 0 ]; then
   git -C "$WT" commit -q -m "feat(codex): $TASK"
   git -C "$WT" push --no-verify -u origin "$BRANCH"
-  echo "PR-READY branch pushed: $BRANCH — open a PR + run /merge-pr after F.O.R.G.E. review."
+  # Auto-open PR; gh pr create prints the URL as the last line of output.
+  PR_URL="$(gh pr create \
+    --head "$BRANCH" \
+    --title "feat(codex): $TASK" \
+    --body "$(printf '## Codex\n\n- **Task**: %s\n- **Branch**: %s\n\n## Test Plan\n- [ ] F.O.R.G.E. review passes\n- [ ] Deploy via `/merge-pr` after approval\n\n🤖 Codex CLI — auto-generated, review via Repair Bay → PR Review' "$TASK" "$BRANCH")" \
+    2>&1 | tail -1)"
+  PR_NUM="$(echo "$PR_URL" | grep -oE '[0-9]+$')"
+  echo "PR #${PR_NUM} created: $PR_URL"
+  # Register in Repair Bay + trigger diff-grounded F.O.R.G.E. analysis (background — non-blocking).
+  # PR_NUM is digits-only (grep -oE '[0-9]+$') so embedding it as a Python int literal is safe.
+  if [ -n "$PR_NUM" ]; then
+    (docker exec archie_platform python3 -c "
+import sys; sys.path.insert(0,'/app')
+from tools.repair_bay.services.pr_review_service import poll_open_prs, get_review
+from tools.repair_bay.services.pr_diff_analyzer import review_pr
+pr = ${PR_NUM}
+poll_open_prs()
+r = get_review(pr)
+print('Repair Bay:', 'tracked' if r else 'WARNING: not found')
+review_pr(pr)
+print('F.O.R.G.E. review queued for PR #' + str(pr))
+" 2>/dev/null || echo "WARN: Repair Bay/F.O.R.G.E. registration failed (non-fatal)") &
+    echo "F.O.R.G.E. analysis queued (background) — check Repair Bay → PR Review."
+  fi
 else
   echo "Run blocked or no changes — branch $BRANCH left for inspection, no push."
 fi

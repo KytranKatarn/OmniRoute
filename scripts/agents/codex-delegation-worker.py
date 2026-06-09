@@ -41,6 +41,7 @@ LOCK = "/tmp/codex-delegation-worker.lock"
 RUNNER_TIMEOUT = 1800  # matches codex.yaml max runtime (30 min)
 BRANCH_RE = re.compile(r"codex/[a-z0-9-]+")
 PR_RE = re.compile(r"PR #(\d+) created:")
+GH = "/home/kytran/.local/bin/gh"
 
 
 def psql(sql: str) -> str:
@@ -116,6 +117,58 @@ def compose_prompt(task: dict) -> str:
     )
 
 
+def fallback_pr(branch: str, task_id: int, reason: str) -> int | None:
+    """Recover a PR number when the runner pushed the branch but gh pr create failed.
+
+    Step 1: gh pr list --head <branch> — PR may have been opened despite the
+            runner printing an error (race / partial success).
+    Step 2: gh pr create — open it ourselves with a minimal body.
+
+    Returns the PR number as int, or None if both steps fail.
+    """
+    # Step 1 — look for an existing open PR on this branch
+    try:
+        r = subprocess.run(
+            [GH, "pr", "list", "--head", branch, "--state", "open",
+             "--json", "number", "--jq", ".[0].number"],
+            capture_output=True, text=True, timeout=30,
+        )
+        existing = r.stdout.strip()
+        if existing.isdigit():
+            print(f"fallback_pr: found existing PR #{existing} for branch {branch}")
+            return int(existing)
+    except Exception as exc:
+        print(f"fallback_pr: gh pr list error: {exc}")
+
+    # Step 2 — create the PR ourselves
+    title = f"feat(codex): task #{task_id} — {reason[:60]}"
+    body = (
+        f"## Codex (autonomous)\n\n"
+        f"- **Task #{task_id}**: {reason}\n"
+        f"- **Branch**: `{branch}`\n"
+        f"- **Note**: PR created by delegation worker (runner gh-create failed)\n\n"
+        f"## Test Plan\n- [ ] F.O.R.G.E. review passes\n- [ ] Deploy via `/merge-pr` after Telegram approval\n\n"
+        f"🤖 Codex CLI (autonomous loop)"
+    )
+    try:
+        r = subprocess.run(
+            [GH, "pr", "create", "--head", branch, "--title", title, "--body", body],
+            capture_output=True, text=True, timeout=60,
+        )
+        # gh pr create prints the PR URL as the last line on success
+        url = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
+        m = re.search(r"/pull/(\d+)$", url)
+        if m:
+            pr_num = int(m.group(1))
+            print(f"fallback_pr: created PR #{pr_num} for branch {branch}")
+            return pr_num
+        print(f"fallback_pr: gh pr create output: {r.stdout.strip()!r} | err: {r.stderr.strip()!r}")
+    except Exception as exc:
+        print(f"fallback_pr: gh pr create error: {exc}")
+
+    return None
+
+
 def queue_promote(pr_num: int, task_id: int, module: str | None = None) -> None:
     """Queue the Tier-2 Telegram approve/merge via the container service.
 
@@ -173,6 +226,12 @@ def main() -> int:
     # run-codex-task.sh prints "PR #N created: <url>" on success.
     mp = PR_RE.search(out)
     pr_num = int(mp.group(1)) if mp else None
+
+    # Branch pushed but gh pr create failed inside the runner — attempt recovery.
+    if branch and not pr_num:
+        print(f"codex #{tid}: branch {branch} pushed but no PR in runner output — trying fallback")
+        pr_num = fallback_pr(branch, tid, task["reason"])
+
     if not branch or not pr_num:
         set_status(tid, "blocked")
         print(f"codex #{tid}: no PR opened → blocked (full log: {logpath})\n{out[-500:]}")

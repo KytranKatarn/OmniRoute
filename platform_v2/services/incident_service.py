@@ -86,10 +86,16 @@ def file_ai_incident(
                 "disclosed": bool(disclose),
             }
         ).encode()
+        _headers = {"Content-Type": "application/json"}
+        # P2.1 (#3902): authenticate as the institute tenant when a key is
+        # configured — C.R.E.E.D. multi-tenant ingest (ADR-004).
+        _creed_key = os.getenv("CREED_INGEST_KEY", "")
+        if _creed_key:
+            _headers["Authorization"] = f"Bearer {_creed_key}"
         req = urllib.request.Request(
             f"{_CREED_URL}/api/v1/incidents",
             data=payload,
-            headers={"Content-Type": "application/json"},
+            headers=_headers,
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=10) as r:

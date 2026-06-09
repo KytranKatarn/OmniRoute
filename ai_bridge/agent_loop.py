@@ -10054,9 +10054,13 @@ class AgentLoop:
                 }
 
                 try:
+                    # P2.1 (#3902): authenticate as the institute tenant when a key
+                    # is configured — C.R.E.E.D. multi-tenant ingest (ADR-004).
+                    _creed_key = os.environ.get("CREED_INGEST_KEY", "")
                     resp = req.post(
                         f"{CREED_URL}/api/v1/events",
                         json=payload,
+                        headers=({"Authorization": f"Bearer {_creed_key}"} if _creed_key else {}),
                         timeout=5,
                     )
                     if resp.status_code == 201:

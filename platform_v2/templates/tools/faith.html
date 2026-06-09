@@ -40,6 +40,35 @@
       </div>
     </div>
 
+  <section class="faith-profile-strip" aria-label="Faith profile">
+    <div>
+      <label for="faithTradition">Tradition</label>
+      <select id="faithTradition" class="form-control">
+        <option value="christian">Christian</option>
+        <option value="catholic">Catholic</option>
+        <option value="orthodox">Orthodox</option>
+        <option value="protestant">Protestant</option>
+        <option value="jewish">Jewish</option>
+        <option value="muslim">Muslim</option>
+        <option value="buddhist">Buddhist</option>
+        <option value="hindu">Hindu</option>
+        <option value="interfaith">Interfaith</option>
+        <option value="unspecified">Unspecified</option>
+      </select>
+    </div>
+    <div>
+      <label for="faithPrayerStyle">Prayer Style</label>
+      <select id="faithPrayerStyle" class="form-control">
+        <option value="guided">Guided</option>
+        <option value="silent">Silent</option>
+        <option value="lectio">Lectio</option>
+        <option value="meditation">Meditation</option>
+      </select>
+    </div>
+    <button id="faithProfileSaveBtn" onclick="saveFaithProfile()" class="btn btn-secondary">Save Profile</button>
+    <div id="faithProfileFeedback" class="faith-feedback-slot" role="status" aria-live="polite"></div>
+  </section>
+
   <!-- TAB: Chat -->
   <div id="faith-tab-chat" class="module-tab-panel">
     <div id="faithMessages" class="chat-messages faith-panel" role="log" aria-live="polite" aria-busy="false"></div>
@@ -129,6 +158,23 @@
         <p class="faith-muted">How is your faith today?</p>
       </div>
     </div>
+    <div class="faith-timer-card">
+      <div>
+        <div class="faith-section-title">Prayer / Meditation Timer</div>
+        <div id="faithTimerDisplay" class="faith-timer-display">05:00</div>
+      </div>
+      <div class="faith-timer-controls">
+        <select id="faithTimerType" class="form-control" aria-label="Timer type">
+          <option value="prayer">Prayer</option>
+          <option value="meditation">Meditation</option>
+          <option value="lectio">Lectio</option>
+        </select>
+        <input id="faithTimerMinutes" type="number" min="1" max="120" value="5" class="form-control" aria-label="Timer minutes">
+        <button id="faithTimerStartBtn" onclick="startFaithTimer()" class="btn btn-primary">Start</button>
+        <button id="faithTimerResetBtn" onclick="resetFaithTimer()" class="btn btn-secondary">Reset</button>
+      </div>
+      <div id="faithTimerFeedback" class="faith-feedback-slot" role="status" aria-live="polite"></div>
+    </div>
     <div id="practiceResult" class="faith-result-panel" role="status" aria-live="polite" aria-busy="false"></div>
   </div>
 
@@ -170,6 +216,14 @@
 
 <script>
 const FAITH_BASE = "/tools/faith/api/faith";
+let faithTimerInterval = null;
+let faithTimerRemaining = 300;
+let faithTimerInitial = 300;
+
+document.addEventListener("DOMContentLoaded", function() {
+  loadFaithProfile();
+  updateFaithTimerDisplay();
+});
 
 function switchFaithTab(tab, btn) {
   document.querySelectorAll(".module-tab-panel").forEach(function(p) { p.style.display = "none"; });
@@ -195,6 +249,40 @@ function showFaithFeedback(regionId, message, type) {
 function clearFaithFeedback(regionId) {
   var region = document.getElementById(regionId);
   if (region) setHtml(region, "");
+}
+
+async function loadFaithProfile() {
+  try {
+    var res = await fetch(FAITH_BASE + "/profile");
+    var data = await res.json();
+    if (!data.success || !data.profile) return;
+    document.getElementById("faithTradition").value = data.profile.tradition_preference || "christian";
+    document.getElementById("faithPrayerStyle").value = data.profile.prayer_style || "guided";
+  } catch (err) {
+    showFaithFeedback("faithProfileFeedback", "Profile unavailable.", "error");
+  }
+}
+
+async function saveFaithProfile() {
+  clearFaithFeedback("faithProfileFeedback");
+  setTriggerLoading("faithProfileSaveBtn", true);
+  try {
+    var res = await fetch(FAITH_BASE + "/profile", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        tradition_preference: document.getElementById("faithTradition").value,
+        prayer_style: document.getElementById("faithPrayerStyle").value,
+        scripture_translation: "web"
+      })
+    });
+    var data = await res.json();
+    showFaithFeedback("faithProfileFeedback", data.success ? "Profile saved." : "Could not save profile.", data.success ? "success" : "error");
+  } catch (err) {
+    showFaithFeedback("faithProfileFeedback", "Error saving profile.", "error");
+  } finally {
+    setTriggerLoading("faithProfileSaveBtn", false);
+  }
 }
 
 function setRegionBusy(regionId, isBusy) {
@@ -561,6 +649,64 @@ async function openCheckinModal() {
   }
 }
 
+function updateFaithTimerDisplay() {
+  var minutes = Math.floor(faithTimerRemaining / 60);
+  var seconds = faithTimerRemaining % 60;
+  document.getElementById("faithTimerDisplay").textContent =
+    String(minutes).padStart(2, "0") + ":" + String(seconds).padStart(2, "0");
+}
+
+function resetFaithTimer() {
+  if (faithTimerInterval) clearInterval(faithTimerInterval);
+  faithTimerInterval = null;
+  var minutes = parseInt(document.getElementById("faithTimerMinutes").value || "5", 10);
+  faithTimerInitial = Math.max(1, Math.min(minutes || 5, 120)) * 60;
+  faithTimerRemaining = faithTimerInitial;
+  document.getElementById("faithTimerStartBtn").textContent = "Start";
+  updateFaithTimerDisplay();
+}
+
+async function completeFaithTimer() {
+  var type = document.getElementById("faithTimerType").value || "meditation";
+  try {
+    var res = await fetch(FAITH_BASE + "/timer", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        session_type: type,
+        title: type.charAt(0).toUpperCase() + type.slice(1),
+        duration_seconds: faithTimerInitial
+      })
+    });
+    var data = await res.json();
+    showFaithFeedback("faithTimerFeedback", data.success ? "Session saved." : "Timer ended, but the session was not saved.", data.success ? "success" : "error");
+  } catch (err) {
+    showFaithFeedback("faithTimerFeedback", "Timer ended, but the session was not saved.", "error");
+  }
+}
+
+function startFaithTimer() {
+  if (faithTimerInterval) {
+    clearInterval(faithTimerInterval);
+    faithTimerInterval = null;
+    document.getElementById("faithTimerStartBtn").textContent = "Resume";
+    return;
+  }
+  if (faithTimerRemaining <= 0 || faithTimerRemaining === faithTimerInitial) resetFaithTimer();
+  clearFaithFeedback("faithTimerFeedback");
+  document.getElementById("faithTimerStartBtn").textContent = "Pause";
+  faithTimerInterval = setInterval(function() {
+    faithTimerRemaining -= 1;
+    updateFaithTimerDisplay();
+    if (faithTimerRemaining <= 0) {
+      clearInterval(faithTimerInterval);
+      faithTimerInterval = null;
+      document.getElementById("faithTimerStartBtn").textContent = "Start";
+      completeFaithTimer();
+    }
+  }, 1000);
+}
+
 async function loadJournal() {
   setRegionBusy("journalEntries", true);
   try {
@@ -676,6 +822,29 @@ async function sendEmmanuel() {
     display: flex;
     gap: 8px;
     margin-bottom: 12px;
+}
+.faith-profile-strip {
+    display: grid;
+    grid-template-columns: minmax(150px, 220px) minmax(150px, 220px) auto minmax(160px, 1fr);
+    gap: 10px;
+    align-items: end;
+    margin: 14px 0;
+    padding: 12px;
+    border: 1px solid var(--archie-border-default, var(--archie-border));
+    border-radius: 4px;
+    background: var(--archie-surface);
+}
+.faith-profile-strip label {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--frame-color, var(--archie-primary));
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+.faith-profile-strip .faith-feedback-slot {
+    margin: 0;
 }
 .faith-actions-right {
     text-align: right;
@@ -839,6 +1008,32 @@ async function sendEmmanuel() {
     white-space: pre-wrap;
     line-height: 1.6;
 }
+.faith-timer-card {
+    display: grid;
+    grid-template-columns: minmax(160px, 240px) minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid var(--archie-border-default, var(--archie-border));
+    border-radius: 4px;
+    background: var(--archie-surface);
+}
+.faith-timer-display {
+    color: var(--frame-color, var(--archie-primary));
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.2rem;
+    line-height: 1;
+}
+.faith-timer-controls {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(76px, 96px) auto auto;
+    gap: 8px;
+}
+.faith-timer-card .faith-feedback-slot {
+    grid-column: 1 / -1;
+    margin: 0;
+}
 .faith-spinner {
     width: 18px;
     height: 18px;
@@ -903,8 +1098,11 @@ async function sendEmmanuel() {
     .module-nav { gap: 2px; width: 100%; display: flex; }
     .module-nav .module-tab { flex: 1; text-align: center; padding: 10px 6px; font-size: 0.8rem; }
     .module-tab-panel { width: 100%; }
+    .faith-profile-strip { grid-template-columns: 1fr; align-items: stretch; }
     .faith-bible-reader-controls { grid-template-columns: 1fr; }
     .faith-bible-tools { grid-template-columns: 1fr; }
+    .faith-timer-card { grid-template-columns: 1fr; }
+    .faith-timer-controls { grid-template-columns: 1fr 1fr; }
 }
 </style>
 {% endblock %}

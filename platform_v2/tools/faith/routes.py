@@ -5,12 +5,12 @@ from __future__ import annotations
 import logging
 import json
 import re
-import sys
 from functools import lru_cache
 from pathlib import Path
 
 from flask import jsonify, render_template, request
 from flask_login import current_user, login_required
+from psycopg2.extras import Json
 
 from . import faith_bp
 
@@ -19,6 +19,7 @@ from tools.department_hq.services.department_dispatcher import dispatch
 BRIDGE_AVAILABLE = True
 
 from database import get_db_cursor
+from services.time_utils import now_utc
 
 logger = logging.getLogger(__name__)
 
@@ -210,6 +211,138 @@ chaplain, 15 years interfaith pastoral care, Pentecostal formation shaped \
 by Catholic CPE supervisors and a Cree elder. Ground it in lived \
 experience, not theology. Never generic.]
 """
+
+
+def _row_value(row, key: str, index: int = 0, default=None):
+    if row is None:
+        return default
+    if isinstance(row, dict):
+        return row.get(key, default)
+    try:
+        return row[key]
+    except (KeyError, TypeError):
+        try:
+            return row[index]
+        except (IndexError, TypeError):
+            return default
+
+
+def _ensure_tables() -> None:
+    """Create the small Faith-owned tables when a migration is not available."""
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS faith_profiles (
+                user_id INTEGER PRIMARY KEY,
+                tradition_preference TEXT NOT NULL DEFAULT 'christian',
+                prayer_style TEXT NOT NULL DEFAULT 'guided',
+                scripture_translation TEXT NOT NULL DEFAULT 'web',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS faith_sessions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                role TEXT,
+                message TEXT,
+                session_type TEXT NOT NULL DEFAULT 'chat',
+                title TEXT,
+                duration_seconds INTEGER NOT NULL DEFAULT 0,
+                metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS faith_checkins (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
+                reflection TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS faith_journal (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                title TEXT,
+                content TEXT NOT NULL,
+                scripture_ref TEXT,
+                tags TEXT[] NOT NULL DEFAULT '{}',
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS faith_practices_log (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                practice_type TEXT NOT NULL,
+                notes TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cur.execute("ALTER TABLE faith_profiles ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        cur.execute(
+            "ALTER TABLE faith_profiles ADD COLUMN IF NOT EXISTS tradition_preference TEXT NOT NULL DEFAULT 'christian'"
+        )
+        cur.execute("ALTER TABLE faith_profiles ADD COLUMN IF NOT EXISTS prayer_style TEXT NOT NULL DEFAULT 'guided'")
+        cur.execute(
+            "ALTER TABLE faith_profiles ADD COLUMN IF NOT EXISTS scripture_translation TEXT NOT NULL DEFAULT 'web'"
+        )
+        cur.execute("ALTER TABLE faith_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
+        cur.execute("ALTER TABLE faith_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS role TEXT")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS message TEXT")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS session_type TEXT NOT NULL DEFAULT 'chat'")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS title TEXT")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS duration_seconds INTEGER NOT NULL DEFAULT 0")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb")
+        cur.execute("ALTER TABLE faith_sessions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
+        cur.execute("ALTER TABLE faith_checkins ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        cur.execute("ALTER TABLE faith_checkins ADD COLUMN IF NOT EXISTS score INTEGER")
+        cur.execute("ALTER TABLE faith_checkins ADD COLUMN IF NOT EXISTS reflection TEXT")
+        cur.execute("ALTER TABLE faith_checkins ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
+        cur.execute("ALTER TABLE faith_journal ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        cur.execute("ALTER TABLE faith_journal ADD COLUMN IF NOT EXISTS title TEXT")
+        cur.execute("ALTER TABLE faith_journal ADD COLUMN IF NOT EXISTS content TEXT")
+        cur.execute("ALTER TABLE faith_journal ADD COLUMN IF NOT EXISTS scripture_ref TEXT")
+        cur.execute("ALTER TABLE faith_journal ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}'")
+        cur.execute("ALTER TABLE faith_journal ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()")
+        cur.execute("ALTER TABLE faith_practices_log ADD COLUMN IF NOT EXISTS user_id INTEGER")
+        cur.execute("ALTER TABLE faith_practices_log ADD COLUMN IF NOT EXISTS practice_type TEXT")
+        cur.execute("ALTER TABLE faith_practices_log ADD COLUMN IF NOT EXISTS notes TEXT")
+        cur.execute(
+            "ALTER TABLE faith_practices_log ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+        )
+
+
+def archie_bridge(prompt: str, system_prompt: str = FAITH_SYSTEM_PROMPT) -> dict:
+    """Compatibility wrapper around DHQ dispatch for existing Faith tests/callers."""
+    result = dispatch(
+        capability="support",
+        prompt=prompt,
+        module_id="faith",
+        system_prompt=system_prompt,
+    )
+    return {
+        "success": bool(result and result.success),
+        "response": getattr(result, "response", "") if result else "",
+        "model_used": getattr(result, "model_used", "dhq") if result else "dhq",
+        "agent": getattr(result, "agent_name", "F.A.I.T.H.") if result else "F.A.I.T.H.",
+        "error": getattr(result, "error", None) if result else None,
+    }
 
 
 @lru_cache(maxsize=1)
@@ -516,6 +649,7 @@ def index():
     return render_template("tools/faith.html")
 
 
+@faith_bp.route("/api/status")
 @faith_bp.route("/api/faith/status")
 @login_required
 def status():
@@ -526,6 +660,123 @@ def status():
             "agent_id": FAITH_AGENT_ID,
             "bridge_available": BRIDGE_AVAILABLE,
             "module": "faith",
+        }
+    )
+
+
+@faith_bp.route("/api/profile", methods=["GET"])
+@faith_bp.route("/api/faith/profile", methods=["GET"])
+@login_required
+def get_profile():
+    try:
+        _ensure_tables()
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                SELECT user_id, tradition_preference, prayer_style, scripture_translation, updated_at
+                FROM faith_profiles
+                WHERE user_id = %s
+                """,
+                (current_user.id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                cur.execute(
+                    """
+                    INSERT INTO faith_profiles (user_id)
+                    VALUES (%s)
+                    RETURNING user_id, tradition_preference, prayer_style, scripture_translation, updated_at
+                    """,
+                    (current_user.id,),
+                )
+                row = cur.fetchone()
+    except Exception:
+        logger.exception("[Faith] Failed to load profile")
+        return jsonify({"success": False, "error": "Failed to load profile"}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "profile": {
+                "user_id": _row_value(row, "user_id", 0),
+                "tradition_preference": _row_value(row, "tradition_preference", 1, "christian"),
+                "prayer_style": _row_value(row, "prayer_style", 2, "guided"),
+                "scripture_translation": _row_value(row, "scripture_translation", 3, "web"),
+                "updated_at": (
+                    _row_value(row, "updated_at", 4).isoformat() if _row_value(row, "updated_at", 4) else None
+                ),
+            },
+        }
+    )
+
+
+@faith_bp.route("/api/profile", methods=["POST"])
+@faith_bp.route("/api/faith/profile", methods=["POST"])
+@login_required
+def save_profile():
+    data = request.get_json(force=True, silent=True) or {}
+    tradition = (data.get("tradition_preference") or data.get("tradition") or "christian").strip().lower()
+    prayer_style = (data.get("prayer_style") or "guided").strip().lower()
+    translation = (data.get("scripture_translation") or "web").strip().lower()
+    allowed_traditions = {
+        "christian",
+        "catholic",
+        "orthodox",
+        "protestant",
+        "jewish",
+        "muslim",
+        "buddhist",
+        "hindu",
+        "interfaith",
+        "unspecified",
+    }
+    if tradition not in allowed_traditions:
+        return jsonify({"success": False, "error": "Unsupported tradition preference"}), 400
+
+    try:
+        _ensure_tables()
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                UPDATE faith_profiles
+                SET tradition_preference = %s,
+                    prayer_style = %s,
+                    scripture_translation = %s,
+                    updated_at = NOW()
+                WHERE user_id = %s
+                RETURNING user_id, tradition_preference, prayer_style, scripture_translation, updated_at
+                """,
+                (tradition, prayer_style, translation, current_user.id),
+            )
+            row = cur.fetchone()
+            if not row:
+                cur.execute(
+                    """
+                    INSERT INTO faith_profiles (
+                        user_id, tradition_preference, prayer_style, scripture_translation, updated_at
+                    )
+                    VALUES (%s, %s, %s, %s, NOW())
+                    RETURNING user_id, tradition_preference, prayer_style, scripture_translation, updated_at
+                    """,
+                    (current_user.id, tradition, prayer_style, translation),
+                )
+                row = cur.fetchone()
+    except Exception:
+        logger.exception("[Faith] Failed to save profile")
+        return jsonify({"success": False, "error": "Failed to save profile"}), 500
+
+    return jsonify(
+        {
+            "success": True,
+            "profile": {
+                "user_id": _row_value(row, "user_id", 0),
+                "tradition_preference": _row_value(row, "tradition_preference", 1),
+                "prayer_style": _row_value(row, "prayer_style", 2),
+                "scripture_translation": _row_value(row, "scripture_translation", 3),
+                "updated_at": (
+                    _row_value(row, "updated_at", 4).isoformat() if _row_value(row, "updated_at", 4) else None
+                ),
+            },
         }
     )
 
@@ -677,9 +928,13 @@ def _detect_crisis(text: str) -> bool:
 
 def _save_message(user_id: int, role: str, message: str) -> None:
     try:
+        _ensure_tables()
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
-                "INSERT INTO faith_sessions (user_id, role, message) VALUES (%s, %s, %s)",
+                """
+                INSERT INTO faith_sessions (user_id, role, message, session_type)
+                VALUES (%s, %s, %s, 'chat')
+                """,
                 (user_id, role, message),
             )
     except Exception:
@@ -698,18 +953,24 @@ def chat():
     crisis = _detect_crisis(message)
     _save_message(user_id, "user", message)
 
+    result = None
     try:
-        result = dispatch(
-            capability="support",
-            prompt=message,
-            module_id="faith",
-            system_prompt=FAITH_SYSTEM_PROMPT,
-        )
-        response_text = getattr(result, "response", "") if result else ""
+        result = archie_bridge(message, FAITH_SYSTEM_PROMPT)
+        response_text = result.get("response", "") if result else ""
         response_text = response_text.strip()
     except Exception as e:
         logger.error(f"[Faith] dispatch failed: {e}")
         response_text = "F.A.I.T.H. is unavailable right now."
+
+    if crisis:
+        crisis_block = (
+            "I am concerned about your safety. Please contact immediate support now: "
+            "call or text 988, or text HOME to 741741 for the Crisis Text Line. "
+            "If there is immediate danger, call emergency services. You can also use "
+            "Connect with Emmanuel for chaplain support, but crisis services are the "
+            "right first step right now."
+        )
+        response_text = f"{crisis_block}\n\n{response_text}" if response_text else crisis_block
 
     _save_message(user_id, "assistant", response_text)
 
@@ -717,8 +978,8 @@ def chat():
         {
             "success": bool(response_text),
             "response": response_text,
-            "model": getattr(result, "model_used", "dhq") if result else "dhq",
-            "agent": getattr(result, "agent_name", "F.A.I.T.H.") if result else "F.A.I.T.H.",
+            "model": result.get("model_used", "dhq") if result else "dhq",
+            "agent": result.get("agent", "F.A.I.T.H.") if result else "F.A.I.T.H.",
             "crisis_detected": crisis,
         }
     )
@@ -732,18 +993,7 @@ def chat():
 def _practice_dispatch(user_id: int, practice_type: str, prompt: str, notes: str = "") -> dict:
     if BRIDGE_AVAILABLE:
         try:
-            dispatch_result = dispatch(
-                capability="support",
-                prompt=prompt,
-                module_id="faith",
-                system_prompt=FAITH_SYSTEM_PROMPT,
-            )
-            result = {
-                "success": bool(dispatch_result and dispatch_result.success),
-                "response": getattr(dispatch_result, "response", "") if dispatch_result else "",
-                "model_used": getattr(dispatch_result, "model_used", "dhq") if dispatch_result else "dhq",
-                "agent": getattr(dispatch_result, "agent_name", "F.A.I.T.H.") if dispatch_result else "F.A.I.T.H.",
-            }
+            result = archie_bridge(prompt, FAITH_SYSTEM_PROMPT)
         except Exception as e:
             logger.error(f"[Faith] practice dispatch failed: {e}")
             result = {
@@ -757,6 +1007,7 @@ def _practice_dispatch(user_id: int, practice_type: str, prompt: str, notes: str
 
     if result.get("success"):
         try:
+            _ensure_tables()
             with get_db_cursor(commit=True) as (_conn, cur):
                 cur.execute(
                     "INSERT INTO faith_practices_log (user_id, practice_type, notes) VALUES (%s, %s, %s)",
@@ -767,12 +1018,12 @@ def _practice_dispatch(user_id: int, practice_type: str, prompt: str, notes: str
     return result
 
 
+@faith_bp.route("/api/reflection")
+@faith_bp.route("/api/faith/reflection")
 @faith_bp.route("/api/faith/devotional")
 @login_required
 def devotional():
-    from datetime import date
-
-    today = date.today().strftime("%B %d, %Y")
+    today = now_utc().date().isoformat()
     prompt = (
         f"Generate a daily devotional for {today}. Include: (1) one scripture verse with reference, "
         "(2) 2-3 sentence reflection, (3) one meditation question. Under 150 words. "
@@ -780,6 +1031,108 @@ def devotional():
     )
     result = _practice_dispatch(current_user.id, "devotional", prompt)
     return jsonify({"success": result.get("success", False), "response": result.get("response", ""), "date": today})
+
+
+@faith_bp.route("/api/timer", methods=["POST"])
+@faith_bp.route("/api/faith/timer", methods=["POST"])
+@login_required
+def save_timer_session():
+    data = request.get_json(force=True, silent=True) or {}
+    session_type = (data.get("session_type") or data.get("type") or "meditation").strip().lower()
+    title = (data.get("title") or "").strip() or session_type.title()
+    notes = (data.get("notes") or "").strip()
+    try:
+        duration_seconds = int(data.get("duration_seconds") or data.get("duration") or 0)
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "duration_seconds must be a number"}), 400
+    if duration_seconds < 1 or duration_seconds > 86400:
+        return jsonify({"success": False, "error": "duration_seconds must be between 1 and 86400"}), 400
+
+    try:
+        _ensure_tables()
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                INSERT INTO faith_sessions (
+                    user_id, session_type, title, duration_seconds, message, metadata
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id, created_at
+                """,
+                (
+                    current_user.id,
+                    session_type,
+                    title,
+                    duration_seconds,
+                    notes or None,
+                    Json({"source": "timer"}),
+                ),
+            )
+            row = cur.fetchone()
+    except Exception:
+        logger.exception("[Faith] Failed to save timer session")
+        return jsonify({"success": False, "error": "Failed to save timer session"}), 500
+
+    return (
+        jsonify(
+            {
+                "success": True,
+                "session": {
+                    "id": _row_value(row, "id", 0),
+                    "session_type": session_type,
+                    "title": title,
+                    "duration_seconds": duration_seconds,
+                    "created_at": (
+                        _row_value(row, "created_at", 1).isoformat() if _row_value(row, "created_at", 1) else None
+                    ),
+                },
+            }
+        ),
+        201,
+    )
+
+
+@faith_bp.route("/api/sessions", methods=["GET"])
+@faith_bp.route("/api/faith/sessions", methods=["GET"])
+@login_required
+def list_sessions():
+    try:
+        limit = min(max(int(request.args.get("limit", "20")), 1), 100)
+    except ValueError:
+        limit = 20
+    try:
+        _ensure_tables()
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT id, session_type, title, duration_seconds, role, message, created_at
+                FROM faith_sessions
+                WHERE user_id = %s
+                ORDER BY created_at DESC
+                LIMIT %s
+                """,
+                (current_user.id, limit),
+            )
+            rows = cur.fetchall()
+    except Exception:
+        logger.exception("[Faith] Failed to load sessions")
+        return jsonify({"success": False, "error": "Failed to load sessions"}), 500
+
+    sessions = []
+    for row in rows:
+        created_at = _row_value(row, "created_at", 6)
+        sessions.append(
+            {
+                "id": _row_value(row, "id", 0),
+                "session_type": _row_value(row, "session_type", 1),
+                "title": _row_value(row, "title", 2),
+                "duration_seconds": _row_value(row, "duration_seconds", 3),
+                "role": _row_value(row, "role", 4),
+                "message": _row_value(row, "message", 5),
+                "created_at": created_at.isoformat() if created_at else None,
+            }
+        )
+    return jsonify({"success": True, "sessions": sessions})
 
 
 @faith_bp.route("/api/faith/prayer", methods=["POST"])
@@ -837,17 +1190,21 @@ def lectio_divina():
 @login_required
 def checkin():
     data = request.get_json(force=True, silent=True) or {}
-    score = data.get("score")
+    try:
+        score = int(data.get("score"))
+    except (TypeError, ValueError):
+        return jsonify({"success": False, "error": "score must be 1-5"}), 400
     reflection = (data.get("reflection") or "").strip()
-    if score is None or not (1 <= int(score) <= 5):
+    if not (1 <= score <= 5):
         return jsonify({"success": False, "error": "score must be 1-5"}), 400
     try:
+        _ensure_tables()
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
                 "INSERT INTO faith_checkins (user_id, score, reflection) VALUES (%s, %s, %s) RETURNING id",
-                (current_user.id, int(score), reflection or None),
+                (current_user.id, score, reflection or None),
             )
-            checkin_id = cur.fetchone()["id"]
+            checkin_id = _row_value(cur.fetchone(), "id", 0)
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
                 "INSERT INTO faith_practices_log (user_id, practice_type, notes) VALUES (%s, 'checkin', %s)",
@@ -863,6 +1220,7 @@ def checkin():
 @login_required
 def checkin_history():
     try:
+        _ensure_tables()
         with get_db_cursor() as (_conn, cur):
             cur.execute(
                 "SELECT id, score, reflection, created_at FROM faith_checkins "
@@ -887,13 +1245,14 @@ def journal_save():
     scripture_ref = (data.get("scripture_ref") or "").strip() or None
     tags = data.get("tags") or []
     try:
+        _ensure_tables()
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
                 "INSERT INTO faith_journal (user_id, title, content, scripture_ref, tags) "
                 "VALUES (%s, %s, %s, %s, %s) RETURNING id",
                 (current_user.id, title, content, scripture_ref, tags),
             )
-            entry_id = cur.fetchone()["id"]
+            entry_id = _row_value(cur.fetchone(), "id", 0)
     except Exception:
         logger.exception("[Faith] Failed to save journal entry")
         return jsonify({"success": False, "error": "Failed to save"}), 500
@@ -905,6 +1264,7 @@ def journal_save():
 def journal_list():
     tag_filter = request.args.get("tag")
     try:
+        _ensure_tables()
         with get_db_cursor() as (_conn, cur):
             if tag_filter:
                 cur.execute(

@@ -81,6 +81,7 @@ EOF
 # 4) run Codex INSIDE the container. The container is the sandbox (only the worktree
 #    mounted rw, repo .git ro for git reads, no host fs/secrets, run as host uid),
 #    so bypassing Codex's own (broken-on-this-host) bwrap sandbox is safe here.
+CODEX_EXIT=0
 docker run --rm \
   --network "$NET" \
   --user "$(id -u):$(id -g)" \
@@ -94,7 +95,7 @@ docker run --rm \
   --memory 2g --cpus 2 --cap-drop ALL \
   "$CODEX_IMG" \
   exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" \
-  || echo "codex exited non-zero (continuing to gates)"
+  || { CODEX_EXIT=$?; echo "codex exited $CODEX_EXIT (continuing to gates)"; }
 rm -rf "$CODEX_RUN_HOME"
 
 # 5) scope guard (deny-by-default) — fail the run if anything out of scope changed
@@ -128,7 +129,9 @@ if [ "$SUCCESS" = true ]; then
   if [ -n "$PRECOMMIT" ]; then
     ( cd "$WT" && $PRECOMMIT run --files $CHANGED ) || true   # pass 1: reformat allowed
     git -C "$WT" add -A                                        # re-stage reformatted files
-    ( cd "$WT" && $PRECOMMIT run --files $CHANGED ) || SUCCESS=false  # pass 2: must be clean
+    LINT_OUTPUT=""; LINT_RC=0
+    LINT_OUTPUT="$( cd "$WT" && $PRECOMMIT run --files $CHANGED 2>&1 )" || LINT_RC=$?
+    [ "$LINT_RC" -eq 0 ] || SUCCESS=false  # pass 2: must be clean
   else
     echo "WARN: pre-commit not found (PATH or 'python3 -m pre_commit') — skipping lint gate; F.O.R.G.E. will review."
   fi
@@ -158,3 +161,35 @@ else
   echo "Run blocked or no changes — branch $BRANCH left for inspection, no push."
 fi
 echo "worktree: $WT (remove with: git worktree remove --force $WT)"
+
+# 9) escalation: blocked or no-op runs → F.O.R.G.E. via delegation pipeline (fires Telegram)
+# Chain: delegate_task(code_review) → delegate_task_worker (≤30s) → DHQ → F.O.R.G.E.
+#        → emit_delegation_event → send_info → Telegram notification to Kytran.
+# Non-fatal: errors here must never crash the script.
+if [ "$SUCCESS" != true ] || [ "$NFILES" -eq 0 ]; then
+  _FAIL_REASON="unknown"
+  _FAIL_DETAIL=""
+  if [ -n "${OUT:-}" ]; then
+    _FAIL_REASON="scope_violation"
+    _FAIL_DETAIL="$OUT"
+  elif [ "${LINT_RC:-0}" -ne 0 ]; then
+    _FAIL_REASON="lint_failure"
+    _FAIL_DETAIL="${LINT_OUTPUT:-pre-commit pass 2 failed}"
+  elif [ "${CODEX_EXIT:-0}" -ne 0 ]; then
+    _FAIL_REASON="codex_exit_nonzero"
+    _FAIL_DETAIL="Codex container exited $CODEX_EXIT"
+  else
+    _FAIL_REASON="no_changes_made"
+    _FAIL_DETAIL="Codex completed but modified 0 files — task may be already done or model got stuck"
+  fi
+  # Pass values as argv — NEVER interpolate into Python source (code injection risk).
+  # Heredoc stdin + sys.argv treats every value as pure data regardless of content.
+  (cd "$REPO/platform_v2" && python3 - "$TASK" "$BRANCH" "$_FAIL_REASON" "$_FAIL_DETAIL" <<'PY'
+import sys
+from services.agents.codex_telemetry import notify_codex_stuck
+task, branch, reason, detail = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+r = notify_codex_stuck(task_label=task, branch=branch, failure_reason=reason, error_detail=detail)
+print('F.O.R.G.E. escalation:', r.get('success'), '| task_id:', r.get('task_id', 'n/a'))
+PY
+  ) || echo "WARN: F.O.R.G.E. escalation call failed (non-fatal)"
+fi

@@ -12,9 +12,12 @@ SCHEMA NOTE: worker_type CHECK constraint allows only 'internal' or 'contract' �
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
+logger = logging.getLogger(__name__)
 
 AGENT_NAME = "Codex (CLI)"
 LOG_DIR = "/mnt/archie_brain/logs/codex"
@@ -105,3 +108,40 @@ def record_codex_run(
         "unified_task_id": task_id,
         "tokens": total,
     }
+
+
+def notify_codex_stuck(
+    task_label: str,
+    branch: str,
+    failure_reason: str,
+    error_detail: str = "",
+) -> dict:
+    """Escalate a stuck/blocked Codex run to F.O.R.G.E. via the delegation pipeline.
+
+    delegate_task_worker picks this up in ≤30s → F.O.R.G.E. diagnoses via DHQ
+    → emit_delegation_event fires Telegram to Kytran automatically.
+
+    failure_reason: "scope_violation" | "lint_failure" | "codex_exit_nonzero" | "no_changes_made"
+    """
+    try:
+        from services.delegation_service import delegate_task  # noqa: PLC0415
+
+        detail_snippet = (error_detail or "")[:400].replace("\n", " | ")
+        reason = (
+            f"Codex blocked ({failure_reason})\n"
+            f"Task: {task_label[:200]}\n"
+            f"Branch: {branch}\n"
+            f"Detail: {detail_snippet or 'no additional detail'}"
+        )
+        result = delegate_task(
+            capability="code_review",
+            reason=reason,
+            delegation_source="automation",
+            requested_by="codex_cli",
+            priority=8,
+        )
+        logger.info("[codex_telemetry] F.O.R.G.E. escalation queued: task_id=%s", result.get("task_id"))
+        return result
+    except Exception as exc:
+        logger.warning("[codex_telemetry] notify_codex_stuck failed (non-fatal): %s", exc)
+        return {"success": False, "error": str(exc)}

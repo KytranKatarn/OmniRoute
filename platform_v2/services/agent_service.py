@@ -286,6 +286,29 @@ def update_agent(agent_id, **fields):
             except Exception as e:
                 logger.warning("Modelfile sync failed for agent #%d: %s", agent_id, e)
 
+        # Propagate name/display_name renames to fleet node replicas so they
+        # don't go stale. A renamed hub agent otherwise leaves its node_agents
+        # replicas under the OLD name, which then surfaces as a phantom agent
+        # in the ARMADA dispatch-traffic feed (KB #271886).
+        if "name" in fields or "display_name" in fields:
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "SELECT name, display_name FROM agents WHERE id = %s",
+                        (agent_id,),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        cur.execute(
+                            "UPDATE node_agents SET name = %s, display_name = %s, "
+                            "updated_at = NOW() WHERE hub_agent_id = %s",
+                            (row["name"], row["display_name"] or row["name"], agent_id),
+                        )
+            except Exception as e:
+                logger.warning(
+                    "node_agents rename propagation failed for agent #%d: %s", agent_id, e
+                )
+
     return updated
 
 
@@ -698,7 +721,10 @@ def deploy_to_node(agent_id, node_id):
     """Deploy agent to a remote node."""
     with get_db_cursor(commit=True) as (conn, cur):
         # Get agent info
-        cur.execute("SELECT name, department, model FROM agents WHERE id = %s", (agent_id,))
+        cur.execute(
+            "SELECT name, display_name, department, model FROM agents WHERE id = %s",
+            (agent_id,),
+        )
         agent = cur.fetchone()
         if not agent:
             return False
@@ -711,11 +737,19 @@ def deploy_to_node(agent_id, node_id):
 
         # Create or reactivate node_agent
         cur.execute(
-            """INSERT INTO node_agents (hub_agent_id, node_id, name, department, model, status)
-               VALUES (%s, %s, %s, %s, %s, 'active')
+            """INSERT INTO node_agents (hub_agent_id, node_id, name, display_name, department, model, status)
+               VALUES (%s, %s, %s, %s, %s, %s, 'active')
                ON CONFLICT (hub_agent_id, node_id)
-               DO UPDATE SET status = 'active', department = EXCLUDED.department""",
-            (agent_id, node_id, agent["name"], agent["department"], agent["model"]),
+               DO UPDATE SET status = 'active', department = EXCLUDED.department,
+                             name = EXCLUDED.name, display_name = EXCLUDED.display_name""",
+            (
+                agent_id,
+                node_id,
+                agent["name"],
+                agent["display_name"] or agent["name"],
+                agent["department"],
+                agent["model"],
+            ),
         )
 
     logger.info("Deployed agent #%d to node #%d", agent_id, node_id)

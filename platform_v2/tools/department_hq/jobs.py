@@ -3172,7 +3172,7 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered wtf_factcheck job (every 30 min at :10/:40)")
 
-    # Job #126: WTF Factcheck Backlog — clears historical gap via V.E.R.I.F.Y.-B on hub.
+    # Job #126: WTF Factcheck Backlog — clears historical gap via the fact-check pool (E.C.H.O. + V.E.R.I.F.Y.) on hub+fleet.
     # Fires at :05/:35 — interleaved with production job (:10/:40), never overlapping.
     # Selects OLDEST articles first (production selects newest) so both ends drain together.
     # Auto-scalable: register any agent with fact_check_backlog skill on any node and
@@ -3348,7 +3348,7 @@ def _register_own_jobs(scheduler, flask_app):
         with_ctx(_run_wtf_factcheck_backlog),
         trigger=CronTrigger(minute="20,50", timezone="America/Toronto"),
         id="wtf_factcheck_backlog",
-        name="WTF: Factcheck Backlog — V.E.R.I.F.Y.-B hub pool (Job #126)",
+        name="WTF: Factcheck Backlog — E.C.H.O./V.E.R.I.F.Y. fact-check pool (Job #126)",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

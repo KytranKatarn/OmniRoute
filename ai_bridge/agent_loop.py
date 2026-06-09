@@ -452,6 +452,7 @@ class AgentLoop:
                 gmail_full_ingest_crawler,
                 gmail_profile_extract_worker,
                 gmail_profile_progress_observer,
+                gmail_profile_synthesis_worker,
                 gmail_profile_triage_worker,
             )
 
@@ -485,6 +486,15 @@ class AgentLoop:
                 trigger=IntervalTrigger(minutes=30),
                 id="memory_vault_observer",
                 name="Agent Loop: Memory Vault — Progress Observer",
+                replace_existing=True,
+            )
+            self.scheduler.add_job(
+                with_app_context(gmail_profile_synthesis_worker),
+                trigger=CronTrigger(hour=2, minute=30, timezone="America/Toronto"),
+                id="memory_vault_synthesis",
+                name="Agent Loop: Memory Vault — Phase 2.2 Profile Synthesis",
+                max_instances=1,
+                coalesce=True,
                 replace_existing=True,
             )
         except Exception as _mv_err:

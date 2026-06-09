@@ -620,3 +620,102 @@ def _upsert_contact(row, full):
             "  updated_at = now()",
             (row["owner_id"], email, name, row["account_context"]),
         )
+
+
+# ===========================================================================
+# Phase 2.2 — synthesis (facts -> owner profile + life timeline) via hub 12B
+# ===========================================================================
+
+_SYNTH_FACT_LIMIT = 200  # facts fed to the synthesizer per owner (context cap)
+_SYNTH_SYSTEM = (
+    "You are building a private profile of a person from facts extracted from THEIR OWN "
+    "email mailbox. Use only the facts provided; never invent. Respond with STRICT JSON only."
+)
+
+
+def gmail_profile_synthesis_worker():
+    """
+    Roll extracted profile_facts into the owner's profile: a 'who is this person' summary,
+    a communication-style fingerprint, and a chronological life/work TIMELINE. Runs LOCAL on
+    the hub 12B (research_synthesis -> D.A.R.W.I.N.). Writes profile_owner. Every input is a
+    real extracted fact (traceable) — the timeline reconstructs, it does not confabulate.
+    """
+    if not _enabled(_FLAG_MASTER):
+        return {"skipped": "memory_vault disabled"}
+
+    from tools.department_hq.services.department_dispatcher import dispatch_json
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute("SELECT DISTINCT owner_id FROM profile_facts")
+        owners = [r["owner_id"] for r in cur.fetchall()]
+
+    if not owners:
+        return {"synthesized": 0}
+
+    done = 0
+    for owner_id in owners:
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT f.fact_type, f.subject, f.content, "
+                    "       to_char(c.received_at, 'YYYY-MM') AS ym "
+                    "FROM profile_facts f "
+                    "LEFT JOIN google_email_cache c "
+                    "  ON c.account_id = f.account_id AND c.gmail_id = f.source_gmail_id "
+                    "WHERE f.owner_id = %s "
+                    "ORDER BY c.received_at NULLS LAST LIMIT %s",
+                    (owner_id, _SYNTH_FACT_LIMIT),
+                )
+                facts = cur.fetchall()
+            if not facts:
+                continue
+            lines = []
+            for f in facts:
+                d = ("[" + f["ym"] + "] ") if f["ym"] else ""
+                subj = (f["subject"] + ": ") if f["subject"] else ""
+                lines.append(f"- {d}({f['fact_type']}) {subj}{f['content']}")
+            facts_blob = "\n".join(lines)[:14000]
+            prompt = (
+                "Facts extracted from the person's own email (dated [YYYY-MM] where known):\n\n"
+                + facts_blob
+                + "\n\nProduce a STRICT JSON object:\n"
+                '  "summary": 2-4 sentences — who this person is (work, life, what matters),\n'
+                '  "default_voice": 1-2 sentences — their communication style/tone,\n'
+                '  "timeline": [{"date": "YYYY-MM" or "YYYY", "event": str}] — chronological key '
+                "life/work events from the dated facts.\n"
+                "Use only the facts; do not invent. Keep the timeline to the clearest ~20 events."
+            )
+            data = dispatch_json(
+                "research_synthesis",
+                prompt,
+                module_id="memory_vault_synth",
+                system_prompt=_SYNTH_SYSTEM,
+                local_only=True,
+            )
+            if not isinstance(data, dict):
+                continue
+
+            import psycopg2.extras
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO profile_owner (owner_id, summary, default_voice, timeline, updated_at) "
+                    "VALUES (%s, %s, %s, %s, now()) "
+                    "ON CONFLICT (owner_id) DO UPDATE SET "
+                    "  summary = EXCLUDED.summary, default_voice = EXCLUDED.default_voice, "
+                    "  timeline = EXCLUDED.timeline, updated_at = now()",
+                    (
+                        owner_id,
+                        (data.get("summary") or "")[:4000],
+                        (data.get("default_voice") or "")[:2000],
+                        psycopg2.extras.Json(data.get("timeline") or []),
+                    ),
+                )
+            done += 1
+        except Exception as exc:
+            logger.warning(
+                "memory_vault synthesis failed for owner %s: %s", owner_id, exc
+            )
+
+    logger.info("memory_vault synthesis: %d owner profile(s) built", done)
+    return {"synthesized": done}

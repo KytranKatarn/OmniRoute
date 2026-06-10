@@ -657,6 +657,135 @@
     fetch("/tools/creed-command/api/files/" + id, { method: "DELETE" }).then(function () { loadFiles(); }).catch(function () {});
   }
 
+  /* ---- Tenants ops (#3945) ---- */
+  var tenantState = { loaded: false };
+
+  function tenantGradeColor(g) {
+    if (!g || g === "PROVISIONAL") return "#6b7280";
+    if (g.indexOf("A") === 0) return "#10b981";
+    if (g.indexOf("B") === 0) return "#3b82f6";
+    if (g.indexOf("C") === 0) return "#f59e0b";
+    return "#ef4444";
+  }
+
+  function renderTenantCounts(c) {
+    var box = document.getElementById("cc-tenant-counts");
+    if (!box) return;
+    box.className = "";
+    box.textContent = (c.total || 0) + " tenant(s) · " + (c.active || 0) + " active · " +
+      (c.pending || 0) + " pending · " + (c.suspended || 0) + " suspended";
+  }
+
+  function renderApplications(list) {
+    var box = document.getElementById("cc-tenant-apps");
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    if (!list.length) { box.className = "cc-muted"; box.textContent = "No pending applications."; return; }
+    box.className = "";
+    list.forEach(function (a) {
+      var row = el("div", "cc-card");
+      row.appendChild(el("div", "cc-mkt-topic", a.name + " (" + a.slug + ")"));
+      var meta = el("div", "cc-muted");
+      meta.textContent = (a.website || "—") + " · " + (a.country || "—") + " · " + (a.contact_email || "—") +
+        " · email " + (a.email_verified ? "verified ✓" : "unverified") + (a.applied_at ? " · " + fmtAt(a.applied_at) : "");
+      row.appendChild(meta);
+      if (a.ai_description) { var d = el("p"); d.textContent = a.ai_description; row.appendChild(d); }
+      var actions = el("div", "cc-mkt-actions");
+      var ap = el("button", "cc-btn-sm", "Approve + mint key");
+      ap.addEventListener("click", function () { approveTenant(a.slug, ap); });
+      var rj = el("button", "cc-btn-sm", "Reject");
+      rj.addEventListener("click", function () { if (window.confirm("Reject " + a.name + "?")) rejectTenant(a.slug); });
+      actions.appendChild(ap); actions.appendChild(rj);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  }
+
+  function renderTenantList(list) {
+    var box = document.getElementById("cc-tenant-list");
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var shown = list.filter(function (t) { return t.status !== "pending"; });
+    if (!shown.length) { box.className = "cc-muted"; box.textContent = "No active tenants yet."; return; }
+    box.className = "";
+    shown.forEach(function (t) {
+      var row = el("div", "cc-card");
+      var head = el("div", "cc-mkt-head");
+      head.appendChild(el("span", "cc-mkt-topic", t.name + " (" + t.slug + ")"));
+      var badge = el("span", "cc-mkt-badge", (t.grade || t.status));
+      badge.style.background = tenantGradeColor(t.grade);
+      head.appendChild(badge);
+      row.appendChild(head);
+      var meta = el("div", "cc-muted");
+      meta.textContent = t.status + (t.verification_tier ? " · " + t.verification_tier : "") +
+        (t.overall != null ? " · score " + t.overall : "") +
+        (t.events_30d != null ? " · " + t.events_30d + " events/30d" : "") +
+        (t.last_event_at ? " · last " + fmtAt(t.last_event_at) : "") + (t.website ? " · " + t.website : "");
+      row.appendChild(meta);
+      var actions = el("div", "cc-mkt-actions");
+      var profile = el("a", "cc-btn-sm", "Public profile ↗");
+      profile.href = "https://creed.kytranempowerment.com/org/" + t.slug; profile.target = "_blank"; profile.rel = "noopener";
+      var keysBtn = el("button", "cc-btn-sm", "Keys");
+      keysBtn.addEventListener("click", function () { showKeys(t.slug); });
+      actions.appendChild(profile); actions.appendChild(keysBtn);
+      row.appendChild(actions);
+      box.appendChild(row);
+    });
+  }
+
+  function loadTenants() {
+    tenantState.loaded = true;
+    fetch("/tools/creed-command/api/tenants", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d.success) { var b = document.getElementById("cc-tenant-counts"); if (b) b.textContent = d.error || "Unavailable"; return; }
+        renderTenantCounts(d.counts || {});
+        renderTenantList(d.tenants || []);
+      })
+      .catch(function () { var b = document.getElementById("cc-tenant-counts"); if (b) b.textContent = "Could not load tenants."; });
+    fetch("/tools/creed-command/api/tenants/applications", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { renderApplications((d && d.applications) || []); })
+      .catch(function () {});
+  }
+
+  function approveTenant(slug, btn) {
+    if (btn) btn.disabled = true;
+    fetch("/tools/creed-command/api/tenants/" + slug + "/approve", { method: "POST" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var key = d.api_key || d.key;
+        if (d.success && key) { window.alert("Approved " + slug + ".\n\nIngest key (shown ONCE — copy now):\n\n" + key); }
+        else if (!d.success) { window.alert("Approve failed: " + (d.error || "unknown")); }
+        tenantState.loaded = false; loadTenants();
+      })
+      .catch(function () { if (btn) btn.disabled = false; });
+  }
+
+  function rejectTenant(slug) {
+    fetch("/tools/creed-command/api/tenants/" + slug + "/reject", { method: "POST" })
+      .then(function () { tenantState.loaded = false; loadTenants(); }).catch(function () {});
+  }
+
+  function showKeys(slug) {
+    fetch("/tools/creed-command/api/tenants/" + slug + "/keys", { cache: "no-cache" })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var keys = (d && d.keys) || [];
+        var lines = keys.length ? keys.map(function (k) {
+          return "• " + (k.label || "key#" + k.id) + " · " + (k.scopes || "ingest") + " · " + (k.is_active ? "active" : "revoked") +
+            (k.last_used_at ? " · last used " + fmtAt(k.last_used_at) : " · never used");
+        }).join("\n") : "(no keys yet)";
+        if (window.confirm(slug + " keys:\n\n" + lines + "\n\nMint a NEW ingest key?")) {
+          fetch("/tools/creed-command/api/tenants/" + slug + "/keys", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label: "issued from CREED Command" }),
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (m) { var nk = m.api_key || m.key; if (nk) window.alert("New key (copy ONCE):\n\n" + nk); });
+        }
+      }).catch(function () {});
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     var tabs = document.querySelectorAll(".cc-tab");
     var panes = document.querySelectorAll(".cc-pane");
@@ -669,6 +798,7 @@
         if (name === "inbox" && !mailState.loadedStatus) loadMailStatus();
         if (name === "marketing" && !mktState.loaded) loadMarketing();
         if (name === "files" && !fileState.loaded) loadFiles();
+        if (name === "tenants" && !tenantState.loaded) loadTenants();
       });
     });
     var hash = (location.hash || "").replace("#", "");

@@ -4253,9 +4253,13 @@ class AgentLoop:
             # Approved LinkedIn post — execute via archie_browser
             content = data.get("content", "")
             hashtags = data.get("hashtags", [])
-            post_type = data.get("post_type", "personal")  # personal or company
+            post_type = data.get("post_type", "personal")  # personal | company | creed | terry
             company_slug = data.get("company_slug", "kytran-empowerment-inc")
-            agent_id = data.get("browser_agent_id", 342)
+            # terry = separate LinkedIn login → its own browser profile (343).
+            # All other accounts ride the Kytran session (342) and actor-switch.
+            agent_id = data.get("browser_agent_id") or (
+                343 if post_type == "terry" else 342
+            )
             if not content:
                 return {"executed": False, "error": "No content in action_data"}
             try:

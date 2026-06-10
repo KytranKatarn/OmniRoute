@@ -508,6 +508,8 @@ def register_social_routes(bp, admin_required):
         limit = min(int(request.args.get("limit", 30)), 100)
         if account == "personal":
             post_type_filter = "personal"
+        elif account == "terry":
+            post_type_filter = "terry"
         elif account == "creed":
             post_type_filter = "creed"
         else:
@@ -576,6 +578,14 @@ def register_social_routes(bp, admin_required):
                            FROM autonomy_approval_queue
                            WHERE action_type = 'linkedin_post' AND status = 'pending'
                              AND action_data->>'post_type' = 'personal'
+                           ORDER BY priority DESC, created_at ASC LIMIT 20""",
+                    )
+                elif account == "terry":
+                    cur.execute(
+                        """SELECT id, action_type, action_data, reason, requested_by, priority, created_at
+                           FROM autonomy_approval_queue
+                           WHERE action_type = 'linkedin_post' AND status = 'pending'
+                             AND action_data->>'post_type' = 'terry'
                            ORDER BY priority DESC, created_at ASC LIMIT 20""",
                     )
                 elif account == "company":

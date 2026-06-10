@@ -2119,6 +2119,7 @@ async function loadSocialFeed() {
 function renderSignalShell() {
     return '<div class="signal-accounts">'
         + '<button class="signal-acct-btn active" data-account="personal" onclick="switchSignalAccount(\'personal\')">👤 Kytran Katarn</button>'
+        + '<button class="signal-acct-btn" data-account="terry" onclick="switchSignalAccount(\'terry\')">👤 Terry Caetano</button>'
         + '<button class="signal-acct-btn" data-account="company" onclick="switchSignalAccount(\'company\')">🏢 Kytran Empowerment Inc.</button>'
         + '<button class="signal-acct-btn" data-account="creed" onclick="switchSignalAccount(\'creed\')">⚖️ Creed-AI</button>'
         + '</div>'
@@ -2135,19 +2136,42 @@ function renderSignalShell() {
         + '<div id="signalContent" class="dhq-loading" style="min-height:200px">Loading...</div>';
 }
 
-/* ── S.I.G.N.A.L. SESSION sub-tab (#3953/#3948) — persistent trusted
-   LinkedIn session: posture + the one-time noVNC login surface. ── */
+/* ── S.I.G.N.A.L. SESSION sub-tab (#3953/#3948/#3982) — persistent trusted
+   LinkedIn sessions, one card per browser identity. Profile 342 = the Kytran
+   login (personal + KE Inc. + Creed-AI pages, actor-switched inside one
+   session). Profile 343 = Terry Caetano (a SEPARATE LinkedIn login → its own
+   persistent profile + one-time noVNC login). Only one login browser runs at
+   a time. ── */
+var SIGNAL_SESSION_IDENTITIES = [
+    { agentId: 342, label: 'KYTRAN SESSION — PROFILE 342', note: 'Kytran Katarn personal + KE Inc. + Creed-AI pages (one login, actor-switched)' },
+    { agentId: 343, label: 'TERRY CAETANO SESSION — PROFILE 343', note: 'Terry Caetano personal account (separate LinkedIn login)' }
+];
+
 async function renderSignalSession(el) {
-    var r = await fetch('/tools/department-hq/api/social/linkedin/session-status');
-    var d = await r.json();
+    var blocks = await Promise.all(SIGNAL_SESSION_IDENTITIES.map(async function(idn) {
+        try {
+            var r = await fetch('/tools/department-hq/api/social/linkedin/session-status?agent_id=' + idn.agentId);
+            return renderOneSignalSession(idn, await r.json());
+        } catch (e) {
+            return '<div class="dhq-empty" style="text-align:left">' + esc(idn.label) + ': status unavailable</div>';
+        }
+    }));
+    setHtml(el, '<div style="max-width:720px">'
+        + '<h3 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 10px">LINKEDIN TRUSTED SESSIONS</h3>'
+        + blocks.join('<hr style="border:none;border-top:2px solid #1e293b;margin:22px 0">')
+        + '</div>');
+}
+
+function renderOneSignalSession(idn, d) {
+    var aid = idn.agentId;
     var db = d.db_session || {};
     var ls = d.login_surface || {};
     var profileOk = !!ls.profile_established;
     var loginRunning = !!ls.login_browser_running;
     var novncUrl = 'http://' + location.hostname + ':4280/vnc.html';
 
-    var html = '<div style="max-width:720px">'
-        + '<h3 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 10px">LINKEDIN TRUSTED SESSION</h3>'
+    return '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 4px">' + esc(idn.label) + '</h4>'
+        + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">' + esc(idn.note) + '</p>'
         + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><tbody>'
         + '<tr><td>Persistent profile (device-trusted)</td><td>'
         + (profileOk ? '<span style="color:#22c55e">● ESTABLISHED</span>'
@@ -2163,7 +2187,7 @@ async function renderSignalSession(el) {
         + (loginRunning
             ? '<a class="dhq-btn dhq-btn-primary" target="_blank" rel="noopener" href="' + novncUrl + '">Open noVNC → log in</a>'
               + '<button class="dhq-btn" onclick="signalSessionLoginStop()">Stop & save profile</button>'
-            : '<button class="dhq-btn dhq-btn-primary" onclick="signalSessionLoginStart()">Start one-time login</button>')
+            : '<button class="dhq-btn dhq-btn-primary" onclick="signalSessionLoginStart(' + aid + ')">Start one-time login</button>')
         + '<button class="dhq-btn" onclick="loadSignalTab(\'session\', true)">↻ Refresh</button>'
         + '</div>'
         + (loginRunning && d.vnc_password
@@ -2172,36 +2196,33 @@ async function renderSignalSession(el) {
               + 'font-family:IBM Plex Mono,monospace;color:#22d3ee">' + esc(d.vnc_password) + '</code></p>'
             : '')
         + '<p class="dhq-empty" style="margin-top:12px;text-align:left">Start → a headed browser opens on the hub\'s '
-        + 'trusted home egress. Open noVNC, log into LinkedIn (complete any 2FA), then Stop — the profile keeps the '
-        + 'device fingerprint and all posting flows use it automatically. Auto-stops after '
-        + Math.round((ls.idle_timeout_s || 900) / 60) + ' min idle.</p>'
+        + 'trusted home egress using THIS profile. Open noVNC, log into the matching LinkedIn account (complete any '
+        + '2FA), then Stop — the profile keeps the device fingerprint and this account\'s posting flows use it '
+        + 'automatically. Auto-stops after ' + Math.round((ls.idle_timeout_s || 900) / 60) + ' min idle.</p>'
         + (d.login_surface_error ? '<p class="dhq-empty" style="text-align:left;color:#f59e0b">Login surface: ' + esc(d.login_surface_error) + '</p>' : '')
-        + '<hr style="border:none;border-top:1px solid #1e293b;margin:18px 0">'
-        + '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 6px">STORE LINKEDIN LOGIN (encrypted)</h4>'
+        + '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:14px 0 6px">STORE LOGIN (encrypted)</h4>'
         + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">Stored AES-encrypted in the browser credential store — NOT in .env. '
         + 'Used by the fleet for automated re-login; the one-time trusted login above is still done by hand in noVNC.</p>'
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:560px">'
-        + '<input id="liCredUser" type="text" autocomplete="off" placeholder="LinkedIn email" '
+        + '<input id="liCredUser_' + aid + '" type="text" autocomplete="off" placeholder="LinkedIn email" '
         + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
-        + '<input id="liCredPass" type="password" autocomplete="new-password" placeholder="LinkedIn password" '
+        + '<input id="liCredPass_' + aid + '" type="password" autocomplete="new-password" placeholder="LinkedIn password" '
         + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
-        + '<button class="dhq-btn" onclick="signalSaveLinkedInCreds()">Save encrypted</button>'
-        + '<span id="liCredStatus" style="font-size:0.78rem;color:#94a3b8"></span>'
-        + '</div>'
+        + '<button class="dhq-btn" onclick="signalSaveLinkedInCreds(' + aid + ')">Save encrypted</button>'
+        + '<span id="liCredStatus_' + aid + '" style="font-size:0.78rem;color:#94a3b8"></span>'
         + '</div>';
-    setHtml(el, html);
 }
 
-async function signalSaveLinkedInCreds() {
-    var u = document.getElementById('liCredUser');
-    var p = document.getElementById('liCredPass');
-    var st = document.getElementById('liCredStatus');
+async function signalSaveLinkedInCreds(agentId) {
+    var u = document.getElementById('liCredUser_' + agentId);
+    var p = document.getElementById('liCredPass_' + agentId);
+    var st = document.getElementById('liCredStatus_' + agentId);
     if (!u.value.trim() || !p.value) { st.textContent = 'Enter email + password.'; st.style.color = '#fca5a5'; return; }
     st.textContent = 'Saving…'; st.style.color = '#94a3b8';
     try {
         var r = await fetch('/tools/department-hq/api/social/linkedin/credentials', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: u.value.trim(), password: p.value })
+            body: JSON.stringify({ username: u.value.trim(), password: p.value, agent_id: agentId })
         });
         var d = await r.json();
         if (d.saved) { st.textContent = '✓ Stored encrypted'; st.style.color = '#34d399'; p.value = ''; }
@@ -2209,8 +2230,11 @@ async function signalSaveLinkedInCreds() {
     } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
 }
 
-async function signalSessionLoginStart() {
-    var r = await fetch('/tools/department-hq/api/social/linkedin/session-login/start', { method: 'POST' });
+async function signalSessionLoginStart(agentId) {
+    var r = await fetch('/tools/department-hq/api/social/linkedin/session-login/start', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId || 342 })
+    });
     var d = await r.json();
     if (!d.started && d.error) alert('Could not start login browser: ' + d.error);
     await loadSignalTab('session', true);
@@ -2395,6 +2419,7 @@ function renderSignalCompose(el) {
         +   '<select id="signalPostType" class="dhq-select">'
         +     '<option value="both" selected>🇨🇦 Both Accounts</option>'
         +     '<option value="personal">👤 Kytran Katarn (personal)</option>'
+        +     '<option value="terry">👤 Terry Caetano (personal)</option>'
         +     '<option value="company">🏢 Kytran Empowerment Inc.</option>'
         +   '</select></div>'
         +   '<div class="signal-compose-field"><label class="signal-field-label">Tone</label>'
@@ -2481,7 +2506,7 @@ async function submitSignalCompose() {
             priority: parseInt(document.getElementById('signalPriority').value),
         });
         var approvals = resp.approvals || [];
-        var labels = { personal: '👤 Kytran Katarn', company: '🏢 Kytran Empowerment Inc.' };
+        var labels = { personal: '👤 Kytran Katarn', terry: '👤 Terry Caetano', company: '🏢 Kytran Empowerment Inc.', creed: '⚖️ Creed-AI' };
         var previews = approvals.map(function(a) {
             return '<div style="margin-top:8px"><strong>' + esc(labels[a.post_type] || a.post_type) + '</strong>'
                 + ' <span style="opacity:0.5;font-size:0.8em">#' + a.approval_id + '</span>'

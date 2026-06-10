@@ -69,6 +69,14 @@ _VOICE_HINTS = {
         "NEVER use: acquired, implemented, integrated, leveraged, utilized — these are weak filler words. "
         "Keep it grounded and real — no hype, no AI buzzwords. Under 150 words."
     ),
+    "terry": (
+        "Write in first-person as Terry Caetano (his real-name personal LinkedIn "
+        "account, separate login from the Kytran Katarn account). Terry and Kytran "
+        "are the same person — Terry is the real-name professional identity. Voice: "
+        "authentic, grounded, career- and craft-focused; lessons from building a "
+        "self-hosted AI platform and Canadian civic-tech products. First person "
+        "singular. No corporate buzzwords, no hype. Under 150 words."
+    ),
     "creed": (
         "Write as the C.R.E.E.D. Institute (Compliance, Rights & Ethical Enforcement Directive). "
         "C.R.E.E.D. is a nonprofit AI ethics institute, separate from Kytran Empowerment Inc. — "
@@ -315,7 +323,7 @@ def _draft_and_queue(
 
     if post_type == "creed":
         account_emoji = "🔒"
-    elif post_type == "personal":
+    elif post_type in ("personal", "terry"):
         account_emoji = "👤"
     else:
         account_emoji = "🏢"
@@ -325,7 +333,10 @@ def _draft_and_queue(
             "content": draft,
             "hashtags": hashtag_override or [],
             "post_type": post_type,
-            "browser_agent_id": 342,
+            # terry = a SEPARATE LinkedIn login → its own persistent browser
+            # profile (343-linkedin). Everything else rides the Kytran session
+            # (342) and actor-switches in /feed/.
+            "browser_agent_id": 343 if post_type == "terry" else 342,
             "priority": priority,
         },
         reason=f"📣 {account_emoji} {account_label} draft:\n\n{draft[:1500]}",
@@ -576,7 +587,8 @@ def redraft_with_suggestion(original_draft: str, suggestion: str, action_data: d
             "content": revised,
             "hashtags": hashtags,
             "post_type": post_type,
-            "browser_agent_id": action_data.get("browser_agent_id", 342),
+            "browser_agent_id": action_data.get("browser_agent_id")
+            or (343 if post_type == "terry" else 342),
         },
         reason=f"✏️ S.I.G.N.A.L. revised draft:\n\n{revised[:1500]}",
         tier=2,

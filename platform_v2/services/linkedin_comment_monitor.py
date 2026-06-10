@@ -119,6 +119,157 @@ def run_comment_monitor(extra_urls: list = None) -> dict:
     return summary
 
 
+# ───────────────────────── WRITE leg (#3992) ─────────────────────────
+# Comment → grounded draft → Telegram approval → reply (linkedin_comment
+# skill, addressed to the author). Drafting only ever creates a Tier-2
+# approval — a human tap is the only thing that publishes. Grounding v1 =
+# original post + comment + account voice (Email-Vault contact context
+# plugs in here when Vault Phase 2.4 retrieval ships).
+
+_OWN_AUTHOR_MARKERS = ("kytran", "terry caetano", "creed ai", "c.r.e.e.d")
+
+# terry = separate login → profile 377; everything else rides 342.
+_ACCOUNT_BROWSER_ID = {"terry": 377}
+
+_COMMENT_CHAR_LIMIT = 1250  # LinkedIn comment hard limit
+
+_FR_HINTS = (
+    " le ", " la ", " les ", " des ", " une ", " est ", " être ", " avec ",
+    " pour ", " merci", " bonjour", " très ", " c'est ", " ça ", " été ",
+)
+
+
+def _looks_french(text: str) -> bool:
+    t = f" {(text or '').lower()} "
+    return sum(1 for m in _FR_HINTS if m in t) >= 2
+
+
+def _trim_reply(text: str, limit: int = _COMMENT_CHAR_LIMIT) -> str:
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return text
+    cut = text[: limit - 1]
+    dot = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
+    return (cut[: dot + 1] if dot > limit // 2 else cut).strip()
+
+
+def _set_reply_status(comment_id: int, status: str, draft: str = None) -> None:
+    with get_db_cursor(commit=True) as (_conn, cur):
+        if draft is not None:
+            cur.execute(
+                "UPDATE linkedin_comments SET reply_status=%s, draft_reply=%s, seen=TRUE WHERE id=%s",
+                (status, draft, comment_id),
+            )
+        else:
+            cur.execute(
+                "UPDATE linkedin_comments SET reply_status=%s, seen=TRUE WHERE id=%s",
+                (status, comment_id),
+            )
+
+
+def draft_comment_replies(limit: int = 5) -> dict:
+    """Draft replies for top-level comments awaiting one and queue each as a
+    Tier-2 'linkedin_comment_reply' approval (Telegram). FR comments get an
+    EN draft routed through the translate capability (R.O.S.E.T.T.A. path,
+    standing rule KB #272121). Cold model → comment stays 'none' and is
+    retried next run."""
+    from services.signal_calendar_service import _ensure_import_paths
+
+    _ensure_import_paths()
+    from ai_bridge.agent_loop import request_approval
+    from signal_dispatch import _VOICE_HINTS
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            """SELECT c.id, c.post_url, c.author, c.author_headline, c.body, c.account,
+                      l.content AS post_content, l.post_type
+               FROM linkedin_comments c
+               LEFT JOIN linkedin_post_log l ON l.id = c.post_log_id
+               WHERE c.reply_status = 'none' AND NOT c.is_reply
+                 AND COALESCE(c.body, '') <> ''
+               ORDER BY c.first_seen_at ASC
+               LIMIT %s""",
+            (limit,),
+        )
+        candidates = [dict(r) for r in cur.fetchall()]
+
+    drafted = 0
+    notes = []
+    for c in candidates:
+        author = (c.get("author") or "").strip()
+        if any(m in author.lower() for m in _OWN_AUTHOR_MARKERS):
+            _set_reply_status(c["id"], "skipped_own")
+            notes.append({"id": c["id"], "note": "own comment — skipped"})
+            continue
+
+        post_type = (c.get("post_type") or "personal").lower()
+        voice = _VOICE_HINTS.get(post_type, _VOICE_HINTS["personal"])
+        prompt = (
+            f"Someone commented on our LinkedIn post. Write a short reply comment.\n\n"
+            f"Our original post:\n{(c.get('post_content') or '(unavailable)')[:1200]}\n\n"
+            f"Comment from {author or 'a reader'}"
+            f"{(' (' + c.get('author_headline') + ')') if c.get('author_headline') else ''}:\n"
+            f"{c['body'][:800]}\n\n"
+            f"{voice}\n"
+            f"Reply guidelines: address them naturally by first name, engage with their "
+            f"specific point, be warm and substantive, under 120 words, NO hashtags, "
+            f"never invent facts or commitments. Return ONLY the reply text."
+        )
+        result = dispatch(
+            capability="social_post_draft", prompt=prompt, prefer_agent="S.I.G.N.A.L."
+        )
+        draft = (getattr(result, "response", "") or "").strip()
+        if not draft:
+            notes.append({"id": c["id"], "note": "model cold/queued — retry next run"})
+            continue
+
+        if _looks_french(c["body"]):
+            tr = dispatch(
+                capability="translate",
+                prompt=(
+                    "Translate this LinkedIn reply into natural Québécois French. "
+                    f"Return ONLY the translation.\n\n{draft}"
+                ),
+            )
+            fr = (getattr(tr, "response", "") or "").strip()
+            if fr:
+                draft = fr
+            else:
+                notes.append({"id": c["id"], "note": "FR translate cold — queued EN draft"})
+
+        draft = _trim_reply(draft)
+        approval_id = request_approval(
+            action_type="linkedin_comment_reply",
+            action_data={
+                "comment_id": c["id"],
+                "post_url": c["post_url"],
+                "reply": draft,
+                "browser_agent_id": _ACCOUNT_BROWSER_ID.get(
+                    (c.get("account") or "").lower(), 342
+                ),
+                "author": author,
+                "post_type": post_type,
+            },
+            reason=(
+                f"💬 Reply to {author or 'a reader'} on a {post_type} post:\n\n"
+                f"Their comment:\n{c['body'][:400]}\n\n"
+                f"Draft reply:\n{draft[:900]}"
+            ),
+            tier=2,
+            requested_by="S.I.G.N.A.L. comment monitor",
+            priority=6,
+        )
+        _set_reply_status(c["id"], "drafted", draft)
+        drafted += 1
+        logger.info(
+            "[CommentMonitor] drafted reply for comment %s → approval %s",
+            c["id"],
+            approval_id,
+        )
+    return {"candidates": len(candidates), "drafted": drafted, "notes": notes}
+
+
 def list_recent_comments(limit: int = 50, unseen_only: bool = False) -> list:
     """For the S.I.G.N.A.L. read surface."""
     where = "WHERE NOT seen" if unseen_only else ""
@@ -126,7 +277,8 @@ def list_recent_comments(limit: int = 50, unseen_only: bool = False) -> list:
         cur.execute(
             f"""
             SELECT id, post_url, author, author_headline, body, is_reply,
-                   commented_at, account, seen, reply_status, first_seen_at
+                   commented_at, account, seen, reply_status, draft_reply,
+                   first_seen_at
             FROM linkedin_comments
             {where}
             ORDER BY first_seen_at DESC
@@ -134,5 +286,10 @@ def list_recent_comments(limit: int = 50, unseen_only: bool = False) -> list:
             """,
             (limit,),
         )
-        rows = cur.fetchall()
-        return [dict(r) if isinstance(r, dict) else r for r in rows]
+        rows = [dict(r) if isinstance(r, dict) else r for r in cur.fetchall()]
+    # isoformat the timestamptz — raw psycopg2 datetimes can break jsonify
+    # (KB #269068); this list only ever shipped empty before the WRITE leg.
+    for r in rows:
+        if isinstance(r, dict) and r.get("first_seen_at") is not None:
+            r["first_seen_at"] = r["first_seen_at"].isoformat()
+    return rows

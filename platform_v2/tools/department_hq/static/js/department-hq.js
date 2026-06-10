@@ -2101,7 +2101,7 @@ async function publishPost(postId, agentId) {
 var signalAccount = 'personal';
 var signalTab = 'overview';
 var _signalTabCache = {};   // {tab: {html, ts}} — persists across sub-tab switches
-var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 30, themes: 600, session: 10 };
+var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 30, themes: 600, session: 10, comments: 30 };
 var _signalLastRun = {};  // {account: timestamp} — per-account Run Now cooldown
 // Phase 5: setInterval handle for live calendar polling. Cleared on every
 // loadSignalTab() entry; re-established at the end of loadSignalTab('calendar').
@@ -2130,6 +2130,7 @@ function renderSignalShell() {
         + '<button class="signal-sub" data-sub="pending" onclick="switchSignalTab(\'pending\')">Pending <span id="signalPendingBadge" class="signal-badge" style="display:none">0</span></button>'
         + '<button class="signal-sub" data-sub="hashtags" onclick="switchSignalTab(\'hashtags\')">Hashtags</button>'
         + '<button class="signal-sub" data-sub="calendar" onclick="switchSignalTab(\'calendar\')">📅 Calendar</button>'
+        + '<button class="signal-sub" data-sub="comments" onclick="switchSignalTab(\'comments\')">💬 Comments</button>'
         + '<button class="signal-sub" data-sub="themes" onclick="switchSignalTab(\'themes\')">Themes</button>'
         + '<button class="signal-sub" data-sub="session" onclick="switchSignalTab(\'session\')">🔐 Session</button>'
         + '</div>'
@@ -2259,6 +2260,64 @@ async function signalSessionLoginStop() {
     await loadSignalTab('session', true);
 }
 
+/* ── S.I.G.N.A.L. COMMENTS sub-tab (#3992) — comment threads on our posts:
+   READ ingest + draft-reply status. Replies post only via Telegram approve. ── */
+var _SIGNAL_REPLY_STATUS_COLORS = {
+    none: '#94a3b8', drafted: '#22d3ee', replied: '#22c55e',
+    reply_failed: '#ef4444', skipped_own: '#555'
+};
+
+async function renderSignalComments(el) {
+    var d;
+    try {
+        d = await api('/api/social/linkedin/comments?limit=50');
+    } catch (e) {
+        setHtml(el, '<div class="dhq-empty">Comments unavailable: ' + esc(e && e.message ? e.message : e) + '</div>');
+        return;
+    }
+    var comments = d.comments || [];
+    var rows = comments.map(function(c) {
+        var col = _SIGNAL_REPLY_STATUS_COLORS[c.reply_status] || '#94a3b8';
+        return '<tr>'
+            + '<td style="white-space:nowrap">' + esc(c.author || '?')
+            + '<div style="font-size:0.62rem;color:#64748b">' + esc((c.author_headline || '').slice(0, 60)) + '</div></td>'
+            + '<td style="font-size:0.72rem">' + esc((c.body || '').slice(0, 180)) + ((c.body || '').length > 180 ? '…' : '')
+            + (c.draft_reply ? '<div style="margin-top:4px;padding:4px 8px;border-left:2px solid #22d3ee;color:#94a3b8;font-size:0.68rem">↳ draft: '
+              + esc(c.draft_reply.slice(0, 140)) + '…</div>' : '') + '</td>'
+            + '<td style="white-space:nowrap"><span style="color:' + col + '">● ' + esc(c.reply_status || 'none') + '</span>'
+            + '<div style="font-size:0.6rem;color:#64748b">' + esc(c.account || '') + '</div></td>'
+            + '<td style="white-space:nowrap;font-size:0.62rem;color:#64748b">' + esc(String(c.first_seen_at || '').slice(0, 10)) + '</td>'
+            + '</tr>';
+    }).join('');
+    setHtml(el, '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
+        + '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0">COMMENTS ON OUR POSTS (' + comments.length + ')</h4>'
+        + '<div style="display:flex;gap:8px">'
+        + '<button class="dhq-btn" onclick="signalCommentsPoll()">↻ Poll threads</button>'
+        + '<button class="dhq-btn dhq-btn-primary" onclick="signalCommentsDraft()">✍ Draft replies</button>'
+        + '</div></div>'
+        + (comments.length
+            ? '<table class="dhq-table" style="width:100%"><tbody>' + rows + '</tbody></table>'
+            : '<div class="dhq-empty" style="text-align:left">No comments ingested yet. The 6-hour pipeline polls every '
+              + 'post with a captured URL; Poll threads runs it now. Drafted replies go to Telegram for approval — '
+              + 'nothing posts on its own.</div>'));
+}
+
+async function signalCommentsPoll() {
+    try {
+        var r = await apiPost('/api/social/linkedin/comments/refresh', {});
+        alert('Polled ' + (r.posts_polled || 0) + ' post(s) — ' + (r.new_comments || 0) + ' new comment(s)');
+    } catch (e) { alert('Poll failed: ' + (e && e.message ? e.message : e)); }
+    await loadSignalTab('comments', true);
+}
+
+async function signalCommentsDraft() {
+    try {
+        var r = await apiPost('/api/social/linkedin/comments/draft-replies', {});
+        alert('Drafted ' + (r.drafted || 0) + ' of ' + (r.candidates || 0) + ' candidate(s) — drafts await Telegram approval');
+    } catch (e) { alert('Draft failed: ' + (e && e.message ? e.message : e)); }
+    await loadSignalTab('comments', true);
+}
+
 function switchSignalAccount(account) {
     signalAccount = account;
     document.querySelectorAll('.signal-acct-btn').forEach(function(b) {
@@ -2307,6 +2366,7 @@ async function loadSignalTab(tab, forceRefresh) {
             case 'calendar':  await renderSignalCalendar(el);  break;
             case 'themes':    await renderSignalThemes(el);    break;
             case 'session':   await renderSignalSession(el);   break;
+            case 'comments':  await renderSignalComments(el);  break;
         }
         // Cache the rendered result (not for compose)
         if (tab !== 'compose' && el.innerHTML) {

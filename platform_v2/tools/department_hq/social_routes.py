@@ -658,6 +658,18 @@ def register_social_routes(bp, admin_required):
         ok = signal_calendar_service.cancel_scheduled(post_id)
         return jsonify({"success": ok}), (200 if ok else 404)
 
+    @bp.route("/api/social/linkedin/comments/draft-replies", methods=["POST"])
+    @admin_required
+    def api_linkedin_comments_draft_replies():
+        """Manually run the reply drafter (#3992) — same path as the 6h job.
+        Drafts go to the Tier-2 Telegram approval queue; nothing posts."""
+        from services import linkedin_comment_monitor as mon
+
+        try:
+            return jsonify({"success": True, **mon.draft_comment_replies()})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/signal/calendar/top-up", methods=["POST"])
     @admin_required
     def api_signal_calendar_topup():

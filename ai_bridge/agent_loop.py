@@ -476,6 +476,19 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # S.I.G.N.A.L. comment pipeline (#3992) — poll watched post threads
+        # (READ) then draft replies for new comments (Tier-2 Telegram gate).
+        self.scheduler.add_job(
+            with_app_context(self._signal_comment_pipeline),
+            trigger=IntervalTrigger(hours=6),
+            id="signal_comment_pipeline",
+            name="S.I.G.N.A.L.: Comment Monitor + Reply Drafts",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._archie_coo_approval_worker),
             trigger=IntervalTrigger(seconds=90),
@@ -3673,6 +3686,27 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"[signal-calendar] daily release failed: {e}")
 
+    def _signal_comment_pipeline(self):
+        """S.I.G.N.A.L. #3992: poll comment threads on our posts, then draft
+        replies for new comments → Tier-2 Telegram approvals."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.linkedin_comment_monitor import (
+                draft_comment_replies,
+                run_comment_monitor,
+            )
+
+            polled = run_comment_monitor()
+            drafted = draft_comment_replies()
+            if polled.get("new_comments") or drafted.get("drafted"):
+                logger.info(
+                    f"[signal-comments] polled={polled} drafted={drafted}"
+                )
+        except Exception as e:
+            logger.error(f"[signal-comments] pipeline failed: {e}")
+
     def _signal_calendar_topup(self):
         """S.I.G.N.A.L. calendar Phase 3 (#3991): generate fresh posts for
         accounts whose scheduled backlog has thinned."""
@@ -4422,6 +4456,54 @@ class AgentLoop:
             except Exception as li_err:
                 logger.error(f"LinkedIn post execution failed: {li_err}")
                 return {"executed": False, "error": str(li_err)}
+
+        elif action_type == "linkedin_comment_reply":
+            # #3992: approved reply to a comment on one of our posts — posted
+            # via the linkedin_comment skill on the post, addressed to the
+            # author inside the drafted text.
+            comment_id = data.get("comment_id")
+            post_url = data.get("post_url", "")
+            reply = data.get("reply", "")
+            agent_id = data.get("browser_agent_id") or 342
+            if not post_url or not reply:
+                return {"executed": False, "error": "post_url and reply required"}
+            try:
+                import sys as _sys
+
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+
+                result = run_skill_sync(
+                    "linkedin_comment",
+                    {"post_url": post_url, "comment": reply},
+                    agent_id=agent_id,
+                    timeout_s=120,
+                )
+                # Fresh connection after the long browser call — the caller's
+                # cursor may have gone stale (same class as linkedin_post).
+                try:
+                    from db import get_db as _get_db
+
+                    _rc = _get_db()
+                    _rcur = _rc.cursor()
+                    try:
+                        _rcur.execute(
+                            "UPDATE linkedin_comments SET reply_status = %s WHERE id = %s",
+                            (
+                                "replied" if result.get("success") else "reply_failed",
+                                comment_id,
+                            ),
+                        )
+                        _rc.commit()
+                    finally:
+                        _rcur.close()
+                        _rc.close()
+                except Exception as _ue:
+                    logger.warning(f"[comment-reply] status update failed: {_ue}")
+                return {"executed": bool(result.get("success")), "result": result}
+            except Exception as cr_err:
+                logger.error(f"LinkedIn comment reply failed: {cr_err}")
+                return {"executed": False, "error": str(cr_err)}
 
         elif action_type == "linkedin_reply":
             # Approved reply to a LinkedIn comment/message

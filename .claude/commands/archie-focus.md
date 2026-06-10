@@ -1,16 +1,15 @@
 ---
-name: archie-focus
-description: Load focused context for a specific module or system — lightweight alternative to full boot when you already know what you're working on. Usage: /archie-focus <target>
-triggers:
-  - "/archie-focus"
-  - "focus on"
-  - "working on module"
-  - "module context"
+description: Load focused context for a specific module or system — lightweight alternative to /archie-boot when you already know what you're working on. Saves ~15k context tokens vs full boot.
+argument-hint: <target> (consciousness|fleet|dispatch|department_hq|media_studio|repair_bay|email_manager|security_network|backup_manager|account_center|billing|wtf|gov_watch|media_hub|kso|kbs|creed)
 ---
 
 # A.R.C.H.I.E. Focus — Segmented Module/System Boot
 
+**Target: $ARGUMENTS**
+
 Use this instead of `/archie-boot` when you already know what system you're working on. Loads ONLY the relevant context — saves ~15k context tokens vs full boot.
+
+If no target was given, ask the user which target to focus on (list below) and stop.
 
 ## Usage
 

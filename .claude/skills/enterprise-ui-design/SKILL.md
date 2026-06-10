@@ -1,5 +1,5 @@
 ---
-name: interface-design
+name: enterprise-ui-design
 description: This skill is for interface design — dashboards, admin panels, apps, tools, and interactive products. NOT for marketing design (landing pages, marketing sites, campaigns).
 ---
 

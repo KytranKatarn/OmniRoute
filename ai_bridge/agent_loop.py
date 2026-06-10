@@ -1914,8 +1914,27 @@ class AgentLoop:
         )
         logger.info("Registered job: Codex Auto-Queue (every 30 min, K.I.N.-gated)")
 
+        # Carbon Footprint Monitor — CREED environmental pillar (#3254)
+        # Runs every hour, aggregates inference kWh/CO2, pushes to CREED environmental pillar.
+        def _run_carbon_footprint():
+            with app.app_context():
+                from services.carbon_footprint_service import run_carbon_footprint_job
+                result = run_carbon_footprint_job()
+                logger.info("[CarbonJob] %s", result)
+
+        self.scheduler.add_job(
+            _run_carbon_footprint,
+            "interval",
+            hours=1,
+            id="carbon_footprint_job",
+            name="Carbon Footprint Monitor — CREED environmental pillar (Project #358 #3254)",
+            max_instances=1,
+            coalesce=True,
+        )
+        logger.info("Registered job: Carbon Footprint Monitor (every 1h, CREED environmental)")
+
         self._running = True
-        logger.info("Agent loop started with 77 jobs")
+        logger.info("Agent loop started with 78 jobs")
 
     def _update_stock_prices(self):
         """Job #27: DISABLED — StockBot migrated to Kytran Market Watch (standalone).

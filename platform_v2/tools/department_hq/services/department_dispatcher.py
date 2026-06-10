@@ -27,6 +27,18 @@ from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
+# Bias sampling — 10% inline fairness monitoring (Project #358 T3)
+try:
+    from services.bias_sampling_service import maybe_sample as _maybe_bias_sample
+
+    _HAS_BIAS_SAMPLING = True
+except ImportError:
+    _HAS_BIAS_SAMPLING = False
+
+    def _maybe_bias_sample(*_a, **_kw):
+        pass
+
+
 # Phase 2: Agent lifecycle delegated to agent_service
 try:
     import sys
@@ -9741,6 +9753,18 @@ def dispatch(
                 )
             except Exception as _us_exc:
                 logger.debug("[ResponseSafety] T3252 log failed: %s", _us_exc)
+
+    # T3265 — Bias sampling: 10% inline fairness monitor (Project #358 T3, non-blocking)
+    if _result.success:
+        try:
+            _maybe_bias_sample(
+                agent_name=getattr(_result, "agent_name", "") or "",
+                capability=capability or "",
+                model_used=getattr(_result, "model_used", "") or "",
+                response_text=_result.response or "",
+            )
+        except Exception:
+            pass
 
     return _result
 

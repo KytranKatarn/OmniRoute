@@ -161,8 +161,10 @@ def create_app(testing=False):
             session_manager.save_credentials(int(agent_id), platform, username, password)
             return jsonify({"stored": True, "platform": platform, "agent_id": int(agent_id)})
         except Exception as exc:
-            logger.error("session_credentials failed: %s", type(exc).__name__)
-            return jsonify({"error": str(exc)}), 500
+            # Type-only response — raw str(exc) could echo a DB error string
+            # (connection/column detail). Full detail goes to the server log.
+            logger.error("session_credentials(%s/%s) failed: %s", agent_id, platform, exc)
+            return jsonify({"error": f"credential store failed ({type(exc).__name__})"}), 500
 
     @app.post("/session/<int:agent_id>/<platform>/refresh")
     def refresh_session(agent_id, platform):

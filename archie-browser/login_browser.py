@@ -31,10 +31,24 @@ def main() -> int:
     signal.signal(signal.SIGINT, _on_term)
 
     with sync_playwright() as p:
+        # Anti-detection: LinkedIn/Google block logins from browsers that
+        # announce automation ("this browser may not be secure"). Strip the
+        # navigator.webdriver tell + the --enable-automation default arg so
+        # the headed login looks like a normal Chrome. (KB #272122 / #3953)
         context = p.chromium.launch_persistent_context(
             profile_dir,
             headless=False,  # headed under Xvfb — the human logs in via noVNC
-            args=["--no-sandbox", "--disable-dev-shm-usage", "--start-maximized"],
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--start-maximized",
+                "--disable-blink-features=AutomationControlled",
+            ],
+            ignore_default_args=["--enable-automation"],
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
             viewport=None,
         )
         try:

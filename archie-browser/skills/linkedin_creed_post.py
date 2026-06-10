@@ -43,9 +43,17 @@ _CREED_PAGE_NAMES = [
 
 
 def _screenshot(page, name):
+    # Diagnostic only — MUST NOT fail or hang a post. LinkedIn's company
+    # composer animates continuously, so a default page.screenshot() never
+    # gets a stable frame and times out at 30s, which falsely marked posts
+    # 'failed' (and let one launch post submit-then-error). Short timeout +
+    # animations disabled + non-fatal. (#3953 launch incident 2026-06-10)
     path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    page.screenshot(path=path)
-    return path
+    try:
+        page.screenshot(path=path, timeout=5000, animations="disabled")
+        return path
+    except Exception:
+        return None
 
 
 def _diagnostic_dump(page, label: str) -> dict:

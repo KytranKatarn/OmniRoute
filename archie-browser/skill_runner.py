@@ -187,10 +187,22 @@ def _execute_persistent(
     with _lock_for(profile_dir):
         with sync_playwright() as p:
             try:
+                # Match the login browser's anti-detection fingerprint
+                # (login_browser.py) so the replayed session stays trusted —
+                # a mismatch re-triggers LinkedIn's step-up. (#3953)
                 context = p.chromium.launch_persistent_context(
                     profile_dir,
                     headless=True,
-                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                    args=[
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-blink-features=AutomationControlled",
+                    ],
+                    ignore_default_args=["--enable-automation"],
+                    user_agent=(
+                        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                    ),
                 )
             except Exception as exc:
                 raise _ProfileUnavailable(f"{type(exc).__name__}: {exc}") from exc

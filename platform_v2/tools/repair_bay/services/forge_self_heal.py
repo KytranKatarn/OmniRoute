@@ -18,6 +18,7 @@ from database import _get_db_password
 import time
 from datetime import datetime
 from typing import Dict, Optional
+from services.governance_hmac import sign_event
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -55,7 +56,8 @@ def _log_autonomy_action(
             cur.execute(
                 """INSERT INTO governance_audit_log
                        (timestamp, event_category, event_type, details, agent_name)
-                   VALUES (NOW(), 'forge_self_heal', %s, %s, 'F.O.R.G.E.')""",
+                   VALUES (NOW(), 'forge_self_heal', %s, %s, 'F.O.R.G.E.')
+                   RETURNING id, timestamp""",
                 (
                     action_type,
                     json.dumps(
@@ -68,6 +70,26 @@ def _log_autonomy_action(
                     ),
                 ),
             )
+            row = cur.fetchone()
+            if row:
+                eid, ts = row[0], row[1]
+                sig = sign_event(
+                    event_id=eid,
+                    event_type=action_type,
+                    event_category="forge_self_heal",
+                    agent_id=None,
+                    user_id=None,
+                    action=action_type,
+                    target_table=None,
+                    target_id=proposal_id,
+                    outcome="success" if success else "failed",
+                    timestamp_iso=ts.isoformat() if ts else "",
+                )
+                if sig:
+                    cur.execute(
+                        "UPDATE governance_audit_log SET hmac_sig=%s WHERE id=%s",
+                        (sig, eid),
+                    )
             conn.commit()
         finally:
             cur.close()

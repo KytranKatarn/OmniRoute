@@ -15,6 +15,7 @@ import os
 from database import _get_db_password
 import json
 from datetime import datetime, timedelta
+from services.governance_hmac import sign_event, verify_event
 
 creed_admin_bp = Blueprint("creed_admin", __name__, url_prefix="/creed/api/admin")
 
@@ -85,7 +86,7 @@ def log_governance_event(
             (event_type, event_category, agent_id, user_id, action, target_table,
              target_id, old_value, new_value, reason, outcome)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
+            RETURNING id, timestamp
         """,
             (
                 event_type,
@@ -101,7 +102,25 @@ def log_governance_event(
                 outcome,
             ),
         )
-        event_id = cur.fetchone()[0]
+        row = cur.fetchone()
+        event_id, ts = row[0], row[1]
+        sig = sign_event(
+            event_id=event_id,
+            event_type=event_type,
+            event_category=category,
+            agent_id=agent_id,
+            user_id=current_user.id if current_user.is_authenticated else None,
+            action=action,
+            target_table=target_table,
+            target_id=target_id,
+            outcome=outcome,
+            timestamp_iso=ts.isoformat() if ts else "",
+        )
+        if sig:
+            cur.execute(
+                "UPDATE governance_audit_log SET hmac_sig=%s WHERE id=%s",
+                (sig, event_id),
+            )
         conn.commit()
         return event_id
     except Exception as e:
@@ -1105,6 +1124,53 @@ def get_compliance_dashboard():
         import traceback
 
         traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        try:
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
+
+
+@creed_admin_bp.route("/audit/verify", methods=["GET"])
+@login_required
+@api_admin_required
+def verify_audit_hmac():
+    """Verify HMAC signatures on the most recent governance_audit_log rows."""
+    limit = min(int(request.args.get("limit", 200)), 1000)
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """SELECT id, event_type, event_category, agent_id, user_id,
+                      action, target_table, target_id, outcome, timestamp, hmac_sig
+               FROM governance_audit_log
+               ORDER BY id DESC LIMIT %s""",
+            (limit,),
+        )
+        rows = cur.fetchall()
+        verified = unverified = invalid = 0
+        invalid_ids = []
+        for row in rows:
+            result = verify_event(dict(row))
+            if result is True:
+                verified += 1
+            elif result is False:
+                invalid += 1
+                invalid_ids.append(row["id"])
+            else:
+                unverified += 1
+        return jsonify(
+            {
+                "checked": len(rows),
+                "verified": verified,
+                "unverified": unverified,
+                "invalid": invalid,
+                "invalid_ids": invalid_ids,
+            }
+        )
+    except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
         try:

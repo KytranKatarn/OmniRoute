@@ -14,6 +14,7 @@ import os
 import secrets
 import sys
 import logging
+from services.governance_hmac import sign_event
 from datetime import datetime, timedelta, timezone
 
 import psycopg2
@@ -746,6 +747,7 @@ def register_fleet_routes(bp, auth_decorator):
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
                 # Log to governance audit
+                action_val = "enable" if enabled else "disable"
                 cur.execute(
                     """
                     INSERT INTO governance_audit_log (
@@ -753,13 +755,34 @@ def register_fleet_routes(bp, auth_decorator):
                     ) VALUES (
                         'node_bridge_sharing', 'autonomy', NULL, %s, %s, %s, 'success'
                     )
+                    RETURNING id, timestamp
                 """,
                     (
-                        "enable" if enabled else "disable",
+                        action_val,
                         f'{{"node_id": "{node_id}", "priority": {priority}}}',
                         f"Bridge sharing {'enabled' if enabled else 'disabled'} for node {result[0]}",
                     ),
                 )
+                gov_row = cur.fetchone()
+                if gov_row:
+                    eid, ts = gov_row[0], gov_row[1]
+                    sig = sign_event(
+                        event_id=eid,
+                        event_type="node_bridge_sharing",
+                        event_category="autonomy",
+                        agent_id=None,
+                        user_id=None,
+                        action=action_val,
+                        target_table="remote_nodes",
+                        target_id=None,
+                        outcome="success",
+                        timestamp_iso=ts.isoformat() if ts else "",
+                    )
+                    if sig:
+                        cur.execute(
+                            "UPDATE governance_audit_log SET hmac_sig=%s WHERE id=%s",
+                            (sig, eid),
+                        )
 
                 return jsonify({"success": True, "bridge_enabled": enabled, "bridge_priority": priority})
 

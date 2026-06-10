@@ -291,6 +291,21 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
     """
     import shutil
 
+    # Path-traversal guard (security review on PR #1557): `files` originates
+    # from pipeline proposal data — reject absolute paths and anything that
+    # escapes the repo root BEFORE it reaches sparse-checkout, the copy, or
+    # git add/rm. realpath also catches in-repo symlinks pointing outside.
+    repo_real = os.path.realpath(REPO_PATH)
+    safe_files: List[str] = []
+    for f in files:
+        norm = os.path.normpath(str(f))
+        if os.path.isabs(norm) or norm.startswith("..") or norm in (".", ""):
+            return {"success": False, "error": f"invalid path rejected: {f!r}"}
+        src_real = os.path.realpath(os.path.join(REPO_PATH, norm))
+        if os.path.commonpath([src_real, repo_real]) != repo_real:
+            return {"success": False, "error": f"path escapes repo root: {f!r}"}
+        safe_files.append(norm)
+
     err = _ensure_clone()
     if err:
         return {"success": False, "error": err}
@@ -304,14 +319,18 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
     )
     if not ok:
         return {"success": False, "error": f"Fetch of {branch_name} failed: {err2}"}
-    _run_git_clone(["sparse-checkout", "set", "--no-cone"] + list(files))
+    _run_git_clone(["sparse-checkout", "set", "--no-cone"] + safe_files)
     ok, _, err2 = _run_git_clone(["checkout", "-B", branch_name, f"origin/{branch_name}"])
     if not ok:
         return {"success": False, "error": f"Checkout failed: {err2}"}
 
-    for f in files:
+    clone_real = os.path.realpath(CLONE_PATH)
+    for f in safe_files:
         src = os.path.join(REPO_PATH, f)
         dst = os.path.join(CLONE_PATH, f)
+        # Symlinked dirs inside the clone could redirect dst outside tmpfs.
+        if os.path.commonpath([os.path.realpath(dst), clone_real]) != clone_real:
+            return {"success": False, "error": f"destination escapes clone: {f!r}"}
         if os.path.exists(src):
             dst_dir = os.path.dirname(dst)
             if dst_dir:

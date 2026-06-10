@@ -8,9 +8,6 @@ Grid factor: Canada average = 0.15 kg CO2eq / kWh (Ontario mix, mostly hydro).
 """
 
 import logging
-import os
-
-import requests
 
 from database import get_db_cursor
 
@@ -30,13 +27,14 @@ _GPU_MODELS = {
     "nomic-embed-text:latest",
 }
 
-_CREED_URL = os.getenv("CREED_INGEST_URL", "http://kytran_creed:8086")
-_CREED_KEY = os.getenv("CREED_INGEST_KEY", "")
-
 
 def _watts_for_model(model_used: str) -> float:
     base = model_used.split(":")[0].lower() if model_used else ""
-    return _GPU_TDP_W if base in {m.split(":")[0] for m in _GPU_MODELS} else _CPU_INFERENCE_W
+    return (
+        _GPU_TDP_W
+        if base in {m.split(":")[0] for m in _GPU_MODELS}
+        else _CPU_INFERENCE_W
+    )
 
 
 def _co2_kg(watts: float, duration_ms: int) -> float:
@@ -94,40 +92,30 @@ def run_carbon_footprint_job() -> dict:
         "severity": severity,
     }
 
-    if not _CREED_KEY:
-        logger.info("[CarbonJob] CREED_INGEST_KEY not set — skipping push. Summary: %s", summary)
-        return summary
+    # #3958: emit via creed_emit — platform-infra monitor resolves to the
+    # default kytran-empowerment tenant, tagged module=Infrastructure.
+    from services.creed_emit import emit_event
 
-    payload = {
-        "event_type": "carbon_footprint_report",
-        "source_platform": "archie_platform",
-        "agent_id": "archie_carbon_monitor",
-        "agent_name": "A.R.C.H.I.E. Carbon Monitor",
-        "category": "environmental",
-        "severity": severity,
-        "description": (
-            f"Last 1h: {run_count} inference runs · " f"{total_kwh * 1000:.3f} Wh · {total_co2 * 1000:.2f} g CO₂e"
+    ok = emit_event(
+        category="environmental",
+        severity=severity,
+        description=(
+            f"Last 1h: {run_count} inference runs · "
+            f"{total_kwh * 1000:.3f} Wh · {total_co2 * 1000:.2f} g CO₂e"
         ),
-        "metadata": {
+        event_type="carbon_footprint_report",
+        agent_name="A.R.C.H.I.E. Carbon Monitor",
+        module="Infrastructure",
+        metadata={
             "total_kwh": total_kwh,
             "total_co2_kg": total_co2,
             "run_count": run_count,
             "grid_factor_kg_per_kwh": _CANADA_GRID_KG_CO2_PER_KWH,
             "period": "last_1h",
         },
-    }
-    try:
-        resp = requests.post(
-            f"{_CREED_URL}/api/v1/events",
-            json=payload,
-            headers={"Authorization": f"Bearer {_CREED_KEY}"},
-            timeout=10,
-        )
-        if resp.ok:
-            logger.info("[CarbonJob] Pushed environmental event: %s", summary)
-        else:
-            logger.warning("[CarbonJob] CREED push failed %s: %s", resp.status_code, resp.text[:200])
-    except Exception as exc:
-        logger.warning("[CarbonJob] CREED push error: %s", exc)
+        timeout=10,
+    )
+    if ok:
+        logger.info("[CarbonJob] Pushed environmental event: %s", summary)
 
     return summary

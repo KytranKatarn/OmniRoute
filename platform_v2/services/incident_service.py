@@ -51,7 +51,9 @@ def file_ai_incident(
         severity = "medium"
     incident_ref = "INC-" + uuid.uuid4().hex[:8]
     affected = (
-        affected_agents if isinstance(affected_agents, str) else ", ".join(str(a) for a in (affected_agents or []))
+        affected_agents
+        if isinstance(affected_agents, str)
+        else ", ".join(str(a) for a in (affected_agents or []))
     )
 
     audit_logged = False
@@ -87,11 +89,23 @@ def file_ai_incident(
             }
         ).encode()
         _headers = {"Content-Type": "application/json"}
-        # P2.1 (#3902): authenticate as the institute tenant when a key is
-        # configured — C.R.E.E.D. multi-tenant ingest (ADR-004).
-        _creed_key = os.getenv("CREED_INGEST_KEY", "")
-        if _creed_key:
-            _headers["Authorization"] = f"Bearer {_creed_key}"
+        # #3958: route the incident to the tenant of the first affected agent
+        # (falls back inside creed_emit: default tenant -> legacy key).
+        try:
+            from services.creed_emit import auth_header_for_agent
+
+            _first_agent = None
+            if affected_agents:
+                _first_agent = (
+                    str(affected_agents).split(",")[0].strip()
+                    if isinstance(affected_agents, str)
+                    else str(list(affected_agents)[0])
+                )
+            _headers.update(auth_header_for_agent(agent_name=_first_agent))
+        except Exception:
+            _creed_key = os.getenv("CREED_INGEST_KEY", "")
+            if _creed_key:
+                _headers["Authorization"] = f"Bearer {_creed_key}"
         req = urllib.request.Request(
             f"{_CREED_URL}/api/v1/incidents",
             data=payload,

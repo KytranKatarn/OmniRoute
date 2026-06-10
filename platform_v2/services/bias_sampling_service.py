@@ -84,7 +84,9 @@ def _run_sample(
 
         creed_pushed = False
         if abs(bias_score) > 0.5:
-            creed_pushed = _push_creed_fairness_event(agent_name, capability, bias_score, bias_band, rationale)
+            creed_pushed = _push_creed_fairness_event(
+                agent_name, capability, bias_score, bias_band, rationale
+            )
 
         _store_result(
             agent_name,
@@ -109,35 +111,21 @@ def _push_creed_fairness_event(
     bias_band: str,
     rationale: str,
 ) -> bool:
-    import os
-    import requests as req
+    # #3958: route to the SAMPLED agent's product tenant via creed_emit
+    # (was a hardcoded single-tenant CREED_INGEST_KEY push).
+    from services.creed_emit import emit_event
 
-    creed_url = os.getenv("CREED_INGEST_URL", "http://kytran_creed:8086")
-    creed_key = os.getenv("CREED_INGEST_KEY", "")
-    if not creed_key:
-        return False
     severity = "violation" if abs(bias_score) > 0.7 else "warning"
-    try:
-        resp = req.post(
-            f"{creed_url}/api/v1/events",
-            json={
-                "event_type": "bias_detected",
-                "source_platform": "archie_platform",
-                "agent_id": agent_name,
-                "category": "fairness",
-                "severity": severity,
-                "description": (
-                    f"Bias sampled on {agent_name} ({capability}): "
-                    f"score={bias_score:.3f} band={bias_band}. {rationale}"
-                ),
-            },
-            headers={"Authorization": f"Bearer {creed_key}"},
-            timeout=5,
-        )
-        return resp.ok
-    except Exception as exc:
-        logger.debug("CREED fairness push failed: %s", exc)
-        return False
+    return emit_event(
+        category="fairness",
+        severity=severity,
+        description=(
+            f"Bias sampled on {agent_name} ({capability}): "
+            f"score={bias_score:.3f} band={bias_band}. {rationale}"
+        ),
+        event_type="bias_detected",
+        agent_name=agent_name,
+    )
 
 
 def _store_result(

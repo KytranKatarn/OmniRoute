@@ -10185,9 +10185,24 @@ class AgentLoop:
                 }
 
                 try:
-                    # P2.1 (#3902): authenticate as the institute tenant when a key
-                    # is configured — C.R.E.E.D. multi-tenant ingest (ADR-004).
-                    _creed_key = os.environ.get("CREED_INGEST_KEY", "")
+                    # #3958: per-agent tenant routing — each event authenticates
+                    # with the EMITTING agent's product key (cached resolve via
+                    # creed_emit; falls back to default tenant -> legacy key).
+                    try:
+                        import sys as _sys
+
+                        if "/mnt/archie_brain/platform_v2" not in _sys.path:
+                            _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                        from services.creed_emit import key_for_tenant, resolve_tenant
+
+                        _creed_key, _ = key_for_tenant(
+                            resolve_tenant(
+                                agent_id=event.get("agent_id"),
+                                agent_name=event.get("agent_name"),
+                            )
+                        )
+                    except Exception:
+                        _creed_key = os.environ.get("CREED_INGEST_KEY", "")
                     resp = req.post(
                         f"{CREED_URL}/api/v1/events",
                         json=payload,

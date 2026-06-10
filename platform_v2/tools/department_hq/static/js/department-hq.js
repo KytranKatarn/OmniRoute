@@ -2139,12 +2139,12 @@ function renderSignalShell() {
 /* ── S.I.G.N.A.L. SESSION sub-tab (#3953/#3948/#3982) — persistent trusted
    LinkedIn sessions, one card per browser identity. Profile 342 = the Kytran
    login (personal + KE Inc. + Creed-AI pages, actor-switched inside one
-   session). Profile 343 = Terry Caetano (a SEPARATE LinkedIn login → its own
+   session). Profile 377 = Terry Caetano (a SEPARATE LinkedIn login → its own
    persistent profile + one-time noVNC login). Only one login browser runs at
    a time. ── */
 var SIGNAL_SESSION_IDENTITIES = [
     { agentId: 342, label: 'KYTRAN SESSION — PROFILE 342', note: 'Kytran Katarn personal + KE Inc. + Creed-AI pages (one login, actor-switched)' },
-    { agentId: 343, label: 'TERRY CAETANO SESSION — PROFILE 343', note: 'Terry Caetano personal account (separate LinkedIn login)' }
+    { agentId: 377, label: 'TERRY CAETANO SESSION — PROFILE 377', note: 'Terry Caetano personal account (separate LinkedIn login)' }
 ];
 
 async function renderSignalSession(el) {
@@ -2790,7 +2790,59 @@ async function renderSignalCalendar(el) {
 
     var legend = _renderSignalLegend();
 
-    setHtml(el, headerLine + grid + legend);
+    // Phase 1 (#3989): per-account scheduled queue (forward 1/day backlog)
+    var schedPanel = '';
+    try {
+        var sched = await api('/api/signal/calendar/scheduled?account=' + encodeURIComponent(account));
+        schedPanel = _renderSignalScheduledQueue(sched.posts || [], account);
+    } catch (e) {
+        schedPanel = '<div class="dhq-empty" style="margin-top:14px">Scheduled queue unavailable</div>';
+    }
+
+    setHtml(el, headerLine + grid + legend + schedPanel);
+}
+
+function _renderSignalScheduledQueue(posts, account) {
+    var rows = '';
+    for (var i = 0; i < posts.length; i++) {
+        var p = posts[i];
+        var when = (p.scheduled_at || '').slice(0, 10);
+        var preview = (p.content || '').slice(0, 140);
+        rows += '<tr>'
+            + '<td style="white-space:nowrap;color:#22d3ee">' + esc(when) + '</td>'
+            + '<td style="font-size:0.72rem">' + esc(preview) + (p.content && p.content.length > 140 ? '…' : '') + '</td>'
+            + '<td><button class="dhq-btn" style="font-size:0.6rem" onclick="signalCalendarCancel(' + p.id + ')">✕ Cancel</button></td>'
+            + '</tr>';
+    }
+    return '<div style="margin-top:16px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">'
+        + '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0">SCHEDULED QUEUE — ' + esc(_signalAccountLabel(account)) + ' (' + posts.length + ')</h4>'
+        + '<button class="dhq-btn" onclick="signalCalendarBackfill()">⟳ Backfill backlog → calendar</button>'
+        + '</div>'
+        + (posts.length
+            ? '<table class="dhq-table" style="width:100%"><tbody>' + rows + '</tbody></table>'
+            : '<div class="dhq-empty" style="text-align:left">Nothing scheduled for this account. '
+              + 'Backfill fans the unique failed/staged backlog forward, 1 post per day per account — '
+              + 'release to approval is Phase 2; nothing publishes by itself.</div>')
+        + '</div>';
+}
+
+async function signalCalendarBackfill() {
+    try {
+        var r = await apiPost('/api/signal/calendar/backfill', {});
+        var by = r.by_account || {};
+        var parts = Object.keys(by).map(function(a) { return a + ': +' + by[a].scheduled; });
+        alert('Backfill done — ' + (r.total_scheduled || 0) + ' scheduled (' + parts.join(', ') + ')');
+    } catch (e) {
+        alert('Backfill failed: ' + (e && e.message ? e.message : e));
+    }
+    await loadSignalTab('calendar', true);
+}
+
+async function signalCalendarCancel(id) {
+    try { await apiPost('/api/signal/calendar/scheduled/' + id + '/cancel', {}); }
+    catch (e) { alert('Cancel failed: ' + (e && e.message ? e.message : e)); }
+    await loadSignalTab('calendar', true);
 }
 
 function _renderSignalDayCell(day, abbr) {
@@ -2845,6 +2897,7 @@ var _signalCalendarPostCache = {};
 function _signalAccountLabel(account) {
     if (account === 'company')  return 'KE Inc.';
     if (account === 'personal') return 'Kytran Katarn';
+    if (account === 'terry')    return 'Terry Caetano';
     if (account === 'creed')    return 'Creed-AI';
     return esc(account || '');
 }

@@ -4255,10 +4255,10 @@ class AgentLoop:
             hashtags = data.get("hashtags", [])
             post_type = data.get("post_type", "personal")  # personal | company | creed | terry
             company_slug = data.get("company_slug", "kytran-empowerment-inc")
-            # terry = separate LinkedIn login → its own browser profile (343).
+            # terry = separate LinkedIn login → its own browser profile (377).
             # All other accounts ride the Kytran session (342) and actor-switch.
             agent_id = data.get("browser_agent_id") or (
-                343 if post_type == "terry" else 342
+                377 if post_type == "terry" else 342
             )
             if not content:
                 return {"executed": False, "error": "No content in action_data"}

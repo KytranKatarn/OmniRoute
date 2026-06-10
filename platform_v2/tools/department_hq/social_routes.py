@@ -619,6 +619,45 @@ def register_social_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    # ── S.I.G.N.A.L. content calendar Phase 1 (#3989) ────────────
+    @bp.route("/api/signal/calendar/backfill", methods=["POST"])
+    @admin_required
+    def api_signal_calendar_backfill():
+        """One-shot: dedup the failed/staged backlog onto per-account
+        calendars, 1/day forward. Idempotent; nothing publishes."""
+        import logging as _logging
+
+        from services import signal_calendar_service
+
+        try:
+            return jsonify({"success": True, **signal_calendar_service.backfill_calendar()})
+        except Exception as e:
+            _logging.getLogger("platform.signal_calendar").exception("backfill failed")
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/signal/calendar/scheduled")
+    @admin_required
+    def api_signal_calendar_scheduled():
+        """Scheduled queue for ?account= (personal|terry|company|creed)."""
+        from services import signal_calendar_service
+
+        account = (request.args.get("account") or "personal").strip().lower()
+        try:
+            return jsonify(
+                {"account": account, "posts": signal_calendar_service.get_scheduled(account)}
+            )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/signal/calendar/scheduled/<int:post_id>/cancel", methods=["POST"])
+    @admin_required
+    def api_signal_calendar_cancel(post_id):
+        """Cancel one scheduled entry (prune stale backlog content)."""
+        from services import signal_calendar_service
+
+        ok = signal_calendar_service.cancel_scheduled(post_id)
+        return jsonify({"success": ok}), (200 if ok else 404)
+
     @bp.route("/api/signal/compose", methods=["POST"])
     @admin_required
     def api_signal_compose():

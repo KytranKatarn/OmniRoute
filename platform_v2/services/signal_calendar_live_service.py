@@ -21,6 +21,7 @@ from services.signal_post_status import classify
 _ACCOUNT_TO_POST_TYPES = {
     "company": ("company", "company_page"),
     "personal": ("personal",),
+    "terry": ("terry",),
     "creed": ("creed", "creed_ai"),
 }
 

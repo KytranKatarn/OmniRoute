@@ -334,9 +334,9 @@ def _draft_and_queue(
             "hashtags": hashtag_override or [],
             "post_type": post_type,
             # terry = a SEPARATE LinkedIn login → its own persistent browser
-            # profile (343-linkedin). Everything else rides the Kytran session
+            # profile (377-linkedin). Everything else rides the Kytran session
             # (342) and actor-switches in /feed/.
-            "browser_agent_id": 343 if post_type == "terry" else 342,
+            "browser_agent_id": 377 if post_type == "terry" else 342,
             "priority": priority,
         },
         reason=f"📣 {account_emoji} {account_label} draft:\n\n{draft[:1500]}",
@@ -588,7 +588,7 @@ def redraft_with_suggestion(original_draft: str, suggestion: str, action_data: d
             "hashtags": hashtags,
             "post_type": post_type,
             "browser_agent_id": action_data.get("browser_agent_id")
-            or (343 if post_type == "terry" else 342),
+            or (377 if post_type == "terry" else 342),
         },
         reason=f"✏️ S.I.G.N.A.L. revised draft:\n\n{revised[:1500]}",
         tier=2,

@@ -27,6 +27,10 @@ from . import brainstorm_bp
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_SESSION_UPDATE_FIELDS = frozenset({"title", "goal", "tags", "status"})
+ALLOWED_IDEA_UPDATE_FIELDS = frozenset({"content", "cluster", "vote_delta"})
+ALLOWED_IDEA_UPDATE_COLUMNS = frozenset({"content", "cluster"})
+
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 
@@ -196,6 +200,9 @@ def get_session(session_id: int):
 def update_session(session_id: int):
     """Update session metadata (title, goal, tags, status)."""
     body = request.get_json(silent=True) or {}
+    unknown_fields = sorted(set(body) - ALLOWED_SESSION_UPDATE_FIELDS)
+    if unknown_fields:
+        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_fields)}"}), 400
     fields = {}
     if "title" in body:
         t = (body["title"] or "").strip()
@@ -212,6 +219,9 @@ def update_session(session_id: int):
         fields["status"] = body["status"]
     if not fields:
         return jsonify({"success": False, "error": "Nothing to update"}), 400
+    unknown_columns = sorted(set(fields) - ALLOWED_SESSION_UPDATE_FIELDS)
+    if unknown_columns:
+        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_columns)}"}), 400
     set_clause = ", ".join(f"{k} = %s" for k in fields)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -310,6 +320,9 @@ def add_idea(session_id: int):
 def update_idea(idea_id: int):
     """Update an idea (content, cluster, or vote delta)."""
     body = request.get_json(silent=True) or {}
+    unknown_fields = sorted(set(body) - ALLOWED_IDEA_UPDATE_FIELDS)
+    if unknown_fields:
+        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_fields)}"}), 400
     fields = {}
     if "content" in body:
         c = (body["content"] or "").strip()
@@ -344,6 +357,9 @@ def update_idea(idea_id: int):
             return jsonify({"success": False, "error": str(exc)}), 500
     if not fields:
         return jsonify({"success": False, "error": "Nothing to update"}), 400
+    unknown_columns = sorted(set(fields) - ALLOWED_IDEA_UPDATE_COLUMNS)
+    if unknown_columns:
+        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_columns)}"}), 400
     set_clause = ", ".join(f"{k} = %s" for k in fields)
     try:
         with get_db_cursor(commit=True) as (conn, cur):

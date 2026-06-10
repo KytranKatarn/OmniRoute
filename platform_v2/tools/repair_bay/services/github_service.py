@@ -177,17 +177,17 @@ def _ensure_clone(base: str = "main") -> Optional[str]:
         try:
             shutil.rmtree(CLONE_PATH, ignore_errors=True)
             result = subprocess.run(
-                ["git", "clone", "--depth", "1", "--filter=blob:none",
-                 "--no-checkout", CLONE_URL, CLONE_PATH],
-                capture_output=True, text=True, timeout=300, env=_git_env(),
+                ["git", "clone", "--depth", "1", "--filter=blob:none", "--no-checkout", CLONE_URL, CLONE_PATH],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                env=_git_env(),
             )
             if result.returncode != 0:
                 return f"clone failed: {result.stderr.strip()[:300]}"
         except Exception as e:
             return f"clone failed: {e}"
-    ok, _, err = _run_git_clone(
-        ["fetch", "--depth", "1", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}"]
-    )
+    ok, _, err = _run_git_clone(["fetch", "--depth", "1", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}"])
     if not ok:
         return f"fetch failed: {err[:300]}"
     return None
@@ -257,9 +257,7 @@ def create_branch(branch_name: str, base: str = "main") -> Dict:
     if ok and out.strip():
         return {"success": True, "branch": branch_name, "existed": True}
 
-    ok, out, err2 = _run_git_clone(
-        ["push", "origin", f"origin/{base}:refs/heads/{branch_name}"]
-    )
+    ok, out, err2 = _run_git_clone(["push", "origin", f"origin/{base}:refs/heads/{branch_name}"])
     if not ok:
         return {"success": False, "error": f"Branch creation failed: {err2}"}
     return {"success": True, "branch": branch_name, "existed": False}
@@ -299,7 +297,7 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
     safe_files: List[str] = []
     for f in files:
         norm = os.path.normpath(str(f))
-        if os.path.isabs(norm) or norm.startswith("..") or norm in (".", ""):
+        if os.path.isabs(norm) or norm.startswith("..") or norm.startswith("-") or norm in (".", ""):
             return {"success": False, "error": f"invalid path rejected: {f!r}"}
         src_real = os.path.realpath(os.path.join(REPO_PATH, norm))
         if os.path.commonpath([src_real, repo_real]) != repo_real:
@@ -314,12 +312,11 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
     # `fetch origin <branch>` lands only in FETCH_HEAD and never creates the
     # origin/<branch> ref the checkout below needs.
     ok, _, err2 = _run_git_clone(
-        ["fetch", "--depth", "1", "origin",
-         f"+refs/heads/{branch_name}:refs/remotes/origin/{branch_name}"]
+        ["fetch", "--depth", "1", "origin", f"+refs/heads/{branch_name}:refs/remotes/origin/{branch_name}"]
     )
     if not ok:
         return {"success": False, "error": f"Fetch of {branch_name} failed: {err2}"}
-    _run_git_clone(["sparse-checkout", "set", "--no-cone"] + safe_files)
+    _run_git_clone(["sparse-checkout", "set", "--no-cone", "--"] + safe_files)
     ok, _, err2 = _run_git_clone(["checkout", "-B", branch_name, f"origin/{branch_name}"])
     if not ok:
         return {"success": False, "error": f"Checkout failed: {err2}"}
@@ -336,17 +333,16 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
             if dst_dir:
                 os.makedirs(dst_dir, exist_ok=True)
             shutil.copy2(src, dst)
-            _run_git_clone(["add", f])
+            _run_git_clone(["add", "--", f])
         else:
-            _run_git_clone(["rm", "--ignore-unmatch", "-q", f])
+            _run_git_clone(["rm", "--ignore-unmatch", "-q", "--", f])
 
     ok, _, _ = _run_git_clone(["diff", "--cached", "--quiet"])
     if ok:
         return {"success": True, "committed": False, "message": "No changes to commit"}
 
     ok, out, err2 = _run_git_clone(
-        ["-c", "user.email=forge@kytranempowerment.com", "-c", "user.name=F.O.R.G.E.",
-         "commit", "-m", commit_message]
+        ["-c", "user.email=forge@kytranempowerment.com", "-c", "user.name=F.O.R.G.E.", "commit", "-m", commit_message]
     )
     if not ok:
         return {"success": False, "error": f"Commit failed: {err2}"}

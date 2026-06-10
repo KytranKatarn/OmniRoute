@@ -5066,6 +5066,12 @@ class AgentLoop:
         "compliance": 660,
         "code": 660,
         "analyze": 660,
+        # translate: heavy 7B FR/multilingual generation (R.O.S.E.T.T.A.).
+        # Dispatcher allows 600s (CAPABILITY_TIMEOUTS); +60s worker buffer.
+        # Was false-blocking at the 360s default — the node finished a FR
+        # translation at ~497s but the worker had already given up at 360s
+        # and marked the task blocked (#3967, 2026-06-10; status != artifact).
+        "translate": 660,
         # translation_coverage_scan: git-hook triggers now run a SCOPED scan
         # (seconds), but a manual/broad delegate runs the full multi-pass scan.
         # 900s backstop so a broad scan can't false-block at the 360s default.

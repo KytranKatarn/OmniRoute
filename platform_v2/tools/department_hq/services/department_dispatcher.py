@@ -432,6 +432,12 @@ CAPABILITY_TIMEOUTS = {
     # delegated doc tasks 'blocked' even though the node often finished
     # later (tasks #3549/#3551, 2026-05-31). Treat like code/knowledge.
     "documentation": 600,
+    # translate = heavy 7B FR/multilingual generation (R.O.S.E.T.T.A. on
+    # mistral/qwen 7B). Cold-load + long-form translation routinely runs
+    # 400-530s; it was inheriting the 300s default and getting killed, while
+    # the delegate worker gave up at 360s even though the node finished at
+    # ~497s — destroying completed FR translations (#3967, 2026-06-10).
+    "translate": 600,
     # code_review runs in a background thread. mistral:7b cold-loads in 90-150s
     # under concurrent Repair Bay bursts; 300s gives the model time to warm and
     # serve queued requests without timing out (misroute_audit ADR-001 follow-up).

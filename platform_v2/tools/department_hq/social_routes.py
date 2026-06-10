@@ -62,11 +62,17 @@ def register_social_routes(bp, admin_required):
     # start/stop the headed browser and report session posture for the
     # S.I.G.N.A.L. SESSION sub-tab.
     _LOGIN_SIDECAR = "http://archie_browser_login:4281"
+    # Mirrors the sidecar's _ALLOWED_PLATFORMS (#3982 multi-site).
+    _BROWSER_PLATFORMS = {"linkedin", "x", "claude", "deepseek"}
 
     def _sidecar_headers():
         import os as _os
 
         return {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+
+    def _valid_browser_platform(raw) -> str:
+        p = (raw or "linkedin").strip().lower()
+        return p if p in _BROWSER_PLATFORMS else "linkedin"
 
     @bp.route("/api/social/linkedin/session-status")
     @admin_required
@@ -74,15 +80,16 @@ def register_social_routes(bp, admin_required):
         import requests as _rq
 
         agent_id = int(request.args.get("agent_id", 342))
-        out = {"success": True, "agent_id": agent_id}
+        platform = _valid_browser_platform(request.args.get("platform"))
+        out = {"success": True, "agent_id": agent_id, "platform": platform}
         try:
             from database import get_db_cursor
 
             with get_db_cursor(commit=False) as (_c, cur):
                 cur.execute(
                     """SELECT status, last_used_at, last_probe_ok, last_failure_reason
-                       FROM browser_sessions WHERE agent_id=%s AND platform='linkedin'""",
-                    (agent_id,),
+                       FROM browser_sessions WHERE agent_id=%s AND platform=%s""",
+                    (agent_id, platform),
                 )
                 row = cur.fetchone()
                 out["db_session"] = dict(row) if row else None
@@ -91,7 +98,7 @@ def register_social_routes(bp, admin_required):
         try:
             r = _rq.get(
                 f"{_LOGIN_SIDECAR}/status",
-                params={"agent_id": agent_id, "platform": "linkedin"},
+                params={"agent_id": agent_id, "platform": platform},
                 headers=_sidecar_headers(),
                 timeout=5,
             )
@@ -116,7 +123,10 @@ def register_social_routes(bp, admin_required):
         try:
             r = _rq.post(
                 f"{_LOGIN_SIDECAR}/start",
-                json={"agent_id": int(body.get("agent_id", 342)), "platform": "linkedin"},
+                json={
+                    "agent_id": int(body.get("agent_id", 342)),
+                    "platform": _valid_browser_platform(body.get("platform")),
+                },
                 headers=_sidecar_headers(),
                 timeout=10,
             )
@@ -153,7 +163,12 @@ def register_social_routes(bp, admin_required):
         try:
             r = _rq.post(
                 "http://archie_browser:4242/session/credentials",
-                json={"agent_id": agent_id, "platform": "linkedin", "username": username, "password": password},
+                json={
+                    "agent_id": agent_id,
+                    "platform": _valid_browser_platform(body.get("platform")),
+                    "username": username,
+                    "password": password,
+                },
                 headers={"Authorization": f"Bearer {_os.getenv('BROWSER_API_KEY', 'internal')}"},
                 timeout=10,
             )

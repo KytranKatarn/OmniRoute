@@ -476,6 +476,19 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # Browser profile keep-warm (#3982) — daily READ through each
+        # established device-trust profile so sessions don't go stale.
+        self.scheduler.add_job(
+            with_app_context(self._browser_profile_keepwarm),
+            trigger=CronTrigger(hour=12, minute=30, timezone="America/Toronto"),
+            id="browser_profile_keepwarm",
+            name="S.C.O.U.T.: Browser Profile Keep-Warm",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         # S.I.G.N.A.L. comment pipeline (#3992) — poll watched post threads
         # (READ) then draft replies for new comments (Tier-2 Telegram gate).
         self.scheduler.add_job(
@@ -3685,6 +3698,18 @@ class AgentLoop:
                 logger.info(f"[signal-calendar] daily release: {result}")
         except Exception as e:
             logger.error(f"[signal-calendar] daily release failed: {e}")
+
+    def _browser_profile_keepwarm(self):
+        """#3982: daily READ through each established browser profile."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.browser_profile_service import run_keepwarm
+
+            run_keepwarm()
+        except Exception as e:
+            logger.error(f"[keepwarm] job failed: {e}")
 
     def _signal_comment_pipeline(self):
         """S.I.G.N.A.L. #3992: poll comment threads on our posts, then draft

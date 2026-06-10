@@ -2144,9 +2144,13 @@ function renderSignalShell() {
    persistent profile + one-time noVNC login). Only one login browser runs at
    a time. ── */
 var SIGNAL_SESSION_IDENTITIES = [
-    { agentId: 342, label: 'KYTRAN SESSION — PROFILE 342', note: 'Kytran Katarn personal + KE Inc. + Creed-AI pages (one login, actor-switched)' },
-    { agentId: 377, label: 'TERRY CAETANO SESSION — PROFILE 377', note: 'Terry Caetano personal account (separate LinkedIn login)' }
+    { agentId: 342, platform: 'linkedin', label: 'KYTRAN SESSION — PROFILE 342', note: 'Kytran Katarn personal + KE Inc. + Creed-AI pages (one login, actor-switched)' },
+    { agentId: 377, platform: 'linkedin', label: 'TERRY CAETANO SESSION — PROFILE 377', note: 'Terry Caetano personal account (separate LinkedIn login)' }
 ];
+// #3982 multi-site: mirrors the login sidecar's platform allowlist.
+var SIGNAL_SESSION_PLATFORMS = ['linkedin', 'x', 'claude', 'deepseek'];
+// Extra (agent, platform) combo loaded via the picker — S.C.O.U.T./multi-site.
+var _signalExtraSession = null;
 
 async function renderSignalSession(el) {
     // Account-aware: the selected account's session card renders FIRST and is
@@ -2156,22 +2160,55 @@ async function renderSignalSession(el) {
     var idns = SIGNAL_SESSION_IDENTITIES.slice().sort(function(a, b) {
         return (b.agentId === activeId ? 1 : 0) - (a.agentId === activeId ? 1 : 0);
     });
+    if (_signalExtraSession) {
+        idns.push({
+            agentId: _signalExtraSession.agentId,
+            platform: _signalExtraSession.platform,
+            label: 'AGENT ' + _signalExtraSession.agentId + ' — ' + _signalExtraSession.platform.toUpperCase() + ' (picker)',
+            note: 'Loaded via the session picker — S.C.O.U.T. / multi-site device-trust profile'
+        });
+    }
     var blocks = await Promise.all(idns.map(async function(idn) {
+        var plat = idn.platform || 'linkedin';
         try {
-            var r = await fetch('/tools/department-hq/api/social/linkedin/session-status?agent_id=' + idn.agentId);
-            return renderOneSignalSession(idn, await r.json(), idn.agentId === activeId);
+            var r = await fetch('/tools/department-hq/api/social/linkedin/session-status?agent_id=' + idn.agentId
+                + '&platform=' + encodeURIComponent(plat));
+            return renderOneSignalSession(idn, await r.json(), idn.agentId === activeId && plat === 'linkedin');
         } catch (e) {
             return '<div class="dhq-empty" style="text-align:left">' + esc(idn.label) + ': status unavailable</div>';
         }
     }));
+    var picker = '<div style="margin-top:18px;padding-top:12px;border-top:2px solid #1e293b">'
+        + '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 6px">LOAD ANOTHER SESSION (#3982)</h4>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        + '<input id="sessPickAgent" type="number" min="1" placeholder="agent id" value="' + (_signalExtraSession ? _signalExtraSession.agentId : '') + '" '
+        + 'style="width:110px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
+        + '<select id="sessPickPlatform" class="dhq-select">'
+        + SIGNAL_SESSION_PLATFORMS.map(function(p) {
+            return '<option value="' + p + '"' + (_signalExtraSession && _signalExtraSession.platform === p ? ' selected' : '') + '>' + p + '</option>';
+        }).join('')
+        + '</select>'
+        + '<button class="dhq-btn" onclick="signalSessionLookup()">Load session card</button>'
+        + '</div></div>';
     setHtml(el, '<div style="max-width:720px">'
-        + '<h3 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 10px">LINKEDIN TRUSTED SESSIONS</h3>'
+        + '<h3 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 10px">TRUSTED BROWSER SESSIONS</h3>'
         + blocks.join('<hr style="border:none;border-top:2px solid #1e293b;margin:22px 0">')
+        + picker
         + '</div>');
+}
+
+async function signalSessionLookup() {
+    var aid = parseInt(document.getElementById('sessPickAgent').value, 10);
+    var plat = document.getElementById('sessPickPlatform').value;
+    if (!aid || aid < 1) { alert('Enter a valid agent id'); return; }
+    _signalExtraSession = { agentId: aid, platform: plat };
+    await loadSignalTab('session', true);
 }
 
 function renderOneSignalSession(idn, d, isActive) {
     var aid = idn.agentId;
+    var plat = idn.platform || 'linkedin';
+    var key = aid + '_' + plat;
     var db = d.db_session || {};
     var ls = d.login_surface || {};
     var profileOk = !!ls.profile_established;
@@ -2201,7 +2238,7 @@ function renderOneSignalSession(idn, d, isActive) {
         + (loginRunning
             ? '<a class="dhq-btn dhq-btn-primary" target="_blank" rel="noopener" href="' + novncUrl + '">Open noVNC → log in</a>'
               + '<button class="dhq-btn" onclick="signalSessionLoginStop()">Stop & save profile</button>'
-            : '<button class="dhq-btn dhq-btn-primary" onclick="signalSessionLoginStart(' + aid + ')">Start one-time login</button>')
+            : '<button class="dhq-btn dhq-btn-primary" onclick="signalSessionLoginStart(' + aid + ', \'' + plat + '\')">Start one-time login</button>')
         + '<button class="dhq-btn" onclick="loadSignalTab(\'session\', true)">↻ Refresh</button>'
         + '</div>'
         + (loginRunning && d.vnc_password
@@ -2210,7 +2247,7 @@ function renderOneSignalSession(idn, d, isActive) {
               + 'font-family:IBM Plex Mono,monospace;color:#22d3ee">' + esc(d.vnc_password) + '</code></p>'
             : '')
         + '<p class="dhq-empty" style="margin-top:12px;text-align:left">Start → a headed browser opens on the hub\'s '
-        + 'trusted home egress using THIS profile. Open noVNC, log into the matching LinkedIn account (complete any '
+        + 'trusted home egress using THIS profile. Open noVNC, log into the matching ' + esc(plat) + ' account (complete any '
         + '2FA), then Stop — the profile keeps the device fingerprint and this account\'s posting flows use it '
         + 'automatically. Auto-stops after ' + Math.round((ls.idle_timeout_s || 900) / 60) + ' min idle.</p>'
         + (d.login_surface_error ? '<p class="dhq-empty" style="text-align:left;color:#f59e0b">Login surface: ' + esc(d.login_surface_error) + '</p>' : '')
@@ -2218,25 +2255,27 @@ function renderOneSignalSession(idn, d, isActive) {
         + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">Stored AES-encrypted in the browser credential store — NOT in .env. '
         + 'Used by the fleet for automated re-login; the one-time trusted login above is still done by hand in noVNC.</p>'
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:560px">'
-        + '<input id="liCredUser_' + aid + '" type="text" autocomplete="off" placeholder="LinkedIn email" '
+        + '<input id="liCredUser_' + key + '" type="text" autocomplete="off" placeholder="' + esc(plat) + ' email" '
         + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
-        + '<input id="liCredPass_' + aid + '" type="password" autocomplete="new-password" placeholder="LinkedIn password" '
+        + '<input id="liCredPass_' + key + '" type="password" autocomplete="new-password" placeholder="' + esc(plat) + ' password" '
         + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
-        + '<button class="dhq-btn" onclick="signalSaveLinkedInCreds(' + aid + ')">Save encrypted</button>'
-        + '<span id="liCredStatus_' + aid + '" style="font-size:0.78rem;color:#94a3b8"></span>'
+        + '<button class="dhq-btn" onclick="signalSaveLinkedInCreds(' + aid + ', \'' + plat + '\')">Save encrypted</button>'
+        + '<span id="liCredStatus_' + key + '" style="font-size:0.78rem;color:#94a3b8"></span>'
         + '</div>';
 }
 
-async function signalSaveLinkedInCreds(agentId) {
-    var u = document.getElementById('liCredUser_' + agentId);
-    var p = document.getElementById('liCredPass_' + agentId);
-    var st = document.getElementById('liCredStatus_' + agentId);
+async function signalSaveLinkedInCreds(agentId, platform) {
+    platform = platform || 'linkedin';
+    var key = agentId + '_' + platform;
+    var u = document.getElementById('liCredUser_' + key);
+    var p = document.getElementById('liCredPass_' + key);
+    var st = document.getElementById('liCredStatus_' + key);
     if (!u.value.trim() || !p.value) { st.textContent = 'Enter email + password.'; st.style.color = '#fca5a5'; return; }
     st.textContent = 'Saving…'; st.style.color = '#94a3b8';
     try {
         var r = await fetch('/tools/department-hq/api/social/linkedin/credentials', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: u.value.trim(), password: p.value, agent_id: agentId })
+            body: JSON.stringify({ username: u.value.trim(), password: p.value, agent_id: agentId, platform: platform })
         });
         var d = await r.json();
         if (d.saved) { st.textContent = '✓ Stored encrypted'; st.style.color = '#34d399'; p.value = ''; }
@@ -2244,10 +2283,10 @@ async function signalSaveLinkedInCreds(agentId) {
     } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
 }
 
-async function signalSessionLoginStart(agentId) {
+async function signalSessionLoginStart(agentId, platform) {
     var r = await fetch('/tools/department-hq/api/social/linkedin/session-login/start', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId || 342 })
+        body: JSON.stringify({ agent_id: agentId || 342, platform: platform || 'linkedin' })
     });
     var d = await r.json();
     if (!d.started && d.error) alert('Could not start login browser: ' + d.error);

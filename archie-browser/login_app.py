@@ -41,12 +41,20 @@ _API_TOKEN = os.getenv("INTERNAL_API_KEY") or ""
 # navigated by the headed browser inside the trusted profile, so both are
 # attacker-relevant (path traversal / SSRF-shaped open-redirect). Extend
 # deliberately as new device-trust sites are added (#3982).
-_ALLOWED_PLATFORMS = {"linkedin"}
+_ALLOWED_PLATFORMS = {"linkedin", "x", "claude", "deepseek"}
 _ALLOWED_LOGIN_HOSTS = {
     "linkedin": {"www.linkedin.com", "linkedin.com"},
+    # #3982 multi-site: mirrors the S.C.O.U.T. cookie-import allowlist —
+    # same one-time-human-login + persistent-device-trust model per site.
+    "x": {"x.com", "www.x.com", "twitter.com", "www.twitter.com"},
+    "claude": {"claude.ai", "www.claude.ai"},
+    "deepseek": {"chat.deepseek.com", "www.deepseek.com"},
 }
 _DEFAULT_LOGIN_URL = {
     "linkedin": "https://www.linkedin.com/login",
+    "x": "https://x.com/i/flow/login",
+    "claude": "https://claude.ai/login",
+    "deepseek": "https://chat.deepseek.com/sign_in",
 }
 
 _state_lock = threading.Lock()

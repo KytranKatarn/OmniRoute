@@ -63,6 +63,23 @@ def _hash(text: str) -> str:
     return hashlib.md5(text.strip().encode("utf-8")).hexdigest()
 
 
+def _ensure_import_paths() -> None:
+    """agent_loop / department_dispatcher internally do `from db import ...`,
+    which resolves from the ai_bridge package dir. That dir differs per
+    container mount (/app/ai_bridge vs /mnt/archie_brain/ai_bridge), so add
+    /app plus wherever ai_bridge actually resolves from."""
+    import importlib.util
+    import sys
+
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    spec = importlib.util.find_spec("ai_bridge")
+    if spec and spec.submodule_search_locations:
+        pkg_dir = list(spec.submodule_search_locations)[0]
+        if pkg_dir not in sys.path:
+            sys.path.insert(0, pkg_dir)
+
+
 def _seen_hashes(cur) -> set:
     """Content hashes that must NOT be scheduled again: already posted,
     already pending/approved in the queue, or already on the calendar."""
@@ -216,20 +233,9 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
     1/day cadence instead of bursting every overdue post into approvals.
     The existing content-keyed approval dedup still applies downstream.
     """
-    import importlib.util
     import json as _json
-    import sys
 
-    sys.path.insert(0, "/app")
-    # agent_loop internally does `from db import get_db` which resolves from
-    # the ai_bridge package dir itself. That dir differs per container mount
-    # (/app/ai_bridge vs /mnt/archie_brain/ai_bridge), so locate the package
-    # wherever it actually resolves instead of hardcoding a mount.
-    _spec = importlib.util.find_spec("ai_bridge")
-    if _spec and _spec.submodule_search_locations:
-        _pkg_dir = list(_spec.submodule_search_locations)[0]
-        if _pkg_dir not in sys.path:
-            sys.path.insert(0, _pkg_dir)
+    _ensure_import_paths()
     from ai_bridge.agent_loop import request_approval
     from services.time_utils import now_utc
 
@@ -327,9 +333,13 @@ def _generation_context(cur, account: str) -> str:
     except Exception:
         pass
     try:
+        # Exclude internal/automation task titles ([DELEGATE:...], [codex],
+        # bracket-prefixed bookkeeping) — they leaked into a generated draft
+        # verbatim during the #3991 live test.
         cur.execute(
             """SELECT title FROM unified_tasks
                WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '7 days'
+                 AND title NOT LIKE '[%'
                ORDER BY updated_at DESC LIMIT 5"""
         )
         wins = [r["title"] for r in cur.fetchall()]
@@ -350,9 +360,7 @@ def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
     #272121). Cold model → skip this run; the daily job retries tomorrow.
     Everything still flows through the Phase 2 release → Telegram approval
     gate — generation never publishes."""
-    import sys
-
-    sys.path.insert(0, "/app")
+    _ensure_import_paths()
     from signal_dispatch import _PLATFORM_HINTS, _VOICE_HINTS
     from tools.department_hq.services.department_dispatcher import dispatch
 

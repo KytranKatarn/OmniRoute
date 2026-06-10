@@ -4298,8 +4298,8 @@ class AgentLoop:
                     try:
                         _lcur.execute(
                             """INSERT INTO linkedin_post_log
-                                   (content, hashtags, post_type, company_slug, status, approval_id, posted_at)
-                               VALUES (%s, %s, %s, %s, %s, %s, NOW())""",
+                                   (content, hashtags, post_type, company_slug, status, approval_id, post_url, posted_at)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())""",
                             (
                                 content,
                                 hashtags,
@@ -4307,6 +4307,10 @@ class AgentLoop:
                                 company_slug if post_type in ("company", "creed") else None,
                                 "posted" if result.get("success") else "failed",
                                 item["id"],
+                                # #3975: persist the published post URL the skill
+                                # already returns (was dropped on the floor) so the
+                                # #3964 comment monitor can auto-seed from it.
+                                (result.get("post_url") or None),
                             ),
                         )
                         _lc.commit()

@@ -21,8 +21,12 @@ def execute(page, params: dict) -> dict:
     page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
     page.wait_for_timeout(2000)
 
-    # Take screenshot before attempting to click (helps debug selector failures)
-    page.screenshot(path=f"{_SCREENSHOTS_DIR}/linkedin_before_click.png")
+    # Take screenshot before attempting to click (helps debug selector failures).
+    # Non-fatal: bare screenshot times out 30s on LinkedIn's animated feed (#3953).
+    try:
+        page.screenshot(path=f"{_SCREENSHOTS_DIR}/linkedin_before_click.png", timeout=5000, animations="disabled")
+    except Exception:
+        pass
 
     # Try multiple selectors — LinkedIn changes their UI frequently
     clicked = False
@@ -66,7 +70,10 @@ def execute(page, params: dict) -> dict:
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     screenshot_path = f"{_SCREENSHOTS_DIR}/linkedin_post_{ts}.png"
-    page.screenshot(path=screenshot_path)
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        screenshot_path = None
 
     page.get_by_role("button", name="Post", exact=True).click(timeout=10000)
     page.wait_for_timeout(4000)

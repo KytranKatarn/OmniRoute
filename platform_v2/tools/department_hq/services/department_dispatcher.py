@@ -3936,6 +3936,9 @@ class DepartmentDispatcher:
                 self._update_agent_welfare(result.agent_id, result.success)
             # Record agent memory from this task execution
             self._record_agent_memory(result, module_id)
+            # Cloud dispatch is a governed action (#3663 / Cloud Gov D) —
+            # audit locally + disclose on the C.R.E.E.D. surface.
+            self._record_cloud_governance(result, module_id)
         except Exception as e:
             logger.warning(f"[BridgeDispatcher] Failed to log execution: {e}")
 
@@ -4081,6 +4084,92 @@ class DepartmentDispatcher:
             conn.close()
         except Exception as e:
             logger.debug(f"[BridgeDispatcher] Agent memory skipped: {e}")
+
+    def _record_cloud_governance(self, result: DispatchResult, module_id: str):
+        """Treat cloud dispatch as a GOVERNED ACTION (#3663 / Cloud Gov D).
+
+        Data left the premises and (possibly free-tier) cloud budget was
+        consumed. Two sinks, both fail-safe (never block the dispatch result):
+        - governance_audit_log row with provider/model/cost-posture details
+        - C.R.E.E.D. transparency event via services.creed_emit (routed to the
+          emitting agent's product tenant, per #3958)
+        """
+        meta = result.metadata or {}
+        if not meta.get("is_cloud"):
+            return
+        provider = str(meta.get("cloud_provider") or meta.get("provider") or meta.get("provider_key") or "cloud")
+        model = result.model_used or meta.get("cloud_model") or "unknown"
+
+        # Budget posture for THIS provider/model (cloud_budget_status is
+        # fail-safe → [] on error; rows: provider/model/used_7d/weekly_limit/
+        # remaining/pct_used/over_limit, limits None = unlimited).
+        budget_row = None
+        try:
+            from services.cloud_budget import cloud_budget_status
+
+            for row in cloud_budget_status():
+                if row.get("model") == model or (row.get("provider") and row["provider"] in provider):
+                    budget_row = row
+                    break
+        except Exception:
+            pass
+
+        if budget_row and budget_row.get("weekly_limit") is not None:
+            budget_line = f"weekly budget {budget_row.get('used_7d')}/{budget_row.get('weekly_limit')}"
+        else:
+            budget_line = "no declared weekly limit"
+        details = {
+            "module": module_id,
+            "capability": result.capability,
+            "provider": provider,
+            "model": model,
+            "success": result.success,
+            "duration_ms": result.duration_ms,
+            "tokens": (result.prompt_tokens or 0) + (result.completion_tokens or 0),
+            "data_leaves_premises": True,
+            "budget": budget_row,
+        }
+
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """
+                INSERT INTO governance_audit_log
+                    (agent_id, event_category, event_type, action, reason, details, timestamp)
+                VALUES (%s, 'cloud_dispatch', 'governed_action', 'cloud_execute', %s, %s::jsonb, NOW())
+                """,
+                (
+                    result.agent_id,
+                    f"Cloud dispatch ({result.capability or 'task'}) via {provider}/{model} — "
+                    f"data left premises; {budget_line}",
+                    json.dumps(details, default=str),
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] cloud governance audit skipped: {e}")
+
+        try:
+            from services.creed_emit import emit_event
+
+            over = bool(budget_row and budget_row.get("over_limit"))
+            emit_event(
+                category="transparency",
+                severity="warning" if over else "info",
+                description=(
+                    f"Cloud dispatch disclosed: {result.capability or 'task'} for {module_id} "
+                    f"via {provider}/{model} — data left the local cluster; {budget_line}"
+                ),
+                event_type="cloud_dispatch",
+                agent_id=result.agent_id,
+                agent_name=getattr(result, "agent_name", None),
+                metadata=details,
+            )
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] cloud governance creed emit skipped: {e}")
 
     def _get_escalation_threshold(self) -> int:
         """Read escalation threshold from platform_settings."""

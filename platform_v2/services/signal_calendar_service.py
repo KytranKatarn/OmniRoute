@@ -126,9 +126,7 @@ def _next_slot_utc(cur, account: str) -> datetime:
     if last is not None:
         last_local = last.replace(tzinfo=ZoneInfo("UTC")).astimezone(_LOCAL_TZ).date()
         start_local = max(start_local, last_local + timedelta(days=1))
-    slot_local = datetime.combine(
-        start_local, datetime.min.time().replace(hour=RELEASE_HOUR_LOCAL), tzinfo=_LOCAL_TZ
-    )
+    slot_local = datetime.combine(start_local, datetime.min.time().replace(hour=RELEASE_HOUR_LOCAL), tzinfo=_LOCAL_TZ)
     return slot_local.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
 
@@ -218,10 +216,20 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
     1/day cadence instead of bursting every overdue post into approvals.
     The existing content-keyed approval dedup still applies downstream.
     """
+    import importlib.util
     import json as _json
     import sys
 
     sys.path.insert(0, "/app")
+    # agent_loop internally does `from db import get_db` which resolves from
+    # the ai_bridge package dir itself. That dir differs per container mount
+    # (/app/ai_bridge vs /mnt/archie_brain/ai_bridge), so locate the package
+    # wherever it actually resolves instead of hardcoding a mount.
+    _spec = importlib.util.find_spec("ai_bridge")
+    if _spec and _spec.submodule_search_locations:
+        _pkg_dir = list(_spec.submodule_search_locations)[0]
+        if _pkg_dir not in sys.path:
+            sys.path.insert(0, _pkg_dir)
     from ai_bridge.agent_loop import request_approval
     from services.time_utils import now_utc
 
@@ -249,10 +257,7 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
                         "browser_agent_id": _ACCOUNT_BROWSER_ID[account],
                         "priority": 6,
                     },
-                    reason=(
-                        f"📅 {_ACCOUNT_LABEL[account]} scheduled post (calendar):\n\n"
-                        f"{row['content'][:1500]}"
-                    ),
+                    reason=(f"📅 {_ACCOUNT_LABEL[account]} scheduled post (calendar):\n\n" f"{row['content'][:1500]}"),
                     tier=2,
                     requested_by="S.I.G.N.A.L. calendar (daily release)",
                     priority=6,

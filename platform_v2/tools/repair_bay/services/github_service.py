@@ -156,8 +156,40 @@ def ensure_labels():
 # ============================================================================
 
 
+def _primary_tree_busy() -> Optional[str]:
+    """Return a reason string when the shared checkout must NOT be touched.
+
+    REPO_PATH is the LIVE volume-mounted tree shared with interactive
+    Claude/owner sessions. Branch-switching here while a session is mid-branch
+    destroys their state — twice this week a session's commit was stranded on
+    main / its branch reset by an async pipeline call (task #3919,
+    KB #272080). Same contract as codex-prod-deploy.sh's safety guard:
+    pipelines DEFER instead of clobbering; callers get success=False with
+    deferred=True and retry on a later cycle.
+    """
+    ok, branch, _ = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+    if not ok:
+        return "cannot determine current branch"
+    if branch.strip() != "main":
+        return f"checkout is on branch '{branch.strip()}'"
+    ok, status, _ = _run_git(["status", "--porcelain"])
+    if not ok:
+        return "cannot determine tree status"
+    if status.strip():
+        return "working tree has uncommitted changes"
+    return None
+
+
 def create_branch(branch_name: str, base: str = "main") -> Dict:
     """Create a new branch from base and push it."""
+    busy = _primary_tree_busy()
+    if busy:
+        return {
+            "success": False,
+            "deferred": True,
+            "error": f"primary checkout busy ({busy}) — deferred to protect interactive work (task #3919)",
+        }
+
     # Fetch latest
     ok, out, err = _run_git(["fetch", "origin", base])
     if not ok:
@@ -193,6 +225,22 @@ def delete_branch(branch_name: str, remote: bool = True) -> Dict:
 
 def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dict:
     """Stage files, commit, and push to a branch."""
+    # Note: proposal files staged by this flow live in the working tree, so a
+    # dirty-tree state here can be the pipeline's OWN pending files. The branch
+    # check is the protection that matters for interactive sessions; only that
+    # blocks (a session mid-branch). The trailing 'checkout main' below is then
+    # safe — we only ever got here FROM main.
+    ok, branch, _ = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
+    if ok and branch.strip() not in ("main", branch_name):
+        return {
+            "success": False,
+            "deferred": True,
+            "error": (
+                f"primary checkout busy (on branch '{branch.strip()}') — "
+                "deferred to protect interactive work (task #3919)"
+            ),
+        }
+
     ok, out, err = _run_git(["checkout", branch_name])
     if not ok:
         return {"success": False, "error": f"Checkout failed: {err}"}

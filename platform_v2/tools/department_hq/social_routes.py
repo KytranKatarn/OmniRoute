@@ -56,6 +56,74 @@ VALID_TONES = (
 def register_social_routes(bp, admin_required):
     """Register agent social presence routes on the blueprint."""
 
+    # ── LinkedIn persistent trusted session (#3953 / #3948) ──────
+    # Thin proxies to the archie_browser_login sidecar (:4281). The owner's
+    # one-time login happens via noVNC (:4280); these endpoints just
+    # start/stop the headed browser and report session posture for the
+    # S.I.G.N.A.L. SESSION sub-tab.
+    _LOGIN_SIDECAR = "http://archie_browser_login:4281"
+
+    @bp.route("/api/social/linkedin/session-status")
+    @admin_required
+    def api_linkedin_session_status():
+        import requests as _rq
+
+        agent_id = int(request.args.get("agent_id", 342))
+        out = {"success": True, "agent_id": agent_id}
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_c, cur):
+                cur.execute(
+                    """SELECT status, last_used_at, last_probe_ok, last_failure_reason
+                       FROM browser_sessions WHERE agent_id=%s AND platform='linkedin'""",
+                    (agent_id,),
+                )
+                row = cur.fetchone()
+                out["db_session"] = dict(row) if row else None
+        except Exception as exc:
+            out["db_session_error"] = str(exc)
+        try:
+            r = _rq.get(f"{_LOGIN_SIDECAR}/status", params={"agent_id": agent_id, "platform": "linkedin"}, timeout=5)
+            out["login_surface"] = r.json()
+        except Exception as exc:
+            out["login_surface"] = None
+            out["login_surface_error"] = f"sidecar unreachable: {type(exc).__name__}"
+        # noVNC password — admin-only surface (same trust boundary as API keys /
+        # tenant keys shown elsewhere in this admin UI), so the owner can log in
+        # from S.I.G.N.A.L. without SSHing to read .env.
+        import os as _os
+
+        out["vnc_password"] = _os.getenv("BROWSER_VNC_PASSWORD") or None
+        return jsonify(out)
+
+    @bp.route("/api/social/linkedin/session-login/start", methods=["POST"])
+    @admin_required
+    def api_linkedin_session_login_start():
+        import requests as _rq
+
+        body = request.get_json(silent=True) or {}
+        try:
+            r = _rq.post(
+                f"{_LOGIN_SIDECAR}/start",
+                json={"agent_id": int(body.get("agent_id", 342)), "platform": "linkedin"},
+                timeout=10,
+            )
+            return jsonify(r.json()), r.status_code
+        except Exception as exc:
+            return jsonify({"started": False, "error": f"sidecar unreachable: {type(exc).__name__}"}), 502
+
+    @bp.route("/api/social/linkedin/session-login/stop", methods=["POST"])
+    @admin_required
+    def api_linkedin_session_login_stop():
+        import requests as _rq
+
+        try:
+            r = _rq.post(f"{_LOGIN_SIDECAR}/stop", timeout=25)
+            return jsonify(r.json()), r.status_code
+        except Exception as exc:
+            return jsonify({"stopped": False, "error": f"sidecar unreachable: {type(exc).__name__}"}), 502
+
     # ── LinkedIn comment monitor (READ scope, #3964) ─────────────
     @bp.route("/api/social/linkedin/comments")
     @admin_required

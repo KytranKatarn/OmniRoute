@@ -2101,7 +2101,7 @@ async function publishPost(postId, agentId) {
 var signalAccount = 'personal';
 var signalTab = 'overview';
 var _signalTabCache = {};   // {tab: {html, ts}} — persists across sub-tab switches
-var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 30, themes: 600 };
+var _signalTabTTL = { overview: 30, postlog: 60, pending: 15, hashtags: 120, calendar: 30, themes: 600, session: 10 };
 var _signalLastRun = {};  // {account: timestamp} — per-account Run Now cooldown
 // Phase 5: setInterval handle for live calendar polling. Cleared on every
 // loadSignalTab() entry; re-established at the end of loadSignalTab('calendar').
@@ -2130,8 +2130,67 @@ function renderSignalShell() {
         + '<button class="signal-sub" data-sub="hashtags" onclick="switchSignalTab(\'hashtags\')">Hashtags</button>'
         + '<button class="signal-sub" data-sub="calendar" onclick="switchSignalTab(\'calendar\')">📅 Calendar</button>'
         + '<button class="signal-sub" data-sub="themes" onclick="switchSignalTab(\'themes\')">Themes</button>'
+        + '<button class="signal-sub" data-sub="session" onclick="switchSignalTab(\'session\')">🔐 Session</button>'
         + '</div>'
         + '<div id="signalContent" class="dhq-loading" style="min-height:200px">Loading...</div>';
+}
+
+/* ── S.I.G.N.A.L. SESSION sub-tab (#3953/#3948) — persistent trusted
+   LinkedIn session: posture + the one-time noVNC login surface. ── */
+async function renderSignalSession(el) {
+    var r = await fetch('/tools/department-hq/api/social/linkedin/session-status');
+    var d = await r.json();
+    var db = d.db_session || {};
+    var ls = d.login_surface || {};
+    var profileOk = !!ls.profile_established;
+    var loginRunning = !!ls.login_browser_running;
+    var novncUrl = 'http://' + location.hostname + ':4280/vnc.html';
+
+    var html = '<div style="max-width:720px">'
+        + '<h3 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 10px">LINKEDIN TRUSTED SESSION</h3>'
+        + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><tbody>'
+        + '<tr><td>Persistent profile (device-trusted)</td><td>'
+        + (profileOk ? '<span style="color:#22c55e">● ESTABLISHED</span>'
+                     : '<span style="color:#ef4444">● NOT ESTABLISHED — one-time login required</span>') + '</td></tr>'
+        + '<tr><td>DB session (storage_state export)</td><td>' + esc(db.status || 'none')
+        + (db.last_used_at ? ' · last used ' + esc(String(db.last_used_at).slice(0, 16)) : '') + '</td></tr>'
+        + (db.last_failure_reason ? '<tr><td>Last failure</td><td style="color:#f59e0b">' + esc(db.last_failure_reason) + '</td></tr>' : '')
+        + '<tr><td>Login browser</td><td>' + (loginRunning
+            ? '<span style="color:#22d3ee">RUNNING (' + (ls.seconds_running || 0) + 's) — finish in noVNC, then Stop</span>'
+            : 'idle') + '</td></tr>'
+        + '</tbody></table>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+        + (loginRunning
+            ? '<a class="dhq-btn dhq-btn-primary" target="_blank" rel="noopener" href="' + novncUrl + '">Open noVNC → log in</a>'
+              + '<button class="dhq-btn" onclick="signalSessionLoginStop()">Stop & save profile</button>'
+            : '<button class="dhq-btn dhq-btn-primary" onclick="signalSessionLoginStart()">Start one-time login</button>')
+        + '<button class="dhq-btn" onclick="loadSignalTab(\'session\', true)">↻ Refresh</button>'
+        + '</div>'
+        + (loginRunning && d.vnc_password
+            ? '<p style="margin-top:10px;text-align:left;font-size:0.8rem">noVNC password (paste when prompted): '
+              + '<code style="background:#0b1220;border:1px solid #1e293b;border-radius:4px;padding:2px 8px;'
+              + 'font-family:IBM Plex Mono,monospace;color:#22d3ee">' + esc(d.vnc_password) + '</code></p>'
+            : '')
+        + '<p class="dhq-empty" style="margin-top:12px;text-align:left">Start → a headed browser opens on the hub\'s '
+        + 'trusted home egress. Open noVNC, log into LinkedIn (complete any 2FA), then Stop — the profile keeps the '
+        + 'device fingerprint and all posting flows use it automatically. Auto-stops after '
+        + Math.round((ls.idle_timeout_s || 900) / 60) + ' min idle.</p>'
+        + (d.login_surface_error ? '<p class="dhq-empty" style="text-align:left;color:#f59e0b">Login surface: ' + esc(d.login_surface_error) + '</p>' : '')
+        + '</div>';
+    setHtml(el, html);
+}
+
+async function signalSessionLoginStart() {
+    var r = await fetch('/tools/department-hq/api/social/linkedin/session-login/start', { method: 'POST' });
+    var d = await r.json();
+    if (!d.started && d.error) alert('Could not start login browser: ' + d.error);
+    await loadSignalTab('session', true);
+    if (d.started) window.open('http://' + location.hostname + ':4280/vnc.html', '_blank');
+}
+
+async function signalSessionLoginStop() {
+    await fetch('/tools/department-hq/api/social/linkedin/session-login/stop', { method: 'POST' });
+    await loadSignalTab('session', true);
 }
 
 function switchSignalAccount(account) {
@@ -2181,6 +2240,7 @@ async function loadSignalTab(tab, forceRefresh) {
             case 'hashtags':  await renderSignalHashtags(el);   break;
             case 'calendar':  await renderSignalCalendar(el);  break;
             case 'themes':    await renderSignalThemes(el);    break;
+            case 'session':   await renderSignalSession(el);   break;
         }
         // Cache the rendered result (not for compose)
         if (tab !== 'compose' && el.innerHTML) {

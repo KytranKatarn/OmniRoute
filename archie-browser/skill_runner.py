@@ -2,6 +2,7 @@
 import importlib.util
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,47 @@ from playwright.sync_api import sync_playwright
 logger = logging.getLogger(__name__)
 
 SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
+
+# Persistent trusted-session profiles (#3953). A profile dir at
+# {PROFILES_DIR}/{agent_id}-{platform} that was established by a ONE-TIME
+# human login (archie_browser_login sidecar / S.I.G.N.A.L. session panel)
+# carries the full device fingerprint LinkedIn trusts — not just cookies.
+# When present, skills run inside launch_persistent_context on that dir
+# instead of an ephemeral storage_state context. Chromium profiles are
+# single-process: access is serialized per profile via _profile_locks.
+PROFILES_DIR = os.getenv("BROWSER_PROFILES_DIR", "/profiles")
+
+_profile_locks: dict = {}
+_profile_locks_guard = threading.Lock()
+
+
+def _profile_dir(agent_id: int, platform: str):
+    """Return the persistent profile dir for (agent, platform) if ESTABLISHED."""
+    if not platform:
+        return None
+    d = os.path.join(PROFILES_DIR, f"{agent_id}-{platform}")
+    try:
+        if os.path.isdir(d) and os.listdir(d):
+            return d
+    except OSError:
+        pass
+    return None
+
+
+def _lock_for(profile_dir: str) -> threading.Lock:
+    with _profile_locks_guard:
+        if profile_dir not in _profile_locks:
+            _profile_locks[profile_dir] = threading.Lock()
+        return _profile_locks[profile_dir]
+
+
+class _ProfileUnavailable(Exception):
+    """Persistent profile could not be LAUNCHED (lock held / corrupt dir).
+
+    Distinct from skill-phase failures so the caller can safely fall back to
+    the storage_state path without risking a double-execution of a skill
+    that already ran.
+    """
 
 _LOGIN_URLS = {
     "linkedin": "https://www.linkedin.com/login",
@@ -57,6 +99,23 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
 
     skill = skills[skill_name]
     platform = skill["platforms"][0] if skill["platforms"] else ""
+
+    # Persistent trusted profile path (#3953) — preferred when established.
+    profile_dir = _profile_dir(agent_id, platform)
+    if profile_dir:
+        try:
+            return _execute_persistent(agent_id, skill, skill_name, platform, profile_dir, params)
+        except _ProfileUnavailable as exc:
+            # Launch-phase failure ONLY (e.g. ProcessSingleton lock while the
+            # owner is mid-login in the sidecar) → fall back to the legacy
+            # storage_state path. Skill-phase errors propagate — the skill may
+            # already have acted (a re-run could double-post).
+            logger.warning(
+                "[Profile] persistent context unavailable for %s/%s (%s) — "
+                "falling back to storage_state",
+                agent_id, platform, exc,
+            )
+
     storage_state = session_manager.load_session(agent_id, platform) if platform else None
 
     with sync_playwright() as p:
@@ -109,6 +168,64 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
                 context.close()
         finally:
             browser.close()
+
+
+def _execute_persistent(
+    agent_id: int, skill: dict, skill_name: str, platform: str, profile_dir: str, params: dict
+) -> dict:
+    """Run a skill inside the persistent trusted profile (#3953).
+
+    The profile self-persists (cookies + localStorage + device fingerprint on
+    disk); we additionally export storage_state to the DB so READ-path
+    consumers (authenticated_fetch / S.C.O.U.T. fabric) stay in sync. On a
+    logged-out redirect we do NOT attempt a headless re-login — that would
+    taint the trusted profile; re-auth goes through the S.I.G.N.A.L. session
+    panel (human, headed).
+    """
+    import session_manager
+
+    with _lock_for(profile_dir):
+        with sync_playwright() as p:
+            try:
+                context = p.chromium.launch_persistent_context(
+                    profile_dir,
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage"],
+                )
+            except Exception as exc:
+                raise _ProfileUnavailable(f"{type(exc).__name__}: {exc}") from exc
+            try:
+                page = context.new_page()
+                result = skill["module"].execute(page, params)
+
+                current_url = page.url
+                _logged_out = any(
+                    x in current_url
+                    for x in ("linkedin.com/login", "linkedin.com/authwall",
+                              "linkedin.com/checkpoint", "linkedin.com/signup",
+                              "linkedin.com/uas/")
+                )
+                if _logged_out:
+                    logger.error(
+                        "[Profile] Agent %s trusted profile logged out on %s — "
+                        "re-auth required via S.I.G.N.A.L. session panel",
+                        agent_id, platform,
+                    )
+                    session_manager.mark_error(
+                        agent_id, platform, "trusted profile logged out — human re-auth required"
+                    )
+                else:
+                    session_manager.save_session(agent_id, platform, context.storage_state())
+                return result
+            except Exception as exc:
+                logger.error(
+                    "Skill %s (persistent) failed for agent %s: %s",
+                    skill_name, agent_id, type(exc).__name__,
+                )
+                session_manager.mark_error(agent_id, platform, str(exc))
+                raise
+            finally:
+                context.close()
 
 
 def login(agent_id: int, platform: str) -> dict:

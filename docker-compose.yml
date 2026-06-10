@@ -1019,6 +1019,11 @@ services:
       - KYTRAN_PORTRAIT_PATH=/app/assets/kytran-portrait.png
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - ARCHIE_PLATFORM_URL=http://archie_platform:3000
+      - BROWSER_PROFILES_DIR=/profiles
+    volumes:
+      # Persistent trusted-session profiles (#3953) — shared with the
+      # archie_browser_login sidecar. On /mnt/data2 (root FS is tight).
+      - /mnt/data2/browser-profiles:/profiles
     dns:
       - 192.168.1.200
       - 1.1.1.1
@@ -1026,6 +1031,36 @@ services:
       - archie_internal
     expose:
       - "4242"
+
+  # One-time human-login surface for persistent trusted sessions (#3953).
+  # Idles cheaply (Xvfb + x11vnc + noVNC + supervisor only); a headed
+  # Chromium runs ONLY between /start and /stop, holding the shared profile
+  # lock while the owner logs in via noVNC at http://192.168.1.200:4280.
+  # Driven from the DHQ S.I.G.N.A.L. session panel via :4281 (internal).
+  archie_browser_login:
+    build:
+      context: ./archie-browser
+      dockerfile: Dockerfile.login
+    container_name: archie_browser_login
+    restart: unless-stopped
+    environment:
+      - TZ=America/Toronto
+      - BROWSER_PROFILES_DIR=/profiles
+      # REQUIRED (no `:-` default) — entrypoint fails closed without it, so a
+      # no-auth VNC can never expose the owner's live LinkedIn session.
+      - BROWSER_VNC_PASSWORD=${BROWSER_VNC_PASSWORD:?BROWSER_VNC_PASSWORD must be set in .env}
+      - LOGIN_IDLE_TIMEOUT=900
+    volumes:
+      - /mnt/data2/browser-profiles:/profiles
+    dns:
+      - 192.168.1.200
+      - 1.1.1.1
+    networks:
+      - archie_internal
+    ports:
+      - "4280:4280"   # noVNC web client (hub LAN only)
+    expose:
+      - "4281"
 
   archie_scraper:
     build:

@@ -658,6 +658,20 @@ def register_social_routes(bp, admin_required):
         ok = signal_calendar_service.cancel_scheduled(post_id)
         return jsonify({"success": ok}), (200 if ok else 404)
 
+    @bp.route("/api/signal/calendar/top-up", methods=["POST"])
+    @admin_required
+    def api_signal_calendar_topup():
+        """Manually run the generation top-up (thin backlogs → fresh drafts
+        onto the calendar). Same path as the 10:00 ET job."""
+        from services import signal_calendar_service
+
+        try:
+            return jsonify(
+                {"success": True, **signal_calendar_service.top_up_calendars()}
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/signal/calendar/release-now", methods=["POST"])
     @admin_required
     def api_signal_calendar_release_now():

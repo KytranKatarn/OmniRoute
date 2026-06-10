@@ -462,6 +462,20 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # S.I.G.N.A.L. calendar top-up (#3991) — when an account's scheduled
+        # backlog thins below 3 posts, generate ONE fresh post via dispatch
+        # and append it to the calendar. Runs after the morning release.
+        self.scheduler.add_job(
+            with_app_context(self._signal_calendar_topup),
+            trigger=CronTrigger(hour=10, minute=0, timezone="America/Toronto"),
+            id="signal_calendar_topup",
+            name="S.I.G.N.A.L.: Calendar Generation Top-Up",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._archie_coo_approval_worker),
             trigger=IntervalTrigger(seconds=90),
@@ -3658,6 +3672,20 @@ class AgentLoop:
                 logger.info(f"[signal-calendar] daily release: {result}")
         except Exception as e:
             logger.error(f"[signal-calendar] daily release failed: {e}")
+
+    def _signal_calendar_topup(self):
+        """S.I.G.N.A.L. calendar Phase 3 (#3991): generate fresh posts for
+        accounts whose scheduled backlog has thinned."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.signal_calendar_service import top_up_calendars
+
+            result = top_up_calendars()
+            logger.info(f"[signal-calendar] top-up: {result}")
+        except Exception as e:
+            logger.error(f"[signal-calendar] top-up failed: {e}")
 
     def _process_approval_queue(self):
         """Process the approval queue: execute approved, expire stale."""

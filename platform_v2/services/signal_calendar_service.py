@@ -286,3 +286,140 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
                 )
     total = sum(summary.values())
     return {"total_released": total, "by_account": summary}
+
+
+def _terry_profile_established() -> bool:
+    """Terry (377) is a separate LinkedIn login — don't generate content for
+    an account that can't post yet. Fail closed on any error."""
+    import os
+
+    import requests
+
+    try:
+        r = requests.get(
+            "http://archie_browser_login:4281/status",
+            params={"agent_id": 377, "platform": "linkedin"},
+            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            timeout=5,
+        )
+        return bool((r.json() or {}).get("profile_established"))
+    except Exception:
+        return False
+
+
+def _generation_context(cur, account: str) -> str:
+    """Grounding for fresh-content generation: today's theme for the account
+    (social_content_calendar/themes) + recent platform wins."""
+    parts = []
+    try:
+        weekday = datetime.now(_LOCAL_TZ).weekday()
+        cur.execute(
+            """SELECT sct.name, sct.tone
+               FROM social_content_calendar scc
+               JOIN social_content_themes sct ON sct.id = scc.theme_id
+               WHERE scc.account = %s AND scc.day_of_week = %s AND scc.is_active = TRUE
+               ORDER BY scc.slot_order LIMIT 1""",
+            (account, weekday),
+        )
+        theme = cur.fetchone()
+        if theme:
+            parts.append(f"Today's theme: {theme['name']} — {theme['tone'] or ''}".strip())
+    except Exception:
+        pass
+    try:
+        cur.execute(
+            """SELECT title FROM unified_tasks
+               WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '7 days'
+               ORDER BY updated_at DESC LIMIT 5"""
+        )
+        wins = [r["title"] for r in cur.fetchall()]
+        if wins:
+            parts.append("Recent platform wins: " + "; ".join(wins[:3]))
+    except Exception:
+        pass
+    return "\n".join(parts) or "No specific theme today — pick a grounded, relevant topic."
+
+
+def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
+    """Phase 3 (#3991): when an account's scheduled backlog is thinner than
+    ``min_days_ahead`` posts, generate ONE fresh post via S.I.G.N.A.L.
+    (capability='social_post_draft' through the DHQ dispatcher) and append it
+    to that account's calendar at the next free 1/day slot.
+
+    English-only v1 (non-EN stays on the R.O.S.E.T.T.A. translate path, KB
+    #272121). Cold model → skip this run; the daily job retries tomorrow.
+    Everything still flows through the Phase 2 release → Telegram approval
+    gate — generation never publishes."""
+    import sys
+
+    sys.path.insert(0, "/app")
+    from signal_dispatch import _PLATFORM_HINTS, _VOICE_HINTS
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    summary: Dict[str, Any] = {}
+    for account in ACCOUNTS:
+        with get_db_cursor(commit=False) as (_conn, cur):
+            cur.execute(
+                """SELECT COUNT(*) AS n FROM agent_content_posts
+                   WHERE platform = 'linkedin' AND status = 'scheduled'
+                     AND post_type = ANY(%s)""",
+                (list(_ACCOUNT_TO_POST_TYPES[account]),),
+            )
+            backlog = int((cur.fetchone() or {}).get("n") or 0)
+        if backlog >= min_days_ahead:
+            summary[account] = {"backlog": backlog, "generated": 0, "note": "topped up"}
+            continue
+        if account == "terry" and not _terry_profile_established():
+            summary[account] = {
+                "backlog": backlog,
+                "generated": 0,
+                "note": "terry profile not established — skipped",
+            }
+            continue
+
+        with get_db_cursor(commit=False) as (_conn, cur):
+            context = _generation_context(cur, account)
+        post_type = _ACCOUNT_TO_POST_TYPES[account][0]
+        prompt = (
+            f"Write a fresh LinkedIn post for the {_ACCOUNT_LABEL[account]} account.\n\n"
+            f"Grounding:\n{context}\n\n"
+            f"{_VOICE_HINTS.get(post_type, _VOICE_HINTS['personal'])} "
+            f"{_PLATFORM_HINTS.get('linkedin', '')}\n"
+            f"English only. Under 200 words. End with an engagement question. "
+            f"Pick 3-4 relevant hashtags and put them on the final line."
+        )
+        result = dispatch(
+            capability="social_post_draft",
+            prompt=prompt,
+            prefer_agent="S.I.G.N.A.L.",
+        )
+        draft = (getattr(result, "response", "") or "").strip()
+        if not draft:
+            summary[account] = {
+                "backlog": backlog,
+                "generated": 0,
+                "note": "model cold/queued — retry next run",
+            }
+            continue
+
+        with get_db_cursor(commit=True) as (_conn, cur):
+            if _hash(draft) in _seen_hashes(cur):
+                summary[account] = {"backlog": backlog, "generated": 0, "note": "dupe draft"}
+                continue
+            slot = _next_slot_utc(cur, account)
+            cur.execute(
+                """INSERT INTO agent_content_posts
+                       (agent_id, platform, content, post_type, status, scheduled_at)
+                   VALUES (%s, 'linkedin', %s, %s, 'scheduled', %s)
+                   RETURNING id""",
+                (_ACCOUNT_AGENT_ID[account], draft, post_type, slot),
+            )
+            new_id = (cur.fetchone() or {}).get("id")
+        summary[account] = {"backlog": backlog + 1, "generated": 1, "post_id": new_id}
+        logger.info(
+            "[signal-calendar] top-up generated post %s for %s (slot %s)",
+            new_id,
+            account,
+            slot,
+        )
+    return {"by_account": summary}

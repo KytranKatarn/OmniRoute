@@ -1,23 +1,57 @@
 {% extends "base.html" %}
 {% block title %}C.R.E.E.D. Command — E.T.H.O.S.{% endblock %}
 
+{# LCARS frame — working inline pattern from feedback_lcars-frame-pattern.md (#3943).
+   Change only color/rgb/darker/title/subtitle per section. #}
+{% macro lcars_frame(color, rgb, darker, title, subtitle) %}
+<div style="--frame-color:{{ color }}; --frame-rgb:{{ rgb }}; margin-bottom:20px;">
+  <div class="lcars-frame" style="display: flex !important; align-items: stretch !important;">
+    <div class="lcars-sidebar" style="display: flex !important; flex-direction: column !important; flex-shrink: 0 !important; width: 56px !important; gap: 4px !important;">
+      <div class="lcars-elbow-top" style="height: 52px !important; background: {{ color }} !important; border-radius: 20px 0 0 0 !important; position: relative !important; flex-shrink: 0 !important;"></div>
+      <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: {{ color }} !important; flex-shrink: 0 !important;"></div>
+      <div class="lcars-seg" style="height: 28px !important; border-radius: 0 8px 8px 0 !important; background: {{ darker }} !important; opacity: 0.6 !important; flex-shrink: 0 !important;"></div>
+      <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:{{ color }};box-shadow:0 0 8px {{ color }};animation:bmLightPulse 2s ease-in-out infinite;"></div>
+      <div class="lcars-light" style="width:10px;height:10px;border-radius:50%;margin:4px auto;background:#FFAA00;box-shadow:0 0 8px #FFAA00;animation:bmLightPulse 2s ease-in-out infinite 0.7s;"></div>
+      <div class="lcars-seg-fill" style="flex: 1 !important; background: rgba({{ rgb }},0.2) !important; border-radius: 0 8px 8px 0 !important; min-height: 20px !important;"></div>
+      <div class="lcars-elbow-bottom" style="height: 36px !important; background: {{ color }} !important; border-radius: 0 0 0 20px !important; position: relative !important; flex-shrink: 0 !important;"></div>
+    </div>
+    <div class="lcars-content" style="flex: 1 !important; display: flex !important; flex-direction: column !important; margin-left: 8px !important; min-width: 0 !important; overflow: visible !important;">
+      <div class="lcars-bar" style="height: 44px !important; background: {{ color }} !important; border-radius: 0 20px 20px 0 !important; display: flex !important; align-items: center !important; gap: 12px !important; padding: 0 16px !important; flex-shrink: 0 !important;">
+        <span class="lcars-bar-title" style="font-family: 'Antonio', sans-serif !important; font-size: 0.85rem !important; font-weight: 500 !important; letter-spacing: 2px !important; text-transform: uppercase !important; color: #010409 !important;">{{ title }}</span>
+        <div style="flex:1"></div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">{{ subtitle }}</span>
+        <div class="lcars-pips" style="display: flex !important; align-items: center !important; gap: 4px !important;">
+          <span class="lcars-pip" style="width:20px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+          <span class="lcars-pip" style="width:35px; height:8px; border-radius:4px; background:rgba(0,0,0,0.2)"></span>
+          <span class="lcars-pip" style="width:14px; height:8px; border-radius:4px; background:rgba(0,0,0,0.3)"></span>
+        </div>
+      </div>
+      <div class="lcars-body" style="flex: 1 !important; padding: 14px !important; position: relative !important;">
+        {{ caller() }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
 {% block content %}
 <style>
-  .cc-wrap { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: #e2e8f0; }
+  @keyframes bmLightPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  .cc-wrap { max-width: 1240px; margin: 0 auto; padding: 1.5rem 1rem 3rem; color: #e2e8f0; }
   .cc-head { display:flex; align-items:center; gap:1rem; flex-wrap:wrap; margin-bottom:0.4rem; }
   .cc-head h1 { font-family:'Orbitron',sans-serif; font-size:1.5rem; color:#8b5cf6; letter-spacing:1px; margin:0; }
   .cc-agent { font-family:'IBM Plex Mono',monospace; font-size:0.72rem; color:#94a3b8; background:#ffffff0d;
     border:1px solid #ffffff22; border-radius:20px; padding:3px 11px; }
   .cc-sub { color:#94a3b8; font-size:0.9rem; margin:0 0 1.2rem; max-width:760px; line-height:1.6; }
-  .cc-tabs { display:flex; flex-wrap:wrap; gap:6px; border-bottom:1px solid #ffffff1a; margin-bottom:1.3rem; }
-  .cc-tab { font-family:'Antonio',sans-serif; font-size:0.82rem; text-transform:uppercase; letter-spacing:1px;
-    color:#94a3b8; background:none; border:none; border-bottom:2px solid transparent; padding:0.6rem 1rem; cursor:pointer; }
-  .cc-tab:hover { color:#e2e8f0; }
-  .cc-tab.active { color:#8b5cf6; border-bottom-color:#8b5cf6; }
+  /* LCARS pill nav (#3943) — Antonio uppercase, rounded-left blocks, filled accent when active */
+  .cc-tabs { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:1.2rem; }
+  .cc-tab { font-family:'Antonio',sans-serif; font-size:0.82rem; text-transform:uppercase; letter-spacing:1.5px;
+    color:#94a3b8; background:#ffffff0a; border:1px solid #ffffff14; border-radius:14px 4px 4px 14px;
+    padding:0.55rem 1.15rem; cursor:pointer; transition:background .15s, color .15s, border-color .15s; }
+  .cc-tab:hover { color:#e2e8f0; border-color:#8b5cf666; }
+  .cc-tab.active { color:#010409; background:#8b5cf6; border-color:#8b5cf6; font-weight:700; }
   .cc-pane { display:none; }
   .cc-pane.active { display:block; }
-  .cc-phase { display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:0.62rem; text-transform:uppercase;
-    letter-spacing:1px; color:#f59e0b; background:#f59e0b18; border:1px solid #f59e0b44; border-radius:4px; padding:2px 8px; margin-bottom:0.8rem; }
   .cc-card { background:#ffffff05; border:1px solid #ffffff14; border-radius:12px; padding:1.4rem 1.5rem; margin-bottom:1rem; }
   .cc-card h2 { font-family:'Orbitron',sans-serif; font-size:1.05rem; color:#f1f5f9; margin:0 0 0.6rem; }
   .cc-card p { color:#cbd5e1; font-size:0.9rem; line-height:1.6; margin:0.3rem 0; }
@@ -83,6 +117,7 @@
 
   <!-- DASHBOARD -->
   <div class="cc-pane active" id="pane-dashboard">
+    {% call lcars_frame('#8b5cf6', '139,92,246', '#7c3aed', 'Dashboard', 'E.T.H.O.S. GOVERNANCE KPIS') %}
     <div class="cc-kpis" id="cc-kpis">
       <div class="cc-kpi"><div class="cc-kpi-n">…</div><div class="cc-kpi-l">Loading</div></div>
     </div>
@@ -94,6 +129,7 @@
       <h2>E.T.H.O.S. recent activity</h2>
       <div id="cc-activity" class="cc-muted">Loading…</div>
     </div>
+    {% endcall %}
   </div>
 
   <!-- INBOX -->
@@ -131,9 +167,9 @@
       .cc-mail-send-status.ok{color:#34d399;}
       .cc-mail-send-status.err{color:#fca5a5;}
     </style>
+    {% call lcars_frame('#22d3ee', '34,211,238', '#06b6d4', 'Inbox — C.R.E.E.D. mail', '5 CREED-AI.ORG MAILBOXES · IMAP') %}
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">C.R.E.E.D. mail</h2>
-      <span class="cc-muted" style="font-size:0.78rem;">5 creed-ai.org mailboxes · read-only IMAP</span>
+      <span class="cc-muted" style="font-size:0.78rem;">Read-only IMAP · send-as gated on your explicit click</span>
       <button id="cc-mail-refresh" class="cc-btn-sm" style="margin-left:auto;">↻ Refresh</button>
     </div>
     <div id="cc-mail-boxes" class="cc-mail-boxes" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.9rem;"></div>
@@ -141,12 +177,13 @@
       <div id="cc-mail-list" class="cc-card" style="flex:1 1 320px;min-width:280px;max-height:60vh;overflow:auto;"></div>
       <div id="cc-mail-read" class="cc-card" style="flex:2 1 420px;min-width:300px;max-height:60vh;overflow:auto;"></div>
     </div>
+    {% endcall %}
   </div>
 
   <!-- GRANTS -->
   <div class="cc-pane" id="pane-grants">
+    {% call lcars_frame('#f59e0b', '245,158,11', '#d97706', 'Grants pipeline', 'FUNDING · E.T.H.O.S. DRAFTING') %}
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">Grants pipeline</h2>
       <span id="cc-grants-count" class="cc-muted" style="font-size:0.8rem;"></span>
       <button id="cc-grant-add-btn" class="cc-btn-sm" style="margin-left:auto;">+ Add grant</button>
     </div>
@@ -176,6 +213,7 @@
 
     <div id="cc-grants-table" class="cc-muted">Loading…</div>
     <div id="cc-draft-panel" style="margin-top:1.1rem;"></div>
+    {% endcall %}
   </div>
 
   <!-- MARKETING -->
@@ -192,8 +230,8 @@
       .cc-mkt-actions{display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;}
       .cc-mkt-actions .right{margin-left:auto;font-size:0.72rem;color:#64748b;}
     </style>
+    {% call lcars_frame('#ec4899', '236,72,153', '#db2777', 'Marketing & promotion', 'EVIDENCE-GROUNDED · HUMAN-APPROVED') %}
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">Marketing &amp; promotion</h2>
       <span class="cc-muted" style="font-size:0.78rem;">E.T.H.O.S. drafts grounded in C.R.E.E.D.'s live evidence · you review &amp; approve</span>
     </div>
     <div class="cc-mkt-form">
@@ -214,6 +252,7 @@
       <button id="cc-mkt-gen" class="cc-btn-sm cc-btn-send">Generate with E.T.H.O.S.</button>
     </div>
     <div id="cc-mkt-list"></div>
+    {% endcall %}
   </div>
 
   <!-- FILES -->
@@ -228,9 +267,9 @@
       .cc-file-link{font-size:0.72rem;color:#a5b4fc;}
       .cc-file-actions{margin-left:auto;display:flex;gap:0.5rem;}
     </style>
+    {% call lcars_frame('#94a3b8', '148,163,184', '#64748b', 'Document library', 'GRANT DOCS · RESEARCH · BRAND · MAX 10 MB') %}
     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
-      <h2 style="font-family:'Orbitron',sans-serif;font-size:1.05rem;color:#f1f5f9;margin:0;">Document library</h2>
-      <span class="cc-muted" style="font-size:0.78rem;">Grant docs, research, policy templates, brand assets · max 10 MB · stored in-DB, admin-only</span>
+      <span class="cc-muted" style="font-size:0.78rem;">Stored in-DB, admin-only</span>
     </div>
     <div class="cc-file-form">
       <div><label class="cc-mail-flabel">File</label><input id="cc-file-input" class="cc-mail-input" type="file" /></div>
@@ -242,10 +281,12 @@
       <span id="cc-file-status" class="cc-mail-send-status"></span>
     </div>
     <div id="cc-file-list"></div>
+    {% endcall %}
   </div>
 
   <!-- GOVERNANCE (live links) -->
   <div class="cc-pane" id="pane-governance">
+    {% call lcars_frame('#10b981', '16,185,129', '#059669', 'Governance', 'LIVE PUBLIC TRANSPARENCY SURFACES') %}
     <div class="cc-card">
       <h2>Governance surfaces E.T.H.O.S. owns</h2>
       <p>Live public C.R.E.E.D. transparency surfaces. These are already shipped.</p>
@@ -270,9 +311,11 @@
         <div class="cc-link-t">creed-ai.org</div>
         <div class="cc-link-d">Public C.R.E.E.D. Institute site</div></a>
     </div>
+    {% endcall %}
   </div>
 
   <div class="cc-pane" id="pane-tenants">
+    {% call lcars_frame('#c9a44c', '201,164,76', '#a8843a', 'Tenants', 'MULTI-TENANT C.R.E.E.D. OPS') %}
     <div class="cc-card">
       <h2>Tenants</h2>
       <p>Organizations scored on the multi-tenant C.R.E.E.D. pipeline. Approve new
@@ -288,8 +331,9 @@
       <h2>Directory</h2>
       <div id="cc-tenant-list" class="cc-muted">Loading…</div>
     </div>
+    {% endcall %}
   </div>
 </div>
 
-<script src="{{ url_for('creed_command.static', filename='js/creed-command.js') }}" defer></script>
+<script src="{{ url_for('creed_command.static', filename='js/creed-command.js', v='3946') }}" defer></script>
 {% endblock %}

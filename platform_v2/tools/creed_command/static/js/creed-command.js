@@ -422,6 +422,62 @@
       .catch(function () { if (btn) btn.disabled = false; fail("Network error."); });
   }
 
+  /* ---- Marketing → Inbox compose (#3946) ---- */
+  var MKT_FROM_BOX = { press: "press", newsletter: "contact", linkedin: "contact", x: "contact", blog: "contact" };
+
+  function renderCompose(asset) {
+    var read = document.getElementById("cc-mail-read");
+    if (!read) return;
+    read.className = "cc-card";
+    while (read.firstChild) read.removeChild(read.firstChild);
+    read.appendChild(el("h2", "cc-mail-read-subj", "Compose — outreach from marketing asset"));
+    read.appendChild(el("div", "cc-mail-read-meta",
+      mktLabel(asset.channel) + " · " + (asset.topic || "") + " · nothing sends without your explicit click"));
+    var boxes = (mailState.list || []).filter(function (b) { return b.configured && !b.error; });
+    var fromSel = el("select", "cc-mail-input");
+    boxes.forEach(function (b) { var o = el("option", null, b.address); o.value = b.key; fromSel.appendChild(o); });
+    var want = MKT_FROM_BOX[asset.channel] || "contact";
+    if (boxes.some(function (b) { return b.key === want; })) fromSel.value = want;
+    var toIn = el("input", "cc-mail-input"); toIn.type = "text"; toIn.placeholder = "recipient@example.com";
+    var subIn = el("input", "cc-mail-input"); subIn.type = "text"; subIn.value = asset.topic || "";
+    var ta = el("textarea", "cc-mail-textarea"); ta.value = asset.content || "";
+    var sendBtn = el("button", "cc-btn-sm cc-btn-send", "Send");
+    var statusEl = el("span", "cc-mail-send-status", "");
+    sendBtn.addEventListener("click", function () {
+      sendReply(fromSel.value, null, toIn.value.trim(), subIn.value.trim(), ta.value, sendBtn, statusEl);
+    });
+    read.appendChild(el("label", "cc-mail-flabel", "From"));
+    read.appendChild(fromSel);
+    read.appendChild(el("label", "cc-mail-flabel", "To"));
+    read.appendChild(toIn);
+    read.appendChild(el("label", "cc-mail-flabel", "Subject"));
+    read.appendChild(subIn);
+    read.appendChild(el("label", "cc-mail-flabel", "Message"));
+    read.appendChild(ta);
+    var row = el("div", "cc-mail-send-row");
+    row.appendChild(sendBtn);
+    row.appendChild(statusEl);
+    read.appendChild(row);
+    toIn.focus();
+  }
+
+  function openComposeFromAsset(asset) {
+    var inboxTab = document.querySelector('.cc-tab[data-tab="inbox"]');
+    if (inboxTab) inboxTab.click(); // switches pane + lazy-loads mailbox status
+    if ((mailState.list || []).some(function (b) { return b.configured && !b.error; })) {
+      renderCompose(asset);
+      return;
+    }
+    var read = document.getElementById("cc-mail-read");
+    if (read) { read.className = "cc-card cc-muted"; read.textContent = "Loading mailboxes…"; }
+    var tries = 20;
+    (function wait() {
+      if ((mailState.list || []).some(function (b) { return b.configured && !b.error; })) return renderCompose(asset);
+      if (--tries <= 0) { if (read) read.textContent = "Mailboxes unavailable — check the Inbox tab."; return; }
+      setTimeout(wait, 500);
+    })();
+  }
+
   function pollMailAi(box, uid, tries) {
     if (tries <= 0) return;
     fetch("/tools/creed-command/api/mail/ai?box=" + encodeURIComponent(box) + "&uid=" + encodeURIComponent(uid), { cache: "no-cache" })
@@ -505,6 +561,13 @@
         var delBtn = el("button", "cc-btn-sm", "Delete");
         delBtn.addEventListener("click", function () { if (window.confirm("Delete this asset?")) deleteMkt(a.id); });
         actions.appendChild(saveBtn); actions.appendChild(copyBtn); actions.appendChild(apprBtn); actions.appendChild(delBtn);
+        // #3946 — open this asset as a prefilled Inbox compose (send stays human-gated)
+        var inboxBtn = el("button", "cc-btn-sm", "✉ Open in Inbox");
+        inboxBtn.title = "Prefill an Inbox compose with this asset — review, pick recipient, send-as";
+        inboxBtn.addEventListener("click", function () {
+          openComposeFromAsset({ id: a.id, channel: a.channel, topic: a.topic, content: ta.value });
+        });
+        actions.appendChild(inboxBtn);
         if (a.channel === "linkedin") {
           // #3944 — publishing is owned by S.I.G.N.A.L.: this queues the post
           // for human approval (DHQ Social tab / Telegram), Creed-AI account.

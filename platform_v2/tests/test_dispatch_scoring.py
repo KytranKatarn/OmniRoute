@@ -713,3 +713,118 @@ class TestMultiAgentDispatchCoverage:
         assert selected is not None
         # Some Engineering agent picked — F.O.R.G.E. in this roster
         assert selected["department"] == "Engineering & Technology"
+
+
+class TestSpecialistPreference:
+    """Capability → specialist preference (#3977).
+
+    Found live 2026-06-10: capability='translate' always routed to
+    C.O.D.E.X. (Documentation & Knowledge director, translate Lv5) and never
+    reached R.O.S.E.T.T.A. (the translation specialist, translate Lv5 +
+    French Translation Lv5) because the director's is_department_ai bonus
+    (+0.3) wins every equal-proficiency tie. CAPABILITY_SPECIALIST_MAP must
+    flip that — as a preference, not a pin.
+    """
+
+    DEPT = "Documentation & Knowledge"
+
+    def _coord_with_cache(self, agent_cache, welfare_cache=None):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = agent_cache
+        coord._welfare_cache = welfare_cache or {}
+        coord._cache_time = float("inf")
+        coord._reserved_agents = set()
+        import threading
+
+        coord._lock = threading.Lock()
+        return coord
+
+    def _rosetta_and_codex(self):
+        _, rosetta_info = _make_agent(
+            name="R.O.S.E.T.T.A.",
+            department=self.DEPT,
+            skills={"translate": 5, "localization": 5},
+            is_department_ai=False,
+            agent_id=134,
+        )
+        _, codex_info = _make_agent(
+            name="C.O.D.E.X.",
+            department=self.DEPT,
+            skills={"translate": 5, "documentation": 5},
+            is_department_ai=True,
+            agent_id=146,
+        )
+        return rosetta_info, codex_info
+
+    def test_translate_has_rosetta_as_specialist(self):
+        from services.department_coordinator import CAPABILITY_SPECIALIST_MAP
+
+        assert CAPABILITY_SPECIALIST_MAP.get("translate") == "R.O.S.E.T.T.A."
+
+    def test_specialist_outscores_director_at_equal_proficiency(self):
+        rosetta_info, codex_info = self._rosetta_and_codex()
+        coord = self._coord_with_cache(
+            {"R.O.S.E.T.T.A.": rosetta_info, "C.O.D.E.X.": codex_info},
+            {134: _make_welfare(), 146: _make_welfare()},
+        )
+
+        rosetta_score, rosetta_block = coord.score_agent("R.O.S.E.T.T.A.", rosetta_info, "translate", self.DEPT)
+        codex_score, codex_block = coord.score_agent("C.O.D.E.X.", codex_info, "translate", self.DEPT)
+
+        assert rosetta_block is None and codex_block is None
+        assert rosetta_score > codex_score, (
+            f"specialist R.O.S.E.T.T.A. ({rosetta_score:.3f}) must beat "
+            f"director C.O.D.E.X. ({codex_score:.3f}) for translate"
+        )
+
+    def test_select_agent_picks_rosetta_for_translate(self):
+        rosetta_info, codex_info = self._rosetta_and_codex()
+        coord = self._coord_with_cache(
+            {"R.O.S.E.T.T.A.": rosetta_info, "C.O.D.E.X.": codex_info},
+            {134: _make_welfare(), 146: _make_welfare()},
+        )
+
+        selected = coord.select_agent(capability="translate", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "R.O.S.E.T.T.A.", f"expected R.O.S.E.T.T.A., got {selected.get('name')}"
+
+    def test_preference_not_pin_blocked_specialist_falls_back_to_director(self):
+        """A budget-exhausted specialist must NOT hold the work hostage."""
+        rosetta_info, codex_info = self._rosetta_and_codex()
+        coord = self._coord_with_cache(
+            {"R.O.S.E.T.T.A.": rosetta_info, "C.O.D.E.X.": codex_info},
+            {134: _make_welfare(util_pct=0.96), 146: _make_welfare()},
+        )
+
+        selected = coord.select_agent(capability="translate", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "C.O.D.E.X.", f"expected fallback to C.O.D.E.X., got {selected.get('name')}"
+
+    def test_distress_opt_out_overrides_specialist_preference(self):
+        """The -1.5 distress penalty must beat the +0.75 specialist bonus."""
+        rosetta_info, codex_info = self._rosetta_and_codex()
+        coord = self._coord_with_cache(
+            {"R.O.S.E.T.T.A.": rosetta_info, "C.O.D.E.X.": codex_info},
+            {134: _make_welfare(), 146: _make_welfare()},
+        )
+        coord._distress = {(134, "translate")}
+        coord._distress_time = float("inf")
+
+        selected = coord.select_agent(capability="translate", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "C.O.D.E.X.", f"distressed specialist must step back, got {selected.get('name')}"
+
+    def test_no_bonus_for_other_capabilities(self):
+        """R.O.S.E.T.T.A. gets no specialist bonus on a non-mapped capability."""
+        rosetta_info, codex_info = self._rosetta_and_codex()
+        rosetta_info["skills"]["documentation"] = 5
+        coord = self._coord_with_cache(
+            {"R.O.S.E.T.T.A.": rosetta_info, "C.O.D.E.X.": codex_info},
+            {134: _make_welfare(), 146: _make_welfare()},
+        )
+
+        selected = coord.select_agent(capability="documentation", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "C.O.D.E.X.", "director should still win unmapped capabilities"

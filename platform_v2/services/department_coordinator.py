@@ -334,6 +334,31 @@ CAPABILITY_DEPARTMENT_MAP = {
 
 
 # ---------------------------------------------------------------------------
+# Capability → Specialist preference (#3977)
+# ---------------------------------------------------------------------------
+# Some capabilities have a designated specialist whose skill set and
+# downstream integrations must win over a same-department director holding
+# the same skill at equal proficiency — otherwise the director's
+# is_department_ai bonus (+0.3) beats the specialist every time.
+# e.g. 'translate' always landed on C.O.D.E.X. (dept director, translate Lv5)
+# and never reached R.O.S.E.T.T.A. (translate Lv5 + French Translation Lv5 +
+# translation_memory; standing rule KB #272121: non-EN content goes via
+# R.O.S.E.T.T.A.).
+#
+# PREFERENCE, not a pin: the bonus is applied in score_agent, so hard blocks
+# (shift state, rest cycle, budget exhaustion, task-queue limit) and the
+# distress opt-out (-1.5) still route the work to a healthy peer.
+
+CAPABILITY_SPECIALIST_MAP = {
+    "translate": "R.O.S.E.T.T.A.",
+}
+
+# Must beat is_department_ai (+0.3) plus typical welfare deltas (~±0.4),
+# but stay below the distress opt-out penalty (-1.5).
+SPECIALIST_PREFERENCE_BONUS = 0.75
+
+
+# ---------------------------------------------------------------------------
 # Coordinator
 # ---------------------------------------------------------------------------
 
@@ -552,6 +577,11 @@ class DepartmentCoordinator:
 
         if agent_info.get("is_department_ai"):
             score += 0.3
+
+        # Specialist preference (#3977): the capability's designated specialist
+        # outranks a same-department director with equal proficiency.
+        if capability and CAPABILITY_SPECIALIST_MAP.get(capability) == agent_name:
+            score += SPECIALIST_PREFERENCE_BONUS
 
         if recommended_tier:
             agent_model = agent_info.get("model", "")

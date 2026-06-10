@@ -9,14 +9,19 @@ import csv
 import io
 import json
 import logging
+import os
 import time
 
+import requests
 from flask import jsonify, request
 from flask_login import current_user, login_required
 
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
+
+# Hub-local C.R.E.E.D. standalone (same pattern as creed_command/tenants_routes.py)
+_CREED_STANDALONE_URL = os.getenv("CREED_API_URL", "http://192.168.1.200:8086")
 
 # ── Cache singletons ─────────────────────────────────────────────────────────
 _cache = {"data": None, "expires": 0}
@@ -33,6 +38,12 @@ TREND_CACHE_TTL = 300  # 5 min
 
 _v1_score_cache = {"data": None, "expires": 0}
 V1_SCORE_CACHE_TTL = 60  # 60 s — stable public API, third-party badge embeds
+
+_tenants_cache = {"data": None, "expires": 0}
+TENANTS_CACHE_TTL = 60  # 60 s — multi-tenant directory proxy (#3947)
+
+_carbon_cache = {"data": None, "expires": 0}
+CARBON_CACHE_TTL = 600  # 10 min — 24h aggregate changes slowly
 
 _model_card_cache: dict = {"data": None, "expires": 0}  # full list
 _model_card_single_cache: dict = {}  # agent_id → {"data": ..., "expires": float}
@@ -274,6 +285,99 @@ ISED_QUESTIONNAIRE = [
 def register_creed_routes(bp, admin_required):
     """Register all C.R.E.E.D. public API routes."""
 
+    @bp.route("/api/creed/tenants")
+    def creed_tenants():
+        """Per-product C.R.E.E.D. tenant directory with live scores (#3947).
+
+        Hub-side proxy to the standalone internal API (shared
+        CREED_INTERNAL_KEY, never browser-exposed); contact emails
+        stripped before returning. Cached 60 s.
+        """
+        now = time.time()
+        if _tenants_cache["data"] and now < _tenants_cache["expires"]:
+            return jsonify(_tenants_cache["data"])
+        key = os.getenv("CREED_INTERNAL_KEY", "")
+        if not key:
+            return (
+                jsonify({"success": False, "error": "CREED_INTERNAL_KEY not configured"}),
+                503,
+            )
+        try:
+            r = requests.get(
+                f"{_CREED_STANDALONE_URL}/api/internal/tenants",
+                headers={"X-Internal-Key": key},
+                timeout=10,
+            )
+            data = r.json()
+            for t in data.get("tenants", []):
+                t.pop("contact_email", None)
+            _tenants_cache["data"] = data
+            _tenants_cache["expires"] = now + TENANTS_CACHE_TTL
+            return jsonify(data)
+        except Exception as e:
+            logger.error("creed_tenants proxy failed: %s", e)
+            return (
+                jsonify({"success": False, "error": "tenant directory unavailable"}),
+                502,
+            )
+
+    @bp.route("/api/creed/carbon-summary")
+    def creed_carbon_summary():
+        """Read-only 24 h compute-carbon estimate + env-pillar gate progress
+        (#3947 / #3254). Same wattage model as the hourly CarbonJob; never
+        pushes events. Cached 10 min."""
+        now = time.time()
+        if _carbon_cache["data"] and now < _carbon_cache["expires"]:
+            return jsonify(_carbon_cache["data"])
+        try:
+            from services.carbon_footprint_service import _co2_kg, _watts_for_model
+
+            kwh = co2 = 0.0
+            runs = 0
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT model_used, duration_ms FROM task_execution_log
+                       WHERE created_at > NOW() - INTERVAL '24 hours'
+                         AND duration_ms IS NOT NULL"""
+                )
+                for row in cur.fetchall():
+                    model = (row["model_used"] if isinstance(row, dict) else row[0]) or ""
+                    dur = int((row["duration_ms"] if isinstance(row, dict) else row[1]) or 0)
+                    w = _watts_for_model(model)
+                    co2 += _co2_kg(w, dur)
+                    kwh += w * (dur / 1_000 / 3_600) / 1000.0
+                    runs += 1
+            env = {}
+            try:
+                r = requests.get(
+                    f"{_CREED_STANDALONE_URL}/api/v1/orgs/kytran-empowerment/scores",
+                    timeout=8,
+                )
+                env = (r.json().get("by_category") or {}).get("environmental") or {}
+            except Exception:
+                pass  # env-pillar progress is decorative; carbon numbers still useful
+            data = {
+                "success": True,
+                "kwh_24h": round(kwh, 3),
+                "co2_kg_24h": round(co2, 4),
+                "runs_24h": runs,
+                "env_pillar": {
+                    "tenant": "kytran-empowerment",
+                    "events": env.get("events"),
+                    "provisional": env.get("provisional", True),
+                    "min_events": 100,
+                },
+            }
+            _carbon_cache["data"] = data
+            _carbon_cache["expires"] = now + CARBON_CACHE_TTL
+            return jsonify(data)
+        except Exception as e:
+            logger.error("creed carbon summary failed: %s", e)
+            return (
+                jsonify({"success": False, "error": "carbon summary unavailable"}),
+                500,
+            )
+
     @bp.route("/api/creed/public-stats")
     def creed_public_stats():
         """Aggregate governance stats — no auth required.
@@ -326,7 +430,10 @@ def register_creed_routes(bp, admin_required):
             return jsonify(data)
         except Exception as e:
             logger.error("Failed to build C.R.E.E.D. overflow-activations: %s", e)
-            return jsonify({"success": False, "error": "Overflow data unavailable"}), 500
+            return (
+                jsonify({"success": False, "error": "Overflow data unavailable"}),
+                500,
+            )
 
     @bp.route("/api/creed/ethics-trend")
     def creed_ethics_trend():
@@ -539,7 +646,10 @@ def register_creed_routes(bp, admin_required):
             return resp
         except Exception as e:
             logger.error("Failed to build consent summary: %s", e)
-            return jsonify({"success": False, "error": "Consent summary unavailable"}), 500
+            return (
+                jsonify({"success": False, "error": "Consent summary unavailable"}),
+                500,
+            )
 
     @bp.route("/api/creed/consent-flags")
     @admin_required
@@ -583,9 +693,20 @@ def register_creed_routes(bp, admin_required):
         registered_by = (body.get("registered_by") or "admin").strip()
 
         if not agent_id or not capability:
-            return jsonify({"success": False, "error": "agent_id and capability required"}), 400
+            return (
+                jsonify({"success": False, "error": "agent_id and capability required"}),
+                400,
+            )
         if discomfort_level not in ("mild", "moderate", "strong"):
-            return jsonify({"success": False, "error": "discomfort_level must be mild/moderate/strong"}), 400
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "discomfort_level must be mild/moderate/strong",
+                    }
+                ),
+                400,
+            )
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -648,7 +769,13 @@ def register_creed_routes(bp, admin_required):
                     (agent_id,),
                 )
                 rows = cur.fetchall()
-            return jsonify({"success": True, "agent_id": agent_id, "flags": [dict(r) for r in rows]})
+            return jsonify(
+                {
+                    "success": True,
+                    "agent_id": agent_id,
+                    "flags": [dict(r) for r in rows],
+                }
+            )
         except Exception as e:
             logger.error("Failed to fetch consent flags for agent %s: %s", agent_id, e)
             return jsonify({"success": False, "error": str(e)}), 500
@@ -761,7 +888,10 @@ def register_creed_routes(bp, admin_required):
                 )
                 assessment = cur.fetchone()
                 if not assessment:
-                    return jsonify({"success": False, "error": "Assessment not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Assessment not found"}),
+                        404,
+                    )
 
                 cur.execute(
                     """
@@ -799,14 +929,23 @@ def register_creed_routes(bp, admin_required):
             body = request.get_json(silent=True) or {}
             items = body.get("responses") or []
             if not items:
-                return jsonify({"success": False, "error": "No responses provided"}), 400
+                return (
+                    jsonify({"success": False, "error": "No responses provided"}),
+                    400,
+                )
 
             # Validate assessment exists and is editable
             with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute("SELECT status FROM creed_ised_assessments WHERE id = %s", (assessment_id,))
+                cur.execute(
+                    "SELECT status FROM creed_ised_assessments WHERE id = %s",
+                    (assessment_id,),
+                )
                 row = cur.fetchone()
                 if not row:
-                    return jsonify({"success": False, "error": "Assessment not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Assessment not found"}),
+                        404,
+                    )
                 if row["status"] in ("completed", "published"):
                     return (
                         jsonify(
@@ -860,12 +999,21 @@ def register_creed_routes(bp, admin_required):
             publish = bool(body.get("publish", False))
 
             with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute("SELECT status FROM creed_ised_assessments WHERE id = %s", (assessment_id,))
+                cur.execute(
+                    "SELECT status FROM creed_ised_assessments WHERE id = %s",
+                    (assessment_id,),
+                )
                 row = cur.fetchone()
                 if not row:
-                    return jsonify({"success": False, "error": "Assessment not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Assessment not found"}),
+                        404,
+                    )
                 if row["status"] == "published":
-                    return jsonify({"success": False, "error": "Already published"}), 409
+                    return (
+                        jsonify({"success": False, "error": "Already published"}),
+                        409,
+                    )
 
                 # Compute score
                 cur.execute(
@@ -878,7 +1026,10 @@ def register_creed_routes(bp, admin_required):
                 answers = [r["answer"] for r in cur.fetchall()]
 
                 if not answers:
-                    return jsonify({"success": False, "error": "No scored answers yet"}), 422
+                    return (
+                        jsonify({"success": False, "error": "No scored answers yet"}),
+                        422,
+                    )
 
                 score_map = {"yes": 100, "partial": 50, "no": 0}
                 overall_score = round(sum(score_map.get(a, 0) for a in answers) / len(answers), 2)
@@ -1105,7 +1256,10 @@ def register_creed_routes(bp, admin_required):
                 )
                 row = cur.fetchone()
             if not row:
-                return jsonify({"success": False, "error": "Request not found or not pending"}), 404
+                return (
+                    jsonify({"success": False, "error": "Request not found or not pending"}),
+                    404,
+                )
             return jsonify({"success": True, "request": dict(row)})
         except Exception as e:
             logger.error("Erasure approve %s failed: %s", request_id, e)
@@ -1134,7 +1288,15 @@ def register_creed_routes(bp, admin_required):
                 )
                 row = cur.fetchone()
             if not row:
-                return jsonify({"success": False, "error": "Request not found or not rejectable"}), 404
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": "Request not found or not rejectable",
+                        }
+                    ),
+                    404,
+                )
             return jsonify({"success": True, "request": dict(row)})
         except Exception as e:
             logger.error("Erasure reject %s failed: %s", request_id, e)
@@ -1202,8 +1364,8 @@ def register_creed_routes(bp, admin_required):
                         "id": r["id"],
                         "status": r["status"],
                         "legal_basis": r["legal_basis"],
-                        "requested_at": r["requested_at"].isoformat() if r["requested_at"] else None,
-                        "processed_at": r["processed_at"].isoformat() if r["processed_at"] else None,
+                        "requested_at": (r["requested_at"].isoformat() if r["requested_at"] else None),
+                        "processed_at": (r["processed_at"].isoformat() if r["processed_at"] else None),
                     }
                     for r in cur.fetchall()
                 ]
@@ -2287,8 +2449,8 @@ def _load_agent_welfare(agent_ids: list) -> dict:
         rows = cur.fetchall() or []
     return {
         r["agent_id"]: {
-            "stress_level": float(r["stress_level"]) if r["stress_level"] is not None else None,
-            "energy_level": float(r["energy_level"]) if r["energy_level"] is not None else None,
+            "stress_level": (float(r["stress_level"]) if r["stress_level"] is not None else None),
+            "energy_level": (float(r["energy_level"]) if r["energy_level"] is not None else None),
             "current_mood": r["current_mood"],
             "in_rest": bool(r["in_rest"]),
         }
@@ -2422,7 +2584,7 @@ def _build_stats():
                     "avg_stress": round(stress, 3),
                     "avg_mood": round(mood, 3),
                     "high_stress_agents": r["high_stress_count"] or 0,
-                    "status": "red" if stress >= 0.8 else ("yellow" if stress >= 0.5 else "green"),
+                    "status": ("red" if stress >= 0.8 else ("yellow" if stress >= 0.5 else "green")),
                 }
             )
 
@@ -2534,7 +2696,12 @@ def _build_stats():
             """
         )
         directors = [
-            {"name": r["display_name"], "acronym": r["acronym"], "department": r["department"]} for r in cur.fetchall()
+            {
+                "name": r["display_name"],
+                "acronym": r["acronym"],
+                "department": r["department"],
+            }
+            for r in cur.fetchall()
         ]
 
     # 8. Overall ethics score
@@ -2746,7 +2913,7 @@ def _build_ised_public_score() -> dict:
         "assessment_id": row["id"],
         "overall_score": round(score, 2),
         "grade": _ised_grade(score),
-        "published_at": row["published_at"].isoformat() if row["published_at"] else None,
+        "published_at": (row["published_at"].isoformat() if row["published_at"] else None),
         "conducted_by": row["conducted_by"],
         "code_name": "ISED Voluntary Code of Conduct on the Responsible Development "
         "and Management of Advanced Generative AI Systems",
@@ -2836,7 +3003,7 @@ def _build_ised_report(assessment_id: int) -> dict | None:
                 "title": principle["title"],
                 "description": principle["description"],
                 "score": principle_score,
-                "grade": _ised_grade(principle_score) if principle_score is not None else None,
+                "grade": (_ised_grade(principle_score) if principle_score is not None else None),
                 "answered": len(q_scores),
                 "total_questions": len(principle["questions"]),
                 "questions": q_results,
@@ -2861,9 +3028,9 @@ def _build_ised_report(assessment_id: int) -> dict | None:
             "code_version": assessment["code_version"],
             "conducted_by": assessment["conducted_by"],
             "status": assessment["status"],
-            "created_at": assessment["created_at"].isoformat() if assessment["created_at"] else None,
-            "completed_at": assessment["completed_at"].isoformat() if assessment["completed_at"] else None,
-            "published_at": assessment["published_at"].isoformat() if assessment["published_at"] else None,
+            "created_at": (assessment["created_at"].isoformat() if assessment["created_at"] else None),
+            "completed_at": (assessment["completed_at"].isoformat() if assessment["completed_at"] else None),
+            "published_at": (assessment["published_at"].isoformat() if assessment["published_at"] else None),
             "notes": assessment["notes"],
         },
         "summary": {
@@ -3036,7 +3203,11 @@ def _execute_erasure(request_id: int) -> dict:
             if n > 0:
                 anonymized_tables.append("billing_customers")
         except Exception as bc_err:
-            logger.warning("Erasure %s: billing_customers anonymise skipped — %s", request_id, bc_err)
+            logger.warning(
+                "Erasure %s: billing_customers anonymise skipped — %s",
+                request_id,
+                bc_err,
+            )
             rows_affected["billing_customers"] = -1
 
         # ── 6. Log to governance_audit_log (privacy pillar) ──────────────────
@@ -3059,7 +3230,13 @@ def _execute_erasure(request_id: int) -> dict:
                          %s, 'success', NOW())
                     """,
                     (
-                        json.dumps({"user_id": user_id, "email": user_email, "request_id": request_id}),
+                        json.dumps(
+                            {
+                                "user_id": user_id,
+                                "email": user_email,
+                                "request_id": request_id,
+                            }
+                        ),
                         json.dumps(
                             {
                                 "anonymized_email": anon_email,
@@ -3071,7 +3248,11 @@ def _execute_erasure(request_id: int) -> dict:
                     ),
                 )
         except Exception as log_err:
-            logger.error("Erasure %s: governance_audit_log write failed — %s", request_id, log_err)
+            logger.error(
+                "Erasure %s: governance_audit_log write failed — %s",
+                request_id,
+                log_err,
+            )
 
         # ── 7. Mark request completed ─────────────────────────────────────────
         with get_db_cursor(commit=True) as (conn, cur):
@@ -3108,7 +3289,11 @@ def _execute_erasure(request_id: int) -> dict:
 
     except Exception as e:
         fatal_error = e
-        logger.error("Erasure request %s fatal error — rolling back to approved: %s", request_id, e)
+        logger.error(
+            "Erasure request %s fatal error — rolling back to approved: %s",
+            request_id,
+            e,
+        )
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -3197,7 +3382,7 @@ def _build_user_data_summary(user_id: int) -> dict:
         total = sum(v for v in counts.values() if isinstance(v, int))
         return {
             "user_id": user_id,
-            "account_created": u["created_at"].isoformat() if u and u["created_at"] else None,
+            "account_created": (u["created_at"].isoformat() if u and u["created_at"] else None),
             "last_login": (u["last_login"].isoformat() if u and u.get("last_login") else None),
             "data_held": counts,
             "total_records": total,
@@ -3260,8 +3445,8 @@ def _build_user_data_export(user_id: int) -> dict:
                 {
                     "id": r["id"],
                     "title": r["title"],
-                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
-                    "updated_at": r["updated_at"].isoformat() if r.get("updated_at") else None,
+                    "created_at": (r["created_at"].isoformat() if r["created_at"] else None),
+                    "updated_at": (r["updated_at"].isoformat() if r.get("updated_at") else None),
                 }
                 for r in cur.fetchall()
             ]
@@ -3320,7 +3505,7 @@ def _build_user_data_export(user_id: int) -> dict:
                     "status": r["status"],
                     "billing_cycle": r["billing_cycle"],
                     "tier_name": r["tier_name"],
-                    "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                    "created_at": (r["created_at"].isoformat() if r["created_at"] else None),
                 }
                 for r in cur.fetchall()
             ]
@@ -3343,8 +3528,8 @@ def _build_user_data_export(user_id: int) -> dict:
                     "id": r["id"],
                     "status": r["status"],
                     "legal_basis": r["legal_basis"],
-                    "requested_at": r["requested_at"].isoformat() if r["requested_at"] else None,
-                    "processed_at": r["processed_at"].isoformat() if r["processed_at"] else None,
+                    "requested_at": (r["requested_at"].isoformat() if r["requested_at"] else None),
+                    "processed_at": (r["processed_at"].isoformat() if r["processed_at"] else None),
                 }
                 for r in cur.fetchall()
             ]

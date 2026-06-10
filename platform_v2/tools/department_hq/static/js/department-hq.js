@@ -1158,12 +1158,59 @@ async function loadCreed() {
         var data = await api('/api/creed');
         loaded['creed'] = true;
 
+        // #3947: per-product tenant scores + compute carbon (multi-tenant launch).
+        // Both sections fail soft — the rest of the tab renders without them.
+        var tenantHtml = '';
+        try {
+            var td = await api('/api/creed/tenants');
+            if (td.success && td.tenants && td.tenants.length) {
+                tenantHtml += '<div class="dhq-ad-section-title" style="color:#00ffff">PRODUCT TENANT SCORES — C.R.E.E.D.</div>'
+                    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:0.5rem;margin:0.5rem 0 0.8rem">';
+                for (var ti = 0; ti < td.tenants.length; ti++) {
+                    var t = td.tenants[ti];
+                    if (t.status !== 'active') continue;
+                    var pub = t.listing === 'public';
+                    var scoreTxt = t.provisional
+                        ? 'PROVISIONAL · ' + (t.events_30d || 0) + ' ev'
+                        : (t.overall != null ? t.overall.toFixed(1) + ' · ' + esc(t.grade || '') : '—');
+                    tenantHtml += '<div class="dhq-creed-card">'
+                        + '<div class="dhq-creed-header"><span class="dhq-creed-dept">' + esc(t.name || t.slug) + '</span>'
+                        + '<span style="font-size:0.6rem;padding:1px 6px;border-radius:8px;border:1px solid '
+                        + (pub ? '#22c55e' : 'rgba(255,255,255,0.25)') + ';color:' + (pub ? '#22c55e' : 'var(--dhq-text-dim)') + '">'
+                        + (pub ? 'PUBLIC' : 'PREVIEW') + '</span></div>'
+                        + '<div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-top:0.3rem">'
+                        + '<span class="' + (t.provisional || t.overall == null ? '' : creedClass(t.overall)) + '">' + scoreTxt + '</span>'
+                        + '<span style="color:var(--dhq-text-dim)">' + (t.events_30d != null ? t.events_30d + ' ev/30d' : '') + '</span></div>'
+                        + (t.last_event_at
+                            ? '<div style="font-size:0.65rem;color:var(--dhq-text-dim);margin-top:0.2rem">last event ' + esc(String(t.last_event_at).slice(0, 16).replace('T', ' ')) + '</div>'
+                            : '')
+                        + '</div>';
+                }
+                tenantHtml += '</div>';
+            }
+        } catch (e) { /* tenant panel optional */ }
+        try {
+            var cs = await api('/api/creed/carbon-summary');
+            if (cs.success) {
+                var ep = cs.env_pillar || {};
+                tenantHtml += '<div style="display:flex;gap:1.2rem;flex-wrap:wrap;align-items:center;font-size:0.75rem;margin-bottom:1rem;padding:0.5rem 0.8rem;border:1px solid rgba(34,197,94,0.3);border-radius:8px">'
+                    + '<span style="color:#22c55e;font-weight:600">🌱 COMPUTE CARBON 24H</span>'
+                    + '<span>' + cs.kwh_24h + ' kWh</span>'
+                    + '<span>' + (cs.co2_kg_24h * 1000).toFixed(0) + ' g CO₂e</span>'
+                    + '<span>' + cs.runs_24h + ' inference runs</span>'
+                    + '<span style="color:var(--dhq-text-dim)">env pillar: ' + (ep.events != null ? ep.events : '?') + '/' + (ep.min_events || 100) + ' events'
+                    + (ep.provisional ? ' (provisional)' : '') + '</span>'
+                    + '</div>';
+            }
+        } catch (e) { /* carbon strip optional */ }
+
         if (!data.departments || data.departments.length === 0) {
-            setHtml(el, '<div class="dhq-empty">No C.R.E.E.D. data available yet.</div>');
+            setHtml(el, tenantHtml + '<div class="dhq-empty">No C.R.E.E.D. data available yet.</div>');
             return;
         }
 
-        var html = '<div style="margin-bottom:1rem;font-size:0.8rem;color:var(--dhq-text-dim)">'
+        var html = tenantHtml
+            + '<div style="margin-bottom:1rem;font-size:0.8rem;color:var(--dhq-text-dim)">'
             + data.total_events_7d + ' governance events in the last 7 days</div>'
             + '<div class="dhq-creed-grid">';
 

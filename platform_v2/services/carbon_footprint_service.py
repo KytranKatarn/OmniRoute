@@ -8,6 +8,7 @@ Grid factor: Canada average = 0.15 kg CO2eq / kWh (Ontario mix, mostly hydro).
 """
 
 import logging
+import os
 
 from database import get_db_cursor
 
@@ -30,17 +31,31 @@ _GPU_MODELS = {
 
 def _watts_for_model(model_used: str) -> float:
     base = model_used.split(":")[0].lower() if model_used else ""
-    return (
-        _GPU_TDP_W
-        if base in {m.split(":")[0] for m in _GPU_MODELS}
-        else _CPU_INFERENCE_W
-    )
+    return _GPU_TDP_W if base in {m.split(":")[0] for m in _GPU_MODELS} else _CPU_INFERENCE_W
 
 
 def _co2_kg(watts: float, duration_ms: int) -> float:
     hours = duration_ms / 1_000 / 3_600
     kwh = watts * hours / 1000.0
     return round(kwh * _CANADA_GRID_KG_CO2_PER_KWH, 8)
+
+
+# Severity bands are relative to FLEET BASELINE, not absolute energy use —
+# normal 24/7 operation must rate 'info', or the environmental pillar punishes
+# the cluster for existing (hub baseline ~1.4 kWh/h at ~700 runs/h incl. GPU;
+# the previous bands flagged EVERY normal hour as a violation, weight 3/5 →
+# pillar score ~40). 'violation' = sustained abnormal draw. Recalibrated
+# 2026-06-10 (#3947, #3254 follow-up); tunable via env without deploy.
+_WARN_KWH_PER_H = float(os.getenv("CARBON_WARN_KWH_PER_H", "2.5"))
+_VIOLATION_KWH_PER_H = float(os.getenv("CARBON_VIOLATION_KWH_PER_H", "5.0"))
+
+
+def _severity_for_kwh(kwh: float) -> str:
+    if kwh > _VIOLATION_KWH_PER_H:
+        return "violation"
+    if kwh > _WARN_KWH_PER_H:
+        return "warning"
+    return "info"
 
 
 def run_carbon_footprint_job() -> dict:
@@ -78,12 +93,7 @@ def run_carbon_footprint_job() -> dict:
     total_co2 = round(total_co2, 6)
     run_count = len(rows)
 
-    if total_kwh > 0.1:
-        severity = "violation"
-    elif total_kwh > 0.01:
-        severity = "warning"
-    else:
-        severity = "info"
+    severity = _severity_for_kwh(total_kwh)
 
     summary = {
         "run_count": run_count,
@@ -100,8 +110,7 @@ def run_carbon_footprint_job() -> dict:
         category="environmental",
         severity=severity,
         description=(
-            f"Last 1h: {run_count} inference runs · "
-            f"{total_kwh * 1000:.3f} Wh · {total_co2 * 1000:.2f} g CO₂e"
+            f"Last 1h: {run_count} inference runs · " f"{total_kwh * 1000:.3f} Wh · {total_co2 * 1000:.2f} g CO₂e"
         ),
         event_type="carbon_footprint_report",
         agent_name="A.R.C.H.I.E. Carbon Monitor",

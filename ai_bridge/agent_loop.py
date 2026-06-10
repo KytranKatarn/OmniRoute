@@ -140,9 +140,29 @@ def _check_existing_approval(
         was already pending. Fall back to the coarse check if the JSON
         fields are missing so we never bypass dedup entirely.
 
+      - ``linkedin_post`` dedups on ``(action_type, content)`` so distinct
+        posts (e.g. an EN and an FR launch announcement, or posts for
+        different accounts) can await approval simultaneously, while the
+        same text can never be queued twice (#3944).
+
       - All other action_types keep the original coarse check — one
         pending approval per action_type at a time.
     """
+    if action_type == "linkedin_post":
+        content = (action_data or {}).get("content")
+        if content:
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = %s
+                  AND status = 'pending'
+                  AND action_data->>'content' = %s
+                LIMIT 1
+                """,
+                (action_type, content),
+            )
+            return cur.fetchone() is not None
+
     if action_type == "contractor_dispatch":
         agent = (action_data or {}).get("agent")
         capability = (action_data or {}).get("capability")

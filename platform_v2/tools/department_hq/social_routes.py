@@ -430,7 +430,7 @@ def register_social_routes(bp, admin_required):
     def api_signal_pending_approvals():
         """Pending linkedin_post items from the approval queue.
 
-        Optional ?account=personal|company filters by post_type in action_data.
+        Optional ?account=personal|company|creed filters by post_type in action_data.
         """
         from database import get_db_cursor
 
@@ -451,6 +451,14 @@ def register_social_routes(bp, admin_required):
                            FROM autonomy_approval_queue
                            WHERE action_type = 'linkedin_post' AND status = 'pending'
                              AND action_data->>'post_type' IN ('company', 'company_page')
+                           ORDER BY priority DESC, created_at ASC LIMIT 20""",
+                    )
+                elif account == "creed":
+                    cur.execute(
+                        """SELECT id, action_type, action_data, reason, requested_by, priority, created_at
+                           FROM autonomy_approval_queue
+                           WHERE action_type = 'linkedin_post' AND status = 'pending'
+                             AND action_data->>'post_type' IN ('creed', 'creed_ai')
                            ORDER BY priority DESC, created_at ASC LIMIT 20""",
                     )
                 else:

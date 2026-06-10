@@ -505,6 +505,27 @@
         var delBtn = el("button", "cc-btn-sm", "Delete");
         delBtn.addEventListener("click", function () { if (window.confirm("Delete this asset?")) deleteMkt(a.id); });
         actions.appendChild(saveBtn); actions.appendChild(copyBtn); actions.appendChild(apprBtn); actions.appendChild(delBtn);
+        if (a.channel === "linkedin") {
+          // #3944 — publishing is owned by S.I.G.N.A.L.: this queues the post
+          // for human approval (DHQ Social tab / Telegram), Creed-AI account.
+          var sigBtn = el("button", "cc-btn-sm",
+            a.gen_status === "sent_to_signal" ? "✓ Queued — re-send to S.I.G.N.A.L." : "Send to S.I.G.N.A.L. →");
+          sigBtn.addEventListener("click", function () {
+            sigBtn.disabled = true;
+            fetch("/tools/creed-command/api/marketing/" + a.id + "/send-to-signal", { method: "POST" })
+              .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+              .then(function (res) {
+                sigBtn.disabled = false;
+                if (res.ok) { loadMarketing(); }
+                else {
+                  sigBtn.textContent = (res.d && res.d.error) || "Failed";
+                  setTimeout(function () { sigBtn.textContent = "Send to S.I.G.N.A.L. →"; }, 3000);
+                }
+              })
+              .catch(function () { sigBtn.disabled = false; });
+          });
+          actions.appendChild(sigBtn);
+        }
         actions.appendChild(el("span", "right", a.updated_at ? fmtAt(a.updated_at) : ""));
         card.appendChild(actions);
       }

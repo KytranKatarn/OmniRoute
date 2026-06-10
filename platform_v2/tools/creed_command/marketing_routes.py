@@ -219,3 +219,58 @@ def register_marketing_routes(bp, admin_required):
         except Exception as e:
             logger.error("marketing_delete failed: %s", e)
             return jsonify({"error": "could not delete"}), 500
+
+    @bp.route("/api/marketing/<int:asset_id>/send-to-signal", methods=["POST"])
+    @login_required
+    @admin_required
+    def marketing_send_to_signal(asset_id):
+        """Hand a finished LinkedIn asset to S.I.G.N.A.L.'s approval queue (#3944).
+
+        Generation lives in this module; PUBLISHING is owned by S.I.G.N.A.L. —
+        this files a Tier-2 'linkedin_post' approval with post_type='creed'
+        (the Creed-AI company page). A human approves it in the DHQ Social tab
+        or via Telegram before anything is posted.
+        """
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT * FROM creed_marketing_assets WHERE id=%s", (asset_id,))
+                r = cur.fetchone()
+        except Exception as e:
+            logger.error("send_to_signal load %s failed: %s", asset_id, e)
+            return jsonify({"error": "load failed"}), 500
+        if not r:
+            return jsonify({"error": "not found"}), 404
+        asset = _row(r)
+        if asset["channel"] != "linkedin":
+            return jsonify({"error": "only LinkedIn assets can be sent to S.I.G.N.A.L."}), 400
+        content = (asset.get("content") or "").strip()
+        if not content or asset["gen_status"] not in ("done", "sent_to_signal"):
+            return jsonify({"error": "asset has no finished content"}), 400
+
+        from ai_bridge.agent_loop import request_approval
+
+        approval_id = request_approval(
+            action_type="linkedin_post",
+            action_data={
+                "content": content,
+                "hashtags": [],
+                "post_type": "creed",
+                "source": "creed_command_marketing",
+                "asset_id": asset_id,
+            },
+            reason=f"⚖️ C.R.E.E.D. marketing asset #{asset_id} → Creed-AI LinkedIn page:\n\n{content[:1500]}",
+            tier=2,
+            requested_by="E.T.H.O.S. (CREED Command)",
+            priority=6,
+        )
+        if not approval_id:
+            return jsonify({"error": "not queued — this exact post is already awaiting approval"}), 409
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE creed_marketing_assets SET gen_status='sent_to_signal', updated_at=now() WHERE id=%s",
+                    (asset_id,),
+                )
+        except Exception as e:
+            logger.error("send_to_signal mark %s failed: %s", asset_id, e)
+        return jsonify({"success": True, "approval_id": approval_id, "gen_status": "sent_to_signal"})

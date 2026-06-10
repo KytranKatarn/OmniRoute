@@ -199,6 +199,18 @@ def register_scout_routes(bp, admin_required):
             out["profiles"].append(row)
         return jsonify(out)
 
+    @bp.route("/api/scout/sessions/probe", methods=["POST"])
+    @admin_required
+    def api_scout_sessions_probe():
+        """Manually run the cookie-session health probe (same path as the 4h
+        job). READ-probes active sessions; stale ones flip status."""
+        from services.browser_profile_service import run_session_health_probe
+
+        try:
+            return jsonify({"success": True, "results": run_session_health_probe()})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/scout/sessions/<int:agent_id>/<platform>/expire", methods=["POST"])
     @admin_required
     def api_scout_session_expire(agent_id, platform):

@@ -109,6 +109,39 @@ def load_session(agent_id: int, platform: str) -> Optional[Dict[str, Any]]:
     return decrypt_state(bytes(row["encrypted_state"]))
 
 
+def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None) -> None:
+    """Stamp a health-probe result (#3708 phase 2). On failure also flips the
+    session to 'stale' so skills stop trusting it; on success clears the
+    failure reason without touching an already-imported active state."""
+    with get_db_cursor(commit=True) as (_conn, cur):
+        if ok:
+            cur.execute(
+                """UPDATE browser_sessions
+                      SET last_probe_at = NOW(), last_probe_ok = TRUE,
+                          last_failure_reason = NULL, updated_at = NOW()
+                    WHERE agent_id = %s AND platform = %s""",
+                (agent_id, platform),
+            )
+        else:
+            cur.execute(
+                """UPDATE browser_sessions
+                      SET last_probe_at = NOW(), last_probe_ok = FALSE,
+                          status = 'stale',
+                          last_failure_reason = %s, updated_at = NOW()
+                    WHERE agent_id = %s AND platform = %s""",
+                (reason or "probe failed", agent_id, platform),
+            )
+
+
+def list_active_sessions() -> list:
+    """(agent_id, platform) for every active session — drives the probe job."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            "SELECT agent_id, platform FROM browser_sessions WHERE status = 'active'"
+        )
+        return [(r["agent_id"], r["platform"]) for r in cur.fetchall()]
+
+
 def mark_stale(agent_id: int, platform: str, reason: str) -> None:
     """Mark a session as stale with a failure reason."""
     with get_db_cursor(commit=True) as (_conn, cur):

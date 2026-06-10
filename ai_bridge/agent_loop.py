@@ -489,6 +489,20 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # Cookie-session health probe (#3708 phase 2) — every 4h, READ-probe
+        # each active cookie session; stale ones flip status so skills stop
+        # trusting expired cookies. Persistent profiles use keep-warm instead.
+        self.scheduler.add_job(
+            with_app_context(self._browser_session_health_probe),
+            trigger=IntervalTrigger(hours=4),
+            id="browser_session_health_probe",
+            name="S.C.O.U.T.: Cookie Session Health Probe",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         # S.I.G.N.A.L. comment pipeline (#3992) — poll watched post threads
         # (READ) then draft replies for new comments (Tier-2 Telegram gate).
         self.scheduler.add_job(
@@ -3698,6 +3712,18 @@ class AgentLoop:
                 logger.info(f"[signal-calendar] daily release: {result}")
         except Exception as e:
             logger.error(f"[signal-calendar] daily release failed: {e}")
+
+    def _browser_session_health_probe(self):
+        """#3708 phase 2: READ-probe each active cookie session; stale ones flip."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.browser_profile_service import run_session_health_probe
+
+            run_session_health_probe()
+        except Exception as e:
+            logger.error(f"[session-probe] job failed: {e}")
 
     def _browser_profile_keepwarm(self):
         """#3982: daily READ through each established browser profile."""

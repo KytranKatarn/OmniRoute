@@ -68,7 +68,9 @@ async function _scoutLoadSessions() {
     + '<p style="font-size:0.7rem;color:rgba(255,255,255,0.5);margin:0 0 6px">Managed in S.I.G.N.A.L. → 🔐 Session. Kept warm daily at 12:30 ET.</p>'
     + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><thead><tr><th>Agent</th><th>Platform</th><th>Profile</th></tr></thead>'
     + '<tbody>' + (profRows || '<tr><td colspan="3">none</td></tr>') + '</tbody></table>'
-    + '<h4 style="margin:0 0 6px">COOKIE SESSIONS (encrypted storage_state)</h4>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px">'
+    + '<h4 style="margin:0">COOKIE SESSIONS (encrypted storage_state)</h4>'
+    + '<button class="dhq-btn" style="font-size:0.6rem" onclick="scoutProbeSessions()">↻ Probe now</button></div>'
     + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><thead><tr>'
     + '<th>Agent</th><th>Platform</th><th>Status</th><th>Last used</th><th>Probe</th><th>Size</th><th></th>'
     + '</tr></thead><tbody>' + (sessRows || '<tr><td colspan="7">none</td></tr>') + '</tbody></table>'
@@ -90,6 +92,16 @@ async function _scoutLoadSessions() {
       scoutExpireSession(parseInt(b.dataset.agent, 10), b.dataset.platform);
     });
   });
+}
+
+async function scoutProbeSessions() {
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/sessions/probe', { method: 'POST' });
+    var d = await r.json();
+    var n = d.results ? Object.keys(d.results).length : 0;
+    alert('Probed ' + n + ' active session(s) — see updated statuses.');
+  } catch (e) { alert('Probe failed: ' + e); }
+  await _scoutLoadSessions();
 }
 
 async function scoutExpireSession(agentId, platform) {

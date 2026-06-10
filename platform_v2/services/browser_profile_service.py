@@ -62,3 +62,30 @@ def run_keepwarm() -> dict:
             logger.warning("[keepwarm] %s %s", key, results[key])
     logger.info("[keepwarm] %s", results)
     return results
+
+
+def run_session_health_probe() -> dict:
+    """#3708 phase 2 — health-probe every ACTIVE cookie session by running its
+    platform's READ-only skill through the stored storage_state. Records the
+    result (last_probe_at/ok); a failed probe flips the session to 'stale' so
+    skills + the vault stop trusting expired cookies. Platforms with no READ
+    skill are skipped (can't probe what we can't read)."""
+    from services import browser_session_service
+    from services.browser_service import run_skill_sync
+
+    results = {}
+    for agent_id, platform in browser_session_service.list_active_sessions():
+        key = f"{agent_id}-{platform}"
+        if platform not in WARM_SKILLS:
+            results[key] = "no probe skill for platform — skipped"
+            continue
+        skill, params = WARM_SKILLS[platform]
+        res = run_skill_sync(skill, dict(params), agent_id=agent_id, timeout_s=120)
+        ok = bool(res.get("success"))
+        reason = None if ok else str(res.get("error") or res.get("_status") or "probe failed")[:200]
+        browser_session_service.record_probe(agent_id, platform, ok, reason)
+        results[key] = "ok" if ok else f"STALE: {reason}"
+        if not ok:
+            logger.warning("[session-probe] %s flipped stale: %s", key, reason)
+    logger.info("[session-probe] %s", results)
+    return results

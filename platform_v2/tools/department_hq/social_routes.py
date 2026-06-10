@@ -15,7 +15,7 @@ Endpoints:
   GET    /api/social/stats                          -- Social presence stats
 """
 
-from flask import current_app, jsonify, request
+from flask import jsonify, request
 from flask_login import current_user
 from services.agent_service import get_agent
 from services.agent_social_service import (
@@ -55,6 +55,33 @@ VALID_TONES = (
 
 def register_social_routes(bp, admin_required):
     """Register agent social presence routes on the blueprint."""
+
+    # ── LinkedIn comment monitor (READ scope, #3964) ─────────────
+    @bp.route("/api/social/linkedin/comments")
+    @admin_required
+    def api_linkedin_comments():
+        """List ingested LinkedIn comments (read scope). ?unseen=1 filters."""
+        from services import linkedin_comment_monitor as mon
+
+        unseen = request.args.get("unseen") in ("1", "true", "yes")
+        limit = min(int(request.args.get("limit", 50)), 200)
+        return jsonify({"success": True, "comments": mon.list_recent_comments(limit=limit, unseen_only=unseen)})
+
+    @bp.route("/api/social/linkedin/comments/refresh", methods=["POST"])
+    @admin_required
+    def api_linkedin_comments_refresh():
+        """Trigger a READ-only comment poll. Body: {urls?: [post_url, ...]}.
+
+        Seeds from linkedin_post_log + any explicit urls (e.g. a thread we
+        commented on). Posts nothing. Synchronous; small N by design.
+        """
+        from services import linkedin_comment_monitor as mon
+
+        body = request.get_json(silent=True) or {}
+        extra = body.get("urls") or []
+        if not isinstance(extra, list):
+            return jsonify({"success": False, "error": "urls must be a list"}), 400
+        return jsonify({"success": True, **mon.run_comment_monitor(extra_urls=extra)})
 
     # ── Social Profiles ──────────────────────────────────────────
 

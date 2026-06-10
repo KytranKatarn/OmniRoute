@@ -19,7 +19,6 @@ Usage:
 import logging
 import os
 import time
-from typing import Optional
 
 import requests
 
@@ -212,6 +211,15 @@ def linkedin_share(
 
 def linkedin_first_comment(post_url: str, comment: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:
     return run_skill_sync("linkedin_first_comment", {"post_url": post_url, "comment": comment}, agent_id, timeout_s=90)
+
+
+def linkedin_post_comments(post_url: str, limit: int = 50, agent_id: int = DEFAULT_AGENT_ID) -> dict:
+    """READ-only: scrape the comment thread on a post (#3964 read scope).
+
+    Returns {success, post_url, total, comments:[{urn, author, headline, text,
+    timestamp, is_reply}]}. Posts nothing — does not trip the step-up wall.
+    """
+    return run_skill_sync("linkedin_post_comments", {"post_url": post_url, "limit": limit}, agent_id, timeout_s=120)
 
 
 def linkedin_article(title: str, body: str, cover_image_path: str = "", agent_id: int = DEFAULT_AGENT_ID) -> dict:

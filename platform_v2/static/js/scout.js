@@ -35,7 +35,13 @@ async function _scoutLoadSessions() {
     el.innerHTML = '<div class="dhq-empty">Session vault unavailable</div>';
     return;
   }
-  var esc2 = (typeof esc === 'function') ? esc : function(s) { return String(s == null ? '' : s); };
+  // Real escaper fallback — an identity function would silently disable
+  // escaping if the shared esc() global is ever missing.
+  var esc2 = (typeof esc === 'function') ? esc : function(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  };
   var profRows = (d.profiles || []).map(function(p) {
     return '<tr><td>' + p.agent_id + '</td><td>' + esc2(p.platform) + '</td><td>'
       + (p.profile_established ? '<span style="color:#22c55e">● ESTABLISHED</span>'
@@ -53,7 +59,7 @@ async function _scoutLoadSessions() {
       + '<td style="font-size:0.65rem">' + esc2(String(s.last_used_at || '—').slice(0, 16)) + '</td>'
       + '<td style="font-size:0.65rem">' + (s.last_probe_ok === true ? '✓' : (s.last_probe_ok === false ? '✗' : '—')) + '</td>'
       + '<td style="font-size:0.65rem">' + (s.state_bytes ? Math.round(s.state_bytes / 1024) + ' KB' : '—') + '</td>'
-      + '<td><button class="dhq-btn" style="font-size:0.6rem" onclick="scoutExpireSession(' + s.agent_id + ',\'' + esc2(s.platform) + '\')">Expire</button></td>'
+      + '<td><button class="dhq-btn scout-expire-btn" style="font-size:0.6rem" data-agent="' + Number(s.agent_id) + '" data-platform="' + esc2(s.platform) + '">Expire</button></td>'
       + '</tr>';
   }).join('');
   el.classList.remove('dhq-loading');
@@ -77,6 +83,13 @@ async function _scoutLoadSessions() {
     + '<button class="dhq-btn dhq-btn-primary" onclick="scoutImportCookies()">Import</button>'
     + '<span id="scoutImpStatus" style="font-size:0.7rem;color:#94a3b8"></span>'
     + '</div>';
+  // Bind expire handlers via dataset — never string-concatenated inline JS
+  // (HTML entity escaping does not protect a JS-in-attribute context).
+  el.querySelectorAll('.scout-expire-btn').forEach(function(b) {
+    b.addEventListener('click', function() {
+      scoutExpireSession(parseInt(b.dataset.agent, 10), b.dataset.platform);
+    });
+  });
 }
 
 async function scoutExpireSession(agentId, platform) {

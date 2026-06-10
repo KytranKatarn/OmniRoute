@@ -63,6 +63,11 @@ def register_social_routes(bp, admin_required):
     # S.I.G.N.A.L. SESSION sub-tab.
     _LOGIN_SIDECAR = "http://archie_browser_login:4281"
 
+    def _sidecar_headers():
+        import os as _os
+
+        return {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+
     @bp.route("/api/social/linkedin/session-status")
     @admin_required
     def api_linkedin_session_status():
@@ -84,7 +89,12 @@ def register_social_routes(bp, admin_required):
         except Exception as exc:
             out["db_session_error"] = str(exc)
         try:
-            r = _rq.get(f"{_LOGIN_SIDECAR}/status", params={"agent_id": agent_id, "platform": "linkedin"}, timeout=5)
+            r = _rq.get(
+                f"{_LOGIN_SIDECAR}/status",
+                params={"agent_id": agent_id, "platform": "linkedin"},
+                headers=_sidecar_headers(),
+                timeout=5,
+            )
             out["login_surface"] = r.json()
         except Exception as exc:
             out["login_surface"] = None
@@ -107,6 +117,7 @@ def register_social_routes(bp, admin_required):
             r = _rq.post(
                 f"{_LOGIN_SIDECAR}/start",
                 json={"agent_id": int(body.get("agent_id", 342)), "platform": "linkedin"},
+                headers=_sidecar_headers(),
                 timeout=10,
             )
             return jsonify(r.json()), r.status_code
@@ -119,10 +130,37 @@ def register_social_routes(bp, admin_required):
         import requests as _rq
 
         try:
-            r = _rq.post(f"{_LOGIN_SIDECAR}/stop", timeout=25)
+            r = _rq.post(f"{_LOGIN_SIDECAR}/stop", headers=_sidecar_headers(), timeout=25)
             return jsonify(r.json()), r.status_code
         except Exception as exc:
             return jsonify({"stopped": False, "error": f"sidecar unreachable: {type(exc).__name__}"}), 502
+
+    @bp.route("/api/social/linkedin/credentials", methods=["POST"])
+    @admin_required
+    def api_linkedin_credentials():
+        """Store LinkedIn login encrypted (AES-GCM, NOT .env) — store-only, no
+        login attempt. Answers 'where do I put login info': the encrypted
+        browser credential store, surfaced from the Session tab."""
+        import os as _os
+        import requests as _rq
+
+        body = request.get_json(silent=True) or {}
+        username = (body.get("username") or "").strip()
+        password = body.get("password") or ""
+        agent_id = int(body.get("agent_id", 342))
+        if not username or not password:
+            return jsonify({"saved": False, "error": "username and password required"}), 400
+        try:
+            r = _rq.post(
+                "http://archie_browser:4242/session/credentials",
+                json={"agent_id": agent_id, "platform": "linkedin", "username": username, "password": password},
+                headers={"Authorization": f"Bearer {_os.getenv('BROWSER_API_KEY', 'internal')}"},
+                timeout=10,
+            )
+            ok = r.ok and (r.json() or {}).get("stored")
+            return jsonify({"saved": bool(ok), **(r.json() if r.content else {})}), (200 if ok else 502)
+        except Exception as exc:
+            return jsonify({"saved": False, "error": f"browser worker unreachable: {type(exc).__name__}"}), 502
 
     # ── LinkedIn comment monitor (READ scope, #3964) ─────────────
     @bp.route("/api/social/linkedin/comments")

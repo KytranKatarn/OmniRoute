@@ -1049,6 +1049,9 @@ services:
       # REQUIRED (no `:-` default) — entrypoint fails closed without it, so a
       # no-auth VNC can never expose the owner's live LinkedIn session.
       - BROWSER_VNC_PASSWORD=${BROWSER_VNC_PASSWORD:?BROWSER_VNC_PASSWORD must be set in .env}
+      # Bearer-token auth on the supervisor API (:4281). Same key the platform
+      # already holds, so only archie_platform can drive start/stop/status.
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set in .env}
       - LOGIN_IDLE_TIMEOUT=900
     volumes:
       - /mnt/data2/browser-profiles:/profiles

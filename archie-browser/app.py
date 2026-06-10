@@ -140,6 +140,30 @@ def create_app(testing=False):
             logger.error("session_setup failed: %s", type(exc).__name__)
             return jsonify({"error": str(exc)}), 500
 
+    @app.post("/session/credentials")
+    def session_credentials():
+        """Store encrypted login credentials WITHOUT attempting a login (#3953).
+
+        For the persistent-trusted-profile world the actual login is a one-time
+        human step in noVNC; a headless login here would just hit the step-up
+        wall. This only persists the creds (AES-GCM via BROWSER_ENCRYPTION_KEY)
+        for the worker's re-login fallback. No browser is launched.
+        """
+        data = request.get_json(silent=True) or {}
+        agent_id = data.get("agent_id")
+        platform = data.get("platform")
+        username = data.get("username")
+        password = data.get("password")
+        if not all([agent_id, platform, username, password]):
+            return jsonify({"error": "agent_id, platform, username, password required"}), 400
+        try:
+            import session_manager
+            session_manager.save_credentials(int(agent_id), platform, username, password)
+            return jsonify({"stored": True, "platform": platform, "agent_id": int(agent_id)})
+        except Exception as exc:
+            logger.error("session_credentials failed: %s", type(exc).__name__)
+            return jsonify({"error": str(exc)}), 500
+
     @app.post("/session/<int:agent_id>/<platform>/refresh")
     def refresh_session(agent_id, platform):
         try:

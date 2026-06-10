@@ -2176,8 +2176,37 @@ async function renderSignalSession(el) {
         + 'device fingerprint and all posting flows use it automatically. Auto-stops after '
         + Math.round((ls.idle_timeout_s || 900) / 60) + ' min idle.</p>'
         + (d.login_surface_error ? '<p class="dhq-empty" style="text-align:left;color:#f59e0b">Login surface: ' + esc(d.login_surface_error) + '</p>' : '')
+        + '<hr style="border:none;border-top:1px solid #1e293b;margin:18px 0">'
+        + '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 6px">STORE LINKEDIN LOGIN (encrypted)</h4>'
+        + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">Stored AES-encrypted in the browser credential store — NOT in .env. '
+        + 'Used by the fleet for automated re-login; the one-time trusted login above is still done by hand in noVNC.</p>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:560px">'
+        + '<input id="liCredUser" type="text" autocomplete="off" placeholder="LinkedIn email" '
+        + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
+        + '<input id="liCredPass" type="password" autocomplete="new-password" placeholder="LinkedIn password" '
+        + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
+        + '<button class="dhq-btn" onclick="signalSaveLinkedInCreds()">Save encrypted</button>'
+        + '<span id="liCredStatus" style="font-size:0.78rem;color:#94a3b8"></span>'
+        + '</div>'
         + '</div>';
     setHtml(el, html);
+}
+
+async function signalSaveLinkedInCreds() {
+    var u = document.getElementById('liCredUser');
+    var p = document.getElementById('liCredPass');
+    var st = document.getElementById('liCredStatus');
+    if (!u.value.trim() || !p.value) { st.textContent = 'Enter email + password.'; st.style.color = '#fca5a5'; return; }
+    st.textContent = 'Saving…'; st.style.color = '#94a3b8';
+    try {
+        var r = await fetch('/tools/department-hq/api/social/linkedin/credentials', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: u.value.trim(), password: p.value })
+        });
+        var d = await r.json();
+        if (d.saved) { st.textContent = '✓ Stored encrypted'; st.style.color = '#34d399'; p.value = ''; }
+        else { st.textContent = d.error || 'Save failed'; st.style.color = '#fca5a5'; }
+    } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
 }
 
 async function signalSessionLoginStart() {

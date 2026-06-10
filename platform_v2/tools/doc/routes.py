@@ -39,6 +39,16 @@ logger = logging.getLogger(__name__)
 # Dr. Amara - Medical Advisor agent ID
 MEDICAL_AGENT_ID = 36
 
+MEDICAL_DISCLAIMER = (
+    "*Remember: This is general information only. Please consult a healthcare professional "
+    "for personal medical advice.*"
+)
+EMERGENCY_APPENDIX = (
+    "*Emergency warning: Symptoms such as chest pain, stroke symptoms, or signs of a heart "
+    "attack can be life-threatening. If this may be an emergency, call 911 immediately.*"
+)
+EMERGENCY_KEYWORDS = ("chest pain", "stroke", "heart attack")
+
 # System prompt for medical AI
 MEDICAL_SYSTEM_PROMPT = """You are DOC, a helpful medical AI assistant. You provide general health information and guidance.
 
@@ -60,6 +70,25 @@ You can help with:
 - Mental health awareness
 
 Keep responses helpful but concise. Format with bullet points when listing multiple items."""
+
+
+def _finalize_medical_response(response, source_text=""):
+    """Apply mandatory DOC safety language after model generation."""
+    finalized = (response or "").strip()
+    lower_response = finalized.lower()
+
+    if "consult a healthcare professional" not in lower_response:
+        finalized = f"{finalized}\n\n{MEDICAL_DISCLAIMER}" if finalized else MEDICAL_DISCLAIMER
+        lower_response = finalized.lower()
+
+    emergency_text = f"{source_text or ''}\n{finalized}".lower()
+    if (
+        any(keyword in emergency_text for keyword in EMERGENCY_KEYWORDS)
+        and EMERGENCY_APPENDIX.lower() not in lower_response
+    ):
+        finalized = f"{finalized}\n\n{EMERGENCY_APPENDIX}"
+
+    return finalized
 
 
 @doc_bp.route("/")
@@ -112,9 +141,7 @@ def chat():
             logger.error("DOC dispatch_json returned empty response")
             return jsonify({"success": False, "error": "AI service temporarily unavailable"}), 503
 
-        # Add disclaimer if not present
-        if "consult" not in ai_response.lower() and "healthcare" not in ai_response.lower():
-            ai_response += "\n\n*Remember: This is general information only. Please consult a healthcare professional for personal medical advice.*"
+        ai_response = _finalize_medical_response(ai_response, message)
 
         return jsonify(
             {
@@ -186,6 +213,8 @@ Remember to emphasize consulting a healthcare professional."""
 
         if not analysis:
             return jsonify({"success": False, "error": "Analysis service unavailable"}), 503
+
+        analysis = _finalize_medical_response(analysis, str(symptoms))
 
         return jsonify(
             {

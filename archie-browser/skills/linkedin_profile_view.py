@@ -104,8 +104,10 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(500)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     screenshot_path = f"{_SCREENSHOTS_DIR}/linkedin_profile_{ts}.png"
-    page.screenshot(path=screenshot_path, full_page=False)
-
+    try:
+        page.screenshot(path=screenshot_path, full_page=False, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     return {
         "success": True,
         "profile_url": clean_url,

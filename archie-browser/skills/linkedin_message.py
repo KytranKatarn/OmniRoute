@@ -23,8 +23,10 @@ def execute(page, params: dict) -> dict:
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     screenshot_path = f"{_SCREENSHOTS_DIR}/linkedin_message_{ts}.png"
-    page.screenshot(path=screenshot_path)
-
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     # Click Message button
     clicked = False
     for attempt in [
@@ -70,8 +72,13 @@ def execute(page, params: dict) -> dict:
     editor.fill(message, timeout=10000)
     page.wait_for_timeout(1000)
 
-    page.screenshot(path=screenshot_path)
+    try:
 
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+
+    except Exception:
+
+        pass
     # Send
     for send_sel in [
         lambda: page.get_by_role("button", name="Send", exact=True).last.click(timeout=8000),
@@ -85,8 +92,10 @@ def execute(page, params: dict) -> dict:
             continue
 
     page.wait_for_timeout(2000)
-    page.screenshot(path=screenshot_path)
-
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     return {
         "success": True,
         "result": f"Message sent ({len(message)} chars)",

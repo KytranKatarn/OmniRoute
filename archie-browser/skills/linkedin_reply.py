@@ -10,9 +10,15 @@ os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
 
 
 def _screenshot(page, name):
+    # Diagnostic only — non-fatal. Bare page.screenshot() times out at 30s on
+    # LinkedIn's animated composer and falsely fails posts (#3953). 5s timeout
+    # + animations disabled + swallow errors.
     path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
-    page.screenshot(path=path)
-    return path
+    try:
+        page.screenshot(path=path, timeout=5000, animations="disabled")
+        return path
+    except Exception:
+        return None
 
 
 def execute(page, params: dict) -> dict:

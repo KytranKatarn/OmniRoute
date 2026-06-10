@@ -21,8 +21,10 @@ def execute(page, params: dict) -> dict:
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     screenshot_path = f"{_SCREENSHOTS_DIR}/linkedin_connect_{ts}.png"
-    page.screenshot(path=screenshot_path)
-
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     # Try direct Connect button first
     clicked = False
     for attempt in [
@@ -90,8 +92,10 @@ def execute(page, params: dict) -> dict:
             continue
 
     page.wait_for_timeout(2000)
-    page.screenshot(path=screenshot_path)
-
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     return {
         "success": True,
         "result": "Connection request sent",

@@ -18,8 +18,10 @@ def execute(page, params: dict) -> dict:
 
     page.goto("https://developers.facebook.com/apps/", wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
-    page.screenshot(path=screenshot_path)
-
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     if action == "screenshot":
         return {
             "success": True,
@@ -55,7 +57,10 @@ def execute(page, params: dict) -> dict:
         page.wait_for_timeout(500)
         page.locator('button:text("Create App"), button[type="submit"]').first.click(timeout=10000)
         page.wait_for_timeout(4000)
-        page.screenshot(path=screenshot_path)
+        try:
+            page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+        except Exception:
+            pass
         logger.info("meta_portal_setup: created app '%s'", app_name)
         return {
             "success": True,

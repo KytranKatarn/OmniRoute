@@ -159,6 +159,32 @@ def _click_settings_dialog_button(page, label: str) -> bool:
     return False
 
 
+def _capture_page_post_url(page, slug):
+    # Best-effort, non-fatal: read the page's PUBLIC posts feed for the newest
+    # post link. Never use /admin/ paths (auth-wall + drafts mixed with
+    # published — KB mistake). Empty string on any failure.
+    if not slug:
+        return ""
+    try:
+        page.goto(
+            f"https://www.linkedin.com/company/{slug}/posts/",
+            wait_until="domcontentloaded",
+            timeout=15000,
+        )
+        page.wait_for_timeout(2500)
+        href = (
+            page.locator('a[href*="feed/update/"]').first.get_attribute(
+                "href", timeout=4000
+            )
+            or ""
+        )
+        if "feed/update" in href:
+            return href.split("?")[0]
+    except Exception:
+        pass
+    return ""
+
+
 def execute(page, params: dict) -> dict:
     content = params.get("content", "").strip()
     hashtags = params.get("hashtags", [])
@@ -290,6 +316,8 @@ def execute(page, params: dict) -> dict:
         "success": True,
         "result": f"Posted {len(content)} characters as {matched} via /feed/ + actor switcher",
         "actor": matched,
-        "post_url": "",  # Page-post URL capture left for follow-up; main goal is publish.
+        "post_url": _capture_page_post_url(
+            page, os.getenv("LINKEDIN_CREED_SLUG", "115977300")
+        ),
         "screenshot_path": final,
     }

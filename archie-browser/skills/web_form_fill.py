@@ -56,8 +56,13 @@ def execute(page, params: dict) -> dict:
             submit_error = type(exc).__name__
             logger.warning("web_form_fill: submit click failed: %s", submit_error)
 
-    page.screenshot(path=screenshot_path)
+    try:
 
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+
+    except Exception:
+
+        pass
     return {
         "success": True,
         "result": f"Filled {filled_count}/{len(fields)} fields on {url}",

@@ -445,6 +445,7 @@ class AgentLoop:
             replace_existing=True,
             max_instances=1,
             coalesce=True,
+            misfire_grace_time=120,
         )
 
         self.scheduler.add_job(
@@ -3705,6 +3706,17 @@ class AgentLoop:
             approved = cur.fetchall()
 
             for item in approved:
+                # Stuck-job guard: a string of slow browser/LLM items (120-180s
+                # each, up to 10/batch) can wedge this max_instances=1 job for
+                # ~30 min — every 60s tick then logs "max instances reached"
+                # and the queue looks stuck (2026-06-10 FR post incident). Cap
+                # the batch; remaining items run on the next tick.
+                if time.time() - start > 240:
+                    logger.warning(
+                        "[approval_queue] batch deadline (240s) hit after "
+                        f"{processed} item(s) — deferring rest to next tick"
+                    )
+                    break
                 try:
                     result = self._execute_approved_action(cur, conn, item)
                     cur.execute(

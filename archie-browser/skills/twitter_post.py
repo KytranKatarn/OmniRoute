@@ -26,8 +26,10 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(500)
 
     # Screenshot before submitting
-    page.screenshot(path=screenshot_path)
-
+    try:
+        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
+    except Exception:
+        pass
     # Click the Post/Tweet button
     page.locator('[data-testid="tweetButtonInline"]').click(timeout=10000)
     page.wait_for_timeout(3000)

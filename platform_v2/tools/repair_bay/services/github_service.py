@@ -132,6 +132,68 @@ def _run_git(args: List[str], timeout: int = 60) -> Tuple[bool, str, str]:
 
 
 # ============================================================================
+# CONTAINER-LOCAL CLONE — pipeline branch/push ops (task #3926)
+# ============================================================================
+# The platform/scheduler containers run as ROOT while REPO_PATH is owned by
+# the host user (uid 1000): git refuses with dubious-ownership, and "fixing"
+# that via safe.directory would root-poison the host .git on every write.
+# Instead, ALL local-git writes happen in this throwaway shallow clone on the
+# container's /tmp tmpfs — the shared tree is never touched. This supersedes
+# the #3919 busy-deferral for these ops; _primary_tree_busy remains available
+# for any future operation that genuinely must run in the primary checkout.
+
+CLONE_PATH = "/tmp/repair_bay_clone"
+CLONE_URL = f"https://github.com/{REPO_FULL}.git"
+
+
+def _run_git_clone(args: List[str], timeout: int = 120) -> Tuple[bool, str, str]:
+    """Run a git command inside the container-local clone (auth via _git_env)."""
+    try:
+        result = subprocess.run(
+            ["git"] + args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=CLONE_PATH,
+            env=_git_env(),
+        )
+        return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return False, "", f"git command timed out after {timeout}s"
+    except Exception as e:
+        return False, "", str(e)
+
+
+def _ensure_clone(base: str = "main") -> Optional[str]:
+    """Create/refresh the shallow blob-less clone. Returns an error string or None.
+
+    --depth 1 --filter=blob:none --no-checkout keeps it a few MB on the 512M
+    /tmp tmpfs; blobs are fetched on demand by the sparse checkout. A container
+    restart wipes /tmp — the clone is recreated lazily on next use.
+    """
+    import shutil
+
+    if not os.path.isdir(os.path.join(CLONE_PATH, ".git")):
+        try:
+            shutil.rmtree(CLONE_PATH, ignore_errors=True)
+            result = subprocess.run(
+                ["git", "clone", "--depth", "1", "--filter=blob:none",
+                 "--no-checkout", CLONE_URL, CLONE_PATH],
+                capture_output=True, text=True, timeout=300, env=_git_env(),
+            )
+            if result.returncode != 0:
+                return f"clone failed: {result.stderr.strip()[:300]}"
+        except Exception as e:
+            return f"clone failed: {e}"
+    ok, _, err = _run_git_clone(
+        ["fetch", "--depth", "1", "origin", f"+refs/heads/{base}:refs/remotes/origin/{base}"]
+    )
+    if not ok:
+        return f"fetch failed: {err[:300]}"
+    return None
+
+
+# ============================================================================
 # LABELS — ensure pipeline labels exist
 # ============================================================================
 
@@ -181,91 +243,101 @@ def _primary_tree_busy() -> Optional[str]:
 
 
 def create_branch(branch_name: str, base: str = "main") -> Dict:
-    """Create a new branch from base and push it."""
-    busy = _primary_tree_busy()
-    if busy:
-        return {
-            "success": False,
-            "deferred": True,
-            "error": f"primary checkout busy ({busy}) — deferred to protect interactive work (task #3919)",
-        }
+    """Create a new branch from origin/<base> and push it.
 
-    # Fetch latest
-    ok, out, err = _run_git(["fetch", "origin", base])
+    Task #3926: operates entirely in the container-local clone — server-side
+    ref creation via push of the fetched base tip. No working tree, and the
+    shared REPO_PATH checkout is never touched.
+    """
+    err = _ensure_clone(base)
+    if err:
+        return {"success": False, "error": err}
+
+    ok, out, _ = _run_git_clone(["ls-remote", "--heads", "origin", branch_name])
+    if ok and out.strip():
+        return {"success": True, "branch": branch_name, "existed": True}
+
+    ok, out, err2 = _run_git_clone(
+        ["push", "origin", f"origin/{base}:refs/heads/{branch_name}"]
+    )
     if not ok:
-        return {"success": False, "error": f"Fetch failed: {err}"}
-
-    # Create branch from origin/base
-    ok, out, err = _run_git(["checkout", "-b", branch_name, f"origin/{base}"])
-    if not ok:
-        if "already exists" in err:
-            _run_git(["checkout", branch_name])
-            _run_git(["checkout", "main"])
-            return {"success": True, "branch": branch_name, "existed": True}
-        _run_git(["checkout", "main"])
-        return {"success": False, "error": f"Branch creation failed: {err}"}
-
-    # Push the branch
-    ok, out, err = _run_git(["push", "-u", "origin", branch_name])
-    _run_git(["checkout", "main"])
-
-    if not ok:
-        return {"success": False, "error": f"Push failed: {err}"}
-
+        return {"success": False, "error": f"Branch creation failed: {err2}"}
     return {"success": True, "branch": branch_name, "existed": False}
 
 
 def delete_branch(branch_name: str, remote: bool = True) -> Dict:
-    """Delete a branch locally and optionally on remote."""
-    _run_git(["branch", "-D", branch_name])
+    """Delete a branch in the local clone and optionally on remote (#3926)."""
+    if os.path.isdir(os.path.join(CLONE_PATH, ".git")):
+        _run_git_clone(["branch", "-D", branch_name])
     if remote:
-        _run_git(["push", "origin", "--delete", branch_name])
+        err = _ensure_clone()
+        if err:
+            return {"success": False, "error": err}
+        ok, _, err2 = _run_git_clone(["push", "origin", "--delete", branch_name])
+        if not ok:
+            # Was silently ignored before — surfaced during #3926 E2E when the
+            # test branch survived its own cleanup.
+            return {"success": False, "branch": branch_name, "error": f"remote delete failed: {err2[:200]}"}
     return {"success": True, "branch": branch_name}
 
 
 def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dict:
-    """Stage files, commit, and push to a branch."""
-    # Note: proposal files staged by this flow live in the working tree, so a
-    # dirty-tree state here can be the pipeline's OWN pending files. The branch
-    # check is the protection that matters for interactive sessions; only that
-    # blocks (a session mid-branch). The trailing 'checkout main' below is then
-    # safe — we only ever got here FROM main.
-    ok, branch, _ = _run_git(["rev-parse", "--abbrev-ref", "HEAD"])
-    if ok and branch.strip() not in ("main", branch_name):
-        return {
-            "success": False,
-            "deferred": True,
-            "error": (
-                f"primary checkout busy (on branch '{branch.strip()}') — "
-                "deferred to protect interactive work (task #3919)"
-            ),
-        }
+    """Stage files, commit, and push to a branch — in the local clone (#3926).
 
-    ok, out, err = _run_git(["checkout", branch_name])
+    File CONTENT comes from REPO_PATH, where the pipeline wrote it (READING
+    the shared tree is safe — we just never run git there): each listed path
+    is copied into the clone, or staged as a deletion when missing. Sparse
+    checkout of only the touched paths keeps tmpfs usage minimal.
+    """
+    import shutil
+
+    err = _ensure_clone()
+    if err:
+        return {"success": False, "error": err}
+
+    # Explicit refspec: a --depth 1 clone is single-branch, so a bare
+    # `fetch origin <branch>` lands only in FETCH_HEAD and never creates the
+    # origin/<branch> ref the checkout below needs.
+    ok, _, err2 = _run_git_clone(
+        ["fetch", "--depth", "1", "origin",
+         f"+refs/heads/{branch_name}:refs/remotes/origin/{branch_name}"]
+    )
     if not ok:
-        return {"success": False, "error": f"Checkout failed: {err}"}
+        return {"success": False, "error": f"Fetch of {branch_name} failed: {err2}"}
+    _run_git_clone(["sparse-checkout", "set", "--no-cone"] + list(files))
+    ok, _, err2 = _run_git_clone(["checkout", "-B", branch_name, f"origin/{branch_name}"])
+    if not ok:
+        return {"success": False, "error": f"Checkout failed: {err2}"}
 
-    try:
-        for f in files:
-            _run_git(["add", f])
+    for f in files:
+        src = os.path.join(REPO_PATH, f)
+        dst = os.path.join(CLONE_PATH, f)
+        if os.path.exists(src):
+            dst_dir = os.path.dirname(dst)
+            if dst_dir:
+                os.makedirs(dst_dir, exist_ok=True)
+            shutil.copy2(src, dst)
+            _run_git_clone(["add", f])
+        else:
+            _run_git_clone(["rm", "--ignore-unmatch", "-q", f])
 
-        # Check for staged changes
-        ok, out, err = _run_git(["diff", "--cached", "--quiet"])
-        if ok:
-            return {"success": True, "committed": False, "message": "No changes to commit"}
+    ok, _, _ = _run_git_clone(["diff", "--cached", "--quiet"])
+    if ok:
+        return {"success": True, "committed": False, "message": "No changes to commit"}
 
-        ok, out, err = _run_git(["commit", "-m", commit_message])
-        if not ok:
-            return {"success": False, "error": f"Commit failed: {err}"}
+    ok, out, err2 = _run_git_clone(
+        ["-c", "user.email=forge@kytranempowerment.com", "-c", "user.name=F.O.R.G.E.",
+         "commit", "-m", commit_message]
+    )
+    if not ok:
+        return {"success": False, "error": f"Commit failed: {err2}"}
 
-        ok, out, err = _run_git(["push", "origin", branch_name])
-        if not ok:
-            return {"success": False, "error": f"Push failed: {err}"}
+    ok, out, err2 = _run_git_clone(["push", "origin", branch_name])
+    if not ok:
+        return {"success": False, "error": f"Push failed: {err2}"}
 
-        ok, sha, _ = _run_git(["rev-parse", "HEAD"])
-        return {"success": True, "committed": True, "sha": sha, "branch": branch_name}
-    finally:
-        _run_git(["checkout", "main"])
+    ok, sha, _ = _run_git_clone(["rev-parse", "HEAD"])
+    return {"success": True, "committed": True, "sha": sha, "branch": branch_name}
 
 
 # ============================================================================

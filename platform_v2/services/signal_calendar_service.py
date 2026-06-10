@@ -198,3 +198,86 @@ def cancel_scheduled(post_id: int) -> bool:
             (post_id,),
         )
         return cur.fetchone() is not None
+
+
+_ACCOUNT_LABEL = {
+    "personal": "👤 Kytran Katarn",
+    "terry": "👤 Terry Caetano",
+    "company": "🏢 Kytran Empowerment Inc.",
+    "creed": "⚖️ Creed-AI",
+}
+
+_ACCOUNT_BROWSER_ID = {"personal": 342, "terry": 377, "company": 342, "creed": 342}
+
+
+def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
+    """Phase 2 (#3990): promote due scheduled posts into the linkedin_post
+    approval queue (Telegram human gate — nothing publishes from here).
+
+    At most ``max_per_account`` per run so an outage drains at the designed
+    1/day cadence instead of bursting every overdue post into approvals.
+    The existing content-keyed approval dedup still applies downstream.
+    """
+    import json as _json
+    import sys
+
+    sys.path.insert(0, "/app")
+    from ai_bridge.agent_loop import request_approval
+    from services.time_utils import now_utc
+
+    now_naive_utc = now_utc().replace(tzinfo=None)
+    summary: Dict[str, Any] = {a: 0 for a in ACCOUNTS}
+    for account in ACCOUNTS:
+        post_types = _ACCOUNT_TO_POST_TYPES[account]
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """SELECT id, content, post_type FROM agent_content_posts
+                   WHERE platform = 'linkedin' AND status = 'scheduled'
+                     AND post_type = ANY(%s) AND scheduled_at <= %s
+                   ORDER BY scheduled_at ASC
+                   LIMIT %s""",
+                (list(post_types), now_naive_utc, max_per_account),
+            )
+            due = [dict(r) for r in cur.fetchall()]
+            for row in due:
+                approval_id = request_approval(
+                    action_type="linkedin_post",
+                    action_data={
+                        "content": row["content"],
+                        "hashtags": [],  # already folded into content at backfill
+                        "post_type": row["post_type"],
+                        "browser_agent_id": _ACCOUNT_BROWSER_ID[account],
+                        "priority": 6,
+                    },
+                    reason=(
+                        f"📅 {_ACCOUNT_LABEL[account]} scheduled post (calendar):\n\n"
+                        f"{row['content'][:1500]}"
+                    ),
+                    tier=2,
+                    requested_by="S.I.G.N.A.L. calendar (daily release)",
+                    priority=6,
+                )
+                cur.execute(
+                    """UPDATE agent_content_posts
+                       SET status = 'released',
+                           engagement_stats = engagement_stats || %s::jsonb
+                       WHERE id = %s""",
+                    (
+                        _json.dumps(
+                            {
+                                "approval_id": approval_id,
+                                "released_at": now_utc().isoformat(),
+                            }
+                        ),
+                        row["id"],
+                    ),
+                )
+                summary[account] += 1
+                logger.info(
+                    "[signal-calendar] released post %s (%s) → approval %s",
+                    row["id"],
+                    account,
+                    approval_id,
+                )
+    total = sum(summary.values())
+    return {"total_released": total, "by_account": summary}

@@ -448,6 +448,20 @@ class AgentLoop:
             misfire_grace_time=120,
         )
 
+        # S.I.G.N.A.L. calendar daily release (#3990) — due scheduled posts →
+        # linkedin_post approval queue (Telegram gate). Slots are 09:00 ET, so
+        # release at 09:05 ET; wide misfire grace drains 1/account next run.
+        self.scheduler.add_job(
+            with_app_context(self._signal_calendar_release),
+            trigger=CronTrigger(hour=9, minute=5, timezone="America/Toronto"),
+            id="signal_calendar_release",
+            name="S.I.G.N.A.L.: Calendar Daily Release",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._archie_coo_approval_worker),
             trigger=IntervalTrigger(seconds=90),
@@ -3629,6 +3643,21 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # Approval Queue Processor
     # ------------------------------------------------------------------
+
+    def _signal_calendar_release(self):
+        """S.I.G.N.A.L. calendar Phase 2 (#3990): promote due scheduled posts
+        into the linkedin_post approval queue, 1/account/run."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.signal_calendar_service import release_due_posts
+
+            result = release_due_posts()
+            if result.get("total_released"):
+                logger.info(f"[signal-calendar] daily release: {result}")
+        except Exception as e:
+            logger.error(f"[signal-calendar] daily release failed: {e}")
 
     def _process_approval_queue(self):
         """Process the approval queue: execute approved, expire stale."""

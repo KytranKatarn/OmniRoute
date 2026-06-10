@@ -658,6 +658,20 @@ def register_social_routes(bp, admin_required):
         ok = signal_calendar_service.cancel_scheduled(post_id)
         return jsonify({"success": ok}), (200 if ok else 404)
 
+    @bp.route("/api/signal/calendar/release-now", methods=["POST"])
+    @admin_required
+    def api_signal_calendar_release_now():
+        """Manually run the daily release (due posts → approval queue).
+        Same path as the 09:05 ET job; still Telegram-gated downstream."""
+        from services import signal_calendar_service
+
+        try:
+            return jsonify(
+                {"success": True, **signal_calendar_service.release_due_posts()}
+            )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/signal/compose", methods=["POST"])
     @admin_required
     def api_signal_compose():

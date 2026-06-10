@@ -382,6 +382,35 @@ CAPABILITY_REQUIRES_SKILL = {
 }
 
 # Per-capability request timeout overrides (task #2130, 2026-04-18).
+# GPU-node affinity by capability (#3955, owner directive 2026-06-10).
+# Heavy 7B+ work (code review, research, doc-gen, translation, policy) is GPU-
+# bound; on the hub's 8GB Quadro a 7B cold-load can time out, and on CPU
+# outposts it crawls. Default such work to the GPU Starship cluster so EVERY
+# agent's heavy tasks prefer GPU — without each caller passing preferred_node.
+#
+# Applied ONLY when the caller passes preferred_node=None. It is a *preference*,
+# not a pin: the dispatcher's preferred_node loop skips offline/unfit nodes and
+# execution then continues to the agent's stationed node, then hub, then
+# (if allowed) cloud — so when the Starships are offline this is a no-op and
+# stationed CPU agents (E.T.H.O.S./C.O.D.E.X.) reach their nodes exactly as
+# before. Explicit preferred_node from a caller always wins.
+_GPU_CLUSTER = ["Starship-246", "Starship-245"]
+CAPABILITY_NODE_AFFINITY = {
+    "code_review": _GPU_CLUSTER,
+    "code": _GPU_CLUSTER,
+    "code_analysis": _GPU_CLUSTER,
+    "debug": _GPU_CLUSTER,
+    "research": _GPU_CLUSTER,
+    "research_synthesis": _GPU_CLUSTER,
+    "knowledge_analysis": _GPU_CLUSTER,
+    "analyze": _GPU_CLUSTER,
+    "documentation": _GPU_CLUSTER,
+    "summarize": _GPU_CLUSTER,
+    "summarization": _GPU_CLUSTER,
+    "translate": _GPU_CLUSTER,
+    "policy_assessment": _GPU_CLUSTER,
+}
+
 # S.P.E.C.T.R.A. audit: F.O.R.G.E. hit HTTPConnectionPool timeouts on the
 # default 300s for every code_analysis call — the model completes but runs
 # long on CPU nodes. Applies when request_work is called with the default
@@ -5250,6 +5279,14 @@ class DepartmentDispatcher:
         # caller timeouts (e.g., 120 for email_composition) are preserved.
         if timeout == 300 and capability in CAPABILITY_TIMEOUTS:
             timeout = CAPABILITY_TIMEOUTS[capability]
+
+        # GPU-node affinity default (#3955). Heavy 7B+ work prefers the GPU
+        # Starship cluster unless the caller pinned a node. A preference, not a
+        # pin: offline/unfit Starships are skipped and routing continues to the
+        # agent's stationed node, then hub, then cloud — so this is a no-op when
+        # the cluster is offline. Explicit preferred_node always wins.
+        if preferred_node is None and capability in CAPABILITY_NODE_AFFINITY:
+            preferred_node = list(CAPABILITY_NODE_AFFINITY[capability])
 
         # Force-refresh busy agents list (bypass 30s welfare cache TTL)
         try:

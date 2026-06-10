@@ -2148,10 +2148,17 @@ var SIGNAL_SESSION_IDENTITIES = [
 ];
 
 async function renderSignalSession(el) {
-    var blocks = await Promise.all(SIGNAL_SESSION_IDENTITIES.map(async function(idn) {
+    // Account-aware: the selected account's session card renders FIRST and is
+    // badged. terry = its own login (377); Kytran/KE/Creed all post through
+    // the Kytran session (342) via the actor switcher.
+    var activeId = (signalAccount === 'terry') ? 377 : 342;
+    var idns = SIGNAL_SESSION_IDENTITIES.slice().sort(function(a, b) {
+        return (b.agentId === activeId ? 1 : 0) - (a.agentId === activeId ? 1 : 0);
+    });
+    var blocks = await Promise.all(idns.map(async function(idn) {
         try {
             var r = await fetch('/tools/department-hq/api/social/linkedin/session-status?agent_id=' + idn.agentId);
-            return renderOneSignalSession(idn, await r.json());
+            return renderOneSignalSession(idn, await r.json(), idn.agentId === activeId);
         } catch (e) {
             return '<div class="dhq-empty" style="text-align:left">' + esc(idn.label) + ': status unavailable</div>';
         }
@@ -2162,7 +2169,7 @@ async function renderSignalSession(el) {
         + '</div>');
 }
 
-function renderOneSignalSession(idn, d) {
+function renderOneSignalSession(idn, d, isActive) {
     var aid = idn.agentId;
     var db = d.db_session || {};
     var ls = d.login_surface || {};
@@ -2170,7 +2177,13 @@ function renderOneSignalSession(idn, d) {
     var loginRunning = !!ls.login_browser_running;
     var novncUrl = 'http://' + location.hostname + ':4280/vnc.html';
 
-    return '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 4px">' + esc(idn.label) + '</h4>'
+    return '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 4px">' + esc(idn.label)
+        + (isActive
+            ? ' <span style="font-size:0.62rem;color:#0b1220;background:#22d3ee;border-radius:4px;'
+              + 'padding:2px 7px;vertical-align:middle;letter-spacing:1px">'
+              + esc(_signalAccountLabel(signalAccount)) + ' POSTS WITH THIS SESSION</span>'
+            : '')
+        + '</h4>'
         + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">' + esc(idn.note) + '</p>'
         + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><tbody>'
         + '<tr><td>Persistent profile (device-trusted)</td><td>'

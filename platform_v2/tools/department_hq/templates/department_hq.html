@@ -227,6 +227,7 @@
               <button class="dhq-btn scout-subtab-btn active" data-panel="jobs" onclick="scoutSubtab(this,'jobs')">All Jobs</button>
               <button class="dhq-btn scout-subtab-btn" data-panel="reports" onclick="scoutSubtab(this,'reports')">Reports (Review)</button>
               <button class="dhq-btn scout-subtab-btn" data-panel="procurement" onclick="scoutSubtab(this,'procurement')">Procurement</button>
+              <button class="dhq-btn scout-subtab-btn" data-panel="sessions" onclick="scoutSubtab(this,'sessions')">🔐 Sessions</button>
             </div>
             <div id="scout-panel-jobs" class="scout-subtab-panel">
               <table class="dhq-table" style="width:100%;">
@@ -245,6 +246,9 @@
             </div>
             <div id="scout-panel-procurement" class="scout-subtab-panel" style="display:none;">
               <div id="scout-procurement-list"></div>
+            </div>
+            <div id="scout-panel-sessions" class="scout-subtab-panel" style="display:none;">
+              <div id="scout-sessions-content" class="dhq-loading">Loading sessions…</div>
             </div>
           </div>
           <div style="height:6px !important;background:#38bdf8 !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>

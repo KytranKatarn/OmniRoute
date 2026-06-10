@@ -147,6 +147,71 @@ def register_scout_routes(bp, admin_required):
     def api_scout_pool():
         return jsonify(_scraper_get("/pool/status"))
 
+    # ── Session vault (#3708 v1) — unified view of the auth fabric ──
+    # Cookie sessions (encrypted storage_state in browser_sessions) + the
+    # persistent device-trust profiles (login sidecar). Metadata only —
+    # cookie/state contents never leave the server. KSO-assisted capture +
+    # per-platform egress tiers are the task's phase 2.
+    @bp.route("/api/scout/sessions")
+    @admin_required
+    def api_scout_sessions():
+        import os as _os
+
+        import requests as _rq
+        from database import get_db_cursor
+        from services.browser_profile_service import WARM_PROFILES
+
+        out = {"cookie_sessions": [], "profiles": []}
+        try:
+            with get_db_cursor(commit=False) as (_c, cur):
+                cur.execute(
+                    """SELECT bs.id, bs.agent_id, a.name AS agent_name, bs.platform,
+                              bs.status, bs.last_used_at, bs.last_probe_at,
+                              bs.last_probe_ok, bs.last_failure_reason,
+                              octet_length(bs.encrypted_state) AS state_bytes,
+                              bs.updated_at
+                       FROM browser_sessions bs
+                       LEFT JOIN agents a ON a.id = bs.agent_id
+                       ORDER BY bs.updated_at DESC"""
+                )
+                for r in cur.fetchall():
+                    d = dict(r)
+                    for k in ("last_used_at", "last_probe_at", "updated_at"):
+                        if d.get(k):
+                            d[k] = d[k].isoformat()
+                    out["cookie_sessions"].append(d)
+        except Exception as exc:
+            out["cookie_sessions_error"] = str(exc)
+
+        hdrs = {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+        for aid, plat in WARM_PROFILES:
+            row = {"agent_id": aid, "platform": plat, "profile_established": None}
+            try:
+                pr = _rq.get(
+                    "http://archie_browser_login:4281/status",
+                    params={"agent_id": aid, "platform": plat},
+                    headers=hdrs,
+                    timeout=5,
+                )
+                row["profile_established"] = bool((pr.json() or {}).get("profile_established"))
+            except Exception:
+                row["error"] = "sidecar unreachable"
+            out["profiles"].append(row)
+        return jsonify(out)
+
+    @bp.route("/api/scout/sessions/<int:agent_id>/<platform>/expire", methods=["POST"])
+    @admin_required
+    def api_scout_session_expire(agent_id, platform):
+        """Vault 'expire' verb — mark a cookie session stale so no skill
+        trusts it until re-imported."""
+        from services import browser_session_service
+
+        try:
+            browser_session_service.mark_stale(agent_id, platform, "expired via S.C.O.U.T. session vault")
+            return jsonify({"success": True})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     @bp.route("/api/scout/cli-dispatch", methods=["POST"])
     def api_scout_cli_dispatch():
         """Key-authenticated job submission for Claude Code /scout skill."""

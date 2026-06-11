@@ -53,6 +53,32 @@ services:
     networks:
       - archie_net
 
+  # SOCKS5 egress proxy for S.C.O.U.T. browse-from-country (#4007). The hub's
+  # scraper routes a session's authenticated fetches here so they exit via THIS
+  # outpost's public IP (= its country). Auth required (fail-closed) + the mesh
+  # firewall (UFW allow from 100.64.0.0/10 to port 1080) is the second layer.
+  # Optional: only outposts whose remote_nodes.extra_capabilities.socks5_egress
+  # is true are offered in the UI, so a node without this service is simply not
+  # selectable.
+  node_socks:
+    # Prebuilt SOCKS5 proxy (microsocks isn't in Alpine 3.20's repos). Pinned
+    # by digest for reproducibility. Auth is REQUIRED via the compose-level
+    # ${...:?} guards (fail-closed — no open proxy on a public VPS); the mesh
+    # firewall (UFW allow from 100.64.0.0/10 to port 1080) is the second layer.
+    image: serjs/go-socks5-proxy@sha256:0af522996f402c03ecd985a87997158eabeb28935365e3a384df37eafcf740ea
+    container_name: archie_node_socks
+    restart: unless-stopped
+    mem_limit: 64m
+    cpus: 0.25
+    environment:
+      TZ: America/Toronto
+      PROXY_USER: ${SOCKS_PROXY_USER:?set SOCKS_PROXY_USER in .env}
+      PROXY_PASSWORD: ${SOCKS_PROXY_PASSWORD:?set SOCKS_PROXY_PASSWORD in .env}
+    ports:
+      - "1080:1080"
+    networks:
+      - archie_net
+
 volumes:
   skills_data:
 

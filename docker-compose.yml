@@ -1084,6 +1084,11 @@ services:
       - SCOUT_POOL_SIZE=3
       - SCOUT_VPS_SOCKS=socks5://100.64.0.2:1080
       - SCOUT_PROXY_URL=${SCOUT_PROXY_URL:-}
+      # #4007 browse-from-country: credentials for the per-outpost SOCKS5 egress
+      # proxies (node_socks). resolve_session_egress emits
+      # socks5://user:pass@<mesh_ip>:1080 when set. Same value on every outpost .env.
+      - SCOUT_SOCKS_USER=${SOCKS_PROXY_USER:-}
+      - SCOUT_SOCKS_PASS=${SOCKS_PROXY_PASSWORD:-}
       - SCREENSHOT_DIR=/mnt/screenshots
       # session_fetch skill calls the platform's internal sessions route to load
       # imported storage_state cookies (claude/deepseek/…). KB #270262.

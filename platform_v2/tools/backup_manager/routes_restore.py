@@ -638,8 +638,11 @@ def register_restore_routes(bp, admin_required):
         from services.backup_restore_service import initiate_sandbox_restore
 
         with get_backup_db_cursor(commit=False) as (conn, cur):
+            # backup_source is the real column (backup_id does not exist — that
+            # SELECT 500'd, #4051). It holds a backup NAME; sandbox restore wants
+            # an int backup_log id, so map name -> id below.
             cur.execute(
-                "SELECT id, package_name, backup_id FROM deployment_packages WHERE id = %s",
+                "SELECT id, package_name, backup_source FROM deployment_packages WHERE id = %s",
                 (package_id,),
             )
             pkg = cur.fetchone()
@@ -647,9 +650,24 @@ def register_restore_routes(bp, admin_required):
         if not pkg:
             return jsonify({"success": False, "error": f"Package #{package_id} not found"}), 404
 
-        backup_id = pkg[2]
-        if not backup_id:
+        backup_source = pkg[2]
+        if not backup_source:
             return jsonify({"success": False, "error": "Package has no associated DB backup"}), 400
+
+        # Resolve a backup_log id: accept an int id directly, else look up by name.
+        backup_id = None
+        try:
+            backup_id = int(backup_source)
+        except (TypeError, ValueError):
+            with get_backup_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT id FROM backup_log WHERE file_path LIKE %s ORDER BY created_at DESC LIMIT 1",
+                    (f"%{backup_source}%",),
+                )
+                row = cur.fetchone()
+                backup_id = row[0] if row else None
+        if not backup_id:
+            return jsonify({"success": False, "error": f"No backup_log entry for source '{backup_source}'"}), 400
 
         result = initiate_sandbox_restore(
             backup_id=int(backup_id),

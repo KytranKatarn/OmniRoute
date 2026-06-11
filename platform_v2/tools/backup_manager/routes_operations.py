@@ -192,18 +192,34 @@ def register_operations_routes(bp, admin_required):
                     backup_path = os.path.join(BACKUP_DIR, item)
                     if os.path.isdir(backup_path):
                         metadata_file = os.path.join(backup_path, "metadata.json")
+                        metadata = None
                         if os.path.exists(metadata_file):
-                            with open(metadata_file, "r") as f:
-                                metadata = json.load(f)
-                                # Calculate size
-                                backup_size = 0
-                                for root, dirs, files in os.walk(backup_path):
-                                    for file in files:
-                                        filepath = os.path.join(root, file)
+                            try:
+                                with open(metadata_file, "r") as f:
+                                    metadata = json.load(f)
+                            except Exception:
+                                metadata = None
+                        # Phase 1-6 host-cron backups (Daily_Triage / daily / weekly)
+                        # write component dirs (database/, code/, gitbundles/, ...)
+                        # and NO metadata.json — synthesize a record so /health
+                        # counts them instead of reporting 0 backups (#4051).
+                        if metadata is None and any(
+                            os.path.isdir(os.path.join(backup_path, d))
+                            for d in ("database", "code", "gitbundles", "config", "volumes")
+                        ):
+                            metadata = {"name": item, "timestamp": item[:15], "synthesized": True}
+                        if metadata is not None:
+                            backup_size = 0
+                            for root, dirs, files in os.walk(backup_path):
+                                for file in files:
+                                    filepath = os.path.join(root, file)
+                                    try:
                                         backup_size += os.path.getsize(filepath)
-                                metadata["size"] = backup_size
-                                total_size += backup_size
-                                backups.append(metadata)
+                                    except OSError:
+                                        pass
+                            metadata["size"] = backup_size
+                            total_size += backup_size
+                            backups.append(metadata)
 
             # Sort by timestamp descending
             backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)

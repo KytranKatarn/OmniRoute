@@ -205,12 +205,35 @@ class DeviceRegistryService:
         if not last_seen_at:
             return False
         if isinstance(last_seen_at, str):
-            last_seen_at = datetime.fromisoformat(last_seen_at.replace("Z", ""))
-        # Strip timezone info — DB stores naive UTC
-        if last_seen_at.tzinfo is not None:
-            last_seen_at = last_seen_at.replace(tzinfo=None)
+            last_seen_at = datetime.fromisoformat(last_seen_at.replace("Z", "+00:00"))
+        # DB may hand back naive UTC — tag it so aware arithmetic works
+        if last_seen_at.tzinfo is None:
+            last_seen_at = last_seen_at.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         return (now - last_seen_at) < timedelta(minutes=ONLINE_THRESHOLD_MINUTES)
+
+    @staticmethod
+    def _parse_query_ts(raw: str) -> datetime:
+        """Parse an AdGuard RFC3339 timestamp into an aware UTC datetime.
+
+        AdGuard emits nanosecond fractions (9 digits) that fromisoformat
+        rejects — trim the fraction to microseconds but KEEP the offset
+        (the old split('.')[0] approach dropped the offset entirely).
+        """
+        raw = raw.strip().replace("Z", "+00:00")
+        if "." in raw:
+            head, _, tail = raw.partition(".")
+            digits = ""
+            for ch in tail:
+                if not ch.isdigit():
+                    break
+                digits += ch
+            offset = tail[len(digits) :]
+            raw = f"{head}.{digits[:6] or '0'}{offset}"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
 
     def _get_dns_active_clients(self) -> dict:
         """Get DNS-active clients with query count and last query time (cached 60s).
@@ -290,8 +313,7 @@ class DeviceRegistryService:
             # Protected = has made a DNS query in the last 15 minutes
             if d.get("dns_last_query"):
                 try:
-                    lq = d["dns_last_query"].replace("Z", "").split(".")[0]
-                    last_q = datetime.fromisoformat(lq)
+                    last_q = DeviceRegistryService._parse_query_ts(d["dns_last_query"])
                     diff_mins = (datetime.now(timezone.utc) - last_q).total_seconds() / 60
                     d["dns_active"] = diff_mins <= 15
                     dns_online = diff_mins <= 5
@@ -400,8 +422,7 @@ class DeviceRegistryService:
                 client_info = dns_clients.get(ip, {})
                 if isinstance(client_info, dict) and client_info.get("last_query"):
                     try:
-                        lq = client_info["last_query"].replace("Z", "").split(".")[0]
-                        dns_online = datetime.fromisoformat(lq) >= dns_threshold
+                        dns_online = self._parse_query_ts(client_info["last_query"]) >= dns_threshold
                     except Exception as e:
                         logger.debug("Failed to parse DNS last_query for stats: %s", e)
                 if seen_recently or dns_online:

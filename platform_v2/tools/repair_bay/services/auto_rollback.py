@@ -215,7 +215,7 @@ class AutoRollbackManager:
                 # when explicitly enabled: restoring code over the live platform
                 # is destructive and cannot be safely auto-tested here.
                 if os.getenv("AUTO_ROLLBACK_RESTORE_ENABLED", "false").lower() == "true":
-                    return self._restore_via_backup_manager(backup_name)
+                    return self._restore_via_backup_manager(backup_name, backup_path)
                 return {
                     "success": False,
                     "needs_manual": True,
@@ -257,29 +257,34 @@ class AutoRollbackManager:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _restore_via_backup_manager(self, backup_name: str) -> Dict:
-        """M-7 fallback used when a backup has no rollback.sh.
+    def _restore_via_backup_manager(self, backup_name: str, backup_path: str) -> Dict:
+        """No-rollback.sh fallback — returns the canonical HOST restore path (#3515).
 
-        Restores code + config from the named backup via the Backup Manager.
-        DESTRUCTIVE — overwrites live platform files — so it is gated behind
-        AUTO_ROLLBACK_RESTORE_ENABLED and is intentionally NOT auto-tested here.
+        DO NOT call restore_components(["code","config"]) here: it has no 'code'/'config'
+        branches and assumes the OLD plain-dir layout, so it silently no-ops yet reports
+        success — a dangerous false-positive that marks a still-broken deploy as 'rolled
+        back'. Until true in-process auto-restore is built (untar Phase 1-6 code + decrypt
+        config, with a sandbox test), surface the canonical host command and require manual
+        action — consistent with #4049 (the platform cannot safely restore itself in-process).
         """
         try:
-            from tools.backup_manager._shared import restore_components
+            from tools.backup_manager._shared import _host_restore_command
 
-            result = restore_components(backup_name, ["code", "config"])
-            ok = bool(result.get("success")) if isinstance(result, dict) else bool(result)
-            return {
-                "success": ok,
-                "components_restored": ["code", "config"] if ok else [],
-                "output": str(result)[:500],
-                "error": None if ok else f"Backup Manager restore failed: {result}",
-            }
-        except Exception as e:  # noqa: BLE001 — fallback must surface a clean error
-            return {
-                "success": False,
-                "error": f"Backup Manager restore unavailable: {e}",
-            }
+            host_cmd = _host_restore_command(backup_path, db="all", force=True)
+        except Exception:
+            host_cmd = f"scripts/backup/restore_db.sh {backup_path} --db all --force"
+        return {
+            "success": False,
+            "needs_manual": True,
+            "error": (
+                f"Auto-restore not available for backup '{backup_name}' (no rollback.sh; "
+                f"in-process restore cannot safely handle the current backup layout). Restore "
+                f"manually: DB via `{host_cmd}` (runbook KB #272184); code/config via "
+                f"/tools/backup-manager. Backup at {backup_path}."
+            ),
+            "host_command": host_cmd,
+            "kb": "#272184",
+        }
 
     def _parse_rollback_output(self, output: str) -> list:
         """

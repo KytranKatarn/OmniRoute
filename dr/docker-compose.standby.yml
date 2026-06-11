@@ -24,6 +24,7 @@ services:
       DB_PASSWORD: ""
       HOST_IP: "100.64.0.10"
       ARCHIE_DR_MODE: "1"       # tag every dispatch as DRP-mode work in task_execution_log (#3728)
+      ARCHIE_RUN_TELEGRAM: "0"  # never long-poll the bot from DR — the watchdog owns getUpdates; push still works (#4011)
       # SECRET_KEY / FLASK_SECRET_KEY come from .env so login sessions stay valid post-failover
     volumes:
       - /opt/archie-dr/platform:/mnt/archie_brain

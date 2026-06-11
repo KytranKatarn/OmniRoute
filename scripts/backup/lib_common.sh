@@ -96,15 +96,26 @@ load_backup_env() {
         log_error ".env not found at ${ARCHIE_REPO}/.env"
         return 1
     fi
-    # Temporarily relax `set -u` — existing .env lines may reference $1 or other
-    # shell positional/unset vars that are fine in the running platform but blow
-    # up under nounset when sourced cold.
-    set +u
-    # shellcheck disable=SC1091
-    set -o allexport
-    source "${ARCHIE_REPO}/.env"
-    set +o allexport
-    set -u
+    # Parse KEY=VALUE literally instead of `source`-ing the file. Several .env
+    # values are unquoted secrets containing shell metacharacters (^ $ ( ) etc.)
+    # which break `source` with "command not found" / exit 127 — that silently
+    # failed the config component (and skipped tier-sync + retention) every
+    # night (#4045). Splitting on the first '=' and exporting verbatim is
+    # metacharacter-proof and needs no `set +u`/positional-var hacks.
+    local line key val
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue          # comment
+        [[ "$line" != *=* ]] && continue                     # not a KEY=VALUE
+        key="${line%%=*}"
+        key="${key#"${key%%[![:space:]]*}"}"                 # ltrim
+        key="${key%"${key##*[![:space:]]}"}"                 # rtrim
+        [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue # valid env name
+        val="${line#*=}"                                     # everything after first '='
+        # strip one layer of surrounding matching quotes, if present
+        if [[ "$val" == \"*\" && ${#val} -ge 2 ]]; then val="${val:1:${#val}-2}"
+        elif [[ "$val" == \'*\' && ${#val} -ge 2 ]]; then val="${val:1:${#val}-2}"; fi
+        export "$key=$val"
+    done < "${ARCHIE_REPO}/.env"
 }
 
 # ---------- Utilities ----------

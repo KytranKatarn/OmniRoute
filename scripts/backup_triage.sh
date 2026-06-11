@@ -234,11 +234,16 @@ if [[ "${DR_STATUS:-failed}" == "success" ]]; then
     fi
 fi
 
-# ----- Retention: keep 14 most-recent triage dailies on primary, 7 on USB -----
-log "Pruning old primary triage dirs (keep 14)..."
-ls -td /mnt/data2/backups/*_Daily_Triage 2>/dev/null | tail -n +15 | xargs -r rm -rf
-log "Pruning old USB triage dirs (keep 7)..."
-docker exec archie_platform bash -c 'ls -td /mnt/external-backup/*_Daily_Triage 2>/dev/null | tail -n +8 | xargs -r rm -rf' 2>>"$LOG" || true
+# ----- Retention: canonical GFS engine (per-component daily/weekly/monthly, all tiers) -----
+# Single source of truth = scripts/backup/retention_prune.py. The old inline keep-14 and the
+# weekly module job backup_retention_prune are RETIRED — #4051. retention_prune.py keeps the DB
+# dumps longest (30 daily) and trims bulkier components, across primary + USB. Non-fatal.
+log "Retention: GFS prune via retention_prune.py..."
+if python3 "$(dirname "$0")/backup/retention_prune.py" >>"$LOG" 2>&1; then
+    log "  retention prune OK"
+else
+    log "  WARN: retention prune had errors (non-fatal — backup data unaffected)"
+fi
 
 # ----- Record to backup_log (new canonical schema from Phase 1 Task 2) -----
 # If the schema migration hasn't run yet, fall back to the legacy schema.

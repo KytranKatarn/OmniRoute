@@ -41,6 +41,13 @@ USB_ROOT     = Path(os.environ.get("BACKUP_USB",  "/mnt/external-backup"))
 
 DATE_RE = re.compile(r"^(\d{8})_")
 
+# --dry-run: report what WOULD be pruned without deleting anything (DR-critical safety).
+DRY_RUN = "--dry-run" in sys.argv
+
+# Run-dir housekeeping files (written per-backup by write_backup_metadata.sh, #4049) that must
+# NOT keep an otherwise-pruned run dir alive — treat a dir with only these left as empty.
+HOUSEKEEPING = {"metadata.json", "rollback.sh"}
+
 
 def parse_ts(name: str):
     m = DATE_RE.match(name)
@@ -93,13 +100,19 @@ def prune_dir(root: Path, component: str, tier: str) -> int:
         elif kept_d < keep_d:
             kept_d += 1; keep = True
         if not keep:
+            if DRY_RUN:
+                print(f"[dry-run] would remove {comp_path}")
+                deleted += 1
+                continue
             print(f"prune: removing {comp_path}")
             try:
                 shutil.rmtree(comp_path)
                 deleted += 1
+                # Remove the run dir if nothing but housekeeping files (#4049) remains.
                 try:
-                    if not any(run_dir.iterdir()):
-                        run_dir.rmdir()
+                    leftover = {p.name for p in run_dir.iterdir()}
+                    if not leftover or leftover <= HOUSEKEEPING:
+                        shutil.rmtree(run_dir)
                 except OSError:
                     pass
             except Exception as e:
@@ -154,12 +167,22 @@ def main() -> None:
     total_deleted = 0
     for component in RETENTION.keys():
         total_deleted += prune_dir(PRIMARY_ROOT, component, "primary")
-        total_deleted += prune_usb_via_container(component)
+        if not DRY_RUN:
+            total_deleted += prune_usb_via_container(component)
 
+    if DRY_RUN:
+        print(f"[dry-run] retention prune: {total_deleted} items WOULD be removed (primary tier only)")
+        return
+
+    # Record the run: backup_log row + system_config retention_last_run/deleted_count so the
+    # Backup Manager UI reflects THIS canonical engine (it was stale because the old module job
+    # was the only writer — #4051).
     subprocess.run(
         ["docker", "exec", "-i", "archie_database", "psql", "-U", "archie", "-d", "archie",
          "-c", f"INSERT INTO backup_log (component, tier, status, notes, created_at) "
-               f"VALUES ('retention', 'primary', 'prune', '{total_deleted} deleted', NOW());"],
+               f"VALUES ('retention', 'primary', 'prune', '{total_deleted} deleted', NOW());"
+               f"UPDATE system_config SET value = NOW()::text WHERE key = 'retention_last_run';"
+               f"UPDATE system_config SET value = '{total_deleted}' WHERE key = 'retention_last_deleted_count';"],
         check=False, capture_output=True,
     )
     print(f"retention prune: {total_deleted} items removed")

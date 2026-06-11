@@ -4165,16 +4165,19 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         coalesce=True,
     )
 
-    # Backup retention prune — weekly Sunday 04:00, enforces GFS policy (7d/4w/6m)
-    scheduler.add_job(
-        backup_retention_prune,
-        trigger=CronTrigger(day_of_week="sun", hour=4, minute=0, timezone="America/Toronto"),
-        id="backup_retention_prune",
-        name="Backup Manager: GFS Retention Prune",
-        replace_existing=True,
-        max_instances=1,
-        coalesce=True,
-    )
+    # RETIRED (#4051): retention is now a single canonical engine —
+    # scripts/backup/retention_prune.py, run nightly by scripts/backup_triage.sh. This weekly
+    # module job (cleanup_old_backups 7d/4w/6m) was a competing 3rd pruner; the function is kept
+    # for reference but no longer scheduled. retention_prune.py writes retention_last_run itself.
+    # scheduler.add_job(
+    #     backup_retention_prune,
+    #     trigger=CronTrigger(day_of_week="sun", hour=4, minute=0, timezone="America/Toronto"),
+    #     id="backup_retention_prune",
+    #     name="Backup Manager: GFS Retention Prune",
+    #     replace_existing=True,
+    #     max_instances=1,
+    #     coalesce=True,
+    # )
 
     # W.A.R.D.E.N. — nightly download archive cleanup 04:00, removes expired tar.gz files
     scheduler.add_job(

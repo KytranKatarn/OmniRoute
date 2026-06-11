@@ -13,8 +13,12 @@ TS=$(date -u +%Y-%m-%d)
 REPORT="$REPORT_DIR/$TS.md"
 CONTAINER="archie_dr_drill_$$"
 
-latest_dump=$(ls -td "$SRC_DIR"/*/database/*.dump 2>/dev/null | head -1 || true)
-[[ -n "${latest_dump:-}" ]] || { echo "No dump found in $SRC_DIR/*/database/"; exit 1; }
+# Restore the ARCHIE dump specifically — it holds knowledge_base (the row-count
+# acceptance check). A bare *.dump glob + newest-mtime picked creed/wtf instead
+# (written seconds later), restoring the wrong DB into 'archie' and failing the
+# knowledge_base assertion = a FALSE backup failure (#4050).
+latest_dump=$(ls -td "$SRC_DIR"/*/database/archie_*.dump 2>/dev/null | head -1 || true)
+[[ -n "${latest_dump:-}" ]] || { echo "No archie_*.dump found in $SRC_DIR/*/database/"; exit 1; }
 
 echo "DR Drill $TS — using $latest_dump"
 
@@ -32,13 +36,19 @@ docker run -d --rm --name "$CONTAINER" \
     -v "$latest_dump:/tmp/dump.dump:ro" \
     pgvector/pgvector:pg16 > /dev/null
 
-# Wait for the drill postgres to accept connections (psql lives inside the container).
-for _ in $(seq 1 30); do
-    if docker exec "$CONTAINER" pg_isready -U postgres >/dev/null 2>&1; then
-        break
+# Wait until the drill postgres is REALLY ready. pg_isready is fooled by the
+# image's initdb phase — it starts a TEMPORARY server (pg_isready returns ready),
+# then stops it to restart for real; a query in that window gets "the database
+# system is shutting down" (#4050 false FAIL). Retry a real SELECT 1 until it
+# succeeds, long enough to outlast initdb on a large host.
+ready=0
+for _ in $(seq 1 60); do
+    if docker exec "$CONTAINER" psql -U postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+        ready=1; break
     fi
     sleep 1
 done
+[[ "$ready" == "1" ]] || { echo "FAIL: drill postgres never became ready after 60s"; exit 1; }
 
 # Create DB and restore — all inside the drill container (no host psql needed).
 docker exec "$CONTAINER" psql -U postgres -c "CREATE DATABASE archie;" >/dev/null

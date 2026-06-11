@@ -50,6 +50,11 @@ fi
 
 mkdir -p "$RUN"/{database,code,gitbundles,config}
 
+# All temp for this backup run goes to the backup disk, NOT the intentional 2G /tmp tmpfs:
+# a full /tmp (e.g. Codex worktrees, #4045) otherwise breaks git bundle / tar / etc. Scoped to
+# this cron process only (export does not leak to other processes).
+export TMPDIR="$(dirname "$RUN")/.tmp"; mkdir -p "$TMPDIR"
+
 # ----- [1/4] DB dump -----
 log "[1/4] DB dump via docker exec archie_database pg_dump..."
 if docker exec archie_database pg_dump -U archie -d archie -Fc -Z 6 > "$RUN/database/archie_${TS}.dump" 2>>"$LOG"; then
@@ -92,7 +97,7 @@ else
 fi
 
 # ----- [3/4] Git bundles -----
-log "[3/4] Git bundles..."
+log "[3/4] Git bundles..."   # TMPDIR already on the backup disk (set above) so a full /tmp can't break bundling (#4045)
 for repo in /mnt/archie_brain /mnt/archie_brain/kytran-business-suite /mnt/archie_brain/kytran-server-manager /mnt/archie_brain/kytran-creed; do
     name=$(basename "$repo" | sed 's/kytran-//')
     if [[ ! -d "$repo/.git" ]]; then

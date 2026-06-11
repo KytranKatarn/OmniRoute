@@ -232,7 +232,7 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 - **Deployment**: VPS port 8101, market.kytranempowerment.com. StockBot migrated here.
 
 ### What The Fact — `what_the_fact` · `/external/wtf` · ✅
-- **Deployment**: VPS — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal).
+- **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
 - **Capability**: 10 Canadian sources, RSS 30min, story clustering (Jaccard), extractive summarization, bias scoring, fact-checking. OAuth SSO paywall (bias free, rationale/Deep Dive gated).
 - **Schema**: `wtf.sources`, `wtf.articles`, `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`.
 - **CRITICAL**: NEVER pass `WTF_TECH_URL` to browser JS — always add server-side proxy route first (KB #267314).

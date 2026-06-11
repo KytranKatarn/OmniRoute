@@ -2,7 +2,7 @@
 
 **Creating new file** — no prior state. Documents 3-container VPS architecture, XSS rule, deploy patterns, DB location.
 
-## 3-Container Architecture (VPS only)
+## 3-Container Architecture (Citadel / boston-2)
 
 | Container | Port | Domain | Purpose |
 |-----------|------|--------|---------|
@@ -10,7 +10,7 @@
 | `wtf-tech` | 8104 | what-the-fact.tech | Tech-focused news variant |
 | `wtf-ingest` | internal | — | RSS fetch, clustering, scoring (2GB RAM) |
 
-All 3 on VPS `76.13.107.109`. Networks: `default` + `archie_net` (required for Caddy reachability).
+All 3 on **Citadel/boston-2** (`2.25.133.122`, SSH `root@100.64.0.10`, dir `/opt/archie-products/what-the-fact/`) — DB stays the hub `wtf` database (100.64.0.4). Migrated off outpost-us per the fleet-product-migration plan; the old outpost-us stack was DR-repointed into the boston-2 fork during the 06-05 window, zombified, and REMOVED 2026-06-11 (#4032 — archive: outpost-us `/opt/archie-products/what-the-fact-RETIRED-20260611.tar.gz`, Caddy blocks excised, backup `Caddyfile.bak-4032`). Networks: `default` + `archie_net` (required for Caddy reachability).
 
 ## Critical Path Rules
 

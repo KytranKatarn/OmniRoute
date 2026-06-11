@@ -553,6 +553,14 @@ def register_storage_routes(bp, admin_required):
 
                     module_path = os.path.join(tools_dir, item)
                     if os.path.isdir(module_path):
+                        # Only real modules — a Flask module dir has routes.py OR __init__.py.
+                        # Skips non-module dirs like static/ (the "static leak") so the count
+                        # matches module_registry (34), not the raw tools/ dir listing. (#4051)
+                        is_module = os.path.exists(os.path.join(module_path, "routes.py")) or os.path.exists(
+                            os.path.join(module_path, "__init__.py")
+                        )
+                        if not is_module:
+                            continue
                         # Check if it has routes.py (actual module)
                         has_routes = os.path.exists(os.path.join(module_path, "routes.py"))
 

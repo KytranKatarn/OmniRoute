@@ -109,16 +109,22 @@ mechanisms = [ { if = "listener != 'smtp'", then = "[plain, login]" },
                { else = false } ]
 
 # Outbound routing
-# Local domains: Stalwart delivers directly to the internal RocksDB mailbox
-# (no SMTP loopback — that created an infinite loop via localhost:25).
-# The trusted-networks block on port 25 already covers the Docker bridge subnet
-# so no auth-ban risk for local delivery.
-# External domains: relay through US outpost VPS.
+# Local domains: route to the reserved 'local' next-hop (internal RocksDB
+# delivery — never the localhost:25 SMTP loopback, that looped forever).
+# External domains: relay through the US outpost smarthost over the MESH.
+# ⚠️ These keys are ALSO mirrored into the settings DB via stalwart-cli
+# (server add-config) — v0.11 runtime reads the DB for queue routing while
+# list-config displays this file; keep BOTH in sync (#4011 mail fix).
 [queue.outbound]
-next-hop = [ { else = "'relay'" } ]
+next-hop = [ { if = "is_local_domain('*', rcpt_domain)", then = "'local'" },
+             { else = "'relay'" } ]
 
 [queue.outbound.tls]
-mta-sts = "optional"
+# "disable", not "optional": ALL external mail leaves via the mesh smarthost
+# (100.64.0.2), which can never match a recipient domain's MTA-STS MX list —
+# strict policies (gmail.com) would perm-fail every message. The RELAY makes
+# the final MX connection; MTA-STS enforcement at the hub is meaningless.
+mta-sts = "disable"
 allow-invalid-certs = true
 
 # Loopback delivery — connects to Stalwart's own port-25 inbound listener
@@ -164,7 +170,13 @@ key = "sender"
 rate = "500/1h"
 
 [remote."relay"]
-address = "relay.kytranempowerment.com"
+# Mesh-resolving hostname, NEVER relay.kytranempowerment.com (public IP): the
+# hub's public IP is dynamic residential — the relay's MYNETWORKS allowlists
+# 100.64.0.0/10, so the mesh source (100.64.0.4) is accepted forever while a
+# public-IP change silently breaks with '554 Access denied' (that killed
+# outbound 2026-05-27→06-11). NOT a literal IP: v0.11 DNS-resolves this field
+# ('record not found for MX'). outpost-relay.kytranempowerment.com → 100.64.0.2.
+address = "outpost-relay.kytranempowerment.com"
 port = 25
 protocol = "smtp"
 ip-lookup = "ipv4_only"

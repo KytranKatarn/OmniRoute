@@ -7,11 +7,24 @@ All restore operations dispatched through Department HQ delegate_task queue.
 from __future__ import annotations
 
 import logging
+import os
+import subprocess
+import threading
 from typing import Any
+
+from psycopg2.extras import Json
 
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
+
+# Sandbox restore targets the disposable staging Postgres (NEVER prod). Both
+# archie_platform and archie_scheduler carry the docker socket, so the
+# delegate_task_worker can docker-exec these wherever it runs. (#4050)
+STAGING_DB_CONTAINER = "archie_staging_db"
+STAGING_APP_CONTAINER = "archie_staging"
+SANDBOX_URL = "http://192.168.1.200:3003"
+HOST_BACKUP_ROOT = "/mnt/data2/backups"  # mounted read-only inside archie_staging_db
 
 
 def get_restore_status(backup_id: int) -> dict[str, Any]:
@@ -115,3 +128,229 @@ def promote_to_production(session_id: int, triggered_by: str = "user") -> dict[s
             (session_id,),
         )
     return {"success": True, "session_id": session_id, "status": "promoting"}
+
+
+# ---------------------------------------------------------------------------
+# Real restore workers (#4050) — invoked via the delegation known-tool path.
+# restore_sandbox actually restores into the disposable staging DB; promote
+# stays host-gated (ADR-001 — the platform can't DROP+restore its own live DB).
+# ---------------------------------------------------------------------------
+
+_SESSION_COLS = {"status", "sandbox_schema", "sandbox_url", "qa_run_id", "qa_passed", "qa_total", "qa_failures"}
+
+
+def _set_session(session_id: int, **fields: Any) -> None:
+    """Update whitelisted module_restore_sessions columns + updated_at."""
+    sets, vals = [], []
+    for key, value in fields.items():
+        if key not in _SESSION_COLS:
+            continue
+        sets.append(f"{key} = %s")
+        vals.append(Json(value) if key == "qa_failures" else value)
+    if not sets:
+        return
+    vals.append(session_id)
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            f"UPDATE module_restore_sessions SET {', '.join(sets)}, updated_at=NOW() WHERE id = %s",
+            vals,
+        )
+
+
+def _resolve_backup_dir(backup_id: int) -> str | None:
+    """Resolve a backup_log id to its host run dir under HOST_BACKUP_ROOT.
+
+    backup_log has one row per (component, tier); reconstruct the primary
+    /mnt/data2/backups/<name> path (mounted inside archie_staging_db) from the basename.
+    """
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute("SELECT file_path FROM backup_log WHERE id = %s", (backup_id,))
+        row = cur.fetchone()
+    if not row or not row.get("file_path"):
+        return None
+    name = os.path.basename(str(row["file_path"]).rstrip("/"))
+    return f"{HOST_BACKUP_ROOT}/{name}" if name else None
+
+
+def _docker(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
+    return subprocess.run(["docker", *args], capture_output=True, text=True, timeout=timeout)
+
+
+def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -> None:
+    """Restore the archie dump into the disposable staging DB; drive the session state machine."""
+    import glob
+
+    name = os.path.basename(run_dir.rstrip("/"))
+    # The worker sees backups at /backups (BACKUP_DIR mount); the staging DB sees them at run_dir.
+    worker_dumps = sorted(glob.glob(f"/backups/{name}/database/archie_*.dump"))
+    if not worker_dumps:
+        _set_session(
+            session_id,
+            status="failed",
+            qa_failures=[{"error": f"archie dump not found for backup '{name}' (primary copy pruned?)"}],
+        )
+        return
+    staging_dump = f"{run_dir}/database/{os.path.basename(worker_dumps[-1])}"
+
+    try:
+        _set_session(session_id, status="qa_running")
+        # Stop the staging app so nothing holds the staging 'archie' DB open during DROP.
+        _docker(["stop", STAGING_APP_CONTAINER], timeout=60)
+        try:
+            _docker(
+                [
+                    "exec",
+                    STAGING_DB_CONTAINER,
+                    "psql",
+                    "-U",
+                    "archie",
+                    "-d",
+                    "template1",
+                    "-c",
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname='archie' AND pid<>pg_backend_pid();",
+                ],
+                timeout=60,
+            )
+            drop = _docker(
+                [
+                    "exec",
+                    STAGING_DB_CONTAINER,
+                    "psql",
+                    "-U",
+                    "archie",
+                    "-d",
+                    "template1",
+                    "-c",
+                    "DROP DATABASE IF EXISTS archie;",
+                ],
+                timeout=120,
+            )
+            if drop.returncode != 0:
+                _set_session(
+                    session_id,
+                    status="failed",
+                    qa_failures=[{"error": f"DROP DATABASE failed: {(drop.stderr or '').strip()[:300]}"}],
+                )
+                return
+            _docker(
+                [
+                    "exec",
+                    STAGING_DB_CONTAINER,
+                    "psql",
+                    "-U",
+                    "archie",
+                    "-d",
+                    "template1",
+                    "-c",
+                    "CREATE DATABASE archie;",
+                ],
+                timeout=120,
+            )
+            # pg_restore exits nonzero on benign warnings (roles/HNSW) — judge by the verify query.
+            _docker(
+                [
+                    "exec",
+                    STAGING_DB_CONTAINER,
+                    "pg_restore",
+                    "-U",
+                    "archie",
+                    "-d",
+                    "archie",
+                    "--no-owner",
+                    "--no-privileges",
+                    staging_dump,
+                ],
+                timeout=1800,
+            )
+            verify = _docker(
+                [
+                    "exec",
+                    STAGING_DB_CONTAINER,
+                    "psql",
+                    "-U",
+                    "archie",
+                    "-d",
+                    "archie",
+                    "-tAc",
+                    "SELECT count(*) FROM knowledge_base;",
+                ],
+                timeout=60,
+            )
+            rows = (verify.stdout or "").strip()
+        finally:
+            # Always bring the staging app back (reconnects to the fresh DB).
+            _docker(["start", STAGING_APP_CONTAINER], timeout=90)
+
+        if not rows.isdigit() or int(rows) <= 0:
+            _set_session(
+                session_id,
+                status="failed",
+                qa_failures=[{"error": f"verify failed — knowledge_base count={rows!r}"}],
+            )
+            return
+
+        _set_session(
+            session_id,
+            status="qa_passed",
+            qa_passed=1,
+            qa_total=1,
+            sandbox_url=SANDBOX_URL,
+            sandbox_schema=f"archie@staging ({rows} rows)",
+        )
+        logger.info("sandbox restore OK — session=%s backup=%s rows=%s", session_id, backup_id, rows)
+    except Exception as exc:  # noqa: BLE001 — record any failure on the session row
+        logger.exception("sandbox restore failed — session=%s", session_id)
+        _set_session(session_id, status="failed", qa_failures=[{"error": str(exc)[:500]}])
+
+
+def run_sandbox_restore(backup_id: int | None = None, session_id: int | None = None, **_: Any) -> dict[str, Any]:
+    """Known-tool handler for capability 'restore_sandbox' — restore into the disposable staging DB.
+
+    Spawns a daemon thread (restore is multi-minute) and returns immediately; the UI polls
+    /api/restore/status. NEVER touches prod. (#4050)
+    """
+    if not backup_id or not session_id:
+        return {"success": False, "summary": "restore_sandbox: backup_id and session_id required"}
+    run_dir = _resolve_backup_dir(int(backup_id))
+    if not run_dir:
+        _set_session(int(session_id), status="failed", qa_failures=[{"error": f"backup_log #{backup_id} not found"}])
+        return {"success": False, "summary": f"restore_sandbox: backup #{backup_id} not found"}
+    threading.Thread(
+        target=_run_sandbox_restore_thread,
+        args=(int(backup_id), int(session_id), run_dir),
+        daemon=True,
+        name=f"sandbox-restore-{session_id}",
+    ).start()
+    return {
+        "success": True,
+        "summary": f"sandbox restore started — session {session_id}, backup {backup_id} ({run_dir})",
+    }
+
+
+def run_production_restore(session_id: int | None = None, backup_id: int | None = None, **_: Any) -> dict[str, Any]:
+    """Known-tool handler for capability 'restore_production' — PROMOTE is host-gated (ADR-001).
+
+    The platform cannot DROP+restore its own live DB in-process. Instead of silently doing
+    nothing, surface the exact gated host command and free the session from 'promoting'.
+    (#4050 / runbook KB #272184)
+    """
+    if not session_id or not backup_id:
+        return {"success": False, "summary": "restore_production: session_id and backup_id required"}
+    run_dir = _resolve_backup_dir(int(backup_id))
+    if not run_dir:
+        return {"success": False, "summary": f"restore_production: backup #{backup_id} not found"}
+    from tools.backup_manager._shared import _host_restore_command
+
+    cmd = _host_restore_command(run_dir, db="all", force=True)
+    # Don't leave the row stuck in 'promoting' — promote is a deliberate manual host action.
+    _set_session(
+        int(session_id),
+        status="qa_passed",
+        qa_failures=[{"info": "promote is host-gated (ADR-001)", "host_command": cmd, "kb": "#272184"}],
+    )
+    return {
+        "success": True,
+        "summary": f"Promote is host-gated (ADR-001). Run on the hub: DR_CONFIRM=RESTORE-NOW {cmd}",
+        "result": {"requires_host_restore": True, "host_command": cmd, "kb": "#272184"},
+    }

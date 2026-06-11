@@ -49,6 +49,8 @@ KNOWN_TOOL_CAPABILITIES = {
     "translation_coverage_scan",
     "visual_scan",  # P.R.O.B.E. Playwright visual verification — logs and completes
     "document_pr",  # persist a coder-doc vault_note for a merged PR (deterministic store)
+    "restore_sandbox",  # W.A.R.D.E.N. — real pg_restore into the disposable staging DB (#4050)
+    "restore_production",  # W.A.R.D.E.N. — promote (host-gated, ADR-001) (#4050)
 }
 
 VALID_DELEGATION_SOURCES = {
@@ -395,6 +397,16 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
     """Route a known capability to its deterministic service function."""
     if capability == "document_pr":
         return _document_pr(payload, reason)
+
+    if capability == "restore_sandbox":
+        from services.backup_restore_service import run_sandbox_restore
+
+        return run_sandbox_restore(backup_id=payload.get("backup_id"), session_id=payload.get("session_id"))
+
+    if capability == "restore_production":
+        from services.backup_restore_service import run_production_restore
+
+        return run_production_restore(session_id=payload.get("session_id"), backup_id=payload.get("backup_id"))
 
     if capability in ("run_misroute_audit",):
         from services.misroute_audit_service import run_misroute_audit

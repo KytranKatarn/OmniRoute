@@ -98,6 +98,40 @@ def register_session_routes(bp, login_required, admin_required):
         )
 
 
+def save_session_state_handler(agent_id: int, platform: str):
+    """#4006 capture-to-vault: persist a storage_state pushed by the login
+    sidecar right after an interactive login, so the session is vault-visible
+    and health-probed immediately.
+
+    NO auth here — must only be registered behind app.py's
+    _require_internal_key (Bearer INTERNAL_API_KEY), mirroring the GET route.
+    Platform is shape-validated only (not registry-checked) so the export
+    keeps working even if browser_platforms is unavailable — the caller is
+    trusted service-to-service infra.
+    """
+    from services import browser_session_service
+    from services.browser_platform_service import PLATFORM_RE
+
+    if not PLATFORM_RE.match((platform or "").lower()):
+        return jsonify({"success": False, "error": "invalid platform key"}), 400
+    data = request.get_json(silent=True) or {}
+    state = data.get("state")
+    if not isinstance(state, dict) or not state.get("cookies"):
+        return jsonify({"success": False, "error": "state with cookies is required"}), 400
+    try:
+        result = browser_session_service.save_session(
+            agent_id=agent_id,
+            platform=platform.lower(),
+            state=state,
+            status="active",
+        )
+    except Exception:
+        logger.exception("[browser-sessions] sidecar state save failed")
+        return jsonify({"success": False, "error": "save failed"}), 500
+    logger.info("[browser-sessions] sidecar captured session saved: %s/%s", agent_id, platform)
+    return jsonify({"success": True, "session_id": result.get("id")}), 200
+
+
 def get_session_state_handler(agent_id: int, platform: str):
     """Handler shared with the app-level /api/internal/sessions/... route.
 

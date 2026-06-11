@@ -98,7 +98,12 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
         raise ValueError(f"Unknown skill: {skill_name}")
 
     skill = skills[skill_name]
-    platform = skill["platforms"][0] if skill["platforms"] else ""
+    # #4006: platform-agnostic skills (PLATFORMS=[], e.g. session_probe) are
+    # bound to a session/profile at call time via params["_platform"] —
+    # popped so it never reaches the skill's own params.
+    platform = str(params.pop("_platform", "") or "").strip().lower() or (
+        skill["platforms"][0] if skill["platforms"] else ""
+    )
 
     # Persistent trusted profile path (#3953) — preferred when established.
     profile_dir = _profile_dir(agent_id, platform)

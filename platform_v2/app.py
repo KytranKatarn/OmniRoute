@@ -4428,6 +4428,18 @@ def api_internal_get_session_state(agent_id, platform):
     return jsonify({"state": state}), 200
 
 
+@app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["POST"])
+@_require_internal_key
+def api_internal_save_session_state(agent_id, platform):
+    """#4006 capture-to-vault: the login sidecar (login_browser.py) pushes the
+    storage_state it captured during an interactive login, so the session is
+    vault-visible (and health-probed) immediately. Same service-to-service
+    bearer auth + app-level registration rationale as the GET above."""
+    from tools.department_hq.session_routes import save_session_state_handler
+
+    return save_session_state_handler(agent_id, platform)
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():

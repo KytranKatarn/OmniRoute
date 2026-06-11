@@ -23,6 +23,9 @@ async function loadScoutTab() {
    profiles, import cookies, expire stale sessions. Metadata only;
    cookie contents never reach the browser. ── */
 var _SCOUT_IMPORT_PLATFORMS = ['linkedin', 'twitter', 'facebook', 'claude', 'deepseek', 'openai'];
+// #4006: browser_platforms registry cache (null until first successful load;
+// the static list above stays as the fallback).
+var _scoutPlatforms = null;
 
 async function _scoutLoadSessions() {
   var el = document.getElementById('scout-sessions-content');
@@ -35,6 +38,11 @@ async function _scoutLoadSessions() {
     el.innerHTML = '<div class="dhq-empty">Session vault unavailable</div>';
     return;
   }
+  try {
+    var prr = await fetch('/tools/department-hq/api/scout/platforms');
+    var pdd = await prr.json();
+    if (pdd.success && Array.isArray(pdd.platforms) && pdd.platforms.length) _scoutPlatforms = pdd.platforms;
+  } catch (e) { /* registry unavailable — fall back to the static list */ }
   // Real escaper fallback — an identity function would silently disable
   // escaping if the shared esc() global is ever missing.
   var esc2 = (typeof esc === 'function') ? esc : function(s) {
@@ -42,6 +50,13 @@ async function _scoutLoadSessions() {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   };
+  // Dropdown sources: registry when loaded, static fallback otherwise.
+  var importPlats = _scoutPlatforms
+    ? _scoutPlatforms.map(function(p) { return p.platform; })
+    : _SCOUT_IMPORT_PLATFORMS;
+  var loginPlats = _scoutPlatforms
+    ? _scoutPlatforms.filter(function(p) { return p.login_url; })
+    : [];
   var profRows = (d.profiles || []).map(function(p) {
     return '<tr><td>' + p.agent_id + '</td><td>' + esc2(p.platform) + '</td><td>'
       + (p.profile_established ? '<span style="color:#22c55e">● ESTABLISHED</span>'
@@ -79,12 +94,37 @@ async function _scoutLoadSessions() {
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">'
     + '<input id="scoutImpAgent" type="number" min="1" placeholder="agent id" value="342" style="width:100px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
     + '<select id="scoutImpPlatform" class="dhq-select">'
-    + _SCOUT_IMPORT_PLATFORMS.map(function(p) { return '<option value="' + p + '">' + p + '</option>'; }).join('')
+    + importPlats.map(function(p) { return '<option value="' + esc2(p) + '">' + esc2(p) + '</option>'; }).join('')
     + '</select>'
     + '<textarea id="scoutImpCookies" placeholder="[ { cookie JSON array } ]" rows="3" style="flex:1 1 320px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit;font-size:0.7rem"></textarea>'
     + '<button class="dhq-btn dhq-btn-primary" onclick="scoutImportCookies()">Import</button>'
     + '<span id="scoutImpStatus" style="font-size:0.7rem;color:#94a3b8"></span>'
-    + '</div>';
+    + '</div>'
+    /* ── #4006 — interactive login capture for ANY registry platform ── */
+    + '<h4 style="margin:14px 0 6px">CAPTURE NEW SESSION (interactive login)</h4>'
+    + '<p style="font-size:0.7rem;color:rgba(255,255,255,0.5);margin:0 0 6px">'
+    + 'Start a one-time headed login, complete it in the noVNC window (LAN/mesh only), then Stop &amp; save — '
+    + 'the device-trust profile is flushed AND the session lands in the vault above (health-probed every 4h).</p>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    + '<input id="scoutCapAgent" type="number" min="1" placeholder="agent id" value="342" style="width:100px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
+    + '<select id="scoutCapPlatform" class="dhq-select">'
+    + loginPlats.map(function(p) { return '<option value="' + esc2(p.platform) + '">' + esc2(p.display_name || p.platform) + '</option>'; }).join('')
+    + '</select>'
+    + '<button class="dhq-btn dhq-btn-primary" onclick="scoutLoginStart()">Start login</button>'
+    + '<button class="dhq-btn" onclick="scoutLoginStop()">Stop &amp; save</button>'
+    + '<span id="scoutCapStatus" style="font-size:0.7rem;color:#94a3b8"></span>'
+    + '</div>'
+    + '<div id="scoutCapSurface" style="font-size:0.7rem;color:#94a3b8;margin:6px 0 0"></div>'
+    + '<details style="margin-top:8px"><summary style="font-size:0.7rem;color:#94a3b8;cursor:pointer">+ Add platform to registry</summary>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px">'
+    + '<input id="scoutNewKey" placeholder="key (a-z0-9_-)" style="width:130px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit;font-size:0.7rem">'
+    + '<input id="scoutNewName" placeholder="display name" style="width:150px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit;font-size:0.7rem">'
+    + '<input id="scoutNewHosts" placeholder="hosts, comma-separated" style="flex:1 1 220px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit;font-size:0.7rem">'
+    + '<input id="scoutNewLogin" placeholder="https login URL" style="flex:1 1 220px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit;font-size:0.7rem">'
+    + '<input id="scoutNewProbe" placeholder="https probe URL (optional)" style="flex:1 1 220px;background:#0d1117;border:1px solid #333;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit;font-size:0.7rem">'
+    + '<button class="dhq-btn" onclick="scoutAddPlatform()">Add</button>'
+    + '<span id="scoutNewStatus" style="font-size:0.7rem;color:#94a3b8"></span>'
+    + '</div></details>';
   // Bind expire handlers via dataset — never string-concatenated inline JS
   // (HTML entity escaping does not protect a JS-in-attribute context).
   el.querySelectorAll('.scout-expire-btn').forEach(function(b) {
@@ -134,6 +174,110 @@ async function scoutImportCookies() {
       document.getElementById('scoutImpCookies').value = '';
       await _scoutLoadSessions();
     } else { st.textContent = d.error || 'Import failed'; st.style.color = '#fca5a5'; }
+  } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
+}
+
+/* ── #4006 — interactive login capture ── */
+async function scoutLoginStart() {
+  var st = document.getElementById('scoutCapStatus');
+  var aid = parseInt(document.getElementById('scoutCapAgent').value, 10);
+  var plat = document.getElementById('scoutCapPlatform').value;
+  if (!aid || !plat) { st.textContent = 'agent id + platform required'; st.style.color = '#fca5a5'; return; }
+  st.textContent = 'Starting…'; st.style.color = '#94a3b8';
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/sessions/login/start', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent_id: aid, platform: plat })
+    });
+    var d = await r.json();
+    if (d.started) {
+      st.textContent = '✓ headed browser running — log in via noVNC, then Stop & save';
+      st.style.color = '#34d399';
+    } else {
+      st.textContent = d.error || 'start failed'; st.style.color = '#fca5a5';
+    }
+  } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
+  await scoutLoginSurface();
+}
+
+async function scoutLoginStop() {
+  var st = document.getElementById('scoutCapStatus');
+  st.textContent = 'Stopping (profile flush + vault export)…'; st.style.color = '#94a3b8';
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/sessions/login/stop', { method: 'POST' });
+    var d = await r.json();
+    if (d.stopped) {
+      st.textContent = '✓ saved — profile flushed; session exported to the vault';
+      st.style.color = '#34d399';
+    } else {
+      st.textContent = d.error || 'nothing was running'; st.style.color = '#f59e0b';
+    }
+  } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
+  await scoutLoginSurface();
+  await _scoutLoadSessions();
+}
+
+async function scoutLoginSurface() {
+  var el = document.getElementById('scoutCapSurface');
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/sessions/login/status');
+    var d = await r.json();
+    var ls = d.login_surface || {};
+    if (ls.login_browser_running) {
+      var a = document.createElement('a');
+      a.href = 'http://' + location.hostname + ':4280/vnc.html';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.color = '#22d3ee';
+      a.textContent = 'Open noVNC (' + location.hostname + ':4280) — LAN/mesh only';
+      el.appendChild(a);
+      if (d.vnc_password) {
+        var s = document.createElement('span');
+        s.style.marginLeft = '10px';
+        s.textContent = 'VNC password: ' + d.vnc_password;
+        el.appendChild(s);
+      }
+      if (ls.target) {
+        var t = document.createElement('span');
+        t.style.cssText = 'margin-left:10px;color:#64748b';
+        t.textContent = 'target: ' + (ls.target.agent_id || '?') + '/' + (ls.target.platform || '?');
+        el.appendChild(t);
+      }
+    } else {
+      el.textContent = 'no login browser running';
+    }
+  } catch (e) { el.textContent = 'login surface status unavailable'; }
+}
+
+async function scoutAddPlatform() {
+  var st = document.getElementById('scoutNewStatus');
+  var hosts = (document.getElementById('scoutNewHosts').value || '')
+    .split(',').map(function(h) { return h.trim(); }).filter(Boolean);
+  var payload = {
+    platform: (document.getElementById('scoutNewKey').value || '').trim().toLowerCase(),
+    display_name: (document.getElementById('scoutNewName').value || '').trim(),
+    allowed_hosts: hosts,
+    login_url: (document.getElementById('scoutNewLogin').value || '').trim(),
+    probe_url: (document.getElementById('scoutNewProbe').value || '').trim()
+  };
+  if (!payload.platform || !payload.display_name || !hosts.length) {
+    st.textContent = 'key, display name + at least one host required'; st.style.color = '#fca5a5'; return;
+  }
+  st.textContent = 'Adding…'; st.style.color = '#94a3b8';
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/platforms', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    var d = await r.json();
+    if (d.success) {
+      st.textContent = '✓ added'; st.style.color = '#34d399';
+      await _scoutLoadSessions(); // re-renders dropdowns from the registry
+    } else {
+      st.textContent = d.error || 'add failed'; st.style.color = '#fca5a5';
+    }
   } catch (e) { st.textContent = 'Network error'; st.style.color = '#fca5a5'; }
 }
 

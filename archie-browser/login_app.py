@@ -11,8 +11,10 @@ No docker socket, no credentials — this container only ever sees the
 profile volume and the X display.
 """
 import hmac
+import ipaddress
 import logging
 import os
+import re
 import signal
 import subprocess
 import threading
@@ -57,6 +59,16 @@ _DEFAULT_LOGIN_URL = {
     "deepseek": "https://chat.deepseek.com/sign_in",
 }
 
+# #4006 dynamic platforms: hub registry (browser_platforms) supplies
+# login_url + allowed_hosts per request; we re-validate everything locally
+# (key shape, https, public-FQDN) — the sidecar never trusts the hub payload.
+# Baked platforms above keep their hardcoded allowlists and IGNORE caller
+# overrides, preserving the original trust boundary.
+_PLATFORM_RE = re.compile(r"^[a-z0-9_-]{2,32}$")
+_PROFILE_DIR_RE = re.compile(r"^(\d+)-([a-z0-9_-]{2,32})$")
+_HOST_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+_BLOCKED_HOST_SUFFIXES = (".local", ".internal", ".lan")
+
 _state_lock = threading.Lock()
 _proc: subprocess.Popen | None = None
 _started_at: float = 0.0
@@ -88,9 +100,31 @@ def _valid_agent_id(raw) -> int:
 
 def _valid_platform(raw) -> str:
     p = (raw or "linkedin").strip().lower()
-    if p not in _ALLOWED_PLATFORMS:
+    if p in _ALLOWED_PLATFORMS:
+        return p
+    # #4006: dynamic platform keys — shape-validated here (they flow into a
+    # filesystem path); /start additionally requires + validates a
+    # caller-supplied login_url/allowed_hosts before navigating anywhere.
+    if not _PLATFORM_RE.match(p):
         abort(400, "unsupported platform")
     return p
+
+
+def _valid_public_host(host: str) -> bool:
+    """Public FQDN only — reject IP literals, single-label (Docker service)
+    names, and internal suffixes. No DNS-resolve check: hub split-horizon DNS
+    maps our own public subdomains to private IPs."""
+    h = (host or "").strip().lower().rstrip(".")
+    if not h or len(h) > 253:
+        return False
+    try:
+        ipaddress.ip_address(h)
+        return False  # IP literal
+    except ValueError:
+        pass
+    if "." not in h or h.endswith(_BLOCKED_HOST_SUFFIXES):
+        return False
+    return bool(_HOST_RE.match(h))
 
 
 def _profile_dir(agent_id: int, platform: str) -> str:
@@ -119,6 +153,25 @@ def _validate_start_url(platform: str, raw_url) -> str:
     if u.scheme != "https" or u.hostname not in _ALLOWED_LOGIN_HOSTS.get(platform, set()):
         abort(400, "url host not allowed for platform")
     return raw_url
+
+
+def _validate_dynamic_login(login_url, allowed_hosts) -> str:
+    """#4006 — validate a registry-supplied login target for a non-baked
+    platform: https only, host within the supplied list, every host a public
+    FQDN. Re-done locally regardless of what the hub already checked."""
+    hosts = {str(h).strip().lower() for h in (allowed_hosts or []) if str(h).strip()}
+    if not login_url or not hosts:
+        abort(400, "login_url and allowed_hosts required for this platform")
+    bad = sorted(h for h in hosts if not _valid_public_host(h))
+    if bad:
+        abort(400, f"allowed_hosts rejected (public FQDNs only): {', '.join(bad[:5])}")
+    try:
+        u = urlparse(login_url)
+    except Exception:
+        abort(400, "invalid url")
+    if u.scheme != "https" or (u.hostname or "").lower() not in hosts:
+        abort(400, "login_url host not in allowed_hosts")
+    return login_url
 
 
 def _running() -> bool:
@@ -172,7 +225,12 @@ def start():
     j = request.get_json(silent=True) or {}
     agent_id = _valid_agent_id(j.get("agent_id", 342))
     platform = _valid_platform(j.get("platform"))
-    start_url = _validate_start_url(platform, j.get("url"))
+    if platform in _ALLOWED_PLATFORMS:
+        # Baked platforms keep their hardcoded allowlists — caller-supplied
+        # hosts are deliberately ignored (original trust boundary).
+        start_url = _validate_start_url(platform, j.get("url"))
+    else:
+        start_url = _validate_dynamic_login(j.get("login_url") or j.get("url"), j.get("allowed_hosts"))
     pdir = _profile_dir(agent_id, platform)
 
     with _state_lock:
@@ -180,6 +238,10 @@ def start():
             return jsonify({"started": False, "error": "login browser already running"}), 409
         env = dict(os.environ)
         env.setdefault("DISPLAY", ":99")
+        # #4006 capture-to-vault: tells login_browser.py which vault row the
+        # exported storage_state belongs to.
+        env["LOGIN_AGENT_ID"] = str(agent_id)
+        env["LOGIN_PLATFORM"] = platform
         _proc = subprocess.Popen(
             ["python3", os.path.join(os.path.dirname(__file__), "login_browser.py"), pdir, start_url],
             env=env,
@@ -194,6 +256,31 @@ def start():
 def stop():
     stopped = _stop_browser("api /stop")
     return jsonify({"stopped": stopped})
+
+
+@app.get("/profiles")
+def profiles():
+    """#4006 — enumerate REAL persistent profiles on disk so the S.C.O.U.T.
+    vault stops relying on the hardcoded WARM_PROFILES registry."""
+    out = []
+    base = os.path.realpath(PROFILES_DIR)
+    try:
+        entries = sorted(os.listdir(base))
+    except OSError:
+        entries = []
+    for name in entries:
+        m = _PROFILE_DIR_RE.match(name)
+        if not m:
+            continue
+        full = os.path.join(base, name)
+        if not os.path.isdir(full):
+            continue
+        try:
+            established = bool(os.listdir(full))
+        except OSError:
+            established = False
+        out.append({"agent_id": int(m.group(1)), "platform": m.group(2), "established": established})
+    return jsonify({"profiles": out})
 
 
 if __name__ == "__main__":

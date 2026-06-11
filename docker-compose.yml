@@ -1053,6 +1053,9 @@ services:
       # already holds, so only archie_platform can drive start/stop/status.
       - INTERNAL_API_KEY=${INTERNAL_API_KEY:?INTERNAL_API_KEY must be set in .env}
       - LOGIN_IDLE_TIMEOUT=900
+      # #4006 capture-to-vault: login_browser.py POSTs the captured
+      # storage_state to the platform's internal sessions API on stop.
+      - PLATFORM_INTERNAL_URL=http://archie_platform:3000
     volumes:
       - /mnt/data2/browser-profiles:/profiles
     dns:

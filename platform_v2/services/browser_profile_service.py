@@ -64,23 +64,46 @@ def run_keepwarm() -> dict:
     return results
 
 
+def _registry_probe_url(platform: str):
+    """#4006 — opt-in generic probe target from the browser_platforms
+    registry. None = platform not registered / disabled / no probe_url."""
+    try:
+        from services import browser_platform_service
+
+        reg = browser_platform_service.get_platform(platform)
+        if reg and reg.get("enabled"):
+            return reg.get("probe_url") or None
+    except Exception:
+        return None
+    return None
+
+
 def run_session_health_probe() -> dict:
     """#3708 phase 2 — health-probe every ACTIVE cookie session by running its
     platform's READ-only skill through the stored storage_state. Records the
     result (last_probe_at/ok); a failed probe flips the session to 'stale' so
-    skills + the vault stop trusting expired cookies. Platforms with no READ
-    skill are skipped (can't probe what we can't read)."""
+    skills + the vault stop trusting expired cookies.
+
+    Probe selection (#4006): a dedicated READ skill (WARM_SKILLS) wins;
+    otherwise platforms with a registry probe_url use the generic
+    session_probe skill; everything else is skipped as before."""
     from services import browser_session_service
     from services.browser_service import run_skill_sync
 
     results = {}
     for agent_id, platform in browser_session_service.list_active_sessions():
         key = f"{agent_id}-{platform}"
-        if platform not in WARM_SKILLS:
-            results[key] = "no probe skill for platform — skipped"
-            continue
-        skill, params = WARM_SKILLS[platform]
-        res = run_skill_sync(skill, dict(params), agent_id=agent_id, timeout_s=120)
+        if platform in WARM_SKILLS:
+            skill, base_params = WARM_SKILLS[platform]
+            params = dict(base_params)
+        else:
+            probe_url = _registry_probe_url(platform)
+            if not probe_url:
+                results[key] = "no probe skill for platform — skipped"
+                continue
+            skill = "session_probe"
+            params = {"probe_url": probe_url, "_platform": platform}
+        res = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
         ok = bool(res.get("success"))
         reason = None if ok else str(res.get("error") or res.get("_status") or "probe failed")[:200]
         browser_session_service.record_probe(agent_id, platform, ok, reason)

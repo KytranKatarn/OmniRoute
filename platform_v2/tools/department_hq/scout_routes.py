@@ -184,19 +184,34 @@ def register_scout_routes(bp, admin_required):
             out["cookie_sessions_error"] = str(exc)
 
         hdrs = {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
-        for aid, plat in WARM_PROFILES:
-            row = {"agent_id": aid, "platform": plat, "profile_established": None}
-            try:
-                pr = _rq.get(
-                    "http://archie_browser_login:4281/status",
-                    params={"agent_id": aid, "platform": plat},
-                    headers=hdrs,
-                    timeout=5,
+        try:
+            # #4006: enumerate REAL profile dirs from the sidecar instead of
+            # the hardcoded WARM_PROFILES registry.
+            pr = _rq.get("http://archie_browser_login:4281/profiles", headers=hdrs, timeout=5)
+            for p in (pr.json() or {}).get("profiles") or []:
+                out["profiles"].append(
+                    {
+                        "agent_id": p.get("agent_id"),
+                        "platform": p.get("platform"),
+                        "profile_established": bool(p.get("established")),
+                    }
                 )
-                row["profile_established"] = bool((pr.json() or {}).get("profile_established"))
-            except Exception:
-                row["error"] = "sidecar unreachable"
-            out["profiles"].append(row)
+        except Exception:
+            # Fallback (old sidecar image / sidecar down): probe the known
+            # registry pairs via /status so the subtab never blanks.
+            for aid, plat in WARM_PROFILES:
+                row = {"agent_id": aid, "platform": plat, "profile_established": None}
+                try:
+                    pr = _rq.get(
+                        "http://archie_browser_login:4281/status",
+                        params={"agent_id": aid, "platform": plat},
+                        headers=hdrs,
+                        timeout=5,
+                    )
+                    row["profile_established"] = bool((pr.json() or {}).get("profile_established"))
+                except Exception:
+                    row["error"] = "sidecar unreachable"
+                out["profiles"].append(row)
         return jsonify(out)
 
     @bp.route("/api/scout/sessions/probe", methods=["POST"])
@@ -223,6 +238,124 @@ def register_scout_routes(bp, admin_required):
             return jsonify({"success": True})
         except Exception as exc:
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    # ── #4006 phase 2a — platform registry + generic login capture ──
+    # Interactive login capture for ANY registry platform (not just the
+    # S.I.G.N.A.L. LinkedIn lane in social_routes.py, which stays untouched).
+    # Flow: pick/add platform → /login/start spawns the headed browser →
+    # owner logs in via noVNC (:4280, LAN/mesh only) → /login/stop → the
+    # sidecar exports storage_state into browser_sessions (vault + 4h probe).
+    _LOGIN_SIDECAR = "http://archie_browser_login:4281"
+
+    def _scout_sidecar_headers():
+        import os as _os
+
+        return {"Authorization": f"Bearer {_os.getenv('INTERNAL_API_KEY', '')}"}
+
+    @bp.route("/api/scout/platforms")
+    @admin_required
+    def api_scout_platforms():
+        from services import browser_platform_service
+
+        try:
+            return jsonify({"success": True, "platforms": browser_platform_service.list_platforms()})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/scout/platforms", methods=["POST"])
+    @admin_required
+    def api_scout_platforms_add():
+        from services import browser_platform_service
+
+        j = request.get_json(silent=True) or {}
+        try:
+            p = browser_platform_service.add_platform(
+                platform=j.get("platform") or "",
+                display_name=j.get("display_name") or "",
+                allowed_hosts=j.get("allowed_hosts") or [],
+                login_url=(j.get("login_url") or "").strip() or None,
+                probe_url=(j.get("probe_url") or "").strip() or None,
+            )
+            return jsonify({"success": True, "platform": p})
+        except ValueError as exc:
+            return jsonify({"success": False, "error": str(exc)}), 400
+        except Exception:
+            return jsonify({"success": False, "error": "add failed"}), 500
+
+    @bp.route("/api/scout/sessions/login/start", methods=["POST"])
+    @admin_required
+    def api_scout_login_start():
+        import requests as _rq
+
+        from services import browser_platform_service
+
+        j = request.get_json(silent=True) or {}
+        try:
+            agent_id = int(j.get("agent_id") or 0)
+        except (TypeError, ValueError):
+            agent_id = 0
+        if agent_id <= 0:
+            return jsonify({"started": False, "error": "valid agent_id required"}), 400
+        platform = (j.get("platform") or "").strip().lower()
+        reg = browser_platform_service.get_platform(platform)
+        if not reg or not reg.get("enabled"):
+            return jsonify({"started": False, "error": "unknown or disabled platform"}), 400
+        if not reg.get("login_url"):
+            return (
+                jsonify({"started": False, "error": "platform is cookie-import only (no login_url)"}),
+                400,
+            )
+        try:
+            r = _rq.post(
+                f"{_LOGIN_SIDECAR}/start",
+                json={
+                    "agent_id": agent_id,
+                    "platform": platform,
+                    "login_url": reg["login_url"],
+                    "allowed_hosts": reg.get("allowed_hosts") or [],
+                },
+                headers=_scout_sidecar_headers(),
+                timeout=10,
+            )
+            return jsonify(r.json()), r.status_code
+        except Exception as exc:
+            return jsonify({"started": False, "error": f"sidecar unreachable: {type(exc).__name__}"}), 502
+
+    @bp.route("/api/scout/sessions/login/stop", methods=["POST"])
+    @admin_required
+    def api_scout_login_stop():
+        import requests as _rq
+
+        try:
+            # 25s > the sidecar's 20s SIGTERM→SIGKILL window.
+            r = _rq.post(f"{_LOGIN_SIDECAR}/stop", headers=_scout_sidecar_headers(), timeout=25)
+            return jsonify(r.json()), r.status_code
+        except Exception as exc:
+            return jsonify({"stopped": False, "error": f"sidecar unreachable: {type(exc).__name__}"}), 502
+
+    @bp.route("/api/scout/sessions/login/status")
+    @admin_required
+    def api_scout_login_status():
+        import os as _os
+
+        import requests as _rq
+
+        out = {"success": True}
+        try:
+            params = {}
+            if request.args.get("agent_id"):
+                params["agent_id"] = int(request.args["agent_id"])
+            if request.args.get("platform"):
+                params["platform"] = request.args["platform"].strip().lower()
+            r = _rq.get(f"{_LOGIN_SIDECAR}/status", params=params, headers=_scout_sidecar_headers(), timeout=5)
+            out["login_surface"] = r.json()
+        except Exception as exc:
+            out["login_surface"] = None
+            out["login_surface_error"] = f"sidecar unreachable: {type(exc).__name__}"
+        # Admin-only surface — same trust boundary as social_routes
+        # session-status (owner reads the VNC password here instead of .env).
+        out["vnc_password"] = _os.getenv("BROWSER_VNC_PASSWORD") or None
+        return jsonify(out)
 
     @bp.route("/api/scout/cli-dispatch", methods=["POST"])
     def api_scout_cli_dispatch():

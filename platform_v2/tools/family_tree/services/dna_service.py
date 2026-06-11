@@ -1,8 +1,9 @@
 """Family Tree — DNA parsing, ethnicity estimation, and profile storage."""
 
-import csv
-import io
+from __future__ import annotations
+
 import logging
+from typing import Any
 
 import psycopg2
 
@@ -48,25 +49,45 @@ POP_LABELS = {
     "NAM": "Native American",
 }
 
+VALID_ALLELES = set("ACGT")
+
 
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
 
 
-def parse_dna_file(file_content: str, provider: str) -> dict:
+def _validate_genotype(genotype: str, *, rsid: str, line_number: int | None = None) -> str:
+    """Return a normalized genotype or raise for invalid allele data."""
+    location = f"Line {line_number}: " if line_number is not None else ""
+    normalized = genotype.upper().strip()
+    if not normalized:
+        raise ValueError(f"{location}missing genotype for SNP {rsid}.")
+    if any(allele not in VALID_ALLELES for allele in normalized):
+        raise ValueError(f"{location}invalid genotype for SNP {rsid}; " "alleles must contain only A, C, G, or T.")
+    if len(normalized) > 2:
+        raise ValueError(f"{location}genotype for SNP {rsid} must contain one or two alleles.")
+    return normalized
+
+
+def parse_dna_file(file_content: str, provider: str) -> dict[str, Any]:
     """Parse a raw DNA CSV/TSV file from 23andMe or AncestryDNA.
 
     Returns dict with keys: snps (dict rsid->{chr, pos, genotype}), snp_count (int).
     """
+    if not isinstance(file_content, str):
+        raise ValueError("DNA file content must be text.")
+    if not isinstance(provider, str):
+        raise ValueError("DNA provider must be a string.")
+
     provider = provider.lower().strip()
     if provider not in ("23andme", "ancestrydna"):
         raise ValueError(f"Unsupported provider: {provider}. Use '23andme' or 'ancestrydna'.")
 
-    snps = {}
+    snps: dict[str, dict[str, Any]] = {}
     lines = file_content.splitlines()
 
-    for line in lines:
+    for line_number, line in enumerate(lines, start=1):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
@@ -76,23 +97,31 @@ def parse_dna_file(file_content: str, provider: str) -> dict:
         if provider == "23andme":
             # Format: rsid  chromosome  position  genotype
             if len(parts) < 4:
-                continue
+                if parts and parts[0].strip().lower() in ("rsid", "rs#", "snp"):
+                    continue
+                raise ValueError(f"Line {line_number}: expected 4 tab-separated columns for 23andMe data.")
             rsid, chrom, pos, genotype = parts[0], parts[1], parts[2], parts[3]
         else:
             # AncestryDNA: rsid  chromosome  position  allele1  allele2
             if len(parts) < 5:
-                continue
+                if parts and parts[0].strip().lower() in ("rsid", "rs#", "snp"):
+                    continue
+                raise ValueError(f"Line {line_number}: expected 5 tab-separated columns for AncestryDNA data.")
             rsid, chrom, pos = parts[0], parts[1], parts[2]
             genotype = parts[3] + parts[4]
 
         # Skip non-rs identifiers and header rows
         if not rsid.startswith("rs"):
-            continue
+            if rsid.strip().lower() in ("rsid", "rs#", "snp"):
+                continue
+            raise ValueError(f"Line {line_number}: invalid SNP identifier '{rsid}'; expected an rsID.")
 
         try:
             pos_int = int(pos)
         except ValueError:
-            continue
+            raise ValueError(f"Line {line_number}: invalid position '{pos}' for SNP {rsid}.") from None
+
+        genotype = _validate_genotype(genotype, rsid=rsid, line_number=line_number)
 
         snps[rsid] = {"chr": chrom, "pos": pos_int, "genotype": genotype}
 
@@ -104,13 +133,21 @@ def parse_dna_file(file_content: str, provider: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def estimate_ethnicity(snp_data: dict) -> dict:
+def estimate_ethnicity(snp_data: dict[str, Any]) -> dict[str, Any]:
     """Estimate ethnicity from parsed SNP data using ancestry-informative markers.
 
     Returns dict like {"European": 0.65, "Sub-Saharan African": 0.10, ...}
     plus a disclaimer string.
     """
+    if not isinstance(snp_data, dict):
+        raise ValueError("SNP data must be a dictionary returned by parse_dna_file().")
+
     snps = snp_data.get("snps", {})
+    if not isinstance(snps, dict):
+        raise ValueError("SNP data must include a 'snps' dictionary.")
+    if not snps:
+        raise ValueError("SNP data is empty; cannot estimate ethnicity without parsed SNPs.")
+
     scores = {code: 0.0 for code in POP_LABELS}
     total_weight = 0.0
 
@@ -119,7 +156,11 @@ def estimate_ethnicity(snp_data: dict) -> dict:
         if rsid not in snps:
             continue
 
-        genotype = snps[rsid]["genotype"].upper()
+        snp = snps[rsid]
+        if not isinstance(snp, dict):
+            raise ValueError(f"SNP {rsid} must be a dictionary with a genotype.")
+
+        genotype = _validate_genotype(str(snp.get("genotype", "")), rsid=rsid)
         target_allele = marker["allele"].upper()
         pop = marker["pop"]
         weight = marker["weight"]

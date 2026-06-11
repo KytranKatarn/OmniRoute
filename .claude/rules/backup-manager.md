@@ -23,7 +23,7 @@
 | Packages | Deployment package builder |
 
 ## GFS Retention Policy
-- 7 daily / 4 weekly / 3 monthly
+- Per-(component, tier) GFS matrix — **source of truth: `RETENTION` dict in `scripts/backup/retention_prune.py`** (NOT a single 7/4/3 triple). Each cell is `(daily, weekly, monthly)` keep counts. E.g. `database`: primary `(30,12,6)`, usb `(14,4,0)`, gdrive `(0,4,6)`, vps `(7,0,0)`. Tiers: primary / usb / gdrive / vps.
 - Job #60: auto-cleanup at 07:00 AM
 - Paths: `/backups/` AND `/mnt/data2/backups/` (both must be normalized — no trailing slash)
 - `backup_locks` table prevents concurrent backup runs (lock timeout: 2 hours)

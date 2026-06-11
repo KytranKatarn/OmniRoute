@@ -1769,7 +1769,9 @@ def preview_restore(backup_name):
         # in the app container. Metadata.json can tell us more if present.
         dumps = [f for f in os.listdir(new_db_dir) if f.endswith(".dump")]
         if dumps:
-            dump_file = sorted(dumps)[-1]
+            # Prefer the archie dump (primary DB with knowledge_base). A bare sorted()[-1]
+            # picks wtf/creed (alphabetically last) — the wrong-DB trap that caused #4050.
+            dump_file = next((d for d in sorted(dumps) if d.startswith("archie_")), sorted(dumps)[-1])
             dump_path = os.path.join(new_db_dir, dump_file)
             dump_size = os.path.getsize(dump_path)
             preview["components"].append(
@@ -1783,7 +1785,25 @@ def preview_restore(backup_name):
                 }
             )
             preview["total_size_bytes"] += dump_size
-            preview["database_tables"] = "pg_dump archive (see metadata.json for table count)"
+            # Real object/table count comes from metadata.json (written at backup time, #4049).
+            _m = {}
+            _mf = os.path.join(backup_path, "metadata.json")
+            if os.path.exists(_mf):
+                try:
+                    with open(_mf) as _fh:
+                        _m = json.load(_fh)
+                except Exception:
+                    _m = {}
+            _dbmeta = next(
+                (d for d in (_m.get("databases") or []) if str(d.get("file", "")).endswith(dump_file)),
+                {},
+            )
+            if _dbmeta.get("table_count") is not None:
+                preview["database_tables"] = _dbmeta["table_count"]
+                preview["components"][-1]["object_count"] = _dbmeta.get("object_count")
+                preview["components"][-1]["table_count"] = _dbmeta.get("table_count")
+            else:
+                preview["database_tables"] = "pg_dump archive — run restore_db.sh --into-scratch to verify"
 
         # Code: everything in code/ subdir (platform_v2 + ai_bridge + scripts + migrations)
         for comp_name in ("code", "gitbundles", "gitbundle", "config", "volumes"):
@@ -1951,13 +1971,77 @@ def preview_restore(backup_name):
     return preview
 
 
+def _is_pg_custom_dump(path):
+    """True if `path` is a pg_dump custom-format (-Fc) archive — binary, needs pg_restore (#4049)."""
+    if path.endswith(".dump"):
+        return True
+    try:
+        with open(path, "rb") as f:
+            return f.read(5) == b"PGDMP"
+    except Exception:
+        return False
+
+
+def _db_from_dump_name(path):
+    """Infer the logical DB name from a Phase 1-6 dump filename (archie_/wtf_/creed_<ts>.dump)."""
+    base = os.path.basename(path)
+    for db in ("archie", "wtf", "creed"):
+        if base.startswith(db + "_"):
+            return db
+    return "archie"
+
+
+HOST_BACKUP_DIR = "/mnt/data2/backups"  # host path operators use; BACKUP_DIR ("/backups") is the container mount
+
+
+def _host_path(backup_path):
+    """Translate an in-container backup path (/backups/...) to the host path operators run against.
+
+    normpath() first so trailing/duplicate slashes (e.g. ``/backups//x/``) don't defeat the prefix
+    match. The result is an informational command string, never executed by the platform. (#4049)
+    """
+    norm = os.path.normpath(backup_path)
+    if norm == BACKUP_DIR or norm.startswith(BACKUP_DIR + os.sep):
+        return HOST_BACKUP_DIR + norm[len(BACKUP_DIR) :]
+    return backup_path
+
+
+def _host_restore_command(backup_path, db="archie", force=False):
+    """The exact host command an operator runs to restore a Phase 1-6 (-Fc) backup (KB #272184)."""
+    flag = " --force" if force else ""
+    return f"scripts/backup/restore_db.sh {_host_path(backup_path)} --db {db}{flag}"
+
+
 def restore_database_from_backup(db_file_path):
-    """Restore database from SQL file (handles both .sql and .sql.gz)"""
+    """Restore a database dump.
+
+    Plain ``.sql`` / ``.sql.gz`` dumps are executed in-process. Binary pg_dump custom-format
+    (``-Fc``, the Phase 1-6 ``database/*.dump`` layout) CANNOT be ``cur.execute()``'d — and the
+    platform cannot DROP+restore its own live DB anyway — so we refuse and hand back the exact
+    host command (``scripts/backup/restore_db.sh``). Runbook: KB #272184. (Task #4049.)
+    """
     if not os.path.exists(db_file_path):
         return {"success": False, "error": f"Database file not found: {db_file_path}"}
 
+    # Guard: never feed a binary -Fc archive to cur.execute() (silent corruption / failure).
+    if _is_pg_custom_dump(db_file_path):
+        db = _db_from_dump_name(db_file_path)
+        backup_path = os.path.dirname(os.path.dirname(db_file_path))  # <dir>/database/x.dump -> <dir>
+        return {
+            "success": False,
+            "requires_host_restore": True,
+            "format": "pg_dump custom (-Fc)",
+            "error": (
+                "Binary pg_dump archive — restore via host script, not the UI (the platform "
+                "cannot DROP+restore its own live DB). See runbook KB #272184."
+            ),
+            "host_command": _host_restore_command(backup_path, db=db, force=True),
+            "verify_command": _host_restore_command(backup_path, db=db, force=False),
+            "kb": "#272184",
+        }
+
     try:
-        # Read SQL content
+        # Read SQL content (legacy plain / gzip dumps only)
         if db_file_path.endswith(".gz"):
             with gzip.open(db_file_path, "rt", encoding="utf-8") as f:
                 sql_content = f.read()
@@ -1985,23 +2069,44 @@ def restore_components(backup_name, components):
 
     if "database" in components:
         try:
-            db_file = os.path.join(backup_path, "database.sql.gz")
-            if not os.path.exists(db_file):
-                db_file = os.path.join(backup_path, "database.sql")
-
-            if os.path.exists(db_file):
-                restore_result = restore_database_from_backup(db_file)
-                if restore_result["success"]:
-                    results["restored"].append("database")
-                else:
-                    results["errors"].append({"component": "database", "error": restore_result["error"]})
-            else:
-                results["errors"].append(
+            # Phase 1-6 layout: database/<db>_<ts>.dump (pg_dump -Fc) — cannot restore in-process.
+            new_db_dir = os.path.join(backup_path, "database")
+            dumps = (
+                sorted(f for f in os.listdir(new_db_dir) if f.endswith(".dump")) if os.path.isdir(new_db_dir) else []
+            )
+            if dumps:
+                archie_dump = next((f for f in dumps if f.startswith("archie_")), dumps[0])
+                guard = restore_database_from_backup(os.path.join(new_db_dir, archie_dump))
+                # Expected: requires_host_restore — surface the host command, never a silent no-op.
+                results["warnings"].append(
                     {
                         "component": "database",
-                        "error": "Database file not found in backup",
+                        "requires_host_restore": True,
+                        "message": guard.get("error", "Restore the database via host script."),
+                        "host_command": guard.get("host_command"),
+                        "verify_command": guard.get("verify_command"),
+                        "kb": guard.get("kb", "#272184"),
                     }
                 )
+            else:
+                # Legacy layout: plain / gzip SQL is executed in-process.
+                db_file = os.path.join(backup_path, "database.sql.gz")
+                if not os.path.exists(db_file):
+                    db_file = os.path.join(backup_path, "database.sql")
+
+                if os.path.exists(db_file):
+                    restore_result = restore_database_from_backup(db_file)
+                    if restore_result["success"]:
+                        results["restored"].append("database")
+                    else:
+                        results["errors"].append({"component": "database", "error": restore_result["error"]})
+                else:
+                    results["errors"].append(
+                        {
+                            "component": "database",
+                            "error": "Database file not found in backup",
+                        }
+                    )
         except Exception as e:
             results["errors"].append({"component": "database", "error": str(e)})
 

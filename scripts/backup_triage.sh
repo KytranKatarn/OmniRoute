@@ -136,6 +136,15 @@ else
     log "  ERROR: BACKUP_CONFIG_PASSPHRASE not set after .env load — config tar REMOVED (refused to ship plaintext secrets). Set it in /mnt/archie_brain/.env."
 fi
 
+# ----- metadata.json + rollback.sh (self-describing + self-recovering, #4049) -----
+# Runs after all components exist and BEFORE the USB/DR copy so both files ship with the backup.
+log "Writing metadata.json + rollback.sh..."
+if "$(dirname "$0")/backup/write_backup_metadata.sh" "$RUN" >>"$LOG" 2>&1; then
+    log "  metadata + rollback OK"
+else
+    log "  metadata/rollback generation FAILED (non-fatal — backup data is unaffected)"
+fi
+
 # ----- Copy to USB via docker exec (USB is root-owned) -----
 log "Copying to USB via docker exec archie_platform..."
 USB_STATUS=success

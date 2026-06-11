@@ -35,6 +35,7 @@ from ._shared import (
     get_module_dependencies,
     preview_restore,
     restore_components,
+    _host_restore_command,
 )
 
 
@@ -51,8 +52,33 @@ def register_restore_routes(bp, admin_required):
             if not os.path.exists(backup_path):
                 return jsonify({"success": False, "error": "Backup not found"}), 404
 
-            rollback_script = os.path.join(backup_path, "rollback.sh")
+            # Phase 1-6 (-Fc) layout: NEVER restore from the web thread — the platform can't
+            # DROP+restore its own live DB, and a multi-minute pg_restore would block/timeout the
+            # worker. Hand back the exact host command (whether or not a rollback.sh exists).
+            # Runbook KB #272184. (#4049)
+            db_dir = os.path.join(backup_path, "database")
+            is_phase16 = os.path.isdir(db_dir) and any(f.endswith(".dump") for f in os.listdir(db_dir))
+            if is_phase16:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "requires_host_restore": True,
+                            "layout": "phase16",
+                            "error": (
+                                "This backup uses the Phase 1-6 (-Fc) layout. Restore it from the "
+                                "host — the platform cannot DROP+restore its own live DB. "
+                                "Runbook KB #272184."
+                            ),
+                            "host_command": _host_restore_command(backup_path, db="all", force=True),
+                            "verify_command": _host_restore_command(backup_path, db="archie", force=False),
+                            "kb": "#272184",
+                        }
+                    ),
+                    409,
+                )
 
+            rollback_script = os.path.join(backup_path, "rollback.sh")
             if not os.path.exists(rollback_script):
                 return (
                     jsonify({"success": False, "error": "Rollback script not found"}),

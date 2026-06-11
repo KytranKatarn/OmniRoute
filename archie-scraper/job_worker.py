@@ -130,9 +130,22 @@ class JobWorker:
             else json.loads(row["params"] or "{}")
         )
         tier = select_egress(row["target_url"], row["egress_tier"])
+        # #4007: session-bound jobs honour the session's browse-from-country
+        # egress preference (preference-not-pin — resolver returns None → hub).
+        # params.egress_node is an explicit per-call override that wins.
+        proxy_override = None
+        if row["job_type"] in ("session_fetch", "authenticated_fetch") and params.get("agent_id"):
+            from proxy_selector import resolve_session_egress
+
+            plat = (params.get("platform") or "").lower()
+            proxy_override = resolve_session_egress(
+                int(params.get("agent_id") or 0), plat, params.get("egress_node")
+            )
+            if proxy_override:
+                logger.info("Job #%d egress via session preference (proxy set)", job_id)
         slot_id, page = None, None
         try:
-            slot_id, page = self.pool.claim(egress_tier=tier)
+            slot_id, page = self.pool.claim(egress_tier=tier, proxy_override=proxy_override)
             skill_mod = importlib.import_module(module_path)
             result = skill_mod.run(
                 page=page,

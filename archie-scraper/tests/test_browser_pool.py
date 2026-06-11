@@ -52,3 +52,22 @@ def test_claim_and_release_cycle():
     assert pool.available_count() == 1
     pool.release(slot_id, page)
     assert pool.available_count() == 2
+
+
+def test_claim_proxy_override_opens_page_with_proxy():
+    """#4007 — proxy_override must reach new_context regardless of slot tier."""
+    pool, mock_browser_ctx, _ = _patched_pool()
+    slot_id, _page = pool.claim(egress_tier=1, proxy_override="socks5://u:p@100.64.0.8:1080")
+    # _tls_open_page builds ctx_opts with proxy from the override
+    kwargs = pool._tls.browser.new_context.call_args.kwargs
+    assert kwargs.get("proxy") == {"server": "socks5://u:p@100.64.0.8:1080"}
+    pool.release(slot_id, _page)
+
+
+def test_claim_no_override_uses_slot_proxy():
+    """Back-compat: without override, slot 0 stays direct (no proxy kwarg)."""
+    pool, _, _ = _patched_pool()
+    slot_id, _page = pool.claim(egress_tier=1)  # slot 0 = direct (env proxies blank)
+    kwargs = pool._tls.browser.new_context.call_args.kwargs
+    assert "proxy" not in kwargs
+    pool.release(slot_id, _page)

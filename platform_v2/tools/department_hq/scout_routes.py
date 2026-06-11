@@ -168,6 +168,7 @@ def register_scout_routes(bp, admin_required):
                     """SELECT bs.id, bs.agent_id, a.name AS agent_name, bs.platform,
                               bs.status, bs.last_used_at, bs.last_probe_at,
                               bs.last_probe_ok, bs.last_failure_reason,
+                              bs.egress_pref,
                               octet_length(bs.encrypted_state) AS state_bytes,
                               bs.updated_at
                        FROM browser_sessions bs
@@ -223,6 +224,37 @@ def register_scout_routes(bp, admin_required):
 
         try:
             return jsonify({"success": True, "results": run_session_health_probe()})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/scout/egress-nodes")
+    @admin_required
+    def api_scout_egress_nodes():
+        """#4007 — catalog of egress endpoints (hub + online CPU outposts).
+        `egress_ready` nodes are selectable; the rest list as 'proxy not
+        deployed'."""
+        from services import egress_catalog_service
+
+        try:
+            return jsonify({"success": True, "nodes": egress_catalog_service.list_egress_nodes()})
+        except Exception as exc:
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/scout/sessions/<int:agent_id>/<platform>/egress", methods=["POST"])
+    @admin_required
+    def api_scout_session_set_egress(agent_id, platform):
+        """#4007 — set a session's browse-from-country preference. Value must be
+        'hub'/'auto' or a currently egress-ready node_name."""
+        from services import browser_session_service, egress_catalog_service
+
+        pref = (request.get_json(silent=True) or {}).get("egress_pref")
+        if not egress_catalog_service.is_valid_egress(pref):
+            return jsonify({"success": False, "error": "unknown or not-egress-ready node"}), 400
+        try:
+            ok = browser_session_service.set_session_egress(agent_id, platform, pref)
+            if not ok:
+                return jsonify({"success": False, "error": "no such session"}), 404
+            return jsonify({"success": True})
         except Exception as exc:
             return jsonify({"success": False, "error": str(exc)}), 500
 

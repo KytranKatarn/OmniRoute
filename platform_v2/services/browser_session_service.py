@@ -136,9 +136,7 @@ def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None) -> 
 def list_active_sessions() -> list:
     """(agent_id, platform) for every active session — drives the probe job."""
     with get_db_cursor(commit=False) as (_conn, cur):
-        cur.execute(
-            "SELECT agent_id, platform FROM browser_sessions WHERE status = 'active'"
-        )
+        cur.execute("SELECT agent_id, platform FROM browser_sessions WHERE status = 'active'")
         return [(r["agent_id"], r["platform"]) for r in cur.fetchall()]
 
 
@@ -166,3 +164,37 @@ def mark_active(agent_id: int, platform: str) -> None:
                 WHERE agent_id = %s AND platform = %s""",
             (agent_id, platform),
         )
+
+
+# ── Egress preference (#4007) ──────────────────────────────────────────
+# Which country/outpost a session's authenticated fetches egress through.
+# NULL/'hub'/'auto' = hub direct. Stored value is a remote_nodes.node_name.
+# Resolution is preference-not-pin (the scraper falls back to hub).
+
+_HUB_EGRESS = {None, "", "hub", "auto"}
+
+
+def get_session_egress(agent_id: int, platform: str) -> Optional[str]:
+    """Return the session's egress_pref, or None (= hub direct)."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            "SELECT egress_pref FROM browser_sessions WHERE agent_id = %s AND platform = %s",
+            (agent_id, platform),
+        )
+        row = cur.fetchone()
+    pref = row["egress_pref"] if row else None
+    return None if pref in _HUB_EGRESS else pref
+
+
+def set_session_egress(agent_id: int, platform: str, pref: Optional[str]) -> bool:
+    """Set (or clear, when pref is hub/auto/None) the session's egress
+    preference. Returns False if no session row matched."""
+    value = None if (pref or "").strip().lower() in _HUB_EGRESS else pref.strip()
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            """UPDATE browser_sessions
+                  SET egress_pref = %s, updated_at = NOW()
+                WHERE agent_id = %s AND platform = %s""",
+            (value, agent_id, platform),
+        )
+        return cur.rowcount > 0

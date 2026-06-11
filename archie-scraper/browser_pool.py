@@ -89,10 +89,16 @@ class BrowserPool:
     # Public API
     # ------------------------------------------------------------------
 
-    def claim(self, egress_tier: int = 1) -> tuple[int, any]:
+    def claim(self, egress_tier: int = 1, proxy_override: str | None = None) -> tuple[int, any]:
         """
         Reserve a slot and return (slot_id, page).
         Must be called from the thread that will USE the page.
+
+        proxy_override (#4007): when set, the page opens through THAT proxy
+        regardless of the slot's tier mapping — this is how per-session
+        browse-from-country egress reaches a specific outpost's SOCKS5 without
+        depending on the tier→slot fleet machinery. The slot is still reserved
+        for concurrency control. None = unchanged tier-based behaviour.
         """
         preferred = max(0, min(egress_tier - 1, self.size - 1))
         order = [preferred] + [i for i in range(self.size) if i != preferred]
@@ -112,8 +118,11 @@ class BrowserPool:
         # Step 2: open page OUTSIDE the lock so Playwright I/O doesn't block other claims
         try:
             self._tls_start()
-            # Fleet slots override SLOT_PROXIES; static slots fall back to SLOT_PROXIES
-            proxy = self._slot_proxy.get(slot_id, SLOT_PROXIES.get(slot_id))
+            if proxy_override is not None:
+                proxy = proxy_override
+            else:
+                # Fleet slots override SLOT_PROXIES; static slots fall back to SLOT_PROXIES
+                proxy = self._slot_proxy.get(slot_id, SLOT_PROXIES.get(slot_id))
             page = self._tls_open_page(proxy)
             return slot_id, page
         except Exception:

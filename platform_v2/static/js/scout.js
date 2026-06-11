@@ -26,6 +26,8 @@ var _SCOUT_IMPORT_PLATFORMS = ['linkedin', 'twitter', 'facebook', 'claude', 'dee
 // #4006: browser_platforms registry cache (null until first successful load;
 // the static list above stays as the fallback).
 var _scoutPlatforms = null;
+// #4007: egress catalog (hub + online CPU outposts). null until first load.
+var _scoutEgressNodes = null;
 
 async function _scoutLoadSessions() {
   var el = document.getElementById('scout-sessions-content');
@@ -43,6 +45,11 @@ async function _scoutLoadSessions() {
     var pdd = await prr.json();
     if (pdd.success && Array.isArray(pdd.platforms) && pdd.platforms.length) _scoutPlatforms = pdd.platforms;
   } catch (e) { /* registry unavailable — fall back to the static list */ }
+  try {
+    var enr = await fetch('/tools/department-hq/api/scout/egress-nodes');
+    var edd = await enr.json();
+    if (edd.success && Array.isArray(edd.nodes)) _scoutEgressNodes = edd.nodes;
+  } catch (e) { /* catalog unavailable — egress dropdown falls back to hub-only */ }
   // Real escaper fallback — an identity function would silently disable
   // escaping if the shared esc() global is ever missing.
   var esc2 = (typeof esc === 'function') ? esc : function(s) {
@@ -64,8 +71,27 @@ async function _scoutLoadSessions() {
                     : '<span style="color:#ef4444">● not established</span>'))
       + '</td></tr>';
   }).join('');
+  // #4007 egress dropdown: hub default + each egress-READY node (others are
+  // listed disabled so a dead proxy is never selectable). Established
+  // device-trust profiles get a step-up-wall warning before moving off hub.
+  var establishedKeys = {};
+  (d.profiles || []).forEach(function(p) {
+    if (p.profile_established) establishedKeys[p.agent_id + '|' + p.platform] = true;
+  });
+  function egressOptions(current) {
+    var nodes = _scoutEgressNodes || [{ node_name: 'hub', country: 'Canada (hub direct)', egress_ready: true }];
+    var cur = current || 'hub';
+    return nodes.map(function(n) {
+      var sel = (n.node_name === cur) ? ' selected' : '';
+      var dis = n.egress_ready ? '' : ' disabled';
+      var label = (n.node_name === 'hub') ? 'Hub (default)' : esc2(n.country || n.node_name);
+      if (!n.egress_ready && n.node_name !== 'hub') label += ' — no proxy';
+      return '<option value="' + esc2(n.node_name) + '"' + sel + dis + '>' + label + '</option>';
+    }).join('');
+  }
   var sessRows = (d.cookie_sessions || []).map(function(s) {
     var col = s.status === 'active' ? '#22c55e' : (s.status === 'stale' ? '#ef4444' : '#94a3b8');
+    var estab = establishedKeys[s.agent_id + '|' + s.platform] ? '1' : '';
     return '<tr>'
       + '<td>' + s.agent_id + (s.agent_name ? '<div style="font-size:0.6rem;color:#64748b">' + esc2(s.agent_name) + '</div>' : '') + '</td>'
       + '<td>' + esc2(s.platform) + '</td>'
@@ -74,6 +100,8 @@ async function _scoutLoadSessions() {
       + '<td style="font-size:0.65rem">' + esc2(String(s.last_used_at || '—').slice(0, 16)) + '</td>'
       + '<td style="font-size:0.65rem">' + (s.last_probe_ok === true ? '✓' : (s.last_probe_ok === false ? '✗' : '—')) + '</td>'
       + '<td style="font-size:0.65rem">' + (s.state_bytes ? Math.round(s.state_bytes / 1024) + ' KB' : '—') + '</td>'
+      + '<td><select class="dhq-select scout-egress-sel" style="font-size:0.6rem" data-agent="' + Number(s.agent_id) + '" data-platform="' + esc2(s.platform) + '" data-estab="' + estab + '" data-current="' + esc2(s.egress_pref || 'hub') + '">'
+      + egressOptions(s.egress_pref) + '</select></td>'
       + '<td><button class="dhq-btn scout-expire-btn" style="font-size:0.6rem" data-agent="' + Number(s.agent_id) + '" data-platform="' + esc2(s.platform) + '">Expire</button></td>'
       + '</tr>';
   }).join('');
@@ -87,8 +115,8 @@ async function _scoutLoadSessions() {
     + '<h4 style="margin:0">COOKIE SESSIONS (encrypted storage_state)</h4>'
     + '<button class="dhq-btn" style="font-size:0.6rem" onclick="scoutProbeSessions()">↻ Probe now</button></div>'
     + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><thead><tr>'
-    + '<th>Agent</th><th>Platform</th><th>Status</th><th>Last used</th><th>Probe</th><th>Size</th><th></th>'
-    + '</tr></thead><tbody>' + (sessRows || '<tr><td colspan="7">none</td></tr>') + '</tbody></table>'
+    + '<th>Agent</th><th>Platform</th><th>Status</th><th>Last used</th><th>Probe</th><th>Size</th><th>Egress</th><th></th>'
+    + '</tr></thead><tbody>' + (sessRows || '<tr><td colspan="8">none</td></tr>') + '</tbody></table>'
     + '<h4 style="margin:0 0 6px">IMPORT COOKIES</h4>'
     + '<p style="font-size:0.7rem;color:rgba(255,255,255,0.5);margin:0 0 6px">Paste a Cookie-Editor JSON export. Stored AES-encrypted server-side; used by session_fetch / skills for that agent+platform.</p>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start">'
@@ -132,6 +160,46 @@ async function _scoutLoadSessions() {
       scoutExpireSession(parseInt(b.dataset.agent, 10), b.dataset.platform);
     });
   });
+  el.querySelectorAll('.scout-egress-sel').forEach(function(sel) {
+    sel.addEventListener('change', function() {
+      scoutSetEgress(sel);
+    });
+  });
+}
+
+/* ── #4007 — per-session browse-from-country egress ── */
+async function scoutSetEgress(sel) {
+  var agentId = parseInt(sel.dataset.agent, 10);
+  var platform = sel.dataset.platform;
+  var pref = sel.value;
+  var prev = sel.dataset.current || 'hub';
+  // Step-up-wall guard (KB #272122): moving an ESTABLISHED device-trust profile
+  // off hub egress changes its exit IP/country and can re-trigger login walls.
+  if (sel.dataset.estab === '1' && pref !== 'hub' && pref !== prev) {
+    if (!confirm('This platform has an ESTABLISHED device-trust profile (logged in from the hub IP). '
+        + 'Routing it through another country changes the exit IP and may re-trigger a login/2FA wall. '
+        + 'Switch egress anyway?')) {
+      sel.value = prev;
+      return;
+    }
+  }
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/sessions/' + agentId + '/'
+        + encodeURIComponent(platform) + '/egress', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ egress_pref: pref })
+    });
+    var d = await r.json();
+    if (d.success) {
+      sel.dataset.current = pref;
+    } else {
+      alert('Egress change failed: ' + (d.error || 'unknown'));
+      sel.value = prev;
+    }
+  } catch (e) {
+    alert('Egress change failed: ' + e);
+    sel.value = prev;
+  }
 }
 
 async function scoutProbeSessions() {

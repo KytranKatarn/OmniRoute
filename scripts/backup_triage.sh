@@ -37,6 +37,17 @@ log "=== backup_triage.sh START ts=$TS run=$RUN ==="
 
 trap 'log "=== backup_triage.sh END status=$STATUS ==="' EXIT
 
+# Load BACKUP_CONFIG_PASSPHRASE from .env — cron runs with a bare env so the var
+# is otherwise unset, which silently skipped config encryption and shipped
+# PLAINTEXT secrets (.env + secrets/) to the DR node every night (#4048). Parse
+# the value literally; NEVER `source` .env (it has unquoted secrets with shell
+# metacharacters that break sourcing with exit 127, #4045).
+if [[ -z "${BACKUP_CONFIG_PASSPHRASE:-}" && -f /mnt/archie_brain/.env ]]; then
+    BACKUP_CONFIG_PASSPHRASE="$(sed -n 's/^BACKUP_CONFIG_PASSPHRASE=//p' /mnt/archie_brain/.env | head -1)"
+    BACKUP_CONFIG_PASSPHRASE="${BACKUP_CONFIG_PASSPHRASE%\"}"; BACKUP_CONFIG_PASSPHRASE="${BACKUP_CONFIG_PASSPHRASE#\"}"
+    export BACKUP_CONFIG_PASSPHRASE
+fi
+
 mkdir -p "$RUN"/{database,code,gitbundles,config}
 
 # ----- [1/4] DB dump -----
@@ -113,12 +124,16 @@ if [[ -n "${BACKUP_CONFIG_PASSPHRASE:-}" ]] && [[ -s "$RUN/config/config_${TS}.t
         SZ=$(stat -c %s "$RUN/config/config_${TS}.tar.gz.enc" 2>/dev/null || echo 0)
         log "  config tar encrypted OK ($SZ bytes, .tar.gz.enc)"
     else
-        STATUS=failed; FAIL_REASON="${FAIL_REASON}; config encrypt failed"
-        log "  WARN: config tar encryption FAILED — plaintext tar kept (secrets exposed in backup)"
+        rm -f "$RUN/config/config_${TS}.tar.gz"
+        STATUS=failed; FAIL_REASON="${FAIL_REASON}; config encrypt failed — plaintext removed"
+        log "  ERROR: config tar encryption FAILED — plaintext tar REMOVED (refused to ship secrets unencrypted) (#4048)"
     fi
 else
-    SZ=$(stat -c %s "$RUN/config/config_${TS}.tar.gz" 2>/dev/null || echo 0)
-    log "  WARN: BACKUP_CONFIG_PASSPHRASE not set — config tar is PLAINTEXT ($SZ bytes). Set it in .env."
+    # No passphrase even after the .env load → do NOT leave/ship plaintext
+    # secrets. Remove the plaintext tarball and fail loudly (#4048).
+    rm -f "$RUN/config/config_${TS}.tar.gz"
+    STATUS=failed; FAIL_REASON="${FAIL_REASON}; BACKUP_CONFIG_PASSPHRASE missing — config NOT backed up (refused to ship plaintext secrets)"
+    log "  ERROR: BACKUP_CONFIG_PASSPHRASE not set after .env load — config tar REMOVED (refused to ship plaintext secrets). Set it in /mnt/archie_brain/.env."
 fi
 
 # ----- Copy to USB via docker exec (USB is root-owned) -----

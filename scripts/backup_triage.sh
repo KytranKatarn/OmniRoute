@@ -193,14 +193,17 @@ else
 fi
 
 # ----- Refresh DR warm-standby source on boston-2 (prevent staged-source drift) -----
-# Mirrors the LIVE bind-mounted source (platform_v2 + ai_bridge) into the DR node's
-# staged platform so a real failover boots current code. (ai_bridge drift was the
-# Phase-5b boot blocker — KB #270232.) Non-fatal; only when the DR node is reachable.
+# Mirrors the LIVE bind-mounted source (platform_v2 + ai_bridge + scripts) into the DR
+# node's staged platform so a real failover boots current code. (ai_bridge drift was the
+# Phase-5b boot blocker — KB #270232.) scripts/ carries the backup/restore/DR tooling
+# (restore_db.sh, write_backup_metadata.sh, sandbox worker) the platform now references —
+# otherwise it drifts stale on boston-2 (#4036). Non-fatal; only when the DR node is reachable.
 DR_PLATFORM=/opt/archie-dr/platform
 if [[ "${DR_STATUS:-failed}" == "success" ]]; then
-    log "Refreshing DR warm-standby source on boston-2 (platform_v2 + ai_bridge)..."
-    for sub in platform_v2 ai_bridge; do
+    log "Refreshing DR warm-standby source on boston-2 (platform_v2 + ai_bridge + scripts)..."
+    for sub in platform_v2 ai_bridge scripts; do
         if rsync -a --delete --exclude='__pycache__' --exclude='*.pyc' \
+             --exclude='*.log' --exclude='opencode' \
              -e "ssh -i $SSH_KEY -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new" \
              "/mnt/archie_brain/$sub/" "root@${DR_NODE}:${DR_PLATFORM}/$sub/" >>"$LOG" 2>&1; then
             log "  refreshed $sub"

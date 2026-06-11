@@ -68,6 +68,45 @@ Exceptions:
 8. **Redirect** — Replace ARCHIE module with launch link.
 9. **Verify** — Browser test all features, compliance green, badges live, Code Health reporting.
 
+## Platform-Integration Env Contract (STANDARD — established 2026-06-11, owner mandate)
+
+Every standalone container that talks to hub services MUST satisfy ALL FOUR rules.
+Violating any one of them produced a real outage (INTERNAL_API_KEY 2026-05-26 tier-push
+failures; AC_API_URL 2026-06-11 market paywall shown to the OWNER).
+
+**1. The contract vars** — declared in compose for every product container:
+
+| Var | Purpose | Mesh default |
+|-----|---------|--------------|
+| `BRIDGE_URL` | DHQ dispatch | `http://100.64.0.4:3000` |
+| `AC_API_URL` | Account Center billing gate (`has_product_access`) | `http://100.64.0.4:3000` |
+| `AC_INTERNAL_TOKEN` | AC auth (when required) | empty passthrough |
+| `INTERNAL_API_KEY` | hub→standalone tier pushes (`/api/internal/set-tier`) | empty passthrough |
+
+**2. Compose passthrough is MANDATORY when there is no `env_file:`** — a correct value
+in `.env` does NOTHING unless the var is listed in the service's `environment:` block:
+`- AC_API_URL=${AC_API_URL:-http://100.64.0.4:3000}`. (market + civic composes have no
+`env_file:`; legal + gov do. Check before assuming.)
+
+**3. Code defaults = MESH IPs, never LAN, never public.** `192.168.1.200` is unreachable
+from Citadel/outposts (dormant subnet route) → 5s timeout → a fail-closed billing gate
+paywalls EVERYONE including the owner. Public hostnames hit the 60s CDN cap. Default
+`os.getenv("AC_API_URL", "http://100.64.0.4:3000")` — fixed in all 4 watch repos 2026-06-11.
+
+**4. Verify the RUNTIME env, not the files.** The post-deploy trio:
+```bash
+grep VAR /opt/archie-products/<p>/.env                      # 1. value staged
+grep VAR /opt/archie-products/<p>/docker-compose.yml        # 2. passthrough exists
+docker inspect <container> -f '{{range .Config.Env}}{{println .}}{{end}}' | grep VAR  # 3. THE TRUTH
+```
+Only #3 is authoritative — #1 and #2 looked perfect during the market outage while the
+container ran without the var.
+
+**Paywall gates (billing_gate skill)**: read `session.get("kytran_user")` (kytran_auth) —
+NEVER flask-login `current_user` unless the app actually initializes a LoginManager
+(market's didn't → AttributeError 500 on every gated page = the 2026-06-11 sign-in
+outage). Exempt all `/api/` paths — they carry their own auth (service token / X-Internal-Key).
+
 ## Common traps (learned the hard way)
 
 ### CSS dependency tree — ship the WHOLE stack

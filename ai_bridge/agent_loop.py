@@ -684,6 +684,26 @@ class AgentLoop:
         except Exception as _fim_err:
             logger.warning("Fleet identity monitor not scheduled: %s", _fim_err)
 
+        # Task #4031 (DR posture): warm-standby watchdog. Alerts when the
+        # boston-2 replica slot is missing/inactive (the promoted-fork signature
+        # that ran SILENT for 7 days, 06-04→06-11), WAL accumulates, replay
+        # lags, or the nightly DR cold backup goes stale. Alert-only; toggle:
+        # work key 'dr_posture_monitor'. KB #272169/#272172, ADR-006 (#726).
+        try:
+            from services.dr_posture_monitor import check_dr_posture
+
+            self.scheduler.add_job(
+                with_app_context(check_dr_posture),
+                trigger=IntervalTrigger(minutes=15),
+                id="dr_posture_monitor",
+                name="Agent Loop: DR Posture Monitor (#4031)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _drp_err:
+            logger.warning("DR posture monitor not scheduled: %s", _drp_err)
+
         self.scheduler.add_job(
             with_app_context(self._generate_reports),
             trigger=IntervalTrigger(minutes=15),

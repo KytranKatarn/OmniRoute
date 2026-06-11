@@ -13,7 +13,10 @@ CFG="$REPO/config/agents/codex.yaml"
 TASK="${1:?usage: run-codex-task.sh \"<scoped task>\"}"
 SLUG="$(echo "$TASK" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)"
 BRANCH="codex/$SLUG-$(date +%s)"
-WT="/tmp/codex-wt/$BRANCH"
+# Codex worktrees live on a dedicated 20G LV, NOT the 2G /tmp tmpfs — a 2G worktree there
+# filled /tmp and broke the nightly git-bundle backups (#4045). Override with CODEX_WT_BASE.
+WT_BASE="${CODEX_WT_BASE:-/mnt/codex-wt}"
+WT="$WT_BASE/$BRANCH"
 START=$(date +%s%3N)
 
 # containerized-exec config — the container IS the isolation boundary.
@@ -27,6 +30,12 @@ CODEX_RUN_HOME="${XDG_CACHE_HOME:-$HOME/.cache}/codex-run/$BRANCH"  # per-run HO
 # 1) fresh worktree off origin/main
 cd "$REPO"
 git fetch origin -q
+# run-task worktrees are kept for inspection (no exit-cleanup), so reclaim ones older than
+# 3 days here — otherwise they slowly fill the dedicated LV (#4045).
+git worktree prune 2>/dev/null || true
+find "$WT_BASE" -maxdepth 1 -mindepth 1 -type d -mtime +3 -exec rm -rf {} + 2>/dev/null || true
+git worktree prune 2>/dev/null || true
+mkdir -p "$WT_BASE"
 git worktree add -B "$BRANCH" "$WT" origin/main >/dev/null
 
 # 2) preflight: worktree must be clean

@@ -189,10 +189,13 @@ fi
 # ---------------------------------------------------------------------------
 SLUG="$(echo "$TASK_DESC" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-' | cut -c1-40)"
 BRANCH="codex/$SLUG-$(date +%s)"
-WT="/tmp/codex-wt/$BRANCH"
+# Dedicated 20G LV, not the 2G /tmp tmpfs (#4045). Cleanup trap above removes it on exit.
+WT_BASE="${CODEX_WT_BASE:-/mnt/codex-wt}"
+WT="$WT_BASE/$BRANCH"
 
 cd "$REPO"
 git fetch origin -q
+mkdir -p "$WT_BASE"
 git worktree add -B "$BRANCH" "$WT" origin/main >/dev/null
 echo "Worktree : $WT"
 echo "Branch   : $BRANCH"

@@ -17,12 +17,12 @@
 | System Operations | 8085 | server.kytranempowerment.com | kytran-system-operations | Hub |
 | Media Hub (standalone) | 8105 | media.kytranempowerment.com | mediahub_app | Hub (LIVE 2026-04-19) |
 | Stalwart Mail | 25/465/587/993 | mail.kytranempowerment.com | stalwart_mail | Hub |
-| CORS Proxy | 8098 | proxy.kytranempowerment.com | kytran_cors_proxy | Hub |
+| CORS Proxy | 8098 | — (proxy. DNS removed 2026-06-11; container stopped) | kytran_cors_proxy | Hub |
 | Headscale Mesh | 8095 | mesh.kytranempowerment.com | archie_headscale | Hub |
 | AdGuard DNS | 53/5354 | adguard.kytranempowerment.com | network_adguard | Hub |
 | Nagios Monitoring | 8082 | nagios.kytranempowerment.com | monitoring_nagios | Hub |
 | C.R.E.E.D. Governance | 8086 | creed.kytranempowerment.com | kytran_creed | Hub |
-| NPM Proxy | 80/443 | proxy.kytranempowerment.com | nginx_proxy_manager | Hub |
+| NPM Proxy | 80/443 | — (hub-LAN vantage only; external ingress via Beacon) | nginx_proxy_manager | Hub |
 | Plex | 32400 (host) | — | media_plex | Hub |
 | Jellyfin | 8096 | — | media_jellyfin | Hub |
 | Sonarr | 8989 | — | media_sonarr | Hub |
@@ -52,11 +52,15 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 
 ## DNS (kytranempowerment.com)
 
-- Root (@) → Hostinger CDN (cdn.hstgr.net)
-- 22 subdomains pointing to hub (153.68.195.85) — NPM reverse proxy active, SSL on all proxy hosts
-- Watch products (market/civic/legal/gov) + WTF: DNS → Citadel (2.25.133.122), served by `archie_ingress_caddy` (config `/opt/archie-ingress/Caddyfile`) proxying to local boston-2 containers at 172.18.0.1:<port>. Outpost-us (76.13.107.109) keeps only: api, relay, outpost-us subdomains + infra containers (proxy/relay/socks/sync/node_api) — ALL product stacks removed (WTF zombie removed 2026-06-11, #4032; others removed at migration)
-- `what-the-fact.com` and `what-the-fact.tech` are separate apex domains pointing to Citadel/boston-2 (2.25.133.122) — WTF replaces TheNews; migrated off outpost-us, zombie stack removed 2026-06-11 (#4032)
-- Hub public IP: 153.68.195.85
+_(Audited + pruned 2026-06-11 — KB #272182. ⚠️ Verify public DNS from an EXTERNAL resolver; the hub's AdGuard split-horizon resolves many names to 192.168.1.200 locally.)_
+
+- Root (@) + `www` → Hostinger CDN (cdn.hstgr.net)
+- **Beacon (2.25.170.252)** = external front door for hub services (host Caddy, `/etc/caddy/Caddyfile`): platform, consciousness, business, creed, mediahub, media, jellyfin, plex, adguard, nagios, server, store, archie, bridge, claude, codex, terminal, sandbox, shop, mesh
+- **Citadel/boston-2 (2.25.133.122)** = products + mail (`archie_ingress_caddy`, `/opt/archie-ingress/Caddyfile` → local containers at 172.18.0.1:<port>): gov, market, legal, civic, wtf, mail, mail-admin(removed), mta-sts, voice. `voice` = reserved/planned (HA voice, no service yet). `what-the-fact.com`/`.tech` apexes also → here.
+- **outpost-us (76.13.107.109)** = `api`, `relay`, `outpost-us` only (infra: api→hub mesh, SMTP relay, socks, sync, node_api). NO product stacks.
+- Mail TXT/MX: SPF `v=spf1 a mx ip4:76.13.107.109 -all`, DMARC `p=reject`, `_mta-sts` (mta-sts host now SERVES the policy — **mode=testing**; enforce gated on relay cert, task #4044), `_smtp._tls`, DKIM `stalwart`+`default`, MX `10 mail` / `20 relay`, `outpost-relay`.
+- ⚠️ Old hub public IP **153.68.195.85 is STALE** — hub moved (now a dynamic residential IP); external traffic enters via **Beacon**, not NPM. NPM is hub-LAN vantage only.
+- **Pruned 2026-06-11** (#4032 follow-on): deleted `thenews`/`n8n`/`fdtest`/`ftp`/`webmail`/`mail-admin`/`brainstorm`/`proxy` A-records + legacy `zmail._domainkey` TXT (stale / no-service / ftp=takeover-risk external IP). All confirmed NXDOMAIN; Beacon Caddy blocks excised.
 - NPM: 17 proxy hosts, all SSL forced (cleaned 2026-04-13 — removed portainer, mdm, code, devhq, *.fleet DNS + 7 dead proxy hosts)
 - `creed-ai.org` → Hostinger shared hosting (separate domain)
 

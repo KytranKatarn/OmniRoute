@@ -34,6 +34,25 @@ This will:
 irm http://192.168.1.200:3000/tools/starbase/api/nodes/install.ps1 | iex
 ```
 
+### Windows reboot self-heal (#3956)
+
+`install.ps1` already runs `node_sync.py` at startup as a **SYSTEM** scheduled task (`ARCHIE-Node-Sync`,
+no login required) and every container is `restart: unless-stopped`. The only thing missing after an
+unattended Patch-Tuesday reboot is starting the Docker **engine** — Docker Desktop is a per-user GUI
+app, so with nobody signed in there is no engine and the node stays offline.
+
+Run **once per Windows Starship**, as Administrator, signed in as the node user:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\setup-node-autostart.ps1
+```
+
+It configures Docker Desktop "start at sign-in" + Windows auto-login (Sysinternals Autologon —
+password stored as an LSA secret, never plaintext) and verifies the container restart policy. Reboot
+chain afterwards: power on → auto-login → Docker Desktop → engine → `unless-stopped` containers →
+`ARCHIE-Node-Sync` reconnects, hands-free. Tradeoff: the box auto-unlocks on boot (fine for a
+dedicated LAN GPU node). Use `-SkipAutologon` for the Docker-autostart part only.
+
 ## Manual Install
 
 1. **Clone or download** the `node_client/` directory to the target machine.

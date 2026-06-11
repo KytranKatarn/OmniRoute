@@ -1084,11 +1084,13 @@ services:
       - SCOUT_POOL_SIZE=3
       - SCOUT_VPS_SOCKS=socks5://100.64.0.2:1080
       - SCOUT_PROXY_URL=${SCOUT_PROXY_URL:-}
-      # #4007 browse-from-country: credentials for the per-outpost SOCKS5 egress
-      # proxies (node_socks). resolve_session_egress emits
-      # socks5://user:pass@<mesh_ip>:1080 when set. Same value on every outpost .env.
-      - SCOUT_SOCKS_USER=${SOCKS_PROXY_USER:-}
-      - SCOUT_SOCKS_PASS=${SOCKS_PROXY_PASSWORD:-}
+      # #4007/#4014 browse-from-country: the per-outpost SOCKS5 proxies
+      # (node_socks) run UNAUTHENTICATED — Chromium/Playwright (the session_fetch
+      # consumer) can't auth to a SOCKS5 proxy. They're firewalled mesh-only on
+      # each outpost (DOCKER-USER iptables drop for non-mesh → :1080), so the
+      # mesh IS the access control. resolve_session_egress emits
+      # socks5://<mesh_ip>:1080 — SCOUT_SOCKS_USER/PASS are intentionally UNSET
+      # (the resolver only adds auth when both are present).
       - SCREENSHOT_DIR=/mnt/screenshots
       # session_fetch skill calls the platform's internal sessions route to load
       # imported storage_state cookies (claude/deepseek/…). KB #270262.

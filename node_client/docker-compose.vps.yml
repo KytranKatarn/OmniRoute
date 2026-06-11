@@ -53,18 +53,22 @@ services:
     networks:
       - archie_net
 
-  # SOCKS5 egress proxy for S.C.O.U.T. browse-from-country (#4007). The hub's
-  # scraper routes a session's authenticated fetches here so they exit via THIS
-  # outpost's public IP (= its country). Auth required (fail-closed) + the mesh
-  # firewall (UFW allow from 100.64.0.0/10 to port 1080) is the second layer.
-  # Optional: only outposts whose remote_nodes.extra_capabilities.socks5_egress
-  # is true are offered in the UI, so a node without this service is simply not
-  # selectable.
+  # SOCKS5 egress proxy for S.C.O.U.T. browse-from-country (#4007 / #4014). The
+  # hub's scraper routes a session's authenticated fetches here so they exit via
+  # THIS outpost's public IP (= its country). Only outposts whose
+  # remote_nodes.extra_capabilities.socks5_egress is true are offered in the UI.
+  #
+  # SECURITY — runs UNAUTHENTICATED on purpose: Chromium/Playwright (the
+  # session_fetch consumer) cannot authenticate to a SOCKS5 proxy, so auth would
+  # break the real fetch path. Access control is a DOCKER-USER iptables rule on
+  # the host that DROPs every non-mesh source to :1080 (see
+  # socks-egress-firewall.sh + archie-socks-firewall.service). It MUST be the
+  # DOCKER-USER chain, not UFW — Docker publishes ports past UFW. The listener
+  # binds 0.0.0.0 (so Docker delivers mesh-forwarded packets — a tailscale-IP
+  # bind is unreachable from mesh peers); the firewall makes it mesh-only.
   node_socks:
     # Prebuilt SOCKS5 proxy (microsocks isn't in Alpine 3.20's repos). Pinned
-    # by digest for reproducibility. Auth is REQUIRED via the compose-level
-    # ${...:?} guards (fail-closed — no open proxy on a public VPS); the mesh
-    # firewall (UFW allow from 100.64.0.0/10 to port 1080) is the second layer.
+    # by digest for reproducibility.
     image: serjs/go-socks5-proxy@sha256:0af522996f402c03ecd985a87997158eabeb28935365e3a384df37eafcf740ea
     container_name: archie_node_socks
     restart: unless-stopped
@@ -72,10 +76,12 @@ services:
     cpus: 0.25
     environment:
       TZ: America/Toronto
-      PROXY_USER: ${SOCKS_PROXY_USER:?set SOCKS_PROXY_USER in .env}
-      PROXY_PASSWORD: ${SOCKS_PROXY_PASSWORD:?set SOCKS_PROXY_PASSWORD in .env}
+      # serjs/go-socks5-proxy defaults REQUIRE_AUTH=true and EXITS without
+      # creds. Run open on purpose — Chromium can't auth SOCKS5; the
+      # DOCKER-USER mesh-only firewall is the access control.
+      REQUIRE_AUTH: "false"
     ports:
-      - "1080:1080"
+      - "1080:1080"   # 0.0.0.0 — gated to mesh-only by the DOCKER-USER firewall
     networks:
       - archie_net
 

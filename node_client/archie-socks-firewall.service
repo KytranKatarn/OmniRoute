@@ -1,0 +1,17 @@
+# #4014 — re-applies the mesh-only DOCKER-USER firewall for node_socks at boot.
+# iptables rules are cleared on reboot; this oneshot restores the DROP after
+# Docker has created the DOCKER-USER chain. Install to
+# /etc/systemd/system/archie-socks-firewall.service then:
+#   systemctl daemon-reload && systemctl enable --now archie-socks-firewall
+[Unit]
+Description=A.R.C.H.I.E. node_socks mesh-only egress firewall (#4014)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/archie-node/socks-egress-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

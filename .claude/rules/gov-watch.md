@@ -7,7 +7,7 @@
 | Where | Path |
 |-------|------|
 | Hub source | `/mnt/standalone/kytran-gov-watch/` |
-| VPS deployed | `/opt/archie-products/gov-watch/` |
+| Deployed (Citadel/boston-2, since 2026-06) | `root@100.64.0.10:/opt/archie-products/gov-watch/` (was outpost-us — stack removed there) |
 | VPS container | `kytran_gov_watch` (port 8102) |
 | Subdomain | gov.kytranempowerment.com |
 
@@ -130,14 +130,14 @@ Committed 2026-05-26: `static/js/intel-hub.js` (SOSA display fix), `/api/interna
 ```bash
 # From hub, sync to VPS then rebuild:
 rsync -avz --exclude='.env' /mnt/standalone/kytran-gov-watch/ \
-  kytran@76.13.107.109:/opt/archie-products/gov-watch/
+  root@100.64.0.10:/opt/archie-products/gov-watch/   # Citadel/boston-2 (migrated 2026-06; was kytran@76.13.107.109)
 
 # On VPS:
 cd /opt/archie-products/gov-watch/
 docker compose up -d --build kytran_gov_watch
 ```
 
-VPS SSH key: `~/.ssh/id_ed25519` | User: `kytran@76.13.107.109`
+SSH key: `~/.ssh/id_ed25519` | Host: `root@100.64.0.10` (Citadel/boston-2 — gov-watch migrated off outpost-us 2026-06)
 
 ## Gotchas
 

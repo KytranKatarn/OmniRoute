@@ -27,14 +27,16 @@ logger = logging.getLogger(__name__)
 # Product configuration
 # ---------------------------------------------------------------------------
 
-# VPS standalones — mesh IP (100.64.0.2 = Outpost-us).
-# NEVER use public CDN hostnames — Hostinger caps at 60s, bypasses queue.
+# Watch standalones — mesh IP (100.64.0.10 = Citadel/boston-2, where ALL watch
+# products + WTF migrated 2026-06; outpost-us no longer runs any product
+# containers, see #4032). NEVER use public CDN hostnames — Hostinger caps at
+# 60s, bypasses queue.
 PRODUCT_STANDALONE_URLS: dict[str, str] = {
-    "gov_watch": os.getenv("GOV_WATCH_URL", "http://100.64.0.2:8102"),
-    "civic_watch": os.getenv("CIVIC_WATCH_URL", "http://100.64.0.2:8099"),
-    "legal_watch": os.getenv("LEGAL_WATCH_URL", "http://100.64.0.2:8100"),
-    "market_watch": os.getenv("MARKET_WATCH_URL", "http://100.64.0.2:8101"),
-    "wtf": os.getenv("WTF_CONSUMER_URL", "http://100.64.0.2:8103"),
+    "gov_watch": os.getenv("GOV_WATCH_URL", "http://100.64.0.10:8102"),
+    "civic_watch": os.getenv("CIVIC_WATCH_URL", "http://100.64.0.10:8099"),
+    "legal_watch": os.getenv("LEGAL_WATCH_URL", "http://100.64.0.10:8100"),
+    "market_watch": os.getenv("MARKET_WATCH_URL", "http://100.64.0.10:8101"),
+    "wtf": os.getenv("WTF_CONSUMER_URL", "http://100.64.0.10:8103"),
 }
 
 # Bundle → list of constituent product_ids that receive the tier push

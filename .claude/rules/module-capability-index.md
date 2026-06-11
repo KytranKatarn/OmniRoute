@@ -223,13 +223,13 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 - **KB Docs**: #264475 (audit 2026-05-09)
 
 ### Kytran Gov Watch — `kytran_gov_watch` · `/external/gov` · ✅
-- **Deployment**: VPS port 8102, gov.kytranempowerment.com.
+- **Deployment**: Citadel/boston-2 port 8102 (`root@100.64.0.10:/opt/archie-products/gov-watch/`, local `gov_watch_db` postgres), gov.kytranempowerment.com.
 - **Source**: `/mnt/standalone/kytran-gov-watch/` (**NOT** `/mnt/archie_brain/kytran-gov-watch/` — that path is empty).
 - **Capability**: CanadaBuys + PSPC/CRA tender intelligence. P.R.O.C.U.R.E. agent (#349, qwen2.5:7b). 21 endpoints, Kytran SSO. Hub dispatch: `POST /api/procure/dispatch` (JWT bearer).
 - **_sync_user_tier gotcha**: CASE clause only protects `('agency','team','solo')` — `'kytran'` tier gets reset to free on every login. Fix: numeric hierarchy lookup, never downgrade higher→lower.
 
 ### Kytran Market Watch — `kytran_market_watch` · `/external/market` · ✅
-- **Deployment**: VPS port 8101, market.kytranempowerment.com. StockBot migrated here.
+- **Deployment**: Citadel/boston-2 port 8101 (`root@100.64.0.10:/opt/archie-products/market-watch/`), market.kytranempowerment.com. StockBot migrated here.
 
 ### What The Fact — `what_the_fact` · `/external/wtf` · ✅
 - **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
@@ -240,10 +240,10 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 - **Redeploy**: `docker compose up -d --build wtf-consumer` (image-baked, not volume-mounted).
 
 ### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
-- **Deployment**: VPS port 8100, legal.kytranempowerment.com
+- **Deployment**: Citadel/boston-2 port 8100 (`root@100.64.0.10:/opt/archie-products/legal-watch/`), legal.kytranempowerment.com
 
 ### Kytran Civic Watch — `kytran_civic_watch` · `/external/civic` · ✅
-- **Deployment**: VPS port 8099, civic.kytranempowerment.com
+- **Deployment**: Citadel/boston-2 port 8099 (`root@100.64.0.10:/opt/archie-products/civic-watch/`, container kytran_watch_api), civic.kytranempowerment.com
 
 ### C.R.E.E.D. Institute — `creed_institute` · `/external/creed` · ✅
 - **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).

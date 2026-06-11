@@ -747,11 +747,12 @@ STANDALONE_PRODUCTS = [
         "name": "gov_watch",
         "display_name": "Gov Watch",
         "code_path": "/mnt/standalone/kytran-gov-watch",
-        # LIVE DB = Postgres container `gov_watch_db` on outpost-us (NOT a hub
-        # schema). The old hub `gov_watch` schema is stale — do not dump it.
+        # LIVE DB = Postgres container `gov_watch_db` on boston-2 (migrated off
+        # outpost-us 2026-06; outpost copy is gone — backups failed 06-10 until
+        # this repoint). The old hub `gov_watch` schema is stale — do not dump it.
         "db_kind": "pg_container",
-        "db_node": "100.64.0.2",  # outpost-us (mesh)
-        "db_ssh_user": "kytran",
+        "db_node": "100.64.0.10",  # boston-2 (mesh)
+        "db_ssh_user": "root",
         "db_container": "gov_watch_db",
         "backup_type": "full",
     },
@@ -759,11 +760,11 @@ STANDALONE_PRODUCTS = [
         "name": "civic_watch",
         "display_name": "Civic Watch",
         "code_path": "/mnt/standalone/kytran-civic-watch",
-        # LIVE DB = SQLite in the civic API container on outpost-us (watch.db,
-        # 54 MB — civic.db is an empty legacy file).
+        # LIVE DB = SQLite in the civic API container on boston-2 (watch.db —
+        # civic.db is an empty legacy file). Migrated off outpost-us 2026-06.
         "db_kind": "sqlite",
-        "db_node": "100.64.0.2",  # outpost-us (mesh)
-        "db_ssh_user": "kytran",
+        "db_node": "100.64.0.10",  # boston-2 (mesh)
+        "db_ssh_user": "root",
         "db_container": "kytran_watch_api",
         "db_path": "/app/data/watch.db",
         "backup_type": "full",
@@ -785,10 +786,11 @@ STANDALONE_PRODUCTS = [
         "name": "market_watch",
         "display_name": "Market Watch",
         "code_path": "/mnt/standalone/kytran-market-watch",
-        # LIVE DB = SQLite in the market API container on outpost-us.
+        # LIVE DB = SQLite in the market API container on boston-2 (migrated
+        # off outpost-us 2026-06).
         "db_kind": "sqlite",
-        "db_node": "100.64.0.2",  # outpost-us (mesh)
-        "db_ssh_user": "kytran",
+        "db_node": "100.64.0.10",  # boston-2 (mesh)
+        "db_ssh_user": "root",
         "db_container": "kytran_market_api",
         "db_path": "/app/data/market.db",
         "backup_type": "full",

@@ -4693,7 +4693,7 @@ class AgentLoop:
                 headers["Authorization"] = f"Bearer {service_token}"
 
             resp = requests.post(
-                "http://100.64.0.2:8101/api/trading/run-cycle",  # outpost-us mesh IP
+                "http://100.64.0.10:8101/api/trading/run-cycle",  # Citadel/boston-2 mesh IP (market-watch migrated off outpost-us 2026-06)
                 json={"source": "archie_dispatch", "dispatch_id": f"autonomy_{id(self)}"},
                 headers=headers,
                 timeout=600,

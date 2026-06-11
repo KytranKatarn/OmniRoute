@@ -6,10 +6,10 @@
 |---------|------|-----------|-----------|----------|
 | ARCHIE Platform | 3000 | platform.kytranempowerment.com | archie_platform | Hub |
 | A.R.C.H.I.E. Comms | 3002 | archie.kytranempowerment.com | archie_comms | Hub |
-| Market Watch | 8101 | market.kytranempowerment.com | kytran_market_api | VPS |
-| Civic Watch | 8099 | civic.kytranempowerment.com | kytran_watch_api | VPS |
-| Legal Watch | 8100 | legal.kytranempowerment.com | kytran_legal_api | VPS |
-| Gov Watch | 8102 | gov.kytranempowerment.com | kytran_gov_watch | VPS |
+| Market Watch | 8101 | market.kytranempowerment.com | kytran_market_api | Citadel (boston-2) |
+| Civic Watch | 8099 | civic.kytranempowerment.com | kytran_watch_api | Citadel (boston-2) |
+| Legal Watch | 8100 | legal.kytranempowerment.com | kytran_legal_api | Citadel (boston-2) |
+| Gov Watch | 8102 | gov.kytranempowerment.com | kytran_gov_watch | Citadel (boston-2) |
 | What The Fact Consumer | 8103 | what-the-fact.com | wtf-consumer | Citadel (boston-2) |
 | What The Fact Tech     | 8104 | what-the-fact.tech | wtf-tech | Citadel (boston-2) |
 | WTF Ingest             | internal | — | wtf-ingest | Citadel (boston-2) |
@@ -46,7 +46,7 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 | Node | IP | Mesh IP | Role | Containers |
 |------|-----|---------|------|------------|
 | Hub | 192.168.1.200 | 100.79.11.3 | Primary server | All above |
-| US Outpost | 76.13.107.109 | 100.64.0.2 | Fleet node | Caddy, KSO, SMTP relay, Market/Civic/Legal/Gov Watch (⚠️ DNS for these now resolves to Citadel 2.25.133.122 with duplicate stacks on boston-2 — location audit pending). WTF zombie stack REMOVED 2026-06-11 (#4032; archive tarball /opt/archie-products/what-the-fact-RETIRED-20260611.tar.gz) |
+| US Outpost | 76.13.107.109 | 100.64.0.2 | Fleet node (infra only) | Caddy (archie_outpost_proxy — serves api.kytranempowerment.com → hub mesh), SMTP relay (mail egress, PTR relay.kytranempowerment.com), node_socks, outpost_sync, node_api. NO product stacks (location audit 2026-06-11: all watch products + WTF live on Citadel; WTF zombie removed #4032, archive /opt/archie-products/what-the-fact-RETIRED-20260611.tar.gz) |
 | Node .246 | 192.168.1.246 | — | Offline | RTX 3070, 32GB RAM, awaiting Docker |
 | Node .245 | 192.168.1.245 | — | Offline | RTX 3070, fresh machine |
 
@@ -54,7 +54,7 @@ Route visual/design work to Claude Design — it doesn't touch Claude Code budge
 
 - Root (@) → Hostinger CDN (cdn.hstgr.net)
 - 22 subdomains pointing to hub (153.68.195.85) — NPM reverse proxy active, SSL on all proxy hosts
-- 6 subdomains pointing to VPS (76.13.107.109): market, civic, legal, gov, outpost-us, relay — ALL LIVE (thenews retired 2026-04-18)
+- Watch products (market/civic/legal/gov) + WTF: DNS → Citadel (2.25.133.122), served by `archie_ingress_caddy` (config `/opt/archie-ingress/Caddyfile`) proxying to local boston-2 containers at 172.18.0.1:<port>. Outpost-us (76.13.107.109) keeps only: api, relay, outpost-us subdomains + infra containers (proxy/relay/socks/sync/node_api) — ALL product stacks removed (WTF zombie removed 2026-06-11, #4032; others removed at migration)
 - `what-the-fact.com` and `what-the-fact.tech` are separate apex domains pointing to Citadel/boston-2 (2.25.133.122) — WTF replaces TheNews; migrated off outpost-us, zombie stack removed 2026-06-11 (#4032)
 - Hub public IP: 153.68.195.85
 - NPM: 17 proxy hosts, all SSL forced (cleaned 2026-04-13 — removed portainer, mdm, code, devhq, *.fleet DNS + 7 dead proxy hosts)

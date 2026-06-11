@@ -110,8 +110,13 @@ docker run --rm \
   || { CODEX_EXIT=$?; echo "codex exited $CODEX_EXIT (continuing to gates)"; }
 rm -rf "$CODEX_RUN_HOME"
 
-# 5) scope guard (deny-by-default) — fail the run if anything out of scope changed
-CHANGED=$(git -C "$WT" diff --name-only)
+# 5) scope guard (deny-by-default) — fail the run if anything out of scope changed.
+# Include UNTRACKED (new) files: `git diff --name-only` lists only modified TRACKED files,
+# so a task that CREATES a file (most of the backlog — "Create tests/...", "Create
+# validators.py") yields an EMPTY list → NFILES=0 → step 8 drops real work as "no changes"
+# AND the new file silently bypasses this allowlist scope check. Union staged + unstaged +
+# untracked, deduped, so new-file tasks are both delivered and scope-checked (#4045 follow-up).
+CHANGED=$( { git -C "$WT" diff --name-only; git -C "$WT" diff --cached --name-only; git -C "$WT" ls-files --others --exclude-standard; } | sort -u )
 OUT=$(cd "$REPO/platform_v2" && python3 -c "
 import sys, yaml
 from services.agents.codex_scope import check_diff_paths

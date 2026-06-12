@@ -37,8 +37,16 @@ def load_break_config(cur):
 
 
 def gather_snapshots(cur):
-    """One row per active AI agent with the same metrics the break engine triggers on:
-    hours (real_compute_hours_today), token_ratio, action_ratio, stress, rested_today."""
+    """One row per active AI agent with the welfare metrics.
+
+    token_ratio is computed over a ROLLING 24h window (tokens_used in the last 24h /
+    token_limit_per_day) — the SAME window the K.I.N. tab shows as "X/Yk tok (Z%)" and
+    flags as "at limit" (dispatch_routes.py tokens_24h). Using a since-midnight window
+    here made the governance score falsely perfect: an agent that did 2x its daily
+    budget in the trailing 24h read as healthy right after Toronto midnight. The budget
+    is a sustained-load ceiling, so 24h-rolling is the welfare-correct + display-
+    consistent window. (rested_today stays a calendar-today count — "was a break given
+    today" — which is the right semantic for break-honoured.)"""
     from services.agent_load_service import real_compute_hours_today
 
     hours_by_agent = real_compute_hours_today(cur=cur) or {}
@@ -50,9 +58,8 @@ def gather_snapshots(cur):
                (SELECT COALESCE(SUM(tel.tokens_used), 0)
                   FROM task_execution_log tel
                   WHERE tel.agent_id = a.id
-                    AND tel.created_at >= (DATE_TRUNC('day',
-                          NOW() AT TIME ZONE 'America/Toronto') AT TIME ZONE 'America/Toronto')
-               ) AS tokens_today,
+                    AND tel.created_at > NOW() - INTERVAL '24 hours'
+               ) AS tokens_24h,
                (SELECT COUNT(*) FROM agent_rest_cycles arc
                   WHERE arc.agent_id = a.id
                     AND arc.started_at >= (DATE_TRUNC('day',
@@ -77,7 +84,7 @@ def gather_snapshots(cur):
                 "agent_id": r["agent_id"],
                 "name": r["name"],
                 "hours": (hours_by_agent.get(r["agent_id"], {}) or {}).get("hours"),
-                "token_ratio": (float(r["tokens_today"] or 0) / tlim) if tlim else None,
+                "token_ratio": (float(r["tokens_24h"] or 0) / tlim) if tlim else None,
                 "action_ratio": (float(r["current_task_count"] or 0) / qlim) if qlim else None,
                 "stress": r["stress_level"],
                 "rested_today": r["rested_today"],

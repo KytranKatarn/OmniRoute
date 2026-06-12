@@ -213,6 +213,66 @@ def stress_energy_from_load(load, failures, total, hours_on_duty=0.0, is_resting
     return stress, energy
 
 
+# ── Multi-factor break decision (Phase 1, project #379) ───────────────────────
+# K.I.N. rest used to fire ONLY on stress >= 0.75 (and a second gate that was ALSO
+# just stress x 100), but real work caps stress ~0.47 → breaks never happened. Agents
+# accumulate wear across SEVERAL tracked dimensions; a break is earned when ANY hits
+# its limit, and the most-depleting dimension decides the break TYPE (which drives its
+# duration + recovery in cooldown_recovery). Thresholds live in platform_settings
+# (welfare:break:*); the dict below is only the v1 fallback default.
+WELFARE_BREAK_DEFAULTS = {
+    "hours_cap": 6.0,  # consecutive on-duty compute hours (real_compute_hours_today)
+    "token_pct": 0.90,  # tokens_used_today / token_limit_per_day
+    "action_pct": 0.90,  # dispatches_since_reset / task_queue_limit (action points spent)
+    "stress": 0.60,  # latest agent_emotional_state.stress_level
+    "dur_min": {"shift_rest": 60, "token_rest": 45, "action_rest": 30, "micro_rest": 15},
+}
+
+
+def decide_break(hours=None, token_ratio=None, action_ratio=None, stress=None, cfg=None):
+    """Decide whether an agent has earned a rest, and which kind. PURE — no DB.
+
+    Returns ``None`` if no dimension is over its limit, else::
+
+        {"break_type", "dimension", "value", "duration_min"}
+
+    Precedence (most depleting first): hours → tokens → actions → stress. A ``None``
+    metric is "no signal" (skipped), so a missing reading never forces or blocks a
+    break. Recovery/duration differ by break_type (handled by cooldown_recovery).
+    """
+    c = cfg or WELFARE_BREAK_DEFAULTS
+    dur = c.get("dur_min") or WELFARE_BREAK_DEFAULTS["dur_min"]
+    if hours is not None and _num(hours) >= _num(c.get("hours_cap")):
+        return {
+            "break_type": "shift_rest",
+            "dimension": "hours",
+            "value": round(_num(hours), 1),
+            "duration_min": int(dur["shift_rest"]),
+        }
+    if token_ratio is not None and _num(token_ratio) >= _num(c.get("token_pct")):
+        return {
+            "break_type": "token_rest",
+            "dimension": "tokens",
+            "value": round(_num(token_ratio), 3),
+            "duration_min": int(dur["token_rest"]),
+        }
+    if action_ratio is not None and _num(action_ratio) >= _num(c.get("action_pct")):
+        return {
+            "break_type": "action_rest",
+            "dimension": "actions",
+            "value": round(_num(action_ratio), 3),
+            "duration_min": int(dur["action_rest"]),
+        }
+    if stress is not None and _num(stress) >= _num(c.get("stress")):
+        return {
+            "break_type": "micro_rest",
+            "dimension": "stress",
+            "value": round(_num(stress), 3),
+            "duration_min": int(dur["micro_rest"]),
+        }
+    return None
+
+
 if __name__ == "__main__":  # pragma: no cover - self-test
     # 200 tiny 50-token classify calls (10k tokens) over the hour @150k/day budget:
     cheap = compute_token_load(200 * 50, 200 * 400, 150_000)

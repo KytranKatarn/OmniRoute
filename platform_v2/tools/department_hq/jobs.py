@@ -2026,12 +2026,75 @@ def _register_own_jobs(scheduler, flask_app):
                         len(node_loads),
                     )
 
-                # --- Auto-rest: schedule rest for agents >80% capacity with no open cycle ---
-                # K.I.N. transitions them to winding_down so current tasks finish,
-                # then cooldown_recovery closes the cycle after 30 min and restores them.
+                # --- Multi-factor auto-rest (project #379 Phase 1) -------------------
+                # A break is earned when ANY tracked dimension hits its limit —
+                # consecutive hours, token budget, action points, or stress — not stress
+                # alone. The old gates (stress>=0.75 AND util=stress*100>=80) were BOTH
+                # stress and unreachable (real work caps stress ~0.47), so breaks never
+                # fired. The most-depleting dimension decides the break TYPE (→ its
+                # duration + recovery). Thresholds tunable via platform_settings.
+                from services.agent_load_service import real_compute_hours_today
+                from services.welfare_load import WELFARE_BREAK_DEFAULTS, decide_break
+
+                _bk_cfg = {k: v for k, v in WELFARE_BREAK_DEFAULTS.items() if k != "dur_min"}
+                _bk_cfg["dur_min"] = dict(WELFARE_BREAK_DEFAULTS["dur_min"])
+                try:  # tunable overrides (platform_settings welfare:break:*); defaults safe
+                    cur.execute(
+                        "SELECT key, value FROM platform_settings WHERE key LIKE %s",
+                        ("welfare:break:%",),
+                    )
+                    for _r in cur.fetchall() or []:
+                        _k = _r["key"].split("welfare:break:", 1)[-1]
+                        if _k in ("hours_cap", "token_pct", "action_pct", "stress"):
+                            _bk_cfg[_k] = _r["value"]
+                        elif _k.startswith("dur:"):
+                            _bk_cfg["dur_min"][_k.split("dur:", 1)[-1]] = _r["value"]
+                except Exception:
+                    pass
+
+                _hours_by_agent = real_compute_hours_today(cur=cur) or {}
+                # token use = SUM(tokens_used) today from task_execution_log (the live
+                # source — agent_budgets.tokens_used_today is not reliably populated).
+                # action = IN-FLIGHT current_task_count / queue cap (instantaneous queue
+                # saturation), NOT a cumulative dispatch count — that count-based ratio is
+                # the FIX-5 'cheap pings look overloaded' bug the welfare engine abandoned.
+                cur.execute(
+                    """
+                    SELECT a.name, a.department, a.id AS agent_id,
+                           ab.current_task_count, ab.task_queue_limit,
+                           ab.token_limit_per_day, aes.stress_level,
+                           (SELECT COALESCE(SUM(tel.tokens_used), 0)
+                              FROM task_execution_log tel
+                              WHERE tel.agent_id = a.id
+                                AND tel.created_at >= (DATE_TRUNC('day',
+                                      NOW() AT TIME ZONE 'America/Toronto')
+                                      AT TIME ZONE 'America/Toronto')
+                           ) AS tokens_today
+                    FROM agent_budgets ab
+                    JOIN agents a ON a.id = ab.agent_id
+                    JOIN LATERAL (
+                        SELECT stress_level FROM agent_emotional_state
+                        WHERE agent_id = a.id ORDER BY timestamp DESC LIMIT 1
+                    ) aes ON TRUE
+                    WHERE a.worker_type = 'ai'
+                      AND a.shift_state IN ('active', 'deployed')
+                    """
+                )
+                break_candidates = cur.fetchall() or []
+
                 rested = 0
-                for agent in overloaded:
-                    if float(agent["utilisation_pct"] or 0) < 80:
+                rested_lines = []
+                for agent in break_candidates:
+                    _tlim = float(agent["token_limit_per_day"] or 0)
+                    _qlim = float(agent["task_queue_limit"] or 0)
+                    decision = decide_break(
+                        hours=(_hours_by_agent.get(agent["agent_id"], {}) or {}).get("hours"),
+                        token_ratio=(float(agent["tokens_today"] or 0) / _tlim) if _tlim else None,
+                        action_ratio=(float(agent["current_task_count"] or 0) / _qlim) if _qlim else None,
+                        stress=agent["stress_level"],
+                        cfg=_bk_cfg,
+                    )
+                    if not decision:
                         continue
 
                     # Skip if already resting (open rest cycle exists)
@@ -2065,25 +2128,29 @@ def _register_own_jobs(scheduler, flask_app):
                     if not ag or ag["shift_state"] in ("winding_down", "cooldown", "barracked", "off_duty"):
                         continue
 
-                    # Open rest cycle
+                    # Open rest cycle — typed by the deciding dimension (#379)
                     cur.execute(
                         """
                         INSERT INTO agent_rest_cycles
                             (agent_id, rest_type, started_at, reason,
                              workload_before, initiated_by,
                              stress_at_start, energy_at_start)
-                        VALUES (%s, 'workload_rest', NOW(),
-                                'K.I.N. auto-rest: budget utilisation ' || %s || '%%',
-                                %s, 'kin_workload_monitor',
-                                %s, %s)
+                        VALUES (%s, %s, NOW(), %s, %s, 'kin_workload_monitor', %s, %s)
                         """,
                         (
                             ag["id"],
-                            agent["utilisation_pct"],
+                            decision["break_type"],
+                            f"K.I.N. {decision['break_type']}: {decision['dimension']}="
+                            f"{decision['value']} over limit",
                             _json.dumps(
                                 {
-                                    "tasks": int(agent["current_task_count"] or 0),
-                                    "util_pct": float(agent["utilisation_pct"] or 0),
+                                    "dimension": decision["dimension"],
+                                    "value": decision["value"],
+                                    "duration_min": decision["duration_min"],
+                                    "inflight": int(agent["current_task_count"] or 0),
+                                    "tokens_today": int(agent["tokens_today"] or 0),
+                                    "token_limit": int(agent["token_limit_per_day"] or 0),
+                                    "stress": float(agent["stress_level"] or 0),
                                 }
                             ),
                             ag["current_stress"] or 0,
@@ -2215,14 +2282,20 @@ def _register_own_jobs(scheduler, flask_app):
                         )
 
                     rested += 1
+                    rested_lines.append(
+                        f"  • {agent['name']} ({agent['department']}) — {decision['break_type']} "
+                        f"[{decision['dimension']}={decision['value']}, {decision['duration_min']}min]"
+                    )
                     logger.info(
-                        "[K.I.N.] Auto-rest scheduled for %s (utilisation=%.0f%%, state→winding_down)",
+                        "[K.I.N.] %s for %s (%s=%s, %dmin, state→winding_down)",
+                        decision["break_type"],
                         agent["name"],
-                        float(agent["utilisation_pct"] or 0),
+                        decision["dimension"],
+                        decision["value"],
+                        decision["duration_min"],
                     )
 
                 if rested:
-                    rested_names = [a["name"] for a in overloaded if float(a["utilisation_pct"] or 0) >= 80]
                     rest_msg = (
                         f"K.I.N. scheduled rest for {rested} overloaded agent(s). "
                         "They will recover in 1 hour via cooldown_recovery."
@@ -2240,13 +2313,7 @@ def _register_own_jobs(scheduler, flask_app):
                     try:
                         from services.director_report_service import submit_via_inbox as _kin_rest_inbox
 
-                        agent_lines = "\n".join(
-                            f"  • {a['name']} ({a['department']}) — "
-                            f"{a['current_task_count']}/{a['task_queue_limit']} "
-                            f"({a['utilisation_pct']}% utilisation)"
-                            for a in overloaded
-                            if float(a["utilisation_pct"] or 0) >= 80
-                        )
+                        agent_lines = "\n".join(rested_lines)
                         _kin_rest_inbox(
                             category="welfare",
                             title=f"😴 K.I.N.: {rested} agent(s) scheduled for mandatory rest",

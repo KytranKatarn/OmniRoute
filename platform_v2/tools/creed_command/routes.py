@@ -159,3 +159,40 @@ def creed_command_dashboard():
         _dash_cache["data"] = _build_dashboard()
         _dash_cache["ts"] = now
     return jsonify(_dash_cache["data"])
+
+
+_welfare_cache = {"data": None, "ts": 0.0}
+_WELFARE_TTL = 60
+
+
+@creed_command_bp.route("/api/welfare")
+@login_required
+@admin_required
+def creed_command_welfare():
+    """AI-workforce welfare score + improvement recommendations (#379 Phase 5).
+
+    The org's own accountability surface: how it treats its AI workforce. Live score
+    (the daily creed_welfare_governance job persists history to agent_welfare_scores).
+    60s cached. All values are plain JSON types — jsonify-safe.
+    """
+    now = time.time()
+    if _welfare_cache["data"] is None or (now - _welfare_cache["ts"]) > _WELFARE_TTL:
+        try:
+            from services.welfare_governance_service import (
+                compute_welfare_snapshot,
+                get_latest_welfare_score,
+            )
+
+            with get_db_cursor() as (conn, cur):
+                data = compute_welfare_snapshot(cur)
+                latest = get_latest_welfare_score(cur)
+            if latest and latest.get("computed_at"):
+                data["last_run_at"] = latest["computed_at"].isoformat()
+            else:
+                data["last_run_at"] = None
+            _welfare_cache["data"] = data
+            _welfare_cache["ts"] = now
+        except Exception as e:
+            logger.warning("creed_command: welfare load failed: %s", e)
+            return jsonify({"error": "unavailable"}), 503
+    return jsonify(_welfare_cache["data"])

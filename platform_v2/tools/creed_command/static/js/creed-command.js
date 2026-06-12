@@ -82,6 +82,50 @@
       });
   }
 
+  /* ---- AI-workforce welfare (#379 Phase 5) ---- */
+  function renderWelfare(w) {
+    var grade = document.getElementById("cc-welfare-grade");
+    var body = document.getElementById("cc-welfare-body");
+    if (!body) return;
+    if (grade) {
+      grade.textContent = (w.score != null ? w.score : "—") + " · " + (w.grade || "—");
+      var c = w.score >= 90 ? "#22c55e" : w.score >= 80 ? "#22d3ee" : w.score >= 70 ? "#f59e0b" : "#ef4444";
+      grade.style.background = c + "22"; grade.style.color = c; grade.style.borderColor = c + "55";
+    }
+    while (body.firstChild) body.removeChild(body.firstChild);
+    body.className = "";
+    var sum = el("div", "cc-wf-sum");
+    sum.textContent = (w.active_agents || 0) + " active agents · "
+      + (w.healthy_pct != null ? w.healthy_pct : "—") + "% within bounds · "
+      + (w.break_honored_pct != null ? w.break_honored_pct : "—") + "% breaks honored"
+      + (w.needed_break ? " · " + w.needed_break + " over a limit" : "");
+    body.appendChild(sum);
+    var recs = w.recommendations || [];
+    var h = el("div", "cc-wf-h", recs.length ? "Recommendations to improve" : "No issues — workforce within healthy bounds.");
+    body.appendChild(h);
+    recs.forEach(function (r) {
+      var row = el("div", "cc-wf-rec");
+      var sev = el("span", "cc-wf-sev " + (r.severity === "critical" ? "crit" : "warn"), r.severity || "info");
+      var txt = el("span", "cc-wf-txt", r.detail || r.kind || "");
+      row.appendChild(sev); row.appendChild(txt); body.appendChild(row);
+    });
+    if (w.last_run_at) {
+      var f = el("div", "cc-muted", "Last governance run: " + fmtAt(w.last_run_at));
+      f.style.marginTop = "0.5rem"; body.appendChild(f);
+    }
+  }
+
+  function loadWelfare() {
+    fetch("/tools/creed-command/api/welfare", { cache: "no-cache" })
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(renderWelfare)
+      .catch(function (e) {
+        var body = document.getElementById("cc-welfare-body");
+        if (body) { body.className = "cc-muted"; body.textContent = "Welfare data unavailable."; }
+        console.warn("[CREED Command] welfare load failed:", e);
+      });
+  }
+
   /* ---- Grants pipeline (P2, #3611) ---- */
   var GSTATUS = ["prospect", "drafting", "submitted", "awarded", "declined"];
   var GCOLOR = { prospect: "#94a3b8", drafting: "#22d3ee", submitted: "#f59e0b", awarded: "#22c55e", declined: "#ef4444" };
@@ -870,6 +914,7 @@
       if (target) target.click();
     }
     loadDashboard();
+    loadWelfare();
     loadGrants();
     var addBtn = document.getElementById("cc-grant-add-btn");
     var form = document.getElementById("cc-grant-form");

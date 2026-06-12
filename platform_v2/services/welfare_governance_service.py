@@ -156,6 +156,20 @@ def _emit_violations(violations):
             logger.debug("welfare governance: emit failed for %s", v.get("agent"), exc_info=True)
 
 
+def compute_welfare_snapshot(cur):
+    """Live welfare score + recommendations for dashboard reads (#379 Phase 5).
+
+    Same numbers run_welfare_governance computes, but does NOT persist a row and does
+    NOT emit events — safe to call on every dashboard load. Use get_latest_welfare_score
+    for the last PERSISTED daily run's timestamp/history.
+    """
+    break_cfg = load_break_config(cur)
+    snaps = gather_snapshots(cur)
+    result = score_welfare(snaps, break_cfg)
+    result["recommendations"] = recommend(snaps, break_cfg)
+    return result
+
+
 def get_latest_welfare_score(cur):
     """Latest welfare-governance snapshot for /creed + CREED Command. None if never run."""
     cur.execute(

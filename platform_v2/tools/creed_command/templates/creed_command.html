@@ -67,6 +67,14 @@
   .cc-kpi-n { font-family:'Orbitron',sans-serif; font-size:1.7rem; font-weight:700; color:#8b5cf6; line-height:1; }
   .cc-kpi-l { font-family:'IBM Plex Mono',monospace; font-size:0.62rem; color:#94a3b8; text-transform:uppercase; letter-spacing:0.07em; margin-top:0.5rem; }
   .cc-kpi.grade .cc-kpi-n { color:#22c55e; }
+  .cc-wf-badge { font-family:'Orbitron',sans-serif; font-size:0.8rem; font-weight:700; padding:0.18rem 0.6rem; border-radius:999px; border:1px solid #8b5cf655; background:#8b5cf622; color:#8b5cf6; vertical-align:middle; margin-left:0.5rem; }
+  .cc-wf-intro { font-size:0.78rem; color:#94a3b8; margin:0.1rem 0 0.7rem; }
+  .cc-wf-sum { font-size:0.86rem; color:#cbd5e1; margin-bottom:0.7rem; }
+  .cc-wf-h { font-family:'IBM Plex Mono',monospace; font-size:0.66rem; text-transform:uppercase; letter-spacing:0.07em; color:#94a3b8; margin:0.4rem 0 0.35rem; }
+  .cc-wf-rec { display:flex; align-items:flex-start; gap:0.55rem; font-size:0.84rem; color:#cbd5e1; padding:0.4rem 0; border-bottom:1px solid #ffffff0d; }
+  .cc-wf-sev { flex-shrink:0; font-family:'IBM Plex Mono',monospace; font-size:0.58rem; text-transform:uppercase; letter-spacing:0.05em; padding:0.15rem 0.45rem; border-radius:6px; margin-top:0.1rem; }
+  .cc-wf-sev.warn { background:#f59e0b22; color:#f59e0b; border:1px solid #f59e0b44; }
+  .cc-wf-sev.crit { background:#ef444422; color:#ef4444; border:1px solid #ef444444; }
   .cc-act { display:flex; align-items:center; gap:0.6rem; font-size:0.82rem; color:#cbd5e1; padding:0.35rem 0; border-bottom:1px solid #ffffff0d; }
   .cc-act .cc-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
   .cc-act .cc-act-cap { font-family:'IBM Plex Mono',monospace; color:#8b5cf6; }
@@ -120,6 +128,11 @@
     {% call lcars_frame('#8b5cf6', '139,92,246', '#7c3aed', 'Dashboard', 'E.T.H.O.S. GOVERNANCE KPIS') %}
     <div class="cc-kpis" id="cc-kpis">
       <div class="cc-kpi"><div class="cc-kpi-n">…</div><div class="cc-kpi-l">Loading</div></div>
+    </div>
+    <div class="cc-card" id="cc-welfare-card">
+      <h2>AI-workforce welfare <span id="cc-welfare-grade" class="cc-wf-badge">—</span></h2>
+      <p class="cc-wf-intro">How the organisation treats its own AI workforce — graded, so we hold ourselves to the same standard we ask of others.</p>
+      <div id="cc-welfare-body" class="cc-muted">Loading…</div>
     </div>
     <div class="cc-card">
       <h2>This week's ethics brief</h2>

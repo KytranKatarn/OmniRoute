@@ -1221,46 +1221,65 @@ def _register_own_jobs(scheduler, flask_app):
                         len(stale_queued),
                     )
 
-                # Close open rest cycles older than 60 minutes — rest period is 1 hour max.
-                # agent_rest_cycles has no auto-close logic; without this the cycles
-                # accumulate and K.I.N. enforcement blocks all dispatches.
+                # Close rest cycles past THEIR break-type duration (#379 Phase 2): micro_rest
+                # 15min / action_rest 30 / token_rest 45 / shift_rest 60 (from
+                # workload_before.duration_min; legacy/typeless cycles fall back to 60min).
+                # Recovery (stress/energy) is computed PER AGENT, scaled to depletion + rest
+                # length via welfare_load.recovery_after_break — NOT a flat 0.20/0.80 reset.
+                from services.welfare_load import recovery_after_break as _recovery
+
                 cur.execute(
                     """
-                    UPDATE agent_rest_cycles
-                       SET ended_at = started_at + INTERVAL '60 minutes',
-                           notes = COALESCE(notes,'') || ' [auto-closed by reaper: 60min rest period]'
-                     WHERE ended_at IS NULL
-                       AND started_at < NOW() - INTERVAL '60 minutes'
-                    RETURNING agent_id
+                    SELECT id, agent_id, stress_at_start, energy_at_start,
+                           COALESCE((workload_before->>'duration_min')::numeric, 60) AS dur_min
+                    FROM agent_rest_cycles
+                    WHERE ended_at IS NULL
+                      AND started_at < NOW() - (COALESCE((workload_before->>'duration_min')::numeric, 60)
+                                                || ' minutes')::interval
                     """
                 )
-                closed_rests = cur.fetchall() or []
-                if closed_rests:
+                due_cycles = cur.fetchall() or []
+                if due_cycles:
+                    recovered_ids = []
+                    for _c in due_cycles:
+                        _rs, _re = _recovery(_c["stress_at_start"], _c["energy_at_start"], _c["dur_min"])
+                        cur.execute(
+                            """
+                            UPDATE agent_rest_cycles
+                               SET ended_at = started_at + (((%s)::numeric) || ' minutes')::interval,
+                                   stress_at_end = %s, energy_at_end = %s,
+                                   notes = COALESCE(notes,'') || %s
+                             WHERE id = %s
+                            """,
+                            (
+                                _c["dur_min"],
+                                _rs,
+                                _re,
+                                f" [auto-closed: {int(_c['dur_min'])}min rest; recovered stress->{_rs} energy->{_re}]",
+                                _c["id"],
+                            ),
+                        )
+                        cur.execute(
+                            """
+                            UPDATE agent_emotional_state
+                               SET stress_level = %s, energy_level = %s,
+                                   current_mood = 'focused', timestamp = NOW()
+                             WHERE agent_id = %s
+                            """,
+                            (_rs, _re, _c["agent_id"]),
+                        )
+                        recovered_ids.append(_c["agent_id"])
                     logger.info(
-                        "[DeptHQ] Rest reaper: auto-closed %d expired rest cycles",
-                        len(closed_rests),
+                        "[DeptHQ] Rest reaper: closed %d rest cycle(s) at their break-type duration",
+                        len(due_cycles),
                     )
                     # Restore agents from winding_down/cooldown → active after rest completes
-                    recovered_ids = [r["agent_id"] for r in closed_rests]
                     cur.execute(
                         """
                         UPDATE agents
                            SET shift_state = 'active', updated_at = NOW()
                          WHERE id = ANY(%s)
                            AND shift_state IN ('winding_down', 'cooldown')
-                        """,
-                        (recovered_ids,),
-                    )
-                    # Reset stress/energy so welfare check doesn't immediately re-trigger
-                    # winding_down (stress threshold is 0.70 — recovery must clear it)
-                    cur.execute(
-                        """
-                        UPDATE agent_emotional_state
-                           SET stress_level = 0.20,
-                               energy_level = 0.80,
-                               current_mood = 'focused',
-                               timestamp = NOW()
-                         WHERE agent_id = ANY(%s)
                         """,
                         (recovered_ids,),
                     )

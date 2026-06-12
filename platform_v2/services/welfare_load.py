@@ -273,6 +273,22 @@ def decide_break(hours=None, token_ratio=None, action_ratio=None, stress=None, c
     return None
 
 
+def recovery_after_break(stress_at_start, energy_at_start, duration_min):
+    """Recovered (stress, energy) after a rest of ``duration_min``, scaled to how depleted
+    the agent was AND how long it rested. PURE — no DB (project #379 Phase 2).
+
+    recovery fraction = min(1, duration/60): a full ~60-min rest clears most stress and
+    tops energy up; a 15-min micro_rest recovers only ~a quarter. Stress floors at 0.15,
+    energy caps at 0.95 (the welfare model's healthy band). Longer rest always recovers
+    at least as much as shorter."""
+    s0 = _num(stress_at_start, 0.5)
+    e0 = _num(energy_at_start, 0.5)
+    frac = min(1.0, max(0.0, _num(duration_min) / 60.0))
+    stress = max(0.15, round(s0 * (1.0 - 0.85 * frac), 2))
+    energy = min(0.95, round(e0 + (0.95 - e0) * frac, 2))
+    return stress, energy
+
+
 if __name__ == "__main__":  # pragma: no cover - self-test
     # 200 tiny 50-token classify calls (10k tokens) over the hour @150k/day budget:
     cheap = compute_token_load(200 * 50, 200 * 400, 150_000)

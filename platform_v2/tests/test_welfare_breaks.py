@@ -3,7 +3,7 @@
 decide_break() is pure (no DB), so these run directly on the host.
 """
 
-from services.welfare_load import WELFARE_BREAK_DEFAULTS, decide_break
+from services.welfare_load import WELFARE_BREAK_DEFAULTS, decide_break, recovery_after_break
 
 
 def test_no_break_when_all_under_thresholds():
@@ -98,3 +98,49 @@ def test_jobs_wires_multifactor_decide_break_with_correct_metrics():
     assert "AS tokens_today" in src, "token use must come from task_execution_log, not tokens_used_today"
     assert 'action_ratio=(float(agent["current_task_count"]' in src, "action must be in-flight, not cumulative"
     assert "for agent in overloaded:" not in src, "old stress-only auto-rest gate must be removed"
+
+
+# --- recovery_after_break (Phase 2: stat-based recovery) -------------------
+
+
+def test_full_rest_recovers_most_stress_and_energy():
+    s, e = recovery_after_break(stress_at_start=0.52, energy_at_start=0.40, duration_min=60)
+    assert s <= 0.20  # most stress cleared
+    assert e >= 0.90  # energy topped up
+
+
+def test_micro_rest_recovers_partially():
+    s, e = recovery_after_break(stress_at_start=0.52, energy_at_start=0.40, duration_min=15)
+    assert 0.35 < s < 0.52  # only partial stress relief
+    assert 0.40 < e < 0.70  # only partial energy restore
+
+
+def test_longer_rest_recovers_at_least_as_much():
+    s15, e15 = recovery_after_break(0.6, 0.4, 15)
+    s60, e60 = recovery_after_break(0.6, 0.4, 60)
+    assert s60 <= s15  # more rest -> less leftover stress
+    assert e60 >= e15  # more rest -> more energy
+
+
+def test_recovery_respects_floor_and_cap_and_zero_duration():
+    s, e = recovery_after_break(0.9, 0.1, 60)
+    assert s >= 0.15 and e <= 0.95
+    s0, e0 = recovery_after_break(0.5, 0.5, 0)  # zero rest -> no change
+    assert s0 == 0.5 and e0 == 0.5
+
+
+def test_recovery_coerces_none_and_strings():
+    s, e = recovery_after_break(None, None, "45")
+    assert 0.15 <= s <= 0.95 and 0.15 <= e <= 0.95
+
+
+def test_jobs_reaper_uses_per_type_duration_and_stat_recovery():
+    """Guard Phase 2: the rest reaper must close cycles at their break-type duration and
+    recover via recovery_after_break (per-agent), not the old flat 60min / 0.20-0.80 reset."""
+    import os
+
+    p = os.path.join(os.path.dirname(__file__), "..", "tools", "department_hq", "jobs.py")
+    src = open(p, encoding="utf-8").read()
+    assert "recovery_after_break" in src, "reaper must use stat-based recovery_after_break"
+    assert "due_cycles" in src, "reaper must select cycles past their per-type duration"
+    assert "stress_at_end = %s, energy_at_end = %s" in src, "reaper must record recovered stats"

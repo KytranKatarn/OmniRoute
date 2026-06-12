@@ -94,7 +94,10 @@ EOF
 #    mounted rw, repo .git ro for git reads, no host fs/secrets, run as host uid),
 #    so bypassing Codex's own (broken-on-this-host) bwrap sandbox is safe here.
 CODEX_EXIT=0
-docker run --rm \
+# Capture Codex stdout+stderr so we can parse its self-reported token usage (Phase A /
+# ChatGPT sign-in exposes no API token split, but Codex prints a running total). Re-emit
+# it afterward so the worker still sees the branch/PR lines and keeps the full debug log.
+CODEX_OUT="$(docker run --rm \
   --network "$NET" \
   --user "$(id -u):$(id -g)" \
   -v "$WT":"$WT":rw \
@@ -106,9 +109,13 @@ docker run --rm \
   --read-only --tmpfs /tmp:size=64m \
   --memory 2g --cpus 2 --cap-drop ALL \
   "$CODEX_IMG" \
-  exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" \
+  exec --dangerously-bypass-approvals-and-sandbox "$ASSIGN" 2>&1)" \
   || { CODEX_EXIT=$?; echo "codex exited $CODEX_EXIT (continuing to gates)"; }
+printf '%s\n' "$CODEX_OUT"
 rm -rf "$CODEX_RUN_HOME"
+# Parse Codex's "tokens used\n<N>" (comma-formatted) so the Consciousness Token Economy
+# counts REAL Codex usage (~80k+/run) instead of zeros. Last occurrence wins; 0 if absent.
+CODEX_TOKENS=$(printf '%s\n' "$CODEX_OUT" | awk '/tokens used/{getline; gsub(/[^0-9]/,"",$0); if($0!="") v=$0} END{print v+0}')
 
 # 5) scope guard (deny-by-default) — fail the run if anything out of scope changed.
 # Include UNTRACKED (new) files: `git diff --name-only` lists only modified TRACKED files,
@@ -164,9 +171,10 @@ while IFS='=' read -r _k _v; do export "$_k=$_v"; done < <(grep -E '^(DB_PORT|DB
 export DB_HOST=192.168.1.200
 (cd "$REPO/platform_v2" && python3 -c "
 from services.agents.codex_telemetry import record_codex_run
-record_codex_run(task_label='''$TASK''', branch='$BRANCH', prompt_tokens=0, completion_tokens=0,
+record_codex_run(task_label='''$TASK''', branch='$BRANCH', prompt_tokens=0, completion_tokens=${CODEX_TOKENS:-0},
   model='gpt-5-codex', files_changed='''$CHANGED'''.split(), tests='n/a',
-  success=$( [ "$SUCCESS" = true ] && echo True || echo False ), duration_ms=$DUR, estimated=True,
+  success=$( [ "$SUCCESS" = true ] && echo True || echo False ), duration_ms=$DUR,
+  estimated=$( [ "${CODEX_TOKENS:-0}" -gt 0 ] && echo False || echo True ),
   project_id=376)
 ")
 

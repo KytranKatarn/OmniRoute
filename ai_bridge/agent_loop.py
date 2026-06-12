@@ -6774,7 +6774,10 @@ class AgentLoop:
                     WHERE ut.project_id = ANY(%s)
                       AND ut.status = 'pending'
                       AND (ut.delegation_args IS NULL
-                           OR (ut.delegation_args->>'capability' != 'codex_task'
+                           -- COALESCE so an empty-object '{}' delegation_args (capability
+                           -- absent) is still eligible: without it, ->>'capability' is NULL
+                           -- and `NULL != 'codex_task'` is NULL, silently excluding the row.
+                           OR (COALESCE(ut.delegation_args->>'capability', '') != 'codex_task'
                                AND NOT ut.delegation_args ? 'codex_queued_delegate_id'))
                     ORDER BY ut.priority DESC, ut.created_at ASC
                     LIMIT 1

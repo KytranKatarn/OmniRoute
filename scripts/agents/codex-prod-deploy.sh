@@ -47,10 +47,15 @@ echo "$ROWS" | while IFS='|' read -r AID PR MODULE MERGE_SHA; do
   fi
   cd "$REPO"
 
-  # SAFETY GUARD: never clobber active dev work.
+  # SAFETY GUARD: never clobber active dev work. Only DEFER on uncommitted TRACKED
+  # changes (which the `git reset --hard` below would discard). Ignore untracked files
+  # (reports/plans are never clobbered by a reset) and the auto-generated
+  # learned-skills.md (Job #54 churns it constantly) — otherwise the poller defers
+  # forever on harmless artifacts and NOTHING ever deploys (the 2026-06-12 backlog).
   BR="$(git rev-parse --abbrev-ref HEAD)"
-  if [ "$BR" != "main" ] || [ -n "$(git status --porcelain)" ]; then
-    log "DEFER #$AID — host tree busy (branch=$BR, dirty=$([ -n "$(git status --porcelain)" ] && echo yes || echo no)); retry next cycle"
+  DIRTY="$(git status --porcelain --untracked-files=no | grep -v 'learned-skills\.md' || true)"
+  if [ "$BR" != "main" ] || [ -n "$DIRTY" ]; then
+    log "DEFER #$AID — uncommitted tracked changes on host tree (branch=$BR); retry next cycle"
     continue
   fi
 

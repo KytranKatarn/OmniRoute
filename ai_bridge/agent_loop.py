@@ -4369,6 +4369,43 @@ class AgentLoop:
                     pr_number,
                     merge_sha[:7],
                 )
+                # Close the delivered Codex task + its source backlog task so the
+                # autonomous scheduler's queue_depth gate frees up. Without this a
+                # merged task stays 'in_progress' forever and keeps counting as
+                # "Codex busy" — after ~2 deliveries the loop self-throttles to a halt
+                # (the host worker, run-codex-task.sh, never marks the source done; the
+                # ONLY place a Codex task legitimately becomes 'completed' is here, on a
+                # human-approved merge). Match the delegation row by the PR number the
+                # worker stashed in metadata.codex_pr, then close its source task too.
+                try:
+                    from database import get_db_cursor as _gdc
+
+                    with _gdc(commit=True) as (_cpc, _cpcur):
+                        _cpcur.execute(
+                            "UPDATE unified_tasks SET status='completed', updated_at=now() "
+                            "WHERE delegation_args->>'capability'='codex_task' "
+                            "AND metadata->>'codex_pr' = %s AND status <> 'completed' "
+                            "RETURNING id",
+                            (str(int(pr_number)),),
+                        )
+                        _done = [str(_r["id"]) for _r in _cpcur.fetchall()]
+                        if _done:
+                            _cpcur.execute(
+                                "UPDATE unified_tasks SET status='completed', updated_at=now() "
+                                "WHERE status NOT IN ('completed', 'cancelled') "
+                                "AND delegation_args->>'codex_queued_delegate_id' = ANY(%s)",
+                                (_done,),
+                            )
+                    logger.info(
+                        "codex_promote: closed Codex task(s) %s for merged PR #%s",
+                        _done,
+                        pr_number,
+                    )
+                except Exception as _cp_done_err:
+                    logger.warning(
+                        "codex_promote: task completion writeback failed (non-fatal): %s",
+                        _cp_done_err,
+                    )
                 return {
                     "executed": True,
                     "merged": True,

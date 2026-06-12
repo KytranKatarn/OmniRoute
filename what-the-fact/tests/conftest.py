@@ -31,3 +31,95 @@ def clean_schema(engine):
     yield
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA IF EXISTS wtf_test CASCADE"))
+
+
+@pytest.fixture()
+def entity_schema(clean_schema, engine):
+    """wtf_test (from clean_schema) + isolated shared_test/parliament_test schemas with a
+    seeded MP graph (one MP person entity with 2 article mentions, one journalist entity,
+    plus parliament votes/expenses/promises). Endpoint tests point the app at these via
+    WTF_SHARED_SCHEMA=shared_test / WTF_PARLIAMENT_SCHEMA=parliament_test. Never touches
+    the prod shared/parliament schemas."""
+    ddl = """
+    DROP SCHEMA IF EXISTS shared_test CASCADE;
+    DROP SCHEMA IF EXISTS parliament_test CASCADE;
+    CREATE SCHEMA shared_test;
+    CREATE SCHEMA parliament_test;
+    CREATE TABLE shared_test.entities (
+        id SERIAL PRIMARY KEY,
+        entity_type TEXT NOT NULL CHECK (entity_type IN ('person','organization','journalist')),
+        canonical_name TEXT NOT NULL,
+        slug TEXT NOT NULL UNIQUE,
+        aliases TEXT[] NOT NULL DEFAULT '{}',
+        roles JSONB NOT NULL DEFAULT '[]',
+        metadata JSONB NOT NULL DEFAULT '{}',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE shared_test.entity_mentions (
+        id SERIAL PRIMARY KEY,
+        entity_id INTEGER NOT NULL REFERENCES shared_test.entities(id) ON DELETE CASCADE,
+        product TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        content_id TEXT NOT NULL,
+        mention_context TEXT,
+        confidence NUMERIC(4,3),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (entity_id, product, content_type, content_id)
+    );
+    CREATE TABLE parliament_test.mps (
+        id SERIAL PRIMARY KEY, slug TEXT UNIQUE, name TEXT NOT NULL,
+        party TEXT, riding TEXT, entity_id INTEGER REFERENCES shared_test.entities(id)
+    );
+    CREATE TABLE parliament_test.mp_votes (
+        id SERIAL PRIMARY KEY, mp_id INTEGER REFERENCES parliament_test.mps(id),
+        bill_number TEXT, description TEXT, vote TEXT, voted_at DATE
+    );
+    CREATE TABLE parliament_test.mp_expense_summary (
+        mp_id INTEGER PRIMARY KEY REFERENCES parliament_test.mps(id),
+        total_cents BIGINT, period TEXT
+    );
+    CREATE TABLE parliament_test.mp_promises (
+        id SERIAL PRIMARY KEY, mp_id INTEGER REFERENCES parliament_test.mps(id),
+        text TEXT, status TEXT
+    );
+    ALTER TABLE wtf_test.articles ADD COLUMN IF NOT EXISTS bias_ensemble_band TEXT;
+    ALTER TABLE wtf_test.articles ADD COLUMN IF NOT EXISTS bias_ensemble_score NUMERIC;
+    """
+    with engine.begin() as c:
+        for stmt in ddl.split(";"):
+            if stmt.strip():
+                c.execute(text(stmt))
+    with engine.begin() as c:
+        eid_mp = c.execute(text(
+            "INSERT INTO shared_test.entities (entity_type, canonical_name, slug) "
+            "VALUES ('person','Jane Member','jane-member') RETURNING id")).scalar()
+        eid_jo = c.execute(text(
+            "INSERT INTO shared_test.entities (entity_type, canonical_name, slug) "
+            "VALUES ('journalist','Bob Writer','bob-writer') RETURNING id")).scalar()
+        mp_id = c.execute(text(
+            "INSERT INTO parliament_test.mps (slug,name,party,riding,entity_id) "
+            "VALUES ('jane-member','Jane Member','Independent','Testville',:e) RETURNING id"),
+            {"e": eid_mp}).scalar()
+        c.execute(text("INSERT INTO parliament_test.mp_votes (mp_id,bill_number,description,vote,voted_at) "
+                       "VALUES (:m,'C-1','Test Bill','yea','2026-05-01')"), {"m": mp_id})
+        c.execute(text("INSERT INTO parliament_test.mp_expense_summary (mp_id,total_cents,period) "
+                       "VALUES (:m,123456,'2026-Q1')"), {"m": mp_id})
+        c.execute(text("INSERT INTO parliament_test.mp_promises (mp_id,text,status) "
+                       "VALUES (:m,'Lower taxes','in_progress')"), {"m": mp_id})
+        sid = c.execute(text("INSERT INTO wtf_test.sources (slug,name,url) "
+                             "VALUES ('src','Src','http://s') RETURNING id")).scalar()
+        for i, band in enumerate(["left", "center"]):
+            aid = c.execute(text(
+                "INSERT INTO wtf_test.articles (source_id,external_id,title,body,url,published_at,"
+                "bias_ensemble_band,bias_ensemble_score) "
+                "VALUES (:s,:x,:t,'b',:u,:p,:band,:score) RETURNING id"),
+                {"s": sid, "x": f"a{i}", "t": f"Headline {i}", "u": f"http://s/a{i}",
+                 "p": f"2026-05-0{i+1}", "band": band, "score": -0.5 + i}).scalar()
+            c.execute(text(
+                "INSERT INTO shared_test.entity_mentions (entity_id,product,content_type,content_id) "
+                "VALUES (:e,'wtf','article',:cid)"), {"e": eid_mp, "cid": str(aid)})
+    yield {"mp_entity_id": eid_mp, "journalist_entity_id": eid_jo, "mp_id": mp_id, "source_id": sid}
+    with engine.begin() as c:
+        c.execute(text("DROP SCHEMA IF EXISTS shared_test CASCADE"))
+        c.execute(text("DROP SCHEMA IF EXISTS parliament_test CASCADE"))

@@ -28,4 +28,7 @@ def create_app():
     # Topic micro-subscriptions — $2/mo per beat (#3015)
     from .beats import beats_bp
     app.register_blueprint(beats_bp)
+    # Entity search & accountability API — MP search now, journalists in Milestone B (#4078)
+    from .entities import entities_bp
+    app.register_blueprint(entities_bp)
     return app

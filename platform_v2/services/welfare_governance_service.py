@@ -37,7 +37,14 @@ def load_break_config(cur):
 
 
 def gather_snapshots(cur):
-    """One row per active AI agent with the welfare metrics.
+    """One row per AI agent in the work/rest cycle (active, deployed, winding_down,
+    cooldown) with the welfare metrics.
+
+    winding_down/cooldown are INCLUDED because an agent that blew past its token budget
+    transitions there as it winds down — excluding those states hid the very agents most
+    likely to be over-limit and made the score falsely 100/A+ while the K.I.N. tab (which
+    includes them) correctly showed them "at limit" (mistake #272470, population side).
+    barracked/off_duty/decommissioned stay excluded (not in the active work cycle).
 
     token_ratio is computed over a ROLLING 24h window (tokens_used in the last 24h /
     token_limit_per_day) — the SAME window the K.I.N. tab shows as "X/Yk tok (Z%)" and
@@ -72,7 +79,7 @@ def gather_snapshots(cur):
             WHERE agent_id = a.id ORDER BY timestamp DESC LIMIT 1
         ) aes ON TRUE
         WHERE a.worker_type IN ('ai', 'contractor')
-          AND a.shift_state IN ('active', 'deployed')
+          AND a.shift_state IN ('active', 'deployed', 'winding_down', 'cooldown')
         """
     )
     snaps = []
@@ -93,6 +100,33 @@ def gather_snapshots(cur):
     return snaps
 
 
+def gather_sole_agent_capabilities(cur):
+    """Capabilities served by exactly ONE active agent (a single point of failure).
+
+    Same active population as gather_snapshots (worker_type ai/contractor, shift_state
+    active/deployed). When that sole agent is over its token budget, recommend() raises a
+    staffing_gap — the throttle has no healthy peer to route to (#4090 part 3). Returns a
+    list of {capability, agent_id, agent_name}."""
+    cur.execute(
+        """
+        SELECT s.skill_name AS capability,
+               MIN(a.id)    AS agent_id,
+               MIN(a.name)  AS agent_name
+        FROM agent_skills s
+        JOIN agents a ON a.id = s.agent_id
+        WHERE a.worker_type IN ('ai', 'contractor')
+          AND a.shift_state IN ('active', 'deployed')
+          AND s.skill_name IS NOT NULL
+        GROUP BY s.skill_name
+        HAVING COUNT(DISTINCT a.id) = 1
+        """
+    )
+    return [
+        {"capability": r["capability"], "agent_id": r["agent_id"], "agent_name": r["agent_name"]}
+        for r in (cur.fetchall() or [])
+    ]
+
+
 def run_welfare_governance(cur, emit=True):
     """Compute the welfare score, persist it, emit per-violation C.R.E.E.D. events.
     Returns the full result dict (score/grade/violations/recommendations)."""
@@ -100,7 +134,9 @@ def run_welfare_governance(cur, emit=True):
     gov_cfg = governance_limits(break_cfg)  # token violation at budget (1.0), not 0.60
     snaps = gather_snapshots(cur)
     result = score_welfare(snaps, gov_cfg)
-    result["recommendations"] = recommend(snaps, gov_cfg)
+    result["recommendations"] = recommend(
+        snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur)
+    )
 
     cur.execute(
         """
@@ -175,7 +211,9 @@ def compute_welfare_snapshot(cur):
     gov_cfg = governance_limits(break_cfg)  # token violation at budget (1.0), not 0.60
     snaps = gather_snapshots(cur)
     result = score_welfare(snaps, gov_cfg)
-    result["recommendations"] = recommend(snaps, gov_cfg)
+    result["recommendations"] = recommend(
+        snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur)
+    )
     return result
 
 

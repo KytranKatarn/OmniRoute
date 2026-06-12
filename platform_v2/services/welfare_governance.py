@@ -174,9 +174,15 @@ def score_welfare(snapshots, break_cfg=None, cfg=None):
     }
 
 
-def recommend(snapshots, break_cfg=None, cfg=None):
+def recommend(snapshots, break_cfg=None, cfg=None, sole_agent_capabilities=None):
     """Generated improvement recommendations ("aim for best score") — deterministic,
-    rule-based v1. Each item: {kind, severity, detail}."""
+    rule-based v1. Each item: {kind, severity, detail}.
+
+    ``sole_agent_capabilities`` (optional) is a list of
+    ``{capability, agent_id, agent_name}`` for capabilities served by exactly ONE
+    active agent (a single point of failure). When that agent is over its token
+    budget the throttle has no healthy peer to route to, so we recommend
+    reactivating a bench specialist or hiring a backup (#4090 part 3)."""
     cfg = {**WELFARE_GOVERNANCE_DEFAULTS, **(cfg or {})}
     bc = {**_BREAK_FALLBACK, **(break_cfg or {})}
     snaps = list(snapshots or [])
@@ -239,6 +245,38 @@ def recommend(snapshots, break_cfg=None, cfg=None):
                     "detail": (
                         f"{s.get('name')} exceeded the {bc.get('hours_cap')}h compute " "cap — enforce a shift_rest."
                     ),
+                }
+            )
+
+    # 5. staffing SPOF — a capability whose ONLY active agent is over its token budget.
+    # The dispatch throttle routes around an over-budget agent, but here there is no peer
+    # to route TO, so work either waits or last-resorts back to the exhausted agent.
+    # Recommend reactivating a bench specialist or hiring a backup (propose_hire is gated;
+    # this only surfaces the gap). Aggregate one rec per agent across its solo capabilities.
+    if sole_agent_capabilities:
+        over_budget = {s.get("agent_id"): s.get("name") for s, c in classes if "tokens" in c["over"]}
+        by_agent = {}  # agent_id -> [capability, ...]
+        names = {}
+        for entry in sole_agent_capabilities:
+            aid = entry.get("agent_id")
+            cap = entry.get("capability")
+            if aid in over_budget and cap:
+                by_agent.setdefault(aid, []).append(cap)
+                names[aid] = entry.get("agent_name") or over_budget[aid]
+        for aid, caps in by_agent.items():
+            caps_sorted = sorted(set(caps))
+            recs.append(
+                {
+                    "kind": "staffing_gap",
+                    "severity": "warning",
+                    "detail": (
+                        f"{names[aid]} is the only active agent for {len(caps_sorted)} "
+                        f"capability(ies) ({', '.join(caps_sorted[:6])}) and is over its 24h "
+                        "token budget — the throttle has no healthy peer to route to; "
+                        "reactivate a bench specialist or hire a backup (propose_hire)."
+                    ),
+                    "agent_id": aid,
+                    "capabilities": caps_sorted,
                 }
             )
 

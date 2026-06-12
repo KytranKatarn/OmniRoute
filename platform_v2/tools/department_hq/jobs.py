@@ -3304,6 +3304,56 @@ def _register_own_jobs(scheduler, flask_app):
     # Selects OLDEST articles first (production selects newest) so both ends drain together.
     # Auto-scalable: register any agent with fact_check_backlog skill on any node and
     # DHQ routes to the whole pool automatically — no changes needed here ever.
+
+    # Welfare gate (ADR-004 / #4090): pause a backlog cycle when its agent pool has no
+    # token-budget headroom left. The dispatch throttle routes work to the least-loaded
+    # agent, but when EVERY pool agent is over its 24h budget the load just rotates and
+    # they all stay at-limit — so the discretionary backlog backs off and lets the 24h
+    # window drain. Threshold tunable via platform_settings welfare:backlog:pool_pause_ratio
+    # (default 0.9 = pause just before the pool tops out). Fail-open on any error.
+    def _wtf_backlog_pool_over_budget(skill_name):
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT value FROM platform_settings WHERE key = %s",
+                    ("welfare:backlog:pool_pause_ratio",),
+                )
+                _row = cur.fetchone()
+                try:
+                    pause_ratio = float(_row["value"]) if _row and _row.get("value") not in (None, "") else 0.9
+                except (TypeError, ValueError):
+                    pause_ratio = 0.9
+                cur.execute(
+                    """
+                    SELECT MIN(COALESCE(t.tok, 0)::float / NULLIF(ab.token_limit_per_day, 0)) AS min_ratio,
+                           COUNT(*) AS n
+                    FROM agent_skills s
+                    JOIN agents a ON a.id = s.agent_id
+                    JOIN agent_budgets ab ON ab.agent_id = a.id
+                    LEFT JOIN (
+                        SELECT agent_id, SUM(tokens_used) AS tok
+                        FROM task_execution_log
+                        WHERE created_at > NOW() - INTERVAL '24 hours'
+                        GROUP BY agent_id
+                    ) t ON t.agent_id = a.id
+                    WHERE s.skill_name = %s
+                      AND a.worker_type IN ('ai', 'contractor')
+                      AND a.shift_state IN ('active', 'deployed', 'winding_down')
+                    """,
+                    (skill_name,),
+                )
+                r = cur.fetchone()
+            if not r or not r["n"] or r["min_ratio"] is None:
+                return False  # no pool / no budget data → never gate
+            return float(r["min_ratio"]) >= pause_ratio
+        except Exception:
+            logger.warning(
+                "[WTFBacklog] welfare gate check failed for %s; not gating", skill_name, exc_info=True
+            )
+            return False
+
     def _run_wtf_factcheck_backlog():
         import time as _wfcb_t
 
@@ -3321,6 +3371,13 @@ def _register_own_jobs(scheduler, flask_app):
                     "[WTFFactcheckBacklog] F.A.C.T. model cold (%d items queued for gemma3:12b)"
                     " — deferring this cycle",
                     _fc_queued,
+                )
+                return
+
+            if _wtf_backlog_pool_over_budget("fact_check_backlog"):
+                logger.info(
+                    "[WTFFactcheckBacklog] fact-check pool over 24h token budget"
+                    " — deferring this cycle (welfare-gated, ADR-004/#4090)"
                 )
                 return
 
@@ -3490,6 +3547,14 @@ def _register_own_jobs(scheduler, flask_app):
         import time as _wbb_t
 
         _wbb_start = _wbb_t.time()
+        # Pool skill is bias_analysis (the bias_backlog capability has no dedicated skill —
+        # it routes to the bias_analysis pool), so gate on that pool's 24h headroom.
+        if _wtf_backlog_pool_over_budget("bias_analysis"):
+            logger.info(
+                "[WTFBiasBacklog] bias pool over 24h token budget"
+                " — deferring this cycle (welfare-gated, ADR-004/#4090)"
+            )
+            return
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import json as _json
 
@@ -3660,6 +3725,12 @@ def _register_own_jobs(scheduler, flask_app):
         import time as _wgb_t
 
         _wgb_start = _wgb_t.time()
+        if _wtf_backlog_pool_over_budget("geo_extraction"):
+            logger.info(
+                "[WTFGeoBacklog] geo pool over 24h token budget"
+                " — deferring this cycle (welfare-gated, ADR-004/#4090)"
+            )
+            return
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import json as _json
 

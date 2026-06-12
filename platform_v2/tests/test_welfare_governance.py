@@ -133,6 +133,48 @@ def test_no_recommendations_when_everyone_healthy():
     assert recommend(snaps, BC) == []
 
 
+# --- staffing_gap: sole active agent over budget (#4090 part 3) -----------------
+
+
+def test_recommends_staffing_gap_for_sole_over_budget_agent():
+    # F.O.R.G.E. is over its 24h budget AND the only active agent for code_review (SPOF):
+    # the throttle has no healthy peer to route to -> recommend reactivate/hire.
+    forge = _agent("F.O.R.G.E.", tok=1.4)
+    sole = [{"capability": "code_review", "agent_id": forge["agent_id"], "agent_name": "F.O.R.G.E."}]
+    recs = recommend([forge], governance_limits(BC), sole_agent_capabilities=sole)
+    gap = [r for r in recs if r["kind"] == "staffing_gap"]
+    assert gap, "sole over-budget agent must raise a staffing_gap"
+    assert "code_review" in gap[0]["capabilities"]
+    assert gap[0]["agent_id"] == forge["agent_id"]
+    assert gap[0]["severity"] == "warning"
+
+
+def test_no_staffing_gap_when_sole_agent_under_budget():
+    forge = _agent("F.O.R.G.E.", tok=0.3)  # well within budget
+    sole = [{"capability": "code_review", "agent_id": forge["agent_id"], "agent_name": "F.O.R.G.E."}]
+    recs = recommend([forge], governance_limits(BC), sole_agent_capabilities=sole)
+    assert "staffing_gap" not in {r["kind"] for r in recs}
+
+
+def test_no_staffing_gap_when_over_budget_agent_has_peers():
+    # over budget but NOT a sole-agent capability -> it has active peers -> no gap
+    over = _agent("V.E.R.I.F.Y.", tok=1.5)
+    recs = recommend([over], governance_limits(BC), sole_agent_capabilities=[])
+    assert "staffing_gap" not in {r["kind"] for r in recs}
+
+
+def test_staffing_gap_aggregates_multiple_capabilities_per_agent():
+    forge = _agent("F.O.R.G.E.", tok=1.4)
+    sole = [
+        {"capability": "code_review", "agent_id": forge["agent_id"], "agent_name": "F.O.R.G.E."},
+        {"capability": "debug", "agent_id": forge["agent_id"], "agent_name": "F.O.R.G.E."},
+    ]
+    recs = recommend([forge], governance_limits(BC), sole_agent_capabilities=sole)
+    gap = [r for r in recs if r["kind"] == "staffing_gap"]
+    assert len(gap) == 1, "one aggregated rec per over-budget sole agent, not one per capability"
+    assert set(gap[0]["capabilities"]) == {"code_review", "debug"}
+
+
 # --- governance_limits: token violation at budget (1.0), not the break line ----
 
 

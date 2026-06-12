@@ -1358,6 +1358,40 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered dispatch_zombie_reaper job (every 15 min)")
 
+    def _run_creed_welfare_governance():
+        """E.T.H.O.S./C.R.E.E.D. welfare governance (#379 Phase 4).
+
+        Grades the ORGANISATION (0-100) on how it treats its AI workforce: the share of
+        active agents within healthy bounds + the share of over-limit agents that were
+        actually given a break. Persists the snapshot to agent_welfare_scores, emits a
+        C.R.E.E.D. governance event per welfare violation, and produces improvement
+        recommendations. Pure SQL + math + emit (no LLM) — safe on the scheduler thread.
+        """
+        try:
+            from database import get_db_cursor
+            from services.welfare_governance_service import run_welfare_governance
+
+            with get_db_cursor(commit=True) as (_, cur):
+                result = run_welfare_governance(cur, emit=True)
+            logger.info(
+                "[DeptHQ] Welfare governance: %s/%s (%d violations, %d recommendations)",
+                result.get("score"),
+                result.get("grade"),
+                len(result.get("violations") or []),
+                len(result.get("recommendations") or []),
+            )
+        except Exception as _wg:
+            logger.warning("[DeptHQ] welfare governance job failed: %s", _wg, exc_info=True)
+
+    scheduler.add_job(
+        with_ctx(_run_creed_welfare_governance),
+        trigger=CronTrigger(hour=6, minute=0, timezone="America/Toronto"),
+        id="creed_welfare_governance",
+        name="C.R.E.E.D.: AI-workforce welfare governance (daily 06:00 ET)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered creed_welfare_governance job (daily 06:00 ET)")
+
     # K.I.N. stuck-agent reaper (FIX-6 + FIX-8, review KB #270619). Two leaks left
     # agents permanently idle: (RC2) 'deployed' is a terminal black-hole — an agent
     # placed on a node that stays steadily ONLINE never returns, because the only exit

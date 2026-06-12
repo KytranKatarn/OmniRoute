@@ -229,6 +229,34 @@ WELFARE_BREAK_DEFAULTS = {
 }
 
 
+def merge_break_config(rows, base=None):
+    """Merge ``platform_settings`` ``welfare:break:*`` rows over the defaults. PURE.
+
+    ``rows`` = iterable of ``{"key", "value"}`` (or ``(key, value)`` tuples) where keys
+    look like ``welfare:break:hours_cap`` or ``welfare:break:dur:micro_rest``. Unknown
+    keys are ignored; values stay as-is (``decide_break``'s ``_num`` coerces strings).
+    Returns a fresh dict — the defaults are never mutated. This is the single tunable
+    config reader, shared by the break engine and the welfare-governance check (#379
+    Phase 3) so both judge "over limit" against the same numbers.
+    """
+    base = base or WELFARE_BREAK_DEFAULTS
+    cfg = {k: v for k, v in base.items() if k != "dur_min"}
+    cfg["dur_min"] = dict(base["dur_min"])
+    for row in rows or []:
+        if isinstance(row, dict):
+            key, value = row.get("key"), row.get("value")
+        else:
+            key, value = row[0], row[1]
+        if not key or not str(key).startswith("welfare:break:"):
+            continue
+        sub = str(key).split("welfare:break:", 1)[-1]
+        if sub in ("hours_cap", "token_pct", "action_pct", "stress"):
+            cfg[sub] = value
+        elif sub.startswith("dur:"):
+            cfg["dur_min"][sub.split("dur:", 1)[-1]] = value
+    return cfg
+
+
 def decide_break(hours=None, token_ratio=None, action_ratio=None, stress=None, cfg=None):
     """Decide whether an agent has earned a rest, and which kind. PURE — no DB.
 

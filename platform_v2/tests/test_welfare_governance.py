@@ -6,7 +6,9 @@ score_welfare / recommend / classify_agent are pure (no DB) → run on the host.
 import os
 
 from services.welfare_governance import (
+    GOVERNANCE_TOKEN_LIMIT,
     classify_agent,
+    governance_limits,
     grade_for,
     recommend,
     score_welfare,
@@ -131,6 +133,37 @@ def test_no_recommendations_when_everyone_healthy():
     assert recommend(snaps, BC) == []
 
 
+# --- governance_limits: token violation at budget (1.0), not the break line ----
+
+
+def test_governance_limits_raises_token_line_to_budget():
+    gov = governance_limits(BC)
+    assert gov["token_pct"] == GOVERNANCE_TOKEN_LIMIT == 1.0
+    # other dimensions are untouched (keep their break lines)
+    assert gov["hours_cap"] == BC["hours_cap"] and gov["stress"] == BC["stress"]
+
+
+def test_agent_at_70pct_budget_is_a_break_concern_but_not_a_governance_violation():
+    a = _agent("WARM", tok=0.70)
+    # the break engine (0.60 line) would flag it...
+    assert "tokens" in classify_agent(a, BC)["over"]
+    # ...but governance (1.0 line) does NOT — it's within budget
+    assert "tokens" not in classify_agent(a, governance_limits(BC))["over"]
+
+
+def test_over_budget_agent_is_a_governance_violation():
+    a = _agent("OVER", tok=1.30, rested=0)  # 130% of budget, like B.I.A.S. on 24h
+    c = classify_agent(a, governance_limits(BC))
+    assert "tokens" in c["over"] and c["needs_break"] and not c["honored"]
+
+
+def test_score_with_governance_limits_only_dings_over_budget():
+    # 4 within budget (0.7) + 1 over budget unrested: under the 1.0 line only ONE is flagged
+    snaps = [_agent(f"a{i}", tok=0.7) for i in range(4)] + [_agent("X", tok=1.2, rested=0)]
+    r = score_welfare(snaps, governance_limits(BC))
+    assert r["needed_break"] == 1  # not 5 — the 0.7 agents are within budget
+
+
 # --- service wiring guard ---------------------------------------------------
 
 
@@ -140,6 +173,9 @@ def test_service_runs_pure_scorer_and_emits_creed_events():
     assert "score_welfare(" in src and "recommend(" in src
     assert "emit_event(" in src, "violations must emit C.R.E.E.D. governance events"
     assert "agent_welfare_scores" in src, "must persist the score snapshot"
+    assert "governance_limits(" in src, "must score against the budget (1.0) token line"
+    assert "INTERVAL '24 hours'" in src, "token window must be 24h rolling (match K.I.N. tab)"
+    assert "'ai', 'contractor'" in src, "welfare scope must include contractors (Codex)"
 
 
 def test_job_registered_in_jobs():

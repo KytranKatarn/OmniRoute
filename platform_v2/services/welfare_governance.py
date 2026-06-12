@@ -40,6 +40,24 @@ WELFARE_GOVERNANCE_DEFAULTS = {
 # live from platform_settings; duplicated here only so the pure module never imports DB.
 _BREAK_FALLBACK = {"hours_cap": 6.0, "token_pct": 0.90, "action_pct": 0.90, "stress": 0.60}
 
+# Governance grades the org on agents OVER their limit — not merely approaching it. The
+# break thresholds (e.g. token 0.60) are "should take a proactive rest"; the governance
+# VIOLATION line for tokens is the budget itself (1.0 = over daily budget), matching what
+# the K.I.N. tab flags as "at limit". So governance classifies tokens against 1.0 while
+# the break engine keeps the softer 0.60. (stress/hours/actions keep their break lines —
+# an unrested high-stress/over-hours agent is a genuine welfare concern.)
+GOVERNANCE_TOKEN_LIMIT = 1.0
+
+
+def governance_limits(break_cfg=None):
+    """The thresholds GOVERNANCE classifies against: break_cfg with the token line raised
+    to the budget (GOVERNANCE_TOKEN_LIMIT). PURE. Pass the result as score_welfare /
+    recommend's break_cfg so an agent at 70% of budget (which the engine would rest) is
+    NOT counted as a welfare violation — only an over-budget (>=100%) agent is."""
+    cfg = dict(break_cfg or {})
+    cfg["token_pct"] = GOVERNANCE_TOKEN_LIMIT
+    return cfg
+
 
 def _num(value, default=0.0):
     """Coerce None / '' / strings (platform_settings returns text) to float."""

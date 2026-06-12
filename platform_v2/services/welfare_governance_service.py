@@ -12,7 +12,7 @@ fleet-dispatched enhancement.
 import json
 import logging
 
-from services.welfare_governance import recommend, score_welfare
+from services.welfare_governance import governance_limits, recommend, score_welfare
 from services.welfare_load import merge_break_config
 
 logger = logging.getLogger(__name__)
@@ -67,11 +67,11 @@ def gather_snapshots(cur):
                ) AS rested_today
         FROM agent_budgets ab
         JOIN agents a ON a.id = ab.agent_id
-        JOIN LATERAL (
+        LEFT JOIN LATERAL (
             SELECT stress_level FROM agent_emotional_state
             WHERE agent_id = a.id ORDER BY timestamp DESC LIMIT 1
         ) aes ON TRUE
-        WHERE a.worker_type = 'ai'
+        WHERE a.worker_type IN ('ai', 'contractor')
           AND a.shift_state IN ('active', 'deployed')
         """
     )
@@ -97,9 +97,10 @@ def run_welfare_governance(cur, emit=True):
     """Compute the welfare score, persist it, emit per-violation C.R.E.E.D. events.
     Returns the full result dict (score/grade/violations/recommendations)."""
     break_cfg = load_break_config(cur)
+    gov_cfg = governance_limits(break_cfg)  # token violation at budget (1.0), not 0.60
     snaps = gather_snapshots(cur)
-    result = score_welfare(snaps, break_cfg)
-    result["recommendations"] = recommend(snaps, break_cfg)
+    result = score_welfare(snaps, gov_cfg)
+    result["recommendations"] = recommend(snaps, gov_cfg)
 
     cur.execute(
         """
@@ -171,9 +172,10 @@ def compute_welfare_snapshot(cur):
     for the last PERSISTED daily run's timestamp/history.
     """
     break_cfg = load_break_config(cur)
+    gov_cfg = governance_limits(break_cfg)  # token violation at budget (1.0), not 0.60
     snaps = gather_snapshots(cur)
-    result = score_welfare(snaps, break_cfg)
-    result["recommendations"] = recommend(snaps, break_cfg)
+    result = score_welfare(snaps, gov_cfg)
+    result["recommendations"] = recommend(snaps, gov_cfg)
     return result
 
 

@@ -45,6 +45,9 @@ TENANTS_CACHE_TTL = 60  # 60 s — multi-tenant directory proxy (#3947)
 _carbon_cache = {"data": None, "expires": 0}
 CARBON_CACHE_TTL = 600  # 10 min — 24h aggregate changes slowly
 
+_welfare_cache = {"data": None, "expires": 0}
+WELFARE_CACHE_TTL = 60  # 60 s — AI-workforce welfare score (#379 Phase 5)
+
 _model_card_cache: dict = {"data": None, "expires": 0}  # full list
 _model_card_single_cache: dict = {}  # agent_id → {"data": ..., "expires": float}
 MODEL_CARD_CACHE_TTL = 300  # 5 min — model assignments change rarely
@@ -284,6 +287,35 @@ ISED_QUESTIONNAIRE = [
 
 def register_creed_routes(bp, admin_required):
     """Register all C.R.E.E.D. public API routes."""
+
+    @bp.route("/api/creed/welfare")
+    def creed_welfare():
+        """AI-workforce welfare score for the DHQ C.R.E.E.D. tab (#379 Phase 5).
+
+        The org's self-accountability surface — how it treats its agents. Live score
+        (the daily creed_welfare_governance job persists history). 60 s cached, hub-local
+        (no standalone proxy). jsonify-safe plain types.
+        """
+        now = time.time()
+        if _welfare_cache["data"] and now < _welfare_cache["expires"]:
+            return jsonify(_welfare_cache["data"])
+        try:
+            from services.welfare_governance_service import (
+                compute_welfare_snapshot,
+                get_latest_welfare_score,
+            )
+
+            with get_db_cursor() as (conn, cur):
+                data = compute_welfare_snapshot(cur)
+                latest = get_latest_welfare_score(cur)
+            data["success"] = True
+            data["last_run_at"] = latest["computed_at"].isoformat() if latest and latest.get("computed_at") else None
+            _welfare_cache["data"] = data
+            _welfare_cache["expires"] = now + WELFARE_CACHE_TTL
+            return jsonify(data)
+        except Exception as e:
+            logger.error("creed_welfare failed: %s", e)
+            return jsonify({"success": False, "error": "welfare score unavailable"}), 502
 
     @bp.route("/api/creed/tenants")
     def creed_tenants():

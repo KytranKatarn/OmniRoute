@@ -1204,6 +1204,35 @@ async function loadCreed() {
             }
         } catch (e) { /* carbon strip optional */ }
 
+        // AI-workforce welfare score (#379 Phase 5) — the org's self-accountability surface.
+        try {
+            var wf = await api('/api/creed/welfare');
+            if (wf.success) {
+                var wc = wf.score >= 90 ? '#22c55e' : wf.score >= 80 ? '#22d3ee' : wf.score >= 70 ? '#f59e0b' : '#ef4444';
+                var wfHtml = '<div class="dhq-ad-section-title" style="color:#00ffff">AI-WORKFORCE WELFARE — how we treat our own agents</div>'
+                    + '<div style="border:1px solid rgba(255,255,255,0.14);border-radius:10px;padding:0.7rem 0.9rem;margin:0.4rem 0 1rem">'
+                    + '<div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap">'
+                    + '<span style="font-family:Orbitron,sans-serif;font-size:1.3rem;font-weight:700;color:' + wc + '">' + (wf.score != null ? wf.score : '—') + ' · ' + esc(wf.grade || '') + '</span>'
+                    + '<span style="font-size:0.75rem;color:var(--dhq-text-dim)">' + (wf.active_agents || 0) + ' active · ' + (wf.healthy_pct != null ? wf.healthy_pct : '—') + '% within bounds · ' + (wf.break_honored_pct != null ? wf.break_honored_pct : '—') + '% breaks honored' + (wf.needed_break ? ' · ' + wf.needed_break + ' over a limit' : '') + '</span>'
+                    + '</div>';
+                var wrecs = wf.recommendations || [];
+                if (wrecs.length) {
+                    wfHtml += '<div style="margin-top:0.5rem">';
+                    for (var ri = 0; ri < wrecs.length; ri++) {
+                        var rsev = wrecs[ri].severity === 'critical' ? '#ef4444' : '#f59e0b';
+                        wfHtml += '<div style="font-size:0.78rem;color:#cbd5e1;padding:0.3rem 0;border-top:1px solid rgba(255,255,255,0.06)">'
+                            + '<span style="color:' + rsev + ';font-size:0.6rem;text-transform:uppercase;letter-spacing:0.05em;margin-right:0.5rem">' + esc(wrecs[ri].severity || '') + '</span>'
+                            + esc(wrecs[ri].detail || '') + '</div>';
+                    }
+                    wfHtml += '</div>';
+                } else {
+                    wfHtml += '<div style="font-size:0.75rem;color:#22c55e;margin-top:0.4rem">No issues — workforce within healthy bounds.</div>';
+                }
+                wfHtml += '</div>';
+                tenantHtml += wfHtml;
+            }
+        } catch (e) { /* welfare panel optional */ }
+
         if (!data.departments || data.departments.length === 0) {
             setHtml(el, tenantHtml + '<div class="dhq-empty">No C.R.E.E.D. data available yet.</div>');
             return;

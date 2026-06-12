@@ -357,6 +357,18 @@ CAPABILITY_SPECIALIST_MAP = {
 # but stay below the distress opt-out penalty (-1.5).
 SPECIALIST_PREFERENCE_BONUS = 0.75
 
+# Token-budget throttle (ADR-004, #4090). An agent whose 24h rolling token use
+# (budget.token_ratio = SUM(task_execution_log.tokens_used, last 24h) / daily
+# budget) is at/over 1.0 is THROTTLED, not rested or hard-blocked: it takes a
+# score penalty so a healthy peer is preferred, yet remains selectable as last
+# resort (the max(score, 0.01) floor) so a sole skilled agent — e.g. F.O.R.G.E.
+# for code_review — never starves the dispatch/PR-merge path. The penalty is
+# deliberately bounded: > welfare noise (~0.5) so a healthy SKILLED peer wins,
+# and < the skill advantage (~1.2) so a throttled SKILLED agent still outranks a
+# healthy UNSKILLED peer (expertise outweighs an exceeded budget).
+TOKEN_BUDGET_OVER_RATIO = 1.0
+TOKEN_OVER_BUDGET_PENALTY = 1.0
+
 
 # ---------------------------------------------------------------------------
 # Coordinator
@@ -522,13 +534,14 @@ class DepartmentCoordinator:
 
         budget = welfare.get("budget", {})
         util_pct = budget.get("utilization_pct", 0.0)
-        if util_pct >= 0.95:
-            return (0.0, f"{agent_name} budget exhausted ({util_pct:.0%})")
 
-        # K.I.N. task queue limit enforcement
+        # K.I.N. task-queue saturation = HARD block: the agent physically cannot
+        # accept another concurrent job. Token-budget overage is NOT hard-blocked
+        # here — it is throttled (a score penalty) further down so a healthy peer is
+        # preferred while a sole skilled agent stays selectable (ADR-004 #4090).
         task_count = budget.get("current_task_count", 0)
         task_limit = budget.get("task_queue_limit", 10)
-        if task_count >= task_limit:
+        if task_limit > 0 and task_count >= task_limit:
             return (0.0, f"{agent_name} at task queue limit ({task_count}/{task_limit}) — K.I.N. enforced")
 
         score = 1.0
@@ -536,7 +549,10 @@ class DepartmentCoordinator:
         energy = welfare.get("energy", 0.5)
         score += (1.0 - stress) * 0.3
         score += energy * 0.2
-        score -= util_pct * 0.5
+        # Soft load preference. Clamp to 1.0: util_pct can now exceed 1.0 (it tracks
+        # the 24h token ratio), but over-budget is already handled by the throttle
+        # penalty below — don't double-count it here.
+        score -= min(util_pct, 1.0) * 0.5
 
         if shift == "winding_down":
             score -= 0.3
@@ -614,6 +630,15 @@ class DepartmentCoordinator:
         from services.cluster_orchestration_service import get_overflow_bonus
 
         score += get_overflow_bonus(agent_id, capability)
+
+        # Token-budget THROTTLE (ADR-004, #4090) — applied LAST so it discounts the
+        # full skill/welfare score. An agent at/over its 24h token budget is pushed
+        # below any healthy peer, but the max(score, 0.01) floor below keeps a sole
+        # skilled agent selectable as last resort (no starvation of the dispatch /
+        # PR-merge path). See TOKEN_OVER_BUDGET_PENALTY for the bounding rationale.
+        token_ratio = budget.get("token_ratio", 0.0)
+        if token_ratio >= TOKEN_BUDGET_OVER_RATIO:
+            score -= TOKEN_OVER_BUDGET_PENALTY
 
         return (max(score, 0.01), None)
 

@@ -2294,6 +2294,13 @@ def get_welfare_cache() -> Dict:
     """
     cache = {}
     with get_db_cursor() as (conn, cur):
+        # Token use is a 24h ROLLING SUM of task_execution_log.tokens_used — NOT the
+        # since-midnight agent_budgets.tokens_used_today column, which is unreliably
+        # populated and resets at local midnight (a 2x-over-budget agent reads as
+        # healthy right after midnight). This matches the K.I.N. tab + welfare
+        # governance window so the dispatch throttle fires on real over-budget agents
+        # (ADR-004 / #4090). Aggregate once (GROUP BY) rather than a per-agent
+        # correlated subquery so the 30s cache refresh stays a single indexed scan.
         cur.execute(
             """
             SELECT a.id,
@@ -2301,33 +2308,39 @@ def get_welfare_cache() -> Dict:
                    COALESCE(es.energy_level, 0.5) AS energy,
                    COALESCE(ab.current_task_count, 0) AS task_count,
                    COALESCE(ab.task_queue_limit, 10) AS task_limit,
-                   COALESCE(ab.tokens_used_today, 0) AS tokens_used,
+                   COALESCE(tk.tokens_24h, 0) AS tokens_used,
                    COALESCE(ab.token_limit_per_day, 100000) AS token_limit
             FROM agents a
             LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
             LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+            LEFT JOIN (
+                SELECT agent_id, SUM(tokens_used) AS tokens_24h
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY agent_id
+            ) tk ON tk.agent_id = a.id
             WHERE a.status = 'active'
         """
         )
         for row in cur.fetchall():
             task_limit = row["task_limit"] or 10
             token_limit = row["token_limit"] or 100000
+            tokens_used = row["tokens_used"] or 0
+            task_ratio = (row["task_count"] / task_limit) if task_limit > 0 else 0.0
+            token_ratio = (tokens_used / token_limit) if token_limit > 0 else 0.0
             cache[row["id"]] = {
                 "stress": float(row["stress"]),
                 "energy": float(row["energy"]),
                 "budget": {
                     "current_task_count": row["task_count"],
                     "task_queue_limit": task_limit,
-                    "tokens_used_today": row["tokens_used"],
+                    # NOTE: now the 24h rolling token sum, not the since-midnight
+                    # column. Key name kept for back-compat readers.
+                    "tokens_used_today": tokens_used,
                     "token_limit_per_day": token_limit,
-                    "utilization_pct": (
-                        max(
-                            row["task_count"] / task_limit,
-                            row["tokens_used"] / token_limit,
-                        )
-                        if task_limit > 0 and token_limit > 0
-                        else 0.0
-                    ),
+                    "task_ratio": task_ratio,
+                    "token_ratio": token_ratio,
+                    "utilization_pct": max(task_ratio, token_ratio),
                 },
             }
     return cache

@@ -2150,6 +2150,13 @@ def _register_own_jobs(scheduler, flask_app):
                     if not decision:
                         continue
 
+                    # ADR-004 (#4090): token overage is handled by the dispatch
+                    # THROTTLE (department_coordinator), NOT by resting — a token_rest
+                    # only pauses the agent and cannot lower its 24h token total, so
+                    # it just causes rest-thrash. Hours / actions / stress still rest.
+                    if decision.get("break_type") == "token_rest":
+                        continue
+
                     # Skip if already resting (open rest cycle exists)
                     cur.execute(
                         """

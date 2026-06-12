@@ -37,8 +37,35 @@ def _make_agent(
     }
 
 
-def _make_welfare(*, stress: float = 0.0, energy: float = 0.5, util_pct: float = 0.0) -> dict:
-    return {"stress": stress, "energy": energy, "budget": {"utilization_pct": util_pct}}
+def _make_welfare(
+    *,
+    stress: float = 0.0,
+    energy: float = 0.5,
+    util_pct: float | None = None,
+    token_ratio: float = 0.0,
+    task_count: int = 0,
+    task_limit: int = 10,
+) -> dict:
+    """Mirror the budget dict that agent_service.get_welfare_cache() now emits.
+
+    ``token_ratio`` = 24h rolling tokens / daily budget (the #4090 throttle signal).
+    ``util_pct`` defaults to max(task_ratio, token_ratio) like the real cache; pass
+    it explicitly only to exercise the legacy utilisation field directly.
+    """
+    task_ratio = (task_count / task_limit) if task_limit else 0.0
+    if util_pct is None:
+        util_pct = max(task_ratio, token_ratio)
+    return {
+        "stress": stress,
+        "energy": energy,
+        "budget": {
+            "utilization_pct": util_pct,
+            "token_ratio": token_ratio,
+            "task_ratio": task_ratio,
+            "current_task_count": task_count,
+            "task_queue_limit": task_limit,
+        },
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -791,11 +818,12 @@ class TestSpecialistPreference:
         assert selected["name"] == "R.O.S.E.T.T.A.", f"expected R.O.S.E.T.T.A., got {selected.get('name')}"
 
     def test_preference_not_pin_blocked_specialist_falls_back_to_director(self):
-        """A budget-exhausted specialist must NOT hold the work hostage."""
+        """A specialist over its 24h token budget must NOT hold the work hostage —
+        the healthy director wins (ADR-004 #4090 throttle, not a hard block)."""
         rosetta_info, codex_info = self._rosetta_and_codex()
         coord = self._coord_with_cache(
             {"R.O.S.E.T.T.A.": rosetta_info, "C.O.D.E.X.": codex_info},
-            {134: _make_welfare(util_pct=0.96), 146: _make_welfare()},
+            {134: _make_welfare(token_ratio=1.3), 146: _make_welfare()},
         )
 
         selected = coord.select_agent(capability="translate", department=self.DEPT)
@@ -828,3 +856,102 @@ class TestSpecialistPreference:
         selected = coord.select_agent(capability="documentation", department=self.DEPT)
         assert selected is not None
         assert selected["name"] == "C.O.D.E.X.", "director should still win unmapped capabilities"
+
+
+class TestTokenBudgetThrottle:
+    """#4090 / ADR-004 — an agent over its 24h token budget is THROTTLED (a healthy
+    peer is preferred) but never STARVED.
+
+    The token signal is the 24h rolling ``budget.token_ratio`` (not the stale
+    since-midnight ``tokens_used_today`` column). Invariants:
+      - over-budget is a score penalty, NOT a hard block (no block_reason);
+      - a healthy peer beats an over-budget peer;
+      - a SOLE skilled over-budget agent is still selected (F.O.R.G.E. code_review
+        must not lose the PR-merge path);
+      - a throttled SKILLED agent still beats a healthy UNSKILLED peer (expertise
+        outweighs budget);
+      - task-queue saturation stays a HARD block.
+    """
+
+    DEPT = "Engineering & Technology"
+
+    def _coord(self, agent_cache, welfare_cache):
+        import threading
+
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = agent_cache
+        coord._welfare_cache = welfare_cache
+        coord._cache_time = float("inf")
+        coord._reserved_agents = set()
+        coord._lock = threading.Lock()
+        coord._distress = set()
+        coord._distress_time = float("inf")
+        return coord
+
+    def _forge(self, agent_id=200):
+        return _make_agent(
+            name="F.O.R.G.E.",
+            department=self.DEPT,
+            skills={"code_review": 5},
+            is_department_ai=True,
+            agent_id=agent_id,
+        )[1]
+
+    def test_over_budget_agent_is_penalised_not_hard_blocked(self):
+        forge = self._forge()
+        coord = self._coord({"F.O.R.G.E.": forge}, {200: _make_welfare(token_ratio=1.5)})
+        score, block = coord.score_agent("F.O.R.G.E.", forge, "code_review", self.DEPT)
+        assert block is None, "over-budget must be a throttle, not a hard block"
+        assert score > 0, "max(score, 0.01) floor keeps a sole agent selectable"
+
+    def test_healthy_peer_beats_over_budget_peer(self):
+        forge = self._forge(200)
+        _, probe = _make_agent(
+            name="P.R.O.B.E.",
+            department=self.DEPT,
+            skills={"code_review": 5},
+            is_department_ai=False,
+            agent_id=201,
+        )
+        coord = self._coord(
+            {"F.O.R.G.E.": forge, "P.R.O.B.E.": probe},
+            {200: _make_welfare(token_ratio=1.5), 201: _make_welfare()},
+        )
+        selected = coord.select_agent(capability="code_review", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "P.R.O.B.E.", f"healthy peer must win, got {selected.get('name')}"
+
+    def test_sole_over_budget_skilled_agent_still_selected(self):
+        forge = self._forge()
+        coord = self._coord({"F.O.R.G.E.": forge}, {200: _make_welfare(token_ratio=2.0)})
+        selected = coord.select_agent(capability="code_review", department=self.DEPT)
+        assert selected is not None, "a sole over-budget agent must NOT be starved"
+        assert selected["name"] == "F.O.R.G.E."
+
+    def test_over_budget_skilled_beats_healthy_unskilled(self):
+        forge = self._forge(200)
+        _, helper = _make_agent(
+            name="HELPER",
+            department=self.DEPT,
+            skills={},
+            is_department_ai=False,
+            agent_id=202,
+        )
+        coord = self._coord(
+            {"F.O.R.G.E.": forge, "HELPER": helper},
+            {200: _make_welfare(token_ratio=1.3), 202: _make_welfare()},
+        )
+        selected = coord.select_agent(capability="code_review", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "F.O.R.G.E.", (
+            f"skilled-but-throttled must beat healthy-unskilled, got {selected.get('name')}"
+        )
+
+    def test_task_queue_full_remains_hard_block(self):
+        forge = self._forge()
+        coord = self._coord({"F.O.R.G.E.": forge}, {200: _make_welfare(task_count=10, task_limit=10)})
+        score, block = coord.score_agent("F.O.R.G.E.", forge, "code_review", self.DEPT)
+        assert score == 0.0
+        assert block is not None and "task queue" in block

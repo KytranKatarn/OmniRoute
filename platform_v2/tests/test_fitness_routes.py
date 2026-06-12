@@ -158,6 +158,65 @@ def test_calculate_macros_boundary_values(fitness_client, payload, expected):
         assert data[key] == value
 
 
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    [
+        ("weight", 29, "Weight must be between 30 and 300kg"),
+        ("weight", 301, "Weight must be between 30 and 300kg"),
+        ("height", 99, "Height must be between 100 and 250cm"),
+        ("height", 251, "Height must be between 100 and 250cm"),
+        ("age", 9, "Age must be between 10 and 120"),
+        ("age", 121, "Age must be between 10 and 120"),
+        (
+            "activity_level",
+            "extreme",
+            "Activity level must be one of: sedentary, light, moderate, active, very_active",
+        ),
+        ("goal", "bulk", "Goal must be one of: lose, maintain, gain"),
+    ],
+)
+def test_calculate_macros_rejects_out_of_range_inputs(
+    fitness_client,
+    field,
+    value,
+    expected_error,
+):
+    payload = {
+        "weight": 80,
+        "height": 180,
+        "age": 30,
+        "gender": "male",
+        "activity_level": "moderate",
+        "goal": "maintain",
+    }
+    payload[field] = value
+
+    resp = fitness_client.post("/tools/fitness/api/nutrition/macros", json=payload)
+
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data == {"success": False, "error": expected_error}
+
+
+def test_calculate_macros_rejects_non_numeric_required_inputs(fitness_client):
+    resp = fitness_client.post(
+        "/tools/fitness/api/nutrition/macros",
+        json={
+            "weight": "eighty",
+            "height": 180,
+            "age": 30,
+            "activity_level": "moderate",
+            "goal": "maintain",
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.get_json() == {
+        "success": False,
+        "error": "Weight, height, and age must be numeric",
+    }
+
+
 def test_workout_history_requires_authentication(fitness_app):
     with fitness_app.test_client() as client, patch("tools.fitness.routes.get_workout_history") as history:
         resp = client.get("/tools/fitness/api/workout/history")

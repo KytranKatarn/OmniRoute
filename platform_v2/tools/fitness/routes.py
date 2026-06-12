@@ -382,9 +382,66 @@ def calculate_macros():
     activity_level = data.get("activity_level", "moderate")  # sedentary, light, moderate, active, very_active
     goal = data.get("goal", "maintain")  # lose, maintain, gain
 
-    if not all([weight, height, age]):
+    if any(value is None or value == "" for value in (weight, height, age)):
         return (
             jsonify({"success": False, "error": "Weight, height, and age are required"}),
+            400,
+        )
+
+    try:
+        weight = float(weight)
+        height = float(height)
+        age = int(age)
+    except (TypeError, ValueError):
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Weight, height, and age must be numeric",
+                }
+            ),
+            400,
+        )
+
+    numeric_ranges = (
+        ("Weight", weight, 30, 300, "kg"),
+        ("Height", height, 100, 250, "cm"),
+        ("Age", age, 10, 120, ""),
+    )
+    for label, value, minimum, maximum, unit in numeric_ranges:
+        if value < minimum or value > maximum:
+            unit_suffix = unit if unit else ""
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"{label} must be between {minimum} and {maximum}{unit_suffix}",
+                    }
+                ),
+                400,
+            )
+
+    valid_activity_levels = {"sedentary", "light", "moderate", "active", "very_active"}
+    if activity_level not in valid_activity_levels:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": ("Activity level must be one of: " "sedentary, light, moderate, active, very_active"),
+                }
+            ),
+            400,
+        )
+
+    valid_goals = {"lose", "maintain", "gain"}
+    if goal not in valid_goals:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Goal must be one of: lose, maintain, gain",
+                }
+            ),
             400,
         )
 

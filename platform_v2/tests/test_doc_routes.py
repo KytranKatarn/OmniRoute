@@ -118,3 +118,75 @@ def test_doc_symptom_analysis_emergency_keywords_append_call_911(doc_client, key
     assert "call 911" in analysis
     assert MEDICAL_DISCLAIMER in resp.get_json()["analysis"]
     assert EMERGENCY_APPENDIX in resp.get_json()["analysis"]
+
+
+def test_patch_medication_updates_whitelisted_fields_for_current_user(doc_client):
+    with patch(
+        "tools.doc.routes.update_medication",
+        return_value={"updated": True},
+    ) as update_medication:
+        resp = doc_client.patch(
+            "/tools/doc/api/medications/99",
+            json={
+                "user_id": 1,
+                "dosage": "20 mg",
+                "frequency": "Nightly",
+                "active": False,
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True, "updated": True}
+    update_medication.assert_called_once_with(
+        99,
+        1,
+        {"dosage": "20 mg", "frequency": "Nightly", "active": False},
+    )
+
+
+def test_patch_medication_rejects_user_id_mismatch(doc_client):
+    with patch("tools.doc.routes.update_medication") as update_medication:
+        resp = doc_client.patch(
+            "/tools/doc/api/medications/99",
+            json={"user_id": 2, "dosage": "20 mg"},
+        )
+
+    assert resp.status_code == 403
+    assert resp.get_json()["success"] is False
+    update_medication.assert_not_called()
+
+
+def test_patch_medication_rejects_invalid_fields(doc_client):
+    with patch("tools.doc.routes.update_medication") as update_medication:
+        resp = doc_client.patch(
+            "/tools/doc/api/medications/99",
+            json={"name": "Ibuprofen"},
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "Invalid field(s): name"
+    update_medication.assert_not_called()
+
+
+def test_patch_medication_rejects_empty_update(doc_client):
+    with patch("tools.doc.routes.update_medication") as update_medication:
+        resp = doc_client.patch("/tools/doc/api/medications/99", json={"user_id": 1})
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == "Nothing to update"
+    update_medication.assert_not_called()
+
+
+def test_patch_medication_returns_not_found_when_service_updates_no_rows(doc_client):
+    with patch(
+        "tools.doc.routes.update_medication",
+        return_value={"updated": False},
+    ) as update_medication:
+        resp = doc_client.patch(
+            "/tools/doc/api/medications/99",
+            json={"dosage": "20 mg"},
+        )
+
+    assert resp.status_code == 404
+    assert resp.get_json()["error"] == "Medication not found"
+    update_medication.assert_called_once_with(99, 1, {"dosage": "20 mg"})

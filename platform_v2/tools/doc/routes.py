@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 # Dr. Amara - Medical Advisor agent ID
 MEDICAL_AGENT_ID = 36
+MEDICATION_UPDATE_FIELDS = frozenset({"dosage", "frequency", "end_date", "active"})
 
 MEDICAL_DISCLAIMER = (
     "*Remember: This is general information only. Please consult a healthcare professional "
@@ -281,6 +282,35 @@ def list_medications():
         return jsonify({"success": True, "medications": meds})
     except Exception as e:
         logger.error(f"list_medications error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@doc_bp.route("/api/medications/<int:med_id>", methods=["PATCH"])
+def patch_medication(med_id):
+    """Update whitelisted medication fields for the logged-in user."""
+    data = request.get_json(silent=True) or {}
+    unknown_fields = sorted(set(data) - MEDICATION_UPDATE_FIELDS - {"user_id"})
+    if unknown_fields:
+        return (
+            jsonify({"success": False, "error": f"Invalid field(s): {', '.join(unknown_fields)}"}),
+            400,
+        )
+
+    requested_user_id = str(data.get("user_id", current_user.id))
+    if requested_user_id != str(current_user.id):
+        return jsonify({"success": False, "error": "Forbidden"}), 403
+
+    updates = {field: data[field] for field in MEDICATION_UPDATE_FIELDS if field in data}
+    if not updates:
+        return jsonify({"success": False, "error": "Nothing to update"}), 400
+
+    try:
+        result = update_medication(med_id, current_user.id, updates)
+        if not result.get("updated"):
+            return jsonify({"success": False, "error": "Medication not found"}), 404
+        return jsonify({"success": True, **result})
+    except Exception as e:
+        logger.error(f"patch_medication error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

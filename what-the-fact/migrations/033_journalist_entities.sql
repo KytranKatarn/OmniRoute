@@ -28,3 +28,17 @@ CREATE INDEX IF NOT EXISTS idx_article_author_tags_entity
     ON wtf.article_author_tags (entity_id);
 CREATE INDEX IF NOT EXISTS idx_article_author_tags_article
     ON wtf.article_author_tags (article_id);
+
+-- 4. Grant the WTF app role (wtfuser) access to the new table + its sequence.
+--    This migration is applied as `archie` (see header), so the table is archie-owned
+--    and wtfuser gets NOTHING by default — unlike sibling wtf tables, which were created
+--    by wtfuser and are owned by it. Without this, ingest byline-tagging fails with
+--    "permission denied for table article_author_tags" (the hook is non-fatal, so it
+--    silently captures nothing). Idempotent; guarded so envs without the role skip cleanly.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'wtfuser') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON wtf.article_author_tags TO wtfuser;
+        GRANT USAGE, SELECT ON SEQUENCE wtf.article_author_tags_id_seq TO wtfuser;
+    END IF;
+END $$;

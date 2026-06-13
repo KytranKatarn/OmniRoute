@@ -101,9 +101,7 @@ def register_work_routes(bp, admin_required):
                 # Key by ROSTER name: external CLI workers log telemetry as
                 # '<Name> (CLI)' (Token Economy convention) but the agents row
                 # is plain '<Name>' — strip the suffix so Codex's load joins up.
-                velocity_map = {
-                    r["agent_name"].removesuffix(" (CLI)"): r for r in (cur.fetchall() or [])
-                }
+                velocity_map = {r["agent_name"].removesuffix(" (CLI)"): r for r in (cur.fetchall() or [])}
 
                 # Task #3798: layered 24h recovery — hourly token/dispatch buckets per
                 # agent so the UI can show old work AGING OUT of the rolling window
@@ -209,15 +207,18 @@ def register_work_routes(bp, admin_required):
                 d_reset = int(vel.get("dispatches_since_reset") or 0)
                 tokens_1h_v = int(vel.get("tokens_1h") or 0)
                 tokens_24h_v = int(vel.get("tokens_24h") or 0)
-                token_limit = int(r["token_limit_per_day"]) if r["token_limit_per_day"] else 150000
-                token_ratio = (tokens_24h_v / token_limit) if token_limit > 0 else 0.0
+                # No 150k fallback: an agent without a budget row has no token limit —
+                # don't fabricate one that masks an underfunded agent (token_ratio stays
+                # 0, since you can't exceed a limit that does not exist).
+                token_limit = int(r["token_limit_per_day"]) if r["token_limit_per_day"] else None
+                token_ratio = (tokens_24h_v / token_limit) if token_limit else 0.0
                 # Task #3799: at_limit gates on TOKENS vs the per-LLM daily budget (the
                 # C.R.E.E.D. capacity model, KB #271838) — not dispatches-since-reset.
                 # A 200-dispatch classifier is fine; a 10-dispatch 40k-token analyst may
                 # not be. Concurrent queue-slot check (task_count >= task_limit) stays.
                 at_limit = at_limit or token_ratio >= 1.0
                 # ETA to limit from the token burn rate (tokens left / tokens-per-hour)
-                if tokens_1h_v > 0 and tokens_24h_v < token_limit:
+                if token_limit and tokens_1h_v > 0 and tokens_24h_v < token_limit:
                     hours_to_limit = round((token_limit - tokens_24h_v) / tokens_1h_v, 1)
                 else:
                     hours_to_limit = None
@@ -232,6 +233,30 @@ def register_work_routes(bp, admin_required):
                 hrs_row = hours_map.get(r["name"], {})
                 hours_worked_today = float(hrs_row.get("hours_worked_today") or 0)
                 overwork_level = hrs_row.get("overwork_level", "normal")
+
+                # B1: label WHICH dimension is at/over limit (so the UI stops showing a
+                # bare "at limit"), and — for tokens — when the rolling 24h window recovers
+                # below budget as old work ages out (token "recovery" is time passing, NOT
+                # a rest; ADR-004). Priority: token > task > hours > stress.
+                _stress = float(r["stress"]) if r["stress"] else 0.0
+                if token_limit and token_ratio >= 1.0:
+                    limit_dimension = "token"
+                elif task_count >= task_limit:
+                    limit_dimension = "task"
+                elif overwork_level in ("warning", "critical"):
+                    limit_dimension = "hours"
+                elif _stress >= 0.60:
+                    limit_dimension = "stress"
+                else:
+                    limit_dimension = "none"
+                token_recovery_eta_min = None
+                if token_limit and token_ratio >= 1.0:
+                    _running = tokens_24h_v
+                    for _i, _slot in enumerate(_hour_slots):  # oldest hour ages out first
+                        _running -= (history_map.get(r["name"], {}).get(_slot) or {}).get("tokens", 0)
+                        if _running < token_limit:
+                            token_recovery_eta_min = (_i + 1) * 60
+                            break
 
                 agent_data = {
                     "id": r["id"],
@@ -255,6 +280,8 @@ def register_work_routes(bp, admin_required):
                     "tokens_24h": tokens_24h_v,
                     "token_limit_per_day": token_limit,
                     "token_ratio": round(token_ratio, 3),
+                    "limit_dimension": limit_dimension,
+                    "token_recovery_eta_min": token_recovery_eta_min,
                     "recovery_24h": [
                         {
                             "t": slot,

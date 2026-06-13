@@ -797,7 +797,9 @@ async function loadKinWelfare() {
                 : (a.overwork_level === 'critical' ? '#ef4444'
                 : (a.overwork_level === 'warning' ? '#f59e0b' : '#10b981')));
             var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting')
-                : (a.at_limit ? '⚠ at limit'
+                : (a.at_limit ? (a.limit_dimension === 'task'
+                        ? '⚠ QUEUE ' + (a.task_count || 0) + '/' + (a.task_limit || 0)
+                        : '⚠ TOKEN ' + Math.round((a.token_ratio || 0) * 100) + '% throttled')
                 : (a.overwork_level === 'critical' ? '🔥 ' + (a.hours_worked_today || 0).toFixed(1) + 'h OVERWORKED'
                 : (a.overwork_level === 'warning' ? '⏱ ' + (a.hours_worked_today || 0).toFixed(1) + 'h today'
                 : '✓ active')));
@@ -813,8 +815,8 @@ async function loadKinWelfare() {
                 + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:0.68rem;color:var(--dhq-text-dim);">'
                 /* Task #3799: token budget is the primary welfare signal (per-LLM
                    C.R.E.E.D. capacity model); dispatch count is secondary context. */
-                + '<span style="color:#a78bfa;">' + _dhqFmtTok(a.tokens_24h || 0) + '/' + _dhqFmtTok(a.token_limit_per_day || 150000) + ' tok</span>'
-                + ' (' + Math.round((a.token_ratio || 0) * 100) + '%)'
+                + '<span style="color:#a78bfa;">' + _dhqFmtTok(a.tokens_24h || 0) + '/' + (a.token_limit_per_day ? _dhqFmtTok(a.token_limit_per_day) : 'no budget') + ' tok</span>'
+                + (a.token_limit_per_day ? ' (' + Math.round((a.token_ratio || 0) * 100) + '%)' : '')
                 + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + ' disp/h</span>' : '')
                 + ' · ' + (a.dispatches_24h || 0) + ' disp/24h'
                 + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
@@ -831,7 +833,15 @@ async function loadKinWelfare() {
                       + '</div>'
                       + '</div>'
                     : (a.at_limit
-                        ? '<div style="font-size:0.62rem;color:#f59e0b;margin-top:4px;opacity:0.8;">K.I.N. monitoring · next check ≤10 min</div>'
+                        ? '<div style="font-size:0.62rem;color:#f59e0b;margin-top:4px;opacity:0.85;">'
+                          + (a.limit_dimension === 'task'
+                              ? 'Queue full — new work routes to peers'
+                              : '🚦 Throttled — over 24h token budget; recovers as work ages out'
+                                + (a.token_recovery_eta_min != null
+                                    ? ' · ~' + (a.token_recovery_eta_min >= 60 ? Math.round(a.token_recovery_eta_min / 60) + 'h' : a.token_recovery_eta_min + 'm') + ' to clear'
+                                    : '')
+                                + ' (no rest needed for tokens)')
+                          + '</div>'
                         : '')
                 + (a.overwork_level && a.overwork_level !== 'normal' && !a.resting && a.hours_worked_today
                     ? '<div style="font-size:0.62rem;color:' + statusColor + ';margin-top:4px;">'

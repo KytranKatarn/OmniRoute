@@ -1392,6 +1392,47 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered creed_welfare_governance job (daily 06:00 ET)")
 
+    def _run_welfare_emit_intraday():
+        """C.R.E.E.D. welfare emitter — intraday cadence (#379 Phase 3, FIX-1).
+
+        The 06:00 daily job samples the token-window LOW (overnight idle drains the
+        24h-rolling token sum), so in production it emitted ~0 welfare events and the
+        public welfare grade never moved. This HOURLY job gathers a FRESH snapshot
+        and pushes de-duped per-dimension category='welfare' events to the standalone
+        (welfare_emit). De-dupe (state-change + 6h heartbeat) keeps 54 agents × 4
+        dims from flooding the public store. Does NOT persist a headline row (the
+        daily job owns agent_welfare_scores). Pure SQL + emit — safe on the
+        scheduler thread.
+
+        HOURLY (not */5): the public welfare grade is a 30-day rolling window, so it
+        needs mid-day coverage, not sub-hourly resolution; an over-budget agent
+        persists for hours. Hourly + de-dupe = real signal, minimal traffic.
+        """
+        try:
+            from database import get_db_cursor
+            from services.welfare_governance_service import welfare_emit_intraday
+
+            with get_db_cursor(commit=True) as (_, cur):
+                summary = welfare_emit_intraday(cur)
+            logger.info(
+                "[DeptHQ] Welfare emit (intraday): built=%s emitted=%s skipped=%s failed=%s",
+                summary.get("built"),
+                summary.get("emitted"),
+                summary.get("skipped"),
+                summary.get("failed"),
+            )
+        except Exception as _we:
+            logger.warning("[DeptHQ] welfare emit intraday job failed: %s", _we, exc_info=True)
+
+    scheduler.add_job(
+        with_ctx(_run_welfare_emit_intraday),
+        trigger=CronTrigger(minute=0, timezone="America/Toronto"),
+        id="welfare_emit_intraday",
+        name="C.R.E.E.D.: welfare event emitter (hourly, intraday)",
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered welfare_emit_intraday job (hourly)")
+
     # K.I.N. stuck-agent reaper (FIX-6 + FIX-8, review KB #270619). Two leaks left
     # agents permanently idle: (RC2) 'deployed' is a terminal black-hole — an agent
     # placed on a node that stays steadily ONLINE never returns, because the only exit

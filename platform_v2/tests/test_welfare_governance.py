@@ -49,8 +49,10 @@ def test_over_but_rested_is_honored():
 
 
 def test_over_and_not_rested_is_unhonored():
-    c = classify_agent(_agent("NO_REST", tok=0.76, rested=0), BC)
-    assert c["needs_break"] and not c["honored"]
+    # A REST-requiring overage (stress) with no rest today is UNHONORED. Token
+    # overage is throttle-managed/honored post-#4123 — see the token test below.
+    c = classify_agent(_agent("NO_REST", stress=0.50, rested=0), BC)
+    assert "stress" in c["over"] and c["needs_break"] and not c["honored"]
 
 
 def test_string_metrics_coerced():
@@ -82,8 +84,9 @@ def test_over_but_all_rested_keeps_score_high():
 
 
 def test_unhonored_break_drops_score_and_logs_violation():
-    # 4 healthy + 1 over-and-not-rested: honored 0/1=0 -> 0.6*0.8 = 0.48 -> 48
-    snaps = [_agent(f"a{i}", tok=0.1) for i in range(4)] + [_agent("X", tok=0.8, rested=0)]
+    # 4 healthy + 1 over-a-REST-dim-and-not-rested: honored 0/1=0 -> 0.6*0.8 = 0.48 -> 48.
+    # Uses stress (a rest-requiring dim); token overage is throttle-honored post-#4123.
+    snaps = [_agent(f"a{i}", tok=0.1) for i in range(4)] + [_agent("X", stress=0.50, rested=0)]
     r = score_welfare(snaps, BC)
     assert r["score"] == 48 and r["grade"] == "F"
     types = {v["type"] for v in r["violations"]}
@@ -193,10 +196,13 @@ def test_agent_at_70pct_budget_is_a_break_concern_but_not_a_governance_violation
     assert "tokens" not in classify_agent(a, governance_limits(BC))["over"]
 
 
-def test_over_budget_agent_is_a_governance_violation():
+def test_over_token_budget_is_throttle_honored_not_a_violation():
+    # #4123 (ADR-004/005, "throttle, don't rest"): a token-over agent is OVER budget
+    # and needs_break, but HONORED — the dispatch throttle manages it automatically,
+    # so it is NOT an unhonored welfare violation (the 4 throttled fact-checkers).
     a = _agent("OVER", tok=1.30, rested=0)  # 130% of budget, like B.I.A.S. on 24h
     c = classify_agent(a, governance_limits(BC))
-    assert "tokens" in c["over"] and c["needs_break"] and not c["honored"]
+    assert "tokens" in c["over"] and c["needs_break"] and c["honored"]
 
 
 def test_score_with_governance_limits_only_dings_over_budget():
@@ -213,11 +219,29 @@ def test_service_runs_pure_scorer_and_emits_creed_events():
     p = os.path.join(os.path.dirname(__file__), "..", "services", "welfare_governance_service.py")
     src = open(p, encoding="utf-8").read()
     assert "score_welfare(" in src and "recommend(" in src
-    assert "emit_event(" in src, "violations must emit C.R.E.E.D. governance events"
+    # Phase 3 (#379): emission moved into the dedicated per-dimension, de-duped
+    # welfare_emit module — the service delegates via emit_welfare_snapshots.
+    assert "emit_welfare_snapshots(" in src, "must emit C.R.E.E.D. welfare events"
     assert "agent_welfare_scores" in src, "must persist the score snapshot"
     assert "governance_limits(" in src, "must score against the budget (1.0) token line"
     assert "INTERVAL '24 hours'" in src, "token window must be 24h rolling (match K.I.N. tab)"
     assert "'ai', 'contractor'" in src, "welfare scope must include contractors (Codex)"
+
+
+def test_welfare_emit_module_emits_welfare_category_not_accountability():
+    """Phase 3 CATEGORY SWITCH guard: the welfare emitter must push
+    category='welfare' (its own public pillar) and the dimension event_types the
+    standalone welfare_engine resolves — NOT category='accountability'."""
+    p = os.path.join(os.path.dirname(__file__), "..", "services", "welfare_emit.py")
+    src = open(p, encoding="utf-8").read()
+    assert 'WELFARE_CATEGORY = "welfare"' in src
+    assert "emit_event(" in src, "welfare_emit is the actual C.R.E.E.D. emit site"
+    for et in ("welfare_hours", "welfare_tokens", "welfare_actions", "welfare_stress"):
+        assert et in src, f"must emit {et} event_type"
+    assert "welfare_break_honored" in src and "welfare_break_violated" in src
+    # The emit category constant must be 'welfare', never 'accountability'.
+    assert 'category="accountability"' not in src
+    assert "_CREED_CATEGORY" not in src, "no leftover accountability category constant"
 
 
 def test_job_registered_in_jobs():

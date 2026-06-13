@@ -24,9 +24,11 @@ from services.welfare_load import merge_break_config
 
 logger = logging.getLogger(__name__)
 
-# CREED pillar for AI-workforce welfare. The owner frames it as "keep even us
-# accountable" → accountability. module tag = Welfare for core-platform drill-down.
-_CREED_CATEGORY = "accountability"
+# CREED category for AI-workforce welfare. Phase 3 CATEGORY SWITCH (#379): welfare
+# now emits as its OWN public pillar category='welfare' (scored by the standalone
+# welfare_engine), NOT category='accountability'. Riding 'accountability' double-
+# counted welfare into the ethics grade AND meant the public welfare grade never
+# got any events. The per-dimension emit lives in services/welfare_emit.py.
 _CREED_MODULE = "Welfare"
 
 
@@ -186,7 +188,12 @@ def run_welfare_governance(cur, emit=True):
     result["id"] = row["id"] if row else None
 
     if emit:
-        _emit_violations(result["violations"])
+        # Phase 3: per-dimension, de-duped, category='welfare' emit (welfare_emit).
+        # The daily run still persists the headline row above; the actual public
+        # signal comes from the de-duped per-agent/dimension events. The intraday
+        # job (welfare_emit_intraday) is what keeps the public welfare grade moving
+        # mid-day — the daily 06:00 sample is the token-window low and emits little.
+        result["emit_summary"] = emit_welfare_snapshots(cur, snaps=snaps, break_cfg=break_cfg)
     logger.info(
         "welfare governance: score=%s grade=%s healthy=%s%% honored=%s%% violations=%d recs=%d",
         result["score"],
@@ -199,30 +206,46 @@ def run_welfare_governance(cur, emit=True):
     return result
 
 
-def _emit_violations(violations):
-    """One C.R.E.E.D. governance event per welfare violation. Never raises."""
+def emit_welfare_snapshots(cur, snaps=None, break_cfg=None):
+    """Emit per-dimension, de-duped, category='welfare' C.R.E.E.D. events for the
+    active workforce (Phase 3, roadmap item D). Delegates to welfare_emit, which:
+
+      * builds one welfare_<dim> event per agent×dimension (hours/tokens/actions/
+        stress) + break-honor events, with severity mapped to welfare_engine's
+        ladder (info=0/warning=1/violation=3/critical=5) so the standalone
+        computes a real per-dimension violation rate;
+      * de-dupes against agent_welfare_emit_state (emit only on state change or a
+        heartbeat window) so 54 agents × 4 dims don't flood the public store;
+      * makes emit failures LOUD (governance_audit_log + system_notification).
+
+    category='welfare' (NOT 'accountability') → lands on the public welfare grade,
+    excluded from the ethics accountability pillar. Routed per-tenant by
+    creed_emit (WTF agents → what-the-fact, others → kytran-empowerment).
+    Returns the welfare_emit summary dict. Never raises."""
     try:
-        from services.creed_emit import emit_event
+        from services.welfare_emit import emit_welfare_events
     except Exception:
-        logger.warning("welfare governance: creed_emit unavailable, skipping emit", exc_info=True)
-        return
-    for v in violations or []:
-        sev = "critical" if v.get("type") == "over_limit_no_rest" else "warning"
-        dims = ", ".join(v.get("dimensions") or [])
-        desc = f"Welfare: {v.get('agent')} {v.get('type')}" + (f" ({dims})" if dims else "")
-        try:
-            emit_event(
-                category=_CREED_CATEGORY,
-                severity=sev,
-                description=desc,
-                event_type="welfare_violation",
-                agent_id=v.get("agent_id"),
-                agent_name=v.get("agent"),
-                module=_CREED_MODULE,
-                metadata={"violation_type": v.get("type"), "dimensions": v.get("dimensions")},
-            )
-        except Exception:
-            logger.debug("welfare governance: emit failed for %s", v.get("agent"), exc_info=True)
+        logger.warning("welfare governance: welfare_emit unavailable, skipping emit", exc_info=True)
+        return {"built": 0, "emitted": 0, "skipped": 0, "failed": 0}
+    if snaps is None:
+        snaps = gather_snapshots(cur)
+    if break_cfg is None:
+        break_cfg = load_break_config(cur)
+    try:
+        return emit_welfare_events(cur, snaps, break_cfg=break_cfg)
+    except Exception:
+        logger.warning("welfare governance: welfare emit failed", exc_info=True)
+        return {"built": 0, "emitted": 0, "skipped": 0, "failed": 0}
+
+
+def welfare_emit_intraday(cur):
+    """Intraday welfare emit — the FIX-1 entry point for the hourly job. Gathers a
+    FRESH snapshot (NOT the 06:00 daily-low) and emits the de-duped per-dimension
+    welfare events. Does NOT persist an agent_welfare_scores headline row (the
+    daily job owns that), so it is cheap to run every cycle. Returns the summary."""
+    break_cfg = load_break_config(cur)
+    snaps = gather_snapshots(cur)
+    return emit_welfare_snapshots(cur, snaps=snaps, break_cfg=break_cfg)
 
 
 def compute_welfare_snapshot(cur):

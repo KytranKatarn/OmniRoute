@@ -1,4 +1,5 @@
 """DB writes: upsert articles + bias scores + audit trail + story clustering."""
+
 import json
 import logging
 import os
@@ -32,6 +33,7 @@ def _send_wtf_signal(article_id: int, title: str, url: str) -> None:
     except Exception:
         pass  # cross-watch failure must never break ingest
 
+
 logger = logging.getLogger(__name__)
 
 _ALLOWED_SCHEMAS = frozenset({"wtf", "wtf_test"})
@@ -41,7 +43,9 @@ def _schema() -> str:
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
-def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slug: str = "") -> bool:
+def upsert_article(
+    engine, source_id: int, article: dict, bias: dict, source_slug: str = ""
+) -> bool:
     """Insert article + bias_score + audit entry, then cluster + fact-check. Returns article_id (int) on insert, None on dedupe/failure."""
     S = _schema()
     aid = None
@@ -54,8 +58,12 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
                 RETURNING id
             """),
             {
-                "sid": source_id, "eid": article["external_id"], "t": article["title"],
-                "b": article["body"], "u": article["url"], "p": article["published_at"],
+                "sid": source_id,
+                "eid": article["external_id"],
+                "t": article["title"],
+                "b": article["body"],
+                "u": article["url"],
+                "p": article["published_at"],
             },
         )
         row = r.fetchone()
@@ -67,17 +75,39 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
                 INSERT INTO {S}.bias_scores (article_id, band, score, heuristic_version, rationale)
                 VALUES (:aid, :band, :score, :v, :rat)
             """),
-            {"aid": aid, "band": bias["band"], "score": bias["score"],
-             "v": bias["heuristic_version"], "rat": bias["rationale"]},
+            {
+                "aid": aid,
+                "band": bias["band"],
+                "score": bias["score"],
+                "v": bias["heuristic_version"],
+                "rat": bias["rationale"],
+            },
         )
         c.execute(
-            text(f"INSERT INTO {S}.audit_trail (article_id, event_type, payload) VALUES (:aid, 'ingested', :p)"),
+            text(
+                f"INSERT INTO {S}.audit_trail (article_id, event_type, payload) VALUES (:aid, 'ingested', :p)"
+            ),
             {"aid": aid, "p": json.dumps({"source_id": source_id, "bias": bias})},
         )
+
+    # Tag journalist bylines into the shared entity graph (Milestone B / B2).
+    # Separate txn + non-fatal: a byline-resolution error must never drop the article.
+    if aid and article.get("author"):
+        try:
+            try:
+                from shared.author_resolver import resolve_byline, tag_article_author
+            except ImportError:
+                from author_resolver import resolve_byline, tag_article_author
+            with engine.begin() as ac:
+                for eid in resolve_byline(ac, article["author"], source_slug):
+                    tag_article_author(ac, aid, eid, source_slug)
+        except Exception as exc:
+            logger.warning("author tagging failed for article %s: %s", aid, exc)
 
     # Cluster in a separate transaction (article must be committed first)
     try:
         from ingest.cluster import find_or_create_cluster
+
         find_or_create_cluster(engine, aid, article["title"], article["published_at"])
     except Exception as exc:
         logger.warning("clustering failed for article %d: %s", aid, exc)
@@ -85,6 +115,7 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
     # Fact-check claims (non-fatal)
     try:
         from ingest.factcheck import factcheck_article
+
         factcheck_article(engine, aid, article.get("body", ""), source_slug)
     except Exception as exc:
         logger.warning("factcheck failed for article %d: %s", aid, exc)
@@ -92,7 +123,13 @@ def upsert_article(engine, source_id: int, article: dict, bias: dict, source_slu
     # Geo extraction for every article
     try:
         from ingest.geocoder import extract_geo
-        geo = extract_geo(aid, article.get("title", ""), article.get("body", ""), source_slug=source_slug)
+
+        geo = extract_geo(
+            aid,
+            article.get("title", ""),
+            article.get("body", ""),
+            source_slug=source_slug,
+        )
         save_geo(engine, aid, S, geo)
     except Exception:
         pass  # geo is non-fatal
@@ -117,7 +154,9 @@ def save_geo(engine, article_id: int, schema: str, geo: dict) -> None:
     try:
         with engine.begin() as c:
             c.execute(
-                text(f"UPDATE {schema}.articles SET province_code = :pc, city = :city, lat = :lat, lng = :lng, geo_scope = :scope WHERE id = :aid"),
+                text(
+                    f"UPDATE {schema}.articles SET province_code = :pc, city = :city, lat = :lat, lng = :lng, geo_scope = :scope WHERE id = :aid"
+                ),
                 {
                     "pc": geo.get("province_code"),
                     "city": geo.get("city"),
@@ -138,7 +177,9 @@ def mark_ai_analyzed(engine, article_id: int, schema: str) -> None:
     try:
         with engine.begin() as c:
             c.execute(
-                text(f"UPDATE {schema}.articles SET ai_analyzed = TRUE, ai_analyzed_at = NOW() WHERE id = :aid"),
+                text(
+                    f"UPDATE {schema}.articles SET ai_analyzed = TRUE, ai_analyzed_at = NOW() WHERE id = :aid"
+                ),
                 {"aid": article_id},
             )
     except Exception as exc:
@@ -148,8 +189,11 @@ def mark_ai_analyzed(engine, article_id: int, schema: str) -> None:
 def record_failure(engine, source_slug: str, raw: dict, error: str) -> None:
     S = _schema()
     with engine.begin() as c:
-        c.execute(text(f"""
+        c.execute(
+            text(f"""
             INSERT INTO {S}.failed_ingest (source_slug, raw_payload, error)
             VALUES (:s, :r, :e)
-        """), {"s": source_slug, "r": json.dumps(raw, default=str), "e": error})
+        """),
+            {"s": source_slug, "r": json.dumps(raw, default=str), "e": error},
+        )
     logger.warning("dead-letter: %s - %s", source_slug, error[:100])

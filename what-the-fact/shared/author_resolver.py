@@ -1,0 +1,115 @@
+"""Resolve raw RSS bylines into shared.entities(entity_type='journalist').
+
+Pure helpers (normalize_name / clean_byline / is_wire_service) are DB-free and unit-
+tested in isolation. resolve_byline / tag_article_author take a live SQLAlchemy
+connection + schema names so BOTH the ingest path and the (future) LLM backfill job
+reuse the exact same logic. Schema names default from env so persist.py can call without
+threading them through (WTF_SHARED_SCHEMA / WTF_SCHEMA)."""
+import os
+import re
+import unicodedata
+
+from sqlalchemy import text
+
+# Outlets / wire services that show up in author fields but are NOT personal bylines.
+# Lowercased; extendable.
+WIRE_SERVICES = {
+    "the canadian press", "canadian press", "globe newswire", "cision", "newswire",
+    "associated press", "reuters", "afp", "bloomberg", "postmedia news", "postmedia",
+    "staff", "editorial", "newsroom", "cbc news", "ctv news", "global news",
+}
+
+_BYLINE_SPLIT = re.compile(r"\s*(?:,|&|\band\b|\bwith\b)\s*", re.IGNORECASE)
+_OUTLET_SUFFIX = re.compile(r"\s*[,/|-]\s*[A-Z][A-Za-z .]+(?:News|Press|Media|Star|Post|Globe).*$")
+
+
+def _shared_schema(explicit):
+    return explicit or os.environ.get("WTF_SHARED_SCHEMA", "shared")
+
+
+def _wtf_schema(explicit):
+    return explicit or os.environ.get("WTF_SCHEMA", "wtf")
+
+
+def normalize_name(name: str) -> str:
+    n = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
+    n = n.lower().replace("'", "").replace("’", "")
+    n = re.sub(r"[^a-z0-9]+", "-", n).strip("-")
+    return n
+
+
+def is_wire_service(name: str) -> bool:
+    return name.strip().lower() in WIRE_SERVICES
+
+
+def clean_byline(raw: str) -> list:
+    """Split a raw byline into individual plausible person names (co-bylines → many).
+    Strips a leading 'By ', trailing outlet suffixes, and drops wire services."""
+    if not raw:
+        return []
+    s = raw.strip()
+    s = re.sub(r"^by\s+", "", s, flags=re.IGNORECASE)
+    s = _OUTLET_SUFFIX.sub("", s)
+    parts = [p.strip() for p in _BYLINE_SPLIT.split(s) if p.strip()]
+    return [p for p in parts if len(p) >= 2 and not is_wire_service(p)]
+
+
+def resolve_byline(conn, raw_byline, source_slug, shared_schema=None):
+    """Clean a raw byline → find-or-create one journalist entity per name; append the
+    outlet slug to metadata.outlets. Returns the list of entity_ids (co-bylines → many)."""
+    s = _shared_schema(shared_schema)
+    out = []
+    for name in clean_byline(raw_byline):
+        slug = normalize_name(name)
+        if not slug:
+            continue
+        row = conn.execute(
+            text(f"SELECT id, metadata FROM {s}.entities WHERE slug=:slug"), {"slug": slug}
+        ).mappings().first()
+        if row:
+            eid = row["id"]
+            outlets = (row["metadata"] or {}).get("outlets", [])
+            if source_slug and source_slug not in outlets:
+                conn.execute(
+                    text(
+                        f"UPDATE {s}.entities SET metadata = jsonb_set("
+                        f"COALESCE(metadata, '{{}}'::jsonb), '{{outlets}}', "
+                        f"(COALESCE(metadata->'outlets', '[]'::jsonb) || to_jsonb(CAST(:o AS text)))), "
+                        f"updated_at = NOW() WHERE id = :id"
+                    ),
+                    {"o": source_slug, "id": eid},
+                )
+        else:
+            eid = conn.execute(
+                text(
+                    f"INSERT INTO {s}.entities (entity_type, canonical_name, slug, metadata) "
+                    f"VALUES ('journalist', :name, :slug, jsonb_build_object('outlets', "
+                    f"CASE WHEN :o = '' THEN '[]'::jsonb ELSE jsonb_build_array(:o) END)) "
+                    f"RETURNING id"
+                ),
+                {"name": name, "slug": slug, "o": source_slug or ""},
+            ).scalar()
+        out.append(eid)
+    return out
+
+
+def tag_article_author(conn, article_id, entity_id, source_slug, wtf_schema=None, shared_schema=None):
+    """Dual-write the mention into shared.entity_mentions + the WTF-local article_author_tags
+    mirror. Idempotent (ON CONFLICT DO NOTHING)."""
+    s = _shared_schema(shared_schema)
+    w = _wtf_schema(wtf_schema)
+    conn.execute(
+        text(
+            f"INSERT INTO {s}.entity_mentions (entity_id, product, content_type, content_id, confidence) "
+            f"VALUES (:e, 'wtf', 'article', :cid, 1.0) "
+            f"ON CONFLICT (entity_id, product, content_type, content_id) DO NOTHING"
+        ),
+        {"e": entity_id, "cid": str(article_id)},
+    )
+    conn.execute(
+        text(
+            f"INSERT INTO {w}.article_author_tags (article_id, entity_id, match_type) "
+            f"VALUES (:a, :e, 'rss_author') ON CONFLICT (article_id, entity_id) DO NOTHING"
+        ),
+        {"a": article_id, "e": entity_id},
+    )

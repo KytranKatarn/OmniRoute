@@ -83,6 +83,14 @@ def entity_schema(clean_schema, engine):
         id SERIAL PRIMARY KEY, mp_id INTEGER REFERENCES parliament_test.mps(id),
         text TEXT, status TEXT
     );
+    CREATE TABLE wtf_test.article_author_tags (
+        id SERIAL PRIMARY KEY,
+        article_id INTEGER NOT NULL,
+        entity_id INTEGER NOT NULL REFERENCES shared_test.entities(id) ON DELETE CASCADE,
+        match_type VARCHAR(20) NOT NULL DEFAULT 'rss_author',
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (article_id, entity_id)
+    );
     ALTER TABLE wtf_test.articles ADD COLUMN IF NOT EXISTS bias_ensemble_band TEXT;
     ALTER TABLE wtf_test.articles ADD COLUMN IF NOT EXISTS bias_ensemble_score NUMERIC;
     """
@@ -97,6 +105,9 @@ def entity_schema(clean_schema, engine):
         eid_jo = c.execute(text(
             "INSERT INTO shared_test.entities (entity_type, canonical_name, slug) "
             "VALUES ('journalist','Bob Writer','bob-writer') RETURNING id")).scalar()
+        eid_jo2 = c.execute(text(
+            "INSERT INTO shared_test.entities (entity_type, canonical_name, slug) "
+            "VALUES ('journalist','Carol Reporter','carol-reporter') RETURNING id")).scalar()
         mp_id = c.execute(text(
             "INSERT INTO parliament_test.mps (slug,name,party,riding,entity_id) "
             "VALUES ('jane-member','Jane Member','Independent','Testville',:e) RETURNING id"),
@@ -119,7 +130,11 @@ def entity_schema(clean_schema, engine):
             c.execute(text(
                 "INSERT INTO shared_test.entity_mentions (entity_id,product,content_type,content_id) "
                 "VALUES (:e,'wtf','article',:cid)"), {"e": eid_mp, "cid": str(aid)})
-    yield {"mp_entity_id": eid_mp, "journalist_entity_id": eid_jo, "mp_id": mp_id, "source_id": sid}
+            c.execute(text(
+                "INSERT INTO shared_test.entity_mentions (entity_id,product,content_type,content_id) "
+                "VALUES (:e,'wtf','article',:cid)"), {"e": eid_jo2, "cid": str(aid)})
+    yield {"mp_entity_id": eid_mp, "journalist_entity_id": eid_jo,
+           "journalist_with_articles_entity_id": eid_jo2, "mp_id": mp_id, "source_id": sid}
     with engine.begin() as c:
         c.execute(text("DROP SCHEMA IF EXISTS shared_test CASCADE"))
         c.execute(text("DROP SCHEMA IF EXISTS parliament_test CASCADE"))

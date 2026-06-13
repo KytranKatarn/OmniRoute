@@ -119,3 +119,30 @@ def test_accountability_unauthenticated_redirects_to_login(client, entity_schema
     r = client.get(f"/api/entities/{eid}/accountability")
     assert r.status_code == 302
     assert "/login" in r.headers["Location"]
+
+
+# --- profile (journalist, subscriber-gated) -------------------------------
+
+def test_journalist_profile(paid_client, entity_schema):
+    jid = entity_schema["journalist_with_articles_entity_id"]
+    r = paid_client.get(f"/api/entities/{jid}/profile")
+    assert r.status_code == 200
+    b = r.get_json()
+    assert b["entity"]["type"] == "journalist"
+    assert b["article_count"] == 2
+    assert b["bias_lean"]
+    assert any(o["slug"] == "src" for o in b["top_outlets"])
+    assert isinstance(b["volume_trend"], list) and b["volume_trend"]
+    assert any(co["name"] == "Jane Member" for co in b["top_co_mentioned"])
+    assert "coverage_pct" in b
+
+
+def test_profile_404_for_mp(paid_client, entity_schema):
+    r = paid_client.get(f"/api/entities/{entity_schema['mp_entity_id']}/profile")
+    assert r.status_code == 404  # journalist-only
+
+
+def test_profile_unauthenticated_redirects(client, entity_schema):
+    jid = entity_schema["journalist_with_articles_entity_id"]
+    r = client.get(f"/api/entities/{jid}/profile")
+    assert r.status_code == 302

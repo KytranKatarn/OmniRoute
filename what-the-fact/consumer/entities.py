@@ -215,3 +215,84 @@ def entity_accountability(entity_id):
                 "promises": [dict(pr) for pr in promises],
             }
         )
+
+
+@entities_bp.get("/api/entities/<int:entity_id>/profile")
+@require_product_access("wtf-premium")
+def entity_profile(entity_id):
+    s, w = _shared(), _wtf()
+    with _eng().connect() as c:
+        ent = c.execute(
+            text(
+                f"SELECT id, entity_type, canonical_name, slug, metadata FROM {s}.entities "
+                f"WHERE id=:e AND entity_type='journalist'"
+            ),
+            {"e": entity_id},
+        ).mappings().first()
+        if not ent:
+            return jsonify({"error": "journalist not found"}), 404
+        join = (
+            f"FROM {s}.entity_mentions em JOIN {w}.articles a ON a.id::text = em.content_id "
+            f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'"
+        )
+        count = c.execute(text(f"SELECT count(DISTINCT a.id) {join}"), {"e": entity_id}).scalar()
+        bias = c.execute(
+            text(
+                f"SELECT COALESCE(a.bias_ensemble_band,'unknown') band, count(DISTINCT a.id) n "
+                f"{join} GROUP BY 1"
+            ),
+            {"e": entity_id},
+        ).mappings().all()
+        trend = c.execute(
+            text(
+                f"SELECT to_char(date_trunc('month', a.published_at),'YYYY-MM') m, "
+                f"count(DISTINCT a.id) n {join} GROUP BY 1 ORDER BY 1"
+            ),
+            {"e": entity_id},
+        ).mappings().all()
+        outlets = c.execute(
+            text(
+                f"SELECT src.slug, src.name, count(DISTINCT a.id) n "
+                f"FROM {s}.entity_mentions em JOIN {w}.articles a ON a.id::text=em.content_id "
+                f"JOIN {w}.sources src ON src.id=a.source_id "
+                f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article' "
+                f"GROUP BY src.slug, src.name ORDER BY n DESC LIMIT 10"
+            ),
+            {"e": entity_id},
+        ).mappings().all()
+        # journalists/entities co-mentioned on this writer's articles (e.g. the MPs they cover)
+        co = c.execute(
+            text(
+                f"SELECT e2.id, e2.canonical_name, e2.entity_type, count(DISTINCT em2.content_id) n "
+                f"FROM {s}.entity_mentions em1 "
+                f"JOIN {s}.entity_mentions em2 ON em2.content_id=em1.content_id "
+                f"  AND em2.product='wtf' AND em2.content_type='article' AND em2.entity_id<>em1.entity_id "
+                f"JOIN {s}.entities e2 ON e2.id=em2.entity_id "
+                f"WHERE em1.entity_id=:e AND em1.product='wtf' AND em1.content_type='article' "
+                f"GROUP BY e2.id, e2.canonical_name, e2.entity_type ORDER BY n DESC LIMIT 10"
+            ),
+            {"e": entity_id},
+        ).mappings().all()
+        return jsonify(
+            {
+                "entity": {
+                    "id": ent["id"],
+                    "type": "journalist",
+                    "canonical_name": ent["canonical_name"],
+                    "slug": ent["slug"],
+                },
+                "outlets_declared": (ent["metadata"] or {}).get("outlets", []),
+                "article_count": int(count or 0),
+                "bias_lean": {r["band"]: int(r["n"]) for r in bias},
+                "volume_trend": [{"month": r["m"], "count": int(r["n"])} for r in trend],
+                "top_outlets": [
+                    {"slug": r["slug"], "name": r["name"], "count": int(r["n"])} for r in outlets
+                ],
+                "top_co_mentioned": [
+                    {"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"],
+                     "count": int(r["n"])}
+                    for r in co
+                ],
+                "coverage_pct": _coverage_pct(c),
+            }
+        )

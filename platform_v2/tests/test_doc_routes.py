@@ -68,7 +68,12 @@ def test_doc_symptom_analysis_always_includes_healthcare_disclaimer(doc_client):
     ):
         resp = doc_client.post(
             "/tools/doc/api/symptoms",
-            json={"symptoms": "fatigue", "severity": 3, "duration": "two days"},
+            json={
+                "symptoms": "fatigue",
+                "severity": 3,
+                "duration": "days",
+                "areas": ["general"],
+            },
         )
 
     assert resp.status_code == 200
@@ -109,7 +114,12 @@ def test_doc_symptom_analysis_emergency_keywords_append_call_911(doc_client, key
     ):
         resp = doc_client.post(
             "/tools/doc/api/symptoms",
-            json={"symptoms": keyword, "severity": 8, "duration": "today"},
+            json={
+                "symptoms": keyword,
+                "severity": 8,
+                "duration": "day",
+                "areas": ["chest"],
+            },
         )
 
     assert resp.status_code == 200
@@ -118,6 +128,87 @@ def test_doc_symptom_analysis_emergency_keywords_append_call_911(doc_client, key
     assert "call 911" in analysis
     assert MEDICAL_DISCLAIMER in resp.get_json()["analysis"]
     assert EMERGENCY_APPENDIX in resp.get_json()["analysis"]
+
+
+@pytest.mark.parametrize("severity", [-1, 11, "severe"])
+def test_doc_symptom_analysis_rejects_invalid_severity(doc_client, severity):
+    with patch("tools.doc.routes.svc_log_symptoms") as svc_log_symptoms, patch(
+        "tools.doc.routes.dispatch_json"
+    ) as dispatch_json:
+        resp = doc_client.post(
+            "/tools/doc/api/symptoms",
+            json={
+                "symptoms": "fatigue",
+                "severity": severity,
+                "duration": "days",
+                "areas": ["general"],
+            },
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    svc_log_symptoms.assert_not_called()
+    dispatch_json.assert_not_called()
+
+
+def test_doc_symptom_analysis_accepts_zero_severity(doc_client):
+    with patch("tools.doc.routes.svc_log_symptoms"), patch(
+        "tools.doc.routes.dispatch_json",
+        return_value={"response": "Track symptoms and consult a healthcare professional."},
+    ):
+        resp = doc_client.post(
+            "/tools/doc/api/symptoms",
+            json={
+                "symptoms": "fatigue",
+                "severity": 0,
+                "duration": "days",
+                "areas": ["general"],
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["success"] is True
+
+
+def test_doc_symptom_analysis_rejects_invalid_duration(doc_client):
+    with patch("tools.doc.routes.svc_log_symptoms") as svc_log_symptoms, patch(
+        "tools.doc.routes.dispatch_json"
+    ) as dispatch_json:
+        resp = doc_client.post(
+            "/tools/doc/api/symptoms",
+            json={
+                "symptoms": "fatigue",
+                "severity": 3,
+                "duration": "today",
+                "areas": ["general"],
+            },
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    svc_log_symptoms.assert_not_called()
+    dispatch_json.assert_not_called()
+
+
+@pytest.mark.parametrize("areas", [[], "general", None])
+def test_doc_symptom_analysis_rejects_empty_or_non_array_areas(doc_client, areas):
+    with patch("tools.doc.routes.svc_log_symptoms") as svc_log_symptoms, patch(
+        "tools.doc.routes.dispatch_json"
+    ) as dispatch_json:
+        resp = doc_client.post(
+            "/tools/doc/api/symptoms",
+            json={
+                "symptoms": "fatigue",
+                "severity": 3,
+                "duration": "days",
+                "areas": areas,
+            },
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    svc_log_symptoms.assert_not_called()
+    dispatch_json.assert_not_called()
 
 
 def test_patch_medication_updates_whitelisted_fields_for_current_user(doc_client):
@@ -190,3 +281,30 @@ def test_patch_medication_returns_not_found_when_service_updates_no_rows(doc_cli
     assert resp.status_code == 404
     assert resp.get_json()["error"] == "Medication not found"
     update_medication.assert_called_once_with(99, 1, {"dosage": "20 mg"})
+
+
+def test_schedule_rejects_non_iso8601_datetime(doc_client):
+    with patch("tools.doc.routes.schedule_appointment") as schedule_appointment:
+        resp = doc_client.post(
+            "/tools/doc/api/schedule",
+            json={"title": "Checkup", "datetime": "tomorrow at noon", "duration": 30},
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    schedule_appointment.assert_not_called()
+
+
+def test_schedule_accepts_iso8601_datetime(doc_client):
+    with patch(
+        "tools.doc.routes.schedule_appointment",
+        return_value={"success": True},
+    ) as schedule_appointment:
+        resp = doc_client.post(
+            "/tools/doc/api/schedule",
+            json={"title": "Checkup", "datetime": "2026-06-13T12:00:00-04:00", "duration": 30},
+        )
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True, "result": {"success": True}}
+    schedule_appointment.assert_called_once_with(1, "Checkup", "2026-06-13T12:00:00-04:00", 30)

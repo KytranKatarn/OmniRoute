@@ -6,6 +6,8 @@ user health data. AI responses are routed through the department dispatcher
 and must remain educational rather than diagnostic.
 """
 
+from datetime import datetime
+
 from flask import render_template, jsonify, request
 from flask_login import login_required, current_user
 from . import doc_bp
@@ -27,7 +29,6 @@ from .services.doc_service import (
     schedule_appointment,
     get_ai_context,
 )
-import sys
 import logging
 
 from tools.department_hq.services.department_dispatcher import dispatch_json
@@ -39,6 +40,7 @@ logger = logging.getLogger(__name__)
 # Dr. Amara - Medical Advisor agent ID
 MEDICAL_AGENT_ID = 36
 MEDICATION_UPDATE_FIELDS = frozenset({"dosage", "frequency", "end_date", "active"})
+SYMPTOM_DURATION_VALUES = frozenset({"hours", "day", "days", "week", "weeks"})
 
 MEDICAL_DISCLAIMER = (
     "*Remember: This is general information only. Please consult a healthcare professional "
@@ -90,6 +92,23 @@ def _finalize_medical_response(response, source_text=""):
         finalized = f"{finalized}\n\n{EMERGENCY_APPENDIX}"
 
     return finalized
+
+
+def _parse_severity(value):
+    try:
+        severity = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if not 0 <= severity <= 10:
+        return None
+    return int(severity) if severity.is_integer() else severity
+
+
+def _parse_iso8601_datetime(value):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("datetime is required")
+    return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
 
 
 @doc_bp.route("/")
@@ -174,17 +193,27 @@ def analyze_symptoms():
     notes = data.get("notes", "")
     user_id = data.get("user_id", 1)
 
-    # Persist to DB
-    try:
-        svc_log_symptoms(user_id, symptoms if isinstance(symptoms, list) else [symptoms], severity, notes)
-    except Exception as db_err:
-        logger.warning(f"symptom persist failed (non-fatal): {db_err}")
-
     if not symptoms:
         return (
             jsonify({"success": False, "error": "Symptoms description is required"}),
             400,
         )
+
+    severity = _parse_severity(severity)
+    if severity is None:
+        return jsonify({"success": False, "error": "Severity must be between 0 and 10"}), 400
+
+    if duration not in SYMPTOM_DURATION_VALUES:
+        return jsonify({"success": False, "error": "Invalid duration"}), 400
+
+    if not isinstance(areas, list) or not areas:
+        return jsonify({"success": False, "error": "At least one body area is required"}), 400
+
+    # Persist to DB
+    try:
+        svc_log_symptoms(user_id, symptoms if isinstance(symptoms, list) else [symptoms], severity, notes)
+    except Exception as db_err:
+        logger.warning(f"symptom persist failed (non-fatal): {db_err}")
 
     # Build prompt
     prompt = f"""Based on the following symptoms, provide educational information:
@@ -325,6 +354,11 @@ def schedule():
 
     if not datetime_str:
         return jsonify({"success": False, "error": "datetime is required"}), 400
+
+    try:
+        _parse_iso8601_datetime(datetime_str)
+    except ValueError:
+        return jsonify({"success": False, "error": "datetime must be ISO8601"}), 400
 
     try:
         result = schedule_appointment(user_id, title, datetime_str, duration)

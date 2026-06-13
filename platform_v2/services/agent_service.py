@@ -1381,7 +1381,7 @@ WINDING_DOWN_SCORE_PENALTY = 0.30
 # ---------------------------------------------------------------------------
 
 
-def transition_shift_state(agent_id, new_state, reason="manual"):
+def transition_shift_state(agent_id, new_state, reason="manual", changed_by="system"):
     """Transition an agent to a new shift state with full rotation logging.
 
     Validates the new state, closes the previous rotation log entry,
@@ -1399,7 +1399,7 @@ def transition_shift_state(agent_id, new_state, reason="manual"):
     replacement = None
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "SELECT id, name, department FROM agents WHERE id = %s",
+            "SELECT id, name, department, shift_state FROM agents WHERE id = %s",
             (agent_id,),
         )
         agent = cur.fetchone()
@@ -1408,6 +1408,7 @@ def transition_shift_state(agent_id, new_state, reason="manual"):
 
         agent_name = agent["name"]
         department = agent["department"]
+        old_state = agent["shift_state"]
 
         # Close previous open rotation log entry
         cur.execute(
@@ -1434,6 +1435,18 @@ def transition_shift_state(agent_id, new_state, reason="manual"):
         cur.execute(
             "UPDATE agents SET shift_state = %s WHERE id = %s",
             (new_state, agent_id),
+        )
+
+        # Audit the transition for the K.I.N. shift calendar (Part C). The reaper
+        # restore-to-active writes in jobs.py bypass this fn, but those rest→active
+        # cycles are reconstructable from agent_rest_cycles.ended_at — so this chokepoint
+        # captures the deliberate transitions (cooldown / off_duty / barracked / manual).
+        cur.execute(
+            """
+            INSERT INTO shift_state_history (agent_id, from_state, to_state, reason, changed_by)
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (agent_id, old_state, new_state, reason, changed_by),
         )
 
         logger.info("[Lifecycle] %s -> %s (reason=%s)", agent_name, new_state, reason)

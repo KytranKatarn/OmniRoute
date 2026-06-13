@@ -30,6 +30,7 @@ department_hq_bp = Blueprint(
 from .routes import register_routes, admin_required  # noqa: F401, E402
 from .roster_routes import register_roster_routes  # noqa: E402
 from .work_routes import register_work_routes  # noqa: E402
+from .kin_calendar_routes import register_kin_calendar_routes  # noqa: E402
 from .agent_detail_routes import register_agent_detail_routes  # noqa: E402
 from .identity_routes import register_identity_routes  # noqa: E402
 from .social_routes import register_social_routes  # noqa: E402
@@ -65,6 +66,7 @@ from .fleet_ssh_routes import register_ssh_routes as register_fleet_ssh  # noqa:
 register_routes(department_hq_bp)
 register_roster_routes(department_hq_bp, admin_required)
 register_work_routes(department_hq_bp, admin_required)
+register_kin_calendar_routes(department_hq_bp, admin_required)
 register_agent_detail_routes(department_hq_bp, admin_required)
 register_identity_routes(department_hq_bp, admin_required)
 register_social_routes(department_hq_bp, admin_required)

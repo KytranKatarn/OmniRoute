@@ -945,9 +945,9 @@ class TestTokenBudgetThrottle:
         )
         selected = coord.select_agent(capability="code_review", department=self.DEPT)
         assert selected is not None
-        assert selected["name"] == "F.O.R.G.E.", (
-            f"skilled-but-throttled must beat healthy-unskilled, got {selected.get('name')}"
-        )
+        assert (
+            selected["name"] == "F.O.R.G.E."
+        ), f"skilled-but-throttled must beat healthy-unskilled, got {selected.get('name')}"
 
     def test_task_queue_full_remains_hard_block(self):
         forge = self._forge()
@@ -955,3 +955,143 @@ class TestTokenBudgetThrottle:
         score, block = coord.score_agent("F.O.R.G.E.", forge, "code_review", self.DEPT)
         assert score == 0.0
         assert block is not None and "task queue" in block
+
+
+class TestNewsDedicationWall:
+    """News & Media (WTF) dedication wall — #4126 / ADR-010 (#741).
+
+    News is the ONLY dedicated team:
+      (1) a News capability never cross-routes OUT of News & Media, and
+      (2) a News & Media agent is never pulled cross-department onto non-news
+          work (the shared pool covers everything else).
+    Enforced in coordinator.find_cross_department_agent + _is_news_capability.
+    """
+
+    def _coord_with_cache(self, agent_cache, welfare_cache=None):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = agent_cache
+        coord._welfare_cache = welfare_cache or {}
+        coord._cache_time = float("inf")
+        coord._reserved_agents = set()
+        import threading
+
+        coord._lock = threading.Lock()
+        return coord
+
+    # ---- _is_news_capability classification --------------------------------
+
+    def test_is_news_capability_classification(self):
+        from services.department_coordinator import _is_news_capability
+
+        # Core WTF capabilities → news
+        for cap in ("fact_check", "bias_analysis", "geo_extraction", "clustering"):
+            assert _is_news_capability(cap) is True, f"{cap} should be a news capability"
+        # Generic / non-news capabilities
+        for cap in ("code", "research", "documentation", "security"):
+            assert _is_news_capability(cap) is False, f"{cap} should NOT be a news capability"
+        # M.A.V.E.N.'s media-hub caps were re-homed to Operations (#4126)
+        for cap in ("media_hub_troubleshoot", "library_search", "library_curation"):
+            assert _is_news_capability(cap) is False, f"{cap} is Media Hub (Operations), not news"
+        # Edge cases
+        assert _is_news_capability(None) is False
+        assert _is_news_capability("") is False
+
+    # ---- capability re-home (M.A.V.E.N. → Operations) ----------------------
+
+    def test_media_hub_caps_route_to_operations_not_news(self):
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+        for cap in (
+            "media_hub_troubleshoot",
+            "media_recommendation",
+            "library_search",
+            "library_curation",
+            "duplicate_triage",
+        ):
+            assert (
+                CAPABILITY_DEPARTMENT_MAP[cap] == "Operations & Infrastructure"
+            ), f"{cap} must route to Operations & Infrastructure (M.A.V.E.N. re-home, #4126)"
+        # Shared WTF caps STAY in News & Media (held by P.U.B.L.I.S.H./I.N.K.)
+        for cap in (
+            "fact_check",
+            "bias_analysis",
+            "geo_extraction",
+            "clustering",
+            "metadata_enrichment",
+            "content_classification",
+        ):
+            assert CAPABILITY_DEPARTMENT_MAP[cap] == "News & Media", f"{cap} must stay in News & Media"
+
+    # ---- (1) inbound: news work never escapes News & Media ------------------
+
+    def test_news_capability_never_cross_routes_out(self):
+        """Even when a non-News agent holds the news skill, news work must not
+        cross-route out of News & Media."""
+        cache = dict(
+            [
+                _make_agent(
+                    name="F.O.R.G.E.",
+                    department="Engineering & Technology",
+                    skills={"fact_check": 5},
+                    is_department_ai=True,
+                    agent_id=200,
+                ),
+            ]
+        )
+        coord = self._coord_with_cache(cache)
+        result = coord.find_cross_department_agent("fact_check", blocked_department="News & Media")
+        assert result is None, "fact_check must never cross-route out of News & Media"
+
+    def test_news_capability_blocked_dept_returns_none(self):
+        """A news capability is refused cross-routing regardless of the
+        non-news agent pool."""
+        cache = dict(
+            [
+                _make_agent(
+                    name="S.P.E.C.T.R.A.",
+                    department="Analytics & Intelligence",
+                    skills={"bias_analysis": 4},
+                    agent_id=210,
+                ),
+            ]
+        )
+        coord = self._coord_with_cache(cache)
+        assert coord.find_cross_department_agent("bias_analysis", "News & Media") is None
+
+    # ---- (2) outbound: News agents never pulled onto non-news work ----------
+
+    def test_news_agent_not_pulled_for_generic_capability(self):
+        """A News & Media agent that happens to hold a generic skill must NOT
+        be pulled cross-dept; the shared-pool agent wins instead."""
+        cache = dict(
+            [
+                _make_agent(name="I.N.K.", department="News & Media", skills={"research": 5}, agent_id=23),
+                _make_agent(
+                    name="D.A.R.W.I.N.",
+                    department="Research & Development",
+                    skills={"research": 5},
+                    is_department_ai=True,
+                    agent_id=300,
+                ),
+            ]
+        )
+        coord = self._coord_with_cache(cache)
+        result = coord.find_cross_department_agent("research", blocked_department="Engineering & Technology")
+        assert result is not None
+        assert (
+            result["name"] == "D.A.R.W.I.N."
+        ), f"shared-pool agent must win; News agent must not be pulled, got {result.get('name')}"
+
+    def test_sole_news_holder_of_generic_skill_returns_none(self):
+        """If the ONLY holder of a non-news skill is a News agent, cross-dept
+        returns None (the News agent stays walled off) rather than leaking."""
+        cache = dict(
+            [
+                _make_agent(name="I.N.K.", department="News & Media", skills={"research": 5}, agent_id=23),
+            ]
+        )
+        coord = self._coord_with_cache(cache)
+        result = coord.find_cross_department_agent("research", blocked_department="Engineering & Technology")
+        assert result is None, "News agent must not be pulled cross-dept even as sole skill holder"

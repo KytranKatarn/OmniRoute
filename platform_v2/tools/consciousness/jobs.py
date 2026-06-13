@@ -1034,6 +1034,7 @@ def analyze_discovered_skills():
         from database import get_db_cursor
         from tools.department_hq.services.department_dispatcher import dispatch_json
         from services.agent_service import add_skill
+        from services.fleet_dispatch_profile import NEWS_DEPARTMENT
 
         # Fetch up to 25 unanalyzed skills (increased from 10 to clear backlog faster)
         with get_db_cursor() as (conn, cur):
@@ -1250,13 +1251,17 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                                 """SELECT DISTINCT a.id, a.name
                                    FROM agents a
                                    WHERE a.department IS NOT NULL
+                                     -- ADR-010 #741: News & Media (WTF) is the only
+                                     -- dedicated team — never auto-assign gh:* skills
+                                     -- to it (was the recurring re-add of the cont-4 purge).
+                                     AND a.department <> %s
                                      AND a.shift_state IN ('active', 'deployed')
                                      AND EXISTS (
                                          SELECT 1 FROM agent_skills ask
                                          WHERE ask.agent_id = a.id
                                            AND ask.skill_category = ANY(%s)
                                      )""",
-                                (categories,),
+                                (NEWS_DEPARTMENT, categories),
                             )
                             target_agents = cur2.fetchall()
 

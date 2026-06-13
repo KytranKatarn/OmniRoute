@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Set
 
 from services.agent_service import match_capability, get_agent_cache, get_welfare_cache
 from services.model_service import ModelService, get_model_service
+from services.fleet_dispatch_profile import NEWS_DEPARTMENT
 
 logger = logging.getLogger(__name__)
 
@@ -314,23 +315,38 @@ CAPABILITY_DEPARTMENT_MAP = {
     # Executive Office — A.R.C.H.I.E. governance work
     "governance": "Executive Office",
     "dispatch": "Executive Office",
-    # News & Media — content agents (D.R.A.F.T., F.A.C.T., I.N.K., M.A.V.E.N., P.U.B.L.I.S.H.)
+    # News & Media — content agents (D.R.A.F.T., F.A.C.T., I.N.K., P.U.B.L.I.S.H.)
     "content_writing": "News & Media",
     "blog_creation": "News & Media",
     "ghostwriting": "News & Media",
     "narrative_development": "News & Media",
     "news_writing": "News & Media",
     "editorial": "News & Media",
-    "media_recommendation": "News & Media",
-    "library_search": "News & Media",
-    "library_curation": "News & Media",
-    "media_hub_troubleshoot": "News & Media",
-    "content_classification": "News & Media",
-    "metadata_enrichment": "News & Media",
-    "duplicate_triage": "News & Media",
+    "content_classification": "News & Media",  # WTF article classify — P.U.B.L.I.S.H.
+    "metadata_enrichment": "News & Media",  # WTF article metadata — P.U.B.L.I.S.H.
     # I.N.K. — story clustering for WTF pipeline (DHQ job, Project #350)
     "clustering": "News & Media",
+    # Operations & Infrastructure — Media Hub product (M.A.V.E.N., #4126 / ADR-010).
+    # M.A.V.E.N. is a shared-pool Kytran agent (Media Hub: Plex/Jellyfin/Sonarr
+    # health + library), NOT the dedicated News (WTF) team — these capabilities
+    # route to Operations & Infrastructure. M.A.V.E.N. is the sole holder of each.
+    "media_hub_troubleshoot": "Operations & Infrastructure",
+    "media_recommendation": "Operations & Infrastructure",
+    "library_search": "Operations & Infrastructure",
+    "library_curation": "Operations & Infrastructure",
+    "duplicate_triage": "Operations & Infrastructure",
 }
+
+
+def _is_news_capability(capability: Optional[str]) -> bool:
+    """ADR-010 #741 — is this a News & Media (WTF) capability?
+
+    Derived from CAPABILITY_DEPARTMENT_MAP (single source of truth) so the
+    News dedication wall stays in sync with routing: News & Media (WTF) is the
+    only dedicated team — its capabilities never cross-route OUT to another
+    department, and News agents are never pulled onto non-news work.
+    """
+    return bool(capability) and CAPABILITY_DEPARTMENT_MAP.get(capability) == NEWS_DEPARTMENT
 
 
 # ---------------------------------------------------------------------------
@@ -941,11 +957,26 @@ class DepartmentCoordinator:
         capability: str,
         blocked_department: str,
     ) -> Optional[Dict]:
-        """Find an agent in another department that has the requested skill."""
+        """Find an agent in another department that has the requested skill.
+
+        News & Media (WTF) dedication wall (ADR-010 #741): News is the ONLY
+        dedicated team.
+          (1) Inbound — a News capability never cross-routes OUT of News &
+              Media. If no News agent is available the work stays unassigned
+              (the caller escalates within tier) rather than landing on a
+              non-news agent.
+          (2) Outbound — a News & Media agent is never pulled cross-department
+              onto non-news work (News & Media is excluded from the search).
+        """
         self._refresh_caches()
 
+        # (1) Inbound dedication wall — news work stays inside News & Media.
+        if _is_news_capability(capability) or blocked_department == NEWS_DEPARTMENT:
+            return None
+
         all_departments = set(info.get("department") for info in self._agent_cache.values() if info.get("department"))
-        skip = {blocked_department, "Executive Office"}
+        # (2) Outbound dedication wall — never pull a News & Media agent out.
+        skip = {blocked_department, "Executive Office", NEWS_DEPARTMENT}
 
         for dept in sorted(all_departments - skip):
             for name, info in self._agent_cache.items():

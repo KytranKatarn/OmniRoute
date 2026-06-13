@@ -48,6 +48,36 @@ CARBON_CACHE_TTL = 600  # 10 min — 24h aggregate changes slowly
 _welfare_cache = {"data": None, "expires": 0}
 WELFARE_CACHE_TTL = 60  # 60 s — AI-workforce welfare score (#379 Phase 5)
 
+
+def _welfare_headline(live: dict, latest: "dict | None") -> dict:
+    """Build the DHQ welfare-card payload (audit 2026-06-13, decision #2).
+
+    The headline ``score``/``grade`` become the PERSISTED EWMA from the last
+    daily run (``latest``) — the same number ``/governance`` and the public
+    surface show — because the live intra-cycle recompute spikes to A+ at the
+    daily token-window low and disagreed with that headline.
+
+    ``live_score``/``live_grade`` PRESERVE the live recompute as clearly-labeled
+    secondary detail. They are intentionally NOT redundant with ``score``: they
+    are captured BEFORE ``score`` is overwritten with the persisted EWMA below,
+    so a card can show both the honest headline and the live value. Falls back
+    to the live snapshot when no daily run has been persisted yet.
+    """
+    out = dict(live)
+    out["live_score"] = live.get("score")  # snapshot the live recompute pre-override
+    out["live_grade"] = live.get("grade")
+    if latest:
+        ewma = latest.get("ewma_score")
+        out["score"] = ewma if ewma is not None else latest.get("score")
+        out["grade"] = latest.get("ewma_grade") or latest.get("grade")
+        out["ewma_score"] = latest.get("ewma_score")
+        out["ewma_grade"] = latest.get("ewma_grade")
+        out["headline_source"] = "persisted_ewma"
+    else:
+        out["headline_source"] = "live"
+    return out
+
+
 _model_card_cache: dict = {"data": None, "expires": 0}  # full list
 _model_card_single_cache: dict = {}  # agent_id → {"data": ..., "expires": float}
 MODEL_CARD_CACHE_TTL = 300  # 5 min — model assignments change rarely
@@ -306,24 +336,8 @@ def register_creed_routes(bp, admin_required):
             )
 
             with get_db_cursor() as (conn, cur):
-                data = compute_welfare_snapshot(cur)
                 latest = get_latest_welfare_score(cur)
-            # Honest-transparency headline (audit 2026-06-13, decision #2): the card
-            # shows the PERSISTED EWMA from the daily run (same number /governance and
-            # the public surface show), NOT the live intra-cycle recompute — which spikes
-            # to A+ at the daily token-window low and disagreed with the 62/D headline.
-            # Keep the live recompute as clearly-labeled secondary detail; recommendations
-            # + per-agent snapshots from the live snapshot are preserved untouched.
-            data["live_score"] = data.get("score")
-            data["live_grade"] = data.get("grade")
-            if latest:
-                _hl = latest.get("ewma_score")
-                _hg = latest.get("ewma_grade")
-                data["score"] = _hl if _hl is not None else latest.get("score")
-                data["grade"] = _hg or latest.get("grade")
-                data["ewma_score"] = latest.get("ewma_score")
-                data["ewma_grade"] = latest.get("ewma_grade")
-                data["headline_source"] = "persisted_ewma"
+                data = _welfare_headline(compute_welfare_snapshot(cur), latest)
             data["success"] = True
             data["last_run_at"] = latest["computed_at"].isoformat() if latest and latest.get("computed_at") else None
             _welfare_cache["data"] = data

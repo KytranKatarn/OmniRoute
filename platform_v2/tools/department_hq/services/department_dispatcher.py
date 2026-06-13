@@ -2148,13 +2148,25 @@ class DepartmentDispatcher:
             if mode == "hub":
                 order_by = "(100 - rn.bridge_priority) ASC, rn.last_heartbeat DESC"
             elif mode == "news" and is_news:
-                # News agents in news mode: prefer outpost-us (30 sorts first ASC)
-                order_by = "rn.bridge_priority ASC," " COALESCE(load_5m.task_count, 0) ASC," " rn.last_heartbeat DESC"
+                # News agents in news mode: prefer outpost-us (30 sorts first ASC).
+                # Capacity-weighted load (see the else branch) balances by tasks-per-stream.
+                order_by = (
+                    "rn.bridge_priority ASC,"
+                    " (COALESCE(load_5m.task_count, 0)::float / GREATEST(rn.max_concurrent, 1)) ASC,"
+                    " rn.last_heartbeat DESC"
+                )
             else:
-                # auto + platform (non-news): fleet first, then least-loaded, then priority
+                # auto + platform (non-news): fleet first, then CAPACITY-WEIGHTED least-loaded,
+                # then priority. (2026-06-13 cluster-saturation fix.) The tiebreak among GPU fleet
+                # nodes was raw 5-min task COUNT, which handed the weak 1-stream RTX 3050
+                # (Starship-245) the SAME task count as the strong 3-stream RTX 3070 (Starship-246)
+                # -> 245 saturated (~76% busy) while 246 idled (~19%), and overflow spilled to the
+                # slow hub CPU. Dividing the load by rn.max_concurrent balances by tasks-per-stream,
+                # so a 3-stream node absorbs ~3x a 1-stream node before they tie. Requires
+                # remote_nodes.max_concurrent to reflect true per-node Ollama NUM_PARALLEL.
                 order_by = (
                     "CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END ASC,"
-                    " COALESCE(load_5m.task_count, 0) ASC,"
+                    " (COALESCE(load_5m.task_count, 0)::float / GREATEST(rn.max_concurrent, 1)) ASC,"
                     " rn.bridge_priority DESC, rn.last_heartbeat DESC"
                 )
 

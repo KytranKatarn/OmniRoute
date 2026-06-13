@@ -308,6 +308,22 @@ def register_creed_routes(bp, admin_required):
             with get_db_cursor() as (conn, cur):
                 data = compute_welfare_snapshot(cur)
                 latest = get_latest_welfare_score(cur)
+            # Honest-transparency headline (audit 2026-06-13, decision #2): the card
+            # shows the PERSISTED EWMA from the daily run (same number /governance and
+            # the public surface show), NOT the live intra-cycle recompute — which spikes
+            # to A+ at the daily token-window low and disagreed with the 62/D headline.
+            # Keep the live recompute as clearly-labeled secondary detail; recommendations
+            # + per-agent snapshots from the live snapshot are preserved untouched.
+            data["live_score"] = data.get("score")
+            data["live_grade"] = data.get("grade")
+            if latest:
+                _hl = latest.get("ewma_score")
+                _hg = latest.get("ewma_grade")
+                data["score"] = _hl if _hl is not None else latest.get("score")
+                data["grade"] = _hg or latest.get("grade")
+                data["ewma_score"] = latest.get("ewma_score")
+                data["ewma_grade"] = latest.get("ewma_grade")
+                data["headline_source"] = "persisted_ewma"
             data["success"] = True
             data["last_run_at"] = latest["computed_at"].isoformat() if latest and latest.get("computed_at") else None
             _welfare_cache["data"] = data
@@ -549,6 +565,20 @@ def register_creed_routes(bp, admin_required):
             return resp
         try:
             data = _build_v1_ethics_score()
+            # Decision #1 (audit 2026-06-13): the standalone creed.kytranempowerment.com
+            # /api/v1/scores is the SOLE canonical public C.R.E.E.D. ethics score — the one
+            # we share + promote. This hub badge (governance_audit_log, 7d window) is an
+            # INTERNAL/legacy view that can disagree per-pillar with the canonical grade, so
+            # it must not be presented as THE public score. Demote it (non-breaking): mark
+            # non-canonical + point consumers to the standalone. Full retirement of this
+            # public embed is a deliberate Phase-4 public change.
+            data["canonical"] = False
+            data["scope"] = "internal"
+            data["canonical_source"] = "https://creed.kytranempowerment.com/api/v1/scores"
+            data["note"] = (
+                "Internal DHQ governance view (governance_audit_log, 7d). The canonical "
+                "public C.R.E.E.D. score is the standalone /api/v1/scores."
+            )
             _v1_score_cache["data"] = data
             _v1_score_cache["expires"] = now + V1_SCORE_CACHE_TTL
             resp = jsonify(data)

@@ -44,6 +44,8 @@ def doc_client():
 
 
 def test_doc_chat_always_includes_healthcare_disclaimer(doc_client):
+    from tools.doc.routes import MEDICAL_DISCLAIMER
+
     with patch("tools.doc.routes.get_ai_context", return_value=""), patch(
         "tools.doc.routes.dispatch_json",
         return_value={"response": "Hydration and rest can help with many minor headaches.", "model_used": "dhq"},
@@ -54,9 +56,12 @@ def test_doc_chat_always_includes_healthcare_disclaimer(doc_client):
     data = resp.get_json()
     assert data["success"] is True
     assert "consult a healthcare professional" in data["response"].lower()
+    assert MEDICAL_DISCLAIMER in data["response"]
 
 
 def test_doc_symptom_analysis_always_includes_healthcare_disclaimer(doc_client):
+    from tools.doc.routes import MEDICAL_DISCLAIMER
+
     with patch("tools.doc.routes.svc_log_symptoms"), patch(
         "tools.doc.routes.dispatch_json",
         return_value={"response": "Track timing, severity, and any changes in symptoms."},
@@ -70,10 +75,13 @@ def test_doc_symptom_analysis_always_includes_healthcare_disclaimer(doc_client):
     data = resp.get_json()
     assert data["success"] is True
     assert "consult a healthcare professional" in data["analysis"].lower()
+    assert MEDICAL_DISCLAIMER in data["analysis"]
 
 
 @pytest.mark.parametrize("keyword", ["chest pain", "stroke", "heart attack"])
 def test_doc_chat_emergency_keywords_append_call_911(doc_client, keyword):
+    from tools.doc.routes import EMERGENCY_APPENDIX, MEDICAL_DISCLAIMER
+
     with patch("tools.doc.routes.get_ai_context", return_value=""), patch(
         "tools.doc.routes.dispatch_json",
         return_value={"response": "These symptoms can be concerning.", "model_used": "dhq"},
@@ -87,10 +95,14 @@ def test_doc_chat_emergency_keywords_append_call_911(doc_client, keyword):
     response = resp.get_json()["response"].lower()
     assert "consult a healthcare professional" in response
     assert "call 911" in response
+    assert MEDICAL_DISCLAIMER in resp.get_json()["response"]
+    assert EMERGENCY_APPENDIX in resp.get_json()["response"]
 
 
 @pytest.mark.parametrize("keyword", ["chest pain", "stroke", "heart attack"])
 def test_doc_symptom_analysis_emergency_keywords_append_call_911(doc_client, keyword):
+    from tools.doc.routes import EMERGENCY_APPENDIX, MEDICAL_DISCLAIMER
+
     with patch("tools.doc.routes.svc_log_symptoms"), patch(
         "tools.doc.routes.dispatch_json",
         return_value={"response": "Seek urgent evaluation for severe or worsening symptoms."},
@@ -104,3 +116,5 @@ def test_doc_symptom_analysis_emergency_keywords_append_call_911(doc_client, key
     analysis = resp.get_json()["analysis"].lower()
     assert "consult a healthcare professional" in analysis
     assert "call 911" in analysis
+    assert MEDICAL_DISCLAIMER in resp.get_json()["analysis"]
+    assert EMERGENCY_APPENDIX in resp.get_json()["analysis"]

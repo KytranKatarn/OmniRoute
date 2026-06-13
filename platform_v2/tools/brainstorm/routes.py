@@ -24,6 +24,14 @@ from flask_login import current_user, login_required
 from database import get_db_cursor
 
 from . import brainstorm_bp
+from .validators import (
+    validate_cluster,
+    validate_content,
+    validate_goal,
+    validate_tags,
+    validate_title,
+    validate_vote_delta,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,11 +118,12 @@ def list_sessions():
 def create_session():
     """Create a new brainstorm session."""
     body = request.get_json(silent=True) or {}
-    title = (body.get("title") or "").strip()
-    if not title:
-        return jsonify({"success": False, "error": "title is required"}), 400
-    goal = (body.get("goal") or "").strip() or None
-    tags = [t.strip() for t in (body.get("tags") or []) if t.strip()]
+    try:
+        title = validate_title(body.get("title"))
+        goal = validate_goal(body.get("goal"))
+        tags = validate_tags(body.get("tags"))
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -213,19 +222,24 @@ def update_session(session_id: int):
     if unknown_fields:
         return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_fields)}"}), 400
     fields = {}
-    if "title" in body:
-        t = (body["title"] or "").strip()
-        if not t:
-            return jsonify({"success": False, "error": "title cannot be empty"}), 400
-        fields["title"] = t
-    if "goal" in body:
-        fields["goal"] = (body["goal"] or "").strip() or None
-    if "tags" in body:
-        fields["tags"] = [t.strip() for t in (body["tags"] or []) if t.strip()]
-    if "status" in body:
-        if body["status"] not in ("active", "archived"):
-            return jsonify({"success": False, "error": "status must be active or archived"}), 400
-        fields["status"] = body["status"]
+    try:
+        if "title" in body:
+            try:
+                fields["title"] = validate_title(body["title"])
+            except ValueError as exc:
+                if str(exc) == "title is required":
+                    raise ValueError("title cannot be empty") from exc
+                raise
+        if "goal" in body:
+            fields["goal"] = validate_goal(body["goal"])
+        if "tags" in body:
+            fields["tags"] = validate_tags(body["tags"])
+        if "status" in body:
+            if body["status"] not in ("active", "archived"):
+                return jsonify({"success": False, "error": "status must be active or archived"}), 400
+            fields["status"] = body["status"]
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     if not fields:
         return jsonify({"success": False, "error": "Nothing to update"}), 400
     set_clause = ", ".join(f"{SESSION_UPDATE_COLUMNS[k]} = %s" for k in fields)
@@ -279,10 +293,11 @@ def _refresh_idea_count(cur, session_id: int):
 def add_idea(session_id: int):
     """Add an idea to a session."""
     body = request.get_json(silent=True) or {}
-    content = (body.get("content") or "").strip()
-    if not content:
-        return jsonify({"success": False, "error": "content is required"}), 400
-    cluster = (body.get("cluster") or "").strip() or None
+    try:
+        content = validate_content(body.get("content"))
+        cluster = validate_cluster(body.get("cluster"))
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             # Verify ownership
@@ -330,18 +345,22 @@ def update_idea(idea_id: int):
     if unknown_fields:
         return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_fields)}"}), 400
     fields = {}
-    if "content" in body:
-        c = (body["content"] or "").strip()
-        if not c:
-            return jsonify({"success": False, "error": "content cannot be empty"}), 400
-        fields["content"] = c
-    if "cluster" in body:
-        fields["cluster"] = (body["cluster"] or "").strip() or None
+    try:
+        if "content" in body:
+            try:
+                fields["content"] = validate_content(body["content"])
+            except ValueError as exc:
+                if str(exc) == "content is required":
+                    raise ValueError("content cannot be empty") from exc
+                raise
+        if "cluster" in body:
+            fields["cluster"] = validate_cluster(body["cluster"])
+        if "vote_delta" in body:
+            # +1 or -1 applied atomically
+            delta = validate_vote_delta(body["vote_delta"])
+    except ValueError as exc:
+        return jsonify({"success": False, "error": str(exc)}), 400
     if "vote_delta" in body:
-        # +1 or -1 applied atomically
-        delta = int(body["vote_delta"])
-        if delta not in (-1, 1):
-            return jsonify({"success": False, "error": "vote_delta must be +1 or -1"}), 400
         try:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(

@@ -160,6 +160,28 @@ def test_create_session_requires_title(brainstorm_client, payload):
     get_db_cursor.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "payload,error",
+    [
+        ({"title": "x" * 201}, "title must be 200 characters or fewer"),
+        ({"title": 123}, "title must be a string"),
+        ({"title": "Valid", "goal": "x" * 501}, "goal must be 500 characters or fewer"),
+        ({"title": "Valid", "goal": 123}, "goal must be a string"),
+        ({"title": "Valid", "tags": ["tag"] * 11}, "tags cannot include more than 10 items"),
+        ({"title": "Valid", "tags": ["x" * 51]}, "tags must be 50 characters or fewer"),
+        ({"title": "Valid", "tags": "tag"}, "tags must be a list"),
+        ({"title": "Valid", "tags": [3]}, "tags must be strings"),
+    ],
+)
+def test_create_session_validator_limits(brainstorm_client, payload, error):
+    with patch("tools.brainstorm.routes.get_db_cursor") as get_db_cursor:
+        resp = brainstorm_client.post("/tools/brainstorm/api/sessions", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == error
+    get_db_cursor.assert_not_called()
+
+
 def test_list_sessions_success(brainstorm_client, now):
     cursor = FakeCursor(
         fetchall=[
@@ -246,6 +268,9 @@ def test_update_session_success(brainstorm_client):
     [
         ({}, "Nothing to update"),
         ({"title": " "}, "title cannot be empty"),
+        ({"title": "x" * 201}, "title must be 200 characters or fewer"),
+        ({"goal": "x" * 501}, "goal must be 500 characters or fewer"),
+        ({"tags": ["tag"] * 11}, "tags cannot include more than 10 items"),
         ({"status": "deleted"}, "status must be active or archived"),
         ({"owner_id": 2}, "Unknown field(s): owner_id"),
         (
@@ -322,6 +347,24 @@ def test_add_idea_requires_content(brainstorm_client, payload):
     get_db_cursor.assert_not_called()
 
 
+@pytest.mark.parametrize(
+    "payload,error",
+    [
+        ({"content": "x" * 1001}, "content must be 1000 characters or fewer"),
+        ({"content": 123}, "content must be a string"),
+        ({"content": "Valid", "cluster": "x" * 101}, "cluster must be 100 characters or fewer"),
+        ({"content": "Valid", "cluster": 123}, "cluster must be a string"),
+    ],
+)
+def test_add_idea_validator_limits(brainstorm_client, payload, error):
+    with patch("tools.brainstorm.routes.get_db_cursor") as get_db_cursor:
+        resp = brainstorm_client.post("/tools/brainstorm/api/sessions/9/ideas", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.get_json()["error"] == error
+    get_db_cursor.assert_not_called()
+
+
 def test_add_idea_session_not_found(brainstorm_client):
     cursor = FakeCursor(fetchone=[None])
 
@@ -364,7 +407,12 @@ def test_update_idea_vote_delta(brainstorm_client, delta, expected_votes):
     [
         ({}, "Nothing to update"),
         ({"content": " "}, "content cannot be empty"),
+        ({"content": "x" * 1001}, "content must be 1000 characters or fewer"),
+        ({"cluster": "x" * 101}, "cluster must be 100 characters or fewer"),
         ({"vote_delta": 0}, "vote_delta must be +1 or -1"),
+        ({"vote_delta": "bad"}, "vote_delta must be +1 or -1"),
+        ({"vote_delta": 1.2}, "vote_delta must be +1 or -1"),
+        ({"vote_delta": True}, "vote_delta must be +1 or -1"),
         ({"votes": 99}, "Unknown field(s): votes"),
         (
             {"cluster = 'x', votes = 999 --": "ignored"},

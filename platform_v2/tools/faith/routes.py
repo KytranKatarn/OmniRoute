@@ -25,6 +25,17 @@ logger = logging.getLogger(__name__)
 
 FAITH_AGENT_ID = 352
 EMMANUEL_EMAIL = "emmanuel@kytranempowerment.com"
+MAX_PRAYER_INTENTION_CHARS = 500
+MAX_LECTIO_PASSAGE_CHARS = 500
+MAX_CHAPLAIN_MESSAGE_CHARS = 2000
+MAX_CHAPLAIN_CONTEXT_IDS = 20
+ALLOWED_PRAYER_TYPES = {
+    "general",
+    "thanksgiving",
+    "confession",
+    "intercession",
+    "lament",
+}
 FAITH_DATA_DIR = Path(__file__).with_name("data")
 WEB_VPL_PATH = FAITH_DATA_DIR / "web_vpl.txt"
 JPS_VPL_PATH = FAITH_DATA_DIR / "tanakh_jps1917_vpl.txt"
@@ -266,6 +277,39 @@ def _default_profile() -> dict:
         "prayer_style": "guided",
         "scripture_translation": "web",
     }
+
+
+def _validation_error(message: str):
+    return jsonify({"success": False, "error": message}), 400
+
+
+def _json_body() -> tuple[dict, str | None]:
+    data = request.get_json(force=True, silent=True)
+    if data is None:
+        return {}, None
+    if not isinstance(data, dict):
+        return {}, "JSON body must be an object"
+    return data, None
+
+
+def _string_field(
+    data: dict,
+    field: str,
+    *,
+    required: bool = False,
+    max_chars: int | None = None,
+) -> tuple[str, str | None]:
+    value = data.get(field)
+    if value is None:
+        return "", f"{field} required" if required else None
+    if not isinstance(value, str):
+        return "", f"{field} must be a string"
+    value = value.strip()
+    if required and not value:
+        return "", f"{field} required"
+    if max_chars is not None and len(value) > max_chars:
+        return "", f"{field} must be {max_chars} characters or fewer"
+    return value, None
 
 
 def _ensure_tables() -> None:
@@ -1225,9 +1269,22 @@ def list_sessions():
 @faith_bp.route("/api/faith/prayer", methods=["POST"])
 @login_required
 def guided_prayer():
-    data = request.get_json(force=True, silent=True) or {}
-    prayer_type = data.get("type", "general")
-    intention = (data.get("intention") or "").strip()
+    data, error = _json_body()
+    if error:
+        return _validation_error(error)
+    if "prayer_type" in data:
+        prayer_type, error = _string_field(data, "prayer_type", required=True, max_chars=32)
+    else:
+        prayer_type, error = _string_field(data, "type", required=True, max_chars=32)
+    if error:
+        return _validation_error("prayer_type required" if error == "type required" else error)
+    prayer_type = prayer_type.lower()
+    if prayer_type not in ALLOWED_PRAYER_TYPES:
+        return _validation_error("prayer_type must be one of: " + ", ".join(sorted(ALLOWED_PRAYER_TYPES)))
+
+    intention, error = _string_field(data, "intention", max_chars=MAX_PRAYER_INTENTION_CHARS)
+    if error:
+        return _validation_error(error)
     profile = _get_user_faith_profile(current_user.id)
     tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
     style = profile.get("prayer_style") or "guided"
@@ -1237,7 +1294,13 @@ def guided_prayer():
         + ". Structure: Opening, Body, Silence ('...'), Closing. Under 120 words. "
         "For non-theistic traditions, use contemplative language instead of imposed prayer language."
     )
-    result = _practice_dispatch(current_user.id, "prayer", prompt, notes=f"{prayer_type}: {intention}", profile=profile)
+    result = _practice_dispatch(
+        current_user.id,
+        "prayer",
+        prompt,
+        notes=f"{prayer_type}: {intention}",
+        profile=profile,
+    )
     return jsonify({"success": result.get("success", False), "response": result.get("response", "")})
 
 
@@ -1262,8 +1325,12 @@ def scripture_search():
 @faith_bp.route("/api/faith/lectio", methods=["POST"])
 @login_required
 def lectio_divina():
-    data = request.get_json(force=True, silent=True) or {}
-    passage = (data.get("passage") or "Psalm 23").strip()
+    data, error = _json_body()
+    if error:
+        return _validation_error(error)
+    passage, error = _string_field(data, "passage", required=True, max_chars=MAX_LECTIO_PASSAGE_CHARS)
+    if error:
+        return _validation_error(error)
     profile = _get_user_faith_profile(current_user.id)
     tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
     prompt = (
@@ -1411,12 +1478,22 @@ def _send_chaplain_email(user_display_name: str, message: str, context_entries: 
 @faith_bp.route("/api/faith/connect-chaplain", methods=["POST"])
 @login_required
 def connect_chaplain():
-    data = request.get_json(force=True, silent=True) or {}
-    message = (data.get("message") or "").strip()
-    if not message:
-        return jsonify({"success": False, "error": "message required"}), 400
+    data, error = _json_body()
+    if error:
+        return _validation_error(error)
+    message, error = _string_field(data, "message", required=True, max_chars=MAX_CHAPLAIN_MESSAGE_CHARS)
+    if error:
+        return _validation_error(error)
 
     journal_ids = data.get("journal_ids") or []
+    if not isinstance(journal_ids, list):
+        return _validation_error("journal_ids must be a list")
+    if len(journal_ids) > MAX_CHAPLAIN_CONTEXT_IDS:
+        return _validation_error(f"journal_ids may include at most {MAX_CHAPLAIN_CONTEXT_IDS} entries")
+    try:
+        journal_ids = [int(item) for item in journal_ids]
+    except (TypeError, ValueError):
+        return _validation_error("journal_ids must contain only numeric ids")
     context_entries = []
     if journal_ids:
         try:

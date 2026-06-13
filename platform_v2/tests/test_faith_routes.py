@@ -251,3 +251,83 @@ def test_connect_chaplain(faith_client):
         )
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        {},
+        {"prayer_type": ""},
+        {"prayer_type": "prosperity"},
+        {"type": "general", "intention": "x" * 501},
+    ],
+)
+def test_guided_prayer_rejects_invalid_payload_before_dispatch(faith_client, payload):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch("tools.faith.routes._practice_dispatch") as practice_dispatch:
+        resp = faith_client.post("/tools/faith/api/faith/prayer", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    practice_dispatch.assert_not_called()
+
+
+def test_guided_prayer_accepts_valid_prayer_type_field(faith_client):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch(
+        "tools.faith.routes._get_user_faith_profile",
+        return_value={"tradition_preference": "christian", "prayer_style": "guided"},
+    ), patch(
+        "tools.faith.routes._practice_dispatch",
+        return_value={"success": True, "response": "A short prayer."},
+    ) as practice_dispatch:
+        resp = faith_client.post(
+            "/tools/faith/api/faith/prayer",
+            json={"prayer_type": "thanksgiving", "intention": "family"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.get_json()["success"] is True
+    practice_dispatch.assert_called_once()
+
+
+@pytest.mark.parametrize("payload", [{}, {"passage": ""}, {"passage": "x" * 501}])
+def test_lectio_divina_rejects_invalid_payload_before_dispatch(faith_client, payload):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch("tools.faith.routes._practice_dispatch") as practice_dispatch:
+        resp = faith_client.post("/tools/faith/api/faith/lectio", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    practice_dispatch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"message": "x" * 2001},
+        {"message": "Please contact me.", "journal_ids": "1"},
+        {"message": "Please contact me.", "journal_ids": ["abc"]},
+        {"message": "Please contact me.", "journal_ids": list(range(21))},
+    ],
+)
+def test_connect_chaplain_rejects_invalid_payload_before_email(faith_client, payload):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch("tools.faith.routes._send_chaplain_email") as send_chaplain_email, patch(
+        "tools.faith.routes.get_db_cursor"
+    ) as get_db_cursor:
+        resp = faith_client.post("/tools/faith/api/faith/connect-chaplain", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.get_json()["success"] is False
+    send_chaplain_email.assert_not_called()
+    get_db_cursor.assert_not_called()

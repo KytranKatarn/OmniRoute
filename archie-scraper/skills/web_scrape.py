@@ -16,7 +16,10 @@ def run(page, url: str, params: dict, job_id: int) -> dict:
     wait_for = params.get("wait_for")
     max_items = int(params.get("max_items") or 100)
 
-    page.goto(url, wait_until="networkidle", timeout=30000)
+    # domcontentloaded (not networkidle): ad/tracker-heavy news sites never reach
+    # network-idle within 30s, so networkidle always timed out → every job failed.
+    # DOM-parsed is enough for selector extraction; pass `wait_for` for JS-rendered bodies.
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
     logger.info("[web_scrape] job #%d: landed on %s", job_id, page.url[:120])
 
     # Google News RSS URLs use a JS redirect. If Playwright settles on the
@@ -40,7 +43,7 @@ def run(page, url: str, params: dict, job_id: int) -> dict:
                 logger.info(
                     "[web_scrape] job #%d: Google News → %s", job_id, actual_url[:80]
                 )
-                page.goto(actual_url, wait_until="networkidle", timeout=30000)
+                page.goto(actual_url, wait_until="domcontentloaded", timeout=30000)
         except Exception as exc:
             logger.warning(
                 "[web_scrape] job #%d: Google News redirect resolve failed: %s",

@@ -40,7 +40,14 @@ DEPARTMENT_FLOOR_MAP = {
     "Analytics & Intelligence": "SERVICES",
 }
 
-VALID_SHIFT_STATES = ("active", "deployed", "barracked", "off_duty", "winding_down", "cooldown")
+VALID_SHIFT_STATES = (
+    "active",
+    "deployed",
+    "barracked",
+    "off_duty",
+    "winding_down",
+    "cooldown",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -306,7 +313,9 @@ def update_agent(agent_id, **fields):
                         )
             except Exception as e:
                 logger.warning(
-                    "node_agents rename propagation failed for agent #%d: %s", agent_id, e
+                    "node_agents rename propagation failed for agent #%d: %s",
+                    agent_id,
+                    e,
                 )
 
     return updated
@@ -956,7 +965,12 @@ def get_performance(agent_id, period_days=7):
         )
         row = cur.fetchone()
         if not row:
-            return {"jobs_completed": 0, "jobs_failed": 0, "avg_response_ms": 0, "success_rate": 0}
+            return {
+                "jobs_completed": 0,
+                "jobs_failed": 0,
+                "avg_response_ms": 0,
+                "success_rate": 0,
+            }
 
         completed = row["jobs_completed"] or 0
         failed = row["jobs_failed"] or 0
@@ -1042,7 +1056,15 @@ def get_identity(agent_id):
 
 def update_identity(agent_id, **fields):
     """Update agent identity fields (bio, gender, ethnicity, age_range, appearance_notes, portrait_prompt)."""
-    allowed = {"bio", "gender", "ethnicity", "age_range", "appearance_notes", "portrait_prompt", "email"}
+    allowed = {
+        "bio",
+        "gender",
+        "ethnicity",
+        "age_range",
+        "appearance_notes",
+        "portrait_prompt",
+        "email",
+    }
     filtered = {k: v for k, v in fields.items() if k in allowed}
     if not filtered:
         return False
@@ -1093,7 +1115,11 @@ def add_portrait(agent_id, prompt, style="professional", negative_prompt=""):
                     (portrait_id,),
                 )
         else:
-            logger.info("Portrait generation queued for agent %s (portrait %s)", agent_id, portrait_id)
+            logger.info(
+                "Portrait generation queued for agent %s (portrait %s)",
+                agent_id,
+                portrait_id,
+            )
     except Exception as e:
         logger.warning("Could not trigger portrait generation for agent %s: %s", agent_id, e)
         with get_db_cursor(commit=True) as (conn, cur):
@@ -2314,11 +2340,19 @@ def get_welfare_cache() -> Dict:
             LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
             LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
             LEFT JOIN (
-                SELECT agent_id, SUM(tokens_used) AS tokens_24h
-                FROM task_execution_log
-                WHERE created_at > NOW() - INTERVAL '24 hours'
-                GROUP BY agent_id
-            ) tk ON tk.agent_id = a.id
+                -- Resolve agent identity by agent_id OR by name: ~48% of
+                -- task_execution_log rows (fleet-dispatched work) historically logged a
+                -- NULL agent_id, so a plain GROUP BY agent_id undercounted real usage and
+                -- the throttle never fired (V.E.R.I.F.Y. read 15% of its true 24h tokens).
+                -- COALESCE + name-lookup (CLI-suffix-stripped) makes the enforcement match
+                -- the K.I.N. tab + reality. KIN welfare keying fix.
+                SELECT COALESCE(t.agent_id, a2.id) AS aid, SUM(t.tokens_used) AS tokens_24h
+                FROM task_execution_log t
+                LEFT JOIN agents a2
+                       ON a2.name = split_part(t.agent_name, ' (CLI)', 1)
+                WHERE t.created_at > NOW() - INTERVAL '24 hours'
+                GROUP BY COALESCE(t.agent_id, a2.id)
+            ) tk ON tk.aid = a.id
             WHERE a.status = 'active'
         """
         )
@@ -2366,7 +2400,13 @@ def init_budget(
                     can_create_sub_agents, max_sub_agents)
                VALUES (%s, %s, %s, %s, %s)
                ON CONFLICT (agent_id) DO NOTHING""",
-            (agent_id, token_limit, task_queue_limit, can_create_sub_agents, max_sub_agents),
+            (
+                agent_id,
+                token_limit,
+                task_queue_limit,
+                can_create_sub_agents,
+                max_sub_agents,
+            ),
         )
     logger.info("Agent #%d budget initialized (queue_limit=%d)", agent_id, task_queue_limit)
 
@@ -2403,5 +2443,10 @@ def log_creation_event(
         )
         row = cur.fetchone()
         event_id = row[0] if row else None
-    logger.info("Agent #%d creation event logged (source=%s, id=%s)", child_agent_id, source, event_id)
+    logger.info(
+        "Agent #%d creation event logged (source=%s, id=%s)",
+        child_agent_id,
+        source,
+        event_id,
+    )
     return event_id

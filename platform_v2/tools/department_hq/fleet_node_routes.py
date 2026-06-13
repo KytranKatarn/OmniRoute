@@ -21,7 +21,11 @@ import requests
 
 import ipaddress
 
-from .fleet_helpers import DEFAULT_NODE_PORT, DEFAULT_CLIENT_VERSION, LATEST_CLIENT_VERSION
+from .fleet_helpers import (
+    DEFAULT_NODE_PORT,
+    DEFAULT_CLIENT_VERSION,
+    LATEST_CLIENT_VERSION,
+)
 
 from .fleet_helpers import (
     _get_node_for_user,
@@ -114,7 +118,11 @@ def _on_node_approved(node_id):
                                 (float(geo_lat), float(geo_lon), node_id),
                             )
         except Exception:
-            logger.warning("_on_node_approved: geo-coord sync failed for node=%s", node_id, exc_info=True)
+            logger.warning(
+                "_on_node_approved: geo-coord sync failed for node=%s",
+                node_id,
+                exc_info=True,
+            )
 
         # 2. Auto-assign agents for each model (best-effort)
         assigned = 0
@@ -753,7 +761,13 @@ def register_node_routes(bp, login_required, admin_required):
 
                 # Convert datetime
                 for node in nodes:
-                    for key in ["last_heartbeat", "created_at", "updated_at", "approved_at", "mesh_last_seen"]:
+                    for key in [
+                        "last_heartbeat",
+                        "created_at",
+                        "updated_at",
+                        "approved_at",
+                        "mesh_last_seen",
+                    ]:
                         if node.get(key):
                             node[key] = node[key].isoformat()
 
@@ -827,7 +841,10 @@ def register_node_routes(bp, login_required, admin_required):
             )
             return jsonify({"success": True, "recommendation": rec.to_dict()})
         except (TypeError, ValueError) as e:
-            return jsonify({"success": False, "error": f"Invalid hardware payload: {e}"}), 400
+            return (
+                jsonify({"success": False, "error": f"Invalid hardware payload: {e}"}),
+                400,
+            )
         except Exception as e:
             logger.error(f"Error computing model recommendation: {e}")
             return jsonify({"success": False, "error": "Internal server error"}), 500
@@ -1064,7 +1081,10 @@ def register_node_routes(bp, login_required, admin_required):
                 mimetype="text/x-python",
                 headers={"Content-Disposition": "attachment; filename=node_sync.py"},
             )
-        return jsonify({"success": False, "error": "Sync service script not found"}), 404
+        return (
+            jsonify({"success": False, "error": "Sync service script not found"}),
+            404,
+        )
 
     @bp.route("/api/nodes/Dockerfile.node", methods=["GET"])
     def get_node_dockerfile():
@@ -1190,7 +1210,10 @@ def register_node_routes(bp, login_required, admin_required):
                 mimetype="application/sql",
                 headers={"Content-Disposition": f"attachment; filename={filename}"},
             )
-        return jsonify({"success": False, "error": f"Migration {filename} not found"}), 404
+        return (
+            jsonify({"success": False, "error": f"Migration {filename} not found"}),
+            404,
+        )
 
     @bp.route("/api/nodes/archie-node-latest.tar.gz", methods=["GET"])
     def serve_node_image():
@@ -1343,17 +1366,29 @@ def register_node_routes(bp, login_required, admin_required):
             try:
                 ram = float(data["ram_gb"])
             except (TypeError, ValueError):
-                return jsonify({"success": False, "error": "ram_gb must be a number"}), 400
+                return (
+                    jsonify({"success": False, "error": "ram_gb must be a number"}),
+                    400,
+                )
             if ram <= 0:
-                return jsonify({"success": False, "error": "ram_gb must be positive"}), 400
+                return (
+                    jsonify({"success": False, "error": "ram_gb must be positive"}),
+                    400,
+                )
 
         if "cpu_cores" in data and data["cpu_cores"] is not None:
             try:
                 cores = int(data["cpu_cores"])
             except (TypeError, ValueError):
-                return jsonify({"success": False, "error": "cpu_cores must be an integer"}), 400
+                return (
+                    jsonify({"success": False, "error": "cpu_cores must be an integer"}),
+                    400,
+                )
             if cores <= 0:
-                return jsonify({"success": False, "error": "cpu_cores must be positive"}), 400
+                return (
+                    jsonify({"success": False, "error": "cpu_cores must be positive"}),
+                    400,
+                )
 
         try:
             with get_db_cursor() as (conn, cur):
@@ -1580,19 +1615,28 @@ def register_node_routes(bp, login_required, admin_required):
                         msg = f"🛸 *New Node Pending Approval*\n\n*Name:* {node_name}\n*Host:* {hostname}\n*ID:* {node['node_id']}"
                         buttons = [
                             [
-                                {"text": "✅ Approve", "callback_data": f"node_approve_{node['id']}"},
-                                {"text": "❌ Deny", "callback_data": f"node_deny_{node['id']}"},
+                                {
+                                    "text": "✅ Approve",
+                                    "callback_data": f"node_approve_{node['id']}",
+                                },
+                                {
+                                    "text": "❌ Deny",
+                                    "callback_data": f"node_deny_{node['id']}",
+                                },
                             ]
                         ]
                         asyncio.run_coroutine_threadsafe(
-                            gw.send_admin_message(msg, reply_markup={"inline_keyboard": buttons}), gw.loop
+                            gw.send_admin_message(msg, reply_markup={"inline_keyboard": buttons}),
+                            gw.loop,
                         )
                 except Exception as e:
                     logger.warning("Failed to send Telegram node alert: %s", e)
 
                 # Calculate the actual max_concurrent that was stored
                 calculated_max = data.get("max_concurrent") or calculate_max_concurrent(
-                    data.get("ram_gb", 8), data.get("cpu_cores", 4), data.get("gpu_vram_gb", 0)
+                    data.get("ram_gb", 8),
+                    data.get("cpu_cores", 4),
+                    data.get("gpu_vram_gb", 0),
                 )
 
                 # Generate Headscale mesh auth key for the node
@@ -1707,9 +1751,17 @@ def register_node_routes(bp, login_required, admin_required):
                 )
                 row = cur.fetchone()
                 if not row:
-                    return jsonify({"success": False, "error": "Invalid node or API key"}), 403
+                    return (
+                        jsonify({"success": False, "error": "Invalid node or API key"}),
+                        403,
+                    )
                 conn.commit()
-                logger.info("Node %s (%s) mesh IP updated to %s", row["node_name"], node_id, mesh_ip)
+                logger.info(
+                    "Node %s (%s) mesh IP updated to %s",
+                    row["node_name"],
+                    node_id,
+                    mesh_ip,
+                )
                 return jsonify({"success": True, "mesh_ip": mesh_ip})
         except Exception as e:
             logger.error("Error updating mesh IP for %s: %s", node_id, e)
@@ -1758,7 +1810,10 @@ def register_node_routes(bp, login_required, admin_required):
             )
             if result.returncode != 0:
                 logger.error("Headscale key gen failed for %s: %s", node_id, result.stderr)
-                return jsonify({"success": False, "error": "Headscale key generation failed"}), 500
+                return (
+                    jsonify({"success": False, "error": "Headscale key generation failed"}),
+                    500,
+                )
 
             auth_key = result.stdout.strip()
             login_server = os.environ.get("HEADSCALE_URL", "https://mesh.kytranempowerment.com")
@@ -2178,11 +2233,13 @@ def register_node_routes(bp, login_required, admin_required):
                         cur.execute(
                             """
                             INSERT INTO task_execution_log
-                                (agent_name, station_code, capability,
+                                (agent_id, agent_name, station_code, capability,
                                  module_source, success, duration_ms, created_at)
-                            VALUES (%s, %s, %s, 'remote', %s, %s, NOW())
+                            VALUES ((SELECT id FROM agents WHERE name = %s LIMIT 1),
+                                    %s, %s, %s, 'remote', %s, %s, NOW())
                         """,
                             (
+                                job.get("agent_name"),
                                 job.get("agent_name"),
                                 job.get("station_code", "UNKNOWN"),
                                 job.get("capability"),
@@ -2197,7 +2254,9 @@ def register_node_routes(bp, login_required, admin_required):
                 agent_welfare = data.get("agent_welfare", {})
                 if agent_welfare:
                     try:
-                        from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                        from tools.department_hq.services.bridge_dispatcher import (
+                            get_dispatcher,
+                        )
 
                         dispatcher = get_dispatcher()
                         for agent_name, welfare in agent_welfare.items():
@@ -2359,7 +2418,10 @@ def register_node_routes(bp, login_required, admin_required):
         updates = {k: v for k, v in data.items() if k in allowed_fields}
 
         if not updates:
-            return jsonify({"success": False, "error": "No valid fields to update"}), 400
+            return (
+                jsonify({"success": False, "error": "No valid fields to update"}),
+                400,
+            )
 
         try:
             with get_db_cursor() as (conn, cur):
@@ -2463,7 +2525,12 @@ def register_node_routes(bp, login_required, admin_required):
                         ),
                     )
 
-                return jsonify({"success": True, "message": f"Updated {len(capabilities)} capabilities"})
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": f"Updated {len(capabilities)} capabilities",
+                    }
+                )
 
         except Exception as e:
             logger.error(f"Error updating capabilities: {e}")
@@ -2686,7 +2753,12 @@ def register_node_routes(bp, login_required, admin_required):
                 node = cur.fetchone()
                 if not node:
                     return (
-                        jsonify({"success": False, "error": "Node not found or already processed"}),
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Node not found or already processed",
+                            }
+                        ),
                         404,
                     )
                 result = {
@@ -2741,7 +2813,12 @@ def register_node_routes(bp, login_required, admin_required):
 
                 if not node:
                     return (
-                        jsonify({"success": False, "error": "Node not found or already processed"}),
+                        jsonify(
+                            {
+                                "success": False,
+                                "error": "Node not found or already processed",
+                            }
+                        ),
                         404,
                     )
 
@@ -3031,7 +3108,10 @@ def register_node_routes(bp, login_required, admin_required):
                 node = cur.fetchone()
 
             if not node:
-                return jsonify({"success": False, "error": "Node not found or inactive"}), 404
+                return (
+                    jsonify({"success": False, "error": "Node not found or inactive"}),
+                    404,
+                )
 
             from tools.department_hq.fleet_helpers import node_inter_cluster_host
 
@@ -3074,7 +3154,10 @@ def register_node_routes(bp, login_required, admin_required):
             with get_db_cursor(commit=False) as (conn, cur):
 
                 # Get node internal ID
-                cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+                cur.execute(
+                    "SELECT id, node_name FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
                 node = cur.fetchone()
 
                 if not node:
@@ -3134,7 +3217,10 @@ def register_node_routes(bp, login_required, admin_required):
             with get_db_cursor() as (conn, cur):
 
                 # Get node internal ID
-                cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+                cur.execute(
+                    "SELECT id, node_name FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
                 node = cur.fetchone()
 
                 if not node:
@@ -3148,7 +3234,10 @@ def register_node_routes(bp, login_required, admin_required):
                 station = cur.fetchone()
 
                 if not station:
-                    return jsonify({"success": False, "error": "Station not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Station not found"}),
+                        404,
+                    )
 
                 # Check if assignment already exists
                 cur.execute(
@@ -3226,7 +3315,10 @@ def register_node_routes(bp, login_required, admin_required):
             with get_db_cursor() as (conn, cur):
 
                 # Get node internal ID
-                cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+                cur.execute(
+                    "SELECT id, node_name FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
                 node = cur.fetchone()
 
                 if not node:
@@ -3245,7 +3337,10 @@ def register_node_routes(bp, login_required, admin_required):
                 assignment = cur.fetchone()
 
                 if not assignment:
-                    return jsonify({"success": False, "error": "Assignment not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Assignment not found"}),
+                        404,
+                    )
 
                 # Build update query dynamically
                 update_fields = []
@@ -3270,7 +3365,12 @@ def register_node_routes(bp, login_required, admin_required):
                     update_values.append(data["priority"])
 
                 if "shift_preference" in data:
-                    if data["shift_preference"] not in ["alpha", "beta", "gamma", "any"]:
+                    if data["shift_preference"] not in [
+                        "alpha",
+                        "beta",
+                        "gamma",
+                        "any",
+                    ]:
                         return (
                             jsonify(
                                 {
@@ -3296,7 +3396,10 @@ def register_node_routes(bp, login_required, admin_required):
                     update_values.append(data["notes"])
 
                 if not update_fields:
-                    return jsonify({"success": False, "error": "No fields to update"}), 400
+                    return (
+                        jsonify({"success": False, "error": "No fields to update"}),
+                        400,
+                    )
 
                 # Execute update
                 update_values.append(assignment["id"])
@@ -3340,14 +3443,20 @@ def register_node_routes(bp, login_required, admin_required):
             with get_db_cursor() as (conn, cur):
 
                 # Get node internal ID
-                cur.execute("SELECT id, node_name FROM remote_nodes WHERE node_id = %s", (node_id,))
+                cur.execute(
+                    "SELECT id, node_name FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
                 node = cur.fetchone()
 
                 if not node:
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
                 # Get station name for response (bridge_stations deprecated but still exists)
-                cur.execute("SELECT station_name FROM bridge_stations WHERE id = %s", (station_id,))
+                cur.execute(
+                    "SELECT station_name FROM bridge_stations WHERE id = %s",
+                    (station_id,),
+                )
                 station = cur.fetchone() or {"station_name": "Unknown"}
 
                 # Delete assignment
@@ -3363,7 +3472,10 @@ def register_node_routes(bp, login_required, admin_required):
                 deleted = cur.fetchone()
 
                 if not deleted:
-                    return jsonify({"success": False, "error": "Assignment not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Assignment not found"}),
+                        404,
+                    )
 
                 return jsonify(
                     {
@@ -3394,7 +3506,10 @@ def register_node_routes(bp, login_required, admin_required):
                 station = cur.fetchone()
 
                 if not station:
-                    return jsonify({"success": False, "error": "Station not found"}), 404
+                    return (
+                        jsonify({"success": False, "error": "Station not found"}),
+                        404,
+                    )
 
                 # Get assigned nodes with details
                 cur.execute(
@@ -3621,7 +3736,15 @@ def register_node_routes(bp, login_required, admin_required):
             resp = _req.get(f"http://{hostname}:{api_port}/diagnostics", timeout=8)
             if resp.ok:
                 return jsonify({"success": True, "diagnostics": resp.json()})
-            return jsonify({"success": False, "error": f"Node returned HTTP {resp.status_code}"}), 502
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Node returned HTTP {resp.status_code}",
+                    }
+                ),
+                502,
+            )
         except _req.exceptions.Timeout:
             return jsonify({"success": False, "error": "Node API timed out"}), 504
         except _req.exceptions.ConnectionError:
@@ -3769,7 +3892,7 @@ def register_node_routes(bp, login_required, admin_required):
                         "status": _compute_node_status(node),
                         "deployment_mode": node["deployment_mode"],
                         "bridge_priority": node["bridge_priority"],
-                        "last_heartbeat": node["last_heartbeat"].isoformat() if node["last_heartbeat"] else None,
+                        "last_heartbeat": (node["last_heartbeat"].isoformat() if node["last_heartbeat"] else None),
                         "privacy_settings": node.get("privacy_settings", {}),
                         "client_version": client_ver,
                         "mesh_ip": node.get("mesh_ip"),
@@ -3789,15 +3912,15 @@ def register_node_routes(bp, login_required, admin_required):
                         "cpu_cores": node["cpu_cores"],
                         "ram_gb": float(node["ram_gb"]) if node["ram_gb"] else None,
                         "gpu_model": node["gpu_model"],
-                        "gpu_vram_gb": float(node["gpu_vram_gb"]) if node["gpu_vram_gb"] else None,
+                        "gpu_vram_gb": (float(node["gpu_vram_gb"]) if node["gpu_vram_gb"] else None),
                         "disk_gb": float(node["disk_gb"]) if node["disk_gb"] else None,
                     },
                     "live_metrics": {
-                        "cpu_usage": float(latest_hb["cpu_usage"]) if latest_hb and latest_hb["cpu_usage"] else 0,
+                        "cpu_usage": (float(latest_hb["cpu_usage"]) if latest_hb and latest_hb["cpu_usage"] else 0),
                         "memory_usage": (
                             float(latest_hb["memory_usage"]) if latest_hb and latest_hb["memory_usage"] else 0
                         ),
-                        "gpu_usage": float(latest_hb["gpu_usage"]) if latest_hb and latest_hb["gpu_usage"] else 0,
+                        "gpu_usage": (float(latest_hb["gpu_usage"]) if latest_hb and latest_hb["gpu_usage"] else 0),
                         "current_load": (
                             float(latest_hb["current_load"]) if latest_hb and latest_hb["current_load"] else 0
                         ),
@@ -3805,7 +3928,7 @@ def register_node_routes(bp, login_required, admin_required):
                     "models": [
                         {
                             "model_name": m["model_name"],
-                            "model_size_gb": float(m["model_size_gb"]) if m["model_size_gb"] else None,
+                            "model_size_gb": (float(m["model_size_gb"]) if m["model_size_gb"] else None),
                             "is_available": m["is_available"],
                             "context_length": m["context_length"],
                             "quantization": m["quantization"],
@@ -3831,7 +3954,7 @@ def register_node_routes(bp, login_required, admin_required):
                             "icon": s["icon"],
                             "default_llm": s["default_llm"],
                             "assigned": s["assigned"],
-                            "active": s["station_active"] if s["station_active"] is not None else False,
+                            "active": (s["station_active"] if s["station_active"] is not None else False),
                             "agent_count": s["agent_count"],
                         }
                         for s in stations
@@ -4078,7 +4201,10 @@ def register_node_routes(bp, login_required, admin_required):
                 hs_lines = [l.strip() for l in hs.stdout.strip().splitlines() if l.strip()]
                 headscale_authkey = hs_lines[-1] if hs_lines else ""
         except Exception:
-            logger.warning("Could not generate Headscale auth key for /install endpoint", exc_info=True)
+            logger.warning(
+                "Could not generate Headscale auth key for /install endpoint",
+                exc_info=True,
+            )
 
         ua = (request.headers.get("User-Agent") or "").lower()
         is_powershell = "powershell" in ua or "windowspowershell" in ua
@@ -4491,7 +4617,12 @@ def register_node_routes(bp, login_required, admin_required):
         # Validate mesh IP if provided
         if mesh_ip_param and not validate_mesh_ip(mesh_ip_param):
             return (
-                jsonify({"success": False, "error": f"Invalid mesh IP: {mesh_ip_param!r}. Must be in 100.64.0.0/10."}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": f"Invalid mesh IP: {mesh_ip_param!r}. Must be in 100.64.0.0/10.",
+                    }
+                ),
                 400,
             )
 
@@ -4553,7 +4684,10 @@ def register_node_routes(bp, login_required, admin_required):
             else:
                 logger.warning("headscale preauthkeys create failed: %s", hs_result.stderr[:200])
         except Exception:
-            logger.warning("Could not generate Headscale auth key (docker exec unavailable?)", exc_info=True)
+            logger.warning(
+                "Could not generate Headscale auth key (docker exec unavailable?)",
+                exc_info=True,
+            )
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -4701,7 +4835,10 @@ def register_node_routes(bp, login_required, admin_required):
             return jsonify({"success": False, "error": "Node not found"}), 404
 
         if node["deployment_mode"] == "starbase":
-            return jsonify({"success": False, "error": "Cannot disconnect the Starbase"}), 400
+            return (
+                jsonify({"success": False, "error": "Cannot disconnect the Starbase"}),
+                400,
+            )
 
         try:
             node_db_id = node["id"]

@@ -663,19 +663,23 @@ def register_mesh_routes(bp, auth_decorator):
                         if isinstance(original, str):
                             original = json.loads(original)
                         station_codes = original.get("station_codes", [])
+                        # Resolve agent_id by name so fleet job results are visible to
+                        # the welfare/throttle aggregates (which key on agent_id). Without
+                        # it these high-volume rows logged NULL agent_id and the token
+                        # throttle undercounted real usage (KIN welfare keying fix).
+                        _agent_name = ack_payload.get("agent_name", original.get("target_agent"))
                         cur.execute(
                             """
                             INSERT INTO task_execution_log
-                                (agent_name, station_code, capability,
+                                (agent_id, agent_name, station_code, capability,
                                  module_source, success, duration_ms,
                                  created_at)
-                            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                            VALUES ((SELECT id FROM agents WHERE name = %s LIMIT 1),
+                                    %s, %s, %s, %s, %s, %s, NOW())
                             """,
                             (
-                                ack_payload.get(
-                                    "agent_name",
-                                    original.get("target_agent"),
-                                ),
+                                _agent_name,
+                                _agent_name,
                                 station_codes[0] if station_codes else "UNKNOWN",
                                 original.get("capability"),
                                 original.get("module_id", "remote"),
@@ -687,7 +691,10 @@ def register_mesh_routes(bp, auth_decorator):
                         logger.warning(f"Mesh ack job result logging failed: {job_err}")
 
                 # Auto-assign hub agents when a model pull lands on a node
-                if sync_entry["sync_type"] == "model_pull" and status in ("acknowledged", "completed"):
+                if sync_entry["sync_type"] == "model_pull" and status in (
+                    "acknowledged",
+                    "completed",
+                ):
                     try:
                         pull_payload = sync_entry["payload"] or {}
                         if isinstance(pull_payload, str):
@@ -1012,10 +1019,10 @@ def register_mesh_routes(bp, auth_decorator):
                         "mesh_status": n["mesh_status"] or "disconnected",
                         "mesh_latency_ms": n["mesh_latency_ms"],
                         "mesh_connection_type": n["mesh_connection_type"],
-                        "mesh_last_seen": n["mesh_last_seen"].isoformat() if n["mesh_last_seen"] else None,
+                        "mesh_last_seen": (n["mesh_last_seen"].isoformat() if n["mesh_last_seen"] else None),
                         "status": n["status"],
                         "gpu_model": n["gpu_model"],
-                        "gpu_vram_gb": float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0,
+                        "gpu_vram_gb": (float(n["gpu_vram_gb"]) if n["gpu_vram_gb"] else 0),
                         "ram_gb": float(n["ram_gb"]) if n["ram_gb"] else 0,
                         "online": (
                             (
@@ -1069,8 +1076,8 @@ def register_mesh_routes(bp, auth_decorator):
                         "connected": stats["connected"] or 0,
                         "disconnected": stats["disconnected"] or 0,
                         "relay": stats["relay"] or 0,
-                        "avg_latency_ms": round(float(stats["avg_latency"]), 1) if stats["avg_latency"] else None,
-                        "max_latency_ms": int(stats["max_latency"]) if stats["max_latency"] else None,
+                        "avg_latency_ms": (round(float(stats["avg_latency"]), 1) if stats["avg_latency"] else None),
+                        "max_latency_ms": (int(stats["max_latency"]) if stats["max_latency"] else None),
                     }
                 )
         except Exception as e:
@@ -1181,8 +1188,8 @@ def register_mesh_routes(bp, auth_decorator):
                                 "ephemeral": k["is_ephemeral"],
                                 "reusable": k["is_reusable"],
                                 "used": k["is_used"],
-                                "expires_at": k["expires_at"].isoformat() if k["expires_at"] else None,
-                                "created_at": k["created_at"].isoformat() if k["created_at"] else None,
+                                "expires_at": (k["expires_at"].isoformat() if k["expires_at"] else None),
+                                "created_at": (k["created_at"].isoformat() if k["created_at"] else None),
                             }
                             for k in keys
                         ],
@@ -1402,7 +1409,10 @@ def register_mesh_routes(bp, auth_decorator):
                         "host_status": (data["host"].get("status", "unknown") if data["host"] else "unknown"),
                         "services": [
                             {
-                                "name": s.get("service_description", s.get("check_name", "unknown")),
+                                "name": s.get(
+                                    "service_description",
+                                    s.get("check_name", "unknown"),
+                                ),
                                 "status": s.get("status", "unknown"),
                                 "output": s.get("plugin_output", ""),
                                 "last_check": _epoch_to_iso(s.get("last_check")),

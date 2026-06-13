@@ -146,6 +146,7 @@
           <button onclick="switchKinSection('workload')" id="kinBtn-workload" class="dhq-traffic-btn">WORKLOAD</button>
           <button onclick="switchKinSection('work')" id="kinBtn-work" class="dhq-traffic-btn">WORK SESSIONS</button>
           <button onclick="switchKinSection('performance')" id="kinBtn-performance" class="dhq-traffic-btn">PERFORMANCE</button>
+          <button onclick="switchKinSection('calendar')" id="kinBtn-calendar" class="dhq-traffic-btn">📅 CALENDAR</button>
         </div>
 
         <!-- WELFARE section -->
@@ -171,6 +172,11 @@
         <!-- PERFORMANCE section -->
         <div id="kinSection-performance" style="display:none;">
           <div id="perfContent" class="dhq-loading">Loading performance data...</div>
+        </div>
+
+        <!-- SHIFT CALENDAR section (reactive state-timeline, PR #1662 backend) -->
+        <div id="kinSection-calendar" style="display:none;">
+          <div id="kinCalendarContent" class="dhq-loading">Loading shift calendar...</div>
         </div>
 
           </div>

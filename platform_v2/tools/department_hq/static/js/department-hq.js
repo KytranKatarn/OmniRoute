@@ -636,7 +636,7 @@ var _kinActiveSection = 'welfare';
 
 function switchKinSection(section) {
     _kinActiveSection = section;
-    ['welfare', 'workload', 'work', 'performance'].forEach(function(s) {
+    ['welfare', 'workload', 'work', 'performance', 'calendar'].forEach(function(s) {
         var el = document.getElementById('kinSection-' + s);
         var btn = document.getElementById('kinBtn-' + s);
         if (el) el.style.display = s === section ? '' : 'none';
@@ -645,6 +645,7 @@ function switchKinSection(section) {
     if (section === 'work') loadWorkSessions();
     if (section === 'performance') loadPerformance();
     if (section === 'workload') loadKinWorkload();
+    if (section === 'calendar') loadKinCalendar();
 }
 
 var _kinRefreshInterval = null;
@@ -657,7 +658,240 @@ async function loadKinTab() {
     _kinRefreshInterval = setInterval(function() {
         if (_kinActiveSection === 'welfare') loadKinWelfare();
         if (_kinActiveSection === 'workload') loadKinWorkload();
+        if (_kinActiveSection === 'calendar') loadKinCalendar();
     }, 60000);
+}
+
+// ── K.I.N. Shift Calendar (reactive state-timeline, PR #1662 backend) ─────────
+// GET /api/kin/shift-calendar returns per-agent current_state + timestamped
+// transitions + rest cycles + the advisory hardware-rest window — i.e. EVENTS,
+// not pre-bucketed cells. Each agent's day-timeline is reconstructed here, then
+// rendered as a continuous 24h track positioned by ET minute. Owner decision
+// 2026-06-13: reactive timeline only; hardware-rest window is advisory overlay.
+var _kinCalDate = '';  // '' = today; 'YYYY-MM-DD' for a past day
+var KIN_STATE_COLORS = {
+    active: '#00e5ff', deployed: '#0ea5e9', winding_down: '#fbbf24',
+    cooldown: '#6b7280', off_duty: 'rgba(255,255,255,0.14)',
+    barracked: 'rgba(255,255,255,0.14)'
+};
+var KIN_DIM = 'rgba(255,255,255,0.14)';
+
+function _kinEtHM(ms) {
+    return new Date(ms).toLocaleTimeString('en-CA', {
+        timeZone: 'America/Toronto', hour: '2-digit', minute: '2-digit', hour12: false
+    });
+}
+
+// Reconstruct an agent's base shift-state segments across the day from the
+// transition log. No transitions today → state held all day (current_state).
+function _kinBaseSegments(a, dayStart, renderEnd) {
+    var tr = (a.transitions || []).map(function(t) {
+        return { atMs: Date.parse(t.at), from: t.from, to: t.to, reason: t.reason };
+    }).filter(function(t) { return !isNaN(t.atMs); })
+      .sort(function(x, y) { return x.atMs - y.atMs; });
+    if (!tr.length) {
+        return [{ startMs: dayStart, endMs: renderEnd, state: a.current_state, reason: 'no change logged today' }];
+    }
+    var segs = [{ startMs: dayStart, endMs: Math.min(tr[0].atMs, renderEnd),
+                  state: tr[0].from || a.current_state, reason: 'carry-over from prior day' }];
+    for (var i = 0; i < tr.length; i++) {
+        var segEnd = (i + 1 < tr.length) ? tr[i + 1].atMs : renderEnd;
+        segs.push({ startMs: tr[i].atMs, endMs: Math.min(segEnd, renderEnd),
+                    state: tr[i].to, reason: tr[i].reason });
+    }
+    return segs.filter(function(s) { return s.endMs > s.startMs; });
+}
+
+async function loadKinCalendar(dateOverride) {
+    if (typeof dateOverride === 'string') _kinCalDate = dateOverride;
+    var host = document.getElementById('kinCalendarContent');
+    if (!host) return;
+    var url = '/tools/department-hq/api/kin/shift-calendar' +
+              (_kinCalDate ? ('?date=' + encodeURIComponent(_kinCalDate)) : '');
+    try {
+        var r = await fetch(url);
+        if (!r.ok) {
+            host.className = 'dhq-loading';
+            host.textContent = 'Calendar unavailable (HTTP ' + r.status + ')';
+            return;
+        }
+        _renderKinCalendar(host, await r.json());
+    } catch (e) {
+        host.className = 'dhq-loading';
+        host.textContent = 'Failed to load shift calendar: ' + e;
+    }
+}
+
+function _renderKinCalendar(host, data) {
+    host.className = '';
+    host.textContent = '';
+    var agents = (data && data.agents) || [];
+    var dayStart = Date.parse(data.day_start);
+    var dayEnd = Date.parse(data.day_end);
+    var dayMs = (dayEnd - dayStart) || 86400000;
+    var isToday = !!data.is_today;
+    var nowMs = data.now ? Date.parse(data.now) : dayEnd;
+    var renderEnd = isToday ? nowMs : dayEnd;
+    var hw = data.hardware_rest || null;
+    function pct(ms) { return Math.max(0, Math.min(100, (ms - dayStart) / dayMs * 100)); }
+
+    // hardware-rest slabs (window wraps midnight → up to two within a day)
+    var hwSlabs = [];
+    if (hw && hw.enabled) {
+        var s = hw.start_hour, e = hw.end_hour;
+        if (s < e) hwSlabs.push([s, e]); else { hwSlabs.push([0, e]); hwSlabs.push([s, 24]); }
+    }
+    function addGridlines(track) {
+        for (var h = 0; h <= 24; h++) {
+            var gl = document.createElement('div');
+            gl.className = 'kin-cal-gridline';
+            gl.style.left = (h / 24 * 100) + '%';
+            track.appendChild(gl);
+        }
+    }
+    function addHwBands(track) {
+        hwSlabs.forEach(function(sl) {
+            var band = document.createElement('div');
+            band.className = 'kin-cal-hwband';
+            band.style.left = (sl[0] / 24 * 100) + '%';
+            band.style.width = ((sl[1] - sl[0]) / 24 * 100) + '%';
+            track.appendChild(band);
+        });
+    }
+
+    // controls: date picker + Today + legend
+    var controls = document.createElement('div');
+    controls.className = 'kin-cal-controls';
+    var dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.className = 'kin-cal-date';
+    dateInput.value = data.date || '';
+    dateInput.onchange = function() { loadKinCalendar(this.value); };
+    var todayBtn = document.createElement('button');
+    todayBtn.className = 'dhq-traffic-btn';
+    todayBtn.textContent = 'TODAY';
+    todayBtn.onclick = function() { loadKinCalendar(''); };
+    controls.appendChild(dateInput);
+    controls.appendChild(todayBtn);
+    var legend = document.createElement('div');
+    legend.className = 'kin-cal-legend';
+    [['Active', KIN_STATE_COLORS.active], ['Deployed', KIN_STATE_COLORS.deployed],
+     ['Winding down', KIN_STATE_COLORS.winding_down], ['Resting', '#f59e0b'],
+     ['Cooldown', KIN_STATE_COLORS.cooldown], ['Off/Barracked', KIN_DIM],
+     ['HW rest', 'rgba(239,68,68,0.45)']].forEach(function(it) {
+        var item = document.createElement('span');
+        item.className = 'kin-cal-legend-item';
+        var sw = document.createElement('i');
+        sw.className = 'kin-cal-swatch';
+        sw.style.background = it[1];
+        item.appendChild(sw);
+        item.appendChild(document.createTextNode(it[0]));
+        legend.appendChild(item);
+    });
+    controls.appendChild(legend);
+    host.appendChild(controls);
+
+    if (!agents.length) {
+        var empty = document.createElement('div');
+        empty.className = 'dhq-loading';
+        empty.textContent = 'No agents for this day.';
+        host.appendChild(empty);
+        return;
+    }
+
+    var grid = document.createElement('div');
+    grid.className = 'kin-cal-grid';
+
+    // hour-axis header
+    var headRow = document.createElement('div');
+    headRow.className = 'kin-cal-row kin-cal-head';
+    var headLabel = document.createElement('div');
+    headLabel.className = 'kin-cal-label';
+    headLabel.textContent = (data.date || '') + (isToday ? ' · today' : '');
+    var headTrack = document.createElement('div');
+    headTrack.className = 'kin-cal-track kin-cal-axis';
+    addHwBands(headTrack);
+    for (var hh = 0; hh <= 24; hh += 3) {
+        var lbl = document.createElement('span');
+        lbl.className = 'kin-cal-hourlabel';
+        lbl.style.left = (hh / 24 * 100) + '%';
+        lbl.textContent = (hh === 24 ? '24' : String(hh).padStart(2, '0'));
+        headTrack.appendChild(lbl);
+    }
+    headRow.appendChild(headLabel);
+    headRow.appendChild(headTrack);
+    grid.appendChild(headRow);
+
+    // agent rows, grouped by department
+    var lastDept = null;
+    agents.forEach(function(a) {
+        if (a.department !== lastDept) {
+            lastDept = a.department;
+            var dh = document.createElement('div');
+            dh.className = 'kin-cal-dept';
+            dh.textContent = a.department || 'Unassigned';
+            grid.appendChild(dh);
+        }
+        var row = document.createElement('div');
+        row.className = 'kin-cal-row';
+
+        var label = document.createElement('div');
+        label.className = 'kin-cal-label';
+        var dot = document.createElement('i');
+        dot.className = 'kin-cal-swatch';
+        dot.style.background = KIN_STATE_COLORS[a.current_state] || KIN_DIM;
+        label.appendChild(dot);
+        var nm = document.createElement('span');
+        nm.className = 'kin-cal-name';
+        nm.textContent = a.name;
+        label.appendChild(nm);
+        if (a.hours_today != null) {
+            var hrs = document.createElement('span');
+            hrs.className = 'kin-cal-hours';
+            hrs.textContent = a.hours_today + 'h';
+            label.appendChild(hrs);
+        }
+        label.title = a.name + ' — now: ' + (a.current_state || 'unknown') +
+            (a.hours_today != null ? ' · ' + a.hours_today + 'h today' : '');
+
+        var track = document.createElement('div');
+        track.className = 'kin-cal-track';
+        addGridlines(track);
+        _kinBaseSegments(a, dayStart, renderEnd).forEach(function(sg) {
+            var d = document.createElement('div');
+            d.className = 'kin-cal-seg';
+            d.style.left = pct(sg.startMs) + '%';
+            d.style.width = Math.max(0, pct(sg.endMs) - pct(sg.startMs)) + '%';
+            d.style.background = KIN_STATE_COLORS[sg.state] || KIN_DIM;
+            d.title = (sg.state || 'unknown') + ' · ' + _kinEtHM(sg.startMs) + '–' + _kinEtHM(sg.endMs) +
+                (sg.reason ? ' · ' + sg.reason : '');
+            track.appendChild(d);
+        });
+        (a.rests || []).forEach(function(rst) {
+            var rs = Math.max(Date.parse(rst.start), dayStart);
+            var re = Math.min(rst.end ? Date.parse(rst.end) : renderEnd, renderEnd);
+            if (isNaN(rs) || re <= rs) return;
+            var d = document.createElement('div');
+            d.className = 'kin-cal-seg kin-cal-rest';
+            d.style.left = pct(rs) + '%';
+            d.style.width = Math.max(0, pct(re) - pct(rs)) + '%';
+            d.style.background = (rst.type === 'cooldown') ? KIN_STATE_COLORS.cooldown : '#f59e0b';
+            d.title = 'resting' + (rst.type ? ' (' + rst.type + ')' : '') + ' · ' + _kinEtHM(rs) + '–' + _kinEtHM(re);
+            track.appendChild(d);
+        });
+        addHwBands(track);  // advisory red tint on top of states during the rest window
+        if (isToday) {
+            var nowLine = document.createElement('div');
+            nowLine.className = 'kin-cal-now';
+            nowLine.style.left = pct(nowMs) + '%';
+            nowLine.title = 'now · ' + _kinEtHM(nowMs);
+            track.appendChild(nowLine);
+        }
+        row.appendChild(label);
+        row.appendChild(track);
+        grid.appendChild(row);
+    });
+    host.appendChild(grid);
 }
 
 // Approve/Deny an 8h-rest welfare approval directly from the K.I.N. welfare card.

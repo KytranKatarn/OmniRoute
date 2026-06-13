@@ -12,7 +12,14 @@ fleet-dispatched enhancement.
 import json
 import logging
 
-from services.welfare_governance import governance_limits, recommend, score_welfare
+from services.welfare_governance import (
+    DEFAULT_SCORE_EWMA_ALPHA,
+    governance_limits,
+    grade_for,
+    recommend,
+    score_welfare,
+    smooth_score,
+)
 from services.welfare_load import merge_break_config
 
 logger = logging.getLogger(__name__)
@@ -127,6 +134,16 @@ def gather_sole_agent_capabilities(cur):
     ]
 
 
+def _latest_ewma_score(cur):
+    """Most recent persisted EWMA welfare score, or None (never persisted / column new)."""
+    cur.execute(
+        "SELECT ewma_score FROM agent_welfare_scores "
+        "WHERE ewma_score IS NOT NULL ORDER BY computed_at DESC LIMIT 1"
+    )
+    row = cur.fetchone()
+    return float(row["ewma_score"]) if row and row.get("ewma_score") is not None else None
+
+
 def run_welfare_governance(cur, emit=True):
     """Compute the welfare score, persist it, emit per-violation C.R.E.E.D. events.
     Returns the full result dict (score/grade/violations/recommendations)."""
@@ -137,13 +154,19 @@ def run_welfare_governance(cur, emit=True):
     result["recommendations"] = recommend(
         snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur)
     )
+    # D3: EWMA-smoothed headline (steady) — blend this raw score with the prior EWMA
+    # so a single bad daily snapshot can't tank the grade. First run seeds to raw.
+    prev_ewma = _latest_ewma_score(cur)
+    ewma = smooth_score(result["score"], prev_ewma, DEFAULT_SCORE_EWMA_ALPHA)
+    result["ewma_score"] = ewma
+    result["ewma_grade"] = grade_for(ewma, gov_cfg)
 
     cur.execute(
         """
         INSERT INTO agent_welfare_scores
             (score, grade, healthy_pct, break_honored_pct, active_agents,
-             needed_break, violations, recommendations)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+             needed_break, violations, recommendations, ewma_score, ewma_grade)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
@@ -155,6 +178,8 @@ def run_welfare_governance(cur, emit=True):
             result["needed_break"],
             json.dumps(result["violations"]),
             json.dumps(result["recommendations"]),
+            result["ewma_score"],
+            result["ewma_grade"],
         ),
     )
     row = cur.fetchone()
@@ -214,6 +239,11 @@ def compute_welfare_snapshot(cur):
     result["recommendations"] = recommend(
         snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur)
     )
+    # D3: smoothed headline for live reads — blend the live raw with the last
+    # PERSISTED EWMA (no write; the daily run is what advances the EWMA).
+    ewma = smooth_score(result["score"], _latest_ewma_score(cur), DEFAULT_SCORE_EWMA_ALPHA)
+    result["ewma_score"] = ewma
+    result["ewma_grade"] = grade_for(ewma, gov_cfg)
     return result
 
 
@@ -222,7 +252,8 @@ def get_latest_welfare_score(cur):
     cur.execute(
         """
         SELECT id, computed_at, score, grade, healthy_pct, break_honored_pct,
-               active_agents, needed_break, violations, recommendations
+               active_agents, needed_break, violations, recommendations,
+               ewma_score, ewma_grade
         FROM agent_welfare_scores
         ORDER BY computed_at DESC
         LIMIT 1

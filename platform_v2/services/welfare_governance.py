@@ -70,7 +70,9 @@ def _num(value, default=0.0):
 
 
 def grade_for(score, cfg=None):
-    bands = (cfg or WELFARE_GOVERNANCE_DEFAULTS)["grade_bands"]
+    # Fall back to the default bands when cfg is a PARTIAL config (e.g. governance_limits
+    # only sets token_pct) — a non-empty cfg without grade_bands must not KeyError.
+    bands = (cfg or {}).get("grade_bands") or WELFARE_GOVERNANCE_DEFAULTS["grade_bands"]
     for cutoff, label in bands:
         if score >= cutoff:
             return label
@@ -172,6 +174,23 @@ def score_welfare(snapshots, break_cfg=None, cfg=None):
         "honored": honored,
         "violations": violations,
     }
+
+
+# D3 (2026-06-13): the raw score above is an instantaneous snapshot — a single bad
+# moment (one agent transiently over a limit when the daily job samples) tanks the
+# whole grade. smooth_score is an exponentially-weighted moving average so the
+# HEADLINE grade is steady. alpha in (0,1]: higher = more responsive to the latest
+# reading, lower = steadier. Pure (no DB); the service supplies prev_ewma + alpha.
+DEFAULT_SCORE_EWMA_ALPHA = 0.3
+
+
+def smooth_score(raw_score, prev_ewma, alpha=DEFAULT_SCORE_EWMA_ALPHA):
+    """EWMA-smoothed welfare score. prev_ewma None (first ever) -> raw verbatim."""
+    raw = _num(raw_score)
+    if prev_ewma is None:
+        return round(raw, 2)
+    a = min(max(_num(alpha, DEFAULT_SCORE_EWMA_ALPHA), 0.01), 1.0)
+    return round(a * raw + (1.0 - a) * _num(prev_ewma), 2)
 
 
 def recommend(snapshots, break_cfg=None, cfg=None, sole_agent_capabilities=None):

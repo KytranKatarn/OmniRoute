@@ -27,9 +27,18 @@ from . import brainstorm_bp
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_SESSION_UPDATE_FIELDS = frozenset({"title", "goal", "tags", "status"})
-ALLOWED_IDEA_UPDATE_FIELDS = frozenset({"content", "cluster", "vote_delta"})
-ALLOWED_IDEA_UPDATE_COLUMNS = frozenset({"content", "cluster"})
+SESSION_UPDATE_COLUMNS = {
+    "title": "title",
+    "goal": "goal",
+    "tags": "tags",
+    "status": "status",
+}
+IDEA_UPDATE_COLUMNS = {
+    "content": "content",
+    "cluster": "cluster",
+}
+ALLOWED_SESSION_UPDATE_FIELDS = frozenset(SESSION_UPDATE_COLUMNS)
+ALLOWED_IDEA_UPDATE_FIELDS = frozenset((*IDEA_UPDATE_COLUMNS, "vote_delta"))
 
 
 # ── Auth gate ─────────────────────────────────────────────────────────────────
@@ -219,10 +228,7 @@ def update_session(session_id: int):
         fields["status"] = body["status"]
     if not fields:
         return jsonify({"success": False, "error": "Nothing to update"}), 400
-    unknown_columns = sorted(set(fields) - ALLOWED_SESSION_UPDATE_FIELDS)
-    if unknown_columns:
-        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_columns)}"}), 400
-    set_clause = ", ".join(f"{k} = %s" for k in fields)
+    set_clause = ", ".join(f"{SESSION_UPDATE_COLUMNS[k]} = %s" for k in fields)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -357,10 +363,7 @@ def update_idea(idea_id: int):
             return jsonify({"success": False, "error": str(exc)}), 500
     if not fields:
         return jsonify({"success": False, "error": "Nothing to update"}), 400
-    unknown_columns = sorted(set(fields) - ALLOWED_IDEA_UPDATE_COLUMNS)
-    if unknown_columns:
-        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_columns)}"}), 400
-    set_clause = ", ".join(f"{k} = %s" for k in fields)
+    set_clause = ", ".join(f"{IDEA_UPDATE_COLUMNS[k]} = %s" for k in fields)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(

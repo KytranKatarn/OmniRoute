@@ -248,6 +248,10 @@ def test_update_session_success(brainstorm_client):
         ({"title": " "}, "title cannot be empty"),
         ({"status": "deleted"}, "status must be active or archived"),
         ({"owner_id": 2}, "Unknown field(s): owner_id"),
+        (
+            {"status = 'archived' --": "ignored"},
+            "Unknown field(s): status = 'archived' --",
+        ),
     ],
 )
 def test_update_session_validation_edges(brainstorm_client, payload, error):
@@ -362,6 +366,10 @@ def test_update_idea_vote_delta(brainstorm_client, delta, expected_votes):
         ({"content": " "}, "content cannot be empty"),
         ({"vote_delta": 0}, "vote_delta must be +1 or -1"),
         ({"votes": 99}, "Unknown field(s): votes"),
+        (
+            {"cluster = 'x', votes = 999 --": "ignored"},
+            "Unknown field(s): cluster = 'x', votes = 999 --",
+        ),
     ],
 )
 def test_update_idea_validation_edges(brainstorm_client, payload, error):

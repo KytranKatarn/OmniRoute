@@ -83,7 +83,9 @@ def classify_agent(snap, break_cfg=None):
     """Which welfare dimensions is this agent over-limit on, and is it healthy/honoured?
 
     healthy  = not over any dimension.
-    honoured = healthy, OR rested at least once today (a break was given).
+    honoured = no UNMANAGED overage: not over any REST dimension (hours/actions/stress),
+               OR rested at least once today. Token overage is honoured by the dispatch
+               THROTTLE (automatic), so it is never an unhonoured violation (#4123).
     """
     bc = {**_BREAK_FALLBACK, **(break_cfg or {})}
     over = []
@@ -97,11 +99,18 @@ def classify_agent(snap, break_cfg=None):
         over.append("stress")
     needs_break = bool(over)
     rested = _num(snap.get("rested_today")) >= 1
+    # #4123: token overage is managed by the dispatch THROTTLE (automatic
+    # deprioritisation — ADR-004/005, "throttle, don't rest"), NOT by a break. So a
+    # token-over agent is "honoured" by being throttled and is NOT a welfare violation.
+    # Only a REST-requiring overage (hours/actions/stress) needs an actual break to be
+    # honoured. (Over budget still counts against `healthy`, so the grade carries a
+    # small honest ding — not a D — and the over-budget state stays visible in `over`.)
+    rest_over = [d for d in over if d != "tokens"]
     return {
         "over": over,
         "needs_break": needs_break,
         "healthy": not needs_break,
-        "honored": (not needs_break) or rested,
+        "honored": (not rest_over) or rested,
     }
 
 

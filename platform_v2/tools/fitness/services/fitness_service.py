@@ -5,6 +5,7 @@ Fitness Service — DB persistence for workout logs, goals, and stats.
 from database import get_db_cursor
 from datetime import datetime, timedelta
 import logging
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,14 @@ def calculate_macros(
     }
 
 
-def log_workout(user_id, workout_type, exercises=None, duration_min=0, calories=0, notes=""):
+def log_workout(
+    user_id: int,
+    workout_type: str,
+    exercises: Optional[List[Dict[str, Any]]] = None,
+    duration_min: int = 0,
+    calories: int = 0,
+    notes: str = "",
+) -> Dict[str, Any]:
     """Insert a workout log entry."""
     with get_db_cursor(commit=True) as (conn, cur):
         from psycopg2.extras import Json
@@ -113,7 +121,7 @@ def log_workout(user_id, workout_type, exercises=None, duration_min=0, calories=
         return {"id": row[0], "logged_at": row[1].isoformat()}
 
 
-def get_workout_history(user_id, limit=20):
+def get_workout_history(user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
     """Return recent workout logs for user."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
@@ -173,7 +181,13 @@ def delete_workout(user_id, workout_id):
         return cur.rowcount > 0
 
 
-def set_goal(user_id, goal_type, target, unit="", deadline=None):
+def set_goal(
+    user_id: int,
+    goal_type: str,
+    target: Union[int, float],
+    unit: str = "",
+    deadline: Optional[Any] = None,
+) -> Dict[str, Any]:
     """Insert a new fitness goal."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -188,7 +202,7 @@ def set_goal(user_id, goal_type, target, unit="", deadline=None):
         return {"id": row[0], "created_at": row[1].isoformat()}
 
 
-def get_goals(user_id):
+def get_goals(user_id: int) -> List[Dict[str, Any]]:
     """Return all goals for user."""
     with get_db_cursor() as (conn, cur):
         cur.execute(
@@ -238,7 +252,7 @@ def delete_goal(user_id, goal_id):
         return cur.rowcount > 0
 
 
-def update_goal_progress(goal_id, current):
+def update_goal_progress(goal_id: int, current: Union[int, float]) -> Dict[str, bool]:
     """Update current progress on a goal."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -248,7 +262,7 @@ def update_goal_progress(goal_id, current):
         return {"updated": cur.rowcount > 0}
 
 
-def get_fitness_stats(user_id):
+def get_fitness_stats(user_id: int) -> Dict[str, int]:
     """Aggregate stats: workouts this week, total calories, consecutive-day streak."""
     with get_db_cursor() as (conn, cur):
         # Workouts this week
@@ -291,7 +305,12 @@ def get_fitness_stats(user_id):
         }
 
 
-def schedule_workout(user_id, title, datetime_str, duration=60):
+def schedule_workout(
+    user_id: int,
+    title: str,
+    datetime_str: str,
+    duration: int = 60,
+) -> Dict[str, Any]:
     """Try to create a Google Calendar event; fall back to local success."""
     try:
         from tools.google_work_suite.services.google_api_service import list_accounts
@@ -313,7 +332,7 @@ def schedule_workout(user_id, title, datetime_str, duration=60):
     return {"success": True, "note": "Saved locally (no Google Calendar connected)"}
 
 
-def get_ai_context(user_id):
+def get_ai_context(user_id: int) -> str:
     """Return last 5 workouts + current goals as a text string for Bridge prompt injection."""
     try:
         workouts = get_workout_history(user_id, limit=5)

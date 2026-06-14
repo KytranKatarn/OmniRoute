@@ -1066,16 +1066,11 @@ class AgentLoop:
             coalesce=True,
         )
 
-        # Email IMAP sync — polls provisioned mailboxes every 5 min.
-        self.scheduler.add_job(
-            with_app_context(self._run_email_imap_sync),
-            trigger=IntervalTrigger(minutes=5),
-            id="email_imap_sync",
-            name="Agent Loop: Email HQ IMAP Sync",
-            replace_existing=True,
-            max_instances=1,
-            coalesce=True,
-        )
+        # Email IMAP sync is owned solely by JobService (jobsvc_email_imap_sync,
+        # registered via register_email_sync_jobs in app.py). It is the canonical
+        # autonomy_loop_log writer and carries the #1687 outage-detection. The
+        # duplicate agent_loop registration was removed here to stop the 5-min
+        # poll running twice (#4164).
 
         # Daily repo health check — README/description/topics/license for each tracked repo.
         self.scheduler.add_job(
@@ -6191,21 +6186,6 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("pr_diff_analysis failed: %s", e)
-
-    def _run_email_imap_sync(self):
-        """Poll IMAP for all provisioned mailboxes and sync full message bodies."""
-        try:
-            from tools.email_manager.sync_jobs import run_email_imap_sync
-
-            result = run_email_imap_sync()
-            logger.info(
-                "email_imap_sync: %d mailboxes synced — %d new messages, %d errors",
-                result["mailboxes"],
-                result["new_messages"],
-                result["errors"],
-            )
-        except Exception as e:
-            logger.error("email_imap_sync failed: %s", e)
 
     def _run_repo_health_check(self):
         """Daily per-repo GitHub presence health check (Project #247, Task #1803)."""

@@ -40,6 +40,32 @@ _CPU_EXECUTOR = ThreadPoolExecutor(max_workers=6, thread_name_prefix="mdw_cpu")
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
+def get_pending_queue_result(queue_id: int) -> Optional[dict]:
+    """Read a dispatch_pending_queue row's terminal-relevant fields.
+
+    Returns ``{'status', 'result_response', 'error'}`` for the row, or ``None`` if
+    the row is absent. Lets queue-tolerant scheduled jobs (e.g.
+    warden_compliance_check) await a cold-model dispatch through the service layer
+    that owns dispatch_pending_queue, instead of issuing raw SQL from the job.
+    Read-only; never commits.
+    """
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
+            (queue_id,),
+        )
+        row = cur.fetchone()
+    if row is None:
+        return None
+    if isinstance(row, dict):  # RealDictCursor
+        return {
+            "status": row.get("status"),
+            "result_response": row.get("result_response"),
+            "error": row.get("error"),
+        }
+    return {"status": row[0], "result_response": row[1], "error": row[2]}
+
+
 def _get_warm_models_hub() -> set[str]:
     """Return set of model names currently loaded on hub Ollama."""
     try:

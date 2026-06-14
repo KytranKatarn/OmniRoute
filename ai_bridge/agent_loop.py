@@ -8323,28 +8323,31 @@ class AgentLoop:
         treats None as in-progress, NOT a failure). Read-only; never raises.
 
         Used by queue-tolerant single-dispatch jobs (compliance_check) so a cold 7B
-        model that defers to the queue is awaited rather than mis-logged as failed."""
+        model that defers to the queue is awaited rather than mis-logged as failed.
+        Reads through the service layer that owns dispatch_pending_queue (no raw SQL
+        in the job)."""
+        try:
+            from services.model_dispatch_service import get_pending_queue_result
+        except Exception as e:
+            logger.warning("warden_compliance_check poll: queue reader unavailable: %s", e)
+            return None
         # Terminal states mirror services.dispatch_cycle.QUEUE_TERMINAL_STATES.
         terminal = ("done", "failed", "expired")
         deadline = time.time() + timeout_s
         while time.time() < deadline:
             row = None
             try:
-                conn = get_db()
-                cur = conn.cursor()
-                cur.execute(
-                    "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
-                    (queue_id,),
-                )
-                row = cur.fetchone()
-                cur.close()
-                conn.close()
+                row = get_pending_queue_result(queue_id)
             except Exception as e:
                 logger.warning("warden_compliance_check poll: queue read failed for #%s: %s", queue_id, e)
             if row is not None:
-                status = (row[0] or "").lower()
+                status = (row.get("status") or "").lower()
                 if status in terminal:
-                    return {"status": status, "result_response": row[1], "error": row[2]}
+                    return {
+                        "status": status,
+                        "result_response": row.get("result_response"),
+                        "error": row.get("error"),
+                    }
             time.sleep(interval_s)
         return None
 

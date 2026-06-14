@@ -220,7 +220,7 @@ def register_ha_routes(bp):
                     module_id="home_assistant",
                     system_prompt=voice_system_prompt,
                     user_id=KYTRAN_USER_ID,
-                    prefer_agent="ARCHIE",
+                    prefer_agent="A.R.C.H.I.E.",
                     project_id=user_context.get("project_id") if isinstance(user_context, dict) else None,
                 )
             except Exception as orch_err:

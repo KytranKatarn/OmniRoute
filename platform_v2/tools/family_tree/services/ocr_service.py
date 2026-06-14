@@ -71,7 +71,7 @@ def extract_structured_data(ocr_text: str, document_type: str = "unknown") -> di
         result = dispatch(
             prompt=prompt,
             capability="text_analysis",
-            prefer_agent="quill",
+            prefer_agent="Q.U.I.L.L.",
             system_prompt=system_prompt,
         )
 

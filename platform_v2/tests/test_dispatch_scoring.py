@@ -577,6 +577,12 @@ class TestCrossDepartmentSkillFallback:
 
 _FULL_ROSTER = {
     # (name, department, skills, is_department_ai, agent_id)
+    "A.R.C.H.I.E.": (
+        "Executive Office",
+        {"governance": 5, "dispatch": 5, "social_post_approve": 5},
+        True,
+        2,
+    ),
     "F.O.R.G.E.": (
         "Engineering & Technology",
         {"code": 5, "code_review": 5, "debug": 5, "code_generation": 4},

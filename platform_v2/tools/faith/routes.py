@@ -7,8 +7,9 @@ import json
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-from flask import jsonify, render_template, request
+from flask import Response, jsonify, render_template, request
 from flask_login import current_user, login_required
 from psycopg2.extras import Json
 
@@ -22,6 +23,9 @@ from database import get_db_cursor
 from services.time_utils import now_utc
 
 logger = logging.getLogger(__name__)
+
+JsonDict = dict[str, Any]
+JsonResponse = Response | tuple[Response, int]
 
 FAITH_AGENT_ID = 352
 EMMANUEL_EMAIL = "emmanuel@kytranempowerment.com"
@@ -243,7 +247,7 @@ experience, not theology. Never generic.]
 """
 
 
-def _faith_system_prompt_for_profile(profile: dict | None = None) -> str:
+def _faith_system_prompt_for_profile(profile: JsonDict | None = None) -> str:
     profile = profile or {}
     tradition = profile.get("tradition_preference") or "christian"
     prayer_style = profile.get("prayer_style") or "guided"
@@ -257,7 +261,7 @@ def _faith_system_prompt_for_profile(profile: dict | None = None) -> str:
     )
 
 
-def _row_value(row, key: str, index: int = 0, default=None):
+def _row_value(row: Any, key: str, index: int = 0, default: Any = None) -> Any:
     if row is None:
         return default
     if isinstance(row, dict):
@@ -271,7 +275,7 @@ def _row_value(row, key: str, index: int = 0, default=None):
             return default
 
 
-def _default_profile() -> dict:
+def _default_profile() -> JsonDict:
     return {
         "tradition_preference": "christian",
         "prayer_style": "guided",
@@ -279,11 +283,11 @@ def _default_profile() -> dict:
     }
 
 
-def _validation_error(message: str):
+def _validation_error(message: str) -> tuple[Response, int]:
     return jsonify({"success": False, "error": message}), 400
 
 
-def _json_body() -> tuple[dict, str | None]:
+def _json_body() -> tuple[JsonDict, str | None]:
     data = request.get_json(force=True, silent=True)
     if data is None:
         return {}, None
@@ -293,7 +297,7 @@ def _json_body() -> tuple[dict, str | None]:
 
 
 def _string_field(
-    data: dict,
+    data: JsonDict,
     field: str,
     *,
     required: bool = False,
@@ -413,7 +417,7 @@ def _ensure_tables() -> None:
         )
 
 
-def _get_user_faith_profile(user_id: int) -> dict:
+def _get_user_faith_profile(user_id: int) -> JsonDict:
     try:
         _ensure_tables()
         with get_db_cursor(commit=True) as (_conn, cur):
@@ -447,7 +451,7 @@ def _get_user_faith_profile(user_id: int) -> dict:
     }
 
 
-def archie_bridge(prompt: str, system_prompt: str = FAITH_SYSTEM_PROMPT) -> dict:
+def archie_bridge(prompt: str, system_prompt: str = FAITH_SYSTEM_PROMPT) -> JsonDict:
     """Compatibility wrapper around DHQ dispatch for existing Faith tests/callers."""
     result = dispatch(
         capability="support",
@@ -465,10 +469,10 @@ def archie_bridge(prompt: str, system_prompt: str = FAITH_SYSTEM_PROMPT) -> dict
 
 
 @lru_cache(maxsize=1)
-def _load_web_bible() -> dict:
-    books: list[dict] = []
-    by_code: dict[str, dict] = {}
-    verses: list[dict] = []
+def _load_web_bible() -> JsonDict:
+    books: list[JsonDict] = []
+    by_code: dict[str, JsonDict] = {}
+    verses: list[JsonDict] = []
 
     with WEB_VPL_PATH.open("r", encoding="utf-8-sig") as f:
         for line in f:
@@ -519,11 +523,11 @@ def _load_web_bible() -> dict:
     return {"books": books, "verses": verses, "aliases": aliases}
 
 
-def _collection_meta(collection_id: str) -> dict:
+def _collection_meta(collection_id: str) -> JsonDict:
     return next((item for item in SCRIPTURE_COLLECTIONS if item["id"] == collection_id), {})
 
 
-def _scripture_record(collection_id: str, reference: str, text: str) -> dict:
+def _scripture_record(collection_id: str, reference: str, text: str) -> JsonDict:
     meta = _collection_meta(collection_id)
     normalized_text = " ".join(text.split())
     search_text = " ".join(
@@ -544,13 +548,13 @@ def _scripture_record(collection_id: str, reference: str, text: str) -> dict:
     }
 
 
-def _public_scripture_record(record: dict) -> dict:
+def _public_scripture_record(record: JsonDict) -> JsonDict:
     return {key: value for key, value in record.items() if not key.startswith("_")}
 
 
 @lru_cache(maxsize=1)
-def _load_jps_tanakh() -> list[dict]:
-    records: list[dict] = []
+def _load_jps_tanakh() -> list[JsonDict]:
+    records: list[JsonDict] = []
     with JPS_VPL_PATH.open("r", encoding="utf-8-sig") as f:
         for line in f:
             line = line.strip()
@@ -586,8 +590,8 @@ def _gutenberg_body(path: Path, start_marker: str) -> list[str]:
 
 
 @lru_cache(maxsize=1)
-def _load_quran_rodwell() -> list[dict]:
-    records: list[dict] = []
+def _load_quran_rodwell() -> list[JsonDict]:
+    records: list[JsonDict] = []
     current_sura = ""
     paragraph: list[str] = []
 
@@ -614,8 +618,8 @@ def _load_quran_rodwell() -> list[dict]:
 
 
 @lru_cache(maxsize=1)
-def _load_dhammapada_muller() -> list[dict]:
-    records: list[dict] = []
+def _load_dhammapada_muller() -> list[JsonDict]:
+    records: list[JsonDict] = []
     chapter = ""
     verse_no = ""
     verse_lines: list[str] = []
@@ -652,8 +656,8 @@ def _gutenberg_sectioned_paragraphs(
     path: Path,
     default_reference: str,
     section_patterns: list[tuple[str, str]],
-) -> list[dict]:
-    records: list[dict] = []
+) -> list[JsonDict]:
+    records: list[JsonDict] = []
     section = default_reference
     paragraph: list[str] = []
 
@@ -685,7 +689,7 @@ def _gutenberg_sectioned_paragraphs(
 
 
 @lru_cache(maxsize=1)
-def _load_bhagavad_gita_arnold() -> list[dict]:
+def _load_bhagavad_gita_arnold() -> list[JsonDict]:
     return _gutenberg_sectioned_paragraphs(
         "bhagavad_gita_arnold",
         BHAGAVAD_GITA_ARNOLD_PATH,
@@ -695,7 +699,7 @@ def _load_bhagavad_gita_arnold() -> list[dict]:
 
 
 @lru_cache(maxsize=1)
-def _load_tao_legge() -> list[dict]:
+def _load_tao_legge() -> list[JsonDict]:
     return _gutenberg_sectioned_paragraphs(
         "tao_legge",
         TAO_LEGGE_PATH,
@@ -705,7 +709,7 @@ def _load_tao_legge() -> list[dict]:
 
 
 @lru_cache(maxsize=1)
-def _load_analects_legge() -> list[dict]:
+def _load_analects_legge() -> list[JsonDict]:
     return _gutenberg_sectioned_paragraphs(
         "analects_legge",
         ANALECTS_LEGGE_PATH,
@@ -718,7 +722,7 @@ def _load_analects_legge() -> list[dict]:
 
 
 @lru_cache(maxsize=1)
-def _load_scripture_corpus() -> dict:
+def _load_scripture_corpus() -> JsonDict:
     web_records = [_scripture_record("web", verse["reference"], verse["text"]) for verse in _load_web_bible()["verses"]]
     passages = (
         web_records
@@ -737,7 +741,7 @@ def _load_scripture_corpus() -> dict:
 
 
 @lru_cache(maxsize=1)
-def _load_encyclopedia_entries() -> list[dict]:
+def _load_encyclopedia_entries() -> list[JsonDict]:
     try:
         return json.loads(ENCYCLOPEDIA_PATH.read_text(encoding="utf-8"))
     except Exception:
@@ -753,7 +757,7 @@ def _lookup_book_code(value: str) -> str | None:
     return bible["aliases"].get(key) or bible["aliases"].get(key.replace(" ", ""))
 
 
-def _serialize_book(book: dict) -> dict:
+def _serialize_book(book: JsonDict) -> JsonDict:
     return {
         "code": book["code"],
         "name": book["name"],
@@ -764,14 +768,14 @@ def _serialize_book(book: dict) -> dict:
 
 @faith_bp.route("/")
 @login_required
-def index():
+def index() -> str:
     return render_template("tools/faith.html")
 
 
 @faith_bp.route("/api/status")
 @faith_bp.route("/api/faith/status")
 @login_required
-def status():
+def status() -> Response:
     return jsonify(
         {
             "status": "online",
@@ -786,7 +790,7 @@ def status():
 @faith_bp.route("/api/profile", methods=["GET"])
 @faith_bp.route("/api/faith/profile", methods=["GET"])
 @login_required
-def get_profile():
+def get_profile() -> JsonResponse:
     try:
         _ensure_tables()
         with get_db_cursor(commit=True) as (_conn, cur):
@@ -832,8 +836,8 @@ def get_profile():
 @faith_bp.route("/api/profile", methods=["POST"])
 @faith_bp.route("/api/faith/profile", methods=["POST"])
 @login_required
-def save_profile():
-    data = request.get_json(force=True, silent=True) or {}
+def save_profile() -> JsonResponse:
+    data: JsonDict = request.get_json(force=True, silent=True) or {}
     tradition = (data.get("tradition_preference") or data.get("tradition") or "christian").strip().lower()
     prayer_style = (data.get("prayer_style") or "guided").strip().lower()
     translation = (data.get("scripture_translation") or "web").strip().lower()
@@ -902,7 +906,7 @@ def save_profile():
 
 @faith_bp.route("/api/faith/bible/meta")
 @login_required
-def bible_meta():
+def bible_meta() -> Response:
     bible = _load_web_bible()
     return jsonify(
         {
@@ -925,7 +929,7 @@ def bible_meta():
 
 @faith_bp.route("/api/faith/bible/passage")
 @login_required
-def bible_passage():
+def bible_passage() -> JsonResponse:
     code = _lookup_book_code(request.args.get("book", "GEN"))
     if not code:
         return jsonify({"success": False, "error": "unknown book"}), 404
@@ -952,7 +956,7 @@ def bible_passage():
 
 @faith_bp.route("/api/faith/bible/search")
 @login_required
-def bible_search():
+def bible_search() -> JsonResponse:
     query = (request.args.get("q") or "").strip()
     if not query:
         return jsonify({"success": False, "error": "query required"}), 400
@@ -974,7 +978,7 @@ def bible_search():
 
 @faith_bp.route("/api/faith/scriptures/meta")
 @login_required
-def scriptures_meta():
+def scriptures_meta() -> Response:
     corpus = _load_scripture_corpus()
     return jsonify(
         {
@@ -988,7 +992,7 @@ def scriptures_meta():
 
 @faith_bp.route("/api/faith/scriptures/search")
 @login_required
-def scriptures_search():
+def scriptures_search() -> JsonResponse:
     query = (request.args.get("q") or "").strip()
     collection = (request.args.get("collection") or "all").strip()
     if not query:
@@ -1020,7 +1024,7 @@ def scriptures_search():
 
 @faith_bp.route("/api/faith/encyclopedia/search")
 @login_required
-def encyclopedia_search():
+def encyclopedia_search() -> Response:
     query = (request.args.get("q") or "").strip().lower()
     entries = _load_encyclopedia_entries()
     if query:
@@ -1062,8 +1066,8 @@ def _save_message(user_id: int, role: str, message: str) -> None:
 
 @faith_bp.route("/api/faith/chat", methods=["POST"])
 @login_required
-def chat():
-    data = request.get_json(force=True, silent=True) or {}
+def chat() -> JsonResponse:
+    data: JsonDict = request.get_json(force=True, silent=True) or {}
     message = (data.get("message") or "").strip()
     if not message:
         return jsonify({"success": False, "error": "message required"}), 400
@@ -1116,8 +1120,8 @@ def _practice_dispatch(
     practice_type: str,
     prompt: str,
     notes: str = "",
-    profile: dict | None = None,
-) -> dict:
+    profile: JsonDict | None = None,
+) -> JsonDict:
     system_prompt = _faith_system_prompt_for_profile(profile or _get_user_faith_profile(user_id))
     if BRIDGE_AVAILABLE:
         try:
@@ -1150,7 +1154,7 @@ def _practice_dispatch(
 @faith_bp.route("/api/faith/reflection")
 @faith_bp.route("/api/faith/devotional")
 @login_required
-def devotional():
+def devotional() -> Response:
     today = now_utc().date().isoformat()
     profile = _get_user_faith_profile(current_user.id)
     tradition = TRADITION_LABELS.get(profile.get("tradition_preference"), "broad Christian")
@@ -1167,8 +1171,8 @@ def devotional():
 @faith_bp.route("/api/timer", methods=["POST"])
 @faith_bp.route("/api/faith/timer", methods=["POST"])
 @login_required
-def save_timer_session():
-    data = request.get_json(force=True, silent=True) or {}
+def save_timer_session() -> JsonResponse:
+    data: JsonDict = request.get_json(force=True, silent=True) or {}
     session_type = (data.get("session_type") or data.get("type") or "meditation").strip().lower()
     title = (data.get("title") or "").strip() or session_type.title()
     notes = (data.get("notes") or "").strip()
@@ -1226,7 +1230,7 @@ def save_timer_session():
 @faith_bp.route("/api/sessions", methods=["GET"])
 @faith_bp.route("/api/faith/sessions", methods=["GET"])
 @login_required
-def list_sessions():
+def list_sessions() -> JsonResponse:
     try:
         limit = min(max(int(request.args.get("limit", "20")), 1), 100)
     except ValueError:
@@ -1268,7 +1272,7 @@ def list_sessions():
 
 @faith_bp.route("/api/faith/prayer", methods=["POST"])
 @login_required
-def guided_prayer():
+def guided_prayer() -> JsonResponse:
     data, error = _json_body()
     if error:
         return _validation_error(error)
@@ -1306,8 +1310,8 @@ def guided_prayer():
 
 @faith_bp.route("/api/faith/scripture-search", methods=["POST"])
 @login_required
-def scripture_search():
-    data = request.get_json(force=True, silent=True) or {}
+def scripture_search() -> JsonResponse:
+    data: JsonDict = request.get_json(force=True, silent=True) or {}
     query = (data.get("query") or "").strip()
     if not query:
         return jsonify({"success": False, "error": "query required"}), 400
@@ -1324,7 +1328,7 @@ def scripture_search():
 
 @faith_bp.route("/api/faith/lectio", methods=["POST"])
 @login_required
-def lectio_divina():
+def lectio_divina() -> JsonResponse:
     data, error = _json_body()
     if error:
         return _validation_error(error)
@@ -1352,8 +1356,8 @@ def lectio_divina():
 
 @faith_bp.route("/api/faith/checkin", methods=["POST"])
 @login_required
-def checkin():
-    data = request.get_json(force=True, silent=True) or {}
+def checkin() -> JsonResponse:
+    data: JsonDict = request.get_json(force=True, silent=True) or {}
     try:
         score = int(data.get("score"))
     except (TypeError, ValueError):
@@ -1382,7 +1386,7 @@ def checkin():
 
 @faith_bp.route("/api/faith/checkin/history")
 @login_required
-def checkin_history():
+def checkin_history() -> JsonResponse:
     try:
         _ensure_tables()
         with get_db_cursor() as (_conn, cur):
@@ -1400,8 +1404,8 @@ def checkin_history():
 
 @faith_bp.route("/api/faith/journal", methods=["POST"])
 @login_required
-def journal_save():
-    data = request.get_json(force=True, silent=True) or {}
+def journal_save() -> JsonResponse:
+    data: JsonDict = request.get_json(force=True, silent=True) or {}
     content = (data.get("content") or "").strip()
     if not content:
         return jsonify({"success": False, "error": "content required"}), 400
@@ -1425,7 +1429,7 @@ def journal_save():
 
 @faith_bp.route("/api/faith/journal")
 @login_required
-def journal_list():
+def journal_list() -> JsonResponse:
     tag_filter = request.args.get("tag")
     try:
         _ensure_tables()
@@ -1454,7 +1458,7 @@ def journal_list():
 # ---------------------------------------------------------------------------
 
 
-def _send_chaplain_email(user_display_name: str, message: str, context_entries: list) -> bool:
+def _send_chaplain_email(user_display_name: str, message: str, context_entries: list[JsonDict]) -> bool:
     try:
         from services.email_service import send_email  # type: ignore
 
@@ -1477,7 +1481,7 @@ def _send_chaplain_email(user_display_name: str, message: str, context_entries: 
 
 @faith_bp.route("/api/faith/connect-chaplain", methods=["POST"])
 @login_required
-def connect_chaplain():
+def connect_chaplain() -> JsonResponse:
     data, error = _json_body()
     if error:
         return _validation_error(error)

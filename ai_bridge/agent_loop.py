@@ -836,7 +836,10 @@ class AgentLoop:
         )
         self.scheduler.add_job(
             with_app_context(self._run_warden_compliance_check),
-            trigger=CronTrigger(day_of_week="sun", hour=6, minute=0, timezone="America/Toronto"),
+            # 10:00 ET (not 06:00): 06:00 is exactly when WARDEN's stationed LAN GPU
+            # node (Starship-246) exits its 20:00–06:00 hardware-rest window with cold
+            # models, so the dispatch queued + zombied. 10:00 = node fully awake (#4151).
+            trigger=CronTrigger(day_of_week="sun", hour=10, minute=0, timezone="America/Toronto"),
             id="warden_compliance_check",
             name="W.A.R.D.E.N.: Weekly Admin Compliance Scan",
             max_instances=1,
@@ -8263,13 +8266,22 @@ class AgentLoop:
             logger.error("warden_backup_verify failed: %s", e)
 
     def _run_warden_compliance_check(self):
-        """Weekly compliance scan across all 4 admin modules."""
+        """Weekly compliance scan across all 4 admin modules.
+
+        Queue-tolerant (#4151): a cold-model dispatch returns queued=True — the task
+        is deferred to dispatch_pending_queue and the model_dispatch_worker finishes
+        it moments later — rather than a finished result. We poll that row to its
+        terminal state instead of treating 'queued' as an instant failure, and we
+        record the real reason on failure (previously swallowed → error_message NULL).
+        Decision logic is the pure services.dispatch_cycle.classify_dispatch_cycle."""
+        start = time.time()
         try:
             import sys
+
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from tools.department_hq.services.department_dispatcher import dispatch
+            from services.dispatch_cycle import classify_dispatch_cycle
 
-            start = time.time()
             result = dispatch(
                 capability="compliance_check",
                 prompt=(
@@ -8281,17 +8293,60 @@ class AgentLoop:
                     "Produce a concise weekly admin health report."
                 ),
             )
-            duration_ms = int((time.time() - start) * 1000)
-            success = result.success if result else False
+            queue_final = None
+            if result is not None and getattr(result, "queued", False) and getattr(result, "queue_id", None):
+                queue_final = self._poll_pending_queue(result.queue_id)
+            outcome = classify_dispatch_cycle(result, queue_final)
             self._log_cycle(
                 "warden_compliance_check",
-                1 if success else 0,
-                0 if success else 1,
-                duration_ms,
-                details={"response": result.response[:500] if result and result.response else "no response"},
+                outcome.items_processed,
+                outcome.items_failed,
+                int((time.time() - start) * 1000),
+                details={"response": outcome.response or "no response"},
+                error_message=outcome.error_message,
             )
         except Exception as e:
             logger.error("warden_compliance_check failed: %s", e)
+            self._log_cycle(
+                "warden_compliance_check",
+                0,
+                1,
+                int((time.time() - start) * 1000),
+                details={"response": "exception"},
+                error_message=f"exception: {e}",
+            )
+
+    def _poll_pending_queue(self, queue_id, timeout_s=600, interval_s=15):
+        """Poll a dispatch_pending_queue row until it reaches a terminal state
+        (done/failed/expired) or timeout. Returns {'status','result_response','error'}
+        for the terminal row, or None if still non-terminal at timeout (the caller
+        treats None as in-progress, NOT a failure). Read-only; never raises.
+
+        Used by queue-tolerant single-dispatch jobs (compliance_check) so a cold 7B
+        model that defers to the queue is awaited rather than mis-logged as failed."""
+        # Terminal states mirror services.dispatch_cycle.QUEUE_TERMINAL_STATES.
+        terminal = ("done", "failed", "expired")
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            row = None
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
+                    (queue_id,),
+                )
+                row = cur.fetchone()
+                cur.close()
+                conn.close()
+            except Exception as e:
+                logger.warning("warden_compliance_check poll: queue read failed for #%s: %s", queue_id, e)
+            if row is not None:
+                status = (row[0] or "").lower()
+                if status in terminal:
+                    return {"status": status, "result_response": row[1], "error": row[2]}
+            time.sleep(interval_s)
+        return None
 
     def _run_warden_wtf_rsync(self):
         """Every 15 min: if WTF git HEAD changed, rsync hub→VPS (code-only, no container restart).

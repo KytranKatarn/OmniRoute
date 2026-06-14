@@ -57,7 +57,9 @@ def patched(monkeypatch):
 
     monkeypatch.setattr(ds, "fetch_pending_delegations", _fetch)
     monkeypatch.setattr(ds, "mark_task_in_progress", lambda tid: rec["in_progress"].append(tid))
-    monkeypatch.setattr(ds, "mark_task_completed", lambda tid, summary, response=None: rec["completed"].append(tid))
+    monkeypatch.setattr(
+        ds, "mark_task_completed", lambda tid, summary, response=None, capability=None: rec["completed"].append(tid)
+    )
     monkeypatch.setattr(ds, "mark_task_failed", lambda tid, err: rec["failed"].append((tid, err)))
     monkeypatch.setattr(ds, "mark_task_queued", lambda tid, summary: rec["queued"].append(tid))
     monkeypatch.setattr(ds, "emit_delegation_event", lambda *a, **k: None)

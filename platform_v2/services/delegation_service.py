@@ -1098,11 +1098,55 @@ def mark_task_queued(task_id: int, summary: str) -> None:
         )
 
 
-def mark_task_completed(task_id: int, summary: str, response: str = None) -> None:
+# --- #4167: surface delegated output on the task + flag code-as-advisory ------
+# Delegation results are persisted to the work_notes TABLE (note_type=
+# 'delegation_output'), which is invisible on the unified_task itself —
+# unified_tasks.metadata stayed empty, so a completed delegation looked like
+# "nothing happened" (it caused a real misdiagnosis, KB #273387). And a
+# capability='code' delegation returns TEXT instructions, never a branch/PR,
+# so its result must never read as a shipped code change.
+CODE_MERGE_CAPABILITIES = {"code"}
+
+_CODE_ADVISORY = (
+    "ADVISORY ONLY — fleet code delegation produces analysis/instructions, NOT a "
+    "branch or PR. No code change was shipped; implement it via a Claude/human PR."
+)
+
+
+def build_delegation_metadata(
+    capability: Optional[str], response: Optional[str], outcome: str = "completed", via: str = None
+) -> Dict[str, Any]:
+    """Pure helper: build the ``delegation`` block merged into
+    ``unified_tasks.metadata`` on completion so a delegated task SURFACES its
+    result (preview + pointer to the full text in the work_notes table) instead
+    of burying it. Adds an advisory for code-merge capabilities (#4167)."""
+    resp = (response or "").strip()
+    block: Dict[str, Any] = {
+        "outcome": outcome,
+        "capability": capability or "unknown",
+        "result_chars": len(resp),
+        "result_note_type": "delegation_output",  # full text lives in the work_notes table
+        "result_preview": resp[:280],
+    }
+    if via:
+        block["via"] = via
+    if capability in CODE_MERGE_CAPABILITIES:
+        block["advisory"] = _CODE_ADVISORY
+    return block
+
+
+def mark_task_completed(task_id: int, summary: str, response: str = None, capability: str = None) -> None:
+    deleg_meta = build_delegation_metadata(capability, response, outcome="completed")
+    # Prepend the advisory so a code delegation is never mistaken for a shipped
+    # change, even when only the work_notes lifecycle line is read.
+    note = f"⚠️ {deleg_meta['advisory']}\n\n{summary}" if deleg_meta.get("advisory") else summary
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE unified_tasks SET status = 'completed', completed_at = now() WHERE id = %s",
-            (task_id,),
+            "UPDATE unified_tasks "
+            "SET status = 'completed', completed_at = now(), "
+            "    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('delegation', %s::jsonb) "
+            "WHERE id = %s",
+            (json.dumps(deleg_meta), task_id),
         )
         # Lifecycle note (the short "Dispatched to agent=X" summary).
         cur.execute(
@@ -1110,7 +1154,7 @@ def mark_task_completed(task_id: int, summary: str, response: str = None) -> Non
             INSERT INTO work_notes (task_id, note_type, content, metadata)
             VALUES (%s, 'delegation_result', %s, %s::jsonb)
             """,
-            (task_id, summary, json.dumps({"outcome": "completed"})),
+            (task_id, note, json.dumps({"outcome": "completed"})),
         )
         # #269999: persist the agent's ACTUAL output too, so delegated
         # analysis/research/audit work is captured — not just the dispatch stub.
@@ -1228,7 +1272,7 @@ def run_delegation_cycle(
         elif result.get("success"):
             summary = result.get("summary", "")
             resp = (result.get("result") or {}).get("response")
-            _safe(mark_task_completed, task_id, summary, response=resp)
+            _safe(mark_task_completed, task_id, summary, response=resp, capability=capability)
             _safe_emit(task_id, "complete", capability, summary, source, channel)
             stats["completed"] += 1
         else:

@@ -663,10 +663,24 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
 
             tid = cb_data.get("task_id")
             if tid:
+                # #4167: surface the delegated output onto the unified_task (not
+                # just the work_notes table) + flag code-as-advisory, mirroring
+                # the sync path (delegation_service.mark_task_completed). Local
+                # import avoids a module-load circular import.
+                from services.delegation_service import build_delegation_metadata
+
+                cap = cb_data.get("capability")
+                deleg_meta = build_delegation_metadata(cap, response, outcome="completed", via="queue_callback")
                 cur.execute(
-                    "UPDATE unified_tasks SET status = 'completed', completed_at = now() WHERE id = %s",
-                    (tid,),
+                    "UPDATE unified_tasks "
+                    "SET status = 'completed', completed_at = now(), "
+                    "    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('delegation', %s::jsonb) "
+                    "WHERE id = %s",
+                    (_json.dumps(deleg_meta), tid),
                 )
+                note = f"Completed via fleet cold-load queue #{task_id} (async)"
+                if deleg_meta.get("advisory"):
+                    note = f"⚠️ {deleg_meta['advisory']}\n\n{note}"
                 cur.execute(
                     """
                     INSERT INTO work_notes (task_id, note_type, content, metadata)
@@ -674,7 +688,7 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                     """,
                     (
                         tid,
-                        f"Completed via fleet cold-load queue #{task_id} (async)",
+                        note,
                         _json.dumps({"outcome": "completed", "via": "queue_callback", "queue_id": task_id}),
                     ),
                 )

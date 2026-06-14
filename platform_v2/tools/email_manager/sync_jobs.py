@@ -25,6 +25,28 @@ _IMAP_PORT = 993
 _BATCH_SIZE = 50  # max new messages fetched per cycle per mailbox
 
 
+class MailboxSyncError(Exception):
+    """A single mailbox could not be synced due to an IMAP auth, connection, or
+    unexpected error — distinct from 'connected OK, 0 new messages'.
+
+    Carries ``category`` ('auth' | 'connection' | 'unknown') and the mailbox
+    ``address`` so the job runner can aggregate failures and tell an outage apart
+    from a one-off bad-credential mailbox."""
+
+    def __init__(self, address: str, category: str, original: BaseException):
+        self.address = address
+        self.category = category
+        self.original = original
+        super().__init__(f"{category} error for {address}: {original}")
+
+
+class EmailSyncOutageError(Exception):
+    """Raised by run_email_imap_sync when EVERY provisioned mailbox failed — i.e.
+    a real Stalwart/IMAP outage. Raising (rather than returning a dict) is what
+    flips job_service.run_job to record status='error' in autonomy_loop_log, so an
+    outage can never again be silently reported as 'success, 0 new messages'."""
+
+
 def _strip_nul(value):
     """PostgreSQL text columns cannot store NUL (0x00) — psycopg2 raises
     'A string literal cannot contain NUL (0x00) characters' on INSERT. Strip it
@@ -167,14 +189,18 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
             return inserted
 
     except imaplib.IMAP4.error as exc:
+        # Auth/protocol failure for THIS mailbox. Raise (don't return 0) so the
+        # job runner can tell a real failure apart from "0 new messages".
         logger.warning("IMAP auth/protocol error for %s: %s", address, exc)
-        return 0
+        raise MailboxSyncError(address, "auth", exc) from exc
     except OSError as exc:
+        # Connection/socket failure — the signature of a Stalwart outage when it
+        # hits every mailbox. Raise so the outage surfaces instead of masking.
         logger.warning("IMAP connection error for %s: %s", address, exc)
-        return 0
+        raise MailboxSyncError(address, "connection", exc) from exc
     except Exception as exc:
         logger.error("IMAP sync error for %s: %s", address, exc, exc_info=True)
-        return 0
+        raise MailboxSyncError(address, "unknown", exc) from exc
 
 
 def run_email_imap_sync() -> dict:
@@ -188,20 +214,37 @@ def run_email_imap_sync() -> dict:
         )
         mailboxes = cur.fetchall()
 
+    total = len(mailboxes)
     total_new = 0
-    errors = 0
+    synced_ok = 0
+    by_category: dict[str, int] = {"auth": 0, "connection": 0, "unknown": 0}
+    failures: list[tuple[str, str, str]] = []  # (address, category, message)
+
     for row in mailboxes:
         try:
             total_new += sync_single_mailbox_full(row["id"], row["address"], row["imap_password"])
+            synced_ok += 1
+        except MailboxSyncError as exc:
+            by_category[exc.category] = by_category.get(exc.category, 0) + 1
+            failures.append((exc.address, exc.category, str(exc.original)))
+            logger.error("[email_imap_sync] %s sync failed (%s): %s", exc.address, exc.category, exc.original)
         except Exception as exc:
-            logger.error("Unhandled error syncing %s: %s", row["address"], exc)
-            errors += 1
+            # Defence in depth: sync_single_mailbox_full now raises MailboxSyncError,
+            # but never let an unexpected error type be silently counted as success.
+            by_category["unknown"] += 1
+            failures.append((row["address"], "unknown", str(exc)))
+            logger.error("[email_imap_sync] Unhandled error syncing %s: %s", row["address"], exc)
+
+    errors = len(failures)
+    reasons = [f"{n} {cat} error(s)" for cat, n in by_category.items() if n]
 
     logger.info(
-        "[email_imap_sync] Synced %d mailboxes — %d new messages, %d errors",
-        len(mailboxes),
+        "[email_imap_sync] %d/%d mailboxes synced — %d new messages, %d errors%s",
+        synced_ok,
+        total,
         total_new,
         errors,
+        (" [" + "; ".join(reasons) + "]") if reasons else "",
     )
 
     # C.R.E.E.D. privacy event — PIPEDA: safeguards + limiting use
@@ -209,14 +252,35 @@ def run_email_imap_sync() -> dict:
         from services.creed_privacy_logger import log_email_sync
 
         log_email_sync(
-            mailboxes_synced=len(mailboxes),
+            mailboxes_synced=synced_ok,
             new_messages=total_new,
             errors=errors,
         )
     except Exception as _pe:
         logger.debug("[email_imap_sync] C.R.E.E.D. privacy log skipped: %s", _pe)
 
-    return {"mailboxes": len(mailboxes), "new_messages": total_new, "errors": errors}
+    result = {
+        "mailboxes": total,
+        "synced": synced_ok,
+        "new_messages": total_new,
+        "errors": errors,
+        "reasons": reasons,
+        "failures": [{"address": a, "category": c} for a, c, _ in failures[:10]],
+    }
+
+    # OBSERVABILITY: a real outage (EVERY mailbox failed) must never mask as
+    # success. Raise so JobService.run_job records status='error' in
+    # autonomy_loop_log with the reason — instead of the old false-green where
+    # all-mailboxes-return-0 looked identical to "no new mail" (the #1686 follow-up).
+    # A partial failure (one bad-credential mailbox) is logged + returned above but
+    # does NOT redden the whole 5-minute job.
+    if total > 0 and errors == total:
+        sample = failures[0][2] if failures else "unknown"
+        raise EmailSyncOutageError(
+            f"email_imap_sync OUTAGE: all {total} mailbox(es) failed " f"[{'; '.join(reasons)}]; sample: {sample}"
+        )
+
+    return result
 
 
 def register_email_sync_jobs(job_service) -> None:

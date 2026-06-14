@@ -561,7 +561,7 @@ def register_email_messages_routes(bp, admin_required):
     @admin_required
     def email_sync_mailbox(mailbox_id):
         """Trigger a full body sync for one mailbox (runs synchronously, max 50 msgs)."""
-        from .sync_jobs import sync_single_mailbox_full
+        from .sync_jobs import MailboxSyncError, sync_single_mailbox_full
 
         with get_db_cursor() as (conn, cur):
             cur.execute(
@@ -574,7 +574,12 @@ def register_email_messages_routes(bp, admin_required):
         if not row:
             return jsonify({"error": "Mailbox not found, not provisioned, or missing password"}), 404
 
-        new_count = sync_single_mailbox_full(row["id"], row["address"], row["imap_password"])
+        try:
+            new_count = sync_single_mailbox_full(row["id"], row["address"], row["imap_password"])
+        except MailboxSyncError as exc:
+            # Honest failure surface — never report a failed IMAP sync as success.
+            logger.warning("Manual sync failed for %s (%s): %s", row["address"], exc.category, exc.original)
+            return jsonify({"success": False, "error": f"{exc.category} error", "detail": str(exc.original)}), 502
         return jsonify({"success": True, "new_messages": new_count})
 
     @bp.route("/api/email/sync/bulk", methods=["POST"])
@@ -589,13 +594,17 @@ def register_email_messages_routes(bp, admin_required):
 
         Returns JSON: {success, synced, new_messages, errors}
         """
-        from .sync_jobs import run_email_imap_sync, sync_single_mailbox_full
+        from .sync_jobs import EmailSyncOutageError, run_email_imap_sync, sync_single_mailbox_full
 
         visible = get_visible_mailbox_ids(current_user)
 
         if visible is None:
             # Admin fast path — delegate to the full sync job.
-            result = run_email_imap_sync()
+            try:
+                result = run_email_imap_sync()
+            except EmailSyncOutageError as exc:
+                logger.error("Bulk sync IMAP outage: %s", exc)
+                return jsonify({"success": False, "error": "IMAP outage", "detail": str(exc)}), 502
             return jsonify(
                 {
                     "success": True,

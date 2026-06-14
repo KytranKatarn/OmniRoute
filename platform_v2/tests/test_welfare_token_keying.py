@@ -16,14 +16,20 @@ P.R.O.B.E. suite.
 
 import inspect
 
-from services.agent_service import get_welfare_cache
+from services.agent_service import _TOKENS_24H_SUBQUERY, get_welfare_cache
 
 
 def test_get_welfare_cache_resolves_token_usage_by_name_not_just_agent_id():
-    src = inspect.getsource(get_welfare_cache)
+    # FIX-2 (#4130): the 24h token source moved into the shared
+    # _TOKENS_24H_SUBQUERY constant so the dispatch throttle, the K.I.N. rollup
+    # and the per-agent outliers all read ONE definition and can't drift apart.
+    # get_welfare_cache must reference the shared constant...
+    assert "_TOKENS_24H_SUBQUERY" in inspect.getsource(get_welfare_cache)
+    # ...and the canonical source must keep the NULL-agent_id name-lookup keying.
+    sub = _TOKENS_24H_SUBQUERY
     # Identity resolved by id OR name (so rows with a NULL agent_id still count).
-    assert "COALESCE(t.agent_id" in src, "get_welfare_cache must COALESCE agent_id with a name lookup"
+    assert "COALESCE(t.agent_id" in sub, "must COALESCE agent_id with a name lookup"
     # CLI telemetry suffix stripped so '<Name> (CLI)' rows join the plain roster name.
-    assert "split_part(t.agent_name, ' (CLI)', 1)" in src
+    assert "split_part(t.agent_name, ' (CLI)', 1)" in sub
     # Grouping is by the resolved identity, not the raw (often-NULL) agent_id.
-    assert "GROUP BY COALESCE(t.agent_id" in src
+    assert "GROUP BY COALESCE(t.agent_id" in sub

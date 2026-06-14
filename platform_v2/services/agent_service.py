@@ -1892,37 +1892,90 @@ def get_department_welfare_summary():
 # ---------------------------------------------------------------------------
 
 
+# ── Canonical 24h rolling token source (SHARED — do not duplicate) ────────────
+# THE single definition of "per-agent token use over the last 24h" for ALL
+# welfare reads: the dispatch throttle (get_welfare_cache), the K.I.N. digest
+# department rollup (_get_department_budget_rollup) and the per-agent outliers
+# (_get_agent_welfare_outliers). They MUST share this so they can never drift
+# back to the since-midnight agent_budgets.tokens_used_today column, which
+# resets at local midnight and made a 2x-over-budget agent read as healthy right
+# after midnight (KB mistake #272470 / ADR-004 / #4090).
+#
+# Identity is resolved by agent_id OR by name (CLI-suffix-stripped) because ~48%
+# of fleet-dispatched task_execution_log rows logged a NULL agent_id; a plain
+# GROUP BY agent_id undercounts real usage and the throttle never fires. Yields
+# rows of (aid, tokens_24h); wrap as "(<subquery>) tk ON tk.aid = a.id".
+_TOKENS_24H_SUBQUERY = """
+    SELECT COALESCE(t.agent_id, a2.id) AS aid, SUM(t.tokens_used) AS tokens_24h
+    FROM task_execution_log t
+    LEFT JOIN agents a2
+           ON a2.name = split_part(t.agent_name, ' (CLI)', 1)
+    WHERE t.created_at > NOW() - INTERVAL '24 hours'
+      AND COALESCE(t.agent_id, a2.id) IS NOT NULL
+    GROUP BY COALESCE(t.agent_id, a2.id)
+""".strip()
+
+
+def get_agent_tokens_24h(cur=None) -> Dict[int, int]:
+    """Per-agent rolling-24h token usage from task_execution_log.
+
+    THE shared 24h token source — see ``_TOKENS_24H_SUBQUERY``. Returns
+    ``{agent_id: tokens_used_last_24h}`` (agents with no 24h rows are absent).
+    Pass an open cursor to share a transaction; opens (and closes) its own
+    otherwise. Never raises — returns ``{}`` on error so welfare reads degrade
+    to "no usage" rather than blow up.
+    """
+
+    def _run(c):
+        c.execute(f"SELECT aid, tokens_24h FROM ({_TOKENS_24H_SUBQUERY}) tk")
+        return {row["aid"]: int(row["tokens_24h"] or 0) for row in c.fetchall()}
+
+    try:
+        if cur is not None:
+            return _run(cur)
+        with get_db_cursor() as (conn, c):
+            return _run(c)
+    except Exception as e:
+        logger.error("get_agent_tokens_24h failed: %s", e)
+        return {}
+
+
 def _get_department_budget_rollup():
     """Return {department: {avg_token_usage_pct, agents_over_budget, agents_starving}}.
 
-    * ``over_budget``: agent with ``tokens_used_today > 90%`` of its daily limit.
-    * ``starving``: agent in ``shift_state='active'`` with zero tokens used
-      today AND zero current tasks — the dispatcher isn't sending it work.
+    Token usage is the 24h ROLLING window (shared ``_TOKENS_24H_SUBQUERY``), NOT
+    the since-midnight ``agent_budgets.tokens_used_today`` column — so this rollup
+    matches the dispatch throttle + K.I.N. tab (#272470 / #4130).
+
+    * ``over_budget``: agent whose 24h rolling token use > 90% of its daily limit.
+    * ``starving``: agent in ``shift_state='active'`` with zero tokens in the last
+      24h AND zero current tasks — the dispatcher isn't sending it work.
     """
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """
+                f"""
                 SELECT a.department,
                        ROUND(AVG(
                            CASE WHEN COALESCE(ab.token_limit_per_day, 0) > 0
-                                THEN ab.tokens_used_today::float
+                                THEN COALESCE(tk.tokens_24h, 0)::float
                                      / ab.token_limit_per_day::float
                                 ELSE 0
                            END
                        )::numeric, 3) AS avg_token_usage_pct,
                        COUNT(*) FILTER (
                            WHERE COALESCE(ab.token_limit_per_day, 0) > 0
-                             AND ab.tokens_used_today::float
+                             AND COALESCE(tk.tokens_24h, 0)::float
                                  / ab.token_limit_per_day::float > 0.9
                        ) AS agents_over_budget,
                        COUNT(*) FILTER (
                            WHERE a.shift_state = 'active'
-                             AND COALESCE(ab.tokens_used_today, 0) = 0
+                             AND COALESCE(tk.tokens_24h, 0) = 0
                              AND COALESCE(ab.current_task_count, 0) = 0
                        ) AS agents_starving
                 FROM agents a
                 LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+                LEFT JOIN ({_TOKENS_24H_SUBQUERY}) tk ON tk.aid = a.id
                 WHERE a.worker_type = 'ai' AND a.status = 'active'
                 GROUP BY a.department
                 """
@@ -1937,7 +1990,8 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
     """Return per-agent outlier flags: over_budget, starving_idle, starving_no_llm.
 
     Flag types:
-    - ``over_budget``     — tokens_used_today > 90% of daily limit
+    - ``over_budget``     — 24h rolling token use > 90% of daily limit (shared
+                           ``_TOKENS_24H_SUBQUERY``, NOT since-midnight; #4130)
     - ``starving_idle``   — active, zero tokens, zero tasks, dept has NO scheduled-job
                            activity today → dispatcher routing gap (real issue)
     - ``starving_no_llm`` — active, zero tokens, zero tasks, BUT dept IS running scheduled
@@ -1949,7 +2003,7 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """
+                f"""
                 WITH latest_aes AS (
                     SELECT DISTINCT ON (agent_id) agent_id, stress_level
                     FROM agent_emotional_state
@@ -1968,7 +2022,7 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                       AND status = 'success'
                 )
                 SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
-                       COALESCE(ab.tokens_used_today, 0)    AS tokens_used_today,
+                       COALESCE(tk.tokens_24h, 0)           AS tokens_used_today,
                        COALESCE(ab.token_limit_per_day, 0)  AS token_limit_per_day,
                        COALESCE(ab.current_task_count, 0)   AS current_task_count,
                        COALESCE(aes.stress_level, 0.2)      AS stress_level,
@@ -1979,6 +2033,7 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                 LEFT JOIN latest_aes aes        ON a.id = aes.agent_id
                 LEFT JOIN stress_7d s7          ON s7.agent_id = a.id
                 LEFT JOIN dept_loop_activity dla ON dla.department = a.department
+                LEFT JOIN ({_TOKENS_24H_SUBQUERY}) tk ON tk.aid = a.id
                 WHERE a.worker_type = 'ai' AND a.status = 'active'
                 """
             )
@@ -2341,7 +2396,7 @@ def get_welfare_cache() -> Dict:
         # (ADR-004 / #4090). Aggregate once (GROUP BY) rather than a per-agent
         # correlated subquery so the 30s cache refresh stays a single indexed scan.
         cur.execute(
-            """
+            f"""
             SELECT a.id,
                    COALESCE(es.stress_level, 0.0) AS stress,
                    COALESCE(es.energy_level, 0.5) AS energy,
@@ -2352,20 +2407,9 @@ def get_welfare_cache() -> Dict:
             FROM agents a
             LEFT JOIN agent_emotional_state es ON a.id = es.agent_id
             LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
-            LEFT JOIN (
-                -- Resolve agent identity by agent_id OR by name: ~48% of
-                -- task_execution_log rows (fleet-dispatched work) historically logged a
-                -- NULL agent_id, so a plain GROUP BY agent_id undercounted real usage and
-                -- the throttle never fired (V.E.R.I.F.Y. read 15% of its true 24h tokens).
-                -- COALESCE + name-lookup (CLI-suffix-stripped) makes the enforcement match
-                -- the K.I.N. tab + reality. KIN welfare keying fix.
-                SELECT COALESCE(t.agent_id, a2.id) AS aid, SUM(t.tokens_used) AS tokens_24h
-                FROM task_execution_log t
-                LEFT JOIN agents a2
-                       ON a2.name = split_part(t.agent_name, ' (CLI)', 1)
-                WHERE t.created_at > NOW() - INTERVAL '24 hours'
-                GROUP BY COALESCE(t.agent_id, a2.id)
-            ) tk ON tk.aid = a.id
+            -- 24h rolling token use via the shared canonical source (#272470/#4090/#4130):
+            -- resolves a NULL agent_id by name so fleet-dispatched work still counts.
+            LEFT JOIN ({_TOKENS_24H_SUBQUERY}) tk ON tk.aid = a.id
             WHERE a.status = 'active'
         """
         )

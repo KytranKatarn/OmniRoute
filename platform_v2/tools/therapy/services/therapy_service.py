@@ -9,8 +9,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def log_mood(user_id, mood_score, energy_score=None, notes="", tags=None):
+def _validate_user_id(user_id: int) -> int:
+    if type(user_id) is not int or user_id <= 0:
+        raise ValueError("user_id must be a positive integer")
+    return user_id
+
+
+def _validate_limit(limit: int) -> int:
+    if type(limit) is not int or limit < 1 or limit > 100:
+        raise ValueError("limit must be an integer between 1 and 100")
+    return limit
+
+
+def log_mood(user_id: int, mood_score, energy_score=None, notes="", tags=None) -> dict:
     """Insert a mood log entry."""
+    user_id = _validate_user_id(user_id)
     with get_db_cursor(commit=True) as (conn, cur):
         import psycopg2.extras
 
@@ -26,8 +39,10 @@ def log_mood(user_id, mood_score, energy_score=None, notes="", tags=None):
         return {"id": row[0], "logged_at": row[1].isoformat()}
 
 
-def get_mood_history(user_id, limit=30):
+def get_mood_history(user_id: int, limit: int = 30) -> list[dict]:
     """Return recent mood log entries for user."""
+    user_id = _validate_user_id(user_id)
+    limit = _validate_limit(limit)
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
@@ -53,8 +68,15 @@ def get_mood_history(user_id, limit=30):
         ]
 
 
-def log_session(user_id, session_type="general", notes="", exercises_done=None, duration_min=0):
+def log_session(
+    user_id: int,
+    session_type="general",
+    notes="",
+    exercises_done=None,
+    duration_min=0,
+) -> dict:
     """Insert a therapy session log."""
+    user_id = _validate_user_id(user_id)
     with get_db_cursor(commit=True) as (conn, cur):
         import psycopg2.extras
 
@@ -70,8 +92,10 @@ def log_session(user_id, session_type="general", notes="", exercises_done=None, 
         return {"id": row[0], "logged_at": row[1].isoformat()}
 
 
-def get_session_history(user_id, limit=20):
+def get_session_history(user_id: int, limit: int = 20) -> list[dict]:
     """Return recent therapy sessions for user."""
+    user_id = _validate_user_id(user_id)
+    limit = _validate_limit(limit)
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
@@ -97,8 +121,9 @@ def get_session_history(user_id, limit=20):
         ]
 
 
-def get_therapy_stats(user_id):
+def get_therapy_stats(user_id: int) -> dict:
     """Aggregate: avg mood last 7 days, session count this month, mood trend."""
+    user_id = _validate_user_id(user_id)
     with get_db_cursor() as (conn, cur):
         # Avg mood last 7 days
         seven_days_ago = datetime.now() - timedelta(days=7)
@@ -150,8 +175,9 @@ def get_therapy_stats(user_id):
         }
 
 
-def schedule_session(user_id, title, datetime_str, duration=60):
+def schedule_session(user_id: int, title, datetime_str, duration=60) -> dict:
     """Try to create a Google Calendar event; fall back to local success."""
+    user_id = _validate_user_id(user_id)
     try:
         from tools.google_work_suite.services.google_api_service import list_accounts
         from tools.google_work_suite.services.calendar_service import create_event
@@ -172,8 +198,9 @@ def schedule_session(user_id, title, datetime_str, duration=60):
     return {"success": True, "note": "Saved locally (no Google Calendar connected)"}
 
 
-def get_ai_context(user_id):
+def get_ai_context(user_id: int) -> str:
     """Return last 5 mood entries + recent sessions as text for Bridge prompt injection."""
+    user_id = _validate_user_id(user_id)
     try:
         moods = get_mood_history(user_id, limit=5)
         sessions = get_session_history(user_id, limit=3)

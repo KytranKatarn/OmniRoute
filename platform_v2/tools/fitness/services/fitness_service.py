@@ -49,6 +49,53 @@ def _goal_row_to_dict(row):
     }
 
 
+def calculate_macros(
+    weight,
+    height,
+    age,
+    gender="male",
+    activity_level="moderate",
+    goal="maintain",
+):
+    """Calculate BMR, TDEE, target calories, and macros using Mifflin-St Jeor."""
+    # Calculate BMR using Mifflin-St Jeor
+    if gender == "male":
+        bmr = 10 * weight + 6.25 * height - 5 * age + 5
+    else:
+        bmr = 10 * weight + 6.25 * height - 5 * age - 161
+
+    activity_multipliers = {
+        "sedentary": 1.2,
+        "light": 1.375,
+        "moderate": 1.55,
+        "active": 1.725,
+        "very_active": 1.9,
+    }
+    tdee = bmr * activity_multipliers.get(activity_level, 1.55)
+
+    if goal == "lose":
+        calories = tdee - 500
+    elif goal == "gain":
+        calories = tdee + 300
+    else:
+        calories = tdee
+
+    protein = weight * 2
+    fat = (calories * 0.25) / 9
+    carbs = (calories - (protein * 4) - (fat * 9)) / 4
+
+    return {
+        "bmr": round(bmr),
+        "tdee": round(tdee),
+        "target_calories": round(calories),
+        "macros": {
+            "protein": round(protein),
+            "carbs": round(carbs),
+            "fat": round(fat),
+        },
+    }
+
+
 def log_workout(user_id, workout_type, exercises=None, duration_min=0, calories=0, notes=""):
     """Insert a workout log entry."""
     with get_db_cursor(commit=True) as (conn, cur):

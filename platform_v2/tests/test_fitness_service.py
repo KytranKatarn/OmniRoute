@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 PLATFORM_ROOT = Path(__file__).resolve().parents[1]
 if str(PLATFORM_ROOT) not in sys.path:
     sys.path.insert(0, str(PLATFORM_ROOT))
@@ -197,3 +199,62 @@ def test_get_ai_context_includes_recent_workouts_and_goals():
     assert "[User Fitness Context]" in context
     assert "strength | 45min | 320cal (2026-06-11)" in context
     assert "weekly workouts: 2.0/4.0 sessions" in context
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "expected"),
+    [
+        (
+            {
+                "weight": 80,
+                "height": 180,
+                "age": 30,
+                "gender": "male",
+                "activity_level": "moderate",
+                "goal": "maintain",
+            },
+            {
+                "bmr": 1780,
+                "tdee": 2759,
+                "target_calories": 2759,
+                "macros": {"protein": 160, "carbs": 357, "fat": 77},
+            },
+        ),
+        (
+            {
+                "weight": 50,
+                "height": 150,
+                "age": 18,
+                "gender": "female",
+                "activity_level": "sedentary",
+                "goal": "lose",
+            },
+            {
+                "bmr": 1186,
+                "tdee": 1424,
+                "target_calories": 924,
+                "macros": {"protein": 100, "carbs": 73, "fat": 26},
+            },
+        ),
+        (
+            {
+                "weight": 90,
+                "height": 190,
+                "age": 40,
+                "gender": "male",
+                "activity_level": "active",
+                "goal": "gain",
+            },
+            {
+                "bmr": 1892,
+                "tdee": 3265,
+                "target_calories": 3565,
+                "macros": {"protein": 180, "carbs": 488, "fat": 99},
+            },
+        ),
+    ],
+)
+def test_calculate_macros_returns_mifflin_st_jeor_estimates(kwargs, expected):
+    from tools.fitness.services import fitness_service as svc
+
+    assert svc.calculate_macros(**kwargs) == expected

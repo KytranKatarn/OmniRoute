@@ -28,6 +28,7 @@ from .services.fitness_service import (
     get_fitness_stats,
     schedule_workout,
     get_ai_context,
+    calculate_macros as svc_calculate_macros,
 )
 import sys
 import logging
@@ -449,47 +450,12 @@ def calculate_macros():
             400,
         )
 
-    # Calculate BMR using Mifflin-St Jeor
-    if gender == "male":
-        bmr = 10 * weight + 6.25 * height - 5 * age + 5
-    else:
-        bmr = 10 * weight + 6.25 * height - 5 * age - 161
-
-    # Activity multipliers
-    activity_multipliers = {
-        "sedentary": 1.2,
-        "light": 1.375,
-        "moderate": 1.55,
-        "active": 1.725,
-        "very_active": 1.9,
-    }
-
-    tdee = bmr * activity_multipliers.get(activity_level, 1.55)
-
-    # Adjust for goal
-    if goal == "lose":
-        calories = tdee - 500
-    elif goal == "gain":
-        calories = tdee + 300
-    else:
-        calories = tdee
-
-    # Calculate macros (balanced approach)
-    protein = weight * 2  # 2g per kg body weight
-    fat = (calories * 0.25) / 9  # 25% calories from fat
-    carbs = (calories - (protein * 4) - (fat * 9)) / 4
+    result = svc_calculate_macros(weight, height, age, gender, activity_level, goal)
 
     return jsonify(
         {
             "success": True,
-            "bmr": round(bmr),
-            "tdee": round(tdee),
-            "target_calories": round(calories),
-            "macros": {
-                "protein": round(protein),
-                "carbs": round(carbs),
-                "fat": round(fat),
-            },
+            **result,
             "note": "These are estimates. Adjust based on your progress and consult a nutritionist for personalized advice.",
         }
     )

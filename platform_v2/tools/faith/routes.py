@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
-import logging
 import json
+import logging
 import re
 from functools import lru_cache
 from pathlib import Path
+from smtplib import SMTPException
 from typing import Any
 
 from flask import Response, jsonify, render_template, request
 from flask_login import current_user, login_required
+from psycopg2 import Error as PsycopgError
 from psycopg2.extras import Json
+from werkzeug.exceptions import HTTPException
 
 from . import faith_bp
 
@@ -247,6 +250,14 @@ experience, not theology. Never generic.]
 """
 
 
+@faith_bp.errorhandler(Exception)
+def handle_unexpected_error(error: Exception) -> JsonResponse | HTTPException:
+    if isinstance(error, HTTPException):
+        return error
+    logger.error("[Faith] Unhandled route error", exc_info=True)
+    return jsonify({"success": False, "error": "Faith module error"}), 500
+
+
 def _faith_system_prompt_for_profile(profile: JsonDict | None = None) -> str:
     profile = profile or {}
     tradition = profile.get("tradition_preference") or "christian"
@@ -440,7 +451,7 @@ def _get_user_faith_profile(user_id: int) -> JsonDict:
                     (user_id,),
                 )
                 row = cur.fetchone()
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to load faith profile context")
         return _default_profile()
 
@@ -744,7 +755,7 @@ def _load_scripture_corpus() -> JsonDict:
 def _load_encyclopedia_entries() -> list[JsonDict]:
     try:
         return json.loads(ENCYCLOPEDIA_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError):
         logger.exception("[Faith] Failed to load encyclopedia seed")
         return []
 
@@ -813,7 +824,7 @@ def get_profile() -> JsonResponse:
                     (current_user.id,),
                 )
                 row = cur.fetchone()
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to load profile")
         return jsonify({"success": False, "error": "Failed to load profile"}), 500
 
@@ -884,7 +895,7 @@ def save_profile() -> JsonResponse:
                     (current_user.id, tradition, prayer_style, translation),
                 )
                 row = cur.fetchone()
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to save profile")
         return jsonify({"success": False, "error": "Failed to save profile"}), 500
 
@@ -1060,7 +1071,7 @@ def _save_message(user_id: int, role: str, message: str) -> None:
                 """,
                 (user_id, role, message),
             )
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to save session message")
 
 
@@ -1083,7 +1094,7 @@ def chat() -> JsonResponse:
         result = archie_bridge(message, system_prompt)
         response_text = result.get("response", "") if result else ""
         response_text = response_text.strip()
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         logger.error(f"[Faith] dispatch failed: {e}")
         response_text = "F.A.I.T.H. is unavailable right now."
 
@@ -1126,7 +1137,7 @@ def _practice_dispatch(
     if BRIDGE_AVAILABLE:
         try:
             result = archie_bridge(prompt, system_prompt)
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             logger.error(f"[Faith] practice dispatch failed: {e}")
             result = {
                 "success": False,
@@ -1145,7 +1156,7 @@ def _practice_dispatch(
                     "INSERT INTO faith_practices_log (user_id, practice_type, notes) VALUES (%s, %s, %s)",
                     (user_id, practice_type, notes or result.get("response", "")[:500]),
                 )
-        except Exception:
+        except PsycopgError:
             logger.exception("[Faith] Failed to log practice")
     return result
 
@@ -1204,7 +1215,7 @@ def save_timer_session() -> JsonResponse:
                 ),
             )
             row = cur.fetchone()
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to save timer session")
         return jsonify({"success": False, "error": "Failed to save timer session"}), 500
 
@@ -1249,7 +1260,7 @@ def list_sessions() -> JsonResponse:
                 (current_user.id, limit),
             )
             rows = cur.fetchall()
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to load sessions")
         return jsonify({"success": False, "error": "Failed to load sessions"}), 500
 
@@ -1378,7 +1389,7 @@ def checkin() -> JsonResponse:
                 "INSERT INTO faith_practices_log (user_id, practice_type, notes) VALUES (%s, 'checkin', %s)",
                 (current_user.id, f"score={score}"),
             )
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to save check-in")
         return jsonify({"success": False, "error": "Failed to save"}), 500
     return jsonify({"success": True, "id": checkin_id}), 201
@@ -1396,7 +1407,7 @@ def checkin_history() -> JsonResponse:
                 (current_user.id,),
             )
             rows = [dict(r) for r in cur.fetchall()]
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to load check-in history")
         return jsonify({"success": False, "error": "Failed to load"}), 500
     return jsonify({"success": True, "checkins": rows})
@@ -1421,7 +1432,7 @@ def journal_save() -> JsonResponse:
                 (current_user.id, title, content, scripture_ref, tags),
             )
             entry_id = _row_value(cur.fetchone(), "id", 0)
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to save journal entry")
         return jsonify({"success": False, "error": "Failed to save"}), 500
     return jsonify({"success": True, "id": entry_id}), 201
@@ -1447,7 +1458,7 @@ def journal_list() -> JsonResponse:
                     (current_user.id,),
                 )
             rows = [dict(r) for r in cur.fetchall()]
-    except Exception:
+    except PsycopgError:
         logger.exception("[Faith] Failed to load journal")
         return jsonify({"success": False, "error": "Failed to load"}), 500
     return jsonify({"success": True, "entries": rows})
@@ -1474,7 +1485,7 @@ def _send_chaplain_email(user_display_name: str, message: str, context_entries: 
             body=f"Spiritual Care Request\nFrom: {user_display_name}\n\nMessage:\n{message}{context_block}",
         )
         return True
-    except Exception:
+    except (ImportError, OSError, RuntimeError, SMTPException, ValueError):
         logger.exception("[Faith] Failed to send chaplain email")
         return False
 
@@ -1507,8 +1518,8 @@ def connect_chaplain() -> JsonResponse:
                     (current_user.id, journal_ids),
                 )
                 context_entries = [dict(r) for r in cur.fetchall()]
-        except Exception:
-            pass
+        except PsycopgError:
+            logger.warning("[Faith] Failed to load chaplain journal context", exc_info=True)
 
     display_name = getattr(current_user, "display_name", None) or getattr(current_user, "username", "Platform User")
     sent = _send_chaplain_email(display_name, message, context_entries)

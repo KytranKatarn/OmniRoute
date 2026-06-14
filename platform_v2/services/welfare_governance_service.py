@@ -139,8 +139,7 @@ def gather_sole_agent_capabilities(cur):
 def _latest_ewma_score(cur):
     """Most recent persisted EWMA welfare score, or None (never persisted / column new)."""
     cur.execute(
-        "SELECT ewma_score FROM agent_welfare_scores "
-        "WHERE ewma_score IS NOT NULL ORDER BY computed_at DESC LIMIT 1"
+        "SELECT ewma_score FROM agent_welfare_scores " "WHERE ewma_score IS NOT NULL ORDER BY computed_at DESC LIMIT 1"
     )
     row = cur.fetchone()
     return float(row["ewma_score"]) if row and row.get("ewma_score") is not None else None
@@ -153,9 +152,7 @@ def run_welfare_governance(cur, emit=True):
     gov_cfg = governance_limits(break_cfg)  # token violation at budget (1.0), not 0.60
     snaps = gather_snapshots(cur)
     result = score_welfare(snaps, gov_cfg)
-    result["recommendations"] = recommend(
-        snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur)
-    )
+    result["recommendations"] = recommend(snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur))
     # D3: EWMA-smoothed headline (steady) — blend this raw score with the prior EWMA
     # so a single bad daily snapshot can't tank the grade. First run seeds to raw.
     prev_ewma = _latest_ewma_score(cur)
@@ -206,6 +203,17 @@ def run_welfare_governance(cur, emit=True):
     return result
 
 
+def _safe_record_outage(reason):
+    """Record a welfare-emit outage loudly even when welfare_emit itself is the
+    import that failed — try the shared recorder, else fall back to an error log."""
+    try:
+        from services.welfare_emit import record_welfare_emit_outage
+
+        record_welfare_emit_outage(reason)
+    except Exception:
+        logger.error("welfare governance: outage (welfare_emit unavailable): %s", reason)
+
+
 def emit_welfare_snapshots(cur, snaps=None, break_cfg=None):
     """Emit per-dimension, de-duped, category='welfare' C.R.E.E.D. events for the
     active workforce (Phase 3, roadmap item D). Delegates to welfare_emit, which:
@@ -222,20 +230,23 @@ def emit_welfare_snapshots(cur, snaps=None, break_cfg=None):
     excluded from the ethics accountability pillar. Routed per-tenant by
     creed_emit (WTF agents → what-the-fact, others → kytran-empowerment).
     Returns the welfare_emit summary dict. Never raises."""
+    zero = {"built": 0, "emitted": 0, "skipped": 0, "failed": 0}
     try:
-        from services.welfare_emit import emit_welfare_events
-    except Exception:
-        logger.warning("welfare governance: welfare_emit unavailable, skipping emit", exc_info=True)
-        return {"built": 0, "emitted": 0, "skipped": 0, "failed": 0}
-    if snaps is None:
-        snaps = gather_snapshots(cur)
-    if break_cfg is None:
-        break_cfg = load_break_config(cur)
+        from services.welfare_emit import emit_welfare_events, record_welfare_emit_outage
+    except Exception as exc:
+        logger.error("welfare governance: welfare_emit unavailable, emit skipped", exc_info=True)
+        _safe_record_outage(f"welfare_emit module unavailable: {exc!r}")
+        return zero
     try:
+        if snaps is None:
+            snaps = gather_snapshots(cur)
+        if break_cfg is None:
+            break_cfg = load_break_config(cur)
         return emit_welfare_events(cur, snaps, break_cfg=break_cfg)
-    except Exception:
-        logger.warning("welfare governance: welfare emit failed", exc_info=True)
-        return {"built": 0, "emitted": 0, "skipped": 0, "failed": 0}
+    except Exception as exc:
+        logger.error("welfare governance: welfare emit failed", exc_info=True)
+        record_welfare_emit_outage(f"welfare emit raised: {exc!r}")
+        return zero
 
 
 def welfare_emit_intraday(cur):
@@ -259,9 +270,7 @@ def compute_welfare_snapshot(cur):
     gov_cfg = governance_limits(break_cfg)  # token violation at budget (1.0), not 0.60
     snaps = gather_snapshots(cur)
     result = score_welfare(snaps, gov_cfg)
-    result["recommendations"] = recommend(
-        snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur)
-    )
+    result["recommendations"] = recommend(snaps, gov_cfg, sole_agent_capabilities=gather_sole_agent_capabilities(cur))
     # D3: smoothed headline for live reads — blend the live raw with the last
     # PERSISTED EWMA (no write; the daily run is what advances the EWMA).
     ewma = smooth_score(result["score"], _latest_ewma_score(cur), DEFAULT_SCORE_EWMA_ALPHA)

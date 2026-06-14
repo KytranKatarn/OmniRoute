@@ -236,10 +236,7 @@ def decide_emissions(candidates, prior_state, now, heartbeat_hours=DEFAULT_HEART
 def _load_emit_state(cur):
     """Read the persisted per-(agent,dimension) emit markers → dict keyed
     ``(agent_id, dimension)``."""
-    cur.execute(
-        "SELECT agent_id, dimension, last_severity, last_emit_at "
-        "FROM agent_welfare_emit_state"
-    )
+    cur.execute("SELECT agent_id, dimension, last_severity, last_emit_at " "FROM agent_welfare_emit_state")
     state = {}
     for r in cur.fetchall() or []:
         state[(r["agent_id"], r["dimension"])] = {
@@ -298,6 +295,47 @@ def _record_emit_failure(cur, ev, reason):
         logger.warning("welfare_emit: system_notification write failed", exc_info=True)
 
 
+def record_welfare_emit_outage(reason, severity="error"):
+    """FIX-3: make a STRUCTURAL welfare-emit OUTAGE loud — on a FRESH connection.
+
+    Unlike ``_record_emit_failure`` (per-event, on the caller's cursor), this is
+    for whole-cycle outages — creed_emit/welfare_emit unavailable, or the emit
+    raising — where the caller's transaction may be POISONED by the failed DB op.
+    Opening its own connection means the governance_audit_log + system_notification
+    still persist. Never raises (each write guarded; even the connection is
+    guarded so a DB-down outage degrades to a last-resort error log).
+    """
+    desc = f"C.R.E.E.D. welfare emit OUTAGE: {reason}"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log
+                        (event_type, event_category, action, reason, outcome, new_value)
+                    VALUES ('welfare_emit_outage', 'welfare', 'emit', %s, 'failure', %s)
+                    """,
+                    (desc, json.dumps({"severity": severity})),
+                )
+            except Exception:
+                logger.error("welfare_emit: outage governance_audit_log write failed", exc_info=True)
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO system_notifications (title, message, type, source, is_read)
+                    VALUES (%s, %s, %s, 'welfare_emit', FALSE)
+                    """,
+                    ("C.R.E.E.D. welfare emit outage", desc, severity),
+                )
+            except Exception:
+                logger.error("welfare_emit: outage system_notification write failed", exc_info=True)
+    except Exception:
+        # Even the fresh connection failed (DB unreachable) — last-resort log.
+        logger.error("welfare_emit: could not record outage (DB unavailable): %s", reason, exc_info=True)
+
+
 def emit_welfare_events(cur, snapshots, break_cfg=None, heartbeat_hours=DEFAULT_HEARTBEAT_HOURS):
     """Build → de-dupe → emit welfare events for the active workforce.
 
@@ -310,8 +348,9 @@ def emit_welfare_events(cur, snapshots, break_cfg=None, heartbeat_hours=DEFAULT_
 
     try:
         from services.creed_emit import emit_event
-    except Exception:
-        logger.warning("welfare_emit: creed_emit unavailable, skipping", exc_info=True)
+    except Exception as exc:
+        logger.error("welfare_emit: creed_emit unavailable, welfare emit skipped this cycle", exc_info=True)
+        record_welfare_emit_outage(f"creed_emit unavailable — welfare emit skipped: {exc!r}")
         return {"built": 0, "emitted": 0, "skipped": 0, "failed": 0}
 
     now = datetime.now(timezone.utc)
@@ -339,8 +378,11 @@ def emit_welfare_events(cur, snapshots, break_cfg=None, heartbeat_hours=DEFAULT_
             continue
         if ok:
             _persist_emit_state(
-                cur, ev.get("agent_id"), ev.get("dedupe_dimension"),
-                ev.get("severity"), ev.get("event_type"),
+                cur,
+                ev.get("agent_id"),
+                ev.get("dedupe_dimension"),
+                ev.get("severity"),
+                ev.get("event_type"),
             )
             emitted += 1
         else:
@@ -349,6 +391,9 @@ def emit_welfare_events(cur, snapshots, break_cfg=None, heartbeat_hours=DEFAULT_
 
     logger.info(
         "welfare_emit: built=%d emitted=%d skipped=%d failed=%d",
-        len(candidates), emitted, len(to_skip), failed,
+        len(candidates),
+        emitted,
+        len(to_skip),
+        failed,
     )
     return {"built": len(candidates), "emitted": emitted, "skipped": len(to_skip), "failed": failed}

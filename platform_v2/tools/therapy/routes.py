@@ -109,7 +109,15 @@ def index():
 
 @therapy_bp.route("/api/status")
 def status():
-    """API endpoint for module health check"""
+    """Return Therapy module health and dispatcher readiness.
+
+    Request:
+        GET /tools/therapy/api/status with no query parameters or body.
+
+    Response:
+        200 JSON with module identity, health flags, Bridge/dispatcher availability,
+        assigned agent name, and a readiness message.
+    """
     return jsonify(
         {
             "module": "therapy",
@@ -125,7 +133,23 @@ def status():
 
 @therapy_bp.route("/api/chat", methods=["POST"])
 def chat():
-    """Send message to therapy AI via archie_bridge"""
+    """Send a supportive chat message through DHQ dispatch.
+
+    Request:
+        POST /tools/therapy/api/chat with JSON body:
+        - message (str, required): User message to send to SERENE/River.
+        - user_id (int, optional): User context lookup id; defaults to 1.
+
+    Response:
+        200 JSON with success, response, model, agent, source, is_crisis, and
+        tokens_used. Crisis messages short-circuit to crisis resources with
+        model='crisis_intervention' and is_crisis=true.
+
+    Errors:
+        400 JSON when message is missing.
+        503 JSON when DHQ returns no usable response.
+        500 JSON for unexpected dispatch or processing errors.
+    """
     data = request.get_json() or {}
     message = data.get("message", "")
     user_id = data.get("user_id", 1)
@@ -185,7 +209,15 @@ def chat():
 
 @therapy_bp.route("/api/exercises", methods=["GET"])
 def get_exercises():
-    """Get list of guided exercises"""
+    """Return the catalog of guided wellness exercises.
+
+    Request:
+        GET /tools/therapy/api/exercises with no query parameters or body.
+
+    Response:
+        200 JSON with success=true and exercises, where each exercise includes
+        id, name, duration, category, and description.
+    """
     exercises = [
         {
             "id": "breathing_478",
@@ -236,7 +268,20 @@ def get_exercises():
 
 @therapy_bp.route("/api/exercise/<exercise_id>", methods=["GET"])
 def get_exercise_guide(exercise_id):
-    """Get detailed guide for a specific exercise"""
+    """Return step-by-step guidance for one exercise.
+
+    Request:
+        GET /tools/therapy/api/exercise/<exercise_id>, where exercise_id is one
+        of the supported exercise ids such as breathing_478, grounding_54321, or
+        body_scan.
+
+    Response:
+        200 JSON with success=true and exercise containing name, steps, tips, and
+        audio_cue.
+
+    Errors:
+        404 JSON with success=false when exercise_id is not found.
+    """
     guides = {
         "breathing_478": {
             "name": "4-7-8 Breathing Technique",
@@ -288,7 +333,25 @@ def get_exercise_guide(exercise_id):
 
 @therapy_bp.route("/api/mood", methods=["POST"])
 def log_mood():
-    """Log a mood entry — persists to DB."""
+    """Persist a mood check-in for the user.
+
+    Request:
+        POST /tools/therapy/api/mood with JSON body:
+        - mood_score (int, required): Mood score from 1 to 10. The legacy field
+          mood is accepted as a fallback.
+        - energy_score (int, optional): Optional energy score.
+        - notes (str, optional): Free-form notes; defaults to empty string.
+        - tags (list, optional): Mood factor tags; defaults to an empty list.
+        - user_id (int, optional): Owner id for the mood entry; defaults to 1.
+
+    Response:
+        200 JSON with success, message, id, logged_at, mood_score, and
+        encouragement.
+
+    Errors:
+        400 JSON when mood_score is missing, non-integer, or outside 1..10.
+        500 JSON for persistence errors.
+    """
     data = request.get_json() or {}
     mood_score = data.get("mood_score") or data.get("mood")
     energy_score = data.get("energy_score")
@@ -333,14 +396,36 @@ def get_mood_encouragement(mood):
 
 @therapy_bp.route("/api/models", methods=["GET"])
 def get_available_models():
-    """Get available AI models"""
+    """Return the Therapy chat model selector payload.
+
+    Request:
+        GET /tools/therapy/api/models with no query parameters or body.
+
+    Response:
+        200 JSON with success=true and models, where each model has name, size,
+        and modified fields. The current implementation returns a default DHQ
+        routing placeholder.
+    """
     models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
 
 
 @therapy_bp.route("/api/mood/history", methods=["GET"])
 def mood_history():
-    """Return mood timeline for current user."""
+    """Return recent mood check-ins for a user.
+
+    Request:
+        GET /tools/therapy/api/mood/history with optional query parameters:
+        - user_id (int): Owner id to query; defaults to 1.
+        - limit (int): Maximum number of rows to return; defaults to 30.
+
+    Response:
+        200 JSON with success=true and history, where each item includes id,
+        mood_score, energy_score, notes, tags, and logged_at.
+
+    Errors:
+        500 JSON for validation or database errors.
+    """
     user_id = request.args.get("user_id", 1, type=int)
     limit = request.args.get("limit", 30, type=int)
     try:
@@ -353,7 +438,22 @@ def mood_history():
 
 @therapy_bp.route("/api/session", methods=["POST"])
 def create_session():
-    """Log a therapy session."""
+    """Persist a therapy session log.
+
+    Request:
+        POST /tools/therapy/api/session with JSON body:
+        - user_id (int, optional): Owner id for the session; defaults to 1.
+        - session_type (str, optional): Session category; defaults to general.
+        - notes (str, optional): Free-form notes; defaults to empty string.
+        - exercises_done (list, optional): Exercise ids completed in session.
+        - duration_min (int, optional): Session duration in minutes; defaults to 0.
+
+    Response:
+        200 JSON with success=true plus the persisted session id and logged_at.
+
+    Errors:
+        500 JSON for validation or persistence errors.
+    """
     data = request.get_json() or {}
     user_id = data.get("user_id", 1)
     session_type = data.get("session_type", "general")
@@ -371,7 +471,20 @@ def create_session():
 
 @therapy_bp.route("/api/session/history", methods=["GET"])
 def session_history():
-    """Return past therapy sessions for current user."""
+    """Return recent therapy session logs for a user.
+
+    Request:
+        GET /tools/therapy/api/session/history with optional query parameters:
+        - user_id (int): Owner id to query; defaults to 1.
+        - limit (int): Maximum number of rows to return; defaults to 20.
+
+    Response:
+        200 JSON with success=true and history, where each item includes id,
+        session_type, notes, exercises_done, duration_min, and logged_at.
+
+    Errors:
+        500 JSON for validation or database errors.
+    """
     user_id = request.args.get("user_id", 1, type=int)
     limit = request.args.get("limit", 20, type=int)
     try:
@@ -384,7 +497,23 @@ def session_history():
 
 @therapy_bp.route("/api/schedule", methods=["POST"])
 def schedule():
-    """Schedule a therapy session via Google Calendar (or local fallback)."""
+    """Schedule a therapy session reminder or calendar event.
+
+    Request:
+        POST /tools/therapy/api/schedule with JSON body:
+        - user_id (int, optional): Owner id for calendar lookup; defaults to 1.
+        - title (str, optional): Event title; defaults to Therapy Session.
+        - datetime (str, required): ISO-like start datetime string.
+        - duration (int, optional): Event length in minutes; defaults to 60.
+
+    Response:
+        200 JSON with success=true and result from Google Calendar when connected,
+        or a local fallback result.
+
+    Errors:
+        400 JSON when datetime is missing.
+        500 JSON for validation, calendar, or fallback errors.
+    """
     data = request.get_json() or {}
     user_id = data.get("user_id", 1)
     title = data.get("title", "Therapy Session")
@@ -404,7 +533,19 @@ def schedule():
 
 @therapy_bp.route("/api/stats", methods=["GET"])
 def stats():
-    """Return aggregated therapy stats for current user."""
+    """Return aggregate therapy progress metrics for a user.
+
+    Request:
+        GET /tools/therapy/api/stats with optional user_id query parameter;
+        user_id defaults to 1.
+
+    Response:
+        200 JSON with success=true plus avg_mood_7d, mood_entries_7d,
+        sessions_this_month, and mood_trend.
+
+    Errors:
+        500 JSON for validation or database errors.
+    """
     user_id = request.args.get("user_id", 1, type=int)
     try:
         data = get_therapy_stats(user_id)

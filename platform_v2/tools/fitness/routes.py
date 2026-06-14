@@ -17,10 +17,14 @@ def require_login():
 
 from .services.fitness_service import (
     log_workout as svc_log_workout,
+    delete_goal as svc_delete_goal,
+    delete_workout as svc_delete_workout,
     get_workout_history,
     set_goal,
     get_goals,
+    update_goal as svc_update_goal,
     update_goal_progress,
+    update_workout as svc_update_workout,
     get_fitness_stats,
     schedule_workout,
     get_ai_context,
@@ -526,6 +530,33 @@ def workout_history():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@fitness_bp.route("/api/workout/<int:workout_id>", methods=["PUT"])
+def update_workout(workout_id):
+    """Update a workout log for the authenticated user."""
+    data = request.get_json() or {}
+    try:
+        workout = svc_update_workout(current_user.id, workout_id, data)
+        if workout is None:
+            return jsonify({"success": False, "error": "Workout not found or no valid fields"}), 404
+        return jsonify({"success": True, "workout": workout})
+    except Exception as e:
+        logger.error(f"update_workout error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/workout/<int:workout_id>", methods=["DELETE"])
+def delete_workout(workout_id):
+    """Delete a workout log for the authenticated user."""
+    try:
+        deleted = svc_delete_workout(current_user.id, workout_id)
+        if not deleted:
+            return jsonify({"success": False, "error": "Workout not found"}), 404
+        return jsonify({"success": True, "deleted": True})
+    except Exception as e:
+        logger.error(f"delete_workout error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @fitness_bp.route("/api/goals", methods=["POST"])
 def create_goal():
     """Create a new fitness goal."""
@@ -556,6 +587,33 @@ def list_goals():
         return jsonify({"success": True, "goals": goals})
     except Exception as e:
         logger.error(f"list_goals error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/goals/<int:goal_id>", methods=["PUT"])
+def update_goal(goal_id):
+    """Update a fitness goal for the authenticated user."""
+    data = request.get_json() or {}
+    try:
+        goal = svc_update_goal(current_user.id, goal_id, data)
+        if goal is None:
+            return jsonify({"success": False, "error": "Goal not found or no valid fields"}), 404
+        return jsonify({"success": True, "goal": goal})
+    except Exception as e:
+        logger.error(f"update_goal error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@fitness_bp.route("/api/goals/<int:goal_id>", methods=["DELETE"])
+def delete_goal(goal_id):
+    """Delete a fitness goal for the authenticated user."""
+    try:
+        deleted = svc_delete_goal(current_user.id, goal_id)
+        if not deleted:
+            return jsonify({"success": False, "error": "Goal not found"}), 404
+        return jsonify({"success": True, "deleted": True})
+    except Exception as e:
+        logger.error(f"delete_goal error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

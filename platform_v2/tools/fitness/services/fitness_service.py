@@ -8,11 +8,51 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+_WORKOUT_UPDATE_FIELDS = {
+    "workout_type",
+    "exercises",
+    "duration_min",
+    "calories",
+    "notes",
+}
+
+_GOAL_UPDATE_FIELDS = {
+    "goal_type",
+    "target",
+    "current",
+    "unit",
+    "deadline",
+}
+
+
+def _workout_row_to_dict(row):
+    return {
+        "id": row[0],
+        "workout_type": row[1],
+        "exercises": row[2],
+        "duration_min": row[3],
+        "calories": row[4],
+        "notes": row[5],
+        "logged_at": row[6].isoformat(),
+    }
+
+
+def _goal_row_to_dict(row):
+    return {
+        "id": row[0],
+        "goal_type": row[1],
+        "target": float(row[2]),
+        "current": float(row[3]),
+        "unit": row[4],
+        "deadline": row[5].isoformat() if row[5] else None,
+        "created_at": row[6].isoformat(),
+    }
+
 
 def log_workout(user_id, workout_type, exercises=None, duration_min=0, calories=0, notes=""):
     """Insert a workout log entry."""
     with get_db_cursor(commit=True) as (conn, cur):
-        import psycopg2
+        from psycopg2.extras import Json
 
         cur.execute(
             """
@@ -20,7 +60,7 @@ def log_workout(user_id, workout_type, exercises=None, duration_min=0, calories=
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id, logged_at
             """,
-            (user_id, workout_type, psycopg2.extras.Json(exercises or []), duration_min, calories, notes),
+            (user_id, workout_type, Json(exercises or []), duration_min, calories, notes),
         )
         row = cur.fetchone()
         return {"id": row[0], "logged_at": row[1].isoformat()}
@@ -40,18 +80,50 @@ def get_workout_history(user_id, limit=20):
             (user_id, limit),
         )
         rows = cur.fetchall()
-        return [
-            {
-                "id": r[0],
-                "workout_type": r[1],
-                "exercises": r[2],
-                "duration_min": r[3],
-                "calories": r[4],
-                "notes": r[5],
-                "logged_at": r[6].isoformat(),
-            }
-            for r in rows
-        ]
+        return [_workout_row_to_dict(r) for r in rows]
+
+
+def update_workout(user_id, workout_id, updates):
+    """Update a workout log owned by user_id. Returns updated row or None."""
+    fields = {key: value for key, value in (updates or {}).items() if key in _WORKOUT_UPDATE_FIELDS}
+    if not fields:
+        return None
+
+    values = []
+    assignments = []
+    for key, value in fields.items():
+        assignments.append(f"{key} = %s")
+        if key == "exercises":
+            from psycopg2.extras import Json
+
+            value = Json(value or [])
+        values.append(value)
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            f"""
+            UPDATE fitness_workout_logs
+            SET {", ".join(assignments)}
+            WHERE id = %s AND user_id = %s
+            RETURNING id, workout_type, exercises, duration_min, calories, notes, logged_at
+            """,
+            (*values, workout_id, user_id),
+        )
+        row = cur.fetchone()
+        return _workout_row_to_dict(row) if row else None
+
+
+def delete_workout(user_id, workout_id):
+    """Delete a workout log owned by user_id."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            DELETE FROM fitness_workout_logs
+            WHERE id = %s AND user_id = %s
+            """,
+            (workout_id, user_id),
+        )
+        return cur.rowcount > 0
 
 
 def set_goal(user_id, goal_type, target, unit="", deadline=None):
@@ -82,18 +154,41 @@ def get_goals(user_id):
             (user_id,),
         )
         rows = cur.fetchall()
-        return [
-            {
-                "id": r[0],
-                "goal_type": r[1],
-                "target": float(r[2]),
-                "current": float(r[3]),
-                "unit": r[4],
-                "deadline": r[5].isoformat() if r[5] else None,
-                "created_at": r[6].isoformat(),
-            }
-            for r in rows
-        ]
+        return [_goal_row_to_dict(r) for r in rows]
+
+
+def update_goal(user_id, goal_id, updates):
+    """Update a fitness goal owned by user_id. Returns updated row or None."""
+    fields = {key: value for key, value in (updates or {}).items() if key in _GOAL_UPDATE_FIELDS}
+    if not fields:
+        return None
+
+    set_clause = ", ".join(f"{key} = %s" for key in fields)
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            f"""
+            UPDATE fitness_goals
+            SET {set_clause}
+            WHERE id = %s AND user_id = %s
+            RETURNING id, goal_type, target, current, unit, deadline, created_at
+            """,
+            (*fields.values(), goal_id, user_id),
+        )
+        row = cur.fetchone()
+        return _goal_row_to_dict(row) if row else None
+
+
+def delete_goal(user_id, goal_id):
+    """Delete a fitness goal owned by user_id."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            DELETE FROM fitness_goals
+            WHERE id = %s AND user_id = %s
+            """,
+            (goal_id, user_id),
+        )
+        return cur.rowcount > 0
 
 
 def update_goal_progress(goal_id, current):

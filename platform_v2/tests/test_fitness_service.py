@@ -12,11 +12,12 @@ if str(PLATFORM_ROOT) not in sys.path:
     sys.path.insert(0, str(PLATFORM_ROOT))
 
 
-def _mock_cursor(row=None, rows=None):
+def _mock_cursor(row=None, rows=None, rowcount=0):
     """Return a context-manager mock for get_db_cursor."""
     cur = MagicMock()
     cur.fetchone.return_value = row
     cur.fetchall.return_value = rows or []
+    cur.rowcount = rowcount
     conn = MagicMock()
 
     class _CM:
@@ -81,6 +82,91 @@ def test_get_goals_returns_empty_list_when_user_has_no_goals():
     sql, params = cm.cursor.execute.call_args.args
     assert "FROM fitness_goals" in sql
     assert params == (7,)
+
+
+def test_update_workout_checks_user_id_and_returns_updated_row():
+    import psycopg2.extras  # noqa: F401 - ensures psycopg2.extras.Json is attached
+    from tools.fitness.services import fitness_service as svc
+
+    logged_at = datetime(2026, 6, 11, 16, 0, 0)
+    cm = _mock_cursor(row=(12, "cardio", [{"name": "Run"}], 35, 300, "Tempo", logged_at))
+
+    with patch.object(svc, "get_db_cursor", return_value=cm):
+        result = svc.update_workout(
+            user_id=7,
+            workout_id=12,
+            updates={
+                "workout_type": "cardio",
+                "exercises": [{"name": "Run"}],
+                "duration_min": 35,
+                "ignored": "nope",
+            },
+        )
+
+    assert result["id"] == 12
+    assert result["logged_at"] == "2026-06-11T16:00:00"
+    sql, params = cm.cursor.execute.call_args.args
+    assert "UPDATE fitness_workout_logs" in sql
+    assert "WHERE id = %s AND user_id = %s" in sql
+    assert params[-2:] == (12, 7)
+    assert "ignored" not in sql
+
+
+def test_delete_workout_checks_user_id_and_returns_deleted_state():
+    from tools.fitness.services import fitness_service as svc
+
+    cm = _mock_cursor(rowcount=1)
+
+    with patch.object(svc, "get_db_cursor", return_value=cm):
+        assert svc.delete_workout(user_id=7, workout_id=12) is True
+
+    sql, params = cm.cursor.execute.call_args.args
+    assert "DELETE FROM fitness_workout_logs" in sql
+    assert "WHERE id = %s AND user_id = %s" in sql
+    assert params == (12, 7)
+
+
+def test_update_goal_checks_user_id_and_returns_updated_row():
+    from tools.fitness.services import fitness_service as svc
+
+    created_at = datetime(2026, 6, 10, 9, 0, 0)
+    cm = _mock_cursor(row=(9, "weekly workouts", 5, 2, "sessions", None, created_at))
+
+    with patch.object(svc, "get_db_cursor", return_value=cm):
+        result = svc.update_goal(
+            user_id=7,
+            goal_id=9,
+            updates={"target": 5, "current": 2, "ignored": "nope"},
+        )
+
+    assert result == {
+        "id": 9,
+        "goal_type": "weekly workouts",
+        "target": 5.0,
+        "current": 2.0,
+        "unit": "sessions",
+        "deadline": None,
+        "created_at": "2026-06-10T09:00:00",
+    }
+    sql, params = cm.cursor.execute.call_args.args
+    assert "UPDATE fitness_goals" in sql
+    assert "WHERE id = %s AND user_id = %s" in sql
+    assert params[-2:] == (9, 7)
+    assert "ignored" not in sql
+
+
+def test_delete_goal_checks_user_id_and_returns_deleted_state():
+    from tools.fitness.services import fitness_service as svc
+
+    cm = _mock_cursor(rowcount=0)
+
+    with patch.object(svc, "get_db_cursor", return_value=cm):
+        assert svc.delete_goal(user_id=7, goal_id=9) is False
+
+    sql, params = cm.cursor.execute.call_args.args
+    assert "DELETE FROM fitness_goals" in sql
+    assert "WHERE id = %s AND user_id = %s" in sql
+    assert params == (9, 7)
 
 
 def test_get_ai_context_includes_recent_workouts_and_goals():

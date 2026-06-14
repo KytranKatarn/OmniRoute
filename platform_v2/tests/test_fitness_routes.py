@@ -238,3 +238,87 @@ def test_workout_history_returns_history_for_authenticated_user(fitness_client):
     data = resp.get_json()
     assert data == {"success": True, "history": expected_history}
     history.assert_called_once_with(7, limit=5)
+
+
+def test_update_workout_uses_authenticated_user_for_authorization(fitness_client):
+    expected_workout = {"id": 12, "workout_type": "cardio"}
+
+    with patch(
+        "tools.fitness.routes.svc_update_workout",
+        return_value=expected_workout,
+    ) as update_workout:
+        resp = fitness_client.put(
+            "/tools/fitness/api/workout/12",
+            json={"user_id": 999, "workout_type": "cardio"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True, "workout": expected_workout}
+    update_workout.assert_called_once_with(1, 12, {"user_id": 999, "workout_type": "cardio"})
+
+
+def test_update_workout_returns_404_when_not_owned_or_missing(fitness_client):
+    with patch("tools.fitness.routes.svc_update_workout", return_value=None):
+        resp = fitness_client.put("/tools/fitness/api/workout/12", json={"notes": "Updated"})
+
+    assert resp.status_code == 404
+    assert resp.get_json()["success"] is False
+
+
+def test_delete_workout_uses_authenticated_user_for_authorization(fitness_client):
+    with patch("tools.fitness.routes.svc_delete_workout", return_value=True) as delete_workout:
+        resp = fitness_client.delete("/tools/fitness/api/workout/12")
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True, "deleted": True}
+    delete_workout.assert_called_once_with(1, 12)
+
+
+def test_delete_workout_returns_404_when_not_owned_or_missing(fitness_client):
+    with patch("tools.fitness.routes.svc_delete_workout", return_value=False):
+        resp = fitness_client.delete("/tools/fitness/api/workout/12")
+
+    assert resp.status_code == 404
+    assert resp.get_json() == {"success": False, "error": "Workout not found"}
+
+
+def test_update_goal_uses_authenticated_user_for_authorization(fitness_client):
+    expected_goal = {"id": 9, "goal_type": "weekly workouts"}
+
+    with patch(
+        "tools.fitness.routes.svc_update_goal",
+        return_value=expected_goal,
+    ) as update_goal:
+        resp = fitness_client.put(
+            "/tools/fitness/api/goals/9",
+            json={"user_id": 999, "target": 5},
+        )
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True, "goal": expected_goal}
+    update_goal.assert_called_once_with(1, 9, {"user_id": 999, "target": 5})
+
+
+def test_update_goal_returns_404_when_not_owned_or_missing(fitness_client):
+    with patch("tools.fitness.routes.svc_update_goal", return_value=None):
+        resp = fitness_client.put("/tools/fitness/api/goals/9", json={"target": 5})
+
+    assert resp.status_code == 404
+    assert resp.get_json()["success"] is False
+
+
+def test_delete_goal_uses_authenticated_user_for_authorization(fitness_client):
+    with patch("tools.fitness.routes.svc_delete_goal", return_value=True) as delete_goal:
+        resp = fitness_client.delete("/tools/fitness/api/goals/9")
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {"success": True, "deleted": True}
+    delete_goal.assert_called_once_with(1, 9)
+
+
+def test_delete_goal_returns_404_when_not_owned_or_missing(fitness_client):
+    with patch("tools.fitness.routes.svc_delete_goal", return_value=False):
+        resp = fitness_client.delete("/tools/fitness/api/goals/9")
+
+    assert resp.status_code == 404
+    assert resp.get_json() == {"success": False, "error": "Goal not found"}

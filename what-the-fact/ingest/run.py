@@ -364,6 +364,7 @@ def main():
     _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
     _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
     _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
+    _last_securities_date = None  # TSX issuer directory ingest (weekly, Tue) — #373 Market L6 Phase 0
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -442,6 +443,20 @@ def main():
             except Exception:
                 log.exception("entity_graph dedup crashed")
             _last_dedup_date = today
+
+        # TSX listed-issuer directory refresh weekly on Tuesdays (#373 Market L6 Phase 0).
+        # Builds securities.issuers (name<->ticker bridge). Lightweight Wikipedia fetch +
+        # upsert; a thin/failed fetch self-skips. NOTE: chain Link 6 (market_reaction_to)
+        # stays has_data=false — it needs CORPORATE contract-award data in awarded_to first;
+        # the current awarded_to vendors are individuals (TBS proactive disclosure), 0 issuer
+        # overlap. This keeps the issuer bridge fresh so L6 can light up once that data lands.
+        if today.weekday() == 1 and _last_securities_date != today:
+            try:
+                from ingest.securities_issuer_ingest import run as _sec_ingest
+                log.info("securities issuer ingest: %s", _sec_ingest())
+            except Exception:
+                log.exception("securities issuer ingest crashed")
+            _last_securities_date = today
 
         # Backlog workers — all run in PARALLEL. Each is fully independent:
         # different DB tables, different agents, different fleet nodes.

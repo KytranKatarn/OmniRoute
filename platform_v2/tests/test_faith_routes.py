@@ -199,6 +199,38 @@ def test_faith_bible_search(faith_client):
     assert any(result["reference"] == "John 3:16" for result in data["results"])
 
 
+def test_faith_bible_search_clamps_user_limit(faith_client):
+    from unittest.mock import patch
+
+    verses = [
+        {"reference": f"Test {i}", "text": "mercy", "book": "TST", "chapter": 1, "verse": i} for i in range(1, 151)
+    ]
+    _login(faith_client)
+    with patch("tools.faith.routes._load_web_bible", return_value={"verses": verses}):
+        resp = faith_client.get("/tools/faith/api/faith/bible/search?q=mercy&limit=100000")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["count"] == 100
+    assert len(data["results"]) == 100
+
+
+def test_faith_scriptures_search_clamps_user_limit(faith_client):
+    from unittest.mock import patch
+
+    passages = [
+        {"collection": "web", "reference": f"Test {i}", "text": "peace", "_search": "peace"} for i in range(1, 151)
+    ]
+    _login(faith_client)
+    with patch("tools.faith.routes._load_scripture_corpus", return_value={"passages": passages}):
+        resp = faith_client.get("/tools/faith/api/faith/scriptures/search?q=peace&limit=100000")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["count"] == 100
+    assert len(data["results"]) == 100
+
+
 def test_faith_encyclopedia_search(faith_client):
     _login(faith_client)
     resp = faith_client.get("/tools/faith/api/faith/encyclopedia/search?q=fathers")
@@ -206,6 +238,51 @@ def test_faith_encyclopedia_search(faith_client):
     data = resp.get_json()
     assert data["success"] is True
     assert any("Fathers" in entry["title"] for entry in data["entries"])
+
+
+def test_faith_encyclopedia_search_clamps_user_limit(faith_client):
+    from unittest.mock import patch
+
+    entries = [
+        {"title": f"Faith Entry {i}", "category": "test", "summary": "wisdom", "tags": ["wisdom"]}
+        for i in range(1, 151)
+    ]
+    _login(faith_client)
+    with patch("tools.faith.routes._load_encyclopedia_entries", return_value=entries):
+        resp = faith_client.get("/tools/faith/api/faith/encyclopedia/search?q=wisdom&limit=100000")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["count"] == 100
+    assert len(data["entries"]) == 100
+
+
+@pytest.mark.parametrize(
+    ("path", "result_key"),
+    [
+        ("/tools/faith/api/faith/bible/search?q=mercy&limit=0", "results"),
+        ("/tools/faith/api/faith/scriptures/search?q=mercy&limit=0", "results"),
+        ("/tools/faith/api/faith/encyclopedia/search?q=mercy&limit=0", "entries"),
+    ],
+)
+def test_faith_search_limits_clamp_to_minimum(faith_client, path, result_key):
+    from unittest.mock import patch
+
+    verses = [{"reference": f"Test {i}", "text": "mercy", "book": "TST", "chapter": 1, "verse": i} for i in range(1, 3)]
+    passages = [
+        {"collection": "web", "reference": f"Test {i}", "text": "mercy", "_search": "mercy"} for i in range(1, 3)
+    ]
+    entries = [{"title": f"Mercy {i}", "category": "test", "summary": "mercy", "tags": ["mercy"]} for i in range(1, 3)]
+    _login(faith_client)
+    with patch("tools.faith.routes._load_web_bible", return_value={"verses": verses}), patch(
+        "tools.faith.routes._load_scripture_corpus", return_value={"passages": passages}
+    ), patch("tools.faith.routes._load_encyclopedia_entries", return_value=entries):
+        resp = faith_client.get(path)
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["count"] == 1
+    assert len(data[result_key]) == 1
 
 
 def test_faith_checkin_saves(faith_client):

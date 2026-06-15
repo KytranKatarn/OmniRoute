@@ -36,6 +36,8 @@ MAX_PRAYER_INTENTION_CHARS = 500
 MAX_LECTIO_PASSAGE_CHARS = 500
 MAX_CHAPLAIN_MESSAGE_CHARS = 2000
 MAX_CHAPLAIN_CONTEXT_IDS = 20
+MIN_SEARCH_LIMIT = 1
+MAX_SEARCH_LIMIT = 100
 ALLOWED_PRAYER_TYPES = {
     "general",
     "thanksgiving",
@@ -777,6 +779,14 @@ def _serialize_book(book: JsonDict) -> JsonDict:
     }
 
 
+def _clamped_search_limit(default: int) -> int:
+    try:
+        requested = int(request.args.get("limit", str(default)))
+    except (TypeError, ValueError):
+        requested = default
+    return min(max(requested, MIN_SEARCH_LIMIT), MAX_SEARCH_LIMIT)
+
+
 @faith_bp.route("/")
 @login_required
 def index() -> str:
@@ -971,10 +981,7 @@ def bible_search() -> JsonResponse:
     query = (request.args.get("q") or "").strip()
     if not query:
         return jsonify({"success": False, "error": "query required"}), 400
-    try:
-        limit = min(max(int(request.args.get("limit", "25")), 1), 100)
-    except ValueError:
-        limit = 25
+    limit = _clamped_search_limit(25)
 
     q = query.lower()
     results = []
@@ -1008,10 +1015,7 @@ def scriptures_search() -> JsonResponse:
     collection = (request.args.get("collection") or "all").strip()
     if not query:
         return jsonify({"success": False, "error": "query required"}), 400
-    try:
-        limit = min(max(int(request.args.get("limit", "40")), 1), 120)
-    except ValueError:
-        limit = 40
+    limit = _clamped_search_limit(40)
 
     q = query.lower()
     results = []
@@ -1037,6 +1041,7 @@ def scriptures_search() -> JsonResponse:
 @login_required
 def encyclopedia_search() -> Response:
     query = (request.args.get("q") or "").strip().lower()
+    limit = _clamped_search_limit(MAX_SEARCH_LIMIT)
     entries = _load_encyclopedia_entries()
     if query:
         entries = [
@@ -1052,6 +1057,7 @@ def encyclopedia_search() -> Response:
                 ]
             ).lower()
         ]
+    entries = entries[:limit]
     return jsonify({"success": True, "query": query, "entries": entries, "count": len(entries)})
 
 

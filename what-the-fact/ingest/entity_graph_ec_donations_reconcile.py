@@ -113,6 +113,24 @@ def run(dry_run=False):
             JOIN shared.entities de ON de.slug = a.donor_slug AND de.status = 'active'
         """)).scalar_one())
 
+        # 2c) fuzzy+riding donor -> MP recall recovery (#373): 'Candidates' recipients that
+        # did NOT exact-match an MP slug but DO match the MP of the SAME riding at
+        # name-similarity >= 0.60. One current MP per riding makes this safe — it recovers
+        # name variations (middle initials, nicknames, added surnames) without the namesake
+        # false-positives that name-only fuzzy would create against ~3k defeated candidates.
+        totals["donor_mp_fuzzy_candidates"] = int(conn.execute(text(f"""
+            SELECT count(DISTINCT m.entity_id) FROM (
+                SELECT DISTINCT {mp_slug} AS recip_slug, {recip} AS recip_name,
+                       {_slugify('electoral_district')} AS ed_slug
+                FROM parliament.ec_contributions WHERE political_entity = 'Candidates'
+            ) a
+            JOIN parliament.mps m ON m.entity_id IS NOT NULL
+             AND {_slugify('m.riding_name')} = a.ed_slug
+             AND similarity(lower(unaccent(a.recip_name)), lower(unaccent(m.name))) >= 0.60
+            WHERE NOT EXISTS (SELECT 1 FROM parliament.mps me
+                              WHERE me.slug = a.recip_slug AND me.entity_id IS NOT NULL)
+        """)).scalar_one())
+
         if dry_run:
             logger.info("EC donations reconcile [dry-run]: %s", totals)
             return totals
@@ -174,6 +192,56 @@ def run(dry_run=False):
             ) a
             JOIN parliament.mps m ON m.slug = a.mp_slug AND m.entity_id IS NOT NULL
             JOIN shared.entities de ON de.slug = a.donor_slug AND de.status = 'active'
+            ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
+            DO NOTHING
+        """)).rowcount
+
+        # 7) fuzzy+riding donor -> MP edges (#373 recall recovery). 'Candidates' recipients
+        # that did NOT exact-match an MP slug, matched to the MP of the SAME riding at
+        # name-similarity >= 0.60 (one current MP per riding -> safe; recovers middle
+        # initials, nicknames, added surnames). source_id namespaced '|mpf-' so it never
+        # collides with the exact '|mp-' edges; metadata tags match='fuzzy_riding' + the
+        # similarity score (audit + revertable). Materialized (>= $200, active) donors only.
+        totals["donor_mp_fuzzy_edges"] = conn.execute(text(f"""
+            INSERT INTO shared.entity_relationships
+                (from_entity_id, to_entity_id, relationship_type, source_product, source_id, metadata)
+            SELECT de.id, agg.m_entity_id, 'donated_to', 'elections_canada',
+                   agg.donor_slug || '|mpf-' || agg.m_slug,
+                   jsonb_build_object('total_cad', round(agg.total, 2), 'contributions', agg.n,
+                                      'recipient', 'candidate', 'match', 'fuzzy_riding',
+                                      'similarity', round(agg.max_sim::numeric, 3),
+                                      'first', agg.first_d, 'last', agg.last_d)
+            FROM (
+                SELECT z.donor_slug, z.m_entity_id, z.m_slug,
+                       sum(z.total) AS total, sum(z.n) AS n, max(z.sim) AS max_sim,
+                       min(z.first_d) AS first_d, max(z.last_d) AS last_d
+                FROM (
+                    SELECT a.donor_slug, a.total, a.n, a.first_d, a.last_d,
+                           res.entity_id AS m_entity_id, res.slug AS m_slug, res.sim
+                    FROM (
+                        SELECT {donor_slug} AS donor_slug, {mp_slug} AS recip_slug,
+                               {recip} AS recip_name, {_slugify('electoral_district')} AS ed_slug,
+                               sum(monetary_amount + coalesce(non_monetary_amount, 0)) AS total,
+                               count(*) AS n, min(contribution_date) AS first_d,
+                               max(contribution_date) AS last_d
+                        FROM parliament.ec_contributions WHERE political_entity = 'Candidates'
+                        GROUP BY 1, 2, 3, 4
+                    ) a
+                    JOIN LATERAL (
+                        SELECT m.entity_id, m.slug,
+                               similarity(lower(unaccent(a.recip_name)), lower(unaccent(m.name))) AS sim
+                        FROM parliament.mps m
+                        WHERE m.entity_id IS NOT NULL
+                          AND {_slugify('m.riding_name')} = a.ed_slug
+                          AND similarity(lower(unaccent(a.recip_name)), lower(unaccent(m.name))) >= 0.60
+                        ORDER BY sim DESC LIMIT 1
+                    ) res ON true
+                    WHERE NOT EXISTS (SELECT 1 FROM parliament.mps me
+                                      WHERE me.slug = a.recip_slug AND me.entity_id IS NOT NULL)
+                ) z
+                GROUP BY z.donor_slug, z.m_entity_id, z.m_slug
+            ) agg
+            JOIN shared.entities de ON de.slug = agg.donor_slug AND de.status = 'active'
             ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
             DO NOTHING
         """)).rowcount

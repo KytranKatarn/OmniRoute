@@ -106,7 +106,7 @@ def chain_search():
         rows = conn.execute(text(
             f"SELECT slug, canonical_name, entity_type, roles "
             f"FROM {s}.entities "
-            f"WHERE canonical_name IS NOT NULL AND lower(canonical_name) LIKE :like "
+            f"WHERE status = 'active' AND canonical_name IS NOT NULL AND lower(canonical_name) LIKE :like "
             f"ORDER BY (lower(canonical_name) = :q) DESC, length(canonical_name) ASC, "
             f"canonical_name ASC LIMIT :lim"
         ), {"like": f"%{q}%", "q": q, "lim": _SEARCH_LIMIT}).mappings().fetchall()
@@ -133,12 +133,19 @@ def chain_entity(slug):
 
     s = _shared()
     with _eng().connect() as conn:
+        _ent_cols = "id, slug, canonical_name, entity_type, roles, status, merged_into"
         ent = conn.execute(text(
-            f"SELECT id, slug, canonical_name, entity_type, roles, status "
-            f"FROM {s}.entities WHERE slug = :slug"
+            f"SELECT {_ent_cols} FROM {s}.entities WHERE slug = :slug"
         ), {"slug": slug}).mappings().fetchone()
         if ent is None:
             return jsonify({"error": "entity not found", "slug": slug}), 404
+        # follow a dedup merge (one hop) so an old/merged slug resolves to the survivor
+        if ent["status"] == "merged" and ent["merged_into"]:
+            ent = conn.execute(text(
+                f"SELECT {_ent_cols} FROM {s}.entities WHERE id = :id"
+            ), {"id": ent["merged_into"]}).mappings().fetchone()
+            if ent is None:
+                return jsonify({"error": "entity not found", "slug": slug}), 404
         eid = ent["id"]
 
         # chain position + has_data per relationship_type (from the frozen catalog)

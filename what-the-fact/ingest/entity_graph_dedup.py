@@ -129,6 +129,8 @@ def _merge(conn, survivor, merged, reason, by="dedup_engine"):
     conn.execute(text("""
         INSERT INTO shared.dedup_pair_decisions (entity_id_a, entity_id_b, decision, similarity, decided_by)
         VALUES (:a, :b, 'same', 1.0, :by)
+        ON CONFLICT (entity_id_a, entity_id_b)
+        DO UPDATE SET decision='same', similarity=1.0, decided_by=EXCLUDED.decided_by, decided_at=now()
     """), {"a": pa, "b": pb, "by": by + ":" + reason})
 
 
@@ -232,6 +234,76 @@ def revert(merge_log_id, by="dedup_revert"):
     return result
 
 
+def list_pending(limit=20):
+    """Pending merge_review_queue pairs with names + roles, for a human/agent to decide."""
+    eng = _engine()
+    with eng.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT q.id, q.entity_id_a, q.entity_id_b, q.similarity, q.features,
+                   a.canonical_name AS a_name, a.slug AS a_slug, a.entity_type AS a_type,
+                   b.canonical_name AS b_name, b.slug AS b_slug, b.entity_type AS b_type
+            FROM shared.merge_review_queue q
+            JOIN shared.entities a ON a.id = q.entity_id_a
+            JOIN shared.entities b ON b.id = q.entity_id_b
+            WHERE q.status='pending'
+            ORDER BY q.similarity DESC, q.id
+            LIMIT :lim
+        """), {"lim": limit}).mappings().fetchall()
+    return [dict(r) for r in rows]
+
+
+def decide(queue_id, decision, by="manual_review"):
+    """Resolve a merge_review_queue pair: 'same' (merge), 'distinct' (reject), or 'defer'.
+    On 'same' the most-connected entity survives; the merge reuses _merge (revertable)."""
+    if decision not in ("same", "distinct", "defer"):
+        raise ValueError("decision must be one of same|distinct|defer")
+    eng = _engine()
+    with eng.begin() as conn:
+        q = conn.execute(text(
+            "SELECT entity_id_a, entity_id_b, status FROM shared.merge_review_queue WHERE id=:id"),
+            {"id": queue_id}).mappings().fetchone()
+        if q is None:
+            raise RuntimeError(f"merge_review_queue {queue_id} not found")
+        if q["status"] != "pending":
+            return {"decided": False, "reason": f"already {q['status']}"}
+        a, b = q["entity_id_a"], q["entity_id_b"]
+
+        if decision == "defer":
+            conn.execute(text("UPDATE shared.merge_review_queue SET status='deferred', "
+                              "decided_at=now(), decided_by=:by WHERE id=:id"),
+                         {"by": by, "id": queue_id})
+            return {"decided": True, "decision": "defer", "queue_id": queue_id}
+
+        if decision == "distinct":
+            pa, pb = (a, b) if a < b else (b, a)
+            conn.execute(text("""
+                INSERT INTO shared.dedup_pair_decisions (entity_id_a, entity_id_b, decision, similarity, decided_by)
+                VALUES (:a, :b, 'distinct', 1.0, :by)
+                ON CONFLICT (entity_id_a, entity_id_b)
+                DO UPDATE SET decision='distinct', decided_by=EXCLUDED.decided_by, decided_at=now()
+            """), {"a": pa, "b": pb, "by": by})
+            conn.execute(text("UPDATE shared.merge_review_queue SET status='rejected', "
+                              "decided_at=now(), decided_by=:by WHERE id=:id"),
+                         {"by": by, "id": queue_id})
+            return {"decided": True, "decision": "distinct", "queue_id": queue_id}
+
+        # decision == 'same' -> merge; survivor = most-connected (tie -> lower id)
+        st = {eid: conn.execute(text("SELECT status FROM shared.entities WHERE id=:e"),
+                                {"e": eid}).scalar() for eid in (a, b)}
+        if st.get(a) != "active" or st.get(b) != "active":
+            return {"decided": False, "reason": f"entity not active (a={st.get(a)}, b={st.get(b)})"}
+        deg = {eid: conn.execute(text(
+            "SELECT count(*) FROM shared.entity_relationships WHERE from_entity_id=:e OR to_entity_id=:e"),
+            {"e": eid}).scalar() for eid in (a, b)}
+        survivor, merged = (a, b) if (deg[a] > deg[b] or (deg[a] == deg[b] and a < b)) else (b, a)
+        _merge(conn, survivor, merged, "review_approved", by=by)
+        conn.execute(text("UPDATE shared.merge_review_queue SET status='merged', "
+                          "decided_at=now(), decided_by=:by WHERE id=:id"),
+                     {"by": by, "id": queue_id})
+        return {"decided": True, "decision": "same", "survivor": survivor,
+                "merged": merged, "queue_id": queue_id}
+
+
 def run(dry_run=False):
     totals = {"blocks": 0, "org_groups": 0, "org_merges": 0, "person_review_queued": 0}
     eng = _engine()
@@ -316,10 +388,19 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="count org groups only, no writes")
     ap.add_argument("--revert", type=int, metavar="MERGE_LOG_ID",
                     help="undo a merge by its entity_merge_log id")
+    ap.add_argument("--review-list", type=int, nargs="?", const=20, metavar="N",
+                    help="list N pending review pairs (default 20)")
+    ap.add_argument("--review-decide", nargs=2, metavar=("QUEUE_ID", "DECISION"),
+                    help="resolve a review pair: <queue_id> <same|distinct|defer>")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     if args.revert:
         revert(args.revert)
+    elif args.review_list is not None:
+        import json as _json
+        print(_json.dumps(list_pending(args.review_list), default=str, indent=2))
+    elif args.review_decide:
+        print(decide(int(args.review_decide[0]), args.review_decide[1]))
     else:
         run(dry_run=args.dry_run)
 

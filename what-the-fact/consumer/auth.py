@@ -6,7 +6,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from flask import Blueprint, redirect, request, session
+from flask import Blueprint, jsonify, redirect, request, session
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,37 @@ def is_subscriber() -> bool:
         except Exception:
             pass
     return False
+
+
+# Owner / admin identity — the platform owner's logged-in session is admin across the
+# consumer's admin endpoints (no separate key needed in the browser).
+_OWNER_EMAILS = {e.strip().lower() for e in os.environ.get(
+    "WTF_OWNER_EMAILS", "kytranempowerment@gmail.com,kytran@kytranempowerment.com"
+).split(",") if e.strip()}
+_OWNER_TIERS = {"owner", "admin", "kytran"}
+
+
+def is_owner() -> bool:
+    """True if the logged-in session belongs to the platform owner (Kytran) / an admin."""
+    if not session.get("wtf_authenticated"):
+        return False
+    if (session.get("wtf_tier") or "").lower() in _OWNER_TIERS:
+        return True
+    return (session.get("wtf_email") or "").strip().lower() in _OWNER_EMAILS
+
+
+def admin_gate():
+    """Shared admin gate for consumer admin endpoints. Grants access to the owner's logged-in
+    session OR a matching X-Admin-Key header. FAILS CLOSED (no allow-if-unset). Returns a
+    Flask (json, status) error tuple to abort the request, or None when access is granted."""
+    if is_owner():
+        return None
+    key = os.getenv("WTF_ADMIN_KEY", "")
+    if not key:
+        return jsonify({"error": "admin not configured — log in as owner or set WTF_ADMIN_KEY"}), 503
+    if request.headers.get("X-Admin-Key") != key:
+        return jsonify({"error": "unauthorized"}), 401
+    return None
 
 
 def current_username() -> str | None:

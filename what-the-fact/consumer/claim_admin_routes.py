@@ -1,6 +1,5 @@
 """WTF Consumer — Admin CRUD for Election Claim Tracker (#3013)."""
 import logging
-import os
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy import text
@@ -12,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 def _require_admin():
-    key = os.getenv("WTF_ADMIN_KEY", "")
-    if key and request.headers.get("X-Admin-Key") != key:
-        return jsonify({"error": "Unauthorized"}), 401
-    return None
+    """Owner's logged-in session OR a matching X-Admin-Key; fail-closed (see auth.admin_gate).
+    Replaces the old allow-if-unset gate (#4216)."""
+    from .auth import admin_gate
+    return admin_gate()
 
 
 # ───────────────────────────────────────────────────────────────────────────

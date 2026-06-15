@@ -11,7 +11,6 @@ ingest.entity_graph_dedup.list_pending / decide (decide('same') is revertable vi
   POST /admin/dedup/decide    -> {queue_id, decision} resolve a pair (X-Admin-Key)
 """
 import json
-import os
 
 from flask import Blueprint, Response, jsonify, render_template, request
 
@@ -19,14 +18,10 @@ dedup_admin_bp = Blueprint("dedup_admin", __name__)
 
 
 def _require_dedup_admin():
-    """Fail-CLOSED: deny unless WTF_ADMIN_KEY is set AND matches X-Admin-Key. Destructive
-    merges must never be open, even when the key is unconfigured."""
-    key = os.getenv("WTF_ADMIN_KEY", "")
-    if not key:
-        return jsonify({"error": "admin key not configured (set WTF_ADMIN_KEY)"}), 503
-    if request.headers.get("X-Admin-Key") != key:
-        return jsonify({"error": "unauthorized"}), 401
-    return None
+    """Owner's logged-in session OR a matching X-Admin-Key; fail-closed (see auth.admin_gate).
+    Destructive merges are never open."""
+    from .auth import admin_gate
+    return admin_gate()
 
 
 @dedup_admin_bp.get("/admin/dedup")

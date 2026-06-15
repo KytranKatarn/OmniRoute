@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Dedup Review — What The Fact (admin){% endblock %}
+{% block meta %}<meta name="robots" content="noindex,nofollow">{% endblock %}
+{% block content %}
+<div class="dr-wrap">
+  <div class="dr-head">
+    <div class="dr-eyebrow">SHARED ENTITY GRAPH · ADMIN</div>
+    <h1 class="dr-title">Dedup Review Queue</h1>
+    <p class="dr-sub">Resolve candidate duplicate pairs: <b>Merge</b> (same entity — survivor keeps both sets of edges, revertable), <b>Distinct</b> (not the same — won't be re-queued), or <b>Defer</b>.</p>
+  </div>
+
+  <div class="dr-bar">
+    <input id="drKey" type="password" autocomplete="off" placeholder="Admin key (X-Admin-Key)">
+    <input id="drN" type="number" min="1" max="200" value="50" title="how many to load">
+    <button id="drLoad">Load queue</button>
+    <span id="drStatus" class="dr-status"></span>
+  </div>
+
+  <div id="drList" class="dr-list"></div>
+</div>
+
+<style>
+  .dr-wrap{max-width:920px;margin:38px auto 64px;padding:0 16px;}
+  .dr-eyebrow{font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;}
+  .dr-title{font-family:'Orbitron',sans-serif;font-size:1.5rem;color:#e5e7eb;margin:0 0 8px;}
+  .dr-sub{font-size:0.8rem;color:#9ca3af;line-height:1.6;max-width:680px;margin:0;}
+  .dr-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:20px 0;}
+  #drKey{flex:1;min-width:220px;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:9px 12px;border-radius:5px;font-size:0.8rem;outline:none;}
+  #drN{width:70px;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:9px;border-radius:5px;}
+  #drLoad{background:var(--wtf-accent,#06b6d4);color:#fff;border:none;padding:9px 18px;border-radius:5px;cursor:pointer;font-size:0.8rem;}
+  .dr-status{font-size:0.7rem;color:#6b7280;}
+  .dr-pair{background:#0a0f1a;border:1px solid #1a2030;border-radius:6px;padding:12px 14px;margin-bottom:8px;}
+  .dr-pair-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .dr-sim{font-size:0.6rem;color:#06b6d4;border:1px solid #164e63;border-radius:3px;padding:2px 6px;}
+  .dr-ent{display:inline-flex;flex-direction:column;gap:2px;}
+  .dr-ent-name{font-size:0.82rem;color:#e5e7eb;}
+  .dr-ent-meta{font-size:0.56rem;letter-spacing:0.5px;color:#6b7280;text-transform:uppercase;}
+  .dr-vs{color:#4b5563;font-size:0.8rem;}
+  .dr-actions{display:flex;gap:6px;}
+  .dr-actions button{border:none;border-radius:4px;padding:6px 12px;font-size:0.72rem;cursor:pointer;color:#fff;}
+  .dr-merge{background:#16a34a;} .dr-distinct{background:#b91c1c;} .dr-defer{background:#374151;}
+  .dr-empty{color:#4b5563;font-size:0.8rem;padding:24px 0;}
+</style>
+
+<script>
+(function(){
+  var KEY="wtf-dedup-admin-key";
+  var keyEl=document.getElementById('drKey'), nEl=document.getElementById('drN'),
+      listEl=document.getElementById('drList'), statusEl=document.getElementById('drStatus');
+  keyEl.value=sessionStorage.getItem(KEY)||'';
+  keyEl.addEventListener('change',function(){sessionStorage.setItem(KEY,keyEl.value);});
+  function el(t,c,x){var e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;}
+  function hdr(){return {'X-Admin-Key':keyEl.value,'Content-Type':'application/json'};}
+
+  function load(){
+    sessionStorage.setItem(KEY,keyEl.value);
+    statusEl.textContent='loading…'; listEl.textContent='';
+    fetch('/admin/dedup/queue?n='+encodeURIComponent(nEl.value||50),{headers:hdr()})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});})
+      .then(function(o){
+        if(!o.ok){statusEl.textContent='error '+o.status+': '+((o.j&&o.j.error)||'');return;}
+        var rows=o.j.pending||[];
+        statusEl.textContent=rows.length+' pending';
+        if(!rows.length){listEl.appendChild(el('div','dr-empty','Queue is clear. 🎉'));return;}
+        rows.forEach(render);
+      })
+      .catch(function(e){statusEl.textContent='request failed';});
+  }
+
+  function render(p){
+    var card=el('div','dr-pair'); card.dataset.id=p.id;
+    var top=el('div','dr-pair-top');
+    top.appendChild(el('span','dr-sim','sim '+p.similarity));
+    var a=el('span','dr-ent'); a.appendChild(el('span','dr-ent-name',p.a_name));
+    a.appendChild(el('span','dr-ent-meta',(p.a_type||'')+' · '+p.a_slug)); top.appendChild(a);
+    top.appendChild(el('span','dr-vs','↔'));
+    var b=el('span','dr-ent'); b.appendChild(el('span','dr-ent-name',p.b_name));
+    b.appendChild(el('span','dr-ent-meta',(p.b_type||'')+' · '+p.b_slug)); top.appendChild(b);
+    card.appendChild(top);
+    var acts=el('div','dr-actions');
+    [['Merge','same','dr-merge'],['Distinct','distinct','dr-distinct'],['Defer','defer','dr-defer']]
+      .forEach(function(d){
+        var btn=el('button',d[2],d[0]); btn.addEventListener('click',function(){decide(p.id,d[1],card,btn);});
+        acts.appendChild(btn);
+      });
+    card.appendChild(acts); listEl.appendChild(card);
+  }
+
+  function decide(qid,decision,card,btn){
+    if(decision==='same' && !confirm('Merge these two entities? (revertable via --revert)')) return;
+    Array.prototype.forEach.call(card.querySelectorAll('button'),function(b){b.disabled=true;});
+    fetch('/admin/dedup/decide',{method:'POST',headers:hdr(),body:JSON.stringify({queue_id:qid,decision:decision})})
+      .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+      .then(function(o){
+        if(o.ok && o.j.decided){card.style.opacity=0.35;
+          var s=el('span','dr-ent-meta','✓ '+o.j.decision);card.querySelector('.dr-actions').appendChild(s);}
+        else{Array.prototype.forEach.call(card.querySelectorAll('button'),function(b){b.disabled=false;});
+          alert('Failed: '+((o.j&&(o.j.error||o.j.reason))||'unknown'));}
+      })
+      .catch(function(){Array.prototype.forEach.call(card.querySelectorAll('button'),function(b){b.disabled=false;});alert('request failed');});
+  }
+
+  document.getElementById('drLoad').addEventListener('click',load);
+})();
+</script>
+{% endblock %}

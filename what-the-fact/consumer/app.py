@@ -37,4 +37,7 @@ def create_app():
     # 8-link Accountability-Chain query API — public, read-only, bounded + cached (#3793)
     from .chain_routes import chain_bp
     app.register_blueprint(chain_bp)
+    # Dedup review UI — ADMIN-only (fail-closed X-Admin-Key), resolves merge_review_queue (#3792)
+    from .dedup_admin_routes import dedup_admin_bp
+    app.register_blueprint(dedup_admin_bp)
     return app

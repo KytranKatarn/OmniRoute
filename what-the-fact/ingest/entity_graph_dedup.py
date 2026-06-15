@@ -49,8 +49,19 @@ def _merge(conn, survivor, merged, reason, by="dedup_engine"):
     """Merge `merged` entity into `survivor` — repoint edges/mentions, union aliases/roles,
     mark merged, and snapshot to entity_merge_log (revertable). Collision-safe against the
     entity_relationships + entity_mentions unique keys."""
-    snap = conn.execute(text(
-        "SELECT row_to_json(e) FROM shared.entities e WHERE id=:m"), {"m": merged}).scalar()
+    # snapshot the merged entity + its edges/mentions BEFORE repointing, so revert() can
+    # fully restore it (v1 snapshotted only the entity row — edges were unrecoverable).
+    snap = {
+        "entity": conn.execute(text(
+            "SELECT row_to_json(e) FROM shared.entities e WHERE id=:m"), {"m": merged}).scalar(),
+        "relationships": conn.execute(text(
+            "SELECT coalesce(json_agg(row_to_json(r)), '[]'::json) "
+            "FROM shared.entity_relationships r WHERE r.from_entity_id=:m OR r.to_entity_id=:m"),
+            {"m": merged}).scalar(),
+        "mentions": conn.execute(text(
+            "SELECT coalesce(json_agg(row_to_json(em)), '[]'::json) "
+            "FROM shared.entity_mentions em WHERE em.entity_id=:m"), {"m": merged}).scalar(),
+    }
 
     # edges: drop merged-side edges that would duplicate a survivor edge post-repoint, then repoint
     conn.execute(text("""
@@ -121,6 +132,106 @@ def _merge(conn, survivor, merged, reason, by="dedup_engine"):
     """), {"a": pa, "b": pb, "by": by + ":" + reason})
 
 
+def revert(merge_log_id, by="dedup_revert"):
+    """Undo a merge from its entity_merge_log snapshot: restore the merged entity, move its
+    edges/mentions back off the survivor (re-inserting any that were collision-deleted), mark
+    the log reverted, and record a 'distinct' decision so the engine won't re-merge the pair.
+    Merges from dedup v1 (entity-only snapshot, no relationships/mentions) restore the entity
+    only — edges stay on the survivor (logged in the result as unrecoverable)."""
+    eng = _engine()
+    with eng.begin() as conn:
+        log = conn.execute(text(
+            "SELECT survivor_id, merged_id, merged_snapshot, reverted_at "
+            "FROM shared.entity_merge_log WHERE id=:id"), {"id": merge_log_id}).mappings().fetchone()
+        if log is None:
+            raise RuntimeError(f"entity_merge_log {merge_log_id} not found")
+        if log["reverted_at"] is not None:
+            logger.info("merge_log %s already reverted", merge_log_id)
+            return {"reverted": False, "reason": "already_reverted"}
+
+        survivor, merged = log["survivor_id"], log["merged_id"]
+        snap = log["merged_snapshot"] or {}
+        if isinstance(snap, str):
+            snap = json.loads(snap)
+        ent = snap.get("entity") or {}
+        rels = snap.get("relationships") or []
+        mentions = snap.get("mentions") or []
+
+        # 1) restore the merged entity row (still present, status='merged')
+        conn.execute(text("""
+            UPDATE shared.entities SET status='active', merged_into=NULL,
+                   canonical_name=COALESCE(:cn, canonical_name),
+                   aliases=CAST(:al AS text[]), roles=CAST(:roles AS jsonb), updated_at=now()
+            WHERE id=:m
+        """), {"m": merged, "cn": ent.get("canonical_name"),
+               "al": ent.get("aliases") or [], "roles": json.dumps(ent.get("roles") or [])})
+
+        restored_edges, reinserted_edges = 0, 0
+        for r in rels:
+            on_from = (r.get("from_entity_id") == merged)
+            other = r.get("to_entity_id") if on_from else r.get("from_entity_id")
+            col = "from_entity_id" if on_from else "to_entity_id"
+            opp = "to_entity_id" if on_from else "from_entity_id"
+            res = conn.execute(text(f"""
+                UPDATE shared.entity_relationships SET {col}=:m
+                WHERE {col}=:s AND {opp}=:other
+                  AND relationship_type=:rt AND source_product=:sp
+                  AND coalesce(source_id,'')=coalesce(:sid,'')
+            """), {"m": merged, "s": survivor, "other": other,
+                   "rt": r.get("relationship_type"), "sp": r.get("source_product"),
+                   "sid": r.get("source_id")})
+            if res.rowcount:
+                restored_edges += 1
+            else:  # was collision-deleted during merge — re-insert from snapshot
+                conn.execute(text("""
+                    INSERT INTO shared.entity_relationships
+                        (from_entity_id, to_entity_id, relationship_type, source_product, source_id, metadata)
+                    VALUES (:fr, :to, :rt, :sp, :sid, CAST(:md AS jsonb))
+                    ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
+                    DO NOTHING
+                """), {"fr": r.get("from_entity_id"), "to": r.get("to_entity_id"),
+                       "rt": r.get("relationship_type"), "sp": r.get("source_product"),
+                       "sid": r.get("source_id"),
+                       "md": json.dumps(r["metadata"]) if r.get("metadata") is not None else None})
+                reinserted_edges += 1
+
+        restored_mentions = 0
+        for em in mentions:
+            res = conn.execute(text("""
+                UPDATE shared.entity_mentions SET entity_id=:m
+                WHERE entity_id=:s AND product=:p AND content_type=:ct AND content_id=:cid
+            """), {"m": merged, "s": survivor, "p": em.get("product"),
+                   "ct": em.get("content_type"), "cid": em.get("content_id")})
+            if res.rowcount == 0:
+                conn.execute(text("""
+                    INSERT INTO shared.entity_mentions
+                        (entity_id, product, content_type, content_id, mention_context, confidence)
+                    VALUES (:m, :p, :ct, :cid, :mc, :cf)
+                    ON CONFLICT (entity_id, product, content_type, content_id) DO NOTHING
+                """), {"m": merged, "p": em.get("product"), "ct": em.get("content_type"),
+                       "cid": em.get("content_id"), "mc": em.get("mention_context"),
+                       "cf": em.get("confidence")})
+            restored_mentions += 1
+
+        # 2) mark reverted + flip the pair decision to 'distinct' so it won't re-merge
+        conn.execute(text(
+            "UPDATE shared.entity_merge_log SET reverted_at=now(), reverted_by=:by WHERE id=:id"),
+            {"by": by, "id": merge_log_id})
+        pa, pb = (survivor, merged) if survivor < merged else (merged, survivor)
+        conn.execute(text("""
+            INSERT INTO shared.dedup_pair_decisions (entity_id_a, entity_id_b, decision, similarity, decided_by)
+            VALUES (:a, :b, 'distinct', 1.0, :by)
+            ON CONFLICT (entity_id_a, entity_id_b)
+            DO UPDATE SET decision='distinct', decided_by=EXCLUDED.decided_by, decided_at=now()
+        """), {"a": pa, "b": pb, "by": by})
+
+    result = {"reverted": True, "merge_log_id": merge_log_id, "survivor": survivor,
+              "merged": merged, "restored_edges": restored_edges,
+              "reinserted_edges": reinserted_edges, "restored_mentions": restored_mentions}
+    logger.info("revert done: %s", result)
+    return result
+
+
 def run(dry_run=False):
     totals = {"blocks": 0, "org_groups": 0, "org_merges": 0, "person_review_queued": 0}
     eng = _engine()
@@ -151,10 +262,20 @@ def run(dry_run=False):
             GROUP BY 1 HAVING count(*) > 1
         """)).mappings().fetchall()
         totals["org_groups"] = len(groups)
+        # respect prior 'distinct' decisions (e.g. a reverted merge) — never re-merge them
+        distinct_pairs = {
+            (r[0], r[1]) for r in conn.execute(text(
+                "SELECT entity_id_a, entity_id_b FROM shared.dedup_pair_decisions "
+                "WHERE decision='distinct'")).fetchall()
+        }
         for g in groups:
             ids = g["ids"]
             survivor = ids[0]
             for merged in ids[1:]:
+                pair = (survivor, merged) if survivor < merged else (merged, survivor)
+                if pair in distinct_pairs:
+                    totals["org_skipped_distinct"] = totals.get("org_skipped_distinct", 0) + 1
+                    continue
                 if not dry_run:
                     _merge(conn, survivor, merged, "exact_name_org")
                 totals["org_merges"] += 1
@@ -193,9 +314,14 @@ def run(dry_run=False):
 def main():
     ap = argparse.ArgumentParser(description="Shared Entity Graph dedup engine (exact-name v1)")
     ap.add_argument("--dry-run", action="store_true", help="count org groups only, no writes")
+    ap.add_argument("--revert", type=int, metavar="MERGE_LOG_ID",
+                    help="undo a merge by its entity_merge_log id")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    run(dry_run=args.dry_run)
+    if args.revert:
+        revert(args.revert)
+    else:
+        run(dry_run=args.dry_run)
 
 
 if __name__ == "__main__":

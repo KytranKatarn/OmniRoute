@@ -102,32 +102,49 @@ def _upsert_entity(conn, *, canonical_name: str, slug: str,
 
     Returns (entity_id, action) where action is 'created' | 'updated' | 'noop'.
     """
+    if dry_run:
+        row = conn.execute(
+            text("SELECT id, roles, aliases FROM shared.entities WHERE slug = :slug"),
+            {"slug": slug},
+        ).mappings().fetchone()
+        if row is None:
+            return -1, "would_create"
+        existing_roles = row["roles"] if isinstance(row["roles"], list) else json.loads(row["roles"])
+        role_key = (role.get("type"), role.get("external_id"))
+        has_role = any((r.get("type"), r.get("external_id")) == role_key for r in existing_roles)
+        if has_role and raw_name in list(row["aliases"] or []):
+            return row["id"], "noop"
+        return row["id"], "would_update"
+
+    # Atomic create: ON CONFLICT (slug) DO NOTHING is race-safe — no UniqueViolation
+    # even under concurrent ingest (the non-atomic SELECT-then-INSERT raced two
+    # transactions inserting the same vendor slug -> 500 -> batch rollback, #4183).
+    # RETURNING id is non-empty only when WE inserted the row.
+    created = conn.execute(
+        text("""
+            INSERT INTO shared.entities
+                (entity_type, canonical_name, slug, aliases, roles)
+            VALUES
+                (:etype, :cname, :slug, ARRAY[:raw_name], CAST(:roles AS JSONB))
+            ON CONFLICT (slug) DO NOTHING
+            RETURNING id
+        """),
+        {
+            "etype": entity_type,
+            "cname": canonical_name,
+            "slug": slug,
+            "raw_name": raw_name,
+            "roles": json.dumps([role]),
+        },
+    ).fetchone()
+    if created is not None:
+        return created[0], "created"
+
+    # Conflict: row exists (ours from earlier, or a concurrent txn's). Read + merge.
     row = conn.execute(
         text("SELECT id, roles, aliases FROM shared.entities WHERE slug = :slug"),
         {"slug": slug},
     ).mappings().fetchone()
-
-    if row is None:
-        if dry_run:
-            return -1, "would_create"
-        result = conn.execute(
-            text("""
-                INSERT INTO shared.entities
-                    (entity_type, canonical_name, slug, aliases, roles)
-                VALUES
-                    (:etype, :cname, :slug, ARRAY[:raw_name], CAST(:roles AS JSONB))
-                RETURNING id
-            """),
-            {
-                "etype": entity_type,
-                "cname": canonical_name,
-                "slug": slug,
-                "raw_name": raw_name,
-                "roles": json.dumps([role]),
-            },
-        )
-        return result.scalar_one(), "created"
-
     entity_id = row["id"]
     existing_roles = row["roles"] if isinstance(row["roles"], list) else json.loads(row["roles"])
     existing_aliases = list(row["aliases"] or [])

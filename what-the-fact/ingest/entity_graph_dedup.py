@@ -304,6 +304,52 @@ def decide(queue_id, decision, by="manual_review"):
                 "merged": merged, "queue_id": queue_id}
 
 
+def fuzzy_candidates(dry_run=False):
+    """Trigram-similar ORGANIZATION pairs (similarity in [review_threshold, 1.0)) ->
+    merge_review_queue. Non-destructive (review-only, never auto-merged) and deduped vs the
+    existing queue + decisions. Uses the idx_entities_name_trgm GIN index via the % operator
+    (set_limit tightens the index scan; an explicit similarity filter guarantees the floor).
+    Org-only for v1 — person-fuzzy is deferred (cost over ~400k persons + namesake risk).
+
+    Impl note: the trigram operator is a single ``%`` (pg_trgm); SQLAlchemy ``text()``
+    auto-escapes it for psycopg2, so writing ``%%`` reaches Postgres literally and errors.
+    The candidate predicate (``cand``) is shared verbatim by the dry-run COUNT and the live
+    INSERT so the two can never diverge."""
+    eng = _engine()
+    with eng.begin() as conn:
+        rt = float(conn.execute(text(
+            "SELECT value FROM shared.dedup_config WHERE key='review_threshold'")).scalar() or 0.78)
+        conn.execute(text("SELECT set_limit(:t)"), {"t": rt})
+        cand = """
+            FROM shared.entities a
+            JOIN shared.entities b
+              ON a.canonical_name % b.canonical_name AND a.id < b.id
+            WHERE a.entity_type='organization' AND b.entity_type='organization'
+              AND a.status='active' AND b.status='active'
+              AND similarity(a.canonical_name, b.canonical_name) >= :rt
+              AND similarity(a.canonical_name, b.canonical_name) < 1.0
+              AND NOT EXISTS (SELECT 1 FROM shared.merge_review_queue q
+                              WHERE q.entity_id_a=a.id AND q.entity_id_b=b.id)
+              AND NOT EXISTS (SELECT 1 FROM shared.dedup_pair_decisions d
+                              WHERE d.entity_id_a=a.id AND d.entity_id_b=b.id)
+        """
+        if dry_run:
+            n = conn.execute(text("SELECT count(*) " + cand), {"rt": rt}).scalar()
+            logger.info("fuzzy_candidates [dry-run]: %d org candidates (>= %.2f)", n, rt)
+            return {"fuzzy_org_candidates": int(n), "threshold": rt, "dry_run": True}
+        n = conn.execute(text(
+            "INSERT INTO shared.merge_review_queue "
+            "(entity_id_a, entity_id_b, similarity, block_key, features, status) "
+            "SELECT a.id, b.id, round(similarity(a.canonical_name, b.canonical_name)::numeric, 3), "
+            "'fuzzy_org', jsonb_build_object('match','fuzzy_trgm','a_slug',a.slug,'b_slug',b.slug,"
+            "'a_name',a.canonical_name,'b_name',b.canonical_name), 'pending' "
+            + cand +
+            " ON CONFLICT (entity_id_a, entity_id_b) DO NOTHING"), {"rt": rt}).rowcount
+    result = {"fuzzy_org_queued": n, "threshold": rt}
+    logger.info("fuzzy_candidates done: %s", result)
+    return result
+
+
 def run(dry_run=False):
     totals = {"blocks": 0, "org_groups": 0, "org_merges": 0, "person_review_queued": 0}
     eng = _engine()
@@ -392,9 +438,13 @@ def main():
                     help="list N pending review pairs (default 20)")
     ap.add_argument("--review-decide", nargs=2, metavar=("QUEUE_ID", "DECISION"),
                     help="resolve a review pair: <queue_id> <same|distinct|defer>")
+    ap.add_argument("--fuzzy", action="store_true",
+                    help="generate fuzzy/trigram ORG candidates -> review queue (honors --dry-run)")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    if args.revert:
+    if args.fuzzy:
+        print(fuzzy_candidates(dry_run=args.dry_run))
+    elif args.revert:
         revert(args.revert)
     elif args.review_list is not None:
         import json as _json

@@ -83,6 +83,53 @@ def find_duplicates(user_id: int) -> list[dict[str, Any]]:
     return candidates
 
 
+def _transfer_relationships_person_a(cur: Any, user_id: int, keep_id: int, merge_id: int) -> int:
+    """Re-point non-duplicate relationships where the merged person is person_a."""
+    cur.execute(
+        """UPDATE family_relationships
+           SET person_a_id = %(keep)s
+           WHERE person_a_id = %(merge)s AND user_id = %(uid)s
+             AND NOT EXISTS (
+                 SELECT 1 FROM family_relationships r2
+                 WHERE r2.person_a_id = %(keep)s
+                   AND r2.person_b_id = family_relationships.person_b_id
+                   AND r2.relationship_type = family_relationships.relationship_type
+                   AND r2.user_id = %(uid)s
+             )""",
+        {"keep": keep_id, "merge": merge_id, "uid": user_id},
+    )
+    return cur.rowcount
+
+
+def _transfer_relationships_person_b(cur: Any, user_id: int, keep_id: int, merge_id: int) -> int:
+    """Re-point non-duplicate relationships where the merged person is person_b."""
+    cur.execute(
+        """UPDATE family_relationships
+           SET person_b_id = %(keep)s
+           WHERE person_b_id = %(merge)s AND user_id = %(uid)s
+             AND NOT EXISTS (
+                 SELECT 1 FROM family_relationships r2
+                 WHERE r2.person_b_id = %(keep)s
+                   AND r2.person_a_id = family_relationships.person_a_id
+                   AND r2.relationship_type = family_relationships.relationship_type
+                   AND r2.user_id = %(uid)s
+             )""",
+        {"keep": keep_id, "merge": merge_id, "uid": user_id},
+    )
+    return cur.rowcount
+
+
+def _transfer_documents(cur: Any, user_id: int, keep_id: int, merge_id: int) -> int:
+    """Move documents attached to the merged person onto the kept person."""
+    cur.execute(
+        """UPDATE family_documents
+           SET person_id = %(keep)s
+           WHERE person_id = %(merge)s AND user_id = %(uid)s""",
+        {"keep": keep_id, "merge": merge_id, "uid": user_id},
+    )
+    return cur.rowcount
+
+
 def merge_persons(user_id: int, keep_id: int, merge_id: int) -> dict[str, Any]:
     """
     Merge *merge_id* into *keep_id* for the given user.
@@ -113,36 +160,8 @@ def merge_persons(user_id: int, keep_id: int, merge_id: int) -> dict[str, Any]:
         if not cur.fetchone():
             raise ValueError(f"Person {merge_id} not found for user")
 
-        # --- Transfer relationships (person_a_id) -------------------------
-        cur.execute(
-            """UPDATE family_relationships
-               SET person_a_id = %(keep)s
-               WHERE person_a_id = %(merge)s AND user_id = %(uid)s
-                 AND NOT EXISTS (
-                     SELECT 1 FROM family_relationships r2
-                     WHERE r2.person_a_id = %(keep)s
-                       AND r2.person_b_id = family_relationships.person_b_id
-                       AND r2.relationship_type = family_relationships.relationship_type
-                       AND r2.user_id = %(uid)s
-                 )""",
-            {"keep": keep_id, "merge": merge_id, "uid": user_id},
-        )
-        rels_a = cur.rowcount
-
-        cur.execute(
-            """UPDATE family_relationships
-               SET person_b_id = %(keep)s
-               WHERE person_b_id = %(merge)s AND user_id = %(uid)s
-                 AND NOT EXISTS (
-                     SELECT 1 FROM family_relationships r2
-                     WHERE r2.person_b_id = %(keep)s
-                       AND r2.person_a_id = family_relationships.person_a_id
-                       AND r2.relationship_type = family_relationships.relationship_type
-                       AND r2.user_id = %(uid)s
-                 )""",
-            {"keep": keep_id, "merge": merge_id, "uid": user_id},
-        )
-        rels_b = cur.rowcount
+        rels_a = _transfer_relationships_person_a(cur, user_id, keep_id, merge_id)
+        rels_b = _transfer_relationships_person_b(cur, user_id, keep_id, merge_id)
 
         # Delete any remaining relationships that still reference merge_id
         # (duplicates that couldn't be transferred)
@@ -154,14 +173,7 @@ def merge_persons(user_id: int, keep_id: int, merge_id: int) -> dict[str, Any]:
         )
         rels_deleted = cur.rowcount
 
-        # --- Transfer documents -------------------------------------------
-        cur.execute(
-            """UPDATE family_documents
-               SET person_id = %(keep)s
-               WHERE person_id = %(merge)s AND user_id = %(uid)s""",
-            {"keep": keep_id, "merge": merge_id, "uid": user_id},
-        )
-        docs_moved = cur.rowcount
+        docs_moved = _transfer_documents(cur, user_id, keep_id, merge_id)
 
         # --- Delete merged person -----------------------------------------
         cur.execute(

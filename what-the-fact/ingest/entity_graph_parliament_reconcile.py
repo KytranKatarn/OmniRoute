@@ -5,7 +5,14 @@ Project #373 (Shared Entity Graph). Parliament data lives in the hub `wtf` DB
 DIRECTLY + SET-BASED (like ingest.entity_graph_wtf_reconcile) — no mesh round-trips,
 no contention with the HTTP ingest endpoint.
 
-Fills chain Link 3 (cast_vote, MP -> Vote):
+Fills chain Link 3 (cast_vote, MP -> Vote) AND Link 4 (enacted_as, Vote -> Policy):
+  3. BILL/POLICY NODES: one shared.entities row per distinct (session, bill_number),
+     entity_type='legislation', slug 'bill-<session>-<billnumber>'. The chain "Policy" node.
+  4. ENACTED_AS EDGES: division(Vote) --enacted_as--> bill(Policy), the vote `result`
+     (Passed/Failed/Tie) carried in metadata — the data is vote-divisions, NOT royal-assent
+     enactment status. Flips chain_link_types.has_data=true for enacted_as.
+
+Original Link-3 model:
 
   1. LEGISLATION NODES: parliament.bills (House divisions — each a recorded vote,
      optionally tied to a bill number) -> shared.entities entity_type='legislation'.
@@ -69,6 +76,18 @@ def _engine():
     return create_engine(url, pool_pre_ping=True)
 
 
+def _slugify(expr):
+    """SQL slugify: unaccent -> lower -> non-alnum runs to '-' -> trim '-'."""
+    return f"btrim(regexp_replace(lower(unaccent({expr})), '[^a-z0-9]+', '-', 'g'), '-')"
+
+
+def _bill_slug(p=""):
+    """Stable bill/policy slug 'bill-<session>-<billnumber>'. MUST be byte-identical in
+    the node-create (step 3) and the enacted_as edge-join (step 4); pass the column-alias
+    prefix (e.g. 'b.') so it works in both contexts."""
+    return "'bill-' || " + _slugify(f"{p}session") + " || '-' || " + _slugify(f"{p}bill_number")
+
+
 def _canonical_name(bill_number, vote_number, session, desc):
     """Human-readable division label. The slug (not the name) is the unique key."""
     desc = (desc or "").strip()
@@ -82,7 +101,8 @@ def _canonical_name(bill_number, vote_number, session, desc):
 
 def run(dry_run=False):
     totals = {"legislation_created": 0, "legislation_updated": 0,
-              "legislation_noop": 0, "cast_vote_edges": 0}
+              "legislation_noop": 0, "cast_vote_edges": 0,
+              "bills_created": 0, "enacted_as_edges": 0}
     eng = _engine()
     with eng.begin() as conn:
         # 1) LEGISLATION NODES — parliament.bills -> shared.entities (entity_type=legislation)
@@ -123,6 +143,60 @@ def run(dry_run=False):
             totals["cast_vote_edges"] = int(conn.execute(_CAST_VOTE_COUNT_SQL).scalar_one())
         else:
             totals["cast_vote_edges"] = conn.execute(_CAST_VOTE_SQL).rowcount
+
+        # 3) BILL / POLICY NODES — one entity per distinct (session, bill_number).
+        #    entity_type='legislation' (reuses migration 035; never fuzzy-merges). These are
+        #    the chain "Policy" nodes; the parl-division-* legislation nodes are the "Vote"s.
+        bill_node_sql = f"""
+            INSERT INTO shared.entities (entity_type, canonical_name, slug, aliases, roles)
+            SELECT 'legislation',
+                   'Bill ' || bill_number || ' (' || session || ')',
+                   {_bill_slug("")},
+                   ARRAY['Bill ' || bill_number],
+                   jsonb_build_array(jsonb_build_object('type', 'bill', 'source', 'parliament',
+                                                        'session', session, 'bill_number', bill_number))
+            FROM (SELECT DISTINCT session, bill_number FROM parliament.bills
+                  WHERE bill_number IS NOT NULL AND btrim(bill_number) <> '') x
+            ON CONFLICT (slug) DO NOTHING
+        """
+        # 4) ENACTED_AS EDGES — division(Vote) -> bill(Policy), chain Link 4 (Vote -> Policy).
+        #    source_id = division id (one edge per division => idempotent). The vote `result`
+        #    is carried so the explorer can distinguish "voted on" from "passed" — the data is
+        #    vote-divisions, NOT enactment status (negatived bills were never actually enacted).
+        enacted_sql = f"""
+            INSERT INTO shared.entity_relationships
+                (from_entity_id, to_entity_id, relationship_type, source_product, source_id, metadata)
+            SELECT dv.id, bl.id, 'enacted_as', 'parliament', b.id::text,
+                   jsonb_build_object('result', b.result, 'vote_date', b.vote_date,
+                                      'bill_number', b.bill_number, 'vote_number', b.vote_number,
+                                      'yea_total', b.yea_total, 'nay_total', b.nay_total)
+            FROM parliament.bills b
+            JOIN shared.entities dv ON dv.slug = '{_LEG_SLUG_PREFIX}' || b.id::text
+                                   AND dv.entity_type = 'legislation'
+            JOIN shared.entities bl ON bl.slug = {_bill_slug("b.")}
+                                   AND bl.entity_type = 'legislation'
+            WHERE b.bill_number IS NOT NULL AND btrim(b.bill_number) <> ''
+            ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
+            DO NOTHING
+        """
+        if dry_run:
+            totals["bills_created"] = int(conn.execute(text("""
+                SELECT count(*) FROM (SELECT DISTINCT session, bill_number FROM parliament.bills
+                       WHERE bill_number IS NOT NULL AND btrim(bill_number) <> '') x
+            """)).scalar_one())
+            totals["enacted_as_edges"] = int(conn.execute(text(f"""
+                SELECT count(*) FROM parliament.bills b
+                JOIN shared.entities dv ON dv.slug = '{_LEG_SLUG_PREFIX}' || b.id::text
+                                       AND dv.entity_type = 'legislation'
+                WHERE b.bill_number IS NOT NULL AND btrim(b.bill_number) <> ''
+            """)).scalar_one())
+        else:
+            totals["bills_created"] = conn.execute(text(bill_node_sql)).rowcount
+            totals["enacted_as_edges"] = conn.execute(text(enacted_sql)).rowcount
+            # Flip the spine link's has_data flag now that enacted_as edges exist.
+            conn.execute(text(
+                "UPDATE shared.chain_link_types SET has_data = true "
+                "WHERE relationship_type = 'enacted_as'"))
 
     logger.info("parliament entity-graph reconcile done%s: %s",
                 " [dry-run]" if dry_run else "", totals)

@@ -1,7 +1,7 @@
 # Entity-Graph Ingest Endpoint (T-ING-1) + Compose Env-Contract Delta (I2)
 
 **Date:** 2026-06-14
-**Status:** author-only (no git commit/push, no deploy, no migration applied — per hard constraint + owner PACE decision)
+**Status:** ✅ **DEPLOYED + VERIFIED LIVE 2026-06-14.** Endpoint live on `wtf-consumer` (Citadel/boston-2) — route `/api/internal/entity-graph/ingest` registered, `create_app()` boots clean (the `COPY ingest/` import chain resolves), smoke test green (401 without key; 400 on bad product, no DB write). Migration 034 = APPLIED LIVE (PR #1690 merged). F.O.R.G.E./verifier corrections folded in (schema hardcoded to `shared`; market already had `INTERNAL_API_KEY`; `journalist` already accepted by migration 033). **Next:** the 5 dataset adapters that POST here over the mesh.
 **Refs:** ADR-EG-001 (`2026-06-14-entity-graph-edge-vocabulary-adr.md`) §5 (single-writer / I1) + §5 (compose env contract / I2). Standalone-extraction.md "Platform-Integration Env Contract".
 
 ---
@@ -64,14 +64,13 @@ Civic ALREADY has `INTERNAL_API_KEY=${INTERNAL_API_KEY:-}` in its `environment:`
 ```
 
 ### 2.3 Market compose (`/mnt/standalone/kytran-market-watch/docker-compose.yml`, service `kytran_market_api`)
-Market does NOT have `INTERNAL_API_KEY` today (it uses `AC_INTERNAL_TOKEN` for a different purpose). **Add BOTH**:
+Market **ALREADY has** `INTERNAL_API_KEY=${INTERNAL_API_KEY:-}` in its `environment:` block (line 67 — verified; added with the 2026-05-26 set-tier work; it also carries a separate `AC_INTERNAL_TOKEN`). **Add ONLY** `ENTITY_INGEST_URL`:
 ```yaml
     environment:
-      # ... existing vars ...
-      - INTERNAL_API_KEY=${INTERNAL_API_KEY:-}
+      # ... existing vars (INTERNAL_API_KEY=${INTERNAL_API_KEY:-} already present, line 67) ...
       - ENTITY_INGEST_URL=${ENTITY_INGEST_URL:-http://100.64.0.10:8103/api/internal/entity-graph/ingest}
 ```
-Market is **chrome-only** in the graph (ADR §5.1 W4 — no securities entity to feed, Link 6 placeholder). The env vars are wired now for contract-parity/future use; the market adapter feeds 0 edges honestly.
+Market is **chrome-only** in the graph (ADR §5.1 W4 — no securities entity to feed, Link 6 placeholder). The var is wired now for contract-parity/future use; the market adapter feeds 0 edges honestly.
 
 ### 2.4 Also set the value in each VPS `.env` (append-only)
 The composes default to a mesh URL but `INTERNAL_API_KEY` MUST match the wtf-consumer side. On Citadel/boston-2 (`root@100.64.0.10`), append (never overwrite) to each product `.env`:
@@ -92,7 +91,7 @@ Only `docker inspect` is authoritative — a correct `.env` value means nothing 
 ---
 
 ## 3. Deferred to later waves (NOT in scope here)
-- Migration 034 (`shared.entities` `journalist` type + `chain_link_types` + dedup machinery) — Wave 0/1, separate task. Until 034 lands, the live `shared.entities` CHECK is `person|organization` only (migration 030); inbound `journalist` entities will be REJECTED by the DB CHECK even though the endpoint accepts the type — this is expected and resolves when 034 applies the widened CHECK.
+- ✅ Migration 034 (`chain_link_types` + dedup/merge machinery + `entity_external_ids` + `source_mention` + `status`/`merged_into` + guard trigger) — **APPLIED LIVE to the `wtf` DB 2026-06-14 (PR #1690 merged)**. NOTE: `journalist` was already an accepted `entity_type` BEFORE 034 — migration 033 widened the CHECK to `person|organization|journalist` (verified live: `CHECK (entity_type = ANY (ARRAY['person','organization','journalist']))`). 034 did NOT touch the entity_type CHECK; it added the merge/dedup/external-id tables + the chain catalog. So inbound `journalist` entities are accepted now.
 - gov/civic/legal/market adapter code that POSTs to this endpoint (Wave 1 — Stage-1 deterministic merge ships WITH the adapters per W2).
 - Nightly dedup scan co-located with the `wtf` DB (I3).
 - The gov-watch + WTF own hub-resident adapters writing the DB directly via `_upsert_entity`.

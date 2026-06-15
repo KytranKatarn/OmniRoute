@@ -5,6 +5,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY shared/ /app/shared/
+# entity-graph ingest endpoint (T-ING-1) reuses the SINGLE resolver in
+# ingest/shared/entity_graph.py (_upsert_entity) — ship it so the consumer can
+# import it. No third resolver (ADR-EG-001 §5 / must-fix I1).
+COPY ingest/ /app/ingest/
 COPY consumer/ /app/consumer/
 ENV PYTHONPATH=/app
 EXPOSE 8103

@@ -31,4 +31,7 @@ def create_app():
     # Entity search & accountability API — MP search now, journalists in Milestone B (#4078)
     from .entities import entities_bp
     app.register_blueprint(entities_bp)
+    # Shared Entity Graph INGEST — single-writer endpoint, adapters POST here over the mesh (T-ING-1)
+    from .entity_graph_routes import entity_graph_bp
+    app.register_blueprint(entity_graph_bp)
     return app

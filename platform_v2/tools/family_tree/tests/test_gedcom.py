@@ -234,11 +234,29 @@ class TestDateHelpers:
     def test_parse_with_qualifier(self):
         assert gedcom_service._parse_gedcom_date("ABT 1920") == datetime.date(1920, 1, 1)
 
+    def test_parse_invalid_dates(self):
+        assert gedcom_service._parse_gedcom_date("31 FEB 1990") is None
+        assert gedcom_service._parse_gedcom_date("32 JAN 2000") is None
+
+    def test_parse_additional_qualifiers(self):
+        assert gedcom_service._parse_gedcom_date("CAL 1920") == datetime.date(1920, 1, 1)
+        assert gedcom_service._parse_gedcom_date("BET 1900 AND 1902") is None
+        assert gedcom_service._parse_gedcom_date("BET 1 JAN 1900 AND 2 JAN 1902") is None
+
+    def test_parse_ambiguous_slash_dates(self):
+        assert gedcom_service._parse_gedcom_date("1/2/1900") is None
+        assert gedcom_service._parse_gedcom_date("01/02/1900") is None
+
     def test_parse_empty(self):
         assert gedcom_service._parse_gedcom_date("") is None
 
     def test_format_date(self):
         assert gedcom_service._format_gedcom_date(datetime.date(1890, 3, 15)) == "15 MAR 1890"
+
+    def test_year_only_round_trip(self):
+        parsed = gedcom_service._parse_gedcom_date("1900")
+        assert parsed == datetime.date(1900, 1, 1)
+        assert gedcom_service._format_gedcom_date(parsed) == "01 JAN 1900"
 
     def test_format_iso_string(self):
         assert gedcom_service._format_gedcom_date("1920-02-03") == "03 FEB 1920"

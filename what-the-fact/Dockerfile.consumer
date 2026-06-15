@@ -13,4 +13,4 @@ COPY consumer/ /app/consumer/
 ENV PYTHONPATH=/app
 EXPOSE 8103
 USER nobody
-CMD ["gunicorn", "--bind", "0.0.0.0:8103", "--workers", "2", "--timeout", "120", "--access-logfile", "-", "consumer.app:create_app()"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8103", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "consumer.app:create_app()"]

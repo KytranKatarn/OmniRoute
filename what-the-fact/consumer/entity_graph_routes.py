@@ -10,52 +10,45 @@ Architecture (ADR-EG-001 §5 + must-fix I1):
   - gov-watch / civic-watch / legal-watch / market-watch adapters POST their
     entities/mentions/relationships HERE over the mesh. They do NOT open a
     cross-host DB connection. Only WTF's own hub-resident adapters write the DB
-    directly. => single-writer; ONE resolver (_upsert_entity); NO third resolver.
+    directly. => single-writer; ONE slug algorithm (name_to_slug+normalize_name).
+
+PERF — BULK INSERT (#4181): all writes are SET-BASED via psycopg2.extras.execute_values
+  (3 statements per request: entities, mentions, relationships) instead of row-by-row
+  upserts over the mesh. Row-by-row could not finish a dense batch within the gunicorn
+  worker timeout (civic 50k lobby backfill: 103/103 batches timed out). Validation runs
+  UP FRONT (still 400s cleanly with no partial write); the transaction only bulk-writes.
 
 DUAL-SCHEMA BOUNDARY (ADR-EG-001 §3 — must-fix S6):
   The CANONICAL graph is the hub `wtf` DB `shared` schema (entity_type
-  person|organization|journalist). The hub `archie` DB ALSO has a
-  shared.entities table (migration 393) but that is a SEPARATE follow/alert
-  SIGNAL BUS (entity_type department|topic|keyword) and is NEVER written or
-  read here. This endpoint connects ONLY to WTF_DATABASE_URL (the `wtf` DB).
+  person|organization|journalist). The hub `archie` DB ALSO has a shared.entities
+  table (migration 393) but that is a SEPARATE follow/alert SIGNAL BUS and is NEVER
+  written or read here. This endpoint connects ONLY to WTF_DATABASE_URL.
 
 Body (JSON):
   {
-    "product": "gov-watch" | "civic-watch" | "legal-watch" | "market-watch" | "wtf",
-    "entities": [
-      {"canonical_name": "...", "slug": "...", "entity_type": "person|organization|journalist",
-       "role": {"type": "...", ...}, "raw_name": "..."(optional, defaults canonical_name)}
-    ],
-    "mentions": [
-      {"entity": <entity ref>, "content_type": "...", "content_id": "...",
-       "mention_context": "..."(optional), "confidence": 0.0-1.0 (optional)}
-    ],
-    "relationships": [
-      {"from": <entity ref>, "to": <entity ref>, "relationship_type": "donated_to|...",
-       "source_id": "..."(optional), "valid_from": "YYYY-MM-DD"(optional),
-       "valid_to": "YYYY-MM-DD"(optional), "metadata": {...}(optional)}
-    ]
+    "product": "gov-watch|civic-watch|legal-watch|market-watch|wtf",
+    "entities":      [{"canonical_name","entity_type","role":{...},"raw_name"?}],
+    "mentions":      [{"entity":<ref>,"content_type","content_id","mention_context"?,"confidence"?}],
+    "relationships": [{"from":<ref>,"to":<ref>,"relationship_type","source_id"?,"valid_from"?,"valid_to"?,"metadata"?}]
   }
+  <ref> = an inline entity object (slug DERIVED server-side) OR {"slug":"..."} pointing
+  at an already-known node.
 
-  An <entity ref> is EITHER an inline entity object (resolved + upserted, same shape
-  as an `entities[]` element) OR {"slug": "..."} to point at an already-known node.
-
-Idempotent: entity upsert keys on slug (via _upsert_entity); mentions UPSERT on
-  the migration-030 UNIQUE (entity_id, product, content_type, content_id);
-  relationships UPSERT on UNIQUE (from_entity_id, to_entity_id, relationship_type,
-  source_product, source_id).
+Idempotent: entities UPSERT on slug (roles/aliases merged in SQL); mentions UPSERT on
+  UNIQUE (entity_id, product, content_type, content_id); relationships UPSERT on UNIQUE
+  (from_entity_id, to_entity_id, relationship_type, source_product, source_id).
 """
 import json
 import logging
 import os
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine
+from psycopg2.extras import execute_values
 
-# Reuse the ONE resolver (ADR-EG-001 §5 / must-fix I1 — never write a third).
-# normalize_name + name_to_slug are the ONE slug algorithm — derive slugs
-# server-side so the same name from any of the 5 products resolves to one node.
-from ingest.shared.entity_graph import _upsert_entity, normalize_name, name_to_slug
+# The ONE slug algorithm — derive slugs server-side so the same name from any of the
+# 5 products resolves to one node (ADR-EG-001 §3).
+from ingest.shared.entity_graph import normalize_name, name_to_slug
 
 logger = logging.getLogger("wtf-consumer.entity_graph_ingest")
 
@@ -65,20 +58,12 @@ entity_graph_bp = Blueprint("entity_graph", __name__)
 
 VALID_NODE_TYPES = frozenset({"person", "organization", "journalist"})
 
-# Spine edges (walk the chain) + enrichment edges (attach to nodes).
 VALID_EDGE_TYPES = frozenset({
     # SPINE
-    "donated_to",          # Link 1  has_data=TRUE
-    "cast_vote",           # Link 3  has_data=TRUE
-    "enacted_as",          # Link 4  has_data=FALSE (placeholder, no writer)
-    "awarded_to",          # Link 5  has_data=TRUE
-    "contracts_with",      # Link 5  has_data=TRUE
-    "market_reaction_to",  # Link 6  has_data=FALSE (placeholder, no writer)
-    "covered_by",          # Link 7  has_data=TRUE (normally derived at query time)
+    "donated_to", "cast_vote", "enacted_as", "awarded_to", "contracts_with",
+    "market_reaction_to", "covered_by",
     # ENRICHMENT
-    "lobbied_by",          # attach@2  has_data=TRUE
-    "appointed_to",        # attach@5  has_data=TRUE
-    "employs",             # attach@2  has_data=TRUE
+    "lobbied_by", "appointed_to", "employs",
 })
 
 VALID_PRODUCTS = frozenset({
@@ -88,6 +73,52 @@ VALID_PRODUCTS = frozenset({
 _MAX_ENTITIES = 5000
 _MAX_MENTIONS = 5000
 _MAX_RELATIONSHIPS = 5000
+
+# ── Bulk SQL (all hardcode the `shared` schema, ADR-EG-001 §3). ───────────────
+
+# Roles merge by (type, external_id); aliases merge DISTINCT. (xmax=0) => freshly
+# inserted. Validated on live data in a rolled-back txn before shipping (#4181).
+_ENTITY_UPSERT = """
+    INSERT INTO shared.entities (entity_type, canonical_name, slug, aliases, roles)
+    VALUES %s
+    ON CONFLICT (slug) DO UPDATE SET
+        aliases = ARRAY(SELECT DISTINCT unnest(shared.entities.aliases || EXCLUDED.aliases)),
+        roles = shared.entities.roles || COALESCE((
+            SELECT jsonb_agg(er)
+            FROM jsonb_array_elements(EXCLUDED.roles) er
+            WHERE NOT EXISTS (
+                SELECT 1 FROM jsonb_array_elements(shared.entities.roles) xr
+                WHERE COALESCE(xr->>'type','') = COALESCE(er->>'type','')
+                  AND COALESCE(xr->>'external_id','') = COALESCE(er->>'external_id','')
+            )
+        ), '[]'::jsonb),
+        updated_at = NOW()
+    RETURNING id, slug, (xmax = 0) AS created
+"""
+_ENTITY_TPL = "(%s, %s, %s, %s::text[], %s::jsonb)"
+
+_MENTION_UPSERT = """
+    INSERT INTO shared.entity_mentions
+        (entity_id, product, content_type, content_id, mention_context, confidence)
+    VALUES %s
+    ON CONFLICT (entity_id, product, content_type, content_id) DO UPDATE SET
+        mention_context = COALESCE(EXCLUDED.mention_context, shared.entity_mentions.mention_context),
+        confidence      = COALESCE(EXCLUDED.confidence, shared.entity_mentions.confidence)
+"""
+_MENTION_TPL = "(%s, %s, %s, %s, %s, %s)"
+
+_REL_UPSERT = """
+    INSERT INTO shared.entity_relationships
+        (from_entity_id, to_entity_id, relationship_type, source_product,
+         source_id, valid_from, valid_to, metadata)
+    VALUES %s
+    ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
+    DO UPDATE SET
+        valid_from = EXCLUDED.valid_from,
+        valid_to   = EXCLUDED.valid_to,
+        metadata   = EXCLUDED.metadata
+"""
+_REL_TPL = "(%s, %s, %s, %s, %s, %s, %s, %s::jsonb)"
 
 _engine = None
 
@@ -102,168 +133,75 @@ def _eng():
     return _engine
 
 
-# All direct SQL hardcodes the `shared` schema to match the _upsert_entity resolver
-# (ADR-EG-001 §3). No WTF_SHARED_SCHEMA env indirection — a non-default value would
-# split entities (written by _upsert_entity in `shared`) from their mentions/edges.
+# ── Ref collection / validation (UP FRONT — raises ValueError -> 400, no write) ──
 
-# ── Entity resolution (reuses the ONE _upsert_entity resolver) ────────────────
+def _register_ref(ref, inline, pointers):
+    """Register an <entity ref>; return its slug.
 
-def _resolve_entity_ref(conn, ref, *, slug_cache):
-    """Resolve an <entity ref> to an entity id.
-
-    ref is EITHER:
-      - {"slug": "..."}  → look up an already-known node by slug (no upsert)
-      - a full entity object {canonical_name, slug, entity_type, role, ...}
-        → resolve + upsert via _upsert_entity (the single resolver)
-
-    Returns (entity_id, action) or raises ValueError on bad input.
+    Inline (has canonical_name) -> derive slug + collect for bulk upsert (dedup by
+    slug, merging roles/aliases within the batch — a bulk statement can't touch the
+    same conflict row twice). Pointer ({"slug": "..."}) -> collect slug for lookup.
     """
     if not isinstance(ref, dict):
         raise ValueError("entity reference must be an object")
 
+    canonical_name = (ref.get("canonical_name") or "").strip()
+    if canonical_name:
+        slug = name_to_slug(normalize_name(canonical_name))
+        if not slug:
+            raise ValueError(f"canonical_name {canonical_name!r} normalized to an empty slug")
+        entity_type = (ref.get("entity_type") or "").strip().lower()
+        if entity_type not in VALID_NODE_TYPES:
+            raise ValueError(
+                f"entity_type {entity_type!r} not in frozen node set "
+                f"{sorted(VALID_NODE_TYPES)} (ADR-EG-001 §1)"
+            )
+        role = ref.get("role") or {}
+        if not isinstance(role, dict):
+            raise ValueError("entity.role must be an object")
+        raw_name = (ref.get("raw_name") or canonical_name).strip()
+
+        e = inline.get(slug)
+        if e is None:
+            inline[slug] = {"etype": entity_type, "cname": canonical_name,
+                            "raws": [raw_name], "roles": [role] if role else []}
+        else:
+            if raw_name and raw_name not in e["raws"]:
+                e["raws"].append(raw_name)
+            if role:
+                rk = (role.get("type"), role.get("external_id"))
+                if not any((x.get("type"), x.get("external_id")) == rk for x in e["roles"]):
+                    e["roles"].append(role)
+        return slug
+
     slug = (ref.get("slug") or "").strip()
-
-    # Pure pointer form: {"slug": "..."} with no canonical_name → must already exist.
-    if slug and not ref.get("canonical_name"):
-        if slug in slug_cache:
-            return slug_cache[slug], "ref"
-        row = conn.execute(
-            text(f"SELECT id FROM shared.entities WHERE slug = :slug"),
-            {"slug": slug},
-        ).mappings().fetchone()
-        if row is None:
-            raise ValueError(f"entity slug not found: {slug!r}")
-        slug_cache[slug] = row["id"]
-        return row["id"], "ref"
-
-    # Full entity object → validate + upsert.
-    return _upsert_inline_entity(conn, ref, slug_cache=slug_cache)
-
-
-def _upsert_inline_entity(conn, ent, *, slug_cache):
-    """Validate a full entity object and upsert it via the single resolver.
-
-    Returns (entity_id, action) where action is from _upsert_entity
-    ('created'|'updated'|'noop').
-    """
-    canonical_name = (ent.get("canonical_name") or "").strip()
-    entity_type = (ent.get("entity_type") or "").strip().lower()
-    role = ent.get("role") or {}
-    raw_name = (ent.get("raw_name") or canonical_name).strip()
-
-    if not canonical_name:
-        raise ValueError("entity.canonical_name is required")
-    # Slug is DERIVED server-side via the ONE shared algorithm so the same name
-    # from any of the 5 products resolves to the same node (ADR-EG-001 §3). An
-    # adapter-supplied 'slug' is ignored here; explicit slugs are only honored as
-    # pointers to an already-known node in _resolve_entity_ref.
-    slug = name_to_slug(normalize_name(canonical_name))
     if not slug:
-        raise ValueError(f"canonical_name {canonical_name!r} normalized to an empty slug")
-    if entity_type not in VALID_NODE_TYPES:
-        raise ValueError(
-            f"entity_type {entity_type!r} not in frozen node set "
-            f"{sorted(VALID_NODE_TYPES)} (ADR-EG-001 §1)"
-        )
-    if not isinstance(role, dict):
-        raise ValueError("entity.role must be an object")
-
-    entity_id, action = _upsert_entity(
-        conn,
-        canonical_name=canonical_name,
-        slug=slug,
-        entity_type=entity_type,
-        role=role,
-        raw_name=raw_name,
-        dry_run=False,
-    )
-    slug_cache[slug] = entity_id
-    return entity_id, action
+        raise ValueError("entity reference needs canonical_name or slug")
+    pointers.add(slug)
+    return slug
 
 
-def _upsert_mention(conn, *, entity_id, product, m):
-    content_type = (m.get("content_type") or "").strip()
-    content_id = m.get("content_id")
-    content_id = str(content_id).strip() if content_id is not None else ""
-    if not content_type or not content_id:
-        raise ValueError("mention requires content_type and content_id")
-
+def _mention_conf(m):
     confidence = m.get("confidence")
-    if confidence is not None:
-        try:
-            confidence = float(confidence)
-        except (TypeError, ValueError):
-            raise ValueError("mention.confidence must be a number")
-        if not (0.0 <= confidence <= 1.0):
-            raise ValueError("mention.confidence must be between 0 and 1")
-
-    conn.execute(
-        text(f"""
-            INSERT INTO shared.entity_mentions
-                (entity_id, product, content_type, content_id, mention_context, confidence)
-            VALUES
-                (:eid, :product, :ctype, :cid, :ctx, :conf)
-            ON CONFLICT (entity_id, product, content_type, content_id)
-            DO UPDATE SET
-                mention_context = COALESCE(EXCLUDED.mention_context, shared.entity_mentions.mention_context),
-                confidence      = COALESCE(EXCLUDED.confidence, shared.entity_mentions.confidence)
-        """),
-        {
-            "eid": entity_id,
-            "product": product,
-            "ctype": content_type,
-            "cid": content_id,
-            "ctx": m.get("mention_context"),
-            "conf": confidence,
-        },
-    )
-
-
-def _upsert_relationship(conn, *, from_id, to_id, product, r):
-    rel_type = (r.get("relationship_type") or "").strip()
-    if rel_type not in VALID_EDGE_TYPES:
-        raise ValueError(
-            f"relationship_type {rel_type!r} not in frozen edge vocabulary "
-            f"{sorted(VALID_EDGE_TYPES)} (ADR-EG-001 §2.4). "
-            f"No new edge string ships without amending the ADR first."
-        )
-    conn.execute(
-        text(f"""
-            INSERT INTO shared.entity_relationships
-                (from_entity_id, to_entity_id, relationship_type,
-                 source_product, source_id, valid_from, valid_to, metadata)
-            VALUES
-                (:from_id, :to_id, :rtype, :product, :source_id,
-                 :valid_from, :valid_to, CAST(:meta AS JSONB))
-            ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
-            DO UPDATE SET
-                valid_from = EXCLUDED.valid_from,
-                valid_to   = EXCLUDED.valid_to,
-                metadata   = EXCLUDED.metadata
-        """),
-        {
-            "from_id": from_id,
-            "to_id": to_id,
-            "rtype": rel_type,
-            "product": product,
-            "source_id": (str(r["source_id"]).strip() if r.get("source_id") is not None else None),
-            "valid_from": r.get("valid_from"),
-            "valid_to": r.get("valid_to"),
-            "meta": json.dumps(r.get("metadata") or {}),
-        },
-    )
+    if confidence is None:
+        return None
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError):
+        raise ValueError("mention.confidence must be a number")
+    if not (0.0 <= confidence <= 1.0):
+        raise ValueError("mention.confidence must be between 0 and 1")
+    return confidence
 
 
 # ── The endpoint ──────────────────────────────────────────────────────────────
 
 @entity_graph_bp.route("/api/internal/entity-graph/ingest", methods=["POST"])
 def ingest_entity_graph():
-    """Single-writer ingest for the shared entity graph (T-ING-1).
+    """Single-writer BULK ingest for the shared entity graph (T-ING-1).
 
-    CANONICAL ENTITY / NODE / EDGE writes go to the hub `wtf` DB `shared` schema
-    ONLY (ADR-EG-001 §3). NEVER the `archie` DB `shared.entities` signal bus.
+    Writes go to the hub `wtf` DB `shared` schema ONLY (ADR-EG-001 §3).
     """
-    # Auth — same pattern as internal_set_tier (routes.py).
     expected = os.environ.get("INTERNAL_API_KEY", "")
     if not expected:
         return jsonify({"error": "internal key not configured"}), 503
@@ -273,9 +211,7 @@ def ingest_entity_graph():
     data = request.get_json(force=True, silent=True) or {}
     product = (data.get("product") or "").strip().lower()
     if product not in VALID_PRODUCTS:
-        return jsonify({
-            "error": f"product {product!r} not in {sorted(VALID_PRODUCTS)}"
-        }), 400
+        return jsonify({"error": f"product {product!r} not in {sorted(VALID_PRODUCTS)}"}), 400
 
     entities = data.get("entities") or []
     mentions = data.get("mentions") or []
@@ -290,44 +226,88 @@ def ingest_entity_graph():
         if len(coll) > cap:
             return jsonify({"error": f"{name} exceeds batch cap {cap}"}), 413
 
-    stats = {
-        "product": product,
-        "entities_created": 0,
-        "entities_updated": 0,
-        "entities_noop": 0,
-        "mentions_upserted": 0,
-        "relationships_upserted": 0,
-    }
+    stats = {"product": product, "entities_created": 0, "entities_updated": 0,
+             "mentions_upserted": 0, "relationships_upserted": 0}
 
     try:
-        # ONE transaction — partial adapter batches never half-write the graph.
-        with _eng().begin() as conn:
-            slug_cache = {}
+        # ── Phase 0: collect + validate everything UP FRONT (no DB writes yet) ──
+        inline = {}        # slug -> {etype, cname, raws, roles}
+        pointers = set()   # slugs referenced by pointer only (must pre-exist)
 
-            # 1) Entities — resolve + upsert via the single resolver.
-            for ent in entities:
-                _, action = _upsert_inline_entity(conn, ent, slug_cache=slug_cache)
-                if action == "created":
-                    stats["entities_created"] += 1
-                elif action == "updated":
-                    stats["entities_updated"] += 1
-                else:
-                    stats["entities_noop"] += 1
+        for ent in entities:
+            _register_ref(ent, inline, pointers)
 
-            # 2) Mentions — resolve the entity ref, then UPSERT the content pointer.
-            for m in mentions:
-                entity_id, _ = _resolve_entity_ref(conn, m.get("entity"), slug_cache=slug_cache)
-                _upsert_mention(conn, entity_id=entity_id, product=product, m=m)
-                stats["mentions_upserted"] += 1
+        mention_rows = {}  # (slug, ctype, cid) -> (slug, ctype, cid, ctx, conf)  (dedup within batch)
+        for m in mentions:
+            slug = _register_ref(m.get("entity") or {}, inline, pointers)
+            ctype = (m.get("content_type") or "").strip()
+            cid = m.get("content_id")
+            cid = str(cid).strip() if cid is not None else ""
+            if not ctype or not cid:
+                raise ValueError("mention requires content_type and content_id")
+            mention_rows[(slug, ctype, cid)] = (slug, ctype, cid, m.get("mention_context"), _mention_conf(m))
 
-            # 3) Relationships — resolve both ends, then UPSERT the typed edge.
-            for r in relationships:
-                from_id, _ = _resolve_entity_ref(conn, r.get("from"), slug_cache=slug_cache)
-                to_id, _ = _resolve_entity_ref(conn, r.get("to"), slug_cache=slug_cache)
-                _upsert_relationship(conn, from_id=from_id, to_id=to_id, product=product, r=r)
-                stats["relationships_upserted"] += 1
+        rel_rows = {}      # (f, t, rtype, sid) -> tuple  (dedup within batch)
+        for r in relationships:
+            rtype = (r.get("relationship_type") or "").strip()
+            if rtype not in VALID_EDGE_TYPES:
+                raise ValueError(
+                    f"relationship_type {rtype!r} not in frozen edge vocabulary "
+                    f"{sorted(VALID_EDGE_TYPES)} (ADR-EG-001 §2.4)."
+                )
+            fslug = _register_ref(r.get("from") or {}, inline, pointers)
+            tslug = _register_ref(r.get("to") or {}, inline, pointers)
+            sid = str(r["source_id"]).strip() if r.get("source_id") is not None else None
+            rel_rows[(fslug, tslug, rtype, sid)] = (
+                fslug, tslug, rtype, sid, r.get("valid_from"), r.get("valid_to"),
+                json.dumps(r.get("metadata") or {}),
+            )
     except ValueError as exc:
-        # Bad payload (unknown type, missing field) — caller's fault. 400, no partial write.
+        logger.warning("[entity-graph ingest] rejected %s payload: %s", product, exc)
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        # ── ONE transaction; 3 bulk statements. ──
+        with _eng().begin() as conn:
+            cur = conn.connection.cursor()
+            slug_to_id = {}
+
+            # 1) Entities — bulk upsert (roles/aliases merged in SQL).
+            if inline:
+                erows = [(e["etype"], e["cname"], slug, e["raws"], json.dumps(e["roles"]))
+                         for slug, e in inline.items()]
+                res = execute_values(cur, _ENTITY_UPSERT, erows, template=_ENTITY_TPL,
+                                     page_size=1000, fetch=True)
+                for eid, slug, created in res:
+                    slug_to_id[slug] = eid
+                    stats["entities_created" if created else "entities_updated"] += 1
+
+            # 2) Pointer refs — bulk lookup any not already upserted this batch.
+            missing = [s for s in pointers if s not in slug_to_id]
+            if missing:
+                cur.execute("SELECT id, slug FROM shared.entities WHERE slug = ANY(%s)", (missing,))
+                for eid, slug in cur.fetchall():
+                    slug_to_id[slug] = eid
+                still = [s for s in missing if s not in slug_to_id]
+                if still:
+                    raise ValueError(f"entity slug(s) not found: {still[:5]}")
+
+            # 3) Mentions — bulk upsert.
+            if mention_rows:
+                mrows = [(slug_to_id[slug], product, ctype, cid, ctx, conf)
+                         for (slug, ctype, cid, ctx, conf) in mention_rows.values()]
+                execute_values(cur, _MENTION_UPSERT, mrows, template=_MENTION_TPL, page_size=1000)
+                stats["mentions_upserted"] = len(mrows)
+
+            # 4) Relationships — bulk upsert.
+            if rel_rows:
+                rrows = [(slug_to_id[f], slug_to_id[t], rtype, product, sid, vf, vt, meta)
+                         for (f, t, rtype, sid, vf, vt, meta) in rel_rows.values()]
+                execute_values(cur, _REL_UPSERT, rrows, template=_REL_TPL, page_size=1000)
+                stats["relationships_upserted"] = len(rrows)
+
+            cur.close()
+    except ValueError as exc:
         logger.warning("[entity-graph ingest] rejected %s payload: %s", product, exc)
         return jsonify({"error": str(exc)}), 400
     except Exception as exc:  # pragma: no cover - defensive

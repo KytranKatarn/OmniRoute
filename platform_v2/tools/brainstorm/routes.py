@@ -16,9 +16,11 @@ Endpoints:
   POST /api/sessions/<id>/ai-expand    — AI idea expansion via DHQ dispatcher
 """
 
+from __future__ import annotations
+
 import logging
 
-from flask import jsonify, render_template, request
+from flask import Response, jsonify, render_template, request
 from flask_login import current_user, login_required
 
 from database import get_db_cursor
@@ -34,6 +36,9 @@ from .validators import (
 )
 
 logger = logging.getLogger(__name__)
+
+JsonResponse = Response | tuple[Response, int]
+PageResponse = str
 
 SESSION_UPDATE_COLUMNS = {
     "title": "title",
@@ -54,7 +59,16 @@ ALLOWED_IDEA_UPDATE_FIELDS = frozenset((*IDEA_UPDATE_COLUMNS, "vote_delta"))
 
 @brainstorm_bp.before_request
 @login_required
-def _require_login():
+def _require_login() -> None:
+    """Require authenticated access for every brainstorm route.
+
+    Args:
+        None.
+
+    Returns:
+        None. Flask-Login handles redirects or authorization failures before
+        route execution.
+    """
     pass
 
 
@@ -62,7 +76,15 @@ def _require_login():
 
 
 @brainstorm_bp.route("/")
-def index():
+def index() -> PageResponse:
+    """Render the brainstorm tool page.
+
+    Args:
+        None.
+
+    Returns:
+        Rendered brainstorm HTML page.
+    """
     return render_template("tools/brainstorm.html")
 
 
@@ -70,7 +92,15 @@ def index():
 
 
 @brainstorm_bp.route("/api/status")
-def status():
+def status() -> Response:
+    """Return the brainstorm module health payload.
+
+    Args:
+        None.
+
+    Returns:
+        JSON response with the module name, active status, and health flag.
+    """
     return jsonify({"module": "brainstorm", "status": "active", "healthy": True})
 
 
@@ -78,8 +108,17 @@ def status():
 
 
 @brainstorm_bp.route("/api/sessions", methods=["GET"])
-def list_sessions():
-    """List all sessions for the current user (active first, then archived)."""
+def list_sessions() -> JsonResponse:
+    """List brainstorm sessions for the current user.
+
+    Args:
+        None.
+
+    Returns:
+        JSON response containing up to 100 sessions, ordered with active
+        sessions first and then by most recent update. Returns an error tuple
+        with HTTP 500 if the query fails.
+    """
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
@@ -115,8 +154,16 @@ def list_sessions():
 
 
 @brainstorm_bp.route("/api/sessions", methods=["POST"])
-def create_session():
-    """Create a new brainstorm session."""
+def create_session() -> JsonResponse:
+    """Create a brainstorm session for the current user.
+
+    Args:
+        None.
+
+    Returns:
+        JSON response tuple with the created session and HTTP 201 on success.
+        Returns HTTP 400 for validation errors or HTTP 500 for database errors.
+    """
     body = request.get_json(silent=True) or {}
     try:
         title = validate_title(body.get("title"))
@@ -159,8 +206,16 @@ def create_session():
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>", methods=["GET"])
-def get_session(session_id: int):
-    """Get a session with its full idea list."""
+def get_session(session_id: int) -> JsonResponse:
+    """Get a brainstorm session with its ideas.
+
+    Args:
+        session_id: Brainstorm session ID to fetch for the current user.
+
+    Returns:
+        JSON response with the session and ordered idea list. Returns HTTP 404
+        if the session is not owned by the user, or HTTP 500 on query failure.
+    """
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
@@ -215,8 +270,17 @@ def get_session(session_id: int):
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>", methods=["PATCH"])
-def update_session(session_id: int):
-    """Update session metadata (title, goal, tags, status)."""
+def update_session(session_id: int) -> JsonResponse:
+    """Update brainstorm session metadata.
+
+    Args:
+        session_id: Brainstorm session ID to update for the current user.
+
+    Returns:
+        JSON success response when metadata changes are saved. Returns HTTP 400
+        for unknown fields, invalid values, or empty updates; HTTP 404 when the
+        session is not found; or HTTP 500 on database errors.
+    """
     body = request.get_json(silent=True) or {}
     unknown_fields = sorted(set(body) - ALLOWED_SESSION_UPDATE_FIELDS)
     if unknown_fields:
@@ -263,8 +327,16 @@ def update_session(session_id: int):
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>", methods=["DELETE"])
-def delete_session(session_id: int):
-    """Delete a session and all its ideas (CASCADE)."""
+def delete_session(session_id: int) -> JsonResponse:
+    """Delete a brainstorm session and its ideas.
+
+    Args:
+        session_id: Brainstorm session ID to delete for the current user.
+
+    Returns:
+        JSON success response when the session is deleted. Returns HTTP 404 if
+        the session is not found, or HTTP 500 on database errors.
+    """
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -282,7 +354,7 @@ def delete_session(session_id: int):
 # ── Ideas ─────────────────────────────────────────────────────────────────────
 
 
-def _refresh_idea_count(cur, session_id: int):
+def _refresh_idea_count(cur, session_id: int) -> None:
     cur.execute(
         "UPDATE brainstorm_sessions SET idea_count = (SELECT COUNT(*) FROM brainstorm_ideas WHERE session_id = %s), updated_at = NOW() WHERE id = %s",
         (session_id, session_id),
@@ -290,8 +362,17 @@ def _refresh_idea_count(cur, session_id: int):
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>/ideas", methods=["POST"])
-def add_idea(session_id: int):
-    """Add an idea to a session."""
+def add_idea(session_id: int) -> JsonResponse:
+    """Add an idea to a brainstorm session.
+
+    Args:
+        session_id: Brainstorm session ID that will receive the new idea.
+
+    Returns:
+        JSON response tuple with the created idea and HTTP 201 on success.
+        Returns HTTP 400 for validation errors, HTTP 404 if the session is not
+        owned by the user, or HTTP 500 on database errors.
+    """
     body = request.get_json(silent=True) or {}
     try:
         content = validate_content(body.get("content"))
@@ -338,8 +419,17 @@ def add_idea(session_id: int):
 
 
 @brainstorm_bp.route("/api/ideas/<int:idea_id>", methods=["PATCH"])
-def update_idea(idea_id: int):
-    """Update an idea (content, cluster, or vote delta)."""
+def update_idea(idea_id: int) -> JsonResponse:
+    """Update idea content, cluster, or vote count.
+
+    Args:
+        idea_id: Brainstorm idea ID to update for the current user.
+
+    Returns:
+        JSON success response, including the new vote count for vote updates.
+        Returns HTTP 400 for invalid input or empty updates, HTTP 404 when the
+        idea is not found, or HTTP 500 on database errors.
+    """
     body = request.get_json(silent=True) or {}
     unknown_fields = sorted(set(body) - ALLOWED_IDEA_UPDATE_FIELDS)
     if unknown_fields:
@@ -404,8 +494,17 @@ def update_idea(idea_id: int):
 
 
 @brainstorm_bp.route("/api/ideas/<int:idea_id>", methods=["DELETE"])
-def delete_idea(idea_id: int):
-    """Delete an idea."""
+def delete_idea(idea_id: int) -> JsonResponse:
+    """Delete an idea from a brainstorm session.
+
+    Args:
+        idea_id: Brainstorm idea ID to delete for the current user.
+
+    Returns:
+        JSON success response after deleting the idea and refreshing its
+        session's idea count. Returns HTTP 404 if the idea is not found, or
+        HTTP 500 on database errors.
+    """
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -432,8 +531,17 @@ def delete_idea(idea_id: int):
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>/export-kb", methods=["POST"])
-def export_to_kb(session_id: int):
-    """Export a session's ideas to the knowledge base as a vault_note."""
+def export_to_kb(session_id: int) -> JsonResponse:
+    """Export a brainstorm session to the knowledge base.
+
+    Args:
+        session_id: Brainstorm session ID to export for the current user.
+
+    Returns:
+        JSON response with the created knowledge-base ID on success. Returns
+        HTTP 404 when the session is not found, or HTTP 500 if fetching or
+        storing the vault note fails.
+    """
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
@@ -508,8 +616,17 @@ def export_to_kb(session_id: int):
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>/ai-expand", methods=["POST"])
-def ai_expand(session_id: int):
-    """Ask DHQ to expand/critique existing ideas and suggest new ones."""
+def ai_expand(session_id: int) -> JsonResponse:
+    """Ask DHQ to expand and critique brainstorm ideas.
+
+    Args:
+        session_id: Brainstorm session ID to expand for the current user.
+
+    Returns:
+        JSON response with the dispatcher response and agent name on success.
+        Returns HTTP 404 when the session is not found, HTTP 500 on fetch
+        errors, dispatch failure, or unexpected dispatcher exceptions.
+    """
     body = request.get_json(silent=True) or {}
     focus = (body.get("focus") or "").strip()
 

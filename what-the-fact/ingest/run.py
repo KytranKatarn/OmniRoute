@@ -361,6 +361,8 @@ def main():
     engine = create_engine(os.environ["WTF_DATABASE_URL"], pool_pre_ping=True)
     _last_report_date = None
     _last_parliament_date = None
+    _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
+    _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -376,6 +378,12 @@ def main():
                 log.info("parliament sync: %s", result)
             except Exception:
                 log.exception("parliament sync crashed — skipping this week")
+            # Entity graph: refresh cast_vote edges (Link 3) now that new votes synced (#373)
+            try:
+                from ingest.entity_graph_parliament_reconcile import run as _parl_eg
+                log.info("entity_graph parliament reconcile: %s", _parl_eg())
+            except Exception:
+                log.exception("entity_graph parliament reconcile crashed")
             _last_parliament_date = today
         try:
             run_once(engine)
@@ -401,6 +409,26 @@ def main():
                 log.info("entity_mentions: %s", em["article_mentions"])
         except Exception:
             log.exception("entity_mentions_sync crashed — skipping this cycle")
+
+        # Entity-graph reconciles (project #373) — keep the Shared Entity Graph fresh.
+        # All idempotent + set-based (the hub DB does the work). cast_vote (Link 3) runs in
+        # the Sunday parliament block above. Here: covered_by (Link 7) daily; EC donations
+        # (Link 1) weekly on Saturdays (heavy 4.8M-row aggregate). Failures only log.
+        if _last_covered_date != today:
+            try:
+                from ingest.entity_graph_wtf_reconcile import run as _wtf_eg
+                log.info("entity_graph wtf reconcile: %s", _wtf_eg())
+            except Exception:
+                log.exception("entity_graph wtf reconcile crashed")
+            _last_covered_date = today
+
+        if today.weekday() == 5 and _last_ec_date != today:
+            try:
+                from ingest.entity_graph_ec_donations_reconcile import run as _ec_eg
+                log.info("entity_graph EC donations reconcile: %s", _ec_eg())
+            except Exception:
+                log.exception("entity_graph EC donations reconcile crashed")
+            _last_ec_date = today
 
         # Backlog workers — all run in PARALLEL. Each is fully independent:
         # different DB tables, different agents, different fleet nodes.

@@ -53,7 +53,9 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import create_engine, text
 
 # Reuse the ONE resolver (ADR-EG-001 §5 / must-fix I1 — never write a third).
-from ingest.shared.entity_graph import _upsert_entity
+# normalize_name + name_to_slug are the ONE slug algorithm — derive slugs
+# server-side so the same name from any of the 5 products resolves to one node.
+from ingest.shared.entity_graph import _upsert_entity, normalize_name, name_to_slug
 
 logger = logging.getLogger("wtf-consumer.entity_graph_ingest")
 
@@ -145,15 +147,19 @@ def _upsert_inline_entity(conn, ent, *, slug_cache):
     ('created'|'updated'|'noop').
     """
     canonical_name = (ent.get("canonical_name") or "").strip()
-    slug = (ent.get("slug") or "").strip()
     entity_type = (ent.get("entity_type") or "").strip().lower()
     role = ent.get("role") or {}
     raw_name = (ent.get("raw_name") or canonical_name).strip()
 
     if not canonical_name:
         raise ValueError("entity.canonical_name is required")
+    # Slug is DERIVED server-side via the ONE shared algorithm so the same name
+    # from any of the 5 products resolves to the same node (ADR-EG-001 §3). An
+    # adapter-supplied 'slug' is ignored here; explicit slugs are only honored as
+    # pointers to an already-known node in _resolve_entity_ref.
+    slug = name_to_slug(normalize_name(canonical_name))
     if not slug:
-        raise ValueError("entity.slug is required")
+        raise ValueError(f"canonical_name {canonical_name!r} normalized to an empty slug")
     if entity_type not in VALID_NODE_TYPES:
         raise ValueError(
             f"entity_type {entity_type!r} not in frozen node set "

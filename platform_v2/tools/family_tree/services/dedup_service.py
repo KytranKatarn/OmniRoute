@@ -6,18 +6,24 @@ Threshold: 0.75 for flagging potential duplicates.
 """
 
 from difflib import SequenceMatcher
+from typing import Any
 
 from database import get_db_cursor
 
 SIMILARITY_THRESHOLD = 0.75
 
 
-def _similarity(a, b):
-    """Return 0.0–1.0 similarity ratio between two strings."""
+def _similarity(a: str, b: str) -> float:
+    """
+    Return the case-insensitive SequenceMatcher similarity for two strings.
+
+    The score is a float from 0.0 to 1.0, where 1.0 means the normalized
+    strings are identical.
+    """
     return SequenceMatcher(None, a.lower(), b.lower()).ratio()
 
 
-def _person_text(p):
+def _person_text(p: dict[str, Any]) -> str:
     """Build a canonical text representation for comparison."""
     parts = [
         (p.get("first_name") or "").strip(),
@@ -34,7 +40,7 @@ def _person_text(p):
     return " ".join(parts)
 
 
-def find_duplicates(user_id):
+def find_duplicates(user_id: int) -> list[dict[str, Any]]:
     """
     Fetch all persons for *user_id*, compare every pair via
     SequenceMatcher on their text representations, and return
@@ -77,7 +83,7 @@ def find_duplicates(user_id):
     return candidates
 
 
-def merge_persons(user_id, keep_id, merge_id):
+def merge_persons(user_id: int, keep_id: int, merge_id: int) -> dict[str, Any]:
     """
     Merge *merge_id* into *keep_id* for the given user.
 

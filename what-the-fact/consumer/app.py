@@ -34,4 +34,7 @@ def create_app():
     # Shared Entity Graph INGEST — single-writer endpoint, adapters POST here over the mesh (T-ING-1)
     from .entity_graph_routes import entity_graph_bp
     app.register_blueprint(entity_graph_bp)
+    # 8-link Accountability-Chain query API — public, read-only, bounded + cached (#3793)
+    from .chain_routes import chain_bp
+    app.register_blueprint(chain_bp)
     return app

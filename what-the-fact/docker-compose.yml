@@ -44,6 +44,30 @@ services:
     environment:
       TZ: America/Toronto
 
+  # Dedicated entity-graph INGEST API (#4195) — isolates the heavy ingest POST
+  # endpoint off the PUBLIC wtf-consumer workers so a big backfill can never
+  # starve what-the-fact.com /news (incident KB #273424). Same consumer image,
+  # separate gunicorn + port; products POST here via ENTITY_INGEST_URL.
+  wtf-ingest-api:
+    build: {context: ., dockerfile: Dockerfile.consumer}
+    image: ghcr.io/kytrankatarn/wtf-consumer:0.1.0
+    restart: unless-stopped
+    env_file: [.env]
+    command: ["gunicorn", "--bind", "0.0.0.0:8106", "--workers", "2", "--timeout", "240", "--access-logfile", "-", "consumer.app:create_app()"]
+    ports: ["8106:8106"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    cpus: 1.0
+    networks: [default, archie_net]
+    environment:
+      TZ: America/Toronto
+      # ingest-api never serves billing; point the billing sqlite at tmpfs so
+      # create_app()'s init_billing_table() works under the read-only rootfs
+      # without needing the /app/data volume.
+      WTF_BILLING_DB_PATH: /tmp/wtf_billing.db
+
   wtf-tech:
     build: {context: ., dockerfile: Dockerfile.tech}
     image: ghcr.io/kytrankatarn/wtf-tech:0.1.0

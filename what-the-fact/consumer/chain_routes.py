@@ -26,8 +26,8 @@ from sqlalchemy import create_engine, text
 
 chain_bp = Blueprint("chain", __name__)
 
-_PER_TYPE_LIMIT = 25       # bounded sample per relationship_type per direction
-_CACHE_TTL = 60            # seconds — protects the workers from repeated heavy reads
+_PER_TYPE_LIMIT = int(os.environ.get("CHAIN_PER_TYPE_LIMIT", "25"))  # sample cap / type / direction
+_CACHE_TTL = int(os.environ.get("CHAIN_CACHE_TTL", "60"))            # seconds — guards the workers
 _cache = {}               # path -> (expiry_epoch, payload)
 
 _engine = None
@@ -82,6 +82,37 @@ def chain_links():
         "links_with_data": have,
         "links_without_data": gaps,
     }))
+
+
+_SEARCH_LIMIT = int(os.environ.get("CHAIN_SEARCH_LIMIT", "20"))  # bounded explorer name search
+
+
+@chain_bp.get("/api/public/chain/search")
+def chain_search():
+    """Bounded name search over the whole entity graph (all types, not just MPs).
+
+    Powers the explorer's search box. LIMIT-capped + TTL-cached so it can never
+    become a heavy read (post 2026-06-15 worker-starvation incident, mistake #273424).
+    """
+    q = (request.args.get("q") or "").strip().lower()
+    if len(q) < 2:
+        return jsonify({"query": q, "results": []})
+    key = f"chain:search:{q}"
+    cached = _cache_get(key)
+    if cached is not None:
+        return jsonify(cached)
+    s = _shared()
+    with _eng().connect() as conn:
+        rows = conn.execute(text(
+            f"SELECT slug, canonical_name, entity_type, roles "
+            f"FROM {s}.entities "
+            f"WHERE canonical_name IS NOT NULL AND lower(canonical_name) LIKE :like "
+            f"ORDER BY (lower(canonical_name) = :q) DESC, length(canonical_name) ASC, "
+            f"canonical_name ASC LIMIT :lim"
+        ), {"like": f"%{q}%", "q": q, "lim": _SEARCH_LIMIT}).mappings().fetchall()
+    results = [{"slug": r["slug"], "canonical_name": r["canonical_name"],
+                "entity_type": r["entity_type"], "roles": r["roles"]} for r in rows]
+    return jsonify(_cache_set(key, {"query": q, "results": results}))
 
 
 @chain_bp.get("/api/public/chain/entity/<slug>")

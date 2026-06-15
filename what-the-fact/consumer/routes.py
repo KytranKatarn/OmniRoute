@@ -2349,6 +2349,28 @@ def search():
                            source_count=source_count, is_subscriber=is_subscriber())
 
 
+@bp.get("/chain")
+def chain_explorer():
+    """Public 8-link Accountability-Chain Explorer (project #373, task #3793).
+
+    Renders the chain-query API (/api/public/chain/*) which is same-origin,
+    bounded + cached — so this page can never trigger a heavy read.
+    """
+    with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("chain.html", chain_slug=None, source_count=source_count)
+
+
+@bp.get("/chain/<slug>")
+def chain_explorer_entity(slug):
+    """Deep-link into a single entity's accountability chain."""
+    with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {_schema()}.sources")).scalar() or 0
+    return render_template("chain.html", chain_slug=slug, source_count=source_count)
+
+
 @bp.get("/robots.txt")
 def robots_txt():
     from flask import Response

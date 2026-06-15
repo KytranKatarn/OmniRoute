@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}Accountability Chain Explorer — What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Follow the money through Canadian public life — donations, votes, contracts, and the news that covers them. The 8-link accountability chain, with honest data gaps.">
+<meta property="og:title" content="Accountability Chain Explorer — What The Fact">
+<meta property="og:description" content="Eight links, one chain: Money → MP → Vote → Policy → Contract → Market → Coverage → Public.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://what-the-fact.com/chain">
+{% endblock %}
+{% block content %}
+
+<div class="chain-wrap">
+  <div class="chain-head">
+    <div class="chain-eyebrow" data-i18n="chain.eyebrow">SHARED ENTITY GRAPH · CROSS-WATCH</div>
+    <h1 class="chain-title" data-i18n="chain.title">Accountability Chain Explorer</h1>
+    <p class="chain-sub" data-i18n="chain.sub">Follow the money through Canadian public life — from a political donation to the contract it shadows to the news that covers the outcome. Eight links, one chain. Where we don't yet have the data, we say so.</p>
+  </div>
+
+  <div id="chainRail" class="chain-rail" aria-label="The 8-link accountability chain"></div>
+
+  <div class="chain-searchbox">
+    <input id="chainSearch" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Search an MP, company, donor, lobby client, or outlet…"
+           aria-label="Search the entity graph">
+    <div id="chainResults" class="chain-results" hidden></div>
+  </div>
+
+  <div id="chainEntity" class="chain-entity" hidden></div>
+  <div id="chainEmpty" class="chain-empty" data-i18n="chain.empty">
+    Search for an entity above to trace its place in the accountability chain.
+  </div>
+</div>
+
+<style>
+  .chain-wrap{max-width:920px;margin:38px auto 64px;padding:0 16px;}
+  .chain-head{margin-bottom:22px;}
+  .chain-eyebrow{font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;}
+  .chain-title{font-family:'Orbitron',sans-serif;font-size:1.6rem;color:#e5e7eb;margin:0 0 8px;letter-spacing:0.5px;}
+  .chain-sub{font-size:0.82rem;color:#9ca3af;line-height:1.6;max-width:640px;margin:0;}
+
+  /* 8-link rail */
+  .chain-rail{display:flex;flex-wrap:wrap;align-items:stretch;gap:4px;margin:18px 0 26px;}
+  .chain-chip{display:flex;flex-direction:column;justify-content:center;gap:3px;background:#0a0f1a;border:1px solid #1a2030;border-radius:5px;padding:8px 11px;min-width:78px;}
+  .chain-chip.on{border-left:2px solid var(--wtf-accent,#06b6d4);}
+  .chain-chip.off{opacity:0.45;border-left:2px solid #374151;border-style:dashed;}
+  .chain-chip-num{font-size:0.5rem;letter-spacing:1.5px;color:#4b5563;}
+  .chain-chip-name{font-size:0.74rem;color:#d1d5db;font-weight:600;}
+  .chain-chip-status{font-size:0.5rem;letter-spacing:0.5px;text-transform:uppercase;}
+  .chain-chip.on .chain-chip-status{color:var(--wtf-accent,#06b6d4);}
+  .chain-chip.off .chain-chip-status{color:#6b7280;}
+  .chain-arrow{display:flex;align-items:center;color:#374151;font-size:0.9rem;}
+
+  /* search */
+  .chain-searchbox{position:relative;max-width:560px;margin-bottom:8px;}
+  #chainSearch{width:100%;background:#0a0f1a;border:1px solid #1f2937;color:#e0e0e0;padding:11px 14px;border-radius:6px;font-size:0.85rem;outline:none;box-sizing:border-box;}
+  #chainSearch:focus{border-color:var(--wtf-accent,#06b6d4);}
+  .chain-results{position:absolute;z-index:20;left:0;right:0;top:calc(100% + 4px);background:#0a0f1a;border:1px solid #1f2937;border-radius:6px;max-height:340px;overflow-y:auto;box-shadow:0 12px 28px rgba(0,0,0,0.5);}
+  .chain-res-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 13px;cursor:pointer;border-bottom:1px solid #131a26;}
+  .chain-res-row:last-child{border-bottom:none;}
+  .chain-res-row:hover{background:#101826;}
+  .chain-res-name{font-size:0.8rem;color:#d1d5db;}
+  .chain-res-type{font-size:0.56rem;letter-spacing:1px;text-transform:uppercase;color:#6b7280;}
+
+  /* entity view */
+  .chain-empty{color:#4b5563;font-size:0.8rem;padding:30px 4px;}
+  .chain-loading{color:#6b7280;font-size:0.8rem;padding:14px 0;}
+  .chain-ent-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;border-bottom:1px solid #1a2030;padding-bottom:12px;margin:8px 0 18px;}
+  .chain-ent-name{font-family:'Orbitron',sans-serif;font-size:1.15rem;color:#f3f4f6;}
+  .chain-ent-type{font-size:0.56rem;letter-spacing:1.5px;text-transform:uppercase;color:#06b6d4;border:1px solid #164e63;border-radius:3px;padding:2px 7px;}
+  .chain-ent-edges{font-size:0.66rem;color:#6b7280;margin-left:auto;}
+
+  .chain-block{background:#0a0f1a;border:1px solid #1a2030;border-radius:6px;padding:12px 14px;margin-bottom:8px;}
+  .chain-block.gap{opacity:0.5;border-style:dashed;}
+  .chain-block-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .chain-block-pos{font-size:0.55rem;letter-spacing:1px;color:#9ca3af;background:#111827;border:1px solid #1f2937;border-radius:3px;padding:2px 6px;}
+  .chain-block-label{font-size:0.82rem;color:#e5e7eb;font-weight:600;}
+  .chain-block-count{font-size:0.62rem;color:#6b7280;margin-left:auto;}
+  .chain-samples{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+  .chain-sample{display:inline-flex;align-items:center;gap:6px;background:#0d1421;border:1px solid #1f2937;border-radius:14px;padding:4px 11px;text-decoration:none;}
+  .chain-sample:hover{border-color:var(--wtf-accent,#06b6d4);}
+  .chain-sample-name{font-size:0.72rem;color:#cbd5e1;}
+  .chain-sample-src{font-size:0.5rem;letter-spacing:0.5px;text-transform:uppercase;color:#52617a;}
+  .chain-note{font-size:0.62rem;color:#4b5563;margin-top:14px;font-style:italic;}
+
+  @media (max-width:640px){
+    .chain-arrow{display:none;}
+    .chain-chip{flex:1 1 40%;min-width:0;}
+    .chain-ent-edges{margin-left:0;width:100%;}
+  }
+</style>
+
+<script>
+  window.__CHAIN_SLUG__ = {{ chain_slug | tojson }};
+  (function(){
+    function el(tag, cls, txt){
+      var e = document.createElement(tag);
+      if(cls) e.className = cls;
+      if(txt != null) e.textContent = txt;   // textContent only — XSS-safe per WTF rule
+      return e;
+    }
+
+    // --- 1. the 8-link rail ---
+    fetch('/api/public/chain/links')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var rail = document.getElementById('chainRail');
+        rail.textContent = '';
+        var names = (d.chain || '').split(' -> ');
+        var live = {};
+        (d.links_with_data || []).forEach(function(p){ live[p] = true; });
+        names.forEach(function(name, i){
+          var pos = i + 1, on = !!live[pos];
+          var chip = el('div', 'chain-chip ' + (on ? 'on' : 'off'));
+          chip.appendChild(el('span', 'chain-chip-num', 'L' + pos));
+          chip.appendChild(el('span', 'chain-chip-name', name));
+          chip.appendChild(el('span', 'chain-chip-status', on ? 'live' : 'no data yet'));
+          rail.appendChild(chip);
+          if(i < names.length - 1) rail.appendChild(el('span', 'chain-arrow', '→'));
+        });
+      })
+      .catch(function(){});
+
+    // --- 2. search box ---
+    var box = document.getElementById('chainSearch');
+    var res = document.getElementById('chainResults');
+    var timer = null;
+    box.addEventListener('input', function(){
+      clearTimeout(timer);
+      var q = box.value.trim();
+      if(q.length < 2){ res.hidden = true; res.textContent = ''; return; }
+      timer = setTimeout(function(){
+        fetch('/api/public/chain/search?q=' + encodeURIComponent(q))
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            res.textContent = '';
+            if(!d.results || !d.results.length){ res.hidden = true; return; }
+            d.results.forEach(function(it){
+              var row = el('div', 'chain-res-row');
+              row.appendChild(el('span', 'chain-res-name', it.canonical_name));
+              row.appendChild(el('span', 'chain-res-type', it.entity_type || ''));
+              row.addEventListener('click', function(){ go(it.slug); });
+              res.appendChild(row);
+            });
+            res.hidden = false;
+          })
+          .catch(function(){ res.hidden = true; });
+      }, 250);
+    });
+    document.addEventListener('click', function(e){
+      if(!box.contains(e.target) && !res.contains(e.target)) res.hidden = true;
+    });
+
+    // --- 3. navigation + entity view ---
+    function go(slug){
+      res.hidden = true; box.value = '';
+      history.pushState({slug: slug}, '', '/chain/' + encodeURIComponent(slug));
+      loadEntity(slug);
+    }
+    window.addEventListener('popstate', function(){
+      var m = location.pathname.match(/^\/chain\/(.+)$/);
+      if(m) loadEntity(decodeURIComponent(m[1]));
+      else { document.getElementById('chainEntity').hidden = true;
+             document.getElementById('chainEmpty').hidden = false; }
+    });
+
+    function loadEntity(slug){
+      var wrap = document.getElementById('chainEntity');
+      var empty = document.getElementById('chainEmpty');
+      empty.hidden = true; wrap.hidden = false;
+      wrap.textContent = '';
+      wrap.appendChild(el('div', 'chain-loading', 'Loading chain…'));
+      fetch('/api/public/chain/entity/' + encodeURIComponent(slug))
+        .then(function(r){ return r.json().then(function(j){ return {ok: r.ok, j: j}; }); })
+        .then(function(o){
+          wrap.textContent = '';
+          if(!o.ok){ wrap.appendChild(el('div', 'chain-loading', (o.j && o.j.error) || 'Entity not found.')); return; }
+          renderEntity(wrap, o.j);
+        })
+        .catch(function(){ wrap.textContent = ''; wrap.appendChild(el('div', 'chain-loading', 'Could not load this chain.')); });
+    }
+
+    function renderEntity(wrap, d){
+      var e = d.entity || {};
+      var head = el('div', 'chain-ent-head');
+      head.appendChild(el('span', 'chain-ent-name', e.canonical_name || e.slug));
+      if(e.entity_type) head.appendChild(el('span', 'chain-ent-type', e.entity_type));
+      head.appendChild(el('span', 'chain-ent-edges', (d.edge_count || 0) + ' connections'));
+      wrap.appendChild(head);
+
+      if(!d.chain || !d.chain.length){
+        wrap.appendChild(el('div', 'chain-loading', 'No chain links recorded for this entity yet.'));
+        return;
+      }
+      d.chain.forEach(function(b){
+        var block = el('div', 'chain-block' + (b.has_data ? '' : ' gap'));
+        var bh = el('div', 'chain-block-head');
+        bh.appendChild(el('span', 'chain-block-pos', b.chain_position ? ('L' + b.chain_position) : '·'));
+        var arrow = (b.direction === 'out') ? ' →' : ' ←';
+        bh.appendChild(el('span', 'chain-block-label', (b.label || b.relationship_type) + arrow));
+        var n = b.sample ? b.sample.length : 0;
+        var count = b.has_data
+          ? (b.truncated ? ('showing ' + n + ' of ' + b.total) : (b.total + (b.total === 1 ? ' link' : ' links')))
+          : 'no data yet';
+        bh.appendChild(el('span', 'chain-block-count', count));
+        block.appendChild(bh);
+
+        if(b.sample && b.sample.length){
+          var list = el('div', 'chain-samples');
+          b.sample.forEach(function(s){
+            var a = el('a', 'chain-sample');
+            a.href = '/chain/' + encodeURIComponent(s.slug);
+            a.appendChild(el('span', 'chain-sample-name', s.canonical_name || s.slug));
+            if(s.source_product) a.appendChild(el('span', 'chain-sample-src', s.source_product));
+            a.addEventListener('click', function(ev){ ev.preventDefault(); go(s.slug); });
+            list.appendChild(a);
+          });
+          block.appendChild(list);
+        }
+        wrap.appendChild(block);
+      });
+      if(d.note) wrap.appendChild(el('div', 'chain-note', d.note));
+    }
+
+    // --- init: deep-link ---
+    if(window.__CHAIN_SLUG__) loadEntity(window.__CHAIN_SLUG__);
+  })();
+</script>
+{% endblock %}

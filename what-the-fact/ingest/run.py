@@ -363,6 +363,7 @@ def main():
     _last_parliament_date = None
     _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
     _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
+    _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -429,6 +430,18 @@ def main():
             except Exception:
                 log.exception("entity_graph EC donations reconcile crashed")
             _last_ec_date = today
+
+        # Dedup engine weekly on Mondays — after the weekend feeders (Sat EC, Sun parliament)
+        # add entities. Exact normalized-name: orgs auto-merge (revertable, distinct-guarded),
+        # persons -> merge_review_queue. Idempotent. Fuzzy candidate gen stays manual (--fuzzy)
+        # to avoid unbounded review-queue growth until a resolver/UI lands (#4207).
+        if today.weekday() == 0 and _last_dedup_date != today:
+            try:
+                from ingest.entity_graph_dedup import run as _dedup
+                log.info("entity_graph dedup: %s", _dedup())
+            except Exception:
+                log.exception("entity_graph dedup crashed")
+            _last_dedup_date = today
 
         # Backlog workers — all run in PARALLEL. Each is fully independent:
         # different DB tables, different agents, different fleet nodes.

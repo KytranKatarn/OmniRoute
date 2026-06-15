@@ -160,32 +160,31 @@ def chain_entity(slug):
             f"WHERE to_entity_id = :id GROUP BY 1"
         ), {"id": eid}).mappings().fetchall()
 
-        # bounded sample of connected entities per (direction, type) — windowed, capped
-        sample_rows = conn.execute(text(f"""
-            SELECT direction, relationship_type, slug, canonical_name, entity_type, source_product
-            FROM (
-                SELECT 'out' AS direction, r.relationship_type, e2.slug, e2.canonical_name,
-                       e2.entity_type, r.source_product,
-                       row_number() OVER (PARTITION BY r.relationship_type ORDER BY r.id DESC) rn
-                FROM {s}.entity_relationships r JOIN {s}.entities e2 ON e2.id = r.to_entity_id
-                WHERE r.from_entity_id = :id
-                UNION ALL
-                SELECT 'in', r.relationship_type, e2.slug, e2.canonical_name,
-                       e2.entity_type, r.source_product,
-                       row_number() OVER (PARTITION BY r.relationship_type ORDER BY r.id DESC)
-                FROM {s}.entity_relationships r JOIN {s}.entities e2 ON e2.id = r.from_entity_id
-                WHERE r.to_entity_id = :id
-            ) x
-            WHERE rn <= :lim
-        """), {"id": eid, "lim": _PER_TYPE_LIMIT}).mappings().fetchall()
+        # bounded sample per (direction, type) — one indexed lookup per type via the
+        # composite index (to/from_entity_id, relationship_type, id) from migration 036.
+        # A high-degree node (e.g. a party with 200k+ donors) reads only _PER_TYPE_LIMIT
+        # rows per type via a backward index scan, instead of windowing EVERY edge
+        # (the old row_number() OVER (...) was ~1.7s on a 226k-edge node — 2026-06-15 fix).
+        samples = {}
+        for direction, counts, anchor, other in (
+            ("out", out_counts, "from_entity_id", "to_entity_id"),
+            ("in", in_counts, "to_entity_id", "from_entity_id"),
+        ):
+            for c in counts:
+                rt = c["relationship_type"]
+                rows = conn.execute(text(
+                    f"SELECT e2.slug, e2.canonical_name, e2.entity_type, r.source_product "
+                    f"FROM {s}.entity_relationships r "
+                    f"JOIN {s}.entities e2 ON e2.id = r.{other} "
+                    f"WHERE r.{anchor} = :id AND r.relationship_type = :rt "
+                    f"ORDER BY r.id DESC LIMIT :lim"
+                ), {"id": eid, "rt": rt, "lim": _PER_TYPE_LIMIT}).mappings().fetchall()
+                samples[(direction, rt)] = [{
+                    "slug": x["slug"], "canonical_name": x["canonical_name"],
+                    "entity_type": x["entity_type"], "source_product": x["source_product"],
+                } for x in rows]
 
     # assemble grouped chain blocks
-    samples = {}
-    for r in sample_rows:
-        samples.setdefault((r["direction"], r["relationship_type"]), []).append({
-            "slug": r["slug"], "canonical_name": r["canonical_name"],
-            "entity_type": r["entity_type"], "source_product": r["source_product"],
-        })
 
     def _blocks(counts, direction):
         out = []

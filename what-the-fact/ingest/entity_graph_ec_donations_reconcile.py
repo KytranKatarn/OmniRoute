@@ -61,6 +61,11 @@ def run(dry_run=False):
     eng = _engine()
     disp = _DISPLAY
     donor_slug = "'donor-' || " + _slugify(disp)
+    # recipient "Family, Given" -> "Given Family" -> slug, matched to parliament.mps.slug
+    recip = ("CASE WHEN position(',' in recipient_name) > 0 "
+             "THEN btrim(split_part(recipient_name, ',', 2)) || ' ' || "
+             "btrim(split_part(recipient_name, ',', 1)) ELSE recipient_name END")
+    mp_slug = _slugify(recip)
     with eng.begin() as conn:
         row = conn.execute(text(
             "SELECT value FROM shared.dedup_config WHERE key='donor_min_aggregate'")).fetchone()
@@ -94,6 +99,19 @@ def run(dry_run=False):
             conn.execute(text("SELECT count(*) FROM _donor")).scalar_one())
         totals["edge_candidates"] = int(conn.execute(text(
             "SELECT count(*) FROM _dp d JOIN _donor x ON x.donor_slug = d.donor_slug")).scalar_one())
+
+        # 2b) direct donor -> candidate(MP) edge candidates (Link 1 direct attribution):
+        # 'Candidates' contributions whose recipient slug matches an MP and whose donor is
+        # already materialized (>= $200, status active).
+        totals["donor_mp_candidates"] = int(conn.execute(text(f"""
+            SELECT count(*) FROM (
+                SELECT {donor_slug} AS donor_slug, {mp_slug} AS mp_slug
+                FROM parliament.ec_contributions WHERE political_entity = 'Candidates'
+                GROUP BY 1, 2
+            ) a
+            JOIN parliament.mps m ON m.slug = a.mp_slug AND m.entity_id IS NOT NULL
+            JOIN shared.entities de ON de.slug = a.donor_slug AND de.status = 'active'
+        """)).scalar_one())
 
         if dry_run:
             logger.info("EC donations reconcile [dry-run]: %s", totals)
@@ -133,6 +151,29 @@ def run(dry_run=False):
             JOIN shared.entities de ON de.slug = d.donor_slug
             JOIN shared.entities pe ON lower(pe.canonical_name) = lower(d.party)
                                    AND pe.entity_type = 'organization'
+            ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
+            DO NOTHING
+        """)).rowcount
+
+        # 6) direct donor -> candidate(MP) edges (Link 1 direct attribution). Recipient slug
+        # matched to parliament.mps.slug; source_id namespaced 'mp-' so it never collides with
+        # the donor->party edges above. Only materialized (>= $200, active) donors attach.
+        totals["donor_mp_edges"] = conn.execute(text(f"""
+            INSERT INTO shared.entity_relationships
+                (from_entity_id, to_entity_id, relationship_type, source_product, source_id, metadata)
+            SELECT de.id, m.entity_id, 'donated_to', 'elections_canada',
+                   a.donor_slug || '|mp-' || a.mp_slug,
+                   jsonb_build_object('total_cad', round(a.total, 2), 'contributions', a.n,
+                                      'recipient', 'candidate', 'first', a.first_d, 'last', a.last_d)
+            FROM (
+                SELECT {donor_slug} AS donor_slug, {mp_slug} AS mp_slug,
+                       sum(monetary_amount + coalesce(non_monetary_amount, 0)) AS total,
+                       count(*) AS n, min(contribution_date) AS first_d, max(contribution_date) AS last_d
+                FROM parliament.ec_contributions WHERE political_entity = 'Candidates'
+                GROUP BY 1, 2
+            ) a
+            JOIN parliament.mps m ON m.slug = a.mp_slug AND m.entity_id IS NOT NULL
+            JOIN shared.entities de ON de.slug = a.donor_slug AND de.status = 'active'
             ON CONFLICT (from_entity_id, to_entity_id, relationship_type, source_product, source_id)
             DO NOTHING
         """)).rowcount

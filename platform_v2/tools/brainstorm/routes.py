@@ -54,6 +54,112 @@ ALLOWED_SESSION_UPDATE_FIELDS = frozenset(SESSION_UPDATE_COLUMNS)
 ALLOWED_IDEA_UPDATE_FIELDS = frozenset((*IDEA_UPDATE_COLUMNS, "vote_delta"))
 
 
+class BrainstormError(Exception):
+    """Base error for expected Brainstorm route failures."""
+
+    def __init__(self, message: str, *, status_code: int = 500) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+class ValidationError(BrainstormError):
+    """Request payload failed validation."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, status_code=400)
+
+
+class SessionNotFoundError(BrainstormError):
+    """Requested brainstorm session does not exist."""
+
+    def __init__(self) -> None:
+        super().__init__("Session not found", status_code=404)
+
+
+class IdeaNotFoundError(BrainstormError):
+    """Requested brainstorm idea does not exist."""
+
+    def __init__(self) -> None:
+        super().__init__("Idea not found", status_code=404)
+
+
+def _log_context(
+    *,
+    operation: str,
+    session_id: int | None = None,
+    idea_id: int | None = None,
+    status_code: int | None = None,
+) -> dict:
+    context = {
+        "operation": operation,
+        "user_id": getattr(current_user, "id", None),
+        "session_id": session_id,
+        "idea_id": idea_id,
+    }
+    if status_code is not None:
+        context["status_code"] = status_code
+    return context
+
+
+def _error_response(error: BrainstormError) -> JsonResponse:
+    return jsonify({"success": False, "error": error.message}), error.status_code
+
+
+def _validation_error_from(exc: ValueError) -> ValidationError:
+    message = exc.args[0] if exc.args else "Invalid request"
+    return ValidationError(message)
+
+
+def _server_error_response(
+    operation: str,
+    exc: Exception,
+    *,
+    session_id: int | None = None,
+    idea_id: int | None = None,
+) -> JsonResponse:
+    logger.exception(
+        "Brainstorm route failed",
+        extra={
+            **_log_context(operation=operation, session_id=session_id, idea_id=idea_id, status_code=500),
+            "error_type": type(exc).__name__,
+        },
+    )
+    return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+def _access_denied(message: str) -> BrainstormError:
+    return BrainstormError(message, status_code=403)
+
+
+def _raise_session_access_error(cur, session_id: int) -> None:
+    cur.execute("SELECT user_id FROM brainstorm_sessions WHERE id = %s", (session_id,))
+    row = cur.fetchone()
+    if not row:
+        raise SessionNotFoundError()
+    if row["user_id"] != current_user.id:
+        raise _access_denied("Session access denied")
+    raise SessionNotFoundError()
+
+
+def _raise_idea_access_error(cur, idea_id: int) -> None:
+    cur.execute(
+        """
+        SELECT bs.user_id
+        FROM brainstorm_ideas bi
+        JOIN brainstorm_sessions bs ON bs.id = bi.session_id
+        WHERE bi.id = %s
+        """,
+        (idea_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        raise IdeaNotFoundError()
+    if row["user_id"] != current_user.id:
+        raise _access_denied("Idea access denied")
+    raise IdeaNotFoundError()
+
+
 # ── Auth gate ─────────────────────────────────────────────────────────────────
 
 
@@ -149,8 +255,7 @@ def list_sessions() -> JsonResponse:
         ]
         return jsonify({"success": True, "sessions": sessions})
     except Exception as exc:
-        logger.error("list_sessions error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("list_sessions", exc)
 
 
 @brainstorm_bp.route("/api/sessions", methods=["POST"])
@@ -170,7 +275,7 @@ def create_session() -> JsonResponse:
         goal = validate_goal(body.get("goal"))
         tags = validate_tags(body.get("tags"))
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+        return _error_response(_validation_error_from(exc))
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -201,8 +306,7 @@ def create_session() -> JsonResponse:
             201,
         )
     except Exception as exc:
-        logger.error("create_session error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("create_session", exc)
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>", methods=["GET"])
@@ -213,8 +317,9 @@ def get_session(session_id: int) -> JsonResponse:
         session_id: Brainstorm session ID to fetch for the current user.
 
     Returns:
-        JSON response with the session and ordered idea list. Returns HTTP 404
-        if the session is not owned by the user, or HTTP 500 on query failure.
+        JSON response with the session and ordered idea list. Returns HTTP 403
+        if the session is owned by another user, HTTP 404 when it does not
+        exist, or HTTP 500 on query failure.
     """
     try:
         with get_db_cursor() as (conn, cur):
@@ -228,7 +333,7 @@ def get_session(session_id: int) -> JsonResponse:
             )
             s = cur.fetchone()
             if not s:
-                return jsonify({"success": False, "error": "Session not found"}), 404
+                _raise_session_access_error(cur, session_id)
             cur.execute(
                 """
                 SELECT id, content, cluster, votes, created_at
@@ -264,9 +369,10 @@ def get_session(session_id: int) -> JsonResponse:
                 ],
             }
         )
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("get_session error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("get_session", exc, session_id=session_id)
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>", methods=["PATCH"])
@@ -279,19 +385,20 @@ def update_session(session_id: int) -> JsonResponse:
     Returns:
         JSON success response when metadata changes are saved. Returns HTTP 400
         for unknown fields, invalid values, or empty updates; HTTP 404 when the
-        session is not found; or HTTP 500 on database errors.
+        session is not found; HTTP 403 if it is owned by another user; or HTTP
+        500 on database errors.
     """
     body = request.get_json(silent=True) or {}
     unknown_fields = sorted(set(body) - ALLOWED_SESSION_UPDATE_FIELDS)
     if unknown_fields:
-        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_fields)}"}), 400
+        return _error_response(ValidationError(f"Unknown field(s): {', '.join(unknown_fields)}"))
     fields = {}
     try:
         if "title" in body:
             try:
                 fields["title"] = validate_title(body["title"])
             except ValueError as exc:
-                if str(exc) == "title is required":
+                if exc.args and exc.args[0] == "title is required":
                     raise ValueError("title cannot be empty") from exc
                 raise
         if "goal" in body:
@@ -300,12 +407,12 @@ def update_session(session_id: int) -> JsonResponse:
             fields["tags"] = validate_tags(body["tags"])
         if "status" in body:
             if body["status"] not in ("active", "archived"):
-                return jsonify({"success": False, "error": "status must be active or archived"}), 400
+                return _error_response(ValidationError("status must be active or archived"))
             fields["status"] = body["status"]
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+        return _error_response(_validation_error_from(exc))
     if not fields:
-        return jsonify({"success": False, "error": "Nothing to update"}), 400
+        return _error_response(ValidationError("Nothing to update"))
     set_clause = ", ".join(f"{SESSION_UPDATE_COLUMNS[k]} = %s" for k in fields)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -319,11 +426,12 @@ def update_session(session_id: int) -> JsonResponse:
                 (*fields.values(), session_id, current_user.id),
             )
             if not cur.fetchone():
-                return jsonify({"success": False, "error": "Session not found"}), 404
+                _raise_session_access_error(cur, session_id)
         return jsonify({"success": True})
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("update_session error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("update_session", exc, session_id=session_id)
 
 
 @brainstorm_bp.route("/api/sessions/<int:session_id>", methods=["DELETE"])
@@ -335,7 +443,8 @@ def delete_session(session_id: int) -> JsonResponse:
 
     Returns:
         JSON success response when the session is deleted. Returns HTTP 404 if
-        the session is not found, or HTTP 500 on database errors.
+        the session is not found, HTTP 403 if it is owned by another user, or
+        HTTP 500 on database errors.
     """
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -344,11 +453,12 @@ def delete_session(session_id: int) -> JsonResponse:
                 (session_id, current_user.id),
             )
             if not cur.fetchone():
-                return jsonify({"success": False, "error": "Session not found"}), 404
+                _raise_session_access_error(cur, session_id)
         return jsonify({"success": True})
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("delete_session error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("delete_session", exc, session_id=session_id)
 
 
 # ── Ideas ─────────────────────────────────────────────────────────────────────
@@ -370,15 +480,16 @@ def add_idea(session_id: int) -> JsonResponse:
 
     Returns:
         JSON response tuple with the created idea and HTTP 201 on success.
-        Returns HTTP 400 for validation errors, HTTP 404 if the session is not
-        owned by the user, or HTTP 500 on database errors.
+        Returns HTTP 400 for validation errors, HTTP 403 if the session is owned
+        by another user, HTTP 404 if it does not exist, or HTTP 500 on database
+        errors.
     """
     body = request.get_json(silent=True) or {}
     try:
         content = validate_content(body.get("content"))
         cluster = validate_cluster(body.get("cluster"))
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+        return _error_response(_validation_error_from(exc))
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             # Verify ownership
@@ -387,7 +498,7 @@ def add_idea(session_id: int) -> JsonResponse:
                 (session_id, current_user.id),
             )
             if not cur.fetchone():
-                return jsonify({"success": False, "error": "Session not found"}), 404
+                _raise_session_access_error(cur, session_id)
             cur.execute(
                 """
                 INSERT INTO brainstorm_ideas (session_id, content, cluster)
@@ -413,9 +524,10 @@ def add_idea(session_id: int) -> JsonResponse:
             ),
             201,
         )
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("add_idea error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("add_idea", exc, session_id=session_id)
 
 
 @brainstorm_bp.route("/api/ideas/<int:idea_id>", methods=["PATCH"])
@@ -428,19 +540,20 @@ def update_idea(idea_id: int) -> JsonResponse:
     Returns:
         JSON success response, including the new vote count for vote updates.
         Returns HTTP 400 for invalid input or empty updates, HTTP 404 when the
-        idea is not found, or HTTP 500 on database errors.
+        idea is not found, HTTP 403 if it is owned by another user, or HTTP 500
+        on database errors.
     """
     body = request.get_json(silent=True) or {}
     unknown_fields = sorted(set(body) - ALLOWED_IDEA_UPDATE_FIELDS)
     if unknown_fields:
-        return jsonify({"success": False, "error": f"Unknown field(s): {', '.join(unknown_fields)}"}), 400
+        return _error_response(ValidationError(f"Unknown field(s): {', '.join(unknown_fields)}"))
     fields = {}
     try:
         if "content" in body:
             try:
                 fields["content"] = validate_content(body["content"])
             except ValueError as exc:
-                if str(exc) == "content is required":
+                if exc.args and exc.args[0] == "content is required":
                     raise ValueError("content cannot be empty") from exc
                 raise
         if "cluster" in body:
@@ -449,7 +562,7 @@ def update_idea(idea_id: int) -> JsonResponse:
             # +1 or -1 applied atomically
             delta = validate_vote_delta(body["vote_delta"])
     except ValueError as exc:
-        return jsonify({"success": False, "error": str(exc)}), 400
+        return _error_response(_validation_error_from(exc))
     if "vote_delta" in body:
         try:
             with get_db_cursor(commit=True) as (conn, cur):
@@ -465,13 +578,15 @@ def update_idea(idea_id: int) -> JsonResponse:
                 )
                 r = cur.fetchone()
             if not r:
-                return jsonify({"success": False, "error": "Idea not found"}), 404
+                with get_db_cursor() as (conn, cur):
+                    _raise_idea_access_error(cur, idea_id)
             return jsonify({"success": True, "votes": r["votes"]})
+        except BrainstormError as exc:
+            return _error_response(exc)
         except Exception as exc:
-            logger.error("update_idea vote error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return _server_error_response("update_idea_vote", exc, idea_id=idea_id)
     if not fields:
-        return jsonify({"success": False, "error": "Nothing to update"}), 400
+        return _error_response(ValidationError("Nothing to update"))
     set_clause = ", ".join(f"{IDEA_UPDATE_COLUMNS[k]} = %s" for k in fields)
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -486,11 +601,12 @@ def update_idea(idea_id: int) -> JsonResponse:
                 (*fields.values(), idea_id, current_user.id),
             )
             if not cur.fetchone():
-                return jsonify({"success": False, "error": "Idea not found"}), 404
+                _raise_idea_access_error(cur, idea_id)
         return jsonify({"success": True})
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("update_idea error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("update_idea", exc, idea_id=idea_id)
 
 
 @brainstorm_bp.route("/api/ideas/<int:idea_id>", methods=["DELETE"])
@@ -502,8 +618,8 @@ def delete_idea(idea_id: int) -> JsonResponse:
 
     Returns:
         JSON success response after deleting the idea and refreshing its
-        session's idea count. Returns HTTP 404 if the idea is not found, or
-        HTTP 500 on database errors.
+        session's idea count. Returns HTTP 403 if the idea is owned by another
+        user, HTTP 404 if it is not found, or HTTP 500 on database errors.
     """
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -519,12 +635,13 @@ def delete_idea(idea_id: int) -> JsonResponse:
             )
             r = cur.fetchone()
             if not r:
-                return jsonify({"success": False, "error": "Idea not found"}), 404
+                _raise_idea_access_error(cur, idea_id)
             _refresh_idea_count(cur, r["session_id"])
         return jsonify({"success": True})
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("delete_idea error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("delete_idea", exc, idea_id=idea_id)
 
 
 # ── KB Export ─────────────────────────────────────────────────────────────────
@@ -539,8 +656,9 @@ def export_to_kb(session_id: int) -> JsonResponse:
 
     Returns:
         JSON response with the created knowledge-base ID on success. Returns
-        HTTP 404 when the session is not found, or HTTP 500 if fetching or
-        storing the vault note fails.
+        HTTP 403 if the session is owned by another user, HTTP 404 when the
+        session is not found, or HTTP 500 if fetching or storing the vault note
+        fails.
     """
     try:
         with get_db_cursor() as (conn, cur):
@@ -550,15 +668,16 @@ def export_to_kb(session_id: int) -> JsonResponse:
             )
             s = cur.fetchone()
             if not s:
-                return jsonify({"success": False, "error": "Session not found"}), 404
+                _raise_session_access_error(cur, session_id)
             cur.execute(
                 "SELECT content, cluster, votes FROM brainstorm_ideas WHERE session_id = %s ORDER BY cluster NULLS LAST, votes DESC, created_at",
                 (session_id,),
             )
             ideas = cur.fetchall()
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("export_to_kb fetch error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("export_to_kb_fetch", exc, session_id=session_id)
 
     # Build markdown content
     lines = [f"# Brainstorm: {s['title']}", ""]
@@ -605,11 +724,9 @@ def export_to_kb(session_id: int) -> JsonResponse:
                 kb_id = cur.fetchone()["id"]
             return jsonify({"success": True, "kb_id": kb_id, "message": "Session exported to Knowledge Base"})
         except Exception as exc2:
-            logger.error("export_to_kb insert error: %s", exc2)
-            return jsonify({"success": False, "error": str(exc2)}), 500
+            return _server_error_response("export_to_kb_insert", exc2, session_id=session_id)
     except Exception as exc:
-        logger.error("export_to_kb store error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("export_to_kb_store", exc, session_id=session_id)
 
 
 # ── AI Assist ─────────────────────────────────────────────────────────────────
@@ -624,8 +741,9 @@ def ai_expand(session_id: int) -> JsonResponse:
 
     Returns:
         JSON response with the dispatcher response and agent name on success.
-        Returns HTTP 404 when the session is not found, HTTP 500 on fetch
-        errors, dispatch failure, or unexpected dispatcher exceptions.
+        Returns HTTP 403 if the session is owned by another user, HTTP 404 when
+        the session is not found, HTTP 500 on fetch errors, dispatch failure, or
+        unexpected dispatcher exceptions.
     """
     body = request.get_json(silent=True) or {}
     focus = (body.get("focus") or "").strip()
@@ -638,15 +756,16 @@ def ai_expand(session_id: int) -> JsonResponse:
             )
             s = cur.fetchone()
             if not s:
-                return jsonify({"success": False, "error": "Session not found"}), 404
+                _raise_session_access_error(cur, session_id)
             cur.execute(
                 "SELECT content, cluster FROM brainstorm_ideas WHERE session_id = %s ORDER BY votes DESC LIMIT 30",
                 (session_id,),
             )
             ideas = cur.fetchall()
+    except BrainstormError as exc:
+        return _error_response(exc)
     except Exception as exc:
-        logger.error("ai_expand fetch error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("ai_expand_fetch", exc, session_id=session_id)
 
     idea_list = "\n".join(f"- [{i['cluster'] or 'General'}] {i['content']}" for i in ideas) or "(none yet)"
     prompt = (
@@ -669,7 +788,13 @@ def ai_expand(session_id: int) -> JsonResponse:
         )
         if result.success:
             return jsonify({"success": True, "response": result.response, "agent": result.agent})
-        return jsonify({"success": False, "error": result.error or "Dispatch failed"}), 500
+        logger.warning(
+            "Brainstorm dispatch failed",
+            extra={
+                **_log_context(operation="ai_expand_dispatch", session_id=session_id, status_code=500),
+                "error_type": "DispatchFailure",
+            },
+        )
+        return jsonify({"success": False, "error": "Dispatch failed"}), 500
     except Exception as exc:
-        logger.error("ai_expand dispatch error: %s", exc)
-        return jsonify({"success": False, "error": str(exc)}), 500
+        return _server_error_response("ai_expand_dispatch", exc, session_id=session_id)

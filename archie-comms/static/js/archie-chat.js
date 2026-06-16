@@ -686,6 +686,37 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // /engine — drive the Building Machine (archie_engine) from the cockpit
+    if (msg.startsWith('/engine ') || msg === '/engine') {
+      input.value = ''; input.style.height = 'auto';
+      const task = msg.slice('/engine'.length).trim();
+      if (!task) return;
+      const uw = _mk('div', 'ac-message inbound');
+      const ub = _mk('div', 'ac-message-bubble'); ub.textContent = '/engine ' + task;
+      const um = _mk('div', 'ac-message-meta');
+      um.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      uw.appendChild(ub); uw.appendChild(um); stream.messageListEl.appendChild(uw);
+      const pw = _mk('div', 'ac-message outbound');
+      const pb = _mk('div', 'ac-message-bubble'); pb.textContent = '⧗ Building Machine working…';
+      pw.appendChild(pb); stream.messageListEl.appendChild(pw); stream._scrollToBottom();
+      fetch('/api/engine/message', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: task }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          pb.textContent = d.response || '(no response)';
+          if (d.dispatch_target) {
+            const m2 = _mk('div', 'ac-message-meta');
+            m2.textContent = 'engine · ' + d.dispatch_target + (d.intent ? ' · ' + d.intent : '');
+            pw.appendChild(m2);
+          }
+          stream._scrollToBottom();
+        })
+        .catch(e => { pb.textContent = 'Building Machine error.'; console.error('engine call failed:', e); });
+      return;
+    }
+
     // Normal message
     input.value = '';
     input.style.height = 'auto';
@@ -791,4 +822,38 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   poll();
   setInterval(poll, 10000);
+})();
+
+/* ── Building Machine status (Phase 3) — polls /api/engine/status into the
+   right-rail "Building Machine" card. textContent (XSS-safe). ── */
+(function () {
+  var el = document.getElementById('ac-engine-status');
+  if (!el) return;
+  function render(d) {
+    el.textContent = '';
+    var row = document.createElement('div');
+    row.className = 'ac-engine-row';
+    var dot = document.createElement('span');
+    dot.className = 'ac-engine-dot' + (d && d.online ? ' on' : ' off');
+    row.appendChild(dot);
+    var label = document.createElement('span');
+    label.className = 'ac-engine-label';
+    label.textContent = d && d.online ? ('online · hub ' + (d.hub_status || '?')) : 'offline';
+    row.appendChild(label);
+    el.appendChild(row);
+    if (d && d.skills && d.skills.length) {
+      var s = document.createElement('div');
+      s.className = 'ac-engine-skills';
+      s.textContent = d.skills.length + ' skills: ' + d.skills.slice(0, 6).join(', ');
+      el.appendChild(s);
+    }
+  }
+  function poll() {
+    fetch('/api/engine/status')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) render(d); })
+      .catch(function () {});
+  }
+  poll();
+  setInterval(poll, 15000);
 })();

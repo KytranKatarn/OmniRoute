@@ -1161,3 +1161,13 @@ body {
   background: #f59e0b;
   box-shadow: 0 0 5px rgba(245, 158, 11, 0.6);
 }
+
+/* ── Building Machine (Phase 3) — engine status card ── */
+.ac-engine-row { display: flex; align-items: center; gap: 7px; }
+.ac-engine-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ac-engine-dot.on { background: #00ffaa; box-shadow: 0 0 6px rgba(0, 255, 170, 0.7); }
+.ac-engine-dot.off { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.7); }
+.ac-engine-label { font-size: 11px; color: #e0e6f0; }
+.ac-engine-skills { font-size: 9px; color: #667788; margin-top: 4px; line-height: 1.4; }
+.ac-engine-hint { font-size: 9px; color: #556677; margin-top: 5px; }
+.ac-engine-hint code { color: #00ffff; background: rgba(0, 255, 255, 0.08); padding: 1px 4px; border-radius: 3px; }

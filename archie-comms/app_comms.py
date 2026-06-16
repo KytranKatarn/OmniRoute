@@ -1049,6 +1049,76 @@ def api_dispatch_feed():
         return jsonify({"feed": []})
 
 
+# ── Building Machine bridge — drive the archie_engine "building machine" from
+#    the cockpit. The engine speaks a request/reply WebSocket protocol on
+#    archie_engine:9090 (container DNS). The browser can't reach it directly
+#    (remote + container-internal), so archie_comms proxies one round-trip. ──
+
+def _engine_ws_call(payload, timeout=45):
+    """Open a short-lived ws to the archie_engine container, send one JSON
+    message, return the single JSON reply (the engine is request/reply)."""
+    import json as _json
+    import os as _os
+    from websocket import create_connection
+
+    url = _os.getenv("ENGINE_WS_URL", "ws://archie_engine:9090")
+    ws = create_connection(url, timeout=timeout)
+    try:
+        ws.send(_json.dumps(payload))
+        return _json.loads(ws.recv())
+    finally:
+        try:
+            ws.close()
+        except Exception:
+            pass
+
+
+@app.route("/api/engine/status")
+def api_engine_status():
+    """Building Machine (archie_engine) status for the cockpit rail."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        hub = _engine_ws_call({"type": "hub_status"}, timeout=8)
+        skills = _engine_ws_call({"type": "list_skills"}, timeout=8)
+        return jsonify({
+            "online": True,
+            "hub_status": hub.get("hub_status"),
+            "skills": [s.get("name") for s in (skills.get("skills") or []) if s.get("name")],
+        })
+    except Exception as exc:
+        logger.warning("api_engine_status failed: %s", exc)
+        return jsonify({"online": False, "hub_status": None, "skills": []})
+
+
+@app.route("/api/engine/message", methods=["POST"])
+def api_engine_message():
+    """Send a task to the Building Machine. The engine classifies it and
+    dispatches: LLM intents → DHQ (delegation to the team); tool ops → local
+    file/git/shell tools. Returns the engine's single reply."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    data = request.get_json(silent=True) or {}
+    content = (data.get("content") or data.get("message") or "").strip()
+    if not content:
+        return jsonify({"error": "Empty message"}), 400
+    try:
+        resp = _engine_ws_call({"type": "message", "content": content}, timeout=60)
+        return jsonify({
+            "response": resp.get("content") or resp.get("error") or "(no response)",
+            "intent": resp.get("intent"),
+            "dispatch_target": resp.get("dispatch_target"),
+            "tool_calls": resp.get("tool_calls") or [],
+        })
+    except Exception as exc:
+        logger.error("api_engine_message failed: %s", exc)
+        return jsonify({"response": "Building Machine unreachable.", "error": str(exc)[:120]})
+
+
 def start_background_services():
     import threading
     from services.watchdog_service import PlatformWatchdog

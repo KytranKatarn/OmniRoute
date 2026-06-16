@@ -151,7 +151,7 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 
 ---
 
-## applications_concepts (5)
+## applications_concepts (6)
 
 ### Media Hub — `media_hub` · `/tools/media-hub` · ✅ · 🟢
 - **Capability**: Plex + Jellyfin, Overseerr requests, SABnzbd, Prowlarr, Sonarr/Radarr, TMDB enrichment w/ LRU cache.
@@ -176,6 +176,13 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 ### DOC — `doc` · `/tools/doc` · ✅ · 🟢
 - **Capability**: 597 LOC · 10 routes · Dr. Amara (Medical Advisor). Symptom logging, medication tracking, appointment scheduling, evidence-based guidance w/ disclaimers.
 - **Audit**: KB 256846
+
+### Mailbox Story Extractor — `mailbox_story` · `/tools/mailbox-story` · ✅ · 🟡 · @admin_required
+- **Capability**: Upload a `.pst` / **OneNote `.one`** / chat export → a **LOCAL** AI reconstructs the account's story (entities → timeline → narrative). Local-sovereign-AI showcase: files on `/mnt/data2/mailbox_story/<id>/`, ALL inference local-only, no cloud. Reader view (folders + read pane). Phases 1–3 complete (PRs #1722–#1728); enrich/story workers welfare-gated via DHQ `dispatch(local_only=True)`.
+- **Engines**: `services/mailbox_extract_service.py` (PST → libpff/pffexport), **`services/onenote_extract_service.py`** (OneNote → UTF-16LE dual-alignment decode, Zip-Slip-guarded; PR #1737), `mailbox_chat_service`/`mailbox_scout_capture` (chat export/share). All → `mailbox_emails` rows.
+- **Key routes**: `POST /api/upload` (sniffs PST vs OneNote), `POST /api/import-onenote` ({path} file/dir/zip on /mnt/data2), `/api/import-chat`, `/api/capture-share`, `/api/imports[/<id>[/emails|folders|timeline|stories|enrich|build-story]]`.
+- **Gotchas**: container reads only `/mnt/data2` (not `/home`) — stage via `docker cp`. **Password-protected `.one` = OneNote-native encryption (not CFB) → no off-the-shelf decrypt; owner must unlock in OneNote.** Image-printout pages need OCR (tesseract in-container; task #4233).
+- **KB Docs**: #273542 (user) · #273543 (coder) · #273544 (mistake) · ADR-768
 
 ---
 

@@ -182,8 +182,16 @@ def list_emails(import_id):
         offset = max(int(request.args.get("offset", 0)), 0)
     except (TypeError, ValueError):
         limit, offset = 50, 0
+    sens = (request.args.get("sensitivity") or "").strip().lower()
+    sens_sql = " AND f.sensitivity = %s" if sens in ("normal", "gov", "secret", "personal") else ""
+    sens_args = (sens,) if sens_sql else ()
     with get_db_cursor(commit=False) as (_conn, cur):
-        cur.execute("SELECT COUNT(*) AS n FROM mailbox_emails WHERE import_id=%s", (import_id,))
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM mailbox_emails e "
+            "LEFT JOIN mailbox_email_facts f ON f.email_id = e.id "
+            "WHERE e.import_id=%s" + sens_sql,
+            (import_id, *sens_args),
+        )
         total = cur.fetchone()["n"]
         cur.execute(
             """SELECT e.id, e.folder, e.from_addr, e.to_addrs, e.sent_at, e.subject,
@@ -191,10 +199,11 @@ def list_emails(import_id):
                       f.summary, f.topic, f.category, f.sensitivity
                FROM mailbox_emails e
                LEFT JOIN mailbox_email_facts f ON f.email_id = e.id
-               WHERE e.import_id=%s
-               ORDER BY e.sent_at DESC NULLS LAST, e.id DESC
+               WHERE e.import_id=%s"""
+            + sens_sql
+            + """ ORDER BY e.sent_at DESC NULLS LAST, e.id DESC
                LIMIT %s OFFSET %s""",
-            (import_id, limit, offset),
+            (import_id, *sens_args, limit, offset),
         )
         rows = cur.fetchall()
     return _json({"emails": rows, "total": total, "limit": limit, "offset": offset})
@@ -242,6 +251,62 @@ def kick_enrich(import_id):
 
     threading.Thread(target=_bg, daemon=True).start()
     return _json({"status": "enriching", "import_id": import_id})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/timeline")
+@admin_required
+def list_timeline(import_id):
+    """Chronological timeline events (optional ?sensitivity= filter)."""
+    sens = (request.args.get("sensitivity") or "").strip().lower()
+    sens_sql = " AND sensitivity = %s" if sens in ("normal", "gov", "secret", "personal") else ""
+    sens_args = (sens,) if sens_sql else ()
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            "SELECT id, event_date, title, description, sensitivity, email_id "
+            "FROM mailbox_timeline_events WHERE import_id=%s"
+            + sens_sql
+            + " ORDER BY event_date NULLS LAST, id LIMIT 500",
+            (import_id, *sens_args),
+        )
+        rows = cur.fetchall()
+    return _json({"timeline": rows})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/stories")
+@admin_required
+def list_stories(import_id):
+    """Per-cluster story narratives, biggest cluster first."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            """SELECT id, cluster_key, title, narrative, span_start, span_end, email_count
+               FROM mailbox_stories WHERE import_id=%s
+               ORDER BY email_count DESC, id LIMIT 100""",
+            (import_id,),
+        )
+        rows = cur.fetchall()
+    return _json({"stories": rows})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/build-story", methods=["POST"])
+@admin_required
+def kick_build_story(import_id):
+    """Manually (re)build the timeline + story narratives now (local-only). Background thread."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute("SELECT status FROM mailbox_imports WHERE id=%s", (import_id,))
+        row = cur.fetchone()
+    if not row:
+        return _json({"error": "not found"}, status=404)
+
+    def _bg():
+        try:
+            from services.mailbox_story_service import build_import_story
+
+            build_import_story(import_id)
+        except Exception:
+            logger.exception("manual story build failed for import %s", import_id)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return _json({"status": "building", "import_id": import_id})
 
 
 @mailbox_story_bp.route("/api/imports/<int:import_id>/delete", methods=["POST"])

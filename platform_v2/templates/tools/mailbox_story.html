@@ -70,9 +70,19 @@
     <h2 id="msEmailsTitle">Emails</h2>
     <div style="display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; flex-wrap:wrap;">
       <button class="ms-btn" id="msEnrich">✨ Enrich locally</button>
+      <button class="ms-btn ghost" id="msBuildStory">🧩 Build story</button>
       <span id="msEnrichInfo" class="ms-muted" style="font-size:.8rem;"></span>
+      <span style="flex:1"></span>
+      <label class="ms-muted" style="font-size:.78rem;">Sensitivity
+        <select id="msSensFilter" style="background:rgba(255,255,255,.05); color:inherit; border:1px solid rgba(var(--ms-accent-rgb),.4); border-radius:4px; padding:.2rem .4rem;">
+          <option value="">all</option><option value="secret">secret</option>
+          <option value="gov">gov</option><option value="personal">personal</option><option value="normal">normal</option>
+        </select>
+      </label>
     </div>
     <div id="msEntities" style="margin-bottom:1rem;"></div>
+    <div id="msStories" style="margin-bottom:1rem;"></div>
+    <div id="msTimeline" style="margin-bottom:1rem;"></div>
     <div id="msEmails"></div>
     <div class="ms-pager" id="msPager" style="display:none;">
       <button class="ms-btn ghost" id="msPrev">‹ Prev</button>
@@ -176,6 +186,90 @@
     renderEmails();
     loadEnrichInfo();
     loadEntities();
+    loadStories();
+    loadTimeline();
+  }
+
+  function sensParam() {
+    const v = $("msSensFilter") ? $("msSensFilter").value : "";
+    return v ? "&sensitivity=" + encodeURIComponent(v) : "";
+  }
+
+  async function loadStories() {
+    let d;
+    try { d = await (await fetch(BASE + "/api/imports/" + sel.importId + "/stories")).json(); }
+    catch (_) { return; }
+    const host = $("msStories");
+    host.textContent = "";
+    const stories = d.stories || [];
+    if (!stories.length) return;
+    const h = document.createElement("div");
+    h.style.cssText = "font-size:.72rem; text-transform:uppercase; letter-spacing:1px; opacity:.6; margin:.2rem 0 .5rem;";
+    h.textContent = "Stories (" + stories.length + ")";
+    host.appendChild(h);
+    stories.forEach((s) => {
+      const card = document.createElement("div");
+      card.style.cssText = "border-left:3px solid var(--ms-accent); padding:.4rem .75rem; margin-bottom:.6rem; background:rgba(var(--ms-accent-rgb),.05); border-radius:4px;";
+      const t = document.createElement("div");
+      t.style.cssText = "font-weight:600; font-size:.9rem; margin-bottom:.2rem;";
+      const span = (s.span_start || "").slice(0, 10) + (s.span_end ? " → " + (s.span_end || "").slice(0, 10) : "");
+      t.textContent = s.title + "  ";
+      const meta = document.createElement("span");
+      meta.className = "ms-muted"; meta.style.fontWeight = "400"; meta.style.fontSize = ".74rem";
+      meta.textContent = "(" + s.email_count + " emails · " + span + ")";
+      t.appendChild(meta);
+      const n = document.createElement("div");
+      n.style.cssText = "font-size:.86rem; opacity:.9; line-height:1.4;";
+      n.textContent = s.narrative || "";
+      card.appendChild(t); card.appendChild(n);
+      host.appendChild(card);
+    });
+  }
+
+  async function loadTimeline() {
+    let d;
+    try { d = await (await fetch(BASE + "/api/imports/" + sel.importId + "/timeline?x=1" + sensParam())).json(); }
+    catch (_) { return; }
+    const host = $("msTimeline");
+    host.textContent = "";
+    const ev = d.timeline || [];
+    if (!ev.length) return;
+    const h = document.createElement("div");
+    h.style.cssText = "font-size:.72rem; text-transform:uppercase; letter-spacing:1px; opacity:.6; margin:.2rem 0 .5rem;";
+    h.textContent = "Timeline (" + ev.length + ")";
+    host.appendChild(h);
+    const SENS = { gov: "#facc15", secret: "#f87171", personal: "#c084fc" };
+    ev.forEach((e) => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex; gap:.6rem; padding:.25rem 0; border-bottom:1px solid rgba(255,255,255,.05); font-size:.82rem;";
+      const dt = document.createElement("span");
+      dt.className = "ms-muted"; dt.style.cssText = "min-width:90px; font-variant-numeric:tabular-nums;";
+      dt.textContent = (e.event_date || "—");
+      const tx = document.createElement("span"); tx.style.flex = "1";
+      tx.textContent = e.title + (e.description ? " — " + e.description : "");
+      row.appendChild(dt); row.appendChild(tx);
+      if (e.sensitivity && e.sensitivity !== "normal") {
+        const b = document.createElement("span");
+        b.className = "ms-badge"; b.textContent = e.sensitivity;
+        b.style.cssText = "background:rgba(255,255,255,.06); color:" + (SENS[e.sensitivity] || "#94a3b8");
+        row.appendChild(b);
+      }
+      host.appendChild(row);
+    });
+  }
+
+  async function buildStory() {
+    const btn = $("msBuildStory");
+    btn.disabled = true; btn.textContent = "🧩 Building…";
+    try {
+      const r = await fetch(BASE + "/api/imports/" + sel.importId + "/build-story", { method: "POST" });
+      if (r.ok) {
+        $("msEnrichInfo").textContent = "Building story locally on the fleet…";
+        setTimeout(() => { loadStories(); loadTimeline(); }, 4000);
+        setTimeout(() => { loadStories(); loadTimeline(); }, 12000);
+      }
+    } catch (_) {}
+    setTimeout(() => { btn.disabled = false; btn.textContent = "🧩 Build story"; }, 3000);
   }
 
   async function loadEnrichInfo() {
@@ -241,7 +335,7 @@
     host.innerHTML = '<div class="ms-empty">Loading…</div>';
     let data;
     try {
-      data = await (await fetch(BASE + "/api/imports/" + sel.importId + "/emails?offset=" + sel.offset + "&limit=" + sel.limit)).json();
+      data = await (await fetch(BASE + "/api/imports/" + sel.importId + "/emails?offset=" + sel.offset + "&limit=" + sel.limit + sensParam())).json();
     } catch (_) { host.innerHTML = '<div class="ms-empty">Failed to load.</div>'; return; }
     sel.total = data.total || 0;
     const rows = data.emails || [];
@@ -286,6 +380,8 @@
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]); });
   $("msEnrich").onclick = kickEnrich;
+  $("msBuildStory").onclick = buildStory;
+  $("msSensFilter").onchange = () => { sel.offset = 0; renderEmails(); loadTimeline(); };
   $("msPrev").onclick = () => { if (sel.offset > 0) { sel.offset -= sel.limit; renderEmails(); } };
   $("msNext").onclick = () => { if (sel.offset + sel.limit < sel.total) { sel.offset += sel.limit; renderEmails(); } };
 

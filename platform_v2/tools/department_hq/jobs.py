@@ -3972,6 +3972,47 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered mailbox_enrich_worker job (every 3 min, local-only)")
 
+    # Mailbox Story Extractor — local-only story synthesis worker (Phase 3).
+    # Builds the timeline + per-entity story narratives for imports that are fully enriched
+    # ('done') but have no story yet. Local-only dispatch; no-op when idle; welfare-gated on
+    # the 'summarize' pool; toggle via platform_settings work:mailbox_story:enabled (default ON).
+    def _run_mailbox_story_backlog():
+        from database import get_db_cursor as _gdc
+
+        try:
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute(
+                    "SELECT value FROM platform_settings WHERE key=%s",
+                    ("work:mailbox_story:enabled",),
+                )
+                _row = cur.fetchone()
+            if _row and str(_row.get("value")).strip().lower() in ("false", "0", "off", "no"):
+                return
+        except Exception:
+            pass
+        if _wtf_backlog_pool_over_budget("summarize"):
+            logger.info("[MailboxStory] summarize pool over 24h token budget — deferring (welfare-gated)")
+            return
+        try:
+            from services.mailbox_story_service import run_story_cycle
+
+            res = run_story_cycle(max_imports=3)
+            if res.get("imports"):
+                logger.info("[MailboxStory] cycle %s", res)
+        except Exception:
+            logger.exception("[MailboxStory] cycle failed")
+
+    scheduler.add_job(
+        with_ctx(_run_mailbox_story_backlog),
+        trigger=CronTrigger(minute="2,12,22,32,42,52", timezone="America/Toronto"),
+        id="mailbox_story_worker",
+        name="Mailbox Story: local-only story synthesis worker (Phase 3)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered mailbox_story_worker job (every 10 min, local-only)")
+
     # Job #125: WTF Scout — full body fetch for short articles via archie_browser Playwright.
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
     # Rate-limited to 25/cycle (archie_browser max 60/hr, job runs 2×/hr).

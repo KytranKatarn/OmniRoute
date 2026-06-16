@@ -158,6 +158,8 @@ class JobWorker:
                 if proxy_override:
                     logger.info("Job #%d egress via choice=%r (proxy set)", job_id, _choice)
         slot_id, page = None, None
+        t0 = time.time()
+        ok = False
         try:
             slot_id, page = self.pool.claim(egress_tier=tier, proxy_override=proxy_override)
             skill_mod = importlib.import_module(module_path)
@@ -168,11 +170,16 @@ class JobWorker:
                 job_id=job_id,
             )
             self._complete(job_id, result, tier)
+            ok = True
         except Exception:
             self._fail(job_id, traceback.format_exc())
         finally:
             if slot_id is not None and page is not None:
                 self.pool.release(slot_id, page)
+            try:
+                self._log_telemetry(row, ok, int((time.time() - t0) * 1000), proxy_override)
+            except Exception:
+                logger.warning("telemetry log failed for job #%d", job_id)
 
     def _complete(self, job_id: int, result: dict, egress_tier: int) -> None:
         status = "approved" if result.get("auto_approve") else "needs_review"
@@ -207,3 +214,42 @@ class JobWorker:
                     (error[:4000], job_id),
                 )
         logger.error("Job #%d failed", job_id)
+
+    def _log_telemetry(self, row, success: bool, duration_ms: int, proxy_override) -> None:
+        """Best-effort 0-token visibility row in task_execution_log so S.C.O.U.T.'s browser
+        jobs show on the dispatch / Token Economy surface alongside LLM dispatch (#4228).
+
+        Scraper jobs make NO model calls — tokens are genuinely 0; this does NOT alter LLM
+        token accounting (every real model call stays DHQ-tracked). It surfaces the token-free
+        browser work + which cluster node it egressed through, so the picture is complete.
+        """
+        from urllib.parse import urlparse
+
+        host = ""
+        try:
+            host = urlparse(row.get("target_url") or "").netloc
+        except Exception:
+            pass
+        meta = {
+            "scout_job_id": row["id"],
+            "egress": proxy_override or "hub",
+            "target_host": host,
+        }
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO task_execution_log
+                         (agent_name, worker_type, task_type, capability, module_source,
+                          request_origin, model_used, provider, prompt_tokens, completion_tokens,
+                          tokens_used, cost, duration_ms, success, created_at, request_metadata)
+                       VALUES ('S.C.O.U.T.', 'internal', %s, %s, 'scraper', %s, 'browser', 'local',
+                               0, 0, 0, 0, %s, %s, NOW(), %s)""",
+                    (
+                        row["job_type"],
+                        row["job_type"],
+                        row.get("requested_by") or "scraper",
+                        duration_ms,
+                        success,
+                        psycopg2.extras.Json(meta),
+                    ),
+                )

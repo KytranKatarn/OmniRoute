@@ -260,6 +260,38 @@ def import_chat():
     return _json({"status": "importing", "path": path, "filter": title_filter})
 
 
+@mailbox_story_bp.route("/api/capture-share", methods=["POST"])
+@admin_required
+def capture_share_route():
+    """Autonomously capture a PUBLIC AI chat SHARE link (ChatGPT/Claude) via S.C.O.U.T.
+    (server-side render through archie_scraper) into Mailbox Story — the transcript lands as
+    mailbox_emails rows, then the existing enrichment + story workers process it via DHQ
+    (local-only). Body: {url, title?}. NOTE: a share link is a frozen SNAPSHOT; for COMPLETE
+    history use 'Import chat export'. Runs in a background thread (render + scroll takes time).
+    """
+    body = request.get_json(silent=True) or {}
+    url = (body.get("url") or "").strip()
+    title = (body.get("title") or "").strip() or None
+    if not url.startswith(("http://", "https://")):
+        return _json({"error": "provide a valid http(s) share URL in {url}"}, status=400)
+    owner_id = getattr(current_user, "id", None)  # capture in request context, not in the thread
+
+    def _bg():
+        try:
+            from services.mailbox_scout_capture import capture_share
+
+            res = capture_share(url, owner_id=owner_id, title=title)
+            if res.get("error"):
+                logger.warning("share capture %s: %s", url, res["error"])
+            else:
+                logger.info("share capture %s -> import %s (%d msgs)", url, res.get("import_id"), res.get("messages"))
+        except Exception:
+            logger.exception("share capture failed for %s", url)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return _json({"status": "capturing", "url": url})
+
+
 @mailbox_story_bp.route("/api/imports")
 @admin_required
 def list_imports():

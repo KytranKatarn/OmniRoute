@@ -45,6 +45,7 @@ KNOWN_TOOL_CAPABILITIES = {
     "deploy_static",
     "deploy_vps",
     "external_fetch",
+    "capture_chat_share",  # S.C.O.U.T. — render a public AI chat share link into Mailbox Story
     "portrait_refinement",
     "translation_coverage_scan",
     "visual_scan",  # P.R.O.B.E. Playwright visual verification — logs and completes
@@ -638,6 +639,29 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
             }
         except Exception as exc:
             return {"success": False, "summary": f"external_fetch failed: {exc}"}
+
+    if capability == "capture_chat_share":
+        url = (payload.get("url") or payload.get("target_url") or "").strip()
+        if not url:
+            return {"success": False, "summary": "capture_chat_share: url is required"}
+        from services.mailbox_scout_capture import capture_share
+
+        res = capture_share(
+            url,
+            owner_id=payload.get("owner_id"),
+            title=payload.get("title"),
+            timeout_s=min(int(payload.get("timeout") or 120), 240),
+        )
+        ok = bool(res.get("import_id"))
+        return {
+            "success": ok,
+            "summary": (
+                f"capture_chat_share {url[:60]} → import {res['import_id']} " f"({res['messages']} messages)"
+                if ok
+                else f"capture_chat_share failed: {res.get('error')}"
+            ),
+            "result": res,
+        }
 
     if capability == "translation_coverage_scan":
         # Orchestrator does per-source isolation + ON CONFLICT upserts on

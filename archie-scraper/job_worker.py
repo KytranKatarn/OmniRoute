@@ -34,6 +34,7 @@ SKILL_MAP = {
     "form_audit": "skills.form_audit",
     "competitor_snapshot": "skills.competitor_snapshot",
     # Domain-specific
+    "chat_capture": "skills.chat_capture",
     "procurement_sync": "skills.procurement_sync",
     "ancestry_research": "skills.ancestry_research",
     "crm_enrich": "skills.crm_enrich",
@@ -68,6 +69,7 @@ class JobWorker:
             "search_scrape", "site_change_monitor", "pdf_extract",
             "document_download", "procurement_sync", "ancestry_research",
             "crm_enrich", "contact_harvest", "social_profile_check", "price_monitor",
+            "chat_capture",
         }
         with get_db() as conn:
             with conn.cursor() as cur:

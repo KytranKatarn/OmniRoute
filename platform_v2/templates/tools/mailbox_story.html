@@ -61,6 +61,7 @@
     <div id="msUploadMsg" class="ms-muted" style="margin-top:.6rem; font-size:.8rem;"></div>
     <div style="margin-top:.75rem; border-top:1px solid rgba(255,255,255,.06); padding-top:.6rem;">
       <button class="ms-btn ghost" id="msImportChat">💬 Import chat export</button>
+      <button class="ms-btn ghost" id="msCaptureShare">🔗 Capture share link</button>
       <span class="ms-muted" style="font-size:.75rem; margin-left:.5rem;">ChatGPT/Claude export (.json/.zip) on the hub → enriched like email</span>
       <div id="msImportChatMsg" class="ms-muted" style="margin-top:.5rem; font-size:.8rem;"></div>
     </div>
@@ -533,6 +534,20 @@
       if (r.ok) { msg.textContent = "Importing chats — they'll appear below and get enriched locally."; loadImports(); setTimeout(loadImports, 4000); setTimeout(loadImports, 12000); }
       else { msg.textContent = "Failed: " + (j.error || r.status); }
     } catch (_) { msg.textContent = "Import request failed."; }
+  }
+  $("msCaptureShare").onclick = captureShare;
+  async function captureShare() {
+    const url = prompt("Public AI chat SHARE link (ChatGPT/Claude). Note: a share link is a snapshot — for the full history use 'Import chat export'.", "https://chatgpt.com/share/");
+    if (!url) return;
+    const title = prompt("Optional title for this conversation (blank = use the page title):", "") || "";
+    const msg = $("msImportChatMsg");
+    msg.textContent = "Capturing — S.C.O.U.T. is rendering the page…";
+    try {
+      const r = await fetch(BASE + "/api/capture-share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, title }) });
+      const j = await r.json();
+      if (r.ok) { msg.textContent = "Capturing — it'll appear below shortly and get enriched locally."; loadImports(); setTimeout(loadImports, 6000); setTimeout(loadImports, 20000); }
+      else { msg.textContent = "Failed: " + (j.error || r.status); }
+    } catch (_) { msg.textContent = "Capture request failed."; }
   }
   $("msEnrich").onclick = kickEnrich;
   $("msBuildStory").onclick = buildStory;

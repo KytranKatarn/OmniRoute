@@ -3390,9 +3390,7 @@ def _register_own_jobs(scheduler, flask_app):
                 return False  # no pool / no budget data → never gate
             return float(r["min_ratio"]) >= pause_ratio
         except Exception:
-            logger.warning(
-                "[WTFBacklog] welfare gate check failed for %s; not gating", skill_name, exc_info=True
-            )
+            logger.warning("[WTFBacklog] welfare gate check failed for %s; not gating", skill_name, exc_info=True)
             return False
 
     def _run_wtf_factcheck_backlog():
@@ -3931,6 +3929,48 @@ def _register_own_jobs(scheduler, flask_app):
         replace_existing=True,
     )
     logger.info("[DeptHQ] Registered wtf_geo_backlog job (every 30 min at :25/:55)")
+
+    # Mailbox Story Extractor — local-only enrichment worker (Phase 2).
+    # Drains pending mailbox_emails -> facts + entities via a LOCAL fleet 'analyze' dispatch
+    # (local_only=True, no cloud). No-op when idle (pending emails only exist after an admin
+    # uploads a .pst). Welfare-gated on the 'analyze' pool; toggle via platform_settings
+    # work:mailbox_enrich:enabled (default ON). ADR-002 module-work-pattern compliance.
+    def _run_mailbox_enrich_backlog():
+        from database import get_db_cursor as _gdc
+
+        try:
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute(
+                    "SELECT value FROM platform_settings WHERE key=%s",
+                    ("work:mailbox_enrich:enabled",),
+                )
+                _row = cur.fetchone()
+            if _row and str(_row.get("value")).strip().lower() in ("false", "0", "off", "no"):
+                return
+        except Exception:
+            pass
+        if _wtf_backlog_pool_over_budget("analyze"):
+            logger.info("[MailboxEnrich] analyze pool over 24h token budget — deferring (welfare-gated)")
+            return
+        try:
+            from services.mailbox_enrich_service import run_enrich_cycle
+
+            res = run_enrich_cycle(max_emails=20, batch=10)
+            if res.get("processed") or res.get("failed"):
+                logger.info("[MailboxEnrich] cycle %s", res)
+        except Exception:
+            logger.exception("[MailboxEnrich] cycle failed")
+
+    scheduler.add_job(
+        with_ctx(_run_mailbox_enrich_backlog),
+        trigger=CronTrigger(minute="*/3", timezone="America/Toronto"),
+        id="mailbox_enrich_worker",
+        name="Mailbox Story: local-only enrichment worker (Phase 2)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered mailbox_enrich_worker job (every 3 min, local-only)")
 
     # Job #125: WTF Scout — full body fetch for short articles via archie_browser Playwright.
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.

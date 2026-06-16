@@ -68,6 +68,11 @@
 
   <div class="ms-card" id="msEmailsCard" style="display:none;">
     <h2 id="msEmailsTitle">Emails</h2>
+    <div style="display:flex; align-items:center; gap:.75rem; margin-bottom:.75rem; flex-wrap:wrap;">
+      <button class="ms-btn" id="msEnrich">✨ Enrich locally</button>
+      <span id="msEnrichInfo" class="ms-muted" style="font-size:.8rem;"></span>
+    </div>
+    <div id="msEntities" style="margin-bottom:1rem;"></div>
     <div id="msEmails"></div>
     <div class="ms-pager" id="msPager" style="display:none;">
       <button class="ms-btn ghost" id="msPrev">‹ Prev</button>
@@ -161,13 +166,74 @@
     loadImports();
   }
 
-  // ---- email table ----
+  // ---- email table + enrichment ----
+  let enrichPoll = null;
   async function openEmails(id, name, count) {
     sel = { importId: id, offset: 0, limit: 50, total: count || 0 };
     $("msEmailsTitle").textContent = "Emails — " + name;
     $("msEmailsCard").style.display = "block";
     $("msEmailsCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
     renderEmails();
+    loadEnrichInfo();
+    loadEntities();
+  }
+
+  async function loadEnrichInfo() {
+    let d;
+    try { d = await (await fetch(BASE + "/api/imports/" + sel.importId)).json(); }
+    catch (_) { return; }
+    const e = (d.import && d.import.enrich) || { done: 0, pending: 0, error: 0 };
+    const total = e.done + e.pending + e.error;
+    $("msEnrichInfo").textContent = total
+      ? ("enriched " + e.done + "/" + total + (e.pending ? " · " + e.pending + " pending" : "") + (e.error ? " · " + e.error + " error" : ""))
+      : "";
+    // Keep polling while a manual/scheduled pass is draining the backlog.
+    if (e.pending > 0 && (d.import.status === "enriching")) {
+      if (enrichPoll) clearTimeout(enrichPoll);
+      enrichPoll = setTimeout(() => { loadEnrichInfo(); loadEntities(); renderEmails(); }, 4000);
+    }
+  }
+
+  async function loadEntities() {
+    let d;
+    try { d = await (await fetch(BASE + "/api/imports/" + sel.importId + "/entities")).json(); }
+    catch (_) { return; }
+    const host = $("msEntities");
+    host.textContent = "";
+    const ents = d.entities || [];
+    if (!ents.length) return;
+    const h = document.createElement("div");
+    h.style.cssText = "font-size:.72rem; text-transform:uppercase; letter-spacing:1px; opacity:.6; margin-bottom:.4rem;";
+    h.textContent = "People · Orgs · Projects (" + ents.length + ")";
+    host.appendChild(h);
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "display:flex; flex-wrap:wrap; gap:.4rem;";
+    const ICON = { person: "👤", org: "🏢", project: "📁", topic: "🏷️" };
+    ents.slice(0, 60).forEach((en) => {
+      const chip = document.createElement("span");
+      chip.className = "ms-badge";
+      chip.style.cssText = "background:rgba(var(--ms-accent-rgb),.1); color:var(--ms-accent); font-size:.74rem;";
+      chip.textContent = (ICON[en.entity_type] || "•") + " ";
+      chip.appendChild(document.createTextNode(en.name + " ·" + en.mention_count));
+      wrap.appendChild(chip);
+    });
+    host.appendChild(wrap);
+  }
+
+  async function kickEnrich() {
+    const btn = $("msEnrich");
+    btn.disabled = true; btn.textContent = "✨ Enriching…";
+    try {
+      const r = await fetch(BASE + "/api/imports/" + sel.importId + "/enrich", { method: "POST" });
+      const j = await r.json();
+      if (!r.ok) { $("msEnrichInfo").textContent = j.error || "enrich failed"; }
+      else {
+        $("msEnrichInfo").textContent = "Enriching locally — drains on the fleet…";
+        loadImports();
+        setTimeout(() => { loadEnrichInfo(); loadEntities(); renderEmails(); }, 3000);
+      }
+    } catch (_) { $("msEnrichInfo").textContent = "enrich request failed"; }
+    setTimeout(() => { btn.disabled = false; btn.textContent = "✨ Enrich locally"; }, 2000);
   }
 
   async function renderEmails() {
@@ -183,16 +249,24 @@
     if (!rows.length) { host.innerHTML = '<div class="ms-empty">No emails extracted yet.</div>'; $("msPager").style.display = "none"; return; }
     const tbl = document.createElement("table");
     tbl.className = "ms-tbl";
-    tbl.innerHTML = "<thead><tr><th>Date</th><th>From</th><th>To</th><th>Subject</th><th>Folder</th><th>📎</th></tr></thead>";
+    tbl.innerHTML = "<thead><tr><th>Date</th><th>From</th><th>Subject</th><th>AI summary</th><th>Sensitivity</th><th>📎</th></tr></thead>";
     const tb = document.createElement("tbody");
+    const SENS_COLOR = { gov: "#facc15", secret: "#f87171", personal: "#c084fc" };
     rows.forEach((e) => {
       const tr = document.createElement("tr");
       const td = (val, cls) => { const c = document.createElement("td"); c.textContent = val == null ? "" : val; if (cls) c.className = cls; return c; };
       tr.appendChild(td((e.sent_at || "").replace("T", " ").slice(0, 16), "ms-muted"));
       tr.appendChild(td(e.from_addr));
-      tr.appendChild(td(e.to_addrs));
       tr.appendChild(td(e.subject || "(no subject)"));
-      tr.appendChild(td(e.folder, "ms-muted"));
+      tr.appendChild(td(e.summary || (e.enrich_status === "pending" ? "…" : ""), e.summary ? "" : "ms-muted"));
+      const sens = document.createElement("td");
+      if (e.sensitivity && e.sensitivity !== "normal") {
+        const b = document.createElement("span");
+        b.className = "ms-badge"; b.textContent = e.sensitivity;
+        b.style.cssText = "background:rgba(255,255,255,.06); color:" + (SENS_COLOR[e.sensitivity] || "#94a3b8");
+        sens.appendChild(b);
+      } else { sens.textContent = e.sensitivity || ""; sens.className = "ms-muted"; }
+      tr.appendChild(sens);
       tr.appendChild(td(e.has_attachments ? "📎" : ""));
       tb.appendChild(tr);
     });
@@ -211,6 +285,7 @@
   ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]); });
+  $("msEnrich").onclick = kickEnrich;
   $("msPrev").onclick = () => { if (sel.offset > 0) { sel.offset -= sel.limit; renderEmails(); } };
   $("msNext").onclick = () => { if (sel.offset + sel.limit < sel.total) { sel.offset += sel.limit; renderEmails(); } };
 

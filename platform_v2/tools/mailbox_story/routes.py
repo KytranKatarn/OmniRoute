@@ -157,8 +157,20 @@ def get_import(import_id):
             (import_id,),
         )
         row = cur.fetchone()
-    if not row:
-        return _json({"error": "not found"}, status=404)
+        if not row:
+            return _json({"error": "not found"}, status=404)
+        cur.execute(
+            """SELECT enrich_status, COUNT(*) AS n FROM mailbox_emails
+               WHERE import_id=%s GROUP BY enrich_status""",
+            (import_id,),
+        )
+        counts = {r["enrich_status"]: r["n"] for r in cur.fetchall()}
+    row = dict(row)
+    row["enrich"] = {
+        "done": counts.get("done", 0),
+        "pending": counts.get("pending", 0),
+        "error": counts.get("error", 0),
+    }
     return _json({"import": row})
 
 
@@ -174,14 +186,62 @@ def list_emails(import_id):
         cur.execute("SELECT COUNT(*) AS n FROM mailbox_emails WHERE import_id=%s", (import_id,))
         total = cur.fetchone()["n"]
         cur.execute(
-            """SELECT id, folder, from_addr, to_addrs, sent_at, subject, has_attachments, enrich_status
-               FROM mailbox_emails WHERE import_id=%s
-               ORDER BY sent_at DESC NULLS LAST, id DESC
+            """SELECT e.id, e.folder, e.from_addr, e.to_addrs, e.sent_at, e.subject,
+                      e.has_attachments, e.enrich_status,
+                      f.summary, f.topic, f.category, f.sensitivity
+               FROM mailbox_emails e
+               LEFT JOIN mailbox_email_facts f ON f.email_id = e.id
+               WHERE e.import_id=%s
+               ORDER BY e.sent_at DESC NULLS LAST, e.id DESC
                LIMIT %s OFFSET %s""",
             (import_id, limit, offset),
         )
         rows = cur.fetchall()
     return _json({"emails": rows, "total": total, "limit": limit, "offset": offset})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/entities")
+@admin_required
+def list_entities(import_id):
+    """Top entities for an import (people/orgs/projects/topics), most-mentioned first."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            """SELECT id, name, entity_type, mention_count
+               FROM mailbox_entities WHERE import_id=%s
+               ORDER BY mention_count DESC, name ASC LIMIT 200""",
+            (import_id,),
+        )
+        rows = cur.fetchall()
+    return _json({"entities": rows})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/enrich", methods=["POST"])
+@admin_required
+def kick_enrich(import_id):
+    """Manually kick a local-only enrichment pass now (the scheduled worker also drains it).
+    Runs in a background thread so the request returns immediately."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute("SELECT status FROM mailbox_imports WHERE id=%s", (import_id,))
+        row = cur.fetchone()
+    if not row:
+        return _json({"error": "not found"}, status=404)
+    if row["status"] not in ("extracted", "enriching", "done"):
+        return _json({"error": f"import not ready to enrich (status={row['status']})"}, status=409)
+
+    def _bg():
+        try:
+            from services.mailbox_enrich_service import run_enrich_cycle
+
+            # Drain this import's backlog in a few capped passes (worker also runs every 3 min).
+            for _ in range(5):
+                res = run_enrich_cycle(max_emails=20, batch=10)
+                if not res.get("processed") and not res.get("failed"):
+                    break
+        except Exception:
+            logger.exception("manual enrich kick failed for import %s", import_id)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return _json({"status": "enriching", "import_id": import_id})
 
 
 @mailbox_story_bp.route("/api/imports/<int:import_id>/delete", methods=["POST"])

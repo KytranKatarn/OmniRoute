@@ -26,6 +26,7 @@ from werkzeug.utils import secure_filename
 
 from database import get_db_cursor
 from services.mailbox_extract_service import extract_pst
+from services.onenote_extract_service import extract_onenote, file_kind
 
 from . import admin_required, mailbox_story_bp
 
@@ -46,9 +47,15 @@ def _import_dir(import_id):
 
 
 def _run_extract(import_id, pst_path, eml_dir):
-    """Background extract. Always lands the import in a terminal status (extracted/error)."""
+    """Background extract. Sniffs the uploaded file (PST vs OneNote) and runs the right engine.
+    Always lands the import in a terminal status (extracted/error)."""
     try:
-        extract_pst(import_id, pst_path, eml_dir)
+        if file_kind(pst_path) == "onenote":
+            extract_onenote(import_id, pst_path, eml_dir)
+        else:
+            # Default to PST (covers a real .pst and legacy callers; extract_pst self-marks 'error'
+            # if the bytes aren't a PST, so an unknown upload still terminates cleanly).
+            extract_pst(import_id, pst_path, eml_dir)
     except Exception as exc:  # readpst timeout, walk error, etc. — never leave it stuck 'extracting'
         logger.exception("mailbox extract failed for import %s", import_id)
         try:
@@ -291,6 +298,54 @@ def capture_share_route():
 
     threading.Thread(target=_bg, daemon=True).start()
     return _json({"status": "capturing", "url": url})
+
+
+@mailbox_story_bp.route("/api/import-onenote", methods=["POST"])
+@admin_required
+def import_onenote_route():
+    """Ingest OneNote notebook(s) already on the hub into Mailbox Story. Body: {path} pointing at
+    a .one file, a directory of .one/.onetoc2 files, or a .zip of a notebook folder (must be
+    reachable inside the container — i.e. under /mnt/data2). Each notebook's text becomes
+    mailbox_emails rows, then the existing local-only enrichment + story workers process it via DHQ.
+    OneNote here is TEXT-ONLY: image/printout-only pages yield nothing and need OCR (Phase 2) —
+    those notebooks are reported in import.error. Runs in a background thread."""
+    body = request.get_json(silent=True) or {}
+    path = (body.get("path") or "").strip()
+    if not path:
+        return _json({"error": "provide {path} to a .one file, a notebook folder, or a .zip on the hub"}, status=400)
+    if not os.path.exists(path):
+        return _json(
+            {"error": f"path not found on hub (must be reachable in-container, e.g. /mnt/data2): {path}"}, status=404
+        )
+    owner_id = getattr(current_user, "id", None)
+    label = secure_filename(os.path.basename(path.rstrip("/"))) or "onenote"
+
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            """INSERT INTO mailbox_imports (owner_id, filename, stored_path, status)
+               VALUES (%s, %s, %s, 'uploaded') RETURNING id""",
+            (owner_id, label, path),
+        )
+        import_id = cur.fetchone()["id"]
+    eml_dir = os.path.join(_import_dir(import_id), "eml")
+
+    def _bg():
+        try:
+            extract_onenote(import_id, path, eml_dir)
+        except Exception:
+            logger.exception("onenote import failed for %s", path)
+            try:
+                with get_db_cursor(commit=True) as (_conn, cur):
+                    cur.execute(
+                        "UPDATE mailbox_imports SET status='error', error='onenote extract crashed' WHERE id=%s",
+                        (import_id,),
+                    )
+            except Exception:
+                logger.exception("could not mark onenote import %s as error", import_id)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    logger.info("mailbox import %s: onenote ingest started from %s", import_id, path)
+    return _json({"import_id": import_id, "path": path, "status": "extracting"})
 
 
 @mailbox_story_bp.route("/api/imports")

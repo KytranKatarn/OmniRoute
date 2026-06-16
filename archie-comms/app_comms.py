@@ -807,6 +807,189 @@ def api_repair_count():
         return jsonify({"count": 0})
 
 
+# ── Header data endpoints (served locally; the shared lcars-header.js polls
+#    these paths, which only exist on the platform — session-auth there, so we
+#    can't proxy with the internal key. archie_comms reads the same hub `archie`
+#    DB directly, so we serve real data here and kill the 404s. ──
+
+@app.route("/tools/department-hq/api/dispatch/ops-summary")
+def api_ops_summary():
+    """Local DB-backed ops summary for the LCARS header elbow severity.
+    Mirrors the platform endpoint's shape (approvals / active_jobs / errors_1h).
+    """
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT
+                       COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                       COUNT(*) FILTER (WHERE status = 'pending' AND expires_at < NOW()) AS expired
+                   FROM autonomy_approval_queue"""
+            )
+            ar = dict(cur.fetchone())
+            cur.execute(
+                """SELECT
+                       COUNT(*) FILTER (WHERE status = 'running') AS running,
+                       COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+                       COUNT(*) FILTER (
+                           WHERE status = 'running' AND updated_at < NOW() - INTERVAL '15 minutes'
+                       ) AS stalled
+                   FROM bridge_jobs
+                   WHERE status IN ('running', 'pending')"""
+            )
+            bj = dict(cur.fetchone())
+            cur.execute(
+                """SELECT COUNT(*) AS cnt FROM bridge_jobs
+                   WHERE status = 'failed'
+                   AND completed_at >= NOW() - INTERVAL '1 hour'
+                   AND (metadata->>'reap_reason' IS NULL
+                        OR metadata->>'reap_reason' NOT LIKE '%platform restarted%')"""
+            )
+            bridge_failed = cur.fetchone()["cnt"] or 0
+            cur.execute(
+                """SELECT COUNT(*) AS cnt FROM autonomy_loop_log
+                   WHERE status != 'success' AND created_at >= NOW() - INTERVAL '1 hour'"""
+            )
+            loop_errors = cur.fetchone()["cnt"] or 0
+
+        return jsonify(
+            {
+                "approvals": {"pending": ar.get("pending") or 0, "expired": ar.get("expired") or 0},
+                "active_jobs": {
+                    "bridge_running": bj.get("running") or 0,
+                    "bridge_pending": bj.get("pending") or 0,
+                    "bridge_stalled": bj.get("stalled") or 0,
+                    # comms can't see the platform's in-process loop/scheduler objects;
+                    # the header uses these only for non-severity display, so report up.
+                    "agent_loop_running": True,
+                    "scheduler_running": True,
+                },
+                "errors_1h": {"bridge_failed": bridge_failed, "loop_errors": loop_errors},
+                "alerts": [],
+            }
+        )
+    except Exception as exc:
+        logger.error("api_ops_summary failed: %s", exc)
+        return jsonify({"approvals": {}, "active_jobs": {}, "errors_1h": {}, "alerts": []})
+
+
+def _empty_alerts():
+    return {"success": True, "critical": [], "alerts": [], "categories": {}, "counts": {"total": 0, "unread": 0, "critical": 0}}
+
+
+@app.route("/api/alerts/unified")
+def api_alerts_unified_local():
+    """Unified alerts for the header bell — sourced from director_reports
+    (comms is the director-report hub). Unacknowledged, recent, actionable."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT id, department, director_agent, severity, category, title, summary, created_at
+                   FROM director_reports
+                   WHERE COALESCE(acknowledged, FALSE) = FALSE
+                     AND severity IN ('critical', 'high', 'medium', 'warning')
+                     AND created_at >= NOW() - INTERVAL '48 hours'
+                   ORDER BY created_at DESC
+                   LIMIT 50"""
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+
+        def _norm(sev):
+            s = (sev or "").lower()
+            if s in ("critical", "high"):
+                return "critical"
+            if s in ("medium", "warning"):
+                return "warning"
+            return "info"
+
+        alerts = []
+        for r in rows:
+            alerts.append(
+                {
+                    "id": "director:%d" % r["id"],
+                    "severity": _norm(r.get("severity")),
+                    "title": r.get("title") or "Director Report",
+                    "message": r.get("summary") or "",
+                    "source": r.get("department") or r.get("director_agent") or "A.R.C.H.I.E.",
+                    "category": r.get("category") or "operations",
+                    "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+                }
+            )
+        critical = [a for a in alerts if a["severity"] == "critical"]
+        cats = {}
+        for a in alerts:
+            cats[a["category"]] = cats.get(a["category"], 0) + 1
+        return jsonify(
+            {
+                "success": True,
+                "critical": critical[:20],
+                "alerts": alerts,
+                "categories": cats,
+                "counts": {"total": len(alerts), "unread": len(alerts), "critical": len(critical)},
+            }
+        )
+    except Exception as exc:
+        logger.error("api_alerts_unified_local failed: %s", exc)
+        return jsonify(_empty_alerts())
+
+
+@app.route("/api/alerts/unified/mark-read", methods=["POST"])
+def api_alerts_mark_read_local():
+    """Acknowledge a single director-report alert (key form 'director:<id>')."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    data = request.get_json(silent=True) or {}
+    key = str(data.get("alert_key") or "")
+    if key.startswith("director:"):
+        try:
+            rid = int(key.split(":", 1)[1])
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE director_reports SET acknowledged = TRUE, acknowledged_at = NOW() WHERE id = %s",
+                    (rid,),
+                )
+        except Exception as exc:
+            logger.error("api_alerts_mark_read_local failed: %s", exc)
+    return jsonify({"success": True})
+
+
+@app.route("/api/alerts/unified/mark-all-read", methods=["POST"])
+def api_alerts_mark_all_read_local():
+    """Acknowledge all currently-surfaced director-report alerts."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE director_reports SET acknowledged = TRUE, acknowledged_at = NOW()
+                   WHERE COALESCE(acknowledged, FALSE) = FALSE
+                     AND severity IN ('critical', 'high', 'medium', 'warning')
+                     AND created_at >= NOW() - INTERVAL '48 hours'"""
+            )
+    except Exception as exc:
+        logger.error("api_alerts_mark_all_read_local failed: %s", exc)
+    return jsonify({"success": True})
+
+
 def start_background_services():
     import threading
     from services.watchdog_service import PlatformWatchdog

@@ -502,6 +502,50 @@ services:
       retries: 3
       start_period: 20s
 
+  # ARCHIE Engine — the "building machine" coding daemon (hub-connected client).
+  # Source repo: /mnt/standalone/archie-code (public archie-code). Reconnects to
+  # the hub via the internal delegation API (no fleet-node registration).
+  archie_engine:
+    build:
+      context: /mnt/standalone/archie-code
+      dockerfile: Dockerfile
+    container_name: archie_engine
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    environment:
+      - TZ=America/Toronto
+      # Mesh IP (Headscale) per the cluster mandate — verified reachable from
+      # this container. Dispatch routes through Department HQ via the internal
+      # delegation surface (submit -> delegate_task_worker -> department_dispatcher).
+      - ARCHIE_HUB_URL=http://100.64.0.4:3000
+      - ARCHIE_HUB_API_KEY=${INTERNAL_API_KEY}
+      - OLLAMA_HOST=http://100.64.0.4:11434
+      - ARCHIE_WS_HOST=0.0.0.0
+      - ARCHIE_DATA_DIR=/data
+    volumes:
+      - archie_engine_data:/data
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - archie_internal
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "2"
+    healthcheck:
+      # Proper WS handshake (not a bare TCP poke) so the engine doesn't log a
+      # handshake traceback on every probe.
+      test: ["CMD", "python", "-c", "import asyncio,websockets\nasync def _():\n    async with websockets.connect('ws://127.0.0.1:9090'):\n        pass\nasyncio.run(_())"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
   # Ollama LLM Engine (models on Samsung 840 SSD)
   archie_ollama:
     image: ollama/ollama:0.6.2
@@ -1222,6 +1266,9 @@ volumes:
   archie_db:
     driver: local
     name: archie_database
+  archie_engine_data:
+    driver: local
+    name: archie_engine_data
   codex_terminal_home:
     driver: local
   codex_terminal_work:

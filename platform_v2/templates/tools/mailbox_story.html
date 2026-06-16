@@ -34,7 +34,7 @@
   table.ms-tbl tr.clickable { cursor:pointer; }
   table.ms-tbl tr.clickable:hover { background: rgba(var(--ms-accent-rgb),.06); }
   .ms-badge { font-size:.68rem; padding:.12rem .45rem; border-radius:3px; text-transform:uppercase; letter-spacing:.5px; }
-  .ms-badge.uploaded,.ms-badge.extracting,.ms-badge.enriching { background:rgba(250,204,21,.15); color:#facc15; }
+  .ms-badge.uploading,.ms-badge.uploaded,.ms-badge.extracting,.ms-badge.enriching { background:rgba(250,204,21,.15); color:#facc15; }
   .ms-badge.extracted,.ms-badge.done { background:rgba(56,189,248,.15); color:var(--ms-accent); }
   .ms-badge.error { background:rgba(248,113,113,.15); color:#f87171; }
   .ms-muted { opacity:.55; }
@@ -106,28 +106,71 @@
     return span;
   }
 
-  // ---- upload (raw body stream; bypasses the 16MB form cap) ----
-  function upload(file) {
+  // ---- chunked upload: small chunks slip under the edge proxy's body-size cap ----
+  // A whole GB-scale .pst as one request is rejected instantly by the edge (openresty in
+  // front of Beacon). So split into ~5MB chunks (init → append each → complete). Resumable:
+  // each chunk declares X-Offset; the server 409s with the expected offset if they disagree,
+  // and we resync — so retries / partial sends self-heal.
+  const CHUNK = 5 * 1024 * 1024;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function upload(file) {
     if (!file) return;
     const prog = $("msProg"), bar = prog.firstElementChild, msg = $("msUploadMsg");
     prog.style.display = "block"; bar.style.width = "0";
-    msg.textContent = "Uploading " + file.name + " (" + (file.size / 1048576).toFixed(1) + " MB)…";
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", BASE + "/api/upload");
-    xhr.setRequestHeader("X-Filename", file.name);
-    xhr.upload.onprogress = (e) => { if (e.lengthComputable) bar.style.width = (e.loaded / e.total * 100) + "%"; };
-    xhr.onload = () => {
-      prog.style.display = "none";
-      let r = {}; try { r = JSON.parse(xhr.responseText); } catch (_) {}
-      if (xhr.status >= 200 && xhr.status < 300) {
-        msg.textContent = "Received. Extracting on the server…";
-        loadImports();
-      } else {
-        msg.textContent = "Upload failed: " + (r.error || xhr.status);
+    const mb = (file.size / 1048576).toFixed(1);
+    msg.textContent = "Starting upload of " + file.name + " (" + mb + " MB)…";
+    let importId = null;
+    try {
+      const initR = await fetch(BASE + "/api/upload/init", { method: "POST", headers: { "X-Filename": file.name } });
+      const initJ = await initR.json();
+      if (!initR.ok) throw new Error(initJ.error || ("init " + initR.status));
+      importId = initJ.import_id;
+      loadImports();
+
+      let offset = 0, tries = 0;
+      while (offset < file.size) {
+        const end = Math.min(offset + CHUNK, file.size);
+        const blob = file.slice(offset, end);
+        let r;
+        try {
+          r = await fetch(BASE + "/api/upload/chunk/" + importId, {
+            method: "POST",
+            headers: { "X-Offset": String(offset), "Content-Type": "application/octet-stream" },
+            body: blob,
+          });
+        } catch (netErr) {
+          if (++tries > 6) throw new Error("network failure at " + offset + " bytes");
+          await sleep(1000 * tries); continue; // retry same offset (server dedups via X-Offset)
+        }
+        if (r.status === 409) {
+          const j = await r.json().catch(() => ({}));
+          if (typeof j.expected === "number") { offset = j.expected; tries = 0; continue; }
+          throw new Error("offset conflict");
+        }
+        if (!r.ok) {
+          if (++tries > 6) throw new Error("chunk failed at " + offset + " (HTTP " + r.status + ")");
+          await sleep(1000 * tries); continue;
+        }
+        const j = await r.json();
+        offset = (typeof j.received === "number") ? j.received : end;
+        tries = 0;
+        bar.style.width = (offset / file.size * 100).toFixed(1) + "%";
+        msg.textContent = "Uploading… " + (offset / 1048576).toFixed(0) + " / " + mb + " MB";
       }
-    };
-    xhr.onerror = () => { prog.style.display = "none"; msg.textContent = "Upload failed (network)."; };
-    xhr.send(file);
+
+      const cR = await fetch(BASE + "/api/upload/complete/" + importId, { method: "POST" });
+      const cJ = await cR.json();
+      if (!cR.ok) throw new Error(cJ.error || ("complete " + cR.status));
+      prog.style.display = "none";
+      msg.textContent = "Uploaded — extracting on the server…";
+      loadImports();
+    } catch (err) {
+      prog.style.display = "none";
+      msg.textContent = "Upload failed: " + (err.message || err);
+      if (importId) fetch(BASE + "/api/upload/abort/" + importId, { method: "POST" }).catch(() => {});
+      loadImports();
+    }
   }
 
   // ---- imports list (auto-polls while any are in flight) ----
@@ -145,7 +188,7 @@
     const tb = document.createElement("tbody");
     let inFlight = false;
     rows.forEach((r) => {
-      if (["uploaded", "extracting", "enriching"].includes(r.status)) inFlight = true;
+      if (["uploading", "uploaded", "extracting", "enriching"].includes(r.status)) inFlight = true;
       const tr = document.createElement("tr");
       tr.className = "clickable";
       const td = (fn) => { const c = document.createElement("td"); fn(c); return c; };

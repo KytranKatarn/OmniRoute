@@ -135,6 +135,103 @@ def upload():
     return _json({"import_id": import_id, "filename": filename, "bytes": written, "status": "extracting"})
 
 
+# ---- Chunked upload (DEFAULT path) ----------------------------------------------------------
+# A GB-scale .pst sent as ONE request is rejected by the edge proxy (Hostinger openresty in
+# front of Beacon caps the body size → instant failure for remote users). So the client splits
+# the file into small chunks (~5MB, far under any proxy cap) and appends them here. Resumable:
+# each chunk declares its X-Offset and the server only accepts it if it matches the current
+# file size (so a retried/duplicate chunk is rejected with 409 + the expected offset).
+_CHUNK_MAX = 32 * 1024 * 1024  # reject a single chunk larger than this (client uses ~5MB)
+
+
+@mailbox_story_bp.route("/api/upload/init", methods=["POST"])
+@admin_required
+def upload_init():
+    """Start a chunked upload — create the import row + empty target file. Returns import_id."""
+    raw_name = request.headers.get("X-Filename") or "mailbox.pst"
+    filename = secure_filename(raw_name) or "mailbox.pst"
+    owner_id = getattr(current_user, "id", None)
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            """INSERT INTO mailbox_imports (owner_id, filename, stored_path, status)
+               VALUES (%s, %s, %s, 'uploading') RETURNING id""",
+            (owner_id, filename, "pending"),
+        )
+        import_id = cur.fetchone()["id"]
+    target_dir = _import_dir(import_id)
+    os.makedirs(target_dir, exist_ok=True)
+    pst_path = os.path.join(target_dir, "source.pst")
+    open(pst_path, "wb").close()  # truncate/create empty
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute("UPDATE mailbox_imports SET stored_path=%s WHERE id=%s", (pst_path, import_id))
+    return _json({"import_id": import_id, "filename": filename, "status": "uploading"})
+
+
+@mailbox_story_bp.route("/api/upload/chunk/<int:import_id>", methods=["POST"])
+@admin_required
+def upload_chunk(import_id):
+    """Append one chunk at X-Offset (must equal the current file size). Returns bytes received."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute("SELECT status, stored_path FROM mailbox_imports WHERE id=%s", (import_id,))
+        row = cur.fetchone()
+    if not row:
+        return _json({"error": "not found"}, status=404)
+    if row["status"] != "uploading":
+        return _json({"error": f"import not accepting chunks (status={row['status']})"}, status=409)
+    pst_path = os.path.join(_import_dir(import_id), "source.pst")
+    cur_size = os.path.getsize(pst_path) if os.path.exists(pst_path) else 0
+    try:
+        offset = int(request.headers.get("X-Offset", "0"))
+    except (TypeError, ValueError):
+        offset = -1
+    if offset != cur_size:
+        # Out-of-order / duplicate (retry) — tell the client where to resume.
+        return _json({"error": "offset mismatch", "expected": cur_size}, status=409)
+    data = request.get_data(cache=False)
+    if len(data) > _CHUNK_MAX:
+        return _json({"error": "chunk too large"}, status=413)
+    with open(pst_path, "ab") as fh:
+        fh.write(data)
+    return _json({"received": cur_size + len(data)})
+
+
+@mailbox_story_bp.route("/api/upload/complete/<int:import_id>", methods=["POST"])
+@admin_required
+def upload_complete(import_id):
+    """Finalize a chunked upload → kick the extraction job."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute("SELECT status FROM mailbox_imports WHERE id=%s", (import_id,))
+        row = cur.fetchone()
+    if not row:
+        return _json({"error": "not found"}, status=404)
+    if row["status"] != "uploading":
+        return _json({"error": f"import not in uploading state (status={row['status']})"}, status=409)
+    target_dir = _import_dir(import_id)
+    pst_path = os.path.join(target_dir, "source.pst")
+    eml_dir = os.path.join(target_dir, "eml")
+    size = os.path.getsize(pst_path) if os.path.exists(pst_path) else 0
+    if size == 0:
+        shutil.rmtree(target_dir, ignore_errors=True)
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute("DELETE FROM mailbox_imports WHERE id=%s", (import_id,))
+        return _json({"error": "no data received"}, status=400)
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute("UPDATE mailbox_imports SET status='uploaded' WHERE id=%s", (import_id,))
+    threading.Thread(target=_run_extract, args=(import_id, pst_path, eml_dir), daemon=True).start()
+    logger.info("mailbox import %s: chunked upload complete (%d bytes), extraction started", import_id, size)
+    return _json({"import_id": import_id, "bytes": size, "status": "extracting"})
+
+
+@mailbox_story_bp.route("/api/upload/abort/<int:import_id>", methods=["POST"])
+@admin_required
+def upload_abort(import_id):
+    """Cancel an in-progress chunked upload — wipe the partial file + row."""
+    shutil.rmtree(_import_dir(import_id), ignore_errors=True)
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute("DELETE FROM mailbox_imports WHERE id=%s AND status='uploading'", (import_id,))
+    return _json({"aborted": import_id})
+
+
 @mailbox_story_bp.route("/api/imports")
 @admin_required
 def list_imports():

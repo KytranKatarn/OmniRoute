@@ -215,6 +215,7 @@ def run_tool_loop(
 
     start = time.time()
     tool_queries = []
+    tok = {"p": 0, "c": 0}  # summed real token counts across all /api/chat calls (#4230)
     _loop_tools = TOOLS + ([STORE_MEMORY_TOOL] if write_enabled else [])
 
     def _result(success, response, error=None, iterations=0):
@@ -228,6 +229,10 @@ def run_tool_loop(
             "error": error,
             "duration_ms": int((time.time() - start) * 1000),
             "ollama_url": base,
+            # Real Ollama eval counts summed over the loop's /api/chat turns — the
+            # dispatcher logs these to task_execution_log (was hardcoded 0, #4230).
+            "prompt_tokens": tok["p"],
+            "completion_tokens": tok["c"],
         }
 
     try:
@@ -235,7 +240,10 @@ def run_tool_loop(
             payload = {"model": model, "messages": messages, "tools": _loop_tools, "stream": False}
             resp = requests.post(url, json=payload, timeout=timeout)
             resp.raise_for_status()
-            msg = (resp.json() or {}).get("message", {}) or {}
+            _j = resp.json() or {}
+            tok["p"] += _j.get("prompt_eval_count") or 0
+            tok["c"] += _j.get("eval_count") or 0
+            msg = _j.get("message", {}) or {}
             calls = msg.get("tool_calls") or []
 
             if not calls:
@@ -275,7 +283,10 @@ def run_tool_loop(
         # with tools disabled so the model must synthesize from what it gathered.
         resp = requests.post(url, json={"model": model, "messages": messages, "stream": False}, timeout=timeout)
         resp.raise_for_status()
-        content = ((resp.json() or {}).get("message", {}) or {}).get("content") or ""
+        _jf = resp.json() or {}
+        tok["p"] += _jf.get("prompt_eval_count") or 0
+        tok["c"] += _jf.get("eval_count") or 0
+        content = (_jf.get("message", {}) or {}).get("content") or ""
         return _result(bool(content), content, error=None if content else "no final content", iterations=max_iterations)
 
     except Exception as exc:

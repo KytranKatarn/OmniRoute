@@ -3577,8 +3577,12 @@ class DepartmentDispatcher:
                         "response": json.dumps(result["data"]),
                         "model": model,
                         "provider": "ollama",
-                        "prompt_eval_count": result.get("prompt_eval_count", 0),
-                        "eval_count": result.get("eval_count", 0),
+                        # call_ollama_json returns its counts as prompt_tokens/completion_tokens
+                        # (estimate-filled when Ollama omits them, #4230). Reading the raw
+                        # prompt_eval_count/eval_count keys here ALWAYS got 0 — the real cause of
+                        # the qwen25-classify/json-mode 0-token gap. Read the right keys.
+                        "prompt_tokens": result.get("prompt_tokens", result.get("prompt_eval_count", 0)),
+                        "completion_tokens": result.get("completion_tokens", result.get("eval_count", 0)),
                     }
                 return {
                     "success": False,
@@ -3859,13 +3863,14 @@ class DepartmentDispatcher:
                 and "embed" not in (result.model_used or "")
             ):
                 logger.warning(
-                    "[token-gap] 0-token success: cap=%s model=%s provider=%s module=%s agent=%s node=%s",
+                    "[token-gap] 0-token success: cap=%s model=%s provider=%s module=%s agent=%s node=%s resp_chars=%d",
                     result.capability,
                     result.model_used,
                     result.provider,
                     module_id,
                     result.agent_name,
                     node_id_used,
+                    len(result.response or ""),
                 )
 
             # DRP attribution (#3728): on the boston-2 standby (ARCHIE_DR_MODE=1)
@@ -6460,16 +6465,26 @@ class DepartmentDispatcher:
                         write_enabled=self._is_agentic_tool_write_enabled(),
                     )
                     if _loop.get("used_tools") and _loop.get("success"):
+                        _ar = _loop.get("response", "") or ""
+                        # Real eval counts summed by run_tool_loop (#4230). Estimate as a
+                        # fallback when Ollama omitted them (prompt-cache hit) so this work
+                        # never logs as 0 tokens and reads as idle to K.I.N. welfare.
+                        _apt = _loop.get("prompt_tokens", 0) or 0
+                        _act = _loop.get("completion_tokens", 0) or 0
+                        if not _apt and (prompt or system_prompt):
+                            _apt = max(1, (len(system_prompt or "") + len(prompt or "")) // 4)
+                        if not _act and _ar:
+                            _act = max(1, len(_ar) // 4)
                         llm_result = {
                             "success": True,
-                            "response": _loop.get("response", ""),
+                            "response": _ar,
                             "model": model,
                             "provider": "ollama",
                             "node_id": None,
                             "node_url": _loop.get("ollama_url"),
                             "response_ms": _loop.get("duration_ms", 0),
-                            "prompt_tokens": 0,
-                            "completion_tokens": 0,
+                            "prompt_tokens": _apt,
+                            "completion_tokens": _act,
                         }
                         agentic_info = {
                             "agentic_tool_search": True,

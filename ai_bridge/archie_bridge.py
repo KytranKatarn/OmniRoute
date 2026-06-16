@@ -192,9 +192,20 @@ def call_ollama_json(
             # usage data. Without these, every JSON-mode dispatch logged 0
             # tokens and welfare digest false-flagged working agents as
             # "starving" (Bug B, 2026-05-03).
+            _jpt = ollama_response.get("prompt_eval_count", 0)
+            _jct = ollama_response.get("eval_count", 0)
+            _jest = False
+            # Estimate each side independently (#4230) — see call_ollama for rationale.
+            if not _jpt and (prompt or system_prompt):
+                _jpt = _estimate_tokens((system_prompt or "") + (prompt or ""))
+                _jest = True
+            if not _jct and raw:
+                _jct = _estimate_tokens(raw)
+                _jest = True
             tokens_meta = {
-                "prompt_tokens": ollama_response.get("prompt_eval_count", 0),
-                "completion_tokens": ollama_response.get("eval_count", 0),
+                "prompt_tokens": _jpt,
+                "completion_tokens": _jct,
+                "tokens_estimated": _jest,
                 "model": model,
                 "provider": "ollama",
             }
@@ -283,6 +294,18 @@ def detect_current_environment():
     return "production"
 
 
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate (~4 chars/token) for when Ollama omits eval counts.
+
+    Ollama drops prompt_eval_count on a prompt-cache hit (e.g. a classify model
+    called repeatedly with a stable system prompt → qwen25-classify logged 0 tokens
+    for 93% of calls, task #4230). This keeps token tracking non-zero for real
+    generation; callers tag the result `tokens_estimated=True` so it's distinguishable
+    from exact counts.
+    """
+    return max(1, len(text or "") // 4) if text else 0
+
+
 def call_ollama(
     prompt,
     model="dolphin3-8k:latest",
@@ -357,9 +380,23 @@ def call_ollama(
                     success=True,
                 )
 
+            _resp_text = result.get("response", "")
+            _pt = result.get("prompt_eval_count", 0)
+            _ct = result.get("eval_count", 0)
+            _estimated = False
+            # Estimate each side INDEPENDENTLY (#4230): Ollama omits prompt_eval_count on a
+            # prompt-cache hit (warm classify model), and eval_count on a tiny/empty completion.
+            # A real classify call still processed its input prompt, so count it even when the
+            # response is empty — don't gate the prompt estimate on having a response.
+            if not _pt and (prompt or system_prompt):
+                _pt = _estimate_tokens((system_prompt or "") + (prompt or ""))
+                _estimated = True
+            if not _ct and _resp_text:
+                _ct = _estimate_tokens(_resp_text)
+                _estimated = True
             return {
                 "success": True,
-                "response": result.get("response", ""),
+                "response": _resp_text,
                 "model": model,
                 "provider": "ollama",
                 "context": result.get("context"),
@@ -367,11 +404,10 @@ def call_ollama(
                 "node_url": ollama_host,
                 "response_ms": response_ms,
                 # Surface token counts so DispatchResult / task_execution_log /
-                # agent_budgets can track real usage. Without these the dispatcher
-                # logs every call as 0 tokens and welfare digest false-flags
-                # working agents as "starving" (Bug B, 2026-05-03).
-                "prompt_tokens": result.get("prompt_eval_count", 0),
-                "completion_tokens": result.get("eval_count", 0),
+                # agent_budgets track real usage; estimate when Ollama omits them (#4230).
+                "prompt_tokens": _pt,
+                "completion_tokens": _ct,
+                "tokens_estimated": _estimated,
             }
         else:
             # Log failed request

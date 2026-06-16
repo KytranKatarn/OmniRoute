@@ -1092,3 +1092,72 @@ body {
   border-radius: 4px;
   padding: 5px 14px;
 }
+
+/* ── Live Dispatch Feed (Phase 2) — watch the team + Claude/Codex work ── */
+#ac-dispatch-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.ac-feed-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 4px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ac-feed-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  background: #00ffaa;
+  box-shadow: 0 0 5px rgba(0, 255, 170, 0.6);
+}
+.ac-feed-dot.fail {
+  background: #ef4444;
+  box-shadow: 0 0 5px rgba(239, 68, 68, 0.6);
+}
+.ac-feed-main {
+  flex: 1;
+  min-width: 0;
+}
+.ac-feed-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ac-feed-agent {
+  font-family: 'Orbitron', 'Antonio', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  color: #e0e6f0;
+  white-space: nowrap;
+}
+.ac-feed-cap {
+  font-size: 10px;
+  color: #00ffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-feed-sub {
+  font-size: 9px;
+  color: #667788;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ac-feed-row.claude .ac-feed-agent { color: #c084fc; }
+.ac-feed-row.claude .ac-feed-dot {
+  background: #c084fc;
+  box-shadow: 0 0 5px rgba(192, 132, 252, 0.6);
+}
+.ac-feed-row.codex .ac-feed-agent { color: #f59e0b; }
+.ac-feed-row.codex .ac-feed-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 5px rgba(245, 158, 11, 0.6);
+}

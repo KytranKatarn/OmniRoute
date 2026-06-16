@@ -721,3 +721,74 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+/* ── Live Dispatch Feed (Phase 2) — watch the agent team + Claude/Codex work.
+   Self-contained: polls /api/dispatch/feed every 10s, renders into
+   #ac-dispatch-feed. All textContent (XSS-safe). ── */
+(function () {
+  var el = document.getElementById('ac-dispatch-feed');
+  if (!el) return;
+  function fmtDur(ms) {
+    if (ms == null) return '';
+    return ms < 1000 ? ms + 'ms' : (ms / 1000).toFixed(1) + 's';
+  }
+  // SECURITY: every value below is written via element.textContent — the
+  // XSS-safe DOM sink that never parses HTML (no innerHTML anywhere here).
+  // clamp() is purely a layout guard (truncate over-long fields), NOT a
+  // sanitizer — textContent already neutralizes any markup.
+  function clamp(v, n) {
+    var s = v == null ? '' : String(v);
+    return s.length > n ? s.slice(0, n - 1) + '…' : s;
+  }
+  function render(feed) {
+    el.textContent = '';
+    if (!feed || !feed.length) {
+      var e = document.createElement('div');
+      e.className = 'ac-feed-row';
+      e.style.color = '#556677';
+      e.textContent = 'No recent activity';
+      el.appendChild(e);
+      return;
+    }
+    feed.forEach(function (f) {
+      var cls = 'ac-feed-row';
+      if (f.origin === 'claude') cls += ' claude';
+      else if (f.origin === 'codex') cls += ' codex';
+      if (!f.success) cls += ' fail';
+      var row = document.createElement('div');
+      row.className = cls;
+      var dot = document.createElement('span');
+      dot.className = 'ac-feed-dot' + (f.success ? '' : ' fail');
+      row.appendChild(dot);
+      var main = document.createElement('div');
+      main.className = 'ac-feed-main';
+      var top = document.createElement('div');
+      top.className = 'ac-feed-top';
+      var ag = document.createElement('span');
+      ag.className = 'ac-feed-agent';
+      ag.textContent = clamp(f.agent || '?', 24);
+      top.appendChild(ag);
+      var cap = document.createElement('span');
+      cap.className = 'ac-feed-cap';
+      cap.textContent = clamp(f.capability || '', 32);
+      top.appendChild(cap);
+      main.appendChild(top);
+      var sub = document.createElement('div');
+      sub.className = 'ac-feed-sub';
+      sub.textContent = [clamp(f.model, 18), fmtDur(f.duration_ms), clamp(f.module, 18)]
+        .filter(Boolean)
+        .join(' · ');
+      main.appendChild(sub);
+      row.appendChild(main);
+      el.appendChild(row);
+    });
+  }
+  function poll() {
+    fetch('/api/dispatch/feed')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d) render(d.feed || []); })
+      .catch(function () {});
+  }
+  poll();
+  setInterval(poll, 10000);
+})();

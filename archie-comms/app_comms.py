@@ -990,6 +990,65 @@ def api_alerts_mark_all_read_local():
     return jsonify({"success": True})
 
 
+@app.route("/api/dispatch/feed")
+def api_dispatch_feed():
+    """Live dispatch/trace feed — recent task_execution_log rows so the cockpit
+    can show the agent team (and Claude/Codex) working in real time."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            # Bounded live feed: the newest 30 dispatches only. This is a
+            # rolling recent-activity view polled every 10s, NOT a paginated
+            # dataset — the LIMIT is the intended cap, not a TODO.
+            cur.execute(
+                """SELECT agent_name, capability, task_type, model_used, provider,
+                          request_origin, module_source, duration_ms, tokens_used,
+                          success, created_at
+                   FROM task_execution_log
+                   ORDER BY id DESC
+                   LIMIT 30"""
+            )
+            rows = [dict(r) for r in cur.fetchall()]
+
+        def _clip(v, n):
+            s = "" if v is None else str(v)
+            return s[:n]
+
+        feed = []
+        for r in rows:
+            origin = (r.get("request_origin") or "").lower()
+            name = r.get("agent_name") or "?"
+            lname = name.lower()
+            if "claude" in origin or "claude" in lname:
+                tag = "claude"
+            elif "codex" in origin or "codex" in lname:
+                tag = "codex"
+            else:
+                tag = origin or "agent"
+            feed.append(
+                {
+                    "agent": _clip(name, 40),
+                    "capability": _clip(r.get("capability") or r.get("task_type") or "task", 48),
+                    "model": _clip(r.get("model_used") or r.get("provider") or "", 32),
+                    "module": _clip(r.get("module_source") or "", 32),
+                    "origin": tag,
+                    "duration_ms": r.get("duration_ms"),
+                    "tokens": r.get("tokens_used"),
+                    "success": bool(r.get("success")),
+                    "ts": r["created_at"].isoformat() if r.get("created_at") else None,
+                }
+            )
+        return jsonify({"feed": feed})
+    except Exception as exc:
+        logger.error("api_dispatch_feed failed: %s", exc)
+        return jsonify({"feed": []})
+
+
 def start_background_services():
     import threading
     from services.watchdog_service import PlatformWatchdog

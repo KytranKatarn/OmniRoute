@@ -232,6 +232,34 @@ def upload_abort(import_id):
     return _json({"aborted": import_id})
 
 
+@mailbox_story_bp.route("/api/import-chat", methods=["POST"])
+@admin_required
+def import_chat():
+    """Ingest a ChatGPT/Claude export (conversations.json or .zip) already on the hub into
+    Mailbox Story — each chat message becomes a mailbox_emails row, then the existing
+    enrichment + story workers process it via DHQ (local-only). Body: {path, filter?}.
+    Runs in a background thread (parsing many conversations can take a moment)."""
+    body = request.get_json(silent=True) or {}
+    path = (body.get("path") or "").strip()
+    title_filter = (body.get("filter") or "").strip() or None
+    if not path:
+        return _json({"error": "provide {path} to an export conversations.json or .zip on the hub"}, status=400)
+    if not os.path.exists(path):
+        return _json({"error": f"file not found on hub: {path}"}, status=404)
+
+    def _bg():
+        try:
+            from services.mailbox_chat_service import ingest_export_file
+
+            res = ingest_export_file(path, owner_id=getattr(current_user, "id", None), title_filter=title_filter)
+            logger.info("chat import from %s: %d conversation(s) ingested", path, len(res))
+        except Exception:
+            logger.exception("chat import failed for %s", path)
+
+    threading.Thread(target=_bg, daemon=True).start()
+    return _json({"status": "importing", "path": path, "filter": title_filter})
+
+
 @mailbox_story_bp.route("/api/imports")
 @admin_required
 def list_imports():

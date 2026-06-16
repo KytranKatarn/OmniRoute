@@ -59,6 +59,11 @@
     </label>
     <div class="ms-prog" id="msProg"><div></div></div>
     <div id="msUploadMsg" class="ms-muted" style="margin-top:.6rem; font-size:.8rem;"></div>
+    <div style="margin-top:.75rem; border-top:1px solid rgba(255,255,255,.06); padding-top:.6rem;">
+      <button class="ms-btn ghost" id="msImportChat">💬 Import chat export</button>
+      <span class="ms-muted" style="font-size:.75rem; margin-left:.5rem;">ChatGPT/Claude export (.json/.zip) on the hub → enriched like email</span>
+      <div id="msImportChatMsg" class="ms-muted" style="margin-top:.5rem; font-size:.8rem;"></div>
+    </div>
   </div>
 
   <div class="ms-card">
@@ -515,6 +520,20 @@
   ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
   drop.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]); });
+  $("msImportChat").onclick = importChat;
+  async function importChat() {
+    const path = prompt("Path to the ChatGPT/Claude export on the hub (conversations.json or .zip):", "/home/kytran/");
+    if (!path) return;
+    const filter = prompt("Optional — only conversations whose title contains this (blank = all):", "") || "";
+    const msg = $("msImportChatMsg");
+    msg.textContent = "Importing…";
+    try {
+      const r = await fetch(BASE + "/api/import-chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path, filter }) });
+      const j = await r.json();
+      if (r.ok) { msg.textContent = "Importing chats — they'll appear below and get enriched locally."; loadImports(); setTimeout(loadImports, 4000); setTimeout(loadImports, 12000); }
+      else { msg.textContent = "Failed: " + (j.error || r.status); }
+    } catch (_) { msg.textContent = "Import request failed."; }
+  }
   $("msEnrich").onclick = kickEnrich;
   $("msBuildStory").onclick = buildStory;
   $("msSensFilter").onchange = () => { sel.offset = 0; renderEmails(); loadTimeline(); };

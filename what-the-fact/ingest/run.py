@@ -365,6 +365,7 @@ def main():
     _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
     _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
     _last_securities_date = None  # TSX issuer directory ingest (weekly, Tue) — #373 Market L6 Phase 0
+    _last_securities_eg_date = None  # securities -> graph reconcile (market_reaction_to, weekly Wed) — L6 step 2
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -457,6 +458,17 @@ def main():
             except Exception:
                 log.exception("securities issuer ingest crashed")
             _last_securities_date = today
+
+        # Market chain Link 6 (market_reaction_to) weekly on Wednesdays (#373 step 2) —
+        # after Tue issuer ingest + the daily gov awards. Matches corporate contract vendors
+        # to TSX securities (exact-norm) -> market_reaction_to edges, flips has_data. Idempotent.
+        if today.weekday() == 2 and _last_securities_eg_date != today:
+            try:
+                from ingest.entity_graph_securities_reconcile import run as _sec_eg
+                log.info("entity_graph securities reconcile: %s", _sec_eg())
+            except Exception:
+                log.exception("entity_graph securities reconcile crashed")
+            _last_securities_eg_date = today
 
         # Backlog workers — all run in PARALLEL. Each is fully independent:
         # different DB tables, different agents, different fleet nodes.

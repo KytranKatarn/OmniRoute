@@ -27,7 +27,7 @@ _SCRAPER_BASE = "http://archie_scraper:4243"
 _TERMINAL_OK = {"approved", "needs_review", "completed"}
 
 
-def capture_share(url, owner_id=None, title=None, timeout_s=120):
+def capture_share(url, owner_id=None, title=None, timeout_s=300):
     """Render a chat share URL via S.C.O.U.T. and ingest the transcript into Mailbox Story.
 
     Returns {"import_id", "messages", "title", "selector"} on success, or {"error": ...}.

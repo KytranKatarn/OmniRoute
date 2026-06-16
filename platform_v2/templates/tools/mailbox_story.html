@@ -83,6 +83,8 @@
     <div id="msEntities" style="margin-bottom:1rem;"></div>
     <div id="msStories" style="margin-bottom:1rem;"></div>
     <div id="msTimeline" style="margin-bottom:1rem;"></div>
+    <div id="msFolders" style="margin-bottom:.75rem;"></div>
+    <div id="msRead" style="display:none; margin-bottom:1rem;"></div>
     <div id="msEmails"></div>
     <div class="ms-pager" id="msPager" style="display:none;">
       <button class="ms-btn ghost" id="msPrev">‹ Prev</button>
@@ -106,13 +108,33 @@
     return span;
   }
 
-  // ---- chunked upload: small chunks slip under the edge proxy's body-size cap ----
-  // A whole GB-scale .pst as one request is rejected instantly by the edge (openresty in
-  // front of Beacon). So split into ~5MB chunks (init → append each → complete). Resumable:
-  // each chunk declares X-Offset; the server 409s with the expected offset if they disagree,
-  // and we resync — so retries / partial sends self-heal.
-  const CHUNK = 5 * 1024 * 1024;
+  // ---- chunked upload (init → append each chunk → complete) ----
+  // 1MB chunks so each request finishes fast even on a slow link: the edge proxy buffers the
+  // whole request body before forwarding, so a big slow chunk can hit its body timeout and be
+  // dropped (the hub never sees it). Small chunks stay well under that. XHR (not fetch) gives
+  // live byte-progress + a per-chunk timeout so it never just "sits there". Resumable: each
+  // chunk declares X-Offset; on mismatch the server 409s with the expected offset and we resync.
+  const CHUNK = 1024 * 1024;
+  const CHUNK_TIMEOUT = 120000; // 2 min per 1MB chunk — abort+retry if a chunk stalls
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function putChunk(importId, offset, blob, onProg) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", BASE + "/api/upload/chunk/" + importId);
+      xhr.setRequestHeader("X-Offset", String(offset));
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.timeout = CHUNK_TIMEOUT;
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProg(e.loaded); };
+      xhr.onload = () => {
+        let j = {}; try { j = JSON.parse(xhr.responseText); } catch (_) {}
+        resolve({ status: xhr.status, json: j });
+      };
+      xhr.onerror = () => reject(new Error("network"));
+      xhr.ontimeout = () => reject(new Error("timeout"));
+      xhr.send(blob);
+    });
+  }
 
   async function upload(file) {
     if (!file) return;
@@ -132,31 +154,25 @@
       while (offset < file.size) {
         const end = Math.min(offset + CHUNK, file.size);
         const blob = file.slice(offset, end);
-        let r;
+        const base = offset;
+        let res;
         try {
-          r = await fetch(BASE + "/api/upload/chunk/" + importId, {
-            method: "POST",
-            headers: { "X-Offset": String(offset), "Content-Type": "application/octet-stream" },
-            body: blob,
+          res = await putChunk(importId, offset, blob, (loaded) => {
+            bar.style.width = ((base + loaded) / file.size * 100).toFixed(1) + "%";
           });
-        } catch (netErr) {
-          if (++tries > 6) throw new Error("network failure at " + offset + " bytes");
+        } catch (e) {
+          if (++tries > 8) throw new Error("upload stalled at " + offset + " bytes (" + e.message + ")");
           await sleep(1000 * tries); continue; // retry same offset (server dedups via X-Offset)
         }
-        if (r.status === 409) {
-          const j = await r.json().catch(() => ({}));
-          if (typeof j.expected === "number") { offset = j.expected; tries = 0; continue; }
-          throw new Error("offset conflict");
-        }
-        if (!r.ok) {
-          if (++tries > 6) throw new Error("chunk failed at " + offset + " (HTTP " + r.status + ")");
+        if (res.status === 409 && typeof res.json.expected === "number") { offset = res.json.expected; tries = 0; continue; }
+        if (res.status < 200 || res.status >= 300) {
+          if (++tries > 8) throw new Error("chunk failed at " + offset + " (HTTP " + res.status + ")");
           await sleep(1000 * tries); continue;
         }
-        const j = await r.json();
-        offset = (typeof j.received === "number") ? j.received : end;
+        offset = (typeof res.json.received === "number") ? res.json.received : end;
         tries = 0;
         bar.style.width = (offset / file.size * 100).toFixed(1) + "%";
-        msg.textContent = "Uploading… " + (offset / 1048576).toFixed(0) + " / " + mb + " MB";
+        msg.textContent = "Uploading… " + (offset / 1048576).toFixed(1) + " / " + mb + " MB";
       }
 
       const cR = await fetch(BASE + "/api/upload/complete/" + importId, { method: "POST" });
@@ -222,20 +238,93 @@
   // ---- email table + enrichment ----
   let enrichPoll = null;
   async function openEmails(id, name, count) {
-    sel = { importId: id, offset: 0, limit: 50, total: count || 0 };
+    sel = { importId: id, offset: 0, limit: 50, total: count || 0, folder: null };
     $("msEmailsTitle").textContent = "Emails — " + name;
     $("msEmailsCard").style.display = "block";
+    $("msRead").style.display = "none";
     $("msEmailsCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
     renderEmails();
     loadEnrichInfo();
     loadEntities();
     loadStories();
     loadTimeline();
+    loadFolders();
   }
 
   function sensParam() {
     const v = $("msSensFilter") ? $("msSensFilter").value : "";
     return v ? "&sensitivity=" + encodeURIComponent(v) : "";
+  }
+
+  function folderParam() {
+    return sel.folder == null ? "" : "&folder=" + encodeURIComponent(sel.folder);
+  }
+
+  // ---- folder sidebar ----
+  async function loadFolders() {
+    let d;
+    try { d = await (await fetch(BASE + "/api/imports/" + sel.importId + "/folders")).json(); }
+    catch (_) { return; }
+    const host = $("msFolders");
+    host.textContent = "";
+    const fs = d.folders || [];
+    if (fs.length <= 1) return; // single/no folder → nothing to filter
+    const total = fs.reduce((a, f) => a + f.n, 0);
+    const mk = (label, val, n, active) => {
+      const b = document.createElement("button");
+      b.className = "ms-btn " + (active ? "" : "ghost");
+      b.style.cssText = "font-size:.76rem; padding:.25rem .6rem; margin:0 .35rem .35rem 0;";
+      b.textContent = label + " (" + n + ")";
+      b.onclick = () => { sel.folder = val; sel.offset = 0; renderEmails(); loadFolders(); $("msRead").style.display = "none"; };
+      return b;
+    };
+    const head = document.createElement("div");
+    head.style.cssText = "font-size:.72rem; text-transform:uppercase; letter-spacing:1px; opacity:.6; margin-bottom:.4rem;";
+    head.textContent = "Folders";
+    host.appendChild(head);
+    host.appendChild(mk("📁 All", null, total, sel.folder == null));
+    fs.forEach((f) => host.appendChild(mk("🗂 " + (f.folder || "(root)"), f.folder, f.n, sel.folder === f.folder)));
+  }
+
+  // ---- read pane: click an email to read the full message ----
+  async function openEmail(id) {
+    const host = $("msRead");
+    host.style.display = "block";
+    host.innerHTML = '<div class="ms-empty">Loading…</div>';
+    host.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    let d;
+    try { d = await (await fetch(BASE + "/api/imports/" + sel.importId + "/emails/" + id)).json(); }
+    catch (_) { host.innerHTML = '<div class="ms-empty">Failed to load.</div>'; return; }
+    const e = d.email; if (!e) { host.innerHTML = '<div class="ms-empty">Not found.</div>'; return; }
+    host.textContent = "";
+    const card = document.createElement("div");
+    card.style.cssText = "border:1px solid rgba(var(--ms-accent-rgb),.35); border-radius:6px; padding:1rem 1.1rem; background:rgba(var(--ms-accent-rgb),.04);";
+    const close = document.createElement("button");
+    close.className = "ms-btn ghost"; close.textContent = "✕ close"; close.style.cssText = "float:right; font-size:.74rem; padding:.2rem .5rem;";
+    close.onclick = () => { host.style.display = "none"; };
+    card.appendChild(close);
+    const subj = document.createElement("div");
+    subj.style.cssText = "font-weight:600; font-size:1rem; margin-bottom:.5rem; padding-right:4rem;";
+    subj.textContent = e.subject || "(no subject)";
+    card.appendChild(subj);
+    const meta = document.createElement("div");
+    meta.style.cssText = "font-size:.8rem; opacity:.8; line-height:1.6; margin-bottom:.6rem; border-bottom:1px solid rgba(255,255,255,.08); padding-bottom:.5rem;";
+    const addRow = (k, v) => { if (!v) return; const r = document.createElement("div"); const b = document.createElement("strong"); b.textContent = k + ": "; r.appendChild(b); r.appendChild(document.createTextNode(v)); meta.appendChild(r); };
+    addRow("From", e.from_addr); addRow("To", e.to_addrs); addRow("Cc", e.cc_addrs);
+    addRow("Date", (e.sent_at || "").replace("T", " ").slice(0, 16));
+    addRow("Folder", e.folder); if (e.has_attachments) addRow("Attachments", "📎 yes");
+    card.appendChild(meta);
+    if (e.summary) {
+      const ai = document.createElement("div");
+      ai.style.cssText = "font-size:.82rem; opacity:.85; margin-bottom:.6rem; padding:.4rem .6rem; border-left:3px solid var(--ms-accent); background:rgba(var(--ms-accent-rgb),.06);";
+      ai.textContent = "AI: " + e.summary + (e.sensitivity && e.sensitivity !== "normal" ? "  [" + e.sensitivity + "]" : "");
+      card.appendChild(ai);
+    }
+    const body = document.createElement("pre");
+    body.style.cssText = "white-space:pre-wrap; word-break:break-word; font-family:inherit; font-size:.85rem; line-height:1.5; margin:0; max-height:60vh; overflow:auto;";
+    body.textContent = e.body_text || "(no body)";
+    card.appendChild(body);
+    host.appendChild(card);
   }
 
   async function loadStories() {
@@ -378,7 +467,7 @@
     host.innerHTML = '<div class="ms-empty">Loading…</div>';
     let data;
     try {
-      data = await (await fetch(BASE + "/api/imports/" + sel.importId + "/emails?offset=" + sel.offset + "&limit=" + sel.limit + sensParam())).json();
+      data = await (await fetch(BASE + "/api/imports/" + sel.importId + "/emails?offset=" + sel.offset + "&limit=" + sel.limit + sensParam() + folderParam())).json();
     } catch (_) { host.innerHTML = '<div class="ms-empty">Failed to load.</div>'; return; }
     sel.total = data.total || 0;
     const rows = data.emails || [];
@@ -386,16 +475,20 @@
     if (!rows.length) { host.innerHTML = '<div class="ms-empty">No emails extracted yet.</div>'; $("msPager").style.display = "none"; return; }
     const tbl = document.createElement("table");
     tbl.className = "ms-tbl";
-    tbl.innerHTML = "<thead><tr><th>Date</th><th>From</th><th>Subject</th><th>AI summary</th><th>Sensitivity</th><th>📎</th></tr></thead>";
+    tbl.innerHTML = "<thead><tr><th>Date</th><th>From</th><th>Subject</th><th>AI summary</th><th>Folder</th><th>Sensitivity</th><th>📎</th></tr></thead>";
     const tb = document.createElement("tbody");
     const SENS_COLOR = { gov: "#facc15", secret: "#f87171", personal: "#c084fc" };
     rows.forEach((e) => {
       const tr = document.createElement("tr");
+      tr.className = "clickable";
+      tr.title = "Click to read";
+      tr.onclick = () => openEmail(e.id);
       const td = (val, cls) => { const c = document.createElement("td"); c.textContent = val == null ? "" : val; if (cls) c.className = cls; return c; };
       tr.appendChild(td((e.sent_at || "").replace("T", " ").slice(0, 16), "ms-muted"));
       tr.appendChild(td(e.from_addr));
       tr.appendChild(td(e.subject || "(no subject)"));
       tr.appendChild(td(e.summary || (e.enrich_status === "pending" ? "…" : ""), e.summary ? "" : "ms-muted"));
+      tr.appendChild(td((e.folder || "").split("/").pop(), "ms-muted"));
       const sens = document.createElement("td");
       if (e.sensitivity && e.sensitivity !== "normal") {
         const b = document.createElement("span");

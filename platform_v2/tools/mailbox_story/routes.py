@@ -282,12 +282,16 @@ def list_emails(import_id):
     sens = (request.args.get("sensitivity") or "").strip().lower()
     sens_sql = " AND f.sensitivity = %s" if sens in ("normal", "gov", "secret", "personal") else ""
     sens_args = (sens,) if sens_sql else ()
+    folder = request.args.get("folder")  # None = all folders; '' = root; else a specific folder
+    folder_sql = " AND e.folder = %s" if folder is not None else ""
+    folder_args = (folder,) if folder is not None else ()
+    filt_args = (*sens_args, *folder_args)
     with get_db_cursor(commit=False) as (_conn, cur):
         cur.execute(
             "SELECT COUNT(*) AS n FROM mailbox_emails e "
             "LEFT JOIN mailbox_email_facts f ON f.email_id = e.id "
-            "WHERE e.import_id=%s" + sens_sql,
-            (import_id, *sens_args),
+            "WHERE e.import_id=%s" + sens_sql + folder_sql,
+            (import_id, *filt_args),
         )
         total = cur.fetchone()["n"]
         cur.execute(
@@ -298,12 +302,50 @@ def list_emails(import_id):
                LEFT JOIN mailbox_email_facts f ON f.email_id = e.id
                WHERE e.import_id=%s"""
             + sens_sql
+            + folder_sql
             + """ ORDER BY e.sent_at DESC NULLS LAST, e.id DESC
                LIMIT %s OFFSET %s""",
-            (import_id, *sens_args, limit, offset),
+            (import_id, *filt_args, limit, offset),
         )
         rows = cur.fetchall()
     return _json({"emails": rows, "total": total, "limit": limit, "offset": offset})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/folders")
+@admin_required
+def list_folders(import_id):
+    """Folders present in the import with email counts (for the folder sidebar)."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            """SELECT COALESCE(folder, '') AS folder, COUNT(*) AS n
+               FROM mailbox_emails WHERE import_id=%s
+               GROUP BY COALESCE(folder, '') ORDER BY n DESC, folder ASC""",
+            (import_id,),
+        )
+        rows = cur.fetchall()
+    return _json({"folders": rows})
+
+
+@mailbox_story_bp.route("/api/imports/<int:import_id>/emails/<int:email_id>")
+@admin_required
+def get_email(import_id, email_id):
+    """Full single email for the read pane — headers + body + enrichment facts."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            """SELECT e.id, e.import_id, e.folder, e.message_id, e.in_reply_to,
+                      e.from_addr, e.to_addrs, e.cc_addrs, e.sent_at, e.subject,
+                      e.body_text, e.has_attachments, e.enrich_status,
+                      f.summary, f.topic, f.category, f.sensitivity, f.sentiment,
+                      f.event_date, f.event_title
+               FROM mailbox_emails e
+               LEFT JOIN mailbox_email_facts f ON f.email_id = e.id
+               WHERE e.id=%s AND e.import_id=%s""",
+            (email_id, import_id),
+        )
+        row = cur.fetchone()
+    if not row:
+        return _json({"error": "not found"}, status=404)
+    return _json({"email": row})
 
 
 @mailbox_story_bp.route("/api/imports/<int:import_id>/entities")

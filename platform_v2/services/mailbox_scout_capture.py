@@ -27,7 +27,7 @@ _SCRAPER_BASE = "http://archie_scraper:4243"
 _TERMINAL_OK = {"approved", "needs_review", "completed"}
 
 
-def capture_share(url, owner_id=None, title=None, timeout_s=300):
+def capture_share(url, owner_id=None, title=None, timeout_s=300, egress=None):
     """Render a chat share URL via S.C.O.U.T. and ingest the transcript into Mailbox Story.
 
     Returns {"import_id", "messages", "title", "selector"} on success, or {"error": ...}.
@@ -43,7 +43,9 @@ def capture_share(url, owner_id=None, title=None, timeout_s=300):
             json={
                 "job_type": "chat_capture",
                 "target_url": url,
-                "params": {},
+                # egress: node_name to pin an outpost exit, or 'rotate' for a random one —
+                # the cluster-egress primitive (international reach / anti-flagging).
+                "params": {"egress": egress} if egress else {},
                 "requested_by": "mailbox_story",
             },
             timeout=15,

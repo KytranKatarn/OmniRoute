@@ -540,10 +540,11 @@
     const url = prompt("Public AI chat SHARE link (ChatGPT/Claude). Note: a share link is a snapshot — for the full history use 'Import chat export'.", "https://chatgpt.com/share/");
     if (!url) return;
     const title = prompt("Optional title for this conversation (blank = use the page title):", "") || "";
+    const egress = prompt("Egress (optional): an outpost name to exit from (e.g. 'Outpost - Singapore'), 'rotate' for a random country, or blank for hub:", "") || "";
     const msg = $("msImportChatMsg");
     msg.textContent = "Capturing — S.C.O.U.T. is rendering the page…";
     try {
-      const r = await fetch(BASE + "/api/capture-share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, title }) });
+      const r = await fetch(BASE + "/api/capture-share", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, title, egress }) });
       const j = await r.json();
       if (r.ok) { msg.textContent = "Capturing — it'll appear below shortly and get enriched locally."; loadImports(); setTimeout(loadImports, 6000); setTimeout(loadImports, 20000); }
       else { msg.textContent = "Failed: " + (j.error || r.status); }

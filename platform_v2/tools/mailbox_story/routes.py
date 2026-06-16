@@ -272,6 +272,7 @@ def capture_share_route():
     body = request.get_json(silent=True) or {}
     url = (body.get("url") or "").strip()
     title = (body.get("title") or "").strip() or None
+    egress = (body.get("egress") or "").strip() or None  # node_name | 'rotate' (cluster egress)
     if not url.startswith(("http://", "https://")):
         return _json({"error": "provide a valid http(s) share URL in {url}"}, status=400)
     owner_id = getattr(current_user, "id", None)  # capture in request context, not in the thread
@@ -280,7 +281,7 @@ def capture_share_route():
         try:
             from services.mailbox_scout_capture import capture_share
 
-            res = capture_share(url, owner_id=owner_id, title=title)
+            res = capture_share(url, owner_id=owner_id, title=title, egress=egress)
             if res.get("error"):
                 logger.warning("share capture %s: %s", url, res["error"])
             else:

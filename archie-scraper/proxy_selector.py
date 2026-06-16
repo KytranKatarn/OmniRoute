@@ -128,3 +128,47 @@ def resolve_session_egress(agent_id: int, platform: str, explicit_node: str = No
     except Exception as exc:
         _fleet_logger.warning("resolve_session_egress failed (%s) — hub fallback", type(exc).__name__)
         return None
+
+
+def resolve_egress_choice(choice):
+    """Resolve a per-JOB egress choice to a SOCKS5 proxy string, or None (= hub-direct).
+
+    The generic, skill-agnostic cluster-egress primitive: ANY scraper job (chat_capture,
+    web_scrape, WTF ingest, future jobs) can set params.egress to travel out through a
+    different cluster node's IP — international reach (see/interact with a page from another
+    country's exit IP) and spreading requests across outpost egress points to avoid flagging.
+
+    choice:
+      - a remote_nodes.node_name        → pin to that outpost (if online + socks5_egress)
+      - 'rotate' / 'random' / 'any'     → a random online fleet egress node
+      - falsy / 'hub' / 'auto' / unknown → None (hub-direct)
+    Preference-not-pin: an offline/unready node falls back to hub.
+    """
+    if not choice:
+        return None
+    c = str(choice).strip()
+    if not c or c.lower() in ("hub", "auto"):
+        return None
+    if c.lower() in ("rotate", "random", "any"):
+        # Only nodes that actually advertise socks5_egress are valid exits — discover_fleet_egress
+        # over-returns (hub/Beacon/Starships have no node_socks listener), so query directly with
+        # the same filter resolve_session_egress uses. Empty → hub fallback.
+        if get_db is None:
+            return None
+        try:
+            import random
+
+            with get_db() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """SELECT mesh_ip FROM remote_nodes
+                            WHERE status = 'online' AND mesh_ip IS NOT NULL
+                              AND last_heartbeat > NOW() - INTERVAL '2 minutes'
+                              AND (extra_capabilities->>'socks5_egress') = 'true'"""
+                    )
+                    rows = cur.fetchall()
+            return _socks_url(random.choice(rows)["mesh_ip"]) if rows else None
+        except Exception as exc:
+            _fleet_logger.warning("egress rotate failed (%s) — hub fallback", type(exc).__name__)
+            return None
+    return resolve_session_egress(0, "", explicit_node=c)

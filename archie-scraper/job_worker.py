@@ -145,6 +145,18 @@ class JobWorker:
             )
             if proxy_override:
                 logger.info("Job #%d egress via session preference (proxy set)", job_id)
+        # Generic per-job egress (ANY job_type) — params.egress = node_name | 'rotate'.
+        # The skill-agnostic cluster-egress primitive: WTF/future jobs travel out through a
+        # different node's IP for international reach + anti-flagging. Session jobs above
+        # resolved their own egress; only fill in if still unset.
+        if proxy_override is None:
+            _choice = params.get("egress") or params.get("egress_node") or params.get("region")
+            if _choice:
+                from proxy_selector import resolve_egress_choice
+
+                proxy_override = resolve_egress_choice(_choice)
+                if proxy_override:
+                    logger.info("Job #%d egress via choice=%r (proxy set)", job_id, _choice)
         slot_id, page = None, None
         try:
             slot_id, page = self.pool.claim(egress_tier=tier, proxy_override=proxy_override)

@@ -650,7 +650,8 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
             url,
             owner_id=payload.get("owner_id"),
             title=payload.get("title"),
-            timeout_s=min(int(payload.get("timeout") or 120), 240),
+            timeout_s=min(int(payload.get("timeout") or 300), 300),
+            egress=payload.get("egress"),  # node_name | 'rotate' — cluster egress primitive
         )
         ok = bool(res.get("import_id"))
         return {

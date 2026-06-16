@@ -4410,6 +4410,57 @@ def _require_internal_key(f):
     return decorated
 
 
+@app.route("/api/internal/dhq/chat", methods=["POST"])
+@_require_internal_key
+def api_internal_dhq_chat():
+    """Synchronous DHQ-routed chat reply for A.R.C.H.I.E.'s voice (archie_comms cockpit).
+
+    The cockpit chat reply used to POST direct to Ollama, which times out /
+    [Connection error]s whenever the hub GPU is saturated (KB mistake #273554).
+    Routing through the dispatcher gives the reply welfare + cost gating, the
+    cold-load queue, and fleet routing. archie_comms calls this DHQ-first and
+    falls back to its direct-Ollama voice if this is unreachable (ADR-013
+    voice-survives-crash waiver), so a platform outage never silences A.R.C.H.I.E.
+
+    Service-to-service: Authorization: Bearer <INTERNAL_API_KEY>.
+    Registered at app level (not on a blueprint) so the /tools/* auth middleware
+    does not redirect the unauthenticated service call to /dashboard.
+    """
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    data = request.get_json(silent=True) or {}
+    prompt = (data.get("prompt") or "").strip()
+    system_prompt = data.get("system_prompt") or None
+    user_id = data.get("user_id")
+    if not prompt:
+        return jsonify({"success": False, "error": "prompt required"}), 400
+
+    try:
+        result = dispatch(
+            capability="conversation",
+            prompt=prompt,
+            module_id="archie_comms",
+            system_prompt=system_prompt,
+            user_id=user_id,
+            prefer_agent="A.R.C.H.I.E.",  # the cockpit voice is A.R.C.H.I.E., not the 'conversation' default (R.E.S.O.L.V.E.)
+            local_only=True,  # chat stays on the hub — fleet escalation = ~260s contention (KB #269363)
+        )
+        if result.success and (result.response or "").strip():
+            return jsonify(
+                {
+                    "success": True,
+                    "response": result.response.strip(),
+                    "agent_name": result.agent_name,
+                    "model_used": result.model_used,
+                }
+            )
+        # Dispatch ran but produced nothing usable — let the caller fall back to direct Ollama.
+        return jsonify({"success": False, "error": "dispatch produced no response"}), 502
+    except Exception as e:
+        logger.error(f"DHQ chat error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
 @_require_internal_key
 def api_internal_get_session_state(agent_id, platform):

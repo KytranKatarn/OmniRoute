@@ -33,6 +33,51 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 
+def _dhq_chat_reply(system_prompt, user_prompt, user_id=None):
+    """DHQ-preferred A.R.C.H.I.E. chat reply (KB mistake #273554).
+
+    POSTs to the platform's synchronous DHQ chat endpoint (same intra-hub path
+    the delegation hand-off already uses, PLATFORM_URL=http://archie_platform:3000)
+    so the reply is welfare/cost-gated + cold-load-queued + fleet-routed instead
+    of a raw Ollama call that hangs when the hub GPU is saturated.
+
+    Returns the full reply string, or ``None`` on ANY failure (no key, hub
+    unreachable, non-200, empty body) so the caller falls back to the
+    direct-Ollama voice path — A.R.C.H.I.E. must still talk if the platform is
+    down (ADR-013 voice-survives-crash waiver). This is DHQ-PREFERRED, not
+    DHQ-only.
+    """
+    key = os.getenv("INTERNAL_API_KEY", "")
+    if not key:
+        return None  # no service credential → use the direct-Ollama voice
+    platform_url = os.getenv("PLATFORM_URL", "http://archie_platform:3000").rstrip("/")
+    try:
+        import requests
+
+        resp = requests.post(
+            f"{platform_url}/api/internal/dhq/chat",
+            json={
+                "prompt": user_prompt,
+                "system_prompt": system_prompt,
+                "user_id": user_id,
+            },
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=float(os.getenv("DHQ_CHAT_TIMEOUT", "90")),
+        )
+        if resp.status_code != 200:
+            logger.warning(
+                "DHQ chat returned %s — falling back to direct Ollama", resp.status_code
+            )
+            return None
+        data = resp.json()
+        if data.get("success") and (data.get("response") or "").strip():
+            return data["response"]
+        return None
+    except Exception as exc:
+        logger.warning("DHQ chat unreachable (%s) — falling back to direct Ollama", exc)
+        return None
+
+
 def get_or_create_conversation(user_id, topic=None):
     """Get the active conversation for a user, or create a new one."""
     try:
@@ -958,51 +1003,60 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
         )
     user_prompt = f"{history_text}\nUser: {message}\nARCHIE:"
 
+    # DHQ-PREFERRED (KB mistake #273554): route A.R.C.H.I.E.'s reply through the
+    # platform dispatcher (welfare + cost + cold-load queue + fleet) so chat stays
+    # reliable when the hub GPU is saturated. Fall back to direct-Ollama streaming
+    # if the hub is unreachable — the voice MUST survive a platform crash (ADR-013).
     full_parts = []
     stream_error = None
-    streamer = _stream_ollama if _stream_ollama else iter([])
-    try:
-        for token in streamer(system_prompt, user_prompt):
-            full_parts.append(token)
-    except Exception as exc:
-        logger.error("stream_send_message: stream error: %s", exc)
-        stream_error = exc
-    finally:
-        complete_text = "".join(full_parts)
+    dhq_reply = _dhq_chat_reply(system_prompt, user_prompt, user_id)
+    if dhq_reply is not None:
+        # DHQ is non-streaming: deliver the full reply as a single chunk.
+        full_parts = [dhq_reply]
+    else:
+        streamer = _stream_ollama if _stream_ollama else iter([])
+        try:
+            for token in streamer(system_prompt, user_prompt):
+                full_parts.append(token)
+        except Exception as exc:
+            logger.error("stream_send_message: stream error: %s", exc)
+            stream_error = exc
 
-        # Strip {{DELEGATE}} markers and collect delegation events
-        delegation_events = []
+    complete_text = "".join(full_parts)
 
-        def _collect_delegate(m):
-            delegation_events.append({
-                "type": "delegation_detected",
-                "capability": m.group(1).strip(),
-                "reason": m.group(2).strip(),
-            })
-            return ""
+    # Strip {{DELEGATE}} markers and collect delegation events
+    delegation_events = []
 
-        clean_text = _DELEGATE_RE.sub(_collect_delegate, complete_text).strip()
+    def _collect_delegate(m):
+        delegation_events.append({
+            "type": "delegation_detected",
+            "capability": m.group(1).strip(),
+            "reason": m.group(2).strip(),
+        })
+        return ""
 
-        # Yield clean tokens before done — re-emit each original token with markers stripped
-        for raw_token in full_parts:
-            clean_token = _DELEGATE_RE.sub("", raw_token)
-            if clean_token:
-                yield clean_token
+    clean_text = _DELEGATE_RE.sub(_collect_delegate, complete_text).strip()
 
-        if stream_error:
-            yield {"type": "error", "message": "Stream interrupted"}
+    # Yield clean chunks before done — re-emit each chunk with markers stripped
+    for raw_token in full_parts:
+        clean_token = _DELEGATE_RE.sub("", raw_token)
+        if clean_token:
+            yield clean_token
 
-        if clean_text:
-            save_message(
-                conv_id,
-                channel,
-                "outbound",
-                "archie",
-                clean_text,
-                {"role": "assistant", "conversation_id": conv_id},
-            )
+    if stream_error:
+        yield {"type": "error", "message": "Stream interrupted"}
 
-        # Yield done first, then any delegation events
-        yield {"type": "done", "conversation_id": conv_id}
-        for evt in delegation_events:
-            yield evt
+    if clean_text:
+        save_message(
+            conv_id,
+            channel,
+            "outbound",
+            "archie",
+            clean_text,
+            {"role": "assistant", "conversation_id": conv_id},
+        )
+
+    # Yield done first, then any delegation events
+    yield {"type": "done", "conversation_id": conv_id}
+    for evt in delegation_events:
+        yield evt

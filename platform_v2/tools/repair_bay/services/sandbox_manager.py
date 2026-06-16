@@ -515,6 +515,41 @@ class SandboxManager:
 
             return {"success": False, "error": str(e)}
 
+    def run_tests_for_proposal(self, proposal_id: int, test_suite: str = "default") -> Dict:
+        """Create a sandbox for a proposal, run its tests, return an auto_run-shaped result.
+
+        Bridges proposal_service.auto_run (#4249): it called this method, which never
+        existed, so every approved->testing transition hit AttributeError and silently
+        degraded to "tests unavailable". Composes the existing create_sandbox + run_tests
+        primitives and maps run_tests' {tests_passed/tests_failed/pass_rate} output to the
+        {overall_status, summary} contract auto_run consumes.
+
+        Raises on sandbox-infra / creation / run failure so auto_run's except handler keeps
+        the existing graceful "tests unavailable -> ready for manual review" behaviour,
+        rather than wrongly flagging the proposal as needing fixes when the sandbox layer
+        is simply unavailable.
+        """
+        created = self.create_sandbox(proposal_id)
+        if not created or not created.get("success"):
+            raise RuntimeError((created or {}).get("error", "sandbox creation failed"))
+        sandbox_id = created.get("sandbox_id")
+        if not sandbox_id:
+            raise RuntimeError("sandbox created but no sandbox_id returned")
+
+        result = self.run_tests(sandbox_id, test_suite)
+        if not result or not result.get("success"):
+            raise RuntimeError((result or {}).get("error", "test run failed"))
+
+        passed = result.get("tests_passed", 0)
+        failed = result.get("tests_failed", 0)
+        total = result.get("tests_total", passed + failed)
+        return {
+            "overall_status": "passed" if failed == 0 else "failed",
+            "summary": f"{passed}/{total} tests passed ({result.get('pass_rate', 0)}% pass rate)",
+            "sandbox_id": sandbox_id,
+            **result,
+        }
+
     def apply_code_changes(self, sandbox_id: int, code_changes: List[Dict]) -> Dict:
         """
         Apply code changes to a sandbox before testing.

@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{% block title %}Mailbox Story Extractor{% endblock %}
+
+{% block module_name %}mailbox_story{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
+<script src="{{ url_for('static', filename='js/lcars-header.js') }}" defer></script>
+<style>
+  :root { --ms-accent: #38bdf8; --ms-accent-rgb: 56,189,248; }
+  .ms-wrap { max-width: 1200px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+  .ms-hero { border-left: 4px solid var(--ms-accent); padding: .5rem 0 .5rem 1rem; margin-bottom: 1.25rem; }
+  .ms-hero h1 { margin: 0 0 .25rem; font-size: 1.5rem; letter-spacing: .5px; }
+  .ms-hero p { margin: 0; opacity: .75; font-size: .9rem; }
+  .ms-priv { display:inline-block; margin-top:.5rem; font-size:.72rem; text-transform:uppercase; letter-spacing:1px;
+             color: var(--ms-accent); border:1px solid rgba(var(--ms-accent-rgb),.4); border-radius:3px; padding:.15rem .5rem; }
+  .ms-card { background: rgba(255,255,255,.03); border:1px solid rgba(var(--ms-accent-rgb),.25);
+             border-radius:6px; padding:1rem 1.1rem; margin-bottom:1.25rem; }
+  .ms-card h2 { margin:0 0 .75rem; font-size:1rem; text-transform:uppercase; letter-spacing:1px; opacity:.85; }
+  .ms-drop { border:2px dashed rgba(var(--ms-accent-rgb),.45); border-radius:6px; padding:1.5rem; text-align:center;
+             cursor:pointer; transition:.15s; }
+  .ms-drop.drag { background: rgba(var(--ms-accent-rgb),.08); border-color: var(--ms-accent); }
+  .ms-drop input { display:none; }
+  .ms-btn { background: var(--ms-accent); color:#05121c; border:none; border-radius:4px; padding:.45rem .9rem;
+            font-weight:600; cursor:pointer; font-size:.85rem; }
+  .ms-btn.ghost { background:transparent; color:var(--ms-accent); border:1px solid rgba(var(--ms-accent-rgb),.5); }
+  .ms-btn.danger { background:transparent; color:#f87171; border:1px solid rgba(248,113,113,.5); }
+  .ms-prog { height:6px; background:rgba(255,255,255,.08); border-radius:3px; overflow:hidden; margin-top:.75rem; display:none; }
+  .ms-prog > div { height:100%; width:0; background:var(--ms-accent); transition:width .2s; }
+  table.ms-tbl { width:100%; border-collapse:collapse; font-size:.82rem; }
+  table.ms-tbl th, table.ms-tbl td { text-align:left; padding:.45rem .55rem; border-bottom:1px solid rgba(255,255,255,.06); }
+  table.ms-tbl th { opacity:.6; text-transform:uppercase; font-size:.7rem; letter-spacing:.5px; }
+  table.ms-tbl tr.clickable { cursor:pointer; }
+  table.ms-tbl tr.clickable:hover { background: rgba(var(--ms-accent-rgb),.06); }
+  .ms-badge { font-size:.68rem; padding:.12rem .45rem; border-radius:3px; text-transform:uppercase; letter-spacing:.5px; }
+  .ms-badge.uploaded,.ms-badge.extracting,.ms-badge.enriching { background:rgba(250,204,21,.15); color:#facc15; }
+  .ms-badge.extracted,.ms-badge.done { background:rgba(56,189,248,.15); color:var(--ms-accent); }
+  .ms-badge.error { background:rgba(248,113,113,.15); color:#f87171; }
+  .ms-muted { opacity:.55; }
+  .ms-pager { display:flex; gap:.5rem; align-items:center; margin-top:.75rem; font-size:.8rem; }
+  .ms-empty { opacity:.5; padding:1rem; text-align:center; font-size:.85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ms-wrap">
+  <div class="ms-hero">
+    <h1>Mailbox Story Extractor</h1>
+    <p>Upload a <code>.pst</code> mailbox — a <strong>local</strong> AI reconstructs the account's story. Nothing leaves the infra.</p>
+    <span class="ms-priv">🔒 Local-only · admin-gated · files never leave local disk</span>
+  </div>
+
+  <div class="ms-card">
+    <h2>Upload a mailbox</h2>
+    <label class="ms-drop" id="msDrop">
+      <input type="file" id="msFile" accept=".pst">
+      <div id="msDropText">Drop a <strong>.pst</strong> here, or click to choose</div>
+    </label>
+    <div class="ms-prog" id="msProg"><div></div></div>
+    <div id="msUploadMsg" class="ms-muted" style="margin-top:.6rem; font-size:.8rem;"></div>
+  </div>
+
+  <div class="ms-card">
+    <h2>Imports</h2>
+    <div id="msImports"><div class="ms-empty">Loading…</div></div>
+  </div>
+
+  <div class="ms-card" id="msEmailsCard" style="display:none;">
+    <h2 id="msEmailsTitle">Emails</h2>
+    <div id="msEmails"></div>
+    <div class="ms-pager" id="msPager" style="display:none;">
+      <button class="ms-btn ghost" id="msPrev">‹ Prev</button>
+      <span id="msPageInfo" class="ms-muted"></span>
+      <button class="ms-btn ghost" id="msNext">Next ›</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const BASE = "/tools/mailbox-story";
+  const $ = (id) => document.getElementById(id);
+  let pollTimer = null;
+  let sel = { importId: null, offset: 0, limit: 50, total: 0 };
+
+  function badge(status) {
+    const span = document.createElement("span");
+    span.className = "ms-badge " + (status || "");
+    span.textContent = status || "—";
+    return span;
+  }
+
+  // ---- upload (raw body stream; bypasses the 16MB form cap) ----
+  function upload(file) {
+    if (!file) return;
+    const prog = $("msProg"), bar = prog.firstElementChild, msg = $("msUploadMsg");
+    prog.style.display = "block"; bar.style.width = "0";
+    msg.textContent = "Uploading " + file.name + " (" + (file.size / 1048576).toFixed(1) + " MB)…";
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", BASE + "/api/upload");
+    xhr.setRequestHeader("X-Filename", file.name);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) bar.style.width = (e.loaded / e.total * 100) + "%"; };
+    xhr.onload = () => {
+      prog.style.display = "none";
+      let r = {}; try { r = JSON.parse(xhr.responseText); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300) {
+        msg.textContent = "Received. Extracting on the server…";
+        loadImports();
+      } else {
+        msg.textContent = "Upload failed: " + (r.error || xhr.status);
+      }
+    };
+    xhr.onerror = () => { prog.style.display = "none"; msg.textContent = "Upload failed (network)."; };
+    xhr.send(file);
+  }
+
+  // ---- imports list (auto-polls while any are in flight) ----
+  async function loadImports() {
+    let data;
+    try { data = await (await fetch(BASE + "/api/imports")).json(); }
+    catch (_) { return; }
+    const wrap = $("msImports");
+    wrap.textContent = "";
+    const rows = data.imports || [];
+    if (!rows.length) { wrap.innerHTML = '<div class="ms-empty">No imports yet.</div>'; return; }
+    const tbl = document.createElement("table");
+    tbl.className = "ms-tbl";
+    tbl.innerHTML = "<thead><tr><th>File</th><th>Status</th><th>Emails</th><th>When</th><th></th></tr></thead>";
+    const tb = document.createElement("tbody");
+    let inFlight = false;
+    rows.forEach((r) => {
+      if (["uploaded", "extracting", "enriching"].includes(r.status)) inFlight = true;
+      const tr = document.createElement("tr");
+      tr.className = "clickable";
+      const td = (fn) => { const c = document.createElement("td"); fn(c); return c; };
+      tr.appendChild(td((c) => { c.textContent = r.filename; }));
+      tr.appendChild(td((c) => { c.appendChild(badge(r.status)); if (r.error) { c.title = r.error; } }));
+      tr.appendChild(td((c) => { c.textContent = r.email_count; }));
+      tr.appendChild(td((c) => { c.textContent = (r.created_at || "").replace("T", " ").slice(0, 16); c.className = "ms-muted"; }));
+      const act = td((c) => {
+        const del = document.createElement("button");
+        del.className = "ms-btn danger"; del.textContent = "Delete";
+        del.onclick = (e) => { e.stopPropagation(); delImport(r.id, r.filename); };
+        c.appendChild(del);
+      });
+      tr.appendChild(act);
+      tr.onclick = () => openEmails(r.id, r.filename, r.email_count);
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    wrap.appendChild(tbl);
+    if (pollTimer) clearTimeout(pollTimer);
+    if (inFlight) pollTimer = setTimeout(loadImports, 3000);
+  }
+
+  async function delImport(id, name) {
+    if (!confirm("Delete import \"" + name + "\"? This wipes the .pst and all extracted emails from disk.")) return;
+    await fetch(BASE + "/api/imports/" + id + "/delete", { method: "POST" });
+    if (sel.importId === id) { $("msEmailsCard").style.display = "none"; sel.importId = null; }
+    loadImports();
+  }
+
+  // ---- email table ----
+  async function openEmails(id, name, count) {
+    sel = { importId: id, offset: 0, limit: 50, total: count || 0 };
+    $("msEmailsTitle").textContent = "Emails — " + name;
+    $("msEmailsCard").style.display = "block";
+    $("msEmailsCard").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    renderEmails();
+  }
+
+  async function renderEmails() {
+    const host = $("msEmails");
+    host.innerHTML = '<div class="ms-empty">Loading…</div>';
+    let data;
+    try {
+      data = await (await fetch(BASE + "/api/imports/" + sel.importId + "/emails?offset=" + sel.offset + "&limit=" + sel.limit)).json();
+    } catch (_) { host.innerHTML = '<div class="ms-empty">Failed to load.</div>'; return; }
+    sel.total = data.total || 0;
+    const rows = data.emails || [];
+    host.textContent = "";
+    if (!rows.length) { host.innerHTML = '<div class="ms-empty">No emails extracted yet.</div>'; $("msPager").style.display = "none"; return; }
+    const tbl = document.createElement("table");
+    tbl.className = "ms-tbl";
+    tbl.innerHTML = "<thead><tr><th>Date</th><th>From</th><th>To</th><th>Subject</th><th>Folder</th><th>📎</th></tr></thead>";
+    const tb = document.createElement("tbody");
+    rows.forEach((e) => {
+      const tr = document.createElement("tr");
+      const td = (val, cls) => { const c = document.createElement("td"); c.textContent = val == null ? "" : val; if (cls) c.className = cls; return c; };
+      tr.appendChild(td((e.sent_at || "").replace("T", " ").slice(0, 16), "ms-muted"));
+      tr.appendChild(td(e.from_addr));
+      tr.appendChild(td(e.to_addrs));
+      tr.appendChild(td(e.subject || "(no subject)"));
+      tr.appendChild(td(e.folder, "ms-muted"));
+      tr.appendChild(td(e.has_attachments ? "📎" : ""));
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    host.appendChild(tbl);
+    const pager = $("msPager"); pager.style.display = "flex";
+    const from = sel.offset + 1, to = Math.min(sel.offset + sel.limit, sel.total);
+    $("msPageInfo").textContent = from + "–" + to + " of " + sel.total;
+    $("msPrev").disabled = sel.offset <= 0;
+    $("msNext").disabled = sel.offset + sel.limit >= sel.total;
+  }
+
+  // ---- wire up ----
+  const drop = $("msDrop"), fileInput = $("msFile");
+  fileInput.addEventListener("change", () => upload(fileInput.files[0]));
+  ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
+  drop.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) upload(e.dataTransfer.files[0]); });
+  $("msPrev").onclick = () => { if (sel.offset > 0) { sel.offset -= sel.limit; renderEmails(); } };
+  $("msNext").onclick = () => { if (sel.offset + sel.limit < sel.total) { sel.offset += sel.limit; renderEmails(); } };
+
+  loadImports();
+})();
+</script>
+{% endblock %}

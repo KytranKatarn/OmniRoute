@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     git \
     curl \
+    pst-utils \
     tzdata \
     espeak-ng \
     tesseract-ocr \

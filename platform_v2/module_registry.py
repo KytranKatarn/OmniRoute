@@ -655,6 +655,23 @@ MODULES: List[ModuleDefinition] = [
         priority=2,
         tags=["genealogy", "family", "tree", "ancestry", "ai", "photos", "ocr"],
     ),
+    ModuleDefinition(
+        id="mailbox_story",
+        name="Mailbox Story Extractor",
+        description="Upload a .pst → a LOCAL AI reconstructs the account's story<br>Local-sovereign · admin-gated · nothing leaves the infra",
+        icon="mailbox",
+        category=ModuleCategory.APPLICATIONS_CONCEPTS,
+        route="/tools/mailbox-story",
+        blueprint_import="tools.mailbox_story:mailbox_story_bp",
+        required_permissions=[],
+        minimum_role="ADMIN",
+        minimum_tier="staff",
+        enabled=True,
+        coming_soon=False,
+        health_check=lambda: check_service_health("mailbox_story", "/tools/mailbox-story/api/status"),
+        priority=2,
+        tags=["mailbox", "pst", "email", "local-ai", "intelligence", "privacy", "sovereign"],
+    ),
     # ============================================
     # PLACEHOLDERS - FUTURE (12 modules)
     # ============================================

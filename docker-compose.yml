@@ -460,6 +460,10 @@ services:
       - OLLAMA_HOST=192.168.1.200:11434
       - ARCHIE_VOICE_MODEL=dolphin3-8k:latest
       - PLATFORM_URL=http://archie_platform:3000
+      # Required for the chat→DHQ delegation hand-off (/api/internal/delegation/submit)
+      # and the repair-count poll (/api/internal/repair/count). Was missing → empty
+      # Bearer → recurring 401. Sibling services set this too (see L1020+).
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - CLAUDE_PROXY_URL=http://host.docker.internal:7682
       - COMMS_PORT=3002
       - SECRET_KEY=${SECRET_KEY}

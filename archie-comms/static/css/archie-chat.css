@@ -1037,3 +1037,58 @@
 @media (max-width: 768px) {
   .ac-quick-actions { display: none; }
 }
+
+/* ============================================================
+   TAB PANELS — show/hide  (fixes the stacked/unstyled-panel layout)
+   The template (chat.html) switches tabs via .comms-panel /
+   .comms-panel.active, toggled by window.onLcarsTabSwitch. The CSS
+   backing those classes was never written, so every panel rendered
+   stacked and the placeholders spilled into unstyled white space.
+   Body becomes a flex column: the sticky 132px LCARS header stays on
+   top and the single active panel fills the remaining viewport.
+   ============================================================ */
+html, body { height: 100%; }
+body {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+  background: var(--ac-bg-primary, #0a0f1a);
+}
+.lcars-header { flex-shrink: 0; }
+
+.comms-panel { display: none; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.comms-panel.active { display: flex; flex-direction: column; }
+
+/* Placeholder panels (History / Collaboration — "COMING SOON") */
+.comms-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 48px 24px;
+  background: var(--ac-bg-primary, #0a0f1a);
+  color: var(--ac-text-secondary, #8899aa);
+}
+.comms-placeholder-title {
+  font-family: 'Orbitron', 'Antonio', sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ac-text-primary, #e0e6f0);
+}
+.comms-placeholder p { max-width: 460px; line-height: 1.6; margin: 0; }
+.comms-placeholder-badge {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: #00ffff;
+  border: 1px solid rgba(0, 255, 255, 0.45);
+  border-radius: 4px;
+  padding: 5px 14px;
+}

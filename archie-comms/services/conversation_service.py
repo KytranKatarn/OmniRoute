@@ -479,7 +479,15 @@ def get_conversation_by_uuid(conversation_uuid, user_id, team_id=None):
         return None
 
 
-def save_message(
+# DEPRECATED + RENAMED (2026-06-16): this was a SECOND `def save_message` that
+# SHADOWED the canonical one (~line 71, signature channel/direction/sender/content).
+# Python keeps the later definition, so every one of the 12 in-file callers — which
+# all pass the line-71 signature — had its arguments scrambled into the wrong columns
+# (content<->sender<->direction), corrupting unified_messages. No caller uses this
+# role-based signature (chat/api_routes.py has its own save_message; nothing imports
+# this one), so renaming it is safe and restores the canonical save_message. Candidate
+# for deletion once confirmed unused in review.
+def _legacy_save_message_role(
     conversation_id,
     role,
     content,

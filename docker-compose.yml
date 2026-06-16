@@ -526,8 +526,14 @@ services:
       - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_WS_HOST=0.0.0.0
       - ARCHIE_DATA_DIR=/data
+    # The engine's file/git/shell tools use Path.cwd() as their workspace.
+    # Point cwd at an isolated, writable /workspace volume so it can do hands-on
+    # coding WITHOUT touching the platform repo or host (read_only rootfs +
+    # cap_drop ALL keep everything else off-limits).
+    working_dir: /workspace
     volumes:
       - archie_engine_data:/data
+      - archie_engine_workspace:/workspace
     ports:
       - "127.0.0.1:9090:9090"
     networks:
@@ -1269,6 +1275,9 @@ volumes:
   archie_engine_data:
     driver: local
     name: archie_engine_data
+  archie_engine_workspace:
+    driver: local
+    name: archie_engine_workspace
   codex_terminal_home:
     driver: local
   codex_terminal_work:

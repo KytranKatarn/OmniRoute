@@ -38,9 +38,14 @@ app.secret_key = _secret_key
 
 ARCHIE_SERVICE_TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
 
-app.config["SESSION_COOKIE_DOMAIN"] = ".kytranempowerment.com"
+# Mesh-only cockpit (2026-06-17): served over http on the WireGuard-encrypted mesh at a
+# raw-IP host. A domain-scoped (.kytranempowerment.com) cookie can't bind to an IP host,
+# and a Secure cookie isn't sent over http — either one drops the session, which broke the
+# OAuth `state`/PKCE round-trip across the 2 gunicorn workers ("Session Expired"). Default
+# to a host-only, non-Secure cookie; override via env if fronted by HTTPS again.
+app.config["SESSION_COOKIE_DOMAIN"] = os.getenv("COMMS_COOKIE_DOMAIN", "").strip() or None
 app.config["SESSION_COOKIE_NAME"] = "archie_comms_session"
-app.config["SESSION_COOKIE_SECURE"] = True  # subdomain is HTTPS
+app.config["SESSION_COOKIE_SECURE"] = os.getenv("COMMS_COOKIE_SECURE", "false").lower() == "true"
 app.config["SESSION_COOKIE_HTTPONLY"] = True  # blocks JS cookie read
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"  # permit top-level OAuth redirect
 

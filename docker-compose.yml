@@ -473,21 +473,24 @@ services:
       - CLAUDE_MODEL=claude-sonnet-4-20250514
       - KYTRAN_CLIENT_ID=archie-comms
       - KYTRAN_CLIENT_SECRET=2e718ace8add43c8a1054b3d80f885bc108074e11be1c43e7bb9747676860dfb
-      # Mesh-only cockpit (2026-06-17): browser-facing authorize over the MagicDNS name
-      # (Tailscale resolves *.mesh.archie client-side → hub 100.64.0.4; hides the raw IP and
-      # avoids the mesh->hub:53 host-routing block). Server-side token/userinfo exchange
-      # stays on the docker-internal platform URL. Enter the cockpit via the same name:
-      # http://archie-starbase.mesh.archie:3002.
-      #   Cross-host cookie: the session cookie is host-only (COMMS_COOKIE_DOMAIN unset), so the
-      #   OAuth state/PKCE only survives when authorize(:3000) + callback(:3002) share the host.
-      #   Both use this same name → consistent. Raw-IP entry still reaches the page, but starting
-      #   login from the IP would set the cookie on a different host → use the name.
-      #   Consistency: this is the ONLY place the cockpit OAuth host is set (no .env override; the
-      #   oauth_clients.archie-comms.redirect_uri DB row matches). The 100.64.0.4 refs elsewhere
-      #   (ARCHIE_HUB_URL / HUB_MESH_URL) are the engine/hub mesh dispatch URLs — unrelated, keep.
-      - KYTRAN_AUTH_URL=http://archie-starbase.mesh.archie:3000
+      # Padlock cockpit (2026-06-17, #4287): browser-facing OAuth over the PUBLIC https
+      # hostnames. Mesh clients resolve archie.*/platform.* → hub 100.64.0.4 via Headscale
+      # MagicDNS extra_records (client-side, no :53-over-mesh dependency); NPM serves both with
+      # real Let's Encrypt certs on 100.64.0.4:443 → padlock, no IP, no port. Server-side
+      # token/userinfo exchange stays docker-internal (archie_platform:3000). Cookie = host-only
+      # + Secure (https): login + callback are both on archie.kytranempowerment.com, so the OAuth
+      # state/PKCE survives (the platform-authorize hop doesn't need the comms cookie). The
+      # oauth_clients.archie-comms.redirect_uri DB row must match KYTRAN_REDIRECT_URI.
+      # Fallback (page only): http://archie-starbase.mesh.archie:3002 / http://100.64.0.4:3002.
+      - KYTRAN_AUTH_URL=https://platform.kytranempowerment.com
       - KYTRAN_AUTH_INTERNAL_URL=http://archie_platform:3000
-      - KYTRAN_REDIRECT_URI=http://archie-starbase.mesh.archie:3002/auth/kytran/callback
+      - KYTRAN_REDIRECT_URI=https://archie.kytranempowerment.com/auth/kytran/callback
+      # Secure=false: comms sits behind NPM (TLS at the edge) and sees the request as http
+      # with no ProxyFix, so a Secure cookie is dropped on the post-login redirect hop → the
+      # session is lost → login loops (SSO accepted repeatedly). The padlock comes from NPM's
+      # cert, not this flag; the cookie still only travels the WireGuard mesh. (Proper fix:
+      # add ProxyFix to trust X-Forwarded-Proto, then this can return to true.)
+      - COMMS_COOKIE_SECURE=false
       - ARCHIE_COMMS_SERVICE_TOKEN=${ARCHIE_COMMS_SERVICE_TOKEN}
       - CLAUDE_CLIENT_ID=claude-terminal
       - CLAUDE_CLIENT_SECRET=717303c1e78251250c8509245b7e1ac385a5b2bbc684208d328a4423628651e3

@@ -60,6 +60,17 @@ dns:
       - 192.168.1.200
       - 1.1.1.1
   search_domains: []
+  # Padlock-over-mesh (#4287): push these A records via MagicDNS so mesh clients resolve
+  # them CLIENT-SIDE (no :53-over-mesh dependency) → https://archie.*/platform.* over mesh
+  # hits NPM's real Let's Encrypt cert on 100.64.0.4:443. Targeted override; all other
+  # names still use the nameservers above. Harmless for fleet nodes (already hub-pointed).
+  extra_records:
+    - name: "archie.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.4"
+    - name: "platform.kytranempowerment.com"
+      type: "A"
+      value: "100.64.0.4"
 
 # Unix socket for headscale CLI
 unix_socket: /var/run/headscale/headscale.sock

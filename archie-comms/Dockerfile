@@ -22,4 +22,9 @@ EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -f http://localhost:3002/api/health || exit 1
 
-CMD ["gunicorn", "--bind", "0.0.0.0:3002", "--workers", "2", "--timeout", "120", "app_comms:app"]
+# 1 worker (not 2): the OAuth `state`/PKCE verifier is stored in per-worker in-memory
+# (_pending_states in kytran_auth.py). With >1 worker, /auth/kytran/login and the OAuth
+# callback can land on different workers → state not found → intermittent "Session Expired".
+# This is a single-user admin cockpit, so one worker is plenty. (To restore 2+, move
+# _pending_states to a shared store — DB/Redis.)
+CMD ["gunicorn", "--bind", "0.0.0.0:3002", "--workers", "1", "--timeout", "120", "app_comms:app"]

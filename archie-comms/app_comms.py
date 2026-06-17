@@ -36,6 +36,15 @@ if not _secret_key:
     )
 app.secret_key = _secret_key
 
+# Behind NPM for the padlocked https hostname (TLS terminated at the edge, plain http to
+# this app). Trust the single proxy hop's X-Forwarded-Proto/Host so request.scheme is
+# 'https' and external URL/redirect/cookie handling is correct — without this the app sees
+# http and the OAuth session can break over the proxy. No-op for direct mesh/IP access
+# (no X-Forwarded-* headers). One hop = NPM only.
+from werkzeug.middleware.proxy_fix import ProxyFix  # noqa: E402
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
 ARCHIE_SERVICE_TOKEN = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
 
 # Mesh-only cockpit (2026-06-17): served over http on the WireGuard-encrypted mesh at a

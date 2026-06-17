@@ -191,7 +191,7 @@ def _call_ollama(system_prompt, user_prompt):
     """
     import urllib.request
 
-    ollama_host = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+    ollama_host = os.getenv("OLLAMA_HOST", "http://100.64.0.4:11434")
     # Ensure scheme prefix — container env often has bare host:port
     if ollama_host and not ollama_host.startswith("http"):
         ollama_host = f"http://{ollama_host}"
@@ -228,7 +228,7 @@ def _stream_ollama(system_prompt, user_prompt):
     # requests is a listed archie_comms dep (requirements.txt) — intentional deviation from _call_ollama's urllib
     import requests as _requests
 
-    ollama_host = os.getenv("OLLAMA_HOST", "http://192.168.1.200:11434")
+    ollama_host = os.getenv("OLLAMA_HOST", "http://100.64.0.4:11434")
     if ollama_host and not ollama_host.startswith("http"):
         ollama_host = f"http://{ollama_host}"
     model = os.getenv("ARCHIE_VOICE_MODEL", "dolphin3-8k:latest")

@@ -457,7 +457,7 @@ services:
       - DB_HOST=archie_database
       - DB_NAME=archie
       - DB_USER=archie
-      - OLLAMA_HOST=192.168.1.200:11434
+      - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_VOICE_MODEL=dolphin3-8k:latest
       - PLATFORM_URL=http://archie_platform:3000
       # Required for the chat→DHQ delegation hand-off (/api/internal/delegation/submit)
@@ -472,7 +472,7 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - CLAUDE_MODEL=claude-sonnet-4-20250514
       - KYTRAN_CLIENT_ID=archie-comms
-      - KYTRAN_CLIENT_SECRET=2e718ace8add43c8a1054b3d80f885bc108074e11be1c43e7bb9747676860dfb
+      - KYTRAN_CLIENT_SECRET=${KYTRAN_CLIENT_SECRET}
       # Padlock cockpit (2026-06-17, #4287): browser-facing OAuth over the PUBLIC https
       # hostnames. Mesh clients resolve archie.*/platform.* → hub 100.64.0.4 via Headscale
       # MagicDNS extra_records (client-side, no :53-over-mesh dependency); NPM serves both with
@@ -493,7 +493,7 @@ services:
       - COMMS_COOKIE_SECURE=false
       - ARCHIE_COMMS_SERVICE_TOKEN=${ARCHIE_COMMS_SERVICE_TOKEN}
       - CLAUDE_CLIENT_ID=claude-terminal
-      - CLAUDE_CLIENT_SECRET=717303c1e78251250c8509245b7e1ac385a5b2bbc684208d328a4423628651e3
+      - CLAUDE_CLIENT_SECRET=${CLAUDE_CLIENT_SECRET}
       - CLAUDE_REDIRECT_URI=https://claude.kytranempowerment.com/auth/kytran/callback
     extra_hosts:
       - "host.docker.internal:host-gateway"

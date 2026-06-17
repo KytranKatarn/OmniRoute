@@ -130,6 +130,10 @@ _API_GENERATE_ALLOWLIST: set[str] = {
     # messages / new). Not Ollama inference. Follow-up to refine the guardrail
     # regex so route decorators no longer trigger: task #2228.
     "archie-comms/app_comms.py",
+    # archie-comms chat voice — intentionally direct-Ollama (ADR-013 waiver) so
+    # A.R.C.H.I.E. can still talk if the platform/DHQ is down. Standalone app's own
+    # api/chat call, NOT dispatcher-initiated GPU-placed inference. (#4266)
+    "archie-comms/services/archie_voice_service.py",
     # Consciousness module — Flask route decorators for `/api/chat-volume`,
     # `/api/chat/history`, `/api/chat/upload` (admin-side conversation analytics
     # routes). Not Ollama inference. Same false-positive shape as archie-comms;

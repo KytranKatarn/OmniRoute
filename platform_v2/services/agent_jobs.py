@@ -2707,7 +2707,10 @@ def signal_linkedin_draft(account_filter="all"):
                     title="S.I.G.N.A.L. Check-In",
                     message=checkin_msg,
                     source_agent="A.R.C.H.I.E.",
-                    severity="high",
+                    # Routine content-calendar check-in ("what do you want to post?"), NOT a
+                    # system incident — keep it out of the cockpit's red `critical` state.
+                    # 'medium' surfaces it in the bell without flashing the header red.
+                    severity="medium",
                     department="Executive Office",
                 )
                 logger.info("[LinkedInDraft] Personal check-in sent via Telegram")

@@ -105,7 +105,12 @@ def _send_approval_telegram(
             title=f"Approval Required \u2014 {action_type} #{approval_id}",
             message="\n".join(lines),
             source_agent="A.R.C.H.I.E.",
-            severity="critical",
+            # An approval_request is a routine pending-approval (LinkedIn post, cloud
+            # escalation, …), NOT a system incident — so it must NOT hold the cockpit
+            # header in the red `critical` alert state. 'medium' still surfaces it in the
+            # notification bell but does not flash the elbow red; genuine incidents stay
+            # 'critical'. Approvals are actioned via Telegram + the Approvals queue.
+            severity="medium",
             department="Executive Office",
         )
         logger.info(

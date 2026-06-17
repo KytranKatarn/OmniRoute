@@ -231,6 +231,32 @@ def is_stale(node: dict[str, Any], seconds: int = STALE_HEARTBEAT_SECONDS) -> bo
     return (datetime.now(timezone.utc) - last_hb) > timedelta(seconds=seconds)
 
 
+def node_has_model(node: dict[str, Any], model: str) -> bool:
+    """True if *node* actually has *model* pulled (per its reported ollama_models).
+
+    can_node_run_model() is capacity-only — it checks the node COULD hold a model
+    of this size, NOT that this exact model is present. Routing a hub-only / custom
+    model (e.g. qwen25-classify, codex-cli, phi3.5) to a capable-but-doesn't-have-it
+    node 404s its Ollama (#4272). Fail-OPEN: when the node reports no model list we
+    can't disqualify it (the hub fallback, which has every model, covers a rare
+    miss); fail-CLOSED only when the list is known and the model is absent.
+    """
+    if not node or not model:
+        return False
+    extra = node.get("extra_capabilities") or {}
+    if not isinstance(extra, dict):
+        return True
+    names = extra.get("ollama_models")
+    if not isinstance(names, list) or not names:
+        return True  # unknown list — don't disqualify; hub fallback covers a miss
+
+    def _norm(m: str) -> str:
+        return m[:-7] if isinstance(m, str) and m.endswith(":latest") else m
+
+    nm = _norm(model)
+    return nm in names or any(_norm(x) == nm for x in names)
+
+
 def find_best_node_for_model(
     model: str, home_node_db_id: Optional[int] = None, *, profile_pref: Optional[str] = None
 ) -> Optional[int]:
@@ -299,6 +325,12 @@ def find_best_node_for_model(
         # disqualify a capable IDLE node via the noisy current_load/heartbeat
         # terms score_node_for_model folds in. score is used ONLY to rank.
         if not can_node_run_model(node, model):
+            continue
+        # Capacity-fit (above) only proves the node COULD hold a model of this
+        # size — not that THIS model is actually pulled there. Skip nodes whose
+        # reported model list lacks it, so a hub-only / custom model never routes
+        # to a node that 404s on it (#4272); the hub fallback serves it instead.
+        if not node_has_model(node, model):
             continue
         score = score_node_for_model(node, model)
         if score is None:

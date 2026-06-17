@@ -751,6 +751,11 @@ def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     """
     if not _fleet_routing_enabled():
         return None
+    # Contractors (e.g. Codex, model='codex-cli') are external CLI tools, NOT Ollama
+    # agents — never score-route them to a fleet Ollama node, which would 404 on a
+    # model it can't possibly have (#4272). Covers worker_type 'contract'/'contractor'.
+    if str((agent or {}).get("worker_type") or "").startswith("contract"):
+        return None
     home = agent.get("node_db_id") if agent else None
     try:
         from services.fleet_resource_router import find_best_node_for_model

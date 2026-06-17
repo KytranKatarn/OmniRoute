@@ -141,6 +141,23 @@ def save_message(conversation_id, channel, direction, sender, content, metadata=
                 "UPDATE unified_conversations SET last_activity = NOW() WHERE id = %s",
                 (conversation_id,),
             )
+
+            # Auto-title the thread from its FIRST inbound (user) message (#4281).
+            # The conversation list reads `title`, but new_conversation only sets
+            # `topic`, so untitled threads all rendered as "Conversation". Fill
+            # `title` from the opening user message; the guard means only a
+            # blank/default title is set — an existing title is never overwritten,
+            # so only the first user message names the thread.
+            if direction == "inbound" and content and content.strip():
+                _norm = " ".join(content.split())
+                _title = _norm[:48] + ("…" if len(_norm) > 48 else "")
+                cur.execute(
+                    """UPDATE unified_conversations SET title = %s
+                       WHERE id = %s
+                         AND (title IS NULL OR title = '' OR title = 'New conversation')""",
+                    (_title, conversation_id),
+                )
+
             conn.commit()
             return mid
 

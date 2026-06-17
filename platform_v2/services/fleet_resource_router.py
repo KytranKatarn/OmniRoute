@@ -265,6 +265,11 @@ def find_best_node_for_model(
                 FROM remote_nodes
                 WHERE is_active = TRUE
                   AND status = 'online'
+                  -- Exclude ingress / no-Ollama nodes (e.g. Beacon, ollama_available=f):
+                  -- they cannot serve inference, so scoring them as dispatch candidates
+                  -- routes jobs to a dead Ollama port → ConnectionError storm (#4272).
+                  -- COALESCE → a NULL flag is treated as available (fail-open).
+                  AND COALESCE(ollama_available, TRUE) = TRUE
                   AND last_heartbeat > NOW() - INTERVAL '3 minutes'
                 ORDER BY priority DESC NULLS LAST
                 """,

@@ -2268,6 +2268,11 @@ class DepartmentDispatcher:
                 FROM remote_nodes
                 WHERE id = %s
                   AND status = 'online'
+                  -- Defense-in-depth: never build dispatch-info for an ingress /
+                  -- no-Ollama node (e.g. Beacon, ollama_available=f) — dispatching
+                  -- there ConnectionErrors. Returns None → caller falls through to
+                  -- hub/next candidate. COALESCE → NULL treated as available (#4272).
+                  AND COALESCE(ollama_available, TRUE) = TRUE
                   AND last_heartbeat > NOW() - INTERVAL '3 minutes'
                 """,
                 (node_db_id,),

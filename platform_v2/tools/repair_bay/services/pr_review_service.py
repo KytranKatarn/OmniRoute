@@ -94,7 +94,7 @@ def poll_open_prs(repo: str = None) -> dict:
 
     _repo = repo or _DEFAULT_REPO
     try:
-        data = list_all_prs_enriched("open")
+        data = list_all_prs_enriched("open", repo=_repo)
     except Exception as e:
         logger.error("pr_review_service: GitHub poll failed: %s", e)
         return {"polled": 0, "inserted": 0, "updated": 0, "errors": 1}
@@ -163,7 +163,7 @@ def sync_closed_prs(repo: str = None) -> int:
 
     _repo = repo or _DEFAULT_REPO
     try:
-        open_data = list_all_prs_enriched("open")
+        open_data = list_all_prs_enriched("open", repo=_repo)
     except Exception as e:
         logger.error("pr_review_service: sync_closed poll failed: %s", e)
         return 0

@@ -567,7 +567,7 @@ def list_pipeline_prs(state: str = "open") -> Dict:
     return {"success": True, "prs": prs, "count": len(prs)}
 
 
-def list_all_prs_enriched(state: str = "open") -> Dict:
+def list_all_prs_enriched(state: str = "open", repo: str = None) -> Dict:
     """List ALL PRs (not label-filtered) enriched with check status + review
     decision. Used by the Repair Bay Reviews tab so admins can see every open
     PR at a glance, not just pipeline-labeled ones.
@@ -580,8 +580,13 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
     """
     import concurrent.futures
 
+    # repo-aware (default = the platform repo); lets F.O.R.G.E. review PRs in
+    # other repos (e.g. archie-code, the engine repo) — #4295. _enrich() below
+    # closes over this local so all its API calls hit the same repo.
+    repo = repo or REPO_FULL
+
     ok, data = _api_get(
-        f"/repos/{REPO_FULL}/pulls",
+        f"/repos/{repo}/pulls",
         {"state": state, "per_page": 50, "sort": "updated", "direction": "desc"},
     )
     if not ok:
@@ -601,7 +606,7 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
             "created_at": pr.get("created_at"),
             "updated_at": pr.get("updated_at"),
             "html_url": pr.get("html_url"),
-            "diff_url": f"https://api.github.com/repos/{REPO_FULL}/pulls/{pr.get('number')}",
+            "diff_url": f"https://api.github.com/repos/{repo}/pulls/{pr.get('number')}",
             "draft": pr.get("draft", False),
             "additions": None,
             "deletions": None,
@@ -619,7 +624,7 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
         sha = pr["head_sha"]
 
         # Detail call for mergeable state
-        det_ok, det = _api_get(f"/repos/{REPO_FULL}/pulls/{num}", timeout=8)
+        det_ok, det = _api_get(f"/repos/{repo}/pulls/{num}", timeout=8)
         if det_ok and isinstance(det, dict):
             mergeable = det.get("mergeable")
             if mergeable is True:
@@ -635,7 +640,7 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
             pr["changed_files"] = det.get("changed_files")
 
         # Reviews → review decision
-        rev_ok, reviews = _api_get(f"/repos/{REPO_FULL}/pulls/{num}/reviews", timeout=8)
+        rev_ok, reviews = _api_get(f"/repos/{repo}/pulls/{num}/reviews", timeout=8)
         if rev_ok and isinstance(reviews, list) and reviews:
             # Latest review per reviewer wins
             latest = {}
@@ -657,7 +662,7 @@ def list_all_prs_enriched(state: str = "open") -> Dict:
         # Check runs for the head SHA
         if sha:
             chk_ok, chk = _api_get(
-                f"/repos/{REPO_FULL}/commits/{sha}/check-runs",
+                f"/repos/{repo}/commits/{sha}/check-runs",
                 params={"per_page": 30},
                 timeout=8,
             )

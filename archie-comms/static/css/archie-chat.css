@@ -774,18 +774,13 @@
 
 /* 769–1024px — foldable / tablet (e.g. Galaxy Z Fold unfolded ≈884px, iPad portrait).
    This range fell between phone and desktop, so it got the full 3-column layout
-   (220px left + chat + 200px right) — leaving only ~460px for the chat. The left
-   "Conversations" list is the redundant column here (the + New Conversation button
-   and the History tab cover it), while the right rail carries the live cockpit intel
-   (Agent Activity, Live Dispatch, Building Machine). So drop the left list and give
-   the chat the room; both sidebars return on true desktop (>1024). */
+   (220px left + chat + 200px right) — leaving only ~460px for the chat. Keep the left
+   Conversations list (and its "+ New Conversation" bottom bar) and collapse the right
+   intel rail here so the chat gets room; the rail returns on true desktop (>1024).
+   Mirrors the ≤768 escalation — the right rail is the first column to go. */
 @media (min-width: 769px) and (max-width: 1024px) {
-  .ac-sidebar-left {
+  .ac-sidebar-right {
     display: none;
-  }
-
-  :root {
-    --ac-sidebar-left-width: 0px;
   }
 
   .ac-message {

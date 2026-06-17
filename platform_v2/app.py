@@ -4491,6 +4491,41 @@ def api_internal_save_session_state(agent_id, platform):
     return save_session_state_handler(agent_id, platform)
 
 
+@app.route("/api/internal/engine/telemetry", methods=["POST"])
+@_require_internal_key
+def api_internal_engine_telemetry():
+    """Record an A.R.C.H.I.E. Engine build run in task_execution_log (#4257).
+
+    The engine POSTs here after a build run so it shows on the Token Economy +
+    Dispatch tabs (worker_type='internal', module_source='archie_engine'). Auth
+    is enforced by the @_require_internal_key decorator above (the same
+    INTERNAL_API_KEY bearer the engine already uses for delegation/submit).
+    """
+    from services.agents.engine_telemetry import record_engine_run
+
+    data = request.get_json(silent=True) or {}
+    task = (data.get("task") or "").strip()
+    if not task:
+        return jsonify({"error": "task required"}), 400
+    try:
+        rec = record_engine_run(
+            task_label=task,
+            agent_name=data.get("agent_name") or "A.R.C.H.I.E. Engine",
+            model=data.get("model") or "archie:7b",
+            prompt_tokens=data.get("prompt_tokens") or 0,
+            completion_tokens=data.get("completion_tokens") or 0,
+            files_changed=data.get("files_changed"),
+            success=bool(data.get("success", True)),
+            duration_ms=int(data.get("duration_ms") or 0),
+            summary=data.get("result_summary") or data.get("summary") or "",
+            branch=data.get("branch"),
+        )
+        return jsonify({"ok": True, "id": rec.get("id")})
+    except Exception as exc:
+        app.logger.error("engine telemetry insert failed: %s", exc)
+        return jsonify({"error": "telemetry insert failed"}), 500
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():

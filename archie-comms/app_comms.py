@@ -663,6 +663,34 @@ def api_chat_new():
     return jsonify({"conversation_id": conv_id})
 
 
+@app.route("/api/chat/conversations/<int:conv_id>", methods=["DELETE"])
+def api_chat_delete_conversation(conv_id):
+    """Delete a conversation + its messages. Owner-scoped by user_id (IDOR-safe) —
+    matches how the conversation LIST is scoped, so a user can only delete their own."""
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session.get("user_id", 2)
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "SELECT 1 FROM unified_conversations WHERE id = %s AND user_id = %s",
+            (conv_id, user_id),
+        )
+        if not cur.fetchone():
+            return jsonify({"error": "Not found"}), 404
+        cur.execute("DELETE FROM unified_messages WHERE conversation_id = %s", (conv_id,))
+        cur.execute(
+            "DELETE FROM unified_conversations WHERE id = %s AND user_id = %s",
+            (conv_id, user_id),
+        )
+
+    return jsonify({"success": True, "deleted": conv_id})
+
+
 @app.route("/api/chat/sessions/<int:conv_id>/summarize", methods=["POST"])
 def api_chat_summarize(conv_id):
     """Called via sendBeacon on session close. Stores KB summary."""

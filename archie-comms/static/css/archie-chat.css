@@ -150,6 +150,37 @@
   position: relative;
 }
 
+/* Delete (×) button on each conversation — top-right, reveal on hover (desktop),
+   always visible on touch/foldable so it's tappable on the Fold. */
+.ac-session-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  line-height: 16px;
+  text-align: center;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ac-text-secondary, #64748b);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity var(--ac-transition),
+    background var(--ac-transition),
+    color var(--ac-transition);
+}
+.ac-session-item .ac-session-title { padding-right: 22px; }
+.ac-session-item:hover .ac-session-delete,
+.ac-session-item.active .ac-session-delete { opacity: 1; }
+.ac-session-delete:hover { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+@media (pointer: coarse) {
+  .ac-session-delete { opacity: 1; }
+}
+
 .ac-session-item:hover {
   background: rgba(0, 255, 255, 0.05);
   border-left-color: rgba(0, 255, 255, 0.35);

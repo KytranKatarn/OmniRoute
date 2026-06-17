@@ -62,9 +62,28 @@ class SessionManager {
       date.textContent = s.updated_at ? new Date(s.updated_at).toLocaleDateString() : '';
       item.appendChild(title);
       item.appendChild(date);
+      // Delete (×) — stopPropagation so it doesn't also trigger select()
+      const del = _mk('button', 'ac-session-delete');
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = 'Delete conversation';
+      del.setAttribute('aria-label', 'Delete conversation');
+      del.addEventListener('click', (e) => { e.stopPropagation(); this._delete(s.id); });
+      item.appendChild(del);
       item.addEventListener('click', () => this.select(s.id));
       this.listEl.appendChild(item);
     });
+  }
+
+  async _delete(id) {
+    if (!window.confirm('Delete this conversation? This cannot be undone.')) return;
+    try {
+      const resp = await fetch('/api/chat/conversations/' + id, { method: 'DELETE' });
+      if (!resp.ok) { console.error('delete failed', resp.status); return; }
+      if (this.activeId === id) this.activeId = null;
+      // load() re-renders the list and auto-selects the first remaining when activeId is null
+      await this.load();
+    } catch (e) { console.error('SessionManager._delete:', e); }
   }
 }
 
@@ -100,7 +119,7 @@ class MessageStream {
     this._summaryScheduled = false;
     this.messageListEl.textContent = '';
     try {
-      const resp = await fetch('/api/chat/messages?conv_id=' + convId);
+      const resp = await fetch('/api/chat/messages?conversation_id=' + convId);
       if (!resp.ok) return;
       const data = await resp.json();
       (data.messages || []).forEach(m => this._appendMessage(m));

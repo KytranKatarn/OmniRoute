@@ -1068,8 +1068,14 @@ body {
   margin: 0;
   display: flex;
   flex-direction: column;
+  /* Use dynamic viewport height (dvh) so the layout fits the VISIBLE area on
+     mobile/foldables — 100vh = the LARGER viewport (toolbars hidden), which with
+     overflow:hidden pushed the input bar below the browser chrome and made it
+     unreachable on a Galaxy Z Fold. 100vh kept as fallback for old browsers. */
   min-height: 100vh;
+  min-height: 100dvh;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow: hidden;
   background: var(--ac-bg-primary, #0a0f1a);
 }

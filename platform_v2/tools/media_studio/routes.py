@@ -319,6 +319,56 @@ def api_gallery():
             }
         )
 
+    if req_owner_type == "brand":
+        # Shared brand gallery — brand-level assets (owner_type='brand', owner_id=brand id)
+        conditions = ["is_deleted = false", "owner_type = 'brand'"]
+        if not show_versions:
+            conditions.append("parent_id IS NULL")
+        params = []
+        req_owner_id = request.args.get("owner_id", type=int)
+        if req_owner_id:
+            conditions.append("owner_id = %s")
+            params.append(req_owner_id)
+        asset_type = request.args.get("asset_type")
+        if asset_type:
+            conditions.append("metadata->>'asset_type' = %s")
+            params.append(asset_type)
+        if media_type:
+            conditions.append("media_type = %s")
+            params.append(media_type)
+        where = " AND ".join(conditions)
+        from .services.gallery_service import _GALLERY_SORTS, _serialize_row
+
+        order_by = _GALLERY_SORTS.get(
+            (request.args.get("sort", "newest") or "newest").lower(),
+            _GALLERY_SORTS["newest"],
+        )
+        with get_db_cursor() as (conn, cur):
+            cur.execute(f"SELECT COUNT(*) as total FROM media_library WHERE {where}", params)
+            total = cur.fetchone()["total"]
+            cur.execute(
+                f"""
+                SELECT id, media_type, file_path, thumbnail_path, prompt, model,
+                       provider, seed, width, height, duration_ms, cost,
+                       is_favorite, metadata, created_at
+                FROM media_library
+                WHERE {where}
+                ORDER BY {order_by}
+                LIMIT %s OFFSET %s
+                """,
+                params + [per_page, (page - 1) * per_page],
+            )
+            items = [_serialize_row(row) for row in cur.fetchall()]
+        return jsonify(
+            {
+                "items": items,
+                "total": total,
+                "page": page,
+                "per_page": per_page,
+                "pages": (total + per_page - 1) // per_page if per_page else 1,
+            }
+        )
+
     result = get_gallery(
         owner_type="user",
         owner_id=current_user.id,

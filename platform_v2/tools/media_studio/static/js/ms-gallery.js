@@ -96,31 +96,37 @@
 
       var brandHdr = document.createElement('div');
       brandHdr.className = 'ms-gallery-sidebar-section-label';
-      brandHdr.textContent = 'BRAND';
+      brandHdr.textContent = 'BRANDS';
       sidebar.appendChild(brandHdr);
 
-      var brandItem = document.createElement('div');
-      brandItem.className = 'ms-gallery-subject-item';
-      brandItem.dataset.subjectType = 'brand';
-      brandItem.dataset.subjectId = '';
-      brandItem.onclick = function () { msGallery.selectSubject('brand', null); };
-      var brandName = document.createElement('span');
-      brandName.className = 'ms-gallery-subject-name';
-      brandName.textContent = (data.brand && data.brand.name) || 'Kytran Empowerment';
-      var brandCount = document.createElement('span');
-      brandCount.className = 'ms-gallery-subject-count';
-      brandCount.textContent = (data.brand && data.brand.asset_count) || 0;
-      brandItem.appendChild(brandName);
-      brandItem.appendChild(brandCount);
-      sidebar.appendChild(brandItem);
+      var brands = data.brands || (data.brand ? [data.brand] : []);
+      brands.forEach(function (b) {
+        var brandItem = document.createElement('div');
+        brandItem.className = 'ms-gallery-subject-item';
+        brandItem.dataset.subjectType = 'brand';
+        brandItem.dataset.subjectId = b.id || '';
+        brandItem.onclick = (function (bid) {
+          return function () { msGallery.selectSubject('brand', bid); };
+        })(b.id || null);
+        if (b.accent_color) brandItem.style.borderLeft = '3px solid ' + b.accent_color;
+        var brandName = document.createElement('span');
+        brandName.className = 'ms-gallery-subject-name';
+        brandName.textContent = b.name || 'Brand';
+        var brandCount = document.createElement('span');
+        brandCount.className = 'ms-gallery-subject-count';
+        brandCount.textContent = b.asset_count || 0;
+        brandItem.appendChild(brandName);
+        brandItem.appendChild(brandCount);
+        sidebar.appendChild(brandItem);
+      });
 
       msGallery._highlightSidebar();
     },
 
     loadAssets: function () {
       if (!_subject) return;
-      // Brand subject: show theme library instead of image grid
-      if (_subject.type === 'brand') {
+      // Brand subject: no id → legacy themes view; with an id → its asset grid
+      if (_subject.type === 'brand' && !_subject.id) {
         msGallery.loadBrandThemes();
         return;
       }
@@ -154,6 +160,7 @@
         }).catch(function () {});
       } else {
         params += '&owner_type=brand';
+        if (_subject.id) params += '&owner_id=' + _subject.id;
         if (headerEl) headerEl.textContent = '';
       }
 

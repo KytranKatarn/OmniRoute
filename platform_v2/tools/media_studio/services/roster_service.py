@@ -66,8 +66,18 @@ def get_gallery_subjects() -> Dict:
         """
         )
         rows = cur.fetchall()
-        cur.execute("SELECT COUNT(*) AS cnt FROM media_library WHERE owner_type='brand' AND is_deleted=false")
-        brand_count = cur.fetchone()["cnt"]
+        cur.execute(
+            """
+            SELECT b.id, b.name, b.slug, b.accent_color,
+                   COUNT(ml.id) AS asset_count
+            FROM media_brands b
+            LEFT JOIN media_library ml
+              ON ml.owner_type = 'brand' AND ml.owner_id = b.id AND ml.is_deleted = false
+            GROUP BY b.id, b.name, b.slug, b.accent_color
+            ORDER BY b.id
+            """
+        )
+        brands = [dict(b) for b in cur.fetchall()]
 
     humans, ai_agents = [], []
     for row in rows:
@@ -80,5 +90,7 @@ def get_gallery_subjects() -> Dict:
     return {
         "humans": humans,
         "ai_agents": ai_agents,
-        "brand": {"name": "Kytran Empowerment", "asset_count": brand_count},
+        "brands": brands,
+        # back-compat: callers reading .brand get the first brand
+        "brand": brands[0] if brands else {"name": "Kytran Empowerment", "asset_count": 0},
     }

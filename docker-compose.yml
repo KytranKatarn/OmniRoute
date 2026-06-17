@@ -542,6 +542,10 @@ services:
       - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_WS_HOST=0.0.0.0
       - ARCHIE_DATA_DIR=/data
+      # GitHub token so the build loop's github_ops.pr_create can open PRs (#4256).
+      # github_ops hard-pins the repo to archie-code, so this can only PR there.
+      # TODO: replace with a fine-grained PAT scoped to archie-code only.
+      - ARCHIE_GITHUB_TOKEN=${GITHUB_TOKEN}
     # The engine's file/git/shell tools use Path.cwd() as their workspace.
     # Point cwd at an isolated, writable /workspace volume so it can do hands-on
     # coding WITHOUT touching the platform repo or host (read_only rootfs +

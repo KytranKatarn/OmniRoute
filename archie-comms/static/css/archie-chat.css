@@ -1282,3 +1282,142 @@ body {
 .ac-engine-skills { font-size: 9px; color: #667788; margin-top: 4px; line-height: 1.4; }
 .ac-engine-hint { font-size: 9px; color: #556677; margin-top: 5px; }
 .ac-engine-hint code { color: #00ffff; background: rgba(0, 255, 255, 0.08); padding: 1px 4px; border-radius: 3px; }
+
+/* ── Collaboration tab (#4285) — Kytran + A.R.C.H.I.E. + Claude trio ── */
+.ac-collab {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--ac-bg-primary, #0a0f1a);
+}
+.ac-collab-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: 0.78rem;
+  font-family: 'IBM Plex Mono', monospace;
+  border-bottom: 1px solid var(--ac-border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--ac-bg-secondary, #050a12);
+  color: var(--ac-text-secondary, #8899aa);
+}
+.ac-collab-banner.online .ac-collab-banner-text { color: var(--ac-text-primary, #e0e6f0); }
+.ac-collab-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--ac-text-dim, #556677);
+}
+.ac-collab-dot.online { background: var(--ac-accent-green, #00ff88); box-shadow: 0 0 6px rgba(0, 255, 136, 0.6); }
+.ac-collab-dot.offline { background: var(--ac-accent-red, #ff4444); box-shadow: 0 0 6px rgba(255, 68, 68, 0.5); }
+.ac-collab-dot.checking { background: var(--ac-accent-yellow, #ffc800); }
+
+.ac-collab-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ac-collab-intro {
+  color: var(--ac-text-dim, #556677);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  max-width: 560px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--ac-border-subtle, rgba(255, 255, 255, 0.08));
+}
+.ac-collab-intro strong { color: var(--ac-text-secondary, #8899aa); }
+
+.ac-collab-msg { display: flex; flex-direction: column; gap: 3px; max-width: 80%; }
+.ac-collab-msg.kytran { align-self: flex-end; align-items: flex-end; }
+.ac-collab-msg.archie,
+.ac-collab-msg.claude,
+.ac-collab-msg.system { align-self: flex-start; }
+.ac-collab-name {
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: 'Antonio', sans-serif;
+  color: var(--ac-text-secondary, #8899aa);
+}
+.ac-collab-bubble {
+  padding: 10px 13px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid var(--ac-border-subtle, rgba(255, 255, 255, 0.06));
+  color: var(--ac-text-primary, #e0e6f0);
+}
+.ac-collab-msg.kytran .ac-collab-bubble {
+  background: var(--ac-bg-message-out, #0a1a10);
+  border-color: rgba(0, 255, 136, 0.25);
+}
+.ac-collab-msg.kytran .ac-collab-name { color: var(--ac-accent-green, #00ff88); }
+.ac-collab-msg.archie .ac-collab-bubble {
+  background: var(--ac-bg-message-in, #0e1e2e);
+  border-color: var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+}
+.ac-collab-msg.archie .ac-collab-name { color: var(--ac-accent-cyan, #00ffff); }
+.ac-collab-msg.claude .ac-collab-bubble {
+  background: rgba(192, 132, 252, 0.10);
+  border-color: rgba(192, 132, 252, 0.35);
+}
+.ac-collab-msg.claude .ac-collab-name { color: #c084fc; }
+.ac-collab-msg.system .ac-collab-bubble {
+  background: transparent;
+  border-style: dashed;
+  color: var(--ac-text-secondary, #8899aa);
+  font-size: 0.82rem;
+}
+.ac-collab-msg.system .ac-collab-name { color: var(--ac-text-dim, #556677); }
+.ac-collab-msg.thinking .ac-collab-bubble {
+  color: var(--ac-text-dim, #556677);
+  font-style: italic;
+  animation: ac-collab-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ac-collab-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
+.ac-collab-meta { font-size: 0.66rem; color: var(--ac-text-dim, #556677); }
+
+.ac-collab-input-bar {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ac-border-subtle, rgba(255, 255, 255, 0.06));
+  background: var(--ac-bg-secondary, #050a12);
+}
+.ac-collab-input {
+  flex: 1 1 auto;
+  resize: none;
+  background: var(--ac-bg-input, #111827);
+  border: 1px solid var(--ac-border-subtle, rgba(255, 255, 255, 0.06));
+  border-radius: 8px;
+  color: var(--ac-text-primary, #e0e6f0);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  max-height: 120px;
+}
+.ac-collab-input:focus { outline: none; border-color: var(--ac-accent-cyan, #00ffff); }
+.ac-collab-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.ac-collab-send {
+  flex: 0 0 auto;
+  background: var(--ac-accent-cyan, #00ffff);
+  color: #04121a;
+  border: none;
+  border-radius: 8px;
+  padding: 0 18px;
+  font-family: 'Antonio', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.ac-collab-send:hover:not(:disabled) { background: #5cffff; }
+.ac-collab-send:disabled { opacity: 0.4; cursor: not-allowed; }

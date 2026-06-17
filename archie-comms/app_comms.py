@@ -595,6 +595,65 @@ def api_claude_health():
     return jsonify(bridge.health_check())
 
 
+@app.route("/api/collab/message", methods=["POST"])
+def api_collab_message():
+    """Collaboration tab — Kytran + A.R.C.H.I.E. + Claude trio session (#4285).
+
+    A real-time scratchpad: returns three distinct voices (kytran / archie /
+    claude) WITHOUT persisting to the main chat conversation. Ephemeral by
+    design — the Claude bridge keeps in-memory continuity for the session, but
+    nothing hits unified_conversations, so the Chat tab + History stay clean.
+    """
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # silent=True so a malformed/empty body yields {} (clean 400) instead of
+    # raising an unhandled 400/415 HTML error.
+    data = request.get_json(silent=True) or {}
+    message = (data.get("message") or "").strip()
+    if not message:
+        return jsonify({"error": "Empty message"}), 400
+
+    from collaboration.claude_bridge import get_claude_bridge
+
+    bridge = get_claude_bridge()
+    health = bridge.health_check()
+    if health.get("status") != "healthy":
+        return jsonify({
+            "available": False,
+            "note": health.get("note", "Claude bridge offline"),
+        })
+
+    # A.R.C.H.I.E. frames the request for Claude (COO collaborating with the
+    # CEO), mirroring escalate_to_claude() but without any DB writes.
+    archie_line = "On it — bringing Claude in to think this through with us."
+    framed = (
+        "A.R.C.H.I.E. (COO) is collaborating with Kytran (CEO) and wants your "
+        "take on this:\n\n"
+        f"{message}"
+    )
+    try:
+        claude_reply = bridge.send_message(framed)
+    except Exception as exc:  # bridge call must never 500 the tab
+        logger.error("collab message: bridge call failed: %s", exc)
+        claude_reply = None
+
+    if not claude_reply:
+        return jsonify({
+            "available": False,
+            "note": "Claude was reachable but returned no response — try again.",
+        })
+
+    return jsonify({
+        "available": True,
+        "kytran": message,
+        "archie": archie_line,
+        "claude": claude_reply,
+    })
+
+
 @app.route("/claude")
 def claude_landing():
     """Claude TTY landing page — protected terminal access."""

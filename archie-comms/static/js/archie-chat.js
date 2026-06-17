@@ -652,6 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.onLcarsTabSwitch = function (tabId) {
     if (typeof _prevTabSwitch === 'function') { try { _prevTabSwitch(tabId); } catch (e) {} }
     if (tabId === 'history') loadHistoryList();
+    if (tabId === 'collaboration' && window.acCollab) window.acCollab.onOpen();
   };
 
   const status = new StatusPanel({
@@ -947,4 +948,129 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   poll();
   setInterval(poll, 15000);
+})();
+
+/* ── Collaboration tab (#4285) — Kytran + A.R.C.H.I.E. + Claude trio.
+   Real-time scratchpad: POSTs to /api/collab/message (ephemeral — NOT saved to
+   Chat/History). Health-gated on tab open via /api/claude/health. Exposes
+   window.acCollab.onOpen() (called by the onLcarsTabSwitch wrapper).
+   SECURITY: every value below is written via element.textContent — the XSS-safe
+   DOM sink that never parses HTML (no innerHTML anywhere here). ── */
+(function () {
+  var listEl = document.getElementById('ac-collab-list');
+  var inputEl = document.getElementById('ac-collab-input');
+  var sendEl = document.getElementById('ac-collab-send');
+  var dotEl = document.getElementById('ac-collab-dot');
+  var bannerEl = document.getElementById('ac-collab-banner');
+  var bannerTextEl = document.getElementById('ac-collab-banner-text');
+  if (!listEl || !inputEl || !sendEl) return;
+
+  var _online = false;
+  var _busy = false;
+
+  function _now() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // who: 'kytran' | 'archie' | 'claude' | 'system' (+ optional ' thinking')
+  function _bubble(who, label, text) {
+    var wrap = _mk('div', 'ac-collab-msg ' + who);
+    var name = _mk('div', 'ac-collab-name');
+    name.textContent = label;
+    var bub = _mk('div', 'ac-collab-bubble');
+    bub.textContent = text;
+    var meta = _mk('div', 'ac-collab-meta');
+    meta.textContent = _now();
+    wrap.appendChild(name);
+    wrap.appendChild(bub);
+    wrap.appendChild(meta);
+    listEl.appendChild(wrap);
+    listEl.scrollTop = listEl.scrollHeight;
+    return wrap;
+  }
+
+  function _setBanner(state, text) {
+    // state: 'online' | 'offline' | 'checking'
+    if (dotEl) dotEl.className = 'ac-collab-dot ' + state;
+    if (bannerEl) bannerEl.className = 'ac-collab-banner ' + state;
+    if (bannerTextEl) bannerTextEl.textContent = text;
+  }
+
+  function _setEnabled(on) {
+    _online = on;
+    inputEl.disabled = !on;
+    sendEl.disabled = !on || _busy;
+  }
+
+  function onOpen() {
+    // Re-check health every time the tab opens — the proxy may come up/down.
+    _setBanner('checking', 'Checking Claude bridge…');
+    inputEl.disabled = true;
+    sendEl.disabled = true;
+    fetch('/api/claude/health')
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        if (d && d.status === 'healthy') {
+          _setBanner('online', 'Claude bridge online · ' + (d.mode || 'proxy'));
+          _setEnabled(true);
+        } else {
+          _setBanner('offline', 'Claude bridge offline — start the Claude proxy to collaborate.');
+          _setEnabled(false);
+        }
+      })
+      .catch(function () {
+        _setBanner('offline', 'Claude bridge unreachable.');
+        _setEnabled(false);
+      });
+  }
+
+  function send() {
+    var msg = inputEl.value.trim();
+    if (!msg || _busy || !_online) return;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    _bubble('kytran', 'Kytran', msg);
+
+    _busy = true;
+    sendEl.disabled = true;
+    var thinking = _bubble('claude thinking', 'Claude', 'thinking…');
+
+    fetch('/api/collab/message', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (thinking && thinking.parentNode) thinking.parentNode.removeChild(thinking);
+        if (!d || d.available === false) {
+          _bubble('system', 'System', (d && d.note) || 'Claude bridge is offline.');
+          _setBanner('offline', 'Claude bridge offline.');
+          _setEnabled(false);
+          return;
+        }
+        if (d.archie) _bubble('archie', 'A.R.C.H.I.E.', d.archie);
+        if (d.claude) _bubble('claude', 'Claude', d.claude);
+      })
+      .catch(function (e) {
+        if (thinking && thinking.parentNode) thinking.parentNode.removeChild(thinking);
+        _bubble('system', 'System', 'Collaboration request failed — try again.');
+        console.error('collab send failed:', e);
+      })
+      .finally(function () {
+        _busy = false;
+        sendEl.disabled = !_online;
+      });
+  }
+
+  sendEl.addEventListener('click', send);
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  inputEl.addEventListener('input', function (e) {
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  });
+
+  window.acCollab = { onOpen: onOpen };
 })();

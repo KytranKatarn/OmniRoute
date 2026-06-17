@@ -228,6 +228,12 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> s
             capability="code_review",
             prompt=prompt,
             module_id="repair_bay",
+            # Pin PR review to capable nodes (#4300): the RTX 3070 Defiant (246)
+            # when it's up, else the always-on hub M4000 — both run F.O.R.G.E.'s
+            # 7B reliably. This explicitly EXCLUDES the 4GB Runabout (245), where
+            # mistral:7b stalls mid-review and leaves the row stuck 'in_progress'.
+            # Explicit preferred_node wins over CAPABILITY_NODE_AFFINITY.
+            preferred_node=["Starship - Defiant - USS-246", "Archie Starbase"],
         )
         if getattr(result, "queued", False):
             qid = getattr(result, "queue_id", None)

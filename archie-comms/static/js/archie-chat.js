@@ -582,6 +582,78 @@ document.addEventListener('DOMContentLoaded', () => {
     onSelect: id => stream.loadHistory(id),
   });
 
+  // ── History tab (#4263) ─────────────────────────────────
+  // Full conversation archive (incl. archived). Lazy-loaded when the History tab
+  // opens; click an entry to open it in the Chat tab. Security: textContent only.
+  const historyListEl = document.getElementById('ac-history-list');
+  const historySearchEl = document.getElementById('ac-history-search');
+  let _historyCache = [];
+
+  const _fmtHistDate = (s) => {
+    if (!s) return '';
+    try {
+      return new Date(s).toLocaleString([], {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) { return ''; }
+  };
+
+  function _renderHistory(list) {
+    if (!historyListEl) return;
+    historyListEl.textContent = '';
+    if (!list.length) {
+      const empty = _mk('div', 'ac-history-empty');
+      empty.textContent = 'No conversations found.';
+      historyListEl.appendChild(empty);
+      return;
+    }
+    list.forEach(c => {
+      const item = _mk('div', 'ac-history-item');
+      const title = _mk('div', 'ac-history-title');
+      title.textContent = c.title || c.first_msg || c.topic || 'Conversation';
+      const meta = _mk('div', 'ac-history-meta');
+      const n = c.msg_count || 0;
+      meta.textContent = n + (n === 1 ? ' msg' : ' msgs') + ' · ' +
+        _fmtHistDate(c.updated_at) + (c.status === 'archived' ? ' · archived' : '');
+      item.appendChild(title);
+      item.appendChild(meta);
+      item.addEventListener('click', () => {
+        if (window.lcarsHeaderSwitchTab) window.lcarsHeaderSwitchTab('chat');
+        stream.loadHistory(c.id);
+        if (sessions) sessions.markActive(c.id);
+      });
+      historyListEl.appendChild(item);
+    });
+  }
+
+  function _applyHistoryFilter() {
+    const q = ((historySearchEl && historySearchEl.value) || '').trim().toLowerCase();
+    const filtered = !q ? _historyCache : _historyCache.filter(c =>
+      ((c.title || '') + ' ' + (c.first_msg || '') + ' ' + (c.topic || ''))
+        .toLowerCase().indexOf(q) >= 0);
+    _renderHistory(filtered);
+  }
+
+  async function loadHistoryList() {
+    if (!historyListEl) return;
+    try {
+      const resp = await fetch('/api/chat/history');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      _historyCache = data.conversations || [];
+      _applyHistoryFilter();
+    } catch (e) { console.error('loadHistoryList:', e); }
+  }
+
+  if (historySearchEl) historySearchEl.addEventListener('input', _applyHistoryFilter);
+
+  // Lazy-load the history list when the History tab is opened (preserve any prior hook).
+  const _prevTabSwitch = window.onLcarsTabSwitch;
+  window.onLcarsTabSwitch = function (tabId) {
+    if (typeof _prevTabSwitch === 'function') { try { _prevTabSwitch(tabId); } catch (e) {} }
+    if (tabId === 'history') loadHistoryList();
+  };
+
   const status = new StatusPanel({
     agentsEl: document.getElementById('ac-agents'),
     platformEl: document.getElementById('ac-platform'),

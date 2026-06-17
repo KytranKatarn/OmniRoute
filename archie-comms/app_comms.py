@@ -691,6 +691,41 @@ def api_chat_delete_conversation(conv_id):
     return jsonify({"success": True, "deleted": conv_id})
 
 
+@app.route("/api/chat/history", methods=["GET"])
+def api_chat_history():
+    """Full conversation archive for the History tab — ALL of the user's threads
+    (incl. archived), each with a message count + first-message preview. Owner-scoped
+    by user_id (read-only). The left sidebar list shows only active threads; this is
+    the complete searchable history."""
+    from flask import session
+
+    if "user_id" not in session and "kytran_user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user_id = session.get("user_id", 2)
+    from database import get_db_cursor
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT c.id, c.title, c.topic, c.status, c.created_at, c.updated_at,
+                   (SELECT COUNT(*) FROM unified_messages m
+                      WHERE m.conversation_id = c.id) AS msg_count,
+                   (SELECT m.content FROM unified_messages m
+                      WHERE m.conversation_id = c.id AND m.direction = 'inbound'
+                      ORDER BY m.id ASC LIMIT 1) AS first_msg
+            FROM unified_conversations c
+            WHERE c.user_id = %s
+            ORDER BY c.updated_at DESC NULLS LAST, c.id DESC
+            LIMIT 300
+            """,
+            (user_id,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+
+    return jsonify({"conversations": rows})
+
+
 @app.route("/api/chat/sessions/<int:conv_id>/summarize", methods=["POST"])
 def api_chat_summarize(conv_id):
     """Called via sendBeacon on session close. Stores KB summary."""

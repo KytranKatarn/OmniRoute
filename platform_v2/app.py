@@ -4615,6 +4615,26 @@ def api_internal_code_health_job_status(job_id):
     return jsonify(payload), code
 
 
+@app.route("/api/internal/engine/build-result", methods=["POST"])
+@_require_internal_key
+def api_internal_engine_build_result():
+    """The engine POSTs a build/test run result here after building + testing in
+    its isolated /workspace; recorded into qa_test_runs + qa_test_results so the
+    Repair Bay Test Bay + QA tabs show engine-driven runs (#4261). The platform
+    never executes the engine's code — it only records the reported result.
+    Body: {task?, branch?, pr_url?, pr_number?, files_changed?, status?,
+    duration_ms?, output?, tests:[{name,status,output?,duration_ms?}]}.
+    Bearer INTERNAL_API_KEY."""
+    from services.engine_build_results import record_build_result
+
+    data = request.get_json(silent=True) or {}
+    try:
+        return jsonify(record_build_result(data))
+    except Exception as e:
+        logger.error(f"internal engine build-result failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():

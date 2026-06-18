@@ -4413,7 +4413,8 @@ def _require_internal_key(f):
 @app.route("/api/internal/dhq/chat", methods=["POST"])
 @_require_internal_key
 def api_internal_dhq_chat():
-    """Synchronous DHQ-routed chat reply for A.R.C.H.I.E.'s voice (archie_comms cockpit).
+    """Synchronous DHQ-routed completion. Defaults to A.R.C.H.I.E.'s conversation
+    voice (the archie_comms cockpit); service callers may override the agent.
 
     The cockpit chat reply used to POST direct to Ollama, which times out /
     [Connection error]s whenever the hub GPU is saturated (KB mistake #273554).
@@ -4421,6 +4422,15 @@ def api_internal_dhq_chat():
     cold-load queue, and fleet routing. archie_comms calls this DHQ-first and
     falls back to its direct-Ollama voice if this is unreachable (ADR-013
     voice-survives-crash waiver), so a platform outage never silences A.R.C.H.I.E.
+
+    Optional body params let other internal services route to a different agent
+    while reusing this same synchronous, welfare-gated, strictly-local path —
+    e.g. the A.R.C.H.I.E. build engine sends capability="code"/prefer_agent=
+    "F.O.R.G.E." for its plan step (#4256). Omitting them keeps the cockpit's
+    A.R.C.H.I.E. conversation behavior unchanged.
+
+    Body: {prompt, system_prompt?, user_id?, capability?, prefer_agent?, module_id?}.
+    `local_only` is always True (no cloud escalation; ADR-003 #4 / KB #269363).
 
     Service-to-service: Authorization: Bearer <INTERNAL_API_KEY>.
     Registered at app level (not on a blueprint) so the /tools/* auth middleware
@@ -4432,18 +4442,22 @@ def api_internal_dhq_chat():
     prompt = (data.get("prompt") or "").strip()
     system_prompt = data.get("system_prompt") or None
     user_id = data.get("user_id")
+    # Optional agent override — defaults preserve the cockpit's A.R.C.H.I.E. voice.
+    capability = (data.get("capability") or "conversation").strip()
+    prefer_agent = (data.get("prefer_agent") or "A.R.C.H.I.E.").strip()
+    module_id = (data.get("module_id") or "archie_comms").strip()
     if not prompt:
         return jsonify({"success": False, "error": "prompt required"}), 400
 
     try:
         result = dispatch(
-            capability="conversation",
+            capability=capability,
             prompt=prompt,
-            module_id="archie_comms",
+            module_id=module_id,
             system_prompt=system_prompt,
             user_id=user_id,
-            prefer_agent="A.R.C.H.I.E.",  # the cockpit voice is A.R.C.H.I.E., not the 'conversation' default (R.E.S.O.L.V.E.)
-            local_only=True,  # chat stays on the hub — fleet escalation = ~260s contention (KB #269363)
+            prefer_agent=prefer_agent,  # cockpit default = A.R.C.H.I.E.; engine plan step = F.O.R.G.E.
+            local_only=True,  # stays on the hub — fleet escalation = ~260s contention (KB #269363)
         )
         if result.success and (result.response or "").strip():
             return jsonify(

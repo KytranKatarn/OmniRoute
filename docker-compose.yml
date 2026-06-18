@@ -546,6 +546,19 @@ services:
       # github_ops hard-pins the repo to archie-code, so this can only PR there.
       # TODO: replace with a fine-grained PAT scoped to archie-code only.
       - ARCHIE_GITHUB_TOKEN=${GITHUB_TOKEN}
+      # Build/test workspace provisioning (#4258). The entrypoint clones archie-code
+      # into the writable /workspace volume and points git config at /data (HOME and
+      # the rootfs are read-only). The build loop then branches -> edits -> tests
+      # (pytest, baked into the image) -> pushes -> opens a PR, all in /workspace.
+      - HOME=/data
+      - GIT_CONFIG_GLOBAL=/data/.gitconfig
+      - ARCHIE_ENGINE_WORKSPACE=/workspace
+      - ARCHIE_ENGINE_REPO=https://github.com/KytranKatarn/archie-code.git
+      # Hermetic auto-PR test gate (#4258): the build loop gates on the offline
+      # tests/ suite (build-loop + tools + scope-guard, green in-container). The
+      # archie_engine/tests/* integration tests need a live hub, so the full
+      # `pytest -q` (the EngineConfig default) can never gate an offline loop.
+      - ARCHIE_ENGINE_TEST_COMMAND=python -m pytest -q tests/
     # The engine's file/git/shell tools use Path.cwd() as their workspace.
     # Point cwd at an isolated, writable /workspace volume so it can do hands-on
     # coding WITHOUT touching the platform repo or host (read_only rootfs +

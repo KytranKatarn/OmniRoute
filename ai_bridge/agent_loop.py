@@ -3838,7 +3838,11 @@ class AgentLoop:
             uri = "ws://archie_engine:9090"
             async with websockets.connect(uri, open_timeout=15, close_timeout=5) as ws:
                 await ws.send(_json.dumps({"type": "pull_repair_work"}))
-                raw = await asyncio.wait_for(ws.recv(), timeout=120)
+                # 900s: a model_override coder dispatch is structurally ~242s on the hub
+                # (validated — same warm or cold; it's the cold-load-queue path, not a
+                # one-time load), so a build with plan retries + apply/test/push needs a
+                # wide window (#380 Phase 3). max_instances=1+coalesce prevent overlap.
+                raw = await asyncio.wait_for(ws.recv(), timeout=900)
                 return _json.loads(raw) if raw else {}
 
         try:

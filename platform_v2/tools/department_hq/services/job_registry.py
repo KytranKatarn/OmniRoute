@@ -21,6 +21,13 @@ JOB_REGISTRY = {
         "interval": "60s",
         "source_file": "ai_bridge/agent_loop.py",
     },
+    "engine_autopull_cycle": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": "A.R.C.H.I.E. Building Machine — pulls one in-scope platform issue and triggers archie_engine to build a GATED PR (never auto-merged); DEFAULT ON, toggled in Autonomy tab",
+        "interval": "6h",
+        "source_file": "ai_bridge/agent_loop.py",
+    },
     # ── Communications / Notifications ──
     "agent_email_queue": {
         "department": "Customer Success & Support",

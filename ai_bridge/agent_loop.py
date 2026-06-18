@@ -481,6 +481,23 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # A.R.C.H.I.E. Building Machine autonomous scheduler (#380, ADR-008).
+        # Every 6h, asks archie_engine to pull ONE in-scope platform issue from the
+        # Repair Bay queue and build a GATED PR vs archie-platform (engine never
+        # merges; engine PRs are auto-merge-gated). Conservative 1-issue/cycle —
+        # F.O.R.G.E. 7B fixes still need human triage. Live kill switch via
+        # work_control ("engine_autopull_cycle"); the handler no-ops when disabled.
+        self.scheduler.add_job(
+            with_app_context(self._engine_autopull_cycle),
+            trigger=IntervalTrigger(hours=6),
+            id="engine_autopull_cycle",
+            name="A.R.C.H.I.E. Building Machine: Auto-Pull Repair Work",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         # Browser profile keep-warm (#3982) — daily READ through each
         # established device-trust profile so sessions don't go stale.
         self.scheduler.add_job(
@@ -3794,6 +3811,41 @@ class AgentLoop:
             logger.info(f"[signal-calendar] top-up: {result}")
         except Exception as e:
             logger.error(f"[signal-calendar] top-up failed: {e}")
+
+    def _engine_autopull_cycle(self):
+        """A.R.C.H.I.E. Building Machine autonomous scheduler (#380, ADR-008).
+
+        Asks archie_engine over its WS bridge to pull ONE in-scope platform issue
+        and build a GATED PR vs archie-platform. Live kill switch via work_control
+        ("engine_autopull_cycle", default-on); fail-safe — any error is a no-op for
+        the cycle. The engine enforces scope, dedup-rotation (#4322 + DedupTracker),
+        and the never-merge / auto-merge-gate invariants on its side."""
+        try:
+            from services.work_control_service import is_enabled
+
+            if not is_enabled("engine_autopull_cycle", default=True):
+                return
+        except Exception:
+            return  # control plane unavailable → do nothing
+
+        import asyncio
+
+        async def _ask_engine():
+            import json as _json
+
+            import websockets
+
+            uri = "ws://archie_engine:9090"
+            async with websockets.connect(uri, open_timeout=15, close_timeout=5) as ws:
+                await ws.send(_json.dumps({"type": "pull_repair_work"}))
+                raw = await asyncio.wait_for(ws.recv(), timeout=120)
+                return _json.loads(raw) if raw else {}
+
+        try:
+            result = asyncio.run(_ask_engine())
+            logger.info(f"[engine-autopull] cycle result: {result}")
+        except Exception as e:
+            logger.warning(f"[engine-autopull] cycle failed (no-op): {e}")
 
     def _process_approval_queue(self):
         """Process the approval queue: execute approved, expire stale."""

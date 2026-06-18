@@ -92,9 +92,9 @@ def _login_as_admin(client, user_id=TEST_USER_ID):
 def _cleanup(db, test_name):
     """Remove fixture rows for a given test_name across all 3 perf tables."""
     with db.cursor() as cur:
-        cur.execute("DELETE FROM qa_perf_acceptances WHERE test_name = %s", (test_name,))
-        cur.execute("DELETE FROM qa_perf_regressions WHERE test_name = %s", (test_name,))
-        cur.execute("DELETE FROM qa_perf_baselines WHERE test_name = %s", (test_name,))
+        cur.execute(sql.SQL("DELETE FROM qa_perf_acceptances WHERE test_name = %s"), (test_name,))
+        cur.execute(sql.SQL("DELETE FROM qa_perf_regressions WHERE test_name = %s"), (test_name,))
+        cur.execute(sql.SQL("DELETE FROM qa_perf_baselines WHERE test_name = %s"), (test_name,))
 
 
 # ---------------------------------------------------------------------------

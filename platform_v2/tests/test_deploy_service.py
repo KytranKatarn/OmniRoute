@@ -199,3 +199,62 @@ class TestDeployPipelineSmoke:
         assert result.success is True
         assert result.retried is True
         assert call_count["n"] == 2
+
+
+class TestVpsHostMap:
+    """#4307 — watch products + WTF migrated to Citadel/boston-2
+    (root@100.64.0.10, /opt/archie-products/<product>/). outpost-us no longer
+    hosts products. These guard against a regression to the old host/dir/service.
+    """
+
+    def test_all_entries_target_citadel(self):
+        from services.deploy_service import VPS_SERVICE_MAP
+
+        assert VPS_SERVICE_MAP, "map must not be empty"
+        for key, info in VPS_SERVICE_MAP.items():
+            assert info.get("host") == "root@100.64.0.10", f"{key} wrong host: {info.get('host')}"
+            assert info["dir"].startswith("/opt/archie-products/"), f"{key} stale dir: {info['dir']}"
+            assert info["service"], f"{key} missing compose service name"
+
+    def test_market_entry_fixed(self):
+        """market-watch had a stale dir (/opt/kytran-market-watch/) + service=None."""
+        from services.deploy_service import VPS_SERVICE_MAP
+
+        m = VPS_SERVICE_MAP["kytran_market_api"]
+        assert m["dir"] == "/opt/archie-products/market-watch/"
+        assert m["service"] == "kytran_market_api"
+
+    def test_deploy_vps_uses_per_product_host_and_mounted_key(self):
+        """_deploy_vps must SSH/scp to the entry's Citadel host with the
+        bind-mounted id_ed25519 key — never the retired outpost-us host or the
+        unmounted repair_bay_deploy key — and must rebuild the correct service."""
+        from services import deploy_service
+
+        calls: list[list[str]] = []
+
+        def fake_run(cmd, *a, **kw):
+            calls.append(cmd)
+            return MagicMock(returncode=0)
+
+        # Patch VPS_KEY to the bind-mounted key so the test asserts _deploy_vps
+        # LOGIC (uses the resolved key for -i) rather than the ambient container
+        # env, which is only reloaded on a container recreate.
+        with (
+            patch.object(deploy_service, "VPS_KEY", "/root/.ssh/id_ed25519"),
+            patch.object(deploy_service.subprocess, "run", side_effect=fake_run),
+        ):
+            ok = deploy_service._deploy_vps(
+                "kytran_gov_watch",
+                ["static/data/translations.json"],
+                "/tmp/src",
+            )
+
+        assert ok is True
+        joined = "\n".join(" ".join(c) for c in calls)
+        assert "root@100.64.0.10" in joined  # host comes from the map (env-independent)
+        assert "kytran@76.13.107.109" not in joined
+        assert "-i /root/.ssh/id_ed25519" in joined
+        assert "repair_bay_deploy" not in joined
+        assert "UserKnownHostsFile=/dev/null" in joined
+        # gov compose SERVICE name uses hyphens (differs from the underscore container)
+        assert "kytran-gov-watch" in joined

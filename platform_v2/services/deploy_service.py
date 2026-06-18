@@ -38,42 +38,61 @@ APPROVAL_REQUIRED_PATTERNS = frozenset(["dockerfile", "docker-compose", ".py", "
 RETRY_DELAY_SECONDS = 120
 VERIFY_WAIT_SECONDS = 8
 
-# VPS connection
-VPS_HOST = os.getenv("REPAIR_BAY_VPS_HOST", "kytran@76.13.107.109")
-VPS_KEY = os.getenv("REPAIR_BAY_VPS_KEY", "/home/kytran/.ssh/repair_bay_deploy")
+# VPS connection — DEFAULT target.
+# Watch products + WTF migrated to Citadel/boston-2 (root@100.64.0.10,
+# /opt/archie-products/<product>/) in 2026-06; outpost-us no longer hosts any
+# products (verified topology: KB #272178). Per-product host/key overrides live
+# in VPS_SERVICE_MAP; these are the fallback defaults for unmapped targets.
+# Key = the id_ed25519 bind-mounted into the archie_platform/archie_scheduler
+# containers at /root/.ssh/id_ed25519 (the SAME key the manual Citadel deploys
+# authenticate with) — NOT the unmounted /home/kytran/.ssh/repair_bay_deploy.
+VPS_HOST = os.getenv("REPAIR_BAY_VPS_HOST", "root@100.64.0.10")
+VPS_KEY = os.getenv("REPAIR_BAY_VPS_KEY", "/root/.ssh/id_ed25519")
 
 # Hostinger API — always full-site deploy (partial deploys destroy public_html)
 HOSTINGER_API_KEY = os.getenv("HOSTINGER_API_KEY", "")
 HOSTINGER_API_BASE = "https://developers.hostinger.com/api/hosting/v1"
 
-# VPS container service map
+# VPS container service map.
+# host/dir/service VERIFIED LIVE against Citadel/boston-2 on 2026-06-17 (#4307):
+#   ssh root@100.64.0.10 + `docker compose config --services` per product.
+# `host` is per-product so a future move is a one-line change (falls back to
+# VPS_HOST when omitted). NOTE: compose SERVICE names are heterogeneous —
+# gov uses hyphens (kytran-gov-watch) while market uses underscores
+# (kytran_market_api); both differ from their underscore CONTAINER names.
 VPS_SERVICE_MAP = {
     "kytran_gov_watch": {
+        "host": "root@100.64.0.10",
         "dir": "/opt/archie-products/gov-watch/",
         "service": "kytran-gov-watch",
         "verify_path": "/static/data/translations.json",
     },
     "kytran_watch_api": {
+        "host": "root@100.64.0.10",
         "dir": "/opt/archie-products/civic-watch/",
         "service": "watch-api",
         "verify_path": "/data/translations.json",
     },
     "kytran_legal_api": {
+        "host": "root@100.64.0.10",
         "dir": "/opt/archie-products/legal-watch/",
         "service": "legal-api",
         "verify_path": "/data/translations.json",
     },
     "kytran_market_api": {
-        "dir": "/opt/kytran-market-watch/",
-        "service": None,
+        "host": "root@100.64.0.10",
+        "dir": "/opt/archie-products/market-watch/",
+        "service": "kytran_market_api",
         "verify_path": "/static/data/translations.json",
     },
     "wtf_consumer": {
+        "host": "root@100.64.0.10",
         "dir": "/opt/archie-products/what-the-fact/",
         "service": "wtf-consumer",
         "verify_path": "/static/data/translations.json",
     },
     "wtf_tech": {
+        "host": "root@100.64.0.10",
         "dir": "/opt/archie-products/what-the-fact/",
         "service": "wtf-tech",
         "verify_path": "/static/data/translations.json",
@@ -163,26 +182,30 @@ def _deploy_vps(container_name: str, changed_files: list[str], source_dir: str) 
 
     target_dir = info["dir"]
     service = info["service"]
-    ssh_opts = ["-i", VPS_KEY, "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes"]
+    # Per-product host/key (fall back to the module defaults). UserKnownHostsFile=
+    # /dev/null because the platform/scheduler containers run a read-only rootfs —
+    # ssh can't write ~/.ssh/known_hosts, which otherwise emits a noisy warning.
+    host = info.get("host") or VPS_HOST
+    key = info.get("key") or VPS_KEY
+    ssh_opts = [
+        "-i",
+        key,
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "BatchMode=yes",
+    ]
 
     # 1. SCP each changed file to its target location on VPS (rsync not in container)
     for rel_path in changed_files:
         src_file = os.path.join(source_dir, rel_path)
         target_subdir = os.path.dirname(os.path.join(target_dir, rel_path))
         # Ensure target directory exists on VPS
-        mkdir_cmd = ["ssh"] + ssh_opts + [VPS_HOST, f"mkdir -p {target_subdir}"]
+        mkdir_cmd = ["ssh"] + ssh_opts + [host, f"mkdir -p {target_subdir}"]
         subprocess.run(mkdir_cmd, capture_output=True, timeout=30)
-        scp_cmd = [
-            "scp",
-            "-i",
-            VPS_KEY,
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "BatchMode=yes",
-            src_file,
-            f"{VPS_HOST}:{target_subdir}/",
-        ]
+        scp_cmd = ["scp"] + ssh_opts + [src_file, f"{host}:{target_subdir}/"]
         result = subprocess.run(scp_cmd, capture_output=True, timeout=60)
         if result.returncode != 0:
             logger.error("[DeployVPS] scp failed for %s: %s", rel_path, result.stderr.decode())
@@ -194,7 +217,7 @@ def _deploy_vps(container_name: str, changed_files: list[str], source_dir: str) 
         if service
         else f"cd {target_dir} && docker compose up -d --build"
     )
-    ssh_cmd = ["ssh"] + ssh_opts + [VPS_HOST, rebuild_cmd]
+    ssh_cmd = ["ssh"] + ssh_opts + [host, rebuild_cmd]
     result = subprocess.run(ssh_cmd, capture_output=True, timeout=180)
     if result.returncode != 0:
         logger.error("[DeployVPS] docker rebuild failed for %s: %s", container_name, result.stderr.decode())

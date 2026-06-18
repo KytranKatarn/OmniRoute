@@ -4635,6 +4635,69 @@ def api_internal_engine_build_result():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ── Repair Bay engine-facing pull-work surface (#4259) ───────────────────────
+# Lets the engine/cockpit ask "what needs fixing?" without a browser session:
+# scan a file, read the open-issue queue, read the proposal queue. Thin wrappers
+# over the SAME scan_service/proposal_service the @login_required session routes
+# call. The sandbox/apply endpoints are intentionally NOT exposed — the engine
+# builds + tests in its own isolated /workspace (project #380 decision), so the
+# platform-side sandbox is not on the engine path. Bearer INTERNAL_API_KEY.
+
+
+@app.route("/api/internal/repair/scan", methods=["POST"])
+@_require_internal_key
+def api_internal_repair_scan():
+    """Scan a single file for issues (same logic as the session /api/scan/run).
+    Body: {file_path | full_path}. Bearer INTERNAL_API_KEY."""
+    from services import scan_service
+
+    data = request.get_json(silent=True) or {}
+    file_path = data.get("file_path")
+    full_path = data.get("full_path")
+    if not file_path and not full_path:
+        return jsonify({"success": False, "error": "file_path or full_path required"}), 400
+    try:
+        result = scan_service.scan_file(file_path=file_path, full_path=full_path, scanned_by="archie-engine", user_id=4)
+        if result.get("success"):
+            return jsonify(result)
+        code = 404 if "not found" in (result.get("error") or "").lower() else 500
+        return jsonify(result), code
+    except Exception as e:
+        logger.error(f"internal repair scan failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/internal/repair/issues", methods=["GET"])
+@_require_internal_key
+def api_internal_repair_issues():
+    """The open-issue work queue (wraps scan_service.get_issues).
+    Query: ?status=open&limit=50. Bearer INTERNAL_API_KEY."""
+    from services import scan_service
+
+    status = request.args.get("status", "all")
+    limit = request.args.get("limit", 50, type=int)
+    try:
+        return jsonify(scan_service.get_issues(status=status, limit=limit))
+    except Exception as e:
+        logger.error(f"internal repair issues failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/internal/repair/proposals", methods=["GET"])
+@_require_internal_key
+def api_internal_repair_proposals():
+    """The improvement-proposal work queue (wraps proposal_service.list_proposals).
+    Query: ?status=proposed. Bearer INTERNAL_API_KEY."""
+    from services import proposal_service
+
+    status = request.args.get("status")
+    try:
+        return jsonify(proposal_service.list_proposals(status=status))
+    except Exception as e:
+        logger.error(f"internal repair proposals failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():

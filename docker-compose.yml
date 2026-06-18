@@ -542,9 +542,10 @@ services:
       - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_WS_HOST=0.0.0.0
       - ARCHIE_DATA_DIR=/data
-      # GitHub token so the build loop's github_ops.pr_create can open PRs (#4256).
-      # github_ops hard-pins the repo to archie-code, so this can only PR there.
-      # TODO: replace with a fine-grained PAT scoped to archie-code only.
+      # GitHub token so the build loop's github_ops.pr_create can open PRs.
+      # Fine-grained PAT scoped to archie-code AND archie-platform (engine->platform
+      # expansion, #380). Engine-authored PRs are gated from auto-merge platform-side
+      # (branch "engine/" -> human merge only); the engine itself never merges.
       - ARCHIE_GITHUB_TOKEN=${GITHUB_TOKEN}
       # Build/test workspace provisioning (#4258). The entrypoint clones archie-code
       # into the writable /workspace volume and points git config at /data (HOME and
@@ -559,6 +560,12 @@ services:
       # archie_engine/tests/* integration tests need a live hub, so the full
       # `pytest -q` (the EngineConfig default) can never gate an offline loop.
       - ARCHIE_ENGINE_TEST_COMMAND=python -m pytest -q tests/
+      # Engine->platform expansion (#380): the entrypoint also clones archie-platform
+      # into the writable /workspace-platform volume so the engine can build fixes for
+      # the platform's Applications/Concepts modules (PLATFORM_SCOPE) and open PRs vs
+      # archie-platform. Platform builds use a services-free compile gate (no DB/Ollama).
+      - ARCHIE_PLATFORM_WORKSPACE=/workspace-platform
+      - ARCHIE_PLATFORM_REPO=KytranKatarn/archie-platform
     # The engine's file/git/shell tools use Path.cwd() as their workspace.
     # Point cwd at an isolated, writable /workspace volume so it can do hands-on
     # coding WITHOUT touching the platform repo or host (read_only rootfs +
@@ -567,6 +574,7 @@ services:
     volumes:
       - archie_engine_data:/data
       - archie_engine_workspace:/workspace
+      - archie_engine_platform_workspace:/workspace-platform
     ports:
       - "127.0.0.1:9090:9090"
     networks:
@@ -1311,6 +1319,9 @@ volumes:
   archie_engine_workspace:
     driver: local
     name: archie_engine_workspace
+  archie_engine_platform_workspace:
+    driver: local
+    name: archie_engine_platform_workspace
   codex_terminal_home:
     driver: local
   codex_terminal_work:

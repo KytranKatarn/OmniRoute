@@ -4446,6 +4446,9 @@ def api_internal_dhq_chat():
     capability = (data.get("capability") or "conversation").strip()
     prefer_agent = (data.get("prefer_agent") or "A.R.C.H.I.E.").strip()
     module_id = (data.get("module_id") or "archie_comms").strip()
+    # Optional model pin — the engine's plan step (#380 Phase 3) sends a coding model
+    # (qwen2.5-coder:7b); model_override keeps it on hub Ollama. Omitted by the cockpit.
+    model_override = (data.get("model") or "").strip() or None
     if not prompt:
         return jsonify({"success": False, "error": "prompt required"}), 400
 
@@ -4457,6 +4460,7 @@ def api_internal_dhq_chat():
             system_prompt=system_prompt,
             user_id=user_id,
             prefer_agent=prefer_agent,  # cockpit default = A.R.C.H.I.E.; engine plan step = F.O.R.G.E.
+            model_override=model_override,  # cockpit = None (agent's model); engine plan = qwen2.5-coder:7b
             local_only=True,  # stays on the hub — fleet escalation = ~260s contention (KB #269363)
         )
         if result.success and (result.response or "").strip():

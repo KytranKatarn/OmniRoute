@@ -5771,7 +5771,18 @@ class DepartmentDispatcher:
                 _agent_shift_state,
                 capability,
             )
-        if agent and _fleet_routing_enabled() and not _agent_shift_blocked and not _agentic_eligible:
+        # `not model_override`: a hard-pinned model stays on the hub (where it's warm),
+        # mirroring the node-preference guard above. Without this, score-routing sends the
+        # pinned model to a fleet node that must COLD-SWAP it — a Starship 7B swap exceeds
+        # the 240s _dispatch_to_node timeout, so the call burns ~242s then falls back to
+        # the hub anyway (root cause of the #380 engine-plan latency; KB mistake #274021).
+        if (
+            agent
+            and _fleet_routing_enabled()
+            and not _agent_shift_blocked
+            and not _agentic_eligible
+            and not model_override
+        ):
             # Resolve the agent's model once — `model` is not yet a local
             # variable at this point in request_work() (it's assigned later
             # in the hub-execute branch). Without this derivation, any

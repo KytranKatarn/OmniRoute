@@ -4540,6 +4540,81 @@ def api_internal_engine_telemetry():
         return jsonify({"error": "telemetry insert failed"}), 500
 
 
+# ── Code Health engine-facing surface (#4262 — the loop-closer) ──────────────
+# The containerized A.R.C.H.I.E. build engine has no browser session, so the
+# @login_required Code-Health routes in tools/consciousness are unreachable to
+# it. These app-level aliases expose the same logic over the engine's existing
+# Authorization: Bearer <INTERNAL_API_KEY> path. App-level (not on a /tools/*
+# blueprint) so the auth middleware does not redirect the service call to
+# /dashboard — same rationale as the dhq/chat + telemetry routes above.
+
+
+@app.route("/api/internal/code-health/reverify", methods=["POST"])
+@_require_internal_key
+def api_internal_code_health_reverify():
+    """LOOP-CLOSER: re-audit deployed Code-Health fixes and report, per finding,
+    whether the fix actually landed ('fixed') or regressed ('still_open'). The
+    engine calls this right after a deploy. Runs SYNCHRONOUSLY (optionally scoped
+    to one module via {"module"}) so the engine gets the verdict + per-finding
+    details[] directly in the response. Bearer INTERNAL_API_KEY."""
+    from services.audit_pipeline import reverify_deployed_findings
+
+    module = (request.get_json(silent=True) or {}).get("module")
+    try:
+        return jsonify({"success": True, **reverify_deployed_findings(module)})
+    except Exception as e:
+        logger.error(f"internal code-health reverify failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/internal/code-health/orchestration", methods=["GET"])
+@_require_internal_key
+def api_internal_code_health_orchestration():
+    """Per-department ownership + lifecycle counts (open/deployed/fixed/still_open)
+    of Code-Health findings. The engine reads this post-deploy to surface
+    still_open regressions. Bearer INTERNAL_API_KEY."""
+    from tools.consciousness.code_health_routes import compute_orchestration
+
+    try:
+        return jsonify(compute_orchestration())
+    except Exception as e:
+        logger.error(f"internal code-health orchestration failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/internal/code-health/scan", methods=["POST"])
+@_require_internal_key
+def api_internal_code_health_scan():
+    """Kick a full async codebase scan; returns job_id. Poll
+    /api/internal/code-health/job-status/<id>. Bearer INTERNAL_API_KEY."""
+    from tools.consciousness.code_health_routes import start_code_health_scan
+
+    payload, code = start_code_health_scan()
+    return jsonify(payload), code
+
+
+@app.route("/api/internal/code-health/audit", methods=["POST"])
+@_require_internal_key
+def api_internal_code_health_audit():
+    """Audit one module (sync, pass {"module"}) or all modules (async, returns
+    job_id). Bearer INTERNAL_API_KEY."""
+    from tools.consciousness.code_health_routes import run_code_health_audit
+
+    module = (request.get_json(silent=True) or {}).get("module")
+    payload, code = run_code_health_audit(module)
+    return jsonify(payload), code
+
+
+@app.route("/api/internal/code-health/job-status/<int:job_id>", methods=["GET"])
+@_require_internal_key
+def api_internal_code_health_job_status(job_id):
+    """Poll an async code-health scan/audit job (reads bridge_jobs). Bearer INTERNAL_API_KEY."""
+    from tools.consciousness.code_health_routes import code_health_job_status_payload
+
+    payload, code = code_health_job_status_payload(job_id)
+    return jsonify(payload), code
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():

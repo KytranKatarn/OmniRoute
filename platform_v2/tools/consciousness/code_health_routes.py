@@ -72,6 +72,228 @@ _TOKEN_USAGE_CACHE = {}
 _TOKEN_USAGE_TTL = 600  # seconds
 
 
+# ── Engine-facing helpers ─────────────────────────────────────────────────────
+# Shared by the @login_required+@admin_required session routes below AND the
+# @_require_internal_key /api/internal/code-health/* aliases the A.R.C.H.I.E.
+# build engine calls (#4262 — the loop-closer). Extracting the logic to module
+# level keeps ONE implementation so the cockpit/UI and the engine never drift.
+
+
+def _audit_one(key, mod_data):
+    """Audit one module: static analysis -> log_audit -> auto-submit to Repair Bay
+    (deduped). Returns a result dict. Shared by the sync single-module path and
+    the async audit-all job so both behave identically."""
+    from services.code_metrics_service import audit_single_module, log_audit
+
+    issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
+    log_audit(
+        module_name=key,
+        category=profile.upper(),
+        files_reviewed=mod_data.get("files", 0),
+        lines_before=mod_data.get("lines", 0),
+        lines_after=mod_data.get("lines", 0),
+        issues_found=issues_found,
+        notes=notes,
+        status=status,
+        audit_profile=profile,
+        trigger_reason="manual",
+        dispatched_via="local_static_analysis",
+    )
+    proposals_created = 0
+    proposals_skipped = 0
+    if issues_list:
+        try:
+            from services.audit_pipeline import process_audit_findings
+
+            repair_result = process_audit_findings(key, issues_list)
+            proposals_created = repair_result.get("proposals_created", 0)
+            proposals_skipped = repair_result.get("skipped_duplicates", 0)
+        except Exception as repair_err:
+            logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
+    return {
+        "module": key,
+        "profile": profile,
+        "issues": issues_found,
+        "status": status,
+        "proposals_created": proposals_created,
+        "proposals_skipped": proposals_skipped,
+    }
+
+
+def start_code_health_scan():
+    """Kick the async full-codebase scan job. Returns (payload, http_status)."""
+
+    def work(job_id, svc):
+        from services.code_metrics_service import save_snapshot, scan_codebase
+
+        metrics = scan_codebase(force=True)
+        save_snapshot(metrics)
+        svc.update_job_progress(job_id, completed_delta=1)
+
+    job_id, err = _ch_async_job("code_health_scan", "Full codebase scan", 1, work)
+    if err:
+        return {"success": False, "already_running": True, "job_id": job_id, "error": err}, 409
+    return {"success": True, "job_id": job_id, "status": "running"}, 200
+
+
+def run_code_health_audit(module_key=None):
+    """Audit ONE module (sync — powers the per-module modal) or ALL modules
+    (async job). Returns (payload, http_status). Shared by the session route and
+    the internal engine alias. The audit-all worker scans the tree ONCE then
+    audits every module, and closes the self-healing loop with a reverify pass."""
+    from services.code_metrics_service import scan_codebase
+
+    if module_key:
+        metrics = scan_codebase()
+        all_modules = metrics.get("modules", {})
+        if module_key not in all_modules:
+            return {"success": False, "error": f"Module not found: {module_key}"}, 404
+        try:
+            result = _audit_one(module_key, all_modules.get(module_key, {}))
+        except Exception as e:
+            result = {"module": module_key, "profile": "unknown", "issues": -1, "status": f"error: {str(e)[:100]}"}
+        return {"success": True, "audited": 1, "results": [result], "trigger": "manual"}, 200
+
+    total_hint = 0
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT per_module FROM code_metrics_snapshots ORDER BY scanned_at DESC LIMIT 1")
+            row = cur.fetchone()
+            if row and row.get("per_module"):
+                import json as _json
+
+                pm = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
+                total_hint = len(pm)
+    except Exception:
+        total_hint = 0
+
+    def work(job_id, svc):
+        metrics = scan_codebase()
+        all_modules = metrics.get("modules", {})
+        for key, mod_data in all_modules.items():
+            try:
+                _audit_one(key, mod_data)
+                svc.update_job_progress(job_id, completed_delta=1)
+            except Exception:
+                logger.warning("audit-all: module %s failed", key, exc_info=True)
+                svc.update_job_progress(job_id, failed_delta=1)
+        try:
+            from services.audit_pipeline import reverify_deployed_findings
+
+            reverify_deployed_findings()
+        except Exception:
+            logger.warning("audit-all: reverify pass failed", exc_info=True)
+
+    job_id, err = _ch_async_job("code_health_audit", "Audit all modules", total_hint or 40, work)
+    if err:
+        return {"success": False, "already_running": True, "job_id": job_id, "error": err}, 409
+    return {"success": True, "job_id": job_id, "status": "running", "total": total_hint}, 200
+
+
+def code_health_job_status_payload(job_id):
+    """bridge_jobs poll payload for the async scan/audit/backfill jobs.
+    Returns (payload, http_status)."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT job_type, status, completed_steps, failed_steps, total_steps
+               FROM bridge_jobs WHERE id = %s""",
+            (job_id,),
+        )
+        r = cur.fetchone()
+    if not r:
+        return {"success": False, "error": "job not found"}, 404
+    return {
+        "success": True,
+        "job_id": job_id,
+        "job_type": r.get("job_type"),
+        "status": r.get("status"),
+        "completed": r.get("completed_steps") or 0,
+        "failed": r.get("failed_steps") or 0,
+        "total": r.get("total_steps") or 0,
+    }, 200
+
+
+def compute_orchestration():
+    """Department-ownership + lifecycle aggregation of Code-Health findings.
+
+    Resolution chain mirrors live dispatch: issue_code -> _ISSUE_CAPABILITY_MAP ->
+    capability -> CAPABILITY_DEPARTMENT_MAP -> department -> director. Returns the
+    JSON-able payload {"success", "departments"[]} so both the session route and
+    the internal engine alias share one implementation."""
+    from services.audit_pipeline import _ISSUE_CAPABILITY_MAP
+
+    try:
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+    except Exception:
+        CAPABILITY_DEPARTMENT_MAP = {}
+    # Code-Health audit capabilities aren't all in CAPABILITY_DEPARTMENT_MAP
+    # (e.g. 'vulnerability_scan'); this override keeps ownership faithful so
+    # security findings route to V.I.G.I.L., not the Engineering default.
+    _CH_CAP_DEPT = {
+        "vulnerability_scan": "Security & Compliance",
+        "security": "Security & Compliance",
+        "compliance": "Security & Compliance",
+        "code_review": "Engineering & Technology",
+        "code": "Engineering & Technology",
+        "debug": "Engineering & Technology",
+        "module_audit": "Documentation & Knowledge",
+        "documentation": "Documentation & Knowledge",
+    }
+    director = {
+        "Security & Compliance": "V.I.G.I.L.",
+        "Engineering & Technology": "F.O.R.G.E.",
+        "Documentation & Knowledge": "C.O.D.E.X.",
+        "Analytics & Intelligence": "S.P.E.C.T.R.A.",
+        "Research & Development": "D.A.R.W.I.N.",
+    }
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT status, metadata FROM improvement_proposals
+               WHERE metadata->>'source' = 'code_health_audit'
+               ORDER BY id DESC LIMIT 2000"""
+        )
+        rows = cur.fetchall()
+
+    agg = {}
+    for r in rows:
+        md = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
+        code = md.get("issue_code") or "?"
+        cap = _ISSUE_CAPABILITY_MAP.get(code, "code_review")
+        dept = _CH_CAP_DEPT.get(cap) or CAPABILITY_DEPARTMENT_MAP.get(cap, "Engineering & Technology")
+        a = agg.setdefault(
+            dept,
+            {
+                "department": dept,
+                "director": director.get(dept),
+                "capabilities": set(),
+                "open": 0,
+                "deployed": 0,
+                "fixed": 0,
+                "still_open": 0,
+                "total": 0,
+            },
+        )
+        a["capabilities"].add(cap)
+        a["total"] += 1
+        status = (r.get("status") or "").lower()
+        rev = (md.get("reverified") or "").lower()
+        if rev == "fixed":
+            a["fixed"] += 1
+        elif rev == "still_open":
+            a["still_open"] += 1
+        elif status in ("deployed", "implemented"):
+            a["deployed"] += 1
+        elif status not in ("rejected", "archived", "failed"):
+            a["open"] += 1
+
+    out = []
+    for a in agg.values():
+        a["capabilities"] = sorted(a["capabilities"])
+        out.append(a)
+    out.sort(key=lambda x: -x["total"])
+    return {"success": True, "departments": out}
+
+
 def register_code_health_routes(bp, admin_required):
     @bp.route("/api/code-health/scan", methods=["POST"])
     @login_required
@@ -79,44 +301,16 @@ def register_code_health_routes(bp, admin_required):
     def code_health_scan():
         """Full codebase scan — async (was a multi-second blocking filesystem walk).
         Returns a job_id immediately; poll /api/code-health/job-status/<id>."""
-
-        def work(job_id, svc):
-            from services.code_metrics_service import save_snapshot, scan_codebase
-
-            metrics = scan_codebase(force=True)
-            save_snapshot(metrics)
-            svc.update_job_progress(job_id, completed_delta=1)
-
-        job_id, err = _ch_async_job("code_health_scan", "Full codebase scan", 1, work)
-        if err:
-            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
-        return jsonify({"success": True, "job_id": job_id, "status": "running"})
+        payload, code = start_code_health_scan()
+        return jsonify(payload), code
 
     @bp.route("/api/code-health/job-status/<int:job_id>")
     @login_required
     @admin_required
     def code_health_job_status(job_id):
         """Poll target for the async scan/audit/backfill jobs (reads bridge_jobs)."""
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """SELECT job_type, status, completed_steps, failed_steps, total_steps
-                   FROM bridge_jobs WHERE id = %s""",
-                (job_id,),
-            )
-            r = cur.fetchone()
-        if not r:
-            return jsonify({"success": False, "error": "job not found"}), 404
-        return jsonify(
-            {
-                "success": True,
-                "job_id": job_id,
-                "job_type": r.get("job_type"),
-                "status": r.get("status"),
-                "completed": r.get("completed_steps") or 0,
-                "failed": r.get("failed_steps") or 0,
-                "total": r.get("total_steps") or 0,
-            }
-        )
+        payload, code = code_health_job_status_payload(job_id)
+        return jsonify(payload), code
 
     @bp.route("/api/code-health/current")
     @login_required
@@ -755,45 +949,7 @@ def register_code_health_routes(bp, admin_required):
 
         return jsonify({"success": True, "websites": results})
 
-    def _audit_one(key, mod_data):
-        """Audit one module: static analysis -> log_audit -> auto-submit to Repair Bay
-        (deduped). Returns a result dict. Shared by the sync single-module path and
-        the async audit-all job so both behave identically."""
-        from services.code_metrics_service import audit_single_module, log_audit
-
-        issues_found, notes, status, issues_list, profile = audit_single_module(key, module_data=mod_data)
-        log_audit(
-            module_name=key,
-            category=profile.upper(),
-            files_reviewed=mod_data.get("files", 0),
-            lines_before=mod_data.get("lines", 0),
-            lines_after=mod_data.get("lines", 0),
-            issues_found=issues_found,
-            notes=notes,
-            status=status,
-            audit_profile=profile,
-            trigger_reason="manual",
-            dispatched_via="local_static_analysis",
-        )
-        proposals_created = 0
-        proposals_skipped = 0
-        if issues_list:
-            try:
-                from services.audit_pipeline import process_audit_findings
-
-                repair_result = process_audit_findings(key, issues_list)
-                proposals_created = repair_result.get("proposals_created", 0)
-                proposals_skipped = repair_result.get("skipped_duplicates", 0)
-            except Exception as repair_err:
-                logger.warning("Auto-submit to Repair Bay failed for %s: %s", key, repair_err)
-        return {
-            "module": key,
-            "profile": profile,
-            "issues": issues_found,
-            "status": status,
-            "proposals_created": proposals_created,
-            "proposals_skipped": proposals_skipped,
-        }
+    # _audit_one lifted to module scope (shared with the internal engine alias).
 
     @bp.route("/api/code-health/audit", methods=["POST"])
     @login_required
@@ -802,62 +958,10 @@ def register_code_health_routes(bp, admin_required):
         """Audit ONE module (sync — powers the per-module modal) or ALL modules
         (async job). Findings auto-submit to Repair Bay (deduped)."""
         from flask import request as req
-        from services.code_metrics_service import scan_codebase
 
         data = req.get_json(silent=True) or {}
-        module_key = data.get("module")  # single module key, or None for all
-
-        # Single module — fast, stay synchronous.
-        if module_key:
-            metrics = scan_codebase()
-            all_modules = metrics.get("modules", {})
-            if module_key not in all_modules:
-                return jsonify({"success": False, "error": f"Module not found: {module_key}"}), 404
-            try:
-                result = _audit_one(module_key, all_modules.get(module_key, {}))
-            except Exception as e:
-                result = {"module": module_key, "profile": "unknown", "issues": -1, "status": f"error: {str(e)[:100]}"}
-            return jsonify({"success": True, "audited": 1, "results": [result], "trigger": "manual"})
-
-        # Audit ALL — async. The worker scans the tree ONCE then audits every module;
-        # the old client loop re-scanned the whole codebase per module (~37x). Poll
-        # /api/code-health/job-status/<id> for progress.
-        total_hint = 0
-        try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute("SELECT per_module FROM code_metrics_snapshots ORDER BY scanned_at DESC LIMIT 1")
-                row = cur.fetchone()
-                if row and row.get("per_module"):
-                    import json as _json
-
-                    pm = _json.loads(row["per_module"]) if isinstance(row["per_module"], str) else row["per_module"]
-                    total_hint = len(pm)
-        except Exception:
-            total_hint = 0
-
-        def work(job_id, svc):
-            metrics = scan_codebase()
-            all_modules = metrics.get("modules", {})
-            for key, mod_data in all_modules.items():
-                try:
-                    _audit_one(key, mod_data)
-                    svc.update_job_progress(job_id, completed_delta=1)
-                except Exception:
-                    logger.warning("audit-all: module %s failed", key, exc_info=True)
-                    svc.update_job_progress(job_id, failed_delta=1)
-            # Close the self-healing loop: re-verify any deployed Code-Health fixes
-            # against this fresh audit (flips each fixed / still_open).
-            try:
-                from services.audit_pipeline import reverify_deployed_findings
-
-                reverify_deployed_findings()
-            except Exception:
-                logger.warning("audit-all: reverify pass failed", exc_info=True)
-
-        job_id, err = _ch_async_job("code_health_audit", "Audit all modules", total_hint or 40, work)
-        if err:
-            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
-        return jsonify({"success": True, "job_id": job_id, "status": "running", "total": total_hint})
+        payload, code = run_code_health_audit(data.get("module"))
+        return jsonify(payload), code
 
     @bp.route("/api/code-health/reverify", methods=["POST"])
     @login_required
@@ -891,84 +995,9 @@ def register_code_health_routes(bp, admin_required):
     @admin_required
     def code_health_orchestration():
         """Which department LLM owns each Code-Health finding + the loop status.
-
-        Resolution chain mirrors live dispatch: issue_code -> _ISSUE_CAPABILITY_MAP ->
-        capability -> CAPABILITY_DEPARTMENT_MAP -> department -> director. Aggregates
-        proposals per department by lifecycle bucket so the UI shows who is fixing what
-        and whether re-verify confirmed it (fixed) or flagged a regression (still_open).
-        """
-        from services.audit_pipeline import _ISSUE_CAPABILITY_MAP
-
-        try:
-            from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
-        except Exception:
-            CAPABILITY_DEPARTMENT_MAP = {}
-        # Code-Health audit capabilities aren't all in CAPABILITY_DEPARTMENT_MAP
-        # (e.g. 'vulnerability_scan'); this override keeps the ownership faithful so
-        # security findings route to V.I.G.I.L., not the Engineering default.
-        _CH_CAP_DEPT = {
-            "vulnerability_scan": "Security & Compliance",
-            "security": "Security & Compliance",
-            "compliance": "Security & Compliance",
-            "code_review": "Engineering & Technology",
-            "code": "Engineering & Technology",
-            "debug": "Engineering & Technology",
-            "module_audit": "Documentation & Knowledge",
-            "documentation": "Documentation & Knowledge",
-        }
-        director = {
-            "Security & Compliance": "V.I.G.I.L.",
-            "Engineering & Technology": "F.O.R.G.E.",
-            "Documentation & Knowledge": "C.O.D.E.X.",
-            "Analytics & Intelligence": "S.P.E.C.T.R.A.",
-            "Research & Development": "D.A.R.W.I.N.",
-        }
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                """SELECT status, metadata FROM improvement_proposals
-                   WHERE metadata->>'source' = 'code_health_audit'
-                   ORDER BY id DESC LIMIT 2000"""
-            )
-            rows = cur.fetchall()
-
-        agg = {}
-        for r in rows:
-            md = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
-            code = md.get("issue_code") or "?"
-            cap = _ISSUE_CAPABILITY_MAP.get(code, "code_review")
-            dept = _CH_CAP_DEPT.get(cap) or CAPABILITY_DEPARTMENT_MAP.get(cap, "Engineering & Technology")
-            a = agg.setdefault(
-                dept,
-                {
-                    "department": dept,
-                    "director": director.get(dept),
-                    "capabilities": set(),
-                    "open": 0,
-                    "deployed": 0,
-                    "fixed": 0,
-                    "still_open": 0,
-                    "total": 0,
-                },
-            )
-            a["capabilities"].add(cap)
-            a["total"] += 1
-            status = (r.get("status") or "").lower()
-            rev = (md.get("reverified") or "").lower()
-            if rev == "fixed":
-                a["fixed"] += 1
-            elif rev == "still_open":
-                a["still_open"] += 1
-            elif status in ("deployed", "implemented"):
-                a["deployed"] += 1
-            elif status not in ("rejected", "archived", "failed"):
-                a["open"] += 1
-
-        out = []
-        for a in agg.values():
-            a["capabilities"] = sorted(a["capabilities"])
-            out.append(a)
-        out.sort(key=lambda x: -x["total"])
-        return jsonify({"success": True, "departments": out})
+        Delegates to the module-level compute_orchestration() (shared with the
+        internal engine alias)."""
+        return jsonify(compute_orchestration())
 
     @bp.route("/api/code-health/audit/<int:audit_id>/details")
     @login_required

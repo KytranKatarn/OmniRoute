@@ -311,6 +311,38 @@ def register_forge_tools():
 
     logger.info("Registered 3 additional Repair Bay tools: repair_bay_status, repair_bay_run, repair_bay_scan")
 
+    register_tool(
+        name="code_health",
+        category="forge",
+        description=(
+            "Code Health loop-closer (Consciousness). action=reverify re-audits deployed fixes and "
+            "reports per-finding fixed/still_open (the post-deploy confirmation step); "
+            "action=orchestration shows which department owns each finding + open/deployed/fixed/still_open "
+            "counts; action=scan kicks a full async codebase scan (returns job_id); action=audit audits one "
+            "module (sync, pass module=) or all modules (async). Use after a deploy to confirm a fix landed "
+            "or to surface still-open regressions."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["scan", "audit", "reverify", "orchestration"],
+                    "description": "Which Code Health operation to run.",
+                },
+                "module": {
+                    "type": "string",
+                    "description": "Optional module name to scope audit/reverify.",
+                },
+            },
+            "required": ["action"],
+        },
+        handler=code_health_handler,
+        requires_permission="write",
+    )
+
+    logger.info("Registered Code Health tool: code_health")
+
 
 # ── Repair Bay tool handlers ────────────────────────────────────────────────
 # Defined before register_forge_tools() so they are in scope at registration.
@@ -432,6 +464,41 @@ async def repair_bay_scan_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "message": "Full platform scan triggered — check Repair Bay Diagnose tab for results.",
                 "available_modules": sorted(MODULE_SUITE_MAP.keys()),
             }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def code_health_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """Code Health: reverify | orchestration (sync) · scan | audit (scan async, single-module audit sync).
+
+    Shares the exact module-level helpers the session routes use, so the MCP
+    surface and the Consciousness UI never drift (#4262)."""
+    try:
+        action = (arguments.get("action") or "").strip().lower()
+        module = arguments.get("module") or None
+
+        if action == "reverify":
+            from services.audit_pipeline import reverify_deployed_findings
+
+            return {"success": True, **reverify_deployed_findings(module)}
+        if action == "orchestration":
+            from tools.consciousness.code_health_routes import compute_orchestration
+
+            return compute_orchestration()
+        if action == "scan":
+            from tools.consciousness.code_health_routes import start_code_health_scan
+
+            payload, _ = start_code_health_scan()
+            return payload
+        if action == "audit":
+            from tools.consciousness.code_health_routes import run_code_health_audit
+
+            payload, _ = run_code_health_audit(module)
+            return payload
+        return {
+            "success": False,
+            "error": f"unknown action {action!r} — use scan | audit | reverify | orchestration",
+        }
     except Exception as e:
         return {"success": False, "error": str(e)}
 

@@ -19,7 +19,7 @@ globs: ["ai_bridge/**"]
 ### Hub (192.168.1.200 / Quadro M4000)
 - Host: 192.168.1.200:11434 | Docker: `host.docker.internal:11434`
 - GPU: Quadro M4000 (8GB VRAM) | RAM: 128GB
-- **MAX_LOADED_MODELS=6 | KEEP_ALIVE=30m | NUM_PARALLEL=1** (updated 2026-05-19)
+- **MAX_LOADED_MODELS=10 | KEEP_ALIVE=60m | NUM_PARALLEL=1** (updated 2026-06-19 — raised from 6/30m to use idle RAM: more models stay warm longer → fewer cold-loads. NUM_PARALLEL kept at 1 + no global num_ctx bump — those inflate the 8GB GPU KV-cache, the real ceiling. Config: `/etc/systemd/system/ollama.service.d/override.conf`; rollback backup `override.conf.bak.20260619-093056-ram-tweak`.)
 - Warm model set (GPU+CPU simultaneously):
   - GPU: `qwen2.5:1.5b` (1.3GB) + `llama3.2:3b` (2.6GB) = 3.9GB VRAM
   - CPU: `qwen2.5:7b` + `mistral:7b` + `gemma3:12b` + `dolphin3:latest` = ~23GB RAM

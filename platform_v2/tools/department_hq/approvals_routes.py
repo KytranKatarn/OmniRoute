@@ -315,6 +315,12 @@ def register_approvals_routes(bp, admin_required_decorator):
                             _pt, _pt.title()
                         )
                         category, display = "linkedin_post", f"LinkedIn Post — {_acct_label}"
+                    elif at == "linkedin_like":
+                        _ad = r.get("action_data") or {}
+                        _rx = _ad.get("reaction", "like") if isinstance(_ad, dict) else "like"
+                        category, display = "linkedin_like", f"LinkedIn {str(_rx).title()}"
+                    elif at == "linkedin_comment":
+                        category, display = "linkedin_comment", "LinkedIn Comment"
                     elif at == "contractor_dispatch":
                         category, display = "contractor_dispatch", "Contractor Dispatch"
                     elif at == "restart_container":

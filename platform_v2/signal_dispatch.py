@@ -106,6 +106,46 @@ def _check_api_key() -> bool:
     return auth == valid
 
 
+@signal_dispatch_bp.route("/engage", methods=["POST"])
+def signal_engage():
+    """Propose an approval-gated LinkedIn engagement (like / proactive comment).
+
+    Body: {action: 'like'|'comment', post_url, account?, reaction?, comment?}.
+    Creates a Tier-2 approval (delivered to Telegram with Approve/Deny buttons +
+    shown in the DHQ Approvals tab); the action fires ONLY after Approve. This is
+    the manual trigger for the engagement system (an auto monitor can call the same
+    signal_engagement_service helpers).
+    """
+    if not _check_api_key():
+        return jsonify({"error": "Invalid or missing API key"}), 401
+
+    data = request.get_json(silent=True) or {}
+    action = (data.get("action") or "").strip().lower()
+    post_url = (data.get("post_url") or "").strip()
+    account = (data.get("account") or "personal").strip().lower()
+    if not post_url:
+        return jsonify({"error": "post_url required"}), 400
+    try:
+        from services.signal_engagement_service import propose_comment, propose_like
+
+        if action == "like":
+            approval_id = propose_like(post_url, account=account, reaction=(data.get("reaction") or "like"))
+        elif action == "comment":
+            comment = (data.get("comment") or "").strip()
+            if not comment:
+                return jsonify({"error": "comment required for action=comment"}), 400
+            approval_id = propose_comment(post_url, comment, account=account)
+        else:
+            return jsonify({"error": "action must be 'like' or 'comment'"}), 400
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
+    except Exception as e:
+        log.exception("signal engage failed")
+        return jsonify({"error": f"engage failed: {e}"}), 502
+
+    return jsonify({"ok": True, "approval_id": approval_id, "action": action, "status": "pending_approval"})
+
+
 @signal_dispatch_bp.route("/dispatch", methods=["POST"])
 def dispatch_signal():
     if not _check_api_key():
@@ -587,8 +627,7 @@ def redraft_with_suggestion(original_draft: str, suggestion: str, action_data: d
             "content": revised,
             "hashtags": hashtags,
             "post_type": post_type,
-            "browser_agent_id": action_data.get("browser_agent_id")
-            or (377 if post_type == "terry" else 342),
+            "browser_agent_id": action_data.get("browser_agent_id") or (377 if post_type == "terry" else 342),
         },
         reason=f"✏️ S.I.G.N.A.L. revised draft:\n\n{revised[:1500]}",
         tier=2,

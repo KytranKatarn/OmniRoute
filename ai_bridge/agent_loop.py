@@ -96,6 +96,15 @@ def _send_approval_telegram(
                 lines.append(f"Type: {post_type}")
             if hashtags:
                 lines.append("Tags: " + " ".join(f"#{h}" for h in hashtags))
+        elif action_data and action_type == "linkedin_like":
+            lines.append(f"React: {action_data.get('reaction', 'like')}")
+            if action_data.get("post_url"):
+                lines.append(f"Post: {action_data['post_url']}")
+        elif action_data and action_type == "linkedin_comment":
+            if action_data.get("comment"):
+                lines.append(f"Comment: {_strip_md(action_data['comment'])[:300]}")
+            if action_data.get("post_url"):
+                lines.append(f"Post: {action_data['post_url']}")
         elif action_data:
             for k, v in list(action_data.items())[:3]:
                 lines.append(f"{k}: {v}")
@@ -4758,6 +4767,65 @@ class AgentLoop:
             except Exception as conn_err:
                 logger.error(f"LinkedIn connect execution failed: {conn_err}")
                 return {"executed": False, "error": str(conn_err)}
+
+        elif action_type == "linkedin_like":
+            # Approved reaction on a post (like/celebrate/support/love/insightful/funny).
+            # Approval-gated engagement — fires only after a Telegram/tab Approve.
+            post_url = data.get("post_url", "")
+            reaction = data.get("reaction", "like")
+            agent_id = data.get("browser_agent_id") or 342
+            if not post_url:
+                return {"executed": False, "error": "post_url required for linkedin_like"}
+            try:
+                import sys as _sys
+
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+
+                result = run_skill_sync(
+                    "linkedin_like",
+                    {"post_url": post_url, "reaction": reaction},
+                    agent_id=agent_id,
+                    timeout_s=120,
+                )
+                return {
+                    "executed": bool(result.get("success")),
+                    "result": result,
+                    "error": None if result.get("success") else (result.get("error") or "like did not register"),
+                }
+            except Exception as like_err:
+                logger.error(f"LinkedIn like execution failed: {like_err}")
+                return {"executed": False, "error": str(like_err)}
+
+        elif action_type == "linkedin_comment":
+            # Approved proactive comment on a post (any post). Approval-gated — fires
+            # only after Approve. (Replies to comments on OUR posts use the dedicated
+            # linkedin_comment_reply action via the comment monitor.)
+            post_url = data.get("post_url", "")
+            comment = data.get("comment", "")
+            agent_id = data.get("browser_agent_id") or 342
+            if not post_url or not comment:
+                return {"executed": False, "error": "post_url and comment required for linkedin_comment"}
+            try:
+                import sys as _sys
+
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+
+                result = run_skill_sync(
+                    "linkedin_comment",
+                    {"post_url": post_url, "comment": comment},
+                    agent_id=agent_id,
+                    timeout_s=240,
+                )
+                return {
+                    "executed": bool(result.get("success")),
+                    "result": result,
+                    "error": None if result.get("success") else (result.get("error") or "comment did not post"),
+                }
+            except Exception as cmt_err:
+                logger.error(f"LinkedIn comment execution failed: {cmt_err}")
+                return {"executed": False, "error": str(cmt_err)}
 
         else:
             logger.warning(f"Unknown approved action type: {action_type}")

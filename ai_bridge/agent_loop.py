@@ -3940,17 +3940,26 @@ class AgentLoop:
                     break
                 try:
                     result = self._execute_approved_action(cur, conn, item)
+                    # #4327: respect the branch's own success signal. Previously this
+                    # marked EVERY non-exception return as 'executed' — so a timed-out
+                    # or failed linkedin_post (which returns executed:False) showed as
+                    # done without ever publishing. Default True keeps back-compat for
+                    # branches that don't return an 'executed' key (send_email, etc.).
+                    _ok = (result or {}).get("executed", True)
                     cur.execute(
                         """
                         UPDATE autonomy_approval_queue
-                        SET status = 'executed', executed_at = NOW(),
+                        SET status = %s, executed_at = NOW(),
                             execution_result = %s, updated_at = NOW()
                         WHERE id = %s
                         """,
-                        (json.dumps(result or {}), item["id"]),
+                        ("executed" if _ok else "failed", json.dumps(result or {}), item["id"]),
                     )
                     conn.commit()
-                    processed += 1
+                    if _ok:
+                        processed += 1
+                    else:
+                        failed += 1
 
                     # Layer A Phase 1 — alert on logical failure (success path that returned an error)
                     try:
@@ -3967,7 +3976,7 @@ class AgentLoop:
                     log_governance_event(
                         "autonomy_execution",
                         f"execute:{item['action_type']}",
-                        "success",
+                        "success" if _ok else "failed",
                         {"approval_id": item["id"], "result": result},
                     )
 
@@ -4560,7 +4569,11 @@ class AgentLoop:
                 elif post_type == "company":
                     params["company_slug"] = company_slug
 
-                result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
+                # #4327: a cold LinkedIn post on the hub can take 180s+; 120s was
+                # shorter than the post itself, so it timed out and (with the old
+                # unconditional executed:True) was marked done without publishing.
+                # 240s stays within the _process_approval_queue batch deadline.
+                result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=240)
 
                 # Fresh connection after 120s browser skill — the caller's cur/conn
                 # may have timed out server-side during execution, causing the log
@@ -4619,7 +4632,15 @@ class AgentLoop:
                     except Exception as fc_err:
                         logger.warning("First comment thread failed: %s", fc_err)
 
-                return {"executed": True, "result": result}
+                # #4327: report the real outcome. With _process_approval_queue now
+                # honoring this flag, a timed-out / failed post is marked 'failed'
+                # (not a false 'executed'). linkedin_post_log above already recorded
+                # posted/failed + post_url, so verification stays truthful.
+                return {
+                    "executed": bool(result.get("success")),
+                    "result": result,
+                    "error": None if result.get("success") else (result.get("error") or "post did not publish within 240s"),
+                }
             except Exception as li_err:
                 logger.error(f"LinkedIn post execution failed: {li_err}")
                 return {"executed": False, "error": str(li_err)}

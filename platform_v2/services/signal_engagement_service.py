@@ -206,9 +206,95 @@ def _candidates_from_notifications(account: str, limit: int) -> list:
     return out
 
 
+def _get_targets() -> list:
+    """Engagement target profile/company URLs from platform_settings
+    (key 'signal:engagement:targets', JSON list of LinkedIn /in/ or /company/ URLs).
+    Empty list if unset → the profiles source proposes nothing."""
+    import json as _json
+
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = %s",
+                ("signal:engagement:targets",),
+            )
+            row = cur.fetchone()
+        raw = (row["value"] if isinstance(row, dict) else row[0]) if row else None
+        if not raw:
+            return []
+        val = _json.loads(raw) if isinstance(raw, str) else raw
+        return [str(t).strip() for t in val if str(t).strip()] if isinstance(val, list) else []
+    except Exception as e:
+        logger.warning("engagement targets read failed: %s", e)
+        return []
+
+
+def get_targets() -> list:
+    """Public accessor for the engagement target list."""
+    return _get_targets()
+
+
+def set_targets(targets: list) -> int:
+    """Persist the engagement target profile/company URLs (platform_settings).
+    Returns the count stored."""
+    import json as _json
+
+    from database import get_db_cursor
+
+    clean = [str(t).strip() for t in (targets or []) if str(t).strip()]
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+               VALUES (%s, %s, 'json', %s, NOW())
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+            (
+                "signal:engagement:targets",
+                _json.dumps(clean),
+                "S.I.G.N.A.L. engagement target LinkedIn profile/company URLs",
+            ),
+        )
+    return len(clean)
+
+
+def _candidates_from_profiles(account: str, targets: list, per_target: int = 1, limit: int = 15) -> list:
+    """Candidate posts from each target's recent activity (served to automation) —
+    THE genuine outreach source: surfaces OTHERS' posts to (human-approved) engage."""
+    from services.browser_service import run_skill_sync
+
+    agent_id = _ACCOUNT_BROWSER_ID.get(account, 342)
+    out = []
+    for t in targets or []:
+        if len(out) >= limit:
+            break
+        try:
+            r = run_skill_sync(
+                "linkedin_recent_activity",
+                {"profile_url": t, "limit": per_target},
+                agent_id=agent_id,
+                timeout_s=120,
+            )
+        except Exception as e:
+            logger.warning("engagement monitor: recent_activity failed for %s: %s", t, e)
+            continue
+        for p in (r or {}).get("posts") or []:
+            url = (p.get("post_url") or "").strip()
+            if url:
+                out.append(
+                    {
+                        "post_url": url,
+                        "author": t,
+                        "snippet": (p.get("snippet") or "")[:120],
+                        "source": "profiles",
+                    }
+                )
+    return out
+
+
 def run_engagement_monitor(
     account: str = "personal",
-    source: str = "notifications",
+    source: str = "auto",
     limit: int = 15,
     max_per_run: int = 3,
     include_comments: bool = False,
@@ -222,12 +308,18 @@ def run_engagement_monitor(
     as Tier-2 Telegram approvals; the human Approve/Deny IS the relevance filter.
     ``dry_run=True`` returns candidates WITHOUT creating approvals (for testing).
     """
+    if source == "auto":
+        # Prefer genuine outreach (target profiles) when configured; else fall back
+        # to notifications (your-own-post activity). feed stays opt-in (withheld).
+        source = "profiles" if _get_targets() else "notifications"
     if source == "feed":
         raw = _candidates_from_feed(account, limit)
     elif source == "notifications":
         raw = _candidates_from_notifications(account, limit)
+    elif source == "profiles":
+        raw = _candidates_from_profiles(account, _get_targets(), per_target=1, limit=limit)
     else:
-        raise ValueError("source must be 'notifications' or 'feed'")
+        raise ValueError("source must be 'notifications', 'profiles', or 'feed'")
 
     candidates: list = []
     proposed = 0

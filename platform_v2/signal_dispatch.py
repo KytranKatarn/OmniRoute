@@ -146,6 +146,25 @@ def signal_engage():
     return jsonify({"ok": True, "approval_id": approval_id, "action": action, "status": "pending_approval"})
 
 
+@signal_dispatch_bp.route("/engage/targets", methods=["GET", "POST"])
+def signal_engage_targets():
+    """Manage the engagement target list — LinkedIn profile/company URLs the auto
+    monitor scans via /recent-activity. GET returns the list; POST {targets:[...]}
+    replaces it. When targets are set, the monitor's 'auto' source uses them."""
+    if not _check_api_key():
+        return jsonify({"error": "Invalid or missing API key"}), 401
+    from services.signal_engagement_service import get_targets, set_targets
+
+    if request.method == "GET":
+        return jsonify({"targets": get_targets()})
+    data = request.get_json(silent=True) or {}
+    targets = data.get("targets")
+    if not isinstance(targets, list):
+        return jsonify({"error": "targets must be a list of LinkedIn profile/company URLs"}), 400
+    count = set_targets(targets)
+    return jsonify({"ok": True, "count": count, "targets": get_targets()})
+
+
 @signal_dispatch_bp.route("/dispatch", methods=["POST"])
 def dispatch_signal():
     if not _check_api_key():

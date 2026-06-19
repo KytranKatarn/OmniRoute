@@ -3850,7 +3850,12 @@ class AgentLoop:
                 return
             from services.signal_engagement_service import run_engagement_monitor
 
-            result = run_engagement_monitor()
+            # Comments are an extra opt-in: each is S.I.G.N.A.L.-drafted then queued
+            # as its OWN Tier-2 Telegram approval — never auto-posted. Toggle via
+            # work_control 'signal_engagement_comments' (default OFF = likes only).
+            result = run_engagement_monitor(
+                include_comments=is_enabled("signal_engagement_comments", default=False)
+            )
             if result.get("proposed"):
                 logger.info(f"[signal-engagement] monitor: {result}")
         except Exception as e:

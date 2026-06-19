@@ -84,3 +84,120 @@ def propose_comment(
         reason=f"💬 Approve comment on {post_url} (as {account}):\n\n{comment[:500]}",
         requested_by=requested_by,
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — auto engagement monitor
+# ---------------------------------------------------------------------------
+
+
+def _already_proposed(post_url: str) -> bool:
+    """True if a like/comment approval already exists for this post (any status).
+
+    Dedup without a new table — reuses autonomy_approval_queue. Fail-CLOSED (treat
+    as already-proposed on any error) so a glitch never spams duplicate approvals.
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT 1 FROM autonomy_approval_queue
+                   WHERE action_type IN ('linkedin_like', 'linkedin_comment')
+                     AND action_data->>'post_url' = %s
+                   LIMIT 1""",
+                (post_url,),
+            )
+            return cur.fetchone() is not None
+    except Exception as e:
+        logger.warning("engagement dedup check failed for %s: %s", post_url, e)
+        return True
+
+
+def _draft_comment(post: dict) -> str:
+    """Draft a short on-brand comment for a feed post via S.I.G.N.A.L. dispatch.
+    Returns '' on any failure (the like still goes through)."""
+    try:
+        from services.signal_calendar_service import _ensure_import_paths
+
+        _ensure_import_paths()
+        from tools.department_hq.services.department_dispatcher import dispatch
+
+        author = post.get("author", "the author")
+        content = (post.get("content") or "")[:500]
+        prompt = (
+            f"Write ONE short (max 200 chars), genuine, professional LinkedIn comment "
+            f"replying to this post by {author}. No hashtags, no emoji spam, no sales "
+            f"pitch — a thoughtful one-liner.\n\nPost: {content}"
+        )
+        res = dispatch(capability="social_content", prompt=prompt)
+        if getattr(res, "success", False):
+            text = (res.response or "").strip().strip('"')
+            return text[:280]
+    except Exception as e:
+        logger.warning("engagement monitor: comment draft failed: %s", e)
+    return ""
+
+
+def run_engagement_monitor(
+    account: str = "personal",
+    feed_limit: int = 10,
+    max_per_run: int = 3,
+    include_comments: bool = False,
+    dry_run: bool = False,
+) -> dict:
+    """Scan the feed and PROPOSE approval-gated engagements (Phase 2).
+
+    Surfaces up to ``max_per_run`` candidate feed posts (skipping any already
+    proposed) and enqueues a like — and, if ``include_comments``, a drafted comment
+    — for each, all as Tier-2 Telegram approvals. The human Approve/Deny IS the
+    relevance filter; this only surfaces candidates. ``dry_run=True`` returns the
+    candidates WITHOUT creating any approvals (used for testing).
+    """
+    from services.browser_service import run_skill_sync
+
+    agent_id = _ACCOUNT_BROWSER_ID.get(account, 342)
+    feed = run_skill_sync("linkedin_feed", {"limit": feed_limit}, agent_id=agent_id, timeout_s=120)
+    posts = (feed or {}).get("posts") or []
+    candidates: list = []
+    proposed = 0
+    for p in posts:
+        if len(candidates) >= max_per_run:
+            break
+        url = (p.get("post_url") or "").strip()
+        if not url or "feed/update" not in url:
+            continue
+        if _already_proposed(url):
+            continue
+        cand = {
+            "post_url": url,
+            "author": p.get("author", ""),
+            "snippet": (p.get("content") or "")[:120],
+        }
+        candidates.append(cand)
+        if dry_run:
+            continue
+        try:
+            cand["like_approval_id"] = propose_like(
+                url, account=account, requested_by="S.I.G.N.A.L. engagement monitor"
+            )
+            proposed += 1
+        except Exception as e:
+            logger.warning("engagement monitor: propose_like failed for %s: %s", url, e)
+            continue
+        if include_comments:
+            draft = _draft_comment(p)
+            if draft:
+                try:
+                    cand["comment_approval_id"] = propose_comment(
+                        url, draft, account=account, requested_by="S.I.G.N.A.L. engagement monitor"
+                    )
+                    proposed += 1
+                except Exception as e:
+                    logger.warning("engagement monitor: propose_comment failed for %s: %s", url, e)
+    return {
+        "feed_posts": len(posts),
+        "candidates": candidates,
+        "proposed": proposed,
+        "dry_run": dry_run,
+    }

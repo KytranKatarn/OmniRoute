@@ -547,6 +547,20 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # S.I.G.N.A.L. engagement monitor (Phase 2) — scan the feed → PROPOSE
+        # approval-gated likes/comments (Tier-2 Telegram). OFF by default; enable
+        # via work_control 'signal_engagement_monitor'.
+        self.scheduler.add_job(
+            with_app_context(self._signal_engagement_monitor),
+            trigger=IntervalTrigger(hours=8),
+            id="signal_engagement_monitor",
+            name="S.I.G.N.A.L.: Engagement Monitor (likes/comments proposals)",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=3600,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._archie_coo_approval_worker),
             trigger=IntervalTrigger(seconds=90),
@@ -3820,6 +3834,27 @@ class AgentLoop:
             logger.info(f"[signal-calendar] top-up: {result}")
         except Exception as e:
             logger.error(f"[signal-calendar] top-up failed: {e}")
+
+    def _signal_engagement_monitor(self):
+        """S.I.G.N.A.L. engagement Phase 2: scan the feed and PROPOSE approval-gated
+        likes/comments (Tier-2 Telegram). Flag-gated OFF by default — enable via
+        work_control 'signal_engagement_monitor' when ready (avoids surprise
+        approval spam). Human Approve/Deny is the relevance filter."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.work_control_service import is_enabled
+
+            if not is_enabled("signal_engagement_monitor", default=False):
+                return
+            from services.signal_engagement_service import run_engagement_monitor
+
+            result = run_engagement_monitor()
+            if result.get("proposed"):
+                logger.info(f"[signal-engagement] monitor: {result}")
+        except Exception as e:
+            logger.error(f"[signal-engagement] monitor failed: {e}")
 
     def _engine_autopull_cycle(self):
         """A.R.C.H.I.E. Building Machine autonomous scheduler (#380, ADR-008).

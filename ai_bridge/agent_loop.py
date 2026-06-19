@@ -4575,6 +4575,20 @@ class AgentLoop:
                 # 240s stays within the _process_approval_queue batch deadline.
                 result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=240)
 
+                # Harden company/creed: the multi-stage actor-switch (share box →
+                # settings → actor toggle → select page → Save → Done) is transiently
+                # flaky — a stage selector can miss on first load (observed live: the
+                # KE Inc. post failed once then succeeded on retry). Retry ONCE on
+                # failure. Duplicate-safe: the skill returns success only AFTER the
+                # Post click; every failure path raises BEFORE any post is created.
+                if not result.get("success") and post_type in ("company", "creed"):
+                    logger.warning(
+                        "linkedin %s post failed (%s) — retrying actor-switch once",
+                        post_type,
+                        result.get("error") or result.get("_status"),
+                    )
+                    result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=240)
+
                 # Fresh connection after 120s browser skill — the caller's cur/conn
                 # may have timed out server-side during execution, causing the log
                 # write and commit to silently fail with the stale cursor.

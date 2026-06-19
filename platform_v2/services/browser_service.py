@@ -137,6 +137,25 @@ def linkedin_post_image(content: str, image_path: str, hashtags: list = None, ag
     )
 
 
+def linkedin_delete(
+    post_url: str,
+    expect_contains: str = "",
+    dry_run: bool = False,
+    agent_id: int = DEFAULT_AGENT_ID,
+) -> dict:
+    """Delete a SINGLE LinkedIn post by permalink (#4326).
+
+    Destructive — the guards live in the skill (single-post-by-URL only, rejects
+    lists / non-permalink URLs, optional ``expect_contains`` confirmation, and a
+    ``dry_run`` that stops at the confirm dialog). ``agent_id`` selects the
+    browser identity (342 Kytran / 377 Terry). You can only delete your own posts.
+    """
+    params = {"post_url": post_url, "dry_run": dry_run}
+    if expect_contains:
+        params["expect_contains"] = expect_contains
+    return run_skill_sync("linkedin_delete", params, agent_id)
+
+
 def linkedin_profile_view(profile_url: str, agent_id: int = DEFAULT_AGENT_ID) -> dict:
     return run_skill_sync("linkedin_profile_view", {"profile_url": profile_url}, agent_id)
 

@@ -21,6 +21,28 @@ def _screenshot(page, name):
         return None
 
 
+def _dismiss_overlays(page) -> bool:
+    """Dismiss LinkedIn interstitial modals (e.g. the 'Premium Company Page'
+    upsell) that can overlay the post's comment controls. Harmless when none."""
+    for attempt in [
+        lambda: page.locator(".artdeco-modal__dismiss").first.click(timeout=2000),
+        lambda: page.locator('button[aria-label="Dismiss"]').first.click(timeout=2000),
+        lambda: page.get_by_role("button", name="Dismiss").first.click(timeout=2000),
+    ]:
+        try:
+            attempt()
+            page.wait_for_timeout(600)
+            return True
+        except Exception:
+            continue
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(400)
+    except Exception:
+        pass
+    return False
+
+
 def execute(page, params: dict) -> dict:
     post_url = params.get("post_url", "").strip()
     comment = params.get("comment",
@@ -33,6 +55,7 @@ def execute(page, params: dict) -> dict:
     page.goto(post_url, wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
     _screenshot(page, "first_comment_before")
+    _dismiss_overlays(page)
 
     # Click Comment button
     clicked = False

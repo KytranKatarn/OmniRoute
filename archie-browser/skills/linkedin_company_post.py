@@ -63,8 +63,32 @@ def _diagnostic_dump(page, label: str) -> dict:
     return info
 
 
+def _dismiss_overlays(page) -> bool:
+    """Dismiss LinkedIn interstitial modals (e.g. the 'Premium Company Page'
+    upsell) that overlay the feed composer and block the share box — the #1 cause
+    of 'share box not found'. Harmless when none is present."""
+    for attempt in [
+        lambda: page.locator(".artdeco-modal__dismiss").first.click(timeout=2000),
+        lambda: page.locator('button[aria-label="Dismiss"]').first.click(timeout=2000),
+        lambda: page.get_by_role("button", name="Dismiss").first.click(timeout=2000),
+    ]:
+        try:
+            attempt()
+            page.wait_for_timeout(600)
+            return True
+        except Exception:
+            continue
+    try:
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(400)
+    except Exception:
+        pass
+    return False
+
+
 def _open_share_box(page) -> bool:
-    """Open the feed-level share-box composer."""
+    """Open the feed-level share-box composer (dismissing any interstitial modal
+    that overlays it first)."""
     attempts = [
         lambda: page.get_by_placeholder("Start a post", exact=False).click(timeout=8000),
         lambda: page.locator(".share-box-feed-entry__trigger").first.click(timeout=8000),
@@ -72,13 +96,22 @@ def _open_share_box(page) -> bool:
         lambda: page.get_by_text("Start a post", exact=False).first.click(timeout=8000),
         lambda: page.locator('button:has-text("Start a post")').click(timeout=8000),
     ]
-    for attempt in attempts:
-        try:
-            attempt()
-            return True
-        except Exception:
-            continue
-    return False
+
+    def _try():
+        for attempt in attempts:
+            try:
+                attempt()
+                return True
+            except Exception:
+                continue
+        return False
+
+    _dismiss_overlays(page)
+    if _try():
+        return True
+    # A modal may have appeared late — dismiss + retry once.
+    _dismiss_overlays(page)
+    return _try()
 
 
 def _open_post_settings(page) -> bool:

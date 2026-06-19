@@ -16,6 +16,7 @@ import sys
 import pytest
 import psycopg2
 import psycopg2.extras
+from psycopg2 import sql
 
 
 def _get_db_password():

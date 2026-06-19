@@ -130,6 +130,7 @@ def submit_via_inbox(
 # Default rules — (severity, category_prefix, director_pattern, action, reason)
 # First match wins. None = wildcard.
 _DEFAULT_RULES = [
+    (None, "approval_request", None, "escalate", "Approval requests always reach Kytran"),
     ("critical", None, None, "escalate", "Critical severity always escalates"),
     ("high", "security", None, "escalate", "High-severity security event"),
     ("high", None, None, "escalate", "High severity requires Kytran attention"),

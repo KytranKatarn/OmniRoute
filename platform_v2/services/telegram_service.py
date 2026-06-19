@@ -293,24 +293,51 @@ def send(
         )
         return {"sent": False, "reason": "no chat_id configured"}
 
+    # #4325: approval requests get Approve/Deny/Defer/Suggest buttons so Kytran can
+    # action them straight from Telegram. The approval id is parsed from the title
+    # ("... #<id>"); the esc_* callbacks are handled in ai_bridge/telegram_gateway.py.
+    reply_markup = None
+    if category == "approval_request":
+        import re as _re
+
+        _m = _re.search(r"#(\d+)", title or "")
+        if _m:
+            _aid = _m.group(1)
+            reply_markup = {
+                "inline_keyboard": [
+                    [
+                        {"text": "✅ Approve", "callback_data": f"esc_approve_{_aid}"},
+                        {"text": "❌ Deny", "callback_data": f"esc_deny_{_aid}"},
+                        {"text": "⏳ Defer 1hr", "callback_data": f"esc_defer_{_aid}"},
+                    ],
+                    [
+                        {"text": "✏️ Suggest", "callback_data": f"esc_suggest_{_aid}"},
+                    ],
+                ]
+            }
+
     try:
+        _payload = {
+            "chat_id": target,
+            "text": text,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": True,
+        }
+        if reply_markup is not None:
+            _payload["reply_markup"] = reply_markup
         resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id": target,
-                "text": text,
-                "parse_mode": "Markdown",
-                "disable_web_page_preview": True,
-            },
+            json=_payload,
             timeout=10,
         )
         if not resp.ok and resp.status_code == 400:
             # The #1 Telegram 400 is a Markdown "can't parse entities" error (231 of 257
             # sends over 7d) — content held chars our escaping missed. Retry once as PLAIN
             # TEXT (drop parse_mode) so the message still lands instead of being dropped.
+            _plain = {k: v for k, v in _payload.items() if k != "parse_mode"}
             resp = requests.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": target, "text": text, "disable_web_page_preview": True},
+                json=_plain,
                 timeout=10,
             )
         _last_sent[category] = time.time()
@@ -332,7 +359,7 @@ def send(
             )
             logger.info("telegram_service: sent [%s] '%s' from %s", category, title, source_agent or "system")
             _audit_send(category, title, source_agent, route="direct", suppressed=False)
-            return {"sent": True, "log_id": log_id}
+            return {"sent": True, "log_id": log_id, "message_id": tg_msg_id}
         else:
             reason = f"HTTP {resp.status_code}: {resp.text[:100]}"
             _log_message(
@@ -530,6 +557,35 @@ def send_info(title: str, message: str, **kwargs) -> dict:
     kwargs.setdefault("source_agent", "A.R.C.H.I.E.")
     kwargs.setdefault("source_department", "Executive Office")
     return send("info", title, message, **kwargs)
+
+
+def edit_message(message_id, text, chat_id=None, clear_buttons=True) -> dict:
+    """Edit a previously-sent Telegram message (best-effort; never raises).
+
+    Used so an approval actioned on one surface (the DHQ Approvals tab) is echoed
+    onto the other (Telegram) — updating the text and removing the inline buttons so
+    the phone reflects the dashboard decision. Mirrors the inbound callback's own
+    edit_message_text on tap. (#4325)
+    """
+    token = _get_token()
+    if not token or not message_id:
+        return {"edited": False, "reason": "no token or message_id"}
+    target = chat_id or _get_chat_id()
+    if not target:
+        return {"edited": False, "reason": "no chat_id"}
+    try:
+        payload = {"chat_id": target, "message_id": message_id, "text": text}
+        if clear_buttons:
+            payload["reply_markup"] = {"inline_keyboard": []}
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/editMessageText",
+            json=payload,
+            timeout=10,
+        )
+        return {"edited": bool(resp.ok)}
+    except Exception as exc:
+        logger.debug("telegram_service: edit_message failed: %s", exc)
+        return {"edited": False, "reason": str(exc)[:120]}
 
 
 def send_with_buttons(

@@ -49,13 +49,14 @@ def _approve_autonomy(source_id: int, user_id: int):
 
     from database import get_db_cursor
 
+    tg_msg_id = None
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """UPDATE autonomy_approval_queue
                SET status = 'approved', approved_by = %s,
                    approved_at = NOW(), updated_at = NOW()
                WHERE id = %s AND status = 'pending'
-               RETURNING action_type, action_data""",
+               RETURNING action_type, action_data, telegram_message_id""",
             (user_id, source_id),
         )
         row = cur.fetchone()
@@ -64,6 +65,7 @@ def _approve_autonomy(source_id: int, user_id: int):
 
         action_type = row["action_type"] if isinstance(row, dict) else row[0]
         action_data = row["action_data"] if isinstance(row, dict) else row[1]
+        tg_msg_id = row["telegram_message_id"] if isinstance(row, dict) else row[2]
 
         # welfare_rest_8h: enforce the rest cycle on approval (mirror of Telegram callback)
         if action_type == "welfare_rest_8h":
@@ -111,6 +113,16 @@ def _approve_autonomy(source_id: int, user_id: int):
             except Exception as _we:
                 logger.warning("welfare_rest_8h DHQ approval execution failed: %s", _we)
 
+    # #4325: echo the dashboard decision onto Telegram (update text + drop buttons) so
+    # the phone message reflects the action taken here. Best-effort — a Telegram failure
+    # must never break the approve. The inbound callback does the same edit on a tap.
+    if tg_msg_id:
+        try:
+            from services.telegram_service import edit_message
+
+            edit_message(int(tg_msg_id), "✅ Approved via dashboard", clear_buttons=True)
+        except Exception as _te:
+            logger.warning("telegram echo (approve) failed: %s", _te)
     return (True, action_type)
 
 
@@ -165,13 +177,16 @@ def _approve_bridge(source_id: int, user_id: int):
 def _deny_autonomy(source_id: int, user_id: int, reason: str) -> bool:
     from database import get_db_cursor
 
+    tg_msg_id = None
     with get_db_cursor(commit=True) as (conn, cur):
         # Fetch action details before update for denial learning
         cur.execute(
-            "SELECT action_type, action_data FROM autonomy_approval_queue WHERE id = %s",
+            "SELECT action_type, action_data, telegram_message_id FROM autonomy_approval_queue WHERE id = %s",
             (source_id,),
         )
         row = cur.fetchone()
+        if row:
+            tg_msg_id = row["telegram_message_id"] if isinstance(row, dict) else row[2]
 
         cur.execute(
             """UPDATE autonomy_approval_queue
@@ -209,6 +224,15 @@ def _deny_autonomy(source_id: int, user_id: int, reason: str) -> bool:
             )
         except Exception:
             pass  # KB store failure must not break denial flow
+
+    # #4325: echo the denial onto Telegram (update text + drop buttons). Best-effort.
+    if denied and tg_msg_id:
+        try:
+            from services.telegram_service import edit_message
+
+            edit_message(int(tg_msg_id), "❌ Denied via dashboard", clear_buttons=True)
+        except Exception as _te:
+            logger.warning("telegram echo (deny) failed: %s", _te)
 
     return denied
 

@@ -5667,7 +5667,7 @@ class AgentLoop:
 
                 if action == "escalate":
                     try:
-                        telegram_send(
+                        tg_res = telegram_send(
                             category=report.get("category", "system"),
                             title=f"[{report['severity'].upper()}] {report['title']}",
                             message=(
@@ -5680,6 +5680,37 @@ class AgentLoop:
                             _privileged=True,
                         )
                         escalated += 1
+                        # #4325: persist the Telegram message id on the approval row so an
+                        # action taken on the DHQ Approvals tab can echo back onto the
+                        # Telegram message (edit + drop buttons). Best-effort, never breaks
+                        # the consumer. The approval id is the autonomy_approval_queue.id
+                        # embedded in the report title ("... #<id>").
+                        if (
+                            report.get("category") == "approval_request"
+                            and isinstance(tg_res, dict)
+                            and tg_res.get("message_id")
+                        ):
+                            try:
+                                import re as _re2
+
+                                _am = _re2.search(r"#(\d+)", report.get("title") or "")
+                                if _am:
+                                    _aid = int(_am.group(1))
+                                    _c = get_db()
+                                    try:
+                                        _cur = _c.cursor()
+                                        _cur.execute(
+                                            "UPDATE autonomy_approval_queue "
+                                            "SET telegram_message_id = %s WHERE id = %s",
+                                            (tg_res.get("message_id"), _aid),
+                                        )
+                                        _c.commit()
+                                    finally:
+                                        _c.close()
+                            except Exception as _mid_err:
+                                logger.warning(
+                                    "triage_consumer: message_id persist failed: %s", _mid_err
+                                )
                     except Exception as tg_err:
                         logger.warning("triage_consumer: Telegram send failed: %s", tg_err)
 

@@ -2404,6 +2404,7 @@ function renderSignalShell() {
         + '<button class="signal-sub" data-sub="hashtags" onclick="switchSignalTab(\'hashtags\')">Hashtags</button>'
         + '<button class="signal-sub" data-sub="calendar" onclick="switchSignalTab(\'calendar\')">📅 Calendar</button>'
         + '<button class="signal-sub" data-sub="comments" onclick="switchSignalTab(\'comments\')">💬 Comments</button>'
+        + '<button class="signal-sub" data-sub="engage" onclick="switchSignalTab(\'engage\')">🎯 Engage</button>'
         + '<button class="signal-sub" data-sub="themes" onclick="switchSignalTab(\'themes\')">Themes</button>'
         + '<button class="signal-sub" data-sub="session" onclick="switchSignalTab(\'session\')">🔐 Session</button>'
         + '</div>'
@@ -2679,6 +2680,7 @@ async function loadSignalTab(tab, forceRefresh) {
             case 'themes':    await renderSignalThemes(el);    break;
             case 'session':   await renderSignalSession(el);   break;
             case 'comments':  await renderSignalComments(el);  break;
+            case 'engage':    await renderSignalEngage(el);    break;
         }
         // Cache the rendered result (not for compose)
         if (tab !== 'compose' && el.innerHTML) {
@@ -2905,6 +2907,90 @@ async function submitSignalCompose() {
         loadSignalPendingBadge();
     } catch (err) {
         setHtml(resultEl, '<div style="color:#ef4444;padding:8px">Error: ' + esc(err.message) + '</div>');
+    }
+}
+
+/* ── S.I.G.N.A.L. ENGAGE sub-tab — approval-gated likes/comments + the auto
+   engagement monitor. Everything only PROPOSES; actions fire after a Telegram/tab
+   Approve. Acts as the selected account (top buttons). ── */
+async function renderSignalEngage(el) {
+    var st;
+    try { st = await api('/api/social/signal/engagement'); }
+    catch (e) { st = { targets: [], monitor_enabled: false, comments_enabled: false }; }
+    var targets = (st.targets || []).join('\n');
+    var _inputStyle = 'width:100%;padding:8px;margin-top:4px;background:#0a0e14;color:#e5e7eb;border:1px solid #243044;border-radius:4px;box-sizing:border-box';
+    function _toggleBtn(flag, on, label) {
+        return on
+            ? '<button class="dhq-action-btn" style="background:#10b981;color:#04120b" onclick="toggleSignalEngagement(\'' + flag + '\', false, this)">' + label + ': ON</button>'
+            : '<button class="dhq-action-btn" onclick="toggleSignalEngagement(\'' + flag + '\', true, this)">' + label + ': OFF</button>';
+    }
+    var html = '<div class="signal-compose">'
+        + '<div class="signal-compose-header">🎯 Engage on LinkedIn via <strong>S.I.G.N.A.L.</strong></div>'
+        + '<div class="signal-compose-note">Everything here only <strong>proposes</strong> — likes &amp; comments go to Telegram for your approval before anything posts. Acting as the account selected at the top.</div>'
+        // ── Manual engage ──
+        + '<div class="signal-compose-header" style="margin-top:16px;font-size:0.95em">Engage with a post</div>'
+        + '<input id="signalEngageUrl" type="text" placeholder="LinkedIn post URL (…/feed/update/urn:li:activity:…)" style="' + _inputStyle + '">'
+        + '<textarea id="signalEngageComment" class="dhq-textarea" rows="3" placeholder="(optional) comment text — leave blank to just propose a like" style="margin-top:8px"></textarea>'
+        + '<div style="margin-top:8px;display:flex;gap:8px">'
+        +   '<button class="dhq-action-btn dhq-action-primary" onclick="submitSignalEngage(\'like\')">👍 Propose Like</button>'
+        +   '<button class="dhq-action-btn dhq-action-primary" onclick="submitSignalEngage(\'comment\')">💬 Propose Comment</button>'
+        + '</div>'
+        + '<div id="signalEngageResult" style="display:none;margin-top:10px"></div>'
+        // ── Auto monitor ──
+        + '<div class="signal-compose-header" style="margin-top:22px;font-size:0.95em">Auto-engagement monitor</div>'
+        + '<div class="signal-compose-note">When ON, every 8h S.I.G.N.A.L. reads each target\'s latest post and proposes a like (plus a drafted comment if Auto-Comments is ON) — each queued for your Telegram approval.</div>'
+        + '<div style="margin:8px 0;display:flex;gap:8px">' + _toggleBtn('monitor', st.monitor_enabled, 'Monitor') + _toggleBtn('comments', st.comments_enabled, 'Auto-Comments') + '</div>'
+        + '<label class="signal-field-label">Target profiles / companies (one LinkedIn URL per line)</label>'
+        + '<textarea id="signalEngageTargets" class="dhq-textarea" rows="4" placeholder="https://www.linkedin.com/in/someone&#10;https://www.linkedin.com/company/123456">' + esc(targets) + '</textarea>'
+        + '<div style="margin-top:8px"><button class="dhq-action-btn dhq-action-primary" onclick="saveSignalEngageTargets()">Save Targets</button> <span id="signalTargetsResult" style="opacity:0.75;margin-left:8px"></span></div>'
+        + '</div>';
+    setHtml(el, html);
+}
+
+async function submitSignalEngage(action) {
+    var url = (document.getElementById('signalEngageUrl').value || '').trim();
+    var resultEl = document.getElementById('signalEngageResult');
+    resultEl.style.display = 'block';
+    if (!url) { setHtml(resultEl, '<div style="color:#ef4444">Enter a post URL.</div>'); return; }
+    var body = { action: action, post_url: url, account: signalAccount };
+    if (action === 'comment') {
+        var c = (document.getElementById('signalEngageComment').value || '').trim();
+        if (!c) { setHtml(resultEl, '<div style="color:#ef4444">Enter comment text to propose a comment.</div>'); return; }
+        body.comment = c;
+    }
+    setHtml(resultEl, '<div class="dhq-loading" style="padding:6px">Proposing…</div>');
+    try {
+        var r = await apiPost('/api/social/signal/engage', body);
+        setHtml(resultEl, '<div style="color:#10b981">✓ ' + esc(action) + ' queued for Telegram approval (#' + r.approval_id + ') — approve it to post.</div>');
+        if (typeof loadSignalPendingBadge === 'function') loadSignalPendingBadge();
+    } catch (err) {
+        setHtml(resultEl, '<div style="color:#ef4444">Error: ' + esc(err.message) + '</div>');
+    }
+}
+
+async function saveSignalEngageTargets() {
+    var raw = (document.getElementById('signalEngageTargets').value || '')
+        .split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+    var out = document.getElementById('signalTargetsResult');
+    out.textContent = 'Saving…';
+    try {
+        var r = await apiPost('/api/social/signal/targets', { targets: raw });
+        out.textContent = '✓ Saved ' + r.count + ' target(s)';
+        delete _signalTabCache['engage:' + signalAccount];
+    } catch (err) {
+        out.textContent = 'Error: ' + err.message;
+    }
+}
+
+async function toggleSignalEngagement(flag, enabled, btn) {
+    btn.disabled = true;
+    try {
+        await apiPost('/api/social/signal/engagement-toggle', { flag: flag, enabled: enabled });
+        delete _signalTabCache['engage:' + signalAccount];
+        loadSignalTab('engage', true);
+    } catch (err) {
+        btn.disabled = false;
+        alert('Toggle failed: ' + err.message);
     }
 }
 

@@ -74,6 +74,79 @@ def register_social_routes(bp, admin_required):
         p = (raw or "linkedin").strip().lower()
         return p if p in _BROWSER_PLATFORMS else "linkedin"
 
+    # ── S.I.G.N.A.L. Engagement (likes / proactive comments) — session-authed UI
+    #    surface for the approval-gated engagement system. The /api/signal/*
+    #    endpoints are API-key-only; the tab is session-authed, so it calls these.
+    #    Everything here only PROPOSES — actions fire after a Telegram/tab Approve.
+    @bp.route("/api/social/signal/engagement", methods=["GET"])
+    @admin_required
+    def api_signal_engagement_state():
+        from services.signal_engagement_service import get_targets
+        from services.work_control_service import is_enabled
+
+        return jsonify(
+            {
+                "targets": get_targets(),
+                "monitor_enabled": is_enabled("signal_engagement_monitor", default=False),
+                "comments_enabled": is_enabled("signal_engagement_comments", default=False),
+            }
+        )
+
+    @bp.route("/api/social/signal/engage", methods=["POST"])
+    @admin_required
+    def api_signal_engage():
+        from services.signal_engagement_service import propose_comment, propose_like
+
+        body = request.get_json(silent=True) or {}
+        action = (body.get("action") or "").strip().lower()
+        post_url = (body.get("post_url") or "").strip()
+        account = (body.get("account") or "personal").strip().lower()
+        if not post_url:
+            return jsonify({"error": "post_url required"}), 400
+        try:
+            if action == "like":
+                aid = propose_like(post_url, account=account, reaction=(body.get("reaction") or "like"))
+            elif action == "comment":
+                comment = (body.get("comment") or "").strip()
+                if not comment:
+                    return jsonify({"error": "comment required for action=comment"}), 400
+                aid = propose_comment(post_url, comment, account=account)
+            else:
+                return jsonify({"error": "action must be 'like' or 'comment'"}), 400
+        except ValueError as ve:
+            return jsonify({"error": str(ve)}), 400
+        except Exception as exc:
+            return jsonify({"error": f"engage failed: {exc}"}), 502
+        return jsonify({"ok": True, "approval_id": aid, "action": action, "status": "pending_approval"})
+
+    @bp.route("/api/social/signal/targets", methods=["POST"])
+    @admin_required
+    def api_signal_set_targets():
+        from services.signal_engagement_service import get_targets, set_targets
+
+        body = request.get_json(silent=True) or {}
+        targets = body.get("targets")
+        if not isinstance(targets, list):
+            return jsonify({"error": "targets must be a list of LinkedIn profile/company URLs"}), 400
+        count = set_targets(targets)
+        return jsonify({"ok": True, "count": count, "targets": get_targets()})
+
+    @bp.route("/api/social/signal/engagement-toggle", methods=["POST"])
+    @admin_required
+    def api_signal_engagement_toggle():
+        from services.work_control_service import is_enabled, set_enabled
+
+        body = request.get_json(silent=True) or {}
+        flag = (body.get("flag") or "").strip().lower()
+        key = {
+            "monitor": "signal_engagement_monitor",
+            "comments": "signal_engagement_comments",
+        }.get(flag)
+        if not key:
+            return jsonify({"error": "flag must be 'monitor' or 'comments'"}), 400
+        set_enabled(key, bool(body.get("enabled")))
+        return jsonify({"ok": True, "flag": flag, "enabled": is_enabled(key, default=False)})
+
     @bp.route("/api/social/linkedin/session-status")
     @admin_required
     def api_linkedin_session_status():
@@ -658,9 +731,7 @@ def register_social_routes(bp, admin_required):
 
         account = (request.args.get("account") or "personal").strip().lower()
         try:
-            return jsonify(
-                {"account": account, "posts": signal_calendar_service.get_scheduled(account)}
-            )
+            return jsonify({"account": account, "posts": signal_calendar_service.get_scheduled(account)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -693,9 +764,7 @@ def register_social_routes(bp, admin_required):
         from services import signal_calendar_service
 
         try:
-            return jsonify(
-                {"success": True, **signal_calendar_service.top_up_calendars()}
-            )
+            return jsonify({"success": True, **signal_calendar_service.top_up_calendars()})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 
@@ -707,9 +776,7 @@ def register_social_routes(bp, admin_required):
         from services import signal_calendar_service
 
         try:
-            return jsonify(
-                {"success": True, **signal_calendar_service.release_due_posts()}
-            )
+            return jsonify({"success": True, **signal_calendar_service.release_due_posts()})
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
 

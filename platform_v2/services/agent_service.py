@@ -2341,7 +2341,7 @@ def get_agent_cache() -> Dict:
             """
             SELECT a.id, a.name, a.display_name, a.department, a.floor,
                    a.model, a.image_model, a.status, a.shift_state,
-                   a.is_department_ai,
+                   a.is_department_ai, a.worker_type,
                    COALESCE(json_agg(
                        json_build_object('skill', s.skill_name, 'level', s.proficiency_level)
                    ) FILTER (WHERE s.id IS NOT NULL), '[]') AS skills_list,
@@ -2375,6 +2375,7 @@ def get_agent_cache() -> Dict:
                 "status": row["status"],
                 "shift_state": row["shift_state"],
                 "is_department_ai": row["is_department_ai"],
+                "worker_type": row["worker_type"],
                 "skills": skills,
                 "competency_scores": competency_scores,
             }

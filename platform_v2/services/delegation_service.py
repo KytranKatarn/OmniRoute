@@ -1477,3 +1477,78 @@ def run_delegation_cycle(
             busy,
         )
     return stats
+
+
+def triage_blocked_delegations(limit: int = 25) -> Dict[str, int]:
+    """#4350 — sweep STALE blocked documentation delegations so they stop
+    accumulating as 'docs skipped' clutter in the DHQ Dispatch view.
+
+    The systemic doc-blocking was already fixed (concurrent run_delegation_cycle
+    + the #3636/#3637 queued-defer callback); what's left is rows that hit the
+    reclaim limit long ago and are now permanently ``blocked``. For each blocked
+    documentation task older than 6h (the worker has long since given up), parse
+    its target PR number from the description and:
+
+      * PR already has vault_note docs in the KB  -> mark COMPLETED (the work is
+        effectively done; this is exactly the manual #4344 triage, automated).
+      * else, not re-queued before                -> reset to PENDING once
+        (``metadata.triage_requeued=true``) for one more drain attempt.
+      * else (re-queued once, still undocumented) -> leave for a human.
+
+    Read-mostly, idempotent, capped at ``limit`` rows/run, STRICTLY fail-safe
+    (never raises — returns zeros on any error). Intended to run daily.
+    """
+    import re
+
+    out = {"scanned": 0, "cleared": 0, "requeued": 0, "left": 0}
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """SELECT id, COALESCE(description, '') AS description,
+                          COALESCE(metadata, '{}'::jsonb) AS metadata
+                   FROM unified_tasks
+                   WHERE status = 'blocked'
+                     AND task_type = 'implementation'
+                     AND title ILIKE '%%documentation%%'
+                     AND created_at < NOW() - INTERVAL '6 hours'
+                   ORDER BY created_at ASC
+                   LIMIT %s""",
+                (limit,),
+            )
+            rows = cur.fetchall() or []
+            for row in rows:
+                out["scanned"] += 1
+                m = re.search(r"#(\d{3,5})", row["description"])
+                if not m:
+                    out["left"] += 1
+                    continue
+                pr = m.group(1)
+                cur.execute(
+                    """SELECT 1 FROM knowledge_base
+                       WHERE knowledge_type = 'vault_note'
+                         AND (tags::text ILIKE %s OR title ILIKE %s OR content ILIKE %s)
+                       LIMIT 1""",
+                    (f"%pr-{pr}%", f"%PR #{pr}%", f"%PR #{pr}%"),
+                )
+                if cur.fetchone() is not None:
+                    cur.execute(
+                        "UPDATE unified_tasks SET status = 'completed', updated_at = now(), "
+                        "description = description || %s WHERE id = %s",
+                        (f" [auto-triage #4350: PR #{pr} already documented in KB]", row["id"]),
+                    )
+                    out["cleared"] += 1
+                elif not (row["metadata"] or {}).get("triage_requeued"):
+                    cur.execute(
+                        "UPDATE unified_tasks SET status = 'pending', updated_at = now(), "
+                        "metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb WHERE id = %s",
+                        (json.dumps({"triage_requeued": True}), row["id"]),
+                    )
+                    out["requeued"] += 1
+                else:
+                    out["left"] += 1
+    except Exception as exc:
+        logger.warning("triage_blocked_delegations failed (fail-safe): %s", exc)
+        return {"scanned": 0, "cleared": 0, "requeued": 0, "left": 0}
+    if out["cleared"] or out["requeued"]:
+        logger.info("[DelegationTriage] %s", out)
+    return out

@@ -958,6 +958,20 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # #4350: daily auto-triage of STALE blocked documentation delegations —
+        # clear ones whose PR is already documented in the KB, re-queue
+        # undocumented ones once. Stops the blocked backlog accumulating as
+        # confusing 'docs skipped' clutter in the DHQ Dispatch view.
+        self.scheduler.add_job(
+            with_app_context(self._run_delegation_triage),
+            trigger=CronTrigger(hour=5, minute=40, timezone="America/Toronto"),
+            id="delegation_triage",
+            name="Agent Loop: Stale Blocked-Delegation Triage (#4350)",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # Fleet Backlog Runner (Phase 3, #676) — DEFAULT OFF; promotes a few
         # pending unified_tasks to the fleet each cycle when enabled in the
         # Autonomy tab. Bounded so it never floods the cluster.
@@ -5708,6 +5722,22 @@ class AgentLoop:
         if promoted:
             logger.info("[FleetBacklogRunner] promoted %d task(s) to the fleet", promoted)
         self._log_cycle("fleet_backlog_runner", promoted, 0, int((_t.time() - t0) * 1000))
+
+    def _run_delegation_triage(self):
+        """#4350: daily sweep of STALE blocked documentation delegations.
+
+        Delegates to delegation_service.triage_blocked_delegations() — clears
+        blocked doc tasks whose PR is already documented in the KB, re-queues
+        undocumented ones once. Fail-safe; logs only when it acts.
+        """
+        try:
+            from services.delegation_service import triage_blocked_delegations
+
+            res = triage_blocked_delegations()
+            if res.get("cleared") or res.get("requeued"):
+                logger.info("[DelegationTriage] %s", res)
+        except Exception as e:
+            logger.error("delegation_triage failed: %s", e)
 
     def _run_delegate_task_worker(self):
         """Pick up pending delegated tasks and execute via OrchestrationEngine.

@@ -1021,6 +1021,31 @@ def register_dispatch_routes(bp, admin_required_decorator):
         """Live dispatch traffic feed and aggregations — powers Traffic Panel (Decision #540)."""
         hours = min(int(request.args.get("hours", 1)), 24)
         limit = min(int(request.args.get("limit", 30)), 100)
+        # Drill-down filters (#4345): clicking a Traffic breakdown row filters the FEED
+        # to that entity's recent actions (breakdowns stay overall). Parameterized.
+        _fagent = (request.args.get("fagent") or "").strip()
+        _fsource = (request.args.get("fsource") or "").strip()
+        _fmodel = (request.args.get("fmodel") or "").strip()
+        _fnode = (request.args.get("fnode") or "").strip()
+        _feed_where = ["tel.created_at > NOW() - INTERVAL '%s hours'"]
+        _feed_params = [hours]
+        if _fagent:
+            _feed_where.append("COALESCE(a.name, tel.agent_name) = %s")
+            _feed_params.append(_fagent)
+        if _fsource:
+            _feed_where.append("tel.module_source = %s")
+            _feed_params.append(_fsource)
+        if _fmodel:
+            _feed_where.append("tel.model_used = %s")
+            _feed_params.append(_fmodel)
+        if _fnode:
+            if _fnode == "Starbase - A.R.C.H.I.E.":
+                _feed_where.append("(rn.node_id IS NULL OR rn.node_id = 'archie-starbase')")
+            else:
+                _feed_where.append("rn.node_name = %s")
+                _feed_params.append(_fnode)
+        _drilled = bool(_fagent or _fsource or _fmodel or _fnode)
+        _feed_limit = 100 if _drilled else limit
         try:
             with get_db_cursor() as (conn, cur):
                 cur.execute(
@@ -1035,9 +1060,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            tel.agent_name ~ '^fleet-agent-[0-9]+$'
                            AND a.id::text = substring(tel.agent_name FROM 13)
                        )
-                       WHERE tel.created_at > NOW() - INTERVAL '%s hours'
+                       WHERE """
+                    + " AND ".join(_feed_where)
+                    + """
                        ORDER BY tel.created_at DESC LIMIT %s""",
-                    (hours, limit),
+                    tuple(_feed_params) + (_feed_limit,),
                 )
                 feed = []
                 for row in cur.fetchall():

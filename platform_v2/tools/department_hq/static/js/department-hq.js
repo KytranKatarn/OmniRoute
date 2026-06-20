@@ -4207,6 +4207,19 @@ async function saveDispatchConfig(key) {
 
 var _trafficData = null;
 var _trafficView = 'feed';
+var _trafficFilter = null;  // #4345 drill-down: {dim:'source'|'agent'|'model'|'node', value:'...'}
+
+// Drill into a breakdown row -> filter the feed to that entity's recent actions.
+function dhqTrafficDrill(dim, value) {
+    if (!dim || !value) return;
+    _trafficFilter = { dim: dim, value: value };
+    _trafficView = 'feed';
+    loadDispatchTraffic();
+}
+function dhqTrafficClearFilter() {
+    _trafficFilter = null;
+    loadDispatchTraffic();
+}
 
 async function loadDispatchTraffic() {
     var el = document.getElementById('trafficContent');
@@ -4214,7 +4227,9 @@ async function loadDispatchTraffic() {
     if (!el) return;
     var hours = (document.getElementById('trafficHours') || {}).value || 1;
     try {
-        _trafficData = await api('/api/dispatch/traffic?hours=' + hours);
+        var _turl = '/api/dispatch/traffic?hours=' + hours;
+        if (_trafficFilter) _turl += '&f' + _trafficFilter.dim + '=' + encodeURIComponent(_trafficFilter.value);
+        _trafficData = await api(_turl);
         if (sumEl) {
             var rate = _trafficData.success_rate != null ? _trafficData.success_rate + '% ok' : '';
             sumEl.textContent = '(' + (_trafficData.total || 0) + ' dispatches · ' + rate + ')';
@@ -4235,8 +4250,16 @@ function showTrafficView(view) {
     if (!el || !_trafficData) return;
     if (view === 'feed') {
         var rows = (_trafficData.feed || []);
-        if (!rows.length) { setHtml(el, '<div class="dhq-empty">No dispatches in window</div>'); return; }
-        var html = '<table style="width:100%;border-collapse:collapse;font-size:0.72rem">'
+        var _chip = '';
+        if (_trafficFilter) {
+            _chip = '<div style="padding:5px 8px;margin-bottom:6px;background:var(--dhq-surface-2);border-radius:5px;font-size:0.72rem;display:flex;align-items:center;gap:8px">'
+                + '<span style="color:var(--dhq-text-dim)">▸ ' + esc(_trafficFilter.dim.toUpperCase()) + ' =</span>'
+                + '<span style="color:var(--dhq-accent)">' + esc(_trafficFilter.value) + '</span>'
+                + '<span style="cursor:pointer;color:#EF4444;margin-left:auto" onclick="dhqTrafficClearFilter()">✕ clear</span>'
+                + '</div>';
+        }
+        if (!rows.length) { setHtml(el, _chip + '<div class="dhq-empty">' + (_trafficFilter ? 'No recent actions for this ' + esc(_trafficFilter.dim) : 'No dispatches in window') + '</div>'); return; }
+        var html = _chip + '<table style="width:100%;border-collapse:collapse;font-size:0.72rem">'
             + '<tr style="color:var(--dhq-text-dim);border-bottom:1px solid var(--dhq-border)">'
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">TIME</th>'
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">AGENT</th>'
@@ -4280,7 +4303,7 @@ function showTrafficView(view) {
         rows.forEach(function(r) {
             var pct = r.total > 0 ? Math.round(r.successes / r.total * 100) : 0;
             var pctColor = pct >= 90 ? '#10B981' : pct >= 70 ? '#FFAA00' : '#EF4444';
-            html += '<tr style="border-bottom:1px solid var(--dhq-border)">'
+            html += '<tr style="border-bottom:1px solid var(--dhq-border);cursor:pointer" data-dim="' + view + '" data-val="' + esc(r.label || '') + '" onclick="dhqTrafficDrill(this.dataset.dim, this.dataset.val)" title="Click to see this ' + esc(view) + " actions\">"
                 + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.label || '—') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right">' + r.total + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:' + pctColor + '">' + pct + '%</td>'

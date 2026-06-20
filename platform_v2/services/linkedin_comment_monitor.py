@@ -13,6 +13,8 @@ read-scope module; see #3964 follow-ups.
 
 import hashlib
 import logging
+import re
+from urllib.parse import unquote
 
 from database import get_db_cursor
 from services import browser_service
@@ -77,6 +79,95 @@ def ingest_post_comments(
     return {"new": new, "total": len(comments)}
 
 
+def _parse_notif(text: str):
+    """Best-effort (author, body) from a notification card's text."""
+    t = re.sub(r"\bUnread notification\.\s*", "", text or "").strip()
+    author = ""
+    for verb in (" commented", " replied", " mentioned", " and "):
+        if verb in t:
+            author = t.split(verb, 1)[0].strip()
+            break
+    body = ""
+    m = re.search(
+        r"(?:commented on your post|replied to your comment|in a comment)[:.]?\s*(.*)",
+        t,
+        re.S,
+    )
+    if m:
+        body = m.group(1).strip()
+    if not body and "\n" in t:
+        body = t.split("\n", 1)[1].strip()
+    return author[:200], body[:1000]
+
+
+def ingest_comment_notifications(account: str = "kytran", agent_id: int = None, limit: int = 25) -> dict:
+    """Source comments-to-reply-to from the NOTIFICATION bell — the only place a
+    comment DEEP-LINK (?commentUrn=, field ``comment_url``) is available. A plain
+    post permalink renders ZERO comments to the automated session (KB #274178), so
+    the post_url scrape path yields nothing; notifications are the working source.
+    Upserts rows carrying ``comment_url`` (what linkedin_comment_reply needs)."""
+    aid = agent_id or _ACCOUNT_BROWSER_ID.get((account or "").lower(), DEFAULT_AGENT_ID)
+    res = browser_service.run_skill_sync("linkedin_notifications", {"limit": limit}, agent_id=aid, timeout_s=120)
+    if not res or not res.get("success"):
+        return {"new": 0, "total": 0, "error": (res or {}).get("error", "skill failed")}
+
+    cards = [
+        n for n in (res.get("notifications") or []) if n.get("comment_url") and n.get("type") in ("comment", "mention")
+    ]
+    new = 0
+    with get_db_cursor(commit=True) as (conn, cur):
+        for n in cards:
+            cu = n["comment_url"]
+            dec = unquote(cu)
+            mact = re.search(r"activity:(\d+)", dec)
+            mcid = re.search(r"comment:\(activity:\d+,(\d+)\)", dec)
+            if not (mact and mcid):
+                continue
+            activity, cid = mact.group(1), mcid.group(1)
+            post_url = f"https://www.linkedin.com/feed/update/urn:li:activity:{activity}/"
+            comment_urn = f"urn:li:comment:(activity:{activity},{cid})"
+            author, body = _parse_notif(n.get("full_text") or n.get("text", ""))
+            is_reply = "replied" in (n.get("text", "") or "").lower()
+            cur.execute(
+                "SELECT id FROM linkedin_post_log WHERE post_url LIKE %s ORDER BY id DESC LIMIT 1",
+                (f"%{activity}%",),
+            )
+            prow = cur.fetchone()
+            post_log_id = (prow["id"] if isinstance(prow, dict) else prow[0]) if prow else None
+            cur.execute(
+                """
+                INSERT INTO linkedin_comments
+                    (post_url, post_log_id, comment_urn, comment_url, dedup_key, author,
+                     author_headline, body, is_reply, commented_at, account)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (post_url, dedup_key) DO UPDATE
+                    SET comment_url = EXCLUDED.comment_url,
+                        body = COALESCE(NULLIF(EXCLUDED.body, ''), linkedin_comments.body),
+                        author = COALESCE(NULLIF(EXCLUDED.author, ''), linkedin_comments.author),
+                        last_seen_at = NOW()
+                RETURNING (xmax = 0) AS inserted
+                """,
+                (
+                    post_url,
+                    post_log_id,
+                    comment_urn,
+                    cu,
+                    cid,
+                    author or None,
+                    None,
+                    body or None,
+                    is_reply,
+                    n.get("timestamp"),
+                    account,
+                ),
+            )
+            row = cur.fetchone()
+            if row["inserted"] if isinstance(row, dict) else row[0]:
+                new += 1
+    logger.info("[CommentMonitor] notif-ingest %s: %d comment cards, %d new", account, len(cards), new)
+    return {"new": new, "total": len(cards)}
+
+
 def watched_post_urls(limit: int = 25) -> list:
     """Seed list: distinct non-empty post_urls from recent linkedin_post_log."""
     with get_db_cursor() as (conn, cur):
@@ -100,12 +191,24 @@ def run_comment_monitor(extra_urls: list = None) -> dict:
     so until then this drains only explicitly-passed extra_urls (e.g. a thread
     we commented on). See #3964 follow-up: capture post_url on publish.
     """
+    # Notification-sourced ingest — the WORKING source (carries comment_url).
+    # Post-permalink scraping below renders 0 comments to automation (KB #274178).
+    notif_new = 0
+    errors = []
+    for acct in ("kytran", "terry"):
+        try:
+            nr = ingest_comment_notifications(acct)
+            notif_new += nr.get("new", 0)
+            if nr.get("error"):
+                errors.append({"account": acct, "error": nr["error"]})
+        except Exception as e:  # never let one account abort the run
+            errors.append({"account": acct, "error": str(e)})
+
     targets = {url: lid for lid, url in watched_post_urls()}
     for u in extra_urls or []:
         targets.setdefault(u, None)
 
     total_new = total_seen = posts = 0
-    errors = []
     for url, log_id in targets.items():
         r = ingest_post_comments(url, post_log_id=log_id)
         if r.get("error"):
@@ -114,7 +217,13 @@ def run_comment_monitor(extra_urls: list = None) -> dict:
         posts += 1
         total_new += r["new"]
         total_seen += r["total"]
-    summary = {"posts_polled": posts, "comments_seen": total_seen, "new_comments": total_new, "errors": errors}
+    summary = {
+        "posts_polled": posts,
+        "comments_seen": total_seen,
+        "new_comments": total_new + notif_new,
+        "notif_new": notif_new,
+        "errors": errors,
+    }
     logger.info("[CommentMonitor] run complete: %s", summary)
     return summary
 
@@ -134,8 +243,21 @@ _ACCOUNT_BROWSER_ID = {"terry": 377}
 _COMMENT_CHAR_LIMIT = 1250  # LinkedIn comment hard limit
 
 _FR_HINTS = (
-    " le ", " la ", " les ", " des ", " une ", " est ", " être ", " avec ",
-    " pour ", " merci", " bonjour", " très ", " c'est ", " ça ", " été ",
+    " le ",
+    " la ",
+    " les ",
+    " des ",
+    " une ",
+    " est ",
+    " être ",
+    " avec ",
+    " pour ",
+    " merci",
+    " bonjour",
+    " très ",
+    " c'est ",
+    " ça ",
+    " été ",
 )
 
 
@@ -182,7 +304,7 @@ def draft_comment_replies(limit: int = 5) -> dict:
 
     with get_db_cursor() as (_conn, cur):
         cur.execute(
-            """SELECT c.id, c.post_url, c.author, c.author_headline, c.body, c.account,
+            """SELECT c.id, c.post_url, c.comment_url, c.author, c.author_headline, c.body, c.account,
                       l.content AS post_content, l.post_type
                FROM linkedin_comments c
                LEFT JOIN linkedin_post_log l ON l.id = c.post_log_id
@@ -216,9 +338,7 @@ def draft_comment_replies(limit: int = 5) -> dict:
             f"specific point, be warm and substantive, under 120 words, NO hashtags, "
             f"never invent facts or commitments. Return ONLY the reply text."
         )
-        result = dispatch(
-            capability="social_post_draft", prompt=prompt, prefer_agent="S.I.G.N.A.L."
-        )
+        result = dispatch(capability="social_post_draft", prompt=prompt, prefer_agent="S.I.G.N.A.L.")
         draft = (getattr(result, "response", "") or "").strip()
         if not draft:
             notes.append({"id": c["id"], "note": "model cold/queued — retry next run"})
@@ -244,10 +364,10 @@ def draft_comment_replies(limit: int = 5) -> dict:
             action_data={
                 "comment_id": c["id"],
                 "post_url": c["post_url"],
+                "comment_url": c.get("comment_url"),
+                "comment_author": author,
                 "reply": draft,
-                "browser_agent_id": _ACCOUNT_BROWSER_ID.get(
-                    (c.get("account") or "").lower(), 342
-                ),
+                "browser_agent_id": _ACCOUNT_BROWSER_ID.get((c.get("account") or "").lower(), 342),
                 "author": author,
                 "post_type": post_type,
             },

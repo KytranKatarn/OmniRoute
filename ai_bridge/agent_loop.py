@@ -4709,27 +4709,44 @@ class AgentLoop:
                 return {"executed": False, "error": str(li_err)}
 
         elif action_type == "linkedin_comment_reply":
-            # #3992: approved reply to a comment on one of our posts — posted
-            # via the linkedin_comment skill on the post, addressed to the
-            # author inside the drafted text.
+            # #3992: approved reply to a comment on one of our posts. Threaded
+            # reply via the comment DEEP-LINK (the only thing that renders the
+            # specific comment thread to automation — KB #274178/#274179), using
+            # the linkedin_comment_reply skill. Falls back to a top-level comment
+            # (linkedin_comment) when no deep-link is present (older rows). The
+            # skill's in-session verify gate keeps `executed` honest either way.
             comment_id = data.get("comment_id")
+            comment_url = data.get("comment_url", "")
             post_url = data.get("post_url", "")
             reply = data.get("reply", "")
+            comment_author = data.get("comment_author") or data.get("author") or ""
             agent_id = data.get("browser_agent_id") or 342
-            if not post_url or not reply:
-                return {"executed": False, "error": "post_url and reply required"}
+            if not reply or not (comment_url or post_url):
+                return {"executed": False, "error": "reply and (comment_url or post_url) required"}
             try:
                 import sys as _sys
 
                 _sys.path.insert(0, "/app")
                 from services.browser_service import run_skill_sync
 
-                result = run_skill_sync(
-                    "linkedin_comment",
-                    {"post_url": post_url, "comment": reply},
-                    agent_id=agent_id,
-                    timeout_s=120,
-                )
+                if comment_url:
+                    result = run_skill_sync(
+                        "linkedin_comment_reply",
+                        {
+                            "comment_url": comment_url,
+                            "reply": reply,
+                            "comment_author": comment_author,
+                        },
+                        agent_id=agent_id,
+                        timeout_s=180,
+                    )
+                else:
+                    result = run_skill_sync(
+                        "linkedin_comment",
+                        {"post_url": post_url, "comment": reply},
+                        agent_id=agent_id,
+                        timeout_s=120,
+                    )
                 # Fresh connection after the long browser call — the caller's
                 # cursor may have gone stale (same class as linkedin_post).
                 try:

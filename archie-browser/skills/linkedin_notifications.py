@@ -43,6 +43,10 @@ def execute(page, params: dict) -> dict:
                 '.nt-card__text, .notification-item__text, p.t-14, .nt-card__headline'
             );
             const text = textEl ? textEl.textContent.trim() : '';
+            // Full card text — headline above is often just "X commented on your
+            // post"; the comment body lives elsewhere in the card. Needed to draft
+            // a grounded reply.
+            const full_text = (card.innerText || '').replace(/\s+/g, ' ').trim();
 
             // Timestamp
             const timeEl = card.querySelector('time, .nt-card__time-ago, span.t-12.t-black--light');
@@ -75,7 +79,7 @@ def execute(page, params: dict) -> dict:
             else if (t.includes('followed')) type = 'follow';
 
             if (text) {{
-                items.push({{ text: text.substring(0, 200), timestamp, is_unread, type, link, comment_url }});
+                items.push({{ text: text.substring(0, 200), full_text: full_text.substring(0, 400), timestamp, is_unread, type, link, comment_url }});
                 count++;
             }}
         }}

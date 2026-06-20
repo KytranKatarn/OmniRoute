@@ -4045,7 +4045,29 @@ class DepartmentDispatcher:
             try:
                 node_id_used = int(node_id_used) if node_id_used is not None else None
             except (TypeError, ValueError):
+                # A producer emitted the VARCHAR node_id (e.g. 'starship_76583490e36955ab')
+                # instead of the int PK. The preferred_node loop (_get_fleet_node_for_dispatch)
+                # and the node_preferred path (_node_assign) both carry the varchar, so their
+                # GPU-served dispatches were int-cast-failing -> None -> mislogged to the hub
+                # fallback below (#4342: engine plan served on USS-246 but logged node 68).
+                # Resolve varchar -> PK (cached) so fleet work is attributed to the real node.
+                _vid = str(node_id_used).strip()
                 node_id_used = None
+                if _vid:
+                    _pk_cache = getattr(self, "_node_str_to_pk_cache", None)
+                    if _pk_cache is None:
+                        _pk_cache = {}
+                        self._node_str_to_pk_cache = _pk_cache
+                    if _vid in _pk_cache:
+                        node_id_used = _pk_cache[_vid]
+                    else:
+                        try:
+                            cur.execute("SELECT id FROM remote_nodes WHERE node_id = %s LIMIT 1", (_vid,))
+                            _pkr = cur.fetchone()
+                            node_id_used = int(_pkr[0]) if _pkr else None
+                            _pk_cache[_vid] = node_id_used
+                        except Exception:
+                            node_id_used = None
 
             # Hub-local source attribution (#4342). A hub-direct dispatch carries NO
             # metadata["node_id"], so internal hub-local inference logged NULL while

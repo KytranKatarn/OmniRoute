@@ -2127,6 +2127,47 @@ class DepartmentDispatcher:
         except Exception:
             return "auto"
 
+    def _node_cap_enabled(self) -> bool:
+        """Per-node concurrency-cap kill-switch (#4343). platform_settings
+        'dispatch:node_cap:enabled' (default ON). Instance-cached ~60s; fail-open ON."""
+        try:
+            now = time.time()
+            if getattr(self, "_node_cap_flag_time", 0) and (now - self._node_cap_flag_time) < 60:
+                return self._node_cap_flag
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'dispatch:node_cap:enabled'")
+            row = cur.fetchone()
+            conn.close()
+            val = (str(row[0]).strip().lower() != "false") if row else True
+            self._node_cap_flag = val
+            self._node_cap_flag_time = now
+            return val
+        except Exception:
+            return True
+
+    def _node_inflight_count(self, node_db_id) -> int:
+        """Live running-job count for a node (#4343) — bridge_jobs status='running',
+        resolving BOTH metadata node_id forms (varchar node_id AND int DB id). 20-min
+        bound ignores zombie 'running' rows. Fail-open 0 on any error (hot path)."""
+        try:
+            nid = int(node_db_id)
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT COUNT(*) FROM bridge_jobs bj
+                   WHERE bj.status = 'running'
+                     AND bj.created_at > NOW() - INTERVAL '20 minutes'
+                     AND ( bj.metadata->>'node_id' = (SELECT node_id FROM remote_nodes WHERE id = %s)
+                        OR bj.metadata->>'node_id' = %s::text )""",
+                (nid, nid),
+            )
+            row = cur.fetchone()
+            conn.close()
+            return int(row[0]) if row else 0
+        except Exception:
+            return 0
+
     def _find_fleet_agent_for_hub_agent(
         self,
         hub_agent_id: int,
@@ -2158,13 +2199,23 @@ class DepartmentDispatcher:
 
             # ORDER BY — built from controlled values (not user input), no SQL injection risk
             # load_5m.task_count added as secondary sort: least-loaded node wins among ties.
+            # #4343 per-node cap: prepend a saturation-DEMOTION term (gated + kill-switchable)
+            # so a node at/over max_concurrent LIVE running jobs sorts LAST among fleet
+            # candidates. No-op when unsaturated (every node scores 0 -> byte-identical ordering)
+            # or when the flag is off (cap_term=""). DEMOTION, not a hard filter: LIMIT 1 still
+            # returns the least-over-cap node, so a dispatch is never dropped.
+            cap_term = (
+                "(CASE WHEN COALESCE(inflight.running, 0) >= GREATEST(rn.max_concurrent, 1)" " THEN 1 ELSE 0 END) ASC, "
+                if self._node_cap_enabled()
+                else ""
+            )
             if mode == "hub":
                 order_by = "(100 - rn.bridge_priority) ASC, rn.last_heartbeat DESC"
             elif mode == "news" and is_news:
                 # News agents in news mode: prefer outpost-us (30 sorts first ASC).
                 # Capacity-weighted load (see the else branch) balances by tasks-per-stream.
                 order_by = (
-                    "rn.bridge_priority ASC,"
+                    cap_term + "rn.bridge_priority ASC,"
                     " (COALESCE(load_5m.task_count, 0)::float / GREATEST(rn.max_concurrent, 1)) ASC,"
                     " rn.last_heartbeat DESC"
                 )
@@ -2178,7 +2229,7 @@ class DepartmentDispatcher:
                 # so a 3-stream node absorbs ~3x a 1-stream node before they tie. Requires
                 # remote_nodes.max_concurrent to reflect true per-node Ollama NUM_PARALLEL.
                 order_by = (
-                    "CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END ASC,"
+                    cap_term + "CASE WHEN rn.bridge_priority < 100 THEN 0 ELSE 1 END ASC,"
                     " (COALESCE(load_5m.task_count, 0)::float / GREATEST(rn.max_concurrent, 1)) ASC,"
                     " rn.bridge_priority DESC, rn.last_heartbeat DESC"
                 )
@@ -2203,6 +2254,18 @@ class DepartmentDispatcher:
                       AND node_used_id IS NOT NULL
                     GROUP BY node_used_id
                 ) AS load_5m ON load_5m.node_used_id = rn.id
+                LEFT JOIN (
+                    -- #4343 per-node cap: live running-job count per node (authoritative,
+                    -- real-time). Resolve BOTH bridge_jobs.metadata->>'node_id' forms
+                    -- (varchar node_id AND int DB id); 20-min bound ignores zombie rows.
+                    SELECT rn2.id AS node_id, COUNT(bj.id) AS running
+                    FROM remote_nodes rn2
+                    JOIN bridge_jobs bj
+                      ON bj.status = 'running'
+                     AND bj.created_at > NOW() - INTERVAL '20 minutes'
+                     AND (bj.metadata->>'node_id' = rn2.node_id OR bj.metadata->>'node_id' = rn2.id::text)
+                    GROUP BY rn2.id
+                ) AS inflight ON inflight.node_id = rn.id
                 WHERE na.hub_agent_id = %s
                   AND na.status = 'active'
                   AND rn.status = 'online'
@@ -5656,7 +5719,7 @@ class DepartmentDispatcher:
                     try:
                         _pn_cur = _pn_conn.cursor()
                         _pn_cur.execute(
-                            "SELECT id FROM remote_nodes "
+                            "SELECT id, max_concurrent FROM remote_nodes "
                             "WHERE (node_name = %s OR node_id = %s) "
                             "AND status = 'online' "
                             "AND last_heartbeat > NOW() - INTERVAL '3 minutes' LIMIT 1",
@@ -5664,8 +5727,23 @@ class DepartmentDispatcher:
                         )
                         _pn_row = _pn_cur.fetchone()
                         _pn_db_id = _pn_row[0] if _pn_row else None
+                        _pn_max = max(int(_pn_row[1]), 1) if (_pn_row and _pn_row[1]) else 1
                     finally:
                         _pn_conn.close()
+                    # #4343 per-node cap: skip a SATURATED pinned candidate (live
+                    # running jobs >= its max_concurrent) so an explicit pin can't
+                    # pile onto an already-full node. Gated + fail-open; on skip the
+                    # loop tries the next candidate, then falls through to the normal
+                    # flow below, so a dispatch is never dropped.
+                    if _pn_db_id and self._node_cap_enabled() and self._node_inflight_count(_pn_db_id) >= _pn_max:
+                        logger.info(
+                            "[BridgeDispatcher] preferred_node %s at/over cap (max=%s) "
+                            "for '%s' — skipping to next candidate",
+                            _pn_name,
+                            _pn_max,
+                            capability,
+                        )
+                        continue
                     if _pn_db_id and _pn_model:
                         _pn_info = self._get_fleet_node_for_dispatch(
                             _pn_db_id, _pn_model, agent if isinstance(agent, dict) else None

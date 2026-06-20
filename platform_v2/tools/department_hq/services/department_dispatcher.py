@@ -394,7 +394,15 @@ CAPABILITY_REQUIRES_SKILL = {
 # (if allowed) cloud — so when the Starships are offline this is a no-op and
 # stationed CPU agents (E.T.H.O.S./C.O.D.E.X.) reach their nodes exactly as
 # before. Explicit preferred_node from a caller always wins.
-_GPU_CLUSTER = ["Starship-246", "Starship-245"]
+# Pinned by NODE_ID (not display name): the GPU Starships were renamed 2026-06-04 to
+# "Starship - Defiant - USS-246" / "Starship - Runabout - USS-245", but node_id is
+# rename-proof. The preferred_node loop matches `node_name = %s OR node_id = %s`, so the
+# OLD short names ("Starship-246"…) matched NEITHER column → every GPU candidate was
+# "not viable" → all heavy work (code/research/…) silently fell through to the hub CPU.
+# That made the engine build plan (qwen2.5-coder:7b) run on hub CPU (~567s/plan) and blow
+# the engine's plan timeout. Pinning by node_id restores GPU routing when a Starship is up
+# (fail-safe fallback to hub unchanged when both are offline). #4342.
+_GPU_CLUSTER = ["starship_76583490e36955ab", "starship_5501c2766526e746"]  # USS-246 (Defiant), USS-245 (Runabout)
 CAPABILITY_NODE_AFFINITY = {
     "code_review": _GPU_CLUSTER,
     "code": _GPU_CLUSTER,

@@ -539,6 +539,11 @@ services:
       # delegation surface (submit -> delegate_task_worker -> department_dispatcher).
       - ARCHIE_HUB_URL=http://100.64.0.4:3000
       - ARCHIE_HUB_API_KEY=${INTERNAL_API_KEY}
+      # Also expose under the literal name so the engine's INTERNAL_API_KEY-reading
+      # paths work (e.g. the engine.py KB-search direct-API fallback when the hub
+      # connector is down). Same value as ARCHIE_HUB_API_KEY — the platform's
+      # @_require_internal_key bearer.
+      - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - OLLAMA_HOST=http://100.64.0.4:11434
       - ARCHIE_WS_HOST=0.0.0.0
       - ARCHIE_DATA_DIR=/data

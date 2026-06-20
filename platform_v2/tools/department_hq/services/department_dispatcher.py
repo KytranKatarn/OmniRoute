@@ -3855,6 +3855,28 @@ class DepartmentDispatcher:
             except (TypeError, ValueError):
                 node_id_used = None
 
+            # Hub-local source attribution (#4342). A hub-direct dispatch carries NO
+            # metadata["node_id"], so internal hub-local inference logged NULL while
+            # DHQ-routed-to-hub logged the hub's id — the SAME machine split into two
+            # A.R.M.A.D.A. buckets ("Archie Starbase" vs "hub"). Attribute internal
+            # hub-local rows to the hub node so local + DHQ unify at the SOURCE (and the
+            # dispatcher's recent_load sees honest hub load). Resolved ONCE by the stable
+            # node_id "archie-starbase" (rename-safe; never literal 68), cached, fail-open.
+            # Cloud/contractor rows stay NULL (cloud is not a node); a fleet id always wins.
+            if node_id_used is None and not is_contractor:
+                hub_id = getattr(self, "_hub_node_db_id_cache", None)
+                if hub_id is None:
+                    try:
+                        cur.execute("SELECT id FROM remote_nodes WHERE node_id = 'archie-starbase' LIMIT 1")
+                        _hr = cur.fetchone()
+                        hub_id = int(_hr[0]) if _hr else None
+                        if hub_id is not None:
+                            self._hub_node_db_id_cache = hub_id
+                    except Exception:
+                        hub_id = None
+                if hub_id is not None:
+                    node_id_used = hub_id
+
             # Pick up Claude MCP attribution if dispatch was called from
             # within an MCP tool handler (Tasks #1297/#1298).
             request_origin = None

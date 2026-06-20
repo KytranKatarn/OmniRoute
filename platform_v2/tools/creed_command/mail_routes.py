@@ -285,7 +285,10 @@ def _run_mail_ai_bg(app_obj, box, uid, kind, addr, msg):
                 prompt=prompt,
                 prefer_agent="E.T.H.O.S.",
                 source_product="archie_platform",
-                preferred_node=["Starship-246", "Starship-245"],
+                preferred_node=[
+                    "starship_76583490e36955ab",
+                    "starship_5501c2766526e746",
+                ],  # node_id (rename-safe); old short names matched nothing -> hub CPU (#4342)
             )
             if res is not None and getattr(res, "success", False):
                 result = (getattr(res, "response", "") or "").strip()

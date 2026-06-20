@@ -233,7 +233,10 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> s
             # 7B reliably. This explicitly EXCLUDES the 4GB Runabout (245), where
             # mistral:7b stalls mid-review and leaves the row stuck 'in_progress'.
             # Explicit preferred_node wins over CAPABILITY_NODE_AFFINITY.
-            preferred_node=["Starship - Defiant - USS-246", "Archie Starbase"],
+            preferred_node=[
+                "starship_76583490e36955ab",
+                "archie-starbase",
+            ],  # node_id (rename-safe): Defiant(.246) RTX3070 then hub M4000; excludes 4GB Runabout (#4342)
         )
         if getattr(result, "queued", False):
             qid = getattr(result, "queue_id", None)

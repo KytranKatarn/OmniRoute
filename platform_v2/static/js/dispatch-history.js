@@ -168,11 +168,11 @@
       _appendTd(tr, r.module);
       // Node column — shows which fleet node handled the request
       var nodeTd = document.createElement('td');
-      var nodeVal = r.node_name || 'Hub';
-      // Short labels for fleet nodes
-      nodeVal = nodeVal.replace('Archie Starbase', 'Hub').replace('Starship-', '.').replace('outpost-us', 'outpost');
+      var nodeVal = r.node_name || 'Starbase - A.R.C.H.I.E.';
+      // Backend already unifies the hub to one label; map any legacy raw value + shorten fleet names
+      nodeVal = nodeVal.replace('Archie Starbase', 'Starbase - A.R.C.H.I.E.').replace('Starship-', '.').replace('outpost-us', 'outpost');
       nodeTd.textContent = nodeVal;
-      nodeTd.style.color = nodeVal === 'Hub' ? 'var(--dhq-text-dim)' : '#00bcd4';
+      nodeTd.style.color = nodeVal.indexOf('Starbase') === 0 ? 'var(--dhq-text-dim)' : '#00bcd4';
       nodeTd.style.fontFamily = '\'IBM Plex Mono\',monospace';
       nodeTd.style.fontSize = '0.68rem';
       tr.appendChild(nodeTd);

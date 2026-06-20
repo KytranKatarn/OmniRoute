@@ -267,7 +267,8 @@ def agent_stats():
                     COUNT(*) FILTER (WHERE tel.success) AS successes,
                     ROUND(AVG(tel.duration_ms))::int AS avg_ms,
                     MODE() WITHIN GROUP (ORDER BY tel.model_used) AS top_model,
-                    MAX(COALESCE(rn.node_name, 'hub')) AS last_node
+                    MAX(CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase'
+                             THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END) AS last_node
                 FROM task_execution_log tel
                 LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
                 WHERE tel.created_at > NOW() - INTERVAL '24 hours'

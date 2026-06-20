@@ -96,7 +96,10 @@ def _generate_marketing_bg(app_obj, asset_id, channel, topic):
                 prompt=_build_prompt(channel, topic),
                 prefer_agent="E.T.H.O.S.",
                 source_product="archie_platform",
-                preferred_node=["Starship-246", "Starship-245"],
+                preferred_node=[
+                    "starship_76583490e36955ab",
+                    "starship_5501c2766526e746",
+                ],  # node_id (rename-safe); old short names matched nothing -> hub CPU (#4342)
             )
             if res is not None and getattr(res, "success", False):
                 content = (getattr(res, "response", "") or "").strip()

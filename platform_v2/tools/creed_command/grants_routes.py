@@ -108,7 +108,10 @@ def _generate_draft_bg(app_obj, grant_id, g):
                 # Route off the contended hub GPU to the GPU cluster (#3619/#3620):
                 # try Starship-246 (RTX 3070) then Starship-245 for redundancy;
                 # falls back to normal routing/hub automatically if both are down.
-                preferred_node=["Starship-246", "Starship-245"],
+                preferred_node=[
+                    "starship_76583490e36955ab",
+                    "starship_5501c2766526e746",
+                ],  # node_id (rename-safe); old short names matched nothing -> hub CPU (#4342)
             )
             draft = ""
             if res is not None and getattr(res, "success", False):

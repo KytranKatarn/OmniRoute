@@ -82,10 +82,11 @@ LATEST_CLIENT_VERSION = "3.0.0"
 
 # Canonical hub display label. The hub node carries several legacy aliases
 # ("Archie Starbase" was the pre-cluster name; node_id is "archie-starbase").
-# All of them collapse to "Hub" for display so A.R.M.A.D.A. traffic/model
+# All of them collapse to ONE label for display so A.R.M.A.D.A. traffic/model
 # panels don't show the hub as two separate nodes. Node *IDs* are NOT touched.
-HUB_DISPLAY_LABEL = "Hub"
-_HUB_NODE_ALIASES = {"archie starbase", "archie-starbase", "archie-hub", "hub"}
+# Owner-chosen canonical label (#4342): the hub IS the Starbase, running A.R.C.H.I.E.
+HUB_DISPLAY_LABEL = "Starbase - A.R.C.H.I.E."
+_HUB_NODE_ALIASES = {"archie starbase", "archie-starbase", "archie-hub", "hub", "starbase - a.r.c.h.i.e."}
 
 
 def normalize_node_label(node_name):

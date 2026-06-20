@@ -468,7 +468,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            tel.created_at,
                            tel.tokens_used,
                            COALESCE(tel.cost, 0)::float AS cost,
-                           COALESCE(rn.node_name, 'Hub') AS node_name
+                           CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase' THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS node_name
                     FROM task_execution_log tel
                     LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
                     LEFT JOIN agents a ON (
@@ -508,7 +508,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            bj.created_at,
                            NULL::int AS tokens_used,
                            0::float AS cost,
-                           COALESCE(bj.metadata->>'node_name', 'Hub') AS node_name
+                           CASE WHEN COALESCE(bj.metadata->>'node_name','') = ''
+                                     OR LOWER(bj.metadata->>'node_name') IN ('archie starbase','archie-starbase','hub','archie-hub')
+                                THEN 'Starbase - A.R.C.H.I.E.' ELSE bj.metadata->>'node_name' END AS node_name
                     FROM bridge_jobs bj
                     LEFT JOIN agents a ON (
                         bj.agent_name ~ '^fleet-agent-[0-9]+$'
@@ -1025,7 +1027,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     """SELECT COALESCE(a.name, tel.agent_name) AS agent_name,
                               tel.capability, tel.model_used, tel.module_source,
                               tel.success, tel.duration_ms, tel.created_at,
-                              COALESCE(rn.node_name, 'Hub') AS node_name,
+                              CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase' THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS node_name,
                               (tel.request_metadata->>'dr_mode')::boolean AS dr_mode
                        FROM task_execution_log tel
                        LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
@@ -1102,14 +1104,17 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     # the surrounding try/except. Fixed here as part of the
                     # DHQ Dispatch panel breakdown.
                     cur.execute(
-                        """SELECT COALESCE(rn.node_name, 'hub') AS label,
+                        """SELECT CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase'
+                                       THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS label,
                                   COUNT(*) AS total,
                                   COUNT(*) FILTER (WHERE tel.success) AS successes,
                                   ROUND(AVG(tel.duration_ms))::int AS avg_ms
                            FROM task_execution_log tel
                            LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id
                            WHERE tel.created_at > NOW() - INTERVAL '%s hours'
-                           GROUP BY rn.node_name ORDER BY total DESC LIMIT 10""",
+                           GROUP BY CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase'
+                                         THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END
+                           ORDER BY total DESC LIMIT 10""",
                         (hours,),
                     )
                     by_node = [dict(r) for r in cur.fetchall()]

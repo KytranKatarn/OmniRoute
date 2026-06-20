@@ -2002,7 +2002,8 @@ def register_dashboard_routes(bp, auth_decorator):
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(rn.node_name, 'Hub') AS node_name,
+                        CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase'
+                             THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS node_name,
                         COUNT(*) AS rows_5m,
                         COUNT(*) FILTER (WHERE tel.created_at > NOW() - INTERVAL '60 seconds') AS rows_60s,
                         SUM(CASE WHEN tel.success THEN 1 ELSE 0 END)::float

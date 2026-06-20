@@ -95,10 +95,40 @@ def execute(page, params: dict) -> dict:
         except Exception:
             continue
 
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(2500)
+
+    # Verify the comment ACTUALLY rendered before claiming success. Our own just-
+    # posted comment appears in the open thread in-session (a FRESH page load
+    # collapses comments to "most relevant" — so verify HERE, not later).
+    # Punctuation/emoji-insensitive substring match. If it can't be confirmed,
+    # report failure so the approval executor marks it 'failed' instead of a phantom
+    # success (mirrors #4327 — drafted/submitted != posted).
+    import re as _re
+
+    def _norm(s):
+        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
+
+    needle = _norm(comment)[:40]
+    confirmed = False
+    for _ in range(3):
+        try:
+            page_txt = _norm(page.inner_text("body"))
+        except Exception:
+            page_txt = ""
+        if needle and needle in page_txt:
+            confirmed = True
+            break
+        page.wait_for_timeout(1500)
+
     return {
-        "success": True,
-        "result": f"Commented ({len(comment)} chars) on post",
+        "success": confirmed,
+        "confirmed": confirmed,
+        "result": (
+            f"Commented ({len(comment)} chars) on post"
+            if confirmed
+            else "Submitted but the comment could NOT be confirmed on the page after posting"
+        ),
         "post_url": post_url,
+        "error": None if confirmed else "comment_not_confirmed",
         "screenshot_path": _screenshot(page, "comment_done"),
     }

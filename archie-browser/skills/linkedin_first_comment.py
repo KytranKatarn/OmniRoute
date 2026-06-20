@@ -105,10 +105,36 @@ def execute(page, params: dict) -> dict:
         except Exception:
             continue
 
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(2500)
+
+    # Verify the comment actually rendered before claiming success (mirrors #4327 +
+    # linkedin_comment). Our own just-posted comment is in the open thread in-session.
+    import re as _re
+
+    def _norm(s):
+        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
+
+    needle = _norm(comment)[:40]
+    confirmed = False
+    for _ in range(3):
+        try:
+            page_txt = _norm(page.inner_text("body"))
+        except Exception:
+            page_txt = ""
+        if needle and needle in page_txt:
+            confirmed = True
+            break
+        page.wait_for_timeout(1500)
+
     return {
-        "success": True,
-        "result": f"First comment posted ({len(comment)} chars)",
+        "success": confirmed,
+        "confirmed": confirmed,
+        "result": (
+            f"First comment posted ({len(comment)} chars)"
+            if confirmed
+            else "Submitted but the first comment could NOT be confirmed on the page"
+        ),
         "post_url": post_url,
+        "error": None if confirmed else "comment_not_confirmed",
         "screenshot_path": _screenshot(page, "first_comment_done"),
     }

@@ -1074,16 +1074,14 @@ def _register_own_jobs(scheduler, flask_app):
                 logger.info("[ModelQueuePlanner] Potential unlocks: %s", unlock_hints)
 
             try:
-                from database import get_db_cursor as _mqp_db
+                from services.telemetry_writer import log_marker
 
-                with _mqp_db(commit=True) as (_, _mqp_cur):
-                    _mqp_cur.execute(
-                        """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                           VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                                   %s, 'internal', %s, true, %s, 68)""",
-                        ("K.I.N.", "K.I.N.", duration_ms, "workforce_planning"),
-                    )
+                log_marker(
+                    agent_name="K.I.N.",
+                    capability="workforce_planning",
+                    duration_ms=duration_ms,
+                    node_used_id=68,
+                )
             except Exception as _tel:
                 logger.debug("[ModelQueuePlanner] task_execution_log write failed: %s", _tel)
 
@@ -1336,16 +1334,14 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[DeptHQ] Zombie reaper failed: %s", exc)
         try:
-            from database import get_db_cursor as _dzr_db
+            from services.telemetry_writer import log_marker
 
-            with _dzr_db(commit=True) as (_, _dzr_cur):
-                _dzr_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("K.I.N.", "K.I.N.", int((_dzr_t.time() - _dzr_start) * 1000), "welfare_monitoring"),
-                )
+            log_marker(
+                agent_name="K.I.N.",
+                capability="welfare_monitoring",
+                duration_ms=int((_dzr_t.time() - _dzr_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[ZombieReaper] task_execution_log write failed: %s", _tel)
 
@@ -1670,16 +1666,14 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[DeptHQ] Dispatch backfill failed: %s", exc)
         try:
-            from database import get_db_cursor as _dbf_db
+            from services.telemetry_writer import log_marker
 
-            with _dbf_db(commit=True) as (_, _dbf_cur):
-                _dbf_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("K.I.N.", "K.I.N.", int((_db_t.time() - _db_start) * 1000), "welfare_monitoring"),
-                )
+            log_marker(
+                agent_name="K.I.N.",
+                capability="welfare_monitoring",
+                duration_ms=int((_db_t.time() - _db_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[Backfill] task_execution_log write failed: %s", _tel)
 
@@ -2631,16 +2625,14 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[Fleet] fleet_agent_sync failed: %s", exc)
         try:
-            from database import get_db_cursor as _fas_db
+            from services.telemetry_writer import log_marker
 
-            with _fas_db(commit=True) as (_, _fas_cur):
-                _fas_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, 68)""",
-                    ("K.I.N.", "K.I.N.", int((_fas_t.time() - _fas_start) * 1000), "workforce_planning"),
-                )
+            log_marker(
+                agent_name="K.I.N.",
+                capability="workforce_planning",
+                duration_ms=int((_fas_t.time() - _fas_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[FleetAgentSync] task_execution_log write failed: %s", _tel)
 
@@ -2948,22 +2940,15 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[WTFLLMJob] crashed: %s", exc)
         try:
-            from database import get_db_cursor as _wll_db
+            from services.telemetry_writer import log_marker
 
-            with _wll_db(commit=True) as (_, _wll_cur):
-                _wll_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, %s, 68)""",
-                    (
-                        "F.A.C.T.",
-                        "F.A.C.T.",
-                        int((_wll_t.time() - _wll_start) * 1000),
-                        "wtf_llm_orchestration",
-                        "wtf_dhq_llm",
-                    ),
-                )
+            log_marker(
+                agent_name="F.A.C.T.",
+                capability="wtf_llm_orchestration",
+                module_source="wtf_dhq_llm",
+                duration_ms=int((_wll_t.time() - _wll_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[WTFLLMJob] task_execution_log write failed: %s", _tel)
 
@@ -3121,22 +3106,15 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[WTFGeoJob] crashed: %s", exc)
         try:
-            from database import get_db_cursor as _wgeo_db
+            from services.telemetry_writer import log_marker
 
-            with _wgeo_db(commit=True) as (_, _wgeo_cur):
-                _wgeo_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, %s, 68)""",
-                    (
-                        "F.A.C.T.",
-                        "F.A.C.T.",
-                        int((_wgeo_t.time() - _wgeo_start) * 1000),
-                        "wtf_geo_orchestration",
-                        "wtf_dhq_geo",
-                    ),
-                )
+            log_marker(
+                agent_name="F.A.C.T.",
+                capability="wtf_geo_orchestration",
+                module_source="wtf_dhq_geo",
+                duration_ms=int((_wgeo_t.time() - _wgeo_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[WTFGeoJob] task_execution_log write failed: %s", _tel)
 
@@ -3313,22 +3291,15 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[WTFFactcheckJob] crashed: %s", exc)
         try:
-            from database import get_db_cursor as _wfc_db
+            from services.telemetry_writer import log_marker
 
-            with _wfc_db(commit=True) as (_, _wfc_cur):
-                _wfc_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, %s, 68)""",
-                    (
-                        "F.A.C.T.",
-                        "F.A.C.T.",
-                        int((_wfc_t.time() - _wfc_start) * 1000),
-                        "wtf_factcheck_orchestration",
-                        "wtf_dhq_factcheck",
-                    ),
-                )
+            log_marker(
+                agent_name="F.A.C.T.",
+                capability="wtf_factcheck_orchestration",
+                module_source="wtf_dhq_factcheck",
+                duration_ms=int((_wfc_t.time() - _wfc_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[WTFFactcheckJob] task_execution_log write failed: %s", _tel)
 
@@ -3552,22 +3523,15 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[WTFFactcheckBacklog] crashed: %s", exc)
         try:
-            from database import get_db_cursor as _wfcb_db
+            from services.telemetry_writer import log_marker
 
-            with _wfcb_db(commit=True) as (_, _wfcb_cur):
-                _wfcb_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, %s, 68)""",
-                    (
-                        "F.A.C.T.",
-                        "F.A.C.T.",
-                        int((_wfcb_t.time() - _wfcb_start) * 1000),
-                        "wtf_factcheck_backlog_orchestration",
-                        "wtf_dhq_factcheck",
-                    ),
-                )
+            log_marker(
+                agent_name="F.A.C.T.",
+                capability="wtf_factcheck_backlog_orchestration",
+                module_source="wtf_dhq_factcheck",
+                duration_ms=int((_wfcb_t.time() - _wfcb_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[WTFFactcheckBacklog] task_execution_log write failed: %s", _tel)
 
@@ -4134,22 +4098,15 @@ def _register_own_jobs(scheduler, flask_app):
         except Exception as exc:
             logger.error("[WTFScoutJob] crashed: %s", exc)
         try:
-            from database import get_db_cursor as _wsc_db
+            from services.telemetry_writer import log_marker
 
-            with _wsc_db(commit=True) as (_, _wsc_cur):
-                _wsc_cur.execute(
-                    """INSERT INTO task_execution_log
-                       (agent_id, agent_name, model_used, duration_ms, success, capability, module_source, node_used_id)
-                       VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                               %s, 'internal', %s, true, %s, %s, 68)""",
-                    (
-                        "F.A.C.T.",
-                        "F.A.C.T.",
-                        int((_wsc_t.time() - _wsc_start) * 1000),
-                        "wtf_scout_orchestration",
-                        "wtf_dhq_scout",
-                    ),
-                )
+            log_marker(
+                agent_name="F.A.C.T.",
+                capability="wtf_scout_orchestration",
+                module_source="wtf_dhq_scout",
+                duration_ms=int((_wsc_t.time() - _wsc_start) * 1000),
+                node_used_id=68,
+            )
         except Exception as _tel:
             logger.debug("[WTFScoutJob] task_execution_log write failed: %s", _tel)
 
@@ -4464,21 +4421,17 @@ def _register_own_jobs(scheduler, flask_app):
                     pass
 
             try:
-                from database import get_db_cursor as _cow_db
+                from services.telemetry_writer import log_marker
 
-                with _cow_db(commit=True) as (_, _cow_cur):
-                    _cow_cur.execute(
-                        """INSERT INTO task_execution_log
-                           (agent_id, agent_name, model_used, duration_ms, success, capability, node_used_id)
-                           VALUES ((SELECT id FROM agents WHERE name=%s LIMIT 1),
-                                   %s, 'internal', %s, true, %s, 68)""",
-                        # FIX-3a (KB #270619): this non-LLM cluster-orchestration tick
-                        # (model_used='internal', ~1/min) was mislabeled capability
-                        # 'knowledge_analysis' — ~1366 fake 0-token rows/day polluting
-                        # A.R.C.H.I.E.'s knowledge_analysis capability stats. It is
-                        # cluster orchestration, not analysis.
-                        ("A.R.C.H.I.E.", "A.R.C.H.I.E.", elapsed_ms, "cluster_orchestration"),
-                    )
+                # FIX-3a (KB #270619): non-LLM cluster-orchestration tick (~1/min) — a
+                # MARKER, not analysis (was once mislabeled 'knowledge_analysis', polluting
+                # A.R.C.H.I.E.'s stats). log_marker writes the canonical non-LLM sentinel.
+                log_marker(
+                    agent_name="A.R.C.H.I.E.",
+                    capability="cluster_orchestration",
+                    duration_ms=elapsed_ms,
+                    node_used_id=68,
+                )
             except Exception as _tel:
                 logger.debug("[ClusterOrchestration] task_execution_log write failed: %s", _tel)
 

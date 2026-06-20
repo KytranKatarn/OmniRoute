@@ -1117,6 +1117,14 @@ def register_dispatch_routes(bp, admin_required_decorator):
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'
+                         -- #4344: BY MODEL = real LLM generation only. Exclude orchestration/
+                         -- marker rows (direct-INSERT job heartbeats omit worker_type -> NULL;
+                         -- _log_execution ALWAYS sets it) + non-LLM compute (browser/scraper,
+                         -- embeddings) + leftover placeholder labels. Markers still appear in
+                         -- BY SOURCE / BY AGENT / the feed as real activity.
+                         AND worker_type IS NOT NULL
+                         AND model_used NOT IN ('internal','batch','bridge-managed','browser')
+                         AND model_used NOT ILIKE '%%embed%%'
                        GROUP BY model_used ORDER BY total DESC LIMIT 15""",
                     (hours,),
                 )

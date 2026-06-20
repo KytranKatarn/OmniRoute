@@ -545,6 +545,13 @@ def register_code_health_routes(bp, admin_required):
                             COALESCE(SUM(CASE WHEN {cls}='external' THEN tokens_used END),0) ext_t
                         FROM task_execution_log
                         WHERE {where} AND NOT {est} AND agent_name IS NOT NULL
+                          -- #4344: per-model token breakdown = real LLM rows only. Drop
+                          -- orchestration markers (direct-INSERT job rows omit worker_type)
+                          -- + non-LLM compute (browser/scraper, embeddings) so the per-agent
+                          -- model list reflects actual token-generating inference.
+                          AND worker_type IS NOT NULL
+                          AND model_used NOT IN ('internal','batch','bridge-managed','browser')
+                          AND model_used NOT ILIKE '%%embed%%'
                         GROUP BY agent_name, COALESCE(model_used, '?')
                     ) sub
                     GROUP BY agent_name

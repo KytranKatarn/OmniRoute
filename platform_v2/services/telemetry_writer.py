@@ -49,6 +49,11 @@ logger = logging.getLogger(__name__)
 # exclude-list in code_health_routes.py (model_used NOT IN (...,'bridge-managed',...)).
 MARKER_MODEL_SENTINEL = "bridge-managed"
 
+# Hub node DB id (remote_nodes.id for 'archie-starbase'). Marker jobs run hub-side, so
+# this is the default node attribution. Named here so call sites don't sprinkle the magic
+# literal 68. If the hub's remote_nodes.id ever changes, update this ONE constant.
+HUB_NODE_ID = 68
+
 
 def log_marker(
     *,
@@ -57,7 +62,7 @@ def log_marker(
     agent_id: Optional[int] = None,
     duration_ms: int = 0,
     success: bool = True,
-    node_used_id: Optional[int] = None,
+    node_used_id: Optional[int] = HUB_NODE_ID,
     module_source: str = "agent_loop",
     model_used: str = MARKER_MODEL_SENTINEL,
 ) -> bool:

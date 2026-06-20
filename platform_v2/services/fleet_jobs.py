@@ -462,8 +462,10 @@ def _kin_fleet_warmth_policy():
                         """
                         INSERT INTO dispatch_pending_queue
                             (capability, model_needed, prompt, preferred_node_id,
-                             priority, module_id, source_product, expires_at)
+                             priority, module_id, source_product, agent_name, agent_id,
+                             expires_at)
                         VALUES ('warmup', %s, 'ping', %s, 1, 'kin_warmth', 'kin_warmth',
+                                'K.I.N.', (SELECT id FROM agents WHERE name = 'K.I.N.' LIMIT 1),
                                 NOW() + INTERVAL '12 minutes')
                         """,
                         (model, n["id"]),

@@ -768,7 +768,6 @@ def _register_own_jobs(scheduler, flask_app):
                 agent_name="W.A.R.D.E.N.",
                 capability="backup_governance",
                 duration_ms=int((_brc_t.time() - _brc_start) * 1000),
-                node_used_id=68,
             )
         except Exception as _tel:
             logger.debug("[BackupRetention] task_execution_log write failed: %s", _tel)
@@ -824,7 +823,6 @@ def _register_own_jobs(scheduler, flask_app):
                 agent_name="F.O.R.G.E.",
                 capability="code_review",
                 duration_ms=int((_fpp_t.time() - _fpp_start) * 1000),
-                node_used_id=68,
             )
         except Exception as _tel:
             logger.debug("[ForgePRPoll] task_execution_log write failed: %s", _tel)
@@ -879,7 +877,6 @@ def _register_own_jobs(scheduler, flask_app):
                 agent_name="F.O.R.G.E.",
                 capability="code_review",
                 duration_ms=int((_fpa_t.time() - _fpa_start) * 1000),
-                node_used_id=68,
             )
         except Exception as _tel:
             logger.debug("[ForgePRAnalyze] task_execution_log write failed: %s", _tel)
@@ -2430,7 +2427,6 @@ def _register_own_jobs(scheduler, flask_app):
                     agent_name="K.I.N.",
                     capability="welfare_monitoring",
                     duration_ms=_dur,
-                    node_used_id=68,
                 )
             except Exception as _tel:
                 logger.debug("[K.I.N.] task_execution_log write failed: %s", _tel)
@@ -3700,7 +3696,6 @@ def _register_own_jobs(scheduler, flask_app):
                 agent_name="B.I.A.S.",
                 capability="analysis",
                 duration_ms=int((_wbb_t.time() - _wbb_start) * 1000),
-                node_used_id=68,
             )
         except Exception as _tel:
             logger.debug("[WTFBiasBacklog] task_execution_log write failed: %s", _tel)
@@ -3872,7 +3867,6 @@ def _register_own_jobs(scheduler, flask_app):
                 agent_name="L.O.C.A.L.",
                 capability="analysis",
                 duration_ms=int((_wgb_t.time() - _wgb_start) * 1000),
-                node_used_id=68,
             )
         except Exception as _tel:
             logger.debug("[WTFGeoBacklog] task_execution_log write failed: %s", _tel)

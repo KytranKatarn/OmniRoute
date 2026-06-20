@@ -2168,6 +2168,48 @@ class DepartmentDispatcher:
         except Exception:
             return 0
 
+    def _node_at_cap(self, node_db_id) -> bool:
+        """True only when a divertable FLEET node is at/over its concurrency cap (#4343 P1c).
+
+        ONE round-trip for a SINGLE node — NOT a per-node loop. Called at most twice per
+        dispatch (the Node-preference + score-routing branches, sequentially) and only when
+        _node_cap_enabled() (instance-cached ~60s), so the added cost is one indexed COUNT.
+        Counts LIVE running jobs (bridge_jobs status='running', 20-min bound), resolving
+        BOTH metadata->>'node_id' forms (varchar node_id OR int id::text), vs rn.max_concurrent.
+        The hub (rn.bridge_priority >= 100) is EXCLUDED by the WHERE clause -> returns False
+        for it, so overflow never diverts off-hub and local_only/prefer_hub routing is
+        unaffected. Fail-open (False) on any error or unknown node so a dispatch is never
+        dropped. contextlib.closing releases the connection on every path including errors
+        (fleet.md HARD RULE — a leaked conn on the error path is the DR pool-exhaustion mode)."""
+        try:
+            nid = int(node_db_id)
+        except (TypeError, ValueError):
+            return False
+        try:
+            from contextlib import closing
+
+            with closing(self._get_db()) as conn:
+                cur = conn.cursor()
+                cur.execute(
+                    """SELECT COUNT(bj.id) AS running, MAX(rn.max_concurrent) AS cap
+                       FROM remote_nodes rn
+                       LEFT JOIN bridge_jobs bj
+                         ON bj.status = 'running'
+                        AND bj.created_at > NOW() - INTERVAL '20 minutes'
+                        AND ( bj.metadata->>'node_id' = rn.node_id
+                           OR bj.metadata->>'node_id' = rn.id::text )
+                       WHERE rn.id = %s AND rn.bridge_priority < 100""",
+                    (nid,),
+                )
+                row = cur.fetchone()
+            if not row or row[1] is None:
+                return False
+            running = int(row[0] or 0)
+            cap = max(int(row[1]), 1)
+            return running >= cap
+        except Exception:
+            return False
+
     def _find_fleet_agent_for_hub_agent(
         self,
         hub_agent_id: int,
@@ -5816,6 +5858,23 @@ class DepartmentDispatcher:
                     prefer_hub=local_only,
                     department=(agent.get("department") if isinstance(agent, dict) else None),
                 )
+                # #4343 P1c: if the agent's stationed FLEET node is at/over its
+                # concurrency cap, drop the home-node pin and fall through to
+                # score-routing/hub. Keyed by hub_agent_id, this path otherwise
+                # pins a single stationed node, so the cap_term DEMOTION inside
+                # _find_fleet_agent_for_hub_agent is a no-op (LIMIT 1 returns the
+                # one saturated node anyway). Gated + fail-open; hub is never
+                # skipped (bridge_priority>=100 -> _node_at_cap False), so
+                # local_only/prefer_hub is unaffected. Fall-through, never a drop.
+                if _node_assign and self._node_cap_enabled() and self._node_at_cap(_node_assign["node_id"]):
+                    logger.info(
+                        "[BridgeDispatcher] Node-preference: %s@%s at/over cap for '%s' "
+                        "— skipping stationed node, falling through to score-routing/hub (#4343)",
+                        _node_assign["agent_name"],
+                        _node_assign["node_name"],
+                        capability,
+                    )
+                    _node_assign = None
                 if _node_assign:
                     logger.info(
                         "[BridgeDispatcher] Node-preference: %s@%s for '%s' (agent %s stationed on fleet)",
@@ -5907,6 +5966,19 @@ class DepartmentDispatcher:
             else:
                 _wp_model = getattr(agent, "model", "") or ""
             _wp_node_id = _pick_fleet_node(_wp_model, agent if isinstance(agent, dict) else {})
+            # #4343 P1c: don't score-route onto a saturated FLEET node. This block is
+            # the immediate fall-through from the Node-preference skip above, and
+            # _pick_fleet_node is colocation-biased + load-UNaware, so without this it
+            # would re-pick the same full home node we just skipped. Treat a capped pick
+            # as "hub" (overflow tier). Gated + fail-open; hub picks are never skipped.
+            if _wp_node_id is not None and self._node_cap_enabled() and self._node_at_cap(_wp_node_id):
+                logger.info(
+                    "[BridgeDispatcher] Score-routing pick (node id=%s) at/over cap for "
+                    "'%s' — staying on hub (#4343)",
+                    _wp_node_id,
+                    capability,
+                )
+                _wp_node_id = None
             if _wp_node_id is not None:
                 _wp_info = self._get_fleet_node_for_dispatch(
                     _wp_node_id, _wp_model, agent if isinstance(agent, dict) else None

@@ -40,6 +40,11 @@ def record_engine_run(
         "summary": (summary or "")[:500],
         "source": "archie-code",
     }
+    # #4253(b): surface the failure reason ON the row. Failed engine runs used to
+    # land with success=f and an EMPTY error_message — the real reason was buried in
+    # request_metadata.summary, so failures looked silent on the Dispatch tab and in
+    # triage. Copy the summary into error_message on failure (NULL on success).
+    err_msg = None if success else ((summary or "").strip()[:2000] or "engine build failed (no summary)")
     tel_id = None
     with get_db_cursor(commit=True) as (_c, cur):
         cur.execute(
@@ -47,9 +52,9 @@ def record_engine_run(
             INSERT INTO task_execution_log
                 (agent_name, worker_type, task_type, task_description, module_source,
                  model_used, provider, prompt_tokens, completion_tokens, tokens_used,
-                 duration_ms, success, request_origin, request_metadata, created_at)
+                 duration_ms, success, error_message, request_origin, request_metadata, created_at)
             VALUES (%s,'internal','engine_build',%s,'archie_engine',
-                    %s,'local',%s,%s,%s,%s,%s,'archie_engine',%s::jsonb,NOW())
+                    %s,'local',%s,%s,%s,%s,%s,%s,'archie_engine',%s::jsonb,NOW())
             RETURNING id
             """,
             (
@@ -61,6 +66,7 @@ def record_engine_run(
                 total,
                 int(duration_ms or 0),
                 bool(success),
+                err_msg,
                 json.dumps(meta),
             ),
         )

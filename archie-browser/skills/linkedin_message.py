@@ -27,12 +27,16 @@ def execute(page, params: dict) -> dict:
         page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
     except Exception:
         pass
-    # Click Message button
+    main = page.locator("main")
+    # A real direct-Message affordance only exists for messageable members (1st-degree
+    # connections, or open-profile/InMail). Scope to the profile top-card and be STRICT:
+    # the button's aria-label is "Message <Name>". Do NOT match "Send profile in a
+    # message", the nav messaging icon, or anything that opens the New-Message compose —
+    # its recipient typeahead intercepts clicks and HANGS the skill (the bug being fixed).
     clicked = False
     for attempt in [
-        lambda: page.get_by_role("button", name="Message", exact=True).first.click(timeout=6000),
-        lambda: page.locator('button:has-text("Message")').first.click(timeout=6000),
-        lambda: page.locator('[aria-label*="message"]').first.click(timeout=6000),
+        lambda: main.locator('button[aria-label^="Message"]').first.click(timeout=5000),
+        lambda: main.get_by_role("button", name="Message", exact=True).first.click(timeout=4000),
     ]:
         try:
             attempt()
@@ -42,51 +46,83 @@ def execute(page, params: dict) -> dict:
             continue
 
     if not clicked:
-        page_text = page.locator("body").inner_text(timeout=3000)
-        if "Connect" in page_text and "Message" not in page_text:
-            return {"success": False, "reason": "not_connected", "screenshot_path": screenshot_path}
-        raise RuntimeError("Could not find Message button — screenshot saved to " + screenshot_path)
+        # No direct Message button on the profile → not a 1st-degree connection (or
+        # messaging unavailable). Return cleanly instead of falling into a compose hang.
+        return {
+            "success": False,
+            "reason": "not_connected",
+            "result": "No direct Message button on the profile — not a connection or messaging unavailable",
+            "profile_url": clean_url,
+            "screenshot_path": screenshot_path,
+        }
 
     page.wait_for_timeout(2000)
 
-    # Find message input
+    # Guard: if the New-Message compose (recipient typeahead) opened, we did NOT land in
+    # a direct thread — bail cleanly. This is the exact element that hung the old skill.
+    try:
+        if page.locator(
+            ".msg-connections-typeahead-container, [class*='connections-typeahead']"
+        ).first.is_visible(timeout=1500):
+            return {
+                "success": False,
+                "reason": "not_connected",
+                "result": "Opened the New-Message compose (recipient typeahead) — target is not directly messageable",
+                "profile_url": clean_url,
+                "screenshot_path": screenshot_path,
+            }
+    except Exception:
+        pass
+
+    # Find the direct-message overlay editor.
     editor = None
     for sel in [
         ".msg-form__contenteditable",
+        ".msg-overlay-conversation-bubble [contenteditable='true']",
         '[role="textbox"]',
-        '[contenteditable="true"]',
         "div.ql-editor",
     ]:
         try:
             loc = page.locator(sel).last
-            loc.wait_for(state="visible", timeout=6000)
+            loc.wait_for(state="visible", timeout=5000)
             editor = loc
             break
         except Exception:
             continue
 
     if editor is None:
-        raise RuntimeError("Could not find message input after opening chat")
+        return {
+            "success": False,
+            "reason": "no_message_box",
+            "result": "Clicked Message but no direct message box opened",
+            "profile_url": clean_url,
+            "screenshot_path": screenshot_path,
+        }
 
-    editor.click(timeout=5000)
-    editor.fill(message, timeout=10000)
-    page.wait_for_timeout(1000)
-
+    # Fill — guarded so a stuck/ intercepted click reports failure instead of hanging.
     try:
+        editor.click(timeout=5000)
+        editor.fill(message, timeout=8000)
+    except Exception as fe:
+        return {
+            "success": False,
+            "reason": "fill_failed",
+            "result": f"Could not type into the message box: {str(fe)[:120]}",
+            "profile_url": clean_url,
+            "screenshot_path": screenshot_path,
+        }
+    page.wait_for_timeout(800)
 
-        page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
-
-    except Exception:
-
-        pass
-    # Send
+    # Send.
+    sent = False
     for send_sel in [
-        lambda: page.get_by_role("button", name="Send", exact=True).last.click(timeout=8000),
-        lambda: page.locator('button[class*="send"]').last.click(timeout=5000),
-        lambda: page.keyboard.press("Enter"),
+        lambda: page.get_by_role("button", name="Send", exact=True).last.click(timeout=6000),
+        lambda: page.locator('button.msg-form__send-button, button[class*="send"]').last.click(timeout=4000),
+        lambda: editor.press("Enter"),
     ]:
         try:
             send_sel()
+            sent = True
             break
         except Exception:
             continue
@@ -96,9 +132,25 @@ def execute(page, params: dict) -> dict:
         page.screenshot(path=screenshot_path, timeout=5000, animations="disabled")
     except Exception:
         pass
+
+    # Honest success: a sent message clears the composer. If the text is still in the
+    # box, the send did not go through (mirrors #4327 / #1805 — clicking Send != sent).
+    confirmed = sent
+    try:
+        if (editor.inner_text(timeout=1500) or "").strip():
+            confirmed = False
+    except Exception:
+        pass  # editor detached/cleared after send → treat as sent
+
     return {
-        "success": True,
-        "result": f"Message sent ({len(message)} chars)",
+        "success": confirmed,
+        "confirmed": confirmed,
+        "result": (
+            f"Message sent ({len(message)} chars)"
+            if confirmed
+            else "Clicked Send but the message did not clear the composer (not confirmed sent)"
+        ),
         "profile_url": clean_url,
+        "error": None if confirmed else "message_not_confirmed",
         "screenshot_path": screenshot_path,
     }

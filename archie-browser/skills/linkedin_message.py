@@ -28,15 +28,18 @@ def execute(page, params: dict) -> dict:
     except Exception:
         pass
     main = page.locator("main")
-    # A real direct-Message affordance only exists for messageable members (1st-degree
-    # connections, or open-profile/InMail). Scope to the profile top-card and be STRICT:
-    # the button's aria-label is "Message <Name>". Do NOT match "Send profile in a
-    # message", the nav messaging icon, or anything that opens the New-Message compose —
-    # its recipient typeahead intercepts clicks and HANGS the skill (the bug being fixed).
+    # The direct-Message affordance on a profile is an <a> link (text exactly "Message",
+    # href=/messaging/compose/?profileUrn=<target>) that opens a compose with the
+    # recipient PRE-FILLED — not a button. Target it by the link's exact accessible
+    # name "Message": this excludes the "People also viewed" sidebar links (named
+    # "Message <OtherPerson>") and "Send profile in a message". A non-connection has
+    # no such top-card link → we return not_connected cleanly (no compose-typeahead
+    # hang, which was the loose-selector bug). Button fallbacks for layout variants.
     clicked = False
     for attempt in [
-        lambda: main.locator('button[aria-label^="Message"]').first.click(timeout=5000),
+        lambda: main.get_by_role("link", name="Message", exact=True).first.click(timeout=5000),
         lambda: main.get_by_role("button", name="Message", exact=True).first.click(timeout=4000),
+        lambda: main.locator('button[aria-label^="Message"]').first.click(timeout=4000),
     ]:
         try:
             attempt()
@@ -46,33 +49,17 @@ def execute(page, params: dict) -> dict:
             continue
 
     if not clicked:
-        # No direct Message button on the profile → not a 1st-degree connection (or
-        # messaging unavailable). Return cleanly instead of falling into a compose hang.
+        # No direct Message link/button on the profile → not a 1st-degree connection
+        # (or messaging unavailable). Return cleanly instead of hanging.
         return {
             "success": False,
             "reason": "not_connected",
-            "result": "No direct Message button on the profile — not a connection or messaging unavailable",
+            "result": "No direct Message affordance on the profile — not a connection or messaging unavailable",
             "profile_url": clean_url,
             "screenshot_path": screenshot_path,
         }
 
-    page.wait_for_timeout(2000)
-
-    # Guard: if the New-Message compose (recipient typeahead) opened, we did NOT land in
-    # a direct thread — bail cleanly. This is the exact element that hung the old skill.
-    try:
-        if page.locator(
-            ".msg-connections-typeahead-container, [class*='connections-typeahead']"
-        ).first.is_visible(timeout=1500):
-            return {
-                "success": False,
-                "reason": "not_connected",
-                "result": "Opened the New-Message compose (recipient typeahead) — target is not directly messageable",
-                "profile_url": clean_url,
-                "screenshot_path": screenshot_path,
-            }
-    except Exception:
-        pass
+    page.wait_for_timeout(2500)
 
     # Find the direct-message overlay editor.
     editor = None

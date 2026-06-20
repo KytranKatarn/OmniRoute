@@ -100,21 +100,40 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(800)
     _screenshot(page, "reply_filled")
 
-    # Send
+    # Send — the messaging send button first (most reliable), then role-based, then a
+    # focused Enter (LinkedIn messaging sends on Enter when the composer has focus).
+    sent = False
     for send_btn in [
-        lambda: page.get_by_role("button", name="Send", exact=True).last.click(timeout=8000),
-        lambda: page.locator('button[class*="send"]').last.click(timeout=5000),
-        lambda: page.keyboard.press("Enter"),
+        lambda: page.locator("button.msg-form__send-button").last.click(timeout=6000),
+        lambda: page.get_by_role("button", name="Send", exact=True).last.click(timeout=5000),
+        lambda: (editor.click(timeout=2000) or editor.press("Enter")),
     ]:
         try:
             send_btn()
+            sent = True
             break
         except Exception:
             continue
 
-    page.wait_for_timeout(2000)
+    page.wait_for_timeout(2500)
+
+    # Honest success: a sent reply CLEARS the composer. If the text is still in the box,
+    # it did not send (mirrors #4327 / #1805 / linkedin_message — clicking Send != sent).
+    confirmed = sent
+    try:
+        if (editor.inner_text(timeout=1500) or "").strip():
+            confirmed = False
+    except Exception:
+        pass  # composer cleared / detached after send → treat as sent
+
     return {
-        "success": True,
-        "result": f"Replied to {reply_to or conversation_url} ({len(message)} chars)",
+        "success": confirmed,
+        "confirmed": confirmed,
+        "result": (
+            f"Replied to {reply_to or conversation_url} ({len(message)} chars)"
+            if confirmed
+            else "Sent action ran but the reply did not clear the composer (not confirmed sent)"
+        ),
+        "error": None if confirmed else "reply_not_confirmed",
         "screenshot_path": _screenshot(page, "reply_sent"),
     }

@@ -370,9 +370,12 @@ def run_deploy_pipeline(capability: str, context: dict) -> DeployResult:
 
     result = DeployResult(success=False, domain=domain, capability=capability)
 
-    # Step 1 — Risk classification
+    # Step 1 — Risk classification. `approved=True` (set by the website_deploy
+    # approval handler after a human taps approve) SKIPS the gate so the re-run
+    # actually deploys instead of looping back into another approval request.
+    approved = bool(context.get("approved"))
     risk = classify_risk(changed_files)
-    if risk == "approval_required":
+    if risk == "approval_required" and not approved:
         logger.info(
             "[DeployPipeline] %s requires Telegram approval (risky files: %s)",
             domain,
@@ -381,12 +384,23 @@ def run_deploy_pipeline(capability: str, context: dict) -> DeployResult:
         try:
             from ai_bridge.agent_loop import request_approval
 
+            # Dedicated 'website_deploy' action_type (#4344 follow-up). The old
+            # 'cloud_throughput_escalation' was tier-1 auto-approved with a no-op
+            # deploy handler, so the Telegram prompt was never delivered AND the
+            # deploy never ran (it silently auto-approved into nothing). website_deploy
+            # defaults to tier-2 (real human approval) and has a handler that
+            # re-invokes this pipeline with approved=True. action_data carries the
+            # full context so that re-run has everything it needs.
             request_approval(
-                action_type="cloud_throughput_escalation",
+                action_type="website_deploy",
                 action_data={
                     "domain": domain,
-                    "changed_files": changed_files,
                     "capability": capability,
+                    "source_path": source_path,
+                    "changed_files": changed_files,
+                    "verify_url": verify_url,
+                    "is_translation": is_translation,
+                    "container_name": context.get("container_name", ""),
                 },
                 reason=f"Deploy to {domain} includes non-static files ({changed_files}). Approve?",
                 requested_by="deploy_service",

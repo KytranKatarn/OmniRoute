@@ -194,6 +194,18 @@ def _check_existing_approval(
             )
             return cur.fetchone() is not None
 
+    if action_type == "website_deploy":
+        # Dedup per DOMAIN so different domains can await approval at once,
+        # while the same domain can't queue twice (#4344 follow-up).
+        domain = (action_data or {}).get("domain")
+        if domain:
+            cur.execute(
+                "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+                "AND action_data->>'domain' = %s LIMIT 1",
+                (action_type, domain),
+            )
+            return cur.fetchone() is not None
+
     cur.execute(
         "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
         (action_type,),
@@ -4459,6 +4471,31 @@ class AgentLoop:
             except Exception as da_err:
                 logger.error("deploy_approve execution failed: %s", da_err)
                 return {"executed": False, "error": str(da_err)}
+
+        elif action_type == "website_deploy":
+            # Telegram-approved website / VPS deploy (#4344 follow-up). Re-invoke the
+            # deploy pipeline with approved=True so it SKIPS the risk gate and actually
+            # deploys this time (no loop). action_data carries the full deploy context.
+            try:
+                import sys
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from services.deploy_service import run_deploy_pipeline
+
+                cap = data.get("capability") or "deploy_static"
+                res = run_deploy_pipeline(cap, {**data, "approved": True})
+                ok = bool(getattr(res, "success", False))
+                logger.info(
+                    "website_deploy: %s %s after approval (%s)",
+                    cap, data.get("domain"), "success" if ok else getattr(res, "error", "failed"),
+                )
+                return {
+                    "executed": ok,
+                    "domain": data.get("domain"),
+                    "error": getattr(res, "error", None) if not ok else None,
+                }
+            except Exception as wd_err:
+                logger.error("website_deploy execution failed: %s", wd_err)
+                return {"executed": False, "error": str(wd_err)}
 
         elif action_type == "codex_promote":
             # Telegram-approved promotion of a previewed Codex PR: merge to main,

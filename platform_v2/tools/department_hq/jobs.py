@@ -2817,6 +2817,7 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 result = dispatch(
                     capability="bias_analysis",
+                    priority="low",  # #4343 P1b: WTF backlog batch — yields the interactive lane
                     prompt=prompt,
                     module_id="wtf_dhq_llm",
                     json_mode=True,
@@ -3002,6 +3003,7 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 result = dispatch(
                     capability="geo_extraction",
+                    priority="low",  # #4343 P1b: WTF backlog batch — yields the interactive lane
                     prompt=prompt,
                     module_id="wtf_dhq_geo",
                     json_mode=True,
@@ -3195,6 +3197,7 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 result = dispatch(
                     capability="fact_check",
+                    priority="low",  # #4343 P1b: WTF backlog batch — yields the interactive lane
                     prompt=prompt,
                     module_id="wtf_dhq_factcheck",
                     json_mode=True,
@@ -3478,6 +3481,7 @@ def _register_own_jobs(scheduler, flask_app):
                     )
                     result = dispatch(
                         capability="fact_check_backlog",
+                        priority="low",  # #4343 P1b: WTF backlog batch — yields the interactive lane
                         prompt=prompt,
                         module_id="wtf_dhq_factcheck_backlog",
                         json_mode=True,
@@ -3613,6 +3617,7 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 result = dispatch(
                     capability="bias_backlog",
+                    priority="low",  # #4343 P1b: WTF backlog batch — yields the interactive lane
                     prompt=prompt,
                     module_id="wtf_dhq_bias_backlog",
                     json_mode=True,
@@ -3795,6 +3800,7 @@ def _register_own_jobs(scheduler, flask_app):
                 # GPU and starving interactive work (portrait synthesis, #3454).
                 result = dispatch(
                     capability="geo_extraction",
+                    priority="low",  # #4343 P1b: WTF backlog batch — yields the interactive lane
                     prompt=prompt,
                     module_id="wtf_dhq_geo_backlog",
                     json_mode=True,
@@ -4012,6 +4018,47 @@ def _register_own_jobs(scheduler, flask_app):
         replace_existing=True,
     )
     logger.info("[DeptHQ] Registered mailbox_story_worker job (every 10 min, local-only)")
+
+    # #4343 drift guard: a stale _GPU_CLUSTER node_id (renamed/removed) silently no-ops
+    # every GPU-affinity / preferred_node pin -> hub-CPU fallback (the cont-49 stale-name
+    # bug class). Hourly check; surfaces drift to logs + an admin notification.
+    def _run_gpu_cluster_drift_guard():
+        try:
+            from tools.department_hq.services.department_dispatcher import assert_gpu_cluster_invariants
+
+            problems = assert_gpu_cluster_invariants()
+            if problems:
+                logger.warning(
+                    "[GPUClusterDrift] %d _GPU_CLUSTER invariant problem(s): %s",
+                    len(problems),
+                    " | ".join(problems),
+                )
+                try:
+                    from services.notification_service import create_notification
+
+                    create_notification(
+                        notification_type="warning",
+                        title="GPU cluster routing drift (#4343)",
+                        message=" | ".join(problems)[:1000],
+                        source="gpu_cluster_drift_guard",
+                        priority="high",
+                        visibility="admin",
+                    )
+                except Exception:
+                    logger.warning("[GPUClusterDrift] notification emit failed", exc_info=True)
+        except Exception:
+            logger.exception("[GPUClusterDrift] guard cycle failed")
+
+    scheduler.add_job(
+        with_ctx(_run_gpu_cluster_drift_guard),
+        trigger=CronTrigger(minute=17, timezone="America/Toronto"),
+        id="gpu_cluster_drift_guard",
+        name="#4343 GPU cluster routing drift guard (hourly)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered gpu_cluster_drift_guard job (hourly :17)")
 
     # Job #125: WTF Scout — full body fetch for short articles via archie_browser Playwright.
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.

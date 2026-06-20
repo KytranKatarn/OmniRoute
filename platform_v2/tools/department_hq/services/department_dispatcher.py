@@ -419,6 +419,56 @@ CAPABILITY_NODE_AFFINITY = {
     "policy_assessment": _GPU_CLUSTER,
 }
 
+
+def assert_gpu_cluster_invariants(cur=None):
+    """Drift guard (#4343): verify every node_id hardcoded in _GPU_CLUSTER still maps to a
+    real remote_nodes row with a sane concurrency cap.
+
+    A stale id (node renamed/removed) makes EVERY ``preferred_node=_GPU_CLUSTER`` /
+    CAPABILITY_NODE_AFFINITY pin silently no-op -> hub-CPU fallback — the exact stale-name
+    routing bug class this codebase keeps hitting (KB #274200, cont-49; the same family the
+    hub-unify PR #1813 fixed in 4 other places). Flags: (1) a _GPU_CLUSTER node_id absent
+    from remote_nodes, (2) max_concurrent missing/<1 (degenerate cap math). Does NOT flag a
+    merely-offline node — Starships legitimately rest 8PM-6AM ET. Returns a list of problem
+    strings (empty = healthy) and logs one warning per drift. Read-only + fail-open ([] on
+    error) so it can never block dispatch. Pass an existing dict cursor or let it open one."""
+    problems = []
+
+    def _check(c):
+        c.execute(
+            "SELECT node_id, node_name, max_concurrent FROM remote_nodes WHERE node_id = ANY(%s)",
+            (list(_GPU_CLUSTER),),
+        )
+        found = {r["node_id"]: r for r in (c.fetchall() or [])}
+        for nid in _GPU_CLUSTER:
+            row = found.get(nid)
+            if row is None:
+                problems.append(
+                    f"_GPU_CLUSTER node_id '{nid}' not in remote_nodes — stale pin, every "
+                    f"affinity/preferred_node route for it silently falls back to hub"
+                )
+            elif not row["max_concurrent"] or int(row["max_concurrent"]) < 1:
+                problems.append(
+                    f"_GPU_CLUSTER node '{nid}' ({row['node_name']}) has max_concurrent="
+                    f"{row['max_concurrent']} (<1 — degenerate cap math)"
+                )
+
+    try:
+        if cur is not None:
+            _check(cur)
+        else:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (_c, _cu):
+                _check(_cu)
+    except Exception:
+        logger.warning("[BridgeDispatcher] assert_gpu_cluster_invariants check failed (fail-open)", exc_info=True)
+        return []
+    for p in problems:
+        logger.warning("[BridgeDispatcher] GPU cluster drift: %s", p)
+    return problems
+
+
 # S.P.E.C.T.R.A. audit: F.O.R.G.E. hit HTTPConnectionPool timeouts on the
 # default 300s for every code_analysis call — the model completes but runs
 # long on CPU nodes. Applies when request_work is called with the default

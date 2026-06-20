@@ -1108,6 +1108,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                                        THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS label,
                                   COUNT(*) AS total,
                                   COUNT(*) FILTER (WHERE tel.success) AS successes,
+                                  COALESCE(SUM(tel.tokens_used), 0)::bigint AS tokens,
                                   ROUND(AVG(tel.duration_ms))::int AS avg_ms
                            FROM task_execution_log tel
                            LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id

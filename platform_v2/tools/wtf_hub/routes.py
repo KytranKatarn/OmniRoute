@@ -224,6 +224,10 @@ def analyze():
             prompt=prompts[task],
             module_id="wtf_hub",
             json_mode=True,
+            # #4343 P1b: WTF factcheck/bias/geo is the primary batch GPU-stream surge — low
+            # priority so it yields the interactive reserved stream + sorts behind interactive
+            # work in the cold-load queue. Still batch-lane (reserve applies); never dropped.
+            priority="low",
         )
         if result.success:
             try:
@@ -398,6 +402,8 @@ def analyze_quick():
             module_id="wtf_hub_quick",
             json_mode=True,
             model_override="qwen2.5:1.5b",
+            # #4343 P1b: WTF quick-classify is batch ingest work — low priority.
+            priority="low",
             context={"prefer_node": prefer_node} if prefer_node else {},
         )
         duration_ms = int((time.time() - started) * 1000)

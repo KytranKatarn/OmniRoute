@@ -93,6 +93,8 @@ def _generate_marketing_bg(app_obj, asset_id, channel, topic):
 
             res = dispatch(
                 capability="policy_assessment",
+                # #4343 P1b: user-initiated E.T.H.O.S. draft — interactive lane (high).
+                priority="high",
                 prompt=_build_prompt(channel, topic),
                 prefer_agent="E.T.H.O.S.",
                 source_product="archie_platform",

@@ -2146,6 +2146,32 @@ class DepartmentDispatcher:
         except Exception:
             return True
 
+    def _node_cap_reserve(self) -> int:
+        """Batch reserve — streams held back from BATCH per fleet node so an INTERACTIVE
+        (priority high/critical) dispatch always has headroom (#4343 P1b). platform_settings
+        'dispatch:node_cap:batch_reserve' (default 1 when unset). Instance-cached ~60s.
+        Fail-SAFE 0 on any error or non-integer/garbage value — reserve 0 means no lane
+        carve-out, which can NEVER starve batch (callers also floor the effective cap at 1).
+        Negative values clamp to 0. Always gated by the _node_cap_enabled() kill-switch."""
+        try:
+            now = time.time()
+            if getattr(self, "_node_reserve_time", 0) and (now - self._node_reserve_time) < 60:
+                return self._node_reserve_val
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'dispatch:node_cap:batch_reserve'")
+            row = cur.fetchone()
+            conn.close()
+            raw = str(row[0]).strip() if row and row[0] is not None else ""
+            val = int(raw) if raw else 1
+            if val < 0:
+                val = 0
+            self._node_reserve_val = val
+            self._node_reserve_time = now
+            return val
+        except Exception:
+            return 0
+
     def _node_inflight_count(self, node_db_id) -> int:
         """Live running-job count for a node (#4343) — bridge_jobs status='running',
         resolving BOTH metadata node_id forms (varchar node_id AND int DB id). 20-min
@@ -2168,14 +2194,19 @@ class DepartmentDispatcher:
         except Exception:
             return 0
 
-    def _node_at_cap(self, node_db_id) -> bool:
-        """True only when a divertable FLEET node is at/over its concurrency cap (#4343 P1c).
+    def _node_at_cap(self, node_db_id, reserve: int = 0) -> bool:
+        """True only when a divertable FLEET node is at/over its (lane-adjusted) concurrency
+        cap (#4343 P1c + P1b lane reserve).
 
         ONE round-trip for a SINGLE node — NOT a per-node loop. Called at most twice per
         dispatch (the Node-preference + score-routing branches, sequentially) and only when
         _node_cap_enabled() (instance-cached ~60s), so the added cost is one indexed COUNT.
         Counts LIVE running jobs (bridge_jobs status='running', 20-min bound), resolving
-        BOTH metadata->>'node_id' forms (varchar node_id OR int id::text), vs rn.max_concurrent.
+        BOTH metadata->>'node_id' forms (varchar node_id OR int id::text), vs the effective
+        cap = max(rn.max_concurrent - reserve, 1). P1b: BATCH dispatches pass reserve>=1
+        (held to max_concurrent-1, leaving an INTERACTIVE stream free); INTERACTIVE passes
+        reserve=0 (full cap). The clamp is AFTER subtraction, so a 1-stream node never drops
+        to 0 (batch and interactive then share the single stream — no carve-out possible).
         The hub (rn.bridge_priority >= 100) is EXCLUDED by the WHERE clause -> returns False
         for it, so overflow never diverts off-hub and local_only/prefer_hub routing is
         unaffected. Fail-open (False) on any error or unknown node so a dispatch is never
@@ -2205,7 +2236,7 @@ class DepartmentDispatcher:
             if not row or row[1] is None:
                 return False
             running = int(row[0] or 0)
-            cap = max(int(row[1]), 1)
+            cap = max(int(row[1]) - int(reserve), 1)
             return running >= cap
         except Exception:
             return False
@@ -2215,6 +2246,7 @@ class DepartmentDispatcher:
         hub_agent_id: int,
         prefer_hub: bool = False,
         department: Optional[str] = None,
+        reserve: int = 0,
     ) -> Optional[Dict]:
         """Check if a hub agent is stationed on an online fleet node.
 
@@ -2242,12 +2274,17 @@ class DepartmentDispatcher:
             # ORDER BY — built from controlled values (not user input), no SQL injection risk
             # load_5m.task_count added as secondary sort: least-loaded node wins among ties.
             # #4343 per-node cap: prepend a saturation-DEMOTION term (gated + kill-switchable)
-            # so a node at/over max_concurrent LIVE running jobs sorts LAST among fleet
-            # candidates. No-op when unsaturated (every node scores 0 -> byte-identical ordering)
-            # or when the flag is off (cap_term=""). DEMOTION, not a hard filter: LIMIT 1 still
-            # returns the least-over-cap node, so a dispatch is never dropped.
+            # so a node at/over its (lane-adjusted) cap of LIVE running jobs sorts LAST among
+            # fleet candidates. No-op when unsaturated (every node scores 0 -> byte-identical
+            # ordering) or when the flag is off (cap_term=""). DEMOTION, not a hard filter:
+            # LIMIT 1 still returns the least-over-cap node, so a dispatch is never dropped.
+            # P1b: `reserve` (int, controlled) lowers the threshold for BATCH so a batch
+            # dispatch demotes a node one stream sooner, matching the hard _node_at_cap skip;
+            # int() cast preserves the no-injection invariant. GREATEST(...,1) clamps AFTER
+            # subtraction so a 1-stream node never goes to 0.
             cap_term = (
-                "(CASE WHEN COALESCE(inflight.running, 0) >= GREATEST(rn.max_concurrent, 1)" " THEN 1 ELSE 0 END) ASC, "
+                f"(CASE WHEN COALESCE(inflight.running, 0) >= GREATEST(rn.max_concurrent - {int(reserve)}, 1)"
+                " THEN 1 ELSE 0 END) ASC, "
                 if self._node_cap_enabled()
                 else ""
             )
@@ -5747,6 +5784,18 @@ class DepartmentDispatcher:
         # heartbeat, no model, no response, error) skips to the next candidate,
         # and if none serve the whole block falls through to the normal flow
         # below. preferred_node=None (every existing caller) -> block skipped.
+        #
+        # #4343 P1b interactive lane: derive the per-dispatch batch reserve ONCE here, before
+        # any fleet-cap touchpoint. INTERACTIVE work (priority high/critical) uses reserve=0
+        # (full cap -> can claim the reserved stream); BATCH (low/normal) uses the configured
+        # reserve (default 1) so it's held to max_concurrent-1, leaving an interactive stream
+        # free on MULTI-stream fleet nodes (a 1-stream node clamps to 1 and reserves nothing).
+        # _node_cap_reserve() is fail-safe 0, so a disabled/misconfigured cap never starves
+        # batch. The SAME _batch_reserve is threaded into the preferred_node skip, the
+        # Node-preference _find_fleet_agent_for_hub_agent + _node_at_cap, and the score-routing
+        # _node_at_cap below — one value so the soft ORDER-BY demotion and the hard skips agree.
+        is_interactive = priority in ("high", "critical")
+        _batch_reserve = 0 if is_interactive else self._node_cap_reserve()
         if preferred_node and agent and not _agentic_eligible:
             _pn_candidates = list(preferred_node) if isinstance(preferred_node, (list, tuple)) else [preferred_node]
             _pn_model = (
@@ -5772,17 +5821,22 @@ class DepartmentDispatcher:
                         _pn_max = max(int(_pn_row[1]), 1) if (_pn_row and _pn_row[1]) else 1
                     finally:
                         _pn_conn.close()
-                    # #4343 per-node cap: skip a SATURATED pinned candidate (live
-                    # running jobs >= its max_concurrent) so an explicit pin can't
-                    # pile onto an already-full node. Gated + fail-open; on skip the
-                    # loop tries the next candidate, then falls through to the normal
-                    # flow below, so a dispatch is never dropped.
-                    if _pn_db_id and self._node_cap_enabled() and self._node_inflight_count(_pn_db_id) >= _pn_max:
+                    # #4343 per-node cap (+P1b lane reserve): skip a SATURATED pinned
+                    # candidate (live running jobs >= its effective cap) so an explicit pin
+                    # can't pile onto an already-full node. BATCH is held to
+                    # max(max_concurrent - _batch_reserve, 1); INTERACTIVE uses the full cap
+                    # (_batch_reserve=0). Gated + fail-open; on skip the loop tries the next
+                    # candidate, then falls through to the normal flow below, so a dispatch
+                    # is never dropped.
+                    _pn_effective = max(_pn_max - _batch_reserve, 1)
+                    if _pn_db_id and self._node_cap_enabled() and self._node_inflight_count(_pn_db_id) >= _pn_effective:
                         logger.info(
-                            "[BridgeDispatcher] preferred_node %s at/over cap (max=%s) "
+                            "[BridgeDispatcher] preferred_node %s at/over cap (eff=%s of max=%s, interactive=%s) "
                             "for '%s' — skipping to next candidate",
                             _pn_name,
+                            _pn_effective,
                             _pn_max,
+                            is_interactive,
                             capability,
                         )
                         continue
@@ -5857,6 +5911,7 @@ class DepartmentDispatcher:
                     _hub_agent_id,
                     prefer_hub=local_only,
                     department=(agent.get("department") if isinstance(agent, dict) else None),
+                    reserve=_batch_reserve,
                 )
                 # #4343 P1c: if the agent's stationed FLEET node is at/over its
                 # concurrency cap, drop the home-node pin and fall through to
@@ -5866,12 +5921,17 @@ class DepartmentDispatcher:
                 # one saturated node anyway). Gated + fail-open; hub is never
                 # skipped (bridge_priority>=100 -> _node_at_cap False), so
                 # local_only/prefer_hub is unaffected. Fall-through, never a drop.
-                if _node_assign and self._node_cap_enabled() and self._node_at_cap(_node_assign["node_id"]):
+                if (
+                    _node_assign
+                    and self._node_cap_enabled()
+                    and self._node_at_cap(_node_assign["node_id"], reserve=_batch_reserve)
+                ):
                     logger.info(
-                        "[BridgeDispatcher] Node-preference: %s@%s at/over cap for '%s' "
+                        "[BridgeDispatcher] Node-preference: %s@%s at/over cap (interactive=%s) for '%s' "
                         "— skipping stationed node, falling through to score-routing/hub (#4343)",
                         _node_assign["agent_name"],
                         _node_assign["node_name"],
+                        is_interactive,
                         capability,
                     )
                     _node_assign = None
@@ -5971,11 +6031,16 @@ class DepartmentDispatcher:
             # _pick_fleet_node is colocation-biased + load-UNaware, so without this it
             # would re-pick the same full home node we just skipped. Treat a capped pick
             # as "hub" (overflow tier). Gated + fail-open; hub picks are never skipped.
-            if _wp_node_id is not None and self._node_cap_enabled() and self._node_at_cap(_wp_node_id):
+            if (
+                _wp_node_id is not None
+                and self._node_cap_enabled()
+                and self._node_at_cap(_wp_node_id, reserve=_batch_reserve)
+            ):
                 logger.info(
-                    "[BridgeDispatcher] Score-routing pick (node id=%s) at/over cap for "
-                    "'%s' — staying on hub (#4343)",
+                    "[BridgeDispatcher] Score-routing pick (node id=%s) at/over cap "
+                    "(interactive=%s) for '%s' — staying on hub (#4343)",
                     _wp_node_id,
+                    is_interactive,
                     capability,
                 )
                 _wp_node_id = None

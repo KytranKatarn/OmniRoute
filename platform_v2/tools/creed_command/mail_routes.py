@@ -282,6 +282,8 @@ def _run_mail_ai_bg(app_obj, box, uid, kind, addr, msg):
             prompt = _triage_prompt(addr, msg) if kind == "triage" else _draft_prompt(addr, msg)
             res = dispatch(
                 capability="policy_assessment",
+                # #4343 P1b: user-initiated E.T.H.O.S. triage/draft — interactive lane (high).
+                priority="high",
                 prompt=prompt,
                 prefer_agent="E.T.H.O.S.",
                 source_product="archie_platform",

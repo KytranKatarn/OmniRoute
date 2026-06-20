@@ -102,6 +102,8 @@ def _generate_draft_bg(app_obj, grant_id, g):
 
             res = dispatch(
                 capability="policy_assessment",
+                # #4343 P1b: user-initiated E.T.H.O.S. draft — interactive lane (high).
+                priority="high",
                 prompt=prompt,
                 prefer_agent="E.T.H.O.S.",
                 source_product="archie_platform",

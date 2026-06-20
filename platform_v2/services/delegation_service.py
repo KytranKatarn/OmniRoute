@@ -209,7 +209,14 @@ def execute_delegated_task(task: Dict[str, Any]) -> Dict[str, Any]:
                 payload = {**payload, "_task_id": task.get("id")}
             return _execute_known_tool(capability, payload, reason)
 
-        return _execute_via_dispatcher(capability, payload, reason, origin=delegation_source, task_id=task.get("id"))
+        return _execute_via_dispatcher(
+            capability,
+            payload,
+            reason,
+            origin=delegation_source,
+            task_id=task.get("id"),
+            task_priority=task.get("priority") or 5,
+        )
     except Exception as exc:
         logger.exception("execute_delegated_task failed for task #%s", task.get("id"))
         return {
@@ -792,6 +799,7 @@ def _execute_via_dispatcher(
     reason: str,
     origin: str = "mcp_client",
     task_id: Optional[int] = None,
+    task_priority: int = 5,
 ) -> Dict[str, Any]:
     """Fallback: hand to the Department HQ dispatcher.
 
@@ -826,11 +834,24 @@ def _execute_via_dispatcher(
         prompt_lines.append(f"Args: {json.dumps(payload)[:500]}")
     prompt = "\n".join(prompt_lines)
 
+    # #4343 P1b: map the delegated task's unified_tasks.priority (1-10) into the dispatcher's
+    # lane scale so the delegation layer no longer DROPS priority at the dispatch() boundary.
+    # Capped at 'high' (never 'critical') so a delegated task can't bypass the cold-model
+    # queue (that bypass is reserved for true real-time critical work). Default 5 -> 'normal'
+    # (byte-identical to prior behavior); <=3 -> 'low' (backlog yields the interactive
+    # reserved stream); >=8 -> 'high' (urgent delegated work gets the interactive lane).
+    try:
+        _tp = int(task_priority)
+    except (TypeError, ValueError):
+        _tp = 5
+    _disp_priority = "high" if _tp >= 8 else "low" if _tp <= 3 else "normal"
+
     with claude_request(mcp_tool="delegate_task", origin=origin):
         dispatch_result = dispatch(
             capability=capability,
             prompt=prompt,
             module_id="delegation_service",
+            priority=_disp_priority,
         )
     # Layer-3 fix (#269999): a cold model returns queued=True with a
     # dispatch_pending_queue id — the work is enqueued, NOT failed. Attach a

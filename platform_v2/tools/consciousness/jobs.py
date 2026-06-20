@@ -1121,6 +1121,9 @@ Respond with ONLY a JSON object (no markdown, no explanation):
                     prompt=prompt,
                     module_id="skill_analyzer",
                     system_prompt=system_prompt,
+                    # #4343 P1b: GitHub skill/code analysis is batched background work — low
+                    # priority so it yields the interactive reserved fleet stream.
+                    priority="low",
                 )
 
                 if result and isinstance(result, dict):

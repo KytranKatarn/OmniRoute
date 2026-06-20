@@ -216,6 +216,10 @@ def register_ha_routes(bp):
 
                 result = dispatch(
                     capability="chat",
+                    # #4343 P1b: live voice chat is the most latency-sensitive interactive
+                    # path — high priority claims the per-node interactive reserved stream and
+                    # sorts ahead of batch in the cold-load queue.
+                    priority="high",
                     prompt=query,
                     module_id="home_assistant",
                     system_prompt=voice_system_prompt,

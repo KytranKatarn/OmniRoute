@@ -297,6 +297,9 @@ class KnowledgeAnalyzer:
             prompt,
             "consciousness",
             json_mode=True,
+            # #4343 P1b: the consciousness analysis loop is background batch — low priority
+            # so it yields the interactive reserved fleet stream + sorts behind interactive work.
+            priority="low",
             # timeout defaults to 300 but dispatcher overrides to 600 for
             # knowledge_analysis via CAPABILITY_TIMEOUTS (task #2130).
             job_id=job_id,

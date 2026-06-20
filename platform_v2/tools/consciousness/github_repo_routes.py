@@ -47,8 +47,18 @@ def register_github_repo_routes(bp, admin_required):
         def decorated(*args, **kwargs):
             api_key = request.headers.get("Authorization", "")
             if api_key.startswith("Bearer "):
-                valid_key = os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production")
-                if api_key[7:] == valid_key:
+                presented = api_key[7:]
+                # Accept ARCHIE_API_KEY (CLI/api-key callers) OR INTERNAL_API_KEY
+                # (the A.R.C.H.I.E. Engine's bearer for skill sync etc. — #4265).
+                # Both values are read from the ENVIRONMENT via os.getenv (never
+                # hard-coded — the only literal is a dev fallback default); empty/
+                # unset values are discarded so a missing var can't auth.
+                valid_keys = {
+                    os.getenv("ARCHIE_API_KEY", "dev-api-key-change-in-production"),
+                    os.getenv("INTERNAL_API_KEY", ""),
+                }
+                valid_keys.discard("")
+                if presented in valid_keys:
                     return f(*args, **kwargs)
                 return jsonify({"error": "Invalid API key"}), 401
             # Fall back to Flask-Login session

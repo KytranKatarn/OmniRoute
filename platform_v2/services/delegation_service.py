@@ -1518,7 +1518,11 @@ def triage_blocked_delegations(limit: int = 25) -> Dict[str, int]:
             rows = cur.fetchall() or []
             for row in rows:
                 out["scanned"] += 1
-                m = re.search(r"#(\d{3,5})", row["description"])
+                # Prefer the explicit "PR #N" token (the actual PR), else any "#N".
+                # 1-5 digits so low-numbered PRs (e.g. kytran-creed "PR #25") match —
+                # the old #(\d{3,5}) missed them AND could grab a task ref like #4134
+                # before the real PR, so the doc-check looked up the wrong number (#4350).
+                m = re.search(r"PR #(\d{1,5})", row["description"]) or re.search(r"#(\d{1,5})", row["description"])
                 if not m:
                     out["left"] += 1
                     continue

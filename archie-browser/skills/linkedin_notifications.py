@@ -52,9 +52,15 @@ def execute(page, params: dict) -> dict:
             const is_unread = card.classList.contains('nt-card--unread') ||
                               card.querySelector('.nt-card__badge') !== null;
 
-            // Link
+            // Link (post permalink — query stripped, back-compat)
             const linkEl = card.querySelector('a');
             const link = linkEl ? linkEl.href.split('?')[0] : '';
+
+            // Comment deep-link — the FULL href incl. ?commentUrn= (lives in a
+            // non-first <a>). Required for threaded replies: only this deep-link
+            // renders the specific comment thread in the automated session.
+            const _anchors = Array.from(card.querySelectorAll('a[href]')).map(a => a.href);
+            const comment_url = _anchors.find(h => h.includes('commentUrn')) || '';
 
             // Type detection from text
             let type = 'other';
@@ -69,7 +75,7 @@ def execute(page, params: dict) -> dict:
             else if (t.includes('followed')) type = 'follow';
 
             if (text) {{
-                items.push({{ text: text.substring(0, 200), timestamp, is_unread, type, link }});
+                items.push({{ text: text.substring(0, 200), timestamp, is_unread, type, link, comment_url }});
                 count++;
             }}
         }}

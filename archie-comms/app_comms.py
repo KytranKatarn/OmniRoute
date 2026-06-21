@@ -20,6 +20,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger("archie_comms")
 
+
+def _read_secret(name: str, env_fallback: str) -> str:
+    """Read a secret from /run/secrets/<name> (Docker secret) first, then fall back
+    to the env var. Mirrors database._get_db_password (KB #268834). #4292/#4293: the
+    archie-comms OAuth client secrets now live in Docker secrets; env stays as a
+    graceful fallback (tests + any host without the secret file mounted)."""
+    secret_path = f"/run/secrets/{name}"
+    try:
+        with open(secret_path) as fh:
+            val = fh.read().strip()
+            if val:
+                return val
+    except OSError:
+        pass
+    return os.getenv(env_fallback, "")
+
+
+# OAuth client secrets — Docker-secret-first, env fallback. Resolved ONCE at import so
+# the per-request _set_oauth_client hook never does file I/O. #4293.
+_KYTRAN_CLIENT_SECRET = _read_secret("comms_kytran_client_secret", "KYTRAN_CLIENT_SECRET")
+_CLAUDE_CLIENT_SECRET = _read_secret("comms_claude_client_secret", "CLAUDE_CLIENT_SECRET")
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 # Session secret MUST be persistent + shared across gunicorn workers. A random
@@ -78,14 +100,14 @@ def _setup_dynamic_oauth():
         host = request.host.lower()
         if "claude" in host:
             kytran_auth.client_id = os.getenv("CLAUDE_CLIENT_ID", "claude-terminal")
-            kytran_auth.client_secret = os.getenv("CLAUDE_CLIENT_SECRET", "")
+            kytran_auth.client_secret = _CLAUDE_CLIENT_SECRET
             kytran_auth.redirect_uri = os.getenv(
                 "CLAUDE_REDIRECT_URI",
                 "https://claude.kytranempowerment.com/auth/kytran/callback",
             )
         else:
             kytran_auth.client_id = os.getenv("KYTRAN_CLIENT_ID", "archie-comms")
-            kytran_auth.client_secret = os.getenv("KYTRAN_CLIENT_SECRET", "")
+            kytran_auth.client_secret = _KYTRAN_CLIENT_SECRET
             kytran_auth.redirect_uri = os.getenv(
                 "KYTRAN_REDIRECT_URI",
                 "https://archie.kytranempowerment.com/auth/kytran/callback",

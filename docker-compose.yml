@@ -506,6 +506,8 @@ services:
         condition: service_healthy
     secrets:
       - db_password
+      - comms_kytran_client_secret
+      - comms_claude_client_secret
     deploy:
       resources:
         limits:
@@ -1303,6 +1305,12 @@ secrets:
     file: ./secrets/stripe/webhook_secret.txt
   stripe_publishable_key:
     file: ./secrets/stripe/publishable_key.txt
+  # archie-comms OAuth client secrets (#4292/#4293) — Docker-secret-first, env fallback.
+  # Values live ONLY in these gitignored files + the oauth_clients DB rows, never in git.
+  comms_kytran_client_secret:
+    file: ./secrets/archie-comms/kytran_client_secret.txt
+  comms_claude_client_secret:
+    file: ./secrets/archie-comms/claude_client_secret.txt
 
 networks:
   archie_internal:

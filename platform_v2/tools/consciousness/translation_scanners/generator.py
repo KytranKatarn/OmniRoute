@@ -188,7 +188,10 @@ def _generate_translation(en_text: str, language: str, glossary: Optional[list] 
         prompt=prompt,
         module_id="coverage_scan",
         prefer_agent=agent,
-        preferred_node=["Starship-246", "Starship-245"],
+        # No preferred_node: capability='translate' is in CAPABILITY_NODE_AFFINITY
+        # -> _GPU_CLUSTER (node_ids, rename-safe), so the dispatcher routes this to
+        # the GPU starships automatically. The old ["Starship-246","Starship-245"]
+        # short names matched neither node_name nor node_id post-rename -> hub (#3800).
         model_override=model,
         local_only=True,
     )

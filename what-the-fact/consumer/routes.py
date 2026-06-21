@@ -362,6 +362,23 @@ def news():
         scope_filter = "all"
     offset = (page - 1) * PAGE_SIZE
 
+    if not _news_rate_ok(_client_ip()):
+        return Response("Too many requests — slow down.", 429, {"Retry-After": "30"})
+
+    _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
+    _cached = _news_cache_get(_ck)
+    if _cached is not None:
+        source_count, total, rows, sources, ridings = _cached
+        total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
+        return render_template("news.html", articles=rows, source_count=source_count,
+                               total=total, page=page, total_pages=total_pages,
+                               page_size=PAGE_SIZE, band_filter=band_filter,
+                               province_filter=province_filter,
+                               beat_filter=beat_filter, scope_filter=scope_filter,
+                               riding_filter=riding_filter, ridings=ridings,
+                               beat_meta=BEAT_META, sources=sources,
+                               is_subscriber=is_subscriber())
+
     with _db().begin() as c:
         source_count = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.sources")
@@ -449,6 +466,8 @@ def news():
         """)).mappings().all()
         ridings = [dict(r) for r in riding_rows]
 
+    sources = [dict(s) for s in sources]
+    _news_cache_set(_ck, (source_count, total, rows, sources, ridings))
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
     return render_template("news.html", articles=rows, source_count=source_count,
                            total=total, page=page, total_pages=total_pages,
@@ -456,8 +475,7 @@ def news():
                            province_filter=province_filter,
                            beat_filter=beat_filter, scope_filter=scope_filter,
                            riding_filter=riding_filter, ridings=ridings,
-                           beat_meta=BEAT_META,
-                           sources=[dict(s) for s in sources],
+                           beat_meta=BEAT_META, sources=sources,
                            is_subscriber=is_subscriber())
 
 
@@ -2494,6 +2512,60 @@ def _api_rate_ok(ip: str) -> tuple[bool, int]:
         return False, max(1, retry)
     bucket.append(now)
     return True, 0
+
+
+# --- /news overload defense (#4256): short-TTL data cache + generous per-IP limit.
+# /news is the public feed; the heavy part is the DB queries, NOT the render, and
+# the data does not vary by tier — so we cache the query RESULTS (keyed on the
+# filters) and still render per-request (is_subscriber() stays correct, no paywall
+# leak). The rate limit uses the REAL client IP (X-Forwarded-For — remote_addr is
+# the Caddy gateway) and is fail-open + generous so it never bricks the site.
+_NEWS_CACHE: dict = {}  # filter-key -> (expiry_ts, (source_count, total, rows, sources, ridings))
+_NEWS_CACHE_TTL = int(os.environ.get("WTF_NEWS_CACHE_TTL", "60"))
+_NEWS_CACHE_MAX = int(os.environ.get("WTF_NEWS_CACHE_MAX", "512"))
+_NEWS_RATE_LIMIT = int(os.environ.get("WTF_NEWS_RATE_LIMIT", "180"))  # per-IP /news req / 60s
+
+
+def _client_ip() -> str:
+    """Real client IP behind Caddy — X-Forwarded-For first hop, else remote_addr."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _news_rate_ok(ip: str) -> bool:
+    """Generous per-IP limiter for the heavy /news page. Fail-open on any error."""
+    try:
+        now = time.time()
+        bucket = _API_RATE_BUCKETS.setdefault("news:" + ip, [])
+        bucket[:] = [t for t in bucket if t > now - 60]
+        if len(bucket) >= _NEWS_RATE_LIMIT:
+            return False
+        bucket.append(now)
+        return True
+    except Exception:
+        return True
+
+
+def _news_cache_get(key):
+    ent = _NEWS_CACHE.get(key)
+    if ent and ent[0] > time.time():
+        return ent[1]
+    if ent:
+        _NEWS_CACHE.pop(key, None)
+    return None
+
+
+def _news_cache_set(key, payload):
+    now = time.time()
+    if len(_NEWS_CACHE) >= _NEWS_CACHE_MAX:
+        for k in [k for k, v in list(_NEWS_CACHE.items()) if v[0] <= now]:
+            _NEWS_CACHE.pop(k, None)
+        if len(_NEWS_CACHE) >= _NEWS_CACHE_MAX:
+            for k in sorted(_NEWS_CACHE, key=lambda k: _NEWS_CACHE[k][0])[: max(1, _NEWS_CACHE_MAX // 8)]:
+                _NEWS_CACHE.pop(k, None)
+    _NEWS_CACHE[key] = (now + _NEWS_CACHE_TTL, payload)
 
 
 def _api_cors_response(payload, status: int = 200):

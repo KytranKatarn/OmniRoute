@@ -17,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_REPO = os.getenv("GITHUB_REPO", "KytranKatarn/archie-platform")
 
+# A tracked repo MUST be an ``owner/repo`` slug. Anything else (e.g. a bare
+# ``kytran-creed`` from the pre-#4295 cross-repo mis-stamp bug, KB #272111) is
+# rejected so it can never be polled or re-inserted as a phantom row (#3941).
+_REPO_RE = re.compile(r"^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$")
+
+
+def _is_valid_repo(repo: str | None) -> bool:
+    """True only for a well-formed ``owner/repo`` slug."""
+    return bool(repo and _REPO_RE.match(repo))
+
 
 # ---------------------------------------------------------------------------
 # Verdict parsing — SINGLE SOURCE OF TRUTH
@@ -71,12 +81,46 @@ def verdict_is_approved(summary_or_text: str | None) -> bool:
     return parse_verdict(summary_or_text) == "APPROVE"
 
 
-def get_tracked_repos() -> list:
-    """Return repos to poll. Reads GITHUB_REPOS (comma-separated) or falls back to GITHUB_REPO."""
+def get_tracked_repos(cur=None) -> list:
+    """Return repos to poll.
+
+    Union of two sources, in order, deduped, filtered to valid ``owner/repo``:
+      1. Configured repos — GITHUB_REPOS (comma-separated) or GITHUB_REPO.
+      2. Any valid ``owner/repo`` already present in ``pr_reviews``.
+
+    Source (2) self-heals cross-repo tracking (#3941): a repo F.O.R.G.E. reviewed
+    on-demand (e.g. KytranKatarn/archie-code) keeps getting polled AND
+    sync_closed_prs'd instead of its rows rotting ``open`` forever once it drops
+    out of the configured set. Malformed labels (e.g. a bare ``kytran-creed`` from
+    the pre-#4295 mis-stamp bug, KB #272111) are filtered out so they are never
+    re-polled. Fail-open: a DB read error falls back to the configured repos.
+
+    ``cur`` is an optional injected cursor (for unit tests); when omitted the
+    function opens its own read cursor.
+    """
     repos_env = os.getenv("GITHUB_REPOS", "").strip()
-    if repos_env:
-        return [r.strip() for r in repos_env.split(",") if r.strip()]
-    return [_DEFAULT_REPO]
+    configured = [r.strip() for r in repos_env.split(",") if r.strip()] if repos_env else [_DEFAULT_REPO]
+
+    discovered: list = []
+    try:
+
+        def _scan(c) -> list:
+            c.execute("SELECT DISTINCT repo FROM pr_reviews")
+            return [row["repo"] for row in c.fetchall()]
+
+        if cur is not None:
+            discovered = _scan(cur)
+        else:
+            with get_db_cursor() as (conn, c):
+                discovered = _scan(c)
+    except Exception as e:  # fail-open — a read error must never break polling
+        logger.warning("get_tracked_repos: pr_reviews scan failed, using configured repos only: %s", e)
+
+    out: list = []
+    for repo in (*configured, *discovered):
+        if _is_valid_repo(repo) and repo not in out:
+            out.append(repo)
+    return out or [_DEFAULT_REPO]
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +136,12 @@ def poll_open_prs(repo: str = None) -> dict:
     """
     from tools.repair_bay.services.github_service import list_all_prs_enriched
 
-    _repo = repo or _DEFAULT_REPO
+    _repo = (repo or _DEFAULT_REPO).strip()
+    if not _is_valid_repo(_repo):
+        # Defends against re-inserting a phantom row under a malformed label
+        # (the KB #272111 / #3941 failure mode).
+        logger.error("pr_review_service: refusing to poll malformed repo %r (expected owner/repo)", _repo)
+        return {"polled": 0, "inserted": 0, "updated": 0, "errors": 1}
     try:
         data = list_all_prs_enriched("open", repo=_repo)
     except Exception as e:
@@ -161,7 +210,10 @@ def sync_closed_prs(repo: str = None) -> int:
     """Mark pr_reviews rows as closed/merged when the PR is no longer open on GitHub."""
     from tools.repair_bay.services.github_service import list_all_prs_enriched
 
-    _repo = repo or _DEFAULT_REPO
+    _repo = (repo or _DEFAULT_REPO).strip()
+    if not _is_valid_repo(_repo):
+        logger.error("pr_review_service: refusing to sync_closed malformed repo %r (expected owner/repo)", _repo)
+        return 0
     try:
         open_data = list_all_prs_enriched("open", repo=_repo)
     except Exception as e:

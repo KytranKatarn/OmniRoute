@@ -225,6 +225,80 @@ _ACCOUNT_LABEL = {
 _ACCOUNT_BROWSER_ID = {"personal": 342, "terry": 377, "company": 342, "creed": 342}
 
 
+def _linkedin_profile_healthy(cur, agent_id: int) -> bool:
+    """True unless the agent's LinkedIn POSTING profile is KNOWN logged-out/stale (#3948).
+
+    Posting authenticates from the on-disk persistent profile (/profiles/<agent>-linkedin),
+    NOT the browser_sessions cookie. But the health probe (browser_profile_service.
+    run_session_health_probe) runs a skill IN that same profile, so browser_sessions.status /
+    last_probe_ok is a faithful proxy for posting-auth health. FAIL-OPEN: no row / unknown /
+    error -> True (only suppress when we POSITIVELY know the profile is dead).
+    """
+    try:
+        # Parameterized query (%s + tuple) — agent_id is an int from the hardcoded
+        # _ACCOUNT_AGENT_ID map, never user input: no injection surface.
+        cur.execute(
+            "SELECT status, last_probe_ok FROM browser_sessions "
+            "WHERE agent_id = %s AND platform = 'linkedin' LIMIT 1",
+            (agent_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return True
+        status = (row["status"] if isinstance(row, dict) else row[0]) or ""
+        probe_ok = row["last_probe_ok"] if isinstance(row, dict) else row[1]
+        return not (status == "stale" or probe_ok is False)
+    except Exception as exc:
+        # Fail-open by design: a health-read bug must never block release. Log for traceability.
+        logger.debug("[signal-calendar] linkedin profile health check failed (fail-open True): %s", exc)
+        return True
+
+
+def _alert_linkedin_stale(account: str, agent_id: int) -> None:
+    """Deduped (12h/account) Telegram alert: an account's LinkedIn posting profile is logged
+    out, so calendar release is paused for it. The fix is a HEADED re-auth via the S.I.G.N.A.L.
+    Session subtab (noVNC) — a Cookie-Editor import only refreshes the READ path, not the
+    posting profile (#3948). Best-effort; never blocks release."""
+    key = f"signal:linkedin_stale_alert:{account}"
+    try:
+        from datetime import datetime
+
+        from services.time_utils import now_utc
+
+        now = now_utc()
+        with get_db_cursor(commit=True) as (_c, c):
+            c.execute("SELECT value FROM platform_settings WHERE key = %s", (key,))
+            row = c.fetchone()
+            if row:
+                last = row["value"] if isinstance(row, dict) else row[0]
+                try:
+                    if last and (now - datetime.fromisoformat(last)).total_seconds() < 12 * 3600:
+                        return  # already alerted within 12h
+                except Exception:
+                    pass
+            c.execute(
+                "INSERT INTO platform_settings(key, value) VALUES (%s, %s) "
+                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                (key, now.isoformat()),
+            )
+    except Exception as exc:
+        logger.debug("[signal-calendar] stale-alert dedup check failed (best-effort): %s", exc)
+    try:
+        from services import telegram_service
+
+        label = _ACCOUNT_LABEL.get(account, account)
+        telegram_service.send_system(
+            f"LinkedIn posting paused — {label}",
+            f"The {label} LinkedIn posting profile (agent {agent_id}, "
+            f"/profiles/{agent_id}-linkedin) is logged out — calendar release is PAUSED for "
+            f"this account so no failed posts pile up.\n\n"
+            f"FIX: DHQ → S.I.G.N.A.L. → 🔐 Session → noVNC headed login for agent {agent_id}. "
+            f"A Cookie-Editor import only fixes the READ path, not posting (#3948).",
+        )
+    except Exception as exc:
+        logger.debug("[signal-calendar] stale-alert telegram send failed (best-effort): %s", exc)
+
+
 def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
     """Phase 2 (#3990): promote due scheduled posts into the linkedin_post
     approval queue (Telegram human gate — nothing publishes from here).
@@ -241,9 +315,21 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
 
     now_naive_utc = now_utc().replace(tzinfo=None)
     summary: Dict[str, Any] = {a: 0 for a in ACCOUNTS}
+    skipped_stale: List[str] = []
     for account in ACCOUNTS:
         post_types = _ACCOUNT_TO_POST_TYPES[account]
         with get_db_cursor(commit=True) as (_conn, cur):
+            # #3948: don't release into a logged-out posting profile — the post would just
+            # hang ~120s and fail downstream. Pause this account + alert the owner to re-auth;
+            # posts stay 'scheduled' and drain once the profile is restored.
+            if not _linkedin_profile_healthy(cur, _ACCOUNT_AGENT_ID[account]):
+                skipped_stale.append(account)
+                logger.warning(
+                    "[signal-calendar] %s posting profile logged out — skipping release, alerting owner",
+                    account,
+                )
+                _alert_linkedin_stale(account, _ACCOUNT_AGENT_ID[account])
+                continue
             cur.execute(
                 """SELECT id, content, post_type FROM agent_content_posts
                    WHERE platform = 'linkedin' AND status = 'scheduled'
@@ -291,7 +377,7 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
                     approval_id,
                 )
     total = sum(summary.values())
-    return {"total_released": total, "by_account": summary}
+    return {"total_released": total, "by_account": summary, "skipped_stale": skipped_stale}
 
 
 def _terry_profile_established() -> bool:

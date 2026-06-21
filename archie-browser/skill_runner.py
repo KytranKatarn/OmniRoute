@@ -45,6 +45,49 @@ def _lock_for(profile_dir: str) -> threading.Lock:
         return _profile_locks[profile_dir]
 
 
+# #3948 — bound the per-profile lock + self-recover a wedged profile. A crashed
+# chrome whose Playwright thread hangs on the dead CDP connection holds _lock_for
+# FOREVER (context.close() never returns), so every later skill on that profile
+# blocks until the caller's 120s timeout. We acquire the lock WITH a timeout and,
+# if a holder is stuck, force-kill its chrome so the held lock releases and the
+# profile self-recovers on the next call. (Tunable; default 90s < the 120s client.)
+_LOCK_ACQUIRE_TIMEOUT_S = int(os.getenv("BROWSER_PROFILE_LOCK_TIMEOUT_S", "90"))
+
+
+def _kill_chrome_for_profile(profile_dir: str) -> int:
+    """SIGKILL any chrome bound to profile_dir (matched via /proc cmdline, i.e. its
+    --user-data-dir). Pure-Python so the image needs no pkill. Access is serialized
+    per profile, so at most the single stuck chrome matches."""
+    import signal as _signal
+
+    # Safety (#3948 review): only ever act on an established profile path UNDER
+    # PROFILES_DIR. A blank/short/too-broad value would substring-match — and SIGKILL
+    # — unrelated chrome procs. Refuse anything that isn't a real /profiles/<name>.
+    if not profile_dir or not profile_dir.startswith(PROFILES_DIR + "/") or len(profile_dir) <= len(PROFILES_DIR) + 1:
+        logger.error("[Profile] refusing force-kill for suspicious profile_dir %r", profile_dir)
+        return 0
+
+    killed = 0
+    try:
+        pids = os.listdir("/proc")
+    except OSError:
+        return 0
+    for ent in pids:
+        if not ent.isdigit():
+            continue
+        try:
+            with open(f"/proc/{ent}/cmdline", "rb") as fh:
+                cmd = fh.read().decode("utf-8", "ignore")
+            if profile_dir in cmd and "chrom" in cmd.lower():
+                os.kill(int(ent), _signal.SIGKILL)
+                killed += 1
+        except (OSError, ValueError, ProcessLookupError):
+            continue
+    if killed:
+        logger.warning("[Profile] force-killed %d stuck chrome proc(s) for %s", killed, profile_dir)
+    return killed
+
+
 class _ProfileUnavailable(Exception):
     """Persistent profile could not be LAUNCHED (lock held / corrupt dir).
 
@@ -189,7 +232,19 @@ def _execute_persistent(
     """
     import session_manager
 
-    with _lock_for(profile_dir):
+    _lock = _lock_for(profile_dir)
+    if not _lock.acquire(timeout=_LOCK_ACQUIRE_TIMEOUT_S):
+        # Stuck holder (#3948) — a crashed chrome whose thread hung on the dead CDP
+        # connection. Force-kill its chrome so the held lock releases, then fail THIS
+        # attempt fast → run_skill falls back to the storage_state path; the next call
+        # gets the freed profile.
+        logger.error(
+            "[Profile] %s lock busy >%ss — stuck holder; force-killing its chrome to recover (#3948)",
+            profile_dir, _LOCK_ACQUIRE_TIMEOUT_S,
+        )
+        _kill_chrome_for_profile(profile_dir)
+        raise _ProfileUnavailable(f"profile lock busy >{_LOCK_ACQUIRE_TIMEOUT_S}s — killed stuck chrome")
+    try:
         with sync_playwright() as p:
             try:
                 # Match the login browser's anti-detection fingerprint
@@ -243,6 +298,8 @@ def _execute_persistent(
                 raise
             finally:
                 context.close()
+    finally:
+        _lock.release()
 
 
 def login(agent_id: int, platform: str) -> dict:

@@ -110,14 +110,18 @@ def load_session(agent_id: int, platform: str) -> Optional[Dict[str, Any]]:
 
 
 def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None) -> None:
-    """Stamp a health-probe result (#3708 phase 2). On failure also flips the
-    session to 'stale' so skills stop trusting it; on success clears the
-    failure reason without touching an already-imported active state."""
+    """Stamp a health-probe result (#3708 phase 2). On failure flips the session
+    to 'stale' so skills stop trusting it; on success flips it back to 'active' and
+    clears the failure reason — otherwise a session that went stale (e.g. during the
+    sidecar lock-deadlock, #3948) stays stale FOREVER even after probes recover, and
+    _linkedin_profile_healthy (which gates on status=='stale') keeps posting blocked.
+    Setting 'active' on a passing probe is idempotent (active→active is a no-op)."""
     with get_db_cursor(commit=True) as (_conn, cur):
         if ok:
             cur.execute(
                 """UPDATE browser_sessions
                       SET last_probe_at = NOW(), last_probe_ok = TRUE,
+                          status = 'active',
                           last_failure_reason = NULL, updated_at = NOW()
                     WHERE agent_id = %s AND platform = %s""",
                 (agent_id, platform),

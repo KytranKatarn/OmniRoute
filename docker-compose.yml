@@ -1110,6 +1110,10 @@ services:
     build: ./archie-browser
     container_name: archie_browser
     restart: unless-stopped
+    # tini as PID 1 reaps zombie chrome procs — without it a crashed/killed chrome
+    # leaks a <defunct> entry (44 had piled up, #3948). Pairs with the skill_runner
+    # lock-timeout + force-kill so a hung profile self-recovers instead of wedging.
+    init: true
     environment:
       - TZ=America/Toronto
       - DATABASE_URL=postgresql://archie:${DB_PASSWORD}@archie_database:5432/archie

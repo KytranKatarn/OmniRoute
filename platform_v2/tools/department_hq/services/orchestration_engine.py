@@ -219,7 +219,7 @@ class OrchestrationEngine:
         """Lazy-load smart router"""
         if self._smart_router is None:
             try:
-                from smart_router import get_router
+                from .smart_router import get_router
 
                 self._smart_router = get_router()
             except ImportError as e:

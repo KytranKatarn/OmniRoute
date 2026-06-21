@@ -10142,7 +10142,7 @@ def dispatch(
     Convenience function — dispatch work without managing instances.
 
     Usage:
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
         result = dispatch('classify', 'Is this positive?', module_id='sentiment')
         if result.success:
             print(result.response)
@@ -10278,7 +10278,7 @@ def dispatch_json(
     Convenience function — dispatch work expecting JSON response.
 
     Usage:
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
         data = dispatch_json('classify', 'Classify this text', module_id='tagger')
         if data:
             print(data['category'])

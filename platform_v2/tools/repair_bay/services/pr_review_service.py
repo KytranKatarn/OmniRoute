@@ -321,6 +321,16 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     except Exception as _tg_err:
         logger.warning("[F.O.R.G.E.] review-notify error: %s", _tg_err)
 
+    # Sticky REQUEST-CHANGES marker (#3962 follow-up). Recorded regardless of
+    # auto_merge so a later — possibly flaky / non-deterministic — APPROVE on the same
+    # PR within the defer window gates to a human instead of auto-merging. The manual
+    # review_pr path and the scheduled forge_pr_review poll review independently.
+    if not verdict_is_approved(summary):
+        try:
+            _mark_changes_requested(pr_number, repo)
+        except Exception as _cr_err:
+            logger.warning("[F.O.R.G.E.] changes-requested stamp error: %s", _cr_err)
+
     if not auto_merge:
         return
 
@@ -339,6 +349,31 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     _review = get_review(pr_number) or {}
     if "branch" not in _review and _review.get("head_branch"):
         _review["branch"] = _review["head_branch"]
+
+    # DEFER GATE (#3962 follow-up) — do NOT let a (possibly flaky / non-deterministic)
+    # APPROVE override a RECENT REQUEST-CHANGES on the same PR. The manual review_pr
+    # path and the scheduled forge_pr_review poll review independently, and 7B verdicts
+    # vary run-to-run; without this a scheduled APPROVE could auto-merge a PR another
+    # review just flagged (exactly what happened to PR #1843). Window tunable via
+    # FORGE_CHANGES_REQUESTED_DEFER_HOURS (default 6; <=0 disables). New commits aren't
+    # tracked by sha here, so the window self-clears — a human /merge-pr always works.
+    if _changes_requested_recently(_review, _os.getenv("FORGE_CHANGES_REQUESTED_DEFER_HOURS")):
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO system_notifications (title, message, type, source, visibility) "
+                "VALUES (%s, %s, 'warning', 'forge', 'all')",
+                (
+                    f"PR #{pr_number} needs human merge (recent REQUEST-CHANGES)",
+                    f"F.O.R.G.E. approved PR #{pr_number}, but a REQUEST-CHANGES review landed on the "
+                    f"same PR within the defer window — auto-merge deferred to a human /merge-pr so a "
+                    f"flaky APPROVE can't override it.",
+                ),
+            )
+        logger.info(
+            "[F.O.R.G.E.] PR #%s approved but a recent REQUEST-CHANGES exists — DEFERRED (human merge)",
+            pr_number,
+        )
+        return
 
     # SAFETY GATE — engine-authored PRs are NEVER auto-merged, regardless of tier.
     # Autonomous code (the A.R.C.H.I.E. build engine) must pass a human merge gate:
@@ -514,6 +549,58 @@ def classify_pr_tier(review: dict) -> int:
         return 1
 
     return 2
+
+
+def _mark_changes_requested(pr_number: int, repo: str = None) -> None:
+    """Stamp a sticky 'changes requested' marker in pr_reviews.metadata.
+
+    A later — possibly flaky / non-deterministic — APPROVE on the same PR within the
+    defer window will gate to a human instead of auto-merging (#3962 follow-up). The
+    timestamp slides on each REQUEST-CHANGES so "recent" tracks the latest one.
+    """
+    from psycopg2.extras import Json as _Json  # noqa: PLC0415
+    from services.time_utils import now_utc  # noqa: PLC0415
+
+    payload = _Json({"changes_requested_at": now_utc().isoformat()})
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s "
+            "WHERE pr_number = %s AND repo = %s",
+            (payload, pr_number, repo or _DEFAULT_REPO),
+        )
+
+
+def _changes_requested_recently(review: dict, window_hours_env: str = None) -> bool:
+    """True if a REQUEST-CHANGES was recorded on this PR within the defer window.
+
+    Window = FORGE_CHANGES_REQUESTED_DEFER_HOURS (default 6h; <=0 disables). Fail-open
+    to False — a parse error must never block a legitimate merge.
+    """
+    from datetime import datetime, timedelta  # noqa: PLC0415
+    from services.time_utils import now_utc  # noqa: PLC0415
+
+    try:
+        hours = float(window_hours_env) if window_hours_env else 6.0
+    except (TypeError, ValueError):
+        hours = 6.0
+    if hours <= 0:
+        return False
+    meta = review.get("metadata") or {}
+    if isinstance(meta, str):
+        import json as _json  # noqa: PLC0415
+
+        try:
+            meta = _json.loads(meta)
+        except (ValueError, TypeError):
+            return False
+    ts = (meta or {}).get("changes_requested_at")
+    if not ts:
+        return False
+    try:
+        when = datetime.fromisoformat(ts)
+        return (now_utc() - when) < timedelta(hours=hours)
+    except (ValueError, TypeError):
+        return False
 
 
 def _mark_tier_processed(pr_number: int, tier: int) -> None:

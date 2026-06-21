@@ -435,12 +435,18 @@ def main():
 
         # Dedup engine weekly on Mondays — after the weekend feeders (Sat EC, Sun parliament)
         # add entities. Exact normalized-name: orgs auto-merge (revertable, distinct-guarded),
-        # persons -> merge_review_queue. Idempotent. Fuzzy candidate gen stays manual (--fuzzy)
-        # to avoid unbounded review-queue growth until a resolver/UI lands (#4207).
+        # persons -> merge_review_queue. Idempotent. THEN fuzzy/trigram ORG candidates ->
+        # merge_review_queue for human review (#4207) — non-destructive (review-only, never
+        # auto-merged, deduped vs queue+decisions). The review UI it was gated on now exists
+        # (consumer/dedup_review.html). Runs HERE (ingest loop, no web timeout — the trigram
+        # scan is ~3 min over ~42k orgs). Gated by WTF_DEDUP_FUZZY_SCHEDULED (default on).
         if today.weekday() == 0 and _last_dedup_date != today:
             try:
                 from ingest.entity_graph_dedup import run as _dedup
                 log.info("entity_graph dedup: %s", _dedup())
+                if os.environ.get("WTF_DEDUP_FUZZY_SCHEDULED", "1").lower() not in ("0", "false", "no"):
+                    from ingest.entity_graph_dedup import fuzzy_candidates as _fuzzy
+                    log.info("entity_graph dedup fuzzy: %s", _fuzzy())
             except Exception:
                 log.exception("entity_graph dedup crashed")
             _last_dedup_date = today

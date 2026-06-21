@@ -252,6 +252,14 @@ def list_pending(limit=20):
     return [dict(r) for r in rows]
 
 
+def pending_count():
+    """Total pending pairs in the review queue — backlog indicator for the admin UI (#4207)."""
+    eng = _engine()
+    with eng.connect() as conn:
+        return int(conn.execute(text(
+            "SELECT count(*) FROM shared.merge_review_queue WHERE status='pending'")).scalar() or 0)
+
+
 def decide(queue_id, decision, by="manual_review"):
     """Resolve a merge_review_queue pair: 'same' (merge), 'distinct' (reject), or 'defer'.
     On 'same' the most-connected entity survives; the merge reuses _merge (revertable)."""

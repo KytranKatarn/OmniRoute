@@ -60,7 +60,8 @@
       .then(function(o){
         if(!o.ok){statusEl.textContent='error '+o.status+': '+((o.j&&o.j.error)||'');return;}
         var rows=o.j.pending||[];
-        statusEl.textContent=rows.length+' pending';
+        var total=(o.j.total_pending!=null)?o.j.total_pending:rows.length;
+        statusEl.textContent='loaded '+rows.length+' · '+total+' pending total';
         if(!rows.length){listEl.appendChild(el('div','dr-empty','Queue is clear. 🎉'));return;}
         rows.forEach(render);
       })

@@ -39,9 +39,10 @@ def dedup_queue():
         n = min(max(int(request.args.get("n", 50)), 1), 200)
     except (TypeError, ValueError):
         n = 50
-    from ingest.entity_graph_dedup import list_pending
+    from ingest.entity_graph_dedup import list_pending, pending_count
     # json.dumps(default=str) — list_pending rows carry Decimal similarity + jsonb (KB #269068).
-    return Response(json.dumps({"pending": list_pending(n)}, default=str),
+    # total_pending = full backlog size so the UI can show "loaded X · N total" (#4207).
+    return Response(json.dumps({"pending": list_pending(n), "total_pending": pending_count()}, default=str),
                     mimetype="application/json")
 
 

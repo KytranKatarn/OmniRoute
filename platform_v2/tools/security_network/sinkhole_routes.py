@@ -260,7 +260,7 @@ def register_sinkhole_routes(bp, admin_required_decorator):
         try:
             from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
-            from bridge_dispatcher import dispatch
+            from tools.department_hq.services.department_dispatcher import dispatch
 
             prompt = (
                 f"Investigate the domain '{domain}'. Provide a brief security analysis:\n"

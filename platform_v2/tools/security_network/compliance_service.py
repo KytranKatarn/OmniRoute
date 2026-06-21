@@ -1079,7 +1079,7 @@ def _ai_review_fix(fix_def, rule_meta, severity):
 
         if "/mnt/archie_brain/ai_bridge" not in _sys.path:
             _sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from bridge_dispatcher import dispatch_json
+        from tools.department_hq.services.department_dispatcher import dispatch_json
     except Exception as _import_err:
         logger.warning(f"Bridge import failed: {_import_err}")
         return {
@@ -1420,7 +1420,7 @@ def generate_remediation_plan(scan_id, rule_id, user_id=None):
 
         if "/mnt/archie_brain/ai_bridge" not in _sys.path:
             _sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(
@@ -1687,7 +1687,7 @@ def _generate_compose_patch(rule_id, fix_def, blocklist_entry):
 
         if "/mnt/archie_brain/ai_bridge" not in _sys.path:
             _sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         def _call():
             return dispatch(

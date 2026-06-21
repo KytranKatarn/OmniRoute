@@ -154,7 +154,7 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
         return None
 
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         prompt = (
             "Analyze the emotional sentiment of this text. "

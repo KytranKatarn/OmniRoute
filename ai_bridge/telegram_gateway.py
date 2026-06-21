@@ -1837,7 +1837,7 @@ class TelegramGateway:
             import sys
 
             sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-            from orchestration_engine import OrchestrationEngine
+            from tools.department_hq.services.orchestration_engine import OrchestrationEngine
 
             engine = OrchestrationEngine()
             result = engine.orchestrate(

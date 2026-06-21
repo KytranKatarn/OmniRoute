@@ -398,7 +398,7 @@ Respond with ONLY a JSON object:
 }}"""
 
         try:
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             dispatch_result = dispatcher.request_work(
@@ -482,7 +482,7 @@ Sign as "A.R.C.H.I.E." (AI Assistant for Kytran Empowerment).
 Respond with ONLY the email body text, no JSON."""
 
         try:
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             dispatch_result = dispatcher.request_work("email_composition", prompt, "email_intelligence", timeout=120)

@@ -86,7 +86,7 @@ except ImportError:
 # Smart LLM Router (Phase 32-37)
 SMART_ROUTING_AVAILABLE = False
 try:
-    from smart_router import get_router, classify_task
+    from tools.department_hq.services.smart_router import get_router, classify_task
 
     SMART_ROUTING_AVAILABLE = True
 except ImportError:

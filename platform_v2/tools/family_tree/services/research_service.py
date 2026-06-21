@@ -326,7 +326,7 @@ def generate_life_story(person_data, relationships, events):
         str: Generated narrative biography, or error string on failure.
     """
     try:
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         full_name = (
             f"{person_data.get('first_name', '')} {person_data.get('last_name', '')}".strip() or "Unknown person"
@@ -605,7 +605,7 @@ def analyze_research_results(results, person_context):
         return {"ranked_results": [], "summary": "No results to analyze."}
 
     try:
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
         import json as _json
 
         person_desc = (

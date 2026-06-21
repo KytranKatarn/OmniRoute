@@ -48,7 +48,7 @@ def extract_structured_data(ocr_text: str, document_type: str = "unknown") -> di
         return {}
 
     try:
-        from bridge_dispatcher import dispatch
+        from tools.department_hq.services.department_dispatcher import dispatch
 
         system_prompt = (
             "You are a genealogy document analyst. Extract structured data from OCR text of historical documents. "

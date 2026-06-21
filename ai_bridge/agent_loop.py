@@ -4260,7 +4260,7 @@ class AgentLoop:
         elif action_type == "cloud_throughput_escalation":
             # Approved paid cloud escalation — dispatch via bridge
             try:
-                from bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.department_dispatcher import get_dispatcher
 
                 dispatcher = get_dispatcher()
                 escalated_model = data.get("escalated_model", "")
@@ -4293,7 +4293,7 @@ class AgentLoop:
 
         elif action_type == "create_agent":
             try:
-                from bridge_dispatcher import get_dispatcher
+                from tools.department_hq.services.department_dispatcher import get_dispatcher
                 dispatcher = get_dispatcher()
                 agent_id = dispatcher._create_agent_from_approval(data)
                 if agent_id:
@@ -11047,7 +11047,7 @@ def _summarize_conversation(cur, conn, convo):
 
     # Dispatch summarization via canonical module-level dispatch() — the
     # previous .dispatch() call on the instance silently AttributeError'd.
-    from bridge_dispatcher import dispatch
+    from tools.department_hq.services.department_dispatcher import dispatch
 
     # Summary
     summary_result = dispatch(

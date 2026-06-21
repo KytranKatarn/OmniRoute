@@ -26,7 +26,7 @@ def capture_learning(
     Extract what the local agent missed and store as knowledge card.
     """
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
 

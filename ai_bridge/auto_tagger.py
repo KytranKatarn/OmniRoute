@@ -319,7 +319,7 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
         return regex_tags
 
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         domains = ", ".join(KNOWLEDGE_DOMAINS.keys())
         prompt = (

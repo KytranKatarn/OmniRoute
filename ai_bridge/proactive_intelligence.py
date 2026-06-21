@@ -187,7 +187,7 @@ class BriefingGenerator:
 
         # Use AI to format
         try:
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             prompt = f"""Format this raw data into a clean, conversational briefing.
 Be concise. Use bullet points. Highlight anything urgent.
@@ -637,7 +637,7 @@ class ReportEngine:
     def _format_report(self, report: dict, data: dict) -> str:
         """Format report data into readable text using AI."""
         try:
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             prompt = f"""Format this raw data into a clean, professional report.
 Report: {report['name']} ({report['report_type']})

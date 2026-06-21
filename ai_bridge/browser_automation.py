@@ -326,7 +326,7 @@ Task: {instructions}
 
 Respond with ONLY the Python code, no markdown fences."""
 
-            from bridge_dispatcher import get_dispatcher
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
             result = dispatcher.request_work(

@@ -128,7 +128,7 @@ def _llm_enrich_insights(transcript: str, regex_insights: Dict[str, List[Dict]])
     Merges LLM-found insights with regex results.
     """
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         # Smart truncation: first 30% + last 50% (solutions live at the end)
         max_len = 2000

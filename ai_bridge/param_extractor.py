@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def _get_extraction_model():
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
         model = get_dispatcher().get_model_for_capability("conversation")
         return model or "dolphin3-8k:latest"
     except Exception:
@@ -45,7 +45,7 @@ AVAILABLE_DEPARTMENTS = [
 def _get_available_models():
     """Get available model names from smart router tiers."""
     try:
-        from smart_router import SmartRouter
+        from tools.department_hq.services.smart_router import SmartRouter
         router = SmartRouter()
         configs = router._get_model_configs()
         return [c.model_name for c in configs.values() if c.provider == "ollama"]
@@ -139,7 +139,7 @@ def extract_params(message: str, action_type: str) -> dict:
     )
 
     try:
-        from bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         dispatch_result = dispatcher.request_work(

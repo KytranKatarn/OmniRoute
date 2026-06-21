@@ -126,7 +126,7 @@ def register_benchmark_routes(bp, admin_required):
                 }
             ).encode()
 
-            from bridge_dispatcher import dispatch
+            from tools.department_hq.services.department_dispatcher import dispatch
 
             # NOTE: the old call passed model=model_name, which the canonical
             # signature silently dropped — benchmarks have been hitting
@@ -276,7 +276,7 @@ def register_benchmark_routes(bp, admin_required):
         results = {}
         for label, model_name in [("a", model_a), ("b", model_b)]:
             try:
-                from bridge_dispatcher import dispatch
+                from tools.department_hq.services.department_dispatcher import dispatch
 
                 # See note at the earlier call site: model kwarg was silently
                 # dropped by the canonical signature. Encode target model in

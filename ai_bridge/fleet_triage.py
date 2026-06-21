@@ -9,7 +9,7 @@ Callers provide agent state as dicts.
 
 # Import the canonical capability->department map from bridge_dispatcher
 try:
-    from bridge_dispatcher import CAPABILITY_DEPARTMENT_MAP
+    from tools.department_hq.services.department_dispatcher import CAPABILITY_DEPARTMENT_MAP
 except ImportError:
     # Fallback for nodes that don't have bridge_dispatcher
     CAPABILITY_DEPARTMENT_MAP = {

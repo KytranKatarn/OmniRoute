@@ -1968,7 +1968,7 @@ def register_language_routes(bp, admin_required):
             cur.execute(
                 """SELECT source, gap_type, COUNT(*) AS n
                    FROM translation_gaps
-                   WHERE status <> 'resolved'
+                   WHERE status NOT IN ('resolved', 'dismissed')
                    GROUP BY source, gap_type"""
             )
             gap_rows = [dict(r) for r in cur.fetchall()]

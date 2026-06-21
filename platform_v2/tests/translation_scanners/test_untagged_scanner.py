@@ -70,3 +70,47 @@ def test_result_has_file_and_suggested_key():
         assert r.file_path is not None
         assert r.suggested_key is not None
         assert r.suggested_key.startswith("test_sample.")
+
+
+# ── #3676 false-positive regressions (HTML comments + brand strings) ──────────
+# These were ~21k phantom "untagged" gaps that no resolver could ever drain.
+
+
+def _snippets_from_raw(raw: str) -> list:
+    scanner = UntaggedScanner(source="test", directory="/tmp")
+    return [r.snippet for r in scanner._scan_file("/tmp/page.html", raw)]
+
+
+def test_html_comments_are_not_gaps():
+    raw = (
+        "<!DOCTYPE html><html><body>"
+        "<!-- Global background layers -->"
+        "<!-- Navigation -->"
+        "<!-- Google Analytics (fires only after consent) -->"
+        "<div></div></body></html>"
+    )
+    assert _snippets_from_raw(raw) == []
+
+
+def test_brand_and_acronym_strings_are_not_gaps():
+    raw = (
+        "<html><body>"
+        "<span>Kytran Empowerment</span>"
+        "<span>A.R.C.H.I.E.</span>"
+        "<span>C.R.E.E.D.</span>"
+        "</body></html>"
+    )
+    assert _snippets_from_raw(raw) == []
+
+
+def test_genuine_ui_text_is_still_flagged():
+    raw = "<html><body><p>Website Design &amp; Hosting</p><h2>Security Testing</h2></body></html>"
+    found = _snippets_from_raw(raw)
+    assert "Website Design & Hosting" in found
+    assert "Security Testing" in found
+
+
+def test_brand_inside_longer_phrase_still_counts():
+    # A page title that merely *contains* the brand is still translatable.
+    raw = "<html><body><h1>System Operations — Kytran Empowerment</h1></body></html>"
+    assert "System Operations — Kytran Empowerment" in _snippets_from_raw(raw)

@@ -16,6 +16,21 @@ _NON_UI_TAGS = {"script", "style", "code", "pre", "svg", "noscript"}
 _TRANSLATABLE_ATTRS = ("placeholder", "title", "alt", "aria-label")
 _IGNORE_EXACT = {"OK", "×", "✕", "▾", "▸", "·", "—", "–", "•"}
 _ALPHA_RUN = re.compile(r"[A-Za-z]{2,}")
+# Brand / product names are never translated. Exact-match only (lowercased,
+# trailing period stripped) so a longer phrase that merely *contains* a brand
+# (e.g. a page title "System Operations — Kytran Empowerment") still counts.
+_BRAND_STOP = {
+    "kytran empowerment",
+    "kytran empowerment inc",
+    "kytran",
+    "archie",
+    "creed",
+    "what the fact",
+    "kso",
+    "kbs",
+}
+# Dotted acronyms like A.R.C.H.I.E. / C.R.E.E.D. — brand styling, not prose.
+_ACRONYM_RE = re.compile(r"^[A-Za-z](?:\.[A-Za-z])+\.?$")
 _SKIP_DIRS = {
     ".git",
     ".venv",
@@ -51,6 +66,8 @@ def _is_translatable_text(text: str) -> bool:
         return False
     if not _ALPHA_RUN.search(t):
         return False
+    if t.lower().rstrip(".") in _BRAND_STOP or _ACRONYM_RE.match(t):
+        return False
     return True
 
 
@@ -83,7 +100,13 @@ class UntaggedScanner(BaseScanner):
             for tag in soup.find_all(tag_name):
                 tag.extract()
         for text_node in soup.find_all(string=True):
-            if not isinstance(text_node, NavigableString):
+            # Plain text ONLY. BeautifulSoup models HTML comments, doctype,
+            # CDATA and processing instructions as NavigableString *subclasses*
+            # (Comment, Doctype, …), so isinstance() lets them through — which
+            # is how `<!-- Navigation -->` / `<!-- Global background layers -->`
+            # became ~21k phantom "untagged" gaps. `type() is` selects only
+            # real translatable text nodes.
+            if type(text_node) is not NavigableString:
                 continue
             parent = text_node.parent
             if parent is None:

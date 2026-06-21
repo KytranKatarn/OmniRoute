@@ -3903,6 +3903,24 @@ class AgentLoop:
         except Exception:
             return  # control plane unavailable → do nothing
 
+        # #4343 P1c: engine builds are GPU-bound (qwen2.5-coder:7b plan) and long. Only
+        # PROACTIVELY autopull when the GPU subcluster has interactive headroom — otherwise
+        # defer this cycle (retry in 6h) so a build doesn't pile onto a saturated GPU cluster
+        # (the observed >20-min engine queue behind WTF) or grind on the hub CPU while the
+        # Starships rest. On-demand cockpit/TUI builds are NOT gated here. Fail-open.
+        try:
+            from services.cluster_slots import should_admit_batch
+
+            admit, _rec, _slots = should_admit_batch(target_model="qwen2.5-coder:7b", gpu_bound=True)
+            if not admit:
+                logger.info(
+                    "[engine-autopull] GPU subcluster has no headroom (gpu_free<=reserve) — "
+                    "deferring this cycle"
+                )
+                return
+        except Exception:
+            pass  # helper unavailable → proceed (fail-open, today's behavior)
+
         import asyncio
 
         async def _ask_engine():

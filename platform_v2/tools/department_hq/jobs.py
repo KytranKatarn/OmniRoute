@@ -2763,9 +2763,17 @@ def _register_own_jobs(scheduler, flask_app):
                     total_queued += count
         except Exception:
             return 4, 0, {}
-        _FLEET_SLOTS = 6  # hub=1, .246=3, .245=1, outpost=1
-        total_running = sum(v.get("running", 0) for v in by_model.values())
-        free = max(0, _FLEET_SLOTS - total_running)
+        # #4343 P1c: live cluster free-slot count (warm + cold aware) replaces the old
+        # hardcoded _FLEET_SLOTS=6 + cold-only running count, which was blind to the warm
+        # GPU dispatches that actually saturate the fleet. Cluster-wide (NOT GPU-only) so
+        # WTF's intended night backlog still drains on the hub when the Starships sleep.
+        # Fail-open to the previous ceiling (4) on any helper error.
+        try:
+            from services.cluster_slots import get_cluster_slots
+
+            free = max(0, get_cluster_slots()["cluster_free"] - 1)  # -1 = interactive headroom
+        except Exception:
+            free = 4
         # Heavy overall backlog — cap new batches at 2 workers
         if total_queued > 40:
             return max(1, min(2, free)), total_queued, by_model

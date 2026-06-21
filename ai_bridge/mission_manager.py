@@ -518,7 +518,7 @@ class MissionManager:
             "flow_data": initial_data or {},
         }
 
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         job_id = dispatcher.create_job(
@@ -633,7 +633,7 @@ class MissionManager:
             "flow_data": meta.get("flow_data", {}),
         }
 
-        from ai_bridge.bridge_dispatcher import get_dispatcher
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
         next_job_id = dispatcher.create_job(

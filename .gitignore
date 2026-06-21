@@ -136,8 +136,9 @@ watch-api/
 legal-watch/
 market-watch/
 
-# Ingested GitHub skills (read-only pipeline artifacts)
+# Ingested GitHub skills — reference corpus (KB-searchable, NOT loadable Claude skills; #3962)
 .claude/skills/github/
+.claude/skills-library/
 
 # HTML mockup files in root
 /*.html

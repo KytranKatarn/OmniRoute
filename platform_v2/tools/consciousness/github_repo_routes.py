@@ -1339,7 +1339,11 @@ def register_github_repo_routes(bp, admin_required):
                     if not source:
                         continue
 
-                    cli_path = source["install_path"].replace(".claude/skills/github/", "skills/github/")
+                    cli_path = (
+                        source["install_path"]
+                        .replace(".claude/skills-library/github/", "skills/github/")
+                        .replace(".claude/skills/github/", "skills/github/")
+                    )
 
                     cur.execute(
                         """INSERT INTO skill_installations

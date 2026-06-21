@@ -585,10 +585,16 @@ def sync_learned_skills():
                        WHERE target = 'claude_code'"""
                 )
                 inst_stats = cur_stats.fetchone()
-                lines.append(f"\n## Installation Pipeline\n")
+                lines.append(f"\n## Skill Catalog Pipeline\n")
+                lines.append(
+                    "> ⚠️ These GitHub-ingested skills are **reference docs**, NOT loadable "
+                    "Claude Code skills. Claude Code only loads `.claude/skills/<name>/SKILL.md` "
+                    "dirs + `.claude/commands/*.md`; flat files are silently ignored "
+                    "(KB #272126). Use them via `mcp search_knowledge` + the index above.\n"
+                )
                 lines.append(f"| Metric | Count |")
                 lines.append(f"|--------|-------|")
-                lines.append(f"| Installed to Claude Code | {inst_stats['installed']} |")
+                lines.append(f"| Cataloged (KB-searchable) | {inst_stats['installed']} |")
                 lines.append(f"| Tested (pass) | {inst_stats['passed']} |")
                 lines.append(f"| Tested (fail) | {inst_stats['failed']} |")
                 lines.append(f"| Adapted for A.R.C.H.I.E. | {inst_stats['adapted']} |")
@@ -2086,11 +2092,17 @@ capabilities: [<list>]
 
 
 def install_skills_to_claude():
-    """Job #59: Install registered skills to Claude Code as usable skill files.
+    """Job #59: Catalog registered GitHub skills to the local skills LIBRARY.
 
-    Takes quality 3+ registered skills not yet installed, normalizes content
-    to standard superset format, writes to .claude/skills/github/<repo>/.
-    Processes up to 5 per run (every 2 hours). No LLM dispatch — file writes only.
+    Takes quality 3+ registered skills not yet cataloged, normalizes content to a
+    standard superset format, and writes them to .claude/skills-library/github/
+    — a browsable reference corpus, NOT .claude/skills/ (which Claude Code scans).
+
+    IMPORTANT: these are reference docs, NOT loadable Claude Code skills. Claude
+    Code only loads .claude/skills/<name>/SKILL.md dirs + .claude/commands/*.md;
+    flat .md files are silently ignored (KB #272126). The real access path is
+    `mcp search_knowledge` + the auto-generated learned-skills.md index. Processes
+    up to 5 per run (every 2 hours). No LLM dispatch — file writes only.
     """
     _session = None
     try:
@@ -2104,7 +2116,7 @@ def install_skills_to_claude():
             agent_id=136,
             department="Engineering & Technology",
             session_type="skill_install",
-            title="Skill Installer (Claude Code)",
+            title="GitHub Skill Library Cataloger",
             metadata={"interval": "2h"},
         )
     except Exception as _wt_err:
@@ -2148,9 +2160,12 @@ def install_skills_to_claude():
             )
             return
 
-        logger.info(f"[SkillInstaller] Installing {len(skills)} skills to Claude Code")
+        logger.info(f"[SkillCatalog] Cataloging {len(skills)} GitHub skills to the skills library (KB-searchable)")
 
-        base_dir = "/mnt/archie_brain/.claude/skills/github"
+        # Skills LIBRARY (browsable reference corpus) — deliberately NOT under
+        # .claude/skills/, which Claude Code scans for loadable <name>/SKILL.md
+        # dirs. Flat files there are silently ignored (KB #272126 / #3962).
+        base_dir = "/mnt/archie_brain/.claude/skills-library/github"
         os.makedirs(base_dir, exist_ok=True)
 
         for skill in skills:
@@ -2191,7 +2206,7 @@ def install_skills_to_claude():
                     description=skill.get("description", ""),
                 )
 
-                # Build install path: .claude/skills/github/<owner-repo>/<skill-slug>.md
+                # Build catalog path: .claude/skills-library/github/<owner-repo>/<skill-slug>.md
                 repo_slug = skill["repo_name"].replace("/", "-").lower()
                 skill_slug = skill["skill_name"].replace("/", "-").replace(" ", "-").lower()
                 if skill_slug.endswith(".md"):
@@ -2222,14 +2237,14 @@ def install_skills_to_claude():
 
                 installed += 1
                 logger.info(
-                    f"[SkillInstaller] Installed {skill['skill_name']} " f"from {skill['repo_name']} → {rel_path}"
+                    f"[SkillCatalog] Cataloged {skill['skill_name']} " f"from {skill['repo_name']} → {rel_path}"
                 )
 
             except Exception as inst_err:
                 errors_count += 1
                 logger.warning(f"[SkillInstaller] Failed to install {skill['skill_name']}: " f"{str(inst_err)[:80]}")
 
-        logger.info(f"[SkillInstaller] Done: {installed} installed, " f"{skipped} skipped, {errors_count} errors")
+        logger.info(f"[SkillCatalog] Done: {installed} cataloged, " f"{skipped} skipped, {errors_count} errors")
         _log_cycle(
             "skill_installer",
             installed,

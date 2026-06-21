@@ -137,15 +137,41 @@ def _semantic_candidate_rows(source: str) -> list:
         return [dict(r) for r in cur.fetchall()]
 
 
-def _load_open_missing_gaps(limit: int) -> list:
+def _load_open_missing_gaps(limit: int, source_labels: list) -> list:
     with get_db_cursor() as (_conn, cur):
         cur.execute(
             """SELECT id, source, language, key, gap_type
                FROM translation_gaps
                WHERE status='open' AND gap_type='missing'
+                 AND source = ANY(%s)
                ORDER BY created_at ASC
                LIMIT %s""",
-            (limit,),
+            (source_labels, limit),
+        )
+        return [dict(r) for r in cur.fetchall()]
+
+
+def _load_open_quality_gaps(limit: int, source_labels: list) -> list:
+    """Open quality_suspect gaps that CAN be re-translated.
+
+    Only those with a key + a live English source row — process_missing_gap
+    regenerates the translation and re-gates it. Worst (lowest cosine) first.
+    Scoped to the sources being scanned so a scoped/test run never touches
+    gaps belonging to other sources.
+    """
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            """SELECT id, source, language, key, gap_type
+               FROM translation_gaps tg
+               WHERE status='open' AND gap_type='quality_suspect'
+                 AND source = ANY(%s)
+                 AND key IS NOT NULL AND key <> ''
+                 AND EXISTS (SELECT 1 FROM translations en
+                             WHERE en.source_label=tg.source
+                               AND en.language='en' AND en.key=tg.key)
+               ORDER BY confidence ASC, created_at ASC
+               LIMIT %s""",
+            (source_labels, limit),
         )
         return [dict(r) for r in cur.fetchall()]
 
@@ -188,6 +214,7 @@ def run_translation_coverage_scan(
 
     start = time.time()
     sources = sources or EXTERNAL_SCAN_SOURCES
+    source_labels = [entry[0] for entry in sources]
     totals = {"gaps_found": 0, "auto_fixed": 0, "routed": 0, "bundles_written": 0}
 
     # Pass 1 + Pass 2: tagged + untagged per source
@@ -250,13 +277,29 @@ def run_translation_coverage_scan(
     # Generation pass — cap at NIGHTLY_CAP.
     # Each gap is isolated: one translation failure must not abort the whole
     # scan (e.g. if the bridge dispatcher is unavailable for a single call).
-    for gap in _load_open_missing_gaps(NIGHTLY_CAP) if generate else []:
+    for gap in _load_open_missing_gaps(NIGHTLY_CAP, source_labels) if generate else []:
         try:
             if process_missing_gap(gap):
                 totals["auto_fixed"] += 1
         except Exception:  # noqa: BLE001
             logger.exception(
                 "[TranslationScan] process_missing_gap failed for gap_id=%s",
+                gap.get("id"),
+            )
+
+    # Re-translation pass for genuine quality_suspect gaps (existing
+    # low-quality translations). Same generate→gate→write→resolve path:
+    # process_missing_gap overwrites the suspect text and marks the gap
+    # resolved. Only runs on the full nightly (generate=True).
+    totals["quality_retranslated"] = 0
+    for gap in _load_open_quality_gaps(NIGHTLY_CAP, source_labels) if generate else []:
+        try:
+            if process_missing_gap(gap):
+                totals["quality_retranslated"] += 1
+                totals["auto_fixed"] += 1
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "[TranslationScan] quality re-translate failed for gap_id=%s",
                 gap.get("id"),
             )
 

@@ -76,3 +76,29 @@ def test_scan_flags_on_residue_even_with_high_cosine():
         results = list(scanner.scan())
         assert len(results) == 1
         assert results[0].gap_type == "quality_suspect"
+
+
+def test_empty_back_translation_does_not_flag():
+    # A failed/empty back-translation dispatch must NOT condemn the translation.
+    # This was the root cause of ~900 false-positive quality_suspect gaps at
+    # cosine 0.00 during the 2026-05 hub-starvation window (#3676 follow-up).
+    rows = [
+        {
+            "id": 9,
+            "language": "fr",
+            "key": "home.title",
+            "text": "Un titre français parfaitement valide",
+            "source_en_text": "A perfectly valid title",
+        }
+    ]
+    with patch(
+        "tools.consciousness.translation_scanners.semantic_scanner.back_translate_to_en",
+        return_value="",
+    ), patch(
+        "tools.consciousness.translation_scanners.semantic_scanner.cosine_similarity",
+        return_value=0.0,
+    ) as cos:
+        scanner = SemanticScanner(source="website_kytranempowerment", rows=rows)
+        results = list(scanner.scan())
+        assert results == []
+        cos.assert_not_called()  # never even computes cosine on an empty back-translation

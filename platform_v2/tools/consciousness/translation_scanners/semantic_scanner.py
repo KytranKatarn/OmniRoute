@@ -119,6 +119,14 @@ class SemanticScanner(BaseScanner):
             if _should_skip_short(text):
                 continue
             back = back_translate_to_en(text, row.get("language", ""))
+            if not (back or "").strip():
+                # Failed/empty back-translation: the QA dispatch couldn't
+                # evaluate this translation. Skip rather than flag — an empty
+                # back-translation yields cosine 0.0 and produced ~900
+                # false-positive 'quality_suspect' gaps during the 2026-05
+                # hub-starvation window (#3676 follow-up). The next scan
+                # re-evaluates once the dispatcher is healthy.
+                continue
             sim = cosine_similarity(back, row.get("source_en_text", ""))
             residue = _english_residue_count(text)
             if sim < _MIN_COSINE or residue >= _MAX_RESIDUE:

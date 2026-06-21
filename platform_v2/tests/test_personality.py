@@ -15,7 +15,11 @@ _AI_BRIDGE_ROOT = "/mnt/archie_brain"
 if _AI_BRIDGE_ROOT not in sys.path:
     sys.path.insert(0, _AI_BRIDGE_ROOT)
 os.environ["DB_HOST"] = os.environ.get("DB_HOST_REAL", "archie_database")
-os.environ["DB_NAME"] = "archie"
+# NOTE: do NOT override DB_NAME here. Setting it to "archie" globally at import
+# poisoned the whole pytest session — it overrode the conftest test-DB redirect,
+# so the production guard in database._get_pool() cascaded into every test. Use
+# the conftest-provided isolated test DB; the DB_AVAILABLE skip + lenient
+# assertions handle empty data gracefully.
 
 try:
     from ai_bridge.personality import get_personality_trait, get_relationship

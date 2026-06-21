@@ -9,6 +9,9 @@ from contextlib import contextmanager
 import os
 import threading
 import atexit
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Thread-safe connection pool
 _pool = None
@@ -28,22 +31,58 @@ def _get_db_password():
     return os.environ.get("DB_PASSWORD", "")
 
 
+PROD_DB_NAME = "archie"
+
+
 def _get_pool():
     """Get or create the connection pool (thread-safe singleton)"""
     global _pool
     if _pool is None:
         with _pool_lock:
             if _pool is None:
+                db_name = os.environ.get("DB_NAME", PROD_DB_NAME)
+                # Safety backstop: a test run must NEVER open a pool against the
+                # production database. A prior unscoped test wrote "mock" into
+                # 1,166 live translation rows because tests silently connected to
+                # prod. Under pytest we FORCE the isolated test DB regardless of
+                # DB_NAME — some test modules set os.environ["DB_NAME"]="archie"
+                # at import (e.g. test_personality.py), which must not be able to
+                # point the pool at production. Forcing (not raising) is immune to
+                # any such clobber and avoids cascading every test into an error.
+                if os.environ.get("ARCHIE_PYTEST"):
+                    db_name = os.environ.get("TEST_DB_NAME", "archie_test")
+                    if db_name == PROD_DB_NAME:
+                        raise RuntimeError(
+                            "TEST_DB_NAME resolves to the production database "
+                            f"'{PROD_DB_NAME}' under pytest — refusing to connect."
+                        )
                 _pool = pool.ThreadedConnectionPool(
                     minconn=5,
                     maxconn=50,
                     host=os.environ.get("DB_HOST", "archie_database"),
                     port=os.environ.get("DB_PORT", "5432"),
-                    database=os.environ.get("DB_NAME", "archie"),
+                    database=db_name,
                     user=os.environ.get("DB_USER", "archie"),
                     password=_get_db_password(),
                 )
     return _pool
+
+
+def reset_pool():
+    """Close and discard the pool so the next access rebuilds it.
+
+    Test-only helper: conftest redirects DB_NAME to an isolated test database
+    and calls this so the new pool binds to the test DB rather than whatever
+    the first import happened to create.
+    """
+    global _pool
+    with _pool_lock:
+        if _pool is not None:
+            try:
+                _pool.closeall()
+            except Exception as exc:  # pool is being discarded — non-fatal
+                logger.debug("reset_pool: closeall failed, discarding anyway: %s", exc)
+            _pool = None
 
 
 def _cleanup_pool():

@@ -247,21 +247,27 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
             (summary, pr_number, repo or _DEFAULT_REPO),
         )
 
-    # Telegram notification on every review completion (approved or not)
+    # Notify on every review completion (approved or not). F.O.R.G.E. is a
+    # director, not A.R.C.H.I.E.'s outbound voice, so it CANNOT call
+    # telegram_service.send() directly — the unified-voice guard rejects it and
+    # the alert is silently dropped (#3973). Route through the sanctioned
+    # director→A.R.C.H.I.E. inbox instead (per the guard's own error message).
     try:
-        from services.telegram_service import send_info  # noqa: PLC0415
+        from services.director_report_service import submit_via_inbox  # noqa: PLC0415
 
         _r = get_review(pr_number)
         _pr_title = (_r or {}).get("title", f"PR #{pr_number}")
         _verdict_label = "APPROVED ✅" if verdict_is_approved(summary) else "NEEDS CHANGES ⚠️"
-        send_info(
-            f"F.O.R.G.E. reviewed #{pr_number}",
-            f"{_verdict_label} — {_pr_title}\nCheck Repair Bay → PR Review for details.",
+        submit_via_inbox(
+            category="pr_review",
+            title=f"F.O.R.G.E. reviewed #{pr_number}",
+            message=f"{_verdict_label} — {_pr_title}\nCheck Repair Bay → PR Review for details.",
             source_agent="F.O.R.G.E.",
-            source_department="Engineering & Technology",
+            severity="low",
+            department="Engineering & Technology",
         )
     except Exception as _tg_err:
-        logger.warning("[F.O.R.G.E.] Telegram notify error: %s", _tg_err)
+        logger.warning("[F.O.R.G.E.] review-notify error: %s", _tg_err)
 
     if not auto_merge:
         return

@@ -17,7 +17,7 @@ import re
 from urllib.parse import unquote
 
 from database import get_db_cursor
-from services import browser_service
+from services import browser_service, signal_accounts
 from services.signal_content_sanitizer import clean_draft
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ def ingest_comment_notifications(account: str = "kytran", agent_id: int = None, 
     post permalink renders ZERO comments to the automated session (KB #274178), so
     the post_url scrape path yields nothing; notifications are the working source.
     Upserts rows carrying ``comment_url`` (what linkedin_comment_reply needs)."""
-    aid = agent_id or _ACCOUNT_BROWSER_ID.get((account or "").lower(), DEFAULT_AGENT_ID)
+    aid = agent_id or signal_accounts.browser_id_for((account or "").lower())
     res = browser_service.run_skill_sync("linkedin_notifications", {"limit": limit}, agent_id=aid, timeout_s=120)
     if not res or not res.get("success"):
         return {"new": 0, "total": 0, "error": (res or {}).get("error", "skill failed")}
@@ -238,8 +238,7 @@ def run_comment_monitor(extra_urls: list = None) -> dict:
 
 _OWN_AUTHOR_MARKERS = ("kytran", "terry caetano", "creed ai", "c.r.e.e.d")
 
-# terry = separate login → profile 377; everything else rides 342.
-_ACCOUNT_BROWSER_ID = {"terry": 377}
+# Browser identity per account → services.signal_accounts registry (migration 440).
 
 _COMMENT_CHAR_LIMIT = 1250  # LinkedIn comment hard limit
 
@@ -368,7 +367,7 @@ def draft_comment_replies(limit: int = 5) -> dict:
                 "comment_url": c.get("comment_url"),
                 "comment_author": author,
                 "reply": draft,
-                "browser_agent_id": _ACCOUNT_BROWSER_ID.get((c.get("account") or "").lower(), 342),
+                "browser_agent_id": signal_accounts.browser_id_for((c.get("account") or "").lower()),
                 "author": author,
                 "post_type": post_type,
             },

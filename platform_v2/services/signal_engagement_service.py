@@ -20,12 +20,11 @@ works (e.g. via S.C.O.U.T. authenticated_fetch later).
 import logging
 import re
 
+from services import signal_accounts
+
 logger = logging.getLogger(__name__)
 
-# Which browser identity acts for each account. terry = its own session (377);
-# personal/company/creed ride the Kytran 342 session (company/creed actor-switch
-# only matters for POSTING — a like/comment is made as the logged-in identity).
-_ACCOUNT_BROWSER_ID = {"personal": 342, "terry": 377, "company": 342, "creed": 342}
+# Browser identity per account → services.signal_accounts registry (migration 440).
 
 _VALID_REACTIONS = {"like", "celebrate", "support", "love", "insightful", "funny"}
 
@@ -65,7 +64,7 @@ def propose_like(
     reaction = (reaction or "like").lower()
     if reaction not in _VALID_REACTIONS:
         raise ValueError(f"reaction must be one of {sorted(_VALID_REACTIONS)}")
-    aid = agent_id or _ACCOUNT_BROWSER_ID.get(account, 342)
+    aid = agent_id or signal_accounts.browser_id_for(account)
     return _request_approval(
         "linkedin_like",
         {"post_url": post_url, "reaction": reaction, "browser_agent_id": aid, "account": account},
@@ -88,7 +87,7 @@ def propose_comment(
         raise ValueError("post_url is required")
     if not comment:
         raise ValueError("comment is required")
-    aid = agent_id or _ACCOUNT_BROWSER_ID.get(account, 342)
+    aid = agent_id or signal_accounts.browser_id_for(account)
     return _request_approval(
         "linkedin_comment",
         {"post_url": post_url, "comment": comment, "browser_agent_id": aid, "account": account},
@@ -164,7 +163,7 @@ def _candidates_from_feed(account: str, limit: int) -> list:
     from automation — this returns [] in the headless session (KB mistake)."""
     from services.browser_service import run_skill_sync
 
-    agent_id = _ACCOUNT_BROWSER_ID.get(account, 342)
+    agent_id = signal_accounts.browser_id_for(account)
     feed = run_skill_sync("linkedin_feed", {"limit": limit}, agent_id=agent_id, timeout_s=120)
     out = []
     for p in (feed or {}).get("posts") or []:
@@ -189,7 +188,7 @@ def _candidates_from_notifications(account: str, limit: int) -> list:
     """
     from services.browser_service import run_skill_sync
 
-    agent_id = _ACCOUNT_BROWSER_ID.get(account, 342)
+    agent_id = signal_accounts.browser_id_for(account)
     n = run_skill_sync("linkedin_notifications", {"limit": limit}, agent_id=agent_id, timeout_s=120)
     out = []
     for x in (n or {}).get("notifications") or []:
@@ -263,7 +262,7 @@ def _candidates_from_profiles(account: str, targets: list, per_target: int = 1, 
     THE genuine outreach source: surfaces OTHERS' posts to (human-approved) engage."""
     from services.browser_service import run_skill_sync
 
-    agent_id = _ACCOUNT_BROWSER_ID.get(account, 342)
+    agent_id = signal_accounts.browser_id_for(account)
     out = []
     for t in targets or []:
         if len(out) >= limit:

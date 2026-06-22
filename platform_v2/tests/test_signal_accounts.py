@@ -129,3 +129,24 @@ class TestRegistryRead:
         with patch("database.get_db_cursor", return_value=_cursor_cm(rows)):
             assert sa.account_keys(can_engage=True) == ["scout_uk"]
             assert sa.account_keys(can_post=True) == []
+
+
+class TestPostTypeHelpers:
+    """post_type_for / post_types_for must match the legacy _ACCOUNT_TO_POST_TYPES exactly
+    (Slice 4b migrates signal_calendar_live_service + the calendar onto these)."""
+
+    def test_post_types_for_matches_legacy(self):
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.post_types_for("company") == ("company", "company_page")
+            assert sa.post_types_for("creed") == ("creed", "creed_ai")
+            assert sa.post_types_for("personal") == ("personal",)
+            assert sa.post_types_for("terry") == ("terry",)
+
+    def test_post_types_for_unknown_defaults_to_self(self):
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.post_types_for("scout_uk") == ("scout_uk",)
+
+    def test_post_type_for_is_canonical_first(self):
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.post_type_for("company") == "company"
+            assert sa.post_types_for("company")[0] == "company"

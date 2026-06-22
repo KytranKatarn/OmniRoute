@@ -193,3 +193,21 @@ def company_slug_for(account_key: str) -> Optional[str]:
 
 def egress_for(account_key: str) -> Optional[str]:
     return _field(account_key, "egress_pref")
+
+
+def post_type_for(account_key: str) -> str:
+    """The canonical single post_type for an account (what the publish handler receives)."""
+    return _field(account_key, "post_type", account_key) or account_key
+
+
+def post_types_for(account_key: str) -> tuple:
+    """All post_type aliases that map to this account (e.g. company -> (company, company_page)),
+    canonical first. Behavior-identical to the legacy _ACCOUNT_TO_POST_TYPES tuple; defaults to
+    (account_key,) for an unknown account."""
+    _load()
+    aliases = [pt for pt, acct in _cache["pt_to_acct"].items() if acct == account_key]
+    if not aliases:
+        return (account_key,)
+    canon = post_type_for(account_key)
+    ordered = ([canon] if canon in aliases else []) + [a for a in aliases if a != canon]
+    return tuple(ordered)

@@ -15,15 +15,10 @@ from datetime import date, datetime, time, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 from database import get_db_cursor
+from services import signal_accounts
 from services.signal_post_status import classify
 
-# Map UI account values to autonomy_approval_queue.action_data->>'post_type'
-_ACCOUNT_TO_POST_TYPES = {
-    "company": ("company", "company_page"),
-    "personal": ("personal",),
-    "terry": ("terry",),
-    "creed": ("creed", "creed_ai"),
-}
+# Account → post_type aliases → services.signal_accounts.post_types_for (migration 440).
 
 
 def compute_week(d: date) -> Tuple[date, date]:
@@ -121,7 +116,7 @@ def get_week_view(
         week_start, _ = compute_week(today)
     week_end = week_start + timedelta(days=6)
 
-    post_types = _ACCOUNT_TO_POST_TYPES.get(account, (account,))
+    post_types = signal_accounts.post_types_for(account)
 
     with get_db_cursor() as (_conn, cur):
         cur.execute(

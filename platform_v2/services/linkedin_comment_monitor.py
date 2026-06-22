@@ -109,6 +109,10 @@ def ingest_comment_notifications(account: str = "kytran", agent_id: int = None, 
     Upserts rows carrying ``comment_url`` (what linkedin_comment_reply needs)."""
     aid = agent_id or signal_accounts.browser_id_for((account or "").lower())
     res = browser_service.run_skill_sync("linkedin_notifications", {"limit": limit}, agent_id=aid, timeout_s=120)
+    if browser_service.is_rate_limited(res):
+        # Bucket exhausted (S6-P1-7a) — not a failure; retry on the next 6h cycle.
+        logger.info("[CommentMonitor] notifications rate_limited — skipped, retry next cycle")
+        return {"new": 0, "total": 0, "rate_limited": True}
     if not res or not res.get("success"):
         return {"new": 0, "total": 0, "error": (res or {}).get("error", "skill failed")}
 

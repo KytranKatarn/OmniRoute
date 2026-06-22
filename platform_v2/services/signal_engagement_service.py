@@ -173,10 +173,13 @@ def _permalink_from(link: str) -> str:
 def _candidates_from_feed(account: str, limit: int) -> list:
     """Candidate posts from the home feed. NOTE: LinkedIn withholds feed content
     from automation — this returns [] in the headless session (KB mistake)."""
-    from services.browser_service import run_skill_sync
+    from services.browser_service import is_rate_limited, run_skill_sync
 
     agent_id = signal_accounts.browser_id_for(account)
     feed = run_skill_sync("linkedin_feed", {"limit": limit}, agent_id=agent_id, timeout_s=120)
+    if is_rate_limited(feed):
+        logger.info("[engagement] feed rate_limited for %s — skipped this cycle", account)
+        return []
     out = []
     for p in (feed or {}).get("posts") or []:
         url = (p.get("post_url") or "").strip()
@@ -198,10 +201,13 @@ def _candidates_from_notifications(account: str, limit: int) -> list:
     Each notification's ``link`` is heterogeneous (post / profile / company / jobs);
     only the ones carrying an activity id become post candidates.
     """
-    from services.browser_service import run_skill_sync
+    from services.browser_service import is_rate_limited, run_skill_sync
 
     agent_id = signal_accounts.browser_id_for(account)
     n = run_skill_sync("linkedin_notifications", {"limit": limit}, agent_id=agent_id, timeout_s=120)
+    if is_rate_limited(n):
+        logger.info("[engagement] notifications rate_limited for %s — skipped this cycle", account)
+        return []
     out = []
     for x in (n or {}).get("notifications") or []:
         url = _permalink_from(x.get("link") or "")
@@ -272,7 +278,7 @@ def set_targets(targets: list) -> int:
 def _candidates_from_profiles(account: str, targets: list, per_target: int = 1, limit: int = 15) -> list:
     """Candidate posts from each target's recent activity (served to automation) —
     THE genuine outreach source: surfaces OTHERS' posts to (human-approved) engage."""
-    from services.browser_service import run_skill_sync
+    from services.browser_service import is_rate_limited, run_skill_sync
 
     agent_id = signal_accounts.browser_id_for(account)
     out = []
@@ -289,6 +295,9 @@ def _candidates_from_profiles(account: str, targets: list, per_target: int = 1, 
         except Exception as e:
             logger.warning("engagement monitor: recent_activity failed for %s: %s", t, e)
             continue
+        if is_rate_limited(r):
+            logger.info("[engagement] recent_activity rate_limited — skipping remaining targets")
+            break
         for p in (r or {}).get("posts") or []:
             url = (p.get("post_url") or "").strip()
             if url:

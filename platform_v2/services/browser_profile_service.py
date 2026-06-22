@@ -42,7 +42,7 @@ def _profile_established(agent_id: int, platform: str) -> bool:
 
 def run_keepwarm() -> dict:
     """Warm every established registry profile with its platform's READ skill."""
-    from services.browser_service import run_skill_sync
+    from services.browser_service import is_rate_limited, run_skill_sync
 
     results = {}
     for agent_id, platform in WARM_PROFILES:
@@ -55,6 +55,11 @@ def run_keepwarm() -> dict:
             continue
         skill, params = WARM_SKILLS[platform]
         res = run_skill_sync(skill, dict(params), agent_id=agent_id, timeout_s=120)
+        if is_rate_limited(res):
+            # Bucket exhausted (S6-P1-7a) — not a warm FAILURE; skip + retry next cycle.
+            results[key] = "rate_limited (skipped)"
+            logger.info("[keepwarm] %s rate_limited — skipped this cycle", key)
+            continue
         if res.get("success"):
             results[key] = "warmed"
             # A successful warm IS a successful health signal — record it so a profile
@@ -96,7 +101,7 @@ def run_session_health_probe() -> dict:
     otherwise platforms with a registry probe_url use the generic
     session_probe skill; everything else is skipped as before."""
     from services import browser_session_service
-    from services.browser_service import run_skill_sync
+    from services.browser_service import is_rate_limited, run_skill_sync
 
     results = {}
     # Re-probe ACTIVE *and* STALE sessions so a recovered profile can flip back (#4372).
@@ -113,6 +118,12 @@ def run_session_health_probe() -> dict:
             skill = "session_probe"
             params = {"probe_url": probe_url, "_platform": platform}
         res = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
+        if is_rate_limited(res):
+            # Bucket exhausted (S6-P1-7a) — the skill never ran, so this is "didn't probe",
+            # NOT a probe failure. Skip record_probe entirely → keep last-good status.
+            results[key] = "rate_limited (skipped)"
+            logger.info("[session-probe] %s rate_limited — skipped, status kept", key)
+            continue
         ok = bool(res.get("success"))
         # Only a POSITIVE logged-out signal (skill_runner surfaces result['logged_out']
         # when the page is a login/authwall) flips a session stale. A timeout / lock-busy /

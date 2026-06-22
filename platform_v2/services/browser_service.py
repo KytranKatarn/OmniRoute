@@ -94,6 +94,18 @@ def run_skill_sync(
                     "_skill": skill_name,
                     "_status": "failed",
                 }
+            if status == "rate_limited":
+                # Per-profile token bucket exhausted (S6-P1-7a). This is NOT a failure —
+                # the caller reschedules on its next cycle. The distinct _status lets a
+                # caller SKIP rather than mark a post failed / a session stale.
+                return {
+                    "success": False,
+                    "error": "rate_limited",
+                    "retry_after": data.get("retry_after"),
+                    "_task_id": task_id,
+                    "_skill": skill_name,
+                    "_status": "rate_limited",
+                }
         except Exception as exc:
             logger.warning("[BrowserService] poll(%s) error: %s", task_id, exc)
 
@@ -104,6 +116,13 @@ def run_skill_sync(
         "_skill": skill_name,
         "_status": "timeout",
     }
+
+
+def is_rate_limited(result: dict) -> bool:
+    """True if a run_skill_sync result was deferred by the sidecar's per-profile rate
+    bucket (S6-P1-7a). Callers treat this as a transient SKIP, NOT a failure — the work
+    reschedules on the caller's next cycle."""
+    return bool(result) and result.get("_status") == "rate_limited"
 
 
 def health_check() -> bool:

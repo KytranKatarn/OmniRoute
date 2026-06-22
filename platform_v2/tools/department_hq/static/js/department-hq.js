@@ -2819,30 +2819,58 @@ async function renderSignalOverview(el) {
         + '</div>';
 
     setHtml(el, html);
+    refreshSignalCalendarStrip(signalAccount);  // fill the week strip with real scheduled counts
 }
 
 function _renderSignalCalendarHtml() {
-    var days = [
-        { day: 'MON', theme: 'AI & Tech Insights', active: true },
-        { day: 'TUE', theme: null, active: false },
-        { day: 'WED', theme: 'Business Growth', active: true },
-        { day: 'THU', theme: null, active: false },
-        { day: 'FRI', theme: 'Community Wins', active: true },
-        { day: 'SAT', theme: null, active: false },
-        { day: 'SUN', theme: null, active: false },
-    ];
-    var dayMap = [6, 0, 1, 2, 3, 4, 5]; // Sun=0 → idx 6
-    var todayIdx = dayMap[new Date().getDay()];
+    // Real current week (Mon→Sun), no fabricated themes. Each day carries a data-date so
+    // refreshSignalCalendarStrip() can fill in the ACTUAL scheduled-post count per day for
+    // the selected account (from /api/signal/calendar/scheduled). Empty days stay '—'.
+    var labels = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+    var now = new Date();
+    var dow = (now.getDay() + 6) % 7;  // Mon=0 … Sun=6
+    var monday = new Date(now);
+    monday.setDate(now.getDate() - dow);
     var html = '<div class="signal-calendar">';
-    for (var i = 0; i < days.length; i++) {
-        var d = days[i];
-        var cls = 'signal-cal-day' + (d.active ? ' signal-cal-active' : '') + (i === todayIdx ? ' signal-cal-today' : '');
-        html += '<div class="' + cls + '">'
-            + '<div class="signal-cal-label">' + d.day + '</div>'
-            + (d.active ? '<div class="signal-cal-theme">' + esc(d.theme) + '</div>' : '<div class="signal-cal-off">—</div>')
+    for (var i = 0; i < 7; i++) {
+        var d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        var iso = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+        var cls = 'signal-cal-day' + (i === dow ? ' signal-cal-today' : '');
+        html += '<div class="' + cls + '" data-date="' + iso + '">'
+            + '<div class="signal-cal-label">' + labels[i] + '</div>'
+            + '<div class="signal-cal-theme signal-cal-slot">—</div>'
             + '</div>';
     }
     return html + '</div>';
+}
+
+// Fill the Overview week strip with the REAL per-day scheduled-post count for `account`.
+// Reads data only (numbers) — no executable string built from data. On API failure the
+// strip stays as rendered (all '—') — honest empty, never fabricated.
+async function refreshSignalCalendarStrip(account) {
+    var strip = document.querySelector('.signal-calendar');
+    if (!strip) return;
+    var data;
+    try { data = await api('/api/signal/calendar/scheduled?account=' + encodeURIComponent(account)); }
+    catch (e) { return; }
+    var posts = (data && data.posts) || [];
+    var byDate = {};
+    posts.forEach(function(p) {
+        var d = (p.scheduled_at || '').slice(0, 10);
+        if (d) byDate[d] = (byDate[d] || 0) + 1;
+    });
+    Array.prototype.forEach.call(strip.querySelectorAll('.signal-cal-day'), function(cell) {
+        var n = byDate[cell.getAttribute('data-date')] || 0;
+        var slot = cell.querySelector('.signal-cal-slot');
+        if (n > 0) {
+            cell.classList.add('signal-cal-active');
+            if (slot) setHtml(slot, '● ' + n + (n > 1 ? ' posts' : ' post'));
+        } else {
+            cell.classList.remove('signal-cal-active');
+            if (slot) setHtml(slot, '—');
+        }
+    });
 }
 
 function renderSignalCompose(el) {

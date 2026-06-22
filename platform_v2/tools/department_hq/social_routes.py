@@ -164,6 +164,30 @@ def register_social_routes(bp, admin_required):
         signal_accounts.invalidate()
         return jsonify({"ok": True, "account_key": account_key, "updated": updated})
 
+    @bp.route("/api/social/signal/onboarding", methods=["GET"])
+    @admin_required
+    def api_signal_onboarding():
+        """S7-P6.5b: per-account onboarding state + the next (owner-gated?) step — drives
+        the DHQ Accounts panel. Phone contents never leave the server."""
+        from services.signal_onboarding_service import is_enabled, onboarding_overview
+
+        return jsonify({"enabled": is_enabled(), "accounts": onboarding_overview()})
+
+    @bp.route("/api/social/signal/onboarding/<account_key>", methods=["POST"])
+    @admin_required
+    def api_signal_onboarding_transition(account_key):
+        """S7-P6.5b: advance an account's onboarding (forward-only). Body: {to_state,
+        owner_gate_phone?}. profile_logged_in / company_joined are owner-gated; the one-time
+        noVNC login itself is the S.C.O.U.T. session flow. Telegram/UI approval unchanged."""
+        from services.signal_onboarding_service import transition
+
+        body = request.get_json(silent=True) or {}
+        to_state = (body.get("to_state") or "").strip()
+        if not to_state:
+            return jsonify({"error": "to_state required"}), 400
+        res = transition(account_key, to_state, owner_gate_phone=body.get("owner_gate_phone"), actor="claude")
+        return (jsonify(res), 200) if res.get("ok") else (jsonify(res), 400)
+
     @bp.route("/api/social/signal/engagement-toggle", methods=["POST"])
     @admin_required
     def api_signal_engagement_toggle():

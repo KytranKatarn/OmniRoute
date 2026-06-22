@@ -332,6 +332,12 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
                         "hashtags": [],  # already folded into content at backfill
                         "post_type": row["post_type"],
                         "browser_agent_id": signal_accounts.browser_id_for(account),
+                        # S6-P1-8b: precompute the idempotency key from the calendar slot so a
+                        # timed-out + retried release cannot double-publish this exact post.
+                        "scheduled_post_id": row["id"],
+                        "idempotency_key": signal_accounts.idempotency_key_for(
+                            account, row["post_type"], row["content"], row["id"]
+                        ),
                         "priority": 6,
                     },
                     reason=(

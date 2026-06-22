@@ -82,6 +82,11 @@ def create_app(testing=False):
         skill_name = data.get("skill")
         params = data.get("params") or {}
         wait = bool(data.get("wait", False))
+        # S6-P1-8b: optional caller idempotency key (content+account+slot hash) +
+        # post_metadata, recorded in browser_task_log so a timed-out publish is
+        # recoverable + a retry cannot double-post.
+        idempotency_key = data.get("idempotency_key")
+        post_metadata = data.get("post_metadata")
 
         if not agent_id or not skill_name:
             return jsonify({"error": "agent_id and skill required"}), 400
@@ -94,15 +99,17 @@ def create_app(testing=False):
                 "error": None,
                 "agent_id": agent_id,
                 "skill": skill_name,
+                "task_id": task_id,
+                "idempotency_key": idempotency_key,
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
         if wait:
-            _execute_task(app, task_id, agent_id, skill_name, params)
+            _execute_task(app, task_id, agent_id, skill_name, params, idempotency_key, post_metadata)
         else:
             t = threading.Thread(
                 target=_execute_task,
-                args=(app, task_id, agent_id, skill_name, params),
+                args=(app, task_id, agent_id, skill_name, params, idempotency_key, post_metadata),
                 daemon=True,
             )
             t.start()
@@ -275,7 +282,7 @@ def _apply_rate_limit(app, key):
 _TASK_DEADLINE_S = float(os.getenv("BROWSER_TASK_DEADLINE_S", "150"))
 
 
-def _execute_task(app, task_id, agent_id, skill_name, params):
+def _execute_task(app, task_id, agent_id, skill_name, params, idempotency_key=None, post_metadata=None):
     with app._tasks_lock:
         app._tasks[task_id]["status"] = "running"
 
@@ -297,7 +304,10 @@ def _execute_task(app, task_id, agent_id, skill_name, params):
                         "retry_after": round(rle.retry_after_s, 1),
                     }
                 )
-            _log_task_to_db(task_id, agent_id, skill_name, params, "rate_limited", None, str(rle), 0)
+            _log_task_to_db(
+                task_id, agent_id, skill_name, params, "rate_limited", None, str(rle), 0,
+                idempotency_key=idempotency_key, post_metadata=post_metadata,
+            )
             return
 
     # Watchdog: if the skill exceeds the deadline, force-kill the agent's wedged chrome
@@ -333,7 +343,10 @@ def _execute_task(app, task_id, agent_id, skill_name, params):
             app._tasks[task_id].update(
                 {"status": "completed", "result": result, "duration_ms": duration_ms}
             )
-        _log_task_to_db(task_id, agent_id, skill_name, params, "completed", result, None, duration_ms)
+        _log_task_to_db(
+            task_id, agent_id, skill_name, params, "completed", result, None, duration_ms,
+            idempotency_key=idempotency_key, post_metadata=post_metadata,
+        )
     except Exception as exc:
         duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
         err = str(exc)
@@ -344,13 +357,19 @@ def _execute_task(app, task_id, agent_id, skill_name, params):
             app._tasks[task_id].update(
                 {"status": "failed", "error": err, "duration_ms": duration_ms}
             )
-        _log_task_to_db(task_id, agent_id, skill_name, params, "failed", None, err, duration_ms)
+        _log_task_to_db(
+            task_id, agent_id, skill_name, params, "failed", None, err, duration_ms,
+            idempotency_key=idempotency_key, post_metadata=post_metadata,
+        )
     finally:
         if timer is not None:
             timer.cancel()
 
 
-def _log_task_to_db(task_id, agent_id, skill_name, params, status, result, error, duration_ms):
+def _log_task_to_db(
+    task_id, agent_id, skill_name, params, status, result, error, duration_ms,
+    idempotency_key=None, post_metadata=None,
+):
     try:
         import psycopg2
         import psycopg2.extras
@@ -363,8 +382,8 @@ def _log_task_to_db(task_id, agent_id, skill_name, params, status, result, error
                 """
                 INSERT INTO browser_task_log
                     (agent_id, skill, params, status, result, error_message, duration_ms,
-                     triggered_by, completed_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                     triggered_by, task_id, idempotency_key, post_metadata, completed_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
                 """,
                 (
                     agent_id,
@@ -375,6 +394,9 @@ def _log_task_to_db(task_id, agent_id, skill_name, params, status, result, error
                     error,
                     duration_ms,
                     "platform",
+                    task_id,
+                    idempotency_key,
+                    psycopg2.extras.Json(post_metadata) if post_metadata else None,
                 ),
             )
             conn.commit()

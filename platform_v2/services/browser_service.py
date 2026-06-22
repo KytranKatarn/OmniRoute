@@ -29,6 +29,11 @@ DEFAULT_AGENT_ID = 342  # kytranempowerment@gmail.com session
 DEFAULT_API_KEY = os.getenv("BROWSER_API_KEY", "internal")
 DEFAULT_TIMEOUT_S = 120
 POLL_INTERVAL_S = 4
+# S6-P1-8b: after a publish (idempotency_key set) times out, re-poll a few more times to
+# catch a completion that lands just past the client deadline (a cold post can finish ~250s),
+# so a published-but-timed-out post reports the truth instead of a false 'timeout'.
+RECOVERY_REPOLLS = 3
+RECOVERY_BACKOFF_S = 5
 
 
 def _headers():
@@ -40,12 +45,22 @@ def run_skill(
     params: dict,
     agent_id: int = DEFAULT_AGENT_ID,
     wait: bool = False,
+    idempotency_key: str = None,
+    post_metadata: dict = None,
 ) -> dict:
-    """Submit a skill task. Returns task dict immediately (or waits if wait=True)."""
+    """Submit a skill task. Returns task dict immediately (or waits if wait=True).
+
+    idempotency_key (S6-P1-8b): a content+account+slot hash recorded in browser_task_log
+    so a timed-out publish is recoverable and a retry cannot double-post."""
     try:
+        body = {"agent_id": agent_id, "skill": skill_name, "params": params, "wait": wait}
+        if idempotency_key:
+            body["idempotency_key"] = idempotency_key
+        if post_metadata:
+            body["post_metadata"] = post_metadata
         resp = requests.post(
             f"{BROWSER_URL}/task",
-            json={"agent_id": agent_id, "skill": skill_name, "params": params, "wait": wait},
+            json=body,
             headers=_headers(),
             timeout=15,
         )
@@ -61,22 +76,25 @@ def run_skill_sync(
     params: dict,
     agent_id: int = DEFAULT_AGENT_ID,
     timeout_s: int = DEFAULT_TIMEOUT_S,
+    idempotency_key: str = None,
+    post_metadata: dict = None,
 ) -> dict:
-    """Submit a skill task and poll until complete. Returns result dict."""
-    submitted = run_skill(skill_name, params, agent_id)
+    """Submit a skill task and poll until complete. Returns result dict.
+
+    S6-P1-8b: when an idempotency_key is supplied (a publish), a client timeout does NOT
+    immediately give up — it re-polls the task a few more times to catch a completion that
+    lands just past the deadline (a cold post can finish ~250s). So a post that DID publish
+    reports 'completed' (truthful) instead of a false 'timeout' an operator might retry into
+    a double-post. The key is also recorded sidecar-side in browser_task_log."""
+    submitted = run_skill(skill_name, params, agent_id, idempotency_key=idempotency_key, post_metadata=post_metadata)
     task_id = submitted.get("task_id")
     if not task_id:
         return {"success": False, "error": "No task_id returned", "skill": skill_name}
 
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        time.sleep(POLL_INTERVAL_S)
+    def _check():
+        """GET the task once. Returns a terminal result dict, or None if still running."""
         try:
-            resp = requests.get(
-                f"{BROWSER_URL}/task/{task_id}",
-                headers=_headers(),
-                timeout=10,
-            )
+            resp = requests.get(f"{BROWSER_URL}/task/{task_id}", headers=_headers(), timeout=10)
             resp.raise_for_status()
             data = resp.json()
             status = data.get("status")
@@ -95,9 +113,8 @@ def run_skill_sync(
                     "_status": "failed",
                 }
             if status == "rate_limited":
-                # Per-profile token bucket exhausted (S6-P1-7a). This is NOT a failure —
-                # the caller reschedules on its next cycle. The distinct _status lets a
-                # caller SKIP rather than mark a post failed / a session stale.
+                # Per-profile token bucket exhausted (S6-P1-7a). NOT a failure — the caller
+                # reschedules on its next cycle; the distinct _status lets a caller SKIP.
                 return {
                     "success": False,
                     "error": "rate_limited",
@@ -108,6 +125,24 @@ def run_skill_sync(
                 }
         except Exception as exc:
             logger.warning("[BrowserService] poll(%s) error: %s", task_id, exc)
+        return None
+
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        time.sleep(POLL_INTERVAL_S)
+        terminal = _check()
+        if terminal is not None:
+            return terminal
+
+    # S6-P1-8b recovery: a publish (idempotency_key set) gets a bounded grace re-poll so a
+    # completion landing just past the deadline is reported truthfully, not as 'timeout'.
+    if idempotency_key:
+        for _ in range(RECOVERY_REPOLLS):
+            time.sleep(RECOVERY_BACKOFF_S)
+            terminal = _check()
+            if terminal is not None:
+                logger.info("[BrowserService] %s completed during grace re-poll (task %s)", skill_name, task_id)
+                return terminal
 
     return {
         "success": False,

@@ -4869,6 +4869,57 @@ class AgentLoop:
                 if not content:
                     return {"executed": False, "error": "content empty after sanitize (#4373)"}
 
+                # S6-P1-8b: idempotency. A cold post can take >180s; a timed-out + retried
+                # post could double-publish. Compute a stable key (the calendar release
+                # precomputes it; fall back to content+account for ad-hoc posts), pre-check
+                # the publish ledger, and pass the key to the sidecar. Flag-gated by
+                # platform_settings signal:idempotency_recovery_enabled (default on).
+                _idem_enabled = True
+                _idem_key = data.get("idempotency_key")
+                _scheduled_post_id = data.get("scheduled_post_id")
+                _idem_meta = None
+                try:
+                    from db import get_db as _gdb
+                    from services import signal_accounts as _sa
+
+                    _ic = _gdb()
+                    _icur = _ic.cursor()
+                    try:
+                        _icur.execute(
+                            "SELECT value FROM platform_settings WHERE key=%s",
+                            ("signal:idempotency_recovery_enabled",),
+                        )
+                        _row = _icur.fetchone()
+                        if _row and str(_row[0]).strip().lower() in ("false", "0", "off", "no"):
+                            _idem_enabled = False
+                        if _idem_enabled and not _idem_key:
+                            _acct = _sa.post_type_to_account(post_type) or post_type
+                            _idem_key = _sa.idempotency_key_for(_acct, post_type, content, _scheduled_post_id)
+                        if _idem_enabled and _idem_key:
+                            _icur.execute(
+                                "SELECT post_url FROM linkedin_post_log "
+                                "WHERE idempotency_key=%s AND status='posted' LIMIT 1",
+                                (_idem_key,),
+                            )
+                            _prior = _icur.fetchone()
+                            if _prior:
+                                logger.info(
+                                    "LinkedIn post idempotent-skip — %s already published", _idem_key
+                                )
+                                return {
+                                    "executed": True,
+                                    "idempotent_skip": True,
+                                    "result": {"success": True, "post_url": _prior[0]},
+                                    "error": None,
+                                }
+                    finally:
+                        _icur.close()
+                        _ic.close()
+                    if _idem_enabled:
+                        _idem_meta = {"post_type": post_type, "scheduled_post_id": _scheduled_post_id}
+                except Exception as _ie:
+                    logger.warning("idempotency setup/pre-check failed (non-fatal): %s", _ie)
+
                 if post_type == "creed":
                     skill = "linkedin_creed_post"
                 elif post_type == "company":
@@ -4890,7 +4941,10 @@ class AgentLoop:
                 # shorter than the post itself, so it timed out and (with the old
                 # unconditional executed:True) was marked done without publishing.
                 # 240s stays within the _process_approval_queue batch deadline.
-                result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=240)
+                result = run_skill_sync(
+                    skill, params, agent_id=agent_id, timeout_s=240,
+                    idempotency_key=_idem_key if _idem_enabled else None, post_metadata=_idem_meta,
+                )
 
                 # Harden company/creed: the multi-stage actor-switch (share box →
                 # settings → actor toggle → select page → Save → Done) is transiently
@@ -4904,7 +4958,10 @@ class AgentLoop:
                         post_type,
                         result.get("error") or result.get("_status"),
                     )
-                    result = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=240)
+                    result = run_skill_sync(
+                    skill, params, agent_id=agent_id, timeout_s=240,
+                    idempotency_key=_idem_key if _idem_enabled else None, post_metadata=_idem_meta,
+                )
 
                 # Fresh connection after 120s browser skill — the caller's cur/conn
                 # may have timed out server-side during execution, causing the log
@@ -4916,8 +4973,11 @@ class AgentLoop:
                     try:
                         _lcur.execute(
                             """INSERT INTO linkedin_post_log
-                                   (content, hashtags, post_type, company_slug, status, approval_id, post_url, posted_at)
-                               VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())""",
+                                   (content, hashtags, post_type, company_slug, status, approval_id,
+                                    post_url, agent_id, idempotency_key, scheduled_post_id, task_id, posted_at)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                               ON CONFLICT (idempotency_key, post_type, agent_id)
+                                   WHERE idempotency_key IS NOT NULL DO NOTHING""",
                             (
                                 content,
                                 hashtags,
@@ -4929,6 +4989,12 @@ class AgentLoop:
                                 # already returns (was dropped on the floor) so the
                                 # #3964 comment monitor can auto-seed from it.
                                 (result.get("post_url") or None),
+                                agent_id,
+                                # Key set only on SUCCESS → the UNIQUE dedup blocks a duplicate
+                                # PUBLISH but never a legitimate retry of a genuinely-failed post.
+                                (_idem_key if (_idem_enabled and result.get("success")) else None),
+                                _scheduled_post_id,
+                                result.get("_task_id"),
                             ),
                         )
                         _lc.commit()

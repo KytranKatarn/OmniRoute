@@ -81,7 +81,7 @@ def register_social_routes(bp, admin_required):
     @bp.route("/api/social/signal/engagement", methods=["GET"])
     @admin_required
     def api_signal_engagement_state():
-        from services.signal_engagement_service import get_targets
+        from services.signal_engagement_service import engagement_state_by_agent, get_targets
         from services.work_control_service import is_enabled
 
         return jsonify(
@@ -89,6 +89,8 @@ def register_social_routes(bp, admin_required):
                 "targets": get_targets(),
                 "monitor_enabled": is_enabled("signal_engagement_monitor", default=False),
                 "comments_enabled": is_enabled("signal_engagement_comments", default=False),
+                # S7-P1-4b: per-agent voice + daily budget + today's count (drives the UI).
+                "agents": engagement_state_by_agent(),
             }
         )
 
@@ -130,6 +132,37 @@ def register_social_routes(bp, admin_required):
             return jsonify({"error": "targets must be a list of LinkedIn profile/company URLs"}), 400
         count = set_targets(targets)
         return jsonify({"ok": True, "count": count, "targets": get_targets()})
+
+    @bp.route("/api/social/signal/agent-config/<account_key>", methods=["POST"])
+    @admin_required
+    def api_signal_agent_config(account_key):
+        """S7-P1-4b: edit a can_engage account's daily_action_budget / voice_key on the
+        registry. Body: {daily_action_budget?: int, voice_key?: str}. Column names are
+        fixed literals — only the values are user-supplied (parameterized)."""
+        from database import get_db_cursor
+        from services import signal_accounts
+
+        body = request.get_json(silent=True) or {}
+        sets, params = [], []
+        if "daily_action_budget" in body:
+            try:
+                sets.append("daily_action_budget = %s")
+                params.append(max(0, int(body["daily_action_budget"])))
+            except (TypeError, ValueError):
+                return jsonify({"error": "daily_action_budget must be an integer"}), 400
+        if "voice_key" in body:
+            sets.append("voice_key = %s")
+            params.append((body.get("voice_key") or "").strip() or None)
+        if not sets:
+            return jsonify({"error": "nothing to update (daily_action_budget / voice_key)"}), 400
+        params.append(account_key)
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(f"UPDATE agent_platform_accounts SET {', '.join(sets)} WHERE account_key = %s", params)
+            updated = cur.rowcount
+        if not updated:
+            return jsonify({"error": f"no account '{account_key}'"}), 404
+        signal_accounts.invalidate()
+        return jsonify({"ok": True, "account_key": account_key, "updated": updated})
 
     @bp.route("/api/social/signal/engagement-toggle", methods=["POST"])
     @admin_required

@@ -157,6 +157,84 @@ def _engagement_account(cur, agent_id: int) -> dict:
     )
 
 
+def record_executed(post_url: str, agent_id: int, action: str, success: bool) -> None:
+    """S7-P1-4b: after the Telegram approval fires, flip the ledger row executed/failed and,
+    on success, bump the acting agent's daily action counter. Best-effort (never breaks the
+    approval executor). `post_url` may be a permalink or a urn — normalised internally."""
+    urn = _post_urn_from(post_url)
+    if not urn:
+        return
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                "UPDATE linkedin_engagement_ledger SET status=%s, executed_at=NOW() "
+                "WHERE post_urn=%s AND acting_agent_id=%s AND action=%s",
+                ("executed" if success else "failed", urn, agent_id, action),
+            )
+            if success:
+                cur.execute(
+                    "UPDATE agent_platform_accounts "
+                    "SET active_count_today = COALESCE(active_count_today, 0) + 1, last_action_at = NOW() "
+                    "WHERE browser_agent_id=%s",
+                    (agent_id,),
+                )
+    except Exception as e:
+        logger.warning("engagement ledger accounting failed (%s/%s): %s", agent_id, action, e)
+
+
+def reset_daily_engagement_budgets() -> dict:
+    """S7-P1-4b: zero every agent's active_count_today (run daily 00:05 ET) and abandon stale
+    'pending' ledger rows (>3 days, never approved). Idempotent."""
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            "UPDATE agent_platform_accounts SET active_count_today=0, last_action_at=NULL "
+            "WHERE COALESCE(active_count_today,0) <> 0 OR last_action_at IS NOT NULL"
+        )
+        reset_n = cur.rowcount
+        cur.execute(
+            "UPDATE linkedin_engagement_ledger SET status='abandoned' "
+            "WHERE status='pending' AND created_at < NOW() - INTERVAL '3 days'"
+        )
+        abandoned = cur.rowcount
+    logger.info("[engagement] daily budget reset: %s agents, %s stale orphans abandoned", reset_n, abandoned)
+    return {"reset_agents": reset_n, "abandoned_orphans": abandoned}
+
+
+def engagement_state_by_agent() -> list:
+    """S7-P1-4b: per can_engage account {account_key, voice_key, daily_action_budget,
+    active_count_today, last_action_at} — drives the DHQ engagement UI (S7-P6.5b)."""
+    from database import get_db_cursor
+
+    out = []
+    with get_db_cursor() as (_conn, cur):
+        cur.execute(
+            "SELECT account_key, browser_agent_id, voice_key, daily_action_budget, "
+            "       COALESCE(active_count_today,0) AS active_count_today, last_action_at "
+            "FROM agent_platform_accounts WHERE COALESCE(can_engage, true) ORDER BY account_key"
+        )
+        for r in cur.fetchall():
+            row = (
+                dict(r)
+                if isinstance(r, dict)
+                else {
+                    "account_key": r[0],
+                    "browser_agent_id": r[1],
+                    "voice_key": r[2],
+                    "daily_action_budget": r[3],
+                    "active_count_today": r[4],
+                    "last_action_at": r[5],
+                }
+            )
+            if row.get("last_action_at") is not None:
+                row["last_action_at"] = str(row["last_action_at"])
+            out.append(row)
+    return out
+
+
 def _request_approval(action_type: str, action_data: dict, reason: str, requested_by: str):
     """Enqueue a Tier-2 approval via the same path signal_calendar_service uses."""
     from services.signal_calendar_service import _ensure_import_paths

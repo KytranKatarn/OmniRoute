@@ -599,6 +599,18 @@ class AgentLoop:
             misfire_grace_time=3600,
         )
 
+        # S7-P1-4b: daily reset of every agent's engagement budget + abandon stale ledger
+        # orphans (always safe / idempotent — runs even when the monitor is OFF).
+        self.scheduler.add_job(
+            with_app_context(self._reset_engagement_budgets),
+            trigger=CronTrigger(hour=0, minute=5, timezone="America/Toronto"),
+            id="reset_engagement_budgets",
+            name="S.I.G.N.A.L.: Reset daily engagement budgets",
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._archie_coo_approval_worker),
             trigger=IntervalTrigger(seconds=90),
@@ -4083,6 +4095,20 @@ class AgentLoop:
         except Exception as e:
             logger.error(f"[signal-engagement] monitor failed: {e}")
 
+    def _reset_engagement_budgets(self):
+        """S7-P1-4b: daily (00:05 ET) — zero every agent's active_count_today and abandon
+        stale 'pending' engagement-ledger orphans. Idempotent; always safe to run."""
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.signal_engagement_service import reset_daily_engagement_budgets
+
+            res = reset_daily_engagement_budgets()
+            logger.info(f"[signal-engagement] daily budget reset: {res}")
+        except Exception as e:
+            logger.error(f"[signal-engagement] budget reset failed: {e}")
+
     def _engine_autopull_cycle(self):
         """A.R.C.H.I.E. Building Machine autonomous scheduler (#380, ADR-008).
 
@@ -5186,6 +5212,12 @@ class AgentLoop:
                     agent_id=agent_id,
                     timeout_s=120,
                 )
+                try:  # S7-P1-4b: close the engagement ledger row + bump the daily counter
+                    from services.signal_engagement_service import record_executed
+
+                    record_executed(post_url, agent_id, "like", bool(result.get("success")))
+                except Exception:
+                    pass
                 return {
                     "executed": bool(result.get("success")),
                     "result": result,
@@ -5216,6 +5248,12 @@ class AgentLoop:
                     agent_id=agent_id,
                     timeout_s=240,
                 )
+                try:  # S7-P1-4b: close the engagement ledger row + bump the daily counter
+                    from services.signal_engagement_service import record_executed
+
+                    record_executed(post_url, agent_id, "comment", bool(result.get("success")))
+                except Exception:
+                    pass
                 return {
                     "executed": bool(result.get("success")),
                     "result": result,

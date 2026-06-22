@@ -436,20 +436,24 @@ def _evidence_in_diff(evidence: str, diff: str) -> bool:
 
 
 def _is_spurious_injection(issue: dict) -> bool:
-    """Myth #1 deterministic guard: an 'SQL injection' flag whose cited evidence is a PARAMETERIZED
-    query (%s / %(name)s placeholder + params) with NO string-building of the SQL is a false
-    positive — the single most common LLM code-review hallucination, and it blocks (CRITICAL).
-    A genuine concat-injection (f-string / .format / + on the query) keeps string-build markers,
-    so it is NOT dropped."""
+    """Myth #1 deterministic guard: an 'SQL injection' flag whose cited evidence line contains NO
+    string-building is a false positive — the single most common LLM code-review hallucination, and
+    it blocks (CRITICAL). SQL injection requires building the query from a variable IN that line, so
+    if the cited line has no string-building marker it cannot be injectable. This drops BOTH a
+    CONSTANT query (zero injection surface) AND a PARAMETERIZED query (%s / %(name)s). A genuine
+    injection — concat (``"..." + var``), f-string, ``.format()``, or %-format operator
+    (``"..." % var``) — keeps a marker and is NEVER dropped."""
     import re as _re
 
     text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).lower()
     if "injection" not in text and "sqli" not in text:
         return False
     ev = str((issue or {}).get("evidence", "") or "")
-    has_placeholder = "%s" in ev or bool(_re.search(r"%\(\w+\)s", ev))
-    has_stringbuild = bool(_re.search(r"""f["']|\.format\(|["']\s*\+|\+\s*["']""", ev))
-    return has_placeholder and not has_stringbuild
+    # The ONLY ways a single cited line builds SQL from a variable. ``"..." %`` (quote then %) is the
+    # %-format operator (unsafe); a bare ``%s`` INSIDE the quotes is a parameterized placeholder (safe)
+    # and is intentionally NOT a marker.
+    has_stringbuild = bool(_re.search(r"""f["']|\.format\(|["']\s*\+|\+\s*["']|["']\s*%\s*[\(\w]""", ev))
+    return not has_stringbuild
 
 
 def _verify_evidence(issues: list, diff: str):

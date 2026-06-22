@@ -4067,12 +4067,15 @@ class AgentLoop:
 
             if not is_enabled("signal_engagement_monitor", default=False):
                 return
-            from services.signal_engagement_service import run_engagement_monitor
+            from services.signal_engagement_service import run_fleet_engagement_monitor
 
-            # Comments are an extra opt-in: each is S.I.G.N.A.L.-drafted then queued
-            # as its OWN Tier-2 Telegram approval — never auto-posted. Toggle via
-            # work_control 'signal_engagement_comments' (default OFF = likes only).
-            result = run_engagement_monitor(
+            # S7-P1-4a: the fleet driver runs the per-account monitor for every agent in
+            # signal:engagement_monitor_agent_ids (default [342]), each with its own
+            # registry voice + daily budget + the global anti-spam ledger.
+            # Comments are an extra opt-in: each is S.I.G.N.A.L.-drafted then queued as its
+            # OWN Tier-2 Telegram approval — never auto-posted (work_control
+            # 'signal_engagement_comments', default OFF = likes only).
+            result = run_fleet_engagement_monitor(
                 include_comments=is_enabled("signal_engagement_comments", default=False)
             )
             if result.get("proposed"):

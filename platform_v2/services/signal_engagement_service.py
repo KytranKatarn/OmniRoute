@@ -32,6 +32,130 @@ _VALID_REACTIONS = {"like", "celebrate", "support", "love", "insightful", "funny
 # analytics link, /activity-<id> slug, etc.).
 _ACTIVITY_RE = re.compile(r"urn:li:activity:(\d+)|activity[:%\-](\d+)")
 
+# ── S7-P1-4a: fleet-safe engagement ledger + per-agent budget / voice / similarity ──
+_SIMILARITY_THRESHOLD = 0.8
+
+
+def _post_urn_from(post_url: str) -> str:
+    """Stable dedup key for a post — its activity urn, so the same post dedups regardless
+    of URL form. Falls back to the trimmed permalink."""
+    m = _ACTIVITY_RE.search(post_url or "")
+    if m:
+        return f"urn:li:activity:{m.group(1) or m.group(2)}"
+    return (post_url or "").split("?")[0].strip()
+
+
+def _tokens(text: str) -> set:
+    return {w for w in re.findall(r"[a-z0-9]+", (text or "").lower()) if len(w) > 2}
+
+
+def _jaccard(a: str, b: str) -> float:
+    """Token-set Jaccard overlap of two comments (0..1)."""
+    ta, tb = _tokens(a), _tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+def _already_engaged(cur, post_urn: str, agent_id: int, action: str) -> bool:
+    """True if THIS agent already has a ledger row for (post, action) — the global,
+    fleet-safe dedup that replaces the per-account autonomy_approval_queue check."""
+    cur.execute(
+        "SELECT 1 FROM linkedin_engagement_ledger " "WHERE post_urn=%s AND acting_agent_id=%s AND action=%s LIMIT 1",
+        (post_urn, agent_id, action),
+    )
+    return cur.fetchone() is not None
+
+
+def _post_engaged_by_other(cur, post_urn: str, action: str, agent_id: int) -> bool:
+    """True if a DIFFERENT fleet agent already engaged this post with this action — keeps
+    the fleet from piling more than one like/comment on a single post."""
+    cur.execute(
+        "SELECT 1 FROM linkedin_engagement_ledger " "WHERE post_urn=%s AND action=%s AND acting_agent_id <> %s LIMIT 1",
+        (post_urn, action, agent_id),
+    )
+    return cur.fetchone() is not None
+
+
+def _max_similarity_on_post(cur, post_urn: str, comment: str) -> float:
+    """Max Jaccard overlap of `comment` vs every comment already in the ledger for this
+    post — anti-spam so the fleet never posts near-duplicate comments under one post."""
+    cur.execute(
+        "SELECT comment_text FROM linkedin_engagement_ledger "
+        "WHERE post_urn=%s AND action='comment' AND comment_text IS NOT NULL",
+        (post_urn,),
+    )
+    best = 0.0
+    for row in cur.fetchall():
+        other = row["comment_text"] if isinstance(row, dict) else row[0]
+        best = max(best, _jaccard(comment, other))
+    return best
+
+
+def _record_pending(cur, post_urn, agent_id, action, approval_id=None, comment_text=None, similarity=None) -> bool:
+    """Insert a 'pending' ledger row (UNIQUE-deduped). Returns True if newly recorded."""
+    cur.execute(
+        """INSERT INTO linkedin_engagement_ledger
+               (post_urn, acting_agent_id, action, status, approval_id, comment_text, similarity_score)
+           VALUES (%s, %s, %s, 'pending', %s, %s, %s)
+           ON CONFLICT (post_urn, acting_agent_id, action) DO NOTHING""",
+        (post_urn, agent_id, action, approval_id, comment_text, similarity),
+    )
+    return cur.rowcount > 0
+
+
+def _bool_setting(cur, key: str, default: bool = False) -> bool:
+    cur.execute("SELECT value FROM platform_settings WHERE key=%s", (key,))
+    r = cur.fetchone()
+    raw = (r["value"] if isinstance(r, dict) else r[0]) if r else None
+    if raw is None or str(raw).strip() == "":
+        return default
+    return str(raw).strip().lower() in ("true", "1", "on", "yes")
+
+
+def _monitor_agent_ids(cur) -> list:
+    """Agents the engagement monitor acts as (default [342]). JSON list in
+    platform_settings signal:engagement_monitor_agent_ids."""
+    import json as _json
+
+    cur.execute("SELECT value FROM platform_settings WHERE key=%s", ("signal:engagement_monitor_agent_ids",))
+    r = cur.fetchone()
+    raw = (r["value"] if isinstance(r, dict) else r[0]) if r else None
+    try:
+        val = _json.loads(raw) if isinstance(raw, str) else raw
+        ids = [int(x) for x in val] if isinstance(val, list) else []
+        return ids or [342]
+    except Exception:
+        return [342]
+
+
+def _engagement_account(cur, agent_id: int) -> dict:
+    """The can_engage registry account driven by this browser agent — voice / budget /
+    targets / today's counters. {} if none."""
+    cur.execute(
+        """SELECT account_key, voice_key, engagement_targets, daily_action_budget,
+                  active_count_today, last_action_at
+           FROM agent_platform_accounts
+           WHERE browser_agent_id=%s AND COALESCE(can_engage, true)
+           ORDER BY (role='major_author') DESC NULLS LAST LIMIT 1""",
+        (agent_id,),
+    )
+    r = cur.fetchone()
+    if not r:
+        return {}
+    return (
+        dict(r)
+        if isinstance(r, dict)
+        else {
+            "account_key": r[0],
+            "voice_key": r[1],
+            "engagement_targets": r[2],
+            "daily_action_budget": r[3],
+            "active_count_today": r[4],
+            "last_action_at": r[5],
+        }
+    )
+
 
 def _request_approval(action_type: str, action_data: dict, reason: str, requested_by: str):
     """Enqueue a Tier-2 approval via the same path signal_calendar_service uses."""
@@ -65,12 +189,29 @@ def propose_like(
     if reaction not in _VALID_REACTIONS:
         raise ValueError(f"reaction must be one of {sorted(_VALID_REACTIONS)}")
     aid = agent_id or signal_accounts.browser_id_for(account)
-    return _request_approval(
+    post_urn = _post_urn_from(post_url)
+    approval_id = _request_approval(
         "linkedin_like",
-        {"post_url": post_url, "reaction": reaction, "browser_agent_id": aid, "account": account},
+        {
+            "post_url": post_url,
+            "reaction": reaction,
+            "browser_agent_id": aid,
+            "account": account,
+            "post_urn": post_urn,
+        },
         reason=f"👍 Approve {reaction} on {post_url} (as {account})",
         requested_by=requested_by,
     )
+    # S7-P1-4a: record the engagement in the global ledger (fleet-safe dedup; 4b flips it
+    # to executed/failed on the approval outcome). Best-effort — never block the proposal.
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_conn, _cur):
+            _record_pending(_cur, post_urn, aid, "like", approval_id=approval_id)
+    except Exception as _le:
+        logger.warning("engagement ledger record (like) failed: %s", _le)
+    return approval_id
 
 
 def propose_comment(
@@ -88,12 +229,28 @@ def propose_comment(
     if not comment:
         raise ValueError("comment is required")
     aid = agent_id or signal_accounts.browser_id_for(account)
-    return _request_approval(
+    post_urn = _post_urn_from(post_url)
+    approval_id = _request_approval(
         "linkedin_comment",
-        {"post_url": post_url, "comment": comment, "browser_agent_id": aid, "account": account},
+        {
+            "post_url": post_url,
+            "comment": comment,
+            "browser_agent_id": aid,
+            "account": account,
+            "post_urn": post_urn,
+        },
         reason=f"💬 Approve comment on {post_url} (as {account}):\n\n{comment[:500]}",
         requested_by=requested_by,
     )
+    # S7-P1-4a: record the comment (text kept for the fleet anti-spam similarity gate).
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_conn, _cur):
+            _record_pending(_cur, post_urn, aid, "comment", approval_id=approval_id, comment_text=comment)
+    except Exception as _le:
+        logger.warning("engagement ledger record (comment) failed: %s", _le)
+    return approval_id
 
 
 # ---------------------------------------------------------------------------
@@ -124,8 +281,11 @@ def _already_proposed(post_url: str) -> bool:
         return True
 
 
-def _draft_comment(snippet: str, author: str = "the author") -> str:
-    """Draft a short on-brand comment via S.I.G.N.A.L. dispatch. '' on any failure."""
+def _draft_comment(snippet: str, author: str = "the author", voice: str = None) -> str:
+    """Draft a short on-brand comment via S.I.G.N.A.L. dispatch. '' on any failure.
+
+    ``voice`` (S7-P1-4a): the acting account's registry voice_key, so each fleet agent
+    comments in a distinct persona (anti-spam diversity)."""
     from services.welfare_governance_service import pool_over_budget_by_skill
 
     # Welfare gate (ADR-002): skip engagement-comment drafting when the social_content
@@ -144,7 +304,9 @@ def _draft_comment(snippet: str, author: str = "the author") -> str:
         _ensure_import_paths()
         from tools.department_hq.services.department_dispatcher import dispatch
 
+        voice_line = f"Voice/persona: {voice}\n" if voice else ""
         prompt = (
+            f"{voice_line}"
             f"Write ONE short (max 200 chars), genuine, professional LinkedIn comment "
             f"replying to this post by {author}. No hashtags, no emoji spam, no sales "
             f"pitch — a thoughtful one-liner.\n\nPost: {(snippet or '')[:500]}"
@@ -223,26 +385,40 @@ def _candidates_from_notifications(account: str, limit: int) -> list:
     return out
 
 
-def _get_targets() -> list:
-    """Engagement target profile/company URLs from platform_settings
-    (key 'signal:engagement:targets', JSON list of LinkedIn /in/ or /company/ URLs).
-    Empty list if unset → the profiles source proposes nothing."""
+def _get_targets(account: str = None) -> list:
+    """Engagement target profile/company URLs. S7-P1-4a: an account's registry
+    ``engagement_targets`` override (if set) wins; else the global platform_settings
+    'signal:engagement:targets' (JSON list of LinkedIn /in/ or /company/ URLs). Empty
+    list → the profiles source proposes nothing."""
     import json as _json
 
     from database import get_db_cursor
 
+    def _as_list(raw):
+        if not raw:
+            return []
+        val = _json.loads(raw) if isinstance(raw, str) else raw
+        return [str(t).strip() for t in val if str(t).strip()] if isinstance(val, list) else []
+
     try:
         with get_db_cursor() as (conn, cur):
+            if account:
+                cur.execute(
+                    "SELECT engagement_targets FROM agent_platform_accounts WHERE account_key = %s",
+                    (account,),
+                )
+                arow = cur.fetchone()
+                araw = (arow["engagement_targets"] if isinstance(arow, dict) else arow[0]) if arow else None
+                override = _as_list(araw)
+                if override:
+                    return override
             cur.execute(
                 "SELECT value FROM platform_settings WHERE key = %s",
                 ("signal:engagement:targets",),
             )
             row = cur.fetchone()
         raw = (row["value"] if isinstance(row, dict) else row[0]) if row else None
-        if not raw:
-            return []
-        val = _json.loads(raw) if isinstance(raw, str) else raw
-        return [str(t).strip() for t in val if str(t).strip()] if isinstance(val, list) else []
+        return _as_list(raw)
     except Exception as e:
         logger.warning("engagement targets read failed: %s", e)
         return []
@@ -328,52 +504,123 @@ def run_engagement_monitor(
     as Tier-2 Telegram approvals; the human Approve/Deny IS the relevance filter.
     ``dry_run=True`` returns candidates WITHOUT creating approvals (for testing).
     """
+    from database import get_db_cursor
+
+    aid = signal_accounts.browser_id_for(account)
     if source == "auto":
         # Prefer genuine outreach (target profiles) when configured; else fall back
         # to notifications (your-own-post activity). feed stays opt-in (withheld).
-        source = "profiles" if _get_targets() else "notifications"
+        source = "profiles" if _get_targets(account) else "notifications"
     if source == "feed":
         raw = _candidates_from_feed(account, limit)
     elif source == "notifications":
         raw = _candidates_from_notifications(account, limit)
     elif source == "profiles":
-        raw = _candidates_from_profiles(account, _get_targets(), per_target=1, limit=limit)
+        raw = _candidates_from_profiles(account, _get_targets(account), per_target=1, limit=limit)
     else:
         raise ValueError("source must be 'notifications', 'profiles', or 'feed'")
 
+    # Per-agent daily budget + voice from the registry; similarity gate flag (S7-P1-4a).
+    with get_db_cursor() as (_conn, cur):
+        acct = _engagement_account(cur, aid)
+        budget = int(acct.get("daily_action_budget") or 5) if acct else 5
+        voice = acct.get("voice_key") if acct else None
+        cur.execute(
+            "SELECT COUNT(*) AS n FROM linkedin_engagement_ledger "
+            "WHERE acting_agent_id=%s AND created_at >= "
+            "(date_trunc('day', NOW() AT TIME ZONE 'America/Toronto') AT TIME ZONE 'America/Toronto')",
+            (aid,),
+        )
+        r = cur.fetchone()
+        used_today = int((r["n"] if isinstance(r, dict) else r[0]) or 0)
+        sim_gate = _bool_setting(cur, "signal:comment_similarity_gate_enabled", False)
+    remaining = max(0, budget - used_today)
+
     candidates: list = []
     proposed = 0
+    skipped = {"dup": 0, "budget": 0, "similar": 0}
     seen: set = set()
     for c in raw:
         if len(candidates) >= max_per_run:
             break
+        if not dry_run and remaining <= 0:
+            skipped["budget"] += 1
+            break
         url = c["post_url"]
-        if url in seen or _already_proposed(url):
+        urn = _post_urn_from(url)
+        if url in seen:
             continue
         seen.add(url)
+        # Fleet-safe dedup: this agent OR any other already engaged this post.
+        with get_db_cursor() as (_conn, cur):
+            if _already_engaged(cur, urn, aid, "like") or _post_engaged_by_other(cur, urn, "like", aid):
+                skipped["dup"] += 1
+                continue
         candidates.append(c)
         if dry_run:
             continue
         try:
-            c["like_approval_id"] = propose_like(url, account=account, requested_by="S.I.G.N.A.L. engagement monitor")
+            c["like_approval_id"] = propose_like(
+                url, account=account, agent_id=aid, requested_by="S.I.G.N.A.L. engagement monitor"
+            )
             proposed += 1
+            remaining -= 1
         except Exception as e:
             logger.warning("engagement monitor: propose_like failed for %s: %s", url, e)
             continue
-        if include_comments:
-            draft = _draft_comment(c.get("snippet", ""), c.get("author", "") or "the author")
+        if include_comments and remaining > 0:
+            draft = _draft_comment(c.get("snippet", ""), c.get("author", "") or "the author", voice=voice)
             if draft:
+                if sim_gate:
+                    with get_db_cursor() as (_conn, cur):
+                        sim = _max_similarity_on_post(cur, urn, draft)
+                    if sim > _SIMILARITY_THRESHOLD:
+                        skipped["similar"] += 1
+                        logger.info(
+                            "[engagement] comment on %s skipped — too similar (%.2f) to a fleet comment", urn, sim
+                        )
+                        continue
                 try:
                     c["comment_approval_id"] = propose_comment(
-                        url, draft, account=account, requested_by="S.I.G.N.A.L. engagement monitor"
+                        url, draft, account=account, agent_id=aid, requested_by="S.I.G.N.A.L. engagement monitor"
                     )
                     proposed += 1
+                    remaining -= 1
                 except Exception as e:
                     logger.warning("engagement monitor: propose_comment failed for %s: %s", url, e)
     return {
+        "account": account,
+        "agent_id": aid,
         "source": source,
         "raw_candidates": len(raw),
         "candidates": candidates,
         "proposed": proposed,
+        "budget": budget,
+        "used_today": used_today,
+        "skipped": skipped,
         "dry_run": dry_run,
     }
+
+
+def run_fleet_engagement_monitor(**kwargs) -> dict:
+    """S7-P1-4a fleet driver: run the per-account monitor for every agent in
+    platform_settings signal:engagement_monitor_agent_ids (default [342]), each with its
+    own registry voice + daily budget. The scheduled signal_engagement_monitor job (OFF by
+    default) calls this; Telegram approval stays the only execution path."""
+    from database import get_db_cursor
+
+    agent_accounts = {}
+    with get_db_cursor() as (_conn, cur):
+        agent_ids = _monitor_agent_ids(cur)
+        for _aid in agent_ids:
+            acct = _engagement_account(cur, _aid)
+            if acct and acct.get("account_key"):
+                agent_accounts[_aid] = acct["account_key"]
+    results = {}
+    for _aid, _acct_key in agent_accounts.items():
+        try:
+            results[_acct_key] = run_engagement_monitor(account=_acct_key, **kwargs)
+        except Exception as e:
+            logger.warning("fleet engagement monitor failed for %s: %s", _acct_key, e)
+            results[_acct_key] = {"error": str(e)}
+    return {"agents": agent_ids, "by_account": results}

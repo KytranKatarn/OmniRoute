@@ -206,6 +206,18 @@ def _check_existing_approval(
             )
             return cur.fetchone() is not None
 
+    if action_type == "model_rightsizing":
+        # Dedup per AGENT so every agent's swap can await approval at once, while the same
+        # agent can't queue two pending swaps in one nightly run (P2-C part 2, #381).
+        rs_agent = (action_data or {}).get("agent_id")
+        if rs_agent is not None:
+            cur.execute(
+                "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+                "AND action_data->>'agent_id' = %s LIMIT 1",
+                (action_type, str(rs_agent)),
+            )
+            return cur.fetchone() is not None
+
     cur.execute(
         "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
         (action_type,),
@@ -477,6 +489,19 @@ class AgentLoop:
             trigger=CronTrigger(hour=3, minute=30, timezone="America/Toronto"),
             id="benchmark_producer_cycle",
             name="Agent Loop: Benchmark Producer (P2-PRODUCER)",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
+        # P2-C part 2 (#381): nightly model right-sizing proposer (04:15 ET) — turns correctness-
+        # graded proposals into Tier-2 approvals for the owner. No-op until graded data exists;
+        # NEVER auto-applies (Tier-2 = owner approves each swap via Telegram).
+        self.scheduler.add_job(
+            with_app_context(self._run_model_rightsizing_proposer),
+            trigger=CronTrigger(hour=4, minute=15, timezone="America/Toronto"),
+            id="model_rightsizing_proposer",
+            name="Agent Loop: P2-C Model Right-Sizing Proposer",
             max_instances=1,
             replace_existing=True,
             coalesce=True,
@@ -2912,6 +2937,58 @@ class AgentLoop:
         except Exception as exc:
             logger.error("[AgentLoop] benchmark producer failed: %s", exc)
 
+    def _run_model_rightsizing_proposer(self):
+        """P2-C part 2 (#381): nightly proposer — turns correctness-graded right-sizing proposals into
+        Tier-2 approvals (Telegram). NEVER auto-applies; the owner approves each, then the approval
+        executor (_execute_approved_action, action_type='model_rightsizing') swaps the model. No-op when
+        there is no graded benchmark data yet (propose_model_rightsizing returns [])."""
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.agent_academy.services.benchmark_service import propose_model_rightsizing
+
+            proposals = propose_model_rightsizing(quality_tolerance=0.15, days=30, min_samples=5)
+            submitted = skipped = 0
+            for p in proposals:
+                reason = (
+                    f"Right-size {p['agent_name']} ({p['category']}): "
+                    f"{p['old_model']} → {p['new_model']} "
+                    f"(correctness {p['new_avg_correctness']} vs best {p['best_avg_correctness']}, "
+                    f"{p.get('new_avg_time_ms')}ms, n={p['samples']})"
+                )
+                aid = request_approval(
+                    action_type="model_rightsizing",
+                    action_data={
+                        "agent_id": p["agent_id"],
+                        "agent_name": p["agent_name"],
+                        "category": p["category"],
+                        "old_model": p["old_model"],
+                        "new_model": p["new_model"],
+                        "new_avg_correctness": p["new_avg_correctness"],
+                        "best_avg_correctness": p["best_avg_correctness"],
+                        "new_avg_time_ms": p.get("new_avg_time_ms"),
+                        "samples": p["samples"],
+                    },
+                    reason=reason,
+                    requested_by="model_rightsizing_proposer",
+                    priority=5,
+                    tier=2,
+                )
+                if aid:
+                    submitted += 1
+                else:
+                    skipped += 1  # already a pending swap for this agent, or validation
+            if proposals:
+                logger.info(
+                    "[AgentLoop] model right-sizing proposer: %d proposed, %d queued, %d skipped",
+                    len(proposals),
+                    submitted,
+                    skipped,
+                )
+        except Exception as exc:
+            logger.error("[AgentLoop] model right-sizing proposer failed: %s", exc)
+
     def _stalwart_queue_monitor(self):
         """Every-30-min outbound-mail delivery-failure monitor (#4035).
 
@@ -4584,6 +4661,39 @@ class AgentLoop:
             except Exception as react_err:
                 logger.error(f"Agent reactivation from approval failed: {react_err}")
                 return {"executed": False, "error": str(react_err)}
+
+        elif action_type == "model_rightsizing":
+            # P2-C part 2 (#381). Approved correctness-graded right-sizing — repoint an agent to a
+            # smaller/faster model that holds quality (proposed by propose_model_rightsizing, ranked
+            # by P2-A correctness). update_agent is the single-writer; agents.model is read live by
+            # the dispatcher, and the right-sizer only ever proposes base model tags, so a bare model
+            # column write is sufficient (no Modelfile regeneration needed). NEVER auto-applies.
+            rs_agent_id = data.get("agent_id")
+            new_model = data.get("new_model")
+            if not rs_agent_id or not new_model:
+                return {"executed": False, "error": "agent_id and new_model required in action_data"}
+            try:
+                import sys
+
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from services.agent_service import update_agent
+
+                ok = bool(update_agent(rs_agent_id, model=new_model))  # returns a bare bool
+                if ok:
+                    logger.info(
+                        f"Agent {rs_agent_id} right-sized to {new_model} "
+                        f"(was {data.get('old_model')}) from approval #{item['id']}"
+                    )
+                return {
+                    "executed": ok,
+                    "agent_id": rs_agent_id,
+                    "new_model": new_model,
+                    "old_model": data.get("old_model"),
+                    "error": None if ok else "update_agent returned False (agent not found)",
+                }
+            except Exception as rs_err:
+                logger.error(f"Model right-sizing from approval failed: {rs_err}")
+                return {"executed": False, "error": str(rs_err)}
 
         elif action_type == "restart_container":
             # Project #272 Phase 2 / Task #2127. Approved recovery of a

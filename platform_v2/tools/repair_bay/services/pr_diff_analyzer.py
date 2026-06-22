@@ -81,7 +81,9 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
     try:
         mark_review_started(pr_number, _repo)
         diff = _fetch_diff(diff_url)
-        summary = _run_forge_review(_build_prompt(review, diff), pr_number, _repo)
+        summary = _structured_review(review, diff, pr_number, _repo) or _run_forge_review(
+            _build_prompt(review, diff), pr_number, _repo
+        )
         if not summary:
             mark_review_pending(pr_number, _repo)
             return {
@@ -131,7 +133,7 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
 
             diff = _fetch_diff(diff_url)
             prompt = _build_prompt(review, diff)
-            summary = _run_forge_review(prompt, pr_number, repo)
+            summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(prompt, pr_number, repo)
 
             if summary:
                 mark_review_done(pr_number, summary, repo)
@@ -280,6 +282,167 @@ def _apply_severity_gate(review_text: str) -> str:
             "issues were raised, which do not block a merge (Phase-1 calibration, project #381)."
         )
     return review_text
+
+
+# --- Phase-1 PR-B: structured JSON review + confidence gate + tier model escalation (#381) ---
+
+_TIER3_REVIEW_MODEL = "gemma3:12b"  # stronger model for big/breaking/security/migration PRs
+
+_REVIEW_JSON_SCHEMA = (
+    '{"summary": "<one paragraph>", "confidence": <float 0.0-1.0, your certainty>, '
+    '"issues": [{"severity": "CRITICAL|WARNING|INFO", "title": "<short>", "why": "<impact>", '
+    '"evidence": "<the exact + or - diff line, copied verbatim>"}], '
+    '"verdict": "APPROVE|REQUEST CHANGES|NEEDS REVIEW"}'
+)
+
+
+def _get_setting(key: str, default):
+    """Read a platform_settings value, fail-safe to default (handles dict or tuple rows)."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (key,))
+            row = cur.fetchone()
+        if not row:
+            return default
+        val = row.get("value") if isinstance(row, dict) else row[0]
+        return default if val is None else val
+    except Exception:
+        return default
+
+
+def _structured_review_enabled() -> bool:
+    return str(_get_setting("forge:structured_review_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _review_confidence_min() -> float:
+    try:
+        return float(_get_setting("forge:review_confidence_min", 0.7))
+    except (TypeError, ValueError):
+        return 0.7
+
+
+def _build_json_prompt(review: dict, diff: str) -> str:
+    """JSON-output variant of the grounded review prompt (PR-B). Same rubric + hunk-safe diff."""
+    diff_content, truncated = _truncate_diff(diff)
+    note = "\n[diff truncated at a hunk boundary — judge only the complete hunks shown]\n" if truncated else ""
+    return (
+        "You are F.O.R.G.E., A.R.C.H.I.E.'s code-review engine.\n\n"
+        + _FALSE_POSITIVE_RUBRIC
+        + f"\nPR #{review['pr_number']} — {review.get('title', '')}\n"
+        + f"--- DIFF ---\n{diff_content}\n--- END DIFF ---\n{note}\n"
+        + "Return ONLY a JSON object (no prose before or after) matching exactly:\n"
+        + _REVIEW_JSON_SCHEMA
+        + "\nRules: include an issue ONLY if you can copy its exact diff line into 'evidence'. "
+        "Set 'confidence' lower when the diff is truncated or you are unsure. "
+        "Use [INFO] for style/nits — they never block."
+    )
+
+
+def _parse_review_json(text: str):
+    """Extract + parse the review JSON. Returns dict or None (caller falls back to freeform)."""
+    if not text:
+        return None
+    import json
+    import re as _re
+
+    s = text.strip()
+    m = _re.search(r"\{.*\}", s, _re.S)
+    if m:
+        s = m.group(0)
+    try:
+        d = json.loads(s)
+    except Exception:
+        return None
+    if not isinstance(d, dict) or "issues" not in d:
+        return None
+    if not isinstance(d.get("issues"), list):
+        d["issues"] = []
+    return d
+
+
+def _recompute_verdict(issues: list, confidence, threshold: float) -> str:
+    """Deterministic verdict from surviving issues + confidence (subsumes the severity gate):
+    any CRITICAL/WARNING -> REQUEST CHANGES; else low confidence -> NEEDS REVIEW; else APPROVE."""
+    blocking = any(str((i or {}).get("severity", "")).upper() in ("CRITICAL", "WARNING") for i in issues)
+    if blocking:
+        return "REQUEST CHANGES"
+    if confidence is not None:
+        try:
+            if float(confidence) < threshold:
+                return "NEEDS REVIEW"
+        except (TypeError, ValueError):
+            pass
+    return "APPROVE"
+
+
+def _render_review_text(parsed: dict, model: str = "", note: str = "") -> str:
+    """Render parsed JSON back into the canonical SUMMARY/ISSUES/VERDICT text so every downstream
+    consumer (parse_verdict, merge gate, notify, UI) is unchanged."""
+    issues = parsed.get("issues") or []
+    lines = [f"SUMMARY\n{(parsed.get('summary') or '').strip()}\n", "ISSUES"]
+    if issues:
+        for i in issues:
+            sev = str((i or {}).get("severity", "INFO")).upper()
+            title = ((i or {}).get("title") or "").strip()
+            why = ((i or {}).get("why") or "").strip()
+            ev = ((i or {}).get("evidence") or "").strip()
+            lines.append(f"- [{sev}] {title} — {why} — Evidence: {ev}")
+    else:
+        lines.append("No issues found.")
+    conf = parsed.get("confidence")
+    meta = f"\n[review-meta] structured=json model={model or 'default'} confidence={conf}"
+    if note:
+        meta += f" {note}"
+    return "\n".join(lines) + f"\n\nVERDICT: {parsed.get('verdict', 'NEEDS REVIEW')}" + meta
+
+
+def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None):
+    """PR-B: JSON-structured grounded review. Returns canonical review TEXT, or None to fall back
+    to the freeform path (disabled flag / queue / empty / unparseable JSON — all fail-safe)."""
+    if not _structured_review_enabled():
+        return None
+    from tools.department_hq.services.department_dispatcher import dispatch
+    from tools.repair_bay.services.pr_review_service import classify_pr_tier
+
+    try:
+        tier = classify_pr_tier(review)
+    except Exception:
+        tier = 1
+    kw = {}
+    model_label = "default"
+    if tier >= 3:
+        kw["prefer_model"] = _TIER3_REVIEW_MODEL
+        model_label = _TIER3_REVIEW_MODEL
+    try:
+        result = dispatch(
+            capability="code_review",
+            prompt=_build_json_prompt(review, diff),
+            module_id="repair_bay",
+            json_mode=True,
+            preferred_node=["starship_76583490e36955ab", "archie-starbase"],
+            **kw,
+        )
+    except Exception as exc:
+        logger.warning("[PR Review] structured dispatch error, falling back: %s", exc)
+        return None
+    if getattr(result, "queued", False):
+        return None  # cold model — let the freeform path handle the queue + callback
+    if not (getattr(result, "success", False) and getattr(result, "response", "")):
+        return None
+    parsed = _parse_review_json(result.response)
+    if not parsed:
+        logger.info("[PR Review] structured JSON unparseable for PR #%s — falling back", pr_number)
+        return None
+    issues = parsed.get("issues") or []
+    parsed["verdict"] = _recompute_verdict(issues, parsed.get("confidence"), _review_confidence_min())
+    return _render_review_text(parsed, model=model_label)
 
 
 def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> str | None:

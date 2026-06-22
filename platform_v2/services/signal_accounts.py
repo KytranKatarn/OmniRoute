@@ -214,3 +214,27 @@ def post_types_for(account_key: str) -> tuple:
     canon = post_type_for(account_key)
     ordered = ([canon] if canon in aliases else []) + [a for a in aliases if a != canon]
     return tuple(ordered)
+
+
+def idempotency_key_for(account_key: str, post_type: str, content: str, scheduled_post_id=None) -> str:
+    """Stable idempotency key for a S.I.G.N.A.L. publish (S6-P1-8a). The SINGLE source of
+    this key — both the calendar release and the approved-action publish executor import it
+    so producer and consumer never drift (drift would silently break dedup → duplicate posts).
+
+    Same content for the same account + post_type + calendar slot → the same key, so a slow
+    post that times out (>180s cold) and is retried cannot double-publish (the publish ledger
+    UNIQUE-keys on it). The slot id (``agent_content_posts.id``) disambiguates an intentional
+    same-day re-release; the account_key IS the stable account slug. Returns a 32-char md5 hex
+    (fits the varchar(64) columns from migration 441)."""
+    import hashlib
+
+    slot = "" if scheduled_post_id is None else str(scheduled_post_id)
+    basis = "\x1f".join(
+        [
+            str(account_key or ""),
+            str(post_type or ""),
+            slot,
+            (content or "").strip(),
+        ]
+    )
+    return hashlib.md5(basis.encode("utf-8")).hexdigest()

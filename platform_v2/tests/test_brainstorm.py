@@ -90,6 +90,48 @@ def patch_db(cursor):
     return patch("tools.brainstorm.routes.get_db_cursor", return_value=fake_db_cursor(cursor))
 
 
+def test_brainstorm_validators_normalize_boundaries():
+    from tools.brainstorm.validators import (
+        validate_cluster,
+        validate_content,
+        validate_goal,
+        validate_tags,
+        validate_title,
+        validate_vote_delta,
+    )
+
+    assert validate_title(f" {'x' * 200} ") == "x" * 200
+    assert validate_goal(" ") is None
+    assert validate_goal(f" {'x' * 500} ") == "x" * 500
+    assert validate_content(f" {'x' * 1000} ") == "x" * 1000
+    assert validate_cluster(" ") is None
+    assert validate_cluster(f" {'x' * 100} ") == "x" * 100
+    assert validate_tags([" one ", "", "two"]) == ["one", "two"]
+    assert validate_vote_delta(1) == 1
+    assert validate_vote_delta(-1) == -1
+
+
+@pytest.mark.parametrize(
+    "validator,value,error",
+    [
+        ("validate_title", "x" * 201, "title must be 200 characters or fewer"),
+        ("validate_goal", "x" * 501, "goal must be 500 characters or fewer"),
+        ("validate_content", "x" * 1001, "content must be 1000 characters or fewer"),
+        ("validate_cluster", "x" * 101, "cluster must be 100 characters or fewer"),
+        ("validate_tags", ["tag"] * 11, "tags cannot include more than 10 items"),
+        ("validate_tags", ["x" * 51], "tags must be 50 characters or fewer"),
+        ("validate_vote_delta", "1", "vote_delta must be +1 or -1"),
+        ("validate_vote_delta", 0, "vote_delta must be +1 or -1"),
+    ],
+)
+def test_brainstorm_validators_reject_invalid_values(validator, value, error):
+    import tools.brainstorm.validators as validators
+
+    with pytest.raises(ValueError) as excinfo:
+        getattr(validators, validator)(value)
+    assert str(excinfo.value) == error
+
+
 def test_requires_login_for_status(anon_brainstorm_client):
     resp = anon_brainstorm_client.get("/tools/brainstorm/api/status")
 

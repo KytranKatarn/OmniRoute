@@ -79,8 +79,6 @@ def validate_vote_delta(value) -> int:
         raise ValueError("vote_delta must be +1 or -1")
     if isinstance(value, int):
         delta = value
-    elif isinstance(value, str) and value.strip() in ("-1", "+1", "1"):
-        delta = int(value)
     else:
         raise ValueError("vote_delta must be +1 or -1")
     if delta not in (-1, 1):

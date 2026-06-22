@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from database import get_db_cursor
+from services.signal_content_sanitizer import clean_draft
 
 logger = logging.getLogger("platform.signal_calendar")
 
@@ -491,6 +492,7 @@ def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
             prefer_agent="S.I.G.N.A.L.",
         )
         draft = (getattr(result, "response", "") or "").strip()
+        draft = clean_draft(draft, kind=post_type)  # #4373 — strip model preamble/sign-offs
         if not draft:
             summary[account] = {
                 "backlog": backlog,

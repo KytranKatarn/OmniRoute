@@ -4862,6 +4862,12 @@ class AgentLoop:
                     return text.strip()
 
                 content = _clean_linkedin(content)
+                # #4373 final publish-boundary guard — strip any model preamble/sign-off
+                # ("Sure, here's the post:" …) that slipped past the draft-site sanitizer.
+                from services.signal_content_sanitizer import clean_draft
+                content = clean_draft(content, kind=post_type)
+                if not content:
+                    return {"executed": False, "error": "content empty after sanitize (#4373)"}
 
                 if post_type == "creed":
                     skill = "linkedin_creed_post"
@@ -4981,6 +4987,10 @@ class AgentLoop:
             comment_url = data.get("comment_url", "")
             post_url = data.get("post_url", "")
             reply = data.get("reply", "")
+            # #4373 final publish-boundary guard — strip model preamble ("Sure, here's a
+            # reply comment from Kytran Katarn:" was the live 1692 junk) + any hashtags.
+            from services.signal_content_sanitizer import clean_draft
+            reply = clean_draft(reply, kind="reply")
             comment_author = data.get("comment_author") or data.get("author") or ""
             agent_id = data.get("browser_agent_id") or 342
             if not reply or not (comment_url or post_url):

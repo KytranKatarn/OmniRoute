@@ -18,6 +18,7 @@ from urllib.parse import unquote
 
 from database import get_db_cursor
 from services import browser_service
+from services.signal_content_sanitizer import clean_draft
 
 logger = logging.getLogger(__name__)
 
@@ -358,7 +359,7 @@ def draft_comment_replies(limit: int = 5) -> dict:
             else:
                 notes.append({"id": c["id"], "note": "FR translate cold — queued EN draft"})
 
-        draft = _trim_reply(draft)
+        draft = _trim_reply(clean_draft(draft, kind="reply"))  # #4373 — strip model preamble
         approval_id = request_approval(
             action_type="linkedin_comment_reply",
             action_data={

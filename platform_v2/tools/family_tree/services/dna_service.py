@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TypedDict
 
 import psycopg2
 
@@ -52,6 +52,17 @@ POP_LABELS = {
 VALID_ALLELES = set("ACGT")
 
 
+class SnpRecord(TypedDict):
+    chr: str
+    pos: int
+    genotype: str
+
+
+class ParsedDnaData(TypedDict):
+    snps: dict[str, SnpRecord]
+    snp_count: int
+
+
 # ---------------------------------------------------------------------------
 # Parsing
 # ---------------------------------------------------------------------------
@@ -70,7 +81,7 @@ def _validate_genotype(genotype: str, *, rsid: str, line_number: int | None = No
     return normalized
 
 
-def parse_dna_file(file_content: str, provider: str) -> dict[str, Any]:
+def parse_dna_file(file_content: str, provider: str) -> ParsedDnaData:
     """Parse a raw DNA CSV/TSV file from 23andMe or AncestryDNA.
 
     Returns dict with keys: snps (dict rsid->{chr, pos, genotype}), snp_count (int).
@@ -84,7 +95,7 @@ def parse_dna_file(file_content: str, provider: str) -> dict[str, Any]:
     if provider not in ("23andme", "ancestrydna"):
         raise ValueError(f"Unsupported provider: {provider}. Use '23andme' or 'ancestrydna'.")
 
-    snps: dict[str, dict[str, Any]] = {}
+    snps: dict[str, SnpRecord] = {}
     lines = file_content.splitlines()
 
     for line_number, line in enumerate(lines, start=1):

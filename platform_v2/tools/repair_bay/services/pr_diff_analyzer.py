@@ -41,8 +41,14 @@ _FALSE_POSITIVE_RUBRIC = (
     "4. Importing one shared function from multiple call sites is REUSE (DRY), not duplication.\n"
     "5. A platform_settings/env read with a code default fallback is intentional, not a missing value.\n"
     "6. A bare hash/string built for an md5/dedup key is NOT SQL and has no injection surface.\n"
-    "EVIDENCE RULE: for EVERY issue you raise, quote the exact '+' or '-' diff line it occurs on. "
-    "If you cannot tie it to a specific changed line shown below, DO NOT raise it.\n"
+    "7. Do NOT call an import or variable 'unused' or 'removed' unless you can SEE it is never "
+    "referenced anywhere in the changes shown. If the diff is truncated, NEVER raise "
+    "unused/missing/removed-symbol issues — you cannot see all usages.\n"
+    "EVIDENCE RULE: for EVERY issue, quote the '+' or '-' diff line VERBATIM as it appears below. "
+    "NEVER invent a line number or a line that is not present in the diff. A fabricated citation is "
+    "worse than no issue — if you cannot find the exact line below, DO NOT raise the issue.\n"
+    "VERDICT RULE: only [CRITICAL] or [WARNING] issues justify REQUEST CHANGES. If the only issues "
+    "are [INFO] (or there are none), the VERDICT MUST be APPROVE — INFO notes never block a merge.\n"
 )
 
 
@@ -248,6 +254,34 @@ def _attach_pr_review_callback(queue_id: int, pr_number: int, repo: str) -> None
         logger.warning("[PR Review] failed to attach callback to queue #%s: %s", queue_id, exc)
 
 
+def _apply_severity_gate(review_text: str) -> str:
+    """Deterministic post-guard (Phase-1 agent-optimization, project #381): a review whose
+    issues are all ``[INFO]`` (or has none) must NOT yield REQUEST CHANGES. An INFO-level lint —
+    or a fabricated INFO nit — cannot block a PR. Closes the #1869 over-block surfaced by the
+    Phase-1 adversarial verification (a real, USED ``import time`` was flagged 'unused' as INFO
+    and escalated to REQUEST CHANGES on 2/3 runs, once with a fabricated diff line as evidence).
+    ``[CRITICAL]``/``[WARNING]`` issues still block normally — the gate only relaxes, never tightens.
+    """
+    import re
+
+    if not review_text:
+        return review_text
+    has_blocking = re.search(r"\[\s*(CRITICAL|WARNING)\s*\]", review_text, re.IGNORECASE)
+    asks_changes = re.search(r"VERDICT:\s*REQUEST\s+CHANGES", review_text, re.IGNORECASE)
+    if asks_changes and not has_blocking:
+        review_text = re.sub(
+            r"(VERDICT:\s*)REQUEST\s+CHANGES",
+            r"\1APPROVE",
+            review_text,
+            flags=re.IGNORECASE,
+        )
+        review_text += (
+            "\n\n[severity-gate] Verdict downgraded REQUEST CHANGES → APPROVE: only INFO-level "
+            "issues were raised, which do not block a merge (Phase-1 calibration, project #381)."
+        )
+    return review_text
+
+
 def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> str | None:
     """Dispatch the review prompt to F.O.R.G.E. via Bridge.
 
@@ -286,7 +320,7 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> s
                 logger.info("[PR Review] F.O.R.G.E. dispatch queued — model cold-loading, will retry")
             return None
         if result.success and result.response:
-            return result.response.strip()
+            return _apply_severity_gate(result.response.strip())
         logger.warning("[PR Review] F.O.R.G.E. dispatch returned no response: success=%s", result.success)
         return None
     except Exception as exc:

@@ -47,6 +47,12 @@ def _login(client):
         sess["_fresh"] = True
 
 
+def _logout(client):
+    """Clear Flask-Login session state for auth-gate assertions."""
+    with client.session_transaction() as sess:
+        sess.clear()
+
+
 def test_faith_blueprint_registered(faith_client):
     _login(faith_client)
     resp = faith_client.get("/tools/faith/")
@@ -408,3 +414,129 @@ def test_connect_chaplain_rejects_invalid_payload_before_email(faith_client, pay
     assert resp.get_json()["success"] is False
     send_chaplain_email.assert_not_called()
     get_db_cursor.assert_not_called()
+
+
+def test_devotional_requires_authentication(faith_client):
+    from unittest.mock import patch
+
+    _logout(faith_client)
+    with patch("tools.faith.routes._practice_dispatch") as practice_dispatch:
+        resp = faith_client.get("/tools/faith/api/faith/devotional")
+
+    assert resp.status_code in (302, 401)
+    practice_dispatch.assert_not_called()
+
+
+def test_devotional_reports_dispatch_failure(faith_client):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch(
+        "tools.faith.routes._get_user_faith_profile",
+        return_value={"tradition_preference": "christian", "prayer_style": "guided"},
+    ), patch(
+        "tools.faith.routes._practice_dispatch",
+        return_value={"success": False, "response": "F.A.I.T.H. is unavailable."},
+    ):
+        resp = faith_client.get("/tools/faith/api/faith/devotional")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is False
+    assert data["response"] == "F.A.I.T.H. is unavailable."
+
+
+def test_guided_prayer_rejects_malformed_json_before_dispatch(faith_client):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch("tools.faith.routes._practice_dispatch") as practice_dispatch:
+        resp = faith_client.post(
+            "/tools/faith/api/faith/prayer",
+            data="{",
+            content_type="application/json",
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json() == {"success": False, "error": "prayer_type required"}
+    practice_dispatch.assert_not_called()
+
+
+def test_guided_prayer_rejects_missing_prayer_type_before_dispatch(faith_client):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch("tools.faith.routes._practice_dispatch") as practice_dispatch:
+        resp = faith_client.post("/tools/faith/api/faith/prayer", json={"intention": "family"})
+
+    assert resp.status_code == 400
+    assert resp.get_json() == {"success": False, "error": "prayer_type required"}
+    practice_dispatch.assert_not_called()
+
+
+def test_lectio_divina_rejects_malformed_json_before_dispatch(faith_client):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    with patch("tools.faith.routes._practice_dispatch") as practice_dispatch:
+        resp = faith_client.post(
+            "/tools/faith/api/faith/lectio",
+            data="{",
+            content_type="application/json",
+        )
+
+    assert resp.status_code == 400
+    assert resp.get_json() == {"success": False, "error": "passage required"}
+    practice_dispatch.assert_not_called()
+
+
+def test_checkin_history_returns_500_on_database_failure(faith_client):
+    from unittest.mock import patch
+
+    from psycopg2 import Error as PsycopgError
+
+    _login(faith_client)
+    with patch("tools.faith.routes._ensure_tables"), patch(
+        "tools.faith.routes.get_db_cursor",
+        side_effect=PsycopgError("database unavailable"),
+    ):
+        resp = faith_client.get("/tools/faith/api/faith/checkin/history")
+
+    assert resp.status_code == 500
+    assert resp.get_json() == {"success": False, "error": "Failed to load"}
+
+
+def test_encyclopedia_search_empty_query_returns_unfiltered_entries(faith_client):
+    from unittest.mock import patch
+
+    entries = [
+        {"title": "Desert Fathers", "category": "history", "summary": "Early monastics", "tags": ["monastic"]},
+        {"title": "Lectio Divina", "category": "practice", "summary": "Sacred reading", "tags": ["prayer"]},
+    ]
+    _login(faith_client)
+    with patch("tools.faith.routes._load_encyclopedia_entries", return_value=entries):
+        resp = faith_client.get("/tools/faith/api/faith/encyclopedia/search?q=")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["query"] == ""
+    assert data["count"] == 2
+    assert data["entries"] == entries
+
+
+def test_encyclopedia_search_accepts_query_over_500_chars(faith_client):
+    from unittest.mock import patch
+
+    _login(faith_client)
+    long_query = "x" * 501
+    entries = [{"title": "Mercy", "category": "virtue", "summary": "Compassion", "tags": ["mercy"]}]
+    with patch("tools.faith.routes._load_encyclopedia_entries", return_value=entries):
+        resp = faith_client.get(f"/tools/faith/api/faith/encyclopedia/search?q={long_query}")
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["success"] is True
+    assert data["query"] == long_query
+    assert data["count"] == 0
+    assert data["entries"] == []

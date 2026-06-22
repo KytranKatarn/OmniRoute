@@ -94,6 +94,112 @@ def test_connection() -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+# ---------------------------------------------------------------------------
+# Outbound queue health (#4035) — delivery-failure alerting
+# ---------------------------------------------------------------------------
+
+# Tunables (env-overridable, sane defaults). A queued message is "failing" when
+# it has been retried this many times, has aged past this many hours, or a domain
+# reports a non-scheduled status. A large total backlog is also flagged.
+_QUEUE_RETRY_THRESHOLD = int(os.getenv("STALWART_QUEUE_RETRY_THRESHOLD", "3"))
+_QUEUE_AGE_HOURS = float(os.getenv("STALWART_QUEUE_AGE_HOURS", "6"))
+_QUEUE_BACKLOG_THRESHOLD = int(os.getenv("STALWART_QUEUE_BACKLOG_THRESHOLD", "25"))
+_QUEUE_DETAIL_CAP = int(os.getenv("STALWART_QUEUE_DETAIL_CAP", "60"))
+
+
+def check_outbound_queue_health() -> dict:
+    """Inspect the Stalwart outbound queue for delivery FAILURES (#4035).
+
+    Reads GET /api/queue/messages (+ per-message detail) and classifies a message
+    as 'failing' when a domain has been retried >= the retry threshold, the message
+    has aged past the age threshold, or a domain reports a failed/bounced status.
+    A large total backlog is flagged separately. Fail-safe: if Stalwart is
+    unreachable or the API errors, returns severity='unknown' and NEVER raises.
+
+    Returns {ok, severity in ('ok','warning','error','unknown'), total,
+             failing:[{id, age_h, retry, domain, status}], failing_count,
+             reasons:[...], alert_key, error?}.
+    """
+    from datetime import datetime, timezone
+
+    if not _PASS:
+        return {"ok": False, "severity": "unknown", "error": "STALWART_ADMIN_PASSWORD not set"}
+
+    resp = _get("/api/queue/messages", params={"limit": "1000"})
+    if resp is None or resp.status_code != 200:
+        return {
+            "ok": False,
+            "severity": "unknown",
+            "error": f"queue API unavailable (status={getattr(resp, 'status_code', None)})",
+        }
+    data = (resp.json() or {}).get("data", {}) or {}
+    ids = data.get("items", []) or []
+    total = data.get("total", len(ids))
+
+    now = datetime.now(timezone.utc)
+
+    def _parse(ts):
+        try:
+            return datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        except Exception:
+            return None
+
+    failing: list = []
+    for mid in ids[:_QUEUE_DETAIL_CAP]:
+        d = _get(f"/api/queue/messages/{mid}")
+        if d is None or d.status_code != 200:
+            continue
+        m = (d.json() or {}).get("data", {}) or {}
+        created = _parse(m.get("created"))
+        age_h = (now - created).total_seconds() / 3600.0 if created else 0.0
+        for dom in m.get("domains", []) or []:
+            retry = int(dom.get("retry_num", 0) or 0)
+            status = str(dom.get("status", "")).lower()
+            if (
+                retry >= _QUEUE_RETRY_THRESHOLD
+                or age_h >= _QUEUE_AGE_HOURS
+                or status
+                in (
+                    "failed",
+                    "bounced",
+                    "error",
+                )
+            ):
+                failing.append(
+                    {
+                        "id": mid,
+                        "age_h": round(age_h, 1),
+                        "retry": retry,
+                        "domain": dom.get("name"),
+                        "status": status,
+                    }
+                )
+
+    reasons: list = []
+    severity = "ok"
+    if failing:
+        severity = "error"
+        reasons.append(
+            f"{len(failing)} message(s) failing delivery "
+            f"(retry>={_QUEUE_RETRY_THRESHOLD} / age>={_QUEUE_AGE_HOURS}h / failed status)"
+        )
+    if total >= _QUEUE_BACKLOG_THRESHOLD:
+        severity = "error" if severity == "error" else "warning"
+        reasons.append(f"outbound backlog {total} >= {_QUEUE_BACKLOG_THRESHOLD}")
+
+    # Dedup key — alert only re-fires when the failing-count / backlog band changes.
+    alert_key = f"{severity}:{len(failing)}:{int(total >= _QUEUE_BACKLOG_THRESHOLD)}"
+    return {
+        "ok": True,
+        "severity": severity,
+        "total": total,
+        "failing": failing[:20],
+        "failing_count": len(failing),
+        "reasons": reasons,
+        "alert_key": alert_key,
+    }
+
+
 def list_accounts() -> list:
     """List all individual mailbox accounts in Stalwart."""
     resp = _get("/api/principal", params={"type": "individual", "limit": "500"})

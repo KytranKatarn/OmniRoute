@@ -457,6 +457,18 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # #4035: outbound-mail delivery-failure monitor — alerts on Stalwart
+        # queue messages failing delivery (high retry / aged / failed) or backlog.
+        self.scheduler.add_job(
+            with_app_context(self._stalwart_queue_monitor),
+            trigger=IntervalTrigger(minutes=30),
+            id="stalwart_queue_monitor",
+            name="Agent Loop: Stalwart Outbound Queue Monitor",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._process_scheduled_tasks),
             trigger=IntervalTrigger(seconds=30),
@@ -2861,6 +2873,112 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] Cockpit model keep-warm failed: %s", e)
+
+    def _stalwart_queue_monitor(self):
+        """Every-30-min outbound-mail delivery-failure monitor (#4035).
+
+        Flags Stalwart outbound messages that are failing delivery (high retry /
+        aged / failed status) or a large backlog, and alerts via
+        system_notifications + Telegram — deduped, only when the failing/backlog
+        state changes (mirrors vigil_infra_heartbeat's _last_down_set). Fail-safe:
+        never raises; if Stalwart is unreachable the health check returns
+        severity='unknown' and no alert fires.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from tools.email_manager.stalwart_service import check_outbound_queue_health
+
+            result = check_outbound_queue_health()
+            severity = result.get("severity", "unknown")
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="stalwart_queue_monitor",
+                items_processed=result.get("total", 0) or 0,
+                items_failed=result.get("failing_count", 0) or 0,
+                duration_ms=duration_ms,
+                details={
+                    "severity": severity,
+                    "total": result.get("total"),
+                    "failing_count": result.get("failing_count", 0),
+                    "reasons": result.get("reasons", []),
+                    "error": result.get("error"),
+                },
+            )
+
+            # Dedup: record the alert state EVERY run, but only NOTIFY
+            # (system_notifications + Telegram) when the failing/backlog state
+            # CHANGES — so a persistent backlog does not spam a fresh notification
+            # row + Telegram every 30-min tick. A recovery to 'ok' resets the key,
+            # so a later re-failure re-alerts.
+            alert_key = result.get("alert_key")
+            state_changed = alert_key != getattr(self, "_last_stalwart_alert_key", None)
+            self._last_stalwart_alert_key = alert_key
+
+            if severity not in ("warning", "error") or not state_changed:
+                return
+
+            body_lines = [f"Stalwart outbound queue: {severity.upper()}"]
+            body_lines.extend(result.get("reasons", []) or [])
+            for f in (result.get("failing") or [])[:8]:
+                body_lines.append(
+                    f"  • msg {f.get('id')} → {f.get('domain')} "
+                    f"(retry {f.get('retry')}, {f.get('age_h')}h, {f.get('status')})"
+                )
+            body = "\n".join(body_lines)
+
+            # system_notifications row — surfaces in platform UI
+            try:
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO system_notifications
+                      (type, title, message, source, priority, source_icon,
+                       related_action, visibility, target_user_id, is_read,
+                       metadata, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                    """,
+                    (
+                        "alert" if severity == "error" else "warning",
+                        f"Mail — outbound queue {severity}",
+                        body,
+                        "stalwart",
+                        "high" if severity == "error" else "normal",
+                        "📧",
+                        "/tools/email-manager",
+                        "all",
+                        None,
+                        psycopg2.extras.Json(
+                            {
+                                "total": result.get("total"),
+                                "failing_count": result.get("failing_count", 0),
+                            }
+                        ),
+                    ),
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception as notify_err:
+                logger.warning(
+                    "Stalwart queue monitor: system_notifications insert failed: %s",
+                    notify_err,
+                )
+
+            # Telegram — reached only on a state change (deduped at the top).
+            try:
+                self._send_telegram(body)
+            except Exception as tg_err:
+                logger.warning(
+                    "Stalwart queue monitor: Telegram dispatch failed: %s", tg_err
+                )
+
+        except Exception as e:
+            logger.warning("[Agent Loop] Stalwart queue monitor failed: %s", e)
 
     def _process_email_queue(self):
         """Process pending emails from the email_queue table."""

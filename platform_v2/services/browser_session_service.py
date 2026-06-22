@@ -109,13 +109,19 @@ def load_session(agent_id: int, platform: str) -> Optional[Dict[str, Any]]:
     return decrypt_state(bytes(row["encrypted_state"]))
 
 
-def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None) -> None:
-    """Stamp a health-probe result (#3708 phase 2). On failure flips the session
-    to 'stale' so skills stop trusting it; on success flips it back to 'active' and
-    clears the failure reason — otherwise a session that went stale (e.g. during the
-    sidecar lock-deadlock, #3948) stays stale FOREVER even after probes recover, and
-    _linkedin_profile_healthy (which gates on status=='stale') keeps posting blocked.
-    Setting 'active' on a passing probe is idempotent (active→active is a no-op)."""
+def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None, logged_out: bool = False) -> None:
+    """Stamp a health-probe result (#3708 phase 2, hardened #4372). Three outcomes:
+
+    • ok=True              → status='active', last_probe_ok=TRUE (clears reason). Idempotent,
+      so a profile that latched 'stale' on a past transient recovers on the next good probe.
+    • ok=False, logged_out → status='stale'. A POSITIVE logged-out signal (the skill landed
+      on a login/authwall — skill_runner surfaces result['logged_out']) is the ONLY
+      trustworthy "this profile is dead" signal, and 'stale' is the ONLY thing that gates
+      the calendar.
+    • ok=False, transient  → a timeout / lock-busy / generic probe error is NOT proof of
+      logout. Stamp last_probe_at + reason but KEEP the last-good status + last_probe_ok, so
+      a momentary blip can no longer false-gate posting for a profile whose cookies are valid
+      (this was the #4372 false-negative that paused the whole calendar)."""
     with get_db_cursor(commit=True) as (_conn, cur):
         if ok:
             cur.execute(
@@ -126,14 +132,22 @@ def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None) -> 
                     WHERE agent_id = %s AND platform = %s""",
                 (agent_id, platform),
             )
-        else:
+        elif logged_out:
             cur.execute(
                 """UPDATE browser_sessions
                       SET last_probe_at = NOW(), last_probe_ok = FALSE,
                           status = 'stale',
                           last_failure_reason = %s, updated_at = NOW()
                     WHERE agent_id = %s AND platform = %s""",
-                (reason or "probe failed", agent_id, platform),
+                (reason or "logged out", agent_id, platform),
+            )
+        else:
+            cur.execute(
+                """UPDATE browser_sessions
+                      SET last_probe_at = NOW(),
+                          last_failure_reason = %s, updated_at = NOW()
+                    WHERE agent_id = %s AND platform = %s""",
+                (reason or "transient probe failure", agent_id, platform),
             )
 
 
@@ -141,6 +155,16 @@ def list_active_sessions() -> list:
     """(agent_id, platform) for every active session — drives the probe job."""
     with get_db_cursor(commit=False) as (_conn, cur):
         cur.execute("SELECT agent_id, platform FROM browser_sessions WHERE status = 'active'")
+        return [(r["agent_id"], r["platform"]) for r in cur.fetchall()]
+
+
+def list_sessions_for_probe() -> list:
+    """(agent_id, platform) for every ACTIVE or STALE session. Stale rows are INCLUDED
+    so a recovered profile re-probes and flips back to active (record_probe ok=True →
+    active). Without re-probing stale rows, a session that once went stale would latch
+    stale forever and never recover (#4372)."""
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute("SELECT agent_id, platform FROM browser_sessions WHERE status IN ('active', 'stale')")
         return [(r["agent_id"], r["platform"]) for r in cur.fetchall()]
 
 

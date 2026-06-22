@@ -238,16 +238,19 @@ def _linkedin_profile_healthy(cur, agent_id: int) -> bool:
         # Parameterized query (%s + tuple) — agent_id is an int from the hardcoded
         # _ACCOUNT_AGENT_ID map, never user input: no injection surface.
         cur.execute(
-            "SELECT status, last_probe_ok FROM browser_sessions "
-            "WHERE agent_id = %s AND platform = 'linkedin' LIMIT 1",
+            "SELECT status FROM browser_sessions " "WHERE agent_id = %s AND platform = 'linkedin' LIMIT 1",
             (agent_id,),
         )
         row = cur.fetchone()
         if not row:
             return True
         status = (row["status"] if isinstance(row, dict) else row[0]) or ""
-        probe_ok = row["last_probe_ok"] if isinstance(row, dict) else row[1]
-        return not (status == "stale" or probe_ok is False)
+        # Gate ONLY on a positive 'stale' (a probe POSITIVELY detected a login/authwall,
+        # #4372). last_probe_ok is intentionally NOT part of the gate any more: a transient
+        # probe failure no longer sets it False (record_probe keeps the last-good values),
+        # so the calendar can't be paused for an authed profile that merely had one slow or
+        # lock-contended probe — the false-negative that stalled the whole calendar.
+        return status != "stale"
     except Exception as exc:
         # Fail-open by design: a health-read bug must never block release. Log for traceability.
         logger.debug("[signal-calendar] linkedin profile health check failed (fail-open True): %s", exc)

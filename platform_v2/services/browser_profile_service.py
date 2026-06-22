@@ -57,6 +57,14 @@ def run_keepwarm() -> dict:
         res = run_skill_sync(skill, dict(params), agent_id=agent_id, timeout_s=120)
         if res.get("success"):
             results[key] = "warmed"
+            # A successful warm IS a successful health signal — record it so a profile
+            # that latched 'stale' on a past transient recovers to active (#4372).
+            try:
+                from services import browser_session_service
+
+                browser_session_service.record_probe(agent_id, platform, ok=True)
+            except Exception as exc:
+                logger.debug("[keepwarm] record_probe(ok) failed (best-effort): %s", exc)
         else:
             results[key] = f"FAILED: {str(res.get('error') or res.get('_status') or 'unknown')[:120]}"
             logger.warning("[keepwarm] %s %s", key, results[key])
@@ -91,7 +99,8 @@ def run_session_health_probe() -> dict:
     from services.browser_service import run_skill_sync
 
     results = {}
-    for agent_id, platform in browser_session_service.list_active_sessions():
+    # Re-probe ACTIVE *and* STALE sessions so a recovered profile can flip back (#4372).
+    for agent_id, platform in browser_session_service.list_sessions_for_probe():
         key = f"{agent_id}-{platform}"
         if platform in WARM_SKILLS:
             skill, base_params = WARM_SKILLS[platform]
@@ -105,10 +114,19 @@ def run_session_health_probe() -> dict:
             params = {"probe_url": probe_url, "_platform": platform}
         res = run_skill_sync(skill, params, agent_id=agent_id, timeout_s=120)
         ok = bool(res.get("success"))
+        # Only a POSITIVE logged-out signal (skill_runner surfaces result['logged_out']
+        # when the page is a login/authwall) flips a session stale. A timeout / lock-busy /
+        # generic error is transient and KEEPS the last-good status (#4372 false-negative).
+        logged_out = bool(res.get("logged_out"))
         reason = None if ok else str(res.get("error") or res.get("_status") or "probe failed")[:200]
-        browser_session_service.record_probe(agent_id, platform, ok, reason)
-        results[key] = "ok" if ok else f"STALE: {reason}"
-        if not ok:
-            logger.warning("[session-probe] %s flipped stale: %s", key, reason)
+        browser_session_service.record_probe(agent_id, platform, ok, reason, logged_out=logged_out)
+        if ok:
+            results[key] = "ok"
+        elif logged_out:
+            results[key] = f"STALE (logged out): {reason}"
+            logger.warning("[session-probe] %s flipped stale — logged out: %s", key, reason)
+        else:
+            results[key] = f"transient (status kept): {reason}"
+            logger.info("[session-probe] %s transient probe failure, status kept: %s", key, reason)
     logger.info("[session-probe] %s", results)
     return results

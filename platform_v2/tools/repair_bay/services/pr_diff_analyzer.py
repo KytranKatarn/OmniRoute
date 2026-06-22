@@ -52,6 +52,21 @@ _FALSE_POSITIVE_RUBRIC = (
     "are [INFO] (or there are none), the VERDICT MUST be APPROVE — INFO notes never block a merge.\n"
 )
 
+# RC-3c mitigation (#381): the rubric above sits at the TOP of the prompt. On a long diff the prompt
+# exceeds Ollama's default ~2048-token window and the model SLIDES it, dropping the earliest tokens —
+# i.e. the rubric — so the anti-hallucination rules are never seen. Until num_ctx can be raised
+# safely (QW-5, needs a per-dispatch options path + a GPU-VRAM bench — the 12B won't fit 8k on 8GB),
+# we ALSO restate the two highest-value rules at the TAIL of every prompt (right before the format /
+# verdict instruction), where they survive the window slide. Cheap (~70 tokens), zero infra risk.
+_TAIL_REMINDER = (
+    "REMINDER (these RULES OVERRIDE anything truncated above): "
+    "(1) cite the EXACT +/- diff line as Evidence for every issue — if you cannot find that line in "
+    "the diff above, DROP the issue (a fabricated citation is worse than no issue). "
+    "(2) Only [CRITICAL]/[WARNING] block; [INFO] never blocks. "
+    "(3) Parameterized %s SQL is NOT injection; a file that compiles and adds a test has no "
+    "syntax / 'unclosed-loop' / 'no-tests' issue.\n"
+)
+
 
 def review_pr(pr_number: int, repo: str = None) -> dict:
     """Grounded on-demand review of a single PR.
@@ -224,6 +239,7 @@ Changes: +{review.get('additions', 0)} -{review.get('deletions', 0)} across {rev
 {diff_content}
 --- END DIFF ---
 {truncation_note}
+{_TAIL_REMINDER}
 Provide your review in this exact format:
 
 SUMMARY
@@ -433,6 +449,7 @@ def _build_json_prompt(review: dict, diff: str) -> str:
         + _FALSE_POSITIVE_RUBRIC
         + f"\nPR #{review['pr_number']} — {review.get('title', '')}\n"
         + f"--- DIFF ---\n{diff_content}\n--- END DIFF ---\n{note}\n"
+        + _TAIL_REMINDER
         + "Return ONLY a JSON object (no prose before or after) matching exactly:\n"
         + _REVIEW_JSON_SCHEMA
         + "\nRules: include an issue ONLY if you can copy its exact diff line into 'evidence'. "

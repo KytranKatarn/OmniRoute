@@ -4105,6 +4105,64 @@ async function loadDispatchHistory() {
     } catch (e) { setHtml(el, '<div class="dhq-empty">Error: ' + esc(e.message) + '</div>'); }
 }
 
+// ── Blocked-job queue actions (owner Retry / Fix / Dismiss) ──
+// XSS-safe per PR #1861: buttons carry data-* attrs only (task id is
+// Number()-coerced; action is a static literal) — NO inline onclick built
+// from row data. Clicks are handled by the single delegated
+// _delegationClickHandler bound to the feed container, which survives the
+// setHtml() re-render because the container element itself is not replaced.
+function _delegBtn(action, tid, label, title, color) {
+    return '<button data-deleg-action="' + action + '" data-task-id="' + (Number(tid) || 0) + '"'
+        + ' title="' + esc(title) + '"'
+        + ' style="cursor:pointer;font-family:\'Antonio\',sans-serif;font-size:0.64rem;'
+        + 'letter-spacing:0.04em;padding:2px 7px;margin-right:4px;border-radius:3px;'
+        + 'border:1px solid ' + color + ';background:transparent;color:' + color + '">'
+        + label + '</button>';
+}
+
+function _delegationActionsCell(p) {
+    if (p.status !== 'blocked' && p.status !== 'failed') {
+        return '<span style="color:var(--dhq-text-dim);font-size:0.7rem">—</span>';
+    }
+    var cap = p.capability || '';
+    var html = _delegBtn('retry', p.id, '↻ Retry', 'Re-queue — the worker re-attempts it', '#f59e0b');
+    if (cap === 'documentation' || cap === 'document_pr') {
+        html += _delegBtn('fix', p.id, '✓ Fix', 'Persist the PR doc deterministically (no slow LLM)', '#22c55e');
+    }
+    html += _delegBtn('dismiss', p.id, '✕ Dismiss', 'Cancel + remove from the queue (auditable)', '#ef4444');
+    return html;
+}
+
+function _delegationClickHandler(e) {
+    var btn = e.target.closest('button[data-deleg-action]');
+    if (!btn || btn.disabled) return;
+    _delegationAction(Number(btn.getAttribute('data-task-id')), btn.getAttribute('data-deleg-action'), btn);
+}
+
+async function _delegationAction(taskId, action, btn) {
+    if (!taskId || !action) return;
+    if (action === 'dismiss'
+        && !window.confirm('Dismiss this delegation?\n\nIt will be cancelled and removed from the queue (auditable, not deleted).')) {
+        return;
+    }
+    var busy = { retry: 'Re-queuing…', fix: 'Fixing…', dismiss: 'Dismissing…' };
+    var orig = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.textContent = busy[action] || '…'; }
+    try {
+        var data = await apiPost('/api/dispatch/delegations/' + taskId + '/' + action, {});
+        if (data && data.success) {
+            if (btn) btn.textContent = '✓';
+            setTimeout(loadClaudeFeed, 700);
+        } else {
+            if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+            alert('Failed: ' + ((data && data.error) || 'unknown'));
+        }
+    } catch (err) {
+        if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+        alert('Error: ' + (err.message || err));
+    }
+}
+
 // ── Claude Requests Feed (Task #1297) ──
 
 async function loadClaudeFeed() {
@@ -4113,6 +4171,9 @@ async function loadClaudeFeed() {
     var hoursEl = document.getElementById('dispatchClaudeHours');
     var hours = hoursEl ? hoursEl.value : 24;
     if (!el) return;
+    // Bind the delegated action handler ONCE on the container; it survives
+    // setHtml() re-renders (innerHTML replaces children, not the element).
+    el.onclick = _delegationClickHandler;
     try {
         var data = await api('/api/dispatch/claude-feed?hours=' + hours + '&limit=50');
         var feed = data.feed || [];
@@ -4137,7 +4198,7 @@ async function loadClaudeFeed() {
             pendingHtml = '<div style="margin-bottom:0.8rem">'
                 + '<div style="font-size:0.7rem;color:var(--dhq-text-dim);margin-bottom:0.3rem;font-family:\'Antonio\',sans-serif;letter-spacing:0.08em">DELEGATION QUEUE — ' + pending.length + ' not yet completed</div>'
                 + '<table class="dhq-loop-table"><thead><tr>'
-                + '<th>STATUS</th><th>CAPABILITY</th><th>REASON</th><th>SOURCE</th><th>AGE</th><th>QUEUED</th>'
+                + '<th>STATUS</th><th>CAPABILITY</th><th>REASON</th><th>SOURCE</th><th>AGE</th><th>QUEUED</th><th>ACTIONS</th>'
                 + '</tr></thead><tbody>';
             pending.forEach(function(p) {
                 var statusColor = '#94a3b8';
@@ -4156,9 +4217,10 @@ async function loadClaudeFeed() {
                     + '<td style="color:' + statusColor + ';font-weight:600;font-family:monospace;font-size:0.72rem">' + esc(p.status || '?') + '</td>'
                     + '<td style="font-family:monospace;color:var(--dhq-accent);font-size:0.72rem">' + esc(p.capability || '?') + '</td>'
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(reason) + '</td>'
-                    + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(p.requested_by || '—') + '</td>'
+                    + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + esc(p.requested_by || p.delegation_source || '—') + '</td>'
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + ageStr + '</td>'
                     + '<td style="color:var(--dhq-text-dim);font-size:0.72rem">' + fmtTime(p.created_at) + '</td>'
+                    + '<td style="white-space:nowrap">' + _delegationActionsCell(p) + '</td>'
                     + '</tr>';
             });
             pendingHtml += '</tbody></table></div>';

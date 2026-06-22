@@ -1246,15 +1246,25 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 # delegate_task_worker), so its rows never reach
                 # task_execution_log with request_origin='claude'. This
                 # second source closes the gap.
+                # Surface (a) recent Claude delegations AND (b) ANY blocked/
+                # failed delegation regardless of source or age — a stuck row
+                # must never quietly age out of the queue (that is the whole
+                # "forgotten blocked job" problem). The 'automation' Codex rows
+                # (status='blocked') surface via the second clause so the owner
+                # can Retry/Dismiss them from the queue too.
                 cur.execute(
-                    """SELECT id, status, title, delegation_args,
+                    """SELECT id, status, title, delegation_args, delegation_source,
                               created_at, completed_at,
                               EXTRACT(EPOCH FROM (NOW() - created_at))::int AS age_secs
                        FROM unified_tasks
-                       WHERE delegation_source = 'claude'
-                         AND status != 'completed'
-                         AND created_at > NOW() - INTERVAL %s
-                       ORDER BY id DESC
+                       WHERE delegation_source IS NOT NULL
+                         AND status NOT IN ('completed', 'cancelled')
+                         AND (
+                               (delegation_source = 'claude'
+                                AND created_at > NOW() - INTERVAL %s)
+                               OR status IN ('blocked', 'failed')
+                             )
+                       ORDER BY (status IN ('blocked', 'failed')) DESC, id DESC
                        LIMIT %s""",
                     (f"{hours} hours", limit),
                 )
@@ -1275,6 +1285,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                             "capability": args.get("capability") or "",
                             "reason": args.get("reason") or "",
                             "requested_by": args.get("requested_by") or "",
+                            "delegation_source": r.get("delegation_source") or "",
                             "age_secs": r.get("age_secs"),
                             "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
                             "completed_at": r["completed_at"].isoformat() if r.get("completed_at") else None,
@@ -1321,6 +1332,50 @@ def register_dispatch_routes(bp, admin_required_decorator):
             )
         except Exception as e:
             logger.error("[Dispatch] Claude feed failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    # ── Blocked-job queue actions (owner Retry / Fix / Dismiss) ──────────
+    # Give the owner a one-click lever on a blocked/failed delegation so it
+    # never rots in the queue. All three are admin-gated and operate ONLY on
+    # delegation rows (services.delegation_service guards status + source).
+    @bp.route("/api/dispatch/delegations/<int:task_id>/retry", methods=["POST"])
+    @admin_required_decorator
+    def dispatch_delegation_retry(task_id):
+        """Re-queue a blocked/failed delegation (codex_task -> deferred, else pending)."""
+        try:
+            from services.delegation_service import requeue_blocked_delegation
+
+            result = requeue_blocked_delegation(task_id)
+            return jsonify(result), (200 if result.get("success") else 400)
+        except Exception as e:
+            logger.error("[Dispatch] delegation retry failed for #%s: %s", task_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/delegations/<int:task_id>/fix", methods=["POST"])
+    @admin_required_decorator
+    def dispatch_delegation_fix(task_id):
+        """Deterministically document a stuck doc delegation (no slow LLM)."""
+        try:
+            from services.delegation_service import fix_documentation_delegation
+
+            result = fix_documentation_delegation(task_id)
+            return jsonify(result), (200 if result.get("success") else 400)
+        except Exception as e:
+            logger.error("[Dispatch] delegation fix failed for #%s: %s", task_id, e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/delegations/<int:task_id>/dismiss", methods=["POST"])
+    @admin_required_decorator
+    def dispatch_delegation_dismiss(task_id):
+        """Cancel + audit-stamp a blocked/failed delegation so it leaves the queue."""
+        try:
+            from services.delegation_service import dismiss_delegation
+
+            body = request.get_json(silent=True) or {}
+            result = dismiss_delegation(task_id, reason=(body.get("reason") or ""))
+            return jsonify(result), (200 if result.get("success") else 400)
+        except Exception as e:
+            logger.error("[Dispatch] delegation dismiss failed for #%s: %s", task_id, e)
             return jsonify({"success": False, "error": str(e)}), 500
 
     @bp.route("/api/alerts/history", methods=["GET"])

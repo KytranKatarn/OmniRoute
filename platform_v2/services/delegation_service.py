@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from typing import Any, Dict, List, Optional
 
@@ -1228,6 +1229,189 @@ def mark_task_failed(task_id: int, error: str) -> None:
             """,
             (task_id, error, json.dumps({"outcome": "failed"})),
         )
+
+
+# ----------------------------------------------------------------------
+# Manual queue actions — DHQ Dispatch tab Retry / Fix / Dismiss buttons
+# ----------------------------------------------------------------------
+# A blocked/failed delegation otherwise sits in the queue forever: the
+# normal delegate_task_worker only claims status='pending', the Codex host
+# poller only 'deferred', and triage_blocked_delegations revives doc rows
+# once, after 6h. These helpers give the owner a manual lever from the
+# Dispatch tab. They mutate ONLY delegation rows and are admin-gated at the
+# route layer (tools/department_hq/dispatch_routes.py).
+
+_PR_IN_TEXT_RE = re.compile(r"\bPR\s*#?\s*(\d{1,7})", re.IGNORECASE)
+_HASH_NUM_RE = re.compile(r"#(\d{1,7})")
+
+
+def _parse_pr_number(*texts: str) -> Optional[int]:
+    """Best-effort pull a PR number from free text ('Document PR #1883')."""
+    for t in texts:
+        if not t:
+            continue
+        m = _PR_IN_TEXT_RE.search(t) or _HASH_NUM_RE.search(t)
+        if m:
+            try:
+                return int(m.group(1))
+            except (TypeError, ValueError):
+                continue
+    return None
+
+
+def _load_delegation_row(cur, task_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch a delegation row + parse delegation_args into ``_args``."""
+    cur.execute(
+        "SELECT id, status, title, description, delegation_source, delegation_args " "FROM unified_tasks WHERE id = %s",
+        (task_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return None
+    r = dict(row)
+    args = r.get("delegation_args") or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except Exception:
+            args = {}
+    r["_args"] = args if isinstance(args, dict) else {}
+    return r
+
+
+def requeue_blocked_delegation(task_id: int) -> Dict[str, Any]:
+    """Re-queue a blocked/failed delegation so its worker re-attempts it.
+
+    The normal delegate_task_worker only claims status='pending'; a
+    ``codex_task`` is only claimed by the host poller at status='deferred'.
+    So the retry target depends on capability: codex_task -> 'deferred',
+    everything else -> 'pending'. The worker (or poller) re-claims on its
+    next cycle — no dispatcher call here. Also drops any stale
+    ``triage_requeued`` flag so the daily triage can act again if needed.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        row = _load_delegation_row(cur, task_id)
+        if row is None:
+            return {"success": False, "error": "task_not_found"}
+        if not row.get("delegation_source"):
+            return {"success": False, "error": "not_a_delegation"}
+        if row["status"] not in ("blocked", "failed"):
+            return {"success": False, "error": f"status_not_retryable:{row['status']}"}
+        capability = row["_args"].get("capability") or ""
+        new_status = "deferred" if capability == "codex_task" else "pending"
+        cur.execute(
+            "UPDATE unified_tasks "
+            "SET status = %s, updated_at = now(), "
+            "    metadata = (COALESCE(metadata, '{}'::jsonb) "
+            "      || jsonb_build_object('manual_retry', "
+            "             jsonb_build_object('from', %s, 'to', %s, 'at', now()))) "
+            "      - 'triage_requeued' "
+            "WHERE id = %s",
+            (new_status, row["status"], new_status, task_id),
+        )
+        cur.execute(
+            "INSERT INTO work_notes (task_id, note_type, content, metadata) "
+            "VALUES (%s, 'delegation_retry', %s, %s::jsonb)",
+            (
+                task_id,
+                f"Manually re-queued (owner): {row['status']} -> {new_status}",
+                json.dumps({"outcome": "requeued", "capability": capability}),
+            ),
+        )
+    logger.info(
+        "requeue_blocked_delegation: task #%s %s -> %s (cap=%s)",
+        task_id,
+        row["status"],
+        new_status,
+        capability,
+    )
+    return {"success": True, "task_id": task_id, "new_status": new_status, "capability": capability}
+
+
+def dismiss_delegation(task_id: int, reason: str = "") -> Dict[str, Any]:
+    """Close out a blocked/failed delegation without re-running it.
+
+    Sets status='cancelled' (drops it from the active queue) + stamps
+    ``metadata.dismissed`` and a work_note so the close-out is auditable —
+    never faked as a real 'completed'.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        row = _load_delegation_row(cur, task_id)
+        if row is None:
+            return {"success": False, "error": "task_not_found"}
+        if not row.get("delegation_source"):
+            return {"success": False, "error": "not_a_delegation"}
+        if row["status"] in ("completed", "cancelled"):
+            return {"success": False, "error": f"already_{row['status']}"}
+        cur.execute(
+            "UPDATE unified_tasks "
+            "SET status = 'cancelled', updated_at = now(), "
+            "    metadata = COALESCE(metadata, '{}'::jsonb) "
+            "      || jsonb_build_object('dismissed', "
+            "             jsonb_build_object('from', %s, 'reason', %s, 'at', now())) "
+            "WHERE id = %s",
+            (row["status"], (reason or "")[:500], task_id),
+        )
+        cur.execute(
+            "INSERT INTO work_notes (task_id, note_type, content, metadata) "
+            "VALUES (%s, 'delegation_dismissed', %s, %s::jsonb)",
+            (
+                task_id,
+                f"Dismissed (owner) from status={row['status']}" + (f": {reason}" if reason else ""),
+                json.dumps({"outcome": "dismissed"}),
+            ),
+        )
+    logger.info("dismiss_delegation: task #%s dismissed (was %s)", task_id, row["status"])
+    return {"success": True, "task_id": task_id, "new_status": "cancelled"}
+
+
+def fix_documentation_delegation(task_id: int) -> Dict[str, Any]:
+    """'Fix' a stuck documentation delegation deterministically.
+
+    Instead of re-dispatching the slow LLM doc-generation (which is what
+    timed out at 660s for the generic ``capability='documentation'`` path),
+    parse the PR number from the delegation args / reason / title and run
+    the deterministic ``_document_pr`` path (idempotent KB upsert from the
+    F.O.R.G.E. review already in the DB — no Ollama), then mark the task
+    completed. Only valid for documentation-class rows carrying a PR number.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        row = _load_delegation_row(cur, task_id)
+        if row is None:
+            return {"success": False, "error": "task_not_found"}
+        args = row["_args"]
+        capability = args.get("capability") or ""
+        if capability not in ("documentation", "document_pr"):
+            return {"success": False, "error": f"not_documentation:{capability or 'unknown'}"}
+        payload = args.get("args") or {}
+        pr_number = payload.get("pr_number") or _parse_pr_number(
+            args.get("reason") or "",
+            row.get("title") or "",
+            row.get("description") or "",
+        )
+        if not pr_number:
+            return {"success": False, "error": "no_pr_number_found"}
+
+    # _document_pr + mark_task_completed each open their own cursor — call
+    # them OUTSIDE the SELECT transaction above.
+    doc = _document_pr(
+        {"pr_number": int(pr_number), "pr_title": payload.get("pr_title")},
+        args.get("reason") or "",
+    )
+    if not doc.get("success"):
+        return {"success": False, "error": doc.get("error") or doc.get("summary") or "document_pr_failed"}
+    mark_task_completed(
+        task_id,
+        f"Fixed via deterministic document_pr (#{pr_number}): {doc.get('summary')}",
+        capability="documentation",
+    )
+    return {
+        "success": True,
+        "task_id": task_id,
+        "pr_number": int(pr_number),
+        "summary": doc.get("summary"),
+        "result": doc.get("result"),
+    }
 
 
 # ----------------------------------------------------------------------

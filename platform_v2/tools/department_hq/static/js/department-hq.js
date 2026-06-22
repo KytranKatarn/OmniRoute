@@ -2385,6 +2385,7 @@ async function loadSocialFeed() {
     if (!el) return;
     loaded['social'] = true;
     setHtml(el, renderSignalShell());
+    refreshSignalAccountBar();  // 5b: data-driven roster + health dots (non-blocking; fallback-safe)
     await loadSignalTab('overview');
     loadSignalPendingBadge();
 }
@@ -2409,6 +2410,48 @@ function renderSignalShell() {
         + '<button class="signal-sub" data-sub="session" onclick="switchSignalTab(\'session\')">🔐 Session</button>'
         + '</div>'
         + '<div id="signalContent" class="dhq-loading" style="min-height:200px">Loading...</div>';
+}
+
+// ── 5b: data-driven account bar + per-account health dot (scale roster) ──
+// renderSignalShell() paints a hardcoded fallback bar synchronously; this then
+// rebuilds it from the registry roster (GET /api/signal/accounts/health) so ARCHIE +
+// any supporting agent appear as DATA with an honest status dot. On ANY API failure the
+// hardcoded fallback bar is left intact — no regression.
+var _signalHealthColors = {
+    healthy: '#22c55e', probe_warn: '#f59e0b', logged_out: '#ef4444',
+    not_established: '#9ca3af', unknown: '#9ca3af'
+};
+var _signalHealthTitle = {
+    healthy: 'Authed + posting', probe_warn: 'Authed on disk — probe flaky (#4372)',
+    logged_out: 'Logged out — re-auth via the Session tab',
+    not_established: 'Registered — awaiting one-time login', unknown: 'Unknown'
+};
+
+async function refreshSignalAccountBar() {
+    var bar = document.querySelector('.signal-accounts');
+    if (!bar) return;
+    var data;
+    try { data = await api('/api/signal/accounts/health'); } catch (e) { return; }
+    var accts = (data && data.accounts) || [];
+    if (!accts.length) return;   // keep the hardcoded fallback bar
+    var html = '';
+    accts.forEach(function(a) {
+        var color = _signalHealthColors[a.health] || '#9ca3af';
+        var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
+            + 'background:' + color + ';margin-right:6px;vertical-align:middle"></span>';
+        var clickable = a.profile_established && a.can_post;
+        var cls = 'signal-acct-btn' + (a.account_key === signalAccount ? ' active' : '');
+        var title = esc((_signalHealthTitle[a.health] || a.health || '')
+            + (a.failing_approvals ? ' — ' + a.failing_approvals + ' failing' : ''));
+        var attrs = ' data-account="' + esc(a.account_key) + '" title="' + title + '"';
+        // account_key is a controlled registry identifier (^[a-z0-9_]+$) — safe inline.
+        if (clickable) { attrs += " onclick=\"switchSignalAccount('" + a.account_key + "')\""; }
+        else { attrs += ' disabled style="opacity:0.5;cursor:default"'; }
+        var warn = a.failing_approvals
+            ? ' <span style="color:#ef4444;font-weight:600">&#9888;' + a.failing_approvals + '</span>' : '';
+        html += '<button class="' + cls + '"' + attrs + '>' + dot + esc(a.label || a.account_key) + warn + '</button>';
+    });
+    setHtml(bar, html);
 }
 
 /* ── S.I.G.N.A.L. SESSION sub-tab (#3953/#3948/#3982) — persistent trusted

@@ -58,6 +58,91 @@ def _severity_for_kwh(kwh: float) -> str:
     return "info"
 
 
+def per_agent_efficiency(hours: int = 24):
+    """P2-D (#381): per-AGENT energy / CO2 / token efficiency over the last ``hours``, using the SAME
+    methodology as the hourly carbon job (_watts_for_model x duration -> Canada grid factor). Aggregates
+    task_execution_log by (agent, model) then rolls up per agent. Read-only; no schema change.
+    Returns a list sorted by CO2 desc: [{agent_id, agent_name, dispatches, tokens, energy_kwh, co2_kg,
+    tokens_per_dispatch}]."""
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT agent_id, agent_name, model_used,
+                   COUNT(*) AS n,
+                   COALESCE(SUM(duration_ms), 0) AS dur_ms,
+                   COALESCE(SUM(tokens_used), 0) AS toks
+            FROM task_execution_log
+            WHERE created_at > NOW() - INTERVAL '%s hours'
+              AND agent_id IS NOT NULL
+              AND model_used IS NOT NULL
+            GROUP BY agent_id, agent_name, model_used
+            """,
+            (hours,),
+        )
+        rows = cur.fetchall()
+    agg = {}
+    for r in rows:
+        aid = r["agent_id"]
+        a = agg.setdefault(
+            aid,
+            {
+                "agent_id": aid,
+                "agent_name": r["agent_name"],
+                "dispatches": 0,
+                "tokens": 0,
+                "energy_kwh": 0.0,
+                "co2_kg": 0.0,
+            },
+        )
+        watts = _watts_for_model(r["model_used"])
+        dur_ms = int(r["dur_ms"])
+        a["dispatches"] += int(r["n"])
+        a["tokens"] += int(r["toks"] or 0)
+        a["energy_kwh"] += watts * (dur_ms / 1_000 / 3_600) / 1000.0
+        a["co2_kg"] += _co2_kg(watts, dur_ms)
+    out = []
+    for a in agg.values():
+        a["energy_kwh"] = round(a["energy_kwh"], 6)
+        a["co2_kg"] = round(a["co2_kg"], 8)
+        a["tokens_per_dispatch"] = round(a["tokens"] / a["dispatches"], 1) if a["dispatches"] else 0
+        out.append(a)
+    out.sort(key=lambda x: x["co2_kg"], reverse=True)
+    return out
+
+
+def efficiency_summary(hours: int = 24):
+    """P2-D (#381): org-wide efficiency snapshot for the K.I.N. tab + the public CREED efficiency
+    pillar — totals + per-dispatch intensity + the count of current right-size opportunities (pending
+    downsizing proposals; None if benchmark data is unavailable)."""
+    agents = per_agent_efficiency(hours)
+    disp = sum(a["dispatches"] for a in agents)
+    tok = sum(a["tokens"] for a in agents)
+    kwh = sum(a["energy_kwh"] for a in agents)
+    co2 = sum(a["co2_kg"] for a in agents)
+    opportunities = None
+    try:
+        import sys
+
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        from tools.agent_academy.services.benchmark_service import propose_model_rightsizing
+
+        opportunities = len(propose_model_rightsizing())
+    except Exception:
+        opportunities = None
+    return {
+        "window_hours": hours,
+        "agents_tracked": len(agents),
+        "dispatches": disp,
+        "tokens": tok,
+        "energy_kwh": round(kwh, 6),
+        "co2_kg": round(co2, 8),
+        "co2_g_per_dispatch": round(co2 * 1000 / disp, 4) if disp else 0,
+        "tokens_per_dispatch": round(tok / disp, 1) if disp else 0,
+        "grid_factor_kg_per_kwh": _CANADA_GRID_KG_CO2_PER_KWH,
+        "right_size_opportunities": opportunities,
+    }
+
+
 def run_carbon_footprint_job() -> dict:
     """Called by APScheduler hourly. Returns summary dict for logging."""
     try:

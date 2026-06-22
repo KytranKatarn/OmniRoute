@@ -347,6 +347,33 @@ def register_creed_routes(bp, admin_required):
             logger.error("creed_welfare failed: %s", e)
             return jsonify({"success": False, "error": "welfare score unavailable"}), 502
 
+    @bp.route("/api/creed/efficiency")
+    def creed_efficiency():
+        """P2-D (#381): per-agent + org-wide energy / CO2 / token efficiency for the DHQ C.R.E.E.D./
+        K.I.N. tab and the public CREED efficiency pillar. Reuses the carbon-footprint methodology
+        (_watts_for_model x duration -> Canada grid) over task_execution_log. ?hours=24 (1..720).
+        jsonify-safe plain types.
+        """
+        from flask import request
+
+        try:
+            hours = max(1, min(int(request.args.get("hours", 24)), 720))
+        except (TypeError, ValueError):
+            hours = 24
+        try:
+            from services.carbon_footprint_service import efficiency_summary, per_agent_efficiency
+
+            return jsonify(
+                {
+                    "success": True,
+                    "summary": efficiency_summary(hours),
+                    "agents": per_agent_efficiency(hours)[:50],
+                }
+            )
+        except Exception as e:
+            logger.error("creed_efficiency failed: %s", e)
+            return jsonify({"success": False, "error": "efficiency data unavailable"}), 502
+
     @bp.route("/api/creed/tenants")
     def creed_tenants():
         """Per-product C.R.E.E.D. tenant directory with live scores (#3947).

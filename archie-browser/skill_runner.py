@@ -53,6 +53,44 @@ def _lock_for(profile_dir: str) -> threading.Lock:
 # profile self-recovers on the next call. (Tunable; default 90s < the 120s client.)
 _LOCK_ACQUIRE_TIMEOUT_S = int(os.getenv("BROWSER_PROFILE_LOCK_TIMEOUT_S", "90"))
 
+# Default per-page navigation + action timeout. Before this, skills set NO timeout, so
+# an un-timed page.goto rode Playwright's 30s default and a slow/wedged feed could stack
+# multiple gotos past the platform's 180s client ceiling (linkedin_post does two gotos →
+# ~235s worst case). A hard cap makes every navigation fail fast + observably instead of
+# hanging silently. (#4372)
+_NAV_TIMEOUT_MS = int(os.getenv("BROWSER_NAV_TIMEOUT_MS", "20000"))
+
+# Skills that only READ may safely run on the storage_state fallback context when the
+# persistent profile is momentarily locked. Everything else MUTATES (post/like/comment/
+# connect/edit) — running a mutating skill on a possibly-unauthed fallback risks a
+# logged-out 120s composer hang or, worse, a DOUBLE-POST. So mutating skills FAIL FAST
+# when the trusted profile is unavailable and the scheduler reschedules them. (#4372)
+_READ_ONLY_SKILLS = {
+    "linkedin_feed", "linkedin_notifications", "linkedin_search", "linkedin_inbox",
+    "linkedin_recent_activity", "linkedin_analytics", "linkedin_profile_view",
+    "linkedin_post_comments", "linkedin_company_inbox", "session_probe",
+}
+
+
+def _is_mutating(skill_name: str, module) -> bool:
+    """True unless the skill is on the read-only allowlist (conservative default: an
+    unknown/new skill is treated as mutating). An explicit module-level MUTATING flag
+    on the skill overrides the allowlist."""
+    flag = getattr(module, "MUTATING", None)
+    if flag is not None:
+        return bool(flag)
+    return skill_name not in _READ_ONLY_SKILLS
+
+
+def _set_page_timeouts(page) -> None:
+    """Apply the default navigation + action timeout to a freshly created page so no
+    un-timed goto/locator can hang to the 180s client ceiling. Best-effort."""
+    try:
+        page.set_default_navigation_timeout(_NAV_TIMEOUT_MS)
+        page.set_default_timeout(_NAV_TIMEOUT_MS)
+    except Exception:
+        pass
+
 
 def _kill_chrome_for_profile(profile_dir: str) -> int:
     """SIGKILL any chrome bound to profile_dir (matched via /proc cmdline, i.e. its
@@ -85,6 +123,41 @@ def _kill_chrome_for_profile(profile_dir: str) -> int:
             continue
     if killed:
         logger.warning("[Profile] force-killed %d stuck chrome proc(s) for %s", killed, profile_dir)
+    return killed
+
+
+def kill_agent_chrome(agent_id) -> int:
+    """Watchdog unwedge: SIGKILL any chrome bound to ANY profile dir of this agent
+    (PROFILES_DIR/<agent_id>-<platform>, matched via /proc cmdline --user-data-dir).
+    Called by the sidecar per-task watchdog to free a wedged per-profile lock when a
+    task exceeds its deadline. Strict guard — the trailing '-' on the prefix prevents
+    agent 34 matching 342-... and a blank/zero id matching everything."""
+    import signal as _signal
+
+    try:
+        prefix = os.path.join(PROFILES_DIR, f"{int(agent_id)}-")
+    except (TypeError, ValueError):
+        return 0
+    if len(prefix) <= len(PROFILES_DIR) + 1:
+        return 0
+    killed = 0
+    try:
+        pids = os.listdir("/proc")
+    except OSError:
+        return 0
+    for ent in pids:
+        if not ent.isdigit():
+            continue
+        try:
+            with open(f"/proc/{ent}/cmdline", "rb") as fh:
+                cmd = fh.read().decode("utf-8", "ignore")
+            if prefix in cmd and "chrom" in cmd.lower():
+                os.kill(int(ent), _signal.SIGKILL)
+                killed += 1
+        except (OSError, ValueError, ProcessLookupError):
+            continue
+    if killed:
+        logger.warning("[Watchdog] force-killed %d chrome proc(s) for agent %s", killed, agent_id)
     return killed
 
 
@@ -154,13 +227,22 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
         try:
             return _execute_persistent(agent_id, skill, skill_name, platform, profile_dir, params)
         except _ProfileUnavailable as exc:
-            # Launch-phase failure ONLY (e.g. ProcessSingleton lock while the
-            # owner is mid-login in the sidecar) → fall back to the legacy
-            # storage_state path. Skill-phase errors propagate — the skill may
-            # already have acted (a re-run could double-post).
+            # Launch-phase failure ONLY (e.g. ProcessSingleton lock while the owner is
+            # mid-login, or a wedged chrome the watchdog just killed). A MUTATING skill
+            # must NOT run on the storage_state fallback — that context may be unauthed
+            # (the trusted on-disk profile is the source of truth), which produces a
+            # logged-out composer hang or, worse, a DOUBLE-POST. Fail fast so the
+            # scheduler reschedules once the profile frees; only READ skills fall back.
+            if _is_mutating(skill_name, skill["module"]):
+                logger.error(
+                    "[Profile] %s/%s MUTATING skill %s — trusted profile unavailable "
+                    "(%s); failing fast, NO unauthed storage_state fallback",
+                    agent_id, platform, skill_name, exc,
+                )
+                raise
             logger.warning(
                 "[Profile] persistent context unavailable for %s/%s (%s) — "
-                "falling back to storage_state",
+                "read-only skill, falling back to storage_state",
                 agent_id, platform, exc,
             )
 
@@ -176,6 +258,7 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
             context = browser.new_context(**ctx_kwargs)
             try:
                 page = context.new_page()
+                _set_page_timeouts(page)
                 result = skill["module"].execute(page, params)
 
                 # Session expiry detection — if LinkedIn redirected to login, refresh
@@ -186,6 +269,10 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
                               "linkedin.com/checkpoint", "linkedin.com/signup",
                               "linkedin.com/uas/")
                 )
+                # Surface a positive logged-out signal to the caller so the health
+                # probe (Slice 2) can distinguish real logout from a transient timeout.
+                if _logged_out and isinstance(result, dict):
+                    result["logged_out"] = True
                 if _logged_out and platform:
                     logger.warning(
                         "[Session] Agent %s session expired on %s — attempting re-login",
@@ -268,6 +355,7 @@ def _execute_persistent(
                 raise _ProfileUnavailable(f"{type(exc).__name__}: {exc}") from exc
             try:
                 page = context.new_page()
+                _set_page_timeouts(page)
                 result = skill["module"].execute(page, params)
 
                 current_url = page.url
@@ -277,6 +365,10 @@ def _execute_persistent(
                               "linkedin.com/checkpoint", "linkedin.com/signup",
                               "linkedin.com/uas/")
                 )
+                # Surface a positive logged-out signal so the health probe (Slice 2)
+                # can flip 'stale' ONLY on real logout, not a transient timeout.
+                if _logged_out and isinstance(result, dict):
+                    result["logged_out"] = True
                 if _logged_out:
                     logger.error(
                         "[Profile] Agent %s trusted profile logged out on %s — "

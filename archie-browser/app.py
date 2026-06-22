@@ -198,6 +198,13 @@ def _apply_rate_limit(app):
     time.sleep(delay)
 
 
+# Per-task hard deadline — kept below the platform's ~180s client poll so a wedged task
+# surfaces as a clean, bounded watchdog_timeout (and frees the profile lock) BEFORE the
+# client gives up. On deadline the watchdog SIGKILLs the agent's wedged chrome, which
+# unblocks the hung Playwright call so the skill thread unwinds + releases the lock. (#4372)
+_TASK_DEADLINE_S = float(os.getenv("BROWSER_TASK_DEADLINE_S", "150"))
+
+
 def _execute_task(app, task_id, agent_id, skill_name, params):
     with app._tasks_lock:
         app._tasks[task_id]["status"] = "running"
@@ -205,6 +212,30 @@ def _execute_task(app, task_id, agent_id, skill_name, params):
     # Rate limiting — skip for health checks / non-browser ops
     if not app.config.get("TESTING"):
         _apply_rate_limit(app)
+
+    # Watchdog: if the skill exceeds the deadline, force-kill the agent's wedged chrome
+    # so the per-profile lock frees and the hung Playwright call raises (the thread then
+    # unwinds into the except below). Best-effort; cancelled on normal completion.
+    _wd = {"fired": False}
+
+    def _on_deadline():
+        _wd["fired"] = True
+        try:
+            import skill_runner
+            killed = skill_runner.kill_agent_chrome(agent_id)
+            logger.error(
+                "[Watchdog] task %s (%s / agent %s) exceeded %.0fs — force-killed %d "
+                "chrome proc(s) to free the profile lock",
+                task_id, skill_name, agent_id, _TASK_DEADLINE_S, killed,
+            )
+        except Exception as exc:
+            logger.error("[Watchdog] task %s unwedge failed: %s", task_id, exc)
+
+    timer = None
+    if not app.config.get("TESTING"):
+        timer = threading.Timer(_TASK_DEADLINE_S, _on_deadline)
+        timer.daemon = True
+        timer.start()
 
     start = datetime.now(timezone.utc)
     try:
@@ -218,12 +249,18 @@ def _execute_task(app, task_id, agent_id, skill_name, params):
         _log_task_to_db(task_id, agent_id, skill_name, params, "completed", result, None, duration_ms)
     except Exception as exc:
         duration_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
-        logger.error("task %s failed: %s", task_id, exc)
+        err = str(exc)
+        if _wd["fired"]:
+            err = f"watchdog_timeout after {_TASK_DEADLINE_S:.0f}s (chrome force-killed to free lock): {err}"
+        logger.error("task %s failed: %s", task_id, err)
         with app._tasks_lock:
             app._tasks[task_id].update(
-                {"status": "failed", "error": str(exc), "duration_ms": duration_ms}
+                {"status": "failed", "error": err, "duration_ms": duration_ms}
             )
-        _log_task_to_db(task_id, agent_id, skill_name, params, "failed", None, str(exc), duration_ms)
+        _log_task_to_db(task_id, agent_id, skill_name, params, "failed", None, err, duration_ms)
+    finally:
+        if timer is not None:
+            timer.cancel()
 
 
 def _log_task_to_db(task_id, agent_id, skill_name, params, status, result, error, duration_ms):

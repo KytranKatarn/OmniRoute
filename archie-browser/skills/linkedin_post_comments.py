@@ -37,6 +37,11 @@ def execute(page, params: dict) -> dict:
     if not post_url:
         raise ValueError("post_url is required for linkedin_post_comments")
 
+    # Normalize to an ABSOLUTE url — a relative '/feed/update/urn:...' makes chromium
+    # raise "Cannot navigate to invalid URL", which (pre-fix) wedged the profile. (#4372)
+    if not post_url.startswith(("http://", "https://")):
+        post_url = "https://www.linkedin.com/" + post_url.lstrip("/")
+
     page.goto(post_url, wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
 

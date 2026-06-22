@@ -526,7 +526,11 @@ def classify_pr_tier(review: dict) -> int:
     total = additions + deletions
     title = (review.get("title") or "").lower()
     summary = (review.get("ai_summary") or "").upper()
-    branch = (review.get("branch") or "").lower()
+    # get_review() is `SELECT *` from pr_reviews, whose column is head_branch — there is NO
+    # "branch" column, so the old review.get("branch") was always "" and the branch-based Tier-3
+    # escalation (migration / NNN_ patterns -> gemma3:12b) never fired. (F.O.R.G.E. review-quality
+    # diagnosis 2026-06-22, QW-3.)
+    branch = (review.get("head_branch") or review.get("branch") or "").lower()
     meta = review.get("metadata") or {}
 
     # --- Tier 3 gates ---

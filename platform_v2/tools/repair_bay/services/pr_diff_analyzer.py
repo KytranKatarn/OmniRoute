@@ -83,7 +83,7 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
         mark_review_started(pr_number, _repo)
         diff = _fetch_diff(diff_url)
         summary = _structured_review(review, diff, pr_number, _repo) or _run_forge_review(
-            _build_prompt(review, diff), pr_number, _repo
+            _build_prompt(review, diff), pr_number, _repo, diff=diff
         )
         if not summary:
             mark_review_pending(pr_number, _repo)
@@ -134,7 +134,9 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
 
             diff = _fetch_diff(diff_url)
             prompt = _build_prompt(review, diff)
-            summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(prompt, pr_number, repo)
+            summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(
+                prompt, pr_number, repo, diff=diff
+            )
 
             if summary:
                 mark_review_done(pr_number, summary, repo)
@@ -713,7 +715,102 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     return _render_review_text(parsed, model=model_label, note=note)
 
 
-def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> str | None:
+# --- QW-1 (#381): gate the FREEFORM fallback with the SAME guards as the structured path --------
+# RC-1 (dominant): every Phase-1 guard (evidence-verification, injection drop, severity normalizer,
+# deterministic verdict recompute) lived ONLY inside _structured_review. The freeform fallback —
+# which handles ~80% of reviews when the 7B doesn't emit clean JSON — ran a single relax-only
+# _apply_severity_gate, so a fabricated [CRITICAL] (evidence not in the diff) blocked unconditionally.
+# QW-1 parses the freeform issue lines into the same dicts and runs them through the identical
+# evidence + normalize + recompute pipeline. Fail-open: any problem returns the prior behavior.
+
+
+def _freeform_gate_enabled() -> bool:
+    return str(_get_setting("forge:freeform_gate_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+_FREEFORM_ISSUE_RE = re.compile(r"^\s*[-*]?\s*\[\s*(CRITICAL|WARNING|INFO)\s*\]\s*(.+)$", re.IGNORECASE)
+
+
+def _parse_freeform_issues(text: str) -> list:
+    """Parse the rubric-mandated ``- [SEV] <title> — <why> — Evidence: <line>`` freeform issue lines
+    into the same {severity,title,why,evidence} dicts the structured path uses."""
+    issues = []
+    for line in (text or "").splitlines():
+        m = _FREEFORM_ISSUE_RE.match(line)
+        if not m:
+            continue
+        sev = m.group(1).upper()
+        body = m.group(2).strip()
+        ev = ""
+        ev_m = re.search(r"evidence\s*:\s*(.*)$", body, re.IGNORECASE)
+        if ev_m:
+            ev = ev_m.group(1).strip()
+            body = body[: ev_m.start()].rstrip(" —–-")
+        parts = re.split(r"\s+[—–-]\s+", body, maxsplit=1)
+        title = parts[0].strip()
+        why = parts[1].strip() if len(parts) > 1 else ""
+        issues.append({"severity": sev, "title": title, "why": why, "evidence": ev})
+    return issues
+
+
+def _extract_summary_block(text: str) -> str:
+    """Pull the SUMMARY paragraph out of a freeform review (between 'SUMMARY' and 'ISSUES')."""
+    m = re.search(r"SUMMARY\s*\n(.*?)(?:\n\s*ISSUES\b|\Z)", text or "", re.IGNORECASE | re.S)
+    return (m.group(1).strip() if m else "").strip()
+
+
+def _render_freeform_gated(summary: str, issues: list, verdict: str, note: str) -> str:
+    """Re-render the gated freeform review into canonical SUMMARY/ISSUES/VERDICT text so the merge
+    gate + parse_verdict see the recomputed verdict. Marked structured=freeform-gated (not =json)."""
+    lines = [f"SUMMARY\n{summary}\n", "ISSUES"]
+    if issues:
+        for i in issues:
+            sev = str((i or {}).get("severity", "INFO")).upper()
+            title = ((i or {}).get("title") or "").strip()
+            why = ((i or {}).get("why") or "").strip()
+            ev = ((i or {}).get("evidence") or "").strip()
+            lines.append(f"- [{sev}] {title} — {why} — Evidence: {ev}")
+    else:
+        lines.append("No issues found.")
+    meta = "\n[review-meta] structured=freeform-gated" + (f" {note}" if note else "")
+    return "\n".join(lines) + f"\n\nVERDICT: {verdict}" + meta
+
+
+def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str = None) -> str:
+    """QW-1 (RC-1): run the FREEFORM review through the same evidence-verification + severity
+    normalizer + deterministic verdict recompute as the structured path. Fail-open — flag off / no
+    parsed issues / no diff / any exception returns the prior _apply_severity_gate(text), never worse."""
+    if not text or not _freeform_gate_enabled():
+        return _apply_severity_gate(text)
+    try:
+        issues = _parse_freeform_issues(text)
+        if not issues or not diff:
+            return _apply_severity_gate(text)
+        notes = []
+        if _evidence_verification_enabled():
+            kept, dropped = _verify_evidence(issues, diff)
+            if dropped:
+                notes.append(f"dropped {len(dropped)} issue(s) with evidence not in the diff")
+                if _writeback_enabled():
+                    _writeback_false_positives(dropped, pr_number, repo)
+            issues = kept
+        _normalize_severity(issues)
+        n_demoted = sum(1 for i in issues if isinstance(i, dict) and i.get("_demoted_from"))
+        if n_demoted:
+            notes.append(f"normalized {n_demoted} nit(s) to INFO")
+        verdict = _recompute_verdict(issues, None, _review_confidence_min())
+        return _render_freeform_gated(_extract_summary_block(text), issues, verdict, "; ".join(notes))
+    except Exception as exc:
+        logger.info("[PR Review] freeform gate fell back to severity-gate: %s", exc)
+        return _apply_severity_gate(text)
+
+
+def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff: str = None) -> str | None:
     """Dispatch the review prompt to F.O.R.G.E. via Bridge.
 
     Returns the summary string from F.O.R.G.E., or ``None``. ``None`` means
@@ -751,7 +848,7 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> s
                 logger.info("[PR Review] F.O.R.G.E. dispatch queued — model cold-loading, will retry")
             return None
         if result.success and result.response:
-            return _apply_severity_gate(result.response.strip())
+            return _gate_freeform_review(result.response.strip(), diff, pr_number, repo)
         logger.warning("[PR Review] F.O.R.G.E. dispatch returned no response: success=%s", result.success)
         return None
     except Exception as exc:

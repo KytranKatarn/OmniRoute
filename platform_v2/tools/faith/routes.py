@@ -8,7 +8,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 from smtplib import SMTPException
-from typing import Any
+from typing import Any, cast
 
 from flask import Response, jsonify, render_template, request
 from flask_login import current_user, login_required
@@ -28,7 +28,7 @@ from services.time_utils import now_utc
 logger = logging.getLogger(__name__)
 
 JsonDict = dict[str, Any]
-JsonResponse = Response | tuple[Response, int]
+JsonResponse = JsonDict | Response | tuple[Response, int]
 
 FAITH_AGENT_ID = 352
 EMMANUEL_EMAIL = "emmanuel@kytranempowerment.com"
@@ -528,7 +528,7 @@ def _load_web_bible() -> JsonDict:
                 }
             )
 
-    aliases = {}
+    aliases: dict[str, str] = {}
     for book in books:
         aliases[book["code"].lower()] = book["code"]
         aliases[book["name"].lower()] = book["code"]
@@ -746,7 +746,7 @@ def _load_scripture_corpus() -> JsonDict:
         + _load_tao_legge()
         + _load_analects_legge()
     )
-    counts = {}
+    counts: dict[str, int] = {}
     for passage in passages:
         counts[passage["collection"]] = counts.get(passage["collection"], 0) + 1
     collections = [{**item, "passage_count": counts.get(item["id"], 0)} for item in SCRIPTURE_COLLECTIONS]
@@ -756,7 +756,10 @@ def _load_scripture_corpus() -> JsonDict:
 @lru_cache(maxsize=1)
 def _load_encyclopedia_entries() -> list[JsonDict]:
     try:
-        return json.loads(ENCYCLOPEDIA_PATH.read_text(encoding="utf-8"))
+        entries = json.loads(ENCYCLOPEDIA_PATH.read_text(encoding="utf-8"))
+        if isinstance(entries, list):
+            return cast(list[JsonDict], entries)
+        return []
     except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError):
         logger.exception("[Faith] Failed to load encyclopedia seed")
         return []
@@ -984,7 +987,7 @@ def bible_search() -> JsonResponse:
     limit = _clamped_search_limit(25)
 
     q = query.lower()
-    results = []
+    results: list[JsonDict] = []
     for verse in _load_web_bible()["verses"]:
         haystack = f"{verse['reference']} {verse['text']}".lower()
         if q in haystack:
@@ -1018,7 +1021,7 @@ def scriptures_search() -> JsonResponse:
     limit = _clamped_search_limit(40)
 
     q = query.lower()
-    results = []
+    results: list[JsonDict] = []
     for passage in _load_scripture_corpus()["passages"]:
         if collection != "all" and passage["collection"] != collection:
             continue
@@ -1270,7 +1273,7 @@ def list_sessions() -> JsonResponse:
         logger.exception("[Faith] Failed to load sessions")
         return jsonify({"success": False, "error": "Failed to load sessions"}), 500
 
-    sessions = []
+    sessions: list[JsonDict] = []
     for row in rows:
         created_at = _row_value(row, "created_at", 6)
         sessions.append(
@@ -1290,6 +1293,8 @@ def list_sessions() -> JsonResponse:
 @faith_bp.route("/api/faith/prayer", methods=["POST"])
 @login_required
 def guided_prayer() -> JsonResponse:
+    data: JsonDict
+    error: str | None
     data, error = _json_body()
     if error:
         return _validation_error(error)
@@ -1346,6 +1351,8 @@ def scripture_search() -> JsonResponse:
 @faith_bp.route("/api/faith/lectio", methods=["POST"])
 @login_required
 def lectio_divina() -> JsonResponse:
+    data: JsonDict
+    error: str | None
     data, error = _json_body()
     if error:
         return _validation_error(error)
@@ -1412,7 +1419,7 @@ def checkin_history() -> JsonResponse:
                 "WHERE user_id = %s ORDER BY created_at DESC LIMIT 30",
                 (current_user.id,),
             )
-            rows = [dict(r) for r in cur.fetchall()]
+            rows: list[JsonDict] = [dict(r) for r in cur.fetchall()]
     except PsycopgError:
         logger.exception("[Faith] Failed to load check-in history")
         return jsonify({"success": False, "error": "Failed to load"}), 500
@@ -1463,7 +1470,7 @@ def journal_list() -> JsonResponse:
                     "WHERE user_id = %s ORDER BY created_at DESC LIMIT 50",
                     (current_user.id,),
                 )
-            rows = [dict(r) for r in cur.fetchall()]
+            rows: list[JsonDict] = [dict(r) for r in cur.fetchall()]
     except PsycopgError:
         logger.exception("[Faith] Failed to load journal")
         return jsonify({"success": False, "error": "Failed to load"}), 500
@@ -1499,6 +1506,8 @@ def _send_chaplain_email(user_display_name: str, message: str, context_entries: 
 @faith_bp.route("/api/faith/connect-chaplain", methods=["POST"])
 @login_required
 def connect_chaplain() -> JsonResponse:
+    data: JsonDict
+    error: str | None
     data, error = _json_body()
     if error:
         return _validation_error(error)
@@ -1506,16 +1515,16 @@ def connect_chaplain() -> JsonResponse:
     if error:
         return _validation_error(error)
 
-    journal_ids = data.get("journal_ids") or []
-    if not isinstance(journal_ids, list):
+    journal_ids_raw = data.get("journal_ids") or []
+    if not isinstance(journal_ids_raw, list):
         return _validation_error("journal_ids must be a list")
-    if len(journal_ids) > MAX_CHAPLAIN_CONTEXT_IDS:
+    if len(journal_ids_raw) > MAX_CHAPLAIN_CONTEXT_IDS:
         return _validation_error(f"journal_ids may include at most {MAX_CHAPLAIN_CONTEXT_IDS} entries")
     try:
-        journal_ids = [int(item) for item in journal_ids]
+        journal_ids: list[int] = [int(item) for item in journal_ids_raw]
     except (TypeError, ValueError):
         return _validation_error("journal_ids must contain only numeric ids")
-    context_entries = []
+    context_entries: list[JsonDict] = []
     if journal_ids:
         try:
             with get_db_cursor() as (_conn, cur):

@@ -3,6 +3,7 @@ import importlib.util
 import logging
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +81,72 @@ def _is_mutating(skill_name: str, module) -> bool:
     if flag is not None:
         return bool(flag)
     return skill_name not in _READ_ONLY_SKILLS
+
+
+# S7-P6.6 — sidecar-side ROLE allowlist. A supporting_engagement account may like / share /
+# comment on others' posts but must PHYSICALLY be unable to AUTHOR (post / company-post /
+# profile-edit). Enforced here (not just platform-side) so a misconfigured supporting agent
+# cannot author even if a caller targets it directly. The restriction is a POSITIVE opt-in:
+# only an account whose registry role is supporting_engagement (and not also a major/company)
+# is restricted — a major/company/unknown agent, or any lookup error, is unrestricted, so
+# today's 4 accounts (all major_author/company_page) are a strict no-op.
+_ROLE_ALLOWLIST_ENABLED = os.getenv("BROWSER_ROLE_ALLOWLIST_ENABLED", "true").strip().lower() not in (
+    "false", "0", "off", "no",
+)
+_SUPPORTING_ENGAGEMENT_SKILLS = {
+    "linkedin_comment", "linkedin_first_comment", "linkedin_comment_reply",
+    "linkedin_like", "linkedin_share",
+}
+_role_cache: dict = {}  # agent_id -> (role, ts)
+_role_cache_lock = threading.Lock()
+_ROLE_CACHE_TTL_S = int(os.getenv("BROWSER_ROLE_CACHE_TTL_S", "300"))
+
+
+def _role_for(agent_id) -> str:
+    """Cached: 'restricted' iff the agent's ONLY registry role is supporting_engagement;
+    'unrestricted' otherwise (a major/company account, an unknown agent with no row, or ANY
+    lookup error). The restriction never blocks a major — it is a positive opt-in for
+    explicitly-supporting agents."""
+    now = time.time()
+    with _role_cache_lock:
+        hit = _role_cache.get(agent_id)
+        if hit and (now - hit[1]) < _ROLE_CACHE_TTL_S:
+            return hit[0]
+    role = "unrestricted"
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(os.getenv("DATABASE_URL", ""))
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT bool_or(role IN ('major_author','company_page')) AS has_author, "
+                "       bool_or(role = 'supporting_engagement') AS has_support "
+                "FROM agent_platform_accounts WHERE browser_agent_id = %s",
+                (agent_id,),
+            )
+            r = cur.fetchone()
+            cur.close()
+            if r and not r[0] and r[1]:  # supporting present AND no major/company row
+                role = "restricted"
+        finally:
+            conn.close()
+    except Exception as exc:
+        logger.warning("[Role] role lookup failed for agent %s (allowing): %s", agent_id, exc)
+        role = "unrestricted"
+    with _role_cache_lock:
+        _role_cache[agent_id] = (role, now)
+    return role
+
+
+def _allowed_for_role(skill_name: str, module, role: str) -> bool:
+    """A 'restricted' (supporting_engagement) account may run read-only skills + the
+    engagement (non-authoring) mutating skills only. Everyone else is unrestricted."""
+    if role != "restricted":
+        return True
+    if not _is_mutating(skill_name, module):
+        return True
+    return skill_name in _SUPPORTING_ENGAGEMENT_SKILLS
 
 
 def _set_page_timeouts(page) -> None:
@@ -220,6 +287,21 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
     platform = str(params.pop("_platform", "") or "").strip().lower() or (
         skill["platforms"][0] if skill["platforms"] else ""
     )
+
+    # S7-P6.6: role allowlist — a supporting_engagement account physically cannot author.
+    # No-op for today's major/company accounts; pure safety for future supporting agents.
+    if _ROLE_ALLOWLIST_ENABLED:
+        _role = _role_for(agent_id)
+        if not _allowed_for_role(skill_name, skill["module"], _role):
+            logger.error(
+                "[Role] agent %s blocked from author skill %s (role=%s, supporting_engagement)",
+                agent_id, skill_name, _role,
+            )
+            return {
+                "success": False,
+                "error": f"skill '{skill_name}' not permitted for a supporting_engagement account",
+                "_role_blocked": True,
+            }
 
     # Persistent trusted profile path (#3953) — preferred when established.
     profile_dir = _profile_dir(agent_id, platform)

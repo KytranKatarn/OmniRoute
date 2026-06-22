@@ -586,6 +586,115 @@ def register_social_routes(bp, admin_required):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @bp.route("/api/signal/accounts")
+    @admin_required
+    def api_signal_accounts():
+        """Data-driven account roster from the registry (services.signal_accounts,
+        migration 440) — drives the S.I.G.N.A.L. account bar instead of hardcoded JS.
+        Includes ARCHIE + any supporting agent as data, no code change."""
+        try:
+            from services import signal_accounts
+
+            out = [
+                {
+                    "account_key": a["account_key"],
+                    "label": a.get("display_label"),
+                    "role": a.get("role"),
+                    "post_type": a.get("post_type"),
+                    "agent_id": a.get("agent_id"),
+                    "browser_agent_id": a.get("browser_agent_id"),
+                    "company_slug": a.get("company_slug"),
+                    "can_post": bool(a.get("can_post")),
+                    "can_engage": bool(a.get("can_engage")),
+                    "egress_pref": a.get("egress_pref"),
+                    "profile_established": bool(a.get("profile_established")),
+                }
+                for a in signal_accounts.all_accounts()
+            ]
+            return jsonify({"accounts": out})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/signal/accounts/health")
+    @admin_required
+    def api_signal_accounts_health():
+        """Per-account health for the roster: session status (authed vs logged-out vs the
+        #4372 'authed-but-probe-stale' false-negative), last posted, scheduled backlog, and
+        pending/failing approvals — so each account shows an honest status dot."""
+        from database import get_db_cursor
+        from services import signal_accounts
+
+        try:
+            out = []
+            with get_db_cursor(commit=False) as (_c, cur):
+                for a in signal_accounts.all_accounts():
+                    ak = a["account_key"]
+                    bid = a.get("browser_agent_id")
+                    post_types = list(signal_accounts.post_types_for(ak))
+                    sess = {}
+                    if bid:
+                        cur.execute(
+                            "SELECT status, last_probe_ok, last_probe_at FROM browser_sessions "
+                            "WHERE agent_id = %s AND platform = 'linkedin' LIMIT 1",
+                            (bid,),
+                        )
+                        sess = dict(cur.fetchone() or {})
+                    cur.execute(
+                        "SELECT MAX(posted_at) AS last FROM linkedin_post_log "
+                        "WHERE status = 'posted' AND post_type = ANY(%s)",
+                        (post_types,),
+                    )
+                    last_posted = (cur.fetchone() or {}).get("last")
+                    cur.execute(
+                        "SELECT status, COUNT(*) AS n FROM autonomy_approval_queue "
+                        "WHERE action_type = 'linkedin_post' AND action_data->>'post_type' = ANY(%s) "
+                        "AND status IN ('pending', 'failed') GROUP BY status",
+                        (post_types,),
+                    )
+                    counts = {r["status"]: int(r["n"]) for r in cur.fetchall()}
+                    cur.execute(
+                        "SELECT COUNT(*) AS n FROM agent_content_posts "
+                        "WHERE platform = 'linkedin' AND status = 'scheduled' AND post_type = ANY(%s)",
+                        (post_types,),
+                    )
+                    scheduled = int((cur.fetchone() or {}).get("n") or 0)
+
+                    established = bool(a.get("profile_established"))
+                    status = sess.get("status")
+                    probe_ok = sess.get("last_probe_ok")
+                    if not established:
+                        health = "not_established"
+                    elif status == "stale":
+                        health = "logged_out"
+                    elif probe_ok is False:
+                        health = "probe_warn"  # authed on disk but probe flaky (#4372 false-negative)
+                    elif status == "active":
+                        health = "healthy"
+                    else:
+                        health = "unknown"
+                    out.append(
+                        {
+                            "account_key": ak,
+                            "label": a.get("display_label"),
+                            "role": a.get("role"),
+                            "can_post": bool(a.get("can_post")),
+                            "can_engage": bool(a.get("can_engage")),
+                            "egress_pref": a.get("egress_pref"),
+                            "browser_agent_id": bid,
+                            "profile_established": established,
+                            "session_status": status,
+                            "last_probe_ok": probe_ok,
+                            "health": health,
+                            "last_posted_at": last_posted.isoformat() if last_posted else None,
+                            "scheduled": scheduled,
+                            "pending_approvals": counts.get("pending", 0),
+                            "failing_approvals": counts.get("failed", 0),
+                        }
+                    )
+            return jsonify({"accounts": out})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @bp.route("/api/signal/post-log")
     @admin_required
     def api_signal_post_log():

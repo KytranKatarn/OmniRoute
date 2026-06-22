@@ -59,6 +59,96 @@ def store_benchmark_result(
         return cur.fetchone()["id"]
 
 
+def grade_response(task_description, response, skill_category=None, reference=None, grader="V.E.R.I.F.Y."):
+    """P2-A (#381) correctness grader — the KEYSTONE of Phase 2.
+
+    Returns a 0-5 CORRECTNESS score for an agent's response, judged by a LOCAL grader agent
+    (strictly sovereign — no cloud, Phase-2 decision 3). This is the quality signal that
+    right-sizing + auto-promotion rank by; today's benchmark ``score`` is length/speed-biased,
+    which is why a fast-but-wrong small model could look 'best'.
+
+    Returns ``{"score": float|None, "rationale": str, "grader": str}``. ``score`` is None on
+    grader failure so the caller SKIPS storing (never a bogus 0 that corrupts model selection).
+    """
+    if not response or not str(response).strip():
+        return {"score": 0.0, "rationale": "empty response", "grader": grader}
+    rubric = (
+        "You are a STRICT correctness grader. Score the RESPONSE to the TASK on a 0-5 scale:\n"
+        "5 = fully correct + complete; 4 = correct with minor omissions; 3 = partially correct; "
+        "2 = mostly wrong but some merit; 1 = wrong; 0 = empty / irrelevant / refused.\n"
+        "Judge CORRECTNESS ONLY — ignore length, style, and speed. A short correct answer beats a "
+        "long wrong one.\n"
+    )
+    ref = f"\nREFERENCE (ground truth):\n{reference}\n" if reference else ""
+    prompt = (
+        rubric
+        + (f"SKILL: {skill_category}\n" if skill_category else "")
+        + f"\nTASK:\n{task_description}\n{ref}\nRESPONSE TO GRADE:\n{response}\n\n"
+        + 'Return ONLY JSON: {"score": <number 0-5>, "rationale": "<one sentence>"}.'
+    )
+    try:
+        from tools.department_hq.services.department_dispatcher import dispatch
+
+        res = dispatch(
+            capability="classify",
+            prompt=prompt,
+            module_id="agent_academy",
+            json_mode=True,
+            local_only=True,  # sovereign grader — never escalate to cloud (decision 3)
+            prefer_agent=grader,
+        )
+        if not (getattr(res, "success", False) and getattr(res, "response", "")):
+            return {"score": None, "rationale": "grader unavailable", "grader": grader}
+        import json as _json
+        import re as _re
+
+        s = (res.response or "").strip()
+        m = _re.search(r"\{.*\}", s, _re.S)
+        if m:
+            s = m.group(0)
+        d = _json.loads(s)
+        sc = max(0.0, min(5.0, float(d.get("score"))))
+        return {"score": sc, "rationale": (d.get("rationale") or "")[:300], "grader": grader}
+    except Exception as e:
+        logger.debug("[Benchmark] grade_response failed: %s", e)
+        return {"score": None, "rationale": "grade error", "grader": grader}
+
+
+def grade_and_store(
+    agent_id,
+    model_name,
+    skill_category,
+    task_description,
+    response,
+    response_time_ms=None,
+    tokens_used=None,
+    reference=None,
+    grader="V.E.R.I.F.Y.",
+):
+    """Grade a benchmarked response for CORRECTNESS (P2-A) and store it as the PRIMARY ``score``.
+    Speed/tokens stay in their columns + metadata so they remain visible but no longer drive model
+    selection. Returns the result id, or None if grading failed (then nothing is stored)."""
+    g = grade_response(task_description, response, skill_category, reference, grader)
+    if g.get("score") is None:
+        return None
+    return store_benchmark_result(
+        agent_id=agent_id,
+        model_name=model_name,
+        skill_category=skill_category,
+        score=g["score"],
+        response_time_ms=response_time_ms,
+        quality_rating=g["score"],
+        tokens_used=tokens_used,
+        task_description=task_description,
+        metadata={
+            "grader": g["grader"],
+            "rationale": g["rationale"],
+            "score_kind": "correctness_0_5",
+            "response_len": len(str(response)),
+        },
+    )
+
+
 def get_best_model_per_category(days=30):
     """Analyze benchmark results to find the best model per skill category.
 

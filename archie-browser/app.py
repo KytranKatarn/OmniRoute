@@ -22,9 +22,15 @@ def create_app(testing=False):
     app.config["TESTING"] = testing
     app._tasks: dict = {}
     app._tasks_lock = threading.Lock()
-    # Rate limiting: track execution timestamps for human-like pacing
-    app._exec_times: deque = deque(maxlen=100)   # rolling window
+    # Rate limiting: per-PROFILE token bucket (bucket mode, default) replaces the
+    # global sleep-under-lock per-hour cap that serialized ALL profiles and was the
+    # mechanism behind the 2-day timeout cascade (#4372 family). One saturated profile
+    # now returns a NON-BLOCKING rate_limited status instead of stalling the fleet.
+    # Legacy global behaviour kept for instant rollback via BROWSER_RATE_LIMIT_MODE=legacy.
+    app._exec_times: deque = deque(maxlen=100)   # legacy-mode rolling window
     app._rate_lock = threading.Lock()
+    app._profile_buckets: dict = {}              # bucket-mode: key -> _TokenBucket
+    app._rate_mode = os.getenv("BROWSER_RATE_LIMIT_MODE", "bucket").lower()
     app._min_delay_s = float(os.getenv("BROWSER_MIN_DELAY_S", "2"))
     app._max_delay_s = float(os.getenv("BROWSER_MAX_DELAY_S", "5"))
     app._max_per_hour = int(os.getenv("BROWSER_MAX_PER_HOUR", "60"))
@@ -178,24 +184,88 @@ def create_app(testing=False):
     return app
 
 
-def _apply_rate_limit(app):
-    """Enforce human-like pacing: random delay + per-hour cap."""
+class RateLimitError(Exception):
+    """Raised when a profile's hourly cap is exhausted. NON-BLOCKING — the caller
+    surfaces task status='rate_limited' (the platform reschedules) instead of the
+    sidecar sleeping under a global lock (the old per-hour cascade)."""
+
+    def __init__(self, retry_after_s: float):
+        self.retry_after_s = float(retry_after_s)
+        super().__init__(f"rate_limited; retry after {self.retry_after_s:.0f}s")
+
+
+class _TokenBucket:
+    """Per-key token bucket. ``capacity`` tokens, refilled continuously at
+    capacity/3600 tokens/sec so the steady-state ceiling == BROWSER_MAX_PER_HOUR per
+    key. Starts full. ``consume()`` returns None on admit, or the seconds until enough
+    tokens refill on reject. Time is injected so it is deterministically testable."""
+
+    __slots__ = ("capacity", "refill_per_sec", "tokens", "last")
+
+    def __init__(self, capacity: float, now: float):
+        self.capacity = float(capacity)
+        self.refill_per_sec = (float(capacity) / 3600.0) if capacity > 0 else 0.0
+        self.tokens = float(capacity)
+        self.last = now
+
+    def consume(self, now: float, amount: float = 1.0):
+        if self.refill_per_sec > 0:
+            self.tokens = min(self.capacity, self.tokens + (now - self.last) * self.refill_per_sec)
+        self.last = now
+        if self.tokens >= amount:
+            self.tokens -= amount
+            return None
+        if self.refill_per_sec <= 0:
+            return 3600.0  # non-positive cap edge — back off an hour
+        return (amount - self.tokens) / self.refill_per_sec
+
+
+def _apply_rate_limit_legacy(app):
+    """Original global per-hour cap — kept for BROWSER_RATE_LIMIT_MODE=legacy rollback.
+    NOTE: the per-hour wait sleeps UNDER the global lock and serializes all profiles."""
     now = time.time()
     with app._rate_lock:
-        # Drop timestamps older than 1 hour
         cutoff = now - 3600
         while app._exec_times and app._exec_times[0] < cutoff:
             app._exec_times.popleft()
-        # Per-hour cap check
         if len(app._exec_times) >= app._max_per_hour:
             oldest = app._exec_times[0]
             wait = max(0, 3600 - (now - oldest))
             logger.warning("[RateLimit] Hour cap reached, waiting %.0fs", wait)
             time.sleep(wait)
         app._exec_times.append(time.time())
-    # Human-like random delay between actions
     delay = random.uniform(app._min_delay_s, app._max_delay_s)
-    time.sleep(delay)
+    if delay > 0:
+        time.sleep(delay)
+
+
+def _apply_rate_limit(app, key):
+    """Per-PROFILE pacing. Default 'bucket' mode: a per-key token bucket admits
+    immediately or raises RateLimitError(retry_after_s) — NON-BLOCKING, so one
+    saturated profile never serializes the others (the #4372-family cascade fix).
+    The human-pacing 2-5s delay runs OUTSIDE the lock, per task. 'legacy' mode
+    restores the old global cap (BROWSER_RATE_LIMIT_MODE=legacy).
+
+    ``key`` = the browser identity (agent_id) — one agent == one persistent profile;
+    company/creed accounts ride a major's session (same agent_id) and correctly share
+    its budget, while Terry/ARCHIE/each supporting agent get their own bucket."""
+    if getattr(app, "_rate_mode", "bucket") == "legacy":
+        _apply_rate_limit_legacy(app)
+        return
+    now = time.time()
+    bkey = str(key) if key is not None else "_default"
+    with app._rate_lock:
+        bucket = app._profile_buckets.get(bkey)
+        if bucket is None:
+            bucket = _TokenBucket(app._max_per_hour, now)
+            app._profile_buckets[bkey] = bucket
+        retry_after = bucket.consume(now, 1.0)
+    if retry_after is not None:
+        raise RateLimitError(retry_after)
+    # Human-like random delay between actions (per task, OUTSIDE the lock)
+    delay = random.uniform(app._min_delay_s, app._max_delay_s)
+    if delay > 0:
+        time.sleep(delay)
 
 
 # Per-task hard deadline — kept below the platform's ~180s client poll so a wedged task
@@ -209,9 +279,26 @@ def _execute_task(app, task_id, agent_id, skill_name, params):
     with app._tasks_lock:
         app._tasks[task_id]["status"] = "running"
 
-    # Rate limiting — skip for health checks / non-browser ops
+    # Rate limiting — per-profile token bucket. On exhaustion, surface a NON-BLOCKING
+    # rate_limited status (the platform reschedules) instead of sleeping under a lock.
     if not app.config.get("TESTING"):
-        _apply_rate_limit(app)
+        try:
+            _apply_rate_limit(app, agent_id)
+        except RateLimitError as rle:
+            logger.info(
+                "[RateLimit] agent %s rate_limited (retry ~%.0fs) — task %s deferred",
+                agent_id, rle.retry_after_s, task_id,
+            )
+            with app._tasks_lock:
+                app._tasks[task_id].update(
+                    {
+                        "status": "rate_limited",
+                        "error": str(rle),
+                        "retry_after": round(rle.retry_after_s, 1),
+                    }
+                )
+            _log_task_to_db(task_id, agent_id, skill_name, params, "rate_limited", None, str(rle), 0)
+            return
 
     # Watchdog: if the skill exceeds the deadline, force-kill the agent's wedged chrome
     # so the per-profile lock frees and the hung Playwright call raises (the thread then

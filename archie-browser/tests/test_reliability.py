@@ -138,7 +138,7 @@ class TestWatchdog:
         import app as appmod
 
         application = appmod.create_app(testing=False)
-        monkeypatch.setattr(appmod, "_apply_rate_limit", lambda app: None)
+        monkeypatch.setattr(appmod, "_apply_rate_limit", lambda *a, **k: None)
         monkeypatch.setattr(appmod, "_TASK_DEADLINE_S", 0.3)
         monkeypatch.setattr(appmod, "_log_task_to_db", lambda *a, **k: None)
 
@@ -173,7 +173,7 @@ class TestWatchdog:
         import app as appmod
 
         application = appmod.create_app(testing=False)
-        monkeypatch.setattr(appmod, "_apply_rate_limit", lambda app: None)
+        monkeypatch.setattr(appmod, "_apply_rate_limit", lambda *a, **k: None)
         monkeypatch.setattr(appmod, "_TASK_DEADLINE_S", 5.0)
         monkeypatch.setattr(appmod, "_log_task_to_db", lambda *a, **k: None)
 

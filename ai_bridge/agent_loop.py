@@ -443,6 +443,20 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # #4270: keep the interactive cockpit conversation model (A.R.C.H.I.E.'s
+        # qwen2.5:7b) CPU-warm on the hub so cockpit chat never cold-loads. Every
+        # 30 min, shorter than the 45m keep_alive. Narrow, owner-approved
+        # exception to the 7B-no-warmup policy (CPU-only → zero VRAM).
+        self.scheduler.add_job(
+            with_app_context(self._keep_cockpit_model_warm),
+            trigger=IntervalTrigger(minutes=30),
+            id="agent_cockpit_model_keepwarm",
+            name="Agent Loop: Cockpit Model Keep-Warm",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._process_scheduled_tasks),
             trigger=IntervalTrigger(seconds=30),
@@ -2786,6 +2800,67 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] Embedding keep-warm failed: %s", e)
+
+    def _keep_cockpit_model_warm(self):
+        """Keep the interactive cockpit conversation model resident on the HUB,
+        CPU-only, so A.R.C.H.I.E.'s cockpit chat never cold-loads (#4270).
+
+        NARROW, owner-approved exception (2026-06-21) to the _CPU_TIER_NO_WARMUP
+        policy in ollama_model_health (7B models are normally NOT proactively
+        warmed to avoid RAM/VRAM crowding). Here we pin ONLY the cockpit's
+        conversation model and CPU-ONLY (num_gpu=0): ~5GB of the hub's 128GB RAM,
+        ZERO VRAM (the 8GB Quadro stays free for the small GPU warm set + batch).
+        This MATCHES the dispatcher's own placement — build_options already places
+        qwen2.5:7b on CPU on the hub once the small GPU models are resident
+        (insufficient_vram_too_big), so the cockpit dispatch hits this exact warm
+        copy with no reload, and is decoupled from GPU-batch contention.
+
+        Runs every 30 min (shorter than the 45m keep_alive). Disable via the
+        standard job toggle (id=agent_cockpit_model_keepwarm) if RAM is ever tight.
+        """
+        import time
+
+        start = time.time()
+        model = "qwen2.5:7b"  # fallback; resolved to A.R.C.H.I.E.'s configured model below
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute("SELECT model FROM agents WHERE name = %s", ("A.R.C.H.I.E.",))
+                row = cur.fetchone()
+            if row and row.get("model") and ":cloud" not in row["model"]:
+                model = row["model"]
+        except Exception:
+            pass  # fall back to qwen2.5:7b
+
+        try:
+            import requests as req
+
+            ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+            if not ollama_host.startswith("http"):
+                ollama_host = f"http://{ollama_host}"
+            data = {
+                "model": model,
+                "prompt": "warm",
+                "stream": False,
+                # CPU-only — keep ZERO VRAM footprint; matches build_options'
+                # CPU placement for this model on the hub so the dispatch reuses
+                # this runner (no GPU reload, no VRAM crowding).
+                "options": {"num_predict": 1, "num_gpu": 0},
+                "keep_alive": "45m",
+            }
+            # 7B cold-loads into RAM in tens of seconds; give it room like the
+            # big-CPU-tier keep-warm (KB #270009). Subsequent cycles are fast.
+            resp = req.post(f"{ollama_host}/api/generate", json=data, timeout=600)
+            ok = resp.status_code == 200
+            logger.info(
+                "[Agent Loop] Cockpit model keep-warm: %s %s (%dms)",
+                model,
+                "warm" if ok else f"FAILED {resp.status_code}",
+                int((time.time() - start) * 1000),
+            )
+        except Exception as e:
+            logger.warning("[Agent Loop] Cockpit model keep-warm failed: %s", e)
 
     def _process_email_queue(self):
         """Process pending emails from the email_queue table."""

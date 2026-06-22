@@ -4462,6 +4462,10 @@ def api_internal_dhq_chat():
             prefer_agent=prefer_agent,  # cockpit default = A.R.C.H.I.E.; engine plan step = F.O.R.G.E.
             model_override=model_override,  # cockpit = None (agent's model); engine plan = qwen2.5-coder:7b
             local_only=True,  # stays on the hub — fleet escalation = ~260s contention (KB #269363)
+            # #4270: the interactive cockpit voice (no model_override) enters the
+            # interactive lane so it is admitted ahead of queued batch; the engine
+            # plan step (pins a coder model) stays normal/batch.
+            priority="high" if model_override is None else "normal",
         )
         if result.success and (result.response or "").strip():
             return jsonify(

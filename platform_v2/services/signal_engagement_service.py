@@ -126,6 +126,18 @@ def _already_proposed(post_url: str) -> bool:
 
 def _draft_comment(snippet: str, author: str = "the author") -> str:
     """Draft a short on-brand comment via S.I.G.N.A.L. dispatch. '' on any failure."""
+    from services.welfare_governance_service import pool_over_budget_by_skill
+
+    # Welfare gate (ADR-002): skip engagement-comment drafting when the social_content
+    # pool has no 24h token-budget headroom. Fail-open. '' is already the caller's skip
+    # signal. Tunable via platform_settings welfare:signal:pool_pause_ratio (default 0.9).
+    if pool_over_budget_by_skill("social_content", "welfare:signal:pool_pause_ratio"):
+        logger.info(
+            "[signal-engagement] comment drafting deferred — social_content pool over "
+            "24h token budget (welfare-gated, ADR-002)"
+        )
+        return ""
+
     try:
         from services.signal_calendar_service import _ensure_import_paths
 

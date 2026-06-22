@@ -437,6 +437,18 @@ def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
     _ensure_import_paths()
     from signal_dispatch import _PLATFORM_HINTS, _VOICE_HINTS
     from tools.department_hq.services.department_dispatcher import dispatch
+    from services.welfare_governance_service import pool_over_budget_by_skill
+
+    # Welfare gate (ADR-002): defer discretionary generation when the social_post_draft
+    # pool has no 24h token-budget headroom. Fail-open. Scheduled posts still release on
+    # the next signal_calendar_release; only NEW generation is paused. Tunable via
+    # platform_settings welfare:signal:pool_pause_ratio (default 0.9).
+    if pool_over_budget_by_skill("social_post_draft", "welfare:signal:pool_pause_ratio"):
+        logger.info(
+            "[signal-calendar] top-up deferred — social_post_draft pool over 24h "
+            "token budget (welfare-gated, ADR-002)"
+        )
+        return {"by_account": {}, "note": "welfare-gated: social_post_draft pool over 24h budget"}
 
     summary: Dict[str, Any] = {}
     for account in signal_accounts.account_keys(can_post=True):

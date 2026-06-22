@@ -32,6 +32,80 @@ logger = logging.getLogger(__name__)
 _CREED_MODULE = "Welfare"
 
 
+def pool_over_budget_by_skill(skill_name: str, settings_key: str = "welfare:backlog:pool_pause_ratio") -> bool:
+    """True when EVERY agent in the pool for ``skill_name`` is at/over its 24h token
+    budget — i.e. even the LEAST-loaded agent's (24h tokens_used / daily budget) ratio
+    is >= the pause ratio from ``platform_settings[settings_key]`` (default 0.9). Used to
+    back a discretionary backlog/generation cycle off so the 24h window can drain when
+    the dispatch throttle would otherwise just rotate work among at-limit agents
+    (ADR-004/#4090, ADR-002).
+
+    Fail-OPEN: no pool, no budget data, or any error → returns ``False`` (never gate).
+
+    Shared single source of the welfare pool gate: WTF backlog jobs pass
+    ``welfare:backlog:pool_pause_ratio``; S.I.G.N.A.L. generation/engagement pass
+    ``welfare:signal:pool_pause_ratio``. (Promoted from the former nested closure
+    ``jobs._wtf_backlog_pool_over_budget`` so non-job callers can reuse it.)
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = %s",
+                (settings_key,),
+            )
+            _row = cur.fetchone()
+            try:
+                pause_ratio = float(_row["value"]) if _row and _row.get("value") not in (None, "") else 0.9
+            except (TypeError, ValueError):
+                pause_ratio = 0.9
+            cur.execute(
+                """
+                SELECT MIN(COALESCE(t.tok, 0)::float / NULLIF(ab.token_limit_per_day, 0)) AS min_ratio,
+                       COUNT(*) AS n
+                FROM agent_skills s
+                JOIN agents a ON a.id = s.agent_id
+                JOIN agent_budgets ab ON ab.agent_id = a.id
+                LEFT JOIN (
+                    SELECT agent_id, SUM(tokens_used) AS tok
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '24 hours'
+                    GROUP BY agent_id
+                ) t ON t.agent_id = a.id
+                WHERE s.skill_name = %s
+                  AND a.worker_type IN ('ai', 'contractor')
+                  AND a.shift_state IN ('active', 'deployed', 'winding_down')
+                """,
+                (skill_name,),
+            )
+            r = cur.fetchone()
+        if not r or not r["n"] or r["min_ratio"] is None:
+            return False  # no pool / no budget data → never gate
+        min_ratio = float(r["min_ratio"])
+        gated = min_ratio >= pause_ratio
+        if gated:
+            # Diagnostic: surface WHY a backlog/generation cycle was paused so an
+            # operator tuning the ratio can see the pool's actual headroom.
+            logger.info(
+                "[WelfarePool] gating skill=%s: pool min 24h token ratio %.2f >= pause %.2f (key=%s, n=%s)",
+                skill_name,
+                min_ratio,
+                pause_ratio,
+                settings_key,
+                r["n"],
+            )
+        return gated
+    except Exception:
+        logger.warning(
+            "[WelfarePool] gate check failed for skill=%s key=%s; not gating",
+            skill_name,
+            settings_key,
+            exc_info=True,
+        )
+        return False
+
+
 def load_break_config(cur):
     """Read the tunable welfare:break:* thresholds (platform_settings) → merged cfg."""
     try:

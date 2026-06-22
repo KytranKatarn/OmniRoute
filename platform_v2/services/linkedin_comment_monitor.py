@@ -301,6 +301,21 @@ def draft_comment_replies(limit: int = 5) -> dict:
     from ai_bridge.agent_loop import request_approval
     from signal_dispatch import _VOICE_HINTS
     from tools.department_hq.services.department_dispatcher import dispatch
+    from services.welfare_governance_service import pool_over_budget_by_skill
+
+    # Welfare gate (ADR-002): defer reply drafting when the social_post_draft pool has no
+    # 24h token-budget headroom. Fail-open. Comments stay reply_status='none' and are
+    # retried next cycle. Tunable via platform_settings welfare:signal:pool_pause_ratio.
+    if pool_over_budget_by_skill("social_post_draft", "welfare:signal:pool_pause_ratio"):
+        logger.info(
+            "[CommentMonitor] reply drafting deferred — social_post_draft pool over "
+            "24h token budget (welfare-gated, ADR-002)"
+        )
+        return {
+            "candidates": 0,
+            "drafted": 0,
+            "notes": [{"note": "welfare-gated: social_post_draft pool over 24h budget"}],
+        }
 
     with get_db_cursor() as (_conn, cur):
         cur.execute(

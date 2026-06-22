@@ -3323,45 +3323,13 @@ def _register_own_jobs(scheduler, flask_app):
     # window drain. Threshold tunable via platform_settings welfare:backlog:pool_pause_ratio
     # (default 0.9 = pause just before the pool tops out). Fail-open on any error.
     def _wtf_backlog_pool_over_budget(skill_name):
-        from database import get_db_cursor
+        # Thin wrapper over the shared welfare pool gate (promoted to
+        # services.welfare_governance_service.pool_over_budget_by_skill so non-job
+        # callers — S.I.G.N.A.L. generation/engagement — can reuse the same logic).
+        # WTF behaviour is unchanged: same query, default ratio 0.9, fail-open.
+        from services.welfare_governance_service import pool_over_budget_by_skill
 
-        try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT value FROM platform_settings WHERE key = %s",
-                    ("welfare:backlog:pool_pause_ratio",),
-                )
-                _row = cur.fetchone()
-                try:
-                    pause_ratio = float(_row["value"]) if _row and _row.get("value") not in (None, "") else 0.9
-                except (TypeError, ValueError):
-                    pause_ratio = 0.9
-                cur.execute(
-                    """
-                    SELECT MIN(COALESCE(t.tok, 0)::float / NULLIF(ab.token_limit_per_day, 0)) AS min_ratio,
-                           COUNT(*) AS n
-                    FROM agent_skills s
-                    JOIN agents a ON a.id = s.agent_id
-                    JOIN agent_budgets ab ON ab.agent_id = a.id
-                    LEFT JOIN (
-                        SELECT agent_id, SUM(tokens_used) AS tok
-                        FROM task_execution_log
-                        WHERE created_at > NOW() - INTERVAL '24 hours'
-                        GROUP BY agent_id
-                    ) t ON t.agent_id = a.id
-                    WHERE s.skill_name = %s
-                      AND a.worker_type IN ('ai', 'contractor')
-                      AND a.shift_state IN ('active', 'deployed', 'winding_down')
-                    """,
-                    (skill_name,),
-                )
-                r = cur.fetchone()
-            if not r or not r["n"] or r["min_ratio"] is None:
-                return False  # no pool / no budget data → never gate
-            return float(r["min_ratio"]) >= pause_ratio
-        except Exception:
-            logger.warning("[WTFBacklog] welfare gate check failed for %s; not gating", skill_name, exc_info=True)
-            return False
+        return pool_over_budget_by_skill(skill_name, "welfare:backlog:pool_pause_ratio")
 
     def _run_wtf_factcheck_backlog():
         import time as _wfcb_t

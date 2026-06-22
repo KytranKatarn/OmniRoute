@@ -403,6 +403,159 @@ def _render_review_text(parsed: dict, model: str = "", note: str = "") -> str:
     return "\n".join(lines) + f"\n\nVERDICT: {parsed.get('verdict', 'NEEDS REVIEW')}" + meta
 
 
+# --- Phase-1 PR-C: deterministic evidence-verification + self-refute + false-positive learning (#381) ---
+
+
+def _normalize_match(s: str) -> str:
+    import re as _re
+
+    return _re.sub(r"\s+", " ", (s or "").lower()).strip()
+
+
+def _evidence_in_diff(evidence: str, diff: str) -> bool:
+    """True if the issue's cited evidence ties to a line this PR actually CHANGED. Catches
+    fabricated citations (PR-C): a line the model invented, or an unchanged/context line cited as
+    if changed (the #1869 'unused import time' fabrication — import time is context, not a + line).
+    Conservative: only returns False when a substantial evidence string is genuinely absent from
+    the +/- lines (short or lightly-paraphrased evidence is kept)."""
+    import re as _re
+
+    if not evidence or not diff:
+        return True  # nothing to verify -> don't drop
+    changed = " ".join(ln[1:] for ln in diff.splitlines() if ln[:1] in "+-" and ln[:3] not in ("+++", "---"))
+    changed_n = _normalize_match(changed)
+    core = _normalize_match(_re.sub(r"^[+\-\s]+", "", evidence))
+    if len(core) < 6:
+        return True  # trivially short (<6 chars) -> ambiguous, don't drop
+    if core in changed_n:
+        return True
+    toks = _re.findall(r"[a-z_][a-z0-9_]{2,}", core)  # tolerate light paraphrase of a real line
+    if toks and sum(1 for t in toks if t in changed_n) / len(toks) >= 0.85:
+        return True
+    return False
+
+
+def _is_spurious_injection(issue: dict) -> bool:
+    """Myth #1 deterministic guard: an 'SQL injection' flag whose cited evidence is a PARAMETERIZED
+    query (%s / %(name)s placeholder + params) with NO string-building of the SQL is a false
+    positive — the single most common LLM code-review hallucination, and it blocks (CRITICAL).
+    A genuine concat-injection (f-string / .format / + on the query) keeps string-build markers,
+    so it is NOT dropped."""
+    import re as _re
+
+    text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).lower()
+    if "injection" not in text and "sqli" not in text:
+        return False
+    ev = str((issue or {}).get("evidence", "") or "")
+    has_placeholder = "%s" in ev or bool(_re.search(r"%\(\w+\)s", ev))
+    has_stringbuild = bool(_re.search(r"""f["']|\.format\(|["']\s*\+|\+\s*["']""", ev))
+    return has_placeholder and not has_stringbuild
+
+
+def _verify_evidence(issues: list, diff: str):
+    """Split issues into (kept, dropped): drop issues whose evidence isn't a changed diff line
+    (fabricated citation) OR that are a spurious 'SQL injection' flag on a parameterized query."""
+    kept, dropped = [], []
+    for it in issues or []:
+        ev = (it or {}).get("evidence") or ""
+        if not _evidence_in_diff(ev, diff) or _is_spurious_injection(it):
+            dropped.append(it)
+        else:
+            kept.append(it)
+    return kept, dropped
+
+
+def _evidence_verification_enabled() -> bool:
+    return str(_get_setting("forge:evidence_verification_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _self_refute_enabled() -> bool:
+    return str(_get_setting("forge:self_refute_enabled", "true")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _writeback_enabled() -> bool:
+    return str(_get_setting("forge:false_positive_writeback_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _self_refute_criticals(review: dict, diff: str, criticals: list) -> list:
+    """PR-C Fix #5: second-opinion pass on surviving CRITICAL issues — re-ask the model to confirm
+    each with a verbatim changed line or RETRACT; keep only re-confirmed CRITICALs. Fail-open."""
+    if not criticals:
+        return criticals
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    diff_content, _ = _truncate_diff(diff)
+    listing = "\n".join(
+        f"{i + 1}. {(c or {}).get('title', '')}: {(c or {}).get('evidence', '')}" for i, c in enumerate(criticals)
+    )
+    prompt = (
+        _FALSE_POSITIVE_RUBRIC
+        + "\nYou previously flagged these as CRITICAL on PR #%s:\n%s\n\n--- DIFF ---\n%s\n--- END DIFF ---\n"
+        % (review.get("pr_number"), listing, diff_content)
+        + 'Audit yourself. Return ONLY JSON {"confirmed": [<1-based indices you can STILL justify '
+        "with an exact changed + or - line>]}. Retract any you cannot tie to a real changed line."
+    )
+    try:
+        res = dispatch(
+            capability="code_review",
+            prompt=prompt,
+            module_id="repair_bay",
+            json_mode=True,
+            prefer_model="gemma3:12b",  # a stronger model audits the 7B's CRITICALs (best-effort)
+            preferred_node=["starship_76583490e36955ab", "archie-starbase"],
+        )
+        if not (getattr(res, "success", False) and getattr(res, "response", "")):
+            return criticals  # fail-open
+        parsed = _parse_review_json(res.response) or {}
+        idx = parsed.get("confirmed")
+        if not isinstance(idx, list):
+            return criticals
+        keep = {int(x) for x in idx if str(x).isdigit()}
+        confirmed = [c for n, c in enumerate(criticals, 1) if n in keep]
+        return confirmed if (confirmed or not keep) else criticals
+    except Exception:
+        return criticals  # fail-open
+
+
+def _writeback_false_positives(dropped: list, pr_number: int, repo: str) -> None:
+    """PR-C Fix #6: record dropped BLOCKING fabrications as quarantined KB mistakes so the rubric
+    learns over time (C.O.D.E.X. promotes from quarantine). Best-effort; never breaks the review."""
+    blockers = [d for d in dropped if str((d or {}).get("severity", "")).upper() in ("CRITICAL", "WARNING")]
+    if not blockers:
+        return
+    try:
+        from services.agent_kb_service import propose_agent_memory
+
+        for d in blockers[:2]:  # cap to avoid spam; quarantine + C.O.D.E.X. gate the rest
+            title = ((d or {}).get("title") or "")[:120]
+            ev = ((d or {}).get("evidence") or "")[:160]
+            content = (
+                f"F.O.R.G.E. code-review FALSE POSITIVE (auto-detected): flagged "
+                f"[{(d or {}).get('severity', '')}] '{title}' on PR #{pr_number} but the cited evidence "
+                f"'{ev}' is NOT a changed line in the diff (fabricated/unsupported). Do not raise this "
+                f"class of issue without a verbatim changed + or - line."
+            )
+            propose_agent_memory(
+                agent_id=136,
+                agent_name="F.O.R.G.E.",
+                content=content,
+                title=f"FORGE false-positive: {title}"[:120],
+                tags=["code_review", "false_positive", "agent_optimization"],
+            )
+    except Exception as exc:
+        logger.info("[PR Review] false-positive writeback skipped: %s", exc)
+
+
 def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None):
     """PR-B: JSON-structured grounded review. Returns canonical review TEXT, or None to fall back
     to the freeform path (disabled flag / queue / empty / unparseable JSON — all fail-safe)."""
@@ -441,8 +594,32 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
         logger.info("[PR Review] structured JSON unparseable for PR #%s — falling back", pr_number)
         return None
     issues = parsed.get("issues") or []
+    note = ""
+    # PR-C: deterministic evidence-verification — drop issues whose evidence isn't a changed line.
+    if _evidence_verification_enabled():
+        kept, dropped = _verify_evidence(issues, diff)
+        if dropped:
+            note = f"dropped {len(dropped)} issue(s) with evidence not in the diff"
+            logger.info("[PR Review] PR #%s — %s", pr_number, note)
+            if _writeback_enabled():
+                _writeback_false_positives(dropped, pr_number, repo)
+        issues = kept
+    # PR-C: self-refute surviving CRITICALs (highest-stakes only).
+    if _self_refute_enabled():
+        criticals = [i for i in issues if str((i or {}).get("severity", "")).upper() == "CRITICAL"]
+        if criticals:
+            confirmed = _self_refute_criticals(review, diff, criticals)
+            if len(confirmed) != len(criticals):
+                cset = {id(c) for c in confirmed}
+                issues = [
+                    i for i in issues if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
+                ]
+                note = (
+                    note + "; " if note else ""
+                ) + f"self-refute retracted {len(criticals) - len(confirmed)} CRITICAL"
+    parsed["issues"] = issues
     parsed["verdict"] = _recompute_verdict(issues, parsed.get("confidence"), _review_confidence_min())
-    return _render_review_text(parsed, model=model_label)
+    return _render_review_text(parsed, model=model_label, note=note)
 
 
 def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None) -> str | None:

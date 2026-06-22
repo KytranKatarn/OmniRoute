@@ -2440,18 +2440,24 @@ async function refreshSignalAccountBar() {
         var dot = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;'
             + 'background:' + color + ';margin-right:6px;vertical-align:middle"></span>';
         var clickable = a.profile_established && a.can_post;
+        var fa = Number(a.failing_approvals) || 0;
         var cls = 'signal-acct-btn' + (a.account_key === signalAccount ? ' active' : '');
-        var title = esc((_signalHealthTitle[a.health] || a.health || '')
-            + (a.failing_approvals ? ' — ' + a.failing_approvals + ' failing' : ''));
+        var title = esc((_signalHealthTitle[a.health] || a.health || '') + (fa ? ' — ' + fa + ' failing' : ''));
+        // NO inline onclick built from data (XSS-safe) — clicks are handled by the
+        // delegated listener below, which reads the esc()'d data-account attribute.
         var attrs = ' data-account="' + esc(a.account_key) + '" title="' + title + '"';
-        // account_key is a controlled registry identifier (^[a-z0-9_]+$) — safe inline.
-        if (clickable) { attrs += " onclick=\"switchSignalAccount('" + a.account_key + "')\""; }
-        else { attrs += ' disabled style="opacity:0.5;cursor:default"'; }
-        var warn = a.failing_approvals
-            ? ' <span style="color:#ef4444;font-weight:600">&#9888;' + a.failing_approvals + '</span>' : '';
+        if (!clickable) { attrs += ' disabled style="opacity:0.5;cursor:default"'; }
+        var warn = fa ? ' <span style="color:#ef4444;font-weight:600">&#9888;' + fa + '</span>' : '';
         html += '<button class="' + cls + '"' + attrs + '>' + dot + esc(a.label || a.account_key) + warn + '</button>';
     });
     setHtml(bar, html);
+    // Event delegation — one idempotent listener reads the data-account attribute and
+    // calls switchSignalAccount. No executable string is ever built from registry data.
+    bar.onclick = function(e) {
+        var btn = e.target.closest('button[data-account]');
+        if (!btn || btn.disabled) return;
+        switchSignalAccount(btn.getAttribute('data-account'));
+    };
 }
 
 /* ── S.I.G.N.A.L. SESSION sub-tab (#3953/#3948/#3982) — persistent trusted

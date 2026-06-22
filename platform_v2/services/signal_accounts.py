@@ -165,9 +165,12 @@ def account_keys(**filters) -> List[str]:
     return [d["account_key"] for d in all_accounts(**filters)]
 
 
-def post_type_to_account(post_type: str) -> str:
+def post_type_to_account(post_type: str, default: Optional[str] = "personal") -> Optional[str]:
+    """Map a post_type alias to its account_key. ``default`` is returned for an unknown
+    post_type — pass default=None to preserve a 'skip unknown' caller (legacy
+    _POST_TYPE_TO_ACCOUNT.get() returned None)."""
     _load()
-    return _cache["pt_to_acct"].get((post_type or "").lower(), "personal")
+    return _cache["pt_to_acct"].get((post_type or "").lower(), default)
 
 
 def _field(account_key: str, field: str, default: Any = None) -> Any:

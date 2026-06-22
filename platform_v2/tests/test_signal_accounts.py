@@ -150,3 +150,11 @@ class TestPostTypeHelpers:
         with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
             assert sa.post_type_for("company") == "company"
             assert sa.post_types_for("company")[0] == "company"
+
+    def test_post_type_to_account_default_none_skips_unknown(self):
+        # signal_calendar_service relies on default=None to SKIP an unknown post_type
+        # (legacy _POST_TYPE_TO_ACCOUNT.get() returned None → `if account:` skipped it).
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.post_type_to_account("zzz-unknown", default=None) is None
+            assert sa.post_type_to_account("company_page") == "company"
+            assert sa.post_type_to_account("zzz-unknown") == "personal"  # default kept

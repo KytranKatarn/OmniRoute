@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
 
 from database import get_db_cursor
+from services import signal_accounts
 from services.signal_content_sanitizer import clean_draft
 
 logger = logging.getLogger("platform.signal_calendar")
@@ -30,25 +31,10 @@ logger = logging.getLogger("platform.signal_calendar")
 _LOCAL_TZ = ZoneInfo("America/Toronto")
 RELEASE_HOUR_LOCAL = 9  # 09:00 ET, converted to UTC at insert
 
-ACCOUNTS = ("personal", "terry", "company", "creed")
-
-_POST_TYPE_TO_ACCOUNT = {
-    "personal": "personal",
-    "terry": "terry",
-    "company": "company",
-    "company_page": "company",
-    "creed": "creed",
-    "creed_ai": "creed",
-}
-
-_ACCOUNT_TO_POST_TYPES = {
-    "personal": ("personal",),
-    "terry": ("terry",),
-    "company": ("company", "company_page"),
-    "creed": ("creed", "creed_ai"),
-}
-
-_ACCOUNT_AGENT_ID = {"personal": 342, "terry": 377, "company": 342, "creed": 342}
+# Account model (account_keys, post_type aliases, agent_id/browser_id, label) is resolved
+# from the registry via services.signal_accounts (migration 440). account_keys(can_post=True)
+# replaces the old fixed ACCOUNTS tuple — so ARCHIE / supporting majors auto-join the calendar
+# once their account is established (can_post flips true).
 
 
 def _fold(content: Optional[str], hashtags: Any) -> str:
@@ -114,7 +100,7 @@ def _candidates(cur) -> List[Dict[str, Any]]:
            ORDER BY created_at DESC"""
     )
     for row in cur.fetchall():
-        account = _POST_TYPE_TO_ACCOUNT.get((row["post_type"] or "personal").lower())
+        account = signal_accounts.post_type_to_account(row["post_type"] or "personal", default=None)
         if account:
             out.append({"account": account, "text": _fold(row["content"], row["hashtags"])})
     cur.execute(
@@ -131,7 +117,7 @@ def _candidates(cur) -> List[Dict[str, Any]]:
 def _next_slot_utc(cur, account: str) -> datetime:
     """First free calendar day for ``account``: the later of tomorrow and the
     day after its last scheduled slot, at 09:00 ET (returned as naive UTC)."""
-    post_types = _ACCOUNT_TO_POST_TYPES[account]
+    post_types = signal_accounts.post_types_for(account)
     cur.execute(
         """SELECT MAX(scheduled_at) AS last FROM agent_content_posts
            WHERE platform = 'linkedin' AND status = 'scheduled'
@@ -152,10 +138,12 @@ def backfill_calendar() -> Dict[str, Any]:
     """One-shot: dedup the backlog and fan it onto each account's calendar,
     1/day starting tomorrow. Idempotent — re-runs only append genuinely new
     content after the account's last scheduled slot."""
-    summary: Dict[str, Any] = {a: {"scheduled": 0, "skipped_dupe": 0} for a in ACCOUNTS}
+    summary: Dict[str, Any] = {
+        a: {"scheduled": 0, "skipped_dupe": 0} for a in signal_accounts.account_keys(can_post=True)
+    }
     with get_db_cursor(commit=True) as (_conn, cur):
         seen = _seen_hashes(cur)
-        slots = {a: _next_slot_utc(cur, a) for a in ACCOUNTS}
+        slots = {a: _next_slot_utc(cur, a) for a in signal_accounts.account_keys(can_post=True)}
         for cand in _candidates(cur):
             account, text = cand["account"], cand["text"]
             if not text:
@@ -170,9 +158,9 @@ def backfill_calendar() -> Dict[str, Any]:
                        (agent_id, platform, content, post_type, status, scheduled_at)
                    VALUES (%s, 'linkedin', %s, %s, 'scheduled', %s)""",
                 (
-                    _ACCOUNT_AGENT_ID[account],
+                    signal_accounts.agent_id_for(account),
                     text,
-                    _ACCOUNT_TO_POST_TYPES[account][0],
+                    signal_accounts.post_type_for(account),
                     slots[account],
                 ),
             )
@@ -185,7 +173,7 @@ def backfill_calendar() -> Dict[str, Any]:
 
 def get_scheduled(account: str, limit: int = 60) -> List[Dict[str, Any]]:
     """Scheduled (not yet released) calendar entries for one account."""
-    post_types = _ACCOUNT_TO_POST_TYPES.get(account, (account,))
+    post_types = signal_accounts.post_types_for(account)
     with get_db_cursor(commit=False) as (_conn, cur):
         cur.execute(
             """SELECT id, content, post_type, status, scheduled_at, created_at
@@ -216,14 +204,7 @@ def cancel_scheduled(post_id: int) -> bool:
         return cur.fetchone() is not None
 
 
-_ACCOUNT_LABEL = {
-    "personal": "👤 Kytran Katarn",
-    "terry": "👤 Terry Caetano",
-    "company": "🏢 Kytran Empowerment Inc.",
-    "creed": "⚖️ Creed-AI",
-}
-
-_ACCOUNT_BROWSER_ID = {"personal": 342, "terry": 377, "company": 342, "creed": 342}
+# Account labels + browser identities → services.signal_accounts registry (migration 440).
 
 
 def _linkedin_profile_healthy(cur, agent_id: int) -> bool:
@@ -236,8 +217,8 @@ def _linkedin_profile_healthy(cur, agent_id: int) -> bool:
     error -> True (only suppress when we POSITIVELY know the profile is dead).
     """
     try:
-        # Parameterized query (%s + tuple) — agent_id is an int from the hardcoded
-        # _ACCOUNT_AGENT_ID map, never user input: no injection surface.
+        # Parameterized query (%s + tuple) — agent_id is an int from the signal_accounts
+        # registry resolver, never user input: no injection surface.
         cur.execute(
             "SELECT status FROM browser_sessions " "WHERE agent_id = %s AND platform = 'linkedin' LIMIT 1",
             (agent_id,),
@@ -290,7 +271,7 @@ def _alert_linkedin_stale(account: str, agent_id: int) -> None:
     try:
         from services import telegram_service
 
-        label = _ACCOUNT_LABEL.get(account, account)
+        label = signal_accounts.label_for(account)
         telegram_service.send_system(
             f"LinkedIn posting paused — {label}",
             f"The {label} LinkedIn posting profile (agent {agent_id}, "
@@ -318,21 +299,21 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
     from services.time_utils import now_utc
 
     now_naive_utc = now_utc().replace(tzinfo=None)
-    summary: Dict[str, Any] = {a: 0 for a in ACCOUNTS}
+    summary: Dict[str, Any] = {a: 0 for a in signal_accounts.account_keys(can_post=True)}
     skipped_stale: List[str] = []
-    for account in ACCOUNTS:
-        post_types = _ACCOUNT_TO_POST_TYPES[account]
+    for account in signal_accounts.account_keys(can_post=True):
+        post_types = signal_accounts.post_types_for(account)
         with get_db_cursor(commit=True) as (_conn, cur):
             # #3948: don't release into a logged-out posting profile — the post would just
             # hang ~120s and fail downstream. Pause this account + alert the owner to re-auth;
             # posts stay 'scheduled' and drain once the profile is restored.
-            if not _linkedin_profile_healthy(cur, _ACCOUNT_AGENT_ID[account]):
+            if not _linkedin_profile_healthy(cur, signal_accounts.agent_id_for(account)):
                 skipped_stale.append(account)
                 logger.warning(
                     "[signal-calendar] %s posting profile logged out — skipping release, alerting owner",
                     account,
                 )
-                _alert_linkedin_stale(account, _ACCOUNT_AGENT_ID[account])
+                _alert_linkedin_stale(account, signal_accounts.agent_id_for(account))
                 continue
             cur.execute(
                 """SELECT id, content, post_type FROM agent_content_posts
@@ -350,10 +331,13 @@ def release_due_posts(max_per_account: int = 1) -> Dict[str, Any]:
                         "content": row["content"],
                         "hashtags": [],  # already folded into content at backfill
                         "post_type": row["post_type"],
-                        "browser_agent_id": _ACCOUNT_BROWSER_ID[account],
+                        "browser_agent_id": signal_accounts.browser_id_for(account),
                         "priority": 6,
                     },
-                    reason=(f"📅 {_ACCOUNT_LABEL[account]} scheduled post (calendar):\n\n" f"{row['content'][:1500]}"),
+                    reason=(
+                        f"📅 {signal_accounts.label_for(account)} scheduled post (calendar):\n\n"
+                        f"{row['content'][:1500]}"
+                    ),
                     tier=2,
                     requested_by="S.I.G.N.A.L. calendar (daily release)",
                     priority=6,
@@ -455,13 +439,13 @@ def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
     from tools.department_hq.services.department_dispatcher import dispatch
 
     summary: Dict[str, Any] = {}
-    for account in ACCOUNTS:
+    for account in signal_accounts.account_keys(can_post=True):
         with get_db_cursor(commit=False) as (_conn, cur):
             cur.execute(
                 """SELECT COUNT(*) AS n FROM agent_content_posts
                    WHERE platform = 'linkedin' AND status = 'scheduled'
                      AND post_type = ANY(%s)""",
-                (list(_ACCOUNT_TO_POST_TYPES[account]),),
+                (list(signal_accounts.post_types_for(account)),),
             )
             backlog = int((cur.fetchone() or {}).get("n") or 0)
         if backlog >= min_days_ahead:
@@ -477,9 +461,9 @@ def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
 
         with get_db_cursor(commit=False) as (_conn, cur):
             context = _generation_context(cur, account)
-        post_type = _ACCOUNT_TO_POST_TYPES[account][0]
+        post_type = signal_accounts.post_type_for(account)
         prompt = (
-            f"Write a fresh LinkedIn post for the {_ACCOUNT_LABEL[account]} account.\n\n"
+            f"Write a fresh LinkedIn post for the {signal_accounts.label_for(account)} account.\n\n"
             f"Grounding:\n{context}\n\n"
             f"{_VOICE_HINTS.get(post_type, _VOICE_HINTS['personal'])} "
             f"{_PLATFORM_HINTS.get('linkedin', '')}\n"
@@ -511,7 +495,7 @@ def top_up_calendars(min_days_ahead: int = 3) -> Dict[str, Any]:
                        (agent_id, platform, content, post_type, status, scheduled_at)
                    VALUES (%s, 'linkedin', %s, %s, 'scheduled', %s)
                    RETURNING id""",
-                (_ACCOUNT_AGENT_ID[account], draft, post_type, slot),
+                (signal_accounts.agent_id_for(account), draft, post_type, slot),
             )
             new_id = (cur.fetchone() or {}).get("id")
         summary[account] = {"backlog": backlog + 1, "generated": 1, "post_id": new_id}

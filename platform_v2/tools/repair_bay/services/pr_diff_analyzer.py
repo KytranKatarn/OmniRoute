@@ -24,7 +24,26 @@ from tools.repair_bay.services.pr_review_service import (
 logger = logging.getLogger(__name__)
 
 _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
-_DIFF_MAX_CHARS = 6000
+# Raised from 6000: a 7B/12B has headroom, and a bigger window means fewer truncations
+# (truncation mid-file was a direct cause of false 'no tests'/'unclosed loop' flags).
+_DIFF_MAX_CHARS = 12000
+
+# Phase-1 anti-hallucination rubric (project #381). Seeded from the 2026-06-22 review where
+# F.O.R.G.E. (qwen2.5:7b) hallucinated flags on ~8/10 verified-correct PRs. Each rule maps to
+# a confirmed false positive. Prepended to every review prompt so the 7B stops repeating them.
+_FALSE_POSITIVE_RUBRIC = (
+    "GROUND RULES — these are COMMON FALSE POSITIVES; do NOT flag them as issues:\n"
+    "1. Parameterized SQL (psycopg2 %s placeholders / query params) is NOT SQL injection. Only "
+    "string-concatenated or f-string SQL built from user input is.\n"
+    "2. A file that COMPILES and PASSES TESTS has no syntax error, missing semicolon, or unclosed "
+    "loop/bracket. Python statements need no semicolons.\n"
+    "3. A test file added IN THIS SAME DIFF means tests WERE added — never claim 'no tests'.\n"
+    "4. Importing one shared function from multiple call sites is REUSE (DRY), not duplication.\n"
+    "5. A platform_settings/env read with a code default fallback is intentional, not a missing value.\n"
+    "6. A bare hash/string built for an md5/dedup key is NOT SQL and has no injection surface.\n"
+    "EVIDENCE RULE: for EVERY issue you raise, quote the exact '+' or '-' diff line it occurs on. "
+    "If you cannot tie it to a specific changed line shown below, DO NOT raise it.\n"
+)
 
 
 def review_pr(pr_number: int, repo: str = None) -> dict:
@@ -150,15 +169,31 @@ def _fetch_diff(diff_url: str) -> str:
     return resp.text
 
 
+def _truncate_diff(diff: str) -> tuple:
+    """Truncate at the last complete hunk boundary (``\\n@@``) before the cap so no file is
+    cut mid-statement — a byte cut produced the false 'no tests added' (test file sliced off)
+    and 'unclosed loop' (loop body sliced) flags. Returns ``(content, truncated)``."""
+    if len(diff) <= _DIFF_MAX_CHARS:
+        return diff, False
+    cut = diff.rfind("\n@@", 0, _DIFF_MAX_CHARS)
+    return (diff[:cut] if cut > 0 else diff[:_DIFF_MAX_CHARS]), True
+
+
 def _build_prompt(review: dict, diff: str) -> str:
-    """Assemble the F.O.R.G.E. code review prompt. Truncates diff at _DIFF_MAX_CHARS."""
-    truncated = len(diff) > _DIFF_MAX_CHARS
-    diff_content = diff[:_DIFF_MAX_CHARS] if truncated else diff
-    truncation_note = "\n[Note: diff truncated to first 6000 chars due to size.]\n" if truncated else ""
+    """Assemble the F.O.R.G.E. code review prompt with an anti-hallucination grounding rubric
+    + a hunk-boundary-safe diff window (Phase-1 agent-optimization, project #381)."""
+    diff_content, truncated = _truncate_diff(diff)
+    truncation_note = (
+        f"\n[Note: diff truncated to ~{_DIFF_MAX_CHARS} chars at a hunk boundary — the shown "
+        "hunks are COMPLETE; judge only the changes you can see, do not infer about omitted files.]\n"
+        if truncated
+        else ""
+    )
 
     return f"""You are F.O.R.G.E., A.R.C.H.I.E.'s Full-cycle Optimization & Regenerative GitHub Engine.
 Review this pull request diff and provide a structured code review.
 
+{_FALSE_POSITIVE_RUBRIC}
 PR #{review['pr_number']} — {review['title']}
 Author: {review.get('author', 'unknown')} | Repo: {review.get('repo', '')}
 Changes: +{review.get('additions', 0)} -{review.get('deletions', 0)} across {review.get('changed_files', 0)} files
@@ -173,10 +208,11 @@ SUMMARY
 One paragraph describing what this PR does and its overall quality.
 
 ISSUES
-- [CRITICAL] <issue> — <why it matters>
-- [WARNING] <issue> — <why it matters>
-- [INFO] <issue> — <why it matters>
-(List only real issues. If none found, write: No issues found.)
+- [CRITICAL] <issue> — <why it matters> — Evidence: <exact + or - diff line>
+- [WARNING] <issue> — <why it matters> — Evidence: <exact + or - diff line>
+- [INFO] <issue> — <why it matters> — Evidence: <exact + or - diff line>
+(List ONLY real issues you can tie to a specific diff line shown above. Apply the GROUND RULES
+first — most rejected reviews fail there. If none, write: No issues found.)
 
 VERDICT: APPROVE | REQUEST CHANGES | NEEDS REVIEW"""
 

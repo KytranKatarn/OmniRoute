@@ -1165,18 +1165,21 @@ def register_social_routes(bp, admin_required):
         """Return the 7-day living-dashboard view for one account.
 
         Query params:
-            account: 'personal' | 'company' | 'creed' (required)
+            account: any registered S.I.G.N.A.L. account_key (required) — data-driven from
+            the registry so terry / archie / supporting accounts all work (was hardcoded to
+            personal/company/creed, which 400'd terry).
         """
         import logging
 
-        from services import signal_calendar_live_service
+        from services import signal_accounts, signal_calendar_live_service
 
         _logger = logging.getLogger("platform.signal_calendar_live")
 
         account = (request.args.get("account") or "").strip().lower()
-        if account not in ("personal", "company", "creed"):
+        _valid = set(signal_accounts.account_keys())
+        if account not in _valid:
             return (
-                jsonify({"error": "account must be one of: personal, company, creed"}),
+                jsonify({"error": "account must be one of: " + ", ".join(sorted(_valid))}),
                 400,
             )
 

@@ -469,6 +469,19 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # P2-PRODUCER (#381): nightly off-peak benchmark cycle (03:30 ET) — generates correctness-
+        # graded data for right-sizing. Gated by platform_settings benchmark_producer_enabled
+        # (default OFF); the job fires but no-ops until the flag is turned on.
+        self.scheduler.add_job(
+            with_app_context(self._run_benchmark_producer),
+            trigger=CronTrigger(hour=3, minute=30, timezone="America/Toronto"),
+            id="benchmark_producer_cycle",
+            name="Agent Loop: Benchmark Producer (P2-PRODUCER)",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._process_scheduled_tasks),
             trigger=IntervalTrigger(seconds=30),
@@ -2885,6 +2898,19 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] Cockpit model keep-warm failed: %s", e)
+
+    def _run_benchmark_producer(self):
+        """P2-PRODUCER (#381): off-peak benchmark cycle that generates correctness-graded data for
+        right-sizing. Gated by platform_settings benchmark_producer_enabled (default OFF) — it no-ops
+        when disabled, so this stays dormant until you turn it on. Sovereign (local_only in the cycle)."""
+        try:
+            from services.benchmark_producer import scheduled_benchmark_cycle
+
+            result = scheduled_benchmark_cycle()
+            if not result.get("skipped_disabled"):
+                logger.info("[AgentLoop] benchmark producer cycle: %s", result)
+        except Exception as exc:
+            logger.error("[AgentLoop] benchmark producer failed: %s", exc)
 
     def _stalwart_queue_monitor(self):
         """Every-30-min outbound-mail delivery-failure monitor (#4035).

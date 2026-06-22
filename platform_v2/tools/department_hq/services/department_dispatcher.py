@@ -3451,6 +3451,27 @@ class DepartmentDispatcher:
     # directors (knowledge_analysis, mistral:7b). All gated by is_tool_capable_model.
     _AGENTIC_TOOL_AGENTS = ("D.A.R.W.I.N.", "S.P.E.C.T.R.A.", "W.A.T.C.H.")
 
+    # PR-D (#381): capability -> KB tags for role-relevant mistake injection. Generalizes the
+    # code_review grounding to every tool/reasoning capability so each agent gets its own known
+    # failure modes prepended. Capabilities not listed get no role injection (no-op, safe).
+    _CAPABILITY_KB_TAGS = {
+        "code_review": ["code_review", "false_positive"],
+        "code": ["code", "code_review"],
+        "debug": ["code", "debug"],
+        "research": ["research"],
+        "research_synthesis": ["research"],
+        "knowledge_analysis": ["knowledge_analysis", "analysis"],
+        "analyze": ["analysis"],
+        "classify": ["analysis"],
+        "documentation": ["documentation"],
+        "module_audit": ["documentation", "audit"],
+        "security": ["security", "compliance", "vulnerability"],
+        "compliance": ["compliance", "security"],
+        "translate": ["translation"],
+    }
+    _ROLE_MISTAKES_TTL = 600
+    _ROLE_MISTAKES_MAX = 3
+
     def _is_auto_context_enabled(self) -> bool:
         """Check platform_settings for rag_auto_context flag."""
         try:
@@ -3597,6 +3618,73 @@ class DepartmentDispatcher:
             logger.debug(f"[BridgeDispatcher] RAG context retrieval failed: {e}")
             self._rag_cache[cache_key] = {"ts": now, "context": None}
             return None
+
+    def _is_role_grounding_enabled(self) -> bool:
+        """PR-D (#381) flag: rag_role_grounding (default ON). Inject role-relevant mistakes per
+        capability. Flip to false in platform_settings to revert instantly."""
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'rag_role_grounding'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            return row[0].lower() in ("true", "1", "enabled") if row else True
+        except Exception:
+            return False
+
+    def _get_role_mistakes(self, capability: Optional[str]) -> Optional[str]:
+        """PR-D (#381): role-relevant ``mistake_learned`` entries for a capability, so EVERY tool
+        agent is grounded with its known failure modes (not just code_review). Tag-targeted,
+        excludes quarantined (review_status='pending'/'rejected') proposals, cached per-capability,
+        fail-safe (any error -> no injection). Closes the PR-C false-positive writeback -> reinjection
+        loop once C.O.D.E.X. promotes a flagged mistake out of quarantine."""
+        if not capability:
+            return None
+        tags = self._CAPABILITY_KB_TAGS.get(capability)
+        if not tags:
+            return None
+        cache = getattr(self, "_role_mistakes_cache", None)
+        if cache is None:
+            cache = self._role_mistakes_cache = {}
+        now = time.time()
+        hit = cache.get(capability)
+        if hit and (now - hit["ts"]) < self._ROLE_MISTAKES_TTL:
+            return hit["context"]
+        ctx = None
+        conn = None
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                """SELECT title, content FROM knowledge_base
+                   WHERE knowledge_type = 'mistake_learned'
+                     AND tags && %s::text[]
+                     AND COALESCE(review_status, 'approved') NOT IN ('pending', 'rejected')
+                   ORDER BY importance_score DESC NULLS LAST, created_at DESC
+                   LIMIT %s""",
+                (list(tags), self._ROLE_MISTAKES_MAX),
+            )
+            rows = cur.fetchall()
+            cur.close()
+            if rows:
+                parts = [f"[Known mistakes for {capability} — do NOT repeat these]"]
+                for title, content in rows:
+                    parts.append(f"- {title}: {(content or '')[:300]}")
+                parts.append("[End known mistakes]\n")
+                ctx = "\n".join(parts)
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] role-mistakes query failed: {e}")
+            ctx = None
+        finally:
+            if conn is not None:
+                try:
+                    conn.rollback()
+                    conn.close()
+                except Exception:
+                    pass
+        cache[capability] = {"ts": now, "context": ctx}
+        return ctx
 
     def _execute_llm(
         self,
@@ -6862,6 +6950,20 @@ class DepartmentDispatcher:
                     )
             except Exception as rag_err:
                 logger.debug(f"[BridgeDispatcher] RAG injection skipped: {rag_err}")
+
+        # 4b. Role-grounding injection (PR-D, #381). Prepend the agent's role-relevant known
+        #     mistakes (capability -> KB tags). Generalizes the code_review grounding to EVERY
+        #     tool/reasoning capability. Independent of the heavy semantic RAG above; fires in
+        #     json_mode too (it is context, not output). Skipped when the agentic tool-loop already
+        #     ran (llm_result set). Flag rag_role_grounding (default on); excludes quarantined KB.
+        if llm_result is None and self._is_role_grounding_enabled():
+            try:
+                role_ctx = self._get_role_mistakes(capability)
+                if role_ctx:
+                    prompt = f"{role_ctx}\n{prompt}"
+                    logger.debug(f"[BridgeDispatcher] role-grounding injected ({len(role_ctx)} chars) for {capability}")
+            except Exception as rg_err:
+                logger.debug(f"[BridgeDispatcher] role-grounding skipped: {rg_err}")
 
         # Fix A (2026-05-09): CPU-only models (-cpu suffix) are too slow for
         # inline synchronous execution — a 9B model on CPU takes 10-15 min per

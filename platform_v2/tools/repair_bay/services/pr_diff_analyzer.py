@@ -181,12 +181,23 @@ def _fetch_diff(diff_url: str) -> str:
 
 
 def _truncate_diff(diff: str) -> tuple:
-    """Truncate at the last complete hunk boundary (``\\n@@``) before the cap so no file is
-    cut mid-statement — a byte cut produced the false 'no tests added' (test file sliced off)
-    and 'unclosed loop' (loop body sliced) flags. Returns ``(content, truncated)``."""
+    """Truncate at a complete boundary before the cap so no file is cut mid-statement — a byte cut
+    produced the false 'no tests added' (test file sliced off) and 'unclosed loop'/'missing
+    semicolon' (statement sliced) flags. Returns ``(content, truncated)``.
+
+    QW-6 (#381, RC-3b): PREFER a file boundary (``\\ndiff --git``) so a single oversized hunk (e.g.
+    a long SQL ``CREATE TABLE`` migration) is never chopped mid-statement. Only when the nearest
+    file boundary sits in the first half of the window (so it would drop most of the shown diff) do
+    we fall back to the finer hunk boundary (``\\n@@``) — still complete hunks, just more of them.
+    Last resort is a raw byte cut (a single file larger than the cap with no earlier boundary)."""
     if len(diff) <= _DIFF_MAX_CHARS:
         return diff, False
-    cut = diff.rfind("\n@@", 0, _DIFF_MAX_CHARS)
+    file_cut = diff.rfind("\ndiff --git", 0, _DIFF_MAX_CHARS)
+    if file_cut > _DIFF_MAX_CHARS // 2:
+        cut = file_cut
+    else:
+        hunk_cut = diff.rfind("\n@@", 0, _DIFF_MAX_CHARS)
+        cut = hunk_cut if hunk_cut > 0 else file_cut
     return (diff[:cut] if cut > 0 else diff[:_DIFF_MAX_CHARS]), True
 
 
@@ -225,7 +236,9 @@ ISSUES
 (List ONLY real issues you can tie to a specific diff line shown above. Apply the GROUND RULES
 first — most rejected reviews fail there. If none, write: No issues found.)
 
-VERDICT: APPROVE | REQUEST CHANGES | NEEDS REVIEW"""
+Finally, output EXACTLY ONE verdict line with a SINGLE choice — do NOT list more than one option:
+VERDICT: APPROVE
+(use "VERDICT: REQUEST CHANGES" only for a real [CRITICAL]/[WARNING], or "VERDICT: NEEDS REVIEW" if genuinely unsure)"""
 
 
 def _attach_pr_review_callback(queue_id: int, pr_number: int, repo: str) -> None:

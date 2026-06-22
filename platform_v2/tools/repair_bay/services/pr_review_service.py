@@ -51,6 +51,14 @@ _VERDICT_NEEDS_RE = re.compile(r"VERDICT\s*[:\-—]\s*NEEDS\s+REVIEW", re.IGNORE
 # \bAPPROVED?\b matches the emitted "APPROVE" and legacy "APPROVED" only as a
 # whole word — it will not match a substring inside another token.
 _VERDICT_APPROVE_RE = re.compile(r"VERDICT\s*[:\-—]\s*APPROVED?\b", re.IGNORECASE)
+# RC-3d (QW-4): a weak 7B can echo the verdict MENU verbatim ("VERDICT: APPROVE | REQUEST
+# CHANGES | NEEDS REVIEW"). Reject-first would misread the embedded "REQUEST CHANGES" as a real
+# block. A single VERDICT line offering ALL THREE options is UN-CHOSEN — route it to NEEDS REVIEW
+# (a human decides) instead of a false REQUEST CHANGES.
+_VERDICT_MENU_RE = re.compile(
+    r"VERDICT\s*[:\-—].*\bAPPROVED?\b.*\bREQUEST\s+CHANGES\b.*\bNEEDS\s+REVIEW\b",
+    re.IGNORECASE,
+)
 
 
 def parse_verdict(summary_or_text: str | None) -> str:
@@ -66,6 +74,11 @@ def parse_verdict(summary_or_text: str | None) -> str:
     if not summary_or_text:
         return "REVIEWED"
     text = summary_or_text
+    # QW-4: an un-chosen verdict MENU echo (all three options on the VERDICT line) is not a real
+    # block — route it to NEEDS REVIEW before the reject-first check can misread the embedded
+    # "REQUEST CHANGES" as a verdict.
+    if _VERDICT_MENU_RE.search(text):
+        return "NEEDS REVIEW"
     # Check negative verdicts first so they can never be misread as approval.
     if _VERDICT_REJECT_RE.search(text):
         return "REQUEST CHANGES"

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 
 import requests
 
@@ -256,6 +257,83 @@ def _attach_pr_review_callback(queue_id: int, pr_number: int, repo: str) -> None
         logger.warning("[PR Review] failed to attach callback to queue #%s: %s", queue_id, exc)
 
 
+# --- QW-2 (#381): deterministic non-blocking severity normalizer ------------------------------
+# The 7B systematically self-labels true-but-trivial nits (missing tests, type hints, docstrings,
+# code duplication, naming, style, sys.path, broad-except, magic numbers) as [WARNING]/[CRITICAL],
+# and BOTH the freeform gate and the structured _recompute_verdict treat ANY WARNING/CRITICAL as a
+# hard block — so a correct-but-trivial nit blocks the merge. These categories never justify a
+# block; demote them to [INFO] regardless of the model's label. CRITICAL allow-list BY OMISSION:
+# only a title/why MATCHING a known nit category is demoted; real bug classes (injection, data loss,
+# crash, auth, race, leak, overflow) never match and keep their severity.
+# Diagnosis: .claude/plans/2026-06-22-forge-review-quality-diagnosis.md (RC-2 / QW-2).
+_NONBLOCKING_CATEGORY_RE = re.compile(
+    "|".join(
+        (
+            r"(missing|no|lack\w*|add\w*|insufficient|needs?|without|more)\s+(unit\s+|integration\s+)?tests?",
+            r"test\s+coverage",
+            r"untested",
+            r"type[\s-]?hints?",
+            r"type\s+annotations?",
+            r"docstrings?",
+            r"doc\s*comments?",
+            r"code\s+duplicat\w*",
+            r"duplicat\w*\s+(code|logic|block|function|method|implementation)",
+            r"naming\s+conventions?",
+            r"variable\s+nam\w*",
+            r"poor\s+nam\w*",
+            r"stylistic",
+            r"style\s+(issue|nit|convention|guide|preference)",
+            r"inconsistent\s+formatting",
+            r"formatting\s+(issue|nit|convention)",
+            r"pep[\s-]?8",
+            r"\blinting?\b",
+            r"sys\.path",
+            # NOTE: 'bare/broad except' is deliberately NOT here — in this codebase a bare except
+            # has a documented history of leaking DB connections (KB #270617 / fleet.md), so it can
+            # be a REAL bug. Let it stay a WARNING and reach a human rather than silently demote it.
+            r"magic\s+numbers?",
+            r"\bnit[\s-]?pick\w*",
+            r"minor\s+(nit|style|issue|concern)",
+        )
+    ),
+    re.IGNORECASE,
+)
+
+_BLOCKING_SEVERITIES = ("CRITICAL", "WARNING")
+
+
+def _normalize_severity(issues: list) -> list:
+    """Demote non-blocking nit CATEGORIES (see _NONBLOCKING_CATEGORY_RE) to INFO regardless of the
+    model's self-assigned severity — structured (dict) path. Mutates + returns the same list; stamps
+    ``_demoted_from`` for the audit note. Only touches issues currently labelled CRITICAL/WARNING."""
+    for i in issues:
+        if not isinstance(i, dict):
+            continue
+        if str(i.get("severity", "")).upper() not in _BLOCKING_SEVERITIES:
+            continue
+        blob = f"{i.get('title', '')} {i.get('why', '')}"
+        if _NONBLOCKING_CATEGORY_RE.search(blob):
+            i["_demoted_from"] = str(i.get("severity", "")).upper()
+            i["severity"] = "INFO"
+    return issues
+
+
+def _demote_nonblocking_lines(review_text: str) -> str:
+    """Freeform-text counterpart of _normalize_severity: rewrite the [CRITICAL]/[WARNING] tag of any
+    issue LINE whose content matches a non-blocking category to [INFO] BEFORE the block check. Issue
+    lines follow ``- [SEV] <title> — <why> — Evidence: <line>`` (rubric-mandated). Conservative —
+    only rewrites the severity tag; never drops the line."""
+    if not review_text:
+        return review_text
+    out = []
+    for line in review_text.splitlines():
+        m = re.match(r"(\s*[-*]?\s*)\[\s*(?:CRITICAL|WARNING)\s*\](.*)", line, re.IGNORECASE)
+        if m and _NONBLOCKING_CATEGORY_RE.search(m.group(2)):
+            line = f"{m.group(1)}[INFO]{m.group(2)}"
+        out.append(line)
+    return "\n".join(out)
+
+
 def _apply_severity_gate(review_text: str) -> str:
     """Deterministic post-guard (Phase-1 agent-optimization, project #381): a review whose
     issues are all ``[INFO]`` (or has none) must NOT yield REQUEST CHANGES. An INFO-level lint —
@@ -268,6 +346,9 @@ def _apply_severity_gate(review_text: str) -> str:
 
     if not review_text:
         return review_text
+    # QW-2: first demote true-but-trivial nit lines (tests/type-hints/docstrings/duplication/style/
+    # sys.path/broad-except/...) to [INFO] so they don't count as blocking on the freeform path.
+    review_text = _demote_nonblocking_lines(review_text)
     has_blocking = re.search(r"\[\s*(CRITICAL|WARNING)\s*\]", review_text, re.IGNORECASE)
     asks_changes = re.search(r"VERDICT:\s*REQUEST\s+CHANGES", review_text, re.IGNORECASE)
     if asks_changes and not has_blocking:
@@ -621,6 +702,12 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
                 note = (
                     note + "; " if note else ""
                 ) + f"self-refute retracted {len(criticals) - len(confirmed)} CRITICAL"
+    # QW-2: demote non-blocking nit categories to INFO BEFORE the verdict + render, so a
+    # true-but-trivial WARNING/CRITICAL can't block (the dominant residual false-block class, RC-2).
+    _normalize_severity(issues)
+    n_demoted = sum(1 for i in issues if isinstance(i, dict) and i.get("_demoted_from"))
+    if n_demoted:
+        note = (note + "; " if note else "") + f"normalized {n_demoted} nit(s) to INFO"
     parsed["issues"] = issues
     parsed["verdict"] = _recompute_verdict(issues, parsed.get("confidence"), _review_confidence_min())
     return _render_review_text(parsed, model=model_label, note=note)

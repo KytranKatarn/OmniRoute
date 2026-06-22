@@ -3633,6 +3633,23 @@ class DepartmentDispatcher:
         except Exception:
             return False
 
+    def _is_complexity_routing_enabled(self) -> bool:
+        """P2-B (#381) flag: complexity_routing_enabled (default OFF — owner-gated rollout). When ON,
+        trivial downgradeable capabilities run on a smaller model. Flip true in platform_settings.
+        Uses the get_db_cursor context manager so the connection is always released (no leak)."""
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor() as (_conn, cur):
+                cur.execute("SELECT value FROM platform_settings WHERE key = 'complexity_routing_enabled'")
+                row = cur.fetchone()
+            if not row:
+                return False
+            val = row.get("value") if isinstance(row, dict) else row[0]
+            return bool(val) and str(val).lower() in ("true", "1", "enabled")
+        except Exception:
+            return False
+
     def _get_role_mistakes(self, capability: Optional[str]) -> Optional[str]:
         """PR-D (#381): role-relevant ``mistake_learned`` entries for a capability, so EVERY tool
         agent is grounded with its known failure modes (not just code_review). Tag-targeted,
@@ -5741,6 +5758,21 @@ class DepartmentDispatcher:
         # the cluster is offline. Explicit preferred_node always wins.
         if preferred_node is None and capability in CAPABILITY_NODE_AFFINITY:
             preferred_node = list(CAPABILITY_NODE_AFFINITY[capability])
+
+        # P2-B (#381): complexity-aware right-sizing — a trivial, downgradeable task runs on a smaller
+        # model so we stop burning a 7B on simple work. Flag complexity_routing_enabled (default OFF —
+        # owner-gated rollout). Only when the caller pinned nothing; fully fail-open.
+        if prefer_model is None and model_override is None and prefer_agent is None:
+            try:
+                if self._is_complexity_routing_enabled():
+                    from services.complexity_router import right_size_model
+
+                    _small = right_size_model(capability, prompt)
+                    if _small:
+                        prefer_model = _small
+                        logger.info("[BridgeDispatcher] complexity right-size: %s -> %s", capability, _small)
+            except Exception as _crp_err:
+                logger.debug("[BridgeDispatcher] complexity routing skipped: %s", _crp_err)
 
         # Force-refresh busy agents list (bypass 30s welfare cache TTL)
         try:

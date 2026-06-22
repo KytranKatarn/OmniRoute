@@ -202,26 +202,8 @@ def update_roster_models(dry_run=True):
         logger.info("No benchmark results — skipping roster model update")
         return []
 
-    # Map departments to default skill categories
-    DEPT_SKILL_MAP = {
-        "Engineering & Technology": "code",
-        "Research & Development": "code",
-        "Security & Compliance": "analysis",
-        "Analytics & Intelligence": "analysis",
-        "Creative & Design": "writing",
-        "Documentation & Knowledge": "writing",
-        "Marketing & Communications": "writing",
-        "Customer Success & Support": "conversation",
-        "Diplomatic & External Relations": "conversation",
-        "Human Resources & Culture": "conversation",
-        "Executive Office": "analysis",
-        "Operations & Infrastructure": "lightweight",
-        "Logistics & Supply Chain": "lightweight",
-        "Finance & Accounting": "analysis",
-        "Medical & Wellness": "analysis",
-        "Legal & Regulatory": "analysis",
-        "News & Media": "writing",
-    }
+    # Map departments to default skill categories (shared module constant).
+    DEPT_SKILL_MAP = _DEPT_SKILL_MAP
 
     # Read agent roster
     with get_db_cursor() as (conn, cur):
@@ -271,6 +253,113 @@ def update_roster_models(dry_run=True):
     action = "Would update" if dry_run else "Updated"
     logger.info("%s %d agent model assignments", action, len(changes))
     return changes
+
+
+# Department -> default skill_category, used by roster model selection (P2-A / P2-C).
+_DEPT_SKILL_MAP = {
+    "Engineering & Technology": "code",
+    "Research & Development": "code",
+    "Security & Compliance": "analysis",
+    "Analytics & Intelligence": "analysis",
+    "Creative & Design": "writing",
+    "Documentation & Knowledge": "writing",
+    "Marketing & Communications": "writing",
+    "Customer Success & Support": "conversation",
+    "Diplomatic & External Relations": "conversation",
+    "Human Resources & Culture": "conversation",
+    "Executive Office": "analysis",
+    "Operations & Infrastructure": "lightweight",
+    "Logistics & Supply Chain": "lightweight",
+    "Finance & Accounting": "analysis",
+    "Medical & Wellness": "analysis",
+    "Legal & Regulatory": "analysis",
+    "News & Media": "writing",
+}
+
+
+def _category_model_correctness(days=30, min_samples=5):
+    """Per (skill_category, model): avg CORRECTNESS (P2-A grades ONLY), avg time, samples — sorted
+    best-correctness-first per category. Filters score_kind='correctness_0_5' so stale length/speed
+    scores never drive right-sizing."""
+    cats = {}
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT skill_category, model_name,
+                   AVG(score) AS avg_score, AVG(response_time_ms) AS avg_time, COUNT(*) AS samples
+            FROM agent_benchmark_results
+            WHERE benchmark_date > NOW() - INTERVAL '%s days'
+              AND score IS NOT NULL
+              AND COALESCE(metadata->>'score_kind', '') = 'correctness_0_5'
+            GROUP BY skill_category, model_name
+            HAVING COUNT(*) >= %s
+            ORDER BY skill_category, AVG(score) DESC
+            """,
+            (days, min_samples),
+        )
+        for r in cur.fetchall():
+            cats.setdefault(r["skill_category"], []).append(
+                {
+                    "model": r["model_name"],
+                    "avg_score": float(r["avg_score"]),
+                    "avg_time": int(r["avg_time"]) if r["avg_time"] is not None else None,
+                    "samples": int(r["samples"]),
+                }
+            )
+    return cats
+
+
+def _rightsized_choice(models, quality_tolerance=0.15):
+    """Pareto right-sizing: from per-model correctness for ONE category (best-first), return the
+    FASTEST model whose correctness is within ``quality_tolerance`` of the best — the smallest/fastest
+    model that HOLDS quality, NOT the highest-scoring (which could be a needlessly big model)."""
+    best = models[0]["avg_score"]
+    cands = [m for m in models if m["avg_score"] >= best - quality_tolerance]
+    return min(cands, key=lambda m: m["avg_time"] if m["avg_time"] is not None else 10**12)
+
+
+def propose_model_rightsizing(quality_tolerance=0.15, days=30, min_samples=5):
+    """P2-C (#381): propose CORRECTNESS-graded, Pareto right-sized model swaps for the roster — the
+    smallest/fastest model that holds quality per P2-A grades. READ-ONLY: returns proposals; applying
+    is Tier-2 gated (owner approval via Telegram), NEVER automatic. Returns [] when there is no graded
+    data yet (a benchmark producer must run first)."""
+    cats = _category_model_correctness(days, min_samples)
+    if not cats:
+        return []
+    rightsized = {cat: _rightsized_choice(ms, quality_tolerance) for cat, ms in cats.items()}
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """
+            SELECT id, name, display_name, model, department,
+                   capabilities->>'skill_category' AS skill_cat
+            FROM agents
+            WHERE shift_state NOT IN ('decommissioned')
+            """
+        )
+        agents = [dict(r) for r in cur.fetchall()]
+    proposals = []
+    for a in agents:
+        cat = a["skill_cat"] or _DEPT_SKILL_MAP.get(a["department"])
+        if not cat or cat not in rightsized:
+            continue
+        choice = rightsized[cat]
+        old_model = a["model"] or ""
+        if choice["model"] != old_model:
+            proposals.append(
+                {
+                    "agent_id": a["id"],
+                    "agent_name": a["name"],
+                    "display_name": a["display_name"],
+                    "category": cat,
+                    "old_model": old_model,
+                    "new_model": choice["model"],
+                    "new_avg_correctness": round(choice["avg_score"], 2),
+                    "best_avg_correctness": round(cats[cat][0]["avg_score"], 2),
+                    "new_avg_time_ms": choice["avg_time"],
+                    "samples": choice["samples"],
+                }
+            )
+    return proposals
 
 
 def get_benchmark_summary():

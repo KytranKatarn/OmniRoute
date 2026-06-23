@@ -378,7 +378,7 @@ async def get_node_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         query = """
-            SELECT node_id, node_name, status, last_heartbeat, gpu_available, gpu_model,
+            SELECT id, node_id, node_name, status, last_heartbeat, gpu_available, gpu_model,
                    priority, max_concurrent, current_load, total_requests,
                    successful_requests, failed_requests, avg_latency_ms, bridge_enabled
             FROM remote_nodes
@@ -395,9 +395,57 @@ async def get_node_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         cur.execute(query, params)
         nodes = cur.fetchall()
 
+        # Win 5 (2026-06-23): real per-node throughput from task_execution_log.node_used_id (the int
+        # remote_nodes.id). The remote_nodes.total_requests/avg_latency_ms columns were never populated
+        # (always 0/null), so the per-node load distribution was invisible. Compute it live over the
+        # last `window_hours` (default 24) and OVERWRITE the dead columns with the real numbers. The
+        # `node_used_id IS NULL` rows are hub-direct/cloud/non-fleet — surfaced as `unattributed`.
+        try:
+            window_hours = max(1, int(arguments.get("window_hours", 24) or 24))
+        except (TypeError, ValueError):
+            window_hours = 24
+        throughput = {}
+        unattributed = 0
+        try:
+            cur.execute(
+                """
+                SELECT node_used_id AS nid, COUNT(*) AS total,
+                       SUM(CASE WHEN success THEN 1 ELSE 0 END) AS ok,
+                       ROUND(AVG(NULLIF(duration_ms, 0)))::int AS avg_ms
+                FROM task_execution_log
+                WHERE created_at > NOW() - (%s || ' hours')::interval
+                GROUP BY node_used_id
+                """,
+                (str(window_hours),),
+            )
+            for row in cur.fetchall():
+                if row["nid"] is None:
+                    unattributed = int(row["total"] or 0)
+                else:
+                    throughput[row["nid"]] = row
+        except Exception as _tp_err:
+            logger.warning(f"get_node_status throughput aggregation failed: {_tp_err}")
+
+        serialized = []
+        for r in nodes:
+            d = _serialize_row(r)
+            t = throughput.get(r.get("id"))
+            if t:
+                total = int(t["total"] or 0)
+                ok = int(t["ok"] or 0)
+                d["total_requests"] = total
+                d["successful_requests"] = ok
+                d["failed_requests"] = total - ok
+                d["avg_latency_ms"] = t["avg_ms"]
+                d["success_rate"] = round(ok / total, 3) if total else None
+            else:
+                d["total_requests"] = 0  # no dispatches in window (was a stale/dead column value)
+            d["throughput_window_hours"] = window_hours
+            serialized.append(d)
+
         result = {
             "success": True,
-            "nodes": [_serialize_row(r) for r in nodes],
+            "nodes": serialized,
             "count": len(nodes),
         }
 
@@ -415,6 +463,10 @@ async def get_node_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
                 "by_status": status_counts,
                 "total_load": total_load,
                 "total_capacity": total_capacity,
+                # Win 5: real dispatch throughput over the window (per-node counts are on each node).
+                "total_requests_window": sum(int(t["total"] or 0) for t in throughput.values()),
+                "unattributed_requests": unattributed,  # node_used_id NULL = hub-direct/cloud/non-fleet
+                "window_hours": window_hours,
             }
 
         return result
@@ -456,6 +508,11 @@ Example: Offline nodes only → status='offline', active_only=false
                 "enum": ["online", "offline", "error", "all"],
                 "default": "all",
                 "description": "Filter by node status",
+            },
+            "window_hours": {
+                "type": "integer",
+                "default": 24,
+                "description": "Hours of dispatch history to aggregate per-node throughput over (Win 5)",
             },
         },
     },

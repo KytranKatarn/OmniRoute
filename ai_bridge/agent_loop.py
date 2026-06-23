@@ -483,6 +483,19 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Win 1 (2026-06-23): generalized keep-warm for the hot HUB 7Bs (qwen2.5:7b / mistral:7b /
+        # qwen25-classify) — kills the 30-56s cold-load tax on ~24k dispatches/wk. CPU-pinned, every
+        # 4 min. Toggle via id=cluster_model_keepwarm.
+        self.scheduler.add_job(
+            with_app_context(self._keep_cluster_models_warm),
+            trigger=IntervalTrigger(minutes=4),
+            id="cluster_model_keepwarm",
+            name="Agent Loop: Cluster Hot-Model Keep-Warm",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # #4035: outbound-mail delivery-failure monitor — alerts on Stalwart
         # queue messages failing delivery (high retry / aged / failed) or backlog.
         self.scheduler.add_job(
@@ -3018,6 +3031,53 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] F.O.R.G.E. review keep-warm failed: %s", e)
+
+    def _keep_cluster_models_warm(self):
+        """Win 1 (2026-06-23): keep the hot, cold-loading HUB 7Bs resident (CPU-pinned) so their
+        dispatches hit them warm instead of paying the cold-load tax (task_execution_log 7d: 30-56s
+        averages, 10-18min max tails). Generalizes the cockpit (#4270) + Defiant-review (#1905)
+        keep-warm to the data-identified hot models.
+
+        CPU-only (num_gpu=0) = ZERO VRAM on the 128GB hub (OLLAMA_MAX_LOADED_MODELS=13 fits them).
+        Runs every 4 min — shorter than the ~5m keep_alive a dispatch resets the model to — with a 30m
+        keep_alive, so the model never unloads between sporadic dispatches. The Defiant GPU review-7B
+        is handled by forge_review_model_keepwarm; here we cover the hub 7Bs (incl. qwen2.5:7b, whose
+        14k dispatches/wk the cockpit's 30m interval is too slow to keep warm). Toggle the whole job
+        via id=cluster_model_keepwarm.
+        """
+        import time
+
+        import requests as req
+
+        # (model, num_gpu) — all on the hub CPU. 7d volume: qwen2.5:7b 14k @33s, mistral:7b 7.9k @43s,
+        # qwen25-classify 2.4k @24s. All confirmed present on the hub Ollama.
+        registry = [
+            ("qwen2.5:7b", 0),
+            ("mistral:7b", 0),
+            ("qwen25-classify", 0),
+        ]
+        ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
+        if not ollama_host.startswith("http"):
+            ollama_host = f"http://{ollama_host}"
+        for model, num_gpu in registry:
+            start = time.time()
+            try:
+                data = {
+                    "model": model,
+                    "prompt": "warm",
+                    "stream": False,
+                    "options": {"num_predict": 1, "num_gpu": num_gpu},
+                    "keep_alive": "30m",
+                }
+                resp = req.post(f"{ollama_host}/api/generate", json=data, timeout=600)
+                logger.info(
+                    "[Agent Loop] Cluster keep-warm: %s %s (%dms)",
+                    model,
+                    "warm" if resp.status_code == 200 else f"FAILED {resp.status_code}",
+                    int((time.time() - start) * 1000),
+                )
+            except Exception as e:
+                logger.warning("[Agent Loop] Cluster keep-warm %s failed: %s", model, e)
 
     def _run_benchmark_producer(self):
         """P2-PRODUCER (#381): off-peak benchmark cycle that generates correctness-graded data for

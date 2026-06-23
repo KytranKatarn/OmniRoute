@@ -722,6 +722,26 @@ def _diff_cap_for_model(strong: bool) -> int:
     return full if strong else min(full, _DIFF_MAX_7B)
 
 
+def forge_settings_snapshot() -> dict:
+    """ST-4: the EFFECTIVE value of every forge:* review knob, read through the same accessors the
+    pipeline uses (so the defaults match exactly — no drift, no seeded platform_settings rows
+    needed). Lets an operator see the current review config + tune any knob via platform_settings
+    without a code change, and shows the derived per-model diff caps."""
+    return {
+        "forge:structured_review_enabled": _structured_review_enabled(),
+        "forge:review_num_ctx": _review_num_ctx(),
+        "forge:json_reprompt_enabled": _json_reprompt_enabled(),
+        "forge:freeform_gate_enabled": _freeform_gate_enabled(),
+        "forge:evidence_verification_enabled": _evidence_verification_enabled(),
+        "forge:self_refute_enabled": _self_refute_enabled(),
+        "forge:self_refute_failclosed_enabled": _self_refute_failclosed_enabled(),
+        "forge:false_positive_writeback_enabled": _writeback_enabled(),
+        "forge:review_confidence_min": _review_confidence_min(),
+        "diff_cap_7b": _diff_cap_for_model(False),
+        "diff_cap_strong": _diff_cap_for_model(True),
+    }
+
+
 def _writeback_enabled() -> bool:
     return str(_get_setting("forge:false_positive_writeback_enabled", "true")).strip().lower() in (
         "1",

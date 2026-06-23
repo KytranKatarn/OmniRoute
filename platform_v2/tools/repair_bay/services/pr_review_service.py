@@ -312,6 +312,17 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
             (summary, pr_number, repo or _DEFAULT_REPO),
         )
 
+    # ST-4: persist which review path produced this verdict + emit a telemetry line, so the
+    # structured-vs-freeform ratio is observable (a silent drop to ~100% freeform = a regression).
+    _path = _extract_review_path(summary)
+    _mark_review_path(pr_number, _path, repo)
+    logger.info(
+        "[PR Review] PR #%s path=%s verdict=%s",
+        pr_number,
+        _path,
+        "approved" if verdict_is_approved(summary) else "needs_changes",
+    )
+
     # Notify on every review completion (approved or not). F.O.R.G.E. is a
     # director, not A.R.C.H.I.E.'s outbound voice, so it CANNOT call
     # telegram_service.send() directly — the unified-voice guard rejects it and
@@ -643,3 +654,70 @@ def _mark_kytran_approval_sent(pr_number: int) -> None:
             "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
             (payload, pr_number),
         )
+
+
+def _extract_review_path(summary: str) -> str:
+    """ST-4: classify which review path produced a verdict, for structured-vs-freeform telemetry.
+    Reads the '[review-meta] structured=<x>' line the analyzer emits (_render_review_text ->
+    'json'; _render_freeform_gated -> 'freeform-gated'). Returns
+    'json' | 'freeform-gated' | 'freeform' | 'unknown'."""
+    import re as _re  # noqa: PLC0415
+
+    s = summary or ""
+    m = _re.search(r"\[review-meta\][^\n]*structured=([\w-]+)", s)
+    if m:
+        return m.group(1)
+    if _re.search(r"\bVERDICT:", s):
+        return "freeform"  # a verdict but no meta line = legacy ungated freeform
+    return "unknown"
+
+
+def _mark_review_path(pr_number: int, path: str, repo: str = None) -> None:
+    """ST-4: stamp the review path into pr_reviews.metadata so it is queryable without re-parsing
+    ai_summary. Best-effort — telemetry must never break the review write."""
+    try:
+        from psycopg2.extras import Json as _Json  # noqa: PLC0415
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s "
+                "WHERE pr_number = %s AND repo = %s",
+                (_Json({"review_path": path}), pr_number, repo or _DEFAULT_REPO),
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[PR Review] review_path stamp failed: %s", exc)
+
+
+def get_forge_review_metrics(days: int = 7) -> dict:
+    """ST-4: structured-vs-freeform path breakdown over the last ``days`` of reviewed PRs. Prefers
+    the stamped metadata.review_path, falling back to parsing ai_summary for rows written before the
+    stamp existed. ``structured_ratio`` = json-path / total — a sharp drop signals a regression
+    (e.g. forge:structured_review_enabled turned off, or a parse break sending everything freeform)."""
+    counts = {"json": 0, "freeform-gated": 0, "freeform": 0, "unknown": 0}
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT metadata->>'review_path' AS stamped, ai_summary
+                FROM pr_reviews
+                WHERE review_status = 'reviewed'
+                  AND ai_review_at >= NOW() - (%s || ' days')::interval
+                """,
+                (str(int(days)),),
+            )
+            rows = cur.fetchall() or []
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[PR Review] forge metrics query failed: %s", exc)
+        return {"counts": counts, "total": 0, "structured_ratio": None, "days": days, "error": str(exc)}
+    for row in rows:
+        stamped = row.get("stamped") if isinstance(row, dict) else row[0]
+        summary = row.get("ai_summary") if isinstance(row, dict) else row[1]
+        path = stamped or _extract_review_path(summary)
+        counts[path if path in counts else "unknown"] += 1
+    total = sum(counts.values())
+    return {
+        "counts": counts,
+        "total": total,
+        "structured_ratio": (counts["json"] / total) if total else None,
+        "days": days,
+    }

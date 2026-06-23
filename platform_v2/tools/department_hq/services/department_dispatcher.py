@@ -403,6 +403,14 @@ CAPABILITY_REQUIRES_SKILL = {
 # the engine's plan timeout. Pinning by node_id restores GPU routing when a Starship is up
 # (fail-safe fallback to hub unchanged when both are offline). #4342.
 _GPU_CLUSTER = ["starship_76583490e36955ab", "starship_5501c2766526e746"]  # USS-246 (Defiant), USS-245 (Runabout)
+# Win 2 (2026-06-23): Citadel (boston-2, 31GB RAM, CPU-only) as an ASYNC worker. `documentation`
+# (mistral:7b, C.O.D.E.X.) prefers Citadel so delegated doc-gen runs on its idle CPU (~25GB free) AND
+# stays OFF the Defiant GPU so it can't evict the warm review 7B (#1905). Conservative: docs are
+# low-volume (~55/day) + async-latency-tolerant; the GPU cluster stays the fallback. preferred_node
+# bypasses bridge_enabled, so Citadel routes despite bridge_enabled=0; if it is offline the loop falls
+# through to the Starships then hub exactly as before. Citadel is the DR + watch-products node — keep
+# this to async/low-volume only; never let it starve the watch products.
+_CITADEL = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 — has mistral:7b installed
 CAPABILITY_NODE_AFFINITY = {
     "code_review": _GPU_CLUSTER,
     "code": _GPU_CLUSTER,
@@ -412,7 +420,7 @@ CAPABILITY_NODE_AFFINITY = {
     "research_synthesis": _GPU_CLUSTER,
     "knowledge_analysis": _GPU_CLUSTER,
     "analyze": _GPU_CLUSTER,
-    "documentation": _GPU_CLUSTER,
+    "documentation": [_CITADEL] + _GPU_CLUSTER,  # Win 2: async docs -> Citadel CPU, GPU fallback
     "summarize": _GPU_CLUSTER,
     "summarization": _GPU_CLUSTER,
     "translate": _GPU_CLUSTER,

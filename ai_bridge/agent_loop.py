@@ -496,6 +496,19 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Win 2 (2026-06-23): keep the documentation model (mistral:7b) warm on Citadel (CPU async
+        # worker) so the `documentation` dispatches now routed there hit it warm. Online-gated, every
+        # 4 min. Toggle via id=citadel_async_model_keepwarm.
+        self.scheduler.add_job(
+            with_app_context(self._keep_citadel_async_model_warm),
+            trigger=IntervalTrigger(minutes=4),
+            id="citadel_async_model_keepwarm",
+            name="Agent Loop: Citadel Async Model Keep-Warm",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # #4035: outbound-mail delivery-failure monitor — alerts on Stalwart
         # queue messages failing delivery (high retry / aged / failed) or backlog.
         self.scheduler.add_job(
@@ -3031,6 +3044,65 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] F.O.R.G.E. review keep-warm failed: %s", e)
+
+    def _keep_citadel_async_model_warm(self):
+        """Win 2 (2026-06-23): keep the documentation model (mistral:7b) warm on Citadel (boston-2,
+        31GB RAM, CPU-only) so `documentation` dispatches routed there (CAPABILITY_NODE_AFFINITY) hit
+        it warm instead of cold-loading (~60s) on each delegated doc.
+
+        Conservative async offload: docs are low-volume (~55/day) + latency-tolerant, and routing them
+        to Citadel keeps doc-gen OFF the Defiant GPU so it can't evict the warm review 7B (#1905).
+        Citadel is the DR + watch-products node, so this is CPU-pinned (num_gpu=0, ~5GB of its 25GB
+        free) and online-gated — it must never starve the watch products. Mirrors the Defiant review
+        keep-warm; a direct /api/generate ping is the sanctioned ADR-013 exception for keep-warm only.
+        Toggle via the job id `citadel_async_model_keepwarm`.
+        """
+        import time
+
+        start = time.time()
+        node_id = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 (CPU, 31GB RAM)
+        node_label = "Citadel"
+        model = "mistral:7b"
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute(
+                    "SELECT mesh_ip, hostname, status, "
+                    "EXTRACT(EPOCH FROM (NOW() - last_heartbeat)) AS hb_age "
+                    "FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
+                row = cur.fetchone()
+        except Exception as e:
+            logger.warning("[Agent Loop] Citadel async keep-warm: node lookup failed: %s", e)
+            return
+        if not row:
+            return
+        host = row.get("mesh_ip") or row.get("hostname")
+        if row.get("status") != "online" or (row.get("hb_age") or 9999) > 180 or not host:
+            logger.info("[Agent Loop] Citadel async keep-warm: %s offline/stale — skip", node_label)
+            return
+        try:
+            import requests as req
+
+            data = {
+                "model": model,
+                "prompt": "warm",
+                "stream": False,
+                "options": {"num_predict": 1, "num_gpu": 0},  # CPU-only (Citadel has no GPU)
+                "keep_alive": "30m",
+            }
+            resp = req.post(f"http://{host}:11434/api/generate", json=data, timeout=600)
+            logger.info(
+                "[Agent Loop] Citadel async keep-warm: %s on %s %s (%dms)",
+                model,
+                node_label,
+                "warm" if resp.status_code == 200 else f"FAILED {resp.status_code}",
+                int((time.time() - start) * 1000),
+            )
+        except Exception as e:
+            logger.warning("[Agent Loop] Citadel async keep-warm failed: %s", e)
 
     def _keep_cluster_models_warm(self):
         """Win 1 (2026-06-23): keep the hot, cold-loading HUB 7Bs resident (CPU-pinned) so their

@@ -90,6 +90,23 @@ def test_requeue_codex_flips_to_deferred(ds):
     assert res["capability"] == "codex_task"
 
 
+def test_requeue_codex_with_pr_refused(ds):
+    # #4422: a codex_task that already opened a PR must NOT be re-run (would
+    # redo merged work + open a duplicate PR). Retry must refuse it.
+    cur, cm = _cursor_cm(
+        row=_row(
+            delegation_source="automation",
+            delegation_args={"capability": "codex_task"},
+            metadata={"codex_pr": 1894, "codex_branch": "codex/foo"},
+        )
+    )
+    with patch.object(ds, "get_db_cursor", return_value=cm):
+        res = ds.requeue_blocked_delegation(4100)
+    assert res["success"] is False
+    assert res["error"] == "already_has_pr"
+    assert res["codex_pr"] == 1894
+
+
 def test_requeue_rejects_non_retryable_status(ds):
     cur, cm = _cursor_cm(row=_row(status="in_progress"))
     with patch.object(ds, "get_db_cursor", return_value=cm):

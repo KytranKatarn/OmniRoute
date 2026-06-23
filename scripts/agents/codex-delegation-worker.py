@@ -70,6 +70,7 @@ def claim_one() -> dict | None:
         WHERE id = (
             SELECT id FROM unified_tasks
             WHERE status='deferred' AND delegation_args->>'capability'='codex_task'
+              AND (metadata->>'codex_pr') IS NULL  -- idempotency (#4422): never re-run a task that already opened a PR → no duplicate PRs
             ORDER BY created_at ASC LIMIT 1
             FOR UPDATE SKIP LOCKED
         )
@@ -237,7 +238,12 @@ def main() -> int:
         print(f"codex #{tid}: no PR opened → blocked (full log: {logpath})\n{out[-500:]}")
         return 0
 
-    set_status(tid, "in_progress", {"codex_pr": pr_num, "codex_branch": branch})
+    # On SUCCESS, park the source task in a NON-reapable 'review' state (awaiting
+    # the human Telegram promote). Leaving it 'in_progress' (bug #4422) let
+    # reclaim_stale_delegations false-mark a SUCCESSFUL task 'blocked' after 2-3
+    # idle cycles — which then got re-run → DUPLICATE PRs. The promote→merge
+    # writeback (ai_bridge/agent_loop.py) flips 'review' → 'completed' on approval.
+    set_status(tid, "review", {"codex_pr": pr_num, "codex_branch": branch})
     if pr_num:
         queue_promote(pr_num, tid)
         print(f"codex #{tid} → PR #{pr_num} ({branch}); Telegram promote queued")

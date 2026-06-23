@@ -1050,7 +1050,11 @@ def reclaim_stale_delegations(exclude_ids, idle_secs: int = 600, limit: int = 10
         "delegation_source IS NOT NULL AND status = 'in_progress' "
         "AND updated_at < now() - make_interval(secs => %s) "
         "AND NOT EXISTS (SELECT 1 FROM work_notes w "
-        "WHERE w.task_id = t.id AND w.created_at > now() - make_interval(secs => %s))"
+        "WHERE w.task_id = t.id AND w.created_at > now() - make_interval(secs => %s)) "
+        # #4422: a codex_task that already opened a PR is SUCCESSFUL work awaiting
+        # the promote — never reap it (it would false-block, then re-run → dup PRs).
+        "AND NOT (delegation_args->>'capability' = 'codex_task' "
+        "AND metadata->>'codex_pr' IS NOT NULL)"
     )
     with get_db_cursor(commit=True) as (conn, cur):
         if exclude_ids:
@@ -1260,9 +1264,10 @@ def _parse_pr_number(*texts: str) -> Optional[int]:
 
 
 def _load_delegation_row(cur, task_id: int) -> Optional[Dict[str, Any]]:
-    """Fetch a delegation row + parse delegation_args into ``_args``."""
+    """Fetch a delegation row + parse delegation_args into ``_args`` and metadata into ``_meta``."""
     cur.execute(
-        "SELECT id, status, title, description, delegation_source, delegation_args " "FROM unified_tasks WHERE id = %s",
+        "SELECT id, status, title, description, delegation_source, delegation_args, metadata "
+        "FROM unified_tasks WHERE id = %s",
         (task_id,),
     )
     row = cur.fetchone()
@@ -1276,6 +1281,13 @@ def _load_delegation_row(cur, task_id: int) -> Optional[Dict[str, Any]]:
         except Exception:
             args = {}
     r["_args"] = args if isinstance(args, dict) else {}
+    meta = r.get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except Exception:
+            meta = {}
+    r["_meta"] = meta if isinstance(meta, dict) else {}
     return r
 
 
@@ -1298,6 +1310,11 @@ def requeue_blocked_delegation(task_id: int) -> Dict[str, Any]:
         if row["status"] not in ("blocked", "failed"):
             return {"success": False, "error": f"status_not_retryable:{row['status']}"}
         capability = row["_args"].get("capability") or ""
+        # #4422: never re-run a codex_task that already produced a PR — retrying
+        # just makes the executor redo merged work + open a DUPLICATE PR. Such a
+        # row should be 'review'/'completed', not retryable.
+        if capability == "codex_task" and row["_meta"].get("codex_pr"):
+            return {"success": False, "error": "already_has_pr", "codex_pr": row["_meta"].get("codex_pr")}
         new_status = "deferred" if capability == "codex_task" else "pending"
         cur.execute(
             "UPDATE unified_tasks "

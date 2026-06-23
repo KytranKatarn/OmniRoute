@@ -509,6 +509,18 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # ST-4 observer (2026-06-23): alert if F.O.R.G.E. review quality silently regresses — a guard
+        # flag turned off, or the structured(json) ratio crashing. Every 6h, 12h alert cooldown.
+        self.scheduler.add_job(
+            with_app_context(self._forge_review_path_observer),
+            trigger=IntervalTrigger(hours=6),
+            id="forge_review_path_observer",
+            name="Agent Loop: F.O.R.G.E. Review-Path Observer",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # #4035: outbound-mail delivery-failure monitor — alerts on Stalwart
         # queue messages failing delivery (high retry / aged / failed) or backlog.
         self.scheduler.add_job(
@@ -3150,6 +3162,105 @@ class AgentLoop:
                 )
             except Exception as e:
                 logger.warning("[Agent Loop] Cluster keep-warm %s failed: %s", model, e)
+
+    def _forge_review_path_observer(self):
+        """ST-4 observer (2026-06-23): catch a SILENT regression of F.O.R.G.E. review quality and
+        alert a human via the director->A.R.C.H.I.E. inbox (F.O.R.G.E. can't call telegram directly —
+        unified-voice guard). Two checks, runs every 6h, 12h cooldown so a persistent regression
+        alerts once rather than every run:
+
+        (A) CONFIG GUARD (deterministic, primary): a critical anti-hallucination guard flag was turned
+            OFF — the realistic 'someone flipped a flag and forgot' regression (forge_settings_snapshot).
+        (B) RATIO GUARD (secondary, conservative): the structured(json) review ratio CRASHED to near
+            zero. The raw ratio is noisy (~20-55% — many legit reviews lack the [review-meta] line), so
+            this only trips on a near-zero crash with a real sample (likely a JSON-parse break).
+        """
+        findings = []
+        # (A) deterministic config guard
+        try:
+            from tools.repair_bay.services.pr_diff_analyzer import forge_settings_snapshot
+
+            snap = forge_settings_snapshot()
+            critical = [
+                "forge:structured_review_enabled",
+                "forge:freeform_gate_enabled",
+                "forge:evidence_verification_enabled",
+                "forge:self_refute_failclosed_enabled",
+            ]
+            off = [k for k in critical if not snap.get(k)]
+            if not snap.get("forge:review_num_ctx"):  # 0/None == QW-5 window off
+                off.append("forge:review_num_ctx(off)")
+            if off:
+                findings.append("guard flags OFF: " + ", ".join(off))
+        except Exception as e:
+            logger.warning("[Agent Loop] F.O.R.G.E. observer: config check failed: %s", e)
+
+        # (B) conservative ratio-crash guard
+        try:
+            from tools.repair_bay.services.pr_review_service import get_forge_review_metrics
+
+            m = get_forge_review_metrics(days=2)
+            total = int(m.get("total") or 0)
+            ratio = m.get("structured_ratio")
+            if total >= 15 and ratio is not None and ratio < 0.05:
+                findings.append(
+                    f"structured(json) review ratio crashed to {ratio:.0%} over 2d "
+                    f"({total} reviews) — likely a JSON-parse break"
+                )
+        except Exception as e:
+            logger.warning("[Agent Loop] F.O.R.G.E. observer: ratio check failed: %s", e)
+
+        if not findings:
+            return  # healthy
+
+        # 12h cooldown via platform_settings (PK on key)
+        from datetime import datetime, timedelta
+
+        from database import get_db_cursor
+        from services.time_utils import now_utc
+
+        try:
+            with get_db_cursor(commit=False) as (_c, cur):
+                cur.execute(
+                    "SELECT value FROM platform_settings WHERE key=%s", ("forge:path_observer:last_alert_at",)
+                )
+                r = cur.fetchone()
+            if r and r.get("value"):
+                try:
+                    if (now_utc() - datetime.fromisoformat(r["value"])) < timedelta(hours=12):
+                        return  # within cooldown
+                except (ValueError, TypeError):
+                    pass
+        except Exception:
+            pass
+
+        msg = (
+            "F.O.R.G.E. review-quality regression detected: "
+            + "; ".join(findings)
+            + ". Check the forge:* flags (forge_settings_snapshot) and the structured/gated "
+            "review path (ST-1/ST-4)."
+        )
+        try:
+            from services.director_report_service import submit_via_inbox
+
+            submit_via_inbox(
+                category="forge_health",
+                title="F.O.R.G.E. review-quality regression",
+                message=msg,
+                source_agent="F.O.R.G.E.",
+                severity="warning",
+                department="Engineering & Technology",
+            )
+            logger.warning("[Agent Loop] F.O.R.G.E. path observer ALERT: %s", msg)
+            with get_db_cursor(commit=True) as (_c, cur):
+                cur.execute(
+                    "INSERT INTO platform_settings (key, value, value_type, updated_at) "
+                    "VALUES (%s, %s, 'string', %s) "
+                    "ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=EXCLUDED.updated_at",
+                    ("forge:path_observer:last_alert_at", now_utc().isoformat(), now_utc()),
+                )
+        except Exception as e:
+            logger.warning("[Agent Loop] F.O.R.G.E. path observer alert failed: %s", e)
 
     def _run_benchmark_producer(self):
         """P2-PRODUCER (#381): off-peak benchmark cycle that generates correctness-graded data for

@@ -144,6 +144,7 @@ def call_ollama_json(
     system_prompt=None,
     max_retries=2,
     timeout=120,
+    options=None,
 ):
     """
     Call Ollama with structured JSON output enforcement.
@@ -176,6 +177,8 @@ def call_ollama_json(
             }
             if system_prompt:
                 payload["system"] = system_prompt
+            if options:
+                payload["options"] = options
 
             resp = requests.post(
                 f"{ollama_host}/api/generate",
@@ -313,6 +316,7 @@ def call_ollama(
     context=None,
     prefer_gpu=True,
     timeout=300,
+    options=None,
 ):
     """
     Call Ollama API with dynamic node routing (Phase 71)
@@ -355,6 +359,8 @@ def call_ollama(
 
     if context:
         payload["context"] = context
+    if options:
+        payload["options"] = options
 
     try:
         response = requests.post(

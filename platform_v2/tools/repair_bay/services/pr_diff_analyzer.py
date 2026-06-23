@@ -595,6 +595,18 @@ def _self_refute_enabled() -> bool:
     return str(_get_setting("forge:self_refute_enabled", "true")).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _review_num_ctx():
+    """QW-5: per-dispatch num_ctx for F.O.R.G.E. reviews so the rubric + full diff
+    fit Ollama's window instead of being slid out (dropping the rubric on long
+    diffs). Returns the configured int, or None when 0/unset (default-safe OFF).
+    Enable: platform_settings forge:review_num_ctx=8192. Rollback: set to 0."""
+    try:
+        v = int(str(_get_setting("forge:review_num_ctx", "0")).strip() or "0")
+    except (TypeError, ValueError):
+        return None
+    return v if v >= 512 else None
+
+
 def _writeback_enabled() -> bool:
     return str(_get_setting("forge:false_positive_writeback_enabled", "true")).strip().lower() in (
         "1",
@@ -630,6 +642,7 @@ def _self_refute_criticals(review: dict, diff: str, criticals: list) -> list:
             json_mode=True,
             prefer_model="gemma3:12b",  # a stronger model audits the 7B's CRITICALs (best-effort)
             preferred_node=["starship_76583490e36955ab", "archie-starbase"],
+            num_ctx=_review_num_ctx(),
         )
         if not (getattr(res, "success", False) and getattr(res, "response", "")):
             return criticals  # fail-open
@@ -697,6 +710,7 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
             module_id="repair_bay",
             json_mode=True,
             preferred_node=["starship_76583490e36955ab", "archie-starbase"],
+            num_ctx=_review_num_ctx(),
             **kw,
         )
     except Exception as exc:
@@ -856,6 +870,7 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff
             capability="code_review",
             prompt=prompt,
             module_id="repair_bay",
+            num_ctx=_review_num_ctx(),
             # Pin PR review to capable nodes (#4300): the RTX 3070 Defiant (246)
             # when it's up, else the always-on hub M4000 — both run F.O.R.G.E.'s
             # 7B reliably. This explicitly EXCLUDES the 4GB Runabout (245), where

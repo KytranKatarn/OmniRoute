@@ -3716,6 +3716,7 @@ class DepartmentDispatcher:
         capability: Optional[str] = None,
         module_id: Optional[str] = None,
         images: Optional[List[str]] = None,
+        num_ctx: Optional[int] = None,
     ) -> Dict:
         """Execute an LLM call using the existing archie_bridge functions.
 
@@ -3883,9 +3884,21 @@ class DepartmentDispatcher:
             except Exception as wb_err:
                 logger.debug(f"[BridgeDispatcher] Warm boot check failed: {wb_err}")
 
+            # QW-5: a per-dispatch num_ctx so big prompts (e.g. F.O.R.G.E. reviews)
+            # aren't slid out of Ollama's default ~2048 window (dropping the rubric).
+            # Keep gemma3:12b CPU-pinned (num_gpu=0) when raising ctx so it does not
+            # reload onto the 8GB hub GPU and evict the warm 7B (mirrors _HUB_CPU_TIER).
+            _llm_options = None
+            if num_ctx:
+                _llm_options = {"num_ctx": int(num_ctx)}
+                if model.startswith("gemma3"):
+                    _llm_options["num_gpu"] = 0
+
             # JSON mode
             if json_mode:
-                result = call_ollama_json(prompt, model=model, system_prompt=system_prompt, timeout=timeout)
+                result = call_ollama_json(
+                    prompt, model=model, system_prompt=system_prompt, timeout=timeout, options=_llm_options
+                )
                 if result.get("success") and result.get("data"):
                     return {
                         "success": True,
@@ -3914,6 +3927,7 @@ class DepartmentDispatcher:
                 system_prompt=system_prompt,
                 prefer_gpu=prefer_gpu,
                 timeout=timeout,
+                options=_llm_options,
             )
             # If Ollama returned HTTP 500, the model failed to load mid-inference.
             # Mark model_not_ready so request_work() queues rather than escalates
@@ -5712,6 +5726,7 @@ class DepartmentDispatcher:
         images: Optional[List[str]] = None,
         source_product: Optional[str] = None,
         preferred_node: Optional[str] = None,
+        num_ctx: Optional[int] = None,
     ) -> DispatchResult:
         """
         Main entry point — request AI work by capability.
@@ -6041,7 +6056,7 @@ class DepartmentDispatcher:
                                 agent_info=_pn_info,
                                 prompt=prompt,
                                 system_prompt=system_prompt,
-                                options={"temperature": 0.7},
+                                options={"temperature": 0.7, **({"num_ctx": int(num_ctx)} if num_ctx else {})},
                                 capability=capability,
                                 module_id=module_id,
                                 station_code=station_code,
@@ -7082,6 +7097,7 @@ class DepartmentDispatcher:
                 capability=capability,
                 module_id=module_id,
                 images=images,
+                num_ctx=num_ctx,
             )
 
         duration_ms = int((time.time() - start) * 1000)

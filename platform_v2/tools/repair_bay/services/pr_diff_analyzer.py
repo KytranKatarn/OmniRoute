@@ -539,6 +539,33 @@ def _parse_review_json(text: str):
     return None
 
 
+def _parse_confirmed_indices(text):
+    """ST-2: parse the self-refute audit reply ``{"confirmed": [<1-based indices>]}`` into a set of
+    ints, or None when no parseable ``confirmed`` array is present. Uses the ST-1 balanced-object
+    scanner so a fenced/prose-wrapped reply still parses. The audit JSON has NO ``issues`` key, so it
+    is deliberately NOT routed through _parse_review_json (which requires one — that mismatch made the
+    audit silently fail-open). An empty list -> empty set (a valid 'retract all'); None -> the caller
+    treats the audit as unavailable and fails closed."""
+    if not text:
+        return None
+    import json
+
+    for cand in _balanced_json_candidates(text):
+        try:
+            d = json.loads(cand)
+        except Exception:
+            continue
+        if isinstance(d, dict) and isinstance(d.get("confirmed"), list):
+            out = set()
+            for x in d["confirmed"]:
+                try:
+                    out.add(int(x))
+                except (TypeError, ValueError):
+                    continue
+            return out
+    return None
+
+
 def _recompute_verdict(issues: list, confidence, threshold: float) -> str:
     """Deterministic verdict from surviving issues + confidence (subsumes the severity gate):
     any CRITICAL/WARNING -> REQUEST CHANGES; else low confidence -> NEEDS REVIEW; else APPROVE."""
@@ -704,14 +731,33 @@ def _writeback_enabled() -> bool:
     )
 
 
-def _self_refute_criticals(review: dict, diff: str, criticals: list) -> list:
-    """PR-C Fix #5: second-opinion pass on surviving CRITICAL issues — re-ask the model to confirm
-    each with a verbatim changed line or RETRACT; keep only re-confirmed CRITICALs. Fail-open."""
+def _self_refute_failclosed_enabled() -> bool:
+    """ST-2: when the gemma3:12b auditor is UNAVAILABLE (cold/queued/exception/unparseable) we cannot
+    verify a CRITICAL. Fail CLOSED — send the unverified CRITICAL to a human (NEEDS REVIEW) instead of
+    fail-open keeping it as an auto-block. Default ON; rollback: forge:self_refute_failclosed_enabled=false."""
+    return str(_get_setting("forge:self_refute_failclosed_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _self_refute_criticals(review: dict, diff: str, criticals: list) -> tuple:
+    """PR-C Fix #5 + ST-2: second-opinion pass on surviving CRITICAL issues — re-ask the stronger
+    gemma3:12b to confirm each with a verbatim changed line or RETRACT. Returns
+    ``(confirmed_list, audit_ran)``.
+
+    ``audit_ran`` is True ONLY when the auditor actually returned a parseable verdict — then
+    ``confirmed_list`` is the real kept subset (possibly empty = retract all). It is False when the
+    auditor was UNAVAILABLE (dispatch error, cold-load queue, no response, or an unparseable reply);
+    ``confirmed_list`` is then the inputs unchanged and the caller fails CLOSED (the unverified
+    CRITICAL goes to a human via NEEDS REVIEW) rather than fail-open keeping it as an auto-block."""
     if not criticals:
-        return criticals
+        return criticals, True
     from tools.department_hq.services.department_dispatcher import dispatch
 
-    diff_content, _ = _truncate_diff(diff)
+    diff_content, _ = _truncate_diff(diff)  # gemma3:12b audit — full window cap is correct
     listing = "\n".join(
         f"{i + 1}. {(c or {}).get('title', '')}: {(c or {}).get('evidence', '')}" for i, c in enumerate(criticals)
     )
@@ -728,21 +774,21 @@ def _self_refute_criticals(review: dict, diff: str, criticals: list) -> list:
             prompt=prompt,
             module_id="repair_bay",
             json_mode=True,
-            prefer_model="gemma3:12b",  # a stronger model audits the 7B's CRITICALs (best-effort)
+            prefer_model="gemma3:12b",  # a stronger model audits the 7B's CRITICALs
             preferred_node=["starship_76583490e36955ab", "archie-starbase"],
             num_ctx=_review_num_ctx(),
         )
-        if not (getattr(res, "success", False) and getattr(res, "response", "")):
-            return criticals  # fail-open
-        parsed = _parse_review_json(res.response) or {}
-        idx = parsed.get("confirmed")
-        if not isinstance(idx, list):
-            return criticals
-        keep = {int(x) for x in idx if str(x).isdigit()}
-        confirmed = [c for n, c in enumerate(criticals, 1) if n in keep]
-        return confirmed if (confirmed or not keep) else criticals
     except Exception:
-        return criticals  # fail-open
+        return criticals, False  # auditor unavailable -> caller fails closed
+    if getattr(res, "queued", False):
+        return criticals, False  # cold-load queue — couldn't verify in-line
+    if not (getattr(res, "success", False) and getattr(res, "response", "")):
+        return criticals, False
+    keep = _parse_confirmed_indices(res.response)
+    if keep is None:
+        return criticals, False  # unparseable audit reply -> couldn't verify
+    confirmed = [c for n, c in enumerate(criticals, 1) if n in keep]
+    return confirmed, True  # audit ran: real kept subset (empty set = retract all)
 
 
 def _writeback_false_positives(dropped: list, pr_number: int, repo: str) -> None:
@@ -860,19 +906,31 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
             if _writeback_enabled():
                 _writeback_false_positives(dropped, pr_number, repo)
         issues = kept
-    # PR-C: self-refute surviving CRITICALs (highest-stakes only).
+    # PR-C + ST-2: self-refute surviving CRITICALs (highest-stakes only).
+    unverified_criticals = []
     if _self_refute_enabled():
         criticals = [i for i in issues if str((i or {}).get("severity", "")).upper() == "CRITICAL"]
         if criticals:
-            confirmed = _self_refute_criticals(review, diff, criticals)
-            if len(confirmed) != len(criticals):
-                cset = {id(c) for c in confirmed}
-                issues = [
-                    i for i in issues if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
-                ]
-                note = (
-                    note + "; " if note else ""
-                ) + f"self-refute retracted {len(criticals) - len(confirmed)} CRITICAL"
+            confirmed, audit_ran = _self_refute_criticals(review, diff, criticals)
+            if audit_ran:
+                if len(confirmed) != len(criticals):
+                    cset = {id(c) for c in confirmed}
+                    issues = [
+                        i for i in issues if str((i or {}).get("severity", "")).upper() != "CRITICAL" or id(i) in cset
+                    ]
+                    note = (
+                        note + "; " if note else ""
+                    ) + f"self-refute retracted {len(criticals) - len(confirmed)} CRITICAL"
+            elif _self_refute_failclosed_enabled():
+                # ST-2: the auditor was UNAVAILABLE -> these CRITICALs are unverified. Keep them
+                # VISIBLE but don't let a possibly-hallucinated CRITICAL auto-block; mark them so the
+                # verdict floors to NEEDS REVIEW (a human adjudicates) instead of REQUEST CHANGES.
+                unverified_criticals = [c for c in criticals if isinstance(c, dict)]
+                for c in unverified_criticals:
+                    c["_unverified"] = True
+                note = (note + "; " if note else "") + (
+                    f"{len(criticals)} CRITICAL unverified (auditor unavailable) → NEEDS REVIEW"
+                )
     # QW-2: demote non-blocking nit categories to INFO BEFORE the verdict + render, so a
     # true-but-trivial WARNING/CRITICAL can't block (the dominant residual false-block class, RC-2).
     _normalize_severity(issues)
@@ -880,7 +938,13 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     if n_demoted:
         note = (note + "; " if note else "") + f"normalized {n_demoted} nit(s) to INFO"
     parsed["issues"] = issues
-    parsed["verdict"] = _recompute_verdict(issues, parsed.get("confidence"), _review_confidence_min())
+    # ST-2: an unverified CRITICAL must not ASSERT a block — exclude it from the verdict computation,
+    # then floor to NEEDS REVIEW so it reaches a human (unless a real blocker already requests changes).
+    verdict_issues = [i for i in issues if not (isinstance(i, dict) and i.get("_unverified"))]
+    verdict = _recompute_verdict(verdict_issues, parsed.get("confidence"), _review_confidence_min())
+    if unverified_criticals and verdict != "REQUEST CHANGES":
+        verdict = "NEEDS REVIEW"
+    parsed["verdict"] = verdict
     return _render_review_text(parsed, model=model_label, note=note)
 
 

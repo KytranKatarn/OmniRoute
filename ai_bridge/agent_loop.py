@@ -469,6 +469,20 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # F.O.R.G.E. review-model keep-warm (2026-06-23): keep qwen2.5:7b GPU-resident on the
+        # Defiant review node so F.O.R.G.E. reviews don't cold-load → the 280-322s spikes that blew
+        # the 240s per-node cap. Every 4 min (< any per-request keep_alive reset) with a 10m
+        # keep_alive, online-gated. Toggle via id=forge_review_model_keepwarm.
+        self.scheduler.add_job(
+            with_app_context(self._keep_forge_review_model_warm),
+            trigger=IntervalTrigger(minutes=4),
+            id="forge_review_model_keepwarm",
+            name="Agent Loop: F.O.R.G.E. Review Model Keep-Warm",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # #4035: outbound-mail delivery-failure monitor — alerts on Stalwart
         # queue messages failing delivery (high retry / aged / failed) or backlog.
         self.scheduler.add_job(
@@ -2923,6 +2937,87 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] Cockpit model keep-warm failed: %s", e)
+
+    def _keep_forge_review_model_warm(self):
+        """Keep the F.O.R.G.E. code-review model (qwen2.5:7b) GPU-resident on the review node
+        (Starship-246 'Defiant', RTX 3070) so reviews don't cold-load.
+
+        2026-06-23 diagnosis: the review 7B unloaded between sporadic F.O.R.G.E. reviews (node
+        KEEP_ALIVE=10m, reviews usually >10m apart), so each review cold-loaded the model on the
+        Windows node → 280-322s spikes that blew the 240s per-node dispatch cap → fell to the
+        weaker freeform path. Warm hits run in 15-30s. This pins the model resident and warms it at
+        the SAME num_ctx the reviews use (forge:review_num_ctx, QW-5) so the review reuses this exact
+        runner with no reload. Mirrors the owner-approved cockpit keep-warm (#4270) — a direct
+        /api/generate ping is the sanctioned exception to ADR-013 for keep-warm only.
+
+        Online-gated (graceful skip when the node is offline / in 8PM-6AM hardware rest). Runs every
+        4 min with a 10m keep_alive, so even a review that resets keep_alive to ~5m never lapses
+        before the next ping. Toggle via the job id `forge_review_model_keepwarm`.
+        """
+        import time
+
+        start = time.time()
+        review_node_id = "starship_76583490e36955ab"  # Defiant USS-246 (RTX 3070)
+        node_label = "Defiant USS-246"
+        model = "qwen2.5:7b"
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute(
+                    "SELECT mesh_ip, hostname, status, "
+                    "EXTRACT(EPOCH FROM (NOW() - last_heartbeat)) AS hb_age "
+                    "FROM remote_nodes WHERE node_id = %s",
+                    (review_node_id,),
+                )
+                row = cur.fetchone()
+        except Exception as e:
+            logger.warning("[Agent Loop] F.O.R.G.E. review keep-warm: node lookup failed: %s", e)
+            return
+        if not row:
+            return
+        host = row.get("mesh_ip") or row.get("hostname")
+        if row.get("status") != "online" or (row.get("hb_age") or 9999) > 180 or not host:
+            logger.info("[Agent Loop] F.O.R.G.E. review keep-warm: %s offline/stale — skip", node_label)
+            return
+
+        # Match the review's num_ctx so this warm runner is the exact instance reviews reuse (a
+        # different num_ctx is a different Ollama runner = a reload, which would waste the warm-up).
+        opts = {"num_predict": 1}
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute("SELECT value FROM platform_settings WHERE key = %s", ("forge:review_num_ctx",))
+                r2 = cur.fetchone()
+            nc = int(str((r2 or {}).get("value") or "0").strip() or "0")
+            if nc >= 512:
+                opts["num_ctx"] = nc
+        except Exception:
+            pass  # default num_ctx — matches a flag-off review
+
+        try:
+            import requests as req
+
+            data = {
+                "model": model,
+                "prompt": "warm",
+                "stream": False,
+                # No num_gpu → Ollama fills the RTX 3070 first (the 7B fits in 8GB); GPU-resident = fast.
+                "options": opts,
+                "keep_alive": "10m",
+            }
+            resp = req.post(f"http://{host}:11434/api/generate", json=data, timeout=600)
+            ok = resp.status_code == 200
+            logger.info(
+                "[Agent Loop] F.O.R.G.E. review keep-warm: %s on %s %s (%dms)",
+                model,
+                node_label,
+                "warm" if ok else f"FAILED {resp.status_code}",
+                int((time.time() - start) * 1000),
+            )
+        except Exception as e:
+            logger.warning("[Agent Loop] F.O.R.G.E. review keep-warm failed: %s", e)
 
     def _run_benchmark_producer(self):
         """P2-PRODUCER (#381): off-peak benchmark cycle that generates correctness-graded data for

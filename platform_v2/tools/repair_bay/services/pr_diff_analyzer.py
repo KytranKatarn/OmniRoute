@@ -27,7 +27,11 @@ logger = logging.getLogger(__name__)
 _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 # Raised from 6000: a 7B/12B has headroom, and a bigger window means fewer truncations
 # (truncation mid-file was a direct cause of false 'no tests'/'unclosed loop' flags).
+# _DIFF_MAX_CHARS is the conservative cap used when the review window is at Ollama's ~2048
+# default (forge:review_num_ctx unset/0). QW-5 follow-on: when that flag raises the window,
+# _diff_max_chars() widens the cap toward _DIFF_MAX_WIDE so fewer PRs truncate.
 _DIFF_MAX_CHARS = 12000
+_DIFF_MAX_WIDE = 20000
 
 # Phase-1 anti-hallucination rubric (project #381). Seeded from the 2026-06-22 review where
 # F.O.R.G.E. (qwen2.5:7b) hallucinated flags on ~8/10 verified-correct PRs. Each rule maps to
@@ -195,33 +199,39 @@ def _fetch_diff(diff_url: str) -> str:
     return resp.text
 
 
-def _truncate_diff(diff: str) -> tuple:
+def _truncate_diff(diff: str, max_chars: int = None) -> tuple:
     """Truncate at a complete boundary before the cap so no file is cut mid-statement — a byte cut
     produced the false 'no tests added' (test file sliced off) and 'unclosed loop'/'missing
     semicolon' (statement sliced) flags. Returns ``(content, truncated)``.
+
+    ``max_chars`` defaults to ``_diff_max_chars()`` (QW-5 follow-on, window-aware): the cap widens
+    when the per-dispatch review window is raised so fewer PRs truncate; callers that already
+    resolved the cap (e.g. ``_build_prompt`` for its note) pass it in to avoid a second read.
 
     QW-6 (#381, RC-3b): PREFER a file boundary (``\\ndiff --git``) so a single oversized hunk (e.g.
     a long SQL ``CREATE TABLE`` migration) is never chopped mid-statement. Only when the nearest
     file boundary sits in the first half of the window (so it would drop most of the shown diff) do
     we fall back to the finer hunk boundary (``\\n@@``) — still complete hunks, just more of them.
     Last resort is a raw byte cut (a single file larger than the cap with no earlier boundary)."""
-    if len(diff) <= _DIFF_MAX_CHARS:
+    cap = max_chars if max_chars is not None else _diff_max_chars()
+    if len(diff) <= cap:
         return diff, False
-    file_cut = diff.rfind("\ndiff --git", 0, _DIFF_MAX_CHARS)
-    if file_cut > _DIFF_MAX_CHARS // 2:
+    file_cut = diff.rfind("\ndiff --git", 0, cap)
+    if file_cut > cap // 2:
         cut = file_cut
     else:
-        hunk_cut = diff.rfind("\n@@", 0, _DIFF_MAX_CHARS)
+        hunk_cut = diff.rfind("\n@@", 0, cap)
         cut = hunk_cut if hunk_cut > 0 else file_cut
-    return (diff[:cut] if cut > 0 else diff[:_DIFF_MAX_CHARS]), True
+    return (diff[:cut] if cut > 0 else diff[:cap]), True
 
 
 def _build_prompt(review: dict, diff: str) -> str:
     """Assemble the F.O.R.G.E. code review prompt with an anti-hallucination grounding rubric
     + a hunk-boundary-safe diff window (Phase-1 agent-optimization, project #381)."""
-    diff_content, truncated = _truncate_diff(diff)
+    cap = _diff_max_chars()
+    diff_content, truncated = _truncate_diff(diff, cap)
     truncation_note = (
-        f"\n[Note: diff truncated to ~{_DIFF_MAX_CHARS} chars at a hunk boundary — the shown "
+        f"\n[Note: diff truncated to ~{cap} chars at a hunk boundary — the shown "
         "hunks are COMPLETE; judge only the changes you can see, do not infer about omitted files.]\n"
         if truncated
         else ""
@@ -605,6 +615,25 @@ def _review_num_ctx():
     except (TypeError, ValueError):
         return None
     return v if v >= 512 else None
+
+
+def _diff_max_chars() -> int:
+    """QW-5 follow-on (#381): scale the diff truncation cap to the per-dispatch review window.
+
+    When forge:review_num_ctx raises the window (default 8192), the rubric + tail-reminder + a
+    BIGGER diff + the model's own output all fit, so we widen the cap to truncate fewer PRs —
+    mid-file truncation was a direct cause of false 'no tests'/'unclosed loop' flags. When the
+    window is unset/0 (rollback) we keep the conservative _DIFF_MAX_CHARS so nothing regresses.
+
+    Budget: reserve ~3500 tokens of the window for the rubric + format instructions + the model's
+    own output, give the rest to the diff at ~4 chars/token, and clamp to
+    [_DIFF_MAX_CHARS, _DIFF_MAX_WIDE]. 8192 -> 18768 | 0/unset -> 12000 | 1024 -> 12000 (floor) |
+    32768 -> 20000 (ceiling)."""
+    nc = _review_num_ctx()
+    if not nc:
+        return _DIFF_MAX_CHARS
+    diff_budget = (nc - 3500) * 4
+    return max(_DIFF_MAX_CHARS, min(diff_budget, _DIFF_MAX_WIDE))
 
 
 def _writeback_enabled() -> bool:

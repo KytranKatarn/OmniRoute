@@ -32,6 +32,12 @@ _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 # _diff_max_chars() widens the cap toward _DIFF_MAX_WIDE so fewer PRs truncate.
 _DIFF_MAX_CHARS = 12000
 _DIFF_MAX_WIDE = 20000
+# ST-3: the qwen2.5:7b (every Tier-1/2 structured review + the freeform fallback) must finish a
+# review inside the 240s per-node dispatch window. A big diff (the full _DIFF_MAX_WIDE window) makes
+# the 7B time out -> the weaker freeform fallback (the #1901 failure). Cap the 7B's diff here so
+# reviews COMPLETE; the patient (CPU-bound) Tier-3 gemma3:12b keeps the full window. See
+# _diff_cap_for_model().
+_DIFF_MAX_7B = 9000
 
 # Phase-1 anti-hallucination rubric (project #381). Seeded from the 2026-06-22 review where
 # F.O.R.G.E. (qwen2.5:7b) hallucinated flags on ~8/10 verified-correct PRs. Each rule maps to
@@ -228,7 +234,7 @@ def _truncate_diff(diff: str, max_chars: int = None) -> tuple:
 def _build_prompt(review: dict, diff: str) -> str:
     """Assemble the F.O.R.G.E. code review prompt with an anti-hallucination grounding rubric
     + a hunk-boundary-safe diff window (Phase-1 agent-optimization, project #381)."""
-    cap = _diff_max_chars()
+    cap = _diff_cap_for_model(strong=False)  # ST-3: the freeform fallback always runs the 7B
     diff_content, truncated = _truncate_diff(diff, cap)
     truncation_note = (
         f"\n[Note: diff truncated to ~{cap} chars at a hunk boundary — the shown "
@@ -450,9 +456,11 @@ def _review_confidence_min() -> float:
         return 0.7
 
 
-def _build_json_prompt(review: dict, diff: str) -> str:
-    """JSON-output variant of the grounded review prompt (PR-B). Same rubric + hunk-safe diff."""
-    diff_content, truncated = _truncate_diff(diff)
+def _build_json_prompt(review: dict, diff: str, strong: bool = False) -> str:
+    """JSON-output variant of the grounded review prompt (PR-B). Same rubric + hunk-safe diff.
+    ST-3: ``strong`` (the Tier-3 gemma3:12b path) keeps the full window-aware diff cap; the 7B
+    (strong=False) gets the tighter _DIFF_MAX_7B cap so the review finishes inside the 240s window."""
+    diff_content, truncated = _truncate_diff(diff, _diff_cap_for_model(strong))
     note = "\n[diff truncated at a hunk boundary — judge only the complete hunks shown]\n" if truncated else ""
     return (
         "You are F.O.R.G.E., A.R.C.H.I.E.'s code-review engine.\n\n"
@@ -677,6 +685,16 @@ def _diff_max_chars() -> int:
     return max(_DIFF_MAX_CHARS, min(diff_budget, _DIFF_MAX_WIDE))
 
 
+def _diff_cap_for_model(strong: bool) -> int:
+    """ST-3: right-size the diff window to the model that will run the review. The Tier-3
+    gemma3:12b (``strong``) is CPU-bound but patient, so it keeps the full window-aware cap for
+    maximum grounding. The qwen2.5:7b — which runs every Tier-1/2 structured review AND the
+    freeform fallback — must finish inside the 240s per-node dispatch window or it times out to
+    the weaker freeform path (the #1901 failure); cap its diff at _DIFF_MAX_7B so it completes."""
+    full = _diff_max_chars()  # window-aware (#1900): up to _DIFF_MAX_WIDE at the raised num_ctx
+    return full if strong else min(full, _DIFF_MAX_7B)
+
+
 def _writeback_enabled() -> bool:
     return str(_get_setting("forge:false_positive_writeback_enabled", "true")).strip().lower() in (
         "1",
@@ -809,10 +827,11 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
         tier = 1
     kw = {}
     model_label = "default"
-    if tier >= 3:
+    strong = tier >= 3  # ST-3: Tier-3 -> gemma3:12b (full diff window); else qwen2.5:7b (tighter cap)
+    if strong:
         kw["prefer_model"] = _TIER3_REVIEW_MODEL
         model_label = _TIER3_REVIEW_MODEL
-    parsed, status = _dispatch_json_review(_build_json_prompt(review, diff), kw)
+    parsed, status = _dispatch_json_review(_build_json_prompt(review, diff, strong=strong), kw)
     if status == "queued":
         return None  # cold model — let the freeform path handle the queue + callback
     if status == "parse_fail" and _json_reprompt_enabled():
@@ -822,7 +841,7 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
         reprompt = (
             "Your previous reply was NOT valid JSON. Return ONLY a single JSON object matching the "
             "schema below — no markdown code fences, no prose, nothing before or after the braces.\n\n"
-            + _build_json_prompt(review, diff)
+            + _build_json_prompt(review, diff, strong=strong)
         )
         parsed, status = _dispatch_json_review(reprompt, kw)
         if parsed:

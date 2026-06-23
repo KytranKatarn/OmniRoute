@@ -100,3 +100,51 @@ def test_truncate_diff_uses_window_aware_default(pda):
     assert truncated_off is True
     assert truncated_on is False
     assert content_on == body
+
+
+# ---------------------------------------------------------------------------
+# ST-3: _diff_cap_for_model(strong) right-sizes the cap to the model that runs
+# the review. The Tier-3 gemma3:12b (strong=True) keeps the full window-aware
+# cap; the 7B (strong=False, every Tier-1/2 structured review + all freeform)
+# is capped at _DIFF_MAX_7B so it finishes inside the 240s per-node window.
+# ---------------------------------------------------------------------------
+
+
+def test_diff_max_7b_below_floor(pda):
+    # The 7B cap must be tighter than the default floor, or it would never bite.
+    assert pda._DIFF_MAX_7B < pda._DIFF_MAX_CHARS
+
+
+@pytest.mark.parametrize(
+    "num_ctx,strong,expected",
+    [
+        (8192, True, 18768),  # strong keeps the full window-aware cap
+        (8192, False, 9000),  # 7B capped at _DIFF_MAX_7B
+        (None, True, 12000),  # flag off: strong == floor
+        (None, False, 9000),  # flag off: 7B still capped tighter
+        (32768, True, 20000),  # strong ceilings with the window
+        (32768, False, 9000),  # 7B unaffected by a huge window
+    ],
+)
+def test_diff_cap_for_model(pda, num_ctx, strong, expected):
+    with patch.object(pda, "_review_num_ctx", return_value=num_ctx):
+        assert pda._diff_cap_for_model(strong) == expected
+
+
+def test_diff_cap_strong_equals_full_window(pda):
+    # strong=True must exactly track the window-aware _diff_max_chars().
+    for nc in (None, 0, 8192, 16384):
+        with patch.object(pda, "_review_num_ctx", return_value=nc):
+            assert pda._diff_cap_for_model(True) == pda._diff_max_chars()
+
+
+def test_build_json_prompt_strong_keeps_more_diff(pda):
+    # A diff between the 7B cap and the full window: 7B truncates, strong does not.
+    review = {"pr_number": 1, "title": "t", "additions": 0, "deletions": 0, "changed_files": 1}
+    body = "\ndiff --git a/x b/x\n" + ("+line\n" * 2200)  # ~13.2k chars, one file
+    note = "[diff truncated at a hunk boundary"  # the specific note (rubric also says "truncated")
+    with patch.object(pda, "_review_num_ctx", return_value=8192):
+        weak = pda._build_json_prompt(review, body, strong=False)
+        strong = pda._build_json_prompt(review, body, strong=True)
+    assert note in weak  # 13.2k > 9000 -> 7B truncates
+    assert note not in strong  # 13.2k < 18768 -> strong keeps it whole

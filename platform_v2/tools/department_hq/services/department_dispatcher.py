@@ -411,6 +411,12 @@ _GPU_CLUSTER = ["starship_76583490e36955ab", "starship_5501c2766526e746"]  # USS
 # through to the Starships then hub exactly as before. Citadel is the DR + watch-products node — keep
 # this to async/low-volume only; never let it starve the watch products.
 _CITADEL = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 — has mistral:7b installed
+# Win 3 (2026-06-23): vision work -> Runabout USS-245 (RTX 3050 4GB). moondream (~1.8GB) fits its GPU;
+# the 4GB card can't run a 7B but is ideal for the small vision models it has (moondream + minicpm-v).
+# The hub (M4000, also has moondream) is the fallback when .245 rests (8PM-6AM); NOT the Defiant — its
+# 8GB is reserved for the warm review 7B (#1905). _RUNABOUT is already in _GPU_CLUSTER (drift-guarded).
+# Vision is low-volume + cold-load-tolerant (describe_portrait accepts a 60-90s load), so no keep-warm.
+_RUNABOUT = "starship_5501c2766526e746"  # USS-245 Runabout — has moondream + minicpm-v
 CAPABILITY_NODE_AFFINITY = {
     "code_review": _GPU_CLUSTER,
     "code": _GPU_CLUSTER,
@@ -425,6 +431,8 @@ CAPABILITY_NODE_AFFINITY = {
     "summarization": _GPU_CLUSTER,
     "translate": _GPU_CLUSTER,
     "policy_assessment": _GPU_CLUSTER,
+    "vision": [_RUNABOUT, "archie-starbase"],  # Win 3: vision -> .245 small GPU (moondream), hub fallback
+    "multimodal": [_RUNABOUT, "archie-starbase"],
 }
 
 

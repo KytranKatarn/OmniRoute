@@ -468,26 +468,67 @@ def _build_json_prompt(review: dict, diff: str) -> str:
     )
 
 
+def _balanced_json_candidates(text: str) -> list:
+    """ST-1: string/escape-aware scan for balanced ``{...}`` objects in arbitrary text. Robust to
+    markdown ```json fences, prose before/after, and braces inside string literals (a naive
+    ``\\{.*\\}`` regex grabs the first ``{`` through the LAST ``}`` and chokes on either). Returns
+    the candidate substrings sorted largest-span first, so the full review object outranks a
+    nested one. Operates on the small model RESPONSE, not the diff."""
+    cands = []
+    n = len(text)
+    i = 0
+    while i < n:
+        if text[i] != "{":
+            i += 1
+            continue
+        depth = 0
+        in_str = False
+        esc = False
+        j = i
+        while j < n:
+            c = text[j]
+            if in_str:
+                if esc:
+                    esc = False
+                elif c == "\\":
+                    esc = True
+                elif c == '"':
+                    in_str = False
+            elif c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    cands.append(text[i : j + 1])
+                    break
+            j += 1
+        i += 1
+    cands.sort(key=len, reverse=True)
+    return cands
+
+
 def _parse_review_json(text: str):
-    """Extract + parse the review JSON. Returns dict or None (caller falls back to freeform)."""
+    """Extract + parse the review JSON. ST-1: robust to markdown fences / surrounding prose —
+    scans for balanced ``{...}`` objects (string-aware) and returns the largest that is a dict
+    containing ``issues``. Returns None (caller re-prompts once, then falls back to the gated
+    freeform path). The ``issues`` requirement is intentional — it also keeps the self-refute
+    audit parse (which reads ``{"confirmed": [...]}``) returning None, unchanged."""
     if not text:
         return None
     import json
-    import re as _re
 
-    s = text.strip()
-    m = _re.search(r"\{.*\}", s, _re.S)
-    if m:
-        s = m.group(0)
-    try:
-        d = json.loads(s)
-    except Exception:
-        return None
-    if not isinstance(d, dict) or "issues" not in d:
-        return None
-    if not isinstance(d.get("issues"), list):
-        d["issues"] = []
-    return d
+    for cand in _balanced_json_candidates(text):
+        try:
+            d = json.loads(cand)
+        except Exception:
+            continue
+        if isinstance(d, dict) and "issues" in d:
+            if not isinstance(d.get("issues"), list):
+                d["issues"] = []
+            return d
+    return None
 
 
 def _recompute_verdict(issues: list, confidence, threshold: float) -> str:
@@ -715,12 +756,51 @@ def _writeback_false_positives(dropped: list, pr_number: int, repo: str) -> None
         logger.info("[PR Review] false-positive writeback skipped: %s", exc)
 
 
+def _json_reprompt_enabled() -> bool:
+    """ST-1: re-prompt the model ONCE for clean JSON when the first structured reply doesn't parse,
+    before dropping to the gated freeform path. Default ON; rollback: forge:json_reprompt_enabled=false."""
+    return str(_get_setting("forge:json_reprompt_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _dispatch_json_review(prompt: str, kw: dict):
+    """One structured (json_mode) review dispatch. Returns ``(parsed_dict_or_None, status)`` where
+    status is 'parsed' | 'parse_fail' | 'queued' | 'error' | 'empty'. Shared by the first structured
+    attempt and the ST-1 JSON re-prompt so both honor the same node pinning, num_ctx, and tier model.
+    Only 'parse_fail' (a real non-JSON response) warrants a re-prompt — queued/error/empty go straight
+    to the freeform fallback, exactly as before."""
+    from tools.department_hq.services.department_dispatcher import dispatch
+
+    try:
+        result = dispatch(
+            capability="code_review",
+            prompt=prompt,
+            module_id="repair_bay",
+            json_mode=True,
+            preferred_node=["starship_76583490e36955ab", "archie-starbase"],
+            num_ctx=_review_num_ctx(),
+            **kw,
+        )
+    except Exception as exc:
+        logger.warning("[PR Review] structured dispatch error, falling back: %s", exc)
+        return None, "error"
+    if getattr(result, "queued", False):
+        return None, "queued"
+    if not (getattr(result, "success", False) and getattr(result, "response", "")):
+        return None, "empty"
+    parsed = _parse_review_json(result.response)
+    return (parsed, "parsed") if parsed else (None, "parse_fail")
+
+
 def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None):
     """PR-B: JSON-structured grounded review. Returns canonical review TEXT, or None to fall back
     to the freeform path (disabled flag / queue / empty / unparseable JSON — all fail-safe)."""
     if not _structured_review_enabled():
         return None
-    from tools.department_hq.services.department_dispatcher import dispatch
     from tools.repair_bay.services.pr_review_service import classify_pr_tier
 
     try:
@@ -732,24 +812,21 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     if tier >= 3:
         kw["prefer_model"] = _TIER3_REVIEW_MODEL
         model_label = _TIER3_REVIEW_MODEL
-    try:
-        result = dispatch(
-            capability="code_review",
-            prompt=_build_json_prompt(review, diff),
-            module_id="repair_bay",
-            json_mode=True,
-            preferred_node=["starship_76583490e36955ab", "archie-starbase"],
-            num_ctx=_review_num_ctx(),
-            **kw,
-        )
-    except Exception as exc:
-        logger.warning("[PR Review] structured dispatch error, falling back: %s", exc)
-        return None
-    if getattr(result, "queued", False):
+    parsed, status = _dispatch_json_review(_build_json_prompt(review, diff), kw)
+    if status == "queued":
         return None  # cold model — let the freeform path handle the queue + callback
-    if not (getattr(result, "success", False) and getattr(result, "response", "")):
-        return None
-    parsed = _parse_review_json(result.response)
+    if status == "parse_fail" and _json_reprompt_enabled():
+        # ST-1: the model replied but not as JSON — re-prompt ONCE for a clean object before we
+        # drop to the (gated) freeform path. Fires only on a real non-JSON reply, so it's rare
+        # once _parse_review_json strips fences/prose and QW-5 keeps the rubric in-window.
+        reprompt = (
+            "Your previous reply was NOT valid JSON. Return ONLY a single JSON object matching the "
+            "schema below — no markdown code fences, no prose, nothing before or after the braces.\n\n"
+            + _build_json_prompt(review, diff)
+        )
+        parsed, status = _dispatch_json_review(reprompt, kw)
+        if parsed:
+            logger.info("[PR Review] PR #%s — recovered structured JSON on re-prompt", pr_number)
     if not parsed:
         logger.info("[PR Review] structured JSON unparseable for PR #%s — falling back", pr_number)
         return None

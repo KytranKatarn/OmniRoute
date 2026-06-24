@@ -429,7 +429,14 @@ CAPABILITY_NODE_AFFINITY = {
     "documentation": [_CITADEL] + _GPU_CLUSTER,  # Win 2: async docs -> Citadel CPU, GPU fallback
     "summarize": _GPU_CLUSTER,
     "summarization": _GPU_CLUSTER,
-    "translate": _GPU_CLUSTER,
+    # #1905 follow-up (2026-06-24): keep translate OFF the Defiant 8GB GPU. translate ran
+    # gemma3:12b (Amina, ~370/6h, 6.3GB VRAM) + mistral:7b (R.O.S.E.T.T.A., ~128/6h) ON the
+    # Defiant, evicting the warm review qwen2.5:7b ~1x/min (gemma3 6.3GB + 7B ~5GB cannot
+    # coexist on 8GB) → F.O.R.G.E. reviews cold-loaded (240s per-node timeouts → freeform
+    # fallback). Route to the hub: gemma3:12b is CPU-pinned there (_HUB_CPU_TIER, 128GB RAM)
+    # and mistral:7b stays warm; translate is latency-tolerant. The Runabout (4GB) couldn't
+    # run translate models anyway. Reversible: restore _GPU_CLUSTER. Watch hub CPU load.
+    "translate": ["archie-starbase"],
     "policy_assessment": _GPU_CLUSTER,
     "vision": [_RUNABOUT, "archie-starbase"],  # Win 3: vision -> .245 small GPU (moondream), hub fallback
     "multimodal": [_RUNABOUT, "archie-starbase"],

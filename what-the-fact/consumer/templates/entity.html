@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ e.canonical_name }} — Cross-Watch · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="{{ e.canonical_name }} — cross-product accountability footprint across Gov, Civic, Legal, Market Watch and the news, by What The Fact.">
+<meta property="og:title" content="{{ e.canonical_name }} — Cross-Watch footprint">
+<meta property="og:url" content="https://what-the-fact.com/entity/{{ e.id }}">
+{% endblock %}
+{% block content %}
+<style>
+.wtf-cw-stat { background:#060d14; border:1px solid #1a3a5a; border-radius:4px; padding:10px 16px; text-align:center; min-width:80px; }
+.wtf-cw-stat-num { font-size:22px; font-weight:700; font-family:'IBM Plex Mono',monospace; }
+.wtf-cw-stat-label { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
+.wtf-cw-section { margin-bottom:22px; }
+.wtf-cw-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid #0d1f2d; }
+.wtf-cw-prod { display:flex; align-items:center; gap:10px; background:#0a1520; border:1px solid #1a3a5a; border-left-width:3px; border-radius:4px; padding:10px 14px; min-width:180px; }
+.wtf-cw-prod-num { font-family:'IBM Plex Mono',monospace; font-size:18px; font-weight:700; margin-left:auto; }
+.wtf-cw-prod-label { font-size:11px; color:#cbd5e1; }
+.wtf-cw-prod-sub { font-size:9px; color:#6b7280; }
+.wtf-cw-chip { background:#0a1520; border:1px solid #1a3a5a; border-radius:3px; padding:5px 12px; font-size:11px; color:#9ca3af; text-decoration:none; }
+.wtf-cw-link-row { display:flex; align-items:center; gap:10px; padding:6px 0; font-size:11px; border-bottom:1px solid #060d14; }
+</style>
+
+{% set TYPE_ICON = {'organization':'🏢','person':'👤','journalist':'📝'} %}
+{% set PROD = {
+  'gov-watch':   {'icon':'🏛','label':'Federal Procurement','sub':'Gov Watch','color':'#0ea5e9'},
+  'civic-watch': {'icon':'🏙','label':'Civic & Lobbying','sub':'Civic Watch','color':'#22c55e'},
+  'legal-watch': {'icon':'⚖️','label':'Legal & Rulings','sub':'Legal Watch','color':'#a78bfa'},
+  'market-watch':{'icon':'📈','label':'Markets','sub':'Market Watch','color':'#f59e0b'},
+  'wtf':         {'icon':'🗞','label':'News Coverage','sub':'What The Fact','color':'#00aaff'},
+  'parliament':  {'icon':'🏛','label':'Parliament','sub':'Parliament','color':'#ef4444'}
+} %}
+
+<div style="font-size:11px;color:#6b7280;margin:14px 0 4px;">← <a href="/cross-watch" style="color:#6b7280;text-decoration:none;">Cross-Watch</a></div>
+<h1 style="font-family:'Orbitron',sans-serif;font-size:18px;color:#e5e7eb;margin:0 0 4px;">
+  {{ TYPE_ICON.get(e.entity_type,'🔎') }} {{ e.canonical_name }}
+</h1>
+<div style="font-size:11px;color:#6b7280;margin-bottom:4px;text-transform:capitalize;">{{ e.entity_type }}</div>
+{% if e.aliases %}<div style="font-size:10px;color:#4b5563;margin-bottom:12px;">Also known as: {{ e.aliases | join(', ') }}</div>{% endif %}
+
+<div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 20px;">
+  <div class="wtf-cw-stat"><div class="wtf-cw-stat-num" style="color:#0af;">{{ products|length }}</div><div class="wtf-cw-stat-label">Watch products</div></div>
+  <div class="wtf-cw-stat"><div class="wtf-cw-stat-num" style="color:#22c55e;">{{ total_mentions }}</div><div class="wtf-cw-stat-label">Total mentions</div></div>
+  <div class="wtf-cw-stat"><div class="wtf-cw-stat-num" style="color:#f59e0b;">{{ recent|length }}</div><div class="wtf-cw-stat-label">Recent stories</div></div>
+</div>
+
+{# ── Cross-product footprint (free — the headline feature) ── #}
+<div class="wtf-cw-section">
+  <div class="wtf-cw-section-title">🔗 Cross-Watch footprint — where this {{ e.entity_type }} appears</div>
+  {% if products %}
+  <div style="display:flex;flex-wrap:wrap;gap:10px;">
+    {% for p in products %}
+    {% set meta = PROD.get(p.product, {'icon':'•','label':p.product,'sub':'','color':'#6b7280'}) %}
+    <div class="wtf-cw-prod" style="border-left-color:{{ meta.color }};">
+      <span style="font-size:16px;">{{ meta.icon }}</span>
+      <div>
+        <div class="wtf-cw-prod-label">{{ meta.label }}</div>
+        <div class="wtf-cw-prod-sub">{{ meta.sub }}</div>
+      </div>
+      <span class="wtf-cw-prod-num" style="color:{{ meta.color }};">{{ p.mentions }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">Entities matching this name across our datasets — coverage grows as Legal &amp; Market geo-link in.</div>
+  {% else %}<div style="color:#6b7280;font-size:12px;">No cross-product mentions linked yet.</div>{% endif %}
+</div>
+
+{# ── Recent WTF coverage (free) ── #}
+<div class="wtf-cw-section">
+  <div class="wtf-cw-section-title">🗞 Recent news coverage</div>
+  {% if recent %}
+    {% set BANDS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb'} %}
+    {% for a in recent %}
+    <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #060d14;align-items:flex-start;">
+      <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:{{ BANDS.get(a.bias_band or '','#6b7280') }};"></div>
+      <div style="flex:1;">
+        <a href="/article/{{ a.id }}" style="font-size:12px;color:#ccc;text-decoration:none;line-height:1.4;">{{ a.title or 'Untitled' }}</a>
+        <div style="font-size:10px;color:#4b5563;margin-top:2px;">
+          {% if a.source_slug %}<a href="/source/{{ a.source_slug }}" style="color:inherit;text-decoration:none;">{{ a.source_name }}</a>{% else %}{{ a.source_name }}{% endif %}
+          {% if a.published_at %}· {{ a.published_at.strftime('%b %-d') if a.published_at.strftime is defined else (a.published_at or '')[:10] }}{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}<div style="color:#6b7280;font-size:12px;">No linked news articles yet.</div>{% endif %}
+</div>
+
+{% if is_subscriber %}
+{# ── Accountability chain links (premium) ── #}
+<div class="wtf-cw-section">
+  <div class="wtf-cw-section-title">⛓ Accountability chain — how this {{ e.entity_type }} connects</div>
+  {% if links %}
+    {% for l in links %}
+    <div class="wtf-cw-link-row">
+      <span style="flex:1;color:#cbd5e1;">{{ l.label }}{% if not l.is_spine %} <span style="color:#4b5563;font-size:9px;">enrichment</span>{% endif %}</span>
+      {% if l.out_n %}<span style="color:#0af;font-family:'IBM Plex Mono',monospace;">→ {{ l.out_n }}</span>{% endif %}
+      {% if l.in_n %}<span style="color:#22c55e;font-family:'IBM Plex Mono',monospace;">← {{ l.in_n }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  {% else %}<div style="color:#6b7280;font-size:12px;">No chain-link relationships recorded yet.</div>{% endif %}
+</div>
+
+{% if co_mentioned %}
+{# ── Co-mentioned (premium) ── #}
+<div class="wtf-cw-section">
+  <div class="wtf-cw-section-title">🔗 Co-mentioned in the news</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for c in co_mentioned %}
+    <a class="wtf-cw-chip" href="/entity/{{ c.id }}">{{ c.canonical_name }} <span style="color:#4b5563;">{{ c.entity_type }}</span> <span style="color:#0af;">{{ c.n }}</span></a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+{# ── Paywall gate ── #}
+<div style="background:#0a0505;border:1px solid #1f2937;border-radius:8px;padding:24px;text-align:center;margin:20px 0;">
+  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Accountability chain — Starter+</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">
+    The full accountability chain (contracts, donations, votes, lobbying) and<br>
+    co-mentioned entities for {{ e.canonical_name }} are available to subscribers.
+  </div>
+  <a href="/login?next={{ request.path }}" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
+  <div style="margin-top:12px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
+</div>
+{% endif %}
+
+<div style="font-size:9px;color:#374151;margin-top:18px;">Cross-Watch resolves the same person or organization across Gov, Civic, Legal &amp; Market Watch and the news. Matches are name-based and grow as datasets link in.</div>
+{% endblock %}

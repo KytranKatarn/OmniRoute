@@ -296,3 +296,84 @@ def entity_profile(entity_id):
                 "coverage_pct": _coverage_pct(c),
             }
         )
+
+
+@entities_bp.get("/api/entities/<int:entity_id>/footprint")
+@require_product_access("wtf-premium")
+def entity_footprint(entity_id):
+    """Cross-product accountability footprint for ANY entity (#3331 Cross-Watch).
+
+    Generalizes the journalist `/profile`: which Watch products mention this
+    entity (grouped by `product`) + the chain-link relationships it sits on
+    (grouped by relationship_type, labelled via shared.chain_link_types) +
+    its WTF news footprint. Read-only over the live shared graph.
+    """
+    s, w = _shared(), _wtf()
+    with _eng().connect() as c:
+        ent = c.execute(
+            text(
+                f"SELECT id, entity_type, canonical_name, slug, aliases "
+                f"FROM {s}.entities WHERE id=:e AND status='active'"
+            ),
+            {"e": entity_id},
+        ).mappings().first()
+        if not ent:
+            return jsonify({"error": "entity not found"}), 404
+        # Mentions grouped by product (the cross-product link).
+        products = c.execute(
+            text(
+                f"SELECT product, count(*) AS mentions, count(DISTINCT content_type) AS kinds "
+                f"FROM {s}.entity_mentions WHERE entity_id=:e "
+                f"GROUP BY product ORDER BY mentions DESC"
+            ),
+            {"e": entity_id},
+        ).mappings().all()
+        # Chain-link relationships this entity sits on (single-entity → bounded).
+        links = c.execute(
+            text(
+                f"SELECT r.relationship_type, clt.label, clt.is_spine, "
+                f"count(*) FILTER (WHERE r.from_entity_id=:e) AS out_n, "
+                f"count(*) FILTER (WHERE r.to_entity_id=:e) AS in_n "
+                f"FROM {s}.entity_relationships r "
+                f"JOIN {s}.chain_link_types clt ON clt.relationship_type=r.relationship_type "
+                f"WHERE r.from_entity_id=:e OR r.to_entity_id=:e "
+                f"GROUP BY r.relationship_type, clt.label, clt.is_spine "
+                f"ORDER BY count(*) DESC"
+            ),
+            {"e": entity_id},
+        ).mappings().all()
+        # WTF news footprint (a.id::text = content_id — never cast content_id->int).
+        wtf_articles = c.execute(
+            text(
+                f"SELECT count(DISTINCT a.id) FROM {s}.entity_mentions em "
+                f"JOIN {w}.articles a ON a.id::text=em.content_id "
+                f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'"
+            ),
+            {"e": entity_id},
+        ).scalar() or 0
+        return jsonify(
+            {
+                "entity": {
+                    "id": ent["id"],
+                    "type": ent["entity_type"],
+                    "canonical_name": ent["canonical_name"],
+                    "slug": ent["slug"],
+                    "aliases": list(ent["aliases"] or []),
+                },
+                "products": [
+                    {"product": p["product"], "mentions": int(p["mentions"]),
+                     "content_types": int(p["kinds"])}
+                    for p in products
+                ],
+                "chain_links": [
+                    {"relationship_type": l["relationship_type"], "label": l["label"],
+                     "is_spine": l["is_spine"], "as_subject": int(l["out_n"]),
+                     "as_object": int(l["in_n"])}
+                    for l in links
+                ],
+                "wtf_article_count": int(wtf_articles),
+                "products_count": len(products),
+                "total_mentions": sum(int(p["mentions"]) for p in products),
+                "coverage_pct": _coverage_pct(c),
+            }
+        )

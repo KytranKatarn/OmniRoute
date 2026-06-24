@@ -2443,6 +2443,75 @@ def journalist_profile(entity_id):
                            source_count=source_count, is_subscriber=subscribed)
 
 
+@bp.get("/entity/<int:entity_id>")
+def entity_profile_page(entity_id):
+    """Cross-Watch entity profile — the accountability footprint across all Watch
+    products (#3331). Free = identity + which products mention this entity + recent
+    WTF coverage. Premium = chain links (contracts/donations/votes/lobbying) +
+    co-mentioned entities. Reads the live shared entity graph."""
+    S = _schema()
+    SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+    subscribed = is_subscriber()
+    with _db().begin() as c:
+        source_count = c.execute(text(f"SELECT count(*) FROM {S}.sources")).scalar() or 0
+        ent = c.execute(text(f"""
+            SELECT id, entity_type, canonical_name, slug, aliases,
+                   COALESCE(metadata, '{{}}'::jsonb) AS metadata
+              FROM {SH}.entities
+             WHERE id=:e AND status='active'
+               AND entity_type IN ('person','organization','journalist')
+        """), {"e": entity_id}).mappings().first()
+        if not ent:
+            abort(404)
+        ent = dict(ent)
+        # Cross-product footprint: mentions grouped by product (the cross-watch link).
+        products = c.execute(text(f"""
+            SELECT product, count(*) AS mentions, count(DISTINCT content_type) AS kinds
+              FROM {SH}.entity_mentions WHERE entity_id=:e
+             GROUP BY product ORDER BY mentions DESC
+        """), {"e": entity_id}).mappings().all()
+        # Recent WTF coverage (free). a.id::text = content_id (never cast content_id->int).
+        recent = c.execute(text(f"""
+            SELECT a.id, a.title, a.published_at, a.bias_ensemble_band AS bias_band,
+                   src.slug AS source_slug, src.name AS source_name
+              FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id
+              JOIN {S}.sources src ON src.id=a.source_id
+             WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
+             ORDER BY a.published_at DESC NULLS LAST LIMIT 12
+        """), {"e": entity_id}).mappings().all()
+        # Premium: chain links + co-mentioned (WTF-bounded, like the journalist page).
+        links, co = [], []
+        if subscribed:
+            links = c.execute(text(f"""
+                SELECT r.relationship_type, clt.label, clt.is_spine,
+                       count(*) FILTER (WHERE r.from_entity_id=:e) AS out_n,
+                       count(*) FILTER (WHERE r.to_entity_id=:e) AS in_n
+                  FROM {SH}.entity_relationships r
+                  JOIN {SH}.chain_link_types clt ON clt.relationship_type=r.relationship_type
+                 WHERE r.from_entity_id=:e OR r.to_entity_id=:e
+                 GROUP BY r.relationship_type, clt.label, clt.is_spine
+                 ORDER BY count(*) DESC
+            """), {"e": entity_id}).mappings().all()
+            co = c.execute(text(f"""
+                SELECT e2.id, e2.canonical_name, e2.entity_type, count(DISTINCT em2.content_id) n
+                  FROM {SH}.entity_mentions em1
+                  JOIN {SH}.entity_mentions em2 ON em2.content_id=em1.content_id
+                       AND em2.product='wtf' AND em2.content_type='article'
+                       AND em2.entity_id<>em1.entity_id
+                  JOIN {SH}.entities e2 ON e2.id=em2.entity_id AND e2.status='active'
+                 WHERE em1.entity_id=:e AND em1.product='wtf' AND em1.content_type='article'
+                 GROUP BY e2.id, e2.canonical_name, e2.entity_type ORDER BY n DESC LIMIT 12
+            """), {"e": entity_id}).mappings().all()
+    total_mentions = sum(int(p["mentions"]) for p in products)
+    return render_template("entity.html", e=ent,
+                           products=[dict(r) for r in products],
+                           recent=[dict(r) for r in recent],
+                           links=[dict(r) for r in links],
+                           co_mentioned=[dict(r) for r in co],
+                           total_mentions=total_mentions,
+                           source_count=source_count, is_subscriber=subscribed)
+
+
 @bp.route("/score", methods=["GET", "POST"])
 def score_url():
     """Subscriber-gated: paste any article text for instant AI analysis."""

@@ -1297,6 +1297,37 @@ def article(article_id: int):
         # Missing table or no parliament data — never break article rendering
         pass
 
+    # Cross-Watch teaser (#3331 1b) — entities tagged in this story that ALSO appear
+    # in another Watch product (gov/civic/legal/market). Free hook → /entity/<id>.
+    cross_watch_entities = []
+    try:
+        SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+        with _db().begin() as c:
+            cw_rows = c.execute(text(f"""
+                WITH ae AS (
+                    SELECT DISTINCT em.entity_id
+                    FROM {SH}.entity_mentions em
+                    WHERE em.product='wtf' AND em.content_type='article'
+                      AND em.content_id = :aid_text
+                )
+                SELECT e.id, e.entity_type, e.canonical_name,
+                       array_agg(DISTINCT em2.product) AS other_products
+                FROM ae
+                JOIN {SH}.entities e ON e.id=ae.entity_id AND e.status='active'
+                JOIN {SH}.entity_mentions em2
+                     ON em2.entity_id=ae.entity_id AND em2.product <> 'wtf'
+                GROUP BY e.id, e.entity_type, e.canonical_name
+                ORDER BY count(*) DESC LIMIT 6
+            """), {"aid_text": str(article_id)}).mappings().all()
+        cross_watch_entities = [
+            {"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"],
+             "products": list(r["other_products"] or [])}
+            for r in cw_rows
+        ]
+    except Exception:
+        # Never break article rendering on the teaser
+        pass
+
     return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
@@ -1306,7 +1337,8 @@ def article(article_id: int):
                            reading_time_min=reading_time_min,
                            article_type=article_type,
                            sparkline=sparkline,
-                           mp_claims=mp_claims)
+                           mp_claims=mp_claims,
+                           cross_watch_entities=cross_watch_entities)
 
 
 # ───────────────────────────────────────────────────────────────────────────

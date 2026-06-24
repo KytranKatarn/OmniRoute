@@ -409,6 +409,26 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   </div>
   {% endif %}
 
+  <!-- Cross-Watch teaser — entities in this story also tracked in other Watch products (#3331 1b) -->
+  {% if cross_watch_entities %}
+  {% set CWP = {'gov-watch':{'l':'Gov','c':'#0ea5e9'},'civic-watch':{'l':'Civic','c':'#22c55e'},'legal-watch':{'l':'Legal','c':'#a78bfa'},'market-watch':{'l':'Market','c':'#f59e0b'},'parliament':{'l':'Parliament','c':'#ef4444'}} %}
+  <div class="wtf-crosswatch-panel" style="background:#0a0e14;border:1px solid #143047;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:3px;font-weight:600;">&#x1F517; Cross-Watch</div>
+    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Named in this story &mdash; also tracked across the Watch Series.</div>
+    {% for ce in cross_watch_entities %}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid #060d14;">
+      <a href="/entity/{{ ce.id }}" style="font-size:11px;color:#e5e7eb;text-decoration:none;font-weight:600;">{{ ce.name }} <span style="color:#4b5563;font-weight:400;">{{ ce.type }}</span></a>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        {% for p in ce.products %}
+        {% set m = CWP.get(p, {'l': p, 'c': '#6b7280'}) %}
+        <span style="font-size:8px;letter-spacing:.5px;text-transform:uppercase;padding:2px 6px;border-radius:2px;background:#060d14;color:{{ m.c }};border:1px solid {{ m.c }}33;">{{ m.l }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
   <!-- Related Civic Events — civic-watch municipal crossover (#3021) -->
   <div id="wtf-civic-section" style="display:none;background:#060a10;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#38bdf8;text-transform:uppercase;margin-bottom:8px;font-weight:600;">&#x1F3D9; Related Municipal Events</div>

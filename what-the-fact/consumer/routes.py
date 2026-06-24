@@ -2544,6 +2544,68 @@ def entity_profile_page(entity_id):
                            source_count=source_count, is_subscriber=subscribed)
 
 
+_CROSSWATCH_CACHE: dict = {}
+_CROSSWATCH_CACHE_TTL = 300  # 5 min — cross-product membership changes slowly
+
+
+def _crosswatch_top(c, SH):
+    """Cached ranked list of entities spanning >=2 Watch products. The ranking
+    GROUP BY over entity_mentions is ~670ms, so cache it (per-worker TTL) — never
+    run it uncached on every page hit (the 2026-06-15 shared-gunicorn DoS lesson)."""
+    now = time.time()
+    if _CROSSWATCH_CACHE.get("ts", 0) + _CROSSWATCH_CACHE_TTL > now:
+        return _CROSSWATCH_CACHE.get("data", [])
+    rows = c.execute(text(f"""
+        SELECT e.id, e.entity_type, e.canonical_name,
+               array_agg(DISTINCT m.product) AS products, count(*) AS mentions
+        FROM {SH}.entities e
+        JOIN {SH}.entity_mentions m ON m.entity_id=e.id
+        WHERE e.status='active' AND e.entity_type IN ('person','organization')
+        GROUP BY e.id, e.entity_type, e.canonical_name
+        HAVING count(DISTINCT m.product) >= 2
+        ORDER BY count(DISTINCT m.product) DESC, count(*) DESC
+        LIMIT 60
+    """)).mappings().all()
+    data = [{"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"],
+             "products": list(r["products"] or []), "mentions": int(r["mentions"])} for r in rows]
+    _CROSSWATCH_CACHE["ts"] = now
+    _CROSSWATCH_CACHE["data"] = data
+    return data
+
+
+@bp.get("/cross-watch")
+def cross_watch_explorer():
+    """Cross-Watch explorer (#3331 1c) — browse/search entities resolved across the
+    Watch Series. Default = top entities spanning the most products (cached); ?q=
+    searches by name/alias. Public; each result links to its /entity/<id> footprint."""
+    S = _schema()
+    SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+    q = (request.args.get("q") or "").strip()
+    with _db().begin() as c:
+        source_count = c.execute(text(f"SELECT count(*) FROM {S}.sources")).scalar() or 0
+        if q:
+            like = f"%{q.lower()}%"
+            rows = c.execute(text(f"""
+                SELECT e.id, e.entity_type, e.canonical_name,
+                       array_agg(DISTINCT m.product) AS products, count(*) AS mentions
+                FROM {SH}.entities e
+                JOIN {SH}.entity_mentions m ON m.entity_id=e.id
+                WHERE e.status='active' AND e.entity_type IN ('person','organization')
+                  AND (lower(e.canonical_name) LIKE :like
+                       OR EXISTS (SELECT 1 FROM unnest(e.aliases) a WHERE lower(a) LIKE :like))
+                GROUP BY e.id, e.entity_type, e.canonical_name
+                ORDER BY count(DISTINCT m.product) DESC, count(*) DESC
+                LIMIT 60
+            """), {"like": like}).mappings().all()
+            entities = [{"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"],
+                         "products": list(r["products"] or []), "mentions": int(r["mentions"])}
+                        for r in rows]
+        else:
+            entities = _crosswatch_top(c, SH)
+    return render_template("cross_watch.html", entities=entities, q=q,
+                           source_count=source_count, is_subscriber=is_subscriber())
+
+
 @bp.route("/score", methods=["GET", "POST"])
 def score_url():
     """Subscriber-gated: paste any article text for instant AI analysis."""

@@ -52,6 +52,9 @@ _MIN_BODY_CHARS = int(os.environ.get("WTF_SCOUT_BODY_MIN_BODY_CHARS", "300"))
 _MIN_RESCUE_CHARS = int(os.environ.get("WTF_SCOUT_BODY_MIN_RESCUE_CHARS", "400"))
 _DISPATCH_SLEEP_SEC = float(os.environ.get("WTF_SCOUT_BODY_DISPATCH_SLEEP_SEC", "2"))
 _WORKERS = max(1, int(os.environ.get("WTF_SCOUT_BODY_WORKERS", "4")))
+# Anti-starvation (#4452): fraction of each batch reserved for the OLDEST eligible
+# articles (the rest go newest-first). 0.0 = legacy newest-only behaviour.
+_OLDEST_SHARE = max(0.0, min(1.0, float(os.environ.get("WTF_SCOUT_BODY_OLDEST_SHARE", "0.4"))))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
@@ -71,6 +74,20 @@ _SKIP_SLUGS = frozenset({
     # that produced the bulk of scout_body_jobs failures (KB #274976 Class A + B).
     "winnipeg_free_press",  # ~2,138 empty bodies — Google-News redirect, no full body
     "cbc_english",          # ~230 empty bodies — same Google-News redirect anti-bot
+    # #4452: data-driven cull. scout_body_jobs success rate <=5% over >=20 attempts
+    # (measured 2026-06-24). These burned ~77% of worker slots failing; excluding
+    # them frees the queue for the high-success backlog (globe_mail 99%, le_devoir
+    # 95%, saltwire 92%, ottawa_citizen 90%) to actually drain. Consumer renders
+    # them via is_limited_body ("read at source"). Re-test before removing any.
+    "ctv_news",             # 2% (19/841) — anti-bot
+    "toronto_star",         # 2% (9/536) — paywall
+    "journal_de_montreal",  # 0% (0/260) — paywall
+    "le_droit",             # 3% (23/702)
+    "le_soleil",            # 5% (33/710)
+    "le_quotidien",         # 2% (15/688)
+    "yukon_news",           # 0% (0/46)
+    "aptn_news",            # 0% (0/32)
+    "ipolitics",            # 0% (0/29)
 })
 
 # Sources that route through Google News RSS — bodies are snippets, not full text.
@@ -106,37 +123,53 @@ _SELECTORS = {
 
 
 def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
-    """Pull articles eligible for body rescue: short body, Google-News-backed source, untried.
+    """Pull articles eligible for body rescue: short body, untried, source not skipped.
 
-    #2971: source detection is now dynamic — any source whose rss_feed routes
-    via news.google.com qualifies. Picks up PR #805's regional/Indigenous
-    sources (cbc_north, windspeaker, le_droit, le_quotidien, le_soleil) plus
-    the original 4 (toronto_star, la_presse, the_tyee, bnn_bloomberg) without
-    keeping a hardcoded list in sync.
+    Anti-starvation (#4452): split the batch between the NEWEST and the OLDEST
+    eligible articles. Newest-first alone permanently starved the old backlog —
+    daily inflow (~445/day) roughly matches the worker's attempt rate, so under a
+    pure ``ingested_at DESC`` order the worker only ever re-worked recent articles
+    and the 22k+ items older than a week were never reached. Reserving
+    ``_OLDEST_SHARE`` of the batch for oldest-first guarantees the old backlog
+    drains while fresh articles still get prompt bodies. Set
+    ``WTF_SCOUT_BODY_OLDEST_SHARE=0`` to restore the legacy newest-only behaviour.
     """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_fetch_batch: disallowed schema {schema!r}")
+
+    # ``order`` is a hardcoded literal (DESC/ASC) — never user input. ``schema`` is
+    # whitelisted above. ``skip_slugs`` is a tuple bound param (psycopg2 expands it).
+    base_sql = """
+        SELECT a.id, a.url, a.title, s.slug AS source_slug, LENGTH(a.body) AS body_len
+        FROM {schema}.articles a
+        JOIN {schema}.sources s ON s.id = a.source_id
+        WHERE LENGTH(a.body) < :min_chars
+          AND s.slug NOT IN :skip_slugs
+          AND NOT EXISTS (
+              SELECT 1 FROM {schema}.scout_body_jobs j WHERE j.article_id = a.id
+          )
+        ORDER BY a.ingested_at {order}
+        LIMIT :limit
+    """
+    old_n = int(round(limit * _OLDEST_SHARE))
+    plan = [("DESC", limit - old_n), ("ASC", old_n)]  # newest gets the remainder
+
+    rows: list[dict] = []
+    seen: set = set()
     with engine.connect() as c:
-        rows = c.execute(
-            text(f"""
-                SELECT a.id, a.url, a.title, s.slug AS source_slug, LENGTH(a.body) AS body_len
-                FROM {schema}.articles a
-                JOIN {schema}.sources s ON s.id = a.source_id
-                WHERE LENGTH(a.body) < :min_chars
-                  AND s.slug NOT IN :skip_slugs
-                  AND NOT EXISTS (
-                      SELECT 1 FROM {schema}.scout_body_jobs j WHERE j.article_id = a.id
-                  )
-                ORDER BY a.ingested_at DESC
-                LIMIT :limit
-            """),
-            {
-                "min_chars": _MIN_BODY_CHARS,
-                "skip_slugs": tuple(_SKIP_SLUGS),
-                "limit": limit,
-            },
-        ).mappings().all()
-    return [dict(r) for r in rows]
+        for order, n in plan:
+            if n <= 0:
+                continue
+            batch = c.execute(
+                text(base_sql.format(schema=schema, order=order)),
+                {"min_chars": _MIN_BODY_CHARS, "skip_slugs": tuple(_SKIP_SLUGS), "limit": n},
+            ).mappings().all()
+            for r in batch:
+                # Dedup: a row can satisfy both halves when the backlog is tiny.
+                if r["id"] not in seen:
+                    seen.add(r["id"])
+                    rows.append(dict(r))
+    return rows[:limit]
 
 
 def _dispatch_scout(url: str) -> tuple[int | None, str | None]:

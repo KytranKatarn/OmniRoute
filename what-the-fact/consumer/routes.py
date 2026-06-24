@@ -558,6 +558,59 @@ def economy():
                            is_subscriber=is_subscriber())
 
 
+@bp.get("/municipal")
+def municipal():
+    """L.O.C.A.L. — Municipal & Local Government news layer.
+
+    Aggregates the 'municipal' beat (city hall, council, local government,
+    civic affairs) across all outlets, with an optional ?city= filter.
+    Public — no paywall (consistent with /weather and /economy).
+    """
+    S = _schema()
+    active_city = (request.args.get("city") or "").strip()
+    with _db().begin() as c:
+        params = {}
+        city_clause = ""
+        if active_city:
+            city_clause = " AND a.city = :city"
+            params["city"] = active_city
+        rows = c.execute(text(f"""
+            SELECT a.id, a.title, a.url, a.published_at,
+                   s.name AS source, b.band, a.province_code, a.city,
+                   a.cluster_id, sc.article_count AS cluster_size
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+            WHERE a.beat = 'municipal'{city_clause}
+            ORDER BY a.published_at DESC
+            LIMIT 60
+        """), params).mappings().all()
+
+        total = c.execute(text(
+            f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'municipal'"
+        )).scalar() or 0
+
+        # City facets — only cities with real coverage (>=2) to keep the
+        # filter honest while municipal geo-tagging is still expanding.
+        cities = c.execute(text(f"""
+            SELECT a.city, COUNT(*) AS n
+            FROM {S}.articles a
+            WHERE a.beat = 'municipal' AND a.city IS NOT NULL AND a.city <> ''
+            GROUP BY a.city
+            HAVING COUNT(*) >= 2
+            ORDER BY n DESC
+            LIMIT 15
+        """)).mappings().all()
+
+    return render_template("municipal.html",
+                           articles=rows,
+                           cities=cities,
+                           active_city=active_city,
+                           total=total,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/activity")
 def activity():
     from flask import request as _req

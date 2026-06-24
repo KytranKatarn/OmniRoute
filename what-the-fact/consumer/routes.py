@@ -2295,6 +2295,101 @@ def mp_profile(slug: str):
                            is_subscriber=is_subscriber())
 
 
+@bp.get("/journalists")
+def journalists_listing():
+    """Public directory of tracked journalists (RSS bylines → shared entity graph). #3329."""
+    S = _schema()
+    SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+    q = (request.args.get("q") or "").strip()
+    like = f"%{q.lower()}%"
+    with _db().begin() as c:
+        source_count = c.execute(text(f"SELECT count(*) FROM {S}.sources")).scalar() or 0
+        total = c.execute(
+            text(f"SELECT count(*) FROM {SH}.entities WHERE entity_type='journalist'")
+        ).scalar() or 0
+        rows = c.execute(text(f"""
+            SELECT e.id, e.canonical_name, e.slug,
+                   (SELECT count(DISTINCT em.content_id) FROM {SH}.entity_mentions em
+                     WHERE em.entity_id=e.id AND em.product='wtf'
+                       AND em.content_type='article') AS article_count
+              FROM {SH}.entities e
+             WHERE e.entity_type='journalist'
+               AND (:q='' OR lower(e.canonical_name) LIKE :like
+                    OR EXISTS (SELECT 1 FROM unnest(e.aliases) al WHERE lower(al) LIKE :like))
+             ORDER BY article_count DESC NULLS LAST, e.canonical_name ASC
+             LIMIT 200
+        """), {"q": q.lower(), "like": like}).mappings().all()
+    return render_template("journalists.html",
+                           journalists=[dict(r) for r in rows], q=q, total=total,
+                           source_count=source_count, is_subscriber=is_subscriber())
+
+
+@bp.get("/journalist/<int:entity_id>")
+def journalist_profile(entity_id):
+    """Journalist profile — outlets + recent coverage (free), bias-lean + volume trend +
+    co-mentioned entities (premium). Reads the live shared entity graph. #3329."""
+    S = _schema()
+    SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+    subscribed = is_subscriber()
+    with _db().begin() as c:
+        source_count = c.execute(text(f"SELECT count(*) FROM {S}.sources")).scalar() or 0
+        ent = c.execute(text(f"""
+            SELECT id, canonical_name, slug, COALESCE(metadata, '{{}}'::jsonb) AS metadata
+              FROM {SH}.entities WHERE id=:e AND entity_type='journalist'
+        """), {"e": entity_id}).mappings().first()
+        if not ent:
+            abort(404)
+        ent = dict(ent)
+        # a.id::text = content_id (never cast content_id->int, a stray value would 500)
+        join = (f"FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id "
+                f"WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'")
+        article_count = c.execute(
+            text(f"SELECT count(DISTINCT a.id) {join}"), {"e": entity_id}
+        ).scalar() or 0
+        outlets = c.execute(text(f"""
+            SELECT src.slug, src.name, count(DISTINCT a.id) n
+              FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id
+              JOIN {S}.sources src ON src.id=a.source_id
+             WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
+             GROUP BY src.slug, src.name ORDER BY n DESC LIMIT 10
+        """), {"e": entity_id}).mappings().all()
+        recent = c.execute(text(f"""
+            SELECT a.id, a.title, a.published_at, a.bias_ensemble_band AS bias_band,
+                   src.slug AS source_slug, src.name AS source_name
+              FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id
+              JOIN {S}.sources src ON src.id=a.source_id
+             WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
+             ORDER BY a.published_at DESC NULLS LAST LIMIT 12
+        """), {"e": entity_id}).mappings().all()
+        # Premium analysis — only run the heavier queries for subscribers.
+        bias, trend, co = [], [], []
+        if subscribed:
+            bias = c.execute(text(
+                f"SELECT COALESCE(a.bias_ensemble_band,'unknown') band, count(DISTINCT a.id) n "
+                f"{join} GROUP BY 1 ORDER BY n DESC"), {"e": entity_id}).mappings().all()
+            trend = c.execute(text(
+                f"SELECT to_char(date_trunc('month', a.published_at),'YYYY-MM') m, "
+                f"count(DISTINCT a.id) n {join} GROUP BY 1 ORDER BY 1 DESC LIMIT 12"),
+                {"e": entity_id}).mappings().all()
+            co = c.execute(text(f"""
+                SELECT e2.id, e2.canonical_name, e2.entity_type, count(DISTINCT em2.content_id) n
+                  FROM {SH}.entity_mentions em1
+                  JOIN {SH}.entity_mentions em2 ON em2.content_id=em1.content_id
+                       AND em2.product='wtf' AND em2.content_type='article'
+                       AND em2.entity_id<>em1.entity_id
+                  JOIN {SH}.entities e2 ON e2.id=em2.entity_id
+                 WHERE em1.entity_id=:e AND em1.product='wtf' AND em1.content_type='article'
+                 GROUP BY e2.id, e2.canonical_name, e2.entity_type ORDER BY n DESC LIMIT 10
+            """), {"e": entity_id}).mappings().all()
+    return render_template("journalist.html", j=ent, article_count=article_count,
+                           outlets=[dict(r) for r in outlets],
+                           recent=[dict(r) for r in recent],
+                           bias=[dict(r) for r in bias],
+                           trend=[dict(r) for r in trend],
+                           co_mentioned=[dict(r) for r in co],
+                           source_count=source_count, is_subscriber=subscribed)
+
+
 @bp.route("/score", methods=["GET", "POST"])
 def score_url():
     """Subscriber-gated: paste any article text for instant AI analysis."""

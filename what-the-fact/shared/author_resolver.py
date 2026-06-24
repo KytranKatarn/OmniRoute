@@ -14,10 +14,23 @@ from sqlalchemy import text
 # Outlets / wire services that show up in author fields but are NOT personal bylines.
 # Lowercased; extendable.
 WIRE_SERVICES = {
-    "the canadian press", "canadian press", "globe newswire", "cision", "newswire",
-    "associated press", "reuters", "afp", "bloomberg", "postmedia news", "postmedia",
-    "staff", "editorial", "newsroom", "cbc news", "ctv news", "global news",
+    "the canadian press", "canadian press", "la presse canadienne",
+    "globe newswire", "globenewswire", "cision", "newswire", "associated press",
+    "the associated press", "reuters", "afp", "agence france-presse", "bloomberg",
+    "bloomberg news", "postmedia news", "postmedia", "business wire", "dpa",
+    "globalnews digital", "staff", "editorial", "newsroom", "editorial board",
+    "the editorial board", "cbc news", "ctv news", "global news", "none",
 }
+
+# Markers that make a byline an outlet/desk/wire string rather than a person's name.
+# Conservative (word-boundary 'staff', 'newswire', a literal '@', or a very long blurb)
+# so real people are never dropped — e.g. the columnist "David Staples" is safe.
+_WIRE_RX = re.compile(
+    r"newswire|newsfile|business\s*wire|market\s*wire|access\s*wire|globenewswire|"
+    r"/cnw/|cnw\s*group|press\s*release|\bstaff\b|editorial\s*board|\bnewsroom\b|"
+    r"^special\s+to\b|@",
+    re.IGNORECASE,
+)
 
 _BYLINE_SPLIT = re.compile(r"\s*(?:,|&|\band\b|\bwith\b)\s*", re.IGNORECASE)
 _OUTLET_SUFFIX = re.compile(r"\s*[,/|-]\s*[A-Z][A-Za-z .]+(?:News|Press|Media|Star|Post|Globe).*$")
@@ -39,7 +52,15 @@ def normalize_name(name: str) -> str:
 
 
 def is_wire_service(name: str) -> bool:
-    return name.strip().lower() in WIRE_SERVICES
+    """True when a byline is an outlet / wire service / desk, not a person's name."""
+    n = re.sub(r"\s+", " ", name.strip().lower())
+    if not n or n in WIRE_SERVICES:
+        return True
+    if _WIRE_RX.search(n):
+        return True
+    if len(n) > 80:  # long 'bylines' are bio blurbs / disclaimers, never a name
+        return True
+    return False
 
 
 def clean_byline(raw: str) -> list:

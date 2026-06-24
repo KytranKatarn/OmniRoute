@@ -1,0 +1,30 @@
+# Watch-Series Edge Funnel #0 — WTF (Phase 0, #4320).
+# Deploys to Beacon (100.64.0.11). host networking so it reaches the Citadel
+# origin over the Headscale mesh AND binds the TEST port 8088 on the host —
+# it does NOT touch Beacon's existing host-Caddy on :80/:443. Teardown:
+# `docker compose down` (instant, zero impact on the front-door services).
+services:
+  wtf-edge:
+    image: nginx:1.27-alpine
+    container_name: wtf_edge
+    restart: unless-stopped
+    network_mode: host          # mesh reach (100.64.0.10) + bind host:8088
+    read_only: true
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    tmpfs:
+      - /var/cache/nginx:size=128m
+      - /var/run
+      - /tmp
+    mem_limit: 192m
+    cpus: 0.50
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8088/_edge_health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

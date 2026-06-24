@@ -66,6 +66,11 @@ _SKIP_SLUGS = frozenset({
     "radio_canada",   # 0% success — same bot detection pattern
     "true_north",     # 0% success (0/6 over 7 days) — confirmed bot block
     "financial_post", # 0% success (0/4 over 7 days) — Postmedia paywall blocks Playwright
+    # #4377: Google-News anti-bot returns 400 — no full body is fetchable. Accept
+    # RSS-only (consumer renders snippet + "read at source"). Stops the rescue churn
+    # that produced the bulk of scout_body_jobs failures (KB #274976 Class A + B).
+    "winnipeg_free_press",  # ~2,138 empty bodies — Google-News redirect, no full body
+    "cbc_english",          # ~230 empty bodies — same Google-News redirect anti-bot
 })
 
 # Sources that route through Google News RSS — bodies are snippets, not full text.

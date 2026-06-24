@@ -14,12 +14,15 @@ bp = Blueprint("wtf", __name__)
 _engine = None
 _PLATFORM = "https://platform.kytranempowerment.com"
 
-# Sources known to restrict RSS to snippet-only (paywalled originals).
+# Sources known to restrict RSS to snippet-only (paywalled originals, or
+# Google-News-redirect outlets whose full body is never fetchable — #4377).
+# Both render as a limited preview + "read full article at source".
 _PAYWALLED_SOURCES = frozenset({
     "montreal_gazette", "national_post", "financial_post", "vancouver_sun",
     "calgary_herald", "edmonton_journal", "ottawa_citizen", "toronto_star",
     "globe_mail", "journal_de_montreal", "le_devoir", "la_presse",
     "le_soleil", "le_quotidien",
+    "winnipeg_free_press", "cbc_english",  # #4377: RSS-only, no fetchable full body
 })
 
 # Portrait cache — fetches live URLs from platform /api/public/directory

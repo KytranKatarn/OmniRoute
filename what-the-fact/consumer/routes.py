@@ -2511,6 +2511,20 @@ def entity_profile_page(entity_id):
              WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
              ORDER BY a.published_at DESC NULLS LAST LIMIT 12
         """), {"e": entity_id}).mappings().all()
+        # Competition Bureau items naming this organization (free — Legal Watch link, #3059).
+        # http(s)-only guard is defense-in-depth (news_url is a trusted GC canada.ca link).
+        competition = []
+        if ent["entity_type"] == "organization":
+            competition = [
+                dict(r) for r in c.execute(text(f"""
+                    SELECT content_id AS news_url, mention_context AS headline
+                      FROM {SH}.entity_mentions
+                     WHERE entity_id=:e AND product='legal-watch'
+                       AND content_type='competition_enforcement'
+                     ORDER BY id DESC LIMIT 20
+                """), {"e": entity_id}).mappings().all()
+                if (r["news_url"] or "").startswith(("http://", "https://"))
+            ]
         # Premium: chain links + co-mentioned (WTF-bounded, like the journalist page).
         links, co = [], []
         if subscribed:
@@ -2538,6 +2552,7 @@ def entity_profile_page(entity_id):
     return render_template("entity.html", e=ent,
                            products=[dict(r) for r in products],
                            recent=[dict(r) for r in recent],
+                           competition=competition,
                            links=[dict(r) for r in links],
                            co_mentioned=[dict(r) for r in co],
                            total_mentions=total_mentions,

@@ -369,3 +369,30 @@ def ingest_entity_graph():
         return jsonify({"error": "ingest_failed", "detail": str(exc)}), 500
 
     return jsonify({"ok": True, **stats})
+
+
+@entity_graph_bp.route("/api/internal/entity-graph/companies", methods=["GET"])
+def list_companies():
+    """Read-only: the TMX-derived listed-company set (slug + canonical_name).
+
+    Product adapters (e.g. legal-watch #3059) fetch this to match free-text targets to
+    EXISTING company nodes, then emit mentions via slug pointers (never creating nodes).
+    Auth: X-Internal-Key == INTERNAL_API_KEY (same as the ingest endpoint).
+    """
+    expected = os.environ.get("INTERNAL_API_KEY", "")
+    if not expected:
+        return jsonify({"error": "internal key not configured"}), 503
+    if request.headers.get("X-Internal-Key", "") != expected:
+        return jsonify({"error": "unauthorized"}), 401
+
+    with _eng().connect() as conn:
+        cur = conn.connection.cursor()
+        cur.execute(
+            "SELECT slug, canonical_name FROM shared.entities "
+            "WHERE entity_type = 'organization' "
+            "AND metadata->>'naics_source' IS NOT NULL "
+            "ORDER BY slug"
+        )
+        rows = cur.fetchall()
+        cur.close()
+    return jsonify({"companies": [{"slug": s, "canonical_name": n} for s, n in rows]})

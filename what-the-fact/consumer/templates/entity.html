@@ -84,6 +84,23 @@
   {% else %}<div style="color:#6b7280;font-size:12px;">No linked news articles yet.</div>{% endif %}
 </div>
 
+{# ── Competition Bureau (free — Legal Watch link, #3059) ── #}
+{% if competition %}
+<div class="wtf-cw-section">
+  <div class="wtf-cw-section-title">⚖️ Named in Competition Bureau items — via Legal Watch</div>
+  {% for cit in competition %}
+  <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #060d14;align-items:flex-start;">
+    <div style="width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;background:#a78bfa;"></div>
+    <div style="flex:1;">
+      <a href="{{ cit.news_url }}" target="_blank" rel="noopener noreferrer" style="font-size:12px;color:#ccc;text-decoration:none;line-height:1.4;">{{ cit.headline or 'Competition Bureau item' }}</a>
+      <div style="font-size:10px;color:#4b5563;margin-top:2px;">Competition Bureau Canada · named in this item</div>
+    </div>
+  </div>
+  {% endfor %}
+  <div style="font-size:9px;color:#374151;margin-top:8px;">This {{ e.entity_type }} is named in the above Competition Bureau items surfaced by Legal Watch. Inclusion does not imply wrongdoing or any finding.</div>
+</div>
+{% endif %}
+
 {% if is_subscriber %}
 {# ── Accountability chain links (premium) ── #}
 <div class="wtf-cw-section">

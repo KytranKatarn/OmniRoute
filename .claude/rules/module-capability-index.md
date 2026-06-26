@@ -89,8 +89,8 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Gaps**: Reports endpoints missing; training automation disabled; Lv4 cloud-unlock not C.R.E.E.D. gated.
 - **Audit**: KB 256839
 
-### Automations — `automations` · `/tools/automations` · ⛔
-- **Status**: Disabled. Scope unclear.
+### Automations — `automations` · ~~`/tools/automations`~~ · ❌ REMOVED (2026-06-26, PRs #1931/#1932)
+- **Status**: DELETED. n8n was abandoned platform-wide — module folder, `module_registry.py` entry, docker-compose `archie_n8n`/`archie_nginx_n8n` services + dead volume mounts, and orphaned `rbac.py` `AUTOMATION_*` permissions all removed. **Automation = DHQ APScheduler jobs (platform) + native `kbs_automations` / `kbs_automations_ui` (KBS).** Decision #847 / ADR-002.
 
 ### C.R.E.E.D. Command — `creed_command` · `/tools/creed-command` · ✅ · 🟢
 - **Capability**: E.T.H.O.S. (agent #336) governance work dashboard. 7 tabs — Dashboard (live CREED governance KPIs + weekly ethics brief), **Inbox** (5 Hostinger creed-ai.org boxes over IMAP → E.T.H.O.S. triage → draft → **send-as** via SMTP), **Grants** (pipeline + E.T.H.O.S. drafting), **Marketing** (channel-specific promo gen, grounded, no auto-publish; **'Send to S.I.G.N.A.L. →'** on LinkedIn assets → linkedin_post approval queue post_type=creed, PR #1563), **Tenants** (#3945, PR #1565 — multi-tenant ops: org applications approve+mint-key/reject, active-tenant directory w/ grade/freshness/tier, per-tenant key mgmt; thin hub-local proxies in `tenants_routes.py` → standalone `/api/internal/tenants|applications` + approve/reject/keys, authed w/ shared `CREED_INTERNAL_KEY`), **Files** (in-DB bytea document library + grant linking), Governance (live CREED surface links).

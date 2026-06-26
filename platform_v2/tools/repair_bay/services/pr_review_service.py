@@ -453,10 +453,24 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
         )
         return
 
+    # REVIEW-ONLY GATE (#4494) — only the default repo (archie-platform) auto-merges.
+    # The auto-merge write token is archie-platform-scoped and FORGE_REVIEW_TOKEN is
+    # read-only, so an auto-merge on a watch-product repo can't succeed and (now that
+    # merge_pr is repo-aware) must never be attempted against the wrong repo. Watch
+    # PRs are auto-REVIEWED but gated to a human merge.
+    _merge_repo = repo or _DEFAULT_REPO
+    if _merge_repo != _DEFAULT_REPO:
+        logger.info(
+            "[F.O.R.G.E.] PR #%s approved on %s — review-only (non-default repo), not auto-merged (#4494)",
+            pr_number,
+            _merge_repo,
+        )
+        return
+
     try:
         from .github_service import merge_pr
 
-        result = merge_pr(pr_number, "squash")
+        result = merge_pr(pr_number, "squash", repo=_merge_repo)
         # PR #1278 added a "merged" success key; rely on that rather than "sha"
         # (a successful squash-merge may not echo the commit sha back).
         if result.get("merged"):

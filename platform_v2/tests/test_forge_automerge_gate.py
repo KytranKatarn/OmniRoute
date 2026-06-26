@@ -40,7 +40,7 @@ def merges(monkeypatch):
     monkeypatch.setattr(
         github_service,
         "merge_pr",
-        lambda pr, method="squash": (recorded.append(pr) or {"merged": True, "sha": "deadbeef"}),
+        lambda pr, method="squash", repo=None: (recorded.append(pr) or {"merged": True, "sha": "deadbeef"}),
     )
     import services.telegram_service as tg
 
@@ -69,6 +69,15 @@ def test_normal_human_pr_still_auto_merges(merges, monkeypatch):
     _review(monkeypatch, branch="fix/normal-human", title="fix: a normal human PR")
     prs.mark_review_done(999, "VERDICT: APPROVE", repo="KytranKatarn/archie-platform")
     assert merges == [999]  # the gate must NOT block ordinary auto-merge
+
+
+def test_non_default_repo_pr_is_review_only(merges, monkeypatch):
+    # Watch-product (non-default) repos are REVIEW-ONLY: never auto-merged, because the
+    # auto-merge write token is scoped to archie-platform and the review token is
+    # read-only — an auto-merge there would target the wrong repo (#4494).
+    _review(monkeypatch, branch="fix/normal-looking", title="feat: a watch-repo PR")
+    prs.mark_review_done(999, "VERDICT: APPROVE", repo="KytranKatarn/kytran-legal-watch")
+    assert merges == []  # non-default repo → review-only, merge_pr must NOT be called
 
 
 def test_prefix_is_env_tunable(merges, monkeypatch):

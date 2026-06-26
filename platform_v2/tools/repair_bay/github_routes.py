@@ -885,7 +885,8 @@ def register_github_routes(bp, admin_required):
         if not review:
             return jsonify({"error": f"PR #{pr_number} not found"}), 404
 
-        result = merge_pr(pr_number, method="squash")
+        # #4494: merge against the PR's OWN repo (watch-product PRs live in separate repos).
+        result = merge_pr(pr_number, method="squash", repo=review.get("repo"))
 
         if result.get("merged"):
             return jsonify({"success": True, "merged": True, "message": result.get("message", "Merged")})

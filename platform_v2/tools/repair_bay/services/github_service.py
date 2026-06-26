@@ -479,8 +479,13 @@ def get_pr_status(pr_number: int) -> Dict:
     }
 
 
-def merge_pr(pr_number: int, method: str = "squash") -> Dict:
+def merge_pr(pr_number: int, method: str = "squash", repo: str = None) -> Dict:
     """Merge a pull request via PUT (GitHub requires PUT for merges).
+
+    ``repo`` (owner/name) selects the target repo; defaults to REPO_FULL
+    (archie-platform). Threaded everywhere so a watch-product PR merges against
+    its OWN repo instead of the hardcoded default (#4494). NOTE: the write token
+    is archie-platform-scoped, so a non-default merge needs a write-capable token.
 
     Pre-merge conflict guard (#3709 Phase 1): refuses to merge when GitHub
     reports a definitive conflict with the base branch — stops a conflicted
@@ -493,7 +498,8 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
     are CI/branch-protection states, not conflicts — GitHub itself rejects
     those with a clear error, so we let the merge attempt surface it.
     """
-    pre_ok, pre = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")
+    _repo = repo or REPO_FULL
+    pre_ok, pre = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
     if pre_ok:
         state = (pre.get("mergeable_state") or "").lower()
         mergeable = pre.get("mergeable")
@@ -501,7 +507,7 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
             import time as _time
 
             _time.sleep(2)
-            pre_ok2, pre2 = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")
+            pre_ok2, pre2 = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
             if pre_ok2:
                 state = (pre2.get("mergeable_state") or "").lower()
                 mergeable = pre2.get("mergeable")
@@ -519,7 +525,7 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
             }
     try:
         resp = requests.put(
-            f"{API_BASE}/repos/{REPO_FULL}/pulls/{pr_number}/merge",
+            f"{API_BASE}/repos/{_repo}/pulls/{pr_number}/merge",
             headers=_api_headers(),
             json={"merge_method": method},
             timeout=30,
@@ -537,13 +543,13 @@ def merge_pr(pr_number: int, method: str = "squash") -> Dict:
 
     # Delete the branch after merge
     if ok:
-        pr_ok, pr_data = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")
+        pr_ok, pr_data = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
         if pr_ok:
             branch = pr_data.get("head", {}).get("ref")
             if branch and branch != "main":
                 try:
                     requests.delete(
-                        f"{API_BASE}/repos/{REPO_FULL}/git/refs/heads/{branch}",
+                        f"{API_BASE}/repos/{_repo}/git/refs/heads/{branch}",
                         headers=_api_headers(),
                         timeout=10,
                     )

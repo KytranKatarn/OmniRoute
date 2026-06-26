@@ -917,3 +917,13 @@ body.light-mode .badge-current {
         width: 100%;
     }
 }
+
+/* Light-mode contrast — muted content labels (#1998 / per-module).
+   #9ca3af (--archie-text-muted) fails AA (cr 2.54) on the light cards. Bump to
+   tertiary; colored .badge-* variants are EXCLUDED so they keep their hue. */
+body.light-mode .stat-card h3 span,
+body.light-mode .stat-card .sub,
+body.light-mode .backup-title .badge:not([class*="badge-"]),
+body.light-mode .badge-legacy {
+    color: var(--archie-text-tertiary) !important;  /* !important: badges carry a JS inline color */
+}

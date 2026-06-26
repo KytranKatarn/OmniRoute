@@ -108,9 +108,9 @@ file — they always come back. The only *indefinite* stop is the manual
 ```bash
 # From hub, copy the watchdog + shared helper (DR key/secret already on boston-2):
 DR=root@100.64.0.10:/opt/archie-dr
-scp dr/tg_notify.sh                 $DR/tg_notify.sh
-scp -r dr/watchdog                  $DR/watchdog
-scp dr/failover.sh                  $DR/failover.sh           # refactored to source tg_notify.sh
+scp scripts/dr/tg_notify.sh                 $DR/tg_notify.sh
+scp -r scripts/dr/watchdog                  $DR/watchdog
+scp scripts/dr/failover.sh                  $DR/failover.sh           # refactored to source tg_notify.sh
 ssh root@100.64.0.10 'chmod +x /opt/archie-dr/tg_notify.sh /opt/archie-dr/failover.sh /opt/archie-dr/watchdog/*.sh'
 
 # Install the timer but DO NOT enable yet:
@@ -121,7 +121,7 @@ ssh root@100.64.0.10 'cp /opt/archie-dr/watchdog/dr-watchdog.{service,timer} /et
 
 ```bash
 # 1. Syntax + unit (run on hub before deploy):
-bash dr/watchdog/test_quorum.sh
+bash scripts/dr/watchdog/test_quorum.sh
 
 # 2. On boston-2 — one manual cycle pointed at a DEAD hub IP so quorum trips,
 #    in DRY_RUN so failover.sh is only echoed. Run it K times to arm, then once

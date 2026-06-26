@@ -52,7 +52,7 @@ The failure was **staged, not simultaneous** — each node orphaned itself the m
 **Why it orphaned nodes:** Even a recovered/approved duplicate loses its classification: outpost/starbase_outpost/starship all reappear as `'standard'` (junk rows 229/312/314 confirm). The tier identity needed for routing, warm-set, and ComfyUI/provisioning is destroyed alongside the `node_id`, so re-approval alone wouldn't fully restore correct behavior.
 
 ### RC6 — Phase-7 watchdog can auto-fire failover on a fleet-wide connectivity blip with only a 5-min veto, and runs on boston-2 which itself went down mid-storm *(high, watchdog)*
-**Where:** `dr/watchdog/dr_watchdog.sh` (`K_BLACKOUT=5` all-3-outposts-unreachable branch, commit `88917749` 2026-06-04) + `dr-watchdog.timer OnUnitActiveSec=60`; coordinator host = Citadel/boston-2 (id 128).
+**Where:** `scripts/dr/watchdog/dr_watchdog.sh` (`K_BLACKOUT=5` all-3-outposts-unreachable branch, commit `88917749` 2026-06-04) + `dr-watchdog.timer OnUnitActiveSec=60`; coordinator host = Citadel/boston-2 (id 128).
 **Why it orphaned nodes:** The exact 06-04 17:29 event — Singapore/Lithuania/UK all unreachable in the same minute — is the BLACKOUT arm condition. An unattended arm auto-runs `failover.sh` (which flips prod DNS) and triggers the failover→failback churn that produced the transient-unreachable windows driving re-registration. boston-2 going offline at 00:00 then removed the only coordinator, so no `auto_failback`/repoint could rescue the fleet.
 
 ### RC7 — two divergent DR script trees (`dr/` vs `scripts/dr/`) — no single source of truth *(medium, dr_script)*
@@ -317,9 +317,9 @@ A single SUCCESS still snaps `heartbeat_failures→0` and `current_interval→ba
 
 ```bash
 # Canonicalization (run once, committed) — direction set by the actual boston-2 rsync source:
-#   git mv dr/repoint.sh        scripts/dr/repoint.sh      # MOVE the only copy, never delete
-#   git mv dr/watchdog          scripts/dr/watchdog
-#   # collapse the older 164-line dr/failover.sh into a stub that execs scripts/dr/failover.sh
+#   git mv scripts/dr/repoint.sh        scripts/dr/repoint.sh      # MOVE the only copy, never delete
+#   git mv scripts/dr/watchdog          scripts/dr/watchdog
+#   # collapse the older 164-line scripts/dr/failover.sh into a stub that execs scripts/dr/failover.sh
 # failover.sh — repoint Starships via the same identity-safe path (PowerShell sibling required):
 for starship in 'Famil@100.64.0.3' 'Famil@100.64.0.6'; do
   ssh -i "$FLEET_KEY" "$starship" 'powershell -c "& C:\archie-node\repoint.ps1 100.64.0.10"' \

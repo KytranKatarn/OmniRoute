@@ -2,7 +2,7 @@
 # Unit test for the watchdog's pure quorum-tally helpers. No I/O, no SSH, no
 # network — sources dr_watchdog.sh in library mode and exercises count_down +
 # quorum_met across all boston-2 × outpost combinations.
-#   bash dr/watchdog/test_quorum.sh
+#   bash scripts/dr/watchdog/test_quorum.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 

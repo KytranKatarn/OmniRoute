@@ -88,7 +88,7 @@ Phase 1 proven (fdtest health endpoint live). Real cutover on hold by owner deci
 
 ## Scope notes
 - **v1 = hub subdomains only.** The 5 watch products live on **boston-2** (#3727) and already sit on a *static* IP (2.25.133.122), so they don't chase a volatile IP — leave them direct for now. Optionally front them later for uniformity/HA.
-- **DR integration (Phase 2, follow-on):** instead of flipping 27 DNS records on a hub move/outage, the failover path flips the **front-door's Caddy upstream** `100.64.0.4` → `100.64.0.10` and reloads Caddy. This *replaces* the `hub_dns_update.sh` DNS-chase for the move scenario (DNS now only ever points at the front-door). Wire this into `dr/failover.sh` + `dr/failback.sh`.
+- **DR integration (Phase 2, follow-on):** instead of flipping 27 DNS records on a hub move/outage, the failover path flips the **front-door's Caddy upstream** `100.64.0.4` → `100.64.0.10` and reloads Caddy. This *replaces* the `hub_dns_update.sh` DNS-chase for the move scenario (DNS now only ever points at the front-door). Wire this into `scripts/dr/failover.sh` + `scripts/dr/failback.sh`.
 - **HA (Phase 4, #3681 overlap):** v2 = a second front-door (EU) with health-checked DNS round-robin so the front-door itself isn't a SPOF. KVM1 is cheap enough to run two.
 
 ## Phase 3 (optional) — co-located ultra-light CPU agent

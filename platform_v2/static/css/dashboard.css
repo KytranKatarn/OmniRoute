@@ -1426,7 +1426,7 @@ body.light-mode .cb-icon-btn:hover {
 /* ── HUD Frame Light Mode ── */
 [data-theme="light"] .hud-row-label,
 body.light-mode .hud-row-label {
-    color: var(--archie-text-muted);
+    color: var(--archie-text-tertiary);
 }
 [data-theme="light"] .hud-row-value,
 body.light-mode .hud-row-value {
@@ -1461,11 +1461,11 @@ body.light-mode .hud-seg.lit.critical {
 }
 [data-theme="light"] .hud-row-sub,
 body.light-mode .hud-row-sub {
-    color: var(--archie-text-muted);
+    color: var(--archie-text-tertiary);
 }
 [data-theme="light"] .hud-status-label,
 body.light-mode .hud-status-label {
-    color: var(--archie-text-muted);
+    color: var(--archie-text-tertiary);
 }
 [data-theme="light"] .hud-status-dot,
 body.light-mode .hud-status-dot {
@@ -1478,7 +1478,7 @@ body.light-mode .hud-status-value {
 }
 [data-theme="light"] .hud-status-extra,
 body.light-mode .hud-status-extra {
-    color: var(--archie-text-muted);
+    color: var(--archie-text-tertiary);
 }
 [data-theme="light"] .hud-divider,
 body.light-mode .hud-divider {
@@ -2205,7 +2205,7 @@ body.light-mode .featured-card:hover {
 
 [data-theme="light"] .featured-card-name,
 body.light-mode .featured-card-name {
-    color: var(--archie-bg-primary);
+    color: var(--archie-text-primary);
 }
 
 [data-theme="light"] .featured-card-desc,
@@ -2519,27 +2519,33 @@ body.light-mode .category-frame .lcars-bar {
     background: rgba(var(--frame-rgb), 0.12);
     border: 1px solid rgba(var(--frame-rgb), 0.3);
 }
+/* Titles/badges use a DARKENED accent so the category color stays readable on
+   the light bar — raw --frame-color is the bright dark-mode accent (fails AA). */
 [data-theme="light"] .category-frame .lcars-bar-title,
 body.light-mode .category-frame .lcars-bar-title {
-    color: var(--frame-color);
+    color: color-mix(in srgb, var(--frame-color) 52%, #0a0a0a);
+}
+[data-theme="light"] .category-frame .lcars-bar-status,
+body.light-mode .category-frame .lcars-bar-status {
+    color: color-mix(in srgb, var(--frame-color) 42%, #0a0a0a);
 }
 [data-theme="light"] .category-frame .cat-module-count,
 body.light-mode .category-frame .cat-module-count {
     background: rgba(var(--frame-rgb), 0.15);
-    color: var(--frame-color);
+    color: color-mix(in srgb, var(--frame-color) 42%, #0a0a0a);
 }
 [data-theme="light"] .category-frame .cat-admin-badge,
 body.light-mode .category-frame .cat-admin-badge {
-    color: var(--frame-color);
+    color: color-mix(in srgb, var(--frame-color) 42%, #0a0a0a);
     border-color: rgba(var(--frame-rgb), 0.4);
 }
 [data-theme="light"] .category-frame .cat-chevron,
 body.light-mode .category-frame .cat-chevron {
-    color: var(--frame-color);
+    color: color-mix(in srgb, var(--frame-color) 52%, #0a0a0a);
 }
 [data-theme="light"] .category-frame .lcars-bar i,
 body.light-mode .category-frame .lcars-bar i {
-    color: var(--frame-color);
+    color: color-mix(in srgb, var(--frame-color) 52%, #0a0a0a);
 }
 [data-theme="light"] .module-card,
 body.light-mode .module-card {
@@ -2898,3 +2904,46 @@ body.light-mode .module-card-lock-overlay {
     transition: opacity 0.2s;
 }
 .briefing-view-all:hover { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT-MODE CONTRAST — dashboard long-tail (#1998 slice 2)
+   Small accent/muted text fails WCAG AA (4.5) at 9–14px on the light surface.
+   Darkened to readable variants while keeping hue identity. Appended last → wins
+   over the earlier same-specificity body.light-mode overrides above. Scoped to
+   dashboard.css (dashboard-only load) → no module-header regressions.
+   ═══════════════════════════════════════════════════════════════════════════ */
+body.light-mode .featured-card-desc,
+body.light-mode .featured-status-text,
+body.light-mode .briefing-activity-time {
+    color: var(--archie-text-tertiary);            /* #6b7280 — cr ~4.6 */
+}
+body.light-mode .external-badge {
+    color: #b45309;                                /* amber-700 */
+}
+body.light-mode .briefing-view-all {
+    color: #0f766e;                                /* teal-700 */
+    opacity: 0.9;                                  /* 0.6 muted look defeated readability */
+}
+body.light-mode .briefing-alert-title {
+    color: #b45309;                                /* darker warning amber */
+}
+body.light-mode .cb-badge-role,
+body.light-mode .hud-row-value,
+body.light-mode .hud-status-value {
+    color: #047857;                                /* emerald-700 — readable ok/online green */
+}
+/* Non-category widget LCARS bars (Mission Briefing / System Status / Priority
+   Stations): darken each bar's own --frame-color. The .category-frame variant is
+   more specific and keeps its own treatment. */
+body.light-mode .lcars-bar-title {
+    color: color-mix(in srgb, var(--frame-color, var(--archie-cyan)) 50%, #0a0a0a);
+}
+body.light-mode .lcars-bar-status {
+    color: color-mix(in srgb, var(--frame-color, var(--archie-cyan)) 42%, #0a0a0a);
+}
+/* Briefing section headers (e.g. "SYSTEM ALERTS") render the bright --col-accent
+   as TEXT — darken the text only; the border-left keeps the bright accent stripe. */
+body.light-mode .briefing-section-header,
+body.light-mode .briefing-section-header > span {
+    color: color-mix(in srgb, var(--col-accent, #6b7280) 48%, #0a0a0a);
+}

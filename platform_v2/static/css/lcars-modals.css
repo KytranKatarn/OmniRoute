@@ -336,3 +336,40 @@ body.light-mode .bm-body textarea,
     color: #1a1a2e;
     border-color: rgba(var(--bm-accent-rgb),0.25);
 }
+
+/* Light mode — header/close/buttons/body text. The shell lightens (above) but the
+   header title, close ×, action buttons + body text stayed white/light → invisible
+   on the light shell. Affects EVERY LCARS modal platform-wide. */
+body.light-mode .bm-body,
+[data-theme="light"] .bm-body {
+    color: #1a1a2e;                       /* dark default for body text on the light shell */
+}
+body.light-mode .bm-header-title,
+[data-theme="light"] .bm-header-title {
+    color: rgba(0,0,0,0.82);              /* dark text on the bright accent header */
+}
+body.light-mode .bm-close,
+[data-theme="light"] .bm-close {
+    color: rgba(0,0,0,0.55);
+    border-color: rgba(0,0,0,0.18);
+}
+body.light-mode .bm-close:hover,
+[data-theme="light"] .bm-close:hover {
+    color: rgba(0,0,0,0.85);
+}
+body.light-mode .bm-actions .btn-cancel,
+[data-theme="light"] .bm-actions .btn-cancel {
+    color: var(--archie-text-secondary, #374151);
+    border-color: rgba(0,0,0,0.22);
+}
+body.light-mode .bm-actions .btn-submit,
+[data-theme="light"] .bm-actions .btn-submit {
+    background: var(--bm-accent);         /* solid accent + dark text (readable on bright accents) */
+    border-color: var(--bm-accent);
+    color: rgba(0,0,0,0.82);
+}
+body.light-mode .bm-actions .btn-danger,
+[data-theme="light"] .bm-actions .btn-danger {
+    color: #b91c1c;                       /* darker red clears AA on the light shell */
+    border-color: rgba(185,28,28,0.45);
+}

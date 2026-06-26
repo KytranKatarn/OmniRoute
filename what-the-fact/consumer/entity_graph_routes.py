@@ -79,7 +79,7 @@ _MAX_RELATIONSHIPS = 5000
 # Roles merge by (type, external_id); aliases merge DISTINCT. (xmax=0) => freshly
 # inserted. Validated on live data in a rolled-back txn before shipping (#4181).
 _ENTITY_UPSERT = """
-    INSERT INTO shared.entities (entity_type, canonical_name, slug, aliases, roles)
+    INSERT INTO shared.entities (entity_type, canonical_name, slug, aliases, roles, metadata)
     VALUES %s
     ON CONFLICT (slug) DO UPDATE SET
         aliases = ARRAY(SELECT DISTINCT unnest(shared.entities.aliases || EXCLUDED.aliases)),
@@ -92,10 +92,15 @@ _ENTITY_UPSERT = """
                   AND COALESCE(xr->>'external_id','') = COALESCE(er->>'external_id','')
             )
         ), '[]'::jsonb),
+        -- ADR-EG-001 amendment (2026-06-25): shallow-merge metadata so naics_* (or
+        -- any product's keys) accrete without clobbering existing keys. NULL/absent
+        -- incoming metadata is a no-op (backward-compatible).
+        metadata = COALESCE(shared.entities.metadata, '{}'::jsonb)
+                   || COALESCE(EXCLUDED.metadata, '{}'::jsonb),
         updated_at = NOW()
     RETURNING id, slug, (xmax = 0) AS created
 """
-_ENTITY_TPL = "(%s, %s, %s, %s::text[], %s::jsonb)"
+_ENTITY_TPL = "(%s, %s, %s, %s::text[], %s::jsonb, %s::jsonb)"
 
 _MENTION_UPSERT = """
     INSERT INTO shared.entity_mentions
@@ -119,6 +124,18 @@ _REL_UPSERT = """
         metadata   = EXCLUDED.metadata
 """
 _REL_TPL = "(%s, %s, %s, %s, %s, %s, %s, %s::jsonb)"
+
+# Stable cross-product identity keys (ADR-EG-001 amendment). UNIQUE is on
+# (key_type, key_value) — one issuer number resolves to ONE entity — so a re-ingest
+# re-points entity_id idempotently (e.g. key_type='sedar_issuer').
+_EXTID_UPSERT = """
+    INSERT INTO shared.entity_external_ids (entity_id, key_type, key_value, source_product)
+    VALUES %s
+    ON CONFLICT (key_type, key_value) DO UPDATE SET
+        entity_id = EXCLUDED.entity_id,
+        source_product = COALESCE(EXCLUDED.source_product, shared.entity_external_ids.source_product)
+"""
+_EXTID_TPL = "(%s, %s, %s, %s)"
 
 _engine = None
 
@@ -161,10 +178,28 @@ def _register_ref(ref, inline, pointers):
             raise ValueError("entity.role must be an object")
         raw_name = (ref.get("raw_name") or canonical_name).strip()
 
+        # ── ADR-EG-001 amendment (2026-06-25): optional sector/identity surface ──
+        # metadata = freeform JSONB merged on upsert (e.g. naics_code/naics_sector);
+        # external_ids = stable cross-product keys (e.g. {"key_type":"sedar_issuer",
+        # "key_value":"000012345"}). Both additive — callers omitting them unaffected.
+        metadata = ref.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            raise ValueError("entity.metadata must be an object")
+        ext_ids = []
+        for x in (ref.get("external_ids") or []):
+            if not isinstance(x, dict):
+                raise ValueError("entity.external_ids items must be objects")
+            kt = str(x.get("key_type") or "").strip()
+            kv = str(x.get("key_value") if x.get("key_value") is not None else "").strip()
+            if not kt or not kv:
+                raise ValueError("external_id requires non-empty key_type and key_value")
+            ext_ids.append((kt, kv))
+
         e = inline.get(slug)
         if e is None:
             inline[slug] = {"etype": entity_type, "cname": canonical_name,
-                            "raws": [raw_name], "roles": [role] if role else []}
+                            "raws": [raw_name], "roles": [role] if role else [],
+                            "meta": dict(metadata), "ext_ids": list(ext_ids)}
         else:
             if raw_name and raw_name not in e["raws"]:
                 e["raws"].append(raw_name)
@@ -172,6 +207,11 @@ def _register_ref(ref, inline, pointers):
                 rk = (role.get("type"), role.get("external_id"))
                 if not any((x.get("type"), x.get("external_id")) == rk for x in e["roles"]):
                     e["roles"].append(role)
+            if metadata:
+                e["meta"].update(metadata)        # later refs in the batch win
+            for pair in ext_ids:
+                if pair not in e["ext_ids"]:
+                    e["ext_ids"].append(pair)
         return slug
 
     slug = (ref.get("slug") or "").strip()
@@ -227,6 +267,7 @@ def ingest_entity_graph():
             return jsonify({"error": f"{name} exceeds batch cap {cap}"}), 413
 
     stats = {"product": product, "entities_created": 0, "entities_updated": 0,
+             "external_ids_upserted": 0,
              "mentions_upserted": 0, "relationships_upserted": 0}
 
     try:
@@ -274,13 +315,26 @@ def ingest_entity_graph():
 
             # 1) Entities — bulk upsert (roles/aliases merged in SQL).
             if inline:
-                erows = [(e["etype"], e["cname"], slug, e["raws"], json.dumps(e["roles"]))
+                erows = [(e["etype"], e["cname"], slug, e["raws"], json.dumps(e["roles"]),
+                          json.dumps(e.get("meta") or {}))
                          for slug, e in inline.items()]
                 res = execute_values(cur, _ENTITY_UPSERT, erows, template=_ENTITY_TPL,
                                      page_size=1000, fetch=True)
                 for eid, slug, created in res:
                     slug_to_id[slug] = eid
                     stats["entities_created" if created else "entities_updated"] += 1
+
+            # 1b) External ids — stable cross-product keys (ADR-EG-001 amendment).
+            #     Only inline (this-batch) entities carry them; pointer refs do not.
+            if inline:
+                extid_rows = [(slug_to_id[slug], kt, kv, product)
+                              for slug, e in inline.items()
+                              for (kt, kv) in e.get("ext_ids", [])
+                              if slug in slug_to_id]
+                if extid_rows:
+                    execute_values(cur, _EXTID_UPSERT, extid_rows, template=_EXTID_TPL,
+                                   page_size=1000)
+                    stats["external_ids_upserted"] = len(extid_rows)
 
             # 2) Pointer refs — bulk lookup any not already upserted this batch.
             missing = [s for s in pointers if s not in slug_to_id]

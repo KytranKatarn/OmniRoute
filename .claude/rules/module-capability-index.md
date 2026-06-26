@@ -242,13 +242,16 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 ### What The Fact — `what_the_fact` · `/external/wtf` · ✅
 - **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
 - **Capability**: 10 Canadian sources, RSS 30min, story clustering (Jaccard), extractive summarization, bias scoring, fact-checking. OAuth SSO paywall (bias free, rationale/Deep Dive gated).
-- **Schema**: `wtf.sources`, `wtf.articles`, `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`.
+- **Schema**: `wtf.sources`, `wtf.articles`, `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`. Plus the **shared entity graph** `wtf.shared.*` (Project #373: `entities` 452k, `entity_mentions`, `entity_relationships`, `chain_link_types`) + `parliament.*`.
+- **Cross-Watch surface (2026-06-24, #3331 Phase 1, PRs #1919-#1921, ADR-009)**: `/entity/<id>` cross-product accountability footprint (free=products+coverage, premium=chain links), article-page Cross-Watch teaser, `/cross-watch` explorer. API `GET /api/entities/<id>/footprint`. Reads the live graph, no new ingest. **Municipal** `/municipal` (#3330, PR #1918) = `beat='municipal'` (NOT geo_scope). ⚠️ `shared.entities` is IMMUTABLE — `entities_guard()` forbids DELETE; retire via `status='suppressed'`. Product→graph adapters POST `wtf-ingest-api:8106/api/internal/entity-graph/ingest`. Legal/Market entity build-up = tasks #4470/#4471 (upstream data, not adapters). Coder docs KB #275529; user KB #275528.
 - **CRITICAL**: NEVER pass `WTF_TECH_URL` to browser JS — always add server-side proxy route first (KB #267314).
 - **Hub**: `tools/wtf_hub/wtf_hub.html` extends base.html, teal `#00ffff`. Hub dispatch: `bias_analysis`→B.I.A.S., `fact_check`→V.E.R.I.F.Y., `geo_extraction`→L.O.C.A.L.
 - **Redeploy**: `docker compose up -d --build wtf-consumer` (image-baked, not volume-mounted).
 
 ### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
 - **Deployment**: Citadel/boston-2 port 8100 (`root@100.64.0.10:/opt/archie-products/legal-watch/`), legal.kytranempowerment.com
+- **Capability (repaired 2026-06-24, PRs #7/#8/#9, KB #275548–275554)**: G.A.V.E.L. dashboard + APIs (regulations / ethics / events / digest / canlii / scc). **SCC case law** via the official Lexum RSS `decisions.scc-csc.ca/scc-csc/scc-csc/en/rss.do` (the old CanLII RSS is DataDome-walled → 404; `scc_decisions` 0→100). **Live CanLII search** `/api/canlii/*` — key in the **platform root `.env`**; `caseBrowse` needs a databaseId (e.g. `csc-scc`), no full-text search. Regulations (Canada Gazette) + legal news refresh **daily** via a leader-gated ingest cron in `digest/scheduler.py`.
+- **ARCH GOTCHA**: the gunicorn target MUST invoke `create_app()` (module-level `app = create_app()`); `__main__`-only gating silently drops ALL blueprints + the scheduler (was 7 routes; now 35). Keep hub git == live deploy (rsync excludes `.env`). See `reference_watch-products-deploy-drift` / KB mistake #275549.
 
 ### Kytran Civic Watch — `kytran_civic_watch` · `/external/civic` · ✅
 - **Deployment**: Citadel/boston-2 port 8099 (`root@100.64.0.10:/opt/archie-products/civic-watch/`, container kytran_watch_api), civic.kytranempowerment.com

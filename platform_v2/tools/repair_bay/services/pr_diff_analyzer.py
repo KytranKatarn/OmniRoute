@@ -25,6 +25,9 @@ from tools.repair_bay.services.pr_review_service import (
 logger = logging.getLogger(__name__)
 
 _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
+# Read-only token for cross-repo diff fetches (watch-product repos). Prefer the
+# least-privilege FORGE_REVIEW_TOKEN; fall back to the write token for archie-platform.
+_REVIEW_TOKEN = os.getenv("FORGE_REVIEW_TOKEN", "")
 # Raised from 6000: a 7B/12B has headroom, and a bigger window means fewer truncations
 # (truncation mid-file was a direct cause of false 'no tests'/'unclosed loop' flags).
 # _DIFF_MAX_CHARS is the conservative cap used when the review window is at Ollama's ~2048
@@ -196,8 +199,9 @@ def _fetch_diff(diff_url: str) -> str:
         RuntimeError: If GitHub returns non-200.
     """
     headers = {"Accept": "application/vnd.github.v3.diff"}
-    if _GITHUB_TOKEN:
-        headers["Authorization"] = f"token {_GITHUB_TOKEN}"
+    token = _REVIEW_TOKEN or _GITHUB_TOKEN
+    if token:
+        headers["Authorization"] = f"token {token}"
 
     resp = requests.get(diff_url, headers=headers, timeout=30)
     if resp.status_code != 200:

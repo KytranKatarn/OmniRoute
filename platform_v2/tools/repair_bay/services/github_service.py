@@ -37,6 +37,27 @@ def _get_token() -> str:
     return os.environ.get("GITHUB_TOKEN", "")
 
 
+def _get_read_token() -> str:
+    """Read-only token for cross-repo GETs (PR/diff fetches on watch-product repos).
+
+    Prefers FORGE_REVIEW_TOKEN (a least-privilege read PAT scoped to all repos); falls
+    back to the write token so archie-platform reads still work if it is unset. Writes
+    (_api_post / _api_patch / merge / git push) keep using _get_token()."""
+    return os.environ.get("FORGE_REVIEW_TOKEN", "") or _get_token()
+
+
+def _api_read_headers() -> Dict[str, str]:
+    """GitHub API headers using the read token (for GETs across all repos)."""
+    token = _get_read_token()
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
 def _api_headers() -> Dict[str, str]:
     """Build GitHub API headers with auth."""
     token = _get_token()
@@ -54,7 +75,7 @@ def _api_get(path: str, params: Dict = None, timeout: int = 15) -> Tuple[bool, D
     try:
         resp = requests.get(
             f"{API_BASE}{path}",
-            headers=_api_headers(),
+            headers=_api_read_headers(),
             params=params,
             timeout=timeout,
         )

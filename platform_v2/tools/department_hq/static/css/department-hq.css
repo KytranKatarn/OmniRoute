@@ -1741,7 +1741,7 @@
 .dhq-hero-label {
     font-size: 0.65rem;
     text-transform: uppercase;
-    color: #666;
+    color: #8a93a1;
     margin-top: 0.25rem;
     letter-spacing: 0.5px;
 }
@@ -1774,7 +1774,7 @@
 .dhq-attention-item:hover { background: rgba(255,255,255,0.03); }
 .dhq-attention-icon { flex-shrink: 0; }
 .dhq-attention-text { flex: 1; color: #ccc; }
-.dhq-attention-link { color: #666; font-size: 0.7rem; flex-shrink: 0; }
+.dhq-attention-link { color: #8a93a1; font-size: 0.7rem; flex-shrink: 0; }
 
 .dhq-floor-grid {
     display: grid;
@@ -1793,7 +1793,7 @@
     letter-spacing: 1px;
 }
 .dhq-floor-card-stats {
-    color: #888;
+    color: #8a93a1;
     font-size: 0.7rem;
     margin-top: 0.15rem;
 }

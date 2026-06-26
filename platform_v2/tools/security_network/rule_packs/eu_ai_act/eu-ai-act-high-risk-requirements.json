@@ -1,0 +1,267 @@
+{
+  "pack_id": "eu-ai-act-high-risk-requirements",
+  "name": "EU AI Act — High-Risk System Requirements",
+  "description": "Chapter III obligations for high-risk AI systems (Articles 9-15) plus provider and deployer duties. Informational, not legal advice.",
+  "version": "1.0",
+  "framework": "EU AI Act (Regulation (EU) 2024/1689)",
+  "category": "ai_governance",
+  "effective_date": "2026-08-02",
+  "rules": [
+    {
+      "rule_id": "EUAIA-HR-01",
+      "severity": "high",
+      "title": "Risk-management system",
+      "description": "A continuous, iterative risk-management system is established and maintained across the AI lifecycle.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 9",
+      "check": {
+        "type": "attestation",
+        "question": "Is there a continuous, iterative risk-management system across the AI lifecycle?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 9 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MANAGE 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-HR-02",
+      "severity": "high",
+      "title": "Data & data governance",
+      "description": "Training, validation, and testing datasets are relevant, representative, and examined for bias.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 10",
+      "check": {
+        "type": "attestation",
+        "question": "Are training/validation/testing datasets relevant, representative, and examined for bias?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 10 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MAP 2.3", "MEASURE 2.11"]
+    },
+    {
+      "rule_id": "EUAIA-HR-03",
+      "severity": "high",
+      "title": "Technical documentation",
+      "description": "Annex IV technical documentation is drawn up and kept up to date.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 11",
+      "check": {
+        "type": "attestation",
+        "question": "Is Annex IV technical documentation drawn up and kept up to date?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 11 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.4"]
+    },
+    {
+      "rule_id": "EUAIA-HR-04",
+      "severity": "high",
+      "title": "Record-keeping / logging",
+      "description": "The system automatically records events (logs) over its lifetime to ensure traceability.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 12",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system automatically record events (logs) over its lifetime for traceability?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 12 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MEASURE 2.8"]
+    },
+    {
+      "rule_id": "EUAIA-HR-05",
+      "severity": "high",
+      "title": "Transparency to deployers",
+      "description": "Clear instructions for use are provided so deployers can interpret and use output correctly.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 13",
+      "check": {
+        "type": "attestation",
+        "question": "Are clear instructions for use provided so deployers can interpret and use output correctly?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 13 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.2"]
+    },
+    {
+      "rule_id": "EUAIA-HR-06",
+      "severity": "high",
+      "title": "Human oversight",
+      "description": "The system is designed for effective human oversight, including the ability to stop or override it.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 14",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system designed for effective human oversight (including stop/override)?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 14 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MANAGE 2.1"]
+    },
+    {
+      "rule_id": "EUAIA-HR-07",
+      "severity": "high",
+      "title": "Accuracy, robustness & cybersecurity",
+      "description": "The system achieves appropriate levels of accuracy, robustness, and cybersecurity.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 15",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system meet appropriate accuracy, robustness, and cybersecurity levels?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 15 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MEASURE 2.5", "MANAGE 4.1"]
+    },
+    {
+      "rule_id": "EUAIA-HR-08",
+      "severity": "medium",
+      "title": "Quality management system",
+      "description": "A documented quality-management system is in place.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 17",
+      "check": {
+        "type": "attestation",
+        "question": "Is a documented quality-management system in place?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 17 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-HR-09",
+      "severity": "medium",
+      "title": "Documentation retention",
+      "description": "Documentation is retained for 10 years after the system is placed on the market.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 18",
+      "check": {
+        "type": "attestation",
+        "question": "Is documentation retained for 10 years after the system is placed on the market?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 18 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.4"]
+    },
+    {
+      "rule_id": "EUAIA-HR-10",
+      "severity": "high",
+      "title": "Conformity assessment",
+      "description": "The system has undergone the required conformity-assessment procedure.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 43",
+      "check": {
+        "type": "attestation",
+        "question": "Has the system undergone the required conformity-assessment procedure?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 43 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.5"]
+    },
+    {
+      "rule_id": "EUAIA-HR-11",
+      "severity": "medium",
+      "title": "EU declaration of conformity",
+      "description": "An EU declaration of conformity has been drawn up.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 47",
+      "check": {
+        "type": "attestation",
+        "question": "Has an EU declaration of conformity been drawn up?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 47 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.5"]
+    },
+    {
+      "rule_id": "EUAIA-HR-12",
+      "severity": "medium",
+      "title": "CE marking",
+      "description": "The CE marking is affixed where applicable.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 48",
+      "check": {
+        "type": "attestation",
+        "question": "Is the CE marking affixed (where applicable)?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 48 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.5"]
+    },
+    {
+      "rule_id": "EUAIA-HR-13",
+      "severity": "medium",
+      "title": "EU-database registration",
+      "description": "The high-risk system is registered in the EU database before being placed on the market.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 49",
+      "check": {
+        "type": "attestation",
+        "question": "Is the high-risk system registered in the EU database before being placed on the market?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 49 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.5"]
+    },
+    {
+      "rule_id": "EUAIA-HR-14",
+      "severity": "high",
+      "title": "Deployer obligations",
+      "description": "The deployer uses the system per instructions, ensures human oversight, and monitors operation.",
+      "applies_to": ["deployer"],
+      "eu_ai_act_ref": "Article 26",
+      "check": {
+        "type": "attestation",
+        "question": "Does the deployer use the system per instructions, ensure human oversight, and monitor operation?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the deployer obligations under Article 26 before putting the high-risk system into use.",
+      "nist_ai_rmf_mapping": ["GOVERN 2.1"]
+    },
+    {
+      "rule_id": "EUAIA-HR-15",
+      "severity": "high",
+      "title": "Post-market monitoring",
+      "description": "A post-market monitoring system collects and reviews performance data.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 72",
+      "check": {
+        "type": "attestation",
+        "question": "Is there a post-market monitoring system collecting and reviewing performance data?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 72 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MANAGE 4.1"]
+    },
+    {
+      "rule_id": "EUAIA-HR-16",
+      "severity": "high",
+      "title": "Serious-incident reporting",
+      "description": "Serious incidents are reported to the relevant market-surveillance authority within the required timeframe.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 73",
+      "check": {
+        "type": "attestation",
+        "question": "Are serious incidents reported to the relevant market-surveillance authority within the required timeframe?",
+        "evidence_prompt": "Link the relevant policy/record/technical document.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Implement and document the obligation under Article 73 before placing the high-risk system on the market.",
+      "nist_ai_rmf_mapping": ["MANAGE 4.3"]
+    }
+  ]
+}

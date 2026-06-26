@@ -1,0 +1,10 @@
+{
+  "framework": "EU AI Act (Regulation (EU) 2024/1689)",
+  "version": "1.0",
+  "packs": [
+    {"file": "eu-ai-act-transparency.json", "pack_id": "eu-ai-act-transparency", "name": "EU AI Act — Transparency Obligations (Article 50)"},
+    {"file": "eu-ai-act-risk-classification.json", "pack_id": "eu-ai-act-risk-classification", "name": "EU AI Act — Risk Classification"},
+    {"file": "eu-ai-act-high-risk-requirements.json", "pack_id": "eu-ai-act-high-risk-requirements", "name": "EU AI Act — High-Risk System Requirements"},
+    {"file": "eu-ai-act-gpai-obligations.json", "pack_id": "eu-ai-act-gpai-obligations", "name": "EU AI Act — GPAI Model Obligations"}
+  ]
+}

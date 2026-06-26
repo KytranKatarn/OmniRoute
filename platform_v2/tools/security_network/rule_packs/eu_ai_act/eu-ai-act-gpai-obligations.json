@@ -1,0 +1,171 @@
+{
+  "pack_id": "eu-ai-act-gpai-obligations",
+  "name": "EU AI Act — GPAI Model Obligations",
+  "description": "Chapter V obligations for general-purpose AI models (Articles 51-55), including systemic-risk models. Informational, not legal advice.",
+  "version": "1.0",
+  "framework": "EU AI Act (Regulation (EU) 2024/1689)",
+  "category": "ai_governance",
+  "effective_date": "2026-08-02",
+  "rules": [
+    {
+      "rule_id": "EUAIA-GPAI-01",
+      "severity": "high",
+      "title": "Technical documentation",
+      "description": "Annex XI technical documentation for the GPAI model is drawn up and kept current.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 53(1)(a)",
+      "check": {
+        "type": "attestation",
+        "question": "Is Annex XI technical documentation for the GPAI model drawn up and kept current?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 53(1)(a).",
+      "nist_ai_rmf_mapping": ["GOVERN 1.4"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-02",
+      "severity": "high",
+      "title": "Downstream-provider information",
+      "description": "Annex XII information and documentation is made available to downstream providers integrating the model.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 53(1)(b)",
+      "check": {
+        "type": "attestation",
+        "question": "Is Annex XII information/documentation made available to downstream providers integrating the model?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 53(1)(b).",
+      "nist_ai_rmf_mapping": ["GOVERN 1.2"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-03",
+      "severity": "high",
+      "title": "Copyright policy",
+      "description": "A policy is in place to comply with Union copyright law, including Article 4(3) DSM Directive opt-outs.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 53(1)(c)",
+      "check": {
+        "type": "attestation",
+        "question": "Is there a policy to comply with Union copyright law (including Art. 4(3) DSM opt-outs)?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 53(1)(c).",
+      "nist_ai_rmf_mapping": ["GOVERN 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-04",
+      "severity": "high",
+      "title": "Training-content summary",
+      "description": "A sufficiently detailed public summary of the content used to train the model is published.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 53(1)(d)",
+      "check": {
+        "type": "attestation",
+        "question": "Is a sufficiently detailed public summary of training content published?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 53(1)(d).",
+      "nist_ai_rmf_mapping": ["MAP 4.1"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-05",
+      "severity": "medium",
+      "title": "Authorized representative",
+      "description": "Non-EU providers appoint an EU authorized representative.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 54",
+      "check": {
+        "type": "attestation",
+        "question": "Have non-EU providers appointed an EU authorized representative?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 54.",
+      "nist_ai_rmf_mapping": ["GOVERN 2.1"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-06",
+      "severity": "high",
+      "title": "Model evaluation & adversarial testing",
+      "description": "For systemic-risk models, model evaluation including adversarial testing is performed and documented.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 55(1)(a)",
+      "check": {
+        "type": "attestation",
+        "question": "For systemic-risk models, is model evaluation incl. adversarial testing performed and documented?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 55(1)(a).",
+      "nist_ai_rmf_mapping": ["MEASURE 2.5"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-07",
+      "severity": "high",
+      "title": "Systemic-risk assessment & mitigation",
+      "description": "Systemic risks at Union level are assessed and mitigated.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 55(1)(b)",
+      "check": {
+        "type": "attestation",
+        "question": "Are systemic risks at Union level assessed and mitigated?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 55(1)(b).",
+      "nist_ai_rmf_mapping": ["MAP 5.1", "MANAGE 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-08",
+      "severity": "high",
+      "title": "Serious-incident tracking",
+      "description": "Serious incidents are tracked, documented, and reported to the AI Office without undue delay.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 55(1)(c)",
+      "check": {
+        "type": "attestation",
+        "question": "Are serious incidents tracked, documented, and reported to the AI Office without undue delay?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 55(1)(c).",
+      "nist_ai_rmf_mapping": ["MANAGE 4.3"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-09",
+      "severity": "high",
+      "title": "Cybersecurity protection",
+      "description": "Adequate cybersecurity protection for the model and its physical infrastructure is ensured.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 55(1)(d)",
+      "check": {
+        "type": "attestation",
+        "question": "Is adequate cybersecurity protection for the model and its physical infrastructure ensured?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Produce and maintain the artefact required under Article 55(1)(d).",
+      "nist_ai_rmf_mapping": ["MANAGE 4.1"]
+    },
+    {
+      "rule_id": "EUAIA-GPAI-10",
+      "severity": "low",
+      "title": "Systemic-risk classification",
+      "description": "A model with high-impact capabilities (e.g., exceeding 10^25 FLOPs of training compute) is classified as GPAI with systemic risk, triggering Article 55 obligations.",
+      "applies_to": ["gpai_provider"],
+      "eu_ai_act_ref": "Article 51",
+      "check": {
+        "type": "attestation",
+        "question": "Does the model have high-impact capabilities / exceed 10^25 FLOPs of training compute (so systemic-risk obligations apply)?",
+        "evidence_prompt": "Link model documentation / policy / evaluation report.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "If yes, comply with the systemic-risk obligations under Article 55 (rules GPAI-06 through GPAI-09).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    }
+  ]
+}

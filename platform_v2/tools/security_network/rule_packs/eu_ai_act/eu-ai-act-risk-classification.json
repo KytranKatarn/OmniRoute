@@ -1,0 +1,315 @@
+{
+  "pack_id": "eu-ai-act-risk-classification",
+  "name": "EU AI Act — Risk Classification",
+  "description": "Determine an AI system's risk tier under the EU AI Act (prohibited / high / limited / minimal). Informational, not legal advice.",
+  "version": "1.0",
+  "framework": "EU AI Act (Regulation (EU) 2024/1689)",
+  "category": "ai_governance",
+  "effective_date": "2026-08-02",
+  "rules": [
+    {
+      "rule_id": "EUAIA-RC-01",
+      "severity": "high",
+      "title": "Subliminal/manipulative techniques",
+      "description": "Prohibited: AI deploying subliminal or purposefully manipulative/deceptive techniques that materially distort behavior and cause harm.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(a)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system deploy subliminal or purposefully manipulative/deceptive techniques that materially distort behavior and cause harm?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-02",
+      "severity": "high",
+      "title": "Exploitation of vulnerabilities",
+      "description": "Prohibited: exploiting vulnerabilities due to age, disability, or social/economic situation to distort behavior and cause harm.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(b)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system exploit vulnerabilities due to age, disability, or social/economic situation to distort behavior and cause harm?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-03",
+      "severity": "high",
+      "title": "Social scoring",
+      "description": "Prohibited: evaluating or classifying persons via social behavior leading to detrimental or unjustified treatment.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(c)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system evaluate or classify persons via social behavior leading to detrimental/unjustified treatment?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-04",
+      "severity": "high",
+      "title": "Predictive policing by profiling",
+      "description": "Prohibited: assessing the risk of a person committing a crime based solely on profiling or personality traits.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(d)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system assess the risk of a person committing a crime based solely on profiling or personality traits?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-05",
+      "severity": "high",
+      "title": "Untargeted facial-image scraping",
+      "description": "Prohibited: creating or expanding facial-recognition databases via untargeted scraping of facial images.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(e)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system create/expand facial-recognition databases via untargeted scraping of facial images?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-06",
+      "severity": "high",
+      "title": "Emotion inference at work/school",
+      "description": "Prohibited: inferring emotions in the workplace or education settings (outside medical/safety purposes).",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(f)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system infer emotions in the workplace or education settings (outside medical/safety)?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-07",
+      "severity": "high",
+      "title": "Sensitive biometric categorization",
+      "description": "Prohibited: categorizing persons by biometric data to infer race, political opinions, religion, sexual orientation, or other sensitive attributes.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(g)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system categorize persons by biometric data to infer race, political opinions, religion, sexual orientation, etc.?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-08",
+      "severity": "high",
+      "title": "Real-time remote biometric ID",
+      "description": "Prohibited (outside narrow exceptions): real-time remote biometric identification in publicly accessible spaces for law enforcement.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 5(1)(h)",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system perform real-time remote biometric identification in publicly accessible spaces for law enforcement (outside narrow exceptions)?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Do not place on the market or put into service — this practice is prohibited under Article 5 (subject to narrow, authorised exceptions).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-09",
+      "severity": "high",
+      "title": "Safety component of regulated product",
+      "description": "High-risk: AI used as a safety component of a product covered by Annex I Union harmonization law requiring third-party conformity assessment.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 6(1) / Annex I",
+      "check": {
+        "type": "attestation",
+        "question": "Is the AI a safety component of a product covered by Annex I Union harmonization law requiring third-party conformity assessment?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-10",
+      "severity": "high",
+      "title": "Biometrics",
+      "description": "High-risk (Annex III §1): biometric identification, categorization, or emotion recognition (non-prohibited uses).",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §1",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used for biometric identification, categorization, or emotion recognition (non-prohibited)?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-11",
+      "severity": "high",
+      "title": "Critical infrastructure",
+      "description": "High-risk (Annex III §2): safety component in the management/operation of critical digital infrastructure, road traffic, or utilities.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §2",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system a safety component in the management/operation of critical digital infrastructure, road traffic, or utilities?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-12",
+      "severity": "high",
+      "title": "Education & vocational training",
+      "description": "High-risk (Annex III §3): admissions, evaluation of learning outcomes, or proctoring in education.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §3",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used for admissions, evaluation of learning outcomes, or proctoring in education?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-13",
+      "severity": "high",
+      "title": "Employment & worker management",
+      "description": "High-risk (Annex III §4): recruitment, selection, promotion/termination, or task allocation/monitoring of workers.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §4",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used for recruitment, selection, promotion/termination, or task allocation/monitoring of workers?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-14",
+      "severity": "high",
+      "title": "Access to essential services",
+      "description": "High-risk (Annex III §5): evaluating eligibility for essential public benefits, creditworthiness, or insurance/emergency dispatch.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §5",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used to evaluate eligibility for essential public benefits, creditworthiness, or insurance/emergency dispatch?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-15",
+      "severity": "high",
+      "title": "Law enforcement",
+      "description": "High-risk (Annex III §6): law-enforcement use for risk assessment, evidence evaluation, or profiling.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §6",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used by law enforcement for risk assessment, evidence evaluation, or profiling?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-16",
+      "severity": "high",
+      "title": "Migration, asylum & border control",
+      "description": "High-risk (Annex III §7): migration/asylum/border management (risk assessment, application examination).",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §7",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used for migration/asylum/border management (risk assessment, application examination)?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-17",
+      "severity": "high",
+      "title": "Justice & democratic processes",
+      "description": "High-risk (Annex III §8): assisting judicial authorities or influencing elections/referenda.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Annex III §8",
+      "check": {
+        "type": "attestation",
+        "question": "Is the system used to assist judicial authorities or to influence elections/referenda?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Treat as high-risk: comply with Chapter III (see the high-risk-requirements pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-18",
+      "severity": "low",
+      "title": "Limited-risk transparency trigger",
+      "description": "Limited-risk: systems that interact with people, generate synthetic content, or perform emotion/biometric categorization trigger Article 50 transparency duties.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 50",
+      "check": {
+        "type": "attestation",
+        "question": "Does the system interact with people, generate synthetic content, or perform emotion/biometric categorization?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Apply the Article 50 transparency obligations (see the transparency pack).",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    },
+    {
+      "rule_id": "EUAIA-RC-19",
+      "severity": "low",
+      "title": "Minimal-risk (voluntary)",
+      "description": "Minimal-risk: systems not captured by the prohibited, high-risk, or transparency categories carry no mandatory obligations.",
+      "applies_to": ["all"],
+      "eu_ai_act_ref": "Article 95",
+      "check": {
+        "type": "attestation",
+        "question": "If none of the prohibited/high-risk/transparency rules apply, is the system minimal-risk?",
+        "evidence_prompt": "Describe the system's purpose and link supporting analysis.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "No mandatory obligations; consider adhering to voluntary codes of conduct under Article 95.",
+      "nist_ai_rmf_mapping": ["MAP 1.1"]
+    }
+  ]
+}

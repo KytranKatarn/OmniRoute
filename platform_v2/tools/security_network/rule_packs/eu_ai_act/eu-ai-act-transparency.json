@@ -1,0 +1,91 @@
+{
+  "pack_id": "eu-ai-act-transparency",
+  "name": "EU AI Act — Transparency Obligations (Article 50)",
+  "description": "Article 50 transparency duties for AI providers and deployers. Informational, not legal advice.",
+  "version": "1.0",
+  "framework": "EU AI Act (Regulation (EU) 2024/1689)",
+  "category": "ai_governance",
+  "effective_date": "2026-08-02",
+  "rules": [
+    {
+      "rule_id": "EUAIA-TR-01",
+      "severity": "high",
+      "title": "Disclosure of AI interaction",
+      "description": "Natural persons are informed when they interact with an AI system, unless it is obvious from the context.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 50(1)",
+      "check": {
+        "type": "attestation",
+        "question": "Are users clearly informed when they are interacting with an AI system (e.g., chatbot disclosure)?",
+        "evidence_prompt": "Link to the UI disclosure, chatbot banner, or ToS clause.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Add a clear, conspicuous notice that the user is interacting with AI at the start of the interaction.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.2", "MAP 5.1"]
+    },
+    {
+      "rule_id": "EUAIA-TR-02",
+      "severity": "high",
+      "title": "Machine-readable marking of synthetic content",
+      "description": "Outputs of AI systems that generate synthetic audio, image, video, or text are marked as artificially generated or manipulated in a machine-readable format.",
+      "applies_to": ["provider"],
+      "eu_ai_act_ref": "Article 50(2)",
+      "check": {
+        "type": "attestation",
+        "question": "Is AI-generated synthetic audio/image/video/text marked in a machine-readable format (e.g., metadata, watermark) as artificially generated?",
+        "evidence_prompt": "Link to the watermarking/metadata implementation or spec.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Embed machine-readable provenance markers (e.g., C2PA, SynthID-style watermark) in all synthetic outputs.",
+      "nist_ai_rmf_mapping": ["MEASURE 2.7"]
+    },
+    {
+      "rule_id": "EUAIA-TR-03",
+      "severity": "medium",
+      "title": "Emotion recognition / biometric categorization notice",
+      "description": "Persons exposed to an emotion-recognition or biometric-categorization system are informed of its operation.",
+      "applies_to": ["deployer"],
+      "eu_ai_act_ref": "Article 50(3)",
+      "check": {
+        "type": "attestation",
+        "question": "Are individuals informed when they are subject to an emotion-recognition or biometric-categorization system?",
+        "evidence_prompt": "Link to the notice shown to exposed persons.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Provide a clear notice to exposed persons before any emotion-recognition or biometric-categorization processing.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.2"]
+    },
+    {
+      "rule_id": "EUAIA-TR-04",
+      "severity": "high",
+      "title": "Deepfake disclosure",
+      "description": "Content constituting a deepfake is disclosed as artificially generated or manipulated.",
+      "applies_to": ["deployer"],
+      "eu_ai_act_ref": "Article 50(4)",
+      "check": {
+        "type": "attestation",
+        "question": "Is image/audio/video content that constitutes a deepfake disclosed as artificially generated or manipulated?",
+        "evidence_prompt": "Link to the deepfake labelling shown to viewers.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Label all deepfake content as artificially generated/manipulated in a way visible to the audience.",
+      "nist_ai_rmf_mapping": ["MEASURE 2.7"]
+    },
+    {
+      "rule_id": "EUAIA-TR-05",
+      "severity": "medium",
+      "title": "AI-generated public-interest text disclosure",
+      "description": "AI-generated or manipulated text published to inform the public on matters of public interest is disclosed as AI-generated, absent human review and editorial responsibility.",
+      "applies_to": ["deployer"],
+      "eu_ai_act_ref": "Article 50(4)",
+      "check": {
+        "type": "attestation",
+        "question": "Is AI-generated/manipulated text published on matters of public interest disclosed as AI-generated (where there is no human editorial review)?",
+        "evidence_prompt": "Link to the AI-authorship disclosure / editorial policy.",
+        "default_status": "not_assessed"
+      },
+      "remediation": "Disclose AI authorship on public-interest text unless a human holds editorial responsibility for the content.",
+      "nist_ai_rmf_mapping": ["GOVERN 1.2"]
+    }
+  ]
+}

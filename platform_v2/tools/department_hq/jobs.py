@@ -579,6 +579,20 @@ def competitor_landscape_scan(flask_app):
 # ---------------------------------------------------------------------------
 
 
+def job_recovery_reaper():
+    """#1716 — mark stale 'running' bridge_jobs 'interrupted' (worker-crash recovery)."""
+    try:
+        from database import get_db_cursor
+        from services.job_recovery_service import reap_stale_running
+
+        with get_db_cursor(commit=True) as (_, cur):
+            n = reap_stale_running(cur, max_age_min=20)
+        if n:
+            logger.info("job_recovery_reaper: marked %d stale running job(s) interrupted", n)
+    except Exception:
+        logger.exception("job_recovery_reaper failed")
+
+
 def register_department_hq_jobs(scheduler, flask_app):
     """Central job registration — ALL department jobs go through here.
 
@@ -720,6 +734,17 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=3, minute=45, timezone="America/Toronto"),
         id="agent_recompute_perf_baselines",
         name="Agent Loop: Nightly Recompute Perf Baselines",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Job — Interrupted-Job Recovery Reaper (#1716, every 10 min)
+    scheduler.add_job(
+        job_recovery_reaper,
+        trigger=IntervalTrigger(minutes=10),
+        id="job_recovery_reaper",
+        name="Agent Loop: Interrupted-Job Recovery Reaper",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

@@ -392,6 +392,40 @@ def register_dispatch_routes(bp, admin_required_decorator):
             logger.error("[Dispatch] Approvals failed: %s", e)
             return jsonify({"success": False, "error": str(e)}), 500
 
+    @bp.route("/api/dispatch/interrupted-jobs", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_interrupted_jobs():
+        """#1716 — list interrupted (crash-orphaned) bridge_jobs."""
+        try:
+            from services.job_recovery_service import list_interrupted
+
+            with get_db_cursor() as (conn, cur):
+                jobs = list_interrupted(cur, limit=int(request.args.get("limit", 50)))
+            for j in jobs:
+                for k in ("created_at", "updated_at"):
+                    if j.get(k):
+                        j[k] = j[k].isoformat()
+            return jsonify({"success": True, "jobs": jobs})
+        except Exception as e:
+            logger.error("[Dispatch] interrupted-jobs failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/dispatch/replay-job/<int:job_id>", methods=["POST"])
+    @admin_required_decorator
+    def dispatch_replay_job(job_id):
+        """#1716 — replay an interrupted/failed job (re-clone + re-dispatch if re-entrant)."""
+        try:
+            from services.job_recovery_service import replay_job
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                result = replay_job(cur, job_id)
+            return jsonify({"success": True, **result})
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 404
+        except Exception as e:
+            logger.error("[Dispatch] replay-job failed: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/dispatch/approvals/<int:approval_id>/<action>", methods=["POST"])
     @admin_required_decorator
     def dispatch_approval_action(approval_id, action):

@@ -38,7 +38,10 @@ body.light-mode {
     --archie-text-primary: #111827;
     --archie-text-secondary: #374151;
     --archie-text-tertiary: #6b7280;
-    --archie-text-muted: #9ca3af;
+    /* #9ca3af failed AA on white (cr 2.54); #6b7280 = cr ~4.6. Platform-wide
+       muted-text contrast fix (#1998). Verified no regression on dark-island
+       surfaces (DHQ) — those use hardcoded greys, not this token. */
+    --archie-text-muted: #6b7280;
     /* Border Colors */
     --archie-border-default: rgba(0, 0, 0, 0.12);
     --archie-border-muted: rgba(0, 0, 0, 0.08);

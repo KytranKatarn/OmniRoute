@@ -15,6 +15,25 @@ logger = logging.getLogger(__name__)
 
 INTERRUPTED = "interrupted"
 
+
+def _as_dict(row, cur, cols=None):
+    """Normalize a fetched row to a plain dict for either cursor type.
+
+    The DHQ endpoints use a RealDictCursor (rows are already dict-like); the unit
+    tests use a tuple cursor (rows are tuples). Slice-1 assumed tuples only, which
+    silently mis-mapped rows under the real RealDictCursor. Pass ``cols`` for a
+    fixed-shape SELECT so tuple rows map positionally without needing
+    ``cur.description``.
+    """
+    if row is None:
+        return None
+    if isinstance(row, dict):
+        return dict(row)
+    if cols is None:
+        cols = [d[0] for d in cur.description]
+    return dict(zip(cols, row))
+
+
 # job_types whose execution is idempotent / re-entrant — safe to auto-re-dispatch on
 # replay (single-item inference capabilities; re-running just produces a fresh result).
 # Anything NOT in this set is cloned to 'pending' + flagged 'replay_needs_handler' and
@@ -28,6 +47,43 @@ RE_ENTRANT_JOB_TYPES = {
     "translate",
     "classify",
 }
+
+# --- #4499: per-job-type resume handlers (true mid-step resume, Scope A) ---
+# A registered handler resumes the REAL remaining work for an interrupted job of
+# its job_type (e.g. an idempotent consciousness backlog re-selects only the rows
+# it hasn't processed yet). Registering a handler means replay resumes IN PLACE
+# instead of cloning a 'pending' row (which nothing would pick up — there is no
+# generic bridge_jobs poller). A handler is `fn(cur, job_row: dict) -> dict` and
+# MUST be honest: return {"executed": False, ...} rather than fake success.
+RESUME_HANDLERS = {}
+_handlers_loaded = False
+
+
+def register_resume_handler(job_type: str, fn) -> None:
+    """Register a resume handler for a bridge_jobs job_type."""
+    RESUME_HANDLERS[job_type] = fn
+
+
+def _ensure_handlers_loaded() -> None:
+    """Lazily import the concrete handlers module once so it self-registers.
+
+    Kept lazy + guarded so handler registration does not depend on app-boot
+    import order, and a broken/uninstalled handlers module can never break
+    replay (we simply fall back to the slice-1 clone path).
+    """
+    global _handlers_loaded
+    if _handlers_loaded:
+        return
+    _handlers_loaded = True
+    try:
+        import services.job_resume_handlers  # noqa: F401  (registers on import)
+    except Exception:
+        logger.exception("job_resume_handlers import failed — resume handlers disabled")
+
+
+def _get_resume_handler(job_type: str):
+    _ensure_handlers_loaded()
+    return RESUME_HANDLERS.get(job_type)
 
 
 def mark_interrupted_on_restart(cur) -> int:
@@ -78,7 +134,7 @@ def list_interrupted(cur, limit: int = 50) -> list:
     cur.execute(
         """
         SELECT id, job_type, module_source, description, checkpoint,
-               replay_of, created_at, updated_at
+               replay_of, replayed_at, created_at, updated_at
           FROM bridge_jobs
          WHERE status = %s
          ORDER BY updated_at DESC
@@ -86,8 +142,7 @@ def list_interrupted(cur, limit: int = 50) -> list:
         """,
         (INTERRUPTED, limit),
     )
-    cols = [d[0] for d in cur.description]
-    return [dict(zip(cols, row)) for row in cur.fetchall()]
+    return [_as_dict(row, cur) for row in cur.fetchall()]
 
 
 def replay_job(cur, job_id: int) -> dict:
@@ -102,10 +157,44 @@ def replay_job(cur, job_id: int) -> dict:
         "FROM bridge_jobs WHERE id = %s",
         (job_id,),
     )
-    row = cur.fetchone()
-    if not row:
+    d = _as_dict(
+        cur.fetchone(),
+        cur,
+        cols=["job_type", "module_source", "description", "metadata", "checkpoint", "agent_name"],
+    )
+    if not d:
         raise ValueError(f"bridge_job {job_id} not found")
-    job_type, module_source, description, metadata, checkpoint, agent_name = row
+    job_type = d["job_type"]
+    module_source = d["module_source"]
+    description = d["description"]
+    metadata = d["metadata"]
+    checkpoint = d["checkpoint"]
+    agent_name = d["agent_name"]
+
+    # #4499: if a resume handler is registered for this job_type, resume the real
+    # remaining work IN PLACE (no useless 'pending' clone — nothing polls it).
+    handler = _get_resume_handler(job_type)
+    if handler is not None:
+        result = handler(
+            cur,
+            {
+                "id": job_id,
+                "job_type": job_type,
+                "module_source": module_source,
+                "description": description,
+                "metadata": metadata,
+                "checkpoint": checkpoint,
+                "agent_name": agent_name,
+            },
+        )
+        cur.execute("UPDATE bridge_jobs SET replayed_at = NOW() WHERE id = %s", (job_id,))
+        return {
+            "new_job_id": result.get("new_job_id"),
+            "executed": bool(result.get("executed", False)),
+            "needs_handler": False,
+            "resumed": True,
+            "detail": result.get("detail"),
+        }
 
     re_entrant = job_type in RE_ENTRANT_JOB_TYPES
     meta = dict(metadata or {})
@@ -131,7 +220,8 @@ def replay_job(cur, job_id: int) -> dict:
             job_id,
         ),
     )
-    new_id = cur.fetchone()[0]
+    ret = cur.fetchone()
+    new_id = ret["id"] if isinstance(ret, dict) else ret[0]
     cur.execute("UPDATE bridge_jobs SET replayed_at = NOW() WHERE id = %s", (job_id,))
 
     executed = _dispatch_replay(job_type, description, new_id) if re_entrant else False

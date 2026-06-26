@@ -3787,6 +3787,7 @@ async function loadAutonomy() {
         if (typeof loadDispatchConfig === 'function') await loadDispatchConfig();
         if (typeof loadJobMonitoring === 'function') await loadJobMonitoring();
         if (typeof loadAutonomyBacklogs === 'function') await loadAutonomyBacklogs();
+        if (typeof loadInterruptedJobs === 'function') await loadInterruptedJobs();
         loaded['autonomy'] = true;
     } catch (e) {
         console.error('[loadAutonomy] error:', e);
@@ -3835,6 +3836,75 @@ async function toggleBacklog(key, enabled, cb) {
         if (cb) cb.checked = !enabled;
     } finally {
         if (cb) cb.disabled = false;
+    }
+}
+
+// Interrupted jobs (#1716 durable execution / #4500) — list crash-orphaned
+// bridge_jobs and replay them (backend: GET interrupted-jobs / POST replay-job).
+async function loadInterruptedJobs() {
+    var el = document.getElementById('interruptedJobsContent');
+    if (!el) return;
+    function esc(s) { var d = document.createElement('div'); d.textContent = (s == null ? '' : String(s)); return d.innerHTML; }
+    function when(ts) {
+        if (!ts) return '';
+        if (window.ArchieTime && ArchieTime.format) return esc(ArchieTime.format(ts, 'datetime'));
+        return esc(String(ts).replace('T', ' ').slice(0, 16));
+    }
+    try {
+        var data = await api('/api/dispatch/interrupted-jobs');
+        var rows = (data && data.jobs) || [];
+        var cnt = document.getElementById('interruptedJobsCount');
+        if (cnt) cnt.textContent = rows.length + ' interrupted';
+        if (!rows.length) { el.className = ''; el.textContent = 'No interrupted jobs — all clear.'; return; }
+        el.className = '';
+        var html = '<table class="dhq-table" style="width:100%;font-size:0.78rem;"><thead><tr>' +
+            '<th style="text-align:left;">#</th><th style="text-align:left;">Job Type</th>' +
+            '<th style="text-align:left;">Module</th><th style="text-align:left;">Progress</th>' +
+            '<th style="text-align:left;">Interrupted</th><th>Action</th></tr></thead><tbody>';
+        rows.forEach(function (j) {
+            var cp = j.checkpoint || {};
+            var hasCp = (cp.completed_steps != null || cp.total_steps != null);
+            var prog = hasCp
+                ? (esc(cp.completed_steps == null ? '?' : cp.completed_steps) + '/' + esc(cp.total_steps == null ? '?' : cp.total_steps) +
+                   (cp.reason ? ' <span style="color:var(--dhq-text-dim);font-size:0.62rem;">(' + esc(cp.reason) + ')</span>' : ''))
+                : '<span style="color:var(--dhq-text-dim);">—</span>';
+            var action = j.replayed_at
+                ? '<span style="color:var(--dhq-text-dim);font-size:0.7rem;">↻ replayed</span>'
+                : '<button style="font-size:0.7rem;padding:3px 12px;cursor:pointer;background:var(--cat-accent,#00ffff);color:#010409;border:none;border-radius:10px;font-family:\'Antonio\',sans-serif;letter-spacing:1px;" onclick="replayInterruptedJob(' + esc(j.id) + ', this)">REPLAY</button>';
+            html += '<tr>' +
+                '<td style="font-family:\'IBM Plex Mono\',monospace;">' + esc(j.id) + '</td>' +
+                '<td style="font-family:\'IBM Plex Mono\',monospace;">' + esc(j.job_type) + '</td>' +
+                '<td>' + esc(j.module_source) + '</td>' +
+                '<td>' + prog + '</td>' +
+                '<td style="color:var(--dhq-text-dim);">' + when(j.updated_at) + '</td>' +
+                '<td style="text-align:center;">' + action + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        el.innerHTML = html;
+    } catch (e) {
+        el.className = ''; el.textContent = 'Could not load interrupted jobs.';
+    }
+}
+
+async function replayInterruptedJob(jobId, btn) {
+    var status = document.getElementById('interruptedJobsStatus');
+    try {
+        if (btn) { btn.disabled = true; btn.textContent = '…'; }
+        var res = await apiPost('/api/dispatch/replay-job/' + encodeURIComponent(jobId), {});
+        if (status) {
+            if (res && res.success) {
+                var how = res.resumed ? 'resumed in place'
+                    : (res.executed ? 're-dispatched' : 'cloned to pending (needs handler)');
+                var nid = res.new_job_id ? (' → new job #' + res.new_job_id) : '';
+                status.textContent = 'Job #' + jobId + ' ' + how + nid + (res.detail ? ' — ' + res.detail : '');
+            } else {
+                status.textContent = 'Replay of job #' + jobId + ' failed' + (res && res.error ? ': ' + res.error : '.');
+            }
+        }
+    } catch (e) {
+        if (status) status.textContent = 'Replay of job #' + jobId + ' failed (network error).';
+    } finally {
+        if (typeof loadInterruptedJobs === 'function') loadInterruptedJobs();
     }
 }
 

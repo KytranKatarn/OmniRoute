@@ -483,7 +483,7 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # SAAS SERVICES (modules — KBS modules removed 2026-03-30, now in Kytran Business Suite)
     # ============================================
-    # email_manager, automations, scheduler, social_media
+    # email_manager, scheduler, social_media
     ModuleDefinition(
         id="email_manager",
         name="Email HQ",
@@ -499,23 +499,6 @@ MODULES: List[ModuleDefinition] = [
         health_check=lambda: default_health_check("email_manager"),
         priority=6,
         tags=["email", "mailbox", "agents", "stalwart", "ai-command"],
-    ),
-    ModuleDefinition(
-        id="automations",
-        name="Automations",
-        description="Automate repetitive tasks<br>Visual workflow builder • Triggers • n8n integration",
-        icon="settings",
-        category=ModuleCategory.AI_COMMAND,
-        route="/tools/automations",
-        blueprint_import="tools.automations.routes:automations_bp",
-        required_permissions=["admin:access"],
-        minimum_role="ADMIN",
-        minimum_tier="staff",
-        enabled=False,  # Disabled — n8n not deployed, moving to KBS (Decision #434)
-        coming_soon=False,
-        health_check=lambda: default_health_check("automations"),
-        priority=6,
-        tags=["automation", "workflows", "n8n", "ai-command"],
     ),
     ModuleDefinition(
         id="wtf_hub",

@@ -1082,14 +1082,6 @@ def api_list_permissions():
             "user:settings": {"label": "User Settings", "category": "Core Features"},
             "read:own": {"label": "Read Own Data", "category": "Core Features"},
             "write:own": {"label": "Write Own Data", "category": "Core Features"},
-            "automation:create": {
-                "label": "Create Automations",
-                "category": "Automation & Tasks",
-            },
-            "automation:manage": {
-                "label": "Manage Automations",
-                "category": "Automation & Tasks",
-            },
             "task_planner:schedule": {
                 "label": "Schedule Tasks",
                 "category": "Automation & Tasks",

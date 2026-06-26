@@ -1782,7 +1782,6 @@ const PERM_LABELS = {
     'archie:chat': 'Chat with A.R.C.H.I.E.', 'code_editor:read': 'Code Editor (Read)',
     'code_editor:write': 'Code Editor (Write)', 'user:settings': 'User Settings',
     'read:own': 'Read Own Data', 'write:own': 'Write Own Data',
-    'automation:create': 'Create Automations', 'automation:manage': 'Manage Automations',
     'task_planner:schedule': 'Schedule Tasks', 'task_planner:calendar': 'Calendar Access',
     'google:email': 'Google Email', 'google:contacts': 'Google Contacts',
     'google:calendar': 'Google Calendar', 'app_builder:create': 'Create Apps',

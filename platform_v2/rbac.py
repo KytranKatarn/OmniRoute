@@ -53,7 +53,6 @@ class Permission(Enum):
     Module Consolidation (2026-02-03):
     - media_hub uses: No special permissions (USER access)
     - project_manager uses: ADMIN_PROJECTS permission
-    - automations uses: AUTOMATION_* permissions
     - sandbox_manager uses: ADMIN_SANDBOX, ADMIN_TESTING permissions
     - bridge uses: ADMIN_FINE_TUNING, ADMIN_IDE permissions
     - team_management uses: ADMIN_USERS permission
@@ -70,8 +69,6 @@ class Permission(Enum):
     USER_SETTINGS = "user:settings"
     READ_OWN = "read:own"
     WRITE_OWN = "write:own"
-    AUTOMATION_CREATE = "automation:create"
-    AUTOMATION_MANAGE = "automation:manage"
     TASK_PLANNER_SCHEDULE = "task_planner:schedule"
     TASK_PLANNER_CALENDAR = "task_planner:calendar"
     GOOGLE_EMAIL = "google:email"
@@ -148,7 +145,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         Permission.WRITE_OWN,
         # App Builder (limited: 1 project/month for FREE users)
         Permission.APP_BUILDER_CREATE,
-        # Automations: admin-only (N8N global proxy, not multi-tenant yet)
         # Task Planner (basic scheduling)
         Permission.TASK_PLANNER_SCHEDULE,
         Permission.TASK_PLANNER_CALENDAR,
@@ -175,8 +171,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # COLLABORATOR specific — creative + social (no deploy, no admin)
         Permission.SOCIAL_MEDIA_CREATE,
         Permission.MEDIA_STUDIO_GENERATE,
-        Permission.AUTOMATION_CREATE,
-        Permission.AUTOMATION_MANAGE,
         # Email HQ: view own department mailboxes only
         Permission.EMAIL_INBOX_VIEW,
     },
@@ -224,8 +218,6 @@ ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
         # DEPRECATED 2026-02-03: Not needed
         # Permission.FIGMA_IMPORT,
         Permission.ANALYTICS_VIEW,
-        Permission.AUTOMATION_CREATE,
-        Permission.AUTOMATION_MANAGE,
         Permission.TASK_PLANNER_SCHEDULE,
         Permission.TASK_PLANNER_CALENDAR,
         Permission.GOOGLE_EMAIL,

@@ -113,9 +113,6 @@ services:
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
       HOST_IP: "192.168.1.200"  # Host machine IP for System Operations module
-      NPM_API_URL: http://nginx_proxy_manager:81/api
-      NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
-      NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
       HOSTINGER_API_KEY: ${HOSTINGER_API_KEY:-}
       PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
       # Path C activation: scheduler runs in archie_scheduler sidecar.
@@ -315,9 +312,6 @@ services:
       CODE_SERVER_URL: ${CODE_SERVER_URL}
       OLLAMA_HOST: ${OLLAMA_PRIMARY}
       HOST_IP: "192.168.1.200"
-      NPM_API_URL: http://nginx_proxy_manager:81/api
-      NPM_ADMIN_EMAIL: ${NPM_ADMIN_EMAIL}
-      NPM_ADMIN_PASSWORD: ${NPM_ADMIN_PASSWORD}
       HOSTINGER_API_KEY: ${HOSTINGER_API_KEY:-}
       HOSTINGER_DOMAIN: ${HOSTINGER_DOMAIN:-kytranempowerment.com}
       HA_URL: ${HA_URL:-http://192.168.1.200:8123}
@@ -893,38 +887,13 @@ services:
       retries: 3
       start_period: 20s
 
-  # Nginx Proxy Manager — Reverse proxy + SSL termination for all subdomains
-  nginx_proxy_manager:
-    image: 'jc21/nginx-proxy-manager:2.14.0'
-    container_name: nginx_proxy_manager
-    restart: unless-stopped
-    mem_limit: 1g
-    cpus: 1.0
-    cap_drop:
-      - ALL
-    cap_add:
-      - NET_BIND_SERVICE
-      - DAC_OVERRIDE
-      - CHOWN
-      - SETGID
-      - SETUID
-    ports:
-      - '80:80'
-      - '443:443'
-      - '127.0.0.1:81:81'
-    volumes:
-      - /mnt/HomeLab/nginx-proxy/data:/data
-      - /mnt/HomeLab/nginx-proxy/letsencrypt:/etc/letsencrypt
-    networks:
-      - archie_internal
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:81/api"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-    environment:
-      TZ: America/Toronto
+  # nginx_proxy_manager DECOMMISSIONED 2026-06-27 — replaced by Beacon (2.25.170.252) as the
+  # sole front door for hub services. LAN/mesh DNS (AdGuard rewrites) repointed hub-service
+  # hostnames -> Beacon; mail kept -> 192.168.1.200 (Stalwart). Removed from compose because the
+  # periodic compose-up kept reviving it after `docker stop`. Data retained at /mnt/HomeLab/nginx-proxy
+  # for rollback (restore this block + AdGuardHome.yaml.bak-npm-decom-20260627 + `docker compose up -d`).
+  # NPM_* env (NPM_API_URL/NPM_ADMIN_EMAIL/NPM_ADMIN_PASSWORD) dropped from platform+scheduler 2026-06-27.
+  # Still open: remove the now-dead Security Network 'NPM Proxy' management feature (separate module change).
   security_nmap:
     image: instrumentisto/nmap:7.94
     container_name: security_nmap

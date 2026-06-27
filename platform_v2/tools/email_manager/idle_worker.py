@@ -88,6 +88,16 @@ def _idle_loop(mailbox_id: int, address: str, password: str) -> None:
                         if delta > 0:
                             _write_push_event(mailbox_id, delta)
                             last_count = new_count
+                            # Slice 1: pull the new message body NOW (don't wait for the
+                            # 5-min poll). Uses its own IMAP connection; isolated so a sync
+                            # error can never kill this IDLE loop. This also drives the
+                            # Slice 2 A.R.C.H.I.E. advisory in near-real-time.
+                            try:
+                                from .sync_jobs import sync_single_mailbox_full
+
+                                sync_single_mailbox_full(mailbox_id, address, password)
+                            except Exception as _sync_exc:
+                                logger.debug("[IDLE] instant body-fetch failed %s: %s", address, _sync_exc)
                         break  # re-IDLE on next loop iteration
             except OSError:
                 # socket timeout or connection drop — reconnect

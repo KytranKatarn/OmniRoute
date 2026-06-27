@@ -204,6 +204,7 @@ def send(
     source_module: str = None,
     chat_id: str = None,
     force: bool = False,
+    voice: bool = True,
     _privileged: bool = False,
 ) -> dict:
     """Send a categorized Telegram notification as A.R.C.H.I.E.
@@ -271,19 +272,25 @@ def send(
                 logger.debug("telegram_service: throttled [%s] '%s' (%ds)", category, title, remaining)
                 return {"sent": False, "reason": reason}
 
-    # Format as A.R.C.H.I.E.'s voice — personality engine with LLM fallback
-    try:
-        from services.archie_voice_service import format_message as _voice_format
+    # Format as A.R.C.H.I.E.'s voice — personality engine with LLM fallback.
+    # voice=False skips the (LLM, potentially slow) personality engine and uses the
+    # fast string template — for high-frequency notifications that must not block a
+    # caller on a model dispatch (e.g. the Mail HQ new-mail advisory).
+    if voice:
+        try:
+            from services.archie_voice_service import format_message as _voice_format
 
-        text = _voice_format(
-            category=category,
-            title=title,
-            raw_message=message,
-            source_agent=source_agent,
-            source_department=source_department,
-        )
-    except Exception as _voice_err:
-        logger.debug("telegram_service: voice service unavailable (%s), using template", _voice_err)
+            text = _voice_format(
+                category=category,
+                title=title,
+                raw_message=message,
+                source_agent=source_agent,
+                source_department=source_department,
+            )
+        except Exception as _voice_err:
+            logger.debug("telegram_service: voice service unavailable (%s), using template", _voice_err)
+            text = _format_archie_voice(cat, title, message, source_agent)
+    else:
         text = _format_archie_voice(cat, title, message, source_agent)
 
     target = chat_id or _get_chat_id()

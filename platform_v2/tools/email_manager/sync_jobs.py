@@ -145,6 +145,7 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
                 return 0
 
             inserted = 0
+            new_for_notify = []  # Slice 2: collect newly-inserted msgs for the A.R.C.H.I.E. advisory
             for uid in new_uids:
                 try:
                     _, msg_data = imap.fetch(str(uid).encode(), "(RFC822)")
@@ -157,12 +158,19 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
                         if insert_email_message(cur, mailbox_id, uid, msg, raw):
                             inserted += 1
                             cur.execute(
-                                "SELECT id FROM email_messages WHERE mailbox_id=%s AND imap_uid=%s",
+                                "SELECT id, received_at FROM email_messages WHERE mailbox_id=%s AND imap_uid=%s",
                                 (mailbox_id, uid),
                             )
                             row = cur.fetchone()
                             if row:
                                 new_id = row["id"]
+                                new_for_notify.append(
+                                    {
+                                        "from": decode_header_value(msg.get("From", "")),
+                                        "subject": decode_header_value(msg.get("Subject", "")),
+                                        "received_at": row.get("received_at"),
+                                    }
+                                )
                     if new_id:
                         from .rules_service import apply_rules
                         from .triage_service import triage_message_async
@@ -185,6 +193,14 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
                     # sync since 2026-06-11 — now isolated + logged, not fatal.)
                     logger.warning("Skipping message uid=%s in %s: %s", uid, address, msg_exc)
                     continue
+
+            if new_for_notify:
+                try:
+                    from .notify_service import notify_new_mail
+
+                    notify_new_mail(mailbox_id, address, new_for_notify)
+                except Exception:
+                    pass  # Slice 2 advisory must never break mail sync
 
             return inserted
 

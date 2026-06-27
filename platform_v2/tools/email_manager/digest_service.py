@@ -109,6 +109,23 @@ def build_morning_digest() -> tuple[str, str]:
     except Exception as _de:
         logger.debug("[email_digest] drafts section skipped: %s", _de)
 
+    # Slice 5 / #4525: action items overdue (unread action-priority mail older than 24h).
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT count(*) AS n FROM email_messages em
+                   JOIN email_mailboxes m ON m.id = em.mailbox_id
+                   WHERE em.is_read = FALSE AND em.ai_priority = 'action'
+                     AND m.active = TRUE
+                     AND em.received_at < NOW() - INTERVAL '24 hours'"""
+            )
+            overdue = int((cur.fetchone() or {}).get("n", 0))
+        if overdue:
+            lines.append("")
+            lines.append(f"⏰ {overdue} action item(s) overdue (>24h unread)")
+    except Exception as _oe:
+        logger.debug("[email_digest] overdue section skipped: %s", _oe)
+
     total_unread = sum(unread_by_type.values())
     title = f"Email HQ — {total_unread} unread"
 

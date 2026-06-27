@@ -198,6 +198,17 @@ def _send_proposal_buttons(queue_id: int, c: dict, draft: str, agent: str) -> No
         )
         if not r.get("sent"):
             logger.warning("[mailhq-draft] button advisory not sent (%s) for q=%s", r.get("reason"), queue_id)
+        # Store the Telegram message id so approving from the DHQ Approvals tab can
+        # clear the phone's live buttons (_approve_autonomy echoes via this id). (#4521)
+        mid = r.get("message_id")
+        if mid:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE autonomy_approval_queue SET telegram_message_id = %s WHERE id = %s",
+                    (mid, queue_id),
+                )
     except Exception as exc:
         logger.error("[mailhq-draft] button advisory failed for q=%s: %s", queue_id, exc)
 

@@ -672,6 +672,7 @@ def send_with_buttons(
 
     sent_count = 0
     last_err = None
+    primary_message_id = None  # message_id in the primary chat — lets callers clear buttons later
     for cid in chat_ids:
         try:
             payload = {**payload_base, "chat_id": cid}
@@ -693,6 +694,11 @@ def send_with_buttons(
                 )
             if resp.ok:
                 sent_count += 1
+                if primary_message_id is None and str(cid) == str(target):
+                    try:
+                        primary_message_id = ((resp.json() or {}).get("result") or {}).get("message_id")
+                    except Exception:
+                        pass
             else:
                 last_err = f"HTTP {resp.status_code}: {resp.text[:120]}"
                 logger.debug("send_with_buttons to %s: %s", cid, last_err)
@@ -723,4 +729,4 @@ def send_with_buttons(
         error_message=None if sent_count > 0 else last_err,
     )
 
-    return {"sent": sent_count > 0, "sent_count": sent_count}
+    return {"sent": sent_count > 0, "sent_count": sent_count, "message_id": primary_message_id}

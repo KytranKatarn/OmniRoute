@@ -113,6 +113,17 @@ def _approve_autonomy(source_id: int, user_id: int):
             except Exception as _we:
                 logger.warning("welfare_rest_8h DHQ approval execution failed: %s", _we)
 
+    # Mail HQ Smart Inbox (Slice 4): send the drafted reply on approval. Runs OUTSIDE the
+    # DB transaction above (never hold a txn open across an SMTP/network call). The
+    # executor is idempotent, so the Telegram tap and this web path can't double-send.
+    if action_type == "email_reply":
+        try:
+            from tools.email_manager.draft_proposal_service import execute_email_reply
+
+            execute_email_reply(source_id, user_id)
+        except Exception as _ee:
+            logger.warning("email_reply DHQ approval execution failed: %s", _ee)
+
     # #4325: echo the dashboard decision onto Telegram (update text + drop buttons) so
     # the phone message reflects the action taken here. Best-effort — a Telegram failure
     # must never break the approve. The inbound callback does the same edit on a tap.

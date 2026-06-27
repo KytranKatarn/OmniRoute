@@ -1465,6 +1465,13 @@ class TelegramGateway:
             )
             return
 
+        # Mail HQ Smart Inbox (Slice 4): approve-to-send drafted replies. These act on
+        # autonomy_approval_queue (email_id == queue id) — distinct from the legacy
+        # email_inbox actions below. Single-token actions keep split("_", 2) valid.
+        if action in ("replysend", "replycancel"):
+            await self._handle_email_reply_action(query, action, email_id, user)
+            return
+
         try:
             conn = get_db()
             try:
@@ -1531,6 +1538,42 @@ class TelegramGateway:
                 await query.message.reply_text(f"Error: {str(e)}")
             except Exception:
                 pass
+
+    async def _handle_email_reply_action(self, query, action, queue_id, user):
+        """Mail HQ Smart Inbox (Slice 4): approve-to-send / cancel a drafted reply.
+
+        `queue_id` is an autonomy_approval_queue id. The SMTP send runs off the event
+        loop via asyncio.to_thread so a multi-second send never blocks the bot. The
+        executor is idempotent — a double-tap cannot double-send.
+        """
+        import asyncio
+
+        approved_by = (user or {}).get("user_id")
+        try:
+            if action == "replycancel":
+                from tools.email_manager.draft_proposal_service import reject_email_reply
+
+                await asyncio.to_thread(reject_email_reply, queue_id, approved_by)
+                await query.edit_message_text(query.message.text + "\n\n❌ Cancelled — not sent")
+                return
+
+            # replysend — send the drafted reply
+            from tools.email_manager.draft_proposal_service import execute_email_reply
+
+            res = await asyncio.to_thread(execute_email_reply, queue_id, approved_by)
+            if res.get("success"):
+                await query.edit_message_text(query.message.text + "\n\n✅ Sent")
+            else:
+                await query.edit_message_text(
+                    query.message.text + f"\n\n⚠️ Not sent: {res.get('error', 'unknown')}"
+                )
+        except Exception as e:
+            # Full traceback — this drives a real email send, so failures must be diagnosable.
+            logger.exception("email reply action failed (q=%s, action=%s): %s", queue_id, action, e)
+            try:
+                await query.edit_message_text(query.message.text + f"\n\n⚠️ Error: {e}")
+            except Exception as edit_err:
+                logger.debug("email reply action: could not edit Telegram message (q=%s): %s", queue_id, edit_err)
 
     async def _send_email_reply(self, update, context, email_id):
         """Send an email reply from Telegram message text via SMTP."""

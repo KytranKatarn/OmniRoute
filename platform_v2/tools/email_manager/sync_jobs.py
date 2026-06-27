@@ -312,3 +312,21 @@ def register_email_sync_jobs(job_service) -> None:
         logger.info("[email_imap_sync] Registered")
     except Exception as exc:
         logger.error("[email_imap_sync] Failed to register: %s", exc)
+
+    # Mail HQ Smart Inbox — Slice 3: agent-drafted approve-to-send proposals.
+    # Gated OFF by default (platform_settings mailhq:draft:enabled) — the job is a
+    # no-op until enabled, so registering it is safe. Isolated try/except so a
+    # failure here cannot affect the email sync job above.
+    try:
+        from .draft_proposal_service import run_mailhq_draft_proposals
+
+        job_service.register_job(
+            name="mailhq_draft_proposals",
+            func=run_mailhq_draft_proposals,
+            interval_hours=1 / 6,  # every 10 minutes
+            department="Customer Success & Support",
+            description="Draft approve-to-send replies for action-priority owner/business mail (gated)",
+        )
+        logger.info("[mailhq_draft_proposals] Registered")
+    except Exception as exc:
+        logger.error("[mailhq_draft_proposals] Failed to register: %s", exc)

@@ -62,15 +62,16 @@ dns:
   search_domains: []
   # Padlock-over-mesh (#4287): push these A records via MagicDNS so mesh clients resolve
   # them CLIENT-SIDE (no :53-over-mesh dependency) → https://archie.*/platform.* over mesh
-  # hits NPM's real Let's Encrypt cert on 100.64.0.4:443. Targeted override; all other
-  # names still use the nameservers above. Harmless for fleet nodes (already hub-pointed).
+  # hits Beacon's real Let's Encrypt cert on 2.25.170.252:443. Repointed from the hub's NPM
+  # (100.64.0.4:443) on 2026-06-27 — NPM decommissioned, Beacon is the sole hub front door
+  # (ADR-853, KB #276161). Targeted override; all other names still use the nameservers above.
   extra_records:
     - name: "archie.kytranempowerment.com"
       type: "A"
-      value: "100.64.0.4"
+      value: "2.25.170.252"
     - name: "platform.kytranempowerment.com"
       type: "A"
-      value: "100.64.0.4"
+      value: "2.25.170.252"
 
 # Unix socket for headscale CLI
 unix_socket: /var/run/headscale/headscale.sock

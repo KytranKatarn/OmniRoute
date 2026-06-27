@@ -62,14 +62,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
-    "nginx_proxy_manager": {
-        "description": "NPM reverse proxy — gates all *.kytranempowerment.com subdomains",
-        "tcp_probes": [80, 443],
-        # http_probe removed — :81 admin API is host-bound only, unreachable from
-        # compose network; TCP 80/443 are the correct liveness signals for NPM.
-        "auto_restart_safe": True,
-        "compose_service": "nginx_proxy_manager",
-    },
+    # nginx_proxy_manager removed 2026-06-27 — NPM decommissioned, replaced by Beacon
+    # (2.25.170.252) as the sole hub front door (ADR-851, KB #276140). It is no longer
+    # critical infra and was removed from docker-compose.yml (PR #1953). Watching it here
+    # re-fired a restart_container approval every time it was stopped (the revival loop),
+    # and the restart command (`docker compose up -d nginx_proxy_manager`) now errors since
+    # the service is gone. Do NOT re-add.
     "network_adguard": {
         "description": "AdGuard DNS — internal resolution + ad blocking",
         "tcp_probes": [53],

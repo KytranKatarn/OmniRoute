@@ -855,7 +855,8 @@ _HUB_CRITICAL_CONTAINERS = [
     "archie_comms",
     "archie_headscale",
     "archie_tailscale",
-    "nginx_proxy_manager",
+    # nginx_proxy_manager removed 2026-06-27 — NPM decommissioned (Beacon is the sole hub
+    # front door, ADR-851/PR #1953). No longer a hub-critical container.
 ]
 
 _hub_containers_last_status = {}

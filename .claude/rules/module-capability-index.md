@@ -25,7 +25,7 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **KB Docs**: #264022 · #264472 (audit 2026-05-09) · **Rules**: `admin-ops.md`
 
 ### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
-- **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, NPM proxy host lifecycle, 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, supervision schedules.
+- **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, AdGuard DNS-rewrite CRUD (`adguard_service.{get,add,delete}_rewrite`), 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, supervision schedules. *(NPM proxy-host lifecycle REMOVED 2026-06-27 — NPM decommissioned, PR #1956; domain/DNS CRUD in domain_npm_routes.py kept.)*
 - **Chat overlay**: **V.I.G.I.L.** #3 → `security-network-chat.js`, red `#ef4444`. 5 action types. Briefing: `tools/archie_chat/security_network_briefing.py`.
 - **LCARS gotcha**: Template uses BOTH `--frame-color` CSS vars AND direct `background: #HEX !important` — two-pass replacement required for color changes (64+ sites).
 - **KB Docs**: #263992 · #264473 (audit 2026-05-09) · **Rules**: `admin-ops.md`, `compliance-standards.md`

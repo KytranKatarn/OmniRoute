@@ -29,7 +29,8 @@ def triage_message(message_id: int) -> dict:
     Updates the email_messages row with ai_priority / ai_suggestion in-place.
     """
     from database import get_db_cursor
-    from tools.department_hq.services.department_dispatcher import dispatch_json
+
+    from .fleet_dispatch import queued_dispatch_text
 
     with get_db_cursor() as (conn, cur):
         cur.execute(
@@ -68,11 +69,12 @@ def triage_message(message_id: int) -> dict:
     else:
         return {"skipped": True, "reason": f"mailbox_type={mailbox_type} not triaged"}
 
-    result = dispatch_json(capability=capability, prompt=prompt)
-    if not result.get("success"):
-        return {"error": result.get("error", "dispatch failed")}
+    # Queue-aware dispatch: waits for a free agent (cold-load queue) instead of
+    # failing synchronously, so triage actually completes on a busy/small cluster.
+    response_text = queued_dispatch_text(capability=capability, prompt=prompt, json_mode=True)
+    if response_text is None:
+        return {"error": "dispatch failed (or queued-poll timeout)"}
 
-    response_text = result.get("response", "{}")
     parsed = _parse_triage_json(response_text)
     if parsed is None:
         return {"error": f"unparseable triage response: {response_text[:200]}"}
@@ -81,19 +83,17 @@ def triage_message(message_id: int) -> dict:
     if priority not in _VALID_PRIORITIES:
         priority = "info"
     suggestion = str(parsed.get("suggestion", ""))[:500]
-    agent_id = result.get("agent_id")
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """UPDATE email_messages
-               SET ai_priority = %s, ai_suggestion = %s,
-                   ai_agent_id = %s, ai_triaged_at = %s
+               SET ai_priority = %s, ai_suggestion = %s, ai_triaged_at = %s
                WHERE id = %s""",
-            (priority, suggestion, agent_id, datetime.now(timezone.utc), message_id),
+            (priority, suggestion, datetime.now(timezone.utc), message_id),
         )
 
-    logger.info("[email_triage] msg=%d priority=%s agent=%s", message_id, priority, agent_id)
-    return {"priority": priority, "suggestion": suggestion, "agent_id": agent_id}
+    logger.info("[email_triage] msg=%d priority=%s", message_id, priority)
+    return {"priority": priority, "suggestion": suggestion}
 
 
 def triage_message_async(message_id: int) -> None:

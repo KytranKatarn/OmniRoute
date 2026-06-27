@@ -107,7 +107,8 @@ def _create_proposal(c: dict) -> bool:
     from psycopg2.extras import Json
 
     from database import get_db_cursor
-    from tools.department_hq.services.department_dispatcher import dispatch_json
+
+    from .fleet_dispatch import queued_dispatch_text
 
     body_snippet = (c.get("body_text") or c.get("body_preview") or "")[:1000]
     prompt = (
@@ -120,15 +121,14 @@ def _create_proposal(c: dict) -> bool:
         "no 'Here is a draft' preamble. Start directly with the reply content."
     )
 
-    result = dispatch_json(capability="support", prompt=prompt)
-    if not result.get("success"):
-        logger.warning("[mailhq-draft] dispatch failed for msg=%s: %s", c.get("id"), result.get("error"))
-        return False
-
-    draft = (result.get("response") or "").strip()
+    # Queue-aware dispatch: waits for a free R.E.S.O.L.V.E. agent (cold-load queue)
+    # rather than failing synchronously on a busy/small cluster.
+    draft = queued_dispatch_text(capability="support", prompt=prompt)
     if not draft:
+        logger.warning("[mailhq-draft] draft dispatch failed/empty for msg=%s", c.get("id"))
         return False
-    agent = result.get("agent_name") or "R.E.S.O.L.V.E."
+    draft = draft.strip()
+    agent = "R.E.S.O.L.V.E."  # capability='support' routes to R.E.S.O.L.V.E.
 
     subject = (c.get("subject") or "").strip() or "(no subject)"
     reply_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"

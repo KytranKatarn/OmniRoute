@@ -22,7 +22,7 @@
 | AdGuard DNS | 53/5354 | adguard.kytranempowerment.com | network_adguard | Hub |
 | Nagios Monitoring | 8082 | nagios.kytranempowerment.com | monitoring_nagios | Hub |
 | C.R.E.E.D. Governance | 8086 | creed.kytranempowerment.com | kytran_creed | Hub |
-| NPM Proxy | 80/443 | — (hub-LAN vantage only; external ingress via Beacon) | nginx_proxy_manager | Hub |
+| ~~NPM Proxy~~ **DECOMMISSIONED 2026-06-27** | — | — | ~~nginx_proxy_manager~~ removed | Beacon is the sole hub front door (ADR-853, PR #1953/#1954, KB #276161). Data retained `/mnt/HomeLab/nginx-proxy` for rollback. |
 | Plex | 32400 (host) | — | media_plex | Hub |
 | Jellyfin | 8096 | — | media_jellyfin | Hub |
 | Sonarr | 8989 | — | media_sonarr | Hub |
@@ -59,9 +59,9 @@ _(Audited + pruned 2026-06-11 — KB #272182. ⚠️ Verify public DNS from an E
 - **Citadel/boston-2 (2.25.133.122)** = products + mail (`archie_ingress_caddy`, `/opt/archie-ingress/Caddyfile` → local containers at 172.18.0.1:<port>): gov, market, legal, civic, wtf, mail, mail-admin(removed), mta-sts, voice. `voice` = reserved/planned (HA voice, no service yet). `what-the-fact.com`/`.tech` apexes also → here.
 - **outpost-us (76.13.107.109)** = `api`, `relay`, `outpost-us` only (infra: api→hub mesh, SMTP relay, socks, sync, node_api). NO product stacks.
 - Mail TXT/MX: SPF `v=spf1 a mx ip4:76.13.107.109 -all`, DMARC `p=reject`, `_mta-sts` (mta-sts host now SERVES the policy — **mode=testing**; enforce gated on relay cert, task #4044), `_smtp._tls`, DKIM `stalwart`+`default`, MX `10 mail` / `20 relay`, `outpost-relay`.
-- ⚠️ Old hub public IP **153.68.195.85 is STALE** — hub moved (now a dynamic residential IP); external traffic enters via **Beacon**, not NPM. NPM is hub-LAN vantage only.
+- ⚠️ Old hub public IP **153.68.195.85 is STALE** — hub moved (now a dynamic residential IP); external traffic enters via **Beacon**. (NPM **decommissioned 2026-06-27** — Beacon is the sole hub front door; hub :80/:443 has no listener.)
 - **Pruned 2026-06-11** (#4032 follow-on): deleted `thenews`/`n8n`/`fdtest`/`ftp`/`webmail`/`mail-admin`/`brainstorm`/`proxy` A-records + legacy `zmail._domainkey` TXT (stale / no-service / ftp=takeover-risk external IP). All confirmed NXDOMAIN; Beacon Caddy blocks excised.
-- NPM: 17 proxy hosts, all SSL forced (cleaned 2026-04-13 — removed portainer, mdm, code, devhq, *.fleet DNS + 7 dead proxy hosts)
+- ~~NPM (nginx_proxy_manager)~~: **DECOMMISSIONED 2026-06-27** (was 17 proxy hosts) — removed from `docker-compose.yml` + the infra_heartbeat/fleet_jobs critical-container watch lists; container `docker rm -f`'d. Beacon is the sole hub front door. Rollback: restore compose block + `AdGuardHome.yaml.bak` + `docker compose up`. ADR-853, PR #1953/#1954, KB mistake #276161. STILL-OPEN: remove the now-dead Security Network 'NPM Proxy' management feature (npm_service.py + the NPM-proxy endpoints in domain_npm_routes.py — interleaved with live domain/DNS CRUD, so surgical) + 2 stale AdGuard rewrites (proxy.*, brainstorm.*).
 - `creed-ai.org` → Hostinger shared hosting (separate domain)
 
 ## Consciousness Module Status

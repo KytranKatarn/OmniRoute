@@ -41,6 +41,9 @@
       <button class="em-icon-btn" id="em-compose-open" title="Compose new message">
         <i data-lucide="edit-3" style="width:14px;height:14px;"></i>
       </button>
+      <button class="em-icon-btn" id="em-settings-open" title="Smart Inbox settings">
+        <i data-lucide="sliders-horizontal" style="width:14px;height:14px;"></i>
+      </button>
     </div>
 
     <!-- smart views -->
@@ -249,6 +252,39 @@
         <button class="em-btn-send" id="em-compose-send">
           <i data-lucide="send" style="width:13px;height:13px;"></i> Send
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Smart Inbox Settings modal (Slice 5) -->
+<div class="bm-overlay" id="em-settings-modal">
+  <div class="bm-shell" style="--bm-accent:#00ffff; max-width:520px; width:96vw;">
+    <div class="bm-frame"></div>
+    <div class="bm-content">
+      <div class="bm-header">
+        <span class="bm-title">Smart Inbox Settings</span>
+        <button class="bm-close" id="em-settings-close">✕</button>
+      </div>
+      <div class="bm-body" style="padding:1.25rem 1.5rem;">
+        <div class="em-compose-field">
+          <label class="em-compose-label">Daily digest time (Eastern)</label>
+          <input type="time" id="em-set-digest-time" class="em-input" style="max-width:160px;">
+        </div>
+        <div class="em-compose-field">
+          <label class="em-compose-label">Quiet hours (suppress instant pings)</label>
+          <input type="text" id="em-set-quiet" class="em-input" placeholder="22-7" style="max-width:160px;">
+          <div style="font-size:11px;opacity:.7;margin-top:3px;">Format start-end (24h), e.g. 22-7. Blank = none. Suppressed mail still appears in the digest.</div>
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px;cursor:pointer;"><input type="checkbox" id="em-set-notify-enabled"> Instant new-mail Telegram pings</label>
+        <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px;cursor:pointer;"><input type="checkbox" id="em-set-digest-enabled"> Daily digest</label>
+        <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px;cursor:pointer;"><input type="checkbox" id="em-set-digest-drafts"> Include drafted replies in the digest</label>
+        <label style="display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px;cursor:pointer;"><input type="checkbox" id="em-set-draft-enabled"> Auto-draft replies for action mail (approve to send)</label>
+        <div id="em-settings-status" style="display:none;font-size:12px;margin-top:8px;"></div>
+      </div>
+      <div class="bm-footer">
+        <button class="em-btn-cancel" id="em-settings-cancel">Cancel</button>
+        <button class="em-btn-send" id="em-settings-save">Save</button>
       </div>
     </div>
   </div>

@@ -80,6 +80,35 @@ def build_morning_digest() -> tuple[str, str]:
     else:
         lines.append("✅ No action items flagged")
 
+    # Slice 5: surface replies the agents drafted that are awaiting approval.
+    try:
+        from . import mailhq_settings
+
+        if mailhq_settings.digest_include_drafts():
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT count(*) AS n FROM autonomy_approval_queue
+                       WHERE action_type = 'email_reply' AND status = 'pending'"""
+                )
+                n_drafts = int((cur.fetchone() or {}).get("n", 0))
+                cur.execute(
+                    """SELECT action_data->>'to_address' AS to_addr,
+                              action_data->>'subject'    AS subj
+                       FROM autonomy_approval_queue
+                       WHERE action_type = 'email_reply' AND status = 'pending'
+                       ORDER BY created_at DESC LIMIT 3"""
+                )
+                draft_rows = cur.fetchall()
+            if n_drafts:
+                lines.append("")
+                lines.append(f"📝 {n_drafts} repl{'y' if n_drafts == 1 else 'ies'} drafted, awaiting approval:")
+                for r in draft_rows:
+                    to_addr = (r["to_addr"] or "?").split("@")[0]
+                    subj = (r["subj"] or "(no subject)")[:45]
+                    lines.append(f"  ✉️ {subj} → {to_addr}")
+    except Exception as _de:
+        logger.debug("[email_digest] drafts section skipped: %s", _de)
+
     total_unread = sum(unread_by_type.values())
     title = f"Email HQ — {total_unread} unread"
 

@@ -1292,6 +1292,58 @@
       });
   }
 
+  // ── Smart Inbox settings (Slice 5) ────────────────────────────────────
+  function openSettings() {
+    var status = el('em-settings-status');
+    if (status) { status.style.display = 'none'; status.textContent = ''; }
+    api('/api/email/settings').then(function (d) {
+      var s = (d && d.settings) || {};
+      var t = el('em-set-digest-time'); if (t) t.value = s['mailhq:digest:time'] || '08:00';
+      var q = el('em-set-quiet'); if (q) q.value = s['mailhq:notify:quiet_hours'] || '';
+      var chk = function (id, v) { var c = el(id); if (c) c.checked = !!v; };
+      chk('em-set-notify-enabled', s['mailhq:notify:enabled']);
+      chk('em-set-digest-enabled', s['mailhq:digest:enabled']);
+      chk('em-set-digest-drafts', s['mailhq:digest:include_drafts']);
+      chk('em-set-draft-enabled', s['mailhq:draft:enabled']);
+    }).catch(function () {});
+    var modal = el('em-settings-modal');
+    if (modal) modal.classList.add('active');
+  }
+
+  function closeSettings() {
+    var modal = el('em-settings-modal');
+    if (modal) modal.classList.remove('active');
+  }
+
+  function saveSettings() {
+    var status = el('em-settings-status');
+    var saveBtn = el('em-settings-save');
+    var chk = function (id) { var c = el(id); return !!(c && c.checked); };
+    var body = {
+      'mailhq:digest:time': ((el('em-set-digest-time') || {}).value || '08:00'),
+      'mailhq:notify:quiet_hours': ((el('em-set-quiet') || {}).value || '').trim(),
+      'mailhq:notify:enabled': chk('em-set-notify-enabled'),
+      'mailhq:digest:enabled': chk('em-set-digest-enabled'),
+      'mailhq:digest:include_drafts': chk('em-set-digest-drafts'),
+      'mailhq:draft:enabled': chk('em-set-draft-enabled')
+    };
+    if (saveBtn) saveBtn.disabled = true;
+    if (status) { status.style.display = ''; status.style.color = '#64748b'; status.textContent = 'Saving…'; }
+    apiPost('/api/email/settings', body).then(function (d) {
+      if (d && d.ok) {
+        if (status) { status.style.color = '#22c55e'; status.textContent = '✓ Saved'; }
+        setTimeout(closeSettings, 1000);
+      } else {
+        var msg = (d && d.errors && d.errors.length) ? d.errors.join('; ') : 'Save failed';
+        if (status) { status.style.color = '#ef4444'; status.textContent = msg; }
+        if (saveBtn) saveBtn.disabled = false;
+      }
+    }).catch(function () {
+      if (status) { status.style.color = '#ef4444'; status.textContent = 'Network error'; }
+      if (saveBtn) saveBtn.disabled = false;
+    });
+  }
+
   // ── Pagination ────────────────────────────────────────────────────────
   function prevPage() { if (state.currentPage <= 1) return; state.currentPage--; loadMessages(); }
   function nextPage() { state.currentPage++; loadMessages(); }
@@ -1414,6 +1466,10 @@
     wire('em-compose-close', closeCompose);
     wire('em-compose-cancel', closeCompose);
     wire('em-compose-send', sendCompose);
+    wire('em-settings-open', openSettings);
+    wire('em-settings-close', closeSettings);
+    wire('em-settings-cancel', closeSettings);
+    wire('em-settings-save', saveSettings);
 
     var modal = el('em-compose-modal');
     if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeCompose(); });

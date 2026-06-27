@@ -17,8 +17,8 @@ from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
-# v1 defaults (Slice 5 makes these configurable via platform_settings mailhq:notify:*)
-_NOTIFY_MAILBOX_TYPES = {"owner", "business"}  # don't ping for the 38 agent mailboxes
+# Slice 5: the watched mailbox types + enabled/quiet-hours come from mailhq_settings
+# (platform_settings). These two stay as code constants (display/guard tuning).
 _RECENCY_HOURS = 2  # ignore mail older than this (guards against first-sync backfill)
 _MAX_LISTED = 3  # in a coalesced advisory, list at most this many subjects
 
@@ -33,6 +33,13 @@ def notify_new_mail(mailbox_id: int, address: str, new_msgs: list[dict]) -> None
         if not new_msgs:
             return
 
+        from . import mailhq_settings
+
+        # Slice 5 tunables: advisory on/off + quiet hours. Mail suppressed by quiet
+        # hours still surfaces in the daily digest, so nothing is lost.
+        if not mailhq_settings.notify_enabled() or mailhq_settings.in_quiet_hours():
+            return
+
         # Watched mailbox types only.
         from database import get_db_cursor
 
@@ -40,7 +47,7 @@ def notify_new_mail(mailbox_id: int, address: str, new_msgs: list[dict]) -> None
             cur.execute("SELECT mailbox_type FROM email_mailboxes WHERE id = %s", (mailbox_id,))
             row = cur.fetchone()
         mtype = (row or {}).get("mailbox_type") or ""
-        if mtype not in _NOTIFY_MAILBOX_TYPES:
+        if mtype not in mailhq_settings.notify_mailbox_types():
             return
 
         # Recency guard — only mail that actually just arrived.

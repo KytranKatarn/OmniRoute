@@ -2187,17 +2187,20 @@ class AgentLoop:
                 _cw_import_err,
             )
 
-        # Job #76: Email HQ morning digest → Telegram (T3288)
+        # Job #76: Email HQ daily digest → Telegram (T3288 + Slice 5).
+        # Runs every 15 min and self-gates on the tunable send time
+        # (mailhq:digest:time) so the schedule is adjustable from Mail HQ with no
+        # redeploy; the job sends at most once per day.
         self.scheduler.add_job(
             with_app_context(self._email_morning_digest),
-            trigger=CronTrigger(hour=8, minute=0, timezone="America/Toronto"),
+            trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
             id="email_morning_digest",
-            name="Email HQ: Morning Digest",
+            name="Email HQ: Daily Digest",
             max_instances=1,
             replace_existing=True,
             coalesce=True,
         )
-        logger.info("Registered job: Email HQ Morning Digest (08:00 EDT)")
+        logger.info("Registered job: Email HQ Daily Digest (tunable time, default 08:00 ET)")
 
         # Job #77: Codex Auto-Queue — scan pending tasks in Codex-scoped projects
         # and auto-delegate one per cycle to the host Codex poller (Phase B).
@@ -11753,14 +11756,22 @@ class AgentLoop:
             logger.error("[CREED Reporter] Job failed: %s", e)
 
     def _email_morning_digest(self):
-        """Job #76: Send daily email digest to Telegram at 08:00 EDT (T3288)."""
+        """Job #76: Email HQ daily digest → Telegram. Runs every 15 min and self-gates
+        on the tunable send time (mailhq:digest:time, ET) so the schedule is adjustable
+        from Mail HQ with no redeploy; sends at most once per day (T3288 + Slice 5)."""
         try:
-            from tools.email_manager.digest_service import build_morning_digest
+            from tools.email_manager import mailhq_settings
+
+            if not mailhq_settings.digest_due():
+                return
+
             from services.telegram_service import send_info
+            from tools.email_manager.digest_service import build_morning_digest
 
             title, message = build_morning_digest()
             send_info(title, message)
-            logger.info("[Email Digest] Morning digest sent: %s", title)
+            mailhq_settings.mark_digest_sent()
+            logger.info("[Email Digest] Daily digest sent: %s", title)
         except Exception as e:
             logger.error("[Email Digest] Job failed: %s", e)
 

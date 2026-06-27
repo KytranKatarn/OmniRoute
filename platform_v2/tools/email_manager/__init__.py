@@ -63,3 +63,8 @@ register_sla_routes(email_manager_bp, email_access_required)
 from .sync_routes import register_sync_routes  # noqa: F401, E402
 
 register_sync_routes(email_manager_bp, email_access_required)
+
+# Smart Inbox settings (Slice 5: notify/digest/quiet-hours/digest-time) — ADMIN ONLY
+from .settings_routes import register_settings_routes  # noqa: F401, E402
+
+register_settings_routes(email_manager_bp, admin_required)

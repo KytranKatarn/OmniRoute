@@ -342,6 +342,11 @@ def register_approvals_routes(bp, admin_required_decorator):
                         _aname = _ad.get("agent_name", "Agent") if isinstance(_ad, dict) else "Agent"
                         _hrs = _ad.get("hours", "12+") if isinstance(_ad, dict) else "12+"
                         category, display = "welfare", f"😴 {_aname} — {_hrs}h overwork (8h rest?)"
+                    elif at == "email_reply":
+                        _ad = r.get("action_data") or {}
+                        _to = (_ad.get("to_address") or "?") if isinstance(_ad, dict) else "?"
+                        _subj = (_ad.get("subject") or "") if isinstance(_ad, dict) else ""
+                        category, display = "email_reply", f"✉️ Reply to {_to} — {_subj[:50]}"
                     else:
                         category, display = "other", at
                     approvals.append(

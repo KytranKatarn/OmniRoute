@@ -330,3 +330,19 @@ def register_email_sync_jobs(job_service) -> None:
         logger.info("[mailhq_draft_proposals] Registered")
     except Exception as exc:
         logger.error("[mailhq_draft_proposals] Failed to register: %s", exc)
+
+    # Mail HQ triage-health alert (task #4518) — flags the silent-failure class where
+    # triage stops populating ai_priority (the whole Smart Inbox depends on it).
+    try:
+        from .triage_service import run_triage_health_check
+
+        job_service.register_job(
+            name="mailhq_triage_health",
+            func=run_triage_health_check,
+            interval_hours=6,
+            department="Documentation & Knowledge",
+            description="Alert if recent owner/business mail is largely untriaged (triage degraded)",
+        )
+        logger.info("[mailhq_triage_health] Registered")
+    except Exception as exc:
+        logger.error("[mailhq_triage_health] Failed to register: %s", exc)

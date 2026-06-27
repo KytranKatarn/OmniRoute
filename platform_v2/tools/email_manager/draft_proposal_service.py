@@ -83,6 +83,13 @@ def run_mailhq_draft_proposals() -> dict:
                        WHERE q.action_type = 'email_reply'
                          AND q.action_data->>'message_id' = m.id::text
                   )
+                  -- Never auto-draft a reply to one of OUR OWN mailboxes: replying to
+                  -- self re-syncs as new action mail → another proposal → reply loop.
+                  AND lower(m.from_address) NOT IN (
+                      SELECT lower(address) FROM email_mailboxes WHERE provisioned = TRUE
+                  )
+                  -- Skip no-reply / automated senders — a drafted reply is pointless.
+                  AND lower(coalesce(m.from_address, '')) !~ '(no-?reply|do-?not-?reply|mailer-daemon|postmaster)@'
                 ORDER BY m.received_at DESC
                 LIMIT %s""",
             (list(_DRAFT_MAILBOX_TYPES), cutoff, _MAX_PER_RUN),

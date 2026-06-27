@@ -419,60 +419,6 @@ class AgentAutomationService:
             logger.warning("_suggest_new_devices failed: %s", e)
         return created
 
-    def _suggest_ssl_expiry(self) -> List[int]:
-        """Check NPM certificates for upcoming expiry (within 14 days)."""
-        created = []
-        try:
-            from .npm_service import NPMService
-
-            npm = NPMService()
-            if not npm.available:
-                return created
-
-            proxy_hosts = npm.list_proxy_hosts()
-            if not isinstance(proxy_hosts, list):
-                return created
-
-            now = datetime.now(timezone.utc)
-
-            for host in proxy_hosts:
-                domain = (host.get("domain_names") or ["unknown"])[0]
-                cert = host.get("certificate") or host.get("meta", {})
-                expires_on = cert.get("expires_on") or host.get("ssl_expires")
-                if not expires_on:
-                    continue
-                try:
-                    exp_dt = datetime.fromisoformat(str(expires_on).replace("Z", "+00:00"))
-                    days_left = (exp_dt - now).days
-                    if days_left <= 14:
-                        severity = "critical" if days_left <= 3 else "high"
-                        suggestion_type = f"ssl_expiry_warning:{domain}"
-
-                        sid = self._create_typed_suggestion(
-                            suggestion_type=suggestion_type,
-                            category="access",
-                            title=f"SSL certificate expiring: {domain}",
-                            description=(
-                                f"SSL certificate for {domain} expires in {days_left} day(s). "
-                                f"Renew or request a new Let's Encrypt certificate."
-                            ),
-                            reasoning="Expired SSL certificates cause browser warnings and break HTTPS access.",
-                            severity=severity,
-                            extra_data={
-                                "domain": domain,
-                                "expires_on": str(expires_on),
-                                "days_left": days_left,
-                                "host_id": host.get("id"),
-                            },
-                        )
-                        if sid:
-                            created.append(sid)
-                except (ValueError, TypeError):
-                    continue
-        except Exception as e:
-            logger.warning("_suggest_ssl_expiry failed: %s", e)
-        return created
-
     def _suggest_query_spike(self) -> List[int]:
         """Detect unusual DNS query patterns — spike >2x normal or blocked >50% in recent window."""
         created = []
@@ -837,7 +783,6 @@ class AgentAutomationService:
         generators = [
             ("filter_update", self._suggest_filter_update),
             ("new_devices", self._suggest_new_devices),
-            ("ssl_expiry", self._suggest_ssl_expiry),
             ("query_spike", self._suggest_query_spike),
             ("camera_offline", self._suggest_camera_offline),
             ("device_offline", self._suggest_device_offline),

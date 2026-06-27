@@ -1622,10 +1622,10 @@ register_tool(
     category="ai_command",
     description="""Run V.I.G.I.L. infrastructure heartbeat audit on demand.
 
-Checks every critical container in the registry (nginx_proxy_manager,
-network_adguard, archie_comms, archie_comfyui, kbs_app,
-kytran-system-operations, kytran_creed, media_plex, media_jellyfin) for:
-- presence (catches docker rm removal — the NPM failure mode)
+Checks every critical container in the registry (network_adguard,
+archie_comms, archie_comfyui, kbs_app, kytran-system-operations,
+kytran_creed, media_plex, media_jellyfin) for:
+- presence (catches docker rm removal — the original NPM-removal failure mode that prompted this check; NPM itself was decommissioned 2026-06-27)
 - running state (catches stopped)
 - optional healthcheck status
 - TCP port reachability + optional HTTP probe

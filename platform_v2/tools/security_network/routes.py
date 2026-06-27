@@ -234,16 +234,6 @@ except ImportError:
     hostinger_service = None
     HOSTINGER_SERVICE_AVAILABLE = False
 
-# Import NPM (Nginx Proxy Manager) service
-try:
-    from .npm_service import NPMService
-
-    npm_service = NPMService()
-    NPM_SERVICE_AVAILABLE = npm_service.available
-except ImportError:
-    npm_service = None
-    NPM_SERVICE_AVAILABLE = False
-
 # Import Home Assistant Surveillance service
 try:
     from .ha_surveillance_service import HASurveillanceService
@@ -545,7 +535,6 @@ def health_check():
             "surveillance_service_available": SURVEILLANCE_SERVICE_AVAILABLE,
             "argus_service_available": ARGUS_SERVICE_AVAILABLE,
             "agent_automation_available": AGENT_AUTOMATION_AVAILABLE,
-            "npm_service_available": NPM_SERVICE_AVAILABLE,
         }
     )
 
@@ -802,19 +791,6 @@ def api_resolve_event(event_id):
 # ============================================================================
 
 
-def _check_npm_health():
-    """Check if Nginx Proxy Manager is reachable."""
-    try:
-        import requests as req
-
-        npm_url = os.getenv("NPM_API_URL", "http://192.168.1.200:81/api")
-        r = req.get(f"{npm_url.removesuffix('/api')}/", timeout=3)
-        return r.status_code < 500
-    except Exception as e:
-        logger.debug("NPM health check failed: %s", e)
-        return False
-
-
 def _check_ssh_health():
     """Check if SSH is reachable by connecting to port 22 on the host."""
     try:
@@ -1045,7 +1021,6 @@ def api_dashboard_stats():
                 "adguard": dns.get("available", False),
                 "hostinger": stats.get("hostinger", {}).get("available", False),
                 "surveillance": cameras.get("available", False),
-                "npm": _check_npm_health(),
                 "ssh": _check_ssh_health(),
                 "fail2ban": _check_fail2ban_health(),
                 "ddns": _check_ddns_health(),
@@ -1078,7 +1053,7 @@ def api_dashboard_stats():
 
 
 # ============================================================================
-# DOMAIN MANAGEMENT - NPM, MULTI-DOMAIN, PER-DOMAIN DNS (extracted to domain_npm_routes.py)
+# DOMAIN MANAGEMENT - MULTI-DOMAIN, PER-DOMAIN DNS (extracted to domain_npm_routes.py)
 # ============================================================================
 
 

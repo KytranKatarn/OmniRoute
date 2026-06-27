@@ -1,9 +1,9 @@
 """
-Domain & NPM Proxy Routes
-===========================
-REST endpoints for NPM proxy host management, multi-domain CRUD
-(org_domains + managed_dns_records), domain overview, quick-setup,
-and Nginx configuration management via host_command_client.
+Domain Routes
+=============
+REST endpoints for multi-domain CRUD (org_domains + managed_dns_records),
+domain overview, quick-setup, and Nginx configuration management via
+host_command_client.
 """
 
 import logging
@@ -24,133 +24,20 @@ except ImportError:
     _hostinger_service = None
     _HOSTINGER_AVAILABLE = False
 
-# Import NPM (Nginx Proxy Manager) service
-try:
-    from .npm_service import NPMService
-
-    npm_service = NPMService()
-    NPM_SERVICE_AVAILABLE = npm_service.available
-except ImportError:
-    npm_service = None
-    NPM_SERVICE_AVAILABLE = False
-
 
 def register_domain_npm_routes(bp, admin_required_decorator):
-    """Register all domain, NPM proxy, and nginx config endpoints."""
+    """Register all domain and nginx config endpoints."""
 
     # ========================================================================
-    # NPM PROXY HOSTS
+    # DOMAIN OVERVIEW
     # ========================================================================
-
-    @bp.route("/api/domains/proxy-hosts")
-    @login_required
-    @admin_required_decorator
-    def api_domains_proxy_hosts_list():
-        """List all NPM proxy hosts"""
-        if not NPM_SERVICE_AVAILABLE or not npm_service:
-            return jsonify({"success": False, "error": "NPM service not available"}), 503
-
-        try:
-            hosts = npm_service.list_proxy_hosts()
-            return jsonify({"success": True, "proxy_hosts": hosts})
-        except Exception as e:
-            logger.exception("Route error: %s", e)
-            return jsonify({"success": False, "error": "Internal server error"}), 500
-
-    @bp.route("/api/domains/proxy-hosts", methods=["POST"])
-    @login_required
-    @admin_required_decorator
-    def api_domains_proxy_hosts_create():
-        """Create a new NPM proxy host"""
-        if not NPM_SERVICE_AVAILABLE or not npm_service:
-            return jsonify({"success": False, "error": "NPM service not available"}), 503
-
-        data = request.get_json() or {}
-        domain = data.get("domain", "")
-        forward_host = data.get("forward_host", "192.168.1.200")
-        forward_port = data.get("forward_port", 3000)
-        ssl = data.get("ssl", True)
-
-        if not domain:
-            return jsonify({"success": False, "error": "Domain is required"}), 400
-
-        try:
-            result = npm_service.create_proxy_host(
-                domain=domain,
-                forward_host=forward_host,
-                forward_port=int(forward_port),
-                ssl=ssl,
-            )
-            if isinstance(result, dict) and "error" in result:
-                return jsonify({"success": False, "error": result["error"]}), 500
-            return jsonify({"success": True, "proxy_host": result})
-        except Exception as e:
-            logger.exception("Route error: %s", e)
-            return jsonify({"success": False, "error": "Internal server error"}), 500
-
-    @bp.route("/api/domains/proxy-hosts/<int:host_id>", methods=["DELETE"])
-    @login_required
-    @admin_required_decorator
-    def api_domains_proxy_hosts_delete(host_id):
-        """Delete a NPM proxy host"""
-        if not NPM_SERVICE_AVAILABLE or not npm_service:
-            return jsonify({"success": False, "error": "NPM service not available"}), 503
-
-        try:
-            result = npm_service.delete_proxy_host(host_id)
-            if isinstance(result, dict) and "error" in result:
-                return jsonify({"success": False, "error": result["error"]}), 500
-            return jsonify({"success": True, "message": f"Proxy host {host_id} deleted"})
-        except Exception as e:
-            logger.exception("Route error: %s", e)
-            return jsonify({"success": False, "error": "Internal server error"}), 500
-
-    @bp.route("/api/domains/proxy-hosts/<int:host_id>", methods=["PUT"])
-    @login_required
-    @admin_required_decorator
-    def api_domains_proxy_hosts_update(host_id):
-        """Update a NPM proxy host"""
-        if not NPM_SERVICE_AVAILABLE or not npm_service:
-            return jsonify({"success": False, "error": "NPM service not available"}), 503
-
-        try:
-            data = request.get_json()
-            update_data = {}
-            if "forward_host" in data:
-                update_data["forward_host"] = data["forward_host"]
-            if "forward_port" in data:
-                update_data["forward_port"] = int(data["forward_port"])
-            if not update_data:
-                return jsonify({"success": False, "error": "No fields to update"}), 400
-            result = npm_service.update_proxy_host(host_id, update_data)
-            if isinstance(result, dict) and "error" in result:
-                return jsonify({"success": False, "error": result["error"]}), 500
-            return jsonify({"success": True, "message": f"Proxy host {host_id} updated"})
-        except Exception as e:
-            logger.exception("Route error: %s", e)
-            return jsonify({"success": False, "error": "Internal server error"}), 500
-
-    @bp.route("/api/domains/certificates")
-    @login_required
-    @admin_required_decorator
-    def api_domains_certificates_list():
-        """List all NPM SSL certificates"""
-        if not NPM_SERVICE_AVAILABLE or not npm_service:
-            return jsonify({"success": False, "error": "NPM service not available"}), 503
-
-        try:
-            certs = npm_service.list_certificates()
-            return jsonify({"success": True, "certificates": certs})
-        except Exception as e:
-            logger.exception("Route error: %s", e)
-            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/domains/overview")
     @login_required
     @admin_required_decorator
     def api_domains_overview():
-        """Combined domain overview: DNS records + NPM proxy hosts + SSL certs + public IP"""
-        result = {"dns_records": [], "proxy_hosts": [], "certificates": [], "public_ip": None}
+        """Combined domain overview: DNS records + public IP + managed servers"""
+        result = {"dns_records": [], "public_ip": None}
 
         # Get public IP via Hostinger service
         if _HOSTINGER_AVAILABLE and _hostinger_service:
@@ -167,24 +54,6 @@ def register_domain_npm_routes(bp, admin_required_decorator):
                     result["dns_records"] = records
             except Exception as e:
                 logger.debug("Failed to get DNS records for domain overview: %s", e)
-
-        # Get NPM proxy hosts
-        if NPM_SERVICE_AVAILABLE and npm_service:
-            try:
-                hosts = npm_service.list_proxy_hosts()
-                if isinstance(hosts, list):
-                    result["proxy_hosts"] = hosts
-            except Exception as e:
-                logger.debug("Failed to get NPM proxy hosts for domain overview: %s", e)
-
-        # Get SSL certificates
-        if NPM_SERVICE_AVAILABLE and npm_service:
-            try:
-                certs = npm_service.list_certificates()
-                if isinstance(certs, list):
-                    result["certificates"] = certs
-            except Exception as e:
-                logger.debug("Failed to get NPM certificates for domain overview: %s", e)
 
         # Get managed servers (hub + remote nodes)
         try:
@@ -219,23 +88,19 @@ def register_domain_npm_routes(bp, admin_required_decorator):
     @login_required
     @admin_required_decorator
     def api_domains_quick_setup():
-        """One-click subdomain setup: DNS A record + NPM proxy + SSL"""
+        """One-click subdomain setup: create a DNS A record pointing at the public IP."""
         if not _HOSTINGER_AVAILABLE or not _hostinger_service:
             return jsonify({"success": False, "error": "Hostinger service not available"}), 503
-        if not NPM_SERVICE_AVAILABLE or not npm_service:
-            return jsonify({"success": False, "error": "NPM service not available"}), 503
 
         data = request.get_json() or {}
         subdomain = data.get("subdomain", "").strip()
-        forward_host = data.get("forward_host", "192.168.1.200").strip()
-        forward_port = data.get("forward_port", 3000)
 
         if not subdomain:
             return jsonify({"success": False, "error": "Subdomain is required"}), 400
 
         root_domain = _hostinger_service.domain
         full_domain = f"{subdomain}.{root_domain}"
-        steps = {"dns": None, "proxy": None, "ssl": None}
+        steps = {"dns": None}
 
         # Step 1: Get public IP
         public_ip = _hostinger_service.get_public_ip()
@@ -260,26 +125,6 @@ def register_domain_npm_routes(bp, admin_required_decorator):
         except Exception as e:
             steps["dns"] = {"success": False, "error": "DNS operation failed"}
             return jsonify({"success": False, "error": "DNS failed", "steps": steps}), 500
-
-        # Step 3: Create NPM proxy host (with SSL)
-        try:
-            proxy_result = npm_service.create_proxy_host(
-                domain=full_domain,
-                forward_host=forward_host,
-                forward_port=int(forward_port),
-                ssl=True,
-            )
-            if isinstance(proxy_result, dict) and "error" in proxy_result:
-                steps["proxy"] = {"success": False, "error": proxy_result["error"]}
-                return (
-                    jsonify({"success": False, "error": f"Proxy failed: {proxy_result['error']}", "steps": steps}),
-                    500,
-                )
-            steps["proxy"] = {"success": True, "proxy_host_id": proxy_result.get("id")}
-            steps["ssl"] = {"success": True}
-        except Exception as e:
-            steps["proxy"] = {"success": False, "error": "Proxy operation failed"}
-            return jsonify({"success": False, "error": "Proxy failed", "steps": steps}), 500
 
         return jsonify(
             {

@@ -4,147 +4,24 @@ A.R.C.H.I.E. Platform - Domain Service
 
 Automates domain setup:
 1. DNS record creation via Hostinger API
-2. Proxy host creation via Nginx Proxy Manager API
-3. SSL certificate provisioning (Let's Encrypt via NPM)
-4. DNS propagation verification
+2. DNS propagation verification
 
-Known SSE/streaming endpoints (require proxy_buffering off):
-  - /api/chat           (archie_core)
-  - /api/dispatch       (bridge)
-  - /api/proposals/stream (cursor_api)
-  - /api/knowledge/stream (consciousness)
-  - /api/projects/<id>/stream (app_builder)
-  - /api/pull           (team_management - Ollama proxy)
+NPM proxy-host creation + Let's-Encrypt-via-NPM SSL steps were removed
+2026-06-27 (NPM decommissioned; Beacon/Caddy is the hub front door and handles
+external ingress + SSL). ADR-853 / KB #276161.
 """
 
-import os
 import logging
 
-import requests
-
 logger = logging.getLogger(__name__)
-
-NPM_API_URL = os.environ.get("NPM_API_URL", "http://192.168.1.200:81/api")
-NPM_EMAIL = os.environ.get("NPM_ADMIN_EMAIL", "")
-NPM_PASSWORD = os.environ.get("NPM_ADMIN_PASSWORD", "")
-
-
-class NPMClient:
-    """Nginx Proxy Manager API client."""
-
-    def __init__(self):
-        self.base_url = NPM_API_URL
-        self.token = None
-
-    def _auth(self):
-        """Authenticate and get JWT token."""
-        if self.token:
-            return
-        resp = requests.post(
-            f"{self.base_url}/tokens",
-            json={"identity": NPM_EMAIL, "secret": NPM_PASSWORD},
-        )
-        resp.raise_for_status()
-        self.token = resp.json()["token"]
-
-    def _headers(self):
-        self._auth()
-        return {"Authorization": f"Bearer {self.token}"}
-
-    STREAMING_ADVANCED_CONFIG = "proxy_buffering off;\n" "proxy_request_buffering off;\n" "proxy_cache off;"
-
-    def create_proxy_host(self, domain, forward_host, forward_port, ssl=True, streaming=False):
-        """Create a proxy host in NPM.
-
-        Args:
-            streaming: If True, disables proxy buffering/caching for SSE/WebSocket endpoints.
-        """
-        advanced_config = self.STREAMING_ADVANCED_CONFIG if streaming else ""
-
-        payload = {
-            "domain_names": [domain],
-            "forward_scheme": "http",
-            "forward_host": forward_host,
-            "forward_port": forward_port,
-            "block_exploits": True,
-            "allow_websocket_upgrade": True,
-            "access_list_id": 0,
-            "certificate_id": 0,
-            "ssl_forced": False,
-            "meta": {"letsencrypt_agree": True},
-            "advanced_config": advanced_config,
-            "locations": [],
-            "http2_support": True,
-            "hsts_enabled": False,
-            "hsts_subdomains": False,
-        }
-
-        resp = requests.post(
-            f"{self.base_url}/nginx/proxy-hosts",
-            json=payload,
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-        host = resp.json()
-
-        if ssl:
-            try:
-                self.request_ssl(host["id"], domain)
-            except Exception as e:
-                logger.warning("SSL request failed for %s: %s", domain, e)
-
-        return host
-
-    def request_ssl(self, proxy_host_id, domain):
-        """Request Let's Encrypt SSL for a proxy host."""
-        cert_resp = requests.post(
-            f"{self.base_url}/nginx/certificates",
-            json={
-                "domain_names": [domain],
-                "meta": {
-                    "letsencrypt_email": NPM_EMAIL,
-                    "letsencrypt_agree": True,
-                    "dns_challenge": False,
-                },
-                "provider": "letsencrypt",
-            },
-            headers=self._headers(),
-        )
-        cert_resp.raise_for_status()
-        cert = cert_resp.json()
-
-        requests.put(
-            f"{self.base_url}/nginx/proxy-hosts/{proxy_host_id}",
-            json={
-                "certificate_id": cert["id"],
-                "ssl_forced": True,
-                "http2_support": True,
-            },
-            headers=self._headers(),
-        )
-        return cert
-
-    def delete_proxy_host(self, proxy_host_id):
-        """Delete a proxy host from NPM."""
-        resp = requests.delete(
-            f"{self.base_url}/nginx/proxy-hosts/{proxy_host_id}",
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-
-    def list_proxy_hosts(self):
-        """List all proxy hosts."""
-        resp = requests.get(
-            f"{self.base_url}/nginx/proxy-hosts",
-            headers=self._headers(),
-        )
-        resp.raise_for_status()
-        return resp.json()
 
 
 def setup_domain(domain_row, public_ip):
     """
-    Full domain setup: Hostinger DNS + NPM proxy host.
+    Domain setup: Hostinger DNS A record.
+
+    Proxy/SSL provisioning via Nginx Proxy Manager was removed —
+    Beacon/Caddy is the front door now.
 
     Args:
         domain_row: dict from org_domains table
@@ -156,7 +33,6 @@ def setup_domain(domain_row, public_ip):
     from services.hostinger_integration import get_hostinger_api
 
     result = {"dns": None, "proxy": None, "ssl": None}
-    domain = domain_row["domain"]
     subdomain = domain_row["subdomain"]
     root_domain = domain_row["root_domain"]
 
@@ -174,30 +50,12 @@ def setup_domain(domain_row, public_ip):
     except Exception as e:
         result["dns"] = {"success": False, "error": str(e)}
 
-    # Step 2: NPM proxy host
-    try:
-        npm = NPMClient()
-        host = npm.create_proxy_host(
-            domain=domain,
-            forward_host="192.168.1.200",
-            forward_port=domain_row.get("target_port", 3000),
-            ssl=True,
-        )
-        result["proxy"] = {"success": True, "proxy_host_id": host["id"]}
-        result["ssl"] = {"success": True}
-    except Exception as e:
-        result["proxy"] = {"success": False, "error": str(e)}
-
     return result
 
 
 def cleanup_domain(domain, npm_proxy_host_id=None):
-    """Remove NPM proxy host for a domain."""
-    if npm_proxy_host_id:
-        try:
-            npm = NPMClient()
-            npm.delete_proxy_host(npm_proxy_host_id)
-        except Exception as e:
-            logger.warning("Failed to remove NPM proxy host %s: %s", npm_proxy_host_id, e)
+    """Remove a domain. (Proxy-host teardown removed — Beacon/Caddy is the front door now.)
 
+    npm_proxy_host_id is accepted for backward compatibility but ignored.
+    """
     logger.info("Domain %s removed. Check Hostinger DNS manually if needed.", domain)

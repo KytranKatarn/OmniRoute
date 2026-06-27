@@ -51,7 +51,6 @@ async function loadDashboard() {
         setBadge('svc-adguard', d.services && d.services.adguard);
         setBadge('svc-hostinger', d.services && d.services.hostinger);
         setBadge('svc-surveillance', d.services && d.services.surveillance);
-        setBadge('svc-npm', d.services && d.services.npm);
         setBadge('svc-ssh', d.services && d.services.ssh);
         setBadge('svc-fail2ban', d.services && d.services.fail2ban);
         setBadge('svc-ddns', d.services && d.services.ddns);
@@ -2266,42 +2265,9 @@ async function loadSSLMonitors() {
             var msg = document.createElement('p');
             msg.textContent='No SSL monitors configured.';
             wrap.appendChild(msg);
-            var seedBtn = document.createElement('button');
-            seedBtn.className='btn btn-primary btn-sm';
-            seedBtn.textContent='Auto-add from NPM Proxy Hosts';
-            seedBtn.addEventListener('click', seedSSLFromProxyHosts);
-            wrap.appendChild(seedBtn);
             container.appendChild(wrap);
         }
     } catch(e) { showEmpty(container,'Error loading SSL monitors'); }
-}
-
-async function seedSSLFromProxyHosts() {
-    try {
-        showToast('info','Fetching proxy hosts...');
-        var r = await fetch(API+'/domains/proxy-hosts');
-        var d = await r.json();
-        if(!d.success || !d.proxy_hosts || !d.proxy_hosts.length) {
-            return showToast('warning','No proxy hosts found in NPM');
-        }
-        var domains = [];
-        d.proxy_hosts.forEach(function(h){
-            (h.domain_names||[]).forEach(function(dn){
-                if(dn && domains.indexOf(dn)===-1) domains.push(dn);
-            });
-        });
-        if(!domains.length) return showToast('warning','No domains found in proxy hosts');
-        var added=0, failed=0;
-        for(var i=0;i<domains.length;i++) {
-            try {
-                var ar = await fetch(API+'/ssl/monitors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({domain:domains[i]})});
-                var ad = await ar.json();
-                if(ad.success) added++; else failed++;
-            } catch(e) { failed++; }
-        }
-        showToast('success','Added '+added+' SSL monitor(s)'+(failed?' ('+failed+' failed)':''));
-        loadSSLMonitors();
-    } catch(e) { showToast('error','Failed to seed: '+e.message); }
 }
 
 function showAddSSLModal() {

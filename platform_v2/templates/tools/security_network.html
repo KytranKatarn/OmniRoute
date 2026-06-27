@@ -76,7 +76,6 @@
                                     <span class="svc-badge" id="svc-adguard"><span class="dot"></span> AdGuard</span>
                                     <span class="svc-badge" id="svc-hostinger"><span class="dot"></span> Hostinger</span>
                                     <span class="svc-badge" id="svc-surveillance"><span class="dot"></span> Cameras</span>
-                                    <span class="svc-badge" id="svc-npm"><span class="dot"></span> NPM</span>
                                     <span class="svc-badge" id="svc-ssh"><span class="dot"></span> SSH</span>
                                     <span class="svc-badge" id="svc-fail2ban"><span class="dot"></span> fail2ban</span>
                                     <span class="svc-badge" id="svc-ddns"><span class="dot"></span> DDNS</span>
@@ -760,58 +759,6 @@
             </div>
         </div>
 
-        <!-- Subtab: Proxy Hosts -->
-        <div id="subtab-domains-proxy" class="subtab-content">
-            <div style="display:flex;gap:8px;margin-bottom:16px">
-                <button class="btn" onclick="loadDomainProxyHosts()">
-                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
-                </button>
-            </div>
-
-            <div style="overflow-x:auto">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Domain</th>
-                            <th>Forward Target</th>
-                            <th>SSL</th>
-                            <th>Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="domains-proxy-body">
-                        <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Subtab: SSL Certificates -->
-        <div id="subtab-domains-certs" class="subtab-content">
-            <div style="display:flex;gap:8px;margin-bottom:16px">
-                <button class="btn" onclick="loadDomainCertificates()">
-                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> Refresh
-                </button>
-            </div>
-
-            <div style="overflow-x:auto">
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Domain(s)</th>
-                            <th>Provider</th>
-                            <th>Valid From</th>
-                            <th>Expires</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="domains-certs-body">
-                        <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
         <!-- Subtab: Quick Setup -->
         <div id="subtab-domains-setup" class="subtab-content">
             <div class="card" style="padding:20px;max-width:500px">
@@ -820,7 +767,7 @@
                     One-Click Subdomain Setup
                 </h3>
                 <p style="color:#ccc;font-size:0.85rem;margin:0 0 16px">
-                    Creates a DNS A record, NPM proxy host, and provisions SSL certificate in one step.
+                    Creates a DNS A record for the subdomain.
                 </p>
 
                 <div style="display:flex;flex-direction:column;gap:12px">

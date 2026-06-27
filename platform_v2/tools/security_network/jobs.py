@@ -213,46 +213,9 @@ def run_security_audit():
 def check_ssl_expiry():
     """Check SSL certificates for upcoming expiry (daily)."""
     try:
-        from tools.security_network.npm_service import NPMService
         from tools.security_network.security_alerts import create_security_alert
 
-        npm = NPMService()
-        hosts = npm.list_proxy_hosts()
-        if not hosts:
-            return
-
-        for host in hosts:
-            cert_id = host.get("certificate_id")
-            if not cert_id:
-                continue
-            domain = (host.get("domain_names") or ["unknown"])[0]
-
-            import ssl
-            import socket
-
-            try:
-                ctx = ssl.create_default_context()
-                with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
-                    s.settimeout(5)
-                    s.connect((domain, 443))
-                    cert = s.getpeercert()
-                    expiry = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z")
-                    days_left = (expiry - datetime.now(timezone.utc)).days
-
-                    if days_left <= 14:
-                        priority = "critical" if days_left <= 3 else "high" if days_left <= 7 else "normal"
-                        create_security_alert(
-                            "ssl_expiry",
-                            f"SSL cert expiring: {domain}",
-                            f"Certificate for {domain} expires in {days_left} days ({expiry.strftime('%Y-%m-%d')})",
-                            priority=priority,
-                            telegram=True,
-                        )
-                        logger.warning(f"SSL cert expiry: {domain} expires in {days_left} days")
-            except Exception:
-                pass  # Can't check this domain
-
-        # Also sweep security_ssl_monitors (covers external domains not in NPM)
+        # Sweep security_ssl_monitors (covers tracked external domains)
         try:
             from tools.security_network.security_service import refresh_ssl_monitors
 

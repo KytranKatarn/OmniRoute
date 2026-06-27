@@ -1,10 +1,7 @@
 """Partner/Collaborator admin routes."""
 
-import json
 import re
 import secrets
-import urllib.error
-import urllib.request
 from datetime import timedelta
 
 from flask import current_app, request
@@ -12,59 +9,6 @@ from flask_login import current_user
 
 from database import get_db_cursor
 from services.time_utils import now_utc
-
-
-def _npm_token():
-    """Get NPM JWT token using env credentials."""
-    import os
-
-    email = os.getenv("NPM_ADMIN_EMAIL", "")
-    password = os.getenv("NPM_ADMIN_PASSWORD", "")
-    data = json.dumps({"identity": email, "secret": password}).encode()
-    req = urllib.request.Request(
-        "http://nginx_proxy_manager:81/api/tokens",
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    resp = urllib.request.urlopen(req, timeout=10)
-    return json.loads(resp.read())["token"]
-
-
-def _npm_create_proxy_host(slug):
-    """Create NPM proxy host for {slug}.kytranempowerment.com -> port 3000."""
-    tok = _npm_token()
-    headers = {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
-    payload = {
-        "domain_names": [f"{slug}.kytranempowerment.com"],
-        "forward_scheme": "http",
-        "forward_host": "192.168.1.200",
-        "forward_port": 3000,
-        "ssl_forced": False,
-        "allow_websocket_upgrade": True,
-    }
-    req = urllib.request.Request(
-        "http://nginx_proxy_manager:81/api/nginx/proxy-hosts",
-        data=json.dumps(payload).encode(),
-        headers=headers,
-        method="POST",
-    )
-    resp = json.loads(urllib.request.urlopen(req, timeout=10).read())
-    return resp.get("id")
-
-
-def _npm_delete_proxy_host(host_id):
-    """Delete an NPM proxy host by ID."""
-    try:
-        tok = _npm_token()
-        req = urllib.request.Request(
-            f"http://nginx_proxy_manager:81/api/nginx/proxy-hosts/{host_id}",
-            headers={"Authorization": f"Bearer {tok}"},
-            method="DELETE",
-        )
-        urllib.request.urlopen(req, timeout=10)
-    except Exception as e:
-        current_app.logger.warning("NPM delete host %s failed: %s", host_id, e)
 
 
 def register_partner_routes(bp, admin_required):
@@ -84,7 +28,7 @@ def register_partner_routes(bp, admin_required):
     @bp.route("/api/admin/partners", methods=["POST"])
     @admin_required
     def partner_create():
-        """Create partner profile, provision NPM subdomain, send invite."""
+        """Create partner profile and send invite."""
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip().lower()
         display_name = (data.get("display_name") or "").strip()[:100]
@@ -111,19 +55,10 @@ def register_partner_routes(bp, admin_required):
             )
             profile_id = cur.fetchone()["id"]
 
-        # 2. Provision NPM proxy host (non-fatal if fails)
+        # NPM proxy provisioning removed (Beacon/Caddy is the front door now).
         npm_host_id = None
-        try:
-            npm_host_id = _npm_create_proxy_host(slug)
-            with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute(
-                    "UPDATE partner_profiles SET npm_proxy_host_id = %s WHERE id = %s",
-                    (npm_host_id, profile_id),
-                )
-        except Exception as e:
-            current_app.logger.warning("NPM host creation failed for %s: %s", slug, e)
 
-        # 3. Send invite via existing user_invites system
+        # 2. Send invite via existing user_invites system
         token = secrets.token_urlsafe(32)
         expires_at = now_utc() + timedelta(days=7)
         with get_db_cursor(commit=True) as (conn, cur):
@@ -217,7 +152,7 @@ def register_partner_routes(bp, admin_required):
     @bp.route("/api/admin/partners/<int:partner_id>", methods=["DELETE"])
     @admin_required
     def partner_revoke(partner_id):
-        """Deactivate partner: disable user, delete NPM host."""
+        """Deactivate partner: disable user."""
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 "SELECT user_id, npm_proxy_host_id FROM partner_profiles WHERE id = %s",
@@ -230,14 +165,5 @@ def register_partner_routes(bp, admin_required):
         if row["user_id"]:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute("UPDATE users SET is_active = FALSE WHERE id = %s", (row["user_id"],))
-
-        if row["npm_proxy_host_id"]:
-            _npm_delete_proxy_host(row["npm_proxy_host_id"])
-
-        with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute(
-                "UPDATE partner_profiles SET npm_proxy_host_id = NULL WHERE id = %s",
-                (partner_id,),
-            )
 
         return {"revoked": True, "partner_id": partner_id}

@@ -286,23 +286,31 @@ def diagnostics():
     except Exception:
         result["comfyui"] = {"online": False}
 
-    # Container health (check via Docker socket if available)
+    # Container health — REAL query via the mounted Docker socket (#3763).
+    # Mirrors node_sync's http.client+AF_UNIX socket pattern. Was a hardcoded stub.
     containers = []
     try:
-        import urllib.request
-        sock_url = "http://localhost/containers/json"
-        # Docker socket — try via node_sync's _docker_api pattern
-        req = urllib.request.Request(f"http+unix://%2Fvar%2Frun%2Fdocker.sock/containers/json")
-        # Fallback: just report what we know
-        containers = [
-            {"name": "archie_starship_ollama", "status": "check via Docker Desktop"},
-            {"name": "archie_starship_db", "status": "check via Docker Desktop"},
-            {"name": "archie_starship_sync", "status": "running (we are here)"},
-            {"name": "archie_starship_api", "status": "running (serving this request)"},
-            {"name": "archie_starship_comfyui", "status": "check via Docker Desktop"},
-        ]
-    except Exception:
-        pass
+        import http.client as _httpc, socket as _sock, json as _json
+        sock_path = "/var/run/docker.sock"
+        if os.path.exists(sock_path):
+            _conn = _httpc.HTTPConnection("localhost", timeout=5)
+            _s = _sock.socket(_sock.AF_UNIX, _sock.SOCK_STREAM)
+            _s.connect(sock_path)
+            _conn.sock = _s
+            _conn.request("GET", "/containers/json?all=0")
+            _resp = _conn.getresponse()
+            _raw = _resp.read().decode("utf-8", errors="replace")
+            _conn.close()
+            if _resp.status == 200:
+                for ct in (_json.loads(_raw) or []):
+                    containers.append({
+                        "name": (ct.get("Names") or ["?"])[0].lstrip("/"),
+                        "image": ct.get("Image", ""),
+                        "state": ct.get("State", ""),
+                        "status": ct.get("Status", ""),
+                    })
+    except Exception as _e:
+        containers = [{"name": "_docker_query_error", "state": "error", "status": str(_e)[:160]}]
     result["containers"] = containers
 
     # Database connectivity

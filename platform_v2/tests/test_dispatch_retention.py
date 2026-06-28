@@ -203,6 +203,13 @@ class TestAgeOnlyPrune:
         assert spec["age_col"] == "created_at"
         assert drs.DEFAULTS["autonomy_loop_log_keep_days"] == 14
 
+    def test_governance_audit_registered_age_only_qualified(self):
+        # schema-qualified key (dup empty copy in `sandbox`) + quoted keyword col
+        spec = drs._TABLES["public.governance_audit_log"]
+        assert spec["statuses"] is None
+        assert spec["age_col"] == '"timestamp"'
+        assert drs.DEFAULTS["governance_audit_log_keep_days"] == 365
+
 
 # --------------------------------------------------------------------------- #
 # _load_config — platform_settings merge

@@ -85,6 +85,10 @@ DEFAULTS = {
     # autonomy_loop_log is an append-only job-cycle log; widest reader window is
     # 7d (dispatch_routes 7-day history), so 14d = 2x buffer + prunes the bulk. #4542.
     "autonomy_loop_log_keep_days": 14,
+    # governance_audit_log = HMAC-signed C.R.E.E.D. compliance audit trail. Owner
+    # chose a GENEROUS 365d keep (preserve a full year of the signed trail; widest
+    # reader is 30d). Prunes ~0 today (table <140d old) — bounds future growth. #4542.
+    "governance_audit_log_keep_days": 365,
     "batch_size": 5000,
 }
 
@@ -94,6 +98,7 @@ _PS_KEYS = {
     "retention:bridge_jobs:keep_days": "bridge_jobs_keep_days",
     "retention:dpq:keep_days": "dpq_keep_days",
     "retention:autonomy_loop_log:keep_days": "autonomy_loop_log_keep_days",
+    "retention:governance_audit_log:keep_days": "governance_audit_log_keep_days",
     "retention:batch_size": "batch_size",
 }
 
@@ -117,6 +122,14 @@ _TABLES = {
         "age_col": "created_at",
         "statuses": None,
         "keep_key": "autonomy_loop_log_keep_days",
+    },
+    # HMAC-signed C.R.E.E.D. audit trail. Schema-qualified (a duplicate empty
+    # copy lives in `sandbox`; search_path resolves unqualified to public, but we
+    # pin it explicitly). `timestamp` is a type keyword → quoted. idx exists. #4542.
+    "public.governance_audit_log": {
+        "age_col": '"timestamp"',
+        "statuses": None,
+        "keep_key": "governance_audit_log_keep_days",
     },
 }
 

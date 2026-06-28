@@ -157,6 +157,54 @@ class TestPruneTableSafety:
 
 
 # --------------------------------------------------------------------------- #
+# prune_table — age-only mode (append-only logs, statuses=None)
+# --------------------------------------------------------------------------- #
+class TestAgeOnlyPrune:
+    def test_no_status_clause_when_statuses_none(self):
+        cur, conn = _Cur(delete_batches=[3]), _Conn()
+        total = drs.prune_table(
+            cur,
+            conn,
+            table="autonomy_loop_log",
+            age_col="created_at",
+            statuses=None,
+            keep_days=14,
+            batch_size=5000,
+        )
+        assert total == 3
+        delete_calls = [c for c in cur.executed if c[0].strip().upper().startswith("DELETE")]
+        sql, params = delete_calls[0]
+        assert "status = ANY" not in sql  # age-only: NO status guard
+        # params begin with keep_days (no leading status list), then batch_size
+        assert params[0] == 14
+        assert params[1] == 5000
+
+    def test_age_only_dry_run_counts_only(self):
+        cur, conn = _Cur(count=382463), _Conn()
+        n = drs.prune_table(
+            cur,
+            conn,
+            table="autonomy_loop_log",
+            age_col="created_at",
+            statuses=None,
+            keep_days=14,
+            batch_size=5000,
+            dry_run=True,
+        )
+        assert n == 382463
+        assert conn.commits == 0
+        count_calls = [c for c in cur.executed if c[0].strip().upper().startswith("SELECT")]
+        assert "status = ANY" not in count_calls[0][0]
+        assert count_calls[0][1] == (14,)  # only keep_days, no status param
+
+    def test_autonomy_registered_age_only(self):
+        spec = drs._TABLES["autonomy_loop_log"]
+        assert spec["statuses"] is None
+        assert spec["age_col"] == "created_at"
+        assert drs.DEFAULTS["autonomy_loop_log_keep_days"] == 14
+
+
+# --------------------------------------------------------------------------- #
 # _load_config — platform_settings merge
 # --------------------------------------------------------------------------- #
 class TestLoadConfig:

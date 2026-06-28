@@ -12,11 +12,20 @@ unbounded history makes the history endpoints slow (~4s). This is pure DB
 maintenance — NO LLM, NO dispatch — same family as ``reap_stale_pending_approvals``
 and ``job_recovery_reaper``.
 
+A table is pruned one of two ways (per its ``_TABLES`` spec):
+  * STATUS-ALLOWLIST (bridge_jobs, dpq) — status-machine queues with in-flight
+    rows; only rows in an explicit terminal set are deleted.
+  * AGE-ONLY (``statuses=None``; e.g. ``autonomy_loop_log``) — append-only logs
+    where every row is a finished historical record (no in-flight / pending /
+    unprocessed concept), so retention is purely by age. ONLY use age-only for a
+    genuinely append-only table — verify no reader treats a row as actionable.
+
 SAFETY INVARIANTS (do not weaken):
-  * ALLOWLIST, not denylist. We only ever delete rows whose status is in an
-    explicit terminal set. ``running`` / ``pending`` / ``pending_approval`` /
-    ``interrupted`` (bridge_jobs) and ``queued`` / ``running`` / ``claimed``
-    (dpq) — and ANY new/unknown status — are NEVER touched.
+  * ALLOWLIST, not denylist (status-machine tables). We only ever delete rows
+    whose status is in an explicit terminal set. ``running`` / ``pending`` /
+    ``pending_approval`` / ``interrupted`` (bridge_jobs) and ``queued`` /
+    ``running`` / ``claimed`` (dpq) — and ANY new/unknown status — are NEVER
+    touched.
   * Retention windows EXCEED the largest read window. The widest *bounded*
     reader of bridge_jobs is the 30-day user dashboard
     (``tools/.../user_profile/routes.py``); default keep is 45d. dpq's live
@@ -73,6 +82,9 @@ DEFAULTS = {
     # actually shrinking the table (the spike of recent volume is the bulk). #4542.
     "bridge_jobs_keep_days": 30,
     "dpq_keep_days": 30,
+    # autonomy_loop_log is an append-only job-cycle log; widest reader window is
+    # 7d (dispatch_routes 7-day history), so 14d = 2x buffer + prunes the bulk. #4542.
+    "autonomy_loop_log_keep_days": 14,
     "batch_size": 5000,
 }
 
@@ -81,6 +93,7 @@ _PS_KEYS = {
     "retention:enabled": "enabled",
     "retention:bridge_jobs:keep_days": "bridge_jobs_keep_days",
     "retention:dpq:keep_days": "dpq_keep_days",
+    "retention:autonomy_loop_log:keep_days": "autonomy_loop_log_keep_days",
     "retention:batch_size": "batch_size",
 }
 
@@ -96,6 +109,14 @@ _TABLES = {
         "age_col": "queued_at",
         "statuses": TERMINAL_DPQ,
         "keep_key": "dpq_keep_days",
+    },
+    # Append-only job-cycle log → AGE-ONLY (statuses=None). Every row is a
+    # finished cycle record; no in-flight rows to protect. idx_loop_log_created
+    # exists, so the age filter is an index scan.
+    "autonomy_loop_log": {
+        "age_col": "created_at",
+        "statuses": None,
+        "keep_key": "autonomy_loop_log_keep_days",
     },
 }
 
@@ -149,20 +170,29 @@ def prune_table(cur, conn, *, table, age_col, statuses, keep_days, batch_size, d
     Returns the count deleted (or, for ``dry_run``, the count that WOULD be
     deleted). The status/age columns and table name are module constants — never
     user input — so the f-string is safe.
+
+    ``statuses`` is a terminal allowlist (status-machine tables) OR ``None`` for an
+    age-only prune of an append-only log (every row is historical).
     """
-    statuses = list(statuses)
     keep_days = int(keep_days)
     if keep_days <= 0:
         return 0
+
+    # Build the optional status guard. statuses=None → age-only (no status clause).
+    if statuses is None:
+        status_clause = ""
+        status_params = ()
+    else:
+        status_clause = "status = ANY(%s) AND "
+        status_params = (list(statuses),)
 
     if dry_run:
         cur.execute(
             f"""
             SELECT COUNT(*) AS n FROM {table}
-            WHERE status = ANY(%s)
-              AND {age_col} < NOW() - make_interval(days => %s)
+            WHERE {status_clause}{age_col} < NOW() - make_interval(days => %s)
             """,
-            (statuses, keep_days),
+            (*status_params, keep_days),
         )
         row = cur.fetchone()
         return int((row["n"] if isinstance(row, dict) else row[0]) or 0)
@@ -174,13 +204,12 @@ def prune_table(cur, conn, *, table, age_col, statuses, keep_days, batch_size, d
             DELETE FROM {table}
             WHERE id IN (
                 SELECT id FROM {table}
-                WHERE status = ANY(%s)
-                  AND {age_col} < NOW() - make_interval(days => %s)
+                WHERE {status_clause}{age_col} < NOW() - make_interval(days => %s)
                 ORDER BY id
                 LIMIT %s
             )
             """,
-            (statuses, keep_days, batch_size),
+            (*status_params, keep_days, batch_size),
         )
         n = cur.rowcount or 0
         if conn is not None:

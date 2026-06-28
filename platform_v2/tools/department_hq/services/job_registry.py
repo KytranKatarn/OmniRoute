@@ -819,7 +819,7 @@ JOB_REGISTRY = {
     "dispatch_retention_prune": {
         "department": "Operations & Infrastructure",
         "director": "B.A.S.E.",
-        "description": "Nightly prune of old TERMINAL bridge_jobs + dispatch_pending_queue rows — bounds unbounded growth (#4542). Tunable via platform_settings retention:*",
+        "description": "Nightly prune of old rows: TERMINAL bridge_jobs + dispatch_pending_queue (allowlist) + age-only autonomy_loop_log — bounds unbounded growth (#4542). Tunable via platform_settings retention:*",
         "interval": "daily 04:15",
         "source_file": "platform_v2/tools/department_hq/jobs.py",
     },

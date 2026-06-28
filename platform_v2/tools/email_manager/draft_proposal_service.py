@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,18 @@ _MAX_PER_RUN = 5  # cap fleet dispatches per run (welfare-safe)
 _RECENCY_HOURS = 24  # only draft for mail that arrived within this window
 _DRAFT_MAILBOX_TYPES = ("owner", "business")  # never auto-draft for the 38 agent mailboxes
 _DRAFT_PREVIEW_CHARS = 600  # how much of the draft to show in the Telegram advisory
+
+# #4527 — draft-proposal retry cap / cooldown. A message whose draft dispatch keeps
+# failing (a "poison" message on a busy/cold cluster, or an un-draftable body) must not
+# be re-dispatched every run forever — it would burn fleet dispatch indefinitely because
+# a failed attempt inserts no proposal row, so the candidate query keeps selecting it.
+# Per-message attempt state lives in a self-pruning platform_settings JSON map (no
+# migration; the draft job is single-instance so there is no concurrent writer).
+_ATTEMPTS_KEY = "mailhq:draft:attempts"  # JSON {message_id: {"n": int, "last": iso}}
+_MAX_ATTEMPTS_KEY = "mailhq:draft:max_attempts"  # tunable; default below
+_COOLDOWN_MIN_KEY = "mailhq:draft:cooldown_min"  # tunable; default below
+_DEFAULT_MAX_ATTEMPTS = 3
+_DEFAULT_COOLDOWN_MIN = 60
 
 
 def _setting(key: str, default: str | None = None) -> str | None:
@@ -49,6 +61,50 @@ def _setting(key: str, default: str | None = None) -> str | None:
 
 def _draft_enabled() -> bool:
     return str(_setting(DRAFT_FLAG_KEY, "false") or "false").strip().lower() in ("1", "true", "on", "yes")
+
+
+def _set_setting(key: str, value: str) -> None:
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO platform_settings (key, value) VALUES (%s, %s)
+               ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()""",
+            (key, value),
+        )
+
+
+def _int_setting(key: str, default: int) -> int:
+    try:
+        return int(str(_setting(key, default)).strip())
+    except (ValueError, TypeError):
+        return default
+
+
+def _load_attempts() -> dict:
+    """Load the per-message draft-attempt map from platform_settings (best-effort)."""
+    raw = _setting(_ATTEMPTS_KEY, "") or ""
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except (ValueError, TypeError):
+        return {}
+
+
+def _save_attempts(attempts: dict) -> None:
+    try:
+        _set_setting(_ATTEMPTS_KEY, json.dumps(attempts))
+    except Exception as exc:  # never let bookkeeping break the job
+        logger.debug("[mailhq-draft] could not persist attempts map: %s", exc)
+
+
+def _parse_iso(value):
+    try:
+        return datetime.fromisoformat(value) if value else None
+    except (ValueError, TypeError):
+        return None
 
 
 # --------------------------------------------------------------------------- #
@@ -96,17 +152,54 @@ def run_mailhq_draft_proposals() -> dict:
         )
         candidates = [dict(r) for r in cur.fetchall()]
 
+    # #4527 — retry cap / cooldown: skip messages that have already failed too many
+    # times (poison) or that failed recently (cooldown), so one bad message can't burn
+    # fleet dispatch on every run.
+    attempts = _load_attempts()
+    max_attempts = _int_setting(_MAX_ATTEMPTS_KEY, _DEFAULT_MAX_ATTEMPTS)
+    cooldown = timedelta(minutes=_int_setting(_COOLDOWN_MIN_KEY, _DEFAULT_COOLDOWN_MIN))
+    now = now_utc()
+
     created = 0
+    capped = 0
+    cooling = 0
     for c in candidates:
+        mid = str(c.get("id"))
+        rec = attempts.get(mid)
+        if rec:
+            if int(rec.get("n", 0)) >= max_attempts:
+                capped += 1
+                continue  # given up on this poison message until it ages out of the window
+            last = _parse_iso(rec.get("last"))
+            if last and (now - last) < cooldown:
+                cooling += 1
+                continue  # still cooling down from the last failed attempt
         try:
-            if _create_proposal(c):
-                created += 1
+            ok = _create_proposal(c)
         except Exception as exc:
             logger.error("[mailhq-draft] proposal failed for msg=%s: %s", c.get("id"), exc)
+            ok = False
+        if ok:
+            created += 1
+            attempts.pop(mid, None)  # clear attempt history on success
+        else:
+            attempts[mid] = {"n": int((rec or {}).get("n", 0)) + 1, "last": now.isoformat()}
 
-    if candidates:
-        logger.info("[mailhq-draft] %d candidate(s) -> %d proposal(s) created", len(candidates), created)
-    return {"candidates": len(candidates), "created": created}
+    # Prune entries past the recency window — those messages are no longer candidates,
+    # so the attempts map can never grow unbounded.
+    horizon = now - timedelta(hours=_RECENCY_HOURS)
+    attempts = {k: v for k, v in attempts.items() if (_parse_iso(v.get("last")) or now) >= horizon}
+    _save_attempts(attempts)
+
+    if candidates or capped or cooling:
+        logger.info(
+            "[mailhq-draft] %d candidate(s) -> %d created, %d capped, %d cooling",
+            len(candidates),
+            created,
+            capped,
+            cooling,
+        )
+    return {"candidates": len(candidates), "created": created, "capped": capped, "cooling": cooling}
 
 
 def _create_proposal(c: dict) -> bool:

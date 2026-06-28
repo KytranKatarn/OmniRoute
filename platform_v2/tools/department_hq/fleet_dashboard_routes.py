@@ -1784,7 +1784,22 @@ def register_dashboard_routes(bp, auth_decorator):
     @bp.route("/api/fleet/cluster-activity")
     @auth_decorator
     def api_fleet_cluster_activity():
-        """Live cluster activity — tasks per node + recent dispatch log."""
+        """Live cluster activity — tasks per node + recent dispatch log.
+
+        Cached ~8s (the CLUSTER subtab polls every 10s) so the heavy per-node
+        aggregations run at most once per window instead of on every poll —
+        keeps the render snappy and cuts DB load ~10x. Per-worker in-process
+        cache; staleness is bounded by the TTL and acceptable for live activity.
+        """
+        import time
+
+        # TTL slightly above the 10s client poll so overlapping requests (multi-tab,
+        # multiple viewers, a manual refresh landing on a busy worker) reuse the result.
+        # Single-viewer speed comes mainly from the bounded queries below, not this cache.
+        _TTL_S = 15.0
+        _cache = api_fleet_cluster_activity.__dict__.setdefault("_cache", {"ts": 0.0, "payload": None})
+        if _cache["payload"] is not None and (time.monotonic() - _cache["ts"]) < _TTL_S:
+            return jsonify(_cache["payload"])
         try:
             with get_db_cursor(commit=False) as (_, cur):
                 # Resolve the hub (starbase) node ID so we can merge null-routed tasks
@@ -1982,6 +1997,7 @@ def register_dashboard_routes(bp, auth_decorator):
                         created_at
                     FROM bridge_jobs
                     WHERE status IN ('completed', 'failed')
+                      AND created_at > NOW() - INTERVAL '24 hours'
                       AND metadata ? 'node_name'
                       AND metadata->>'node_name' != ''
                     ORDER BY (metadata->>'node_name'), completed_at DESC NULLS LAST
@@ -2082,7 +2098,7 @@ def register_dashboard_routes(bp, auth_decorator):
             from .fleet_helpers import get_fleet_rest_config, is_fleet_rest_active
 
             rest_cfg = get_fleet_rest_config()
-            return jsonify(
+            payload = dict(
                 success=True,
                 nodes_with_work=nodes_out,  # kept for JS compat
                 online_nodes=nodes_out,
@@ -2095,6 +2111,9 @@ def register_dashboard_routes(bp, auth_decorator):
                 rest_enabled=rest_cfg.get("enabled", False),
                 rest_active=is_fleet_rest_active(),
             )
+            _cache["payload"] = payload
+            _cache["ts"] = time.monotonic()
+            return jsonify(payload)
         except Exception as exc:
             logger.error("api_fleet_cluster_activity: %s", exc)
             return jsonify(success=False, error=str(exc)[:200]), 500

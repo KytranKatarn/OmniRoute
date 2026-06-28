@@ -109,20 +109,31 @@ def build_morning_digest() -> tuple[str, str]:
     except Exception as _de:
         logger.debug("[email_digest] drafts section skipped: %s", _de)
 
-    # Slice 5 / #4525: action items overdue (unread action-priority mail older than 24h).
+    # Slice 5 / #4525: SLA breaches — action mail unread > 24h. List the oldest items
+    # with their age so the digest is actionable, not just a bare count.
     try:
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT count(*) AS n FROM email_messages em
+                """SELECT em.subject, em.from_address,
+                          EXTRACT(EPOCH FROM (NOW() - em.received_at)) / 3600.0 AS age_h
+                   FROM email_messages em
                    JOIN email_mailboxes m ON m.id = em.mailbox_id
                    WHERE em.is_read = FALSE AND em.ai_priority = 'action'
                      AND m.active = TRUE
-                     AND em.received_at < NOW() - INTERVAL '24 hours'"""
+                     AND em.received_at < NOW() - INTERVAL '24 hours'
+                   ORDER BY em.received_at ASC"""
             )
-            overdue = int((cur.fetchone() or {}).get("n", 0))
-        if overdue:
+            overdue_rows = cur.fetchall()
+        if overdue_rows:
             lines.append("")
-            lines.append(f"⏰ {overdue} action item(s) overdue (>24h unread)")
+            lines.append(f"⏰ {len(overdue_rows)} action item(s) overdue (SLA >24h):")
+            for r in overdue_rows[:3]:
+                subj = (r["subject"] or "(no subject)")[:45]
+                sender = (r["from_address"] or "unknown").split("@")[0]
+                age = int(r["age_h"] or 0)
+                lines.append(f"  ⌛ {subj} — {sender} ({age}h)")
+            if len(overdue_rows) > 3:
+                lines.append(f"  …and {len(overdue_rows) - 3} more")
     except Exception as _oe:
         logger.debug("[email_digest] overdue section skipped: %s", _oe)
 

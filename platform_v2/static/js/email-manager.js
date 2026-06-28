@@ -1299,6 +1299,7 @@
     api('/api/email/settings').then(function (d) {
       var s = (d && d.settings) || {};
       var t = el('em-set-digest-time'); if (t) t.value = s['mailhq:digest:time'] || '08:00';
+      var te = el('em-set-digest-time-evening'); if (te) te.value = s['mailhq:digest:time_evening'] || '';
       var q = el('em-set-quiet'); if (q) q.value = s['mailhq:notify:quiet_hours'] || '';
       var chk = function (id, v) { var c = el(id); if (c) c.checked = !!v; };
       chk('em-set-notify-enabled', s['mailhq:notify:enabled']);
@@ -1321,6 +1322,7 @@
     var chk = function (id) { var c = el(id); return !!(c && c.checked); };
     var body = {
       'mailhq:digest:time': ((el('em-set-digest-time') || {}).value || '08:00'),
+      'mailhq:digest:time_evening': ((el('em-set-digest-time-evening') || {}).value || ''),
       'mailhq:notify:quiet_hours': ((el('em-set-quiet') || {}).value || '').trim(),
       'mailhq:notify:enabled': chk('em-set-notify-enabled'),
       'mailhq:digest:enabled': chk('em-set-digest-enabled'),

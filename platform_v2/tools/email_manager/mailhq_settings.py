@@ -12,6 +12,7 @@ Keys:
   mailhq:digest:enabled        bool   the daily digest on/off
   mailhq:digest:time           HH:MM  local (ET) time the digest is sent
   mailhq:digest:include_drafts bool   include the "drafts awaiting approval" section
+  mailhq:digest:time_evening   HH:MM  optional 2nd digest send time ('' = off)
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ SETTINGS_SPEC: dict[str, tuple[str, str]] = {
     "mailhq:digest:enabled": ("true", "bool"),
     "mailhq:digest:time": ("08:00", "time"),
     "mailhq:digest:include_drafts": ("true", "bool"),
+    "mailhq:digest:time_evening": ("", "time_opt"),
 }
 
 _TRUE = {"1", "true", "on", "yes"}
@@ -139,6 +141,18 @@ def _normalize(kind: str, value) -> str | None:
         except Exception:
             return None
         return None
+    if kind == "time_opt":
+        raw = str(value).strip()
+        if raw == "":
+            return ""
+        try:
+            hh, mm = raw.split(":")
+            h, m = int(hh), int(mm)
+            if 0 <= h <= 23 and 0 <= m <= 59:
+                return f"{h:02d}:{m:02d}"
+        except Exception:
+            return None
+        return None
     return str(value)
 
 
@@ -175,6 +189,18 @@ def digest_time() -> tuple[int, int]:
         return 8, 0
 
 
+def digest_time_evening() -> tuple[int, int] | None:
+    """Optional 2nd digest slot. Returns (hour, minute) or None when unset/off."""
+    raw = (_get("mailhq:digest:time_evening") or "").strip()
+    if not raw:
+        return None
+    try:
+        hh, mm = raw.split(":")
+        return int(hh), int(mm)
+    except Exception:
+        return None
+
+
 def _local_now():
     from zoneinfo import ZoneInfo
 
@@ -205,32 +231,62 @@ def in_quiet_hours() -> bool:
 # --------------------------------------------------------------------------- #
 # digest schedule self-gating (so the time is UI-tunable with no redeploy)
 # --------------------------------------------------------------------------- #
-_DIGEST_LAST_SENT_KEY = "mailhq:digest:last_sent"  # internal state, not user-tunable
+# internal state: "YYYY-MM-DD|slot,slot" (e.g. "2026-06-27|morning,evening").
+# A bare legacy "YYYY-MM-DD" value is treated as the morning slot having been sent.
+_DIGEST_LAST_SENT_KEY = "mailhq:digest:last_sent"
+
+
+def _digest_sent_slots(today: str) -> set:
+    """Which digest slots have already been sent today (per the stored marker)."""
+    raw = (_get(_DIGEST_LAST_SENT_KEY) or "").strip()
+    if not raw:
+        return set()
+    parts = raw.split("|", 1)
+    if parts[0] != today:
+        return set()  # marker is from a previous day → nothing sent today
+    if len(parts) == 1:
+        return {"morning"}  # legacy bare-date marker == morning already sent
+    return {s for s in parts[1].split(",") if s}
+
+
+def _digest_slots_due() -> set:
+    """Slots ('morning' + optional 'evening') that are due NOW and unsent today."""
+    if not digest_enabled():
+        return set()
+    now = _local_now()
+    sent = _digest_sent_slots(now.strftime("%Y-%m-%d"))
+    cur = (now.hour, now.minute)
+    due = set()
+    if "morning" not in sent and cur >= digest_time():
+        due.add("morning")
+    ev = digest_time_evening()
+    if ev is not None and "evening" not in sent and cur >= ev:
+        due.add("evening")
+    return due
 
 
 def digest_due() -> bool:
-    """True if the digest should be sent NOW: enabled, at/after the configured local
-    time today, and not already sent today. The job runs every 15 min and gates here."""
-    if not digest_enabled():
-        return False
-    now = _local_now()
-    h, m = digest_time()
-    if (now.hour, now.minute) < (h, m):
-        return False
-    return _get(_DIGEST_LAST_SENT_KEY) != now.strftime("%Y-%m-%d")
+    """True if any digest slot (morning or optional evening) is due now and unsent
+    today. The job runs every 15 min and gates here; kept bool for the caller."""
+    return bool(_digest_slots_due())
 
 
 def mark_digest_sent() -> None:
-    """Record that today's digest has been sent (prevents re-send within the day)."""
+    """Mark the currently-due slot(s) as sent today (prevents re-send of that slot)."""
     from database import get_db_cursor
 
-    today = _local_now().strftime("%Y-%m-%d")
+    now = _local_now()
+    today = now.strftime("%Y-%m-%d")
+    slots = _digest_sent_slots(today) | _digest_slots_due()
+    if not slots:
+        slots = {"morning"}  # defensive: only called right after a real send
+    value = f"{today}|{','.join(sorted(slots))}"
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 """INSERT INTO platform_settings (key, value) VALUES (%s, %s)
                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
-                (_DIGEST_LAST_SENT_KEY, today),
+                (_DIGEST_LAST_SENT_KEY, value),
             )
     except Exception as exc:
         logger.debug("[mailhq-settings] mark_digest_sent failed: %s", exc)

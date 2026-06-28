@@ -1,0 +1,3 @@
+# GeoIP DB is fetched at deploy time (monthly cron), never committed.
+config/geoip/*.mmdb
+config/geoip/*.mmdb.gz

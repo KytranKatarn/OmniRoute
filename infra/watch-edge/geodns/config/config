@@ -1,0 +1,63 @@
+# gdnsd authoritative GeoDNS — Watch-Series edge routing (#4319, ADR-010)
+#
+# Geo-routes the Watch domains to the NEAREST HEALTHY regional edge funnel.
+# Self-hosted on our own outposts (ns1=Outpost-US / ns2=Outpost-UK / ns3=Outpost-Singapore).
+# Design: .claude/plans/2026-06-18-watch-edge-funnel-cdn-design.md
+# Build:  .claude/plans/2026-06-28-watch-edge-geodns-gdnsd-implementation.md
+#
+# gdnsd looks for THIS file (named `config`) + a zones/ subdir + a geoip/ subdir
+# (the MMDB) under the config root.
+
+options => {
+  listen => any   # all interfaces, port 53 (explicit — silences the default-listen warning)
+}
+
+service_types => {
+  # Health-probe each edge's nginx /_edge_health (the Phase-0 edge endpoint).
+  # A dead edge is dropped from rotation; a fully-dead datacenter falls through
+  # to the next entry in the continent's preference list (see map below).
+  edge_http => {
+    plugin => http_status,
+    port => 80,
+    url_path => /_edge_health,
+    ok_codes => [ 200 ],
+    interval => 10,
+    timeout => 3,
+    up_thresh => 2,
+    down_thresh => 3,
+    ok_thresh => 2,
+  }
+}
+
+plugins => {
+  geoip => {
+    maps => {
+      watch_map => {
+        geoip2_db => dbip-country-lite.mmdb,
+        datacenters => [ na, eu, apac ],
+        # Continent code -> datacenter preference order.
+        # First HEALTHY datacenter wins; the tail is the failover path.
+        map => {
+          NA => [ na, eu, apac ],
+          SA => [ na, eu, apac ],
+          EU => [ eu, na, apac ],
+          AF => [ eu, na, apac ],
+          AS => [ apac, eu, na ],
+          OC => [ apac, na, eu ],
+          AN => [ na, eu, apac ],
+        }
+      }
+    }
+    resources => {
+      wtf_edge => {
+        map => watch_map,
+        service_types => edge_http,
+        dcmap => {
+          na   => 2.25.170.252,                    # Beacon (NA edge)
+          eu   => [ 2.24.130.153, 72.62.112.210 ], # Outpost-UK + Outpost-Lithuania
+          apac => 156.67.217.86,                    # Outpost-Singapore
+        }
+      }
+    }
+  }
+}

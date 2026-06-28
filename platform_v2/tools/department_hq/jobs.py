@@ -593,6 +593,25 @@ def job_recovery_reaper():
         logger.exception("job_recovery_reaper failed")
 
 
+def dispatch_retention_prune():
+    """#4542 — nightly prune of OLD TERMINAL bridge_jobs + dispatch_pending_queue rows.
+
+    Pure DB maintenance (no LLM/dispatch). Opens its own cursor; the service is
+    fail-safe (allowlist statuses, batched commits, tunable via platform_settings)."""
+    try:
+        from services.dispatch_retention_service import run_retention
+
+        res = run_retention(dry_run=False)
+        deleted = res.get("deleted") or {}
+        if res.get("enabled") and any(deleted.values()):
+            logger.info(
+                "dispatch_retention_prune: deleted %s",
+                ", ".join(f"{t}={n}" for t, n in deleted.items()),
+            )
+    except Exception:
+        logger.exception("dispatch_retention_prune failed")
+
+
 def register_department_hq_jobs(scheduler, flask_app):
     """Central job registration — ALL department jobs go through here.
 
@@ -745,6 +764,19 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=10),
         id="job_recovery_reaper",
         name="Agent Loop: Interrupted-Job Recovery Reaper",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Job #4542 — Dispatch Retention Prune (4:15 AM — after the nightly job cluster;
+    # 03:00/03:15/03:30/03:45/04:00 are taken). Deletes old terminal bridge_jobs +
+    # dispatch_pending_queue rows. Tunable / disable-able via platform_settings.
+    scheduler.add_job(
+        dispatch_retention_prune,
+        trigger=CronTrigger(hour=4, minute=15, timezone="America/Toronto"),
+        id="dispatch_retention_prune",
+        name="Agent Loop: Dispatch Retention Prune",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

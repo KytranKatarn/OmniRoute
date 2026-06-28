@@ -816,6 +816,13 @@ JOB_REGISTRY = {
         "interval": "14d",
         "source_file": "platform_v2/tools/department_hq/jobs.py",
     },
+    "dispatch_retention_prune": {
+        "department": "Operations & Infrastructure",
+        "director": "B.A.S.E.",
+        "description": "Nightly prune of old TERMINAL bridge_jobs + dispatch_pending_queue rows — bounds unbounded growth (#4542). Tunable via platform_settings retention:*",
+        "interval": "daily 04:15",
+        "source_file": "platform_v2/tools/department_hq/jobs.py",
+    },
     # =========================================================================
     # platform_v2/services/fleet_jobs.py — 6 jobs
     # =========================================================================

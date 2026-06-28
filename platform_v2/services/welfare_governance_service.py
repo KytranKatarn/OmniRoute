@@ -106,6 +106,74 @@ def pool_over_budget_by_skill(skill_name: str, settings_key: str = "welfare:back
         return False
 
 
+def in_flight_over_cap(
+    job_type: str,
+    cap_key: str = "welfare:backlog:max_inflight",
+    default_cap: int = 25,
+    window_minutes: int = 10,
+) -> bool:
+    """True when ``job_type`` already has >= cap in-flight ``bridge_jobs`` — a QUEUE-DEPTH
+    backpressure gate that complements the token-budget gate ``pool_over_budget_by_skill``.
+
+    The token gate backs a backlog off when its agent POOL is out of 24h headroom; this
+    gate backs it off when the DISPATCH PIPE for that job_type is already saturated — e.g.
+    ``fact_check`` jobs piling up 240s-timeouts on the contended hub GPU faster than they
+    drain (#4536). Only rows created within ``window_minutes`` are counted, so a stuck
+    'running' zombie older than the dispatch timeout can never permanently starve the lane.
+
+    Cap is tunable via ``platform_settings[cap_key]`` (default 25). A cap <= 0 DISABLES the
+    gate (always False) so it can be turned off without a deploy.
+
+    Fail-OPEN: missing data / any error → ``False`` (never gate).
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = %s",
+                (cap_key,),
+            )
+            _row = cur.fetchone()
+            try:
+                cap = int(float(_row["value"])) if _row and _row.get("value") not in (None, "") else default_cap
+            except (TypeError, ValueError):
+                cap = default_cap
+            if cap <= 0:
+                return False  # gate disabled via settings
+            cur.execute(
+                """
+                SELECT COUNT(*) AS n
+                FROM bridge_jobs
+                WHERE job_type = %s
+                  AND status NOT IN ('completed', 'failed', 'cancelled')
+                  AND created_at > NOW() - make_interval(mins => %s)
+                """,
+                (job_type, window_minutes),
+            )
+            r = cur.fetchone()
+        in_flight = int(r["n"]) if r and r.get("n") is not None else 0
+        over = in_flight >= cap
+        if over:
+            logger.info(
+                "[BacklogBackpressure] gating job_type=%s: in-flight %d >= cap %d (key=%s, window=%dm)",
+                job_type,
+                in_flight,
+                cap,
+                cap_key,
+                window_minutes,
+            )
+        return over
+    except Exception:
+        logger.warning(
+            "[BacklogBackpressure] in-flight check failed for job_type=%s key=%s; not gating",
+            job_type,
+            cap_key,
+            exc_info=True,
+        )
+        return False
+
+
 def load_break_config(cur):
     """Read the tunable welfare:break:* thresholds (platform_settings) → merged cfg."""
     try:

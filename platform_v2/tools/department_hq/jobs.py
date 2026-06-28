@@ -3356,6 +3356,16 @@ def _register_own_jobs(scheduler, flask_app):
 
         return pool_over_budget_by_skill(skill_name, "welfare:backlog:pool_pause_ratio")
 
+    def _wtf_backlog_in_flight_over_cap(job_type):
+        # Queue-depth backpressure (#4536): defer a backlog cycle when this job_type's
+        # dispatch pipe already has too many in-flight bridge_jobs — complements the
+        # token-budget gate above (which guards the agent POOL, not the dispatch PIPE).
+        # Shared impl: services.welfare_governance_service.in_flight_over_cap (fail-open,
+        # tunable platform_settings welfare:backlog:max_inflight, default 25).
+        from services.welfare_governance_service import in_flight_over_cap
+
+        return in_flight_over_cap(job_type)
+
     def _run_wtf_factcheck_backlog():
         import time as _wfcb_t
 
@@ -3380,6 +3390,13 @@ def _register_own_jobs(scheduler, flask_app):
                 logger.info(
                     "[WTFFactcheckBacklog] fact-check pool over 24h token budget"
                     " — deferring this cycle (welfare-gated, ADR-004/#4090)"
+                )
+                return
+
+            if _wtf_backlog_in_flight_over_cap("fact_check_backlog"):
+                logger.info(
+                    "[WTFFactcheckBacklog] fact_check_backlog dispatch pipe at in-flight cap"
+                    " — deferring this cycle (backpressure, #4536)"
                 )
                 return
 
@@ -3549,6 +3566,12 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info(
                 "[WTFBiasBacklog] bias pool over 24h token budget"
                 " — deferring this cycle (welfare-gated, ADR-004/#4090)"
+            )
+            return
+        if _wtf_backlog_in_flight_over_cap("bias_backlog"):
+            logger.info(
+                "[WTFBiasBacklog] bias_backlog dispatch pipe at in-flight cap"
+                " — deferring this cycle (backpressure, #4536)"
             )
             return
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -3723,6 +3746,12 @@ def _register_own_jobs(scheduler, flask_app):
             logger.info(
                 "[WTFGeoBacklog] geo pool over 24h token budget"
                 " — deferring this cycle (welfare-gated, ADR-004/#4090)"
+            )
+            return
+        if _wtf_backlog_in_flight_over_cap("geo_extraction"):
+            logger.info(
+                "[WTFGeoBacklog] geo_extraction dispatch pipe at in-flight cap"
+                " — deferring this cycle (backpressure, #4536)"
             )
             return
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -3905,6 +3934,9 @@ def _register_own_jobs(scheduler, flask_app):
         if _wtf_backlog_pool_over_budget("analyze"):
             logger.info("[MailboxEnrich] analyze pool over 24h token budget — deferring (welfare-gated)")
             return
+        if _wtf_backlog_in_flight_over_cap("analyze"):
+            logger.info("[MailboxEnrich] analyze dispatch pipe at in-flight cap — deferring (backpressure, #4536)")
+            return
         try:
             from services.mailbox_enrich_service import run_enrich_cycle
 
@@ -3945,6 +3977,9 @@ def _register_own_jobs(scheduler, flask_app):
             pass
         if _wtf_backlog_pool_over_budget("summarize"):
             logger.info("[MailboxStory] summarize pool over 24h token budget — deferring (welfare-gated)")
+            return
+        if _wtf_backlog_in_flight_over_cap("summarize"):
+            logger.info("[MailboxStory] summarize dispatch pipe at in-flight cap — deferring (backpressure, #4536)")
             return
         try:
             from services.mailbox_story_service import run_story_cycle

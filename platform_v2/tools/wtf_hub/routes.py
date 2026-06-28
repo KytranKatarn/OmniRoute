@@ -213,6 +213,27 @@ def analyze():
         "classify_beat": "classify",  # routes to Analytics & Intelligence (S.P.E.C.T.R.A./W.A.T.C.H.)
     }
 
+    # Backpressure (#4536): if this capability's dispatch pipe is already saturated with
+    # in-flight bridge_jobs, defer instead of piling another 240s-timeout onto the
+    # contended hub GPU. Reuses the existing rate_limited response shape so the remote WTF
+    # ingest backs off with no change — and we return BEFORE dispatch, so no bridge_jobs
+    # row (and no failure) is created. Fail-open.
+    try:
+        from services.welfare_governance_service import in_flight_over_cap
+
+        if in_flight_over_cap(capabilities[task]):
+            logger.info("[WTFHub] in-flight cap reached for task=%s — deferring", task)
+            return jsonify(
+                {
+                    "ok": True,
+                    "result": None,
+                    "rate_limited": True,
+                    "retry_after": _ANALYZE_INTERVAL or 60,
+                }
+            )
+    except Exception:
+        logger.warning("[WTFHub] in-flight check failed for task=%s; proceeding", task, exc_info=True)
+
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
 

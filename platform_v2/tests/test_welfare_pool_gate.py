@@ -123,3 +123,77 @@ def test_fail_open_on_db_error(monkeypatch):
     # any DB exception → fail OPEN (never gate, never raise)
     _patch(monkeypatch, _FakeCur(min_ratio=0.99, n=5, raise_on="platform_settings"))
     assert wgs.pool_over_budget_by_skill("social_post_draft") is False
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# in_flight_over_cap — queue-depth backpressure gate (#4536)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class _FakeInFlightCur:
+    """Routes execute() by SQL fragment: platform_settings → cap; bridge_jobs → count."""
+
+    def __init__(self, settings=None, count=0, raise_on=None):
+        self._settings = settings or {}
+        self._count = count
+        self._raise_on = raise_on
+        self._last = None
+        self.keys_read = []
+
+    def execute(self, sql, params=None):
+        if self._raise_on and self._raise_on in sql:
+            raise RuntimeError("simulated DB failure")
+        self._last = (sql, params)
+        if "platform_settings" in sql and params:
+            self.keys_read.append(params[0])
+
+    def fetchone(self):
+        sql = self._last[0]
+        if "platform_settings" in sql:
+            key = self._last[1][0]
+            if key in self._settings:
+                return {"value": str(self._settings[key])}
+            return None  # → fn falls back to its default cap
+        return {"n": self._count}
+
+
+def test_in_flight_gates_at_or_above_default_cap(monkeypatch):
+    # 26 in-flight, default cap 25, no setting → GATE
+    _patch(monkeypatch, _FakeInFlightCur(count=26))
+    assert wgs.in_flight_over_cap("fact_check") is True
+
+
+def test_in_flight_not_gated_below_cap(monkeypatch):
+    _patch(monkeypatch, _FakeInFlightCur(count=10))
+    assert wgs.in_flight_over_cap("fact_check") is False
+
+
+def test_in_flight_custom_cap_from_settings(monkeypatch):
+    # cap 5 from settings, 6 in-flight → GATE (would NOT gate at the 25 default)
+    _patch(monkeypatch, _FakeInFlightCur(settings={"welfare:backlog:max_inflight": "5"}, count=6))
+    assert wgs.in_flight_over_cap("bias_backlog") is True
+
+
+def test_in_flight_cap_zero_disables_gate(monkeypatch):
+    # cap <= 0 disables the gate even with a huge in-flight count
+    _patch(monkeypatch, _FakeInFlightCur(settings={"welfare:backlog:max_inflight": "0"}, count=1000))
+    assert wgs.in_flight_over_cap("fact_check") is False
+
+
+def test_in_flight_reads_the_cap_key(monkeypatch):
+    cur = _FakeInFlightCur(settings={"welfare:backlog:max_inflight": "25"}, count=1)
+    _patch(monkeypatch, cur)
+    wgs.in_flight_over_cap("geo_extraction")
+    assert cur.keys_read == ["welfare:backlog:max_inflight"]
+
+
+def test_in_flight_bad_cap_falls_back_to_default(monkeypatch):
+    # non-numeric cap → default 25; 30 in-flight → GATE
+    _patch(monkeypatch, _FakeInFlightCur(settings={"welfare:backlog:max_inflight": "abc"}, count=30))
+    assert wgs.in_flight_over_cap("fact_check") is True
+
+
+def test_in_flight_fail_open_on_db_error(monkeypatch):
+    # any DB exception on the count query → fail OPEN (never gate, never raise)
+    _patch(monkeypatch, _FakeInFlightCur(count=999, raise_on="bridge_jobs"))
+    assert wgs.in_flight_over_cap("fact_check") is False

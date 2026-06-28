@@ -3992,20 +3992,28 @@ function renderDispatchMetrics(m) {
     var el = document.getElementById('dispatchMetricsContent');
     var total = m.total_24h || 0;
     var success = m.success_24h || 0;
-    var failed = m.failed_24h || 0;
+    // #4538: split the FAILED bucket — genuine dispatch errors vs infra queue/timeouts
+    // (240s GPU-contention timeouts + reaped/orphaned jobs). Back-compat: fall back to
+    // the combined failed_24h when the server hasn't shipped the split yet.
+    var failedReal = (typeof m.failed_real_24h === 'number') ? m.failed_real_24h : (m.failed_24h || 0);
+    var failedTimeout = m.failed_timeout_24h || 0;
     var pending = m.pending_24h || 0;
     var avg = m.avg_duration_ms ? (m.avg_duration_ms / 1000).toFixed(1) + 's' : '--';
-    // Use the server's rate (computed over DECIDED work only — excludes
-    // in-flight); fall back to local ok/(ok+failed) so old payloads still work.
-    var rate = (typeof m.success_rate === 'number')
-        ? m.success_rate
-        : ((success + failed) > 0 ? Math.round(success / (success + failed) * 100) : 0);
+    // Prefer the REAL success rate (infra queue/timeouts excluded from the denominator)
+    // so a backlog-load event doesn't read as a dispatch regression; fall back to the
+    // combined server rate, then to a local estimate, so old payloads still work.
+    var rate = (typeof m.success_rate_real === 'number')
+        ? m.success_rate_real
+        : (typeof m.success_rate === 'number')
+            ? m.success_rate
+            : ((success + failedReal) > 0 ? Math.round(success / (success + failedReal) * 100) : 0);
     var rateClass = rate >= 95 ? 'good' : rate >= 80 ? 'warn' : 'bad';
     var tokens = m.tokens_24h || 0;  // reported model tokens (prompt+completion, lower bound)
     var html = '<div class="dhq-metrics-row">'
         + _metricCell('DISPATCHES 24H', total, '')
         + _metricCell('SUCCESS', success, 'good')
-        + _metricCell('FAILED', failed, failed > 0 ? 'bad' : '')
+        + _metricCell('FAILED', failedReal, failedReal > 0 ? 'bad' : '')
+        + (failedTimeout > 0 ? _metricCell('QUEUE TIMEOUT', failedTimeout, 'warn') : '')
         + (pending > 0 ? _metricCell('IN-FLIGHT', pending, 'warn') : '')
         + _metricCell('AVG RESPONSE', avg, '')
         + _metricCell('TOKENS 24H', formatNum(tokens), '')

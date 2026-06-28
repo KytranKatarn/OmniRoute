@@ -124,8 +124,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     "total_24h": h["total"],
                     "success_24h": h["success"],
                     "failed_24h": h["failed"],
+                    "failed_real_24h": h["failed_real"],
+                    "failed_timeout_24h": h["failed_timeout"],
                     "pending_24h": h["pending"],
                     "success_rate": h["success_rate"],
+                    "success_rate_real": h["success_rate_real"],
                     "avg_duration_ms": h["avg_duration_ms"],
                     "tokens_24h": h["tokens"],
                 }

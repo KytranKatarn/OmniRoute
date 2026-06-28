@@ -3013,14 +3013,12 @@ async function loadDomainsOverview() {
             var errMsg = d.error || 'Failed to load';
             document.getElementById('domains-public-ip').textContent = 'Error';
             document.getElementById('domains-dns-count').textContent = '--';
-            document.getElementById('domains-proxy-count').textContent = '--';
-            document.getElementById('domains-cert-count').textContent = '--';
             var errBody = document.getElementById('domains-unified-body');
             if (errBody) {
                 errBody.textContent = '';
                 var tr = document.createElement('tr');
                 var td = document.createElement('td');
-                td.colSpan = 5;
+                td.colSpan = 2;
                 td.style.cssText = 'text-align:center;color:#f97316;padding:20px';
                 td.textContent = 'Could not load domain data: ' + errMsg + '. Check Hostinger API configuration in Security Network settings.';
                 tr.appendChild(td);
@@ -3032,22 +3030,9 @@ async function loadDomainsOverview() {
 
         document.getElementById('domains-public-ip').textContent = d.public_ip || 'Unknown';
         document.getElementById('domains-dns-count').textContent = Array.isArray(d.dns_records) ? d.dns_records.length : '0';
-        document.getElementById('domains-proxy-count').textContent = Array.isArray(d.proxy_hosts) ? d.proxy_hosts.length : 'N/A';
 
-        /* Certificate count from overview response */
-        document.getElementById('domains-cert-count').textContent = Array.isArray(d.certificates) ? d.certificates.length : 'N/A';
-
-        // Build unified subdomain map
+        // Build unified subdomain map from DNS A records
         const dnsRecords = Array.isArray(d.dns_records) ? d.dns_records : [];
-        const proxyHosts = Array.isArray(d.proxy_hosts) ? d.proxy_hosts : [];
-
-        // Index proxy hosts by domain name
-        const proxyMap = {};
-        proxyHosts.forEach(function(h) {
-            (h.domain_names || []).forEach(function(dn) { proxyMap[dn] = h; });
-        });
-
-        // Build rows from DNS A records + proxy hosts
         const subdomains = {};
         dnsRecords.filter(function(r) { return r.type === 'A'; }).forEach(function(r) {
             const name = r.name || '@';
@@ -3056,26 +3041,13 @@ async function loadDomainsOverview() {
             subdomains[name].ttl = r.ttl;
         });
 
-        // Match proxy hosts
-        proxyHosts.forEach(function(h) {
-            (h.domain_names || []).forEach(function(dn) {
-                const parts = dn.split('.');
-                const sub = parts.length > 2 ? parts[0] : '@';
-                if (!subdomains[sub]) subdomains[sub] = {};
-                subdomains[sub].npmTarget = h.forward_host + ':' + h.forward_port;
-                subdomains[sub].ssl = h.ssl_forced ? 'Active' : (h.certificate_id ? 'Cert Only' : 'None');
-                subdomains[sub].proxyId = h.id;
-                subdomains[sub].fullDomain = dn;
-            });
-        });
-
         const tbody = document.getElementById('domains-unified-body');
         const keys = Object.keys(subdomains).sort();
         if (keys.length === 0) {
             tbody.textContent = '';
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 5;
+            td.colSpan = 2;
             td.style.textAlign = 'center';
             td.style.color = 'var(--text-dim)';
             td.textContent = 'No subdomains found';
@@ -3098,28 +3070,6 @@ async function loadDomainsOverview() {
             const tdDns = document.createElement('td');
             tdDns.textContent = s.dnsIP || '--';
             tr.appendChild(tdDns);
-
-            const tdNpm = document.createElement('td');
-            tdNpm.textContent = s.npmTarget || '--';
-            tr.appendChild(tdNpm);
-
-            const tdSsl = document.createElement('td');
-            const sslSpan = document.createElement('span');
-            if (s.ssl === 'Active') { sslSpan.style.color = '#22c55e'; sslSpan.textContent = '\u25CF Active'; }
-            else if (s.ssl === 'Cert Only') { sslSpan.style.color = '#f59e0b'; sslSpan.textContent = '\u25CF Cert Only'; }
-            else { sslSpan.style.color = 'var(--text-dim)'; sslSpan.textContent = '\u25CF None'; }
-            tdSsl.appendChild(sslSpan);
-            tr.appendChild(tdSsl);
-
-            const tdActions = document.createElement('td');
-            if (s.proxyId) {
-                const btn = document.createElement('button');
-                btn.className = 'btn btn-sm btn-danger';
-                btn.textContent = 'Delete Proxy';
-                btn.addEventListener('click', function() { deleteProxyHost(s.proxyId); });
-                tdActions.appendChild(btn);
-            }
-            tr.appendChild(tdActions);
 
             tbody.appendChild(tr);
         });
@@ -3305,85 +3255,6 @@ async function addDomainDnsRecord() {
             loadDomainDnsRecords();
         } else {
             showToast('error', d.error || 'Failed to add record');
-        }
-    } catch (e) { showToast('error', e.message); }
-}
-
-async function loadDomainProxyHosts() {
-    try {
-        const r = await fetch(API + '/domains/proxy-hosts');
-        const d = await r.json();
-        if (!d.success) { showToast('error', d.error || 'Failed'); return; }
-
-        const hosts = Array.isArray(d.proxy_hosts) ? d.proxy_hosts : [];
-        const tbody = document.getElementById('domains-proxy-body');
-        tbody.textContent = '';
-
-        if (hosts.length === 0) {
-            const tr = document.createElement('tr');
-            const td = document.createElement('td');
-            td.colSpan = 5; td.style.textAlign = 'center'; td.style.color = 'var(--text-dim)';
-            td.textContent = 'No proxy hosts';
-            tr.appendChild(td); tbody.appendChild(tr);
-            return;
-        }
-
-        hosts.forEach(function(h) {
-            const tr = document.createElement('tr');
-            tr.addEventListener('click', function(e) {
-                if (e.target.tagName === 'BUTTON') return;
-                openProxyModal(h);
-            });
-
-            const tdDomain = document.createElement('td');
-            tdDomain.textContent = (h.domain_names || []).join(', ');
-            tr.appendChild(tdDomain);
-
-            const tdTarget = document.createElement('td');
-            tdTarget.textContent = (h.forward_scheme || 'http') + '://' + h.forward_host + ':' + h.forward_port;
-            tr.appendChild(tdTarget);
-
-            const tdSsl = document.createElement('td');
-            const sslSpan = document.createElement('span');
-            if (h.ssl_forced) { sslSpan.style.color = '#22c55e'; sslSpan.textContent = '\u25CF Forced'; }
-            else if (h.certificate_id) { sslSpan.style.color = '#f59e0b'; sslSpan.textContent = '\u25CF Cert Only'; }
-            else { sslSpan.style.color = 'var(--text-dim)'; sslSpan.textContent = '\u25CF None'; }
-            tdSsl.appendChild(sslSpan);
-            tr.appendChild(tdSsl);
-
-            const tdStatus = document.createElement('td');
-            const statusSpan = document.createElement('span');
-            if (h.enabled !== false) { statusSpan.style.color = '#22c55e'; statusSpan.textContent = 'Active'; }
-            else { statusSpan.style.color = 'var(--text-dim)'; statusSpan.textContent = 'Disabled'; }
-            tdStatus.appendChild(statusSpan);
-            tr.appendChild(tdStatus);
-
-            const tdActions = document.createElement('td');
-            const delBtn = document.createElement('button');
-            delBtn.className = 'btn btn-sm btn-danger';
-            delBtn.textContent = 'Delete';
-            delBtn.addEventListener('click', function(e) { e.stopPropagation(); deleteProxyHost(h.id); });
-            tdActions.appendChild(delBtn);
-            tr.appendChild(tdActions);
-
-            tbody.appendChild(tr);
-        });
-    } catch (e) {
-        showToast('error', 'Failed to load proxy hosts: ' + e.message);
-    }
-}
-
-async function deleteProxyHost(id) {
-    if (!confirm('Delete this proxy host? This cannot be undone.')) return;
-    try {
-        const r = await fetch(API + '/domains/proxy-hosts/' + id, {method: 'DELETE'});
-        const d = await r.json();
-        if (d.success) {
-            showToast('success', 'Proxy host deleted');
-            loadDomainProxyHosts();
-            loadDomainsOverview();
-        } else {
-            showToast('error', d.error || 'Failed to delete');
         }
     } catch (e) { showToast('error', e.message); }
 }
@@ -3627,69 +3498,9 @@ async function deleteDnsRecord() {
     } catch (e) { showToast('error', e.message); }
 }
 
-/* ========== Proxy Host Modal ========== */
-let proxyEditState = { id: null };
-
-function openProxyModal(host) {
-    proxyEditState.id = host ? host.id : null;
-
-    const domains = (host && host.domain_names) ? host.domain_names.join(', ') : '';
-    document.getElementById('proxy-edit-domain').value = domains;
-    document.getElementById('proxy-edit-host').value = host ? (host.forward_host || '') : '192.168.1.200';
-    document.getElementById('proxy-edit-port').value = host ? (host.forward_port || 3000) : 3000;
-    document.getElementById('proxy-edit-ssl').value = host ? (host.ssl_forced ? 'Active (Forced)' : host.certificate_id ? 'Certificate Only' : 'None') : 'None';
-
-    document.getElementById('proxy-edit-modal').classList.add('active');
-}
-
-function closeProxyModal() {
-    document.getElementById('proxy-edit-modal').classList.remove('active');
-}
-
-async function saveProxyHost() {
-    if (!proxyEditState.id) return;
-    const host = document.getElementById('proxy-edit-host').value.trim();
-    const port = parseInt(document.getElementById('proxy-edit-port').value) || 3000;
-
-    try {
-        const r = await fetch(API + '/domains/proxy-hosts/' + proxyEditState.id, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ forward_host: host, forward_port: port })
-        });
-        const d = await r.json();
-        if (d.success) {
-            showToast('success', 'Proxy host updated');
-            closeProxyModal();
-            loadDomainProxyHosts();
-            loadDomainsOverview();
-        } else {
-            showToast('error', d.error || 'Failed to update');
-        }
-    } catch (e) { showToast('error', e.message); }
-}
-
-async function deleteProxyFromModal() {
-    if (!proxyEditState.id) return;
-    if (!confirm('Delete this proxy host?')) return;
-
-    try {
-        const r = await fetch(API + '/domains/proxy-hosts/' + proxyEditState.id, { method: 'DELETE' });
-        const d = await r.json();
-        if (d.success) {
-            showToast('success', 'Proxy host deleted');
-            closeProxyModal();
-            loadDomainProxyHosts();
-            loadDomainsOverview();
-        } else {
-            showToast('error', d.error || 'Failed to delete');
-        }
-    } catch (e) { showToast('error', e.message); }
-}
-
 /* Close modals on Escape */
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') { closeDnsModal(); closeProxyModal(); closeDeviceModal(); closeBlockDomainModal(); if(typeof closeReportModal==='function') closeReportModal(); if(typeof closeCameraModal==='function') closeCameraModal(); }
+    if (e.key === 'Escape') { closeDnsModal(); closeDeviceModal(); closeBlockDomainModal(); if(typeof closeReportModal==='function') closeReportModal(); if(typeof closeCameraModal==='function') closeCameraModal(); }
 });
 
 /* ========== Security Station Ops ========== */

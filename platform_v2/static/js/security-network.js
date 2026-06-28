@@ -261,7 +261,6 @@ function initSubtabs() {
             if (st === 'dns-clients') loadDeviceClients();
             if (st === 'domains-overview') loadDomainsOverview();
             if (st === 'domains-dns') loadDomainDnsRecords();
-            if (st === 'domains-proxy') loadDomainProxyHosts();
             if (st === 'domains-certs') loadDomainCertificates();
             if (st === 'scanners-vuln') { if (!scanTabLoaded) { scanTabLoaded = true; loadScannerCards(); loadScanHistory(); loadSSLMonitors(); loadCampaigns(); } }
             if (st === 'scanners-recon') { if (!reconTabLoaded) { reconTabLoaded = true; loadReconModules(); loadReconHistory(); } }

@@ -638,16 +638,6 @@
                     <div class="stat-value" id="domains-dns-count">--</div>
                     <div class="stat-subtitle">Total records</div>
                 </div>
-                <div class="stat-card">
-                    <div class="stat-label">Proxy Hosts</div>
-                    <div class="stat-value" id="domains-proxy-count">--</div>
-                    <div class="stat-subtitle">NPM managed</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">SSL Certificates</div>
-                    <div class="stat-value" id="domains-cert-count">--</div>
-                    <div class="stat-subtitle">Let's Encrypt</div>
-                </div>
             </div>
 
             <h3 style="margin:20px 0 10px;color:#fff">Subdomain Map</h3>
@@ -657,13 +647,10 @@
                         <tr>
                             <th>Subdomain</th>
                             <th>DNS IP</th>
-                            <th>NPM Target</th>
-                            <th>SSL</th>
-                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="domains-unified-body">
-                        <tr><td colspan="5" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
+                        <tr><td colspan="2" class="loading-state"><span class="spinner"></span> Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1932,55 +1919,6 @@
                     <button class="btn-cancel" onclick="closeDnsModal()">Cancel</button>
                     <button class="btn-submit" onclick="saveDnsRecord()">Save Record</button>
                     <button class="btn-danger" onclick="deleteDnsRecord()" id="dns-delete-btn" style="margin-left:auto">Delete</button>
-                </div>
-                <div class="bm-footer">
-                    <div class="bm-footer-strip">
-                        <div class="bm-footer-dot cyan"></div>
-                        <div class="bm-footer-dot gold"></div>
-                        <div class="bm-footer-dot green"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== PROXY HOST EDIT MODAL ==================== -->
-    <div class="bm-overlay" id="proxy-edit-modal" style="--bm-accent:#FFAA00;--bm-accent-rgb:255,170,0;">
-        <div class="bm-shell" style="max-width:480px;">
-            <div class="bm-frame">
-                <div class="bm-frame-elbow-top"></div>
-                <div class="bm-frame-seg"></div>
-                <div class="bm-frame-seg dim"></div>
-                <div class="bm-frame-light on"></div>
-                <div class="bm-frame-light amber"></div>
-                <div class="bm-frame-seg"></div>
-                <div class="bm-frame-fill"></div>
-                <div class="bm-frame-elbow-bottom"></div>
-            </div>
-            <div class="bm-content">
-                <div class="bm-header">
-                    <span class="bm-header-title">PROXY HOST</span>
-                    <div class="bm-header-strip">
-                        <div class="bm-header-pip w1"></div>
-                        <div class="bm-header-pip w2"></div>
-                        <div class="bm-header-pip w3"></div>
-                        <button class="bm-close" onclick="closeProxyModal()">&times;</button>
-                    </div>
-                </div>
-                <div class="bm-body">
-                    <label>Domain</label>
-                    <input type="text" id="proxy-edit-domain" placeholder="subdomain.kytranempowerment.com" readonly style="opacity:0.6">
-                    <label>Forward Host</label>
-                    <input type="text" id="proxy-edit-host" placeholder="192.168.1.200">
-                    <label>Forward Port</label>
-                    <input type="number" id="proxy-edit-port" value="3000">
-                    <label>SSL Status</label>
-                    <input type="text" id="proxy-edit-ssl" readonly style="opacity:0.6">
-                </div>
-                <div class="bm-actions">
-                    <button class="btn-cancel" onclick="closeProxyModal()">Cancel</button>
-                    <button class="btn-submit" onclick="saveProxyHost()">Save Changes</button>
-                    <button class="btn-danger" onclick="deleteProxyFromModal()" style="margin-left:auto">Delete</button>
                 </div>
                 <div class="bm-footer">
                     <div class="bm-footer-strip">

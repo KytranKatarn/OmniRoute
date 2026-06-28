@@ -1758,18 +1758,19 @@ def get_activity_stats():
         )
         emotional = cur.fetchone()
 
-        # Get LLM health summary
-        cur.execute(
-            """
-            SELECT
-                COUNT(CASE WHEN status = 'online' THEN 1 END) as online,
-                COUNT(CASE WHEN status = 'offline' THEN 1 END) as offline,
-                COUNT(CASE WHEN status = 'degraded' THEN 1 END) as degraded,
-                COUNT(*) as total
-            FROM llm_connections
-        """
-        )
-        llm_health = cur.fetchone()
+        # LLM health monitoring RETIRED (#4535, 2026-06-28): the llm_connections
+        # table is frozen (writer ai_bridge/llm_monitor.py was never scheduled), so
+        # the old counts were ~4 months stale. Return a deprecated marker instead of
+        # querying the dead table. Live model state: Ollama lifecycle telemetry (#1898)
+        # + Token Economy. Shape preserved (online/offline/degraded/total) for callers.
+        llm_health = {
+            "online": 0,
+            "offline": 0,
+            "degraded": 0,
+            "total": 0,
+            "deprecated": True,
+            "note": "llm_connections monitoring retired #4535",
+        }
 
         # Knowledge type breakdown
         cur.execute(

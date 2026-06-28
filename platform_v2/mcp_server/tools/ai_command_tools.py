@@ -267,80 +267,38 @@ Example: Check agent 5 → agent_id=5
 
 
 async def get_llm_health_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
-    """Get all LLM connection statuses, summary, and optional alerts"""
-    include_alerts = arguments.get("include_alerts", False)
-    provider = arguments.get("provider")
+    """RETIRED (#4535, 2026-06-28). The ``llm_connections`` table is frozen — its
+    writer (``ai_bridge/llm_monitor.py``) was never scheduled, so the data has been
+    stale since 2026-02-25. Rather than serve months-old statuses as if live, this
+    handler now returns an explicit deprecation. Live model/LLM state is tracked by
+    the Ollama lifecycle telemetry job (#1898) and the Token Economy tab.
 
-    conn, cur = get_db_connection()
-    if not conn:
-        return {"success": False, "error": "Database connection failed"}
-
-    try:
-        query = """
-            SELECT id, provider, model_name, display_name, status, last_check,
-                   avg_latency_ms, p95_latency_ms, success_rate, total_requests,
-                   failed_requests, consecutive_failures
-            FROM llm_connections
-        """
-        params = ()
-        if provider:
-            query += " WHERE provider = %s"
-            params = (provider,)
-        query += " ORDER BY provider, model_name"
-
-        cur.execute(query, params)
-        connections = cur.fetchall()
-
-        # Summary counts by status
-        summary = {}
-        for conn_row in connections:
-            status = conn_row.get("status", "unknown")
-            summary[status] = summary.get(status, 0) + 1
-
-        result = {
-            "success": True,
-            "connections": [_serialize_row(r) for r in connections],
-            "total": len(connections),
-            "summary": summary,
-        }
-
-        if include_alerts:
-            cur.execute(
-                """
-                SELECT la.id, la.alert_type, la.severity, la.message,
-                       la.created_at, lc.provider, lc.model_name
-                FROM llm_alerts la
-                JOIN llm_connections lc ON la.connection_id = lc.id
-                WHERE la.acknowledged = false
-                ORDER BY la.severity DESC, la.created_at DESC
-                LIMIT 50
-            """
-            )
-            alerts = cur.fetchall()
-            result["alerts"] = [_serialize_row(r) for r in alerts]
-            result["alert_count"] = len(alerts)
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Error in get_llm_health: {e}")
-        return {"success": False, "error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
+    Response keys (connections/total/summary) are preserved so existing callers
+    don't KeyError; ``deprecated`` flags the change.
+    """
+    return {
+        "success": True,
+        "deprecated": True,
+        "connections": [],
+        "total": 0,
+        "summary": {},
+        "note": (
+            "LLM health monitoring (llm_connections) was retired #4535 — the table "
+            "is frozen (writer never scheduled). Live model state: Ollama lifecycle "
+            "telemetry (job #1898) + Token Economy (Consciousness)."
+        ),
+    }
 
 
 register_tool(
     name="get_llm_health",
     category="ai_command",
-    description="""Get LLM connection health status and optional alerts.
+    description="""[DEPRECATED #4535] LLM connection health monitoring was retired.
 
-Returns all LLM connections with status, latency, success rate, and failure counts.
-Includes a summary of healthy/degraded/offline counts.
-
-Example: All LLMs → no params
-Example: Check Ollama → provider='ollama'
-Example: With alerts → include_alerts=true
+The llm_connections table is frozen (its writer was never scheduled), so this
+tool now returns an explicit deprecation with empty connections — it no longer
+serves stale data. For live model/LLM state use the Ollama lifecycle telemetry
+(job #1898) or the Token Economy tab in Consciousness.
 """,
     input_schema={
         "type": "object",

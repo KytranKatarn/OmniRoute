@@ -533,6 +533,7 @@
     }
 
     renderBody(msg);
+    renderSentReplies(msg);
 
     var starLabel = el('em-star-label');
     var starBtn = el('em-star-btn');
@@ -570,6 +571,38 @@
     if (taskBtn) { taskBtn.disabled = false; }
     if (taskLabel) taskLabel.textContent = 'Create Task';
     renderTaskLink(msg.created_task_id || null);
+  }
+
+  function renderSentReplies(msg) {
+    var box = el('em-sent-replies');
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var replies = (msg && msg.sent_replies) || [];
+    if (!replies.length) { box.style.display = 'none'; return; }
+    box.style.display = '';
+    var hdr = document.createElement('div');
+    hdr.style.cssText = 'font-size:11px;font-weight:600;color:#34d399;margin:2px 0 6px;';
+    hdr.textContent = '✉️ ' + replies.length + ' repl' + (replies.length === 1 ? 'y' : 'ies') + ' sent';
+    box.appendChild(hdr);
+    replies.forEach(function (r) {
+      var item = document.createElement('div');
+      item.style.cssText = 'border-left:2px solid #14331f;padding:4px 0 4px 10px;margin-bottom:6px;';
+      var meta = document.createElement('div');
+      meta.style.cssText = 'font-size:11px;color:#7d8a82;margin-bottom:3px;';
+      var when = r.sent_at ? new Date(r.sent_at).toLocaleString() : '';
+      var parts = ['To ' + (r.to_address || '?')];
+      if (r.agent) parts.push('by ' + r.agent);
+      if (when) parts.push(when);
+      meta.textContent = parts.join(' · ');
+      item.appendChild(meta);
+      if (r.body) {
+        var body = document.createElement('div');
+        body.style.cssText = 'font-size:12px;color:#c7d0ca;white-space:pre-wrap;word-break:break-word;';
+        body.textContent = r.body;
+        item.appendChild(body);
+      }
+      box.appendChild(item);
+    });
   }
 
   function renderBody(msg) {

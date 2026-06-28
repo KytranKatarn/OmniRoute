@@ -54,6 +54,45 @@ def _msg_row(r: dict) -> dict:
     }
 
 
+def _sent_replies_for(cur, message_id, thread_id):
+    """Executed agent approve-to-send replies linked to this message (or its thread).
+
+    Sourced from autonomy_approval_queue (action_type='email_reply', status='executed'),
+    which carries the original message_id, thread_id, drafted body, agent + executed_at.
+    Manual compose sends (email_activity_log — no thread link / body) are a follow-up
+    (#4523 ph2; would need thread_id on the activity log).
+    """
+    tid = str(thread_id) if thread_id is not None else None
+    cur.execute(
+        """SELECT action_data->>'to_address'   AS to_address,
+                  action_data->>'from_address' AS from_address,
+                  action_data->>'subject'      AS subject,
+                  action_data->>'draft_reply'  AS body,
+                  action_data->>'agent'        AS agent,
+                  executed_at
+             FROM autonomy_approval_queue
+            WHERE action_type = 'email_reply' AND status = 'executed'
+              AND ( action_data->>'message_id' = %s
+                    OR (%s IS NOT NULL AND action_data->>'thread_id' = %s) )
+            ORDER BY executed_at ASC NULLS LAST""",
+        (str(message_id), tid, tid),
+    )
+    replies = []
+    for r in cur.fetchall():
+        r = dict(r)
+        replies.append(
+            {
+                "to_address": r.get("to_address"),
+                "from_address": r.get("from_address"),
+                "subject": r.get("subject"),
+                "body": r.get("body"),
+                "agent": r.get("agent"),
+                "sent_at": r["executed_at"].isoformat() if r.get("executed_at") else None,
+            }
+        )
+    return replies
+
+
 def register_email_messages_routes(bp, admin_required):
 
     # ------------------------------------------------------------------
@@ -240,6 +279,15 @@ def register_email_messages_routes(bp, admin_required):
             "mailbox_type": row["mailbox_type"],
             "mailbox_display_name": row["mailbox_display_name"],
         }
+
+        # #4523: surface agent replies already sent for this message/thread so the
+        # read pane shows both sides of the conversation, not just inbound mail.
+        try:
+            with get_db_cursor() as (conn, cur):
+                result["sent_replies"] = _sent_replies_for(cur, message_id, row.get("thread_id"))
+        except Exception as exc:
+            logger.debug("[email] sent_replies lookup failed for msg=%s: %s", message_id, exc)
+            result["sent_replies"] = []
         return jsonify(result)
 
     @bp.route("/api/email/messages/<int:message_id>/draft-reply", methods=["POST"])

@@ -55,6 +55,58 @@ if timeout 5 bash -c "echo > /dev/tcp/$HUB_MESH/5432" 2>/dev/null; then
   log "--force given: proceeding despite hub reachability (YOU asserted hub is dead)."
 fi
 
+# ---- SAFETY: heartbeat veto (cont-102, KB #276817) — hub may be MESH-ISOLATED but ALIVE ----
+# The split-brain guard above probes the hub MESH IP (:5432), which is BLIND to a
+# mesh-only outage (the hub drops off the mesh but its DB is fine — the cont-101
+# false failover). The hub posts $HEARTBEAT_FILE over a mesh-INDEPENDENT public
+# path when its local DB is healthy; a FRESH one means promoting now would
+# split-brain a LIVE hub DB. Independent backstop for manual/cron invocations.
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-$DR/.hub_heartbeat}"
+HEARTBEAT_MAX_AGE="${HEARTBEAT_MAX_AGE:-300}"
+_hb_fresh(){
+  [ -f "$HEARTBEAT_FILE" ] || return 1
+  local line ts db age
+  line="$(cat "$HEARTBEAT_FILE" 2>/dev/null)" || return 1
+  ts="$(printf '%s\n' "$line" | sed -n 's/.*ts=\([0-9][0-9]*\).*/\1/p')"
+  db="$(printf '%s\n' "$line" | sed -n 's/.*db=\([a-zA-Z][a-zA-Z]*\).*/\1/p')"
+  [ -n "$ts" ] && [ "$db" = "ok" ] || return 1
+  age=$(( $(date +%s) - ts )); [ "$age" -ge 0 ] && [ "$age" -le "$HEARTBEAT_MAX_AGE" ]
+}
+if _hb_fresh; then
+  log "Hub heartbeat is FRESH (DB healthy, posted over the public path) — hub is mesh-isolated, NOT dead."
+  if [ "$FORCE" != "--force" ]; then
+    log "ABORT: refusing to promote behind a LIVE hub DB (split-brain). If the hub is truly dead, re-run: $0 --force"
+    tg_notify $'🛰️ <b>DR FAILOVER ABORTED — hub is ALIVE (mesh-isolated)</b>\nThe hub is posting a live heartbeat (DB healthy) over the public path. Promoting would split-brain a live DB. NOT promoting. Fix the mesh, or re-run with --force if you are certain the hub DB is dead.'
+    exit 1
+  fi
+  log "--force given: proceeding despite a fresh hub heartbeat (YOU asserted hub DB is dead)."
+fi
+
+# ---- SAFETY: replica-freshness guard (cont-102) — never promote STALE data ----
+# cont-101 promoted a replica that had been a stale/forked standby for ~7 days
+# (#272172 data loss). Require the replica to be an IN-RECOVERY standby that
+# replayed a transaction within REPLICA_MAX_LAG. We deliberately do NOT require a
+# live WAL receiver: when the hub (primary) is genuinely dead the receiver drops,
+# so replay-lag recency is the correct "was it caught up" signal. Respects --force.
+REPLICA_MAX_LAG="${REPLICA_MAX_LAG:-1800}"   # max replay lag (s) tolerated at promote time
+log "Replica-freshness guard: archie_dr_replica must be an in-recovery standby caught up within ${REPLICA_MAX_LAG}s..."
+_rep=$(docker exec archie_dr_replica psql -U archie -d archie -p 5433 -tAc \
+  "SELECT (CASE WHEN pg_is_in_recovery() THEN 't' ELSE 'f' END) || '|' || COALESCE(round(EXTRACT(EPOCH FROM (now()-pg_last_xact_replay_timestamp())))::text,'na')" 2>/dev/null | tr -d '[:space:]')
+_inrec="${_rep%%|*}"; _lag="${_rep#*|}"
+log "  in_recovery=$_inrec replay_lag_s=$_lag (max=$REPLICA_MAX_LAG)"
+_fresh_ok=1
+[ "$_inrec" = "t" ] || _fresh_ok=0
+case "$_lag" in ''|na) _fresh_ok=0 ;; *) [ "$_lag" -le "$REPLICA_MAX_LAG" ] 2>/dev/null || _fresh_ok=0 ;; esac
+if [ "$_fresh_ok" -ne 1 ]; then
+  if [ "$FORCE" != "--force" ]; then
+    log "ABORT: replica is NOT a fresh in-recovery standby (in_recovery=$_inrec, replay_lag=${_lag}s). Refusing to promote STALE/diverged data."
+    tg_notify "🟥 <b>DR FAILOVER ABORTED — replica not fresh</b>
+boston-2 replica: in_recovery=$_inrec, replay_lag=${_lag}s (max ${REPLICA_MAX_LAG}s). Promoting would risk STALE/diverged data (the cont-101 pattern). NOT promoting. Rebuild it (setup_replica.sh) or re-run with --force to accept the risk."
+    exit 1
+  fi
+  log "--force given: promoting despite a non-fresh replica (YOU accepted possible data loss)."
+fi
+
 # ---- 0. ALERT: announce failover is starting (before anything irreversible) ----
 tg_notify $'⚠️ <b>A.R.C.H.I.E. DR FAILOVER STARTING</b>\nThe hub (mesh 100.64.0.4) looks DOWN. Promoting the boston-2 replica to primary and starting the standby platform. You will get a follow-up message when it is live (or if it only partially comes up).'
 

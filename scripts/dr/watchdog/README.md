@@ -99,7 +99,27 @@ file — they always come back. The only *indefinite* stop is the manual
 
 `K=3` · `QUORUM=2` · `ABORT_WINDOW=300` · `SSH_TIMEOUT=15` · `HUB_MESH=100.64.0.4` ·
 `DR_MESH=100.64.0.10` · `FLEET_KEY=/opt/archie-dr/.ssh/id_ed25519` · `DRY_RUN=0` ·
-`ARMED_POLL_INTERVAL=5` · `SNOOZE_STANDBY_SECONDS=900` · `SNOOZE_CANCEL_SECONDS=3600`.
+`ARMED_POLL_INTERVAL=5` · `SNOOZE_STANDBY_SECONDS=900` · `SNOOZE_CANCEL_SECONDS=3600` ·
+`HEARTBEAT_FILE=/opt/archie-dr/.hub_heartbeat` · `HEARTBEAT_MAX_AGE=300`.
+
+## Hub liveness heartbeat — the mesh-isolation veto (cont-102, KB #276817)
+
+Every probe here targets the hub **mesh IP** `100.64.0.4`, so the quorum cannot tell
+"hub fell off the mesh (alive)" from "hub is dead" — both look down from every vantage.
+That false quorum auto-promoted a stale replica during the 2026-06-28 NPM-decommission
+outage. Fix: the hub runs `scripts/dr/hub_heartbeat.sh` via cron (every 60s) which, only
+when its **local DB is healthy**, SSHes boston-2's **PUBLIC IP** (`2.25.133.122`, NOT the
+mesh) and writes `HEARTBEAT_FILE`. The watchdog's `hub_heartbeat_fresh` (fresh ≤ `HEARTBEAT_MAX_AGE`
+and `db=ok`) then **SUPPRESSES the automatic promotion** while that heartbeat is live — it
+still alerts (you must know the hub is off-mesh) and `/dr_proceed` still forces a failover.
+A genuinely dead hub stops posting → the heartbeat ages out → failover proceeds normally.
+`failover.sh` carries the same veto **plus** a replica-freshness guard (refuses to promote a
+non-streaming / >`REPLICA_MAX_LAG`s-lagged / forked replica). Both respect `--force`.
+
+**Hub cron (install on the hub, as the user that owns the DR SSH key):**
+```cron
+* * * * * /opt/archie-dr/hub_heartbeat.sh >/dev/null 2>&1
+```
 
 ---
 

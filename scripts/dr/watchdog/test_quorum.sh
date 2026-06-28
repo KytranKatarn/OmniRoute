@@ -48,6 +48,17 @@ check "down+unreach+up"    no  "$(qm "$(count_down down unreachable up)")"
 # two down, one unreachable → 2 confirmed → YES.
 check "2down+unreach"      yes "$(qm "$(count_down down down unreachable)")"
 
+echo "== hub_heartbeat_fresh (cont-102) =="
+# Drive the helper with a temp heartbeat file; it reads HEARTBEAT_FILE + clock.
+HB_TMP="$(mktemp)"; HEARTBEAT_FILE="$HB_TMP"; HEARTBEAT_MAX_AGE=300
+hbf(){ if hub_heartbeat_fresh; then echo yes; else echo no; fi; }
+_now="$(date +%s)"
+printf 'ts=%s db=ok http=200\n'  "$_now"          > "$HB_TMP"; check "fresh + db=ok"      yes "$(hbf)"
+printf 'ts=%s db=ok http=200\n'  "$((_now-9999))" > "$HB_TMP"; check "stale (age>max)"     no  "$(hbf)"
+printf 'ts=%s db=down http=ERR\n' "$_now"         > "$HB_TMP"; check "fresh but db=down"   no  "$(hbf)"
+printf 'db=ok http=200\n'                         > "$HB_TMP"; check "no ts field"         no  "$(hbf)"
+rm -f "$HB_TMP";                                                check "file missing"        no  "$(hbf)"
+
 echo
 echo "PASS=$pass FAIL=$fail"
 [ "$fail" -eq 0 ]

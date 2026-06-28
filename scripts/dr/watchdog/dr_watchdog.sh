@@ -59,6 +59,12 @@ SNOOZE_STANDBY_SECONDS="${SNOOZE_STANDBY_SECONDS:-900}"   # ⏸ Standby: hold 15
 SNOOZE_CANCEL_SECONDS="${SNOOZE_CANCEL_SECONDS:-3600}"    # 🛑 Cancel: snooze 1 h, then resume scanning
 SNOOZE_FILE="${SNOOZE_FILE:-$DR/.snooze_until}"
 DRY_RUN="${DRY_RUN:-0}"
+# Hub liveness heartbeat (cont-102, KB #276817). The hub posts $HEARTBEAT_FILE
+# over a PUBLIC, mesh-INDEPENDENT path when its local DB is healthy. A FRESH
+# heartbeat during a mesh outage = the hub is ALIVE-but-mesh-isolated, NOT dead
+# → auto-failover is SUPPRESSED (promoting would split-brain a live DB).
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-$DR/.hub_heartbeat}"
+HEARTBEAT_MAX_AGE="${HEARTBEAT_MAX_AGE:-300}"   # seconds; older = stale (hub really gone)
 
 log(){ echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*"; }
 now_epoch(){ date +%s; }
@@ -86,6 +92,21 @@ count_unreachable(){ local n=0 r; for r in "$@"; do [ "$r" = "unreachable" ] && 
 # blackout_quorum_met <unreachable_count> <total_outposts>
 # True when ALL outposts are unreachable — Headscale (on hub) is down, not a single-node blip.
 blackout_quorum_met(){ [ "${1:-0}" -ge "${2:-3}" ] && [ "${2:-3}" -gt 0 ]; }
+# hub_heartbeat_fresh — exit 0 if the hub posted a LIVE heartbeat within
+# HEARTBEAT_MAX_AGE seconds AND it reported db=ok. The hub writes $HEARTBEAT_FILE
+# over a mesh-INDEPENDENT public path, so freshness here = "hub alive but
+# mesh-isolated" → suppress failover. Reads the file + clock only (testable by
+# overriding HEARTBEAT_FILE / HEARTBEAT_MAX_AGE).
+hub_heartbeat_fresh(){
+  [ -f "$HEARTBEAT_FILE" ] || return 1
+  local line ts db now age
+  line="$(cat "$HEARTBEAT_FILE" 2>/dev/null)" || return 1
+  ts="$(printf '%s\n' "$line" | sed -n 's/.*ts=\([0-9][0-9]*\).*/\1/p')"
+  db="$(printf '%s\n' "$line" | sed -n 's/.*db=\([a-zA-Z][a-zA-Z]*\).*/\1/p')"
+  [ -n "$ts" ] && [ "$db" = "ok" ] || return 1
+  now="$(now_epoch)"; age=$(( now - ts ))
+  [ "$age" -ge 0 ] && [ "$age" -le "${HEARTBEAT_MAX_AGE:-300}" ]
+}
 
 # ---- State (key=val, sourced) ----
 consec_down=0
@@ -195,16 +216,20 @@ ARM_KEYBOARD='[[{"text":"✅ Proceed now","callback_data":"dr_proceed"}],[{"text
 
 # ---- Fire (real or dry-run) ----
 do_failover(){
+  # do_failover [force] — pass "force" to run failover.sh --force (human override
+  # of its split-brain + heartbeat vetoes; used by /dr_proceed).
+  local force_arg=""
+  [ "${1:-}" = "force" ] && force_arg="--force"
   if [ "$DRY_RUN" = "1" ]; then
-    log "DRY_RUN: would run $FAILOVER_SCRIPT now (NOT executing; not writing .failed_over)."
+    log "DRY_RUN: would run $FAILOVER_SCRIPT ${force_arg:-(no-force)} now (NOT executing; not writing .failed_over)."
     tg_notify $'🧪 <b>DR WATCHDOG DRY-RUN</b>\nQuorum tripped and the abort window elapsed with no /dr_abort. In a REAL run, failover.sh would execute NOW. (Dry-run — hub untouched.)'
     # Disarm so the drill can be repeated cleanly.
     reset_state
     return 0
   fi
-  log "FIRING: quorum confirmed + abort window elapsed → running $FAILOVER_SCRIPT"
-  touch "$FAILED_OVER_FLAG"          # one-shot BEFORE running (never double-fire)
-  bash "$FAILOVER_SCRIPT"            # sends its own start/complete/partial alerts + split-brain guard
+  log "FIRING: quorum confirmed + abort window elapsed → running $FAILOVER_SCRIPT $force_arg"
+  touch "$FAILED_OVER_FLAG"               # one-shot BEFORE running (never double-fire)
+  bash "$FAILOVER_SCRIPT" $force_arg      # sends its own alerts + split-brain + freshness + heartbeat guards
 }
 
 # ---- Main cycle (steps 1–7) ----
@@ -300,8 +325,18 @@ main(){
   # 6. Arm — alert the owner with tappable Proceed / Cancel / Standby buttons.
   if [ "$consec_down" -ge "$_arm_at" ] && [ "$armed_at" -eq 0 ]; then
     armed_at="$(now_epoch)"; save_state
-    log "ARMED at $armed_at (mode: $([ "$_blackout" -eq 1 ] && echo BLACKOUT || echo QUORUM)). Auto-failover in ${ABORT_WINDOW}s unless cancelled."
-    if [ "$_blackout" -eq 1 ]; then
+    _hb_state="dead/unknown"; hub_heartbeat_fresh && _hb_state="ALIVE (mesh-isolated)"
+    log "ARMED at $armed_at (mode: $([ "$_blackout" -eq 1 ] && echo BLACKOUT || echo QUORUM); hub heartbeat: $_hb_state). Auto-failover in ${ABORT_WINDOW}s unless cancelled."
+    if hub_heartbeat_fresh; then
+      # cont-102: hub unreachable over the mesh but POSTING a live heartbeat over
+      # the public path (DB healthy) → mesh-isolation, NOT death. Still alert (the
+      # owner must know the hub fell off the mesh), but the window-expiry fire is
+      # VETOED below — this message sets that expectation.
+      tg_notify "🛰️ <b>A.R.C.H.I.E. DR — HUB UNREACHABLE OVER MESH (but ALIVE)</b>
+boston-2 + outposts cannot reach the hub over the mesh ($HUB_MESH), BUT the hub is posting a LIVE heartbeat over the public path (DB healthy). This looks like a MESH ISOLATION, not a hub death.
+<b>I will NOT auto-promote</b> (that would split-brain a live DB). Fix the mesh — or reply <code>/dr_proceed</code> to FORCE failover if you are certain the hub DB is dead.
+🛑 Cancel (snooze $((SNOOZE_CANCEL_SECONDS/60)) min) · ⏸ Standby (hold $((SNOOZE_STANDBY_SECONDS/60)) min)." "$ARM_KEYBOARD"
+    elif [ "$_blackout" -eq 1 ]; then
       tg_notify "⚠️ <b>A.R.C.H.I.E. DR WATCHDOG — HUB DOWN (BLACKOUT)</b>
 boston-2 cannot reach the hub ($HUB_MESH) AND all ${#OUTPOSTS[@]} outposts are unreachable — Headscale/mesh died with the hub.
 <b>Auto-failover to boston-2 in $((ABORT_WINDOW/60)) min.</b>
@@ -329,9 +364,9 @@ Or reply <code>/dr_proceed</code> · <code>/dr_abort</code> · <code>/dr_standby
       [ -f "$FAILED_OVER_FLAG" ] && { log "already failed over — exit."; exit 0; }
       case "$(poll_action "$armed_at")" in
         proceed)
-          log "operator PROCEED — firing now."
-          tg_notify $'⏩ <b>DR WATCHDOG — PROCEED received</b>\nFailing over to boston-2 NOW.'
-          do_failover; exit 0 ;;
+          log "operator PROCEED — firing now (force: overrides split-brain + heartbeat veto)."
+          tg_notify $'⏩ <b>DR WATCHDOG — PROCEED received</b>\nFailing over to boston-2 NOW (forced).'
+          do_failover force; exit 0 ;;
         abort)
           set_snooze "$SNOOZE_CANCEL_SECONDS"; reset_state
           log "operator CANCEL — snoozing ${SNOOZE_CANCEL_SECONDS}s, then resume scanning."
@@ -353,7 +388,16 @@ Holding for <b>$((SNOOZE_STANDBY_SECONDS/60)) min</b>, then I'll re-check and al
           tg_notify $'✅ <b>DR WATCHDOG — hub recovered</b>\nThe hub is reachable again. Auto-failover CANCELLED. Still on warm standby.'
           reset_state; exit 0
         fi
-        log "abort window elapsed, hub still down — firing."
+        # cont-102 heartbeat VETO: the hub may be mesh-isolated but ALIVE. A fresh,
+        # DB-healthy heartbeat over the public path means promoting now would
+        # split-brain a live DB → SUPPRESS the auto-fire (human can still /dr_proceed).
+        if hub_heartbeat_fresh; then
+          log "window elapsed BUT hub heartbeat FRESH (DB healthy) — mesh-isolation, NOT death. SUPPRESSING auto-failover; snoozing ${SNOOZE_STANDBY_SECONDS}s."
+          tg_notify "🛰️ <b>DR WATCHDOG — auto-failover SUPPRESSED</b>
+The hub is still unreachable over the mesh but is posting a LIVE heartbeat (DB healthy) — mesh-isolation, not death. I am NOT promoting the replica. Holding $((SNOOZE_STANDBY_SECONDS/60)) min then re-checking. Reply <code>/dr_proceed</code> to force failover if you are certain the hub DB is dead."
+          set_snooze "$SNOOZE_STANDBY_SECONDS"; reset_state; exit 0
+        fi
+        log "abort window elapsed, hub still down + no fresh heartbeat — firing."
         do_failover; exit 0
       fi
       # Periodic hub-recovery check (~every 30s; the probe is slow when down).

@@ -1220,18 +1220,87 @@ def mark_task_completed(task_id: int, summary: str, response: str = None, capabi
             )
 
 
+def _delegation_max_attempts() -> int:
+    """Owner-tunable cap: after this many failed delegate attempts a task is
+    auto-dismissed (status='cancelled') instead of looping in 'blocked' forever while
+    the daily triage keeps reviving it (#cont-103). platform_settings
+    'delegation:max_attempts' (default 3); <= 0 disables the cap. Fail-safe to 3."""
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'delegation:max_attempts'")
+            row = cur.fetchone()
+        if row and row.get("value") not in (None, ""):
+            return int(float(row["value"]))
+    except Exception:
+        pass
+    return 3
+
+
+def _capability_is_routable(capability: str) -> bool:
+    """False ONLY when we are confident the delegate worker can't run this capability —
+    it is neither a known-tool shortcut, nor mapped to a department, nor a skill any
+    active AI/contractor agent holds. Everything else (incl. ANY error) returns True so
+    a legitimate delegation is never wrongly failed. Lets the worker fail-fast on dead
+    capabilities (e.g. the stale 'translation_coverage_scan') instead of dispatching to
+    the default dept and hanging to the per-capability deadline (#cont-103)."""
+    if not capability:
+        return True
+    if capability in KNOWN_TOOL_CAPABILITIES:
+        return True
+    try:
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+        if capability in CAPABILITY_DEPARTMENT_MAP:
+            return True
+    except Exception:
+        return True  # can't verify the map → assume routable (fail-open)
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT 1 FROM agent_skills s JOIN agents a ON a.id = s.agent_id "
+                "WHERE s.skill_name = %s AND a.worker_type IN ('ai', 'contractor') "
+                "  AND a.shift_state != 'decommissioned' LIMIT 1",
+                (capability,),
+            )
+            return cur.fetchone() is not None
+    except Exception:
+        return True  # fail-open
+
+
 def mark_task_failed(task_id: int, error: str) -> None:
+    """Record a delegate failure. After ``delegation:max_attempts`` failures the task is
+    auto-dismissed (cancelled) rather than left 'blocked' — which the daily triage would
+    otherwise revive into an endless retry loop (#cont-103)."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
-            "UPDATE unified_tasks SET status = 'blocked' WHERE id = %s",
+            "SELECT COUNT(*) AS n FROM work_notes " "WHERE task_id = %s AND note_type = 'delegation_failure'",
             (task_id,),
         )
+        _r = cur.fetchone()
+        prior = int(_r["n"]) if _r and _r.get("n") is not None else 0
+        attempts = prior + 1
+        cap = _delegation_max_attempts()
+        give_up = cap > 0 and attempts >= cap
+        if give_up:
+            cur.execute(
+                "UPDATE unified_tasks SET status = 'cancelled', updated_at = now(), "
+                "  metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object("
+                "    'auto_dismissed', jsonb_build_object('after_attempts', %s, 'at', now())) "
+                "WHERE id = %s",
+                (attempts, task_id),
+            )
+        else:
+            cur.execute("UPDATE unified_tasks SET status = 'blocked' WHERE id = %s", (task_id,))
         cur.execute(
             """
             INSERT INTO work_notes (task_id, note_type, content, metadata)
             VALUES (%s, 'delegation_failure', %s, %s::jsonb)
             """,
-            (task_id, error, json.dumps({"outcome": "failed"})),
+            (
+                task_id,
+                (error + f" — auto-dismissed after {attempts} failed attempts") if give_up else error,
+                json.dumps({"outcome": "auto_dismissed" if give_up else "failed", "attempts": attempts}),
+            ),
         )
 
 
@@ -1613,6 +1682,19 @@ def run_delegation_cycle(
         source = task.get("delegation_source") or "mcp_client"
         channel = task.get("streaming_channel")
         timeout = capability_timeouts.get(capability, default_timeout)
+        # Fail-fast (#cont-103): a capability no tool/agent can handle would otherwise
+        # dispatch to the default dept and hang to the deadline (`timeout`s) before
+        # blocking. Skip the slot + record a clear failure (the retry cap auto-dismisses
+        # it after a few). Fail-open — routable on any uncertainty, so legit work runs.
+        if not _capability_is_routable(capability):
+            _safe(
+                mark_task_failed,
+                task_id,
+                f"No handler or skilled agent for capability '{capability}' — not dispatched (fail-fast)",
+            )
+            _safe_emit(task_id, "fail", capability, f"No handler for capability '{capability}'", source, channel)
+            stats["failed"] += 1
+            continue
         _safe(mark_task_in_progress, task_id)
         _safe_emit(task_id, "start", capability, "", source, channel)
         future = pool.submit(execute_delegated_task, task)

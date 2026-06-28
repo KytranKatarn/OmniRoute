@@ -63,6 +63,10 @@ def patched(monkeypatch):
     monkeypatch.setattr(ds, "mark_task_failed", lambda tid, err: rec["failed"].append((tid, err)))
     monkeypatch.setattr(ds, "mark_task_queued", lambda tid, summary: rec["queued"].append(tid))
     monkeypatch.setattr(ds, "emit_delegation_event", lambda *a, **k: None)
+    # These tests exercise the concurrency/deadline loop with synthetic capabilities
+    # (e.g. 'slowcap'); bypass the #cont-103 fail-fast gate so they reach the submit
+    # path. The gate itself is covered by test_delegation_fail_fast.py + live checks.
+    monkeypatch.setattr(ds, "_capability_is_routable", lambda capability: True)
     return rec
 
 

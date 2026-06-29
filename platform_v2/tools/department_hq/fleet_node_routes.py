@@ -40,6 +40,38 @@ from .fleet_helpers import (
 
 logger = logging.getLogger(__name__)
 
+
+def _valid_inter_cluster_host(v):
+    """Validate a node-reported host/IP before it is written to remote_nodes.hostname.
+
+    Rejects values that are NEVER valid inter-cluster addresses so they can't
+    poison the row. `mesh_ip` is the canonical dispatch address (ADR-008);
+    `hostname` is metadata + the gdnsd glue-record source. Returns the value if
+    usable, else None (callers COALESCE None -> keep the existing hostname).
+
+    Rejects: docker container short IDs (12-char hex, historically poisoned
+    hostname via X-Forwarded-For), docker-bridge gateways (172.16.0.0/12),
+    loopback, link-local, and 0.0.0.0. Allows hostnames (e.g.
+    host.docker.internal), public IPs, mesh 100.64.x, and LAN 192.168.x
+    (Starships legitimately report their LAN IP). Task #4552.
+    """
+    import re as _re
+
+    if not isinstance(v, str) or not v:
+        return None
+    if _re.fullmatch(r"[0-9a-f]{12}", v):
+        return None
+    try:
+        ip = ipaddress.ip_address(v)
+    except ValueError:
+        return v  # a hostname, not an IP — allow
+    if ip.is_loopback or ip.is_link_local or ip.is_unspecified:
+        return None
+    if isinstance(ip, ipaddress.IPv4Address) and ip in ipaddress.ip_network("172.16.0.0/12"):
+        return None
+    return v
+
+
 # Path to node client distribution package.
 # Inside Docker: /mnt/archie_brain/node_client (bind-mounted from host).
 # On host: /mnt/archie_brain/node_client
@@ -1399,21 +1431,15 @@ def register_node_routes(bp, login_required, admin_required):
                 api_key_hash = hash_api_key(api_key)
 
                 # Auto-detect network type from hostname/IP or request origin.
-                # Reject Docker container short IDs (12-char hex) from either
-                # source — those are unresolvable from the hub and have
+                # Reject values that are never valid inter-cluster addresses
+                # (docker container short IDs, docker-bridge gateways like 172.x,
+                # loopback, link-local) from either source — they have
                 # historically poisoned remote_nodes.hostname via X-Forwarded-For
                 # injection. mesh_ip is the canonical inter-cluster address
-                # (ADR-008). Mirrors the heartbeat handler guard from PR #769.
-                import re as _re_reg
-
-                def _ok_host(v):
-                    if not isinstance(v, str) or not v:
-                        return None
-                    if _re_reg.fullmatch(r"[0-9a-f]{12}", v):
-                        return None
-                    return v
-
-                node_hostname = _ok_host(data.get("hostname")) or _ok_host(request.remote_addr)
+                # (ADR-008). Shared guard with the heartbeat handler, #4552.
+                node_hostname = _valid_inter_cluster_host(data.get("hostname")) or _valid_inter_cluster_host(
+                    request.remote_addr
+                )
                 network_type = detect_network_type(node_hostname)
 
                 # --- FIX1 (DR identity preservation): reclaim, don't recreate ---
@@ -1934,14 +1960,12 @@ def register_node_routes(bp, login_required, admin_required):
     @bp.route("/api/nodes/<node_id>/heartbeat", methods=["POST"])
     def node_heartbeat(node_id):
         """Receive heartbeat from a remote node"""
-        import re as _re_hb
-
         data = request.get_json() or {}
-        # Reject Docker container short IDs as hostname — those are unresolvable
-        # from the hub. mesh_ip is the canonical inter-cluster address (ADR-008).
-        _hb_host = data.get("hostname")
-        if isinstance(_hb_host, str) and _re_hb.fullmatch(r"[0-9a-f]{12}", _hb_host):
-            data["hostname"] = None
+        # Drop host values that are never valid inter-cluster addresses (docker
+        # container short IDs, docker-bridge gateways like 172.x, loopback,
+        # link-local) so they can't poison remote_nodes.hostname. mesh_ip is the
+        # canonical inter-cluster address (ADR-008). Shared guard, #4552.
+        data["hostname"] = _valid_inter_cluster_host(data.get("hostname"))
         api_key = request.headers.get("X-Node-API-Key")
 
         if not api_key:

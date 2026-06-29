@@ -4157,25 +4157,44 @@ async function approvalAction(id, action) {
 async function loadDispatchHistory() {
     var el = document.getElementById('dispatchHistoryContent');
     if (!el) return;
-    var hoursEl = document.getElementById('dispatchHistoryHours');
-    var hours = hoursEl ? hoursEl.value : 24;
     try {
-        var data = await api('/api/dispatch/history?hours=' + hours + '&limit=50');
-        var entries = data.history || [];
-        if (!entries.length) { setHtml(el, '<div class="dhq-empty">No history in this period</div>'); return; }
-        var html = '<table class="dhq-loop-table"><thead><tr>'
-            + '<th>SOURCE</th><th>ACTOR</th><th>ACTION</th><th>STATUS</th><th>DURATION</th><th>TIME</th>'
+        // Backend = /api/dispatch/history -> { stats, rows, lifetime, total, page, pages }
+        var data = await api('/api/dispatch/history?per_page=50');
+        var rows = data.rows || [];
+        var st = data.stats || {};
+        var lt = data.lifetime || {};
+        var fmtN = function(n) { return (n == null ? 0 : Number(n)).toLocaleString(); };
+        var head = '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;padding:8px 10px;margin-bottom:8px;background:var(--dhq-surface-2);border-radius:6px;font-size:0.72rem">'
+            + '<div><span style="color:var(--dhq-text-dim);letter-spacing:0.04em">TOTAL SO FAR</span> &nbsp;'
+            + '<b>' + fmtN(lt.dispatches) + '</b> dispatches &middot; '
+            + '<b>' + fmtN(lt.tokens) + '</b> tokens &middot; '
+            + '<b>' + (lt.co2_kg != null ? Number(lt.co2_kg).toFixed(2) : '\u2014') + '</b> kg CO2 &middot; '
+            + '<b>' + (lt.energy_kwh != null ? Number(lt.energy_kwh).toFixed(1) : '\u2014') + '</b> kWh</div>'
+            + '<div style="margin-left:auto;color:var(--dhq-text-dim)">window: '
+            + fmtN(st.total_calls) + ' calls &middot; ' + fmtN(st.total_tokens) + ' tok &middot; '
+            + (st.total_co2_g != null ? Number(st.total_co2_g).toFixed(1) : '\u2014') + ' gCO2 &middot; '
+            + (st.success_rate != null ? st.success_rate : 0) + '% ok</div>'
+            + '</div>';
+        if (!rows.length) { setHtml(el, head + '<div class="dhq-empty">No dispatches in this period</div>'); return; }
+        var html = head + '<table class="dhq-loop-table"><thead><tr>'
+            + '<th>TIME</th><th>SOURCE</th><th>ACTOR</th><th>ACTION</th><th>STATUS</th><th>MODEL</th>'
+            + '<th style="text-align:right">DUR</th><th style="text-align:right">TOKENS</th><th style="text-align:right">gCO2</th>'
             + '</tr></thead><tbody>';
-        entries.forEach(function(h) {
-            var statusCls = h.status === 'success' ? 'dhq-loop-ok' : h.status === 'failed' ? 'dhq-loop-err' : '';
-            var dur = h.duration_ms ? (h.duration_ms / 1000).toFixed(1) + 's' : '\u2014';
+        rows.forEach(function(r) {
+            var ok = r.success;
+            var statusCls = ok === true ? 'dhq-loop-ok' : ok === false ? 'dhq-loop-err' : '';
+            var statusTxt = ok === true ? 'success' : ok === false ? 'failed' : 'pending';
+            var dur = r.duration_ms ? (r.duration_ms / 1000).toFixed(1) + 's' : '\u2014';
             html += '<tr>'
-                + '<td><span class="dhq-status-badge ' + (h.source === 'dispatch' ? 'dhq-status-running' : 'dhq-status-pending') + '">' + esc(h.source) + '</span></td>'
-                + '<td>' + esc(h.actor) + '</td>'
-                + '<td>' + esc(h.action) + '</td>'
-                + '<td class="' + statusCls + '">' + esc(h.status) + '</td>'
-                + '<td style="color:var(--dhq-text-dim)">' + dur + '</td>'
-                + '<td style="color:var(--dhq-text-dim)">' + fmtTime(h.created_at) + '</td>'
+                + '<td style="color:var(--dhq-text-dim);white-space:nowrap">' + fmtTime(r.created_at) + '</td>'
+                + '<td><span class="dhq-status-badge ' + (r.source === 'task' ? 'dhq-status-running' : 'dhq-status-pending') + '">' + esc(r.source) + '</span></td>'
+                + '<td>' + esc(r.agent_name || '\u2014') + '</td>'
+                + '<td>' + esc(r.capability || '\u2014') + '</td>'
+                + '<td class="' + statusCls + '">' + statusTxt + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + esc(r.model_used || '\u2014') + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + dur + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.tokens_used ? fmtN(r.tokens_used) : '\u2014') + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '\u2014') + '</td>'
                 + '</tr>';
         });
         html += '</tbody></table>';

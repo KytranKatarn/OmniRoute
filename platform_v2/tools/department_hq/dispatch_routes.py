@@ -26,6 +26,49 @@ if not OLLAMA_URL.startswith("http"):
     OLLAMA_URL = f"http://{OLLAMA_URL}"
 
 
+# All-time dispatch totals ("total so far") — a full task_execution_log scan
+# (~700ms over 600k+ rows), so cached in-process for 10 min.
+_LIFETIME_CACHE = {"ts": 0.0, "data": None}
+
+
+def _dispatch_lifetime_totals():
+    """Cumulative dispatches / tokens / energy / CO2 across ALL of
+    task_execution_log. CO2 uses the shared C.R.E.E.D. estimator fragment
+    (cloud/contractor rows excluded). Cached 10 min."""
+    import time
+
+    now = time.time()
+    cached = _LIFETIME_CACHE.get("data")
+    if cached is not None and (now - _LIFETIME_CACHE["ts"]) < 600:
+        return cached
+    try:
+        from services.carbon_footprint_service import _CANADA_GRID_KG_CO2_PER_KWH, co2_g_sql
+
+        _co2 = co2_g_sql()
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                f"""SELECT COUNT(*)::bigint AS dispatches,
+                          COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
+                          COALESCE(SUM({_co2}), 0)::double precision AS co2_g
+                   FROM task_execution_log"""
+            )
+            r = dict(cur.fetchone())
+        co2_kg = round(r["co2_g"] / 1000.0, 4)
+        grid = _CANADA_GRID_KG_CO2_PER_KWH or 0.15
+        data = {
+            "dispatches": int(r["dispatches"]),
+            "tokens": int(r["tokens"]),
+            "co2_g": round(r["co2_g"], 1),
+            "co2_kg": co2_kg,
+            "energy_kwh": round(co2_kg / grid, 3),
+        }
+        _LIFETIME_CACHE.update(ts=now, data=data)
+        return data
+    except Exception:
+        logger.exception("[Dispatch] lifetime totals failed")
+        return _LIFETIME_CACHE.get("data")
+
+
 def register_dispatch_routes(bp, admin_required_decorator):
     """Register dispatch & orchestration monitoring endpoints."""
 
@@ -476,6 +519,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
         to_dt = request.args.get("to", default_to) + " 23:59:59"
 
         try:
+            from services.carbon_footprint_service import co2_g_for, co2_g_sql
+
+            _co2 = co2_g_sql()
             with get_db_cursor() as (conn, cur):
                 # task_execution_log CTE
                 # SAFETY: all items in task_filters/job_filters must use %(param)s placeholders.
@@ -504,6 +550,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            tel.error_message,
                            tel.created_at,
                            tel.tokens_used,
+                           tel.worker_type,
                            COALESCE(tel.cost, 0)::float AS cost,
                            CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase' THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS node_name
                     FROM task_execution_log tel
@@ -544,6 +591,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                            bj.error_message,
                            bj.created_at,
                            NULL::int AS tokens_used,
+                           NULL::text AS worker_type,
                            0::float AS cost,
                            CASE WHEN COALESCE(bj.metadata->>'node_name','') = ''
                                      OR LOWER(bj.metadata->>'node_name') IN ('archie starbase','archie-starbase','hub','archie-hub')
@@ -581,6 +629,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     SELECT
                         COUNT(*)::int AS total_calls,
                         COALESCE(SUM(tokens_used), 0)::bigint AS total_tokens,
+                        COALESCE(SUM({co2}), 0)::double precision AS total_co2_g,
                         ROUND(
                             100.0 * SUM(CASE WHEN success THEN 1 ELSE 0 END)
                             / NULLIF(COUNT(*) FILTER (WHERE success IS NOT NULL), 0), 1
@@ -593,7 +642,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         MODE() WITHIN GROUP (ORDER BY module) AS top_module
                     FROM combined
                     """.format(
-                        union=union_sql
+                        union=union_sql, co2=_co2
                     ),
                     params,
                 )
@@ -603,6 +652,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                     "success_rate": float(sr["success_rate"] or 0),
                     "avg_duration_s": float(sr["avg_duration_s"] or 0),
                     "total_tokens": int(sr["total_tokens"] or 0),
+                    "total_co2_g": round(float(sr["total_co2_g"] or 0), 3),
                     "top_agent": sr["top_agent"] or "—",
                     "top_module": sr["top_module"] or "—",
                 }
@@ -631,6 +681,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         "error_message": r["error_message"],
                         "created_at": r["created_at"].isoformat() if r["created_at"] else None,
                         "tokens_used": r["tokens_used"],
+                        "co2_g": (
+                            None if r.get("worker_type") == "contract" else co2_g_for(r["model_used"], r["duration_ms"])
+                        ),
                         "cost": r["cost"],
                         "node_name": r.get("node_name", "Hub"),
                     }
@@ -643,6 +696,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 {
                     "stats": stats,
                     "rows": rows,
+                    "lifetime": _dispatch_lifetime_totals(),
                     "total": total,
                     "page": page,
                     "pages": pages,

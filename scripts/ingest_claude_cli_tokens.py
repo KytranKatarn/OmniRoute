@@ -110,12 +110,13 @@ def build_sql(agg):
         }
         created_at = f"{day} 12:00:00"  # naive UTC, lands in the right day bucket
         values.append(
-            "(NULL, {an}, {model}, {prov}, {wt}, {cap}, {inp}, {out}, {out2}, true, {ts}, {meta}::jsonb)".format(
+            "(NULL, {an}, {model}, {prov}, {wt}, {cap}, {ms}, {inp}, {out}, {out2}, true, {ts}, {meta}::jsonb)".format(
                 an=_sql_str(AGENT_NAME),
                 model=_sql_str(model),
                 prov=_sql_str(PROVIDER),
                 wt=_sql_str(WORKER_TYPE),
                 cap=_sql_str(CAPABILITY),
+                ms=_sql_str("claude_cli"),
                 inp=a["input"],
                 out=a["output"],
                 out2=a["output"],
@@ -126,7 +127,7 @@ def build_sql(agg):
     if values:
         lines.append(
             "INSERT INTO task_execution_log "
-            "(agent_id, agent_name, model_used, provider, worker_type, capability, "
+            "(agent_id, agent_name, model_used, provider, worker_type, capability, module_source, "
             "prompt_tokens, completion_tokens, tokens_used, success, created_at, request_metadata) VALUES"
         )
         lines.append(",\n".join(values) + ";")

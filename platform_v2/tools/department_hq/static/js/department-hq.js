@@ -4483,6 +4483,7 @@ function showTrafficView(view) {
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">CAPABILITY</th>'
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">MODEL</th>'
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">SOURCE</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOKENS</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">MS</th>'
             + '</tr>';
         rows.forEach(function(r) {
@@ -4494,6 +4495,7 @@ function showTrafficView(view) {
                 + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.capability) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.model) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.source) + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.tokens != null && r.tokens > 0 ? Number(r.tokens).toLocaleString() : '—') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.duration_ms != null ? r.duration_ms : '—') + '</td>'
                 + '</tr>';
         });

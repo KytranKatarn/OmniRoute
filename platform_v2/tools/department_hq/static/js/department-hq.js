@@ -4152,6 +4152,21 @@ async function approvalAction(id, action) {
     } catch (e) { alert('Failed: ' + e.message); }
 }
 
+// Classify a dispatch row's model: real LLM inference vs a non-LLM marker.
+// Markers (orchestration/job bookkeeping = 'bridge-managed'/'internal', scrape =
+// 'browser', image = 'comfyui', embeddings = 'batch'/*embed*) ran NO model — their
+// duration is cycle wall-clock, so tokens/CO2/Wh are n/a, not 0. Mirrors the
+// backend carbon_footprint_service._is_llm_model + Token Economy exclude-list.
+function _dhqModelKind(model) {
+    var m = (model == null ? '' : String(model)).trim().toLowerCase();
+    if (m === 'bridge-managed' || m === 'internal') return { label: '⚙ orchestration', llm: false };
+    if (m === 'browser') return { label: '🌐 scrape', llm: false };
+    if (m === 'comfyui') return { label: '🎨 image', llm: false };
+    if (m === 'batch' || m.indexOf('embed') >= 0) return { label: 'embedding', llm: false };
+    if (!m) return { label: '—', llm: false };
+    return { label: model, llm: true };
+}
+
 // ── History ──
 
 async function loadDispatchHistory() {
@@ -4185,17 +4200,18 @@ async function loadDispatchHistory() {
             var statusCls = ok === true ? 'dhq-loop-ok' : ok === false ? 'dhq-loop-err' : '';
             var statusTxt = ok === true ? 'success' : ok === false ? 'failed' : 'pending';
             var dur = r.duration_ms ? (r.duration_ms / 1000).toFixed(1) + 's' : '\u2014';
+            var mk = _dhqModelKind(r.model_used);
             html += '<tr>'
                 + '<td style="color:var(--dhq-text-dim);white-space:nowrap">' + fmtTime(r.created_at) + '</td>'
                 + '<td><span class="dhq-status-badge ' + (r.source === 'task' ? 'dhq-status-running' : 'dhq-status-pending') + '">' + esc(r.source) + '</span></td>'
                 + '<td>' + esc(r.agent_name || '\u2014') + '</td>'
                 + '<td>' + esc(r.capability || '\u2014') + '</td>'
                 + '<td class="' + statusCls + '">' + statusTxt + '</td>'
-                + '<td style="color:var(--dhq-text-dim)">' + esc(r.model_used || '\u2014') + '</td>'
+                + '<td style="color:var(--dhq-text-dim)">' + esc(mk.label) + '</td>'
                 + '<td style="text-align:right;color:var(--dhq-text-dim)">' + dur + '</td>'
-                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.tokens_used ? fmtN(r.tokens_used) : '\u2014') + '</td>'
-                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '\u2014') + '</td>'
-                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '\u2014') + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.tokens_used ? fmtN(r.tokens_used) : '\u2014') : 'n/a') + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '\u2014') : 'n/a') + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '\u2014') : 'n/a') + '</td>'
                 + '</tr>';
         });
         html += '</tbody></table>';
@@ -4511,15 +4527,16 @@ function showTrafficView(view) {
         rows.forEach(function(r) {
             var ok = r.success;
             var dot = '<span style="color:' + (ok ? '#10B981' : '#EF4444') + '">' + (ok ? '✓' : '✗') + '</span>';
+            var mk = _dhqModelKind(r.model);
             html += '<tr style="border-bottom:1px solid var(--dhq-border)">'
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim);white-space:nowrap">' + (r.ts ? fmtTime(r.ts) : '—') + '</td>'
                 + '<td style="padding:3px 6px">' + dot + ' ' + esc(r.agent) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.capability) + '</td>'
-                + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.model) + '</td>'
+                + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(mk.label) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.source) + '</td>'
-                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.tokens != null && r.tokens > 0 ? Number(r.tokens).toLocaleString() : '—') + '</td>'
-                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '—') + '</td>'
-                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '—') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.tokens != null && r.tokens > 0 ? Number(r.tokens).toLocaleString() : '—') : 'n/a') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '—') : 'n/a') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '—') : 'n/a') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.duration_ms != null ? r.duration_ms : '—') + '</td>'
                 + '</tr>';
         });

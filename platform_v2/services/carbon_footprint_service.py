@@ -34,30 +34,49 @@ def _watts_for_model(model_used: str) -> float:
     return _GPU_TDP_W if base in {m.split(":")[0] for m in _GPU_MODELS} else _CPU_INFERENCE_W
 
 
+# Non-LLM model sentinels (mirror the Token Economy exclude-list in
+# code_health_routes.py + telemetry_writer.MARKER_MODEL_SENTINEL). Rows with
+# these "models" are NOT inference — orchestration/job MARKERS (bridge-managed /
+# internal), web scraping (browser), image gen (comfyui), or embeddings (batch /
+# *embed*). Their duration is cycle/job wall-clock, NOT model runtime, so a
+# watts x duration estimate would FABRICATE carbon. CO2/Wh are n/a (None) for them.
+_NON_LLM_MODELS = {"bridge-managed", "internal", "batch", "browser", "comfyui", ""}
+
+
+def _is_llm_model(model_used) -> bool:
+    """True only for a real LLM-inference model — the set that legitimately burns
+    watts per token. Markers/scrape/image/embeddings return False (carbon n/a)."""
+    m = (model_used or "").strip().lower()
+    return bool(m) and m not in _NON_LLM_MODELS and "embed" not in m
+
+
 def _co2_kg(watts: float, duration_ms: int) -> float:
     hours = duration_ms / 1_000 / 3_600
     kwh = watts * hours / 1000.0
     return round(kwh * _CANADA_GRID_KG_CO2_PER_KWH, 8)
 
 
-def co2_g_for(model_used, duration_ms) -> float:
+def co2_g_for(model_used, duration_ms):
     """Grams CO2 for ONE dispatch (local-cluster energy only). Same methodology
     as the hourly carbon job: _watts_for_model x duration x Canada grid factor.
     Reused by the DHQ Dispatch/TRAFFIC views so their CO2 reconciles with the
-    C.R.E.E.D. environmental pillar. Returns 0.0 for missing duration."""
-    if not duration_ms:
-        return 0.0
+    C.R.E.E.D. environmental pillar. Returns **None (n/a)** for non-LLM rows
+    (orchestration/job markers, scrape, embeddings — their duration is cycle
+    wall-clock, not model runtime, so a carbon estimate would be fabricated) or
+    missing duration."""
+    if not _is_llm_model(model_used) or not duration_ms:
+        return None
     return round(_co2_kg(_watts_for_model(model_used or ""), int(duration_ms)) * 1000.0, 4)
 
 
-def energy_wh_for(model_used, duration_ms) -> float:
+def energy_wh_for(model_used, duration_ms):
     """Watt-hours for ONE dispatch = watts(model) x duration. The meaningful
     per-row 'power used' figure (basis for CO2). Same _watts_for_model basis as
     co2_g_for(), so feed/history energy reconciles with the CREED carbon pillar.
-    energy_wh = co2_g / grid_factor, but computed directly here. Returns 0.0 for
-    missing/zero duration (e.g. job-marker rows)."""
-    if not duration_ms:
-        return 0.0
+    Returns **None (n/a)** for non-LLM rows (markers/scrape/embeddings) or
+    missing/zero duration — they did no inference, so there is no model runtime."""
+    if not _is_llm_model(model_used) or not duration_ms:
+        return None
     return round(_watts_for_model(model_used or "") * int(duration_ms) / 3_600_000.0, 4)
 
 
@@ -68,18 +87,26 @@ _GPU_BASES = sorted({m.split(":")[0] for m in _GPU_MODELS})
 
 def co2_g_sql(model_col: str = "model_used", dur_col: str = "duration_ms", worker_col: str = "worker_type") -> str:
     """SQL fragment (grams CO2 per row) for SUM() aggregations — IDENTICAL
-    methodology to co2_g_for(), built from the python constants. Cloud/contractor
-    rows (worker_type='contract', e.g. Claude CLI) contribute 0: they do not run
-    on our cluster, so a local-watts number would be wrong. co2_g = watts * ms *
-    grid / 3_600_000."""
+    methodology to co2_g_for(), built from the python constants. Returns **NULL**
+    (skipped by SUM) for non-inference rows so they never inflate a CO2 total:
+    cloud/contractor (worker_type='contract' — not our cluster) AND non-LLM model
+    sentinels (markers bridge-managed/internal, scrape browser, image comfyui,
+    embeddings batch/*embed* — their duration is cycle wall-clock, not model
+    runtime). co2_g = watts * ms * grid / 3_600_000 for real LLM rows only."""
     bases = ", ".join("'%s'" % b for b in _GPU_BASES)
+    sentinels = ", ".join("'%s'" % s for s in sorted(_NON_LLM_MODELS) if s)
     return (
-        "(CASE WHEN {w} = 'contract' THEN 0 ELSE "
-        "(CASE WHEN split_part(lower(COALESCE({m}, '')), ':', 1) IN ({b}) "
+        "(CASE "
+        "WHEN {w} = 'contract' THEN NULL "
+        "WHEN lower(COALESCE({m}, '')) IN ({s}) THEN NULL "
+        "WHEN lower(COALESCE({m}, '')) LIKE '%%embed%%' THEN NULL "
+        "WHEN COALESCE({m}, '') = '' THEN NULL "
+        "ELSE (CASE WHEN split_part(lower(COALESCE({m}, '')), ':', 1) IN ({b}) "
         "THEN {gpu} ELSE {cpu} END) * COALESCE({d}, 0) * {grid} / 3600000.0 END)"
     ).format(
         w=worker_col,
         m=model_col,
+        s=sentinels,
         b=bases,
         gpu=_GPU_TDP_W,
         cpu=_CPU_INFERENCE_W,

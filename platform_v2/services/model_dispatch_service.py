@@ -884,7 +884,7 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
         log.debug("model_dispatch: callback failed for task %d: %s", task_id, exc)
 
 
-def _log_to_tel(task: dict, result: dict, model_used: str, node_id) -> None:
+def _log_to_tel(task: dict, result: dict, model_used: str, node_id, duration_ms: int = 0) -> None:
     """Mirror a queue-drained dispatch into task_execution_log (P1.2, #3801).
 
     The queue worker calls disp._dispatch_to_node()/_execute_llm() DIRECTLY,
@@ -910,6 +910,18 @@ def _log_to_tel(task: dict, result: dict, model_used: str, node_id) -> None:
         meta = {"via": "model_dispatch_worker"}
         if node_id is not None:
             meta["node_id"] = node_id
+        # duration_ms feeds CO2/energy/avg-ms in A.R.M.A.D.A. + the carbon pillar.
+        # The queue worker bypasses request_work(), so without this every drained
+        # row logged 0 -> 0 CO2/Wh/avg-ms for ~1.4k real fleet dispatches/day.
+        # Prefer the caller's measured wall-clock; fall back to ollama total_duration
+        # (ns -> ms) if the caller didn't pass one (defensive).
+        dur_ms = int(duration_ms or 0)
+        if dur_ms <= 0:
+            try:
+                _td = int(result.get("total_duration") or 0)
+                dur_ms = _td // 1_000_000 if _td > 1_000_000 else _td
+            except Exception:
+                dur_ms = 0
         dr = DispatchResult(
             success=True,
             response=result.get("response", "") or "",
@@ -919,6 +931,7 @@ def _log_to_tel(task: dict, result: dict, model_used: str, node_id) -> None:
             prompt_tokens=prompt_toks,
             completion_tokens=completion_toks,
             provider="ollama",
+            duration_ms=dur_ms,
             metadata=meta,
             queued=False,
         )
@@ -1033,6 +1046,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             if not (_rd and _rd.get("ready")):
                 _requeue_cold(task_id, model, node_name)
                 return
+            _t0 = time.time()
             result = disp._dispatch_to_node(
                 agent_info={
                     "agent_name": task.get("agent_name", "unknown"),
@@ -1059,7 +1073,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                     or result.get("tokens_used", 0)
                 )
                 _mark_done(task_id, result.get("response", ""), model, node_tokens, node_id)
-                _log_to_tel(task, result, model, node_id)
+                _log_to_tel(task, result, model, node_id, int((time.time() - _t0) * 1000))
             else:
                 _mark_failed(task_id, result.get("error", "node dispatch failed") if result else "no result")
         else:
@@ -1078,6 +1092,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             if not (_rd and _rd.get("ready")):
                 _requeue_cold(task_id, model, "hub")
                 return
+            _t0 = time.time()
             result = disp._execute_llm(
                 model=model,
                 prompt=task.get("prompt", ""),
@@ -1091,7 +1106,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                 tokens = result.get("eval_count") or result.get("completion_tokens", 0)
                 response = result.get("response", "")
                 _mark_done(task_id, response, result.get("model", model), tokens, None)
-                _log_to_tel(task, result, result.get("model", model), None)
+                _log_to_tel(task, result, result.get("model", model), None, int((time.time() - _t0) * 1000))
                 # Pipeline continuation: social draft → translate → Telegram approval
                 if task.get("capability") == "social_post_draft" and response:
                     _continue_signal_pipeline(task, response)

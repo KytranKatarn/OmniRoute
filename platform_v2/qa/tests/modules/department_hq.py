@@ -84,6 +84,41 @@ async def test_fleet_subtabs_render(authenticated_page):
 
 
 @pytest.mark.asyncio
+async def test_armada_traffic_real_inference_toggle(authenticated_page):
+    """A.R.M.A.D.A. TRAFFIC feed renders the 'Real inference only' toggle (#1989,
+    hides orchestration markers, default checked). Activate fleet tab -> traffic
+    section -> feed view -> assert the checkbox + label exist and screenshot."""
+    page = authenticated_page
+    await navigate_to(page, "/tools/department-hq/#fleet")
+    await page.wait_for_timeout(1200)
+    await page.evaluate("() => { if (window.lcarsHeaderSwitchTab) lcarsHeaderSwitchTab('fleet'); }")
+    await page.wait_for_timeout(800)
+    await page.evaluate("() => { if (typeof switchArmadaSection==='function') switchArmadaSection('traffic'); }")
+    await page.wait_for_timeout(800)
+    # Feed view ('feed', the default) is where the toggle renders.
+    await page.evaluate("() => { if (typeof showTrafficView==='function') showTrafficView('feed'); }")
+    # Wait for the async feed fetch + render to surface the toggle label.
+    await page.wait_for_function(
+        "() => Array.from(document.querySelectorAll('label'))"
+        ".some(l => /real inference only/i.test(l.innerText||''))",
+        timeout=10000,
+    )
+    info = await page.evaluate(
+        "() => {"
+        " const lbl = Array.from(document.querySelectorAll('label'))"
+        "   .find(l => /real inference only/i.test(l.innerText||''));"
+        " if (!lbl) return {found:false};"
+        " const cb = lbl.querySelector('input[type=checkbox]');"
+        " return {found:true, hasCheckbox:!!cb, checked: cb?cb.checked:null,"
+        "         text:(lbl.innerText||'').trim()}; }"
+    )
+    assert info["found"], "A.R.M.A.D.A. TRAFFIC 'Real inference only' toggle not found"
+    assert info["hasCheckbox"], "toggle is missing its checkbox input"
+    assert info["checked"] is True, f"toggle should default CHECKED (real-only); got checked={info['checked']}"
+    await screenshot(page, "armada-traffic-real-inference-toggle")
+
+
+@pytest.mark.asyncio
 async def test_fleet_node_count_is_consistent(authenticated_page):
     """True-to-nodes: the admin all-nodes list and the fleet map must agree.
     Catches the route-collision / scoping drift that returned only a subset."""

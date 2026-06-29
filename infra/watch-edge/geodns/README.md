@@ -30,7 +30,7 @@ healthy edge, gdnsd falls through to the next (e.g. EU edges all down → EU use
 
 ## Nameservers (≥3, geo-spread)
 `ns1`=Outpost-US (76.13.107.109, NA) · `ns2`=Outpost-UK (2.24.130.153, EU) · `ns3`=Outpost-Singapore (156.67.217.86, APAC).
-> ⚠️ `ns1` needs **task #4552** first — Outpost-US `remote_nodes.hostname` is the stale docker-bridge `172.27.0.1`, not its real public IP.
+> ✅ `ns1` prerequisite met (**task #4552**, done 2026-06-29) — Outpost-US `remote_nodes.hostname` corrected to its real public IP `76.13.107.109` and durably guarded against the docker-bridge `172.27.0.1` re-report. Nameserver deploy + the Watch-domain NS-record flip remain the Stage-3 cutover.
 
 ## Validation (done 2026-06-28, cont-105 — isolated on the hub, zero production touch)
 - `gdnsd checkconf` → exit 0; GeoIP2 DB loads (840,354 nets, 4 dclists); zone loads.

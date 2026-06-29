@@ -4484,6 +4484,7 @@ function showTrafficView(view) {
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">MODEL</th>'
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">SOURCE</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOKENS</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">gCO2</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">MS</th>'
             + '</tr>';
         rows.forEach(function(r) {
@@ -4496,6 +4497,7 @@ function showTrafficView(view) {
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.model) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.source) + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.tokens != null && r.tokens > 0 ? Number(r.tokens).toLocaleString() : '—') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '—') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.duration_ms != null ? r.duration_ms : '—') + '</td>'
                 + '</tr>';
         });
@@ -4518,6 +4520,7 @@ function showTrafficView(view) {
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">OK%</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">AVG MS</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOKENS</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">gCO2</th>'
             + '</tr>';
         rows.forEach(function(r) {
             var pct = r.total > 0 ? Math.round(r.successes / r.total * 100) : 0;
@@ -4528,6 +4531,7 @@ function showTrafficView(view) {
                 + '<td style="padding:3px 6px;text-align:right;color:' + pctColor + '">' + pct + '%</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.avg_ms != null ? r.avg_ms : '—') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + formatNum(r.tokens || 0) + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g > 0 ? Number(r.co2_g).toFixed(2) : '—') + '</td>'
                 + '</tr>';
         });
         setHtml(el, html + '</table>');

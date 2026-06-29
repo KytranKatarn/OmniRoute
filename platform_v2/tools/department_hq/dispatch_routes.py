@@ -1084,11 +1084,17 @@ def register_dispatch_routes(bp, admin_required_decorator):
         _drilled = bool(_fagent or _fsource or _fmodel or _fnode)
         _feed_limit = 100 if _drilled else limit
         try:
+            # Carbon (grams CO2) — reuse the C.R.E.E.D. estimator methodology so
+            # dispatch CO2 reconciles with the environmental pillar (#4564).
+            from services.carbon_footprint_service import co2_g_for, co2_g_sql
+
+            _co2 = co2_g_sql()
+            _co2_tel = co2_g_sql("tel.model_used", "tel.duration_ms", "tel.worker_type")
             with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """SELECT COALESCE(a.name, tel.agent_name) AS agent_name,
                               tel.capability, tel.model_used, tel.module_source,
-                              tel.success, tel.duration_ms, tel.tokens_used, tel.created_at,
+                              tel.success, tel.duration_ms, tel.tokens_used, tel.worker_type, tel.created_at,
                               CASE WHEN rn.node_id IS NULL OR rn.node_id = 'archie-starbase' THEN 'Starbase - A.R.C.H.I.E.' ELSE rn.node_name END AS node_name,
                               (tel.request_metadata->>'dr_mode')::boolean AS dr_mode
                        FROM task_execution_log tel
@@ -1116,16 +1122,22 @@ def register_dispatch_routes(bp, admin_required_decorator):
                             "success": r.get("success"),
                             "duration_ms": r.get("duration_ms"),
                             "tokens": r.get("tokens_used"),
+                            "co2_g": (
+                                None
+                                if r.get("worker_type") == "contract"
+                                else co2_g_for(r.get("model_used"), r.get("duration_ms"))
+                            ),
                             "ts": r["created_at"].isoformat() if r.get("created_at") else None,
                             "dr_mode": bool(r.get("dr_mode")),
                         }
                     )
 
                 cur.execute(
-                    """SELECT COALESCE(module_source, 'unknown') AS label,
+                    f"""SELECT COALESCE(module_source, 'unknown') AS label,
                               COUNT(*) AS total,
                               COUNT(*) FILTER (WHERE success) AS successes,
                               COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
+                              COALESCE(SUM({_co2}), 0)::double precision AS co2_g,
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'
@@ -1135,10 +1147,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 by_source = [dict(r) for r in cur.fetchall()]
 
                 cur.execute(
-                    """SELECT COALESCE(agent_name, 'unknown') AS label,
+                    f"""SELECT COALESCE(agent_name, 'unknown') AS label,
                               COUNT(*) AS total,
                               COUNT(*) FILTER (WHERE success) AS successes,
                               COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
+                              COALESCE(SUM({_co2}), 0)::double precision AS co2_g,
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'
@@ -1148,10 +1161,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 by_agent = [dict(r) for r in cur.fetchall()]
 
                 cur.execute(
-                    """SELECT COALESCE(model_used, 'unknown') AS label,
+                    f"""SELECT COALESCE(model_used, 'unknown') AS label,
                               COUNT(*) AS total,
                               COUNT(*) FILTER (WHERE success) AS successes,
                               COALESCE(SUM(tokens_used), 0)::bigint AS tokens,
+                              COALESCE(SUM({_co2}), 0)::double precision AS co2_g,
                               ROUND(AVG(duration_ms))::int AS avg_ms
                        FROM task_execution_log
                        WHERE created_at > NOW() - INTERVAL '%s hours'
@@ -1182,6 +1196,9 @@ def register_dispatch_routes(bp, admin_required_decorator):
                                   COUNT(*) AS total,
                                   COUNT(*) FILTER (WHERE tel.success) AS successes,
                                   COALESCE(SUM(tel.tokens_used), 0)::bigint AS tokens,
+                                  COALESCE(SUM("""
+                        + _co2_tel
+                        + """), 0)::double precision AS co2_g,
                                   ROUND(AVG(tel.duration_ms))::int AS avg_ms
                            FROM task_execution_log tel
                            LEFT JOIN remote_nodes rn ON rn.id = tel.node_used_id

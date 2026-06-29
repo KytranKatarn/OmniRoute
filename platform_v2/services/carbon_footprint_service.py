@@ -40,6 +40,43 @@ def _co2_kg(watts: float, duration_ms: int) -> float:
     return round(kwh * _CANADA_GRID_KG_CO2_PER_KWH, 8)
 
 
+def co2_g_for(model_used, duration_ms) -> float:
+    """Grams CO2 for ONE dispatch (local-cluster energy only). Same methodology
+    as the hourly carbon job: _watts_for_model x duration x Canada grid factor.
+    Reused by the DHQ Dispatch/TRAFFIC views so their CO2 reconciles with the
+    C.R.E.E.D. environmental pillar. Returns 0.0 for missing duration."""
+    if not duration_ms:
+        return 0.0
+    return round(_co2_kg(_watts_for_model(model_used or ""), int(duration_ms)) * 1000.0, 4)
+
+
+# GPU model base names (derived once) so the SQL fragment below can't drift
+# from _GPU_MODELS / _watts_for_model.
+_GPU_BASES = sorted({m.split(":")[0] for m in _GPU_MODELS})
+
+
+def co2_g_sql(model_col: str = "model_used", dur_col: str = "duration_ms", worker_col: str = "worker_type") -> str:
+    """SQL fragment (grams CO2 per row) for SUM() aggregations — IDENTICAL
+    methodology to co2_g_for(), built from the python constants. Cloud/contractor
+    rows (worker_type='contract', e.g. Claude CLI) contribute 0: they do not run
+    on our cluster, so a local-watts number would be wrong. co2_g = watts * ms *
+    grid / 3_600_000."""
+    bases = ", ".join("'%s'" % b for b in _GPU_BASES)
+    return (
+        "(CASE WHEN {w} = 'contract' THEN 0 ELSE "
+        "(CASE WHEN split_part(lower(COALESCE({m}, '')), ':', 1) IN ({b}) "
+        "THEN {gpu} ELSE {cpu} END) * COALESCE({d}, 0) * {grid} / 3600000.0 END)"
+    ).format(
+        w=worker_col,
+        m=model_col,
+        b=bases,
+        gpu=_GPU_TDP_W,
+        cpu=_CPU_INFERENCE_W,
+        d=dur_col,
+        grid=_CANADA_GRID_KG_CO2_PER_KWH,
+    )
+
+
 # Severity bands are relative to FLEET BASELINE, not absolute energy use —
 # normal 24/7 operation must rate 'info', or the environmental pillar punishes
 # the cluster for existing (hub baseline ~1.4 kWh/h at ~700 runs/h incl. GPU;

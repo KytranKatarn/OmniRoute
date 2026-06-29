@@ -4477,6 +4477,7 @@ async function saveDispatchConfig(key) {
 var _trafficData = null;
 var _trafficView = 'feed';
 var _trafficFilter = null;  // #4345 drill-down: {dim:'source'|'agent'|'model'|'node', value:'...'}
+var _trafficRealOnly = true;  // feed default: real LLM inference only (hide orchestration markers)
 
 // Drill into a breakdown row -> filter the feed to that entity's recent actions.
 function dhqTrafficDrill(dim, value) {
@@ -4489,6 +4490,11 @@ function dhqTrafficClearFilter() {
     _trafficFilter = null;
     loadDispatchTraffic();
 }
+// Feed toggle: real LLM inference only (default) vs include orchestration markers.
+function dhqTrafficToggleMarkers() {
+    _trafficRealOnly = !_trafficRealOnly;
+    loadDispatchTraffic();
+}
 
 async function loadDispatchTraffic() {
     var el = document.getElementById('trafficContent');
@@ -4498,6 +4504,7 @@ async function loadDispatchTraffic() {
     try {
         var _turl = '/api/dispatch/traffic?hours=' + hours;
         if (_trafficFilter) _turl += '&f' + _trafficFilter.dim + '=' + encodeURIComponent(_trafficFilter.value);
+        if (!_trafficRealOnly) _turl += '&markers=all';
         _trafficData = await api(_turl);
         if (sumEl) {
             var rate = _trafficData.success_rate != null ? _trafficData.success_rate + '% ok' : '';
@@ -4519,9 +4526,11 @@ function showTrafficView(view) {
     if (!el || !_trafficData) return;
     if (view === 'feed') {
         var rows = (_trafficData.feed || []);
-        var _chip = '';
+        var _chip = '<div style="margin-bottom:6px"><label style="display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-size:0.72rem;color:var(--dhq-text-dim)">'
+            + '<input type="checkbox" ' + (_trafficRealOnly ? 'checked' : '') + ' onchange="dhqTrafficToggleMarkers()" style="cursor:pointer">'
+            + 'Real inference only <span style="opacity:0.6">— hide orchestration markers</span></label></div>';
         if (_trafficFilter) {
-            _chip = '<div style="padding:5px 8px;margin-bottom:6px;background:var(--dhq-surface-2);border-radius:5px;font-size:0.72rem;display:flex;align-items:center;gap:8px">'
+            _chip += '<div style="padding:5px 8px;margin-bottom:6px;background:var(--dhq-surface-2);border-radius:5px;font-size:0.72rem;display:flex;align-items:center;gap:8px">'
                 + '<span style="color:var(--dhq-text-dim)">▸ ' + esc(_trafficFilter.dim.toUpperCase()) + ' =</span>'
                 + '<span style="color:var(--dhq-accent)">' + esc(_trafficFilter.value) + '</span>'
                 + '<span style="cursor:pointer;color:#EF4444;margin-left:auto" onclick="dhqTrafficClearFilter()">✕ clear</span>'

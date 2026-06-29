@@ -1141,6 +1141,19 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 _feed_where.append("rn.node_name = %s")
                 _feed_params.append(_fnode)
         _drilled = bool(_fagent or _fsource or _fmodel or _fnode)
+        # 'Real inference only' (default): hide non-LLM orchestration/job MARKERS
+        # (worker_type NULL / sentinel models bridge-managed/internal), scrape
+        # (browser) + embeddings from the FEED so it shows real LLM dispatches with
+        # tokens. markers=all shows everything. A drill into a specific source/agent
+        # always shows ALL its rows (incl. markers) so you can inspect them.
+        _show_markers = (request.args.get("markers") or "").lower() == "all"
+        if not _show_markers and not _drilled:
+            _feed_where.append(
+                "tel.worker_type IS NOT NULL "
+                "AND lower(COALESCE(tel.model_used, '')) NOT IN "
+                "('bridge-managed', 'internal', 'batch', 'browser', 'comfyui', '') "
+                "AND lower(COALESCE(tel.model_used, '')) NOT LIKE '%%embed%%'"
+            )
         _feed_limit = 100 if _drilled else limit
         try:
             # Carbon (grams CO2) — reuse the C.R.E.E.D. estimator methodology so

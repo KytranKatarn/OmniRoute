@@ -4167,6 +4167,22 @@ function _dhqModelKind(model) {
     return { label: model, llm: true };
 }
 
+// Friendly DISPLAY label for a dispatch module_source. The stored value is an
+// internal tag (used by filters/queries/history — never renamed); this only
+// prettifies the feed + BY SOURCE breakdown. Unmapped tags pass through as-is.
+function _dhqSourceLabel(source) {
+    var s = (source == null ? '' : String(source)).trim();
+    var MAP = {
+        'agent_loop': 'Autonomy · jobs',
+        'scraper': 'S.C.O.U.T. · browser',
+        'fleet_warmup': 'Fleet warm-up',
+        'kin_warmth': 'K.I.N. warm-up',
+        'model_dispatch': 'Cold-load queue',
+        'coverage_scan': 'Coverage scan'
+    };
+    return MAP[s.toLowerCase()] || s || '—';
+}
+
 // ── History ──
 
 async function loadDispatchHistory() {
@@ -4533,7 +4549,7 @@ function showTrafficView(view) {
                 + '<td style="padding:3px 6px">' + dot + ' ' + esc(r.agent) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.capability) + '</td>'
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(mk.label) + '</td>'
-                + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.source) + '</td>'
+                + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(_dhqSourceLabel(r.source)) + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.tokens != null && r.tokens > 0 ? Number(r.tokens).toLocaleString() : '—') : 'n/a') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '—') : 'n/a') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (mk.llm ? (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '—') : 'n/a') + '</td>'
@@ -4565,7 +4581,7 @@ function showTrafficView(view) {
             var pct = r.total > 0 ? Math.round(r.successes / r.total * 100) : 0;
             var pctColor = pct >= 90 ? '#10B981' : pct >= 70 ? '#FFAA00' : '#EF4444';
             html += '<tr style="border-bottom:1px solid var(--dhq-border);cursor:pointer" data-dim="' + view + '" data-val="' + esc(r.label || '') + '" onclick="dhqTrafficDrill(this.dataset.dim, this.dataset.val)" title="Click to see this ' + esc(view) + " actions\">"
-                + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(r.label || '—') + '</td>'
+                + '<td style="padding:3px 6px;color:var(--dhq-accent)">' + esc(view === 'source' ? _dhqSourceLabel(r.label) : (r.label || '—')) + '</td>'
                 + '<td style="padding:3px 6px;text-align:right">' + r.total + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:' + pctColor + '">' + pct + '%</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.avg_ms != null ? r.avg_ms : '—') + '</td>'

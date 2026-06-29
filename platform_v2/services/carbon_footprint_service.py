@@ -157,6 +157,11 @@ def per_agent_efficiency(hours: int = 24):
         rows = cur.fetchall()
     agg = {}
     for r in rows:
+        # Skip non-LLM (orchestration markers / scrape / embeddings) — same
+        # exclusion as run_carbon_footprint_job so this "same methodology" stays
+        # consistent and per-agent energy/CO2 isn't fabricated from marker duration.
+        if not _is_llm_model(r["model_used"]):
+            continue
         aid = r["agent_id"]
         a = agg.setdefault(
             aid,
@@ -241,17 +246,24 @@ def run_carbon_footprint_job() -> dict:
 
     total_co2 = 0.0
     total_kwh = 0.0
+    run_count = 0
     for row in rows:
         model = row["model_used"] or ""
+        # Skip non-LLM rows (orchestration/job MARKERS, scrape, embeddings). Their
+        # duration is cycle/job wall-clock, NOT model runtime — counting it as
+        # inference energy fabricated carbon AND double-counted (the real inference
+        # a marker's cycle triggers is logged + counted on its own row). Mirrors the
+        # A.R.M.A.D.A. display (co2_g_for/co2_g_sql) so the pillar reconciles. (#4571 follow-up)
+        if not _is_llm_model(model):
+            continue
         dur = int(row["duration_ms"] or 0)
         w = _watts_for_model(model)
-        co2 = _co2_kg(w, dur)
-        total_co2 += co2
+        total_co2 += _co2_kg(w, dur)
         total_kwh += w * (dur / 1_000 / 3_600) / 1000.0
+        run_count += 1
 
     total_kwh = round(total_kwh, 6)
     total_co2 = round(total_co2, 6)
-    run_count = len(rows)
 
     severity = _severity_for_kwh(total_kwh)
 

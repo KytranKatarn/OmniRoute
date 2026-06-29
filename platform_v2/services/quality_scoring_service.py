@@ -3,13 +3,15 @@
 Scores knowledge_base entries on relevance, accuracy, actionability, uniqueness.
 Used by: knowledge_cards.py (gate new entries), agent_loop (periodic re-scoring).
 
+Scoring runs through DHQ dispatch (full cluster, queue-aware) via
+services.cluster_dispatch — NOT a direct model call (ADR-013 / task #4553).
+
 Import:
     from services.quality_scoring_service import score_entry, batch_score_entries
 """
 
 import json
 import logging
-import os
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Tuple
 from database import get_db_cursor
@@ -43,19 +45,19 @@ def score_entry(
     knowledge_type: str,
     save_to_db: bool = True,
 ) -> Optional[Dict[str, Any]]:
-    """Score a single knowledge entry using LLM.
+    """Score a single knowledge entry using the cluster LLM fleet.
 
     Args:
         entry_id: knowledge_base.id
         title: Entry title
-        content: Entry content (will be truncated to 2000 chars)
+        content: Entry content (will be truncated to 500 chars)
         knowledge_type: e.g. 'knowledge_card', 'conversation_memory'
         save_to_db: Whether to persist the score to DB
 
     Returns:
         Dict with quality_score, dimensions, reason, or None on failure.
     """
-    import urllib.request
+    import re
 
     content_truncated = (content or "")[:500]
 
@@ -66,45 +68,46 @@ def score_entry(
     )
 
     try:
-        # Direct Ollama call — simple JSON scoring, Bridge dispatch not needed
-        raw_host = os.getenv("OLLAMA_HOST", "host.docker.internal:11434")
-        ollama_host = raw_host if raw_host.startswith("http") else f"http://{raw_host}"
-        model = os.getenv("QUALITY_SCORER_MODEL", "llama3.2:3b")
-        payload = json.dumps(
-            {
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"temperature": 0.1, "num_ctx": 2048, "num_predict": 150},
-            }
-        ).encode()
-        req = urllib.request.Request(
-            f"{ollama_host}/api/generate",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            raw = json.loads(resp.read())
-            response_text = raw.get("response", "").strip()
-            # Extract JSON from response — model may output malformed JSON
-            import re
+        # Route through DHQ dispatch (full cluster, queue-and-wait on cold-load)
+        # instead of a direct model call. The old direct call bypassed the
+        # dispatch queue and timed out ~100% of the time under hub-GPU
+        # contention, marking every entry 'error' (task #4553, ADR-013). The
+        # helper queues + polls dispatch_pending_queue so cold-loads drain to
+        # whichever node has the model warm (mistake #276153 — never treat
+        # queued as a hard failure).
+        from services.cluster_dispatch import queued_dispatch_text
 
-            json_match = re.search(r"\{[^{}]*\}", response_text)
-            if not json_match:
-                logger.warning("Quality scorer: no JSON found in response for entry %d", entry_id)
-                return None
-            json_str = json_match.group()
-            # Fix common LLM JSON errors: "key=" -> "key":
-            json_str = re.sub(r'"(\w+)"=', r'"\1":', json_str)
-            try:
-                result = json.loads(json_str)
-            except json.JSONDecodeError:
-                # Last resort: extract numeric scores with regex
-                scores = {}
-                for key in ("relevance", "accuracy", "actionability", "uniqueness"):
-                    m = re.search(rf'"{key}":\s*([\d.]+)', json_str)
-                    scores[key] = float(m.group(1)) if m else 0.5
-                result = {**scores, "reason": "parsed from malformed JSON"}
+        response_text = queued_dispatch_text(
+            capability="classify",
+            prompt=prompt,
+            json_mode=True,
+            module_id="quality_scorer",
+            local_only=True,
+            poll_timeout_s=240,
+        )
+        if not response_text:
+            # Transient (busy cluster / poll timeout) OR genuine failure — the
+            # caller's retry-counter decides whether to retry or give up.
+            logger.warning("Quality scorer: no dispatch response for entry %d", entry_id)
+            return None
+
+        # Extract JSON from response — model may output extra prose / malformed JSON
+        json_match = re.search(r"\{[^{}]*\}", response_text)
+        if not json_match:
+            logger.warning("Quality scorer: no JSON found in response for entry %d", entry_id)
+            return None
+        json_str = json_match.group()
+        # Fix common LLM JSON errors: "key=" -> "key":
+        json_str = re.sub(r'"(\w+)"=', r'"\1":', json_str)
+        try:
+            result = json.loads(json_str)
+        except json.JSONDecodeError:
+            # Last resort: extract numeric scores with regex
+            scores = {}
+            for key in ("relevance", "accuracy", "actionability", "uniqueness"):
+                m = re.search(rf'"{key}":\s*([\d.]+)', json_str)
+                scores[key] = float(m.group(1)) if m else 0.5
+            result = {**scores, "reason": "parsed from malformed JSON"}
 
         if not result or not isinstance(result, dict):
             logger.warning("Quality scorer: empty or invalid LLM response for entry %d", entry_id)

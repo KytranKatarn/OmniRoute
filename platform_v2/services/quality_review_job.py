@@ -1,8 +1,11 @@
 """Quality Review Job — periodic LLM scoring of knowledge base entries.
 
-Agent Loop Job: runs every 2 hours, scores entries one at a time.
-Fetches one unscored entry, scores it, commits, repeats.
-A single failure skips that entry and moves to the next.
+Agent Loop Job: runs every 2 hours, scoring entries one at a time through the
+DHQ dispatch fleet (services.quality_scoring_service.score_entry → cluster
+queue-and-wait). A single failure increments a per-entry attempt counter and
+moves on; an entry is only marked 'error' after MAX_SCORE_ATTEMPTS genuine
+failures spread across runs (task #4553), so a transient busy-cluster blip
+never permanently kills an entry.
 
 Import:
     from services.quality_review_job import run_quality_review
@@ -16,30 +19,57 @@ logger = logging.getLogger(__name__)
 
 # How many entries to score per job run
 ENTRIES_PER_RUN = 50
-# Max seconds per job run (don't hog the LLM forever)
+# Max seconds per job run (don't hog the fleet forever)
 MAX_RUN_SECONDS = 600
+# Mark an entry 'error' only after this many genuine scoring failures (one
+# attempt per entry per run), so a transient cluster blip doesn't permanently
+# kill it (task #4553).
+MAX_SCORE_ATTEMPTS = 3
 
 
-def _mark_error(get_db_cursor, entry_id: int):
-    """Mark an entry as 'error' so it's not retried forever."""
+def _record_failure(get_db_cursor, entry_id: int) -> str:
+    """Count a scoring failure for an entry; mark 'error' only after
+    MAX_SCORE_ATTEMPTS attempts, else leave it 'pending' to retry on a later
+    run. Returns the resulting review_status.
+
+    Fixes the old behavior where a single transient failure permanently marked
+    the entry 'error' and it was never retried (task #4553).
+    """
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 """UPDATE knowledge_base
-                   SET review_status = 'error', quality_scored_at = NOW()
-                   WHERE id = %s""",
-                (entry_id,),
+                   SET memory_metadata = COALESCE(memory_metadata, '{}'::jsonb)
+                           || jsonb_build_object(
+                               'score_attempts',
+                               COALESCE((memory_metadata->>'score_attempts')::int, 0) + 1
+                           ),
+                       review_status = CASE
+                           WHEN COALESCE((memory_metadata->>'score_attempts')::int, 0) + 1 >= %s
+                           THEN 'error' ELSE review_status END,
+                       quality_scored_at = CASE
+                           WHEN COALESCE((memory_metadata->>'score_attempts')::int, 0) + 1 >= %s
+                           THEN NOW() ELSE quality_scored_at END
+                   WHERE id = %s
+                   RETURNING review_status""",
+                (MAX_SCORE_ATTEMPTS, MAX_SCORE_ATTEMPTS, entry_id),
             )
+            row = cur.fetchone()
+            if row:
+                return row["review_status"] if isinstance(row, dict) else row[0]
     except Exception:
         pass
+    return "pending"
 
 
 def run_quality_review() -> Dict[str, Any]:
-    """Score unscored knowledge entries one at a time.
+    """Score unscored knowledge entries one at a time through the DHQ fleet.
 
-    Fetches one entry, scores it, persists, then fetches the next.
-    If one entry fails, it logs the error and moves on.
-    Stops after ENTRIES_PER_RUN entries or MAX_RUN_SECONDS elapsed.
+    Fetches one 'pending' entry (skipping ones already attempted THIS run, so a
+    persistent failure spreads its attempts across runs), scores it via the
+    cluster, persists, then fetches the next. If one entry fails it records the
+    attempt and moves on. Stops after ENTRIES_PER_RUN entries or
+    MAX_RUN_SECONDS elapsed.
 
     Returns:
         Dict with scoring results and stats.
@@ -54,7 +84,8 @@ def run_quality_review() -> Dict[str, Any]:
         logger.error("Cannot import quality_scoring_service: %s", e)
         return {"success": False, "error": str(e)}
 
-    counts = {"scored": 0, "flagged": 0, "rejected": 0, "failed": 0, "skipped": 0}
+    counts = {"scored": 0, "flagged": 0, "rejected": 0, "failed": 0, "errored": 0}
+    attempted_ids: list = []
     start_time = time.time()
 
     for i in range(ENTRIES_PER_RUN):
@@ -64,17 +95,29 @@ def run_quality_review() -> Dict[str, Any]:
             logger.info("Quality review: time limit reached after %d entries", i)
             break
 
-        # Fetch ONE unscored entry
+        # Fetch ONE unscored entry not yet attempted this run
         try:
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    """SELECT id, title, content, knowledge_type
-                       FROM knowledge_base
-                       WHERE review_status = 'pending'
-                       AND knowledge_type NOT LIKE 'archie_v1%%'
-                       ORDER BY importance_score DESC, created_at DESC
-                       LIMIT 1"""
-                )
+                if attempted_ids:
+                    cur.execute(
+                        """SELECT id, title, content, knowledge_type
+                           FROM knowledge_base
+                           WHERE review_status = 'pending'
+                           AND knowledge_type NOT LIKE 'archie_v1%%'
+                           AND id <> ALL(%s)
+                           ORDER BY importance_score DESC, created_at DESC
+                           LIMIT 1""",
+                        (attempted_ids,),
+                    )
+                else:
+                    cur.execute(
+                        """SELECT id, title, content, knowledge_type
+                           FROM knowledge_base
+                           WHERE review_status = 'pending'
+                           AND knowledge_type NOT LIKE 'archie_v1%%'
+                           ORDER BY importance_score DESC, created_at DESC
+                           LIMIT 1"""
+                    )
                 entry = cur.fetchone()
         except Exception as e:
             logger.error("Quality review: failed to fetch entry: %s", e)
@@ -85,7 +128,9 @@ def run_quality_review() -> Dict[str, Any]:
             logger.info("Quality review: no more unscored entries")
             break
 
-        # Score it
+        attempted_ids.append(entry["id"])
+
+        # Score it through the cluster (queue-and-wait)
         try:
             result = score_entry(
                 entry_id=entry["id"],
@@ -98,23 +143,26 @@ def run_quality_review() -> Dict[str, Any]:
                 counts[result["review_status"]] += 1
             else:
                 counts["failed"] += 1
-                _mark_error(get_db_cursor, entry["id"])
+                if _record_failure(get_db_cursor, entry["id"]) == "error":
+                    counts["errored"] += 1
         except Exception as e:
             logger.error("Quality review: entry %d failed: %s", entry["id"], e)
             counts["failed"] += 1
-            _mark_error(get_db_cursor, entry["id"])
+            if _record_failure(get_db_cursor, entry["id"]) == "error":
+                counts["errored"] += 1
 
     elapsed = time.time() - start_time
     total = counts["scored"] + counts["flagged"] + counts["rejected"]
     stats = get_quality_stats()
 
     logger.info(
-        "Quality review: %d scored (%d good, %d flagged, %d rejected, %d failed) in %.0fs — coverage: %s%%",
+        "Quality review: %d scored (%d good, %d flagged, %d rejected, %d failed, %d errored) in %.0fs — coverage: %s%%",
         total,
         counts["scored"],
         counts["flagged"],
         counts["rejected"],
         counts["failed"],
+        counts["errored"],
         elapsed,
         stats.get("coverage", "?"),
     )

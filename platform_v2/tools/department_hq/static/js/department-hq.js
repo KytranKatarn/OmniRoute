@@ -4178,7 +4178,7 @@ async function loadDispatchHistory() {
         if (!rows.length) { setHtml(el, head + '<div class="dhq-empty">No dispatches in this period</div>'); return; }
         var html = head + '<table class="dhq-loop-table"><thead><tr>'
             + '<th>TIME</th><th>SOURCE</th><th>ACTOR</th><th>ACTION</th><th>STATUS</th><th>MODEL</th>'
-            + '<th style="text-align:right">DUR</th><th style="text-align:right">TOKENS</th><th style="text-align:right">gCO2</th>'
+            + '<th style="text-align:right">DUR</th><th style="text-align:right">TOKENS</th><th style="text-align:right">gCO2</th><th style="text-align:right">Wh</th>'
             + '</tr></thead><tbody>';
         rows.forEach(function(r) {
             var ok = r.success;
@@ -4195,6 +4195,7 @@ async function loadDispatchHistory() {
                 + '<td style="text-align:right;color:var(--dhq-text-dim)">' + dur + '</td>'
                 + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.tokens_used ? fmtN(r.tokens_used) : '\u2014') + '</td>'
                 + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '\u2014') + '</td>'
+                + '<td style="text-align:right;color:var(--dhq-text-dim)">' + (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '\u2014') + '</td>'
                 + '</tr>';
         });
         html += '</tbody></table>';
@@ -4504,6 +4505,7 @@ function showTrafficView(view) {
             + '<th style="text-align:left;padding:2px 6px;font-weight:400">SOURCE</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">TOKENS</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">gCO2</th>'
+            + '<th style="text-align:right;padding:2px 6px;font-weight:400">Wh</th>'
             + '<th style="text-align:right;padding:2px 6px;font-weight:400">MS</th>'
             + '</tr>';
         rows.forEach(function(r) {
@@ -4517,6 +4519,7 @@ function showTrafficView(view) {
                 + '<td style="padding:3px 6px;color:var(--dhq-text-dim)">' + esc(r.source) + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.tokens != null && r.tokens > 0 ? Number(r.tokens).toLocaleString() : '—') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.co2_g != null && r.co2_g > 0 ? Number(r.co2_g).toFixed(3) : '—') + '</td>'
+                + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.energy_wh != null && r.energy_wh > 0 ? Number(r.energy_wh).toFixed(3) : '—') + '</td>'
                 + '<td style="padding:3px 6px;text-align:right;color:var(--dhq-text-dim)">' + (r.duration_ms != null ? r.duration_ms : '—') + '</td>'
                 + '</tr>';
         });

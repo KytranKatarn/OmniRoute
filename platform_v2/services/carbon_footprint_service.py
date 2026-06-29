@@ -50,6 +50,17 @@ def co2_g_for(model_used, duration_ms) -> float:
     return round(_co2_kg(_watts_for_model(model_used or ""), int(duration_ms)) * 1000.0, 4)
 
 
+def energy_wh_for(model_used, duration_ms) -> float:
+    """Watt-hours for ONE dispatch = watts(model) x duration. The meaningful
+    per-row 'power used' figure (basis for CO2). Same _watts_for_model basis as
+    co2_g_for(), so feed/history energy reconciles with the CREED carbon pillar.
+    energy_wh = co2_g / grid_factor, but computed directly here. Returns 0.0 for
+    missing/zero duration (e.g. job-marker rows)."""
+    if not duration_ms:
+        return 0.0
+    return round(_watts_for_model(model_used or "") * int(duration_ms) / 3_600_000.0, 4)
+
+
 # GPU model base names (derived once) so the SQL fragment below can't drift
 # from _GPU_MODELS / _watts_for_model.
 _GPU_BASES = sorted({m.split(":")[0] for m in _GPU_MODELS})

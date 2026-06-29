@@ -519,7 +519,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
         to_dt = request.args.get("to", default_to) + " 23:59:59"
 
         try:
-            from services.carbon_footprint_service import co2_g_for, co2_g_sql
+            from services.carbon_footprint_service import co2_g_for, co2_g_sql, energy_wh_for
 
             _co2 = co2_g_sql()
             with get_db_cursor() as (conn, cur):
@@ -683,6 +683,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                         "tokens_used": r["tokens_used"],
                         "co2_g": (
                             None if r.get("worker_type") == "contract" else co2_g_for(r["model_used"], r["duration_ms"])
+                        ),
+                        "energy_wh": (
+                            None
+                            if r.get("worker_type") == "contract" or not r.get("model_used")
+                            else energy_wh_for(r["model_used"], r["duration_ms"])
                         ),
                         "cost": r["cost"],
                         "node_name": r.get("node_name", "Hub"),
@@ -1140,7 +1145,7 @@ def register_dispatch_routes(bp, admin_required_decorator):
         try:
             # Carbon (grams CO2) — reuse the C.R.E.E.D. estimator methodology so
             # dispatch CO2 reconciles with the environmental pillar (#4564).
-            from services.carbon_footprint_service import co2_g_for, co2_g_sql
+            from services.carbon_footprint_service import co2_g_for, co2_g_sql, energy_wh_for
 
             _co2 = co2_g_sql()
             _co2_tel = co2_g_sql("tel.model_used", "tel.duration_ms", "tel.worker_type")
@@ -1180,6 +1185,11 @@ def register_dispatch_routes(bp, admin_required_decorator):
                                 None
                                 if r.get("worker_type") == "contract"
                                 else co2_g_for(r.get("model_used"), r.get("duration_ms"))
+                            ),
+                            "energy_wh": (
+                                None
+                                if r.get("worker_type") == "contract" or not r.get("model_used")
+                                else energy_wh_for(r.get("model_used"), r.get("duration_ms"))
                             ),
                             "ts": r["created_at"].isoformat() if r.get("created_at") else None,
                             "dr_mode": bool(r.get("dr_mode")),

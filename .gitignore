@@ -38,6 +38,13 @@ platform_v2/qa/test-screenshots/
 # Backups (handled separately in /backups/)
 *.backup
 *.bak
+# Suffixed backup variants (e.g. .bak-npm-decom-20260627, .bak-4287) — *.bak above
+# only matches files ending in .bak, NOT .bak-<suffix>. These often back up
+# secrets (.env.bak-*) so they MUST be ignored before a git add -A near-miss.
+*.bak-*
+*.bak.*
+.env.bak*
+*.env.bak*
 
 # Temporary files
 tmp/
@@ -60,6 +67,9 @@ credentials/
 # Test coverage
 .coverage
 htmlcov/
+
+# pytest temp directories (e.g. pytest-of-kytran/)
+pytest-of-*/
 
 # MCP Server Config (contains credentials)
 .mcp.json

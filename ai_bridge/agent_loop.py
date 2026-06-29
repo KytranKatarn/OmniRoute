@@ -401,6 +401,7 @@ class AgentLoop:
         self.flask_app = flask_app
         self._running = False
         self._last_down_set: frozenset = frozenset()
+        self._last_dns_class: str = "healthy"  # vigil_dns_monitor dedup (#4571)
 
     def start(self):
         """Attach agent loop jobs to the scheduler."""
@@ -1331,6 +1332,22 @@ class AgentLoop:
             trigger=IntervalTrigger(minutes=5),
             id="vigil_infra_heartbeat",
             name="Agent Loop: V.I.G.I.L. Infrastructure Heartbeat",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
+        # V.I.G.I.L. — external-DNS resolution monitor (Task #4571).
+        # Every 2 min — catches the RECURRING OAuth/platform.claude.com DNS
+        # failure live (AdGuard SERVFAIL/timeout while a control upstream
+        # resolves), so the intermittent fault is captured with evidence
+        # instead of self-healing before anyone looks. Telegram on classification
+        # CHANGE only (never floods).
+        self.scheduler.add_job(
+            with_app_context(self._run_dns_monitor),
+            trigger=IntervalTrigger(minutes=2),
+            id="vigil_dns_monitor",
+            name="Agent Loop: V.I.G.I.L. External-DNS Resolution Monitor",
             max_instances=1,
             replace_existing=True,
             coalesce=True,
@@ -8076,6 +8093,86 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # V.I.G.I.L. Infrastructure Heartbeat (Project #272 Phase 2 / Task #2127)
     # ------------------------------------------------------------------
+
+    def _run_dns_monitor(self):
+        """Every-2-min external-DNS resolution probe (Task #4571).
+
+        Catches the recurring OAuth/platform.claude.com failure live: probes each
+        watched name against AdGuard + a control upstream and persists evidence to
+        dns_probe_log. Telegram fires ONLY when the classification CHANGES (entering
+        a failing state, or recovering to healthy) so it never floods.
+        """
+        start = time.time()
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.dns_monitor_service import format_dns_alert, run_dns_probe
+
+            out = run_dns_probe()
+            severity = out["severity"]
+            failed = sum(1 for r in out["results"] if r["status"] != "healthy")
+            passed = len(out["results"]) - failed
+            duration_ms = int((time.time() - start) * 1000)
+
+            self._log_cycle(
+                job_name="vigil_dns_monitor",
+                items_processed=passed,
+                items_failed=failed,
+                duration_ms=duration_ms,
+                details={
+                    "classification": out["classification"],
+                    "severity": severity,
+                    "ip_forward": out["ip_forward"],
+                    "notes": out["notes"],
+                },
+            )
+
+            # system_notifications row — surfaces the DNS fault in the platform UI.
+            if severity in ("warning", "error"):
+                try:
+                    conn = get_db()
+                    cur = conn.cursor()
+                    cur.execute(
+                        """
+                        INSERT INTO system_notifications
+                          (type, title, message, source, priority, source_icon,
+                           related_action, visibility, target_user_id, is_read,
+                           metadata, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, %s, NOW())
+                        """,
+                        (
+                            "alert" if severity == "error" else "warning",
+                            f"V.I.G.I.L. — DNS {out['classification']}",
+                            format_dns_alert(out),
+                            "vigil",
+                            "high" if severity == "error" else "normal",
+                            "🌐",
+                            "/tools/security-network",
+                            "all",
+                            None,
+                            psycopg2.extras.Json({"classification": out["classification"]}),
+                        ),
+                    )
+                    conn.commit()
+                    cur.close()
+                    conn.close()
+                except Exception as notify_err:
+                    logger.warning("dns_monitor: system_notifications insert failed: %s", notify_err)
+
+            # Telegram only on classification CHANGE — entering a failing state OR
+            # recovering from one. The first healthy baseline stays silent.
+            if out["classification"] != self._last_dns_class:
+                entering_fail = out["classification"] != "healthy"
+                recovering = out["classification"] == "healthy" and self._last_dns_class != "healthy"
+                if entering_fail or recovering:
+                    try:
+                        self._send_telegram(format_dns_alert(out))
+                    except Exception as tg_err:
+                        logger.warning("dns_monitor: Telegram dispatch failed: %s", tg_err)
+                self._last_dns_class = out["classification"]
+        except Exception as exc:
+            logger.error("dns_monitor cycle failed: %s", exc)
 
     def _run_infra_heartbeat(self):
         """Every-5-min heartbeat over critical infrastructure containers.

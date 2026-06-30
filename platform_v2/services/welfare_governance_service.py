@@ -75,6 +75,7 @@ def pool_over_budget_by_skill(skill_name: str, settings_key: str = "welfare:back
                 ) t ON t.agent_id = a.id
                 WHERE s.skill_name = %s
                   AND a.worker_type IN ('ai', 'contractor')
+                  AND a.org_id IS NULL   -- internal agents only; client (AaaS) agents excluded (#4590)
                   AND a.shift_state IN ('active', 'deployed', 'winding_down')
                 """,
                 (skill_name,),
@@ -230,6 +231,7 @@ def gather_snapshots(cur):
             WHERE agent_id = a.id ORDER BY timestamp DESC LIMIT 1
         ) aes ON TRUE
         WHERE a.worker_type IN ('ai', 'contractor')
+          AND a.org_id IS NULL   -- internal agents only; client (AaaS) load must not pollute the org CREED welfare score (#4590)
           AND a.shift_state IN ('active', 'deployed', 'winding_down', 'cooldown')
         """
     )
@@ -266,6 +268,7 @@ def gather_sole_agent_capabilities(cur):
         FROM agent_skills s
         JOIN agents a ON a.id = s.agent_id
         WHERE a.worker_type IN ('ai', 'contractor')
+          AND a.org_id IS NULL   -- internal agents only; a client (AaaS) sole agent is not OUR staffing gap (#4590)
           AND a.shift_state IN ('active', 'deployed')
           AND s.skill_name IS NOT NULL
         GROUP BY s.skill_name

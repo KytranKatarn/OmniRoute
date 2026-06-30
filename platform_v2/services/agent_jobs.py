@@ -3835,7 +3835,9 @@ def recalibrate_token_budgets():
                    percentile_cont(0.9) WITHIN GROUP (ORDER BY da.toks) AS p90,
                    COUNT(*) AS active_days
             FROM daily da
-            JOIN agents a ON a.id = da.agent_id AND a.worker_type = 'ai'
+            JOIN agents a ON a.id = da.agent_id
+                         AND a.worker_type = 'ai'
+                         AND a.org_id IS NULL   -- internal agents only; client (AaaS) budgets are contracted, never recalibrated (#4590)
             GROUP BY da.agent_id, a.name, a.model
             """
         )

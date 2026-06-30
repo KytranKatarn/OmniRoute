@@ -1,0 +1,562 @@
+"""WTF Hub — newsroom mail reader.
+
+Reads the five what-the-fact.com Hostinger mailboxes over IMAP so the News &
+Media agents can triage them from the WTF Hub Inbox tab. A clone of the
+C.R.E.E.D. Command mail reader (tools/creed_command/mail_routes.py), re-pointed
+at the WTF boxes with PER-BOX agent ownership (press@→S.T.R.I.N.G.E.R.,
+tip@→V.E.R.I.F.Y., contact@/admin@/api@→F.A.C.T.).
+
+Self-contained on purpose: it connects DIRECTLY to imap.hostinger.com:993 using
+per-box WTF_MAIL_*_PASSWORD env secrets. It deliberately does NOT route through
+the platform Email Manager — that sync is hardcoded to the internal Stalwart
+server and email_mailboxes has no per-row host, so it cannot reach an external
+Hostinger box. Keeping WTF mail here means zero risk to the Stalwart mailboxes.
+
+Read-only: select(..., readonly=True), BODY.PEEK (never sets \\Seen), no delete/move.
+Passwords come from env only — never stored in the DB, never logged. Admin-only.
+"""
+
+import email
+import html as htmllib
+import imaplib
+import logging
+import os
+import re
+import smtplib
+import ssl
+import threading
+import time
+from email.header import decode_header, make_header
+from email.message import EmailMessage
+from email.utils import parsedate_to_datetime
+
+from flask import current_app, jsonify, request
+from flask_login import login_required
+
+from database import get_db_cursor
+
+logger = logging.getLogger(__name__)
+
+_IMAP_HOST = os.getenv("WTF_MAIL_IMAP_HOST", "imap.hostinger.com")
+_IMAP_PORT = int(os.getenv("WTF_MAIL_IMAP_PORT") or 993)
+_SMTP_HOST = os.getenv("WTF_MAIL_SMTP_HOST", "smtp.hostinger.com")
+_SMTP_PORT = int(os.getenv("WTF_MAIL_SMTP_PORT") or 465)
+_TIMEOUT = 15  # seconds — fail fast rather than wedge the web thread
+
+# box key (what the client sends as ?box=) -> (address, env password key)
+_BOXES = {
+    "contact": ("contact@what-the-fact.com", "WTF_MAIL_CONTACT_PASSWORD"),
+    "tip": ("tip@what-the-fact.com", "WTF_MAIL_TIP_PASSWORD"),
+    "press": ("press@what-the-fact.com", "WTF_MAIL_PRESS_PASSWORD"),
+    "api": ("api@what-the-fact.com", "WTF_MAIL_API_PASSWORD"),
+    "admin": ("admin@what-the-fact.com", "WTF_MAIL_ADMIN_PASSWORD"),
+}
+
+# Per-box triage/draft owner (the News & Media agent that works that desk).
+# press = journalist inquiries, tip = leads needing verification, the rest = the
+# director. Unknown boxes default to F.A.C.T. (News & Media director).
+_BOX_AGENTS = {
+    "press": "S.T.R.I.N.G.E.R.",
+    "tip": "V.E.R.I.F.Y.",
+    "contact": "F.A.C.T.",
+    "admin": "F.A.C.T.",
+    "api": "F.A.C.T.",
+}
+
+
+def _box_agent(box_key):
+    return _BOX_AGENTS.get(box_key, "F.A.C.T.")
+
+
+def _password(box_key):
+    """Per-box password, falling back to a single shared password if set."""
+    _, envk = _BOXES[box_key]
+    return os.getenv(envk) or os.getenv("WTF_MAIL_SHARED_PASSWORD") or ""
+
+
+def _connect(box_key):
+    """Return (imap_conn, address) logged in for box_key, or raise."""
+    addr, _ = _BOXES[box_key]
+    pw = _password(box_key)
+    if not pw:
+        raise RuntimeError("no password configured for this mailbox")
+    m = imaplib.IMAP4_SSL(_IMAP_HOST, _IMAP_PORT, timeout=_TIMEOUT)
+    m.login(addr, pw)
+    return m, addr
+
+
+def _dec(s):
+    """Decode an RFC2047 header to a plain unicode string (never raises)."""
+    if not s:
+        return ""
+    try:
+        return str(make_header(decode_header(s)))
+    except Exception:
+        return str(s)
+
+
+def _iso(raw_date):
+    try:
+        dt = parsedate_to_datetime(raw_date)
+        return dt.isoformat() if dt else None
+    except Exception:
+        return None
+
+
+def _uid_list(m, limit):
+    """Newest-first list of up to `limit` UIDs in the selected mailbox."""
+    typ, data = m.uid("SEARCH", None, "ALL")
+    if typ != "OK" or not data or not data[0]:
+        return []
+    uids = data[0].split()
+    return [u.decode() for u in reversed(uids)][:limit]
+
+
+def _header_summary(m, uid):
+    typ, data = m.uid("FETCH", uid, "(FLAGS BODY.PEEK[HEADER.FIELDS (SUBJECT FROM DATE)])")
+    if typ != "OK" or not data or not isinstance(data[0], tuple):
+        return None
+    meta = data[0][0] or b""
+    hdr = email.message_from_bytes(data[0][1] or b"")
+    return {
+        "uid": uid,
+        "subject": _dec(hdr.get("Subject")) or "(no subject)",
+        "from": _dec(hdr.get("From")),
+        "date": _iso(hdr.get("Date")),
+        "seen": b"\\Seen" in meta,
+    }
+
+
+def _part_text(part):
+    try:
+        payload = part.get_payload(decode=True)
+        if payload is None:
+            return ""
+        return payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+_TAG_BLOCK_RE = re.compile(r"(?is)<(script|style)\b.*?</\1>")
+_BR_RE = re.compile(r"(?i)<(br|/p|/div|/tr|/h[1-6])\s*/?>")
+_ANYTAG_RE = re.compile(r"(?s)<[^>]+>")
+_BLANKS_RE = re.compile(r"\n[ \t]*\n[ \t]*\n+")
+
+
+def _html_to_text(s):
+    """Best-effort HTML→plain text for readable display (output is rendered via
+    textContent on the client, so this is for legibility, not safety)."""
+    s = _TAG_BLOCK_RE.sub(" ", s)
+    s = _BR_RE.sub("\n", s)
+    s = _ANYTAG_RE.sub("", s)
+    s = htmllib.unescape(s)
+    s = re.sub(r"[\u200b\u200c\u200d\u034f\ufeff\u00ad]", "", s)  # strip email preheader spacers
+    out, blank = [], False
+    for line in s.replace("\r", "").split("\n"):
+        line = line.strip()
+        if line:
+            out.append(line)
+            blank = False
+        elif not blank:
+            out.append("")  # collapse runs of blank lines to one
+            blank = True
+    return "\n".join(out).strip()
+
+
+def _extract_body(msg):
+    plain = html_body = None
+    if msg.is_multipart():
+        for part in msg.walk():
+            if "attachment" in str(part.get("Content-Disposition") or "").lower():
+                continue
+            ct = part.get_content_type()
+            if ct == "text/plain" and plain is None:
+                plain = _part_text(part)
+            elif ct == "text/html" and html_body is None:
+                html_body = _part_text(part)
+    elif msg.get_content_type() == "text/html":
+        html_body = _part_text(msg)
+    else:
+        plain = _part_text(msg)
+    if plain and plain.strip():
+        return plain[:20000]
+    if html_body:
+        return _html_to_text(html_body)[:20000]
+    return ""
+
+
+def _fetch_message(box_key, uid):
+    """Return {subject,from,to,date,body} for one message, or None."""
+    m = None
+    try:
+        m, addr = _connect(box_key)
+        m.select("INBOX", readonly=True)
+        typ, data = m.uid("FETCH", uid, "(BODY.PEEK[])")
+        if typ != "OK" or not data or not isinstance(data[0], tuple):
+            return None
+        msg = email.message_from_bytes(data[0][1])
+        return {
+            "subject": _dec(msg.get("Subject")) or "(no subject)",
+            "from": _dec(msg.get("From")),
+            "to": _dec(msg.get("To")),
+            "date": _iso(msg.get("Date")),
+            "body": _extract_body(msg),
+        }
+    finally:
+        if m is not None:
+            try:
+                m.logout()
+            except Exception:
+                pass
+
+
+def _original_message_id(box_key, uid):
+    """Message-ID of the message being replied to (for In-Reply-To/References)."""
+    m = None
+    try:
+        m, _ = _connect(box_key)
+        m.select("INBOX", readonly=True)
+        typ, data = m.uid("FETCH", uid, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+        if typ == "OK" and data and isinstance(data[0], tuple):
+            hdr = email.message_from_bytes(data[0][1] or b"")
+            return hdr.get("Message-ID")
+    except Exception as e:
+        logger.warning("could not read Message-ID for %s/%s: %s", box_key, uid, e)
+    finally:
+        if m is not None:
+            try:
+                m.logout()
+            except Exception:
+                pass
+    return None
+
+
+def _append_sent(box_key, raw_bytes):
+    """Best-effort: copy a sent message into the mailbox's Sent folder so it
+    shows up in webmail. Never raises — a failed append must not fail the send."""
+    m = None
+    try:
+        m, _ = _connect(box_key)
+        stamp = imaplib.Time2Internaldate(time.time())
+        for folder in ("INBOX.Sent", "Sent", "Sent Items", "INBOX.Sent Items"):
+            try:
+                typ, _ = m.append(folder, "\\Seen", stamp, raw_bytes)
+                if typ == "OK":
+                    return
+            except Exception:
+                continue
+    except Exception as e:
+        logger.warning("append-to-Sent failed for %s: %s", box_key, e)
+    finally:
+        if m is not None:
+            try:
+                m.logout()
+            except Exception:
+                pass
+
+
+def _triage_prompt(box, agent, addr, msg):
+    return (
+        f"You are {agent}, a News & Media desk editor for What The Fact (WTF), a "
+        f"Canadian news-accountability and fact-checking publication. Triage this "
+        f"inbound email to the {box} desk (" + addr + "). Reply in exactly these "
+        "six short labelled lines, nothing else:\n"
+        "Category: [tip|press|inquiry|correction|partnership|pitch|spam|admin|legal|other]\n"
+        "Urgency: [low|medium|high]\n"
+        "NewsValue: [none|low|medium|high]\n"
+        "Summary: <one sentence>\n"
+        "Action: <the single next step a human should take>\n"
+        "Owner: <which WTF desk/agent should handle it>\n\n"
+        "Email:\nFrom: " + msg["from"] + "\nSubject: " + msg["subject"] + "\n\n" + (msg["body"] or "")[:3000]
+    )
+
+
+def _draft_prompt(box, agent, addr, msg):
+    return (
+        f"You are {agent}, replying on behalf of What The Fact (WTF), a Canadian "
+        f"news-accountability and fact-checking publication, from the {box} desk. "
+        "Draft a professional, concise reply (about 150 words) to the email below, "
+        "for a human to review before sending. Warm but precise. Do NOT invent "
+        "facts, figures, sources, story details, deadlines, or commitments, and "
+        "never confirm or deny an unpublished story. If the request needs "
+        "information you do not have, say a team member will follow up. Sign off as "
+        f"'{agent} - What The Fact'. Write ONLY the reply body.\n\n"
+        "Email:\nFrom: " + msg["from"] + "\nSubject: " + msg["subject"] + "\n\n" + (msg["body"] or "")[:3000]
+    )
+
+
+def _run_mail_ai_bg(app_obj, box, uid, kind, addr, msg):
+    """Background: the box's News agent triages or drafts a reply, stores result
+    in wtf_mail_ai.
+
+    Runs OFF the web request (the 7B dispatch can exceed 60s). Routes to the box's
+    owner agent (press@→S.T.R.I.N.G.E.R., tip@→V.E.R.I.F.Y., else F.A.C.T.) on the
+    GPU cluster (Starship-246/245) for speed, falling back automatically. NOTE:
+    skill-first routing may consolidate compute to the News agent that holds the
+    fact_check skill; the desk + acting-agent context is carried in the prompt so
+    the triage/draft voice stays correct regardless.
+    """
+    with app_obj.app_context():
+        result, status = "", "error"
+        agent = _box_agent(box)
+        try:
+            from tools.department_hq.services.department_dispatcher import dispatch
+
+            prompt = _triage_prompt(box, agent, addr, msg) if kind == "triage" else _draft_prompt(box, agent, addr, msg)
+            res = dispatch(
+                capability="fact_check",
+                # user-initiated newsroom triage/draft — interactive lane (high).
+                priority="high",
+                prompt=prompt,
+                prefer_agent=agent,
+                source_product="archie_platform",
+                preferred_node=[
+                    "starship_76583490e36955ab",
+                    "starship_5501c2766526e746",
+                ],  # node_id (rename-safe) GPU cluster
+            )
+            if res is not None and getattr(res, "success", False):
+                result = (getattr(res, "response", "") or "").strip()
+                status = "done" if result else "error"
+        except Exception as e:
+            logger.error("mail AI %s %s/%s failed: %s", kind, box, uid, e)
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE wtf_mail_ai SET result=%s, status=%s, updated_at=now() "
+                    "WHERE box=%s AND uid=%s AND kind=%s",
+                    (result, status, box, uid, kind),
+                )
+        except Exception as e:
+            logger.error("mail AI store %s %s/%s failed: %s", kind, box, uid, e)
+
+
+def register_mail_routes(bp, admin_required):
+    @bp.route("/api/mail/status", methods=["GET"])
+    @login_required
+    @admin_required
+    def mail_status():
+        """Per-mailbox health + unseen/total counts. Best-effort per box."""
+        out = []
+        for key, (addr, envk) in _BOXES.items():
+            row = {
+                "key": key,
+                "address": addr,
+                "configured": bool(_password(key)),
+                "unseen": None,
+                "total": None,
+                "error": None,
+            }
+            if not row["configured"]:
+                row["error"] = "no password"
+                out.append(row)
+                continue
+            m = None
+            try:
+                m, _ = _connect(key)
+                typ, data = m.select("INBOX", readonly=True)
+                row["total"] = int(data[0]) if typ == "OK" and data and data[0] else 0
+                typ, un = m.uid("SEARCH", None, "UNSEEN")
+                row["unseen"] = len(un[0].split()) if typ == "OK" and un and un[0] else 0
+            except Exception as e:
+                row["error"] = type(e).__name__
+                logger.warning("mail_status %s failed: %s", key, e)
+            finally:
+                if m is not None:
+                    try:
+                        m.logout()
+                    except Exception:
+                        pass
+            out.append(row)
+        return jsonify({"mailboxes": out})
+
+    @bp.route("/api/mail/inbox", methods=["GET"])
+    @login_required
+    @admin_required
+    def mail_inbox():
+        box = (request.args.get("box") or "").strip().lower()
+        if box not in _BOXES:
+            return jsonify({"error": "unknown mailbox"}), 400
+        try:
+            limit = max(1, min(int(request.args.get("limit") or 25), 50))
+        except (TypeError, ValueError):
+            limit = 25
+        m = None
+        try:
+            m, addr = _connect(box)
+            m.select("INBOX", readonly=True)
+            msgs = []
+            for uid in _uid_list(m, limit):
+                s = _header_summary(m, uid)
+                if s:
+                    msgs.append(s)
+            return jsonify({"box": box, "address": addr, "messages": msgs, "count": len(msgs)})
+        except Exception as e:
+            logger.error("mail_inbox %s failed: %s", box, e)
+            return jsonify({"error": "could not load inbox", "detail": type(e).__name__}), 502
+        finally:
+            if m is not None:
+                try:
+                    m.logout()
+                except Exception:
+                    pass
+
+    @bp.route("/api/mail/message", methods=["GET"])
+    @login_required
+    @admin_required
+    def mail_message():
+        box = (request.args.get("box") or "").strip().lower()
+        uid = (request.args.get("uid") or "").strip()
+        if box not in _BOXES:
+            return jsonify({"error": "unknown mailbox"}), 400
+        if not uid.isdigit():
+            return jsonify({"error": "invalid uid"}), 400
+        m = None
+        try:
+            m, addr = _connect(box)
+            m.select("INBOX", readonly=True)
+            typ, data = m.uid("FETCH", uid, "(BODY.PEEK[])")
+            if typ != "OK" or not data or not isinstance(data[0], tuple):
+                return jsonify({"error": "message not found"}), 404
+            msg = email.message_from_bytes(data[0][1])
+            return jsonify(
+                {
+                    "box": box,
+                    "address": addr,
+                    "uid": uid,
+                    "subject": _dec(msg.get("Subject")) or "(no subject)",
+                    "from": _dec(msg.get("From")),
+                    "to": _dec(msg.get("To")),
+                    "date": _iso(msg.get("Date")),
+                    "body": _extract_body(msg),
+                }
+            )
+        except Exception as e:
+            logger.error("mail_message %s/%s failed: %s", box, uid, e)
+            return jsonify({"error": "could not load message", "detail": type(e).__name__}), 502
+        finally:
+            if m is not None:
+                try:
+                    m.logout()
+                except Exception:
+                    pass
+
+    def _kickoff_ai(kind):
+        body = request.get_json(silent=True) or {}
+        box = (body.get("box") or "").strip().lower()
+        uid = (body.get("uid") or "").strip()
+        if box not in _BOXES:
+            return jsonify({"error": "unknown mailbox"}), 400
+        if not uid.isdigit():
+            return jsonify({"error": "invalid uid"}), 400
+        msg = _fetch_message(box, uid)
+        if not msg:
+            return jsonify({"error": "message not found"}), 404
+        addr = _BOXES[box][0]
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO wtf_mail_ai (box, uid, kind, status) "
+                    "VALUES (%s, %s, %s, 'pending') "
+                    "ON CONFLICT (box, uid, kind) DO UPDATE SET "
+                    "status='pending', result=NULL, updated_at=now()",
+                    (box, uid, kind),
+                )
+        except Exception as e:
+            logger.error("mail AI kickoff insert failed: %s", e)
+            return jsonify({"error": "could not queue"}), 500
+        app_obj = current_app._get_current_object()
+        threading.Thread(
+            target=_run_mail_ai_bg,
+            args=(app_obj, box, uid, kind, addr, msg),
+            daemon=True,
+        ).start()
+        return jsonify({"status": "pending", "box": box, "uid": uid, "kind": kind}), 202
+
+    @bp.route("/api/mail/triage", methods=["POST"])
+    @login_required
+    @admin_required
+    def mail_triage():
+        """Kick off News-agent triage of a message (async). Poll GET /api/mail/ai."""
+        return _kickoff_ai("triage")
+
+    @bp.route("/api/mail/draft", methods=["POST"])
+    @login_required
+    @admin_required
+    def mail_draft():
+        """Kick off a News-agent draft reply (async). Poll GET /api/mail/ai."""
+        return _kickoff_ai("draft")
+
+    @bp.route("/api/mail/ai", methods=["GET"])
+    @login_required
+    @admin_required
+    def mail_ai_get():
+        """Current triage + draft state for one message."""
+        box = (request.args.get("box") or "").strip().lower()
+        uid = (request.args.get("uid") or "").strip()
+        if box not in _BOXES or not uid.isdigit():
+            return jsonify({"error": "bad params"}), 400
+        out = {"triage": None, "draft": None}
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT kind, status, result, updated_at FROM wtf_mail_ai " "WHERE box=%s AND uid=%s",
+                    (box, uid),
+                )
+                for r in cur.fetchall() or []:
+                    out[r["kind"]] = {
+                        "status": r["status"],
+                        "result": r["result"],
+                        "updated_at": r["updated_at"].isoformat() if r["updated_at"] else None,
+                    }
+        except Exception as e:
+            logger.error("mail_ai_get failed: %s", e)
+            return jsonify({"error": "could not load"}), 500
+        return jsonify(out)
+
+    @bp.route("/api/mail/send", methods=["POST"])
+    @login_required
+    @admin_required
+    def mail_send():
+        """Send an admin-approved reply FROM a creed-ai.org mailbox via Hostinger SMTP.
+
+        Outbound action — gated on an explicit human Send click in the UI. The body
+        is whatever the admin approved/edited (not auto-sent from the E.T.H.O.S. draft).
+        """
+        j = request.get_json(silent=True) or {}
+        box = (j.get("box") or "").strip().lower()
+        to = (j.get("to") or "").strip()
+        subject = (j.get("subject") or "").strip()
+        text = (j.get("body") or "").strip()
+        uid = (j.get("uid") or "").strip()  # optional — original message, for threading
+        if box not in _BOXES:
+            return jsonify({"error": "unknown mailbox"}), 400
+        if "@" not in to or " " in to or to.count("@") != 1:
+            return jsonify({"error": "invalid recipient"}), 400
+        if not subject or not text:
+            return jsonify({"error": "subject and body are required"}), 400
+        addr = _BOXES[box][0]
+        pw = _password(box)
+        if not pw:
+            return jsonify({"error": "mailbox not configured"}), 400
+        msg = EmailMessage()
+        msg["From"] = addr
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.set_content(text)
+        if uid.isdigit():
+            mid = _original_message_id(box, uid)
+            if mid:
+                msg["In-Reply-To"] = mid
+                msg["References"] = mid
+        try:
+            ctx = ssl.create_default_context()
+            with smtplib.SMTP_SSL(_SMTP_HOST, _SMTP_PORT, context=ctx, timeout=_TIMEOUT) as s:
+                s.login(addr, pw)
+                s.send_message(msg)
+        except Exception as e:
+            logger.error("mail_send %s -> %s failed: %s", box, to, e)
+            return jsonify({"error": "send failed", "detail": type(e).__name__}), 502
+        _append_sent(box, msg.as_bytes())
+        logger.info("WTF mail sent from %s to %s (subject=%.80s)", addr, to, subject)
+        return jsonify({"sent": True, "from": addr, "to": to})

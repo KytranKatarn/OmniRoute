@@ -43,9 +43,13 @@ else:
 
 ---
 
-### Step 3: Trigger analysis if pending
+### Step 3: Trigger analysis if pending OR stuck
 
-If status is `pending` or `not_tracked`, trigger a **diff-grounded** F.O.R.G.E. review.
+If status is `pending`, `not_tracked`, **or a stale `in_progress` with no summary**
+(a review orphaned when a one-shot process was killed mid-dispatch — KB #270002),
+trigger a **diff-grounded** F.O.R.G.E. review. `review_pr()` is idempotent — safe to
+re-run on a stuck row; it re-drives the review to a terminal verdict instead of
+polling a dead row for 90s.
 
 **Always use `review_pr()`** — it fetches the REAL unified diff and puts it in the
 prompt. Do NOT hand-roll a `dispatch(prompt=f'...Diff: {diff_url}...')` — the local

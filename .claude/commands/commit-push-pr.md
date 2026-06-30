@@ -70,37 +70,23 @@ else:
 
 ---
 
-### Step 5: Trigger F.O.R.G.E. analysis (background)
+### Step 5: Trigger F.O.R.G.E. analysis
 
-Queue the PR for F.O.R.G.E. review without blocking:
+Kick off a **diff-grounded** F.O.R.G.E. review. **Run this bash step with `run_in_background: true`** — `review_pr()` blocks until F.O.R.G.E. returns (can be minutes on a cold model load), and backgrounding lets it finish out-of-band without stalling the rest of the flow. You'll be notified when it completes; read the verdict then (or when you next `/merge-pr`).
+
+**Use `review_pr()`** — it fetches the REAL unified diff and grounds the review (same path `/merge-pr` uses). Do NOT hand-roll a `dispatch(prompt=f'Review PR #...')` with a bare prompt — the local model can't fetch a URL, so a bare prompt/diff_url yields a generic, ungrounded "review".
 
 ```bash
 docker exec archie_platform python3 -c "
-import sys, threading; sys.path.insert(0, '/app')
-from tools.repair_bay.services.pr_review_service import get_review, mark_review_started, mark_review_done, mark_review_skipped
-from tools.department_hq.services.department_dispatcher import dispatch
-
-r = get_review(PR_NUMBER)
-if not r:
-    print('PR not tracked — skipping analysis'); exit()
-
-def _bg():
-    mark_review_started(PR_NUMBER)
-    res = dispatch(
-        capability='code_review',
-        prompt=f'Review PR #{r[\"pr_number\"]}: {r[\"title\"]}. VERDICT, SUMMARY, ISSUES.',
-        context={'pr_number': r['pr_number'], 'repo': r['repo'], 'title': r['title']}
-    )
-    if res.success:
-        mark_review_done(PR_NUMBER, res.response)
-    else:
-        mark_review_skipped(PR_NUMBER)
-
-t = threading.Thread(target=_bg, daemon=True)
-t.start()
-print('F.O.R.G.E. analysis queued in background (PR #PR_NUMBER)')
+import sys; sys.path.insert(0, '/app')
+from tools.repair_bay.services.pr_diff_analyzer import review_pr
+r = review_pr(PR_NUMBER)
+print('OK:', r.get('ok'), '| VERDICT:', r.get('verdict'), '| ERR:', r.get('error'))
+print('SUMMARY:', (r.get('summary') or 'none')[:300])
 "
 ```
+
+> ⚠️ **Do NOT** wrap the review in a `threading.Thread(target=_bg, daemon=True)` inside `python3 -c`. The one-shot process exits the instant it returns, killing the daemon thread mid-dispatch — `mark_review_started()` runs (status → `in_progress`) but `mark_review_done()` never does, so the review is **stuck `in_progress` forever** (the "status ≠ artifact" trap, KB #270002). `review_pr()` run synchronously in a backgrounded step is the fix: the process stays alive until the review reaches a terminal verdict.
 
 ---
 

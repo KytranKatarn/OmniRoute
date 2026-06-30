@@ -76,7 +76,10 @@ def execute(page, params: dict) -> dict:
     # ── HEADLINE + LOCATION (both use the same intro modal) ──────────────────
     if headline or location:
         opened = _click_first(page, [
-            # Current LinkedIn UI — pencil near name/headline
+            # Confirmed live 2026-06-30 (Terry/377): intro edit is <a aria-label="Edit profile">
+            lambda: page.locator('a[aria-label="Edit profile"]').first.click(timeout=8000),
+            lambda: page.get_by_role("link", name="Edit profile", exact=True).first.click(timeout=8000),
+            # Older LinkedIn UI fallbacks — pencil near name/headline
             lambda: page.locator('[aria-label*="Edit your name"]').first.click(timeout=8000),
             lambda: page.locator('[aria-label*="Edit intro"]').first.click(timeout=8000),
             lambda: page.get_by_role("button", name="Edit intro", exact=False).first.click(timeout=8000),
@@ -184,57 +187,45 @@ def execute(page, params: dict) -> dict:
 
     # ── ABOUT ─────────────────────────────────────────────────────────────────
     if about:
-        # Check if About section already exists
-        has_about = False
+        # Scroll the page so the About card (or its add-affordance) is in the DOM.
         try:
-            page.locator("#about").first.wait_for(state="attached", timeout=3000)
-            has_about = True
+            page.evaluate("() => window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(1200)
+            page.evaluate("() => window.scrollTo(0, 0)")
+            page.wait_for_timeout(600)
         except Exception:
             pass
 
-        if has_about:
-            # Scroll to About, then click its edit pencil
-            try:
-                page.locator("#about").first.scroll_into_view_if_needed(timeout=5000)
-                page.wait_for_timeout(1000)
-            except Exception:
-                pass
-            def _js_click_about_edit():
-                result = page.evaluate("""() => {
-                    const h = document.getElementById('about');
-                    if (!h) return false;
-                    const section = h.closest('section');
-                    if (!section) return false;
-                    const btns = section.querySelectorAll('button');
-                    for (const b of btns) {
-                        const lbl = (b.getAttribute('aria-label') || b.textContent || '').toLowerCase();
-                        if (lbl.includes('edit')) { b.click(); return true; }
-                    }
-                    return false;
-                }""")
-                if not result:
-                    raise Exception("about edit button not found via JS")
+        # Open the About editor. Confirmed live 2026-06-30 (Terry/377): the control is
+        # an <a aria-label="Edit about"> (present whether About exists OR is being added).
+        opened = _click_first(page, [
+            lambda: page.locator('a[aria-label="Edit about"]').first.click(timeout=6000),
+            lambda: page.locator('[aria-label="Edit About section"]').first.click(timeout=5000),
+            lambda: page.locator('[aria-label*="Edit about"]').first.click(timeout=5000),
+        ], "about edit link")
 
-            opened = _click_first(page, [
-                _js_click_about_edit,
-                lambda: page.locator('[aria-label="Edit About section"]').click(timeout=5000),
-                lambda: page.locator('[aria-label*="Edit about"]').first.click(timeout=5000),
-                lambda: page.locator('section:has(#about)').get_by_role("button").filter(has_text="Edit").first.click(timeout=5000),
-            ], "about edit button")
-        else:
-            # Add About section via "Add profile section"
-            opened = _click_first(page, [
-                lambda: page.get_by_role("button", name="Add profile section", exact=False).click(timeout=8000),
-                lambda: page.locator('button:has-text("Add profile section")').click(timeout=8000),
-            ], "add profile section")
-            if opened:
+        if not opened:
+            # No existing About — add it via the "Add section" entry (an <a>, not a button),
+            # then expand Core and pick About.
+            added = _click_first(page, [
+                lambda: page.get_by_role("link", name="Add section", exact=False).first.click(timeout=6000),
+                lambda: page.locator('a:has-text("Add section")').first.click(timeout=6000),
+                lambda: page.get_by_role("button", name="Add profile section", exact=False).click(timeout=6000),
+            ], "add section entry")
+            if added:
                 page.wait_for_timeout(1500)
                 _screenshot(page, "add_section_menu")
-                # Look for About option in the dropdown/modal
+                # LinkedIn groups About under the "Core" category — expand it if collapsed.
                 _click_first(page, [
-                    lambda: page.get_by_role("button", name="About", exact=True).click(timeout=6000),
-                    lambda: page.get_by_role("menuitem", name="About", exact=False).click(timeout=6000),
-                    lambda: page.locator('button:has-text("About")').first.click(timeout=6000),
+                    lambda: page.get_by_role("button", name="Add core", exact=False).click(timeout=4000),
+                    lambda: page.locator('button:has-text("Core")').first.click(timeout=3000),
+                ], "expand core")
+                page.wait_for_timeout(800)
+                opened = _click_first(page, [
+                    lambda: page.get_by_role("button", name="Add about", exact=False).click(timeout=5000),
+                    lambda: page.get_by_role("menuitem", name="About", exact=False).click(timeout=5000),
+                    lambda: page.get_by_text("Add about", exact=False).first.click(timeout=5000),
+                    lambda: page.locator('button:has-text("About")').first.click(timeout=5000),
                     lambda: page.get_by_text("About", exact=True).first.click(timeout=6000),
                 ], "about menu item")
 

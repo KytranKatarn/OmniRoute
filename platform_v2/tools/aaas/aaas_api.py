@@ -45,6 +45,28 @@ def _json(payload, status=200):
     return Response(json.dumps(payload, default=str), status=status, mimetype="application/json")
 
 
+def _notify_new_order(order_id, tier, email, company_name, contact_name):
+    """A.R.C.H.I.E. → Telegram advisory on a new commission (best-effort, #2474).
+
+    A.R.C.H.I.E. is the single owner-facing voice (services.telegram_service). Comms
+    must NEVER break the order — any failure is logged and swallowed (the order is
+    already persisted before this runs).
+    """
+    try:
+        from services.telegram_service import send_info
+
+        who = company_name or contact_name or email
+        send_info(
+            "New agent commission",
+            f"Order #{order_id} · {tier.title()} tier\n"
+            f"From: {who} <{email}>\n"
+            f"Status: submitted — review in DHQ (GET /api/aaas/orders) to quote + build.",
+            source_module="aaas.intake",
+        )
+    except Exception:  # noqa: BLE001 — advisory is best-effort, order already saved
+        logger.warning("AaaS order #%s saved but Telegram advisory failed", order_id, exc_info=True)
+
+
 @aaas_bp.route("/orders", methods=["POST"])
 def create_order_route():
     """Create an AaaS commissioning order (PUBLIC). Body: {contact_email, tier?, brief?, ...}.
@@ -98,6 +120,7 @@ def create_order_route():
             contact_name=contact_name,
             company_name=company_name,
         )
+        _notify_new_order(order_id, tier, email, company_name, contact_name)
         return _json({"success": True, "order_id": order_id, "status": "submitted"})
     except ValueError as exc:
         return _json({"success": False, "error": str(exc)}, 400)

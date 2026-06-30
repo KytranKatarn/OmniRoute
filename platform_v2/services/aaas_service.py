@@ -221,11 +221,25 @@ def advance_status(order_id, status):
 
 
 def attach_built_agent(order_id, agent_id):
-    """Link the built agent back onto its order."""
+    """Link the PRIMARY built agent onto its order (back-compat single pointer)."""
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "UPDATE aaas_orders SET built_agent_id = %s, updated_at = now() WHERE id = %s",
             (agent_id, order_id),
+        )
+
+
+def attach_team_agent(order_id, agent_id, role, is_primary, token_limit):
+    """Link one team member into aaas_order_agents (migration 444). Idempotent."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO aaas_order_agents (order_id, agent_id, role, is_primary, token_limit)
+               VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (order_id, agent_id) DO UPDATE
+                   SET role = EXCLUDED.role,
+                       is_primary = EXCLUDED.is_primary,
+                       token_limit = EXCLUDED.token_limit""",
+            (order_id, agent_id, role, is_primary, token_limit),
         )
 
 
@@ -278,6 +292,77 @@ def normalize_brief(raw, tier):
     }
 
 
+# Per-tier DEFAULT team templates (ADR-003). Each tier seeds a standard pod; the
+# owner/concierge can override per order via brief["team"] (a list of the same member
+# dicts). A member: {role, is_primary?, capabilities[], department?, agent_name?,
+# display_name?, title?, system_prompt?, skills?}. Names + budgets are resolved in
+# normalize_team. Department falls back to DEFAULT_DEPARTMENT if not a valid floor.
+TEAM_TEMPLATES = {
+    "starter": [
+        {"role": "assistant", "is_primary": True, "capabilities": ["support"]},
+    ],
+    "pro": [
+        {"role": "responder", "is_primary": True, "capabilities": ["support"]},
+        {"role": "researcher", "capabilities": ["research", "summarize"], "department": "Documentation & Knowledge"},
+        {"role": "scheduler", "capabilities": ["scheduling", "lead_qualification"]},
+    ],
+    "enterprise": [
+        {"role": "lead", "is_primary": True, "capabilities": ["support"]},
+        {"role": "researcher", "capabilities": ["research", "summarize"], "department": "Documentation & Knowledge"},
+        {"role": "analyst", "capabilities": ["analyze", "classify"], "department": "Analytics & Intelligence"},
+    ],
+}
+
+
+def normalize_team(brief, tier, fallback_base=None):
+    """Resolve a brief + tier into a LIST of concrete agent build specs (ADR-003).
+
+    Uses brief["team"] if present (owner-editable), else the tier's default template.
+    Each member is run through normalize_brief (model/tier/skills/department), then the
+    tier's token pool is SPLIT across the team (shared fair-use pool — adding agents
+    never multiplies cost). The primary member takes the remainder so shares sum EXACTLY
+    to the pool. Member names derive from brief.agent_name / fallback_base + role; the
+    primary keeps the base name. Returns specs with extra keys: role, is_primary.
+    """
+    brief = dict(brief or {})
+    members = brief.get("team") or TEAM_TEMPLATES.get(tier) or TEAM_TEMPLATES["starter"]
+    n = len(members) or 1
+
+    base = (brief.get("agent_name") or fallback_base or "Agent").strip() or "Agent"
+    base = "".join(ch for ch in base if ch.isalnum() or ch in " -_").strip() or "Agent"
+
+    primary_idx = next((i for i, m in enumerate(members) if m.get("is_primary")), 0)
+    pool = TIER_TOKEN_LIMIT[tier]
+    share = pool // n
+
+    specs = []
+    for i, m in enumerate(members):
+        m = dict(m)
+        is_primary = i == primary_idx
+        role = m.get("role") or ("primary" if is_primary else f"member{i + 1}")
+        name = m.get("agent_name") or (base if is_primary else f"{base}-{role.title()}")
+        member_raw = {
+            "agent_name": name,
+            "display_name": m.get("display_name") or name,
+            "title": m.get("title") or role.replace("_", " ").title(),
+            "acronym_expansion": m.get("acronym_expansion"),
+            "department": m.get("department"),
+            "system_prompt": m.get("system_prompt") or brief.get("system_prompt") or "",
+            "capabilities": m.get("capabilities") or [],
+            "skills": m.get("skills") or [],
+            "accent_color": brief.get("accent_color"),
+        }
+        spec = normalize_brief(member_raw, tier)
+        spec["role"] = role
+        spec["is_primary"] = is_primary
+        spec["token_limit"] = share  # pool split (overrides the full-tier value)
+        specs.append(spec)
+
+    if specs:  # primary takes the remainder → shares sum EXACTLY to the pool
+        specs[primary_idx]["token_limit"] = pool - share * (n - 1)
+    return specs
+
+
 # ---------------------------------------------------------------------------
 # Concierge build worker
 # ---------------------------------------------------------------------------
@@ -315,64 +400,80 @@ def build_order(order_id):
         }
 
     tier = order["tier"]
-    brief = normalize_brief(order.get("brief") or {}, tier)
-    if not brief.get("agent_name"):
-        return {"ok": False, "agent_id": None, "status": order["status"], "error": "brief missing agent_name"}
+    team = normalize_team(
+        order.get("brief") or {},
+        tier,
+        fallback_base=order.get("company_name") or order.get("contact_name"),
+    )
+    if not team:
+        return {"ok": False, "agent_id": None, "status": order["status"], "error": "empty team spec"}
 
     advance_status(order_id, "building")
-    agent_id = None
+    built = []
+    primary_id = None
     try:
-        agent_id = agent_service.create_agent(
-            name=brief["agent_name"],
-            display_name=brief["display_name"],
-            department=brief["department"],
-            model=brief["model"],
-            worker_type="ai",
-            shift_state="active",
-            system_prompt=brief["system_prompt"],
-            capabilities={c: True for c in brief["capabilities"]},
-            tier=brief["tier_level"],
-            is_department_ai=False,
-        )
+        for spec in team:
+            aid = agent_service.create_agent(
+                name=spec["agent_name"],
+                display_name=spec["display_name"],
+                department=spec["department"],
+                model=spec["model"],
+                worker_type="ai",
+                shift_state="active",
+                system_prompt=spec["system_prompt"],
+                capabilities={c: True for c in spec["capabilities"]},
+                tier=spec["tier_level"],
+                is_department_ai=False,
+            )
 
-        # Tenancy (MANDATORY) + persona. org_id isolates the agent from internal
-        # dispatch (get_agent_cache filters org_id IS NULL).
-        persona = {"org_id": order["org_id"]}
-        if brief.get("title"):
-            persona["title"] = brief["title"]
-        if brief.get("acronym_expansion"):
-            persona["acronym_expansion"] = brief["acronym_expansion"]
-        agent_service.update_agent(agent_id, **persona)
+            # Tenancy (MANDATORY) + persona. org_id isolates each agent from internal
+            # dispatch + CREED/recalibration (org_id IS NULL filters, #4590).
+            persona = {"org_id": order["org_id"]}
+            if spec.get("title"):
+                persona["title"] = spec["title"]
+            if spec.get("acronym_expansion"):
+                persona["acronym_expansion"] = spec["acronym_expansion"]
+            agent_service.update_agent(aid, **persona)
 
-        # Daily budget (create_agent does not make one).
-        agent_service.init_budget(
-            agent_id,
-            token_limit=brief["token_limit"],
-            task_queue_limit=brief["queue_limit"],
-        )
+            # This member's share of the tenant's shared token pool (normalize_team split).
+            agent_service.init_budget(
+                aid,
+                token_limit=spec["token_limit"],
+                task_queue_limit=spec["queue_limit"],
+            )
 
-        # Skills — dispatch/capability matching keys on agent_skills.skill_name.
-        for skill in brief["skills"]:
-            name = skill.get("skill_name")
-            if name:
-                agent_service.add_skill(
-                    agent_id,
-                    name,
-                    level=int(skill.get("level", 4)),
-                    category=skill.get("category", "client"),
-                )
+            # Skills — dispatch/capability matching keys on agent_skills.skill_name.
+            for skill in spec["skills"]:
+                sname = skill.get("skill_name")
+                if sname:
+                    agent_service.add_skill(
+                        aid,
+                        sname,
+                        level=int(skill.get("level", 4)),
+                        category=skill.get("category", "client"),
+                    )
 
-        attach_built_agent(order_id, agent_id)
+            attach_team_agent(order_id, aid, spec["role"], spec["is_primary"], spec["token_limit"])
+            built.append(
+                {"agent_id": aid, "role": spec["role"], "is_primary": spec["is_primary"], "name": spec["agent_name"]}
+            )
+            if spec["is_primary"]:
+                primary_id = aid
+
+        if primary_id is None and built:
+            primary_id = built[0]["agent_id"]
+        attach_built_agent(order_id, primary_id)  # back-compat: built_agent_id = primary
         advance_status(order_id, "qa_review")
-        logger.info("AaaS order #%d built agent #%d (%s)", order_id, agent_id, brief["agent_name"])
-        return {"ok": True, "agent_id": agent_id, "status": "qa_review", "error": None}
+        logger.info("AaaS order #%d built team of %d (primary #%s)", order_id, len(built), primary_id)
+        return {"ok": True, "agent_id": primary_id, "agents": built, "status": "qa_review", "error": None}
 
     except Exception as exc:  # noqa: BLE001 — record + surface, never silently drop
         logger.exception("AaaS build failed for order #%s", order_id)
-        if agent_id:
+        link_id = primary_id or (built[0]["agent_id"] if built else None)
+        if link_id:
             try:
-                attach_built_agent(order_id, agent_id)
+                attach_built_agent(order_id, link_id)
             except Exception:  # noqa: BLE001
                 pass
         _record_failure(order_id, str(exc))
-        return {"ok": False, "agent_id": agent_id, "status": "build_failed", "error": str(exc)}
+        return {"ok": False, "agent_id": primary_id, "agents": built, "status": "build_failed", "error": str(exc)}

@@ -121,12 +121,12 @@ def _hex_to_rgb(hex_color: str):
 
 
 def _screenshot(page, name):
-    # Diagnostic only — non-fatal. Bare page.screenshot() times out at 30s on
-    # LinkedIn's animated composer and falsely fails posts (#3953). 5s timeout
-    # + animations disabled + swallow errors.
-    path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+    # Viewport screenshot to the MOUNTED /profiles volume (host:
+    # /mnt/data2/browser-profiles) with fixed names so they're retrievable;
+    # full_page times out on this animated page.
+    path = f"/profiles/_bup_{name}.png"
     try:
-        page.screenshot(path=path, timeout=5000, animations="disabled")
+        page.screenshot(path=path, full_page=False, timeout=15000, animations="disabled")
         return path
     except Exception:
         return None
@@ -145,63 +145,90 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(3000)
     _screenshot(page, "banner_before")
 
-    # Click the background/banner edit button (camera icon on the banner area)
-    clicked = False
-    for attempt in [
-        lambda: page.locator('[aria-label*="Edit background"]').first.click(timeout=8000),
-        lambda: page.locator('[aria-label*="background photo"]').first.click(timeout=8000),
-        lambda: page.locator('button.profile-background-image__edit-btn').first.click(timeout=8000),
-        lambda: page.locator('button[class*="background"]').first.click(timeout=6000),
-        # Camera icon on the banner area (top section)
-        lambda: page.locator('.profile-background-image button').first.click(timeout=6000),
-        lambda: page.locator('section.artdeco-card').first.locator('button').nth(1).click(timeout=6000),
-    ]:
+    # ── Open the banner uploader + set the file ──────────────────────────────
+    # Confirmed live 2026-06-30 (Terry/377): with NO existing banner the control
+    # is <button aria-label="Add background image"> and clicking it triggers a
+    # NATIVE file-chooser (no DOM <input type=file>) — caught via
+    # page.expect_file_chooser. With an existing banner a modal opens first, then
+    # an in-modal "Upload"/"Change photo" triggers the chooser.
+    banner_btn_selectors = [
+        'button[aria-label="Add background image"]',
+        '[aria-label*="background image"]',
+        '[aria-label*="Edit background"]',
+        '[aria-label*="background photo"]',
+        'button.profile-background-image__edit-btn',
+        'button[class*="background"]',
+    ]
+
+    file_set = False
+    button_clicked = False
+
+    # The banner control opens a MENU (confirmed live Terry/377) — NOT a chooser.
+    # Plain-click it; a 6s expect_file_chooser here would just let the menu
+    # auto-close before we can click "Add cover image".
+    for sel in banner_btn_selectors:
         try:
-            attempt()
-            clicked = True
+            loc = page.locator(sel).first
+            loc.wait_for(state="visible", timeout=4000)
+            loc.click(timeout=5000)
+            button_clicked = True
             break
         except Exception:
             continue
 
-    if not clicked:
+    if not button_clicked:
         _screenshot(page, "banner_btn_fail")
         raise RuntimeError("Could not find banner edit button")
 
-    page.wait_for_timeout(2000)
-    _screenshot(page, "banner_modal")
+    _screenshot(page, "banner_menu_open")
 
-    # Menu text differs based on whether a banner already exists:
-    # No banner → "Add cover image" | Existing banner → "Edit cover image"
-    for upload_opt in [
-        lambda: page.get_by_text("Edit cover image", exact=False).first.click(timeout=5000),
-        lambda: page.get_by_text("Add cover image", exact=False).first.click(timeout=5000),
-        lambda: page.get_by_role("menuitem", name="cover image", exact=False).click(timeout=5000),
-        lambda: page.get_by_role("button", name="Upload photo", exact=False).click(timeout=5000),
-        lambda: page.get_by_text("Upload photo", exact=False).first.click(timeout=5000),
-    ]:
-        try:
-            upload_opt()
-            page.wait_for_timeout(1000)
-            break
-        except Exception:
-            continue
+    # Case B — the button opened a MENU (shadow DOM, so querySelectorAll-based
+    # dumps see nothing). Confirmed live 2026-06-30 (Terry/377): the menu items are
+    # "Add cover image" + "Create a slideshow" (Premium). Click "Add cover image"
+    # (or "Edit cover image" when one already exists) -> native file-chooser. If a
+    # DOM <input type=file> is revealed instead, set that. get_by_text pierces
+    # shadow DOM (raw CSS/querySelectorAll does not).
+    if not file_set:
+        page.wait_for_timeout(1500)
+        _screenshot(page, "banner_menu")
+        for getter in [
+            lambda: page.get_by_text("Add cover image", exact=False).first,
+            lambda: page.get_by_text("Edit cover image", exact=False).first,
+            lambda: page.get_by_text("Change cover image", exact=False).first,
+            lambda: page.get_by_text("Upload photo", exact=False).first,
+        ]:
+            try:
+                with page.expect_file_chooser(timeout=6000) as fc_info:
+                    getter().click(timeout=4000)
+                fc_info.value.set_files(banner_path)
+                file_set = True
+                break
+            except Exception:
+                try:
+                    inp = page.locator('input[type="file"]').first
+                    inp.wait_for(state="attached", timeout=2500)
+                    inp.set_input_files(banner_path)
+                    file_set = True
+                    break
+                except Exception:
+                    continue
 
-    # Set file on the input
-    file_input = None
-    for sel in ['input[type="file"]', 'input[accept*="image"]']:
-        try:
-            loc = page.locator(sel).first
-            loc.wait_for(state="attached", timeout=8000)
-            file_input = loc
-            break
-        except Exception:
-            continue
+    # Case C — a real DOM file input (older flow).
+    if not file_set:
+        for sel in ['input[type="file"]', 'input[accept*="image"]']:
+            try:
+                loc = page.locator(sel).first
+                loc.wait_for(state="attached", timeout=4000)
+                loc.set_input_files(banner_path)
+                file_set = True
+                break
+            except Exception:
+                continue
 
-    if file_input is None:
-        _screenshot(page, "banner_input_fail")
-        raise RuntimeError("Could not find file input for banner upload")
+    if not file_set:
+        _screenshot(page, "banner_upload_fail")
+        raise RuntimeError("Could not upload banner file (no chooser/input found)")
 
-    file_input.set_input_files(banner_path)
     page.wait_for_timeout(3000)
     _screenshot(page, "banner_crop")
 
@@ -236,10 +263,33 @@ def execute(page, params: dict) -> dict:
     except Exception:
         pass
 
+    # ── Honest verification: reload + confirm a banner now exists ────────────
+    # With a banner set, the control flips "Add background image" -> "Edit
+    # background image". Success is reported ONLY when that flip is observed
+    # (and the profile actually re-loaded), never on a bare "we clicked Save".
+    page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
+    page.wait_for_timeout(3000)
+    page_loaded = False
+    add_still = 0
+    edit_now = 0
+    try:
+        page_loaded = page.locator('a[aria-label="Edit profile"]').count() > 0
+    except Exception:
+        pass
+    try:
+        add_still = page.locator('button[aria-label="Add background image"]').count()
+    except Exception:
+        pass
+    try:
+        edit_now = page.locator('[aria-label*="dit background"]').count()
+    except Exception:
+        pass
+    confirmed = page_loaded and (edit_now > 0 or add_still == 0)
     final = _screenshot(page, "banner_final")
     return {
-        "success": True,
-        "result": "Banner uploaded",
+        "success": bool(confirmed),
+        "result": "Banner set (verified)" if confirmed else "Upload attempted; banner NOT confirmed",
+        "file_set": file_set,
         "banner_path": banner_path,
         "screenshot_path": final,
     }

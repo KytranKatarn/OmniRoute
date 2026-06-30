@@ -5447,6 +5447,8 @@ class AgentLoop:
                     skill = "linkedin_creed_post"
                 elif post_type == "company":
                     skill = "linkedin_company_post"
+                elif post_type == "group":
+                    skill = "linkedin_group_post"
                 else:
                     skill = "linkedin_post"
                 params = {"content": content, "hashtags": hashtags}
@@ -5459,6 +5461,14 @@ class AgentLoop:
                     company_slug = creed_slug
                 elif post_type == "company":
                     params["company_slug"] = company_slug
+                elif post_type == "group":
+                    # Group id rides action_data (company_slug passthrough) > env.
+                    # NOT the company_slug var (its default is the KE Inc. slug).
+                    params["group_id"] = (
+                        data.get("group_id")
+                        or data.get("company_slug")
+                        or _os.getenv("LINKEDIN_WTF_GROUP_ID", "37040054")
+                    )
 
                 # #4327: a cold LinkedIn post on the hub can take 180s+; 120s was
                 # shorter than the post itself, so it timed out and (with the old

@@ -12,10 +12,11 @@
   <!-- Hero -->
   <header class="aaas-hero">
     <div class="aaas-hero-eyebrow">Agent-as-a-Service</div>
-    <h1 class="aaas-hero-title">Commission your own AI agent</h1>
+    <h1 class="aaas-hero-title">Commission your own AI agent — or a whole team</h1>
     <p class="aaas-hero-tagline">
-      A custom AI agent — built, named, and <strong>hosted on A.R.C.H.I.E.</strong> — reachable by API,
-      embeddable in your site, with its own mailbox. Canadian, local-sovereign, and ethically governed.
+      A custom AI agent — or a coordinated <strong>away team</strong> — built, named, and
+      <strong>hosted on A.R.C.H.I.E.</strong> Reachable by API and embeddable where you work.
+      Canadian, local-sovereign, and ethically governed.
     </p>
     <div class="aaas-hero-trust">
       <span class="aaas-chip"><i data-lucide="shield-check"></i> C.R.E.E.D. governed</span>
@@ -42,9 +43,10 @@
         </p>
         <p class="aaas-tier-blurb">{{ t.blurb }}</p>
         <ul class="aaas-tier-feats">
-          <li><i data-lucide="cpu"></i> {{ t.model }}</li>
+          <li class="aaas-tier-team"><i data-lucide="users"></i> {{ t.team_label }}</li>
+          <li><i data-lucide="cpu"></i> {{ t.model }}{% if t.tier == 'enterprise' %} + custom{% endif %}</li>
           {% for ch in t.channels %}<li><i data-lucide="check"></i> {{ ch }}</li>{% endfor %}
-          <li><i data-lucide="zap"></i> {{ '{:,}'.format(t.token_limit) }} tokens/day</li>
+          <li><i data-lucide="zap"></i> ~{{ '{:,}'.format(t.token_limit) }} tokens/day · fair-use pool</li>
         </ul>
         <button type="button" class="aaas-tier-pick" data-tier="{{ t.tier }}">Choose {{ t.label }}</button>
       </div>

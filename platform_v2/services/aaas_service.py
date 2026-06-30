@@ -40,25 +40,28 @@ TIER_QUEUE_LIMIT = {"starter": 20, "pro": 50, "enterprise": 100}
 TIER_ORDER = ("starter", "pro", "enterprise")
 _TIER_DISPLAY = {
     "starter": {
-        "label": "Starter",
+        "label": "Field Agent",
+        "team_label": "1 specialist agent",
         "build_fee_cents": 49900,
         "monthly_fallback_cents": 4900,
         "channels": ["API access"],
-        "blurb": "A focused assistant for one job — answered fast, hosted on ARCHIE.",
+        "blurb": "A single specialist on assignment — one job, done fast, hosted on A.R.C.H.I.E.",
     },
     "pro": {
-        "label": "Pro",
+        "label": "Away Team",
+        "team_label": "2–4 coordinated agents",
         "build_fee_cents": 149900,
         "monthly_fallback_cents": 14900,
-        "channels": ["API access", "KBS embed", "Email mailbox"],
-        "blurb": "A capable 7B agent with your knowledge base, embeddable in your site.",
+        "channels": ["API access", "Website embed", "Email mailbox"],
+        "blurb": "A coordinated away team — e.g. a responder, a researcher, and a scheduler — orchestrated by A.R.C.H.I.E.",
     },
     "enterprise": {
-        "label": "Enterprise",
+        "label": "Command Crew",
+        "team_label": "Custom department",
         "build_fee_cents": None,  # custom quote
         "monthly_fallback_cents": 49900,
         "channels": ["All channels", "Custom knowledge base", "SLA"],
-        "blurb": "A large custom agent, all delivery channels, and a service-level agreement.",
+        "blurb": "A full custom department of agents with dedicated capacity, every channel, and a service-level agreement.",
     },
 }
 
@@ -85,6 +88,7 @@ def get_public_tiers():
             {
                 "tier": key,
                 "label": d["label"],
+                "team_label": d["team_label"],
                 "model": TIER_MODEL[key],
                 "build_fee_cents": d["build_fee_cents"],
                 "monthly_cents": monthly.get(key, d["monthly_fallback_cents"]),

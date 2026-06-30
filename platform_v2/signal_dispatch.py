@@ -88,6 +88,20 @@ _VOICE_HINTS = {
         "and verifiable behaviour. Tone: measured, principled, evidence-based. Under 150 words. "
         "End with a question that invites public discourse, not a lead-gen CTA."
     ),
+    "group": (
+        "Write as What The Fact (WTF) — a Canadian news-accountability and "
+        "fact-checking publication — posting into its own LinkedIn group. WTF "
+        "scores media bias, fact-checks claims, and connects the accountability "
+        "chain across the Watch series (government procurement, civic spending, "
+        "court/regulatory rulings, markets). Voice: sharp, evidence-first, "
+        "non-partisan, media-literacy-minded — help readers think critically "
+        "about news, bias, and sources. Ground each post in a real angle: a "
+        "recent finding, a fact-check, a bias pattern, a 'news we found' item, "
+        "or a media-literacy tip. Cite only what is verifiable — NEVER invent a "
+        "story, a quote, or a statistic. No hype, no sales, no self-promotion of "
+        "Kytran or the company. Under 180 words. End with a question that invites "
+        "the group to weigh in or share what they are seeing."
+    ),
 }
 
 _TONE_HINTS = {

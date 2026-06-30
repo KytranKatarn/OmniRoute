@@ -393,6 +393,60 @@ def _terry_profile_established() -> bool:
         return False
 
 
+def _wtf_recent_headlines(limit: int = 6) -> str:
+    """Live grounding for the What The Fact group: recent REAL headlines + outlet
+    from the separate ``wtf`` database (same hub postgres). Gives the model
+    factual material so it writes about actual coverage instead of inventing
+    stories/quotes — a fact-checking brand must never fabricate. Fail-open:
+    returns '' on any error (the caller then falls back to theme-only grounding).
+    Connection mirrors tools/wtf_hub/routes.py (wtfuser / WTF_DB_PASSWORD)."""
+    import os as _os
+
+    try:
+        import psycopg2
+        import psycopg2.extras
+
+        conn = psycopg2.connect(
+            host=_os.getenv("WTF_DB_HOST", "archie_database"),
+            port=int(_os.getenv("WTF_DB_PORT", "5432")),
+            dbname="wtf",
+            user=_os.getenv("WTF_DB_USER", "wtfuser"),
+            password=_os.getenv("WTF_DB_PASSWORD", ""),
+            options="-c search_path=wtf",
+            connect_timeout=5,
+        )
+        try:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """SELECT a.title, s.name AS outlet
+                         FROM wtf.articles a
+                         JOIN wtf.sources s ON s.id = a.source_id
+                        WHERE a.published_at > NOW() - INTERVAL '2 days'
+                          AND a.title IS NOT NULL
+                        ORDER BY a.published_at DESC
+                        LIMIT %s""",
+                    (max(1, int(limit)),),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001 — fail-open grounding, never block generation
+        logger.debug("[signal-calendar] wtf headline grounding unavailable: %s", exc)
+        return ""
+
+    items = [
+        f'- "{(r["title"] or "").strip()}" ({(r.get("outlet") or "outlet").strip()})'
+        for r in rows
+        if (r.get("title") or "").strip()
+    ]
+    if not items:
+        return ""
+    return (
+        "Recent What The Fact coverage (REAL headlines — base the post on these, "
+        "do NOT invent stories, quotes, or outlets beyond this list):\n" + "\n".join(items)
+    )
+
+
 def _generation_context(cur, account: str) -> str:
     """Grounding for fresh-content generation: today's theme for the account
     (social_content_calendar/themes) + recent platform wins."""
@@ -412,21 +466,30 @@ def _generation_context(cur, account: str) -> str:
             parts.append(f"Today's theme: {theme['name']} — {theme['tone'] or ''}".strip())
     except Exception:
         pass
-    try:
-        # Exclude internal/automation task titles ([DELEGATE:...], [codex],
-        # bracket-prefixed bookkeeping) — they leaked into a generated draft
-        # verbatim during the #3991 live test.
-        cur.execute(
-            """SELECT title FROM unified_tasks
-               WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '7 days'
-                 AND title NOT LIKE '[%'
-               ORDER BY updated_at DESC LIMIT 5"""
-        )
-        wins = [r["title"] for r in cur.fetchall()]
-        if wins:
-            parts.append("Recent platform wins: " + "; ".join(wins[:3]))
-    except Exception:
-        pass
+    # The What The Fact group grounds on REAL recent WTF coverage (live wtf DB)
+    # so the model writes about actual headlines instead of inventing stories —
+    # a fact-checking brand must never fabricate. "Recent platform wins" (the
+    # founder/company narrative) is OFF-BRAND there, so it is suppressed.
+    if account == "wtf_group":
+        headlines = _wtf_recent_headlines()
+        if headlines:
+            parts.append(headlines)
+    else:
+        try:
+            # Exclude internal/automation task titles ([DELEGATE:...], [codex],
+            # bracket-prefixed bookkeeping) — they leaked into a generated draft
+            # verbatim during the #3991 live test.
+            cur.execute(
+                """SELECT title FROM unified_tasks
+                   WHERE status = 'completed' AND updated_at > NOW() - INTERVAL '7 days'
+                     AND title NOT LIKE '[%'
+                   ORDER BY updated_at DESC LIMIT 5"""
+            )
+            wins = [r["title"] for r in cur.fetchall()]
+            if wins:
+                parts.append("Recent platform wins: " + "; ".join(wins[:3]))
+        except Exception:
+            pass
     return "\n".join(parts) or "No specific theme today — pick a grounded, relevant topic."
 
 

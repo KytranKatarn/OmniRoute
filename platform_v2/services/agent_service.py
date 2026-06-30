@@ -2351,7 +2351,11 @@ def get_agent_cache() -> Dict:
             FROM agents a
             LEFT JOIN agent_skills s ON a.id = s.agent_id
             LEFT JOIN agent_competency_scores cs ON a.id = cs.agent_id
-            WHERE a.status = 'active'
+            -- org_id IS NULL = internal ARCHIE agent. Client-owned (AaaS) agents
+            -- carry an org_id and MUST NOT enter internal dispatch candidate
+            -- selection (migration 443 / Project #297). No-op for existing agents
+            -- (all NULL today); guards against client-agent leakage.
+            WHERE a.status = 'active' AND a.org_id IS NULL
             GROUP BY a.id
         """
         )

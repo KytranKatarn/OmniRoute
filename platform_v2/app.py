@@ -2364,6 +2364,7 @@ from tools.repair_bay.services.sandbox_routes import sandbox_bp  # noqa: E402
 from tools.repair_bay.services.cursor_api import cursor_bp  # noqa: E402
 
 from tools.aaas.aaas_api import aaas_bp  # noqa: E402  # Agent-as-a-Service (#2475)
+from tools.aaas.aaas_page import aaas_page_bp  # noqa: E402  # AaaS public commissioning page (#2474)
 
 # OAuth authentication (Phase 6.5 - User Management & Subscription System)
 from oauth_routes import oauth_bp, init_oauth  # noqa: E402
@@ -2460,7 +2461,8 @@ app.register_blueprint(sandbox_bp)  # Sandbox environment for testing proposals
 app.register_blueprint(cursor_bp)  # Cursor IDE integration API
 app.register_blueprint(triage_bp)  # Phase 42: Conversation triage pipeline
 app.register_blueprint(aaas_bp)  # Agent-as-a-Service order intake + concierge build (#2475)
-csrf.exempt(aaas_bp)  # JSON API, login-session authed (#2083 future-proof)
+csrf.exempt(aaas_bp)  # JSON API, public + same-origin fetch (anti-spam in route, #2474)
+app.register_blueprint(aaas_page_bp)  # AaaS public commissioning page /commission (#2474)
 # OAuth authentication (Phase 6.5)
 app.register_blueprint(oauth_bp)  # OAuth authentication (Google Sign-In)
 # C.R.E.E.D. — public transparency + admin governance API

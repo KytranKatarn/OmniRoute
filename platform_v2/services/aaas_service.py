@@ -33,6 +33,69 @@ TIER_LEVEL = {"starter": 1, "pro": 2, "enterprise": 2}
 TIER_TOKEN_LIMIT = {"starter": 50_000, "pro": 150_000, "enterprise": 300_000}
 TIER_QUEUE_LIMIT = {"starter": 20, "pro": 50, "enterprise": 100}
 
+# Public-facing tier display metadata (design §9, ADR #870). Monthly price is read
+# live from billing_product_plans (single source of truth, migration 443); build
+# fee + channels live here since they are not columns on that table. enterprise
+# build fee is a custom quote (None → "Custom"). Drives the commissioning page (#2474).
+TIER_ORDER = ("starter", "pro", "enterprise")
+_TIER_DISPLAY = {
+    "starter": {
+        "label": "Starter",
+        "build_fee_cents": 49900,
+        "monthly_fallback_cents": 4900,
+        "channels": ["API access"],
+        "blurb": "A focused assistant for one job — answered fast, hosted on ARCHIE.",
+    },
+    "pro": {
+        "label": "Pro",
+        "build_fee_cents": 149900,
+        "monthly_fallback_cents": 14900,
+        "channels": ["API access", "KBS embed", "Email mailbox"],
+        "blurb": "A capable 7B agent with your knowledge base, embeddable in your site.",
+    },
+    "enterprise": {
+        "label": "Enterprise",
+        "build_fee_cents": None,  # custom quote
+        "monthly_fallback_cents": 49900,
+        "channels": ["All channels", "Custom knowledge base", "SLA"],
+        "blurb": "A large custom agent, all delivery channels, and a service-level agreement.",
+    },
+}
+
+
+def get_public_tiers():
+    """Return ordered tier display data for the public commissioning page (#2474).
+
+    Monthly amount is sourced live from billing_product_plans (product_id='aaas');
+    falls back to the design literal if a row is missing. No auth — safe for public.
+    """
+    monthly = {}
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT tier_name, amount_cents FROM billing_product_plans WHERE product_id = 'aaas'")
+            for row in cur.fetchall():
+                monthly[row["tier_name"]] = row["amount_cents"]
+    except Exception:  # noqa: BLE001 — display must never 500 the public page
+        logger.exception("get_public_tiers: billing_product_plans read failed; using fallbacks")
+
+    tiers = []
+    for key in TIER_ORDER:
+        d = _TIER_DISPLAY[key]
+        tiers.append(
+            {
+                "tier": key,
+                "label": d["label"],
+                "model": TIER_MODEL[key],
+                "build_fee_cents": d["build_fee_cents"],
+                "monthly_cents": monthly.get(key, d["monthly_fallback_cents"]),
+                "channels": d["channels"],
+                "blurb": d["blurb"],
+                "token_limit": TIER_TOKEN_LIMIT[key],
+            }
+        )
+    return tiers
+
+
 # Client agents live in the internal department structure (for the skill/dispatch
 # machinery) but are isolated by org_id. Most client bots are support-shaped;
 # the brief can override with any valid department.

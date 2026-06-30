@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Commission an AI Agent | A.R.C.H.I.E.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/aaas-commission.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="aaas-page">
+
+  <!-- Hero -->
+  <header class="aaas-hero">
+    <div class="aaas-hero-eyebrow">Agent-as-a-Service</div>
+    <h1 class="aaas-hero-title">Commission your own AI agent</h1>
+    <p class="aaas-hero-tagline">
+      A custom AI agent — built, named, and <strong>hosted on A.R.C.H.I.E.</strong> — reachable by API,
+      embeddable in your site, with its own mailbox. Canadian, local-sovereign, and ethically governed.
+    </p>
+    <div class="aaas-hero-trust">
+      <span class="aaas-chip"><i data-lucide="shield-check"></i> C.R.E.E.D. governed</span>
+      <span class="aaas-chip"><i data-lucide="server"></i> Local-sovereign hosting</span>
+      <span class="aaas-chip"><i data-lucide="maple-leaf"></i> Built in Canada</span>
+    </div>
+    <a href="#aaas-form" class="aaas-hero-cta">Start your build <i data-lucide="arrow-down"></i></a>
+  </header>
+
+  <!-- Tier cards -->
+  <section class="aaas-tiers" aria-label="Plans">
+    <h2 class="aaas-section-title">Choose a plan</h2>
+    <div class="aaas-tier-cards">
+      {% for t in tiers %}
+      <div class="aaas-tier-card aaas-tier-{{ t.tier }}{% if t.tier == 'pro' %} aaas-tier-featured{% endif %}">
+        {% if t.tier == 'pro' %}<div class="aaas-tier-flag">Most popular</div>{% endif %}
+        <p class="aaas-tier-label">{{ t.label }}</p>
+        <p class="aaas-tier-price">
+          {% if t.build_fee_cents is not none %}${{ '%.0f'|format(t.build_fee_cents / 100) }}{% else %}Custom{% endif %}
+          <span class="aaas-tier-price-unit">build</span>
+        </p>
+        <p class="aaas-tier-monthly">
+          {% if t.tier == 'enterprise' %}${{ '%.0f'|format(t.monthly_cents / 100) }}+{% else %}${{ '%.0f'|format(t.monthly_cents / 100) }}{% endif %}/mo hosting · CAD
+        </p>
+        <p class="aaas-tier-blurb">{{ t.blurb }}</p>
+        <ul class="aaas-tier-feats">
+          <li><i data-lucide="cpu"></i> {{ t.model }}</li>
+          {% for ch in t.channels %}<li><i data-lucide="check"></i> {{ ch }}</li>{% endfor %}
+          <li><i data-lucide="zap"></i> {{ '{:,}'.format(t.token_limit) }} tokens/day</li>
+        </ul>
+        <button type="button" class="aaas-tier-pick" data-tier="{{ t.tier }}">Choose {{ t.label }}</button>
+      </div>
+      {% else %}
+      <p class="aaas-tiers-empty">Plan pricing is loading — you can still submit a request below and we'll quote you.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <!-- Commissioning wizard -->
+  <section id="aaas-form" class="aaas-form-section">
+    <h2 class="aaas-section-title">Tell us about your agent</h2>
+
+    <ol class="aaas-progress" aria-hidden="true">
+      <li class="aaas-progress-step is-active" data-pstep="1">Company</li>
+      <li class="aaas-progress-step" data-pstep="2">Identity</li>
+      <li class="aaas-progress-step" data-pstep="3">Purpose</li>
+      <li class="aaas-progress-step" data-pstep="4">Delivery</li>
+      <li class="aaas-progress-step" data-pstep="5">Review</li>
+    </ol>
+
+    <form id="aaasForm" class="aaas-form" novalidate>
+
+      <!-- Honeypot: hidden from humans; bots fill it and get silently dropped server-side -->
+      <div class="aaas-hp" aria-hidden="true">
+        <label>Company website<input type="text" name="company_website" tabindex="-1" autocomplete="off"></label>
+      </div>
+
+      <!-- Step 1 — Company / contact -->
+      <fieldset class="aaas-step is-active" data-step="1">
+        <legend>About your business</legend>
+        <label class="aaas-field">Company / organization
+          <input type="text" name="company_name" maxlength="120" placeholder="Acme Plumbing Inc.">
+        </label>
+        <label class="aaas-field">Your name
+          <input type="text" name="contact_name" maxlength="120" placeholder="Jordan Lee">
+        </label>
+        <label class="aaas-field aaas-required">Work email
+          <input type="email" name="contact_email" required maxlength="160" placeholder="you@company.com">
+          <span class="aaas-err" data-err="contact_email"></span>
+        </label>
+        <label class="aaas-field">Industry
+          <select name="industry">
+            <option value="">Select…</option>
+            <option value="construction">Construction</option>
+            <option value="electrical">Electrical</option>
+            <option value="limo">Limousine / livery</option>
+            <option value="mechanical">Mechanical</option>
+            <option value="photography">Photography</option>
+            <option value="plumbing">Plumbing</option>
+            <option value="salon">Salon / spa</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <!-- Step 2 — Agent identity -->
+      <fieldset class="aaas-step" data-step="2">
+        <legend>Your agent's identity</legend>
+        <label class="aaas-check aaas-name-toggle">
+          <input type="checkbox" name="auto_name" checked> Let A.R.C.H.I.E. name it for me
+        </label>
+        <label class="aaas-field aaas-name-input" hidden>Desired agent name
+          <input type="text" name="agent_name" maxlength="80" placeholder="e.g. PIPER">
+        </label>
+        <label class="aaas-field">Brand accent color
+          <input type="color" name="accent_color" value="#3b82f6" class="aaas-color">
+        </label>
+        <label class="aaas-field">Persona tone
+          <select name="persona_tone">
+            <option value="professional">Professional</option>
+            <option value="friendly">Friendly</option>
+            <option value="technical">Technical</option>
+          </select>
+        </label>
+      </fieldset>
+
+      <!-- Step 3 — Purpose + capabilities -->
+      <fieldset class="aaas-step" data-step="3">
+        <legend>What should it do?</legend>
+        <label class="aaas-field aaas-required">One-line mission
+          <input type="text" name="mission" required maxlength="200" placeholder="Answer customer questions and book appointments.">
+          <span class="aaas-err" data-err="mission"></span>
+        </label>
+        <p class="aaas-field-label">Capabilities</p>
+        <div class="aaas-caps">
+          <label class="aaas-check"><input type="checkbox" name="cap" value="support"> Customer support</label>
+          <label class="aaas-check"><input type="checkbox" name="cap" value="content"> Content drafting</label>
+          <label class="aaas-check"><input type="checkbox" name="cap" value="research"> Research &amp; summarize</label>
+          <label class="aaas-check"><input type="checkbox" name="cap" value="classify"> Triage / classification</label>
+          <label class="aaas-check"><input type="checkbox" name="cap" value="scheduling"> Scheduling</label>
+          <label class="aaas-check"><input type="checkbox" name="cap" value="lead_qualification"> Lead qualification</label>
+        </div>
+        <label class="aaas-field">Anything else it should handle?
+          <textarea name="use_cases" maxlength="1000" rows="3" placeholder="Optional — describe extra use cases."></textarea>
+        </label>
+      </fieldset>
+
+      <!-- Step 4 — Knowledge / delivery / constraints / tier -->
+      <fieldset class="aaas-step" data-step="4">
+        <legend>Knowledge &amp; delivery</legend>
+        <label class="aaas-field">Knowledge source
+          <select name="knowledge_type">
+            <option value="none">None to start</option>
+            <option value="url">Crawl a website</option>
+            <option value="upload">I'll provide documents</option>
+          </select>
+        </label>
+        <label class="aaas-field aaas-knowledge-ref" hidden>Website or notes
+          <input type="text" name="knowledge_ref" maxlength="500" placeholder="https://yoursite.com or a short note">
+        </label>
+        <p class="aaas-field-label">Delivery channels</p>
+        <div class="aaas-caps">
+          <label class="aaas-check"><input type="checkbox" name="delivery" value="api" checked disabled> API access (always included)</label>
+          <label class="aaas-check"><input type="checkbox" name="delivery" value="kbs_embed"> Website embed (KBS)</label>
+          <label class="aaas-check"><input type="checkbox" name="delivery" value="mailbox"> Email mailbox</label>
+        </div>
+        <p class="aaas-field-label">Languages</p>
+        <div class="aaas-caps">
+          <label class="aaas-check"><input type="checkbox" name="lang" value="en" checked> English</label>
+          <label class="aaas-check"><input type="checkbox" name="lang" value="fr"> French</label>
+          <label class="aaas-check"><input type="checkbox" name="lang" value="es"> Spanish</label>
+        </div>
+        <label class="aaas-field aaas-required">Plan
+          <select name="tier" required>
+            {% for t in tiers %}<option value="{{ t.tier }}"{% if t.tier == 'starter' %} selected{% endif %}>{{ t.label }}</option>{% endfor %}
+            {% if not tiers %}<option value="starter" selected>Starter</option><option value="pro">Pro</option><option value="enterprise">Enterprise</option>{% endif %}
+          </select>
+        </label>
+      </fieldset>
+
+      <!-- Step 5 — Review -->
+      <fieldset class="aaas-step" data-step="5">
+        <legend>Review &amp; submit</legend>
+        <p class="aaas-review-note">We'll review your brief, send a quote, and build your agent once you approve. No charge until you confirm.</p>
+        <dl class="aaas-review" id="aaasReview"></dl>
+      </fieldset>
+
+      <!-- Nav -->
+      <div class="aaas-nav">
+        <button type="button" class="aaas-btn aaas-btn-ghost" id="aaasBack" hidden>Back</button>
+        <button type="button" class="aaas-btn aaas-btn-primary" id="aaasNext">Next</button>
+        <button type="submit" class="aaas-btn aaas-btn-primary" id="aaasSubmit" hidden>Submit request</button>
+      </div>
+      <p class="aaas-form-error" id="aaasFormError" role="alert" hidden></p>
+    </form>
+
+    <!-- Confirmation -->
+    <div class="aaas-confirm" id="aaasConfirm" hidden>
+      <div class="aaas-confirm-icon"><i data-lucide="check-circle-2"></i></div>
+      <h2>Request received</h2>
+      <p>Thank you — your commissioning request is in. Our team will review your brief and follow up with a quote.</p>
+      <p class="aaas-confirm-ref">Reference: <strong id="aaasOrderRef">—</strong></p>
+    </div>
+  </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>window.AAAS_TIERS = {{ tiers | tojson }};</script>
+<script src="{{ url_for('static', filename='js/aaas-commission.js') }}"></script>
+{% endblock %}

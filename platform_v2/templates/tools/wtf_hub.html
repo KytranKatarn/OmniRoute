@@ -40,6 +40,11 @@
         <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">WHAT THE FACT</span>
       </div>
       <div style="flex:1 !important;padding:16px !important;">
+        <div class="wtf-tabs" style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="wtf-tab active" data-pane="overview" onclick="wtfShowPane('overview',this)">Overview</button>
+          <button class="wtf-tab" data-pane="inbox" onclick="wtfShowPane('inbox',this)">📬 Inbox</button>
+        </div>
+        <div id="wtf-pane-overview">
         <div class="wtf-card">
           <div class="wtf-label">Pipeline Agents</div>
           <span class="wtf-agent">B.I.A.S. — Bias Analysis</span>
@@ -69,6 +74,58 @@
           &nbsp;·&nbsp;
           <a href="https://what-the-fact.tech" target="_blank" style="color:rgba(0,255,255,0.6);font-size:0.65rem;text-decoration:none;">what-the-fact.tech ↗</a>
         </div>
+        </div><!-- /wtf-pane-overview -->
+        <div id="wtf-pane-inbox" style="display:none;">
+          <style>
+            .wtf-tab{background:#0d1117;border:1px solid #1a2a3a;color:#8aa;border-radius:5px;padding:5px 14px;cursor:pointer;font:inherit;font-size:0.72rem;letter-spacing:1px;text-transform:uppercase;}
+            .wtf-tab.active{border-color:#00ffff;color:#00ffff;box-shadow:0 0 0 1px #00ffff inset;}
+            .wtf-muted{color:#64748b;font-size:0.78rem;}
+            .wtf-mail-chip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:0.45rem 0.7rem;cursor:pointer;color:#cbd5e1;font:inherit;text-align:left;}
+            .wtf-mail-chip:hover{border-color:#334155;}
+            .wtf-mail-chip.active{border-color:#00ffff;box-shadow:0 0 0 1px #00ffff inset;}
+            .wtf-mail-chip:disabled{opacity:0.5;cursor:not-allowed;}
+            .wtf-mail-chip-addr{font-size:0.78rem;color:#e2e8f0;}
+            .wtf-mail-chip-badge{font-size:0.7rem;color:#00ffff;font-weight:600;}
+            .wtf-mail-chip-err{font-size:0.68rem;color:#f59e0b;}
+            .wtf-mail-item{padding:0.5rem 0.6rem;border-bottom:1px solid #1e293b;cursor:pointer;}
+            .wtf-mail-item:hover{background:#0f172a;}
+            .wtf-mail-item.unseen .wtf-mail-item-subj{font-weight:700;color:#f1f5f9;}
+            .wtf-mail-item-subj{font-size:0.84rem;color:#cbd5e1;margin-bottom:2px;}
+            .wtf-mail-item-meta{display:flex;justify-content:space-between;gap:0.5rem;font-size:0.7rem;color:#64748b;}
+            .wtf-mail-item-from{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;}
+            .wtf-mail-read-subj{font-family:'Orbitron',sans-serif;font-size:0.98rem;color:#f1f5f9;margin:0 0 0.5rem;}
+            .wtf-mail-read-meta{font-size:0.74rem;color:#64748b;margin-bottom:0.7rem;line-height:1.5;}
+            .wtf-mail-read-body{white-space:pre-wrap;font-size:0.88rem;line-height:1.6;color:#cbd5e1;}
+            .wtf-mail-ai{margin-top:0.9rem;border-top:1px solid #1e293b;padding-top:0.7rem;}
+            .wtf-mail-ai-bar{display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.6rem;}
+            .wtf-mail-ai-label{font-size:0.74rem;color:#00ffff;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;}
+            .wtf-mail-ai-block{margin-top:0.6rem;}
+            .wtf-mail-ai-title{font-size:0.72rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.3rem;}
+            .wtf-mail-ai-text{white-space:pre-wrap;font-size:0.85rem;line-height:1.55;color:#e2e8f0;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:0.6rem 0.7rem;}
+            .wtf-mail-flabel{display:block;font-size:0.68rem;text-transform:uppercase;letter-spacing:0.05em;color:#64748b;margin:0.5rem 0 0.2rem;}
+            .wtf-mail-input{width:100%;box-sizing:border-box;background:#0f172a;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;font:inherit;font-size:0.82rem;padding:0.4rem 0.55rem;}
+            .wtf-mail-textarea{width:100%;box-sizing:border-box;min-height:140px;resize:vertical;background:#0f172a;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;font:inherit;font-size:0.85rem;line-height:1.55;padding:0.55rem 0.65rem;white-space:pre-wrap;}
+            .wtf-mail-send-row{display:flex;align-items:center;gap:0.7rem;margin-top:0.6rem;}
+            .wtf-btn-sm{background:#0d1117;border:1px solid #1a2a3a;color:#cbd5e1;border-radius:5px;padding:0.35rem 0.7rem;cursor:pointer;font:inherit;font-size:0.7rem;}
+            .wtf-btn-sm:hover{border-color:#00ffff;}
+            .wtf-btn-send{background:#0e7490;border-color:#00ffff;color:#ecfeff;}
+            .wtf-btn-send:hover{background:#0891b2;}
+            .wtf-mail-send-status{font-size:0.78rem;color:#94a3b8;}
+            .wtf-mail-send-status.ok{color:#34d399;}
+            .wtf-mail-send-status.err{color:#fca5a5;}
+          </style>
+          <div class="wtf-card">
+            <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.9rem;">
+              <span class="wtf-muted">5 what-the-fact.com mailboxes · read-only IMAP · send-as gated on your click. Desks: press@→S.T.R.I.N.G.E.R. · tip@→V.E.R.I.F.Y. · contact@/admin@/api@→F.A.C.T.</span>
+              <button id="wtf-mail-refresh" class="wtf-btn-sm" style="margin-left:auto;">↻ Refresh</button>
+            </div>
+            <div id="wtf-mail-boxes" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.9rem;"></div>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start;">
+              <div id="wtf-mail-list" style="flex:1 1 300px;min-width:260px;max-height:60vh;overflow:auto;background:#0d1117;border:1px solid #1a2a3a;border-radius:6px;"></div>
+              <div id="wtf-mail-read" style="flex:2 1 380px;min-width:280px;max-height:60vh;overflow:auto;background:#0d1117;border:1px solid #1a2a3a;border-radius:6px;padding:12px;"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
     </div>
@@ -78,4 +135,15 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/wtf-hub-chat.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/wtf-hub-mail.js') }}" defer></script>
+<script>
+  function wtfShowPane(name, btn) {
+    document.querySelectorAll('.wtf-tab').forEach(function (t) { t.classList.toggle('active', t === btn); });
+    var ov = document.getElementById('wtf-pane-overview');
+    var ib = document.getElementById('wtf-pane-inbox');
+    if (ov) ov.style.display = (name === 'overview') ? '' : 'none';
+    if (ib) ib.style.display = (name === 'inbox') ? '' : 'none';
+    if (name === 'inbox' && window.wtfInboxActivate) window.wtfInboxActivate();
+  }
+</script>
 {% endblock %}

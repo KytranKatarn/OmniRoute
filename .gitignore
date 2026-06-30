@@ -80,6 +80,10 @@ pytest-of-*/
 **/.claude/todos/
 **/.claude/projects/
 
+# Local working notes — design/scoping plans + research scratch (not source)
+.claude/plans/
+.claude/research/
+
 # Session data
 conversation_logs/
 persistence/
@@ -109,6 +113,7 @@ platform_v2/static/media/users/
 platform_v2/static/media/agents/
 platform_v2/static/media/portraits/
 platform_v2/static/media/environments/
+platform_v2/static/media/brands/
 !platform_v2/static/media/.gitkeep
 
 # Node.js (Playwright test runner)
@@ -176,6 +181,9 @@ sandbox/
 # utilities live in scripts/tests/ and remain tracked.
 scripts/debug_*.py
 scripts/debug/
+
+# Generated DR triage reports (runtime output from backup_triage.sh, not source)
+scripts/backup/dr_reports/
 
 # Portrait thumb staging — portrait_service._sync_website_thumb writes
 # here when the website dir is mounted read-only inside the container.

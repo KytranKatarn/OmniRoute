@@ -10,6 +10,8 @@ Verifies:
 
 Strategy: patch the real DB writes and the outbound Telegram calls so tests
 run without a live bot token or Telegram network access.
+
+**NOTE:** Potential hardcoded secret detected. Use environment variables instead.
 """
 
 import sys

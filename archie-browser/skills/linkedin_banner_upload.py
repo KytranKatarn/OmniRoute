@@ -145,117 +145,110 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(3000)
     _screenshot(page, "banner_before")
 
-    # ── Open the banner uploader + set the file ──────────────────────────────
-    # Confirmed live 2026-06-30 (Terry/377): with NO existing banner the control
-    # is <button aria-label="Add background image"> and clicking it triggers a
-    # NATIVE file-chooser (no DOM <input type=file>) — caught via
-    # page.expect_file_chooser. With an existing banner a modal opens first, then
-    # an in-modal "Upload"/"Change photo" triggers the chooser.
-    banner_btn_selectors = [
-        'button[aria-label="Add background image"]',
-        '[aria-label*="background image"]',
-        '[aria-label*="Edit background"]',
-        '[aria-label*="background photo"]',
-        'button.profile-background-image__edit-btn',
-        'button[class*="background"]',
-    ]
+    # ── Open the cover uploader + set the file ───────────────────────────────
+    # VERIFIED live Terry/377 (headed + headless). The real flow is:
+    #   "Add background image" (button) -> "Add cover image" (menu modal) ->
+    #   "Upload single photo" (triggers a NATIVE file-chooser) -> a PERSISTENT
+    #   page.on('filechooser') handler feeds the banner -> "Save changes" finalizes.
+    # The intermediate "Upload single photo" click is ESSENTIAL — without it no
+    # chooser ever fires (that was the long-standing bug). A persistent handler is
+    # required because the chooser fires after a delay; a scoped expect_file_chooser
+    # around a single click misses it.
+    _fc = {"set": False}
 
-    file_set = False
-    button_clicked = False
-
-    # The banner control opens a MENU (confirmed live Terry/377) — NOT a chooser.
-    # Plain-click it; a 6s expect_file_chooser here would just let the menu
-    # auto-close before we can click "Add cover image".
-    for sel in banner_btn_selectors:
+    def _on_filechooser(fc):
         try:
-            loc = page.locator(sel).first
-            loc.wait_for(state="visible", timeout=4000)
-            loc.click(timeout=5000)
-            button_clicked = True
-            break
+            fc.set_files(banner_path)
+            _fc["set"] = True
         except Exception:
-            continue
+            pass
 
-    if not button_clicked:
-        _screenshot(page, "banner_btn_fail")
-        raise RuntimeError("Could not find banner edit button")
-
-    _screenshot(page, "banner_menu_open")
-
-    # Case B — the button opened a MENU (shadow DOM, so querySelectorAll-based
-    # dumps see nothing). Confirmed live 2026-06-30 (Terry/377): the menu items are
-    # "Add cover image" + "Create a slideshow" (Premium). Click "Add cover image"
-    # (or "Edit cover image" when one already exists) -> native file-chooser. If a
-    # DOM <input type=file> is revealed instead, set that. get_by_text pierces
-    # shadow DOM (raw CSS/querySelectorAll does not).
-    if not file_set:
-        page.wait_for_timeout(1500)
-        _screenshot(page, "banner_menu")
-        for getter in [
-            lambda: page.get_by_text("Add cover image", exact=False).first,
-            lambda: page.get_by_text("Edit cover image", exact=False).first,
-            lambda: page.get_by_text("Change cover image", exact=False).first,
-            lambda: page.get_by_text("Upload photo", exact=False).first,
+    page.on("filechooser", _on_filechooser)
+    file_set = False
+    try:
+        # 1. Banner control (Add/Edit background image) -> menu.
+        button_clicked = False
+        for attempt in [
+            lambda: page.locator('button[aria-label="Add background image"]').first.click(timeout=8000),
+            lambda: page.locator('[aria-label*="background image"]').first.click(timeout=8000),
+            lambda: page.locator('[aria-label*="Edit background"]').first.click(timeout=6000),
         ]:
             try:
-                with page.expect_file_chooser(timeout=6000) as fc_info:
-                    getter().click(timeout=4000)
-                fc_info.value.set_files(banner_path)
-                file_set = True
+                attempt()
+                button_clicked = True
                 break
             except Exception:
-                try:
-                    inp = page.locator('input[type="file"]').first
-                    inp.wait_for(state="attached", timeout=2500)
-                    inp.set_input_files(banner_path)
-                    file_set = True
-                    break
-                except Exception:
-                    continue
+                continue
+        if not button_clicked:
+            _screenshot(page, "banner_btn_fail")
+            raise RuntimeError("Could not find banner edit button")
+        page.wait_for_timeout(1800)
+        _screenshot(page, "banner_menu_open")
 
-    # Case C — a real DOM file input (older flow).
-    if not file_set:
-        for sel in ['input[type="file"]', 'input[accept*="image"]']:
+        # 2. "Add cover image" (or Edit/Change when one already exists) -> modal.
+        for attempt in [
+            lambda: page.get_by_text("Add cover image", exact=False).first.click(timeout=6000),
+            lambda: page.get_by_text("Edit cover image", exact=False).first.click(timeout=5000),
+            lambda: page.get_by_text("Change cover image", exact=False).first.click(timeout=5000),
+        ]:
             try:
-                loc = page.locator(sel).first
-                loc.wait_for(state="attached", timeout=4000)
-                loc.set_input_files(banner_path)
-                file_set = True
+                attempt()
+                break
+            except Exception:
+                continue
+        page.wait_for_timeout(2500)
+
+        # 3. "Upload single photo" -> NATIVE chooser -> handler feeds the file.
+        for attempt in [
+            lambda: page.get_by_text("Upload single photo", exact=False).first.click(timeout=6000),
+            lambda: page.get_by_text("Upload photo", exact=False).first.click(timeout=4000),
+            lambda: page.get_by_text("Change photo", exact=False).first.click(timeout=4000),
+        ]:
+            try:
+                attempt()
                 break
             except Exception:
                 continue
 
-    if not file_set:
-        _screenshot(page, "banner_upload_fail")
-        raise RuntimeError("Could not upload banner file (no chooser/input found)")
+        # 4. Wait for the handler to feed the file (DOM input as a fallback).
+        for _ in range(20):
+            if _fc["set"]:
+                break
+            page.wait_for_timeout(500)
+        if not _fc["set"]:
+            try:
+                page.locator('input[type="file"]').first.set_input_files(banner_path, timeout=3000)
+                _fc["set"] = True
+            except Exception:
+                pass
+        if not _fc["set"]:
+            _screenshot(page, "banner_upload_fail")
+            raise RuntimeError("Could not upload banner file (no chooser/input found)")
 
-    page.wait_for_timeout(3000)
-    _screenshot(page, "banner_crop")
-
-    # Apply crop (accept default)
-    for apply_btn in [
-        lambda: page.get_by_role("button", name="Apply", exact=True).click(timeout=8000),
-        lambda: page.get_by_role("button", name="Save photo", exact=False).click(timeout=6000),
-        lambda: page.locator('button:has-text("Apply")').last.click(timeout=5000),
-    ]:
+        # 5. Crop/edit view -> "Save changes" finalizes (a separate "Save" may remain).
+        page.wait_for_timeout(5000)
+        _screenshot(page, "banner_crop")
+        for attempt in [
+            lambda: page.get_by_role("button", name="Save changes", exact=True).last.click(timeout=8000),
+            lambda: page.get_by_role("button", name="Apply", exact=True).last.click(timeout=4000),
+        ]:
+            try:
+                attempt()
+                break
+            except Exception:
+                continue
+        page.wait_for_timeout(2500)
         try:
-            apply_btn()
+            page.get_by_role("button", name="Save", exact=True).last.click(timeout=4000)
             page.wait_for_timeout(2000)
-            break
         except Exception:
-            continue
-
-    # Final save
-    for save_btn in [
-        lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=6000),
-        lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
-    ]:
+            pass
+    finally:
         try:
-            save_btn()
-            page.wait_for_timeout(2000)
-            break
+            page.remove_listener("filechooser", _on_filechooser)
         except Exception:
-            continue
+            pass
+    file_set = _fc["set"]
 
     try:
         page.keyboard.press("Escape")

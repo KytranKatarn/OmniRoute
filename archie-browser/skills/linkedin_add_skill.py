@@ -1,185 +1,142 @@
-"""LinkedIn add skill skill — adds a single skill to the profile."""
-import os
-from datetime import datetime
+"""LinkedIn add skill — adds a single skill via the add-skill ROUTE.
+
+Live-verified 2026-06-30 (Terry/377): the old "Add profile section" button path is
+DEAD (probe + live run both failed "Could not find Add profile section button").
+The working surface is the ROUTE https://www.linkedin.com/in/me/add-edit/SKILL_AND_ASSOCIATION/
+which renders a form with a single ``Skill*`` typeahead input + a Save button
+(final URL /skills/edit/forms/new). Mirrors the proven add_experience rewrite:
+route + wait-for-Save + fill + pick the canonical suggestion + Save + HONEST verify
+(reload the skills detail page and confirm the skill now appears — the old skill
+returned success unconditionally, a phantom-success).
+"""
 
 SKILL_NAME = "linkedin_add_skill"
 PLATFORMS = ["linkedin"]
+MUTATING = True
 
-_SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "/tmp/browser_screenshots")
-os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
+_SHOT_DIR = "/profiles"
 
 
-def _screenshot(page, name):
-    # Diagnostic only — non-fatal. Bare page.screenshot() times out at 30s on
-    # LinkedIn's animated composer and falsely fails posts (#3953). 5s timeout
-    # + animations disabled + swallow errors.
-    path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+def _shot(page, name):
     try:
-        page.screenshot(path=path, timeout=5000, animations="disabled")
-        return path
+        page.screenshot(path=f"{_SHOT_DIR}/_skill_{name}.png", full_page=False, timeout=15000, animations="disabled")
+        return f"{_SHOT_DIR}/_skill_{name}.png"
     except Exception:
         return None
 
 
 def execute(page, params: dict) -> dict:
-    skill = params.get("skill", "").strip()
+    skill = (params.get("skill") or "").strip()
     if not skill:
         raise ValueError("skill is required for linkedin_add_skill")
 
-    page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
-    page.wait_for_timeout(3000)
-
-    try:
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
-    except Exception:
-        pass
-
-    # Scroll to Skills section if it exists and click the + button
-    has_skills_section = False
-    try:
-        page.locator("#skills").first.wait_for(state="attached", timeout=3000)
-        has_skills_section = True
-    except Exception:
-        pass
-
-    if has_skills_section:
-        try:
-            page.locator("#skills").first.scroll_into_view_if_needed(timeout=5000)
-            page.wait_for_timeout(1000)
-            # Click the + add button inside the skills section
-            result = page.evaluate("""() => {
-                const h = document.getElementById('skills');
-                if (!h) return false;
-                const section = h.closest('section');
-                if (!section) return false;
-                const btns = section.querySelectorAll('button');
-                for (const b of btns) {
-                    const lbl = (b.getAttribute('aria-label') || b.textContent || '').toLowerCase();
-                    if (lbl.includes('add') || lbl.includes('+')) { b.click(); return true; }
-                }
-                return false;
-            }""")
-            if not result:
-                raise Exception("Skills add button not found via JS")
-            page.wait_for_timeout(1500)
-        except Exception:
-            has_skills_section = False
-
-    if not has_skills_section:
-        # Add via "Add profile section" → Skills
-        opened = False
-        for btn in [
-            lambda: page.get_by_role("button", name="Add profile section", exact=False).click(timeout=8000),
-            lambda: page.locator('button:has-text("Add profile section")').click(timeout=8000),
-        ]:
-            try:
-                btn()
-                opened = True
-                break
-            except Exception:
-                continue
-
-        if not opened:
-            _screenshot(page, "skill_add_section_fail")
-            raise RuntimeError("Could not find Add profile section button")
-
-        page.wait_for_timeout(1500)
-
-        # Navigate to Skills
-        for skills_btn in [
-            lambda: page.get_by_role("button", name="Add skills", exact=False).click(timeout=6000),
-            lambda: page.get_by_role("menuitem", name="Skills", exact=False).click(timeout=6000),
-            lambda: page.get_by_text("Skills", exact=True).first.click(timeout=6000),
-            lambda: page.get_by_role("button", name="Recommended", exact=False).click(timeout=4000),
-        ]:
-            try:
-                skills_btn()
-                page.wait_for_timeout(1000)
-                break
-            except Exception:
-                continue
-
-        # Try expanding "Recommended" or "Skills" sub-category
-        for sub in [
-            lambda: page.get_by_text("Skills", exact=True).first.click(timeout=4000),
-            lambda: page.get_by_role("button", name="Add skills", exact=False).click(timeout=4000),
-        ]:
-            try:
-                sub()
-                break
-            except Exception:
-                continue
-
-    page.wait_for_timeout(2000)
-    _screenshot(page, "skill_modal_open")
-
-    # Fill the skill search field
-    filled = False
-    for field in [
-        lambda: page.get_by_label("Skill", exact=False).first.fill(skill, timeout=8000),
-        lambda: page.locator('input[id*="skill"]').first.fill(skill, timeout=5000),
-        lambda: page.locator('input[aria-label*="kill"]').first.fill(skill, timeout=5000),
-        lambda: page.locator('input[placeholder*="skill"], input[placeholder*="Skill"]').first.fill(skill, timeout=5000),
-        lambda: page.locator('input[type="text"]').first.fill(skill, timeout=5000),
+    # ── Open the add-skill form via its ROUTE + wait for it to render ─────────
+    page.goto("https://www.linkedin.com/in/me/add-edit/SKILL_AND_ASSOCIATION/", wait_until="domcontentloaded")
+    rendered = False
+    for make in [
+        lambda: page.get_by_label("Skill", exact=False).first,
+        lambda: page.get_by_placeholder("Skill", exact=False).first,
     ]:
         try:
-            field()
+            make().wait_for(state="visible", timeout=15000)
+            rendered = True
+            break
+        except Exception:
+            continue
+    _shot(page, "form")
+    if not rendered:
+        return {"success": False, "result": "add_skill_form_not_rendered", "errors": ["form_not_rendered"]}
+
+    # ── Fill the Skill typeahead ──────────────────────────────────────────────
+    filled = False
+    for make in [
+        lambda: page.get_by_label("Skill", exact=False).first,
+        lambda: page.get_by_placeholder("Skill", exact=False).first,
+    ]:
+        try:
+            f = make()
+            f.click(timeout=4000)
+            f.fill(skill, timeout=5000)
             filled = True
             break
         except Exception:
             continue
-
     if not filled:
-        _screenshot(page, "skill_field_fail")
-        raise RuntimeError(f"Could not find skill input field for: {skill}")
-
-    page.wait_for_timeout(1500)
-    _screenshot(page, "skill_typeahead")
-
-    # Select first matching suggestion, or press Enter
-    for select in [
-        lambda: page.locator('[role="option"]').first.click(timeout=4000),
-        lambda: page.locator('[role="listbox"] li').first.click(timeout=4000),
-        lambda: page.keyboard.press("Enter"),
+        _shot(page, "field_fail")
+        return {"success": False, "result": "skill_field_not_found", "errors": ["field_not_found"]}
+    # The Skill* search runs SERVER-SIDE — wait for the dropdown, then SELECT the
+    # match so it becomes a removable PILL. Typing alone does NOT add the skill;
+    # Save with no pill selected is a silent no-op (verified live 2026-06-30).
+    page.wait_for_timeout(2200)
+    _shot(page, "typeahead")
+    picked = False
+    for make in [
+        lambda: page.get_by_role("option", name=skill, exact=False).first,
+        lambda: page.locator('[role="listbox"] [role="option"]').filter(has_text=skill.split()[0]).first,
+        lambda: page.locator('.basic-typeahead__selectable').filter(has_text=skill.split()[0]).first,
+        lambda: page.locator('[role="option"]').first,
+        lambda: page.locator('.basic-typeahead__selectable').first,
     ]:
         try:
-            select()
-            page.wait_for_timeout(1000)
+            opt = make()
+            opt.wait_for(state="visible", timeout=3000)
+            opt.click(timeout=3000)
+            picked = True
             break
         except Exception:
             continue
+    page.wait_for_timeout(1000)
+    _shot(page, "after_pick")
+    # Belt-and-suspenders: a selected skill shows as a pill inside the dialog. If
+    # nothing was picked, Save would be a no-op — surface that instead of a phantom.
+    pill_seen = False
+    try:
+        pill_seen = (
+            page.locator('[role="dialog"], .artdeco-modal')
+            .get_by_text(skill, exact=False)
+            .count()
+            > 0
+        )
+    except Exception:
+        pass
 
-    # Save
-    for save_btn in [
+    # ── Save ──────────────────────────────────────────────────────────────────
+    saved = False
+    for make in [
         lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=8000),
         lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
-        lambda: page.get_by_role("button", name="Add", exact=True).last.click(timeout=5000),
     ]:
         try:
-            save_btn()
+            make()
+            saved = True
             break
         except Exception:
             continue
+    page.wait_for_timeout(2500)
+    try:
+        page.keyboard.press("Escape")
+    except Exception:
+        pass
 
-    page.wait_for_timeout(2000)
+    # ── HONEST verify — reload the skills detail page + confirm it's listed ───
+    confirmed = False
+    try:
+        page.goto("https://www.linkedin.com/in/me/details/skills/", wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
+        body = (page.evaluate("() => document.body.innerText || ''") or "").lower()
+        confirmed = skill.lower() in body
+    except Exception:
+        pass
+    _shot(page, "verify")
 
-    # Dismiss any follow-up
-    for dismiss in [
-        lambda: page.get_by_role("button", name="No thanks", exact=False).click(timeout=3000),
-        lambda: page.keyboard.press("Escape"),
-    ]:
-        try:
-            dismiss()
-            page.wait_for_timeout(500)
-            break
-        except Exception:
-            continue
-
-    final = _screenshot(page, f"skill_added_{skill[:20].replace(' ','_')}")
     return {
-        "success": True,
-        "result": f"Added skill: {skill}",
+        "success": bool(confirmed),
+        "result": f"Added skill: {skill}" if confirmed
+        else f"NOT confirmed (save_clicked={saved}) — skill not found on the skills page",
+        "confirmed": confirmed,
+        "save_clicked": saved,
+        "picked": picked,
+        "pill_seen": pill_seen,
         "skill": skill,
-        "screenshot_path": final,
+        "screenshot_dir": _SHOT_DIR,
     }

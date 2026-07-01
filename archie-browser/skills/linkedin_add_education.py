@@ -1,206 +1,163 @@
-"""LinkedIn add education — adds an education entry to the profile."""
-import os
-from datetime import datetime
+"""LinkedIn add education — adds an education entry via the add-education ROUTE.
+
+Live-probed 2026-06-30 (Terry/377): the old "Add profile section" button path is
+DEAD. The working surface is the ROUTE https://www.linkedin.com/in/me/add-edit/EDUCATION/
+(final URL /edit/forms/education/new) which renders: a School typeahead
+(placeholder "Ex: Boston University"), ``Degree``, ``Field of study``, ``Grade``,
+Activities, ``Description`` + Start/End year <select>s + a Save button.
+
+Mirrors the proven add_experience rewrite: route + wait-for-Save + labelled fills +
+pick the canonical school + HONEST verify (reload the education detail page and
+confirm the school now appears). Year <select>s are chosen by LABEL, not value —
+value-based select mis-picks (learned in add_experience). The old skill used the
+dead button path, value-based year selects, and returned success unconditionally.
+"""
 
 SKILL_NAME = "linkedin_add_education"
 PLATFORMS = ["linkedin"]
+MUTATING = True
 
-_SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "/tmp/browser_screenshots")
-os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
-
-_MONTHS = {
-    "january": "1", "february": "2", "march": "3", "april": "4",
-    "may": "5", "june": "6", "july": "7", "august": "8",
-    "september": "9", "october": "10", "november": "11", "december": "12",
-}
+_SHOT_DIR = "/profiles"
 
 
-def _screenshot(page, name):
-    # Diagnostic only — non-fatal. Bare page.screenshot() times out at 30s on
-    # LinkedIn's animated composer and falsely fails posts (#3953). 5s timeout
-    # + animations disabled + swallow errors.
-    path = f"{_SCREENSHOTS_DIR}/{name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+def _shot(page, name):
     try:
-        page.screenshot(path=path, timeout=5000, animations="disabled")
-        return path
+        page.screenshot(path=f"{_SHOT_DIR}/_edu_{name}.png", full_page=False, timeout=15000, animations="disabled")
+        return f"{_SHOT_DIR}/_edu_{name}.png"
     except Exception:
         return None
 
 
-def execute(page, params: dict) -> dict:
-    school = params.get("school", "").strip()
-    degree = params.get("degree", "").strip()
-    field = params.get("field_of_study", "").strip()
-    start_year = params.get("start_year", "")
-    end_year = params.get("end_year", "")
-    grade = params.get("grade", "").strip()
-    description = params.get("description", "").strip()
+def _fill_label(page, label, value):
+    try:
+        page.get_by_label(label, exact=False).first.fill(value, timeout=5000)
+        return True
+    except Exception:
+        return False
 
+
+def _select_label(page, field_label, option_label):
+    """Select an <option> by visible label (e.g. '2020'); value-based mis-picks."""
+    for kw in ("label", "value"):
+        try:
+            page.get_by_label(field_label, exact=False).first.select_option(
+                **{kw: str(option_label)}, timeout=4000
+            )
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def execute(page, params: dict) -> dict:
+    school = (params.get("school") or "").strip()
+    degree = (params.get("degree") or "").strip()
+    field = (params.get("field_of_study") or "").strip()
+    start_year = str(params.get("start_year") or "").strip()
+    end_year = str(params.get("end_year") or "").strip()
+    grade = (params.get("grade") or "").strip()
+    description = (params.get("description") or "").strip()
     if not school:
         raise ValueError("school is required for linkedin_add_education")
 
-    page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
-    page.wait_for_timeout(3000)
+    # ── Open the add-education form via its ROUTE + wait for render ───────────
+    page.goto("https://www.linkedin.com/in/me/add-edit/EDUCATION/", wait_until="domcontentloaded")
+    rendered = False
+    for make in [
+        lambda: page.get_by_placeholder("Boston University", exact=False).first,
+        lambda: page.get_by_label("School", exact=False).first,
+    ]:
+        try:
+            make().wait_for(state="visible", timeout=15000)
+            rendered = True
+            break
+        except Exception:
+            continue
+    _shot(page, "form")
+    if not rendered:
+        return {"success": False, "result": "add_education_form_not_rendered", "errors": ["form_not_rendered"]}
 
+    errors = []
+    # ── School (typeahead → pick the canonical school) ────────────────────────
+    school_filled = False
+    for make in [
+        lambda: page.get_by_placeholder("Boston University", exact=False).first,
+        lambda: page.get_by_label("School", exact=False).first,
+    ]:
+        try:
+            f = make()
+            f.click(timeout=4000)
+            f.fill(school, timeout=5000)
+            school_filled = True
+            break
+        except Exception:
+            continue
+    if not school_filled:
+        errors.append("school_not_filled")
+    page.wait_for_timeout(1400)
+    try:
+        page.locator('[role="option"]').filter(has_text=school.split()[0]).first.click(timeout=3000)
+    except Exception:
+        try:
+            page.locator('[role="option"]').first.click(timeout=2500)
+        except Exception:
+            try:
+                page.keyboard.press("Escape")
+            except Exception:
+                pass
+    page.wait_for_timeout(500)
+
+    if degree and not _fill_label(page, "Degree", degree):
+        errors.append("degree_not_filled")
+    if field and not _fill_label(page, "Field of study", field):
+        errors.append("field_not_filled")
+    if start_year and not _select_label(page, "Start year", start_year):
+        errors.append("start_year_fail")
+    if end_year and not _select_label(page, "End year", end_year):
+        errors.append("end_year_fail")
+    if grade and not _fill_label(page, "Grade", grade):
+        errors.append("grade_not_filled")
+    if description and not _fill_label(page, "Description", description):
+        errors.append("description_not_filled")
+
+    _shot(page, "filled")
     try:
         page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(400)
     except Exception:
         pass
 
-    # Click "Add profile section"
-    opened = False
-    for btn in [
-        lambda: page.get_by_role("button", name="Add profile section", exact=False).click(timeout=8000),
-        lambda: page.locator('button:has-text("Add profile section")').click(timeout=6000),
-    ]:
-        try:
-            btn()
-            opened = True
-            break
-        except Exception:
-            continue
-
-    if not opened:
-        raise RuntimeError("Could not find Add profile section button")
-
-    page.wait_for_timeout(1500)
-    _screenshot(page, "edu_section_menu")
-
-    # Navigate to Education
-    for edu_btn in [
-        lambda: page.get_by_role("button", name="Add education", exact=False).click(timeout=6000),
-        lambda: page.get_by_role("menuitem", name="Education", exact=False).click(timeout=6000),
-        lambda: page.get_by_text("Education", exact=True).first.click(timeout=6000),
-        lambda: page.get_by_role("button", name="Core", exact=False).click(timeout=4000),
-    ]:
-        try:
-            edu_btn()
-            page.wait_for_timeout(1000)
-            break
-        except Exception:
-            continue
-
-    # Try again if we expanded Core
-    for edu_btn in [
-        lambda: page.get_by_role("button", name="Add education", exact=False).click(timeout=5000),
-        lambda: page.get_by_text("Education", exact=True).first.click(timeout=5000),
-    ]:
-        try:
-            edu_btn()
-            break
-        except Exception:
-            continue
-
-    page.wait_for_timeout(2000)
-    _screenshot(page, "edu_modal_open")
-
-    # School name
-    for field_fn in [
-        lambda: page.get_by_label("School", exact=False).first.fill(school, timeout=8000),
-        lambda: page.locator('input[id*="school"]').first.fill(school, timeout=5000),
-        lambda: page.locator('input[aria-label*="chool"]').first.fill(school, timeout=5000),
-    ]:
-        try:
-            field_fn()
-            page.wait_for_timeout(1200)
-            try:
-                page.locator('[role="option"]').first.click(timeout=3000)
-            except Exception:
-                pass
-            break
-        except Exception:
-            continue
-
-    # Degree
-    if degree:
-        for field_fn in [
-            lambda: page.get_by_label("Degree", exact=False).first.fill(degree, timeout=6000),
-            lambda: page.locator('input[id*="degree"]').first.fill(degree, timeout=5000),
-        ]:
-            try:
-                field_fn()
-                break
-            except Exception:
-                continue
-
-    # Field of study
-    if field:
-        for field_fn in [
-            lambda: page.get_by_label("Field of study", exact=False).first.fill(field, timeout=6000),
-            lambda: page.locator('input[id*="field"]').first.fill(field, timeout=5000),
-        ]:
-            try:
-                field_fn()
-                break
-            except Exception:
-                continue
-
-    # Start / End year
-    if start_year:
-        try:
-            page.get_by_label("Start year", exact=False).first.select_option(value=str(start_year), timeout=5000)
-        except Exception:
-            try:
-                page.locator('select[id*="start-year"]').first.select_option(value=str(start_year), timeout=4000)
-            except Exception:
-                pass
-
-    if end_year:
-        try:
-            page.get_by_label("End year", exact=False).first.select_option(value=str(end_year), timeout=5000)
-        except Exception:
-            try:
-                page.locator('select[id*="end-year"]').first.select_option(value=str(end_year), timeout=4000)
-            except Exception:
-                pass
-
-    # Grade
-    if grade:
-        try:
-            page.get_by_label("Grade", exact=False).first.fill(grade, timeout=4000)
-        except Exception:
-            pass
-
-    # Description
-    if description:
-        try:
-            page.get_by_label("Description", exact=False).first.fill(description, timeout=5000)
-        except Exception:
-            try:
-                page.locator('textarea[id*="description"]').first.fill(description, timeout=4000)
-            except Exception:
-                pass
-
-    page.wait_for_timeout(500)
-    _screenshot(page, "edu_filled")
-
-    # Save
-    for save_btn in [
+    # ── Save ──────────────────────────────────────────────────────────────────
+    saved = False
+    for make in [
         lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=8000),
         lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
     ]:
         try:
-            save_btn()
+            make()
+            saved = True
             break
         except Exception:
             continue
+    page.wait_for_timeout(2500)
 
-    page.wait_for_timeout(3000)
-
-    for dismiss in [
-        lambda: page.get_by_role("button", name="No thanks", exact=False).click(timeout=3000),
-        lambda: page.keyboard.press("Escape"),
-    ]:
-        try:
-            dismiss()
-            page.wait_for_timeout(500)
-            break
-        except Exception:
-            continue
+    # ── HONEST verify — reload the education detail page + confirm school ─────
+    confirmed = False
+    try:
+        page.goto("https://www.linkedin.com/in/me/details/education/", wait_until="domcontentloaded")
+        page.wait_for_timeout(3000)
+        body = (page.evaluate("() => document.body.innerText || ''") or "").lower()
+        confirmed = school.split()[0].lower() in body
+    except Exception:
+        pass
+    _shot(page, "verify")
 
     return {
-        "success": True,
-        "result": f"Added education: {degree or 'degree'} at {school}",
-        "screenshot_path": _screenshot(page, "edu_final"),
+        "success": bool(confirmed),
+        "result": f"Added education: {degree or 'degree'} at {school}" if confirmed
+        else f"NOT confirmed (save_clicked={saved}) — school not found on the education page",
+        "confirmed": confirmed,
+        "save_clicked": saved,
+        "errors": errors,
+        "screenshot_dir": _SHOT_DIR,
     }

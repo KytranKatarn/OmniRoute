@@ -56,6 +56,33 @@ def _fill_first(page, strategies, value):
     return False
 
 
+def _fill_typeahead(page, label, value):
+    """Fill a labelled typeahead (Country/Region, City), clearing any existing text,
+    then pick the matching suggestion so the value is actually committed."""
+    try:
+        loc = page.get_by_label(label, exact=False).first
+        loc.click(timeout=4000)
+        loc.press("Control+a")
+        loc.press("Delete")
+        loc.type(value, delay=30)
+        page.wait_for_timeout(1400)
+        for make in [
+            lambda: page.get_by_role("option", name=value, exact=False).first,
+            lambda: page.locator('[role="option"]').filter(has_text=value.split(",")[0]).first,
+            lambda: page.locator('[role="option"]').first,
+        ]:
+            try:
+                opt = make()
+                opt.wait_for(state="visible", timeout=2500)
+                opt.click(timeout=2500)
+                return True
+            except Exception:
+                continue
+        return False
+    except Exception:
+        return False
+
+
 def _save(page):
     for make in [
         lambda: page.get_by_role("button", name="Save", exact=True).last,
@@ -74,8 +101,8 @@ def _save(page):
 def execute(page, params: dict) -> dict:
     headline = params.get("headline", "").strip()
     about = params.get("about", "").strip()
-    if not headline and not about:
-        raise ValueError("At least one of headline or about is required")
+    if not any([headline, about, params.get("country"), params.get("city")]):
+        raise ValueError("At least one of headline / about / country / city is required")
 
     updated, errors = [], []
 
@@ -104,6 +131,28 @@ def execute(page, params: dict) -> dict:
             page.wait_for_timeout(500)
         except Exception:
             pass
+
+    # ── LOCATION — Country/Region + City in the /edit/intro/ modal ───────────
+    # Both are typeaheads; set Country FIRST (the City list depends on it). Verified
+    # field labels via probe 2026-06-30: "Country/Region*" + "City".
+    # NOTE (2026-06-30): Country editing is VERIFIED live (Kytran US→Canada). The
+    # City typeahead is FLAKY — changing the country re-renders/clears it, and a
+    # city-only pass didn't reliably commit (returns city_not_set, never a phantom
+    # success). City is best-effort; country is the reliable lever. #4611 follow-up.
+    country = params.get("country", "").strip()
+    city = params.get("city", "").strip()
+    if country or city:
+        page.goto("https://www.linkedin.com/in/me/edit/intro/", wait_until="domcontentloaded")
+        _wait_modal(page)
+        page.wait_for_timeout(800)
+        if country:
+            updated.append("country") if _fill_typeahead(page, "Country/Region", country) else errors.append("country_not_set")
+            page.wait_for_timeout(600)
+        if city:
+            updated.append("city") if _fill_typeahead(page, "City", city) else errors.append("city_not_set")
+        _shot(page, "location")
+        if not _save(page):
+            errors.append("location_save_failed")
 
     # ── ABOUT — /edit/about/ (gated on the modal actually rendering, so a
     #    non-About page can't make us fill the wrong field) ────────────────────

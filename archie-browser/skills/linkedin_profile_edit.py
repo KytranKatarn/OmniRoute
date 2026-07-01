@@ -154,19 +154,22 @@ def execute(page, params: dict) -> dict:
         if not _save(page):
             errors.append("location_save_failed")
 
-    # ── ABOUT — /edit/about/ (gated on the modal actually rendering, so a
-    #    non-About page can't make us fill the wrong field) ────────────────────
+    # ── ABOUT (summary) — /add-edit/SUMMARY/ ─────────────────────────────────
+    # /in/me/edit/about/ is a 404 (verified live 2026-07-01). The real About edit
+    # form is the add-edit route /in/me/add-edit/SUMMARY/ (redirects to
+    # /edit/forms/summary/new) which renders ONE contenteditable + a Save button.
+    # Gated on the Save button rendering so a non-About page can't misfire.
     if about:
-        page.goto("https://www.linkedin.com/in/me/edit/about/", wait_until="domcontentloaded")
+        page.goto("https://www.linkedin.com/in/me/add-edit/SUMMARY/", wait_until="domcontentloaded")
         rendered = _wait_modal(page, timeout=15000)
         page.wait_for_timeout(800)
         if not rendered:
             errors.append("about_route_not_rendered")
         else:
             filled = _fill_first(page, [
-                lambda: page.locator('[role="dialog"] div.ql-editor, .artdeco-modal div.ql-editor'),
-                lambda: page.locator('[role="dialog"] [contenteditable="true"], .artdeco-modal [contenteditable="true"]'),
-                lambda: page.locator('[role="dialog"] textarea, .artdeco-modal textarea'),
+                lambda: page.locator('div[contenteditable="true"][role="textbox"]'),
+                lambda: page.locator('[contenteditable="true"]'),
+                lambda: page.locator('textarea'),
             ], about)
             if filled:
                 updated.append("about") if _save(page) else errors.append("about_save_failed")

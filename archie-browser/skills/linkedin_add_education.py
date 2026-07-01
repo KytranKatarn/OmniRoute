@@ -57,6 +57,7 @@ def execute(page, params: dict) -> dict:
     end_year = str(params.get("end_year") or "").strip()
     grade = (params.get("grade") or "").strip()
     description = (params.get("description") or "").strip()
+    dry_run = bool(params.get("dry_run", False))
     if not school:
         raise ValueError("school is required for linkedin_add_education")
 
@@ -95,16 +96,30 @@ def execute(page, params: dict) -> dict:
     if not school_filled:
         errors.append("school_not_filled")
     page.wait_for_timeout(1400)
-    try:
-        page.locator('[role="option"]').filter(has_text=school.split()[0]).first.click(timeout=3000)
-    except Exception:
+    # SAFETY: only link a canonical school if an option matches the FULL typed
+    # name (case-insensitive). Otherwise keep the typed free text — never grab a
+    # wrong prestigious school on a partial match (cf. the "What The Factory" bug).
+    linked_school = False
+    for make in [
+        lambda: page.get_by_role("option", name=school, exact=False).first,
+        lambda: page.locator('[role="option"]').filter(has_text=school).first,
+    ]:
         try:
-            page.locator('[role="option"]').first.click(timeout=2500)
+            opt = make()
+            opt.wait_for(state="visible", timeout=2500)
+            opt.click(timeout=2500)
+            linked_school = True
+            break
         except Exception:
-            try:
-                page.keyboard.press("Escape")
-            except Exception:
-                pass
+            continue
+    if not linked_school:
+        # Dismiss the typeahead by BLURRING (Tab), NOT Escape — Escape closes the
+        # whole add-education modal, which killed Save (verified live 2026-06-30:
+        # save_clicked=False, nothing saved). Tab keeps the typed free text.
+        try:
+            page.keyboard.press("Tab")
+        except Exception:
+            pass
     page.wait_for_timeout(500)
 
     if degree and not _fill_label(page, "Degree", degree):
@@ -121,11 +136,23 @@ def execute(page, params: dict) -> dict:
         errors.append("description_not_filled")
 
     _shot(page, "filled")
-    try:
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(400)
-    except Exception:
-        pass
+    # NOTE: do NOT press Escape here — on the education route Escape closes the
+    # whole modal, leaving no Save button (the save_clicked=False bug).
+
+    # ── dry_run: confirm the form filled + Save is reachable, but do NOT save ──
+    if dry_run:
+        save_visible = False
+        try:
+            save_visible = page.get_by_role("button", name="Save", exact=True).last.is_visible(timeout=4000)
+        except Exception:
+            pass
+        return {
+            "success": bool(save_visible),
+            "dry_run": True,
+            "result": f"Form filled for '{school}'; Save reachable={save_visible} — NOT saved (dry_run).",
+            "errors": errors,
+            "screenshot_dir": _SHOT_DIR,
+        }
 
     # ── Save ──────────────────────────────────────────────────────────────────
     saved = False
@@ -141,15 +168,18 @@ def execute(page, params: dict) -> dict:
             continue
     page.wait_for_timeout(2500)
 
-    # ── HONEST verify — reload the education detail page + confirm school ─────
+    # ── HONEST verify — require Save actually fired, then reload + confirm the
+    #    FULL school name. school.split()[0] alone false-positived on the existing
+    #    "John F. Kennedy Business Centre" entry (matched "business"), 2026-06-30.
     confirmed = False
-    try:
-        page.goto("https://www.linkedin.com/in/me/details/education/", wait_until="domcontentloaded")
-        page.wait_for_timeout(3000)
-        body = (page.evaluate("() => document.body.innerText || ''") or "").lower()
-        confirmed = school.split()[0].lower() in body
-    except Exception:
-        pass
+    if saved:
+        try:
+            page.goto("https://www.linkedin.com/in/me/details/education/", wait_until="domcontentloaded")
+            page.wait_for_timeout(3000)
+            body = (page.evaluate("() => document.body.innerText || ''") or "").lower()
+            confirmed = school.lower() in body
+        except Exception:
+            pass
     _shot(page, "verify")
 
     return {

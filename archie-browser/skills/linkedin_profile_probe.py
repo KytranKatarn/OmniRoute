@@ -233,6 +233,37 @@ def execute(page, params: dict) -> dict:
         dump.update({"mode": open_target, "success": True})
         return dump
 
+    if open_target == "about_view":
+        # READ + SHOW the LIVE About section on the profile page (profile_view's
+        # extractor is broken; nothing else scroll-captures the About). Scroll the
+        # #about section into view, extract its text via a shadow-safe walk, shoot.
+        page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
+        page.wait_for_timeout(4000)
+        about_text = ""
+        try:
+            about_text = page.evaluate(r"""
+            () => {
+              function* walk(root){ for (const el of root.querySelectorAll('*')) { yield el; if (el.shadowRoot) yield* walk(el.shadowRoot); } }
+              const anchor = document.getElementById('about');
+              let sec = anchor ? (anchor.closest('section') || anchor.parentElement) : null;
+              if (!sec) {
+                for (const el of walk(document)) {
+                  if ((el.tagName==='H2'||el.tagName==='SPAN'||el.tagName==='DIV') && (el.innerText||'').trim()==='About') { sec = el.closest('section') || el.parentElement; break; }
+                }
+              }
+              if (!sec) return '';
+              sec.scrollIntoView({block:'center'});
+              let t = (sec.innerText||'').replace(/\s+/g,' ').trim();
+              t = t.replace(/^About\s*/i,'').replace(/\s*…see more\s*$/i,'').replace(/\s*see more\s*$/i,'');
+              return t.slice(0,700);
+            }
+            """) or ""
+        except Exception as exc:
+            about_text = f"extract_failed: {type(exc).__name__}"
+        page.wait_for_timeout(1500)
+        shot = _shot(page, "about_view")
+        return {"mode": "about_view", "success": True, "about_text": about_text, "shot": shot}
+
     page.goto("https://www.linkedin.com/in/me/", wait_until="domcontentloaded")
     page.wait_for_timeout(3500)
 

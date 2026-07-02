@@ -56,10 +56,14 @@ def execute(page, params: dict) -> dict:
     if _has_any(text, ["Pending", "Requested", "Withdraw request"]):
         return {"success": True, "result": "request_pending", "group_id": group_id}
 
-    # Click the join CTA. Prefer the explicit approval-CTAs; "Join" exact only as
-    # a last resort (the recommended-groups rail renders "Join <other group>").
+    # Click the join CTA. An INVITED user sees a standalone "Accept" button
+    # (screenshot-proven on 342, 2026-07-02) — try that first. Then the explicit
+    # approval-CTAs; "Join" exact only as a last resort (the recommended-groups
+    # rail renders "Join <other group>").
     clicked = False
     for fn in [
+        lambda: page.get_by_role("button", name="Accept", exact=False).first.click(timeout=5000),
+        lambda: page.get_by_text("Accept", exact=True).first.click(timeout=4000),
         lambda: page.get_by_role("button", name="Ask to join", exact=False).first.click(timeout=6000),
         lambda: page.get_by_role("button", name="Request to join", exact=False).first.click(timeout=6000),
         lambda: page.get_by_role("button", name="Join", exact=True).first.click(timeout=6000),
@@ -81,6 +85,21 @@ def execute(page, params: dict) -> dict:
         after,
         ["Pending", "Requested", "Withdraw", "You're a member", "Leave group"],
     )
+    if not confirmed:
+        # Accepting an INVITE grants membership instantly server-side, but the
+        # member chrome (composer / Leave group) only renders after a reload
+        # (proven live 2026-07-02: click_unverified, then already_member on
+        # the next fresh load).
+        try:
+            page.reload(wait_until="domcontentloaded")
+            page.wait_for_timeout(3000)
+            confirmed = _has_any(
+                _body_text(page),
+                ["Pending", "Requested", "Withdraw", "You're a member",
+                 "Leave group", "Start a post"],
+            )
+        except Exception:
+            pass
     return {
         "success": bool(confirmed),
         "result": "request_sent" if confirmed else "click_unverified",

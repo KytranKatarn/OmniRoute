@@ -83,14 +83,23 @@ def ingest_post_comments(
 def _parse_notif(text: str):
     """Best-effort (author, body) from a notification card's text."""
     t = re.sub(r"\bUnread notification\.\s*", "", text or "").strip()
+    # Strip LinkedIn's a11y/screen-reader prefixes so the author is a clean
+    # name ("Status is reachable Kytran Katarn" -> "Kytran Katarn").
+    for prefix in ("status is reachable", "status is online", "status is offline", "unread notification."):
+        low = t.lower().lstrip()
+        if low.startswith(prefix):
+            t = t.lstrip()[len(prefix) :].lstrip(" .")
     author = ""
     for verb in (" commented", " replied", " mentioned", " and "):
         if verb in t:
             author = t.split(verb, 1)[0].strip()
             break
     body = ""
+    # GROUP posts notify as "commented on your post in <group name>." — consume
+    # the group clause so it doesn't pollute the captured comment body (#4604,
+    # verified live on the WTF group 2026-07-02).
     m = re.search(
-        r"(?:commented on your post|replied to your comment|in a comment)[:.]?\s*(.*)",
+        r"(?:commented on your post(?: in [^.:\n]{1,80})?|replied to your comment|in a comment)[:.]?\s*(.*)",
         t,
         re.S,
     )
@@ -125,7 +134,10 @@ def ingest_comment_notifications(account: str = "kytran", agent_id: int = None, 
             cu = n["comment_url"]
             dec = unquote(cu)
             mact = re.search(r"activity:(\d+)", dec)
-            mcid = re.search(r"comment:\(activity:\d+,(\d+)\)", dec)
+            # GROUP-post comment URNs use comment:(groupPost:<groupId>-<postId>,<id>)
+            # instead of comment:(activity:<id>,<id>) — verified live on the WTF
+            # group 2026-07-02 (#4604). Accept both.
+            mcid = re.search(r"comment:\((?:activity:\d+|groupPost:[\d-]+),(\d+)\)", dec)
             if not (mact and mcid):
                 continue
             activity, cid = mact.group(1), mcid.group(1)

@@ -432,6 +432,113 @@ _ENGAGEMENT_FEWSHOT = (
     "of civic-tech orgs are thin."
 )
 
+# ── Per-account persona packs (Phase 5) — resolved from the registry voice_key ──
+# Terry = peer civic-tech builder (KB #277108). Kytran = founder brand-marketing voice
+# (owner direction 2026-07-01: "business marketing, trying to reach brand and promote").
+_KYTRAN_MARKETING_RULES = (
+    "You are writing ONE LinkedIn comment as a founder building brand awareness — "
+    "generous with insight, never hard-selling.\nRULES:\n"
+    "- Engage the ACTUAL content of the post. If you only have a short snippet, ask "
+    "about a specific instead of asserting what the post says.\n"
+    "- LEAD with a concrete, checkable point from what we've built (see facts below) that "
+    "genuinely bears on their post — speak as the founder ('we build...', 'when we shipped "
+    "X we found...') — THEN optionally add a sharp follow-up question. Only fall back to a "
+    "pure question when nothing grounded honestly fits. Never fabricate anything.\n"
+    "- Describe our products ONLY in the general terms given in the facts below. NEVER "
+    "claim a specific analysis, study, result, or metric not literally in those facts — if "
+    "the post's topic is outside our lane (partisan politics, breaking hard news), ask a "
+    "genuine question instead of stretching.\n"
+    "- AT MOST ONE product mention per comment, and only when genuinely relevant. A natural "
+    "pointer ('we publish it publicly at creed-ai.org') is fine; a hard sell is NOT — no "
+    "'DM me', no 'book a call', no pricing, no engagement bait.\n"
+    "- MOST posts will NOT warrant a product mention. If the post is about something we "
+    "don't build (a certification, a tool review, a hiring post, general career advice), "
+    "do NOT force one in — a genuinely curious, specific question with ZERO product talk "
+    "is the right comment there.\n"
+    "- Do NOT sign the comment. No emoji spam, no hashtag stuffing.\n"
+    "- Do NOT open with flattery ('Great point', 'Interesting', 'Well said', 'Great post'). "
+    "Lead with the substance.\n"
+    f"- Length: up to {_COMMENT_MAX_CHARS} characters, but substance over length."
+)
+
+_KYTRAN_MARKETING_FEWSHOT = (
+    "STYLE REFERENCES (post -> good comment):\n"
+    "POST: \"Small businesses want AI but don't know where to start — most pilots die in "
+    'month two..."\n'
+    "COMMENT: The month-two die-off usually happens because the pilot was a chatbot bolted "
+    "on, not a worker wired into real operations. We build AI staff for exactly this — "
+    "agents that take a defined role inside the client's existing tools, with a human "
+    "approval gate so trust builds before autonomy does. The biggest adoption unlock we've "
+    "seen: start with one narrow, measurable job, not a platform. What's the failure "
+    "pattern you see most — wrong use case, or wrong expectations?\n"
+    "---\n"
+    "POST: \"Trust in AI is falling; companies say 'responsible AI' but nobody can verify "
+    'it..."\n'
+    "COMMENT: Verification is the whole game — 'responsible' claims without receipts are "
+    "just marketing. We took the uncomfortable route and publish a live transparency score "
+    "on our own AI (accountability, fairness, privacy, safety, transparency), graded "
+    "continuously rather than audited once a year — public at creed-ai.org. It keeps us "
+    "honest and it's checkable by anyone. I'd like to see scoring like this become table "
+    "stakes for anyone selling AI.\n"
+    "---\n"
+    "POST: \"The CCNA is still the gold standard for getting into networking — here's how "
+    "I'd study for it in 2026...\"\n"
+    "(note: an off-lane post — the right comment has NO product mention, just genuine "
+    "curiosity)\n"
+    "COMMENT: The fundamentals argument holds up — subnetting and routing intuition "
+    "transfer to everything from cloud networking to self-hosted infrastructure. Curious "
+    "whether you'd still start people on the full CCNA track today, or go labs-first and "
+    "let the cert follow once the muscle memory exists?"
+)
+
+_KYTRAN_BRAND_FACTS = (
+    "\nBRAND FACTS (all real — same never-fabricate rule applies):\n"
+    "- We build commissioned 'AI staff' for businesses — agent teams with human approval "
+    "gates; public intake at platform.kytranempowerment.com/commission.\n"
+    "- Kytran Business Suite (business.kytranempowerment.com) is our SMB operations suite.\n"
+    "- The Watch Series products are live (gov/legal/civic/market.kytranempowerment.com, "
+    "what-the-fact.com); C.R.E.E.D.'s live AI transparency score is public at creed-ai.org.\n"
+)
+
+_PERSONAS = {
+    "terry": {
+        "persona": (
+            "Terry Caetano — Canadian civic-tech builder/journalist behind the Watch "
+            "Series + What The Fact; sovereign, ethical civic-intelligence AI."
+        ),
+        "rules": None,  # resolved to the module defaults in _persona_pack()
+        "fewshot": None,
+        "extra_facts": "",
+    },
+    "kytran_marketing": {
+        "persona": (
+            "Kytran Katarn — Founder & CEO, Kytran Empowerment Inc.: sovereign Canadian "
+            "civic-intelligence AI (A.R.C.H.I.E. platform, the Watch Series, What The "
+            "Fact, C.R.E.E.D., Kytran Business Suite). Brand voice: confident builder "
+            "promoting what we actually ship."
+        ),
+        "rules": _KYTRAN_MARKETING_RULES,
+        "fewshot": _KYTRAN_MARKETING_FEWSHOT,
+        "extra_facts": _KYTRAN_BRAND_FACTS,
+    },
+}
+
+
+def _persona_pack(voice: str = None) -> dict:
+    """Resolve a registry ``voice_key`` to its persona pack {persona, rules, fewshot,
+    extra_facts}. Unknown non-empty voice_key = raw custom persona line over the default
+    (Terry) rules/few-shot; empty/None = Terry."""
+    if voice and voice in _PERSONAS:
+        pack = dict(_PERSONAS[voice])
+    elif voice:
+        pack = {"persona": voice, "rules": None, "fewshot": None, "extra_facts": ""}
+    else:
+        pack = dict(_PERSONAS["terry"])
+    pack["rules"] = pack.get("rules") or _ENGAGEMENT_RULES
+    pack["fewshot"] = pack.get("fewshot") or _ENGAGEMENT_FEWSHOT
+    return pack
+
+
 _SIGNATURE_RE = re.compile(
     r"\n+\s*(?:[-–—]{1,2}\s*)?(?:best|regards|cheers|sincerely|thanks|thank you)[,!.\s]*$"
     r"|\n+\s*[-–—]{1,2}\s*(?:terry(?:\s+caetano)?|kytran(?:\s+katarn)?)\s*$",
@@ -454,9 +561,10 @@ def _draft_comment(snippet: str, author: str = "the author", voice: str = None, 
     dispatch. '' on any failure. Voice + grounding + guards per KB #277108.
     Routes to a capable local model (``model`` or ``_DEFAULT_DRAFT_MODEL``); local-only.
 
-    ``voice`` (S7-P1-4a): the acting account's registry voice_key. When multi-account
-    engagement lands, parameterize persona + few-shot by account; today Terry is the
-    only can_engage account so the default persona is Terry's."""
+    ``voice`` (S7-P1-4a): the acting account's registry voice_key, resolved via
+    _persona_pack() — 'terry' (peer civic-tech, KB #277108) | 'kytran_marketing'
+    (founder brand voice, Phase 5) | any other non-empty value = raw custom persona
+    line over the default rules/few-shot | empty = Terry."""
     from services.welfare_governance_service import pool_over_budget_by_skill
 
     # Welfare gate (ADR-002): skip engagement-comment drafting when the social_content
@@ -469,15 +577,9 @@ def _draft_comment(snippet: str, author: str = "the author", voice: str = None, 
         return ""
 
     try:
-        from services.signal_calendar_service import _ensure_import_paths
+        from services.cluster_dispatch import queued_dispatch_text
 
-        _ensure_import_paths()
-        from tools.department_hq.services.department_dispatcher import dispatch
-
-        persona = voice or (
-            "Terry Caetano — Canadian civic-tech builder/journalist behind the Watch "
-            "Series + What The Fact; sovereign, ethical civic-intelligence AI."
-        )
+        pack = _persona_pack(voice)
         # Live topical grounding (fail-open): recent REAL WTF headlines.
         wtf_block = ""
         try:
@@ -490,22 +592,27 @@ def _draft_comment(snippet: str, author: str = "the author", voice: str = None, 
             pass
 
         prompt = (
-            f"Persona: {persona}\n\n"
-            f"{_ENGAGEMENT_RULES}\n\n"
-            f"{_ENGAGEMENT_STACK_FACTS}{wtf_block}\n\n"
-            f"{_ENGAGEMENT_FEWSHOT}\n\n"
+            f"Persona: {pack['persona']}\n\n"
+            f"{pack['rules']}\n\n"
+            f"{_ENGAGEMENT_STACK_FACTS}{pack['extra_facts']}{wtf_block}\n\n"
+            f"{pack['fewshot']}\n\n"
             f"Now write ONE comment replying to this post by {author}. "
             f"Output ONLY the comment text — no preamble, no quotes, no sign-off.\n\n"
             f"POST: {(snippet or '')[:800]}"
         )
-        res = dispatch(
-            capability="social_content",
-            prompt=prompt,
-            model_override=(model or _DEFAULT_DRAFT_MODEL),
+        # Queue-aware dispatch (KB #276153): a cold model gets QUEUED, not failed —
+        # queued_dispatch_text polls dispatch_pending_queue through the cold load
+        # instead of silently dropping the draft like a bare dispatch() would.
+        raw = queued_dispatch_text(
+            "social_content",
+            prompt,
+            module_id="signal_engagement",
             local_only=True,
+            model_override=(model or _DEFAULT_DRAFT_MODEL),
+            poll_timeout_s=300,
         )
-        if getattr(res, "success", False):
-            text = (res.response or "").strip().strip('"').strip()
+        if raw:
+            text = raw.strip().strip('"').strip()
             text = _strip_comment_signature(text)
             return text[:_COMMENT_MAX_CHARS]
     except Exception as e:

@@ -61,6 +61,7 @@ def queued_dispatch_text(
     module_id: str = "cluster_dispatch",
     local_only: bool = True,
     poll_timeout_s: int = 240,
+    model_override: Optional[str] = None,
 ) -> Optional[str]:
     """Dispatch one LLM step through DHQ, queue-aware. Returns response text, or None.
 
@@ -89,6 +90,7 @@ def queued_dispatch_text(
         module_id=module_id,
         local_only=local_only,
         user_id=None,
+        model_override=model_override,
     )
 
     if getattr(result, "success", False):

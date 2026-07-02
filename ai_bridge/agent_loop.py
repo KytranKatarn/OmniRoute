@@ -10747,7 +10747,7 @@ class AgentLoop:
             with get_db_cursor() as (conn, cur):
                 cur.execute("""
                     SELECT id, title, description, category, priority,
-                           code_changes, file_path, plan_steps,
+                           code_changes, metadata->>'file_path' AS file_path, plan_steps,
                            retry_count, required_skills
                     FROM improvement_proposals
                     WHERE status = 'approved'

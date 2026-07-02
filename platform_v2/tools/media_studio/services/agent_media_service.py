@@ -84,7 +84,11 @@ def _get_daily_count(owner_id: Optional[str] = None) -> int:
                 (since,),
             )
         row = cur.fetchone()
-        return row[0] if row else 0
+        if not row:
+            return 0
+        # get_db_cursor yields RealDictCursor dict rows — row[0] raised KeyError: 0
+        # on every media-schedule tick (118x/48h, #4641; KB #268832 bug class).
+        return next(iter(row.values())) if isinstance(row, dict) else row[0]
 
 
 # ---------------------------------------------------------------------------

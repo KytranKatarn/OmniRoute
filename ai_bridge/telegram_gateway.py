@@ -142,7 +142,13 @@ class TelegramGateway:
             # Use lower-level API to avoid signal handler issues in non-main thread
             async def _run():
                 await app.initialize()
-                await app.updater.start_polling(drop_pending_updates=True)
+                # drop_pending_updates MUST be False: True silently DISCARDS every
+                # button tap made while the gateway is down — on 2026-07-02 four of
+                # the owner's five Approve taps were flushed by a container restart
+                # (task #4631). Approval taps must never be lost; processing a
+                # slightly-stale update on startup is harmless (handlers are
+                # id-scoped and idempotent; Telegram retains updates for 24h).
+                await app.updater.start_polling(drop_pending_updates=False)
                 await app.start()
                 # Keep running until stopped
                 while self._running:
@@ -707,10 +713,22 @@ class TelegramGateway:
             "Voice messages are not yet supported. Please send text."
         )
 
+    @staticmethod
+    async def _safe_answer(query):
+        """Ack a callback tap, tolerating stale queries. With drop_pending_updates=False
+        (task #4631) taps queued while the gateway was down are REPLAYED on startup —
+        Telegram rejects answers to callbacks older than ~1h ('Query is too old') and an
+        unguarded answer() would abort the handler BEFORE the tap is processed. The ack
+        is cosmetic; processing the tap is not."""
+        try:
+            await query.answer()
+        except Exception as e:
+            logger.info(f"[TelegramGateway] callback ack skipped (stale query is ok): {e}")
+
     async def _callback_handler(self, update, context):
         """Handle inline keyboard callbacks (approve/reject) — fallback for non-esc_ patterns."""
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
 
         logger.info(f"[TelegramGateway] Generic callback: data={query.data}")
 
@@ -733,7 +751,7 @@ class TelegramGateway:
     async def _node_callback(self, update, context):
         """Handle node approve/deny buttons from Telegram."""
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
 
         user_info = self._get_authorized_user(query.from_user.id)
         if not user_info:
@@ -794,7 +812,7 @@ class TelegramGateway:
           welfare_dismiss_{agent_id}  — dismiss alert, no action taken
         """
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
 
         user_info = self._get_authorized_user(query.from_user.id)
         if not user_info:
@@ -959,7 +977,7 @@ class TelegramGateway:
     async def _escalation_callback(self, update, context):
         """Handle escalation buttons (advisory ack, cloud/paid escalate, approval approve/deny/defer)."""
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
 
         tg_user = query.from_user
         logger.info(f"[TelegramGateway] Escalation callback: data={query.data} from user={tg_user.id}")
@@ -1338,7 +1356,7 @@ class TelegramGateway:
         import json as _json
 
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
 
         user_info = self._get_authorized_user(query.from_user.id)
         if not user_info:
@@ -1389,7 +1407,7 @@ class TelegramGateway:
     async def _pr_merge_callback(self, update, context):
         """Handle pr_merge_approve_N and pr_merge_deny_N inline button callbacks."""
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
         data = query.data  # e.g. "pr_merge_approve_692"
 
         try:
@@ -1443,7 +1461,7 @@ class TelegramGateway:
     async def _email_callback(self, update, context):
         """Handle email action buttons from Telegram notifications."""
         query = update.callback_query
-        await query.answer()
+        await self._safe_answer(query)
 
         data = query.data  # e.g. "email_reply_123"
         parts = data.split("_", 2)  # ["email", "reply", "123"]

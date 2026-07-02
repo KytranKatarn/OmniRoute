@@ -10766,6 +10766,22 @@ class AgentLoop:
                     LIMIT 3
                 """)
                 proposals = cur.fetchall()
+                # get_db_cursor yields RealDictCursor rows (KB #268832) but this
+                # pipeline indexes tuples (proposal[0], proposal[6], ...) — the
+                # resulting KeyError printed as 'Job failed: 0' and kept Job #48
+                # dead even after the file_path fix (layered bug). Normalize.
+                proposals = [
+                    (
+                        (
+                            r["id"], r["title"], r["description"], r["category"],
+                            r["priority"], r["code_changes"], r["file_path"],
+                            r["plan_steps"], r["retry_count"], r["required_skills"],
+                        )
+                        if isinstance(r, dict)
+                        else r
+                    )
+                    for r in proposals
+                ]
 
             if not proposals:
                 logger.debug("[Fix Processor] No approved proposals to process")
@@ -10869,6 +10885,8 @@ class AgentLoop:
                 LIMIT 1
             """)
             agent = cur.fetchone()
+            if isinstance(agent, dict):  # RealDictCursor row → tuple (KB #268832)
+                agent = (agent["id"], agent["name"])
 
             if not agent:
                 logger.info("[Fix Processor] No hub ENGINEERING agent, trying fleet agents...")
@@ -11046,7 +11064,7 @@ class AgentLoop:
                 """, (f"%{category}%", f"%{category}%"))
                 row = cur.fetchone()
                 if row:
-                    return row[0]
+                    return row["content"] if isinstance(row, dict) else row[0]
         except Exception as e:
             logger.debug(f"[Fix Processor] Fix pattern lookup failed for '{category}': {e}")
         return ""

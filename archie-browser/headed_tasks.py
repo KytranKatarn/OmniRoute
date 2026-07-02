@@ -15,8 +15,32 @@ retry weekly and report the PATCH status honestly each time.
 
 import logging
 import os
+import re
+import time
 
 logger = logging.getLogger("headed_tasks")
+
+SKILLS_DIR = os.path.join(os.path.dirname(__file__), "skills")
+_SKILL_RE = re.compile(r"^[a-z0-9_]{2,64}$")
+
+# KEEP IN SYNC with skill_runner._READ_ONLY_SKILLS (worker). Conservative
+# default: an unknown/new skill is treated as MUTATING (live-test proven:
+# linkedin_post declares no MUTATING flag — a default-False check let it
+# through the deny_mutating guard).
+_READ_ONLY_SKILLS = {
+    "linkedin_feed", "linkedin_notifications", "linkedin_search", "linkedin_inbox",
+    "linkedin_recent_activity", "linkedin_analytics", "linkedin_profile_view",
+    "linkedin_post_comments", "linkedin_company_inbox", "session_probe",
+}
+
+
+def _is_mutating(skill_name, module):
+    """Worker-parity semantics: explicit module-level MUTATING flag wins;
+    otherwise everything NOT on the read-only allowlist is mutating."""
+    flag = getattr(module, "MUTATING", None)
+    if flag is not None:
+        return bool(flag)
+    return skill_name not in _READ_ONLY_SKILLS
 
 _LAUNCH_ARGS = [
     "--no-sandbox",
@@ -28,6 +52,82 @@ _UA = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
+
+
+def _load_skill(skill_name):
+    """Worker-parity skill discovery (mirrors skill_runner._discover_skills):
+    importlib each skills/*.py and match on the module-level SKILL_NAME attr
+    (filename stem as the fallback name)."""
+    import importlib.util
+    from pathlib import Path
+
+    for path in Path(SKILLS_DIR).glob("*.py"):
+        if path.name == "__init__.py":
+            continue
+        try:
+            spec = importlib.util.spec_from_file_location(path.stem, path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        except Exception:
+            continue
+        if getattr(mod, "SKILL_NAME", path.stem) == skill_name:
+            return mod
+    return None
+
+
+def run_skill_headed(skill_name, params, agent_id=377, platform="linkedin", deny_mutating=False):
+    """#4649 slice 2 — run ANY baked skill in the HEADED browser (Xvfb :99,
+    same trusted profile + anti-detection recipe as the human noVNC login).
+
+    deny_mutating: refuse skills flagged MUTATING at the module level —
+    enforced HERE (where the flag lives) so the platform's hardened fallback
+    can never accidentally double-fire a publish that half-landed headless.
+    """
+    started = time.time()
+    if not _SKILL_RE.match(skill_name or ""):
+        return {"success": False, "error": "invalid skill name"}
+    mod = _load_skill(skill_name)
+    if mod is None:
+        return {"success": False, "error": f"unknown skill: {skill_name}"}
+    mutating = _is_mutating(skill_name, mod)
+    if deny_mutating and mutating:
+        return {"success": False, "error": "mutating_fallback_denied", "_mutating": True, "_skill": skill_name}
+    profile = f"/profiles/{int(agent_id)}-{platform}"
+    if not os.path.isdir(profile) or not os.listdir(profile):
+        return {"success": False, "error": f"profile_not_established: {profile}"}
+
+    os.environ.setdefault("DISPLAY", ":99")
+    from playwright.sync_api import sync_playwright
+
+    result = None
+    with sync_playwright() as p:
+        ctx = p.chromium.launch_persistent_context(
+            profile,
+            headless=False,
+            args=_LAUNCH_ARGS,
+            ignore_default_args=["--enable-automation"],
+            user_agent=_UA,
+            viewport=None,
+        )
+        try:
+            page = ctx.pages[0] if ctx.pages else ctx.new_page()
+            try:
+                result = mod.execute(page, dict(params or {}))
+            except Exception as exc:
+                # a skill's own error (bad params, selector miss) is a normal
+                # failed RESULT, not a 500 from the endpoint
+                result = {"success": False, "error": f"skill_error: {type(exc).__name__}: {exc}"}
+        finally:
+            ctx.close()
+
+    if not isinstance(result, dict):
+        result = {"success": bool(result), "result": str(result)[:400]}
+    result.setdefault("success", False)
+    result["_headed"] = True
+    result["_skill"] = skill_name
+    result["_mutating"] = mutating
+    result["_duration_ms"] = int((time.time() - started) * 1000)
+    return result
 
 
 def _open_edit_modal(page, group_id):

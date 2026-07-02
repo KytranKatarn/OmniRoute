@@ -322,6 +322,48 @@ def group_image_retry():
         _state_lock.release()
 
 
+@app.post("/headed-skill")
+def headed_skill():
+    """#4649 slice 2 — run ANY baked skill in the headed browser. Same trust
+    boundary as the headless task API (token-gated, baked skill code only —
+    no arbitrary scripts). Body: {skill, params?, agent_id?, platform?,
+    deny_mutating?}. 409 when a login session or another headed task holds
+    the profile. Every run emits an AUDIT log line; the platform wrapper
+    (services/browser_service.run_skill_headed) writes the DB audit row."""
+    j = request.get_json(silent=True) or {}
+    skill = str(j.get("skill") or "").strip()
+    if not skill:
+        abort(400, "skill required")
+    agent_id = _valid_agent_id(j.get("agent_id", 377))
+    platform = _valid_platform(j.get("platform"))
+    params = j.get("params") or {}
+    if not isinstance(params, dict):
+        abort(400, "params must be an object")
+
+    if _running():
+        return jsonify({"success": False, "error": "login browser session active — retry later"}), 409
+    if not _state_lock.acquire(blocking=False):
+        return jsonify({"success": False, "error": "another headed task is running"}), 409
+    try:
+        from headed_tasks import run_skill_headed
+
+        result = run_skill_headed(
+            skill, params, agent_id=agent_id, platform=platform,
+            deny_mutating=bool(j.get("deny_mutating")),
+        )
+        logger.info(
+            "[HeadedSkill] AUDIT skill=%s agent=%s platform=%s success=%s mutating=%s duration_ms=%s error=%s",
+            skill, agent_id, platform, result.get("success"), result.get("_mutating"),
+            result.get("_duration_ms"), (str(result.get("error"))[:120] if result.get("error") else "-"),
+        )
+        return jsonify(result)
+    except Exception as exc:
+        logger.exception("headed-skill failed")
+        return jsonify({"success": False, "error": f"{type(exc).__name__}: {exc}"}), 500
+    finally:
+        _state_lock.release()
+
+
 if __name__ == "__main__":
     threading.Thread(target=_idle_watchdog, daemon=True).start()
     app.run(host="0.0.0.0", port=API_PORT)

@@ -20,6 +20,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY login_app.py login_browser.py headed_tasks.py entrypoint-login.sh ./
+# #4649 slice 2 — the generic headed runner executes the SAME baked skills as
+# the headless worker (worker-parity discovery via SKILL_NAME attrs).
+COPY skills/ ./skills/
 RUN chmod +x /app/entrypoint-login.sh
 
 ENV PYTHONUNBUFFERED=1

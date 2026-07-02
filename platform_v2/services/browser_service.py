@@ -359,3 +359,132 @@ def scrape_article(url: str, timeout_s: int = 30) -> dict:
         agent_id=_SCRAPE_AGENT_ID,
         timeout_s=timeout_s,
     )
+
+
+# ---------------------------------------------------------------------------
+# Headed execution (#4649) — run a baked skill in the LOGIN sidecar's headed
+# browser (Xvfb :99, trusted profile, same recipe as the human noVNC login).
+# Some LinkedIn flows behave differently headless; this is the sanctioned
+# fallback tier. Same trust boundary as the headless API: baked skill code
+# only, token-gated, profile-mutex'd against live login sessions.
+# ---------------------------------------------------------------------------
+
+BROWSER_LOGIN_URL = os.getenv("BROWSER_LOGIN_URL", "http://archie_browser_login:4281")
+
+
+def _audit_headed_run(skill: str, agent_id: int, platform: str, result: dict, duration_ms: int) -> None:
+    """Per-run audit row — 0 tokens, mirrors the scraper telemetry pattern
+    (visible on Token Economy without touching LLM accounting)."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """INSERT INTO task_execution_log
+                       (agent_id, agent_name, worker_type, task_type, task_description,
+                        module_source, request_origin, model_used, tokens_used,
+                        duration_ms, success, error_message, created_at)
+                   VALUES (%s, %s, 'internal', 'browser_headed', %s,
+                           'browser_headed', 'platform', 'browser', 0,
+                           %s, %s, %s, NOW())""",
+                (
+                    agent_id,
+                    "S.C.O.U.T.",
+                    f"headed:{skill} ({platform})"[:200],
+                    duration_ms,
+                    bool(result.get("success")),
+                    (str(result.get("error"))[:300] if result.get("error") else None),
+                ),
+            )
+    except Exception:
+        logger.warning("headed audit row failed", exc_info=True)
+
+
+def run_skill_headed(
+    skill_name: str,
+    params: dict = None,
+    agent_id: int = DEFAULT_AGENT_ID,
+    platform: str = "linkedin",
+    timeout_s: int = 300,
+    deny_mutating: bool = False,
+) -> dict:
+    """Run one baked skill HEADED via the login sidecar. Synchronous (the
+    sidecar runs one headed task at a time; 409 = busy/login-session active).
+    deny_mutating is enforced sidecar-side where the MUTATING flag lives."""
+    started = time.time()
+    try:
+        resp = requests.post(
+            f"{BROWSER_LOGIN_URL}/headed-skill",
+            json={
+                "skill": skill_name,
+                "params": params or {},
+                "agent_id": agent_id,
+                "platform": platform,
+                "deny_mutating": deny_mutating,
+            },
+            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            timeout=timeout_s,
+        )
+        try:
+            result = resp.json()
+        except ValueError:
+            result = {}
+        if not isinstance(result, dict):
+            result = {}
+        if resp.status_code == 409:
+            result.setdefault("success", False)
+            result.setdefault("error", "headed sidecar busy (login session or task in flight)")
+        elif not resp.ok:
+            result = {"success": False, "error": f"headed sidecar http {resp.status_code}"}
+        result.setdefault("success", False)
+    except Exception as exc:
+        result = {"success": False, "error": f"headed call failed: {type(exc).__name__}"}
+    _audit_headed_run(skill_name, agent_id, platform, result, int((time.time() - started) * 1000))
+    return result
+
+
+def run_skill_hardened(
+    skill_name: str,
+    params: dict = None,
+    agent_id: int = DEFAULT_AGENT_ID,
+    platform: str = "linkedin",
+    timeout_s: int = DEFAULT_TIMEOUT_S,
+    allow_mutating_fallback: bool = False,
+    notify_on_fail: bool = True,
+) -> dict:
+    """#4649 COO pattern: headless first → HEADED retry → Telegram escalation
+    only when both fail. MUTATING skills are NOT retried headed unless the
+    caller explicitly allows it (a 'failed' headless publish may have half-
+    landed — auto-retrying risks a double-post; the sidecar enforces the
+    refusal via deny_mutating)."""
+    r = run_skill_sync(skill_name, params or {}, agent_id, timeout_s=timeout_s)
+    if isinstance(r, dict) and r.get("success"):
+        return r
+
+    headed = run_skill_headed(
+        skill_name,
+        params,
+        agent_id=agent_id,
+        platform=platform,
+        timeout_s=max(timeout_s, 240),
+        deny_mutating=not allow_mutating_fallback,
+    )
+    if headed.get("success"):
+        headed["_recovered_headed"] = True
+        logger.info("[Hardened] %s recovered via HEADED retry (agent %s)", skill_name, agent_id)
+        return headed
+
+    if notify_on_fail:
+        try:
+            from services.telegram_service import send_system
+
+            send_system(
+                "Headed fallback failed",
+                f"Skill {skill_name} (agent {agent_id}/{platform}) failed headless AND headed. "
+                f"headless: {str((r or {}).get('error'))[:120]} | headed: {str(headed.get('error'))[:120]}",
+                source="browser_service.hardened",
+            )
+        except Exception:
+            pass
+    headed.setdefault("_headless_error", (r or {}).get("error"))
+    return headed

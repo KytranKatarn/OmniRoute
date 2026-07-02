@@ -163,10 +163,13 @@ def _engagement_account(cur, agent_id: int) -> dict:
     )
 
 
-def record_executed(post_url: str, agent_id: int, action: str, success: bool) -> None:
+def record_executed(post_url: str, agent_id: int, action: str, success: bool, comment_url: str = None) -> None:
     """S7-P1-4b: after the Telegram approval fires, flip the ledger row executed/failed and,
     on success, bump the acting agent's daily action counter. Best-effort (never breaks the
-    approval executor). `post_url` may be a permalink or a urn — normalised internally."""
+    approval executor). `post_url` may be a permalink or a urn — normalised internally.
+    ``comment_url`` (migration 446): the posted comment's ?commentUrn= deep-link captured
+    by linkedin_comment — persisted so cross-boost can like OUR comments on third-party
+    posts (#4632 follow-up)."""
     urn = _post_urn_from(post_url)
     if not urn:
         return
@@ -175,9 +178,10 @@ def record_executed(post_url: str, agent_id: int, action: str, success: bool) ->
 
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
-                "UPDATE linkedin_engagement_ledger SET status=%s, executed_at=NOW() "
+                "UPDATE linkedin_engagement_ledger SET status=%s, executed_at=NOW(), "
+                "comment_url=COALESCE(%s, comment_url) "
                 "WHERE post_urn=%s AND acting_agent_id=%s AND action=%s",
-                ("executed" if success else "failed", urn, agent_id, action),
+                ("executed" if success else "failed", comment_url, urn, agent_id, action),
             )
             if success:
                 cur.execute(
@@ -456,6 +460,38 @@ def run_cross_boost(days: int = 7, max_per_account: int = 2, dry_run: bool = Fal
             (r["comment_url"], r["author"], r["body"]) if isinstance(r, dict) else (r[0], r[1], r[2])
             for r in cur.fetchall()
         ]
+
+        # b2) OUR engagement comments on THIRD-party posts — deep-links captured by
+        # linkedin_comment at posting time (migration 446; #4632 follow-up). Shaped
+        # to reuse the same author-needle → booster mapping as source (b): comments
+        # by 377 read as Terry-authored (boosted by personal), 342 as Kytran-authored
+        # (boosted by terry).
+        cur.execute(
+            "SELECT comment_url, acting_agent_id FROM linkedin_engagement_ledger "
+            "WHERE action='comment' AND status='executed' AND COALESCE(comment_url,'') <> '' "
+            "  AND executed_at > NOW() - make_interval(days => %s) "
+            "ORDER BY executed_at DESC LIMIT 40",
+            (int(days),),
+        )
+        _aid_author = {377: "Terry Caetano", 342: "Kytran Katarn"}
+        for r in cur.fetchall():
+            _curl = r["comment_url"] if isinstance(r, dict) else r[0]
+            _aid = r["acting_agent_id"] if isinstance(r, dict) else r[1]
+            _author = _aid_author.get(int(_aid or 0))
+            if _author:
+                comment_rows.append((_curl, _author, ""))
+
+        # Within-run dedup across both sources (a comment on our OWN post can appear
+        # in linkedin_comments AND the ledger) — keyed on the comment urn.
+        _seen_urns: set = set()
+        _unique_rows = []
+        for _row in comment_rows:
+            _u = _post_urn_from(_row[0])
+            if _u in _seen_urns:
+                continue
+            _seen_urns.add(_u)
+            _unique_rows.append(_row)
+        comment_rows = _unique_rows
 
         plan = []  # (kind, booster_key, aid, url, author, body_snippet)
         for post_type, post_url in post_rows:

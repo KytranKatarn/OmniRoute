@@ -5836,7 +5836,13 @@ class AgentLoop:
                 try:  # S7-P1-4b: close the engagement ledger row + bump the daily counter
                     from services.signal_engagement_service import record_executed
 
-                    record_executed(post_url, agent_id, "comment", bool(result.get("success")))
+                    record_executed(
+                        post_url,
+                        agent_id,
+                        "comment",
+                        bool(result.get("success")),
+                        comment_url=result.get("comment_url"),
+                    )
                 except Exception:
                     pass
                 return {

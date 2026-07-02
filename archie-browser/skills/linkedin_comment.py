@@ -21,6 +21,48 @@ def _screenshot(page, name):
         return None
 
 
+_COMMENT_NODE_SEL = (
+    "article.comments-comment-entity, .comments-comment-item, "
+    ".comments-comments-list__comment-item, [data-id*='comment']"
+)
+
+
+def _capture_comment_urn(page, needle, norm):
+    """Best-effort: find OUR rendered comment's node and lift its comment URN from
+    the data-id attribute (urn:li:comment:(activity:<a>,<c>) — the same id
+    linkedin_comment_reply targets). Returns (urn, deep_link) or (None, None).
+    The deep link is the only form that renders the thread for automation
+    (KB #274178) and is what cross-boost needs to LIKE this comment later
+    (#4632 follow-up: comments on THIRD-party posts have no notification-bell
+    deep-link, so we must capture it at posting time)."""
+    import re as _re
+    from urllib.parse import quote
+
+    try:
+        nodes = page.locator(_COMMENT_NODE_SEL)
+        n = min(nodes.count(), 15)
+        for i in range(n):
+            node = nodes.nth(i)
+            try:
+                if needle and needle not in norm(node.inner_text(timeout=800)):
+                    continue
+                did = node.get_attribute("data-id", timeout=800) or ""
+                m = _re.search(r"urn:li:comment:\(activity:(\d+),\d+\)", did)
+                if not m:
+                    continue
+                urn = m.group(0)
+                link = (
+                    f"https://www.linkedin.com/feed/update/urn:li:activity:{m.group(1)}/"
+                    f"?commentUrn={quote(urn, safe='')}"
+                )
+                return urn, link
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return None, None
+
+
 def execute(page, params: dict) -> dict:
     post_url = params.get("post_url", "").strip()
     comment = params.get("comment", "").strip()
@@ -70,12 +112,15 @@ def execute(page, params: dict) -> dict:
     # LinkedIn ranks the viewer's own comment into the visible thread.
     try:
         if needle and needle in _norm(page.inner_text("body")):
+            _urn, _curl = _capture_comment_urn(page, needle, _norm)
             return {
                 "success": True,
                 "confirmed": True,
                 "already": True,
                 "result": "Comment already present on post (previous attempt landed) — not re-posting",
                 "post_url": post_url,
+                "comment_urn": _urn,
+                "comment_url": _curl,
                 "error": None,
                 "screenshot_path": _screenshot(page, "comment_already"),
             }
@@ -142,6 +187,10 @@ def execute(page, params: dict) -> dict:
             break
         page.wait_for_timeout(1500)
 
+    # Capture the new comment's URN + deep-link (best-effort) so cross-boost can
+    # like this comment later — third-party posts have no other deep-link source.
+    _urn, _curl = _capture_comment_urn(page, needle, _norm) if confirmed else (None, None)
+
     return {
         "success": confirmed,
         "confirmed": confirmed,
@@ -151,6 +200,8 @@ def execute(page, params: dict) -> dict:
             else "Submitted but the comment could NOT be confirmed on the page after posting"
         ),
         "post_url": post_url,
+        "comment_urn": _urn,
+        "comment_url": _curl,
         "error": None if confirmed else "comment_not_confirmed",
         "screenshot_path": _screenshot(page, "comment_done"),
     }

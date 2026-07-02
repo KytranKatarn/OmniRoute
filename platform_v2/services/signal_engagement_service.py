@@ -359,16 +359,108 @@ def _already_proposed(post_url: str) -> bool:
         return True
 
 
-def _draft_comment(snippet: str, author: str = "the author", voice: str = None) -> str:
-    """Draft a short on-brand comment via S.I.G.N.A.L. dispatch. '' on any failure.
+# ── S.I.G.N.A.L. engagement comment drafting — voice + factual grounding (cont-113) ──
+# Full owner-approved guide: KB #277108. LinkedIn's comment cap is ~1250 chars.
+_COMMENT_MAX_CHARS = 1200
 
-    ``voice`` (S7-P1-4a): the acting account's registry voice_key, so each fleet agent
-    comments in a distinct persona (anti-spam diversity)."""
+# Real, checkable facts the model MAY cite. Anti-hallucination rule: cite ONLY these
+# (or the live WTF headlines injected at runtime) — otherwise ask a genuine question.
+_ENGAGEMENT_STACK_FACTS = (
+    "GROUNDING FACTS (all real/checkable — you may cite these; otherwise ask a "
+    "question. NEVER invent facts, numbers, names or events):\n"
+    "- We run a LOCAL-SOVEREIGN AI cluster: inference on Canadian-owned hardware first, "
+    "cloud escalation-only; civic data never leaves our own infrastructure.\n"
+    "- Watch Series: Gov Watch (CanadaBuys/PSPC procurement), Legal Watch "
+    "(CanLII/Canada Gazette/SCC), Civic Watch (municipal), Market Watch (SEDAR+), "
+    "What The Fact (46 Canadian news sources, bias scoring + fact-check). Unified by a "
+    "Shared Entity Graph tracing Money->MP->Vote->Policy->Contract->Market->Coverage->Public.\n"
+    "- C.R.E.E.D.: we publish a live PUBLIC transparency score on our OWN AI "
+    "(accountability/fairness/privacy/safety/transparency), with grades + badges.\n"
+    "- For anything not yet shipped, say 'building toward' rather than claiming it exists."
+)
+
+_ENGAGEMENT_RULES = (
+    "You are writing ONE LinkedIn comment as a peer builder — not a broadcaster or "
+    "salesperson.\nRULES:\n"
+    "- Engage the ACTUAL content of the post. If you only have a short snippet, ask "
+    "about a specific instead of asserting what the post says.\n"
+    "- LEAD with Terry's grounded perspective: contribute ONE concrete, checkable point "
+    "from our own experience/stack (see facts below) that genuinely bears on their post — "
+    "speak as someone who builds this ('we've found...', 'in building X we hit...'), not a "
+    "curious bystander — THEN optionally add a sharp follow-up question. Only fall back to a "
+    "pure question when nothing grounded honestly fits. Never fabricate anything.\n"
+    "- Describe our approach/capability ONLY in the general terms given in the facts below. "
+    "NEVER claim a specific analysis, study, result, or example ('we analyzed X and found Y') "
+    "that is not literally in those facts — if the post's topic is outside our lane "
+    "(partisan politics, breaking hard news), ask a genuine question instead of stretching.\n"
+    "- Do NOT sign the comment. No emoji spam, no hashtag stuffing, no sales pitch or CTA.\n"
+    "- Do NOT open with flattery ('Great point', 'Interesting', 'Well said', 'Great post'). "
+    "Lead with the substance. Plain, specific, professional, additive — advance the "
+    "conversation, never flatter.\n"
+    f"- Length: up to {_COMMENT_MAX_CHARS} characters, but substance over length "
+    "(a tight 400-char comment beats a padded one)."
+)
+
+# Engagement-comment drafting deserves a capable local model. HARDWARE CEILING: the hub's
+# ModelService only warm-boots models that fit the 8GB GPU (Quadro M4000); anything bigger
+# (gemma3:12b/phi4:14b/qwen2.5:14b/mistral-small:24b — all >8GB VRAM) is refused on the
+# synchronous path (bakeoff 2026-07-01). qwen2.5:7b fits the GPU, loads in ~25s, and with
+# the grounded prompt nudge hits near-target quality — the practical best here. Tunable via
+# a platform_setting later; local-only (cloud escalation stays off).
+_DEFAULT_DRAFT_MODEL = "qwen2.5:7b"
+
+# Style references (owner-approved 2026-07-01; full guide KB #277108).
+_ENGAGEMENT_FEWSHOT = (
+    "STYLE REFERENCES (post -> good comment):\n"
+    "POST: \"Canada's new AI strategy emphasizes domestic data centres and sovereign AI "
+    'capacity..."\n'
+    "COMMENT: The data-centre capacity piece matters, but the part I'd push on is where "
+    "inference actually runs and who can audit it. We've been building civic-intelligence "
+    "tools on a local-first cluster — Canadian-owned hardware first, cloud only on "
+    "escalation — so the data never leaves our own infrastructure. The harder problem "
+    "isn't compute, it's trust: we publish a live transparency score on our own AI so the "
+    "sovereignty claim is checkable. Does the paper get into auditability and governance, "
+    "or mostly the capacity side?\n"
+    "---\n"
+    "POST: \"We're hiring a Cyber-Lead-In-Residence; our approach to cybersecurity isn't "
+    'just about technology..."\n'
+    "COMMENT: 'Beyond technology' is the right framing — for civic data the threat model "
+    "is as much about residency and public trust as intrusion. A lot of the real risk "
+    "isn't a breach; it's sensitive public-interest data on infrastructure nobody in "
+    "Canada controls or can audit. Curious whether the role is scoped to security "
+    "engineering, or also the governance/residency side — that second half is where a lot "
+    "of civic-tech orgs are thin."
+)
+
+_SIGNATURE_RE = re.compile(
+    r"\n+\s*(?:[-–—]{1,2}\s*)?(?:best|regards|cheers|sincerely|thanks|thank you)[,!.\s]*$"
+    r"|\n+\s*[-–—]{1,2}\s*(?:terry(?:\s+caetano)?|kytran(?:\s+katarn)?)\s*$",
+    re.IGNORECASE,
+)
+
+
+def _strip_comment_signature(text: str) -> str:
+    """Defense-in-depth: strip an accidental sign-off / name signature the model
+    sometimes appends (the old drafts signed every comment 'Kytran Katarn')."""
+    prev = None
+    while text and text != prev:
+        prev = text
+        text = _SIGNATURE_RE.sub("", text).rstrip()
+    return text
+
+
+def _draft_comment(snippet: str, author: str = "the author", voice: str = None, model: str = None) -> str:
+    """Draft a Terry-voiced, factually-grounded LinkedIn comment via S.I.G.N.A.L.
+    dispatch. '' on any failure. Voice + grounding + guards per KB #277108.
+    Routes to a capable local model (``model`` or ``_DEFAULT_DRAFT_MODEL``); local-only.
+
+    ``voice`` (S7-P1-4a): the acting account's registry voice_key. When multi-account
+    engagement lands, parameterize persona + few-shot by account; today Terry is the
+    only can_engage account so the default persona is Terry's."""
     from services.welfare_governance_service import pool_over_budget_by_skill
 
     # Welfare gate (ADR-002): skip engagement-comment drafting when the social_content
-    # pool has no 24h token-budget headroom. Fail-open. '' is already the caller's skip
-    # signal. Tunable via platform_settings welfare:signal:pool_pause_ratio (default 0.9).
+    # pool has no 24h token-budget headroom. Fail-open. '' is the caller's skip signal.
     if pool_over_budget_by_skill("social_content", "welfare:signal:pool_pause_ratio"):
         logger.info(
             "[signal-engagement] comment drafting deferred — social_content pool over "
@@ -382,16 +474,40 @@ def _draft_comment(snippet: str, author: str = "the author", voice: str = None) 
         _ensure_import_paths()
         from tools.department_hq.services.department_dispatcher import dispatch
 
-        voice_line = f"Voice/persona: {voice}\n" if voice else ""
-        prompt = (
-            f"{voice_line}"
-            f"Write ONE short (max 200 chars), genuine, professional LinkedIn comment "
-            f"replying to this post by {author}. No hashtags, no emoji spam, no sales "
-            f"pitch — a thoughtful one-liner.\n\nPost: {(snippet or '')[:500]}"
+        persona = voice or (
+            "Terry Caetano — Canadian civic-tech builder/journalist behind the Watch "
+            "Series + What The Fact; sovereign, ethical civic-intelligence AI."
         )
-        res = dispatch(capability="social_content", prompt=prompt)
+        # Live topical grounding (fail-open): recent REAL WTF headlines.
+        wtf_block = ""
+        try:
+            from services.signal_calendar_service import _wtf_recent_headlines
+
+            wtf = _wtf_recent_headlines(4)
+            if wtf:
+                wtf_block = f"\nRecent REAL What The Fact headlines you may reference:\n{wtf}\n"
+        except Exception:  # noqa: BLE001 — grounding is optional
+            pass
+
+        prompt = (
+            f"Persona: {persona}\n\n"
+            f"{_ENGAGEMENT_RULES}\n\n"
+            f"{_ENGAGEMENT_STACK_FACTS}{wtf_block}\n\n"
+            f"{_ENGAGEMENT_FEWSHOT}\n\n"
+            f"Now write ONE comment replying to this post by {author}. "
+            f"Output ONLY the comment text — no preamble, no quotes, no sign-off.\n\n"
+            f"POST: {(snippet or '')[:800]}"
+        )
+        res = dispatch(
+            capability="social_content",
+            prompt=prompt,
+            model_override=(model or _DEFAULT_DRAFT_MODEL),
+            local_only=True,
+        )
         if getattr(res, "success", False):
-            return ((res.response or "").strip().strip('"'))[:280]
+            text = (res.response or "").strip().strip('"').strip()
+            text = _strip_comment_signature(text)
+            return text[:_COMMENT_MAX_CHARS]
     except Exception as e:
         logger.warning("engagement monitor: comment draft failed: %s", e)
     return ""
@@ -559,7 +675,7 @@ def _candidates_from_profiles(account: str, targets: list, per_target: int = 1, 
                     {
                         "post_url": url,
                         "author": t,
-                        "snippet": (p.get("snippet") or "")[:120],
+                        "snippet": (p.get("snippet") or "")[:500],
                         "source": "profiles",
                     }
                 )
@@ -636,6 +752,11 @@ def run_engagement_monitor(
                 continue
         candidates.append(c)
         if dry_run:
+            # Preview the drafted comment without creating approvals (Phase 0/4 samples).
+            if include_comments:
+                c["draft_comment"] = _draft_comment(
+                    c.get("snippet", ""), c.get("author", "") or "the author", voice=voice
+                )
             continue
         try:
             c["like_approval_id"] = propose_like(

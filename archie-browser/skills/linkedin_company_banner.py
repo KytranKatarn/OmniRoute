@@ -185,6 +185,10 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(3000)
     _screenshot(page, "company_banner_crop")
 
+    # HONEST commit tracking (#4611 follow-up): the old skill returned
+    # success:True unconditionally even when every Apply/Save attempt below
+    # fell through — a phantom-success. Track what actually clicked.
+    applied = False
     for apply_btn in [
         lambda: page.get_by_role("button", name="Apply", exact=True).click(timeout=8000),
         lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=6000),
@@ -192,17 +196,20 @@ def execute(page, params: dict) -> dict:
     ]:
         try:
             apply_btn()
+            applied = True
             page.wait_for_timeout(2000)
             break
         except Exception:
             continue
 
+    saved = False
     for save_btn in [
         lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=6000),
         lambda: page.locator('button[type="submit"]').last.click(timeout=5000),
     ]:
         try:
             save_btn()
+            saved = True
             page.wait_for_timeout(2000)
             break
         except Exception:
@@ -215,9 +222,13 @@ def execute(page, params: dict) -> dict:
         pass
 
     final = _screenshot(page, "company_banner_final")
+    committed = applied or saved
     return {
-        "success": True,
-        "result": "Company banner uploaded",
+        "success": committed,
+        "result": "Company banner uploaded" if committed
+        else "banner_file_set_but_NOT_committed — no Apply/Save affordance clicked",
+        "applied_clicked": applied,
+        "save_clicked": saved,
         "banner_path": banner_path,
         "screenshot_path": final,
     }

@@ -25,10 +25,48 @@ def _shot(page, name):
         return None
 
 
+def _skill_listed(page, skill):
+    """HONEST verify on /in/me/details/skills/. The old check grepped
+    document.body.innerText — that (a) does not cross shadow roots and (b) misses
+    anything the virtualized/paginated list hasn't rendered, so it reported
+    confirmed=False for skills that WERE added (cont-112 false-negative).
+    Playwright locators pierce shadow DOM (KB #277237); scrolling + 'Show more
+    results' defeats the pagination."""
+    page.goto("https://www.linkedin.com/in/me/details/skills/", wait_until="domcontentloaded")
+    page.wait_for_timeout(3000)
+    for _ in range(8):
+        try:
+            if page.get_by_text(skill, exact=False).first.is_visible(timeout=1500):
+                return True
+        except Exception:
+            pass
+        try:
+            page.get_by_role("button", name="Show more results", exact=False).first.click(timeout=1200)
+        except Exception:
+            try:
+                page.mouse.wheel(0, 2500)
+            except Exception:
+                return False
+        page.wait_for_timeout(900)
+    return False
+
+
 def execute(page, params: dict) -> dict:
     skill = (params.get("skill") or "").strip()
     if not skill:
         raise ValueError("skill is required for linkedin_add_skill")
+
+    # ── verify_only: READ-ONLY presence check (no form, nothing added) ────────
+    if params.get("verify_only"):
+        listed = _skill_listed(page, skill)
+        _shot(page, "verify")
+        return {
+            "success": True,
+            "verify_only": True,
+            "confirmed": listed,
+            "skill": skill,
+            "result": f"'{skill}' {'IS' if listed else 'is NOT'} listed on the skills page",
+        }
 
     # ── Open the add-skill form via its ROUTE + wait for it to render ─────────
     page.goto("https://www.linkedin.com/in/me/add-edit/SKILL_AND_ASSOCIATION/", wait_until="domcontentloaded")
@@ -118,13 +156,10 @@ def execute(page, params: dict) -> dict:
     except Exception:
         pass
 
-    # ── HONEST verify — reload the skills detail page + confirm it's listed ───
+    # ── HONEST verify — locator-based, shadow-safe, pagination-aware ──────────
     confirmed = False
     try:
-        page.goto("https://www.linkedin.com/in/me/details/skills/", wait_until="domcontentloaded")
-        page.wait_for_timeout(3000)
-        body = (page.evaluate("() => document.body.innerText || ''") or "").lower()
-        confirmed = skill.lower() in body
+        confirmed = _skill_listed(page, skill)
     except Exception:
         pass
     _shot(page, "verify")

@@ -83,6 +83,18 @@ def _fill_typeahead(page, label, value):
         return False
 
 
+def _typeahead_committed(page, label, value):
+    """Re-read the typeahead's committed value. Picking a City option right
+    after a country change can silently no-op (the country pick re-renders the
+    field — cont-111 flakiness), so commitment must be verified, not assumed."""
+    try:
+        val = page.get_by_label(label, exact=False).first.input_value(timeout=3000)
+        token = value.split(",")[0].strip().lower()
+        return bool(val) and token in val.lower()
+    except Exception:
+        return False
+
+
 def _save(page):
     for make in [
         lambda: page.get_by_role("button", name="Save", exact=True).last,
@@ -147,9 +159,17 @@ def execute(page, params: dict) -> dict:
         page.wait_for_timeout(800)
         if country:
             updated.append("country") if _fill_typeahead(page, "Country/Region", country) else errors.append("country_not_set")
-            page.wait_for_timeout(600)
+            # The country pick re-renders (and can clear) the City typeahead —
+            # let the modal settle before touching City (#4612 city fix).
+            page.wait_for_timeout(1800)
         if city:
-            updated.append("city") if _fill_typeahead(page, "City", city) else errors.append("city_not_set")
+            city_ok = False
+            for _ in range(2):
+                if _fill_typeahead(page, "City", city) and _typeahead_committed(page, "City", city):
+                    city_ok = True
+                    break
+                page.wait_for_timeout(1200)
+            updated.append("city") if city_ok else errors.append("city_not_set")
         _shot(page, "location")
         if not _save(page):
             errors.append("location_save_failed")

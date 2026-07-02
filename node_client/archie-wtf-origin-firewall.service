@@ -1,0 +1,12 @@
+[Unit]
+Description=A.R.C.H.I.E. WTF origins :8103/:8104/:8106 mesh-only firewall (#4319 Phase 1, #4558)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/archie-node/wtf-origin-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

@@ -2,14 +2,14 @@
 # Route: public DNS -> Beacon (2.25.170.252) -> Headscale mesh -> hub/boston-2
 #
 # (platform_backend) is the ONE line failover.sh flips hub<->boston-2 in DR:
-#   sed 's#reverse_proxy http://100.64.0.4:3000#reverse_proxy http://100.64.0.10:3000#'
+#   sed 's#reverse_proxy http://100.64.0.4:3000#reverse_proxy http://100.64.0.4:3000#'
 # All platform aliases use `import platform_backend` so one flip covers them all.
 #
 # EXCLUDED from Beacon (DNS stays at hub IP 173.182.133.96):
 #   mail, mail-admin, mta-sts  — SMTP/IMAP clients use the A record directly
 #   n8n, voice                 — no known running service; dead DNS entries
 #
-# Hub mesh IP: 100.64.0.4  |  DR (boston-2) mesh IP: 100.64.0.10
+# Hub mesh IP: 100.64.0.4  |  DR (boston-2) mesh IP: 100.64.0.4
 
 (platform_backend) {
 	reverse_proxy http://100.64.0.4:3000
@@ -95,9 +95,6 @@ sandbox.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:3003
 }
 
-proxy.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:8098
-}
 
 terminal.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:7681
@@ -107,9 +104,6 @@ codex.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:7683
 }
 
-brainstorm.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:52000
-}
 
 adguard.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:5354
@@ -119,9 +113,6 @@ adguard.kytranempowerment.com {
 # MAIL-ADJACENT WEB UIs  (SMTP/IMAP ports stay at hub IP; web-only here)
 # ---------------------------------------------------------------------------
 
-webmail.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:8880
-}
 
 # ---------------------------------------------------------------------------
 # TEST (keep for smoke-testing the front-door)
@@ -129,4 +120,16 @@ webmail.kytranempowerment.com {
 
 fdtest.kytranempowerment.com {
 	import platform_backend
+}
+
+api.creed-ai.org {
+	reverse_proxy http://100.64.0.4:8086
+}
+
+# Watch-edge NA funnel (Phase 1, #4319; #4557 HTTP-01 managed certs) — TLS terminate -> local nginx wtf_edge :8088 -> Citadel origin over mesh
+what-the-fact.com {
+	reverse_proxy http://127.0.0.1:8088
+}
+www.what-the-fact.com {
+	redir https://what-the-fact.com{uri} permanent
 }

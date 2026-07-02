@@ -37,8 +37,14 @@ _SIMILARITY_THRESHOLD = 0.8
 
 
 def _post_urn_from(post_url: str) -> str:
-    """Stable dedup key for a post — its activity urn, so the same post dedups regardless
-    of URL form. Falls back to the trimmed permalink."""
+    """Stable dedup key — the COMMENT urn when the link is a ?commentUrn= deep-link
+    (so a comment-like keys on the comment, not its parent post), else the post's
+    activity urn. Falls back to the trimmed permalink."""
+    from urllib.parse import unquote
+
+    cm = re.search(r"urn:li:comment:\(activity:\d+,\d+\)", unquote(post_url or ""))
+    if cm:
+        return cm.group(0)
     m = _ACTIVITY_RE.search(post_url or "")
     if m:
         return f"urn:li:activity:{m.group(1) or m.group(2)}"
@@ -282,13 +288,16 @@ def propose_like(
     )
     # S7-P1-4a: record the engagement in the global ledger (fleet-safe dedup; 4b flips it
     # to executed/failed on the approval outcome). Best-effort — never block the proposal.
-    try:
-        from database import get_db_cursor
+    # approval_id=None = the approval was dedup-skipped upstream: record NOTHING, else an
+    # orphan 'pending' ledger row blocks re-proposing forever.
+    if approval_id:
+        try:
+            from database import get_db_cursor
 
-        with get_db_cursor(commit=True) as (_conn, _cur):
-            _record_pending(_cur, post_urn, aid, "like", approval_id=approval_id)
-    except Exception as _le:
-        logger.warning("engagement ledger record (like) failed: %s", _le)
+            with get_db_cursor(commit=True) as (_conn, _cur):
+                _record_pending(_cur, post_urn, aid, "like", approval_id=approval_id)
+        except Exception as _le:
+            logger.warning("engagement ledger record (like) failed: %s", _le)
     return approval_id
 
 
@@ -321,14 +330,190 @@ def propose_comment(
         requested_by=requested_by,
     )
     # S7-P1-4a: record the comment (text kept for the fleet anti-spam similarity gate).
-    try:
-        from database import get_db_cursor
+    # Skip when the approval was dedup-skipped (approval_id=None) — see propose_like.
+    if approval_id:
+        try:
+            from database import get_db_cursor
 
-        with get_db_cursor(commit=True) as (_conn, _cur):
-            _record_pending(_cur, post_urn, aid, "comment", approval_id=approval_id, comment_text=comment)
-    except Exception as _le:
-        logger.warning("engagement ledger record (comment) failed: %s", _le)
+            with get_db_cursor(commit=True) as (_conn, _cur):
+                _record_pending(_cur, post_urn, aid, "comment", approval_id=approval_id, comment_text=comment)
+        except Exception as _le:
+            logger.warning("engagement ledger record (comment) failed: %s", _le)
     return approval_id
+
+
+def propose_comment_like(
+    comment_url: str,
+    comment_author: str = "",
+    comment_contains: str = "",
+    account: str = "personal",
+    agent_id: int = None,
+    requested_by: str = "S.I.G.N.A.L. cross-boost",
+) -> int:
+    """Queue an approval-gated LIKE on a specific comment (cross-boost). Returns the
+    approval id. ``comment_url`` should be a ?commentUrn= deep-link (KB #274178)."""
+    comment_url = (comment_url or "").strip()
+    if not comment_url:
+        raise ValueError("comment_url is required")
+    aid = agent_id or signal_accounts.browser_id_for(account)
+    urn = _post_urn_from(comment_url)  # comment urn (dedup keys on the comment itself)
+    approval_id = _request_approval(
+        "linkedin_comment_like",
+        {
+            "comment_url": comment_url,
+            "comment_author": comment_author,
+            "comment_contains": (comment_contains or "")[:120],
+            "browser_agent_id": aid,
+            "account": account,
+            "post_urn": urn,
+        },
+        reason=f"👍 Approve LIKE on {comment_author or 'a'}'s comment (as {account}): {comment_url}",
+        requested_by=requested_by,
+    )
+    if approval_id:
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=True) as (_conn, _cur):
+                _record_pending(_cur, urn, aid, "comment_like", approval_id=approval_id)
+        except Exception as _le:
+            logger.warning("engagement ledger record (comment_like) failed: %s", _le)
+    return approval_id
+
+
+# ---------------------------------------------------------------------------
+# Cross-account boosting — Terry ↔ Kytran like each other's posts + comments
+# ---------------------------------------------------------------------------
+
+# post_type of OUR published post → the account that boosts it (owner 2026-07-02:
+# "Terry can like Kytran posts / comments and vice versa"). The company/creed pages
+# are Kytran-authored, so Terry boosts those too.
+_CROSS_BOOST_MAP = {
+    "terry": "personal",
+    "personal": "terry",
+    "company": "terry",
+    "creed": "terry",
+}
+
+# Author-name needle (on comments captured under OUR posts, linkedin_comments) →
+# the OTHER identity that likes it.
+_OWN_COMMENT_AUTHORS = {
+    "kytran katarn": "terry",
+    "terry caetano": "personal",
+}
+
+
+def run_cross_boost(days: int = 7, max_per_account: int = 2, dry_run: bool = False) -> dict:
+    """Propose cross-account likes on OUR OWN fresh content — no scraping needed:
+    posts come from linkedin_post_log, comments (with ?commentUrn= deep-links) from
+    linkedin_comments. Every action is a Tier-2 Telegram approval.
+
+    OWN-CONTENT CARVE-OUT: the fleet-wide `_post_engaged_by_other` dedup is
+    deliberately NOT applied here — multiple own identities boosting our own content
+    is the point. Per-agent `_already_engaged` dedup still applies, as does the
+    per-run cap (``max_per_account``)."""
+    from database import get_db_cursor
+
+    out = {
+        "proposed": 0,
+        "posts": [],
+        "comments": [],
+        "skipped": {"dup": 0, "cap": 0, "no_account": 0},
+        "dry_run": dry_run,
+    }
+    counts: dict = {}
+
+    with get_db_cursor() as (_conn, cur):
+        # can_engage boosting identities keyed by account_key.
+        cur.execute(
+            "SELECT account_key, browser_agent_id FROM agent_platform_accounts WHERE COALESCE(can_engage, false)"
+        )
+        boosters = {}
+        for r in cur.fetchall():
+            k = r["account_key"] if isinstance(r, dict) else r[0]
+            v = r["browser_agent_id"] if isinstance(r, dict) else r[1]
+            boosters[k] = v
+
+        # a) Our fresh POSTS → the other identity likes them.
+        cur.execute(
+            "SELECT post_type, post_url FROM linkedin_post_log "
+            "WHERE status='posted' AND COALESCE(post_url,'') <> '' "
+            "  AND posted_at > NOW() - make_interval(days => %s) "
+            "ORDER BY posted_at DESC LIMIT 40",
+            (int(days),),
+        )
+        post_rows = [(r["post_type"], r["post_url"]) if isinstance(r, dict) else (r[0], r[1]) for r in cur.fetchall()]
+
+        # b) OUR identities' comments captured under our posts (deep-links on hand).
+        cur.execute(
+            "SELECT comment_url, author, body FROM linkedin_comments "
+            "WHERE COALESCE(comment_url,'') <> '' "
+            "  AND last_seen_at > NOW() - make_interval(days => %s) "
+            "ORDER BY last_seen_at DESC LIMIT 60",
+            (int(days),),
+        )
+        comment_rows = [
+            (r["comment_url"], r["author"], r["body"]) if isinstance(r, dict) else (r[0], r[1], r[2])
+            for r in cur.fetchall()
+        ]
+
+        plan = []  # (kind, booster_key, aid, url, author, body_snippet)
+        for post_type, post_url in post_rows:
+            if post_url.startswith("/"):  # linkedin_post_log holds some relative URLs
+                post_url = "https://www.linkedin.com" + post_url
+            booster = _CROSS_BOOST_MAP.get((post_type or "").lower())
+            if not booster or booster not in boosters:
+                out["skipped"]["no_account"] += 1
+                continue
+            aid = boosters[booster]
+            if counts.get(booster, 0) >= max_per_account:
+                out["skipped"]["cap"] += 1
+                continue
+            urn = _post_urn_from(post_url)
+            if _already_engaged(cur, urn, aid, "like"):
+                out["skipped"]["dup"] += 1
+                continue
+            counts[booster] = counts.get(booster, 0) + 1
+            plan.append(("post_like", booster, aid, post_url, "", ""))
+
+        ccounts: dict = {}
+        for comment_url, author, body in comment_rows:
+            a_low = (author or "").lower()
+            booster = next((b for needle, b in _OWN_COMMENT_AUTHORS.items() if needle in a_low), None)
+            if not booster or booster not in boosters:
+                continue
+            aid = boosters[booster]
+            if ccounts.get(booster, 0) >= max_per_account:
+                out["skipped"]["cap"] += 1
+                continue
+            urn = _post_urn_from(comment_url)
+            if _already_engaged(cur, urn, aid, "comment_like"):
+                out["skipped"]["dup"] += 1
+                continue
+            ccounts[booster] = ccounts.get(booster, 0) + 1
+            plan.append(("comment_like", booster, aid, comment_url, author, (body or "")[:60]))
+
+    for kind, booster, aid, url, author, snippet in plan:
+        entry = {"as": booster, "url": url}
+        try:
+            if kind == "post_like":
+                if not dry_run:
+                    entry["approval_id"] = propose_like(
+                        url, account=booster, agent_id=aid, requested_by="S.I.G.N.A.L. cross-boost"
+                    )
+                out["posts"].append(entry)
+            else:
+                entry["comment_author"] = author
+                if not dry_run:
+                    entry["approval_id"] = propose_comment_like(
+                        url, comment_author=author, comment_contains=snippet, account=booster, agent_id=aid
+                    )
+                out["comments"].append(entry)
+            if not dry_run:
+                out["proposed"] += 1
+        except Exception as e:
+            logger.warning("cross-boost proposal failed for %s: %s", url, e)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -539,6 +724,21 @@ def _persona_pack(voice: str = None) -> dict:
     return pack
 
 
+_CJK_RE = re.compile(r"[一-鿿぀-ヿ가-힯]")
+
+
+def _draft_is_sane(text: str) -> bool:
+    """Reject degenerate drafts BEFORE they reach the approval queue: the EN
+    engagement voice must never contain CJK — qwen code-switches under pressure
+    and once leaked its meta-instructions in Chinese mid-comment (approval #1827,
+    2026-07-02). A sub-80-char draft is a truncation/refusal artifact."""
+    if not text or len(text) < 80:
+        return False
+    if _CJK_RE.search(text):
+        return False
+    return True
+
+
 _SIGNATURE_RE = re.compile(
     r"\n+\s*(?:[-–—]{1,2}\s*)?(?:best|regards|cheers|sincerely|thanks|thank you)[,!.\s]*$"
     r"|\n+\s*[-–—]{1,2}\s*(?:terry(?:\s+caetano)?|kytran(?:\s+katarn)?)\s*$",
@@ -614,6 +814,11 @@ def _draft_comment(snippet: str, author: str = "the author", voice: str = None, 
         if raw:
             text = raw.strip().strip('"').strip()
             text = _strip_comment_signature(text)
+            if not _draft_is_sane(text):
+                logger.warning(
+                    "[signal-engagement] draft failed sanity guard (CJK/too-short) — skipped: %r", text[:120]
+                )
+                return ""
             return text[:_COMMENT_MAX_CHARS]
     except Exception as e:
         logger.warning("engagement monitor: comment draft failed: %s", e)

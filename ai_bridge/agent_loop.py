@@ -177,6 +177,28 @@ def _check_existing_approval(
             )
             return cur.fetchone() is not None
 
+    if action_type in ("linkedin_like", "linkedin_comment", "linkedin_comment_like"):
+        # Engagement actions dedup on (action_type, post_urn, acting browser agent) —
+        # multi-account engagement (Terry 377 + Kytran 342) means approvals for
+        # DIFFERENT posts/accounts must be able to await approval simultaneously
+        # (the same coarse-dedup trap #3944 fixed for linkedin_post). The same
+        # post+agent+action can still never queue twice.
+        urn = (action_data or {}).get("post_urn")
+        aid = str((action_data or {}).get("browser_agent_id") or "")
+        if urn:
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = %s
+                  AND status = 'pending'
+                  AND action_data->>'post_urn' = %s
+                  AND COALESCE(action_data->>'browser_agent_id','') = %s
+                LIMIT 1
+                """,
+                (action_type, urn, aid),
+            )
+            return cur.fetchone() is not None
+
     if action_type == "contractor_dispatch":
         agent = (action_data or {}).get("agent")
         capability = (action_data or {}).get("capability")
@@ -4553,6 +4575,18 @@ class AgentLoop:
             )
             if result.get("proposed"):
                 logger.info(f"[signal-engagement] monitor: {result}")
+            # Cross-account boosting (owner 2026-07-02): each identity likes the OTHER's
+            # fresh posts + comments — own-content, no scraping, Tier-2 approvals.
+            try:
+                from services.signal_engagement_service import run_cross_boost
+
+                boost = run_cross_boost()
+                # Logging is proposal-gated: at most ONE info line per 8h tick, and
+                # only when something was actually proposed — no hot-path overhead.
+                if boost.get("proposed"):
+                    logger.info(f"[signal-engagement] cross-boost: {boost}")
+            except Exception as xb_err:
+                logger.warning(f"[signal-engagement] cross-boost failed: {xb_err}")
         except Exception as e:
             logger.error(f"[signal-engagement] monitor failed: {e}")
 
@@ -5766,6 +5800,47 @@ class AgentLoop:
             except Exception as cmt_err:
                 logger.error(f"LinkedIn comment execution failed: {cmt_err}")
                 return {"executed": False, "error": str(cmt_err)}
+
+        elif action_type == "linkedin_comment_like":
+            # Approved LIKE on a specific comment (cross-boost: Terry ↔ Kytran like
+            # each other's comments). Approval-gated — fires only after Approve.
+            comment_url = data.get("comment_url", "")
+            agent_id = data.get("browser_agent_id") or 342
+            if not comment_url:
+                return {"executed": False, "error": "comment_url required for linkedin_comment_like"}
+            try:
+                # sys.path insert matches the established pattern of every sibling
+                # handler here (linkedin_like/linkedin_comment above) — required for
+                # platform_v2 service imports from the scheduler sidecar (KB #272154).
+                import sys as _sys
+
+                _sys.path.insert(0, "/app")
+                from services.browser_service import run_skill_sync
+
+                result = run_skill_sync(
+                    "linkedin_comment_like",
+                    {
+                        "comment_url": comment_url,
+                        "comment_author": data.get("comment_author", ""),
+                        "comment_contains": data.get("comment_contains", ""),
+                    },
+                    agent_id=agent_id,
+                    timeout_s=180,
+                )
+                try:  # close the engagement ledger row (keys on the comment urn)
+                    from services.signal_engagement_service import record_executed
+
+                    record_executed(comment_url, agent_id, "comment_like", bool(result.get("success")))
+                except Exception:
+                    pass
+                return {
+                    "executed": bool(result.get("success")),
+                    "result": result,
+                    "error": None if result.get("success") else (result.get("error") or "comment like did not register"),
+                }
+            except Exception as clike_err:
+                logger.error(f"LinkedIn comment-like execution failed: {clike_err}")
+                return {"executed": False, "error": str(clike_err)}
 
         else:
             logger.warning(f"Unknown approved action type: {action_type}")

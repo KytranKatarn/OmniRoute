@@ -656,6 +656,96 @@ def register_department_hq_jobs(scheduler, flask_app):
         logger.error("[DeptHQ] Failed: fleet jobs: %s", e)
 
 
+def signal_group_image_retry():
+    """#4649 — weekly headed retry of the WTF group cover/logo replace.
+
+    ROOT CAUSE (KB #277261): LinkedIn's group-update PATCH silently 422s image
+    REPLACEMENT whenever the group already has images (fresh-set works, the UI
+    swallows the error). Their flow may get fixed any week, so this calls the
+    login sidecar's headed-task endpoint weekly, Telegram-notifies the owner
+    on success, and self-disables. Silent on the expected 422 (log only).
+    Toggle: Autonomy tab (work:signal_group_image_retry:enabled). State keys:
+    signal:group_images:fixed ('true'|'gave_up'), signal:group_images:retry_count.
+    """
+    import os
+
+    import requests
+
+    from database import get_db_cursor
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("signal_group_image_retry", default=True):
+        return
+
+    def _get(key, default=""):
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (key,))
+            row = cur.fetchone()
+        if not row:
+            return default
+        return row["value"] if isinstance(row, dict) else row[0]
+
+    def _set(key, value, desc):
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                   VALUES (%s, %s, 'string', %s, NOW())
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (key, value, desc),
+            )
+
+    state = _get("signal:group_images:fixed")
+    if state in ("true", "gave_up"):
+        return
+    count = int(_get("signal:group_images:retry_count", "0") or 0)
+
+    try:
+        resp = requests.post(
+            "http://archie_browser_login:4281/group-image-retry",
+            json={},  # sidecar defaults: WTF group + staged /profiles assets
+            headers={"Authorization": f"Bearer {os.getenv('INTERNAL_API_KEY', '')}"},
+            timeout=300,
+        )
+        result = resp.json() if resp.ok else {"error": f"http {resp.status_code}"}
+    except Exception as e:
+        logger.warning("[GroupImageRetry] sidecar call failed: %s", e)
+        return
+
+    _set("signal:group_images:retry_count", str(count + 1), "weekly WTF group image retry attempts (#4649)")
+    if result.get("fixed"):
+        _set("signal:group_images:fixed", "true", "WTF group cover+logo committed (#4649)")
+        try:
+            from services.telegram_service import send_info
+
+            send_info(
+                "🖼️ WTF group images FIXED — LinkedIn accepted the cover+logo replace "
+                f"on weekly retry #{count + 1}. Check linkedin.com/groups/37040054/. "
+                "The weekly retry job has self-disabled."
+            )
+        except Exception:
+            pass
+        logger.info("[GroupImageRetry] SUCCESS on attempt %d — self-disabled", count + 1)
+    else:
+        logger.info(
+            "[GroupImageRetry] attempt %d: cover=%s logo=%s (422 = LinkedIn still rejects replace)",
+            count + 1,
+            result.get("cover_status"),
+            result.get("logo_status"),
+        )
+        if count + 1 >= 12:
+            _set("signal:group_images:fixed", "gave_up", "12 weekly retries exhausted (#4649)")
+            try:
+                from services.telegram_service import send_info
+
+                send_info(
+                    "🖼️ WTF group image weekly retry giving up after 12 attempts — "
+                    "LinkedIn still 422s the replace. Fix via mobile app or re-enable "
+                    "by clearing platform_settings signal:group_images:fixed."
+                )
+            except Exception:
+                pass
+
+
 def _register_own_jobs(scheduler, flask_app):
     """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -698,6 +788,18 @@ def _register_own_jobs(scheduler, flask_app):
         id="agent_code_metrics",
         name="Agent Loop: Daily Code Metrics Scan",
         replace_existing=True,
+    )
+
+    # #4649 — Weekly WTF group image retry (Mon 07:30 ET; self-disables on
+    # success or after 12 attempts — LinkedIn 422s image REPLACE, KB #277261)
+    scheduler.add_job(
+        with_ctx(signal_group_image_retry),
+        trigger=CronTrigger(day_of_week="mon", hour=7, minute=30, timezone="America/Toronto"),
+        id="signal_group_image_retry",
+        name="S.I.G.N.A.L.: Weekly WTF group image retry",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     # Job #41 — Pattern Compliance Check (4:00 AM)

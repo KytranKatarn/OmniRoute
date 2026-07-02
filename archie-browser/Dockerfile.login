@@ -19,7 +19,7 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
-COPY login_app.py login_browser.py entrypoint-login.sh ./
+COPY login_app.py login_browser.py headed_tasks.py entrypoint-login.sh ./
 RUN chmod +x /app/entrypoint-login.sh
 
 ENV PYTHONUNBUFFERED=1

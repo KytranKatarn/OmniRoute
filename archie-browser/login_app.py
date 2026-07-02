@@ -283,6 +283,45 @@ def profiles():
     return jsonify({"profiles": out})
 
 
+@app.post("/group-image-retry")
+def group_image_retry():
+    """#4649 slice 1 — weekly headed retry of the WTF group cover/logo replace
+    (server-side 422 on replace, KB #277261; fresh-set works, so retry until
+    LinkedIn's flow accepts it). Runs the headed task IN-PROCESS under Xvfb :99
+    while HOLDING the state lock, so /start can't open the same profile
+    mid-task (and vice versa: a live login session 409s this)."""
+    j = request.get_json(silent=True) or {}
+    group_id = re.sub(r"\D", "", str(j.get("group_id") or os.getenv("LINKEDIN_WTF_GROUP_ID", "37040054")))
+    if not group_id:
+        abort(400, "group_id required")
+
+    def _safe_image(raw, default):
+        path = str(raw or default)
+        real = os.path.realpath(path)
+        if not real.startswith(os.path.realpath(PROFILES_DIR) + os.sep) or not os.path.isfile(real):
+            abort(400, f"image path must be an existing file under {PROFILES_DIR}")
+        return real
+
+    banner = _safe_image(j.get("banner_path"), "/profiles/wtf_group_banner.png")
+    logo = _safe_image(j.get("logo_path"), "/profiles/wtf_logo_512.png")
+
+    if _running():
+        return jsonify({"error": "login browser session active — retry later"}), 409
+    if not _state_lock.acquire(blocking=False):
+        return jsonify({"error": "another headed task is running"}), 409
+    try:
+        from headed_tasks import group_image_retry as run_retry
+
+        result = run_retry(group_id, banner, logo)
+        logger.info("group-image-retry: %s", result)
+        return jsonify(result)
+    except Exception as exc:
+        logger.exception("group-image-retry failed")
+        return jsonify({"error": f"{type(exc).__name__}: {exc}"}), 500
+    finally:
+        _state_lock.release()
+
+
 if __name__ == "__main__":
     threading.Thread(target=_idle_watchdog, daemon=True).start()
     app.run(host="0.0.0.0", port=API_PORT)

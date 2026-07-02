@@ -55,6 +55,33 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(1500)
     _screenshot(page, "comment_box_open")
 
+    # Punctuation/emoji-insensitive matcher — used by BOTH the pre-submit retry
+    # guard below and the post-submit verify at the end.
+    import re as _re
+
+    def _norm(s):
+        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
+
+    needle = _norm(comment)[:40]
+
+    # #4632 retry-safety: if OUR comment text is already rendered in the (now
+    # expanded) thread, a previous attempt landed but its process died before
+    # verifying — do NOT post again; return idempotent success. Best-effort:
+    # LinkedIn ranks the viewer's own comment into the visible thread.
+    try:
+        if needle and needle in _norm(page.inner_text("body")):
+            return {
+                "success": True,
+                "confirmed": True,
+                "already": True,
+                "result": "Comment already present on post (previous attempt landed) — not re-posting",
+                "post_url": post_url,
+                "error": None,
+                "screenshot_path": _screenshot(page, "comment_already"),
+            }
+    except Exception:
+        pass
+
     # Find comment editor
     editor = None
     for sel in [
@@ -100,15 +127,10 @@ def execute(page, params: dict) -> dict:
     # Verify the comment ACTUALLY rendered before claiming success. Our own just-
     # posted comment appears in the open thread in-session (a FRESH page load
     # collapses comments to "most relevant" — so verify HERE, not later).
-    # Punctuation/emoji-insensitive substring match. If it can't be confirmed,
-    # report failure so the approval executor marks it 'failed' instead of a phantom
+    # Punctuation/emoji-insensitive substring match (needle/_norm defined above,
+    # shared with the pre-submit retry guard). If it can't be confirmed, report
+    # failure so the approval executor marks it 'failed' instead of a phantom
     # success (mirrors #4327 — drafted/submitted != posted).
-    import re as _re
-
-    def _norm(s):
-        return _re.sub(r"\s+", " ", _re.sub(r"[^a-z0-9 ]", " ", (s or "").lower())).strip()
-
-    needle = _norm(comment)[:40]
     confirmed = False
     for _ in range(3):
         try:

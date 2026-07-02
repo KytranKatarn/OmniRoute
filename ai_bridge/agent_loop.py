@@ -4661,6 +4661,26 @@ class AgentLoop:
         except Exception as e:
             logger.warning(f"[engine-autopull] cycle failed (no-op): {e}")
 
+    # #4632: extra attempts granted to approval executions killed by INFRASTRUCTURE
+    # (browser sidecar / container restart mid-task) rather than a real skill verdict.
+    _APPROVAL_INFRA_RETRY_CAP = 2
+
+    @staticmethod
+    def _is_infra_failure(result: dict) -> bool:
+        """True when an executed:False result is an INFRASTRUCTURE death — the browser
+        sidecar/container restarted mid-task (run_skill_sync poll deadline 'Timeout
+        after Ns', vanished task id, connection refused) — rather than a real skill
+        verdict (e.g. 'comment could not be confirmed on the page'). Infra deaths get
+        REQUEUED (#4632, live case: approval #1823 killed by an archie_browser rebuild);
+        real verdicts stay terminal."""
+        if not isinstance(result, dict):
+            return False
+        inner = result.get("result") if isinstance(result.get("result"), dict) else {}
+        if str(inner.get("_status") or "") == "timeout":
+            return True
+        err = " ".join(str(x) for x in (result.get("error"), inner.get("error")) if x).lower()
+        return "timeout after" in err or "connection refused" in err or "connection error" in err
+
     def _process_approval_queue(self):
         """Process the approval queue: execute approved, expire stale."""
         start = time.time()
@@ -4756,6 +4776,33 @@ class AgentLoop:
                     # done without ever publishing. Default True keeps back-compat for
                     # branches that don't return an 'executed' key (send_email, etc.).
                     _ok = (result or {}).get("executed", True)
+                    # #4632: an infra-killed execution (sidecar/container restart
+                    # mid-task) is REQUEUED for a later tick — status stays
+                    # 'approved' so the next 60s cycle retries — instead of being
+                    # terminally failed: the action never reached a real verdict.
+                    # Bounded by _APPROVAL_INFRA_RETRY_CAP; comment double-posts on
+                    # retry are guarded by the skill's pre-submit already-present
+                    # check (linkedin_comment).
+                    if not _ok and self._is_infra_failure(result or {}):
+                        _data = (
+                            item["action_data"]
+                            if isinstance(item["action_data"], dict)
+                            else json.loads(item["action_data"] or "{}")
+                        )
+                        _retries = int(_data.get("_infra_retries") or 0)
+                        if _retries < self._APPROVAL_INFRA_RETRY_CAP:
+                            _data["_infra_retries"] = _retries + 1
+                            cur.execute(
+                                "UPDATE autonomy_approval_queue SET action_data = %s, updated_at = NOW() WHERE id = %s",
+                                (json.dumps(_data), item["id"]),
+                            )
+                            conn.commit()
+                            logger.warning(
+                                f"[approval_queue] #{item['id']} {item['action_type']} infra-failure — "
+                                f"requeued (retry {_retries + 1}/{self._APPROVAL_INFRA_RETRY_CAP}): "
+                                f"{(result or {}).get('error') or 'timeout'}"
+                            )
+                            continue
                     cur.execute(
                         """
                         UPDATE autonomy_approval_queue

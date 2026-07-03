@@ -1,6 +1,10 @@
 """LinkedIn post with image — publishes a text post with an attached image."""
 import os
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import get_company_slug
 
 SKILL_NAME = "linkedin_post_image"
 PLATFORMS = ["linkedin"]
@@ -26,7 +30,7 @@ def execute(page, params: dict) -> dict:
     image_path = params.get("image_path", "").strip()
     hashtags = params.get("hashtags", [])
     post_as_company = params.get("post_as_company", False)
-    company_slug = params.get("company_slug", "kytran-empowerment-inc")
+    company_slug = get_company_slug(params)
 
     if not content:
         raise ValueError("content is required")

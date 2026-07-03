@@ -1,6 +1,10 @@
 """LinkedIn company page edit — updates tagline, description, website, industry."""
 import os
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import get_company_slug
 
 SKILL_NAME = "linkedin_company_edit"
 PLATFORMS = ["linkedin"]
@@ -48,7 +52,7 @@ def _dump_modal(page):
 
 
 def execute(page, params: dict) -> dict:
-    company_slug = params.get("company_slug", "kytran-empowerment")
+    company_slug = get_company_slug(params)
     tagline = params.get("tagline", "").strip()
     description = params.get("description", "").strip()
     website = params.get("website", "").strip()

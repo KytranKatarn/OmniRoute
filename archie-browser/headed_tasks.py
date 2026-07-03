@@ -62,7 +62,8 @@ def _load_skill(skill_name):
     from pathlib import Path
 
     for path in Path(SKILLS_DIR).glob("*.py"):
-        if path.name == "__init__.py":
+        # Skip private/helper modules (e.g. _linkedin_common.py) and __init__.py (#2599).
+        if path.name.startswith("_"):
             continue
         try:
             spec = importlib.util.spec_from_file_location(path.stem, path)

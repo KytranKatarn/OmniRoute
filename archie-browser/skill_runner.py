@@ -247,7 +247,9 @@ def _discover_skills() -> dict:
     """Return dict of skill_name → {module, platforms} for all skills/*.py."""
     skills = {}
     for path in Path(SKILLS_DIR).glob("*.py"):
-        if path.name == "__init__.py":
+        # Skip private/helper modules (e.g. _linkedin_common.py) and __init__.py —
+        # they define shared code, not runnable skills (#2599).
+        if path.name.startswith("_"):
             continue
         spec = importlib.util.spec_from_file_location(path.stem, path)
         mod = importlib.util.module_from_spec(spec)

@@ -1,6 +1,10 @@
 """LinkedIn company banner — generates a branded cover image and uploads to company page."""
 import os
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import get_company_slug
 
 SKILL_NAME = "linkedin_company_banner"
 PLATFORMS = ["linkedin"]
@@ -117,7 +121,7 @@ def _screenshot(page, name):
 
 
 def execute(page, params: dict) -> dict:
-    company_slug = params.get("company_slug", "kytran-empowerment")
+    company_slug = get_company_slug(params)
     banner_path = params.get("banner_path", "")
     if not banner_path:
         banner_path = _generate_company_banner(params)

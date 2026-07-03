@@ -13,7 +13,11 @@ New approach: /feed/  →  share box  →  Post settings  →  Posting as  →
 "Kytran Empowerment Inc." radio  →  Save  →  Done  →  fill  →  Post.
 """
 import os
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import get_company_slug
 
 SKILL_NAME = "linkedin_company_post"
 PLATFORMS = ["linkedin"]
@@ -210,11 +214,7 @@ def execute(page, params: dict) -> dict:
     hashtags = params.get("hashtags", [])
     # company_slug is no longer used to navigate (the /admin/ route is broken),
     # but we keep it in the response for log-row continuity with old call sites.
-    company_slug = (
-        params.get("company_slug")
-        or os.getenv("LINKEDIN_COMPANY_SLUG")
-        or "kytran-empowerment-inc"
-    )
+    company_slug = get_company_slug(params)
     if not content:
         raise ValueError("content is required for linkedin_company_post")
 

@@ -1,6 +1,10 @@
 """LinkedIn company inbox — reads messages sent to the company page."""
 import os
+import sys
 from datetime import datetime
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import get_company_slug
 
 SKILL_NAME = "linkedin_company_inbox"
 PLATFORMS = ["linkedin"]
@@ -22,7 +26,7 @@ def _screenshot(page, name):
 
 
 def execute(page, params: dict) -> dict:
-    company_slug = params.get("company_slug", "kytran-empowerment-inc")
+    company_slug = get_company_slug(params)
     limit = int(params.get("limit", 10))
 
     # Navigate to company messaging via admin

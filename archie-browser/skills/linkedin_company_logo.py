@@ -7,6 +7,10 @@ file on that input, accept the crop, Save. Screenshots go to the MOUNTED /profil
 volume so a result shot is retrievable.
 """
 import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import get_company_slug
 
 SKILL_NAME = "linkedin_company_logo"
 PLATFORMS = ["linkedin"]
@@ -26,7 +30,7 @@ def _shot(page, name):
 
 
 def execute(page, params: dict) -> dict:
-    company_slug = params.get("company_slug", "kytran-empowerment")
+    company_slug = get_company_slug(params)
     logo_path = (params.get("logo_path") or "").strip()
     if not logo_path:
         raise ValueError("logo_path is required for linkedin_company_logo")

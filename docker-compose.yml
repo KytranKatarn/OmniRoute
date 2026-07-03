@@ -996,6 +996,10 @@ services:
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - ARCHIE_PLATFORM_URL=http://archie_platform:3000
       - BROWSER_PROFILES_DIR=/profiles
+      # LinkedIn page slugs (#2599) — single source, .env-overridable. Skills
+      # resolve via _linkedin_common.get_company_slug()/get_creed_slug().
+      - LINKEDIN_COMPANY_SLUG=${LINKEDIN_COMPANY_SLUG:-kytran-empowerment-inc}
+      - LINKEDIN_CREED_SLUG=${LINKEDIN_CREED_SLUG:-115977300}
     volumes:
       # Persistent trusted-session profiles (#3953) — shared with the
       # archie_browser_login sidecar. On /mnt/data2 (root FS is tight).
@@ -1022,6 +1026,10 @@ services:
     environment:
       - TZ=America/Toronto
       - BROWSER_PROFILES_DIR=/profiles
+      # LinkedIn page slugs (#2599) — headed skills (#4649) resolve via
+      # _linkedin_common; keep in sync with the archie_browser service above.
+      - LINKEDIN_COMPANY_SLUG=${LINKEDIN_COMPANY_SLUG:-kytran-empowerment-inc}
+      - LINKEDIN_CREED_SLUG=${LINKEDIN_CREED_SLUG:-115977300}
       # REQUIRED (no `:-` default) — entrypoint fails closed without it, so a
       # no-auth VNC can never expose the owner's live LinkedIn session.
       - BROWSER_VNC_PASSWORD=${BROWSER_VNC_PASSWORD:?BROWSER_VNC_PASSWORD must be set in .env}

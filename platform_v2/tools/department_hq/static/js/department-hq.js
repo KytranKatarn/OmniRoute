@@ -2468,7 +2468,8 @@ async function refreshSignalAccountBar() {
    a time. ── */
 var SIGNAL_SESSION_IDENTITIES = [
     { agentId: 342, platform: 'linkedin', label: 'KYTRAN SESSION — PROFILE 342', note: 'Kytran Katarn personal + KE Inc. + Creed-AI pages (one login, actor-switched)' },
-    { agentId: 377, platform: 'linkedin', label: 'TERRY CAETANO SESSION — PROFILE 377', note: 'Terry Caetano personal account (separate LinkedIn login)' }
+    { agentId: 377, platform: 'linkedin', label: 'TERRY CAETANO SESSION — PROFILE 377', note: 'Terry Caetano personal account (separate LinkedIn login)' },
+    { agentId: 379, platform: 'linkedin', label: 'S.T.R.I.N.G.E.R. SESSION — PROFILE 379', note: 'What The Fact journalist account, press@what-the-fact.com (separate LinkedIn login, #4610)' }
 ];
 // #3982 multi-site: mirrors the login sidecar's platform allowlist.
 var SIGNAL_SESSION_PLATFORMS = ['linkedin', 'x', 'claude', 'deepseek'];
@@ -2479,7 +2480,7 @@ async function renderSignalSession(el) {
     // Account-aware: the selected account's session card renders FIRST and is
     // badged. terry = its own login (377); Kytran/KE/Creed all post through
     // the Kytran session (342) via the actor switcher.
-    var activeId = (signalAccount === 'terry') ? 377 : 342;
+    var activeId = (signalAccount === 'terry') ? 377 : (signalAccount === 'stringer') ? 379 : 342;
     var idns = SIGNAL_SESSION_IDENTITIES.slice().sort(function(a, b) {
         return (b.agentId === activeId ? 1 : 0) - (a.agentId === activeId ? 1 : 0);
     });

@@ -466,11 +466,12 @@ def _generation_context(cur, account: str) -> str:
             parts.append(f"Today's theme: {theme['name']} — {theme['tone'] or ''}".strip())
     except Exception:
         pass
-    # The What The Fact group grounds on REAL recent WTF coverage (live wtf DB)
-    # so the model writes about actual headlines instead of inventing stories —
-    # a fact-checking brand must never fabricate. "Recent platform wins" (the
-    # founder/company narrative) is OFF-BRAND there, so it is suppressed.
-    if account == "wtf_group":
+    # The What The Fact group AND the WTF journalist (stringer) ground on REAL
+    # recent WTF coverage (live wtf DB) so the model writes about actual
+    # headlines instead of inventing stories — a fact-checking brand must never
+    # fabricate. "Recent platform wins" (the founder/company narrative) is
+    # OFF-BRAND there, so it is suppressed.
+    if account in ("wtf_group", "stringer"):
         headlines = _wtf_recent_headlines()
         if headlines:
             parts.append(headlines)

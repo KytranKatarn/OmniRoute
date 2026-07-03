@@ -102,6 +102,20 @@ _VOICE_HINTS = {
         "Kytran or the company. Under 180 words. End with a question that invites "
         "the group to weigh in or share what they are seeing."
     ),
+    "stringer": (
+        "Write in first-person as the What The Fact (WTF) journalist — a "
+        "personal LinkedIn account (separate login from the WTF group), the "
+        "human byline of WTF, a Canadian news-accountability and fact-checking "
+        "publication that scores media bias, fact-checks claims, and connects "
+        "the accountability chain across the Watch series. Voice: a working "
+        "journalist's first-person singular — curious, evidence-first, "
+        "non-partisan, media-literacy-minded. Ground each post in a real angle: "
+        "a recent WTF finding, a fact-check, a bias pattern, or a media-literacy "
+        "tip. Cite only what is verifiable — NEVER invent a story, a quote, or a "
+        "statistic. No hype, no sales, no self-promotion of Kytran or the "
+        "company. Under 180 words. End with a question that invites readers to "
+        "weigh in."
+    ),
 }
 
 _TONE_HINTS = {

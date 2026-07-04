@@ -474,6 +474,12 @@ def call_external(
 # free allowance first (groq 14.4k/wk > cerebras 8.4k/wk > cohere 1k/wk).
 FREE_TEXT_PROVIDERS = ["groq", "cerebras", "cohere"]
 
+# Full cloud TEXT rotation preference for #3659's dispatch guard: the Ollama-Cloud
+# proxies first (already the wired translation proxies, 7k/wk each), then the free
+# OpenAI-compatible tiers. A caller rotates to the first with weekly headroom and
+# falls back to local when all are exhausted.
+CLOUD_TEXT_ROTATION = ["minimax_cloud", "qwen3_cloud", "groq", "cerebras", "cohere"]
+
 
 def get_weekly_free_limit(provider: str) -> Optional[int]:
     """Weekly free-tier request cap from rate_limits.free.weekly_limit, or None if uncapped."""
@@ -580,6 +586,34 @@ def pick_free_text_provider(
                 return prefer
     scored.sort(reverse=True)  # most remaining first
     return scored[0][1]
+
+
+def cloud_budget_status(
+    providers: Optional[List[str]] = None,
+    safety_margin: float = 0.1,
+) -> dict:
+    """Aggregate weekly free-tier budget across the cloud TEXT fleet (#3659 primitive).
+
+    Read-only snapshot for the K.I.N. welfare view, A.R.C.H.I.E. briefing, and the
+    80%-alert surface — and the data the #3659 dispatch guard reads before it decides
+    to rotate or fall back to local. Reuses weekly_budget_status per provider, so it
+    inherits the same fail-open behaviour.
+
+    Returns {providers: [status...], total_limit, total_used, total_remaining,
+             any_headroom, warnings: [keys>=80%], exhausted: [keys over cap]}.
+    """
+    provs = providers or CLOUD_TEXT_ROTATION
+    rows = [weekly_budget_status(p, safety_margin) for p in provs]
+    capped = [r for r in rows if r["limit"]]
+    return {
+        "providers": rows,
+        "total_limit": sum(r["limit"] for r in capped) if capped else None,
+        "total_used": sum(r["used"] for r in capped) if capped else None,
+        "total_remaining": sum(r["remaining"] for r in capped) if capped else None,
+        "any_headroom": any(not r["over_budget"] for r in rows),
+        "warnings": [r["provider"] for r in rows if r["warn"]],
+        "exhausted": [r["provider"] for r in rows if r["over_budget"]],
+    }
 
 
 # ============================================================================

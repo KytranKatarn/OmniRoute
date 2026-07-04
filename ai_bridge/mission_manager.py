@@ -48,10 +48,7 @@ class MissionManager:
 
     def _is_cache_valid(self) -> bool:
         """Check if the cached active profile is still fresh."""
-        return (
-            self._cache["profile"] is not None
-            and (time.time() - self._cache["timestamp"]) < self._cache["ttl"]
-        )
+        return self._cache["profile"] is not None and (time.time() - self._cache["timestamp"]) < self._cache["ttl"]
 
     def _invalidate_cache(self):
         """Force next lookup to hit DB."""
@@ -75,9 +72,7 @@ class MissionManager:
         try:
             with get_db_cursor(commit=False) as (conn, cur):
                 # Get active profile name from system_config
-                cur.execute(
-                    "SELECT value FROM system_config WHERE key = 'active_mission_profile'"
-                )
+                cur.execute("SELECT value FROM system_config WHERE key = 'active_mission_profile'")
                 row = cur.fetchone()
                 profile_name = row["value"] if row else "standard_operations"
 
@@ -90,9 +85,7 @@ class MissionManager:
 
                 if not profile:
                     # Fallback to default
-                    cur.execute(
-                        "SELECT * FROM mission_profiles WHERE is_default = TRUE LIMIT 1"
-                    )
+                    cur.execute("SELECT * FROM mission_profiles WHERE is_default = TRUE LIMIT 1")
                     profile = cur.fetchone()
 
                 if profile:
@@ -122,9 +115,7 @@ class MissionManager:
         """List all mission profiles ordered by name."""
         try:
             with get_db_cursor(commit=False) as (conn, cur):
-                cur.execute(
-                    "SELECT * FROM mission_profiles ORDER BY is_default DESC, name ASC"
-                )
+                cur.execute("SELECT * FROM mission_profiles ORDER BY is_default DESC, name ASC")
                 return [dict(row) for row in cur.fetchall()]
         except Exception as e:
             logger.error(f"Failed to list mission profiles: {e}")
@@ -214,8 +205,7 @@ class MissionManager:
                         "mission_profiles",
                         Json({"profile": old_profile.get("name")}),
                         Json({"profile": profile["name"]}),
-                        reason
-                        or f"{triggered_by}: {old_profile.get('display_name')} -> {profile['display_name']}",
+                        reason or f"{triggered_by}: {old_profile.get('display_name')} -> {profile['display_name']}",
                         "success",
                     ),
                 )
@@ -353,9 +343,7 @@ class MissionManager:
     # Event triggers
     # ------------------------------------------------------------------
 
-    def check_event_triggers(
-        self, event_type: str, event_data: Optional[Dict] = None
-    ) -> Optional[str]:
+    def check_event_triggers(self, event_type: str, event_data: Optional[Dict] = None) -> Optional[str]:
         """
         Evaluate event triggers across all profiles.
 
@@ -413,17 +401,12 @@ class MissionManager:
 
         return None
 
-    def _evaluate_condition(
-        self, condition: str, event_type: str, event_data: Dict
-    ) -> bool:
+    def _evaluate_condition(self, condition: str, event_type: str, event_data: Dict) -> bool:
         """Evaluate a single trigger condition against event data."""
         # fail2ban_bans_gt_N
         if condition.startswith("fail2ban_bans_gt_"):
             threshold = int(condition.split("_")[-1])
-            return (
-                event_type == "fail2ban"
-                and event_data.get("ban_count", 0) > threshold
-            )
+            return event_type == "fail2ban" and event_data.get("ban_count", 0) > threshold
 
         # ssh_brute_force
         if condition == "ssh_brute_force":
@@ -432,10 +415,7 @@ class MissionManager:
         # critical_alerts_gt_N
         if condition.startswith("critical_alerts_gt_"):
             threshold = int(condition.split("_")[-1])
-            return (
-                event_type == "critical_alert"
-                and event_data.get("count", 0) > threshold
-            )
+            return event_type == "critical_alert" and event_data.get("count", 0) > threshold
 
         return False
 
@@ -491,9 +471,7 @@ class MissionManager:
     # Flow Router — Event-driven conditional branching (Task #957)
     # ------------------------------------------------------------------
 
-    def start_flow(
-        self, flow_name: str, initial_data: Optional[Dict] = None
-    ) -> Optional[Dict[str, Any]]:
+    def start_flow(self, flow_name: str, initial_data: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """
         Start a workflow flow, creating the first job.
 
@@ -533,10 +511,7 @@ class MissionManager:
             logger.error(f"Failed to create first job for flow {flow_name}")
             return None
 
-        logger.info(
-            f"Flow started: {flow['name']} (job {job_id}, "
-            f"step 1/{len(flow['steps'])})"
-        )
+        logger.info(f"Flow started: {flow['name']} (job {job_id}, " f"step 1/{len(flow['steps'])})")
         return {
             "flow_name": flow_name,
             "job_id": job_id,
@@ -544,9 +519,7 @@ class MissionManager:
             "total": len(flow["steps"]),
         }
 
-    def advance_flow(
-        self, job_id: int, job_result: Optional[Dict] = None
-    ) -> Optional[Dict[str, Any]]:
+    def advance_flow(self, job_id: int, job_result: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
         """
         Called when a flow job completes — advance to next step or end.
 
@@ -601,9 +574,7 @@ class MissionManager:
         next_idx = step_idx + 1
 
         # Check if flow is complete
-        if current_step.get("on_complete") == "end" or next_idx >= len(
-            flow["steps"]
-        ):
+        if current_step.get("on_complete") == "end" or next_idx >= len(flow["steps"]):
             logger.info(f"Flow completed: {flow['name']} at step {step_idx + 1}")
             return {"status": "completed", "flow_name": flow_name}
 
@@ -611,13 +582,8 @@ class MissionManager:
         if current_step.get("on_complete") == "conditional":
             condition = current_step.get("condition", {})
             if not self._evaluate_flow_condition(condition, job_result):
-                reason = (
-                    f"{condition.get('field')} {condition.get('operator')} "
-                    f"{condition.get('value')}"
-                )
-                logger.info(
-                    f"Flow skipped: {flow['name']} — condition not met ({reason})"
-                )
+                reason = f"{condition.get('field')} {condition.get('operator')} " f"{condition.get('value')}"
+                logger.info(f"Flow skipped: {flow['name']} — condition not met ({reason})")
                 return {
                     "status": "skipped",
                     "flow_name": flow_name,
@@ -639,28 +605,20 @@ class MissionManager:
         next_job_id = dispatcher.create_job(
             job_type=next_step["job_type"],
             module_source="flow_engine",
-            description=(
-                f"Flow: {flow['name']} - "
-                f"Step {next_idx + 1}/{len(flow['steps'])}"
-            ),
+            description=(f"Flow: {flow['name']} - " f"Step {next_idx + 1}/{len(flow['steps'])}"),
             total_steps=1,
             metadata=next_meta,
         )
 
         if not next_job_id:
-            logger.error(
-                f"Failed to create next job for flow {flow_name} step {next_idx + 1}"
-            )
+            logger.error(f"Failed to create next job for flow {flow_name} step {next_idx + 1}")
             return {
                 "status": "error",
                 "flow_name": flow_name,
                 "error": "Failed to create next job",
             }
 
-        logger.info(
-            f"Flow advanced: {flow['name']} → step {next_idx + 1}/"
-            f"{len(flow['steps'])} (job {next_job_id})"
-        )
+        logger.info(f"Flow advanced: {flow['name']} → step {next_idx + 1}/" f"{len(flow['steps'])} (job {next_job_id})")
         return {
             "status": "advanced",
             "flow_name": flow_name,
@@ -670,9 +628,7 @@ class MissionManager:
         }
 
     @staticmethod
-    def _evaluate_flow_condition(
-        condition: Dict[str, Any], job_result: Optional[Dict]
-    ) -> bool:
+    def _evaluate_flow_condition(condition: Dict[str, Any], job_result: Optional[Dict]) -> bool:
         """
         Evaluate a conditional gate for flow routing.
 

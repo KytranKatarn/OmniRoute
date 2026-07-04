@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """One-shot test for the skill sync job."""
+
 import sys
 import os
 
@@ -23,7 +24,8 @@ if not os.path.exists("/mnt/archie_brain/.claude"):
 start = time.time()
 
 with get_db_cursor() as (conn, cur):
-    cur.execute("""
+    cur.execute(
+        """
         SELECT DISTINCT
             SPLIT_PART(title, '/', 1) || '/' || SPLIT_PART(title, '/', 2) as repo,
             title,
@@ -45,7 +47,8 @@ with get_db_cursor() as (conn, cur):
         )
         ORDER BY created_at DESC
         LIMIT 100
-    """)
+    """
+    )
     skill_files = cur.fetchall()
     print(f"Found {len(skill_files)} skill files")
 
@@ -58,12 +61,15 @@ with get_db_cursor() as (conn, cur):
         repo = row["repo"]
         if repo not in repos:
             repos[repo] = []
-        repos[repo].append({
-            "title": row["title"],
-            "preview": row["preview"],
-        })
+        repos[repo].append(
+            {
+                "title": row["title"],
+                "preview": row["preview"],
+            }
+        )
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT
             SPLIT_PART(title, '/', 1) || '/' || SPLIT_PART(title, '/', 2) as repo,
             COUNT(*) as total_files
@@ -71,7 +77,8 @@ with get_db_cursor() as (conn, cur):
         WHERE knowledge_type = 'github_file'
         GROUP BY repo
         ORDER BY total_files DESC
-    """)
+    """
+    )
     repo_counts = {r["repo"]: r["total_files"] for r in cur.fetchall()}
 
 # Build the rules file
@@ -107,30 +114,33 @@ for repo, skills in sorted(repos.items()):
     for skill in skills[:10]:
         title = skill["title"].split("/", 2)[-1] if "/" in skill["title"] else skill["title"]
         preview_lines = [
-            l.strip() for l in (skill["preview"] or "").split("\n")
+            l.strip()
+            for l in (skill["preview"] or "").split("\n")
             if l.strip() and not l.strip().startswith("#") and not l.strip().startswith("--")
         ]
         desc = preview_lines[0][:120] if preview_lines else "No description"
         lines.append(f"- **{title}** — {desc}")
     lines.append("")
 
-lines.extend([
-    "---",
-    "",
-    "## How to Learn from These",
-    "",
-    "1. `mcp search_knowledge` with the skill name for full content",
-    "2. Read the patterns and apply to current task",
-    "3. Anti-rationalization patterns (importance 0.95) should be checked when",
-    "   about to skip verification or claim something works without testing",
-    "",
-    "## Key Patterns Already Integrated",
-    "",
-    "- **Anti-Rationalization** — rationalization table in feedback_03-never-guess.md",
-    "- **Skill Creation Workflow** — brainstorm -> template -> validate -> install",
-    "- **Prompt Engineering Magic Mode** — auto-refine vague prompts silently",
-    "- **Autonomous Execution (Loki Mode)** — auto-resume, kanban monitoring",
-])
+lines.extend(
+    [
+        "---",
+        "",
+        "## How to Learn from These",
+        "",
+        "1. `mcp search_knowledge` with the skill name for full content",
+        "2. Read the patterns and apply to current task",
+        "3. Anti-rationalization patterns (importance 0.95) should be checked when",
+        "   about to skip verification or claim something works without testing",
+        "",
+        "## Key Patterns Already Integrated",
+        "",
+        "- **Anti-Rationalization** — rationalization table in feedback_03-never-guess.md",
+        "- **Skill Creation Workflow** — brainstorm -> template -> validate -> install",
+        "- **Prompt Engineering Magic Mode** — auto-refine vague prompts silently",
+        "- **Autonomous Execution (Loki Mode)** — auto-resume, kanban monitoring",
+    ]
+)
 
 os.makedirs(os.path.dirname(rules_path), exist_ok=True)
 with open(rules_path, "w") as f:

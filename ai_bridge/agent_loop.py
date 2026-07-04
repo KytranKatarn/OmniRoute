@@ -41,7 +41,7 @@ from services.agent_service import (
 logger = logging.getLogger("agent_loop")
 
 
-def log_governance_event(event_type, action, outcome, details=None, event_category='system', agent_id=None):
+def log_governance_event(event_type, action, outcome, details=None, event_category="system", agent_id=None):
     """Log a governance event to the immutable audit log"""
     try:
         conn = get_db()
@@ -61,9 +61,7 @@ def log_governance_event(event_type, action, outcome, details=None, event_catego
         logger.error(f"Failed to log governance event: {e}")
 
 
-def _send_approval_telegram(
-    approval_id: int, action_type: str, action_data: dict, reason: str
-):
+def _send_approval_telegram(approval_id: int, action_type: str, action_data: dict, reason: str):
     """Route an approval request through the director_reports inbox.
 
     The triage consumer detects category='approval_request' and escalates
@@ -82,8 +80,8 @@ def _send_approval_telegram(
 
         def _strip_md(text):
             """Remove Markdown that breaks Telegram V1 parser."""
-            text = _re.sub(r'\*\*(.+?)\*\*', r'\1', text, flags=_re.DOTALL)
-            text = _re.sub(r'__(.+?)__', r'\1', text, flags=_re.DOTALL)
+            text = _re.sub(r"\*\*(.+?)\*\*", r"\1", text, flags=_re.DOTALL)
+            text = _re.sub(r"__(.+?)__", r"\1", text, flags=_re.DOTALL)
             return text
 
         lines = [f"Approval #{approval_id} required for: {action_type}"]
@@ -128,9 +126,9 @@ def _send_approval_telegram(
         )
     except Exception as exc:
         logger.error("Failed to submit approval #%s to inbox: %s", approval_id, exc)
-def _validate_approval_request(
-    action_type: str, action_data: dict
-) -> Optional[str]:
+
+
+def _validate_approval_request(action_type: str, action_data: dict) -> Optional[str]:
     """Validate approval request inputs. Returns error message or None if valid."""
     if not action_type or not isinstance(action_type, str):
         return "action_type must be a non-empty string"
@@ -139,9 +137,7 @@ def _validate_approval_request(
     return None
 
 
-def _check_existing_approval(
-    action_type: str, action_data: dict, cur
-) -> bool:
+def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
     """Check if a pending approval that would collide with this request already exists.
 
     Dedup key depends on the action_type:
@@ -249,9 +245,7 @@ def _check_existing_approval(
 
 def _get_effective_tier(action_type: str, tier: int, cur) -> int:
     """Determine effective tier by checking tier-1 auto-approve config."""
-    cur.execute(
-        "SELECT config_value FROM autonomy_config WHERE config_key = 'tier1_auto_approve'"
-    )
+    cur.execute("SELECT config_value FROM autonomy_config WHERE config_key = 'tier1_auto_approve'")
     row = cur.fetchone()
     tier1_types = row["config_value"].get("types", []) if row else []
     return 1 if action_type in tier1_types else tier
@@ -320,10 +314,7 @@ def request_approval(
         # issues. Sending Telegram for every restart generates noise spam.
         if action_type == "cloud_throughput_escalation":
             busy = action_data.get("busy_job", {})
-            if (
-                busy.get("progress_pct", -1) == 0
-                and "ping" in busy.get("description", "").lower()
-            ):
+            if busy.get("progress_pct", -1) == 0 and "ping" in busy.get("description", "").lower():
                 logger.info(
                     "[request_approval] Dropping cloud escalation — orphaned ping job: %s",
                     busy.get("description", "")[:80],
@@ -435,6 +426,7 @@ class AgentLoop:
         # was killed and the job is stuck. Reset so P.I.X.E.L. re-queues on next tick.
         try:
             from database import get_db_cursor
+
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
                     """UPDATE media_generation_queue SET status='pending', started_at=NULL,
@@ -1221,9 +1213,7 @@ class AgentLoop:
         # assessment. Sundays 05:30 ET — after the nightly digests, weekly cadence.
         self.scheduler.add_job(
             with_app_context(self._run_ethos_ethics_brief),
-            trigger=CronTrigger(
-                day_of_week="sun", hour=5, minute=30, timezone="America/Toronto"
-            ),
+            trigger=CronTrigger(day_of_week="sun", hour=5, minute=30, timezone="America/Toronto"),
             id="ethos_ethics_brief",
             name="Agent Loop: E.T.H.O.S. Weekly Ethics Brief",
             max_instances=1,
@@ -2184,6 +2174,7 @@ class AgentLoop:
         # All module jobs registered via Department HQ (centralized — Decision #440)
         try:
             from tools.department_hq.jobs import register_department_hq_jobs
+
             register_department_hq_jobs(self.scheduler, self.flask_app)
             logger.info("[AgentLoop] All department jobs registered via Department HQ")
         except Exception as e:
@@ -2284,6 +2275,7 @@ class AgentLoop:
         def _run_carbon_footprint():
             with app.app_context():
                 from services.carbon_footprint_service import run_carbon_footprint_job
+
                 result = run_carbon_footprint_job()
                 logger.info("[CarbonJob] %s", result)
 
@@ -2332,9 +2324,9 @@ class AgentLoop:
 
             now = datetime.now()
             for row in configs:
-                agent_name = row[0] if not hasattr(row, 'get') else row['agent_name']
-                cron_expr = row[2] if not hasattr(row, 'get') else row['schedule_cron']
-                last_gen = row[3] if not hasattr(row, 'get') else row['last_generated_at']
+                agent_name = row[0] if not hasattr(row, "get") else row["agent_name"]
+                cron_expr = row[2] if not hasattr(row, "get") else row["schedule_cron"]
+                last_gen = row[3] if not hasattr(row, "get") else row["last_generated_at"]
                 try:
                     cron = croniter(cron_expr, now)
                     prev_fire = cron.get_prev(datetime)
@@ -2353,9 +2345,7 @@ class AgentLoop:
                                 result.get("id"),
                             )
                 except Exception as e:
-                    logger.error(
-                        "Agent media schedule error for %s: %s", agent_name, e
-                    )
+                    logger.error("Agent media schedule error for %s: %s", agent_name, e)
         except ImportError:
             logger.warning("croniter not available — skipping media schedules")
         except Exception as e:
@@ -2375,11 +2365,16 @@ class AgentLoop:
         _pixel_agent = None
         try:
             from services.department_coordinator import get_coordinator as _get_coord
+
             coord = _get_coord()
             agent = coord.select_agent("image_generation", "Creative & Design")
             if agent:
                 _pixel_agent = agent
-                logger.info("media_generation_worker: %s (id=%s) selected via DHQ for image_generation", agent.get("name", "?"), agent.get("id", "?"))
+                logger.info(
+                    "media_generation_worker: %s (id=%s) selected via DHQ for image_generation",
+                    agent.get("name", "?"),
+                    agent.get("id", "?"),
+                )
             else:
                 logger.warning("media_generation_worker: DHQ found no image_generation agent — proceeding anyway")
         except Exception as dhq_err:
@@ -2427,7 +2422,9 @@ class AgentLoop:
                     logger.info("media_generation_worker: ComfyUI stopped — P.I.X.E.L. warming up container")
                     healthy = svc.wake_if_stopped()
                     if not healthy:
-                        logger.warning("media_generation_worker: ComfyUI warmboot failed — leaving jobs pending for next tick")
+                        logger.warning(
+                            "media_generation_worker: ComfyUI warmboot failed — leaving jobs pending for next tick"
+                        )
                         return
                     logger.info("media_generation_worker: ComfyUI healthy after warmboot")
             except Exception as wake_err:
@@ -2466,6 +2463,7 @@ class AgentLoop:
                 # to reclaim VRAM for Ollama text models.
                 try:
                     from ai_bridge.comfyui_service import get_comfyui_service
+
                     get_comfyui_service().stop_if_idle()
                 except Exception as _stop_err:
                     logger.debug("media_generation_worker: idle-stop skipped: %s", _stop_err)
@@ -2494,9 +2492,17 @@ class AgentLoop:
                     err_str = str(e)
                     # ComfyUI down = transient — reset to pending so next tick retries.
                     # Permanent errors (bad prompt, missing model) = fail immediately.
-                    is_transient = "unavailable" in err_str.lower() or "connection" in err_str.lower() or "timeout" in err_str.lower()
+                    is_transient = (
+                        "unavailable" in err_str.lower()
+                        or "connection" in err_str.lower()
+                        or "timeout" in err_str.lower()
+                    )
                     if is_transient:
-                        logger.warning("media_generation_worker: queue %s — ComfyUI unavailable, resetting to pending: %s", queue_id, err_str)
+                        logger.warning(
+                            "media_generation_worker: queue %s — ComfyUI unavailable, resetting to pending: %s",
+                            queue_id,
+                            err_str,
+                        )
                         with get_db_cursor(commit=True) as (conn, cur):
                             cur.execute(
                                 """
@@ -2557,12 +2563,21 @@ class AgentLoop:
                                    (agent_id, agent_name, model_used, duration_ms, success,
                                     capability, node_used_id, module_source)
                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                                (_pid, _pname, _model, _dur_ms, _gen_success,
-                                 "image_generation", _node_db_id, "media_studio"),
+                                (
+                                    _pid,
+                                    _pname,
+                                    _model,
+                                    _dur_ms,
+                                    _gen_success,
+                                    "image_generation",
+                                    _node_db_id,
+                                    "media_studio",
+                                ),
                             )
                         if _gen_success:
                             try:
                                 from services.agent_service import get_agent_service
+
                                 get_agent_service().increment_usage(_pid)
                             except Exception:
                                 pass
@@ -2708,7 +2723,9 @@ class AgentLoop:
                             refined_prompt, explanation)
                            VALUES (%s,%s,%s,%s,%s,%s,%s)""",
                         (
-                            agent_id, round_num, feedback,
+                            agent_id,
+                            round_num,
+                            feedback,
                             result.get("vision_description", ""),
                             result.get("agent_perspective", ""),
                             result.get("refined_prompt", ""),
@@ -2747,11 +2764,12 @@ class AgentLoop:
         """Compute hourly analytics snapshots. Also daily at midnight."""
         from datetime import datetime
         from tools.media_studio.services.analytics_service import compute_snapshot
+
         try:
-            count = compute_snapshot(period_type='hourly')
+            count = compute_snapshot(period_type="hourly")
             logger.info(f"[Analytics] Hourly: {count} snapshots")
             if datetime.now(timezone.utc).hour == 0:
-                daily_count = compute_snapshot(period_type='daily')
+                daily_count = compute_snapshot(period_type="daily")
                 logger.info(f"[Analytics] Daily: {daily_count} snapshots")
         except Exception as e:
             logger.error(f"[Analytics] Snapshot failed: {e}")
@@ -2762,9 +2780,7 @@ class AgentLoop:
             from database import get_db_cursor
 
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT id FROM google_accounts WHERE owner_type = 'agent'"
-                )
+                cur.execute("SELECT id FROM google_accounts WHERE owner_type = 'agent'")
                 accounts = cur.fetchall()
             if not accounts:
                 return
@@ -2776,9 +2792,7 @@ class AgentLoop:
                 try:
                     process_agent_inbox(acc["id"])
                 except Exception as e:
-                    logger.warning(
-                        f"Agent email processing failed for account {acc['id']}: {e}"
-                    )
+                    logger.warning(f"Agent email processing failed for account {acc['id']}: {e}")
         except Exception as e:
             logger.error(f"Agent email job failed: {e}")
 
@@ -2788,9 +2802,7 @@ class AgentLoop:
             from database import get_db_cursor
 
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT id, owner_id FROM google_accounts WHERE owner_type = 'agent'"
-                )
+                cur.execute("SELECT id, owner_id FROM google_accounts WHERE owner_type = 'agent'")
                 accounts = cur.fetchall()
             if not accounts:
                 return
@@ -2802,9 +2814,7 @@ class AgentLoop:
                 try:
                     auto_schedule_from_tasks(acc["id"], str(acc["owner_id"]))
                 except Exception as e:
-                    logger.warning(
-                        f"Agent calendar task failed for account {acc['id']}: {e}"
-                    )
+                    logger.warning(f"Agent calendar task failed for account {acc['id']}: {e}")
 
             # Daily summary at ~6pm UTC
             from datetime import datetime
@@ -2834,8 +2844,10 @@ class AgentLoop:
         """Job #30: Update module documentation and agent module awareness (daily)."""
         try:
             from services.module_docs_service import generate_module_docs
+
             generate_module_docs()
             from services.agent_module_awareness import update_agent_module_awareness
+
             update_agent_module_awareness()
         except Exception as e:
             logger.error(f"[Module Docs] Error: {e}")
@@ -2844,15 +2856,19 @@ class AgentLoop:
         """Job #31: Track recent git commits and store in knowledge_base (every 30 min)."""
         try:
             import subprocess
+
             result = subprocess.run(
-                ['git', 'log', '--oneline', '-5', '--format=%h %s (%ar)'],
-                cwd='/mnt/archie_brain',
-                capture_output=True, text=True, timeout=10
+                ["git", "log", "--oneline", "-5", "--format=%h %s (%ar)"],
+                cwd="/mnt/archie_brain",
+                capture_output=True,
+                text=True,
+                timeout=10,
             )
             if result.returncode == 0 and result.stdout.strip():
                 recent = result.stdout.strip()
                 from database import get_db_cursor
                 from psycopg2.extras import Json
+
                 with get_db_cursor(commit=True) as (conn, cur):
                     cur.execute(
                         """
@@ -2860,7 +2876,7 @@ class AgentLoop:
                         VALUES ('Recent Git Commits', %s, 'version_control', 0.6, %s, 'conversation_memory')
                         ON CONFLICT (title) DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
                         """,
-                        (recent, Json(['git', 'commits', 'version-control', 'auto-generated'])),
+                        (recent, Json(["git", "commits", "version-control", "auto-generated"])),
                     )
         except Exception as e:
             logger.error(f"[Git Tracker] Error: {e}")
@@ -2941,9 +2957,7 @@ class AgentLoop:
                         {
                             "id": job.id,
                             "name": job.name,
-                            "next_run": (
-                                str(job.next_run_time) if job.next_run_time else None
-                            ),
+                            "next_run": (str(job.next_run_time) if job.next_run_time else None),
                         }
                     )
             except Exception:
@@ -2968,9 +2982,7 @@ class AgentLoop:
 
             results = warm_all_nodes()
             ok = sum(1 for v in results.values() if v == "ok")
-            logger.info(
-                "[Agent Loop] Embedding keep-warm: %d/%d nodes warm", ok, len(results)
-            )
+            logger.info("[Agent Loop] Embedding keep-warm: %d/%d nodes warm", ok, len(results))
         except Exception as e:
             logger.warning("[Agent Loop] Embedding keep-warm failed: %s", e)
 
@@ -3280,9 +3292,7 @@ class AgentLoop:
 
         try:
             with get_db_cursor(commit=False) as (_c, cur):
-                cur.execute(
-                    "SELECT value FROM platform_settings WHERE key=%s", ("forge:path_observer:last_alert_at",)
-                )
+                cur.execute("SELECT value FROM platform_settings WHERE key=%s", ("forge:path_observer:last_alert_at",))
                 r = cur.fetchone()
             if r and r.get("value"):
                 try:
@@ -3485,9 +3495,7 @@ class AgentLoop:
             try:
                 self._send_telegram(body)
             except Exception as tg_err:
-                logger.warning(
-                    "Stalwart queue monitor: Telegram dispatch failed: %s", tg_err
-                )
+                logger.warning("Stalwart queue monitor: Telegram dispatch failed: %s", tg_err)
 
         except Exception as e:
             logger.warning("[Agent Loop] Stalwart queue monitor failed: %s", e)
@@ -3548,15 +3556,11 @@ class AgentLoop:
 
             smtp_settings = None
             if not gws_account_id:
-                cur.execute(
-                    "SELECT * FROM email_settings WHERE is_default = true AND is_active = true"
-                )
+                cur.execute("SELECT * FROM email_settings WHERE is_default = true AND is_active = true")
                 smtp_settings = cur.fetchone()
 
                 if not smtp_settings:
-                    logger.warning(
-                        "Agent loop: No GWS account or SMTP settings, skipping email queue"
-                    )
+                    logger.warning("Agent loop: No GWS account or SMTP settings, skipping email queue")
                     cur.close()
                     conn.close()
                     return
@@ -3588,16 +3592,8 @@ class AgentLoop:
                     # Simple variable substitution
                     if variables:
                         for key, val in variables.items():
-                            subject = (
-                                subject.replace(f"{{{{{key}}}}}", str(val))
-                                if subject
-                                else subject
-                            )
-                            body_html = (
-                                body_html.replace(f"{{{{{key}}}}}", str(val))
-                                if body_html
-                                else body_html
-                            )
+                            subject = subject.replace(f"{{{{{key}}}}}", str(val)) if subject else subject
+                            body_html = body_html.replace(f"{{{{{key}}}}}", str(val)) if body_html else body_html
 
                     # Send via GWS Gmail API (preferred) or SMTP fallback
                     if gws_account_id:
@@ -3612,9 +3608,7 @@ class AgentLoop:
                             body_html or "",
                         )
                     else:
-                        self._send_smtp(
-                            smtp_settings, email["recipient"], subject, body_html
-                        )
+                        self._send_smtp(smtp_settings, email["recipient"], subject, body_html)
 
                     # Log success
                     cur.execute(
@@ -3658,13 +3652,9 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("email_queue", processed, failed, duration_ms)
-            logger.info(
-                f"Email queue: {processed} sent, {failed} failed ({duration_ms}ms)"
-            )
+            logger.info(f"Email queue: {processed} sent, {failed} failed ({duration_ms}ms)")
 
-    def _send_smtp(
-        self, smtp_settings: dict, recipient: str, subject: str, body_html: str
-    ):
+    def _send_smtp(self, smtp_settings: dict, recipient: str, subject: str, body_html: str):
         """Send a single email via SMTP. Reuses logic from email_manager."""
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject or "(no subject)"
@@ -3729,9 +3719,7 @@ class AgentLoop:
                     self._execute_scheduled_task(cur, conn, task)
                     processed += 1
                 except Exception as e:
-                    logger.error(
-                        f"Failed to execute scheduled task #{task['id']} ({task['name']}): {e}"
-                    )
+                    logger.error(f"Failed to execute scheduled task #{task['id']} ({task['name']}): {e}")
                     cur.execute(
                         """
                         UPDATE scheduled_tasks
@@ -3753,9 +3741,7 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("scheduled_tasks", processed, failed, duration_ms)
-            logger.info(
-                f"Scheduled tasks: {processed} executed, {failed} failed ({duration_ms}ms)"
-            )
+            logger.info(f"Scheduled tasks: {processed} executed, {failed} failed ({duration_ms}ms)")
 
     def _execute_scheduled_task(self, cur, conn, task: dict):
         """Dispatch a scheduled task by its task_type."""
@@ -3809,9 +3795,7 @@ class AgentLoop:
             )
 
         else:
-            logger.warning(
-                f"Unknown scheduled task type: {task_type} (task #{task['id']})"
-            )
+            logger.warning(f"Unknown scheduled task type: {task_type} (task #{task['id']})")
 
         # Mark task complete
         cur.execute(
@@ -3889,9 +3873,7 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("reminders", processed, failed, duration_ms)
-            logger.info(
-                f"Reminders: {processed} notified, {failed} failed ({duration_ms}ms)"
-            )
+            logger.info(f"Reminders: {processed} notified, {failed} failed ({duration_ms}ms)")
 
     # ------------------------------------------------------------------
     # Email Inbox Check (Phase 2)
@@ -3922,9 +3904,7 @@ class AgentLoop:
                         "settings_checked": result.get("settings_checked", 0),
                     },
                 )
-                logger.info(
-                    f"Email inbox: {fetched} fetched, {analyzed} analyzed ({duration_ms}ms)"
-                )
+                logger.info(f"Email inbox: {fetched} fetched, {analyzed} analyzed ({duration_ms}ms)")
 
                 # Create per-user notifications for new emails
                 if fetched > 0:
@@ -3973,11 +3953,13 @@ class AgentLoop:
             ei = EmailIntelligence()
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM email_inbox
                 WHERE ai_analyzed_at IS NULL AND is_archived = FALSE
                 ORDER BY received_at DESC LIMIT 3
-            """)
+            """
+            )
             rows = cur.fetchall()
             if not rows:
                 return
@@ -4050,13 +4032,15 @@ class AgentLoop:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get pending tasks that are due
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM browser_tasks
                 WHERE status = 'pending'
                   AND (next_run_at IS NULL OR next_run_at <= NOW())
                 ORDER BY priority ASC, created_at ASC
                 LIMIT 5
-                """)
+                """
+            )
             tasks = cur.fetchall()
             cur.close()
             conn.close()
@@ -4086,9 +4070,7 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0:
             self._log_cycle("browser_tasks", processed, failed, duration_ms)
-            logger.info(
-                f"Browser tasks: {processed} completed, {failed} failed ({duration_ms}ms)"
-            )
+            logger.info(f"Browser tasks: {processed} completed, {failed} failed ({duration_ms}ms)")
 
     # ------------------------------------------------------------------
     # Proactive Intelligence (Phase 5)
@@ -4162,7 +4144,8 @@ class AgentLoop:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get authorized Telegram users with email prefs
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT tu.telegram_id, tu.id as tg_user_id,
                        COALESCE(tep.notify_urgent, TRUE) as notify_urgent,
                        COALESCE(tep.notify_action_required, TRUE) as notify_action_required,
@@ -4172,7 +4155,8 @@ class AgentLoop:
                 FROM telegram_users tu
                 LEFT JOIN telegram_email_prefs tep ON tu.id = tep.telegram_user_id
                 WHERE tu.is_authorized = TRUE
-            """)
+            """
+            )
             users = cur.fetchall()
             if not users:
                 return
@@ -4202,9 +4186,7 @@ class AgentLoop:
                     urgent_emails = cur.fetchall()
 
                     for email in urgent_emails:
-                        self._send_email_telegram_notification(
-                            gateway, user["telegram_id"], email
-                        )
+                        self._send_email_telegram_notification(gateway, user["telegram_id"], email)
                         cur.execute(
                             "UPDATE email_inbox SET telegram_notified_at = NOW() WHERE id = %s",
                             (email["id"],),
@@ -4222,7 +4204,8 @@ class AgentLoop:
                         if datetime.now() - last_digest < timedelta(minutes=interval):
                             continue  # Not time for digest yet
 
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT id, from_name, from_address, subject, ai_category, ai_summary
                         FROM email_inbox
                         WHERE ai_analyzed_at IS NOT NULL
@@ -4230,13 +4213,12 @@ class AgentLoop:
                         AND ai_category NOT IN ('urgent', 'action_required')
                         AND is_archived = FALSE
                         ORDER BY received_at DESC LIMIT 20
-                    """)
+                    """
+                    )
                     digest_emails = cur.fetchall()
 
                     if digest_emails:
-                        self._send_email_telegram_digest(
-                            gateway, user["telegram_id"], digest_emails
-                        )
+                        self._send_email_telegram_digest(gateway, user["telegram_id"], digest_emails)
                         notified += len(digest_emails)
                         ids = [e["id"] for e in digest_emails]
                         id_placeholders = ",".join(["%s"] * len(ids))
@@ -4303,20 +4285,12 @@ class AgentLoop:
             keyboard = InlineKeyboardMarkup(
                 [
                     [
-                        InlineKeyboardButton(
-                            "Reply", callback_data=f"email_reply_{email['id']}"
-                        ),
-                        InlineKeyboardButton(
-                            "Archive", callback_data=f"email_archive_{email['id']}"
-                        ),
-                        InlineKeyboardButton(
-                            "Star", callback_data=f"email_star_{email['id']}"
-                        ),
+                        InlineKeyboardButton("Reply", callback_data=f"email_reply_{email['id']}"),
+                        InlineKeyboardButton("Archive", callback_data=f"email_archive_{email['id']}"),
+                        InlineKeyboardButton("Star", callback_data=f"email_star_{email['id']}"),
                     ],
                     [
-                        InlineKeyboardButton(
-                            "Mark Read", callback_data=f"email_read_{email['id']}"
-                        ),
+                        InlineKeyboardButton("Mark Read", callback_data=f"email_read_{email['id']}"),
                     ],
                 ]
             )
@@ -4353,9 +4327,7 @@ class AgentLoop:
 
             loop = gateway._loop
             asyncio.run_coroutine_threadsafe(
-                gateway._application.bot.send_message(
-                    chat_id=telegram_id, text=text, parse_mode="Markdown"
-                ),
+                gateway._application.bot.send_message(chat_id=telegram_id, text=text, parse_mode="Markdown"),
                 loop,
             )
         except Exception as e:
@@ -4378,9 +4350,7 @@ class AgentLoop:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute(
-                "SELECT config_value FROM autonomy_config WHERE config_key = 'archie_coo_approve'"
-            )
+            cur.execute("SELECT config_value FROM autonomy_config WHERE config_key = 'archie_coo_approve'")
             row = cur.fetchone()
             if not row:
                 cur.close()
@@ -4546,9 +4516,7 @@ class AgentLoop:
             polled = run_comment_monitor()
             drafted = draft_comment_replies()
             if polled.get("new_comments") or drafted.get("drafted"):
-                logger.info(
-                    f"[signal-comments] polled={polled} drafted={drafted}"
-                )
+                logger.info(f"[signal-comments] polled={polled} drafted={drafted}")
         except Exception as e:
             logger.error(f"[signal-comments] pipeline failed: {e}")
 
@@ -4648,8 +4616,7 @@ class AgentLoop:
             admit, _rec, _slots = should_admit_batch(target_model="qwen2.5-coder:7b", gpu_bound=True)
             if not admit:
                 logger.info(
-                    "[engine-autopull] GPU subcluster has no headroom (gpu_free<=reserve) — "
-                    "deferring this cycle"
+                    "[engine-autopull] GPU subcluster has no headroom (gpu_free<=reserve) — " "deferring this cycle"
                 )
                 return
         except Exception:
@@ -4779,12 +4746,14 @@ class AgentLoop:
                 return
 
             # 1. Expire stale pending tier-2 items
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE autonomy_approval_queue
                 SET status = 'expired', updated_at = NOW()
                 WHERE status = 'pending' AND expires_at < NOW()
                 RETURNING id, action_type
-                """)
+                """
+            )
             expired = cur.fetchall()
             for item in expired:
                 logger.info(f"Expired approval #{item['id']}: {item['action_type']}")
@@ -4797,16 +4766,22 @@ class AgentLoop:
             conn.commit()
 
             # 1b. Handle rejected media_generation items — update media queue
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, action_type, action_data
                 FROM autonomy_approval_queue
                 WHERE status = 'rejected' AND action_type = 'media_generation'
                   AND updated_at > NOW() - INTERVAL '5 minutes'
-                """)
+                """
+            )
             rejected_media = cur.fetchall()
             for item in rejected_media:
                 try:
-                    rdata = item["action_data"] if isinstance(item["action_data"], dict) else json.loads(item["action_data"])
+                    rdata = (
+                        item["action_data"]
+                        if isinstance(item["action_data"], dict)
+                        else json.loads(item["action_data"])
+                    )
                     queue_id = rdata.get("queue_id")
                     if queue_id:
                         cur.execute(
@@ -4829,13 +4804,15 @@ class AgentLoop:
                 conn.commit()
 
             # 2. Execute approved items
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, action_type, action_data, tier, requested_by, reason
                 FROM autonomy_approval_queue
                 WHERE status = 'approved'
                 ORDER BY priority ASC, created_at ASC
                 LIMIT 10
-                """)
+                """
+            )
             approved = cur.fetchall()
 
             for item in approved:
@@ -4920,9 +4897,7 @@ class AgentLoop:
                     )
 
                 except Exception as e:
-                    logger.error(
-                        f"Failed to execute approved action #{item['id']}: {e}"
-                    )
+                    logger.error(f"Failed to execute approved action #{item['id']}: {e}")
                     cur.execute(
                         """
                         UPDATE autonomy_approval_queue
@@ -4960,11 +4935,7 @@ class AgentLoop:
     def _execute_approved_action(self, cur, conn, item: dict) -> dict:
         """Execute an approved action from the approval queue."""
         action_type = item["action_type"]
-        data = (
-            item["action_data"]
-            if isinstance(item["action_data"], dict)
-            else json.loads(item["action_data"])
-        )
+        data = item["action_data"] if isinstance(item["action_data"], dict) else json.loads(item["action_data"])
 
         if action_type == "send_email":
             # Queue the email
@@ -5031,7 +5002,11 @@ class AgentLoop:
                     return {"error": f"Queue entry {queue_id} not found or not awaiting approval"}
 
                 # Build the generation request
-                gen_params = queue_row["params"] if isinstance(queue_row["params"], dict) else json.loads(queue_row["params"] or "{}")
+                gen_params = (
+                    queue_row["params"]
+                    if isinstance(queue_row["params"], dict)
+                    else json.loads(queue_row["params"] or "{}")
+                )
                 gen_request = {
                     "type": queue_row["request_type"],
                     "prompt": queue_row["prompt"],
@@ -5140,6 +5115,7 @@ class AgentLoop:
         elif action_type == "create_agent":
             try:
                 from tools.department_hq.services.department_dispatcher import get_dispatcher
+
                 dispatcher = get_dispatcher()
                 agent_id = dispatcher._create_agent_from_approval(data)
                 if agent_id:
@@ -5170,10 +5146,7 @@ class AgentLoop:
                     reason=data.get("reason", "approved reactivation"),
                 )
                 if result.get("success"):
-                    logger.info(
-                        f"Agent {agent_id} reactivated from approval "
-                        f"#{item['id']}: {result.get('name')}"
-                    )
+                    logger.info(f"Agent {agent_id} reactivated from approval " f"#{item['id']}: {result.get('name')}")
                     return {"executed": True, **result}
                 return {
                     "executed": False,
@@ -5234,19 +5207,14 @@ class AgentLoop:
                     reason=data.get("reason", "approved restart"),
                 )
                 if result.get("success"):
-                    logger.info(
-                        f"Container {compose_service} restarted from approval "
-                        f"#{item['id']}"
-                    )
+                    logger.info(f"Container {compose_service} restarted from approval " f"#{item['id']}")
                     return {"executed": True, **result}
                 return {
                     "executed": False,
                     "error": result.get("error", "restart_container failed"),
                 }
             except Exception as restart_err:
-                logger.error(
-                    f"Container restart from approval failed: {restart_err}"
-                )
+                logger.error(f"Container restart from approval failed: {restart_err}")
                 return {"executed": False, "error": str(restart_err)}
 
         elif action_type == "improvement_approve":
@@ -5305,16 +5273,13 @@ class AgentLoop:
 
                             auto_run(proposal_id)
                         except Exception as exec_err:
-                            logger.error(
-                                f"Auto-execution failed for proposal #{proposal_id}: {exec_err}"
-                            )
+                            logger.error(f"Auto-execution failed for proposal #{proposal_id}: {exec_err}")
 
                     thread = threading.Thread(target=_run_auto_execute, daemon=True)
                     thread.start()
 
                 logger.info(
-                    f"Improvement proposal #{proposal_id} approved via autonomy queue, "
-                    f"auto-execution started"
+                    f"Improvement proposal #{proposal_id} approved via autonomy queue, " f"auto-execution started"
                 )
                 return {"executed": True, "proposal_id": proposal_id}
 
@@ -5329,6 +5294,7 @@ class AgentLoop:
                 return {"executed": False, "error": "No proposal_id in action_data"}
             try:
                 import sys
+
                 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                 from services.proposal_service import _sandbox_gate, deploy_to_production
                 from database import get_db_cursor
@@ -5345,7 +5311,9 @@ class AgentLoop:
                 if not gate["passed"]:
                     logger.warning(
                         "deploy_approve: sandbox gate FAILED for proposal #%s — %s/%s passed",
-                        proposal_id, gate["passed_count"], gate["total"]
+                        proposal_id,
+                        gate["passed_count"],
+                        gate["total"],
                     )
                     return {
                         "executed": False,
@@ -5357,7 +5325,9 @@ class AgentLoop:
                 result = deploy_to_production(proposal_id)
                 logger.info(
                     "deploy_approve: proposal #%s deployed after sandbox gate %s/%s passed",
-                    proposal_id, gate["passed_count"], gate["total"]
+                    proposal_id,
+                    gate["passed_count"],
+                    gate["total"],
                 )
                 return {
                     "executed": result["success"],
@@ -5375,6 +5345,7 @@ class AgentLoop:
             # deploys this time (no loop). action_data carries the full deploy context.
             try:
                 import sys
+
                 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                 from services.deploy_service import run_deploy_pipeline
 
@@ -5383,7 +5354,9 @@ class AgentLoop:
                 ok = bool(getattr(res, "success", False))
                 logger.info(
                     "website_deploy: %s %s after approval (%s)",
-                    cap, data.get("domain"), "success" if ok else getattr(res, "error", "failed"),
+                    cap,
+                    data.get("domain"),
+                    "success" if ok else getattr(res, "error", "failed"),
                 )
                 return {
                     "executed": ok,
@@ -5493,16 +5466,14 @@ class AgentLoop:
 
             try:
                 import sys as _sys
+
                 _sys.path.insert(0, "/app")
                 from tools.security_network.compliance_service import (
                     apply_fix_approved,
                 )
 
                 result = apply_fix_approved(scan_id, rule_id, user_id)
-                logger.info(
-                    f"Approved compliance fix #{item['id']} for {rule_id}: "
-                    f"success={result.get('success')}"
-                )
+                logger.info(f"Approved compliance fix #{item['id']} for {rule_id}: " f"success={result.get('success')}")
                 return {
                     "executed": True,
                     "rule_id": rule_id,
@@ -5521,36 +5492,42 @@ class AgentLoop:
             company_slug = data.get("company_slug", "kytran-empowerment-inc")
             # terry = separate LinkedIn login → its own browser profile (377).
             # All other accounts ride the Kytran session (342) and actor-switch.
-            agent_id = data.get("browser_agent_id") or (
-                377 if post_type == "terry" else 342
-            )
+            agent_id = data.get("browser_agent_id") or (377 if post_type == "terry" else 342)
             if not content:
                 return {"executed": False, "error": "No content in action_data"}
             try:
                 import re as _re
                 import sys as _sys
+
                 _sys.path.insert(0, "/app")
                 from services.browser_service import run_skill_sync
 
                 # Company slug: action_data > env var > default
                 import os as _os
+
                 if not company_slug:
                     company_slug = _os.getenv("LINKEDIN_COMPANY_SLUG", "kytran-empowerment-inc")
 
                 # Clean content for LinkedIn — strip language prefixes, Markdown headers, bold
                 def _clean_linkedin(text):
                     # Strip language prefix lines (🇨🇦 English: / ⚜️ Français québécois: / Translation in...)
-                    text = _re.sub(r'^[🇨🇦⚜️🇫🇷\s]*(?:English|Français québécois|Anglais|Translation in Québécois French)\s*:?\s*\n', '', text, flags=_re.MULTILINE)
+                    text = _re.sub(
+                        r"^[🇨🇦⚜️🇫🇷\s]*(?:English|Français québécois|Anglais|Translation in Québécois French)\s*:?\s*\n",
+                        "",
+                        text,
+                        flags=_re.MULTILINE,
+                    )
                     # Strip Markdown headers (### Title)
-                    text = _re.sub(r'^#{1,6}\s+', '', text, flags=_re.MULTILINE)
+                    text = _re.sub(r"^#{1,6}\s+", "", text, flags=_re.MULTILINE)
                     # Strip **bold** markers
-                    text = _re.sub(r'\*\*(.+?)\*\*', r'\1', text, flags=_re.DOTALL)
+                    text = _re.sub(r"\*\*(.+?)\*\*", r"\1", text, flags=_re.DOTALL)
                     return text.strip()
 
                 content = _clean_linkedin(content)
                 # #4373 final publish-boundary guard — strip any model preamble/sign-off
                 # ("Sure, here's the post:" …) that slipped past the draft-site sanitizer.
                 from services.signal_content_sanitizer import clean_draft
+
                 content = clean_draft(content, kind=post_type)
                 if not content:
                     return {"executed": False, "error": "content empty after sanitize (#4373)"}
@@ -5589,9 +5566,7 @@ class AgentLoop:
                             )
                             _prior = _icur.fetchone()
                             if _prior:
-                                logger.info(
-                                    "LinkedIn post idempotent-skip — %s already published", _idem_key
-                                )
+                                logger.info("LinkedIn post idempotent-skip — %s already published", _idem_key)
                                 return {
                                     "executed": True,
                                     "idempotent_skip": True,
@@ -5617,9 +5592,7 @@ class AgentLoop:
                 params = {"content": content, "hashtags": hashtags}
                 if post_type == "creed":
                     # Creed slug: action_data > env var > numeric default
-                    creed_slug = data.get("company_slug") or _os.getenv(
-                        "LINKEDIN_CREED_SLUG", "115977300"
-                    )
+                    creed_slug = data.get("company_slug") or _os.getenv("LINKEDIN_CREED_SLUG", "115977300")
                     params["company_slug"] = creed_slug
                     company_slug = creed_slug
                 elif post_type == "company":
@@ -5638,8 +5611,12 @@ class AgentLoop:
                 # unconditional executed:True) was marked done without publishing.
                 # 240s stays within the _process_approval_queue batch deadline.
                 result = run_skill_sync(
-                    skill, params, agent_id=agent_id, timeout_s=240,
-                    idempotency_key=_idem_key if _idem_enabled else None, post_metadata=_idem_meta,
+                    skill,
+                    params,
+                    agent_id=agent_id,
+                    timeout_s=240,
+                    idempotency_key=_idem_key if _idem_enabled else None,
+                    post_metadata=_idem_meta,
                 )
 
                 # Harden company/creed: the multi-stage actor-switch (share box →
@@ -5655,15 +5632,20 @@ class AgentLoop:
                         result.get("error") or result.get("_status"),
                     )
                     result = run_skill_sync(
-                    skill, params, agent_id=agent_id, timeout_s=240,
-                    idempotency_key=_idem_key if _idem_enabled else None, post_metadata=_idem_meta,
-                )
+                        skill,
+                        params,
+                        agent_id=agent_id,
+                        timeout_s=240,
+                        idempotency_key=_idem_key if _idem_enabled else None,
+                        post_metadata=_idem_meta,
+                    )
 
                 # Fresh connection after 120s browser skill — the caller's cur/conn
                 # may have timed out server-side during execution, causing the log
                 # write and commit to silently fail with the stale cursor.
                 try:
                     from db import get_db as _get_db
+
                     _lc = _get_db()
                     _lcur = _lc.cursor()
                     try:
@@ -5700,9 +5682,7 @@ class AgentLoop:
                 except Exception as log_err:
                     logger.warning(f"linkedin_post_log write failed: {log_err}")
 
-                logger.info(
-                    "LinkedIn post approved and executed: success=%s", result.get("success")
-                )
+                logger.info("LinkedIn post approved and executed: success=%s", result.get("success"))
 
                 # Auto first-comment to boost reach — fire-and-forget
                 post_url = result.get("post_url", "")
@@ -5732,7 +5712,9 @@ class AgentLoop:
                 return {
                     "executed": bool(result.get("success")),
                     "result": result,
-                    "error": None if result.get("success") else (result.get("error") or "post did not publish within 240s"),
+                    "error": (
+                        None if result.get("success") else (result.get("error") or "post did not publish within 240s")
+                    ),
                 }
             except Exception as li_err:
                 logger.error(f"LinkedIn post execution failed: {li_err}")
@@ -5752,6 +5734,7 @@ class AgentLoop:
             # #4373 final publish-boundary guard — strip model preamble ("Sure, here's a
             # reply comment from Kytran Katarn:" was the live 1692 junk) + any hashtags.
             from services.signal_content_sanitizer import clean_draft
+
             reply = clean_draft(reply, kind="reply")
             comment_author = data.get("comment_author") or data.get("author") or ""
             agent_id = data.get("browser_agent_id") or 342
@@ -5816,8 +5799,10 @@ class AgentLoop:
                 return {"executed": False, "error": "reply_to and message required"}
             try:
                 import sys as _sys
+
                 _sys.path.insert(0, "/app")
                 from services.browser_service import run_skill_sync
+
                 result = run_skill_sync(
                     "linkedin_reply", {"reply_to": reply_to, "message": message}, agent_id=agent_id, timeout_s=90
                 )
@@ -5834,6 +5819,7 @@ class AgentLoop:
                 return {"executed": False, "error": "No profile_url in action_data"}
             try:
                 import sys as _sys
+
                 _sys.path.insert(0, "/app")
                 from services.browser_service import run_skill_sync
 
@@ -5971,7 +5957,9 @@ class AgentLoop:
                 return {
                     "executed": bool(result.get("success")),
                     "result": result,
-                    "error": None if result.get("success") else (result.get("error") or "comment like did not register"),
+                    "error": (
+                        None if result.get("success") else (result.get("error") or "comment like did not register")
+                    ),
                 }
             except Exception as clike_err:
                 logger.error(f"LinkedIn comment-like execution failed: {clike_err}")
@@ -6140,9 +6128,7 @@ class AgentLoop:
                 ]
                 # Rotate: pick 2 files based on current day
                 day_hash = int(
-                    hashlib.md5(
-                        datetime.now().strftime("%Y-%m-%d").encode()
-                    ).hexdigest()[:8],
+                    hashlib.md5(datetime.now().strftime("%Y-%m-%d").encode()).hexdigest()[:8],
                     16,
                 )
                 start_idx = day_hash % len(key_files)
@@ -6192,13 +6178,7 @@ class AgentLoop:
                         (
                             file_path,
                             len(issues),
-                            len(
-                                [
-                                    i
-                                    for i in issues
-                                    if i.get("type") == "security"
-                                ]
-                            ),
+                            len([i for i in issues if i.get("type") == "security"]),
                             analysis.get("quality_score", 0),
                             json.dumps(analysis),
                         ),
@@ -6246,25 +6226,15 @@ class AgentLoop:
                         }
                         audit_issues = []
                         for _issue in issues:
-                            _sev = _severity_map.get(
-                                str(_issue.get("severity", "")).lower(), "info"
-                            )
+                            _sev = _severity_map.get(str(_issue.get("severity", "")).lower(), "info")
                             audit_issues.append(
                                 {
                                     "code": _issue.get("type", "quality"),
                                     "severity": _sev,
                                     "file": file_path,
                                     "detail": _issue.get("message", "")
-                                    + (
-                                        f" (line {_issue['line']})"
-                                        if _issue.get("line")
-                                        else ""
-                                    )
-                                    + (
-                                        f" — Suggestion: {_issue['suggestion']}"
-                                        if _issue.get("suggestion")
-                                        else ""
-                                    ),
+                                    + (f" (line {_issue['line']})" if _issue.get("line") else "")
+                                    + (f" — Suggestion: {_issue['suggestion']}" if _issue.get("suggestion") else ""),
                                 }
                             )
 
@@ -6274,9 +6244,7 @@ class AgentLoop:
                         _parts = file_path.replace("\\", "/").split("/")
                         if "tools" in _parts:
                             _tidx = _parts.index("tools")
-                            _module = (
-                                _parts[_tidx + 1] if len(_parts) > _tidx + 1 else "unknown"
-                            )
+                            _module = _parts[_tidx + 1] if len(_parts) > _tidx + 1 else "unknown"
                         elif len(_parts) >= 2:
                             _module = f"[{_parts[0]}]"
                         else:
@@ -6299,16 +6267,11 @@ class AgentLoop:
                     scanned += 1
 
                 except Exception as scan_err:
-                    logger.warning(
-                        f"Proactive scan failed for {file_path}: {scan_err}"
-                    )
+                    logger.warning(f"Proactive scan failed for {file_path}: {scan_err}")
 
             duration_ms = int((time.time() - start) * 1000)
             if scanned > 0:
-                logger.info(
-                    f"Proactive scan: {scanned}/{len(scan_files)} files scanned "
-                    f"({duration_ms}ms)"
-                )
+                logger.info(f"Proactive scan: {scanned}/{len(scan_files)} files scanned " f"({duration_ms}ms)")
                 # Auto-heal: route new proposals through proposal_regen first so an
                 # agent generates a real code fix before F.O.R.G.E. reviews it.
                 # auto_queue_deploy=True in callback_data chains to deploy_approve_gate
@@ -6316,6 +6279,7 @@ class AgentLoop:
                 try:
                     import json as _json_ah
                     import sys as _sys
+
                     _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                     from database import get_db_cursor as _gdc
 
@@ -6366,11 +6330,13 @@ class AgentLoop:
                                     (
                                         _cap,
                                         _regen_prompt,
-                                        _json_ah.dumps({
-                                            "proposal_id": pid,
-                                            "agent_name": "F.O.R.G.E.",
-                                            "auto_queue_deploy": True,
-                                        }),
+                                        _json_ah.dumps(
+                                            {
+                                                "proposal_id": pid,
+                                                "agent_name": "F.O.R.G.E.",
+                                                "auto_queue_deploy": True,
+                                            }
+                                        ),
                                     ),
                                 )
                             auto_queued += 1
@@ -6380,7 +6346,8 @@ class AgentLoop:
                     if auto_queued:
                         logger.info(
                             "Proactive scan auto-heal: queued %d/%d proposals for regen",
-                            auto_queued, len(new_proposals),
+                            auto_queued,
+                            len(new_proposals),
                         )
                 except Exception as _he:
                     logger.warning("Proactive scan auto-heal failed: %s", _he)
@@ -6412,17 +6379,12 @@ class AgentLoop:
             scan_id = store_dependency_findings(findings)
 
             # Alert on critical/high
-            critical = [
-                f for f in findings if f["severity"] in ("critical", "high")
-            ]
+            critical = [f for f in findings if f["severity"] in ("critical", "high")]
             if critical:
                 self._send_telegram(
                     "\u26a0\ufe0f *Dependency Audit*\n\n"
                     f"*{len(critical)}* critical/high CVEs found:\n"
-                    + "\n".join(
-                        f"- {f['package']}=={f['version']}: {f['vuln_id']}"
-                        for f in critical[:5]
-                    )
+                    + "\n".join(f"- {f['package']}=={f['version']}: {f['vuln_id']}" for f in critical[:5])
                     + f"\n\n[View in Repair Bay]"
                     f"(http://192.168.1.200:3000/tools/repair-bay)"
                 )
@@ -6483,9 +6445,7 @@ class AgentLoop:
                     "summary_metrics": metrics,
                     "reasons": result.get("reasons", []),
                     "window_hours": result["window_hours"],
-                    "finding_sizes": {
-                        k: len(v) for k, v in result["findings"].items()
-                    },
+                    "finding_sizes": {k: len(v) for k, v in result["findings"].items()},
                 },
             )
 
@@ -6531,9 +6491,7 @@ class AgentLoop:
                 try:
                     self._send_telegram(format_alert_message(result))
                 except Exception as tg_err:
-                    logger.warning(
-                        "Misroute audit: Telegram dispatch failed: %s", tg_err
-                    )
+                    logger.warning("Misroute audit: Telegram dispatch failed: %s", tg_err)
 
             logger.info(
                 "S.P.E.C.T.R.A. misroute audit: severity=%s anomalies=%d in %dms",
@@ -6956,9 +6914,7 @@ class AgentLoop:
                                     finally:
                                         _c.close()
                             except Exception as _mid_err:
-                                logger.warning(
-                                    "triage_consumer: message_id persist failed: %s", _mid_err
-                                )
+                                logger.warning("triage_consumer: message_id persist failed: %s", _mid_err)
                     except Exception as tg_err:
                         logger.warning("triage_consumer: Telegram send failed: %s", tg_err)
 
@@ -7025,9 +6981,7 @@ class AgentLoop:
                     LIMIT 20
                     """
                 )
-                gov_summary = [
-                    {"category": r[0], "count": int(r[1])} for r in (cur.fetchall() or [])
-                ]
+                gov_summary = [{"category": r[0], "count": int(r[1])} for r in (cur.fetchall() or [])]
             finally:
                 conn.close()
 
@@ -7172,6 +7126,7 @@ class AgentLoop:
         start = time.time()
         try:
             import sys
+
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from services.agent_service import (
                 format_kin_digest_message,
@@ -7193,21 +7148,15 @@ class AgentLoop:
                 conn = get_db()
                 try:
                     # Phase 3: Autonomous actions
-                    actions_taken = self._kin_execute_actions(
-                        assessment.get("actions", []), conn
-                    )
+                    actions_taken = self._kin_execute_actions(assessment.get("actions", []), conn)
                     # Phase 4a: C.R.E.E.D. ethics filing
-                    flags_filed = self._kin_file_creed(
-                        assessment.get("creed_flags", []), conn
-                    )
+                    flags_filed = self._kin_file_creed(assessment.get("creed_flags", []), conn)
                 finally:
                     conn.close()
 
                 # Phase 4b: A.R.C.H.I.E. severity report
                 try:
-                    self._kin_report_to_archie(
-                        assessment["archie_report"], actions_taken, flags_filed
-                    )
+                    self._kin_report_to_archie(assessment["archie_report"], actions_taken, flags_filed)
                 except Exception as report_err:
                     logger.warning("K.I.N.: A.R.C.H.I.E. report failed: %s", report_err)
 
@@ -7267,9 +7216,7 @@ class AgentLoop:
                     cur2.close()
                     conn2.close()
                 except Exception as notify_err:
-                    logger.warning(
-                        "K.I.N. digest: system_notifications insert failed: %s", notify_err
-                    )
+                    logger.warning("K.I.N. digest: system_notifications insert failed: %s", notify_err)
 
         except Exception as exc:
             duration_ms = int((time.time() - start) * 1000)
@@ -7287,10 +7234,8 @@ class AgentLoop:
         import json as _json
         import os as _os
         import sys as _sys
-        _platform_v2 = _os.path.join(
-            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-            "platform_v2"
-        )
+
+        _platform_v2 = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "platform_v2")
         _sys.path.insert(0, _platform_v2)
         import tools.department_hq.services.department_dispatcher as _ddd
 
@@ -7326,6 +7271,7 @@ class AgentLoop:
 
         try:
             import re as _re
+
             text = (result.response or "").strip()
             text = _re.sub(r"^```(?:json)?\s*|\s*```$", "", text.strip())
             return _json.loads(text.strip())
@@ -7339,10 +7285,8 @@ class AgentLoop:
         import os as _os
         import psycopg2.extras as _extras
         from datetime import date as _date
-        _platform_v2 = _os.path.join(
-            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-            "platform_v2"
-        )
+
+        _platform_v2 = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "platform_v2")
         _sys.path.insert(0, _platform_v2)
         from services.agent_service import transition_shift_state
         from database import get_db_cursor
@@ -7361,9 +7305,19 @@ class AgentLoop:
                                (event_type, event_category, agent_id, action, reason, outcome, details)
                                VALUES (%s, %s, %s, %s, %s, %s, %s)""",
                             (
-                                "kin_welfare_action", "welfare_ethics", agent_id,
-                                action_type or "unknown", reason, "skipped",
-                                _extras.Json({"filed_by": "K.I.N.", "digest_date": str(_date.today()), "skip_reason": "missing agent_id or action_type"}),
+                                "kin_welfare_action",
+                                "welfare_ethics",
+                                agent_id,
+                                action_type or "unknown",
+                                reason,
+                                "skipped",
+                                _extras.Json(
+                                    {
+                                        "filed_by": "K.I.N.",
+                                        "digest_date": str(_date.today()),
+                                        "skip_reason": "missing agent_id or action_type",
+                                    }
+                                ),
                             ),
                         )
                         conn.commit()
@@ -7405,8 +7359,12 @@ class AgentLoop:
                            (event_type, event_category, agent_id, action, reason, outcome, details)
                            VALUES (%s, %s, %s, %s, %s, %s, %s)""",
                         (
-                            "kin_welfare_action", "welfare_ethics", agent_id,
-                            action_type, reason, outcome,
+                            "kin_welfare_action",
+                            "welfare_ethics",
+                            agent_id,
+                            action_type,
+                            reason,
+                            outcome,
                             _extras.Json({"filed_by": "K.I.N.", "digest_date": str(_date.today())}),
                         ),
                     )
@@ -7440,11 +7398,13 @@ class AgentLoop:
                             "ethics_concern",
                             flag.get("reason", ""),
                             "flagged",
-                            _extras.Json({
-                                "severity": flag.get("severity", "low"),
-                                "filed_by": "K.I.N.",
-                                "digest_date": str(_date.today()),
-                            }),
+                            _extras.Json(
+                                {
+                                    "severity": flag.get("severity", "low"),
+                                    "filed_by": "K.I.N.",
+                                    "digest_date": str(_date.today()),
+                                }
+                            ),
                         ),
                     )
                     conn.commit()
@@ -7466,10 +7426,8 @@ class AgentLoop:
         """
         import sys as _sys
         import os as _os
-        _platform_v2 = _os.path.join(
-            _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-            "platform_v2"
-        )
+
+        _platform_v2 = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "platform_v2")
         _sys.path.insert(0, _platform_v2)
         from services.director_report_service import submit_via_inbox as _kin_digest_inbox
 
@@ -7503,7 +7461,9 @@ class AgentLoop:
 
         logger.info(
             "K.I.N. welfare report sent: severity=%s actions=%d creed=%d",
-            severity, actions_taken, flags_filed,
+            severity,
+            actions_taken,
+            flags_filed,
         )
 
     # ------------------------------------------------------------------
@@ -7694,9 +7654,7 @@ class AgentLoop:
                 try:
                     self._send_telegram(format_alert_message(result))
                 except Exception as tg_err:
-                    logger.warning(
-                        "F.O.R.G.E. dep drift: Telegram dispatch failed: %s", tg_err
-                    )
+                    logger.warning("F.O.R.G.E. dep drift: Telegram dispatch failed: %s", tg_err)
 
             logger.info(
                 "F.O.R.G.E. dep drift: severity=%s anomalies=%d in %dms",
@@ -7735,6 +7693,7 @@ class AgentLoop:
         state. Phase 1 of #2516.
         """
         from datetime import datetime
+
         try:
             from database import get_db_cursor
             from services.fleet_resource_router import is_stale, utilization_pct
@@ -7792,6 +7751,7 @@ class AgentLoop:
         # Persist a vault note for trend analysis (next run can correlate).
         try:
             from services.knowledge_service import store_knowledge
+
             content_lines = [
                 f"# Fleet Capacity Report — {now_local_str()}",
                 "",
@@ -7824,6 +7784,7 @@ class AgentLoop:
         if high_util_nodes:
             try:
                 from services.telegram_service import send_info
+
                 msg = "Fleet capacity heads-up — sustained high load:\n" + "\n".join(
                     f"  • {n} at {pct}%" for n, pct in high_util_nodes
                 )
@@ -8071,7 +8032,8 @@ class AgentLoop:
             if runs_24h >= daily_cap:
                 logger.info(
                     "codex_auto_queue: K.I.N. gate — daily cap reached (%s/%s runs in 24h)",
-                    runs_24h, daily_cap,
+                    runs_24h,
+                    daily_cap,
                 )
                 return
             if queue_depth >= 2:
@@ -8475,9 +8437,7 @@ class AgentLoop:
                 try:
                     self._send_telegram(format_alert_message(result))
                 except Exception as tg_err:
-                    logger.warning(
-                        "V.I.G.I.L. heartbeat: Telegram dispatch failed: %s", tg_err
-                    )
+                    logger.warning("V.I.G.I.L. heartbeat: Telegram dispatch failed: %s", tg_err)
                 self._last_down_set = current_down
 
             # File Tier-2 restart approvals for each auto_restart_safe DOWN
@@ -8558,10 +8518,7 @@ class AgentLoop:
                 old = result.get("old_ip", "unknown")
                 new = result.get("current_ip", "unknown")
                 updated = result.get("updated_domains", [])
-                msg = (
-                    f"\U0001f310 *Public IP Changed*\n\n"
-                    f"`{old}` \u2192 `{new}`\n"
-                )
+                msg = f"\U0001f310 *Public IP Changed*\n\n" f"`{old}` \u2192 `{new}`\n"
                 if updated:
                     msg += f"\nUpdated DNS: {', '.join(updated)}"
                 else:
@@ -8577,9 +8534,7 @@ class AgentLoop:
                 )
                 logger.warning("DDNS: Public IP changed %s -> %s", old, new)
             else:
-                logger.debug(
-                    "DDNS: IP unchanged (%s)", result.get("current_ip")
-                )
+                logger.debug("DDNS: IP unchanged (%s)", result.get("current_ip"))
 
         except Exception as e:
             logger.error("DDNS check failed: %s", e)
@@ -8602,17 +8557,26 @@ class AgentLoop:
             nt_host = os.getenv("NTOPNG_HOST", "192.168.1.200")
             nt_port = os.getenv("NTOPNG_PORT", "3001")
             nt_user = os.getenv("NTOPNG_USER", "admin")
-            nt_pass = os.getenv(
-                "NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin")
-            )
+            nt_pass = os.getenv("NTOPNG_ADMIN_PASSWORD", os.getenv("NTOPNG_PASS", "admin"))
 
             VPN_L7 = {
-                "OpenVPN", "WireGuard", "IPSec", "PPTP", "L2TP",
-                "Tor", "SOCKS", "SoftEther", "Tailscale",
+                "OpenVPN",
+                "WireGuard",
+                "IPSec",
+                "PPTP",
+                "L2TP",
+                "Tor",
+                "SOCKS",
+                "SoftEther",
+                "Tailscale",
             }
             VPN_L7_PARTIAL = [
-                "Tailscale", "NordVPN", "ExpressVPN",
-                "Surfshark", "ProtonVPN", "Mullvad",
+                "Tailscale",
+                "NordVPN",
+                "ExpressVPN",
+                "Surfshark",
+                "ProtonVPN",
+                "Mullvad",
             ]
 
             ns = _req.Session()
@@ -8750,7 +8714,7 @@ class AgentLoop:
 
                 for dev in heavy:
                     ip = dev["device_ip"]
-                    total_gb = round(dev["total"] / (1024 ** 3), 1)
+                    total_gb = round(dev["total"] / (1024**3), 1)
                     label = dev["label"] or ip
 
                     # Dedup: skip if alerted in last 6 hours
@@ -8816,6 +8780,7 @@ class AgentLoop:
         start = time.time()
         try:
             from services.scan_pipeline import batch_medium_issues
+
             result = batch_medium_issues()
             duration_ms = int((time.time() - start) * 1000)
             processed = result.get("proposals_created", 0) if isinstance(result, dict) else 0
@@ -8829,6 +8794,7 @@ class AgentLoop:
         start = time.time()
         try:
             from tools.consciousness.log_ingestor import batch_ingest_logs
+
             result = batch_ingest_logs(limit=100)
             duration_ms = int((time.time() - start) * 1000)
             created = result.get("created", 0) if isinstance(result, dict) else 0
@@ -8876,7 +8842,8 @@ class AgentLoop:
                         try:
                             resp = requests.get(
                                 f"https://api.github.com/repos/{owner_repo}/contents/{dep_file}",
-                                headers=headers, timeout=10,
+                                headers=headers,
+                                timeout=10,
                             )
                             if resp.status_code != 200:
                                 continue
@@ -8892,9 +8859,7 @@ class AgentLoop:
                                 total_scans += 1
                             except Exception as e_store:
                                 cur.execute("ROLLBACK TO SAVEPOINT dep_scan")
-                                logger.warning(
-                                    f"Dep scan store failed for {owner_repo}/{dep_file}: {e_store}"
-                                )
+                                logger.warning(f"Dep scan store failed for {owner_repo}/{dep_file}: {e_store}")
                         except Exception as e:
                             logger.warning(f"Dep scan failed for {owner_repo}/{dep_file}: {e}")
 
@@ -8910,8 +8875,13 @@ class AgentLoop:
 
             duration_ms = int((time.time() - start) * 1000)
             logger.info(f"Weekly dep scan: {total_scans} files, {total_entries} suggestions")
-            self._log_cycle("weekly_dependency_scan", total_scans, 0, duration_ms,
-                           details={"files_scanned": total_scans, "entries_stored": total_entries})
+            self._log_cycle(
+                "weekly_dependency_scan",
+                total_scans,
+                0,
+                duration_ms,
+                details={"files_scanned": total_scans, "entries_stored": total_entries},
+            )
         except Exception as e:
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("weekly_dependency_scan", 0, 1, duration_ms, error_message=str(e))
@@ -8921,6 +8891,7 @@ class AgentLoop:
         start = time.time()
         try:
             from tools.dev_hq.routes import _run_and_store_health_check
+
             _run_and_store_health_check()
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("health_probe", 1, 0, duration_ms)
@@ -8933,6 +8904,7 @@ class AgentLoop:
         start = time.time()
         try:
             from app import crew_wellness_tick
+
             crew_wellness_tick(self.flask_app)
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("crew_wellness_tick", 1, 0, duration_ms)
@@ -8959,9 +8931,7 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error(f"Error in media_hub_health_check: {e}")
-            self._log_cycle(
-                "media_hub_health_check", 0, 1, int((time.time() - start) * 1000), error_message=str(e)
-            )
+            self._log_cycle("media_hub_health_check", 0, 1, int((time.time() - start) * 1000), error_message=str(e))
 
     def _ollama_model_health(self):
         """Ollama model health check every 30 min — migrated from app.py."""
@@ -8975,6 +8945,7 @@ class AgentLoop:
                 ollama_host = f"http://{ollama_host}"
 
             from app import _get_agent_models
+
             desired = {}
             for model_name, endpoint in _get_agent_models():
                 desired[model_name] = endpoint
@@ -9040,7 +9011,13 @@ class AgentLoop:
                         opts = {"num_predict": 1}
                         if not use_gpu:
                             opts["num_gpu"] = 0
-                        data = {"model": model_name, "prompt": "health", "stream": False, "options": opts, "keep_alive": "5m"}
+                        data = {
+                            "model": model_name,
+                            "prompt": "health",
+                            "stream": False,
+                            "options": opts,
+                            "keep_alive": "5m",
+                        }
                     # 90s timeout for most models, 180s for coder models.
                     # Concurrent Ollama inference (quality scorer, dispatch) can cause
                     # contention; failures are retried next 30-min cycle.
@@ -9088,7 +9065,10 @@ class AgentLoop:
             # hub doesn't false-error every cycle (KB #270033). details surfaces the
             # full warm set size + deferred count for context.
             self._log_cycle(
-                "ollama_model_health", reloaded, actual_failed, duration_ms,
+                "ollama_model_health",
+                reloaded,
+                actual_failed,
+                duration_ms,
                 details={
                     "missing": len(missing),
                     "reloaded": reloaded,
@@ -9113,7 +9093,9 @@ class AgentLoop:
             events = drain_placement_events()
             if not events:
                 self._log_cycle(
-                    "ollama_placement_telemetry", 0, 0,
+                    "ollama_placement_telemetry",
+                    0,
+                    0,
                     int((time.time() - start) * 1000),
                 )
                 return
@@ -9124,11 +9106,7 @@ class AgentLoop:
             cpu_share = cpu / max(total, 1)
 
             prev = getattr(self, "_last_placement_summary", None)
-            anomaly = (
-                cpu_share > 0.5
-                and prev is not None
-                and prev.get("cpu_share", 0) > 0.5
-            )
+            anomaly = cpu_share > 0.5 and prev is not None and prev.get("cpu_share", 0) > 0.5
             self._last_placement_summary = {
                 "ts": time.time(),
                 "gpu": gpu,
@@ -9141,16 +9119,14 @@ class AgentLoop:
                 processed=total,
                 failed=cpu if anomaly else 0,
                 duration_ms=int((time.time() - start) * 1000),
-                error_message=(
-                    f"sustained_cpu_fallback cpu_share={cpu_share:.2f}"
-                    if anomaly
-                    else None
-                ),
+                error_message=(f"sustained_cpu_fallback cpu_share={cpu_share:.2f}" if anomaly else None),
             )
         except Exception as e:
             logger.error(f"ollama_placement_telemetry failed: {e}")
             self._log_cycle(
-                "ollama_placement_telemetry", 0, 1,
+                "ollama_placement_telemetry",
+                0,
+                1,
                 int((time.time() - start) * 1000),
                 error_message=str(e),
             )
@@ -9181,12 +9157,14 @@ class AgentLoop:
                 nr = getattr(j, "next_run_time", None)
                 if nr and (next_run is None or nr < next_run):
                     next_run = nr
-                jobs_summary.append({
-                    "id": j.id,
-                    "name": j.name or j.id,
-                    "next_run": nr.isoformat() if nr else None,
-                    "trigger": str(j.trigger) if j.trigger else "",
-                })
+                jobs_summary.append(
+                    {
+                        "id": j.id,
+                        "name": j.name or j.id,
+                        "next_run": nr.isoformat() if nr else None,
+                        "trigger": str(j.trigger) if j.trigger else "",
+                    }
+                )
 
             details = {
                 "source": "agent_loop",
@@ -9210,9 +9188,7 @@ class AgentLoop:
                     ),
                 )
                 # Bounded retention — heartbeats are diagnostic, not historical
-                cur.execute(
-                    "DELETE FROM scheduler_heartbeat WHERE ts < now() - interval '24 hours'"
-                )
+                cur.execute("DELETE FROM scheduler_heartbeat WHERE ts < now() - interval '24 hours'")
         except Exception as e:
             logger.warning("scheduler_heartbeat write failed: %s", e)
 
@@ -9264,10 +9240,14 @@ class AgentLoop:
                 latest = _row["latest"] if _row else None
                 if latest is None:
                     if now - self._watchdog_last_alert.get("backup_missing", 0) > dedup_s:
-                        triggered.append(("backup_missing", "No successful primary backups recorded (empty backup_log)"))
+                        triggered.append(
+                            ("backup_missing", "No successful primary backups recorded (empty backup_log)")
+                        )
                         self._watchdog_last_alert["backup_missing"] = now
                 else:
-                    latest_naive = latest.replace(tzinfo=None) if hasattr(latest, "tzinfo") and latest.tzinfo else latest
+                    latest_naive = (
+                        latest.replace(tzinfo=None) if hasattr(latest, "tzinfo") and latest.tzinfo else latest
+                    )
                     age_h = (_dt.utcnow() - latest_naive).total_seconds() / 3600
                     if age_h > 36 and now - self._watchdog_last_alert.get("backup_stale", 0) > dedup_s:
                         triggered.append(("backup_stale", f"Last primary backup {age_h:.1f}h ago (threshold 36h)"))
@@ -9320,8 +9300,7 @@ class AgentLoop:
                     _key = "backup_tier_health"
                     if now - self._watchdog_last_alert.get(_key, 0) > dedup_s:
                         _details = ", ".join(
-                            f"{_t}={'never' if _d is None else f'{_d:.1f}d'}"
-                            for _t, _d in _stale_tiers
+                            f"{_t}={'never' if _d is None else f'{_d:.1f}d'}" for _t, _d in _stale_tiers
                         )
                         triggered.append((_key, f"Backup tiers stale (>14d): {_details}"))
                         self._watchdog_last_alert[_key] = now
@@ -9380,6 +9359,7 @@ class AgentLoop:
         start = time.time()
         try:
             from tools.media_studio.services.batch_service import cleanup_stale_queue
+
             cleaned = cleanup_stale_queue(max_age_hours=24)
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("media_queue_cleanup", cleaned or 0, 0, duration_ms)
@@ -9392,6 +9372,7 @@ class AgentLoop:
         start = time.time()
         try:
             from tools.media_studio.services.batch_service import cleanup_expired_exports
+
             cleaned = cleanup_expired_exports()
             duration_ms = int((time.time() - start) * 1000)
             self._log_cycle("media_export_cleanup", cleaned or 0, 0, duration_ms)
@@ -9407,6 +9388,7 @@ class AgentLoop:
         """
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
+
             dispatcher = get_dispatcher()
             reaped = dispatcher.reap_stale_jobs(max_age_minutes=8)
             if reaped:
@@ -9422,7 +9404,8 @@ class AgentLoop:
 
             with get_db_cursor(commit=True) as (conn, cur):
                 # Jobs running > 30 minutes are stuck
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE bridge_jobs
                     SET status = 'failed',
                         error_message = 'Auto-killed: job exceeded 30 minute timeout',
@@ -9430,13 +9413,12 @@ class AgentLoop:
                     WHERE status = 'running'
                       AND created_at < NOW() - INTERVAL '30 minutes'
                     RETURNING id, job_type, agent_name, module_source
-                """)
+                """
+                )
                 killed = cur.fetchall()
 
             for job in killed:
-                logger.warning(
-                    f"Stuck job killed: #{job['id']} {job['job_type']} by {job['agent_name']}"
-                )
+                logger.warning(f"Stuck job killed: #{job['id']} {job['job_type']} by {job['agent_name']}")
                 try:
                     create_security_alert(
                         "scan_result",
@@ -9469,6 +9451,7 @@ class AgentLoop:
         """
         try:
             import sys
+
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             import requests as http_requests
             from services import qa_service
@@ -9481,9 +9464,7 @@ class AgentLoop:
             # over producing 65 false failure records.
             _platform_url = os.environ.get("PLATFORM_URL", "http://192.168.1.200:3000")
             try:
-                _health = http_requests.get(
-                    f"{_platform_url}/api/health", timeout=10, allow_redirects=False
-                )
+                _health = http_requests.get(f"{_platform_url}/api/health", timeout=10, allow_redirects=False)
                 if _health.status_code != 200:
                     logger.warning(
                         "QA scheduled run skipped — platform health check returned %s "
@@ -9529,8 +9510,7 @@ class AgentLoop:
                 spec_resolved = _resolve_env_vars(spec_data)
                 suite_meta = spec_resolved.get("suite", {}) if isinstance(spec_resolved, dict) else {}
                 base_url = (
-                    suite_meta.get("base_url")
-                    or os.environ.get("PLATFORM_URL", "http://localhost:3000")
+                    suite_meta.get("base_url") or os.environ.get("PLATFORM_URL", "http://localhost:3000")
                 ).rstrip("/")
                 auth = suite_meta.get("auth") or {}
                 has_auth = bool(auth.get("username") and auth.get("password"))
@@ -9552,13 +9532,16 @@ class AgentLoop:
                             session_reuse_count = 0
                             logger.info(
                                 "QA scheduled: pre-authenticated shared session for %s as %s",
-                                base_url, auth["username"],
+                                base_url,
+                                auth["username"],
                             )
                         except Exception as auth_err:
                             logger.warning(
                                 "QA scheduled: shared session pre-auth failed for %s as %s — "
                                 "falling back to per-suite auth: %s",
-                                base_url, auth["username"], auth_err,
+                                base_url,
+                                auth["username"],
+                                auth_err,
                             )
                             shared_session = None
                             shared_key = None
@@ -9579,14 +9562,16 @@ class AgentLoop:
                 e = result.get("errors", 0)
                 total_passed += p
                 total_failed += f + e
-                per_suite.append({
-                    "suite_id": suite["id"],
-                    "name": suite.get("name", "?"),
-                    "passed": p,
-                    "failed": f,
-                    "errors": e,
-                    "shared_session": use_shared,
-                })
+                per_suite.append(
+                    {
+                        "suite_id": suite["id"],
+                        "name": suite.get("name", "?"),
+                        "passed": p,
+                        "failed": f,
+                        "errors": e,
+                        "shared_session": use_shared,
+                    }
+                )
                 # Sharing a session eliminates the per-suite auth round-trip
                 # that was contending on the single gunicorn worker, so 2s
                 # between suites is enough to keep request volume civil.
@@ -9617,6 +9602,7 @@ class AgentLoop:
         """Daily user account audit — inactive users, locked accounts, expired invites."""
         try:
             import sys
+
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from tools.department_hq.services.department_dispatcher import dispatch
 
@@ -9647,6 +9633,7 @@ class AgentLoop:
         """Daily backup integrity check — checksums, age, retention policy."""
         try:
             import sys
+
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
             from tools.department_hq.services.department_dispatcher import dispatch
             from database import get_db_cursor
@@ -9659,10 +9646,10 @@ class AgentLoop:
                 )
                 recent = cur.fetchall()
 
-            summary = ", ".join(
-                f"{r['type']}({r['status']}, {r['created_at'].strftime('%Y-%m-%d')})"
-                for r in (recent or [])
-            ) or "no backups found"
+            summary = (
+                ", ".join(f"{r['type']}({r['status']}, {r['created_at'].strftime('%Y-%m-%d')})" for r in (recent or []))
+                or "no backups found"
+            )
 
             result = dispatch(
                 capability="backup_verify",
@@ -9821,16 +9808,12 @@ class AgentLoop:
 
             # 2. Compare against last synced SHA stored in system_config
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT value FROM system_config WHERE key = 'wtf_last_rsync_sha'"
-                )
+                cur.execute("SELECT value FROM system_config WHERE key = 'wtf_last_rsync_sha'")
                 row = cur.fetchone()
             last_sha = row["value"] if row else None
 
             if current_sha == last_sha:
-                logger.debug(
-                    "warden_wtf_rsync: no change since last sync (%s)", current_sha[:8]
-                )
+                logger.debug("warden_wtf_rsync: no change since last sync (%s)", current_sha[:8])
                 return
 
             # 3. SSH key must be accessible from inside the container
@@ -10004,7 +9987,8 @@ class AgentLoop:
                 hours_per_level = {"2": 1, "3": 2, "4": 4, "5": 8}
 
             # Find agents with high failure rates per capability
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT tel.agent_id, tel.capability,
                        COUNT(*) as total,
                        SUM(CASE WHEN tel.success = FALSE THEN 1 ELSE 0 END) as failures,
@@ -10017,7 +10001,9 @@ class AgentLoop:
                   AND tel.capability IS NOT NULL
                 GROUP BY tel.agent_id, tel.capability, a.name, a.display_name, a.first_name, a.last_name
                 HAVING COUNT(*) >= %s
-            """, (lookback_days, min_tasks))
+            """,
+                (lookback_days, min_tasks),
+            )
             candidates = cur.fetchall()
 
             for row in candidates:
@@ -10031,12 +10017,15 @@ class AgentLoop:
                 display_name = row["display_name"] or agent_name
 
                 # Get current proficiency from agent_learning_log
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, confidence, last_degraded_at
                     FROM agent_learning_log
                     WHERE agent_id = %s AND skill_name = %s
                     ORDER BY confidence DESC LIMIT 1
-                """, (agent_id, capability))
+                """,
+                    (agent_id, capability),
+                )
                 skill_row = cur.fetchone()
 
                 if not skill_row:
@@ -10062,30 +10051,37 @@ class AgentLoop:
                 # Guard: skip if degraded within last 24 hours
                 if skill_row["last_degraded_at"]:
                     from datetime import timezone
+
                     last_degraded = skill_row["last_degraded_at"]
-                    if hasattr(last_degraded, 'tzinfo') and last_degraded.tzinfo is None:
+                    if hasattr(last_degraded, "tzinfo") and last_degraded.tzinfo is None:
                         last_degraded = last_degraded.replace(tzinfo=timezone.utc)
                     now_utc = datetime.now(timezone.utc).replace(tzinfo=timezone.utc)
                     if (now_utc - last_degraded).total_seconds() < 86400:
                         continue
 
                 # Guard: skip if already in training for this skill
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id FROM training_assignments
                     WHERE agent_id = %s AND skill_name = %s AND status IN ('pending', 'in_progress')
                     LIMIT 1
-                """, (agent_id, capability))
+                """,
+                    (agent_id, capability),
+                )
                 if cur.fetchone():
                     continue
 
                 # Degrade: reduce confidence by 0.2
                 new_confidence = max(0.1, confidence - 0.2)
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE agent_learning_log
                     SET confidence = %s, last_degraded_at = NOW(),
                         degradation_count = COALESCE(degradation_count, 0) + 1
                     WHERE id = %s
-                """, (round(new_confidence, 2), skill_row["id"]))
+                """,
+                    (round(new_confidence, 2), skill_row["id"]),
+                )
 
                 # Recalculate level after degradation
                 if new_confidence < 0.3:
@@ -10108,13 +10104,16 @@ class AgentLoop:
                     "error_patterns": [],
                 }
                 try:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT capability, error_message, module_source
                         FROM task_execution_log
                         WHERE agent_id = %s AND capability = %s AND success = FALSE
                           AND created_at > NOW() - INTERVAL '1 day' * %s
                         ORDER BY created_at DESC LIMIT 10
-                    """, (agent_id, capability, lookback_days))
+                    """,
+                        (agent_id, capability, lookback_days),
+                    )
                     recent_errors = cur.fetchall()
 
                     error_texts = []
@@ -10127,6 +10126,7 @@ class AgentLoop:
 
                     if error_texts:
                         from tools.department_hq.services.department_dispatcher import get_dispatcher
+
                         disp = get_dispatcher()
                         if disp:
                             prompt = (
@@ -10152,31 +10152,43 @@ class AgentLoop:
                 training_hours = int(hours_per_level.get(hours_key, hours_per_level.get(str(2), 2)))
 
                 # Create training assignment
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO training_assignments
                     (agent_id, skill_name, target_proficiency, current_proficiency,
                      status, started_at, target_completion,
                      failure_analysis, degradation_triggered, failure_summary)
                     VALUES (%s, %s, %s, %s, 'in_progress', NOW(), NOW() + INTERVAL '1 hour' * %s,
                             %s, TRUE, %s)
-                """, (
-                    agent_id, capability, target_level, new_level,
-                    training_hours,
-                    failure_analysis,
-                    json.dumps(failure_summary),
-                ))
+                """,
+                    (
+                        agent_id,
+                        capability,
+                        target_level,
+                        new_level,
+                        training_hours,
+                        failure_analysis,
+                        json.dumps(failure_summary),
+                    ),
+                )
 
                 # Create HR alert
                 self._create_hr_alert(
-                    cur, agent_id,
-                    "proficiency_degradation", "warning",
+                    cur,
+                    agent_id,
+                    "proficiency_degradation",
+                    "warning",
                     f"{display_name}: degraded to Lv{new_level} on {capability}",
                     f"Agent {display_name} dropped from Lv{current_level} to Lv{new_level} "
                     f"on {capability} ({failure_rate}% failure rate over {row['total']} tasks). "
                     f"Auto-training started ({training_hours}h).",
-                    {"capability": capability, "failure_rate": failure_rate,
-                     "old_level": current_level, "new_level": new_level,
-                     "training_hours": training_hours},
+                    {
+                        "capability": capability,
+                        "failure_rate": failure_rate,
+                        "old_level": current_level,
+                        "new_level": new_level,
+                        "training_hours": training_hours,
+                    },
                 )
 
                 degraded += 1
@@ -10209,26 +10221,32 @@ class AgentLoop:
     def _create_hr_alert(self, cur, agent_id, alert_type, severity, title, message, details=None):
         """Create an HR alert with deduplication (same type+agent within 1 hour)."""
         try:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM agent_alerts
                 WHERE agent_id = %s AND alert_type = %s AND resolved = FALSE
                   AND created_at > NOW() - INTERVAL '1 hour'
                 LIMIT 1
-            """, (agent_id, alert_type))
+            """,
+                (agent_id, alert_type),
+            )
             if cur.fetchone():
                 return 0  # Already alerted recently
 
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO agent_alerts
                 (agent_id, alert_type, severity, title, message, details)
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (agent_id, alert_type, severity, title, message,
-                  json.dumps(details or {})))
+            """,
+                (agent_id, alert_type, severity, title, message, json.dumps(details or {})),
+            )
 
             # Log governance event for critical alerts
             if severity == "critical":
                 log_governance_event(
-                    "agent_welfare", f"alert_{alert_type}",
+                    "agent_welfare",
+                    f"alert_{alert_type}",
                     "alert_created",
                     {"agent_id": agent_id, "title": title},
                 )
@@ -10250,7 +10268,8 @@ class AgentLoop:
                 return
 
             # Get unnotified alerts
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT aa.id, aa.agent_id, aa.alert_type, aa.severity,
                        aa.title, aa.message, a.name as agent_name
                 FROM agent_alerts aa
@@ -10261,17 +10280,20 @@ class AgentLoop:
                     CASE aa.severity WHEN 'critical' THEN 1 ELSE 2 END,
                     aa.created_at ASC
                 LIMIT 5
-            """)
+            """
+            )
             alerts = cur.fetchall()
             if not alerts:
                 return
 
             # Get authorized Telegram user
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT telegram_id FROM telegram_users
                 WHERE is_authorized = TRUE AND user_id IS NOT NULL
                 LIMIT 1
-            """)
+            """
+            )
             tg_user = cur.fetchone()
             if not tg_user:
                 return
@@ -10411,13 +10433,10 @@ class AgentLoop:
         error_message: str = None,
     ):
         """Log an agent loop execution cycle."""
-        status = (
-            "error"
-            if items_failed > 0 and items_processed == 0
-            else "partial" if items_failed > 0 else "success"
-        )
+        status = "error" if items_failed > 0 and items_processed == 0 else "partial" if items_failed > 0 else "success"
         try:
             from tools.department_hq.services.job_registry import get_department_for_job
+
             department = get_department_for_job(job_name)
             if department == "UNKNOWN":
                 # Fall back to legacy inline map during transition
@@ -10479,6 +10498,7 @@ class AgentLoop:
     def _process_world_events(self):
         try:
             from tools.game_studio.world_engine import process_pending_events
+
             count = process_pending_events()
             if count > 0:
                 logger.info(f"[World Engine] Processed {count} events")
@@ -10488,6 +10508,7 @@ class AgentLoop:
     def _update_market_prices(self):
         try:
             from tools.game_studio.market_service import update_market_prices
+
             update_market_prices()
         except Exception as e:
             logger.error(f"[Market] Price update error: {e}")
@@ -10517,9 +10538,7 @@ class AgentLoop:
 
             for line in lines:
                 # Failed password attempts
-                failed_match = re.search(
-                    r"Failed password for (?:invalid user )?(\S+) from (\S+)", line
-                )
+                failed_match = re.search(r"Failed password for (?:invalid user )?(\S+) from (\S+)", line)
                 if failed_match:
                     user = failed_match.group(1)
                     ip = failed_match.group(2)
@@ -10529,9 +10548,7 @@ class AgentLoop:
                     continue
 
                 # Successful logins (Accepted)
-                accepted_match = re.search(
-                    r"Accepted \S+ for (\S+) from (\S+)", line
-                )
+                accepted_match = re.search(r"Accepted \S+ for (\S+) from (\S+)", line)
                 if accepted_match:
                     user = accepted_match.group(1)
                     ip = accepted_match.group(2)
@@ -10745,7 +10762,8 @@ class AgentLoop:
                 return
 
             with get_db_cursor() as (conn, cur):
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, title, description, category, priority,
                            code_changes, metadata->>'file_path' AS file_path, plan_steps,
                            retry_count, required_skills
@@ -10764,7 +10782,8 @@ class AgentLoop:
                         END,
                         proposed_at ASC
                     LIMIT 3
-                """)
+                """
+                )
                 proposals = cur.fetchall()
                 # get_db_cursor yields RealDictCursor rows (KB #268832) but this
                 # pipeline indexes tuples (proposal[0], proposal[6], ...) — the
@@ -10773,9 +10792,16 @@ class AgentLoop:
                 proposals = [
                     (
                         (
-                            r["id"], r["title"], r["description"], r["category"],
-                            r["priority"], r["code_changes"], r["file_path"],
-                            r["plan_steps"], r["retry_count"], r["required_skills"],
+                            r["id"],
+                            r["title"],
+                            r["description"],
+                            r["category"],
+                            r["priority"],
+                            r["code_changes"],
+                            r["file_path"],
+                            r["plan_steps"],
+                            r["retry_count"],
+                            r["required_skills"],
                         )
                         if isinstance(r, dict)
                         else r
@@ -10801,7 +10827,8 @@ class AgentLoop:
                         from database import get_db_cursor as _gdc
 
                         with _gdc(commit=True) as (conn2, cur2):
-                            cur2.execute("""
+                            cur2.execute(
+                                """
                                 UPDATE improvement_proposals
                                 SET retry_count = retry_count + 1,
                                     last_retry_at = NOW(),
@@ -10814,13 +10841,14 @@ class AgentLoop:
                                         ELSE escalation_status
                                     END
                                 WHERE id = %s
-                            """, (proposal[0],))
+                            """,
+                                (proposal[0],),
+                            )
                     except Exception as db_err:
                         logger.error(f"[Fix Processor] DB update failed for proposal #{proposal[0]}: {db_err}")
 
             logger.info(
-                f"[Fix Processor] Processed {succeeded + failed} proposals, "
-                f"{succeeded} succeeded, {failed} failed"
+                f"[Fix Processor] Processed {succeeded + failed} proposals, " f"{succeeded} succeeded, {failed} failed"
             )
 
         except Exception as e:
@@ -10877,13 +10905,15 @@ class AgentLoop:
         dispatch_source = "hub"
 
         with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT a.id, a.name FROM agents a
                 WHERE a.department = 'Engineering & Technology'
                   AND a.shift_state = 'active'
                 ORDER BY a.name
                 LIMIT 1
-            """)
+            """
+            )
             agent = cur.fetchone()
             if isinstance(agent, dict):  # RealDictCursor row → tuple (KB #268832)
                 agent = (agent["id"], agent["name"])
@@ -10899,29 +10929,38 @@ class AgentLoop:
                 # Use hub_agent_id from fleet agent for DB assignment (FK to agents table)
                 assigned_id = fleet_agent_info.get("hub_agent_id")
                 if assigned_id:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_proposals
                         SET status = 'agent_assigned',
                             assigned_agent_id = %s
                         WHERE id = %s
-                    """, (assigned_id, proposal_id))
+                    """,
+                        (assigned_id, proposal_id),
+                    )
                 else:
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_proposals
                         SET status = 'agent_assigned'
                         WHERE id = %s
-                    """, (proposal_id,))
+                    """,
+                        (proposal_id,),
+                    )
                 logger.info(
                     f"[Fix Processor] Fleet agent {fleet_agent_info['agent_name']} "
                     f"on node {fleet_agent_info.get('node_name', '?')} assigned to proposal #{proposal_id}"
                 )
             else:
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET status = 'agent_assigned',
                         assigned_agent_id = %s
                     WHERE id = %s
-                """, (agent[0], proposal_id))
+                """,
+                    (agent[0], proposal_id),
+                )
 
         # 5. Dispatch to agent via Bridge (hub) or fleet node
         response_text = None
@@ -10953,13 +10992,16 @@ class AgentLoop:
                 else:
                     logger.error(f"[Fix Processor] No fleet fallback available for proposal #{proposal_id}")
                     with get_db_cursor(commit=True) as (conn, cur):
-                        cur.execute("""
+                        cur.execute(
+                            """
                             UPDATE improvement_proposals
                             SET status = 'approved', assigned_agent_id = NULL,
                                 retry_count = retry_count + 1,
                                 last_retry_at = NOW()
                             WHERE id = %s
-                        """, (proposal_id,))
+                        """,
+                            (proposal_id,),
+                        )
                     return
             else:
                 response_text = result.response
@@ -10976,28 +11018,32 @@ class AgentLoop:
             )
 
             if not fleet_result or not fleet_result.get("success"):
-                logger.error(
-                    f"[Fix Processor] Fleet dispatch failed for proposal #{proposal_id}"
-                )
+                logger.error(f"[Fix Processor] Fleet dispatch failed for proposal #{proposal_id}")
                 with get_db_cursor(commit=True) as (conn, cur):
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_proposals
                         SET status = 'approved', assigned_agent_id = NULL,
                             retry_count = retry_count + 1,
                             last_retry_at = NOW()
                         WHERE id = %s
-                    """, (proposal_id,))
+                    """,
+                        (proposal_id,),
+                    )
                 return
             response_text = fleet_result["response"]
             # Update assigned agent to fleet agent if we fell back mid-dispatch
             fleet_hub_id = fleet_agent_info.get("hub_agent_id")
             if fleet_hub_id:
                 with get_db_cursor(commit=True) as (conn, cur):
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE improvement_proposals
                         SET assigned_agent_id = %s
                         WHERE id = %s
-                    """, (fleet_hub_id, proposal_id))
+                    """,
+                        (fleet_hub_id, proposal_id),
+                    )
 
         # 6. Parse agent response
         try:
@@ -11005,22 +11051,28 @@ class AgentLoop:
         except (json.JSONDecodeError, TypeError):
             logger.error(f"[Fix Processor] Invalid JSON from agent for proposal #{proposal_id}")
             with get_db_cursor(commit=True) as (conn, cur):
-                cur.execute("""
+                cur.execute(
+                    """
                     UPDATE improvement_proposals
                     SET status = 'approved', assigned_agent_id = NULL,
                         retry_count = retry_count + 1
                     WHERE id = %s
-                """, (proposal_id,))
+                """,
+                    (proposal_id,),
+                )
             return
 
         # 7. Store agent's fix in proposal
         with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE improvement_proposals
                 SET contractor_proposal = %s,
                     status = 'in_progress'
                 WHERE id = %s
-            """, (Json(fix_data), proposal_id))
+            """,
+                (Json(fix_data), proposal_id),
+            )
 
         # 8. Write to sandbox if available (v1: just log, no sandbox tests yet)
         try:
@@ -11035,12 +11087,12 @@ class AgentLoop:
             logger.warning(f"[Fix Processor] Sandbox write failed for proposal #{proposal_id}: {sandbox_err}")
 
         dispatch_agent_name = (
-            fleet_agent_info["agent_name"] if fleet_agent_info and dispatch_source == "fleet"
+            fleet_agent_info["agent_name"]
+            if fleet_agent_info and dispatch_source == "fleet"
             else (agent[1] if agent else "unknown")
         )
         dispatch_node = (
-            fleet_agent_info.get("node_name", "remote") if fleet_agent_info and dispatch_source == "fleet"
-            else "hub"
+            fleet_agent_info.get("node_name", "remote") if fleet_agent_info and dispatch_source == "fleet" else "hub"
         )
         logger.info(
             f"[Fix Processor] Proposal #{proposal_id} '{title}' dispatched successfully "
@@ -11054,14 +11106,17 @@ class AgentLoop:
             from database import get_db_cursor
 
             with get_db_cursor() as (conn, cur):
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT content FROM knowledge_base
                     WHERE category = 'code_health'
                       AND knowledge_type = 'fix_pattern'
                       AND (tags::text ILIKE %s OR content ILIKE %s)
                     ORDER BY updated_at DESC
                     LIMIT 1
-                """, (f"%{category}%", f"%{category}%"))
+                """,
+                    (f"%{category}%", f"%{category}%"),
+                )
                 row = cur.fetchone()
                 if row:
                     return row["content"] if isinstance(row, dict) else row[0]
@@ -11132,12 +11187,12 @@ class AgentLoop:
         Owned by Security & Compliance (V.I.G.I.L.)."""
         pass
 
-
     # ── Job #62 — Social Video: Generate Content ──────────────────────────
 
     def _social_video_generate_content(self):
         """Job #62: Generate social video content from templates every 4 hours."""
         import random
+
         try:
             from tools.media_studio.services import social_video_service as svs
 
@@ -11183,7 +11238,10 @@ class AgentLoop:
                 quotes = [
                     ("The only way to do great work is to love what you do.", "Steve Jobs"),
                     ("The future belongs to those who believe in the beauty of their dreams.", "Eleanor Roosevelt"),
-                    ("Success is not final, failure is not fatal: it is the courage to continue that counts.", "Winston Churchill"),
+                    (
+                        "Success is not final, failure is not fatal: it is the courage to continue that counts.",
+                        "Winston Churchill",
+                    ),
                     ("It's not about ideas. It's about making ideas happen.", "Ralph Marston"),
                     ("Believe you can and you're halfway there.", "Theodore Roosevelt"),
                     ("The secret of getting ahead is getting started.", "Mark Twain"),
@@ -11218,10 +11276,13 @@ class AgentLoop:
                 approval_tier=approval_tier,
                 created_by="agent_loop",
             )
-            logger.info("[SocialVideo] Created queue item id=%s type=%s tier=%s", item.get("id"), content_type, approval_tier)
+            logger.info(
+                "[SocialVideo] Created queue item id=%s type=%s tier=%s", item.get("id"), content_type, approval_tier
+            )
 
             # Trigger generation worker
             from tools.media_studio.services.social_video_worker import process_queue
+
             process_queue()
 
         except Exception as e:
@@ -11250,6 +11311,7 @@ class AgentLoop:
         import json as _json
         import os as _os
         from datetime import datetime as _dt, timezone as _tz
+
         try:
             from tools.media_studio.services import social_video_service as svs
 
@@ -11283,16 +11345,23 @@ class AgentLoop:
                         try:
                             if platform in ("instagram", "facebook"):
                                 from tools.social_media.publishing_service import publish_video
+
                                 result = publish_video(platform, video_path, caption, hashtags)
                                 if result:
                                     post_urls[platform] = result
                             elif platform == "indeed":
                                 from tools.social_media.platform_clients import get_indeed_client
+
                                 result = get_indeed_client().post_video(video_path, caption, hashtags)
                                 if result:
                                     post_urls[platform] = result
                         except Exception as platform_err:
-                            logger.error("[SocialVideo] Publish failed for platform=%s item=%s: %s", platform, item["id"], platform_err)
+                            logger.error(
+                                "[SocialVideo] Publish failed for platform=%s item=%s: %s",
+                                platform,
+                                item["id"],
+                                platform_err,
+                            )
 
                     new_status = "posted" if post_urls else "failed"
                     svs.update_queue_item(
@@ -11301,14 +11370,18 @@ class AgentLoop:
                         posted_at=now,
                         post_urls=_json.dumps(post_urls),
                     )
-                    logger.info("[SocialVideo] Published item id=%s status=%s platforms=%s", item["id"], new_status, list(post_urls.keys()))
+                    logger.info(
+                        "[SocialVideo] Published item id=%s status=%s platforms=%s",
+                        item["id"],
+                        new_status,
+                        list(post_urls.keys()),
+                    )
 
                 except Exception as item_err:
                     logger.error("[SocialVideo] Publish error for item id=%s: %s", item.get("id"), item_err)
 
         except Exception as e:
             logger.error("[SocialVideo] Publish job failed: %s", e)
-
 
     def _social_video_slideshow_render(self):
         """Pick up draft social_video_queue items with images and render AutoShorts slideshows."""
@@ -11343,6 +11416,7 @@ class AgentLoop:
                         # Resolve to filesystem path
                         if fp.startswith("/static/"):
                             from platform_v2.tools.media_studio.services.slideshow_generator import _APP_ROOT
+
                             abs_path = _APP_ROOT + fp
                         else:
                             abs_path = fp
@@ -11365,10 +11439,12 @@ class AgentLoop:
 
                 if result.get("success"):
                     from platform_v2.tools.media_studio.services.slideshow_generator import _APP_ROOT as _SG_ROOT
+
                     def _to_web(p):
                         if p and p.startswith(_SG_ROOT):
-                            return p[len(_SG_ROOT):]
+                            return p[len(_SG_ROOT) :]
                         return p or ""
+
                     web_vid = _to_web(result["video_path"])
                     web_thumb = _to_web(result.get("thumbnail_path") or "")
                     svs.svq_finish_render(item_id, web_vid, web_thumb)
@@ -11465,10 +11541,20 @@ class AgentLoop:
                 ag_user = os.getenv("ADGUARD_USER", "kytran")
                 ag_pass = os.getenv("ADGUARD_PASS", "")
                 result = subprocess.run(
-                    ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                     "-u", f"{ag_user}:{ag_pass}",
-                     "http://network_adguard:80/control/status"],
-                    capture_output=True, text=True, timeout=5
+                    [
+                        "curl",
+                        "-s",
+                        "-o",
+                        "/dev/null",
+                        "-w",
+                        "%{http_code}",
+                        "-u",
+                        f"{ag_user}:{ag_pass}",
+                        "http://network_adguard:80/control/status",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.stdout.strip() != "200":
                     issues.append("AdGuard is not responding")
@@ -11485,8 +11571,11 @@ class AgentLoop:
 
             if issues:
                 self._create_network_alert(
-                    "service_down", "high", "health_monitor",
-                    f"Service issues detected: {len(issues)}", {"issues": issues}
+                    "service_down",
+                    "high",
+                    "health_monitor",
+                    f"Service issues detected: {len(issues)}",
+                    {"issues": issues},
                 )
         except Exception as e:
             logger.error(f"V.I.G.I.L. network health check failed: {e}")
@@ -11567,7 +11656,14 @@ class AgentLoop:
                            DO UPDATE SET status = EXCLUDED.status, output = EXCLUDED.output,
                                          performance_data = EXCLUDED.performance_data,
                                          last_check = EXCLUDED.last_check, updated_at = NOW()""",
-                        (r["host_name"], r["service_description"], r["status"], r["output"], r["performance_data"], r["last_check"]),
+                        (
+                            r["host_name"],
+                            r["service_description"],
+                            r["status"],
+                            r["output"],
+                            r["performance_data"],
+                            r["last_check"],
+                        ),
                     )
             logger.info(f"V.I.G.I.L.: Synced {len(results)} Nagios check results")
         except Exception as e:
@@ -11607,7 +11703,9 @@ class AgentLoop:
                             (mac, ip, name),
                         )
                         self._create_network_alert(
-                            "new_device", "medium", "device_watcher",
+                            "new_device",
+                            "medium",
+                            "device_watcher",
                             f"New device detected: {name or mac} ({ip})",
                             {"mac": mac, "ip": ip, "hostname": name},
                         )
@@ -11632,7 +11730,9 @@ class AgentLoop:
             blocked = stats.get("num_blocked_filtering", 0)
             if total > 100 and blocked / total > 0.5:
                 self._create_network_alert(
-                    "dns_anomaly", "medium", "dns_anomaly_detector",
+                    "dns_anomaly",
+                    "medium",
+                    "dns_anomaly_detector",
                     f"High DNS block rate: {blocked}/{total} ({blocked/total*100:.0f}%)",
                     {"total_queries": total, "blocked": blocked, "block_rate": blocked / total},
                 )
@@ -11658,7 +11758,9 @@ class AgentLoop:
                         size_mb = size / 1_000_000
                         threshold_mb = threshold / 1_000_000
                         self._create_network_alert(
-                            "log_overflow", "high", "log_health_monitor",
+                            "log_overflow",
+                            "high",
+                            "log_health_monitor",
                             f"Log file {path} is {size_mb:.0f}MB (threshold: {threshold_mb:.0f}MB)",
                             {"file": path, "size_bytes": size, "threshold_bytes": threshold},
                         )
@@ -11711,9 +11813,15 @@ class AgentLoop:
                             )
                             if cur.fetchone() is None:
                                 self._create_network_alert(
-                                    "ip_banned", "high", "threat_responder",
+                                    "ip_banned",
+                                    "high",
+                                    "threat_responder",
                                     f"IP {ip} banned by fail2ban jail {jail.get('jail', 'unknown')}",
-                                    {"ip": ip, "jail": jail.get("jail", ""), "total_banned": jail.get("total_banned", 0)},
+                                    {
+                                        "ip": ip,
+                                        "jail": jail.get("jail", ""),
+                                        "total_banned": jail.get("total_banned", 0),
+                                    },
                                 )
         except Exception as e:
             logger.error(f"V.I.G.I.L. threat responder failed: {e}")
@@ -11737,6 +11845,7 @@ class AgentLoop:
         """Job: Knowledge Quality Review — score unscored KB entries every 2 hours."""
         try:
             from services.quality_review_job import run_quality_review
+
             run_quality_review()
         except Exception as e:
             logger.error("Quality review job failed: %s", e)
@@ -11744,6 +11853,7 @@ class AgentLoop:
     def _run_login_anomaly_check(self):
         """Alert on accounts with excessive successful logins in 24h."""
         import time as _time
+
         _start = _time.time()
         processed = 0
         try:
@@ -11754,9 +11864,7 @@ class AgentLoop:
             # Configurable threshold (default: 10 logins / 24h)
             threshold = 10
             with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT value FROM system_config WHERE key = 'login_anomaly_threshold'"
-                )
+                cur.execute("SELECT value FROM system_config WHERE key = 'login_anomaly_threshold'")
                 row = cur.fetchone()
                 if row and row[0]:
                     try:
@@ -11793,13 +11901,12 @@ class AgentLoop:
                     # Rate-limit: one alert per user per 24h
                     alert_key = f"anomaly_alert_{user_id}"
                     with get_db_cursor() as (conn, cur):
-                        cur.execute(
-                            "SELECT value FROM system_config WHERE key = %s", [alert_key]
-                        )
+                        cur.execute("SELECT value FROM system_config WHERE key = %s", [alert_key])
                         existing = cur.fetchone()
                     if existing and existing[0]:
                         try:
                             import datetime as _dt
+
                             last_alert = _dt.datetime.fromisoformat(existing[0])
                             if last_alert.tzinfo is None:
                                 last_alert = last_alert.replace(tzinfo=_dt.timezone.utc)
@@ -11809,9 +11916,7 @@ class AgentLoop:
                             pass
 
                     # Send Telegram security alert
-                    ip_list = ", ".join(
-                        str(ip) for ip in (ips or []) if ip
-                    ) or "unknown"
+                    ip_list = ", ".join(str(ip) for ip in (ips or []) if ip) or "unknown"
                     fmt = "%H:%M"
                     window = (
                         f"{first_login.strftime(fmt) if first_login else '?'}"
@@ -11852,9 +11957,7 @@ class AgentLoop:
             self._log_cycle("login_anomaly_check", processed, 0, duration_ms)
         except Exception as e:
             duration_ms = int((_time.time() - _start) * 1000)
-            self._log_cycle(
-                "login_anomaly_check", 0, 1, duration_ms, error_message=str(e)
-            )
+            self._log_cycle("login_anomaly_check", 0, 1, duration_ms, error_message=str(e))
             logger.error("login_anomaly_check failed: %s", e)
 
     def _creed_governance_reporter(self):
@@ -11876,16 +11979,16 @@ class AgentLoop:
             "operations": "accountability",
             "data_management": "privacy",
             # Extended mappings — previously fell through to default "accountability"
-            "telegram_send": "transparency",      # outbound comms logged (4,110+ events)
-            "workload_balance": "fairness",        # K.I.N. load / rest decisions (1,512+ events)
-            "welfare_ethics": "fairness",          # agent welfare gate events (162+ events)
-            "node_planning": "accountability",     # fleet node lifecycle (259+ events)
-            "orchestration": "transparency",       # dispatch pipeline steps (37+ events)
+            "telegram_send": "transparency",  # outbound comms logged (4,110+ events)
+            "workload_balance": "fairness",  # K.I.N. load / rest decisions (1,512+ events)
+            "welfare_ethics": "fairness",  # agent welfare gate events (162+ events)
+            "node_planning": "accountability",  # fleet node lifecycle (259+ events)
+            "orchestration": "transparency",  # dispatch pipeline steps (37+ events)
             "agent_management": "accountability",  # agent CRUD / lifecycle (19+ events)
-            "autonomy": "safety",                  # autonomous action gates (3+ events)
-            "agent_lifecycle": "accountability",   # shift-state / decommission events
-            "prompt_safety": "safety",             # T3253: jailbreak / prompt injection events
-            "response_safety": "safety",           # T3252: uncertainty / hallucination rate events
+            "autonomy": "safety",  # autonomous action gates (3+ events)
+            "agent_lifecycle": "accountability",  # shift-state / decommission events
+            "prompt_safety": "safety",  # T3253: jailbreak / prompt injection events
+            "response_safety": "safety",  # T3252: uncertainty / hallucination rate events
         }
         SEVERITY_MAP = {
             "success": "info",
@@ -11901,9 +12004,7 @@ class AgentLoop:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get last reported event ID
-            cur.execute(
-                "SELECT value FROM system_config WHERE key = 'creed_reporter_last_id'"
-            )
+            cur.execute("SELECT value FROM system_config WHERE key = 'creed_reporter_last_id'")
             row = cur.fetchone()
             last_id = int(row["value"]) if row else 0
 
@@ -11928,12 +12029,8 @@ class AgentLoop:
             new_last_id = last_id
 
             for event in events:
-                creed_category = CATEGORY_MAP.get(
-                    event["event_category"], "accountability"
-                )
-                creed_severity = SEVERITY_MAP.get(
-                    event.get("outcome", ""), "info"
-                )
+                creed_category = CATEGORY_MAP.get(event["event_category"], "accountability")
+                creed_severity = SEVERITY_MAP.get(event.get("outcome", ""), "info")
                 payload = {
                     "event_type": event["event_type"] or "agent_action",
                     "source_platform": "archie",
@@ -11941,9 +12038,7 @@ class AgentLoop:
                     "agent_name": event.get("agent_name") or "System",
                     "category": creed_category,
                     "severity": creed_severity,
-                    "description": (
-                        f"{event['action']}: {event.get('reason') or event['event_type']}"
-                    ),
+                    "description": (f"{event['action']}: {event.get('reason') or event['event_type']}"),
                     "metadata": {
                         "original_category": event["event_category"],
                         "original_outcome": event.get("outcome"),
@@ -11986,9 +12081,7 @@ class AgentLoop:
                             resp.text[:200],
                         )
                 except req.RequestException as e:
-                    logger.warning(
-                        "[CREED Reporter] Connection failed: %s", e
-                    )
+                    logger.warning("[CREED Reporter] Connection failed: %s", e)
                     break
 
             # Save checkpoint
@@ -12008,10 +12101,7 @@ class AgentLoop:
                     if score_resp.status_code == 200:
                         scores_now = score_resp.json()
                         overall_now = float(scores_now.get("overall", 100))
-                        cur.execute(
-                            "SELECT value FROM system_config "
-                            "WHERE key = 'creed_score_prev_overall'"
-                        )
+                        cur.execute("SELECT value FROM system_config " "WHERE key = 'creed_score_prev_overall'")
                         prev_row = cur.fetchone()
                         prev_score = float(prev_row["value"]) if prev_row else None
                         cur.execute(
@@ -12032,8 +12122,7 @@ class AgentLoop:
                                 return v.get("score", v) if isinstance(v, dict) else v
 
                             pillar_lines = "\n".join(
-                                f"  {cat}: {round(float(_pv(v)), 1)}%"
-                                for cat, v in by_cat.items()
+                                f"  {cat}: {round(float(_pv(v)), 1)}%" for cat, v in by_cat.items()
                             )
                             alert_msg = (
                                 f"⚠️ C.R.E.E.D. score dropped {drop} pts\n"
@@ -12042,9 +12131,7 @@ class AgentLoop:
                                 f"Pillars:\n{pillar_lines}"
                             )
                             try:
-                                _ppath = os.path.join(
-                                    os.path.dirname(__file__), "..", "platform_v2"
-                                )
+                                _ppath = os.path.join(os.path.dirname(__file__), "..", "platform_v2")
                                 if _ppath not in sys.path:
                                     sys.path.insert(0, _ppath)
                                 from services.director_report_service import (
@@ -12053,22 +12140,17 @@ class AgentLoop:
 
                                 submit_via_inbox(
                                     category="creed_alert",
-                                    subject=(
-                                        f"C.R.E.E.D. score alert — {drop}pt drop"
-                                    ),
+                                    subject=(f"C.R.E.E.D. score alert — {drop}pt drop"),
                                     body=alert_msg,
                                     priority="high",
                                 )
                                 logger.warning(
-                                    "[CREED Reporter] Score drop alert sent: "
-                                    "%.1f -> %.1f",
+                                    "[CREED Reporter] Score drop alert sent: " "%.1f -> %.1f",
                                     prev_score,
                                     overall_now,
                                 )
                             except Exception as _te:
-                                logger.warning(
-                                    "[CREED Reporter] Telegram alert failed: %s", _te
-                                )
+                                logger.warning("[CREED Reporter] Telegram alert failed: %s", _te)
                 except Exception as _se:
                     logger.debug("[CREED Reporter] Score-drop check failed: %s", _se)
 
@@ -12117,7 +12199,8 @@ def _process_chat_memories():
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
         # Find conversations idle for 5+ minutes with unsummarized messages
-        cur.execute("""
+        cur.execute(
+            """
             SELECT dc.id, dc.agent_id, dc.user_id, dc.last_message_at
             FROM directory_conversations dc
             WHERE dc.last_message_at IS NOT NULL
@@ -12128,7 +12211,8 @@ def _process_chat_memories():
                    AND memory_type = 'summary'),
                 '1970-01-01'
               )
-        """)
+        """
+        )
         idle_convos = cur.fetchall()
 
         for convo in idle_convos:
@@ -12145,28 +12229,31 @@ def _process_chat_memories():
 def _summarize_conversation(cur, conn, convo):
     """Summarize a single conversation and extract pinned memories."""
     # Get messages since last summary
-    cur.execute("""
+    cur.execute(
+        """
         SELECT sender_type, message, timestamp
         FROM directory_messages
         WHERE conversation_id = %s
         ORDER BY timestamp ASC
-    """, (convo['id'],))
+    """,
+        (convo["id"],),
+    )
     messages = cur.fetchall()
 
     if len(messages) < 2:
         return  # Not enough to summarize
 
     # Get agent info
-    cur.execute("SELECT name, display_name, title FROM agents WHERE id = %s", (convo['agent_id'],))
+    cur.execute("SELECT name, display_name, title FROM agents WHERE id = %s", (convo["agent_id"],))
     agent = cur.fetchone()
     if not agent:
         return
-    agent_name = agent.get('display_name') or agent.get('name')
+    agent_name = agent.get("display_name") or agent.get("name")
 
     # Build conversation text
     conv_text = ""
     for msg in messages:
-        role = "User" if msg['sender_type'] == 'user' else agent_name
+        role = "User" if msg["sender_type"] == "user" else agent_name
         conv_text += f"{role}: {msg['message']}\n"
 
     # Dispatch summarization via canonical module-level dispatch() — the
@@ -12179,19 +12266,20 @@ def _summarize_conversation(cur, conn, convo):
         prompt=f"Summarize this conversation in 2-3 sentences:\n\n{conv_text}",
         module_id="directory_memory",
         system_prompt="You are a helpful assistant. Provide a concise summary.",
-        prefer_agent=agent.get('name'),
+        prefer_agent=agent.get("name"),
     )
     summary = (
-        summary_result.response.strip()
-        if summary_result and summary_result.success and summary_result.response
-        else ''
+        summary_result.response.strip() if summary_result and summary_result.success and summary_result.response else ""
     )
 
     if summary:
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO directory_agent_memories (agent_id, user_id, memory_type, content)
             VALUES (%s, %s, 'summary', %s)
-        """, (convo['agent_id'], convo['user_id'], summary))
+        """,
+            (convo["agent_id"], convo["user_id"], summary),
+        )
 
     # Pinned memories
     pinned_result = dispatch(
@@ -12199,21 +12287,22 @@ def _summarize_conversation(cur, conn, convo):
         prompt=f"What important facts should you remember about this user from this conversation? List each fact on its own line. Only include facts worth remembering for future conversations.\n\n{conv_text}",
         module_id="directory_memory",
         system_prompt="You are a helpful assistant. Extract key facts about the user.",
-        prefer_agent=agent.get('name'),
+        prefer_agent=agent.get("name"),
     )
     pinned_text = (
-        pinned_result.response.strip()
-        if pinned_result and pinned_result.success and pinned_result.response
-        else ''
+        pinned_result.response.strip() if pinned_result and pinned_result.success and pinned_result.response else ""
     )
 
     if pinned_text:
-        for line in pinned_text.split('\n'):
-            line = line.strip().lstrip('•-* ')
+        for line in pinned_text.split("\n"):
+            line = line.strip().lstrip("•-* ")
             if line and len(line) > 10:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO directory_agent_memories (agent_id, user_id, memory_type, content)
                     VALUES (%s, %s, 'pinned', %s)
-                """, (convo['agent_id'], convo['user_id'], line))
+                """,
+                    (convo["agent_id"], convo["user_id"], line),
+                )
 
     conn.commit()

@@ -46,8 +46,11 @@ SLEEP_BETWEEN = 2  # seconds between portrait add requests
 def get_agents(department_filter=None):
     """Fetch agents from the database."""
     conn = psycopg2.connect(
-        host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
-        user=DB_USER, password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
     )
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -150,7 +153,9 @@ def queue_portrait(session, agent_id, prompt, negative):
 def main():
     parser = argparse.ArgumentParser(description="Regenerate agent portraits with ethnicity enforcement")
     parser.add_argument("--dry-run", action="store_true", help="Only print prompts, don't queue generation")
-    parser.add_argument("--department", type=str, default=None, help='Filter by department name (e.g. "Legal & Regulatory")')
+    parser.add_argument(
+        "--department", type=str, default=None, help='Filter by department name (e.g. "Legal & Regulatory")'
+    )
     args = parser.parse_args()
 
     # 1. Fetch agents

@@ -122,11 +122,7 @@ def ingest_conversation(
                             "summary": summary,
                         }
                     ),
-                    (
-                        content_analysis.get("tags", ["general"])[0]
-                        if content_analysis.get("tags")
-                        else "general"
-                    ),
+                    (content_analysis.get("tags", ["general"])[0] if content_analysis.get("tags") else "general"),
                     tags,
                     calculate_importance_score(sentiment, trust, content_analysis),
                     json.dumps(
@@ -210,9 +206,7 @@ def ingest_conversation(
             "trust_impact": trust,
             "personality_update": personality_update,
             "code_snippets_stored": len(code_snippets),
-            "importance_score": calculate_importance_score(
-                sentiment, trust, content_analysis
-            ),
+            "importance_score": calculate_importance_score(sentiment, trust, content_analysis),
             "environment": environment,  # Phase 23: Track environment context
         }
 
@@ -222,9 +216,7 @@ def ingest_conversation(
         return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
 
 
-def calculate_importance_score(
-    sentiment: Dict, trust: Dict, content_analysis: Dict
-) -> float:
+def calculate_importance_score(sentiment: Dict, trust: Dict, content_analysis: Dict) -> float:
     """
     Calculate how important this conversation is (0-1.0)
 
@@ -334,7 +326,8 @@ def update_personality_traits(cur, sentiment: Dict, trust: Dict) -> Dict:
         from ai_bridge.emotional_intelligence import generate_personality_traits
 
         # Get recent interaction history from knowledge_base (unified schema)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT memory_metadata->>'sentiment' as sentiment,
                    (memory_metadata->>'trust_impact')::float as trust_delta,
                    memory_metadata->>'user_emotion' as user_emotion,
@@ -343,7 +336,8 @@ def update_personality_traits(cur, sentiment: Dict, trust: Dict) -> Dict:
             WHERE knowledge_type = 'conversation_memory'
             ORDER BY created_at DESC
             LIMIT 100
-        """)
+        """
+        )
 
         history = []
         for row in cur.fetchall():
@@ -361,9 +355,11 @@ def update_personality_traits(cur, sentiment: Dict, trust: Dict) -> Dict:
         personality = generate_personality_traits(history)
 
         # Store in system_config
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id FROM system_config WHERE key = 'archie_personality'
-        """)
+        """
+        )
         existing = cur.fetchone()
 
         if existing:
@@ -473,11 +469,7 @@ def retrieve_similar_conversations(
         # Format results
         conversations = []
         for row in results:
-            content = (
-                json.loads(row["content"])
-                if isinstance(row["content"], str)
-                else row["content"]
-            )
+            content = json.loads(row["content"]) if isinstance(row["content"], str) else row["content"]
             conversations.append(
                 {
                     "id": row["id"],
@@ -486,9 +478,7 @@ def retrieve_similar_conversations(
                     "summary": content.get("summary", ""),
                     "tags": row["tags"],
                     "importance": row["importance_score"],
-                    "created_at": (
-                        row["created_at"].isoformat() if row["created_at"] else None
-                    ),
+                    "created_at": (row["created_at"].isoformat() if row["created_at"] else None),
                 }
             )
 
@@ -511,10 +501,12 @@ def get_archie_personality() -> Dict:
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT value FROM system_config
                 WHERE key = 'archie_personality'
-            """)
+            """
+            )
 
             result = cur.fetchone()
         finally:
@@ -528,11 +520,7 @@ def get_archie_personality() -> Dict:
                 pass
 
         if result and result["value"]:
-            return (
-                json.loads(result["value"])
-                if isinstance(result["value"], str)
-                else result["value"]
-            )
+            return json.loads(result["value"]) if isinstance(result["value"], str) else result["value"]
 
     except Exception as e:
         print(f"Error getting personality: {e}")

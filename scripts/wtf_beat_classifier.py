@@ -19,6 +19,7 @@ Run (3 parallel workers, one per GPU node):
 If a worker crashes mid-batch, reset stale claims:
   docker exec archie_database psql -U wtfuser -d wtf -c "UPDATE wtf.articles SET beat = NULL WHERE beat = '__pending__';"
 """
+
 import argparse
 import json
 import logging
@@ -46,21 +47,30 @@ SLEEP_BETWEEN_BATCHES = 0.5  # seconds — brief pause; fleet nodes handle concu
 
 CLAIMING_SENTINEL = "__pending__"  # temporary marker while a batch is in-flight
 
-VALID_BEATS = frozenset({
-    # Original 10
-    "climate", "crime", "economy", "education",
-    "foreign-policy", "healthcare", "housing",
-    "immigration", "indigenous", "parliament",
-    # Added — complete news outlet taxonomy
-    "arts-culture",     # arts, entertainment, media industry, film, music
-    "business",         # corporate news, M&A, stock markets, company earnings
-    "justice",          # courts, sentencing, trials, legal proceedings (post-incident)
-    "labour",           # unions, strikes, collective bargaining, workplace
-    "municipal",        # city/town councils, local governance, community
-    "science-tech",     # research, AI, cybersecurity, space, innovation
-    "sports",           # teams, athletics, events, recreation
-    "transportation",   # roads, transit, infrastructure, aviation, rail
-})
+VALID_BEATS = frozenset(
+    {
+        # Original 10
+        "climate",
+        "crime",
+        "economy",
+        "education",
+        "foreign-policy",
+        "healthcare",
+        "housing",
+        "immigration",
+        "indigenous",
+        "parliament",
+        # Added — complete news outlet taxonomy
+        "arts-culture",  # arts, entertainment, media industry, film, music
+        "business",  # corporate news, M&A, stock markets, company earnings
+        "justice",  # courts, sentencing, trials, legal proceedings (post-incident)
+        "labour",  # unions, strikes, collective bargaining, workplace
+        "municipal",  # city/town councils, local governance, community
+        "science-tech",  # research, AI, cybersecurity, space, innovation
+        "sports",  # teams, athletics, events, recreation
+        "transportation",  # roads, transit, infrastructure, aviation, rail
+    }
+)
 BEATS_LIST = ", ".join(sorted(VALID_BEATS))
 
 
@@ -68,12 +78,15 @@ BEATS_LIST = ", ".join(sorted(VALID_BEATS))
 # Args
 # ---------------------------------------------------------------------------
 
+
 def parse_args():
     p = argparse.ArgumentParser(description="WTF beat classifier backfill")
     p.add_argument(
-        "--worker", type=int, default=0,
+        "--worker",
+        type=int,
+        default=0,
         help="Worker index (0-based) — used only in log labels. Each instance claims "
-             "exclusive batches via DB locking regardless of this value.",
+        "exclusive batches via DB locking regardless of this value.",
     )
     return p.parse_args()
 
@@ -81,6 +94,7 @@ def parse_args():
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
+
 
 def setup_logging(worker_id: int):
     fmt = f"%(asctime)s [W{worker_id}] %(message)s"
@@ -96,6 +110,7 @@ def setup_logging(worker_id: int):
 # ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
+
 
 def get_conn():
     return psycopg2.connect(DB_DSN, cursor_factory=psycopg2.extras.RealDictCursor)
@@ -175,6 +190,7 @@ def cleanup_stale_claims(conn, log):
 # LLM classification via DHQ dispatcher
 # ---------------------------------------------------------------------------
 
+
 def classify_batch(articles: list, log) -> list:
     """Returns list of beat strings (or None) same length as articles."""
     lines = []
@@ -222,7 +238,7 @@ def classify_batch(articles: list, log) -> list:
         start, end = raw.find("["), raw.rfind("]")
         if start != -1 and end != -1:
             try:
-                parsed = json.loads(raw[start: end + 1])
+                parsed = json.loads(raw[start : end + 1])
             except Exception:
                 pass
 
@@ -247,6 +263,7 @@ def classify_batch(articles: list, log) -> list:
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     args = parse_args()
@@ -286,7 +303,12 @@ def main():
             pct = processed / total * 100 if total else 0
             log.info(
                 "[%d/%d | %.0f%%] %d beats assigned | %.1f art/s | ETA ~%.0fm",
-                processed, total, pct, tagged, rate, eta_m,
+                processed,
+                total,
+                pct,
+                tagged,
+                rate,
+                eta_m,
             )
 
         time.sleep(SLEEP_BETWEEN_BATCHES)
@@ -294,7 +316,10 @@ def main():
     elapsed = time.time() - t0
     log.info(
         "Done — %d articles processed in %.0fs | %d beats assigned | %d unmatched (NULL)",
-        processed, elapsed, tagged, processed - tagged,
+        processed,
+        elapsed,
+        tagged,
+        processed - tagged,
     )
     conn.close()
 

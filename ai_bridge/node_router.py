@@ -91,9 +91,7 @@ def get_nodes_with_model(model_name: str) -> List[Dict[str, Any]]:
         return []
 
 
-def select_best_node(
-    model_name: str, prefer_gpu: bool = True
-) -> Optional[Dict[str, Any]]:
+def select_best_node(model_name: str, prefer_gpu: bool = True) -> Optional[Dict[str, Any]]:
     """
     Select the best available node for a model request.
 
@@ -164,12 +162,7 @@ def _resolve_best_host(node: Dict[str, Any]) -> str:
 
     Priority: mesh_ip (encrypted, works LAN+WAN) → vpn_ip → hostname → fallback.
     """
-    return (
-        node.get("mesh_ip")
-        or node.get("vpn_ip")
-        or node.get("hostname")
-        or "unknown"
-    )
+    return node.get("mesh_ip") or node.get("vpn_ip") or node.get("hostname") or "unknown"
 
 
 def get_ollama_url(model_name: str, prefer_gpu: bool = True) -> tuple:
@@ -296,7 +289,8 @@ def get_model_availability() -> Dict[str, List[str]]:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT m.model_name, ARRAY_AGG(n.node_name) as nodes
             FROM node_ollama_models m
             JOIN remote_nodes n ON m.node_id = n.node_id
@@ -305,7 +299,8 @@ def get_model_availability() -> Dict[str, List[str]]:
               AND m.is_available = true
             GROUP BY m.model_name
             ORDER BY m.model_name
-        """)
+        """
+        )
 
         result = {row["model_name"]: row["nodes"] for row in cur.fetchall()}
         cur.close()
@@ -340,7 +335,8 @@ def get_nodes_with_service(service_name: str) -> List[Dict[str, Any]]:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT
                 id,
                 node_id,
@@ -363,7 +359,8 @@ def get_nodes_with_service(service_name: str) -> List[Dict[str, Any]]:
               AND {service_column} = true
               AND deployment_mode = 'starship'
             ORDER BY current_load ASC, bridge_priority DESC
-        """)
+        """
+        )
 
         nodes = cur.fetchall()
         cur.close()
@@ -501,7 +498,8 @@ def get_image_service_availability() -> Dict[str, List[str]]:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 node_name,
                 foocus_available,
@@ -511,7 +509,8 @@ def get_image_service_availability() -> Dict[str, List[str]]:
             WHERE bridge_enabled = true
               AND status = 'online'
               AND approval_status = 'approved'
-        """)
+        """
+        )
 
         nodes = cur.fetchall()
         cur.close()

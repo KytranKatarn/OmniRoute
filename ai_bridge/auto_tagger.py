@@ -289,10 +289,7 @@ def analyze_content(text: str) -> Dict[str, any]:
     tags.extend(detected_languages)
 
     # Detect code blocks
-    code_detected = bool(
-        re.search(r"```[\s\S]*```", text)
-        or re.search(r"def \w+|class \w+|function \w+", text)
-    )
+    code_detected = bool(re.search(r"```[\s\S]*```", text) or re.search(r"def \w+|class \w+|function \w+", text))
 
     # Calculate confidence scores
     confidence = {}
@@ -333,7 +330,11 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
 
         dispatcher = get_dispatcher()
         result = dispatcher.request_work(
-            "classify", prompt, "auto_tagger", json_mode=True, timeout=10,
+            "classify",
+            prompt,
+            "auto_tagger",
+            json_mode=True,
+            timeout=10,
             prefer_agent="I.R.I.S.",
         )
 
@@ -350,9 +351,7 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
     return regex_tags
 
 
-def generate_tags_from_conversation(
-    user_message: str, ai_response: str, use_llm: bool = True
-) -> List[str]:
+def generate_tags_from_conversation(user_message: str, ai_response: str, use_llm: bool = True) -> List[str]:
     """
     Generate tags from a complete conversation (user message + AI response).
     Hybrid approach: regex pre-filter + optional LLM enrichment.
@@ -412,9 +411,7 @@ def extract_code_snippets(text: str) -> List[Dict[str, str]]:
     return snippets
 
 
-def summarize_conversation(
-    user_message: str, ai_response: str, max_length: int = 200
-) -> str:
+def summarize_conversation(user_message: str, ai_response: str, max_length: int = 200) -> str:
     """
     Generate a brief summary of the conversation
 

@@ -14,6 +14,7 @@ mode: daily | weekly | monthly — determines which components go to cold tier.
 Spec: docs/superpowers/specs/2026-04-16-backup-system-design.md §6, §7
 Plan: docs/superpowers/plans/2026-04-16-backup-system-redesign.md Task 15
 """
+
 import os
 import subprocess
 import sys
@@ -22,8 +23,8 @@ import time
 from pathlib import Path
 
 COMPONENTS_BY_MODE = {
-    "daily":   {"database", "code", "gitbundles", "config"},
-    "weekly":  {"database", "code", "gitbundles", "config", "kb_export"},
+    "daily": {"database", "code", "gitbundles", "config"},
+    "weekly": {"database", "code", "gitbundles", "config", "kb_export"},
     "monthly": {"database", "code", "gitbundles", "config", "kb_export", "monthly_full"},
 }
 
@@ -67,12 +68,20 @@ def is_drive_ready() -> bool:
     and so skipped the tier even when a service account was configured.
     """
     r = subprocess.run(
-        ["docker", "exec", "archie_platform", "python3", "-c",
-         "from tools.google_work_suite.services.drive_service import backup_get_drive_service; "
-         "backup_get_drive_service(); print('ready')"],
-        capture_output=True, text=True,
+        [
+            "docker",
+            "exec",
+            "archie_platform",
+            "python3",
+            "-c",
+            "from tools.google_work_suite.services.drive_service import backup_get_drive_service; "
+            "backup_get_drive_service(); print('ready')",
+        ],
+        capture_output=True,
+        text=True,
     )
     return r.returncode == 0 and "ready" in r.stdout
+
 
 # Back-compat alias.
 is_oauth_ready = is_drive_ready
@@ -86,10 +95,10 @@ def _host_to_container_path(host_path: str) -> str:
     single path works on both sides — with a simple prefix rewrite.
     """
     if host_path.startswith("/mnt/archie_brain/backups/"):
-        return "/backups/" + host_path[len("/mnt/archie_brain/backups/"):]
+        return "/backups/" + host_path[len("/mnt/archie_brain/backups/") :]
     if host_path.startswith("/mnt/data2/backups/"):
         # Same physical disk as /mnt/archie_brain/backups (symlink).
-        return "/backups/" + host_path[len("/mnt/data2/backups/"):]
+        return "/backups/" + host_path[len("/mnt/data2/backups/") :]
     return host_path
 
 
@@ -110,7 +119,8 @@ def upload_via_platform(local_path: str, remote_name: str) -> tuple[bool, str]:
     )
     r = subprocess.run(
         ["docker", "exec", "archie_platform", "python3", "-c", py],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     return (r.returncode == 0, (r.stdout + r.stderr).strip())
 
@@ -118,8 +128,21 @@ def upload_via_platform(local_path: str, remote_name: str) -> tuple[bool, str]:
 def encrypt(src: str, dst: str, passphrase: str) -> None:
     """AES-256-CBC + PBKDF2 encrypt src → dst."""
     subprocess.run(
-        ["openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-iter", "200000",
-         "-salt", "-in", src, "-out", dst, "-pass", f"pass:{passphrase}"],
+        [
+            "openssl",
+            "enc",
+            "-aes-256-cbc",
+            "-pbkdf2",
+            "-iter",
+            "200000",
+            "-salt",
+            "-in",
+            src,
+            "-out",
+            dst,
+            "-pass",
+            f"pass:{passphrase}",
+        ],
         check=True,
     )
 
@@ -171,9 +194,7 @@ def main() -> None:
             # a 512 MB tmpfs separate from host /tmp.
             staging_dir = "/mnt/archie_brain/backups/.gdrive_staging"
             os.makedirs(staging_dir, exist_ok=True)
-            with tempfile.NamedTemporaryFile(
-                suffix=".enc", delete=False, dir=staging_dir
-            ) as tf:
+            with tempfile.NamedTemporaryFile(suffix=".enc", delete=False, dir=staging_dir) as tf:
                 enc_path = tf.name
             up_src = enc_path
             try:

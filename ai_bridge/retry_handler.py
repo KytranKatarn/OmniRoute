@@ -64,9 +64,7 @@ class TestRetryHandler:
         """Get database connection"""
         return psycopg2.connect(**self.db_config)
 
-    def handle_test_failure(
-        self, proposal_id: int, test_results: Dict, sandbox_id: int = None
-    ) -> Dict:
+    def handle_test_failure(self, proposal_id: int, test_results: Dict, sandbox_id: int = None) -> Dict:
         """
         Handle a test failure - decide whether to retry or escalate.
 
@@ -127,9 +125,7 @@ class TestRetryHandler:
                 )
             else:
                 # Max retries exhausted - escalate to contractor
-                return self._escalate_to_contractor(
-                    cur, conn, proposal_id, proposal, failure_context
-                )
+                return self._escalate_to_contractor(cur, conn, proposal_id, proposal, failure_context)
 
         except Exception as e:
             conn.rollback()
@@ -139,9 +135,7 @@ class TestRetryHandler:
             cur.close()
             conn.close()
 
-    def _build_failure_context(
-        self, current_results: Dict, previous_context: Dict, retry_count: int
-    ) -> Dict:
+    def _build_failure_context(self, current_results: Dict, previous_context: Dict, retry_count: int) -> Dict:
         """
         Build comprehensive failure context for agent retry.
 
@@ -214,11 +208,7 @@ class TestRetryHandler:
                 test_failure_counts[name] = test_failure_counts.get(name, 0) + 1
 
         # Find tests that fail every time
-        always_failing = [
-            name
-            for name, count in test_failure_counts.items()
-            if count == len(attempts)
-        ]
+        always_failing = [name for name, count in test_failure_counts.items() if count == len(attempts)]
 
         return {
             "pattern_detected": len(always_failing) > 0,
@@ -281,9 +271,7 @@ class TestRetryHandler:
 
         conn.commit()
 
-        logger.info(
-            f"Proposal #{proposal_id}: Triggered retry {new_retry_count}/{self.MAX_RETRIES}"
-        )
+        logger.info(f"Proposal #{proposal_id}: Triggered retry {new_retry_count}/{self.MAX_RETRIES}")
 
         return {
             "action": "retry",
@@ -295,9 +283,7 @@ class TestRetryHandler:
             "agent_name": proposal.get("assigned_agent_name"),
         }
 
-    def _escalate_to_contractor(
-        self, cur, conn, proposal_id: int, proposal: Dict, failure_context: Dict
-    ) -> Dict:
+    def _escalate_to_contractor(self, cur, conn, proposal_id: int, proposal: Dict, failure_context: Dict) -> Dict:
         """
         Escalate to external contractor after max retries.
 
@@ -355,9 +341,7 @@ class TestRetryHandler:
         )
 
         # Create contractor consultation record
-        consultation_id = self._create_consultation(
-            cur, proposal_id, contractor["id"], proposal, failure_context
-        )
+        consultation_id = self._create_consultation(cur, proposal_id, contractor["id"], proposal, failure_context)
 
         # Log to chat
         self._log_chat_message(
@@ -370,9 +354,7 @@ class TestRetryHandler:
 
         conn.commit()
 
-        logger.info(
-            f"Proposal #{proposal_id}: Escalated to contractor {contractor['name']}"
-        )
+        logger.info(f"Proposal #{proposal_id}: Escalated to contractor {contractor['name']}")
 
         return {
             "action": "escalate",
@@ -424,7 +406,8 @@ class TestRetryHandler:
                 return dict(contractor)
 
         # Fallback: any available contractor
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, name, api_provider, model, personality_prompt
             FROM agents
             WHERE worker_type = 'contract'
@@ -432,7 +415,8 @@ class TestRetryHandler:
             AND api_enabled = TRUE
             ORDER BY last_used ASC NULLS FIRST
             LIMIT 1
-        """)
+        """
+        )
 
         contractor = cur.fetchone()
         return dict(contractor) if contractor else None
@@ -598,14 +582,9 @@ Focus on what the internal team overlooked. Be specific and provide implementati
                 "title": proposal["title"],
                 "retry_count": proposal["test_retry_count"] or 0,
                 "max_retries": self.MAX_RETRIES,
-                "retries_remaining": self.MAX_RETRIES
-                - (proposal["test_retry_count"] or 0),
+                "retries_remaining": self.MAX_RETRIES - (proposal["test_retry_count"] or 0),
                 "escalation_status": proposal["escalation_status"] or "none",
-                "escalated_at": (
-                    proposal["escalated_at"].isoformat()
-                    if proposal["escalated_at"]
-                    else None
-                ),
+                "escalated_at": (proposal["escalated_at"].isoformat() if proposal["escalated_at"] else None),
                 "contractor": (
                     {
                         "id": proposal["contractor_agent_id"],

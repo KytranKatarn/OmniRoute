@@ -24,6 +24,7 @@ def _get_dispatcher():
     if _dispatcher is None:
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
+
             _dispatcher = get_dispatcher()
         except Exception:
             pass
@@ -34,6 +35,7 @@ def _default_conversation_model():
     """Get conversation model from BridgeDispatcher (lazy, with fallback)."""
     try:
         from tools.department_hq.services.department_dispatcher import get_dispatcher
+
         model = get_dispatcher().get_model_for_capability("conversation")
         return model or "dolphin3-8k:latest"
     except Exception:
@@ -85,9 +87,7 @@ try:
     WORKFLOW_AVAILABLE = True
 except ImportError:
     WORKFLOW_AVAILABLE = False
-    print(
-        "[Improvement Chat] WARNING: improvement_workflow not available - using legacy propose_improvement"
-    )
+    print("[Improvement Chat] WARNING: improvement_workflow not available - using legacy propose_improvement")
 
 try:
     from agent_delegation import execute_with_delegation, get_agent_directory
@@ -364,9 +364,7 @@ def chat_about_improvements(
         "feature",
     ]
 
-    is_improvement_discussion = any(
-        kw in user_message.lower() for kw in improvement_keywords
-    )
+    is_improvement_discussion = any(kw in user_message.lower() for kw in improvement_keywords)
 
     # Build context-aware prompt
     system_prompt = """You are A.R.C.H.I.E., an AI assistant focused on self-improvement and learning.
@@ -417,9 +415,7 @@ Remember: You genuinely want to improve and serve users better!"""
     # Get AI response using delegation system (shows which employee handles the task)
     if agent_id:
         # Use specific agent if requested
-        result = execute_with_delegation(
-            task=user_message, user_id=user_id, force_agent_id=agent_id
-        )
+        result = execute_with_delegation(task=user_message, user_id=user_id, force_agent_id=agent_id)
     else:
         # Auto-select best agent for improvements discussion
         result = execute_with_delegation(
@@ -502,10 +498,7 @@ Remember: You genuinely want to improve and serve users better!"""
     # Auto-detect improvements from conversation using enhanced NLP
     intent_analysis = extract_improvement_intent(user_message)
 
-    if (
-        intent_analysis["is_improvement_request"]
-        and intent_analysis["confidence"] > 0.5
-    ):
+    if intent_analysis["is_improvement_request"] and intent_analysis["confidence"] > 0.5:
         # This is a high-confidence improvement request - auto-create proposal
         conn_temp = get_db()
         cur_temp = conn_temp.cursor(cursor_factory=RealDictCursor)
@@ -523,9 +516,7 @@ Remember: You genuinely want to improve and serve users better!"""
 """
 
         if intent_analysis["file_mentioned"]:
-            proposal_description += (
-                f"\n**File Mentioned:** `{intent_analysis['file_mentioned']}`"
-            )
+            proposal_description += f"\n**File Mentioned:** `{intent_analysis['file_mentioned']}`"
 
         # Create the proposal with knowledge context (Phase 5)
         if WORKFLOW_AVAILABLE:
@@ -546,9 +537,7 @@ Remember: You genuinely want to improve and serve users better!"""
                     "title": proposal_title,
                     "knowledge_context": workflow_result.get("knowledge_context", []),
                     "mistake_warnings": workflow_result.get("mistake_warnings", []),
-                    "context_quality_score": workflow_result.get(
-                        "context_quality_score", 0.0
-                    ),
+                    "context_quality_score": workflow_result.get("context_quality_score", 0.0),
                 }
                 print(
                     f"[Improvement Chat] Created proposal #{proposal['id']} with {len(proposal['knowledge_context'])} knowledge entries (quality: {proposal['context_quality_score']:.2f})"
@@ -594,9 +583,7 @@ Remember: You genuinely want to improve and serve users better!"""
             try:
                 from background_workflow_runner import start_workflow_background
 
-                print(
-                    f"🤖 Starting automated workflow for proposal #{proposal['id']} in background..."
-                )
+                print(f"🤖 Starting automated workflow for proposal #{proposal['id']} in background...")
 
                 # Start workflow in background thread (returns immediately)
                 workflow_start = start_workflow_background(proposal["id"])
@@ -605,9 +592,7 @@ Remember: You genuinely want to improve and serve users better!"""
                     proposal["workflow_started"] = True
                     proposal["workflow_id"] = workflow_start.get("workflow_id")
                     proposal["workflow_status"] = "running"
-                    print(
-                        f"✅ Workflow started in background: {workflow_start.get('workflow_id')}"
-                    )
+                    print(f"✅ Workflow started in background: {workflow_start.get('workflow_id')}")
                 else:
                     print(f"⚠️  Workflow start error: {workflow_start.get('error')}")
                     proposal["workflow_error"] = workflow_start.get("error")
@@ -698,14 +683,11 @@ Remember: You genuinely want to improve and serve users better!"""
         "audit_trail": result.get("audit_trail"),  # Audit reference
         # Phase 2: Enhanced NLP and auto-creation
         "intent_analysis": intent_analysis,  # NLP analysis of user intent
-        "auto_created_proposal": len(proposals_created) > 0
-        and intent_analysis["confidence"] > 0.5,
+        "auto_created_proposal": len(proposals_created) > 0 and intent_analysis["confidence"] > 0.5,
     }
 
 
-def discuss_proposal(
-    proposal_id: int, user_message: str, user_id: Optional[int] = None
-) -> Dict:
+def discuss_proposal(proposal_id: int, user_message: str, user_id: Optional[int] = None) -> Dict:
     """
     Have a focused discussion about a specific improvement proposal
 
@@ -795,10 +777,7 @@ Respond thoughtfully about this specific improvement. If they're asking question
                 json.dumps(
                     {
                         "last_discussion": datetime.now().isoformat(),
-                        "discussion_count": proposal.get("metadata", {}).get(
-                            "discussion_count", 0
-                        )
-                        + 1,
+                        "discussion_count": proposal.get("metadata", {}).get("discussion_count", 0) + 1,
                     }
                 ),
                 proposal_id,
@@ -827,9 +806,7 @@ Respond thoughtfully about this specific improvement. If they're asking question
             pass
 
 
-def self_reflection_chat(
-    topic: Optional[str] = None, user_id: Optional[int] = None
-) -> Dict:
+def self_reflection_chat(topic: Optional[str] = None, user_id: Optional[int] = None) -> Dict:
     """
     A.R.C.H.I.E. reflects on her own performance and suggests improvements
 

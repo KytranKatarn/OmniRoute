@@ -26,6 +26,7 @@ Exits 0 clean, 1 with actionable error output.
 
 Hook: .pre-commit-config.yaml (runs on changed Python files at commit time).
 """
+
 from __future__ import annotations
 
 import re
@@ -138,14 +139,17 @@ def scan_file(path: Path) -> list[str]:
         if UTC_LABEL_RE.search(line) and not line_is_excluded(line):
             # Allow strings that are clearly DB queries / log filters / tests
             ls = line.strip().lower()
-            if any(t in ls for t in (
-                "show timezone",
-                "set timezone",
-                "at time zone",
-                "set time zone",
-                "select",
-                "logger",
-            )):
+            if any(
+                t in ls
+                for t in (
+                    "show timezone",
+                    "set timezone",
+                    "at time zone",
+                    "set time zone",
+                    "select",
+                    "logger",
+                )
+            ):
                 continue
             violations.append(
                 f"{path}:{ln_no}: literal 'UTC' label in a user-facing string. "
@@ -176,8 +180,7 @@ def main(argv: list[str]) -> int:
             print(v, file=sys.stderr)
         print("=" * 60, file=sys.stderr)
         print(
-            "See .claude/rules/timezone.md for the convention.\n"
-            "Storage = UTC. Display = EDT.",
+            "See .claude/rules/timezone.md for the convention.\n" "Storage = UTC. Display = EDT.",
             file=sys.stderr,
         )
         return 1

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate agent portraits — run from host or inside Docker."""
+
 import sys
 
 sys.path.insert(0, "/mnt/archie_brain")

@@ -36,9 +36,7 @@ def _get_session_cookies(base_url="http://192.168.1.200:3000"):
 
     password = os.getenv("ARCHIE_TEST_PASSWORD") or os.getenv("PROBE_TEST_PASS")
     if not password:
-        raise RuntimeError(
-            "Set ARCHIE_TEST_PASSWORD (or PROBE_TEST_PASS) — no test password is hardcoded."
-        )
+        raise RuntimeError("Set ARCHIE_TEST_PASSWORD (or PROBE_TEST_PASS) — no test password is hardcoded.")
     cj = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
     opener.open(
@@ -75,8 +73,18 @@ BASE = "http://192.168.1.200:3000"
 MEDIA_BASE = f"{BASE}/tools/media-studio/api/portraits"
 
 
-def onboard(agent_id, name, display_name, department, model, worker_type="ai",
-            system_prompt=None, skills=None, portrait_prompt=None, escalate_to=None):
+def onboard(
+    agent_id,
+    name,
+    display_name,
+    department,
+    model,
+    worker_type="ai",
+    system_prompt=None,
+    skills=None,
+    portrait_prompt=None,
+    escalate_to=None,
+):
     """
     Full agent onboarding flow:
       1. Update agent profile via agent_service
@@ -130,12 +138,17 @@ def onboard(agent_id, name, display_name, department, model, worker_type="ai",
 
         _, opener = _get_session_cookies(BASE)
         result, status = _api(
-            opener, "PUT", f"{MEDIA_BASE}/{agent_id}/identity-prompt",
+            opener,
+            "PUT",
+            f"{MEDIA_BASE}/{agent_id}/identity-prompt",
             {"identity_prompt": portrait_prompt},
         )
         result, status = _api(
-            opener, "POST", f"{MEDIA_BASE}/{agent_id}/generate-canonical",
-            {"prompt": portrait_prompt}, timeout=300,
+            opener,
+            "POST",
+            f"{MEDIA_BASE}/{agent_id}/generate-canonical",
+            {"prompt": portrait_prompt},
+            timeout=300,
         )
         if status in (200, 201):
             queue_id = result.get("queue_id")
@@ -149,8 +162,10 @@ def onboard(agent_id, name, display_name, department, model, worker_type="ai",
         cur.execute("SELECT name, status, shift_state, avatar_url FROM agents WHERE id = %s", (agent_id,))
         row = dict(cur.fetchone())
     synced = row["status"] == "active" and row["shift_state"] == "active"
-    print(f"  Status sync: {'OK' if synced else 'MISMATCH'} "
-          f"(status={row['status']}, shift_state={row['shift_state']})")
+    print(
+        f"  Status sync: {'OK' if synced else 'MISMATCH'} "
+        f"(status={row['status']}, shift_state={row['shift_state']})"
+    )
     print(f"  Avatar URL: {row['avatar_url'] or 'NOT SET — approve portrait first'}")
     print(f"[Onboard] Complete ✓")
 
@@ -179,9 +194,7 @@ def approve_portrait(agent_id, media_id):
     """
     print(f"\n[Portrait] Approve media_id={media_id} for agent #{agent_id}")
     _, opener = _get_session_cookies(BASE)
-    result, status = _api(
-        opener, "POST", f"{MEDIA_BASE}/{agent_id}/approve", {"media_id": media_id}
-    )
+    result, status = _api(opener, "POST", f"{MEDIA_BASE}/{agent_id}/approve", {"media_id": media_id})
     if status == 200:
         print(f"  Approved: {result.get('status')}")
         print(f"  Thumbnail: {result.get('website_thumb')}")
@@ -199,7 +212,8 @@ def audit():
 
     print("\n[Audit] Agent portrait + status completeness\n")
     with get_db_cursor() as (conn, cur):
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.id, a.name, a.worker_type, a.shift_state, a.status,
                    a.avatar_url,
                    ap.approved, ap.canonical_image_path
@@ -207,7 +221,8 @@ def audit():
             LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
             WHERE a.shift_state != 'decommissioned'
             ORDER BY a.worker_type, a.department, a.name
-        """)
+        """
+        )
         rows = [dict(r) for r in cur.fetchall()]
 
     issues = []
@@ -287,8 +302,12 @@ if __name__ == "__main__":
 
     if args.cmd == "onboard":
         onboard(
-            args.id, args.name, args.display_name or args.name,
-            args.department, args.model, args.worker_type,
+            args.id,
+            args.name,
+            args.display_name or args.name,
+            args.department,
+            args.model,
+            args.worker_type,
             portrait_prompt=args.portrait_prompt,
         )
     elif args.cmd == "offboard":

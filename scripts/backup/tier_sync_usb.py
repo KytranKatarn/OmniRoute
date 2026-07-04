@@ -13,6 +13,7 @@ Writes one row per component to backup_log with tier='usb'.
 Spec: docs/superpowers/specs/2026-04-16-backup-system-design.md
 Plan: docs/superpowers/plans/2026-04-16-backup-system-redesign.md Task 14
 """
+
 import os
 import subprocess
 import sys
@@ -73,7 +74,8 @@ def sync_component(component: str, src: Path, target_run: str) -> tuple[bool, in
     # Ensure target dir exists inside container.
     mkdir = subprocess.run(
         ["docker", "exec", "archie_platform", "mkdir", "-p", target_inside_container],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     if mkdir.returncode != 0:
         return (False, 0, int((time.time() - start) * 1000), mkdir.stderr[:500])
@@ -86,8 +88,18 @@ def sync_component(component: str, src: Path, target_run: str) -> tuple[bool, in
     # On the receiving side, extract into the target with --strip-components=1
     # so we don't re-create the outer <component>/ wrapper.
     tar_dst = subprocess.Popen(
-        ["docker", "exec", "-i", "archie_platform",
-         "tar", "-C", target_inside_container, "--strip-components=1", "-xf", "-"],
+        [
+            "docker",
+            "exec",
+            "-i",
+            "archie_platform",
+            "tar",
+            "-C",
+            target_inside_container,
+            "--strip-components=1",
+            "-xf",
+            "-",
+        ],
         stdin=tar_src.stdout,
         stderr=subprocess.PIPE,
     )

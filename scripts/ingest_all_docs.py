@@ -213,9 +213,7 @@ def ingest_file(conn, file_path):
         chunks = chunk_content(content, filename)
 
         print(f"  📄 {filename}")
-        print(
-            f"      Category: {category} | Tags: {len(all_tags)} | Importance: {importance:.2f}"
-        )
+        print(f"      Category: {category} | Tags: {len(all_tags)} | Importance: {importance:.2f}")
         print(f"      Chunks: {len(chunks)} | Size: {file_size} bytes")
 
         # Insert each chunk
@@ -325,14 +323,16 @@ def main():
     # Show tag summary
     print("📊 Generating tag summary...")
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT unnest(tags) as tag, COUNT(*) as count
         FROM long_term_memory
         WHERE metadata->>'source' = 'documentation_ingestion'
         GROUP BY tag
         ORDER BY count DESC
         LIMIT 20
-    """)
+    """
+    )
 
     print()
     print("Top Tags Created:")

@@ -170,7 +170,11 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
 
         dispatcher = get_dispatcher()
         dispatch_result = dispatcher.request_work(
-            "classify", prompt, "emotional_intelligence", json_mode=True, timeout=10,
+            "classify",
+            prompt,
+            "emotional_intelligence",
+            json_mode=True,
+            timeout=10,
             prefer_agent="I.R.I.S.",
         )
 
@@ -211,18 +215,10 @@ def _regex_sentiment(text: str) -> Dict[str, any]:
     """Fast regex-based sentiment analysis (original implementation)."""
     text_lower = text.lower()
 
-    positive_count = sum(
-        1 for indicator in POSITIVE_INDICATORS if indicator in text_lower
-    )
-    negative_count = sum(
-        1 for indicator in NEGATIVE_INDICATORS if indicator in text_lower
-    )
-    uncertainty_count = sum(
-        1 for indicator in UNCERTAINTY_INDICATORS if indicator in text_lower
-    )
-    curiosity_count = sum(
-        1 for indicator in CURIOSITY_INDICATORS if indicator in text_lower
-    )
+    positive_count = sum(1 for indicator in POSITIVE_INDICATORS if indicator in text_lower)
+    negative_count = sum(1 for indicator in NEGATIVE_INDICATORS if indicator in text_lower)
+    uncertainty_count = sum(1 for indicator in UNCERTAINTY_INDICATORS if indicator in text_lower)
+    curiosity_count = sum(1 for indicator in CURIOSITY_INDICATORS if indicator in text_lower)
 
     total_signals = positive_count + negative_count
     if total_signals == 0:
@@ -409,12 +405,8 @@ def generate_personality_traits(interaction_history: List[Dict]) -> Dict[str, an
         }
 
     # Calculate traits from history
-    positive_interactions = sum(
-        1 for i in interaction_history if i.get("sentiment") == "positive"
-    )
-    negative_interactions = sum(
-        1 for i in interaction_history if i.get("sentiment") == "negative"
-    )
+    positive_interactions = sum(1 for i in interaction_history if i.get("sentiment") == "positive")
+    negative_interactions = sum(1 for i in interaction_history if i.get("sentiment") == "negative")
     total = len(interaction_history)
 
     # Confidence grows with positive feedback
@@ -428,9 +420,7 @@ def generate_personality_traits(interaction_history: List[Dict]) -> Dict[str, an
 
     # Empathy based on recognizing user emotions
     empathy_interactions = sum(
-        1
-        for i in interaction_history
-        if i.get("user_emotion") in ["frustrated", "confused", "curious"]
+        1 for i in interaction_history if i.get("user_emotion") in ["frustrated", "confused", "curious"]
     )
     empathy = min((empathy_interactions / max(total, 1)) + 0.5, 1.0)
 
@@ -467,9 +457,7 @@ def generate_personality_traits(interaction_history: List[Dict]) -> Dict[str, an
     }
 
 
-def should_ask_for_clarification(
-    user_message: str, confidence: float
-) -> Tuple[bool, str]:
+def should_ask_for_clarification(user_message: str, confidence: float) -> Tuple[bool, str]:
     """
     Determine if A.R.C.H.I.E. should ask for clarification
 
@@ -602,16 +590,12 @@ def analyze_code_interaction(user_message: str, ai_response: str) -> Dict[str, a
 
     # Learning opportunity
     learning_opportunity = any(
-        word in combined
-        for word in ["better way", "alternative", "optimize", "improve", "suggestion"]
+        word in combined for word in ["better way", "alternative", "optimize", "improve", "suggestion"]
     )
 
     # Complexity level
     complexity_level = "beginner"
-    if any(
-        word in combined
-        for word in ["algorithm", "optimization", "architecture", "design pattern"]
-    ):
+    if any(word in combined for word in ["algorithm", "optimization", "architecture", "design pattern"]):
         complexity_level = "advanced"
     elif any(word in combined for word in ["function", "class", "method", "api"]):
         complexity_level = "intermediate"
@@ -643,9 +627,7 @@ if __name__ == "__main__":
     print("Sentiment:", sentiment)
 
     # Test trust impact
-    trust = analyze_trust_impact(
-        "Perfect! This solution works great. Thank you!", "I'm glad I could help!"
-    )
+    trust = analyze_trust_impact("Perfect! This solution works great. Thank you!", "I'm glad I could help!")
     print("Trust Impact:", trust)
 
     # Test personality generation

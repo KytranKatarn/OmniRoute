@@ -1,4 +1,5 @@
 """Controlled test for AI remediation plan generation."""
+
 import sys
 import time
 
@@ -31,6 +32,7 @@ print("STAGE 2: Clear dispatcher agent cache")
 print("=" * 60)
 try:
     from ai_bridge.bridge_dispatcher import get_dispatcher
+
     d = get_dispatcher()
     for attr in ("_agent_cache", "agent_cache", "_cached_agents"):
         if hasattr(d, attr):
@@ -46,9 +48,7 @@ print("=" * 60)
 from tools.security_network import compliance_service
 
 t0 = time.time()
-res = compliance_service.generate_remediation_plan(
-    "7d4ccdf3-a948-41a4-8fb7-31beaae4f101", "D-238013", user_id=2
-)
+res = compliance_service.generate_remediation_plan("7d4ccdf3-a948-41a4-8fb7-31beaae4f101", "D-238013", user_id=2)
 elapsed = round(time.time() - t0, 1)
 
 print(f"elapsed: {elapsed}s")

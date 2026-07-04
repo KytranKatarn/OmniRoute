@@ -138,9 +138,7 @@ class RelationshipMapper:
                 except Exception:
                     pass
 
-            logger.debug(
-                f"Created relationship: {from_id} --[{relationship_type}]--> {to_id}"
-            )
+            logger.debug(f"Created relationship: {from_id} --[{relationship_type}]--> {to_id}")
             return result[0] if result else None
 
         except Exception as e:
@@ -371,29 +369,31 @@ class RelationshipMapper:
                 total = cur.fetchone()["total"]
 
                 # Relationships by type
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT relationship_type, COUNT(*) as count
                     FROM knowledge_relationships
                     GROUP BY relationship_type
                     ORDER BY count DESC
-                    """)
+                    """
+                )
                 by_type = {row["relationship_type"]: row["count"] for row in cur.fetchall()}
 
                 # Average strength
-                cur.execute(
-                    "SELECT AVG(strength) as avg_strength FROM knowledge_relationships"
-                )
+                cur.execute("SELECT AVG(strength) as avg_strength FROM knowledge_relationships")
                 avg_strength = cur.fetchone()["avg_strength"]
 
                 # Entries with relationships
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT COUNT(DISTINCT id) as connected
                     FROM (
                         SELECT from_id as id FROM knowledge_relationships
                         UNION
                         SELECT to_id as id FROM knowledge_relationships
                     ) t
-                    """)
+                    """
+                )
                 connected = cur.fetchone()["connected"]
 
                 # Total entries
@@ -415,11 +415,7 @@ class RelationshipMapper:
                 "average_strength": round(float(avg_strength or 0), 3),
                 "connected_entries": connected,
                 "total_entries": total_entries,
-                "connectivity_percent": (
-                    round(connected / total_entries * 100, 1)
-                    if total_entries > 0
-                    else 0
-                ),
+                "connectivity_percent": (round(connected / total_entries * 100, 1) if total_entries > 0 else 0),
             }
 
         except Exception as e:

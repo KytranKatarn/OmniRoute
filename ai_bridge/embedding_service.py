@@ -198,14 +198,14 @@ class EmbeddingService:
                 response = requests.post(
                     f"{_host}/api/embed",
                     json={
-                    "model": self.model,
-                    "input": text,
-                    "keep_alive": "35m",
-                    # Force CPU: on GPU nodes (hub) Ollama otherwise tries to
-                    # load the embedder on the full 8GB GPU and times out. CPU
-                    # keeps it in RAM beside the GPU chat models (#3525).
-                    "options": {"num_gpu": 0},
-                },
+                        "model": self.model,
+                        "input": text,
+                        "keep_alive": "35m",
+                        # Force CPU: on GPU nodes (hub) Ollama otherwise tries to
+                        # load the embedder on the full 8GB GPU and times out. CPU
+                        # keeps it in RAM beside the GPU chat models (#3525).
+                        "options": {"num_gpu": 0},
+                    },
                     timeout=REQUEST_TIMEOUT,
                 )
                 response.raise_for_status()
@@ -219,17 +219,12 @@ class EmbeddingService:
                 embedding = embeddings[0]
                 if len(embedding) != EMBEDDING_DIMENSIONS:
                     logger.warning(
-                        f"Unexpected embedding dimensions: {len(embedding)} "
-                        f"(expected {EMBEDDING_DIMENSIONS})"
+                        f"Unexpected embedding dimensions: {len(embedding)} " f"(expected {EMBEDDING_DIMENSIONS})"
                     )
                 if _idx > 0:
-                    logger.info(
-                        f"embedding: failed over to {_host} (attempt {_idx + 1}/{len(hosts)})"
-                    )
+                    logger.info(f"embedding: failed over to {_host} (attempt {_idx + 1}/{len(hosts)})")
                 token_count = len(text.split())
-                return EmbeddingResult(
-                    embedding=embedding, model=self.model, token_count=token_count
-                )
+                return EmbeddingResult(embedding=embedding, model=self.model, token_count=token_count)
 
             except requests.exceptions.Timeout:
                 last_err = f"timeout >{REQUEST_TIMEOUT}s @ {_host}"
@@ -241,9 +236,7 @@ class EmbeddingService:
         logger.error(f"Embedding failed on all {len(hosts)} endpoint(s): {last_err}")
         return None
 
-    def generate_batch(
-        self, texts: list[str], skip_empty: bool = True
-    ) -> list[Optional[EmbeddingResult]]:
+    def generate_batch(self, texts: list[str], skip_empty: bool = True) -> list[Optional[EmbeddingResult]]:
         """
         Generate embeddings for multiple texts.
 

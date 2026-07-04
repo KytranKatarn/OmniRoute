@@ -17,6 +17,7 @@ import os
 # Apply XTTS compatibility patches BEFORE any TTS/torch imports
 # Fixes: torch.load weights_only default (torch>=2.6) + BeamSearchScorer removal (transformers>=4.45)
 from xtts_compat import apply_patches as _apply_xtts_patches
+
 _apply_xtts_patches()
 
 from db import _get_db_password
@@ -135,11 +136,7 @@ class PhonemeExtractor:
                             "word": word.text,
                             "phonemes": phonemes,
                             "ipa": "".join(phonemes),
-                            "is_punctuation": (
-                                word.is_punctuation
-                                if hasattr(word, "is_punctuation")
-                                else False
-                            ),
+                            "is_punctuation": (word.is_punctuation if hasattr(word, "is_punctuation") else False),
                         }
                     )
         return words
@@ -244,9 +241,7 @@ class KokoroEngine:
         if self._available is None:
             self._available = self.check_available()
         if not self._available:
-            raise ImportError(
-                "Kokoro package not installed. Run: pip install kokoro>=0.9.4"
-            )
+            raise ImportError("Kokoro package not installed. Run: pip install kokoro>=0.9.4")
 
         lang = "b" if (voice or "").startswith("b") else "a"
         if lang not in self._pipelines:
@@ -269,9 +264,7 @@ class KokoroEngine:
 
         if voice_blend:
             # Strip weight annotations: "af_bella:60,am_adam:40" -> "af_bella,am_adam"
-            parts = [
-                v.split(":")[0].strip() for v in voice_blend.split(",") if v.strip()
-            ]
+            parts = [v.split(":")[0].strip() for v in voice_blend.split(",") if v.strip()]
             voice = ",".join(parts) if parts else voice or self.DEFAULT_VOICE
         else:
             voice = voice or self.DEFAULT_VOICE
@@ -398,14 +391,10 @@ class VoiceSynthesizer:
                         free_mem = props.total_mem - torch.cuda.memory_allocated(0)
                         if free_mem > 1_000_000_000:  # >1GB free VRAM
                             device = "cuda"
-                            print(
-                                f"[VoiceDNA] GPU detected: {props.name}, {free_mem / 1e9:.1f}GB free → using CUDA"
-                            )
+                            print(f"[VoiceDNA] GPU detected: {props.name}, {free_mem / 1e9:.1f}GB free → using CUDA")
                         else:
                             device = "cpu"
-                            print(
-                                f"[VoiceDNA] GPU low VRAM ({free_mem / 1e9:.1f}GB free) → using CPU"
-                            )
+                            print(f"[VoiceDNA] GPU low VRAM ({free_mem / 1e9:.1f}GB free) → using CPU")
                     else:
                         device = "cpu"
                         print("[VoiceDNA] No CUDA GPU available → using CPU")
@@ -515,14 +504,10 @@ class VoiceSynthesizer:
                 speaker = self._select_speaker()
                 import tempfile
 
-                with tempfile.NamedTemporaryFile(
-                    suffix=".wav", delete=False
-                ) as temp_file:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                     temp_path = temp_file.name
 
-                quality_kwargs = self.QUALITY_PRESETS.get(
-                    quality, self.QUALITY_PRESETS["standard"]
-                )
+                quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS["standard"])
                 self.tts.tts_to_file(
                     text=text,
                     speaker=speaker,
@@ -589,22 +574,14 @@ class VoiceSynthesizer:
                 return fallback
 
         # Use first available
-        return (
-            self._available_speakers[0]
-            if self._available_speakers
-            else self.DEFAULT_SPEAKER
-        )
+        return self._available_speakers[0] if self._available_speakers else self.DEFAULT_SPEAKER
 
-    def _get_cache_key(
-        self, text: str, emotion: str, engine: str = "kokoro", language: str = "en"
-    ) -> str:
+    def _get_cache_key(self, text: str, emotion: str, engine: str = "kokoro", language: str = "en") -> str:
         """Generate cache key from text, emotion, engine, and language.
         Text is lowercased to ensure pregen cache hits match runtime synthesis."""
         normalized = text.lower().strip()
         if engine == "kokoro":
-            content = (
-                f"kokoro|{language}|{normalized}|{emotion}|{KokoroEngine.DEFAULT_VOICE}"
-            )
+            content = f"kokoro|{language}|{normalized}|{emotion}|{KokoroEngine.DEFAULT_VOICE}"
         else:
             speaker = self._select_speaker()
             content = f"xtts_v2|{language}|{normalized}|{emotion}|{speaker}"
@@ -639,11 +616,7 @@ class VoiceSynthesizer:
                     cached = result[0]
                     # If it's bytes (bytea), decode to string
                     if isinstance(cached, (bytes, memoryview)):
-                        return (
-                            cached.decode("utf-8")
-                            if isinstance(cached, bytes)
-                            else bytes(cached).decode("utf-8")
-                        )
+                        return cached.decode("utf-8") if isinstance(cached, bytes) else bytes(cached).decode("utf-8")
                     return cached
                 return None
             finally:
@@ -821,9 +794,7 @@ class VoiceSynthesizer:
             print(f"[VoiceDNA] Emotional state error: {e}")
             return "neutral"
 
-    def _map_mood_to_emotion(
-        self, mood: str, intensity: float, relationship: float
-    ) -> str:
+    def _map_mood_to_emotion(self, mood: str, intensity: float, relationship: float) -> str:
         """
         Map ARCHIE's mood/intensity/relationship to voice emotion.
 
@@ -878,11 +849,7 @@ class VoiceSynthesizer:
                 },
             },
             "default_engine": "kokoro",
-            "speaker": (
-                self._select_speaker()
-                if self._available_speakers
-                else self.DEFAULT_SPEAKER
-            ),
+            "speaker": (self._select_speaker() if self._available_speakers else self.DEFAULT_SPEAKER),
             "available_speakers": len(self._available_speakers),
             "supported_emotions": list(self.EMOTION_VOICE_MAP.keys()),
         }
@@ -918,9 +885,7 @@ class VoiceSynthesizer:
 
         params = self.EMOTION_VOICE_MAP.get(emotion, self.EMOTION_VOICE_MAP["neutral"])
         speaker = self._select_speaker()
-        quality_kwargs = self.QUALITY_PRESETS.get(
-            quality, self.QUALITY_PRESETS["standard"]
-        )
+        quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS["standard"])
 
         try:
             import tempfile
@@ -1022,9 +987,7 @@ class VoiceSynthesizer:
         try:
             extractor = get_phoneme_extractor()
             word_hash = extractor.get_word_hash(word, emotion)
-            params = self.EMOTION_VOICE_MAP.get(
-                emotion, self.EMOTION_VOICE_MAP["neutral"]
-            )
+            params = self.EMOTION_VOICE_MAP.get(emotion, self.EMOTION_VOICE_MAP["neutral"])
 
             conn = self._get_db()
             try:
@@ -1179,9 +1142,7 @@ class VoiceSynthesizer:
 
                     # Cache the word with phonemes
                     gen_time = int((time.time() - start_time) * 100)  # Approximate
-                    self._save_word_to_cache(
-                        word, phonemes, emotion, word_audio, gen_time
-                    )
+                    self._save_word_to_cache(word, phonemes, emotion, word_audio, gen_time)
 
                     # Record phonemes in library
                     self._save_phonemes_to_library(phonemes, emotion)
@@ -1261,11 +1222,7 @@ class VoiceSynthesizer:
             try:
                 with wave.open(seg_io, "rb") as seg_wav:
                     # Add small silence gap between words (0.05 seconds)
-                    gap_frames = (
-                        int(params.framerate * 0.05)
-                        * params.nchannels
-                        * params.sampwidth
-                    )
+                    gap_frames = int(params.framerate * 0.05) * params.nchannels * params.sampwidth
                     all_frames += b"\x00" * gap_frames
                     all_frames += seg_wav.readframes(seg_wav.getnframes())
             except Exception as e:
@@ -1429,9 +1386,7 @@ class VoiceSynthesizer:
         try:
             if engine == "kokoro":
                 kokoro = self._get_kokoro()
-                audio_bytes = kokoro.synthesize_to_wav(
-                    text, voice=speaker, speed=speed, voice_blend=voice_blend
-                )
+                audio_bytes = kokoro.synthesize_to_wav(text, voice=speaker, speed=speed, voice_blend=voice_blend)
                 audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
             else:
                 # XTTS v2 path
@@ -1449,14 +1404,10 @@ class VoiceSynthesizer:
 
                 import tempfile
 
-                with tempfile.NamedTemporaryFile(
-                    suffix=".wav", delete=False
-                ) as temp_file:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                     temp_path = temp_file.name
 
-                quality_kwargs = self.QUALITY_PRESETS.get(
-                    quality, self.QUALITY_PRESETS["standard"]
-                )
+                quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS["standard"])
                 self.tts.tts_to_file(
                     text=text,
                     speaker=speaker,
@@ -1536,9 +1487,7 @@ class VoiceSynthesizer:
             voice_blend = None
             if language is None:
                 language = "en"
-            base_params = self.EMOTION_VOICE_MAP.get(
-                emotion, self.EMOTION_VOICE_MAP["neutral"]
-            )
+            base_params = self.EMOTION_VOICE_MAP.get(emotion, self.EMOTION_VOICE_MAP["neutral"])
 
         # Kokoro is English-only; auto-route non-English to XTTS v2
         if language != "en" and engine == "kokoro":
@@ -1552,9 +1501,7 @@ class VoiceSynthesizer:
             text = text[:500]
 
         # Check agent-specific cache (engine+language-scoped)
-        cache_key = self._get_agent_cache_key(
-            text, emotion, agent_id, engine=engine, language=language
-        )
+        cache_key = self._get_agent_cache_key(text, emotion, agent_id, engine=engine, language=language)
         cached_audio = self._check_agent_cache(cache_key, agent_id)
         if cached_audio:
             self._log_generation(
@@ -1594,14 +1541,10 @@ class VoiceSynthesizer:
 
                 import tempfile
 
-                with tempfile.NamedTemporaryFile(
-                    suffix=".wav", delete=False
-                ) as temp_file:
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
                     temp_path = temp_file.name
 
-                quality_kwargs = self.QUALITY_PRESETS.get(
-                    quality, self.QUALITY_PRESETS["standard"]
-                )
+                quality_kwargs = self.QUALITY_PRESETS.get(quality, self.QUALITY_PRESETS["standard"])
                 self.tts.tts_to_file(
                     text=text,
                     speaker=speaker,
@@ -1779,11 +1722,7 @@ class VoiceSynthesizer:
                 if result and result[0]:
                     cached = result[0]
                     if isinstance(cached, (bytes, memoryview)):
-                        return (
-                            cached.decode("utf-8")
-                            if isinstance(cached, bytes)
-                            else bytes(cached).decode("utf-8")
-                        )
+                        return cached.decode("utf-8") if isinstance(cached, bytes) else bytes(cached).decode("utf-8")
                     return cached
                 return None
             finally:

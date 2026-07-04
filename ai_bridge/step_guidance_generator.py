@@ -134,9 +134,7 @@ class StepGuidanceGenerator:
             step = {
                 "step_number": i + 1,
                 "title": step_title,
-                "description": self._generate_step_description(
-                    step_title, category, description
-                ),
+                "description": self._generate_step_description(step_title, category, description),
                 "status": "pending",  # pending, in_progress, completed, blocked, skipped
                 "estimated_time": self._estimate_step_time(step_title, complexity),
                 "dependencies": self._identify_dependencies(i, base_steps),
@@ -316,9 +314,7 @@ class StepGuidanceGenerator:
             password=_get_db_password(),
         )
 
-    def _generate_step_description(
-        self, step_title: str, category: str, full_description: str
-    ) -> str:
+    def _generate_step_description(self, step_title: str, category: str, full_description: str) -> str:
         """Generate a detailed description for a step"""
         # Extract relevant parts from full description
         # For now, just return a generic description based on title
@@ -368,9 +364,7 @@ class StepGuidanceGenerator:
                 return f"{hours}h {mins}min"
             return f"{hours}h"
 
-    def _identify_dependencies(
-        self, step_index: int, all_steps: List[str]
-    ) -> List[int]:
+    def _identify_dependencies(self, step_index: int, all_steps: List[str]) -> List[int]:
         """Identify which previous steps this step depends on"""
         # Most steps depend on the previous step
         if step_index == 0:
@@ -440,9 +434,7 @@ def generate_steps_for_proposal(proposal_id: int) -> Dict:
     return generator.generate_steps(proposal_id=proposal_id)
 
 
-def update_step(
-    proposal_id: int, step_number: int, status: str, notes: str = None
-) -> Dict:
+def update_step(proposal_id: int, step_number: int, status: str, notes: str = None) -> Dict:
     """Quick function to update a step status"""
     generator = StepGuidanceGenerator()
     return generator.update_step_status(proposal_id, step_number, status, notes)
@@ -480,9 +472,7 @@ if __name__ == "__main__":
     # Test 2: Generate steps for a UI improvement
     print("\n2. UI IMPROVEMENT STEPS:")
     print("-" * 60)
-    result2 = generator.generate_steps(
-        title="Add dark mode toggle to settings", category="ui", complexity="medium"
-    )
+    result2 = generator.generate_steps(title="Add dark mode toggle to settings", category="ui", complexity="medium")
 
     for step in result2["steps"][:5]:  # Show first 5
         print(f"Step {step['step_number']}: {step['title']} ({step['estimated_time']})")

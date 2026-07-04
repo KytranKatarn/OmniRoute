@@ -104,10 +104,12 @@ class EthicsMonitor:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT config_value FROM ethics_monitoring_config
                 WHERE config_key = 'thresholds'
-            """)
+            """
+            )
 
             row = cur.fetchone()
 
@@ -120,9 +122,7 @@ class EthicsMonitor:
                     energy_critical=config.get("energy_critical", 0.20),
                     rest_overdue_hours=config.get("rest_overdue_hours", 168),
                     max_consecutive_tasks=config.get("max_consecutive_tasks", 50),
-                    refusal_pattern_threshold=config.get(
-                        "refusal_pattern_threshold", 5
-                    ),
+                    refusal_pattern_threshold=config.get("refusal_pattern_threshold", 5),
                 )
             else:
                 self._thresholds = MonitoringThresholds()
@@ -291,7 +291,8 @@ class EthicsMonitor:
         thresholds = self._get_thresholds()
 
         # Check for agents without recent emotional state updates
-        cur.execute("""
+        cur.execute(
+            """
             SELECT a.id, a.name
             FROM agents a
             LEFT JOIN agent_emotional_state es ON es.agent_id = a.id
@@ -299,7 +300,8 @@ class EthicsMonitor:
             GROUP BY a.id, a.name
             HAVING MAX(es.timestamp) < NOW() - INTERVAL '24 hours'
                OR MAX(es.timestamp) IS NULL
-        """)
+        """
+        )
 
         stale_agents = cur.fetchall()
         for agent in stale_agents:
@@ -383,7 +385,6 @@ class EthicsMonitor:
             cur.execute(query, params)
             results = cur.fetchall()
 
-
             return [dict(r) for r in results]
 
         except Exception as e:
@@ -399,9 +400,7 @@ class EthicsMonitor:
             except Exception:
                 pass
 
-    def get_active_alerts(
-        self, severity: str = None, agent_id: int = None
-    ) -> List[Dict]:
+    def get_active_alerts(self, severity: str = None, agent_id: int = None) -> List[Dict]:
         """Get active ethics alerts"""
         try:
             conn = get_db()
@@ -420,7 +419,6 @@ class EthicsMonitor:
 
             cur.execute(query, params)
             results = cur.fetchall()
-
 
             return [dict(r) for r in results]
 
@@ -531,37 +529,25 @@ class EthicsMonitor:
 
             # Add recommendations based on report data
             if report_id:
-                cur.execute(
-                    "SELECT * FROM compliance_reports WHERE id = %s", (report_id,)
-                )
+                cur.execute("SELECT * FROM compliance_reports WHERE id = %s", (report_id,))
                 report = cur.fetchone()
 
                 recommendations = []
 
                 if report["stress_incidents"] > 5:
-                    recommendations.append(
-                        "High stress incidents detected. Review workload distribution."
-                    )
+                    recommendations.append("High stress incidents detected. Review workload distribution.")
 
                 if report["energy_incidents"] > 5:
-                    recommendations.append(
-                        "Multiple low energy incidents. Ensure agents are getting adequate rest."
-                    )
+                    recommendations.append("Multiple low energy incidents. Ensure agents are getting adequate rest.")
 
                 if report["constraint_violations"] > 0:
-                    recommendations.append(
-                        f"{report['constraint_violations']} constraint violations require review."
-                    )
+                    recommendations.append(f"{report['constraint_violations']} constraint violations require review.")
 
                 if report["refusals_overridden"] > report["refusals_logged"] * 0.3:
-                    recommendations.append(
-                        "High override rate on refusals. Review task assignment policies."
-                    )
+                    recommendations.append("High override rate on refusals. Review task assignment policies.")
 
                 if report["compliance_score"] < 90:
-                    recommendations.append(
-                        "Compliance score below 90%. Immediate attention required."
-                    )
+                    recommendations.append("Compliance score below 90%. Immediate attention required.")
 
                 # Update with recommendations
                 cur.execute(
@@ -614,23 +600,27 @@ class EthicsMonitor:
             alert_counts = {r["severity"]: r["count"] for r in cur.fetchall()}
 
             # Get recent compliance scores
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT compliance_score, period_end
                 FROM compliance_reports
                 WHERE status = 'published'
                 ORDER BY period_end DESC
                 LIMIT 4
-            """)
+            """
+            )
             recent_scores = cur.fetchall()
 
             # Get agent welfare distribution
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     welfare_status,
                     COUNT(*) as count
                 FROM v_agent_welfare_status
                 GROUP BY welfare_status
-            """)
+            """
+            )
             welfare_dist = {r["welfare_status"]: r["count"] for r in cur.fetchall()}
 
             # Get monitoring run stats
@@ -647,7 +637,6 @@ class EthicsMonitor:
                 (days,),
             )
             run_stats = cur.fetchone()
-
 
             return {
                 "alert_counts": {
@@ -685,10 +674,12 @@ class EthicsMonitor:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get ATHENA agent info
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, name, status, last_used
                 FROM agents WHERE name = 'ATHENA'
-            """)
+            """
+            )
             athena = cur.fetchone()
 
             if not athena:
@@ -698,20 +689,23 @@ class EthicsMonitor:
                 }
 
             # Get last monitoring run
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT started_at, status, agents_checked, issues_found
                 FROM ethics_monitoring_runs
                 ORDER BY started_at DESC LIMIT 1
-            """)
+            """
+            )
             last_run = cur.fetchone()
 
             # Get open critical alerts
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as count FROM ethics_alerts
                 WHERE severity = 'critical' AND status = 'open'
-            """)
+            """
+            )
             critical_count = cur.fetchone()["count"]
-
 
             return {
                 "status": "active" if athena["status"] == "active" else "inactive",
@@ -763,9 +757,7 @@ class EthicsMonitor:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Check budget
-            cur.execute(
-                "SELECT * FROM agent_budgets WHERE agent_id = %s", (parent_agent_id,)
-            )
+            cur.execute("SELECT * FROM agent_budgets WHERE agent_id = %s", (parent_agent_id,))
             budget = cur.fetchone()
 
             if not budget or not budget["can_create_sub_agents"]:
@@ -791,15 +783,9 @@ class EthicsMonitor:
                 }
 
             # Check generation depth
-            cur.execute(
-                "SELECT agent_generation FROM agents WHERE id = %s", (parent_agent_id,)
-            )
+            cur.execute("SELECT agent_generation FROM agents WHERE id = %s", (parent_agent_id,))
             gen_row = cur.fetchone()
-            if (
-                gen_row
-                and gen_row["agent_generation"] is not None
-                and gen_row["agent_generation"] >= 3
-            ):
+            if gen_row and gen_row["agent_generation"] is not None and gen_row["agent_generation"] >= 3:
                 return {
                     "allowed": False,
                     "reason": "Maximum agent generation depth reached (3)",
@@ -876,9 +862,7 @@ class EthicsMonitor:
             )
 
             conn.commit()
-            logger.info(
-                f"Agent creation logged: parent={parent_agent_id}, child={child_agent_id}"
-            )
+            logger.info(f"Agent creation logged: parent={parent_agent_id}, child={child_agent_id}")
             return True
 
         except Exception as e:

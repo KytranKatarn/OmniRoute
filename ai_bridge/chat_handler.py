@@ -128,9 +128,7 @@ class ProposalChatHandler:
             result = cur.fetchone()
             conn.commit()
 
-            logger.info(
-                f"Chat message sent to proposal #{proposal_id} by {sender_type}"
-            )
+            logger.info(f"Chat message sent to proposal #{proposal_id} by {sender_type}")
 
             return {
                 "success": True,
@@ -246,9 +244,7 @@ class ProposalChatHandler:
             },
             "content": message["content"],
             "type": message["message_type"],
-            "metadata": (
-                message["metadata"] if isinstance(message["metadata"], dict) else {}
-            ),
+            "metadata": (message["metadata"] if isinstance(message["metadata"], dict) else {}),
             "created_at": (
                 message["created_at"].isoformat()
                 if hasattr(message["created_at"], "isoformat")
@@ -257,9 +253,7 @@ class ProposalChatHandler:
             "is_read": message["is_read"],
         }
 
-    def send_to_contractor(
-        self, proposal_id: int, message: str, user_id: int, user_name: str = "Human"
-    ) -> Dict:
+    def send_to_contractor(self, proposal_id: int, message: str, user_id: int, user_name: str = "Human") -> Dict:
         """
         Send a message to the assigned contractor and get their response.
 
@@ -403,9 +397,7 @@ Respond helpfully and in character. If they ask about code, provide specific sol
             logger.error(f"Failed to send to contractor: {e}")
             return {"success": False, "error": str(e)}
 
-    def send_to_agent(
-        self, proposal_id: int, message: str, user_id: int, user_name: str = "Human"
-    ) -> Dict:
+    def send_to_agent(self, proposal_id: int, message: str, user_id: int, user_name: str = "Human") -> Dict:
         """
         Send a message to the assigned internal agent.
 
@@ -487,8 +479,7 @@ Respond helpfully as {proposal['agent_name']}.
 
                 dispatcher = get_dispatcher()
                 result = dispatcher.request_work(
-                    "chat", context, "improvement_chat",
-                    system_prompt=agent_prompt, timeout=120
+                    "chat", context, "improvement_chat", system_prompt=agent_prompt, timeout=120
                 )
             except Exception as e:
                 return {"success": False, "error": f"Agent call failed: {e}"}
@@ -578,9 +569,7 @@ Respond helpfully as {proposal['agent_name']}.
             except Exception:
                 pass
 
-    def add_system_message(
-        self, proposal_id: int, content: str, message_type: str = "action"
-    ) -> Dict:
+    def add_system_message(self, proposal_id: int, content: str, message_type: str = "action") -> Dict:
         """Add a system message (for status updates, notifications)."""
         return self.send_message(
             proposal_id=proposal_id,
@@ -604,9 +593,7 @@ def get_chat_handler() -> ProposalChatHandler:
 
 
 # Convenience functions
-def send_chat_message(
-    proposal_id: int, content: str, sender_type: str, **kwargs
-) -> Dict:
+def send_chat_message(proposal_id: int, content: str, sender_type: str, **kwargs) -> Dict:
     """Send a chat message"""
     return get_chat_handler().send_message(proposal_id, content, sender_type, **kwargs)
 
@@ -616,13 +603,9 @@ def get_chat_history(proposal_id: int, **kwargs) -> Dict:
     return get_chat_handler().get_chat_history(proposal_id, **kwargs)
 
 
-def chat_with_contractor(
-    proposal_id: int, message: str, user_id: int, user_name: str = "Human"
-) -> Dict:
+def chat_with_contractor(proposal_id: int, message: str, user_id: int, user_name: str = "Human") -> Dict:
     """Chat with contractor for an escalated proposal"""
-    return get_chat_handler().send_to_contractor(
-        proposal_id, message, user_id, user_name
-    )
+    return get_chat_handler().send_to_contractor(proposal_id, message, user_id, user_name)
 
 
 # CLI testing

@@ -43,9 +43,7 @@ class BriefingGenerator:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute(
-            "SELECT * FROM briefings WHERE id = %s AND is_active = TRUE", (briefing_id,)
-        )
+        cur.execute("SELECT * FROM briefings WHERE id = %s AND is_active = TRUE", (briefing_id,))
         briefing = cur.fetchone()
         if not briefing:
             cur.close()
@@ -108,36 +106,43 @@ class BriefingGenerator:
     def _gather_section(self, cur, section: str) -> dict:
         """Gather data for a briefing section."""
         if section == "notifications":
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT type, title, message, priority, created_at
                 FROM system_notifications
                 WHERE is_read = FALSE AND created_at > NOW() - INTERVAL '24 hours'
                 ORDER BY created_at DESC LIMIT 10
-                """)
+                """
+            )
             return {"items": [dict(r) for r in cur.fetchall()]}
 
         elif section == "emails":
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT from_name, from_address, subject, ai_category, ai_priority, ai_summary, received_at
                 FROM email_inbox
                 WHERE is_read = FALSE AND is_archived = FALSE
                 ORDER BY ai_priority ASC NULLS LAST, received_at DESC
                 LIMIT 10
-                """)
+                """
+            )
             return {"items": [dict(r) for r in cur.fetchall()]}
 
         elif section == "tasks":
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT name, status, priority, due_date
                 FROM scheduled_tasks
                 WHERE status IN ('pending', 'overdue')
                 ORDER BY priority ASC, due_date ASC NULLS LAST
                 LIMIT 10
-                """)
+                """
+            )
             return {"items": [dict(r) for r in cur.fetchall()]}
 
         elif section == "anomalies":
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT ad.title, ad.severity, ad.description, ad.current_value,
                        ad.threshold_value, ad.created_at, ar.name as rule_name
                 FROM anomaly_detections ad
@@ -147,7 +152,8 @@ class BriefingGenerator:
                     CASE ad.severity WHEN 'critical' THEN 1 WHEN 'warning' THEN 2 ELSE 3 END,
                     ad.created_at DESC
                 LIMIT 5
-                """)
+                """
+            )
             return {"items": [dict(r) for r in cur.fetchall()]}
 
         elif section == "calendar":
@@ -155,12 +161,14 @@ class BriefingGenerator:
             return {"items": [], "note": "Calendar integration not yet configured"}
 
         elif section == "approvals":
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT action_type, reason, priority, created_at
                 FROM autonomy_approval_queue
                 WHERE status = 'pending'
                 ORDER BY priority ASC LIMIT 5
-                """)
+                """
+            )
             return {"items": [dict(r) for r in cur.fetchall()]}
 
         return {}
@@ -198,9 +206,7 @@ No markdown, plain text only (for Telegram compatibility).
 Write the briefing:"""
 
             dispatcher = get_dispatcher()
-            result = dispatcher.request_work(
-                "chat", prompt, "proactive_intelligence", timeout=120
-            )
+            result = dispatcher.request_work("chat", prompt, "proactive_intelligence", timeout=120)
             content = result.response.strip() if result.success else None
             if not content:
                 content = raw_summary
@@ -211,9 +217,7 @@ Write the briefing:"""
             logger.warning(f"AI formatting failed, using raw: {e}")
             return raw_summary
 
-    def _deliver_briefing(
-        self, cur, conn, briefing: dict, content: str, summary: str
-    ) -> dict:
+    def _deliver_briefing(self, cur, conn, briefing: dict, content: str, summary: str) -> dict:
         """Deliver a briefing through configured channels."""
         channels = briefing.get("delivery_channels", ["notification"])
         status = {}
@@ -251,9 +255,7 @@ Write the briefing:"""
                     briefing.get("user_id", 2),
                     f"briefing-{briefing['id']}-{datetime.now().strftime('%Y%m%d')}",
                     content,
-                    json.dumps(
-                        {"chat_mode": "briefing", "source": "proactive"}
-                    ),
+                    json.dumps({"chat_mode": "briefing", "source": "proactive"}),
                 ),
             )
             conn.commit()
@@ -288,9 +290,7 @@ Write the briefing:"""
                         cur.execute("ROLLBACK TO SAVEPOINT due_check")
                     except Exception:
                         conn.rollback()
-                    logger.warning(
-                        f"Due-check failed for briefing #{briefing.get('id')}: {e}"
-                    )
+                    logger.warning(f"Due-check failed for briefing #{briefing.get('id')}: {e}")
                     continue
                 if due:
                     cur.close()
@@ -354,12 +354,14 @@ class AnomalyDetector:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT * FROM anomaly_rules
             WHERE is_active = TRUE
               AND (last_checked_at IS NULL OR
                    last_checked_at < NOW() - make_interval(mins => check_interval_minutes))
-            """)
+            """
+        )
         rules = cur.fetchall()
 
         checked = 0
@@ -429,11 +431,7 @@ class AnomalyDetector:
                         VALUES (%s, %s, %s, 'anomaly_detector', %s, 'admin', FALSE, NOW())
                         """,
                         (
-                            (
-                                "warning"
-                                if rule.get("severity") != "critical"
-                                else "error"
-                            ),
+                            ("warning" if rule.get("severity") != "critical" else "error"),
                             f"Anomaly: {rule['name']}",
                             f"{rule.get('description', '')} (Value: {current_val}, Threshold: {threshold_val})",
                             "high" if rule.get("severity") == "critical" else "normal",
@@ -453,9 +451,7 @@ class AnomalyDetector:
                 checked += 1
 
             except Exception as e:
-                logger.error(
-                    f"Anomaly rule #{rule['id']} ({rule['name']}) check failed: {e}"
-                )
+                logger.error(f"Anomaly rule #{rule['id']} ({rule['name']}) check failed: {e}")
                 conn.commit()
 
         cur.close()
@@ -572,9 +568,7 @@ class ReportEngine:
                 """,
                 (days,),
             )
-            categories = {
-                r["ai_category"]: r["count"] for r in cur.fetchall() if r["ai_category"]
-            }
+            categories = {r["ai_category"]: r["count"] for r in cur.fetchall() if r["ai_category"]}
 
             cur.execute(
                 f"""
@@ -649,9 +643,7 @@ Data:
 Write a clear, concise report with sections and key metrics."""
 
             dispatcher = get_dispatcher()
-            result = dispatcher.request_work(
-                "chat", prompt, "proactive_intelligence", timeout=120
-            )
+            result = dispatcher.request_work("chat", prompt, "proactive_intelligence", timeout=120)
             if result.success:
                 return result.response.strip()
             return json.dumps(data, indent=2, default=str)

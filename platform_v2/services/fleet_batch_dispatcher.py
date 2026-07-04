@@ -23,6 +23,7 @@ Usage pattern:
 All dispatch calls must remain local_only=True for privacy-sensitive work.
 Fleet nodes (Headscale mesh) are "local" — local_only does NOT disable fleet routing.
 """
+
 import logging
 import threading
 import time
@@ -123,8 +124,7 @@ def claim_sub_batches(
         )
     else:
         cur.execute(
-            f"SELECT {id_col} FROM {table}"
-            f" WHERE {state_col} = %s ORDER BY {id_col} LIMIT %s",
+            f"SELECT {id_col} FROM {table}" f" WHERE {state_col} = %s ORDER BY {id_col} LIMIT %s",
             (pending_val, total),
         )
 
@@ -184,16 +184,14 @@ def fan_out(
     effective_workers = min(max_workers, n)
     with ThreadPoolExecutor(max_workers=effective_workers) as pool:
         future_to_idx = {
-            pool.submit(dispatch_fn, node_name, items): idx
-            for idx, (node_name, items) in enumerate(node_work)
+            pool.submit(dispatch_fn, node_name, items): idx for idx, (node_name, items) in enumerate(node_work)
         }
         for future in as_completed(future_to_idx):
             idx = future_to_idx[future]
             try:
                 results[idx] = future.result()
             except Exception as exc:
-                logger.error("fleet fan-out thread[%d] (node=%s) failed: %s",
-                             idx, node_work[idx][0], exc)
+                logger.error("fleet fan-out thread[%d] (node=%s) failed: %s", idx, node_work[idx][0], exc)
     return results
 
 
@@ -251,13 +249,15 @@ def _query_available_nodes(capability: str, min_score: float) -> List[dict]:
     for row in rows:
         stress = float(row["stress"] or 0.3)
         energy = float(row["energy"] or 0.7)
-        util   = float(row["util"]   or 0.2)
-        score  = (1 - stress) * 0.3 + energy * 0.2 - util * 0.5
+        util = float(row["util"] or 0.2)
+        score = (1 - stress) * 0.3 + energy * 0.2 - util * 0.5
         if score >= min_score:
-            result.append({
-                "node_name": row["node_name"],
-                "node_id":   row["node_id"],
-                "agent_id":  row["agent_id"],
-                "score":     round(score, 3),
-            })
+            result.append(
+                {
+                    "node_name": row["node_name"],
+                    "node_id": row["node_id"],
+                    "agent_id": row["agent_id"],
+                    "score": round(score, 3),
+                }
+            )
     return result

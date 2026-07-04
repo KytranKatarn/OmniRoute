@@ -8,6 +8,7 @@ the Project #244 transition.
 Remove once every call site has been migrated to the new path. Deprecated
 as of 2026-04-11.
 """
+
 import warnings
 
 warnings.warn(

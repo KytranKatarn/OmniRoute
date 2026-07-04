@@ -135,25 +135,15 @@ def validate_schema(data, schema_name):
         if field in properties:
             expected_type = properties[field].get("type")
             if expected_type == "string" and not isinstance(value, str):
-                errors.append(
-                    f"Field {field}: expected string, got {type(value).__name__}"
-                )
+                errors.append(f"Field {field}: expected string, got {type(value).__name__}")
             elif expected_type == "integer" and not isinstance(value, int):
-                errors.append(
-                    f"Field {field}: expected integer, got {type(value).__name__}"
-                )
+                errors.append(f"Field {field}: expected integer, got {type(value).__name__}")
             elif expected_type == "number" and not isinstance(value, (int, float)):
-                errors.append(
-                    f"Field {field}: expected number, got {type(value).__name__}"
-                )
+                errors.append(f"Field {field}: expected number, got {type(value).__name__}")
             elif expected_type == "array" and not isinstance(value, list):
-                errors.append(
-                    f"Field {field}: expected array, got {type(value).__name__}"
-                )
+                errors.append(f"Field {field}: expected array, got {type(value).__name__}")
             elif expected_type == "object" and not isinstance(value, dict):
-                errors.append(
-                    f"Field {field}: expected object, got {type(value).__name__}"
-                )
+                errors.append(f"Field {field}: expected object, got {type(value).__name__}")
 
     return len(errors) == 0, errors
 

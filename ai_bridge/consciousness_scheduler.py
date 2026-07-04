@@ -222,9 +222,7 @@ def hourly_conversation_consolidation():
                                 "message_count": len(convs),
                                 "consolidated_at": datetime.now().isoformat(),
                                 "hour": consolidation_hour.isoformat(),
-                                "models_used": list(
-                                    set(c["model"] for c in convs if c["model"])
-                                ),
+                                "models_used": list(set(c["model"] for c in convs if c["model"])),
                             }
                         ),
                     ),
@@ -276,6 +274,7 @@ def hourly_conversation_consolidation():
         def _score_conv(eid, t, c):
             try:
                 from services.quality_scoring_service import score_entry
+
                 score_entry(eid, t, c, "conversation_memory", save_to_db=True)
             except Exception as e:
                 logger.debug("Async quality scoring failed for conversation %d: %s", eid, e)
@@ -289,9 +288,7 @@ def hourly_conversation_consolidation():
             "consolidation_hour": consolidation_hour.isoformat(),
         }
 
-        logger.info(
-            f"[{task_name}] Completed: {total_consolidated} messages consolidated"
-        )
+        logger.info(f"[{task_name}] Completed: {total_consolidated} messages consolidated")
         log_task_complete(log_id, "success", result)
 
         return {"success": True, "consolidated": total_consolidated, **result}
@@ -323,9 +320,7 @@ def improvement_detection():
             "breakdown": summary.get("breakdown", {}),
         }
 
-        logger.info(
-            f"[{task_name}] Completed: {result['proposals_created']} proposals created"
-        )
+        logger.info(f"[{task_name}] Completed: {result['proposals_created']} proposals created")
         log_task_complete(log_id, "success", result)
 
         return {"success": True, **result}
@@ -353,15 +348,11 @@ def daily_self_reflection():
 
         if result.get("success"):
             summary = {
-                "personality_summary": result.get("personality", {}).get(
-                    "personality_summary", ""
-                ),
+                "personality_summary": result.get("personality", {}).get("personality_summary", ""),
                 "opportunities_count": result.get("opportunities_count", 0),
                 "reflection_length": len(result.get("reflection", "")),
             }
-            logger.info(
-                f"[{task_name}] Completed: {summary['opportunities_count']} opportunities found"
-            )
+            logger.info(f"[{task_name}] Completed: {summary['opportunities_count']} opportunities found")
             log_task_complete(log_id, "success", summary)
             return {"success": True, **summary}
         else:
@@ -388,24 +379,28 @@ def weekly_memory_consolidation():
             cur = conn.cursor()
 
             # Apply memory decay to old, low-importance memories
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE knowledge_base
                 SET importance_score = importance_score * 0.95
                 WHERE created_at < NOW() - INTERVAL '30 days'
                   AND importance_score > 0.3
                   AND access_count < 3
-            """)
+            """
+            )
             decayed_count = cur.rowcount
 
             # Mark very old, never-accessed, low-importance entries for review
-            cur.execute("""
+            cur.execute(
+                """
                 UPDATE knowledge_base
                 SET memory_metadata = COALESCE(memory_metadata, '{}'::jsonb) || '{"review_suggested": true}'::jsonb
                 WHERE created_at < NOW() - INTERVAL '180 days'
                   AND importance_score < 0.3
                   AND access_count = 0
                   AND (memory_metadata->>'review_suggested') IS NULL
-            """)
+            """
+            )
             review_count = cur.rowcount
 
             conn.commit()
@@ -421,9 +416,7 @@ def weekly_memory_consolidation():
 
         result = {"memories_decayed": decayed_count, "flagged_for_review": review_count}
 
-        logger.info(
-            f"[{task_name}] Completed: {decayed_count} decayed, {review_count} flagged"
-        )
+        logger.info(f"[{task_name}] Completed: {decayed_count} decayed, {review_count} flagged")
         log_task_complete(log_id, "success", result)
 
         return {"success": True, **result}
@@ -442,17 +435,20 @@ def get_scheduler_status() -> Dict[str, Any]:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Get recent task runs
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT task_name, started_at, completed_at, status,
                        result_summary, error_message, duration_ms
                 FROM consciousness_scheduler_log
                 ORDER BY started_at DESC
                 LIMIT 20
-            """)
+            """
+            )
             recent_tasks = cur.fetchall()
 
             # Get task summaries
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     task_name,
                     COUNT(*) as total_runs,
@@ -463,7 +459,8 @@ def get_scheduler_status() -> Dict[str, Any]:
                 FROM consciousness_scheduler_log
                 WHERE started_at > NOW() - INTERVAL '7 days'
                 GROUP BY task_name
-            """)
+            """
+            )
             task_summaries = cur.fetchall()
         finally:
             try:

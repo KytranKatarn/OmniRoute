@@ -58,9 +58,7 @@ def _read_db_password():
     if pw:
         return pw
     # Fallback: read from start_host_monitor.sh
-    monitor_script = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "start_host_monitor.sh"
-    )
+    monitor_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "start_host_monitor.sh")
     try:
         with open(monitor_script) as f:
             for line in f:
@@ -321,9 +319,7 @@ async def proxy_websocket(reader, writer, raw_request: bytes):
         t1 = asyncio.create_task(forward(upstream_r, writer))
         t2 = asyncio.create_task(forward(reader, upstream_w))
 
-        done, pending = await asyncio.wait(
-            [t1, t2], return_when=asyncio.FIRST_COMPLETED
-        )
+        done, pending = await asyncio.wait([t1, t2], return_when=asyncio.FIRST_COMPLETED)
         for t in pending:
             t.cancel()
 

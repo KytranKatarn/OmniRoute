@@ -188,7 +188,6 @@ class EscalationHandler:
 
                 new_team = [dict(row) for row in cur.fetchall()]
 
-
                 return {
                     "success": True,
                     "proposal_id": proposal_id,
@@ -212,9 +211,7 @@ class EscalationHandler:
             except Exception:
                 pass
 
-    def _find_escalation_target(
-        self, proposal_id: int, category: str, escalation_level: int
-    ) -> Dict:
+    def _find_escalation_target(self, proposal_id: int, category: str, escalation_level: int) -> Dict:
         """
         Find appropriate escalation target based on level and category.
 
@@ -313,7 +310,8 @@ class EscalationHandler:
                 elif escalation_level == 3:
                     # Find department manager
                     # In this system, we'll use the most experienced agent in department
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT
                             a.id as agent_id,
                             a.name as agent_name
@@ -323,7 +321,8 @@ class EscalationHandler:
                         AND askill.proficiency_level = 10  -- Expert level
                         ORDER BY a.id
                         LIMIT 1
-                    """)
+                    """
+                    )
 
                     manager = cur.fetchone()
 
@@ -373,9 +372,7 @@ class EscalationHandler:
         Returns:
             Escalation result
         """
-        return self.escalate_proposal(
-            proposal_id=proposal_id, reason=reason, auto_triggered=True
-        )
+        return self.escalate_proposal(proposal_id=proposal_id, reason=reason, auto_triggered=True)
 
     def get_escalation_history(self, proposal_id: int = None, limit: int = 20) -> Dict:
         """
@@ -416,7 +413,6 @@ class EscalationHandler:
                         metadata = json.loads(metadata)
 
                     escalations = metadata.get("escalation_history", [])
-
 
                     return {
                         "success": True,
@@ -461,12 +457,9 @@ class EscalationHandler:
                                     "title": p["title"],
                                     "status": p["status"],
                                     "escalation_level": metadata.get("escalation_level"),
-                                    "escalation_history": metadata.get(
-                                        "escalation_history", []
-                                    ),
+                                    "escalation_history": metadata.get("escalation_history", []),
                                 }
                             )
-
 
                     return {
                         "success": True,

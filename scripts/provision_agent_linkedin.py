@@ -13,6 +13,7 @@ Requirements:
     - ARCHIE_SESSION_COOKIE set (admin session for Email Manager API) — optional
     - Agent must have a provisioned Stalwart email in email_mailboxes table
 """
+
 from __future__ import annotations
 
 import argparse
@@ -68,9 +69,7 @@ def _generate_password(length: int = 20) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
-def _poll_confirmation_email(
-    email: str, timeout: int = 300, interval: int = 30
-) -> str | None:
+def _poll_confirmation_email(email: str, timeout: int = 300, interval: int = 30) -> str | None:
     """Poll Email Manager for a LinkedIn confirmation email.
 
     Returns message_id on success, None on timeout.
@@ -94,9 +93,7 @@ def _poll_confirmation_email(
                 for msg in r.json().get("messages", []):
                     sender = (msg.get("from_address") or "").lower()
                     subject = (msg.get("subject") or "").lower()
-                    if "linkedin" in sender and any(
-                        kw in subject for kw in ("confirm", "verify", "activate")
-                    ):
+                    if "linkedin" in sender and any(kw in subject for kw in ("confirm", "verify", "activate")):
                         print(f"[provision] Confirmation email: {msg['subject']}")
                         return msg.get("message_id")
         except Exception as exc:
@@ -175,7 +172,10 @@ def provision(
             )
             print("[provision] Signup form accepted")
         except Exception:
-            print("[provision] WARNING: Could not confirm signup redirect — credentials will be stored but account may not exist", file=sys.stderr)
+            print(
+                "[provision] WARNING: Could not confirm signup redirect — credentials will be stored but account may not exist",
+                file=sys.stderr,
+            )
         page.wait_for_timeout(2000)
 
         # Store credentials immediately after form submission
@@ -192,7 +192,10 @@ def provision(
         if msg_id:
             print(f"[provision] Confirmation detected (message_id={msg_id})")
         else:
-            print("[provision] WARNING: No confirmation email within timeout — manual confirmation may be needed", file=sys.stderr)
+            print(
+                "[provision] WARNING: No confirmation email within timeout — manual confirmation may be needed",
+                file=sys.stderr,
+            )
 
         # Save session cookies
         try:
@@ -223,9 +226,7 @@ def provision(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Provision a LinkedIn account for an ARCHIE agent."
-    )
+    parser = argparse.ArgumentParser(description="Provision a LinkedIn account for an ARCHIE agent.")
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--agent-id", type=int)
     group.add_argument("--agent-name")

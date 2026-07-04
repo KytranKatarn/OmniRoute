@@ -9,6 +9,7 @@ All requests go through:
   Flask route -> compliance_service.generate_remediation_plan ->
     Bridge dispatcher -> Department HQ coordinator -> F.O.R.G.E. (qwen2.5-coder:7b)
 """
+
 import os
 import sys
 import time
@@ -69,13 +70,24 @@ rule_id = sys.argv[1] if len(sys.argv) > 1 else "D-238030"
 # Find the latest failing scan for this rule
 import subprocess
 
-q = subprocess.check_output(
-    [
-        "docker", "exec", "archie_database", "psql", "-U", "archie", "-d", "archie",
-        "-tAc",
-        f"SELECT scan_id FROM compliance_scan_results WHERE rule_id='{rule_id}' AND status='fail' ORDER BY scanned_at DESC LIMIT 1;",
-    ]
-).decode().strip()
+q = (
+    subprocess.check_output(
+        [
+            "docker",
+            "exec",
+            "archie_database",
+            "psql",
+            "-U",
+            "archie",
+            "-d",
+            "archie",
+            "-tAc",
+            f"SELECT scan_id FROM compliance_scan_results WHERE rule_id='{rule_id}' AND status='fail' ORDER BY scanned_at DESC LIMIT 1;",
+        ]
+    )
+    .decode()
+    .strip()
+)
 print(f"2. Using scan_id={q} for rule={rule_id}")
 
 print(f"3. POST /api/compliance/plan/{rule_id} ...")

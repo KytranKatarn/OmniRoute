@@ -218,9 +218,7 @@ def select_best_agent_for_task(
     cache_key = f"{detected_department or 'general'}_{prefer_contractor}"
     if cache_key in _agent_cache:
         cached_agent = _agent_cache[cache_key].copy()
-        cached_agent["reason"] = (
-            f"Selected for {detected_department or 'general'} expertise (cached)"
-        )
+        cached_agent["reason"] = f"Selected for {detected_department or 'general'} expertise (cached)"
         if cached_agent["worker_type"] == "internal":
             cached_agent["reason"] += " (Internal Staff - FREE)"
         else:
@@ -279,7 +277,8 @@ def select_best_agent_for_task(
         conn = get_db()
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
                 FROM agents
                 WHERE status = 'active'
@@ -287,7 +286,8 @@ def select_best_agent_for_task(
                     CASE WHEN worker_type = 'internal' THEN 0 ELSE 1 END,
                     last_used ASC NULLS FIRST
                 LIMIT 1
-            """)
+            """
+            )
             agent = cur.fetchone()
         finally:
             try:
@@ -308,9 +308,7 @@ def select_best_agent_for_task(
 
         if not api_check["configured"]:
             # API key not configured - fallback to internal agent in same department
-            print(
-                f"⚠️  CONTRACT agent {agent['name']} requires {api_check['provider'].upper()} API key"
-            )
+            print(f"⚠️  CONTRACT agent {agent['name']} requires {api_check['provider'].upper()} API key")
             print(f"⚠️  Reason: {api_check['error']}")
             print(f"⚠️  Falling back to internal staff...")
 
@@ -338,13 +336,15 @@ def select_best_agent_for_task(
 
                 if not fallback_agent:
                     # No internal agent in same department, get any internal agent
-                    cur.execute("""
+                    cur.execute(
+                        """
                         SELECT id, name, first_name, last_name, title, department, worker_type, model, tier, bio
                         FROM agents
                         WHERE status = 'active' AND worker_type = 'internal'
                         ORDER BY last_used ASC NULLS FIRST
                         LIMIT 1
-                    """)
+                    """
+                    )
                     fallback_agent = cur.fetchone()
             finally:
                 try:
@@ -358,9 +358,7 @@ def select_best_agent_for_task(
 
             if fallback_agent:
                 agent = fallback_agent
-                print(
-                    f"✓ Using internal agent: {agent['name']} ({agent['department']})"
-                )
+                print(f"✓ Using internal agent: {agent['name']} ({agent['department']})")
             else:
                 # No internal agents available - return error info with contract agent
                 agent["api_error"] = api_check["error"]
@@ -523,17 +521,11 @@ def execute_with_delegation(
         # Build delegation message with actual name
         first_name = agent.get("first_name", "")
         last_name = agent.get("last_name", "")
-        full_name = (
-            f"{first_name} {last_name}".strip()
-            if first_name or last_name
-            else agent["name"]
-        )
+        full_name = f"{first_name} {last_name}".strip() if first_name or last_name else agent["name"]
 
         delegation_info = {
             "employee_name": full_name,
-            "employee_title": agent.get("title")
-            or agent.get("bio")
-            or f"{agent['department']} Specialist",
+            "employee_title": agent.get("title") or agent.get("bio") or f"{agent['department']} Specialist",
             "department": agent["department"],
             "worker_type": agent["worker_type"],
             "model": agent["model"],
@@ -671,9 +663,7 @@ def execute_with_delegation(
                             print(f"🔧 Executing tool: {tool_name} with args: {args}")
                             tool_result = execute_tool(tool_name, **args)
                             print(f"✅ Tool result: {tool_result}")
-                            tool_results.append(
-                                {"tool": tool_name, "args": args, "result": tool_result}
-                            )
+                            tool_results.append({"tool": tool_name, "args": args, "result": tool_result})
                         except Exception as e:
                             print(f"❌ Tool execution error: {str(e)}")
                             tool_results.append({"tool": tool_name, "error": str(e)})
@@ -687,15 +677,11 @@ def execute_with_delegation(
                         if "error" in tr:
                             result["response"] += f"\n❌ {tr['tool']}: {tr['error']}"
                         else:
-                            result[
-                                "response"
-                            ] += f"\n✓ {tr['tool']}: {json.dumps(tr['result'], indent=2)}"
+                            result["response"] += f"\n✓ {tr['tool']}: {json.dumps(tr['result'], indent=2)}"
 
                     result["tools_used"] = tool_results
             else:
-                print(
-                    f"⚠️ NO TOOL CALLS detected in response (tools_enabled={tools_enabled})"
-                )
+                print(f"⚠️ NO TOOL CALLS detected in response (tools_enabled={tools_enabled})")
 
         duration = time.time() - start_time
 
@@ -746,11 +732,7 @@ def execute_with_delegation(
             pass
 
     # Just return the response without the delegation box (it's shown in UI now)
-    final_response = (
-        result.get("response", "")
-        if result.get("success")
-        else f"ERROR: {result.get('error')}"
-    )
+    final_response = result.get("response", "") if result.get("success") else f"ERROR: {result.get('error')}"
 
     return {
         "success": result.get("success", False),
@@ -895,14 +877,8 @@ def get_execution_audit_trail(execution_id: int):
             "execution_id": record["id"],
             "task_description": record["task_description"],
             "status": record["status"],
-            "started_at": (
-                record["started_at"].isoformat() if record.get("started_at") else None
-            ),
-            "completed_at": (
-                record["completed_at"].isoformat()
-                if record.get("completed_at")
-                else None
-            ),
+            "started_at": (record["started_at"].isoformat() if record.get("started_at") else None),
+            "completed_at": (record["completed_at"].isoformat() if record.get("completed_at") else None),
             "duration_seconds": record.get("duration_seconds"),
             "error": record.get("error"),
         },

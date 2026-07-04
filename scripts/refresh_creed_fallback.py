@@ -14,6 +14,7 @@ script keeps the SOURCE current + commits; the file ships on the next deploy.
 Run: weekly via cron (see crontab). Fetches the creed container directly on the
 hub (127.0.0.1:8086) — no DNS/proxy/PNA involved.
 """
+
 import json
 import subprocess
 import sys
@@ -101,13 +102,25 @@ def main() -> int:
     try:
         subprocess.run(["git", "-C", REPO, "add", *changed], check=True)
         subprocess.run(
-            ["git", "-C", REPO, "-c", "user.name=archie-cron",
-             "-c", "user.email=noreply@anthropic.com", "commit", "-q", "-m",
-             f"chore(governance): refresh fallback snapshots {today}"],
+            [
+                "git",
+                "-C",
+                REPO,
+                "-c",
+                "user.name=archie-cron",
+                "-c",
+                "user.email=noreply@anthropic.com",
+                "commit",
+                "-q",
+                "-m",
+                f"chore(governance): refresh fallback snapshots {today}",
+            ],
             check=True,
         )
-        print(f"[refresh_creed_fallback] committed {', '.join(changed)} ({today}). "
-              f"Deploy with /deploy-website creed-ai.org.")
+        print(
+            f"[refresh_creed_fallback] committed {', '.join(changed)} ({today}). "
+            f"Deploy with /deploy-website creed-ai.org."
+        )
     except subprocess.CalledProcessError as e:
         print(f"[refresh_creed_fallback] wrote files but git commit failed: {e}", file=sys.stderr)
         return 0  # files are updated regardless

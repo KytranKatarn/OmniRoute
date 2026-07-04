@@ -8,11 +8,11 @@ Project #244 transition.
 Remove once every call site has been migrated to the new path. Deprecated
 as of 2026-04-11.
 """
+
 import warnings
 
 warnings.warn(
-    "ai_bridge.smart_router is deprecated — import from "
-    "tools.department_hq.services.smart_router instead",
+    "ai_bridge.smart_router is deprecated — import from " "tools.department_hq.services.smart_router instead",
     DeprecationWarning,
     stacklevel=2,
 )

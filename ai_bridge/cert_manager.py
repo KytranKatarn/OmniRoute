@@ -216,9 +216,7 @@ class _AcmeClient:
             resp = self._post(self.kid, None)
             if resp.status_code in (200, 201):
                 return
-            logger.warning(
-                "Existing account URI invalid (%s), re-registering", resp.status_code
-            )
+            logger.warning("Existing account URI invalid (%s), re-registering", resp.status_code)
 
         payload = {"termsOfServiceAgreed": True}
         resp = self._post(self._directory["newAccount"], payload)
@@ -239,9 +237,7 @@ class _AcmeClient:
             {"type": "dns", "value": f"*.{domain}"},
             {"type": "dns", "value": domain},
         ]
-        resp = self._post(
-            self._directory["newOrder"], {"identifiers": identifiers}
-        )
+        resp = self._post(self._directory["newOrder"], {"identifiers": identifiers})
         if resp.status_code not in (200, 201):
             raise RuntimeError(f"ACME newOrder failed: {resp.status_code} {resp.text}")
         order = resp.json()
@@ -271,9 +267,7 @@ class _AcmeClient:
     def answer_challenge(self, challenge_url: str) -> dict:
         resp = self._post(challenge_url, {})
         if resp.status_code not in (200, 202):
-            raise RuntimeError(
-                f"ACME challenge response failed: {resp.status_code} {resp.text}"
-            )
+            raise RuntimeError(f"ACME challenge response failed: {resp.status_code} {resp.text}")
         return resp.json()
 
     def poll_authorization(self, authz_url: str) -> dict:
@@ -321,13 +315,9 @@ class _AcmeClient:
 # ---------------------------------------------------------------------------
 
 
-def _generate_cert_key_and_csr(
-    domain: str, cert_dir: str
-) -> tuple[rsa.RSAPrivateKey, bytes]:
+def _generate_cert_key_and_csr(domain: str, cert_dir: str) -> tuple[rsa.RSAPrivateKey, bytes]:
     """Generate a fresh RSA private key and CSR for wildcard + apex domain."""
-    key = rsa.generate_private_key(
-        public_exponent=65537, key_size=CERT_RSA_KEY_SIZE
-    )
+    key = rsa.generate_private_key(public_exponent=65537, key_size=CERT_RSA_KEY_SIZE)
 
     # Save private key immediately
     wc_dir = Path(cert_dir) / WILDCARD_SUBDIR
@@ -405,17 +395,13 @@ def _hostinger_put_records(domain: str, records: list[dict]) -> None:
         timeout=30,
     )
     if resp.status_code not in (200, 201, 204):
-        raise RuntimeError(
-            f"Hostinger DNS PUT failed: {resp.status_code} {resp.text}"
-        )
+        raise RuntimeError(f"Hostinger DNS PUT failed: {resp.status_code} {resp.text}")
 
 
 def _add_acme_txt_record(domain: str, txt_value: str) -> None:
     """Add _acme-challenge TXT record, preserving existing records."""
     records = _hostinger_get_records(domain)
-    logger.info(
-        "Fetched %d existing DNS records for %s", len(records), domain
-    )
+    logger.info("Fetched %d existing DNS records for %s", len(records), domain)
 
     # Add the challenge TXT record (Hostinger API v1 zone format)
     records.append(
@@ -437,10 +423,7 @@ def _remove_acme_txt_records(domain: str) -> None:
     filtered = [
         r
         for r in records
-        if not (
-            r.get("type", "").upper() == "TXT"
-            and r.get("name", "").startswith("_acme-challenge")
-        )
+        if not (r.get("type", "").upper() == "TXT" and r.get("name", "").startswith("_acme-challenge"))
     ]
     removed = len(records) - len(filtered)
     if removed > 0:
@@ -540,9 +523,7 @@ def get_cert_info(cert_dir: str | None = None) -> dict | None:
 
         # Extract SANs
         try:
-            san = cert.extensions.get_extension_for_class(
-                x509.SubjectAlternativeName
-            )
+            san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
             domains = san.value.get_values_for_type(x509.DNSName)
         except x509.ExtensionNotFound:
             domains = []

@@ -11,7 +11,6 @@ import os
 from datetime import datetime
 from db import get_db
 
-
 # =============================================================================
 # LIST AGENTS
 # =============================================================================
@@ -203,8 +202,15 @@ def add_agent(agent_data):
     # Follow-up with extras not in create_agent's core signature
     extras = {}
     for field in (
-        "type_id", "monthly_budget", "budget_alert_threshold",
-        "first_name", "last_name", "email", "title", "bio", "avatar_url",
+        "type_id",
+        "monthly_budget",
+        "budget_alert_threshold",
+        "first_name",
+        "last_name",
+        "email",
+        "title",
+        "bio",
+        "avatar_url",
     ):
         if agent_data.get(field) is not None:
             extras[field] = agent_data[field]
@@ -269,10 +275,24 @@ def update_agent(agent_id, updates):
 
     # Filter to allowed fields and dispatch to canonical helper
     allowed_fields = {
-        "name", "type_id", "tier", "status", "model", "system_prompt",
-        "capabilities", "monthly_budget", "budget_alert_threshold",
-        "metadata", "first_name", "last_name", "email", "title",
-        "department", "bio", "pronouns", "avatar_url",
+        "name",
+        "type_id",
+        "tier",
+        "status",
+        "model",
+        "system_prompt",
+        "capabilities",
+        "monthly_budget",
+        "budget_alert_threshold",
+        "metadata",
+        "first_name",
+        "last_name",
+        "email",
+        "title",
+        "department",
+        "bio",
+        "pronouns",
+        "avatar_url",
     }
     filtered = {k: v for k, v in updates.items() if k in allowed_fields}
     if not filtered:

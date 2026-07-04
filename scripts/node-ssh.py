@@ -25,10 +25,14 @@ import sys
 # ── SSH defaults ──────────────────────────────────────────────────────────────
 SSH_KEY = os.path.expanduser("~/.ssh/id_ed25519")
 SSH_OPTS = [
-    "-i", SSH_KEY,
-    "-o", "StrictHostKeyChecking=no",
-    "-o", "ConnectTimeout=10",
-    "-o", "BatchMode=yes",
+    "-i",
+    SSH_KEY,
+    "-o",
+    "StrictHostKeyChecking=no",
+    "-o",
+    "ConnectTimeout=10",
+    "-o",
+    "BatchMode=yes",
 ]
 
 # ── Known nodes (fallback when DB unavailable) ────────────────────────────────
@@ -56,6 +60,7 @@ NODE_CLIENT_DIR = os.path.join(_REPO, "node_client")
 
 # ── Node resolution ───────────────────────────────────────────────────────────
 
+
 def resolve_node(name: str) -> dict:
     name_lower = name.lower().strip()
     if name_lower in NODES:
@@ -66,15 +71,14 @@ def resolve_node(name: str) -> dict:
     node = _db_lookup(name)
     if node:
         return node
-    raise SystemExit(
-        f"Unknown node: '{name}'\nKnown: {', '.join(NODES)}"
-    )
+    raise SystemExit(f"Unknown node: '{name}'\nKnown: {', '.join(NODES)}")
 
 
 def _db_lookup(name: str) -> dict | None:
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
+
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "192.168.1.200"),
             port=int(os.getenv("DB_PORT", "5432")),
@@ -110,6 +114,7 @@ def _db_lookup(name: str) -> dict | None:
 
 # ── SSH helpers ───────────────────────────────────────────────────────────────
 
+
 def ssh_run(node: dict, cmd: str, timeout: int = 60) -> int:
     target = f"{node['user']}@{node['host']}"
     # Use list form — no shell=True, no injection risk
@@ -132,6 +137,7 @@ def _header(node: dict):
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
+
 
 def cmd_status(args):
     nodes = [args.node] if args.node else list(NODES.keys())
@@ -214,6 +220,7 @@ def cmd_exec(args):
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+
 def main():
     p = argparse.ArgumentParser(
         prog="node-ssh",
@@ -248,8 +255,12 @@ def main():
 
     args = p.parse_args()
     dispatch = {
-        "status": cmd_status, "logs": cmd_logs, "restart": cmd_restart,
-        "rebuild": cmd_rebuild, "pull": cmd_pull, "exec": cmd_exec,
+        "status": cmd_status,
+        "logs": cmd_logs,
+        "restart": cmd_restart,
+        "rebuild": cmd_rebuild,
+        "pull": cmd_pull,
+        "exec": cmd_exec,
     }
     try:
         dispatch[args.command](args)

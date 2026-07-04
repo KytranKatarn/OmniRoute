@@ -12,6 +12,7 @@ The script:
 4. Returns a JSON report: tag, id, classes, computed CSS, bounding box, text
 5. Re-renders the screenshot with a red highlight box over the element
 """
+
 from __future__ import annotations
 
 import argparse
@@ -57,10 +58,26 @@ def find_session_dir(
 
 
 _CSS_PROPS = [
-    "width", "height", "padding", "margin", "font-size", "font-family",
-    "color", "background-color", "border", "border-radius", "display",
-    "position", "top", "left", "flex", "gap", "z-index", "opacity",
-    "overflow", "box-shadow",
+    "width",
+    "height",
+    "padding",
+    "margin",
+    "font-size",
+    "font-family",
+    "color",
+    "background-color",
+    "border",
+    "border-radius",
+    "display",
+    "position",
+    "top",
+    "left",
+    "flex",
+    "gap",
+    "z-index",
+    "opacity",
+    "overflow",
+    "box-shadow",
 ]
 
 _ELEMENT_JS = """
@@ -142,17 +159,11 @@ def draw_highlight(src_path: str, out_path: str, bbox: dict) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Inspect a page element and return its computed CSS as JSON."
-    )
+    parser = argparse.ArgumentParser(description="Inspect a page element and return its computed CSS as JSON.")
     parser.add_argument("url", help="Page URL to navigate to")
     parser.add_argument("--selector", "-s", help="CSS selector of the target element")
-    parser.add_argument(
-        "--xy", help='Page coordinates as "x,y" (e.g. "456,789")'
-    )
-    parser.add_argument(
-        "--output", "-o", help="Write JSON to this file path (default: stdout only)"
-    )
+    parser.add_argument("--xy", help='Page coordinates as "x,y" (e.g. "456,789")')
+    parser.add_argument("--output", "-o", help="Write JSON to this file path (default: stdout only)")
     args = parser.parse_args()
 
     # Resolve element identification method
@@ -190,7 +201,7 @@ def main() -> None:
             html_path = os.path.join(screen_dir, "inspect_view.html")
             with open(html_path, "w") as f:
                 f.write(
-                    '<h2>Element Inspector</h2>'
+                    "<h2>Element Inspector</h2>"
                     '<p class="subtitle">Page loaded — respond in terminal with selector or x,y coordinates</p>'
                     f'<img src="inspect_screenshot.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px">'
                 )
@@ -201,7 +212,7 @@ def main() -> None:
         # If no selector/xy provided, ask interactively
         if selector is None and xy is None:
             print(
-                '\n[inspect] Identify the element:\n'
+                "\n[inspect] Identify the element:\n"
                 '  CSS selector: e.g. "#roster-header" or ".agent-card"\n'
                 '  Coordinates:  e.g. "x=456 y=789"\n'
                 '  Text search:  e.g. "text=ARCHIE"\n',

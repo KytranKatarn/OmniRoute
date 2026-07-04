@@ -40,6 +40,7 @@ call site and the allowed kwarg set for that function.
 Hooks:
     - .pre-commit-config.yaml (runs on staged files at commit time)
 """
+
 from __future__ import annotations
 
 import ast
@@ -47,14 +48,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CANONICAL = (
-    REPO_ROOT
-    / "platform_v2"
-    / "tools"
-    / "department_hq"
-    / "services"
-    / "department_dispatcher.py"
-)
+CANONICAL = REPO_ROOT / "platform_v2" / "tools" / "department_hq" / "services" / "department_dispatcher.py"
 
 AUDITED_FUNCS = ("dispatch", "dispatch_json", "request_work")
 
@@ -109,14 +103,10 @@ def _load_canonical_signatures() -> dict[str, dict]:
         defaults = args.defaults
         # Walk positional args right-to-left pairing with defaults.
         required: list[str] = []
-        optional: list[str] = list(positional[-len(defaults):]) if defaults else []
+        optional: list[str] = list(positional[-len(defaults) :]) if defaults else []
         required_count = len(positional) - len(defaults)
         required = positional[:required_count]
-        kwonly_required = [
-            a.arg
-            for a, d in zip(args.kwonlyargs, args.kw_defaults)
-            if d is None
-        ]
+        kwonly_required = [a.arg for a, d in zip(args.kwonlyargs, args.kw_defaults) if d is None]
         allowed = set(positional) | set(kwonly)
         sigs[node.name] = {
             "required": required + kwonly_required,
@@ -207,28 +197,27 @@ def _audit_file(
                 continue
             if accepts_kwargs:
                 continue
-            hits.append((
-                node.lineno,
-                name,
-                f"unknown kwarg '{kw.arg}' — allowed: "
-                f"{sorted(allowed_kwargs)}",
-            ))
+            hits.append(
+                (
+                    node.lineno,
+                    name,
+                    f"unknown kwarg '{kw.arg}' — allowed: " f"{sorted(allowed_kwargs)}",
+                )
+            )
 
         # --- Check 2: required args present ------------------------------
         positional_count = len(node.args)
         provided_names = {k.arg for k in node.keywords if k.arg}
         required = spec["required"]
-        missing = [
-            r
-            for i, r in enumerate(required)
-            if i >= positional_count and r not in provided_names
-        ]
+        missing = [r for i, r in enumerate(required) if i >= positional_count and r not in provided_names]
         for miss in missing:
-            hits.append((
-                node.lineno,
-                name,
-                f"missing required argument '{miss}'",
-            ))
+            hits.append(
+                (
+                    node.lineno,
+                    name,
+                    f"missing required argument '{miss}'",
+                )
+            )
 
     return hits
 

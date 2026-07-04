@@ -1,6 +1,8 @@
 """Full internal-suite batch using the new Path B shared-session flow."""
+
 import sys
 import time
+
 sys.path.insert(0, "/app")
 sys.path.insert(0, "/mnt/archie_brain")
 
@@ -52,7 +54,8 @@ for s in internal:
                 shared_pw = None
 
     res = qa_service.run_suite(
-        s["id"], triggered_by="claude_pathb_full",
+        s["id"],
+        triggered_by="claude_pathb_full",
         session=(shared_session if use_shared else None),
         skip_auth=use_shared,
     )

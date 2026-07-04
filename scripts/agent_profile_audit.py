@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Export agent identity data for audit review."""
+
 import psycopg2
 import csv
 import os
@@ -13,11 +14,13 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", ""),
 }
 
+
 def audit_agents():
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             SELECT id, name, display_name, department, floor, title,
                    gender, ethnicity, age_range, appearance_notes,
                    portrait_prompt, email, gmail, first_name, last_name,
@@ -27,7 +30,8 @@ def audit_agents():
                    is_department_ai
             FROM agents
             ORDER BY floor, department, display_name
-        """)
+        """
+        )
         rows = cur.fetchall()
         cols = [desc[0] for desc in cur.description]
 
@@ -63,12 +67,18 @@ def audit_agents():
         for r in rows:
             dept = r[cols.index("department")]
             gaps = []
-            if not r[cols.index("gender")]: gaps.append("gender")
-            if not r[cols.index("ethnicity")]: gaps.append("ethnicity")
-            if not r[cols.index("age_range")]: gaps.append("age_range")
-            if r[cols.index("has_prompt")] == "MISSING": gaps.append("prompt")
-            if r[cols.index("has_avatar")] == "MISSING": gaps.append("avatar")
-            if not r[cols.index("email")]: gaps.append("email")
+            if not r[cols.index("gender")]:
+                gaps.append("gender")
+            if not r[cols.index("ethnicity")]:
+                gaps.append("ethnicity")
+            if not r[cols.index("age_range")]:
+                gaps.append("age_range")
+            if r[cols.index("has_prompt")] == "MISSING":
+                gaps.append("prompt")
+            if r[cols.index("has_avatar")] == "MISSING":
+                gaps.append("avatar")
+            if not r[cols.index("email")]:
+                gaps.append("email")
             if gaps:
                 if dept != current_dept:
                     print(f"\n--- {dept} ---")
@@ -77,6 +87,7 @@ def audit_agents():
 
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     audit_agents()

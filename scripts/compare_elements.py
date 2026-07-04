@@ -23,6 +23,7 @@ Output:
     - Readable diff table → stderr
     - JSON {elementA, elementB, diff, generated_css} → stdout (and --output FILE)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,9 +45,18 @@ from inspect_element import (  # noqa: E402
 # These are the layout/typography/border properties most likely to differ
 # when one element looks "off" versus a reference.
 _EXTRA_PROPS = [
-    "align-items", "justify-content", "line-height", "letter-spacing",
-    "text-align", "border-width", "border-style", "border-color",
-    "min-width", "max-width", "min-height", "max-height",
+    "align-items",
+    "justify-content",
+    "line-height",
+    "letter-spacing",
+    "text-align",
+    "border-width",
+    "border-style",
+    "border-color",
+    "min-width",
+    "max-width",
+    "min-height",
+    "max-height",
 ]
 
 # Preserve order, no duplicates.
@@ -151,8 +161,7 @@ def _inspect_on_page(page, url: str, selector, xy, label: str) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description='Diff computed CSS of two elements and generate CSS to '
-        'make element A look like element B.'
+        description="Diff computed CSS of two elements and generate CSS to " "make element A look like element B."
     )
     parser.add_argument("url_a", help="Page URL for element A (the target/broken element)")
     parser.add_argument(
@@ -165,9 +174,7 @@ def main() -> None:
     parser.add_argument("--selector-b", help="CSS selector of element B")
     parser.add_argument("--xy-a", help='Element A page coordinates "x,y"')
     parser.add_argument("--xy-b", help='Element B page coordinates "x,y"')
-    parser.add_argument(
-        "--output", "-o", help="Write JSON to this file path (default: stdout only)"
-    )
+    parser.add_argument("--output", "-o", help="Write JSON to this file path (default: stdout only)")
     parser.add_argument(
         "--screenshots",
         action="store_true",
@@ -219,18 +226,17 @@ def main() -> None:
             html_path = os.path.join(screen_dir, "compare_view.html")
             with open(html_path, "w") as f:
                 f.write(
-                    '<h2>Element Comparison — make A look like B</h2>'
+                    "<h2>Element Comparison — make A look like B</h2>"
                     '<p class="subtitle">A = target (left), B = reference (right)</p>'
                     '<div style="display:flex;gap:12px">'
-                    '<div><strong>A (target)</strong><br>'
+                    "<div><strong>A (target)</strong><br>"
                     '<img src="compare_a_hl.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px"></div>'
-                    '<div><strong>B (reference)</strong><br>'
+                    "<div><strong>B (reference)</strong><br>"
                     '<img src="compare_b_hl.png" style="max-width:100%;border:1px solid rgba(255,255,255,.1);border-radius:6px"></div>'
-                    '</div>'
+                    "</div>"
                 )
             print(
-                "[compare] Side-by-side screenshots displayed at "
-                "brainstorm.kytranempowerment.com",
+                "[compare] Side-by-side screenshots displayed at " "brainstorm.kytranempowerment.com",
                 file=sys.stderr,
             )
 

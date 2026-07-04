@@ -31,8 +31,8 @@ def capture_learning(
         dispatcher = get_dispatcher()
 
         # Use local model to analyze the difference
-        failed_text = (failed_result.get('response', '') or failed_result.get('error', 'No response'))[:500]
-        success_text = success_result.get('response', '')[:1000]
+        failed_text = (failed_result.get("response", "") or failed_result.get("error", "No response"))[:500]
+        success_text = success_result.get("response", "")[:1000]
         prompt = (
             f"Compare these two AI responses for a '{capability}' task.\n\n"
             f"FAILED RESPONSE (local agent):\n{failed_text}\n\n"
@@ -75,16 +75,20 @@ def capture_learning(
         }
 
         from database import get_db
+
         conn = get_db()
         try:
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 INSERT INTO knowledge_base (title, content, source_type, tags, importance_score, ai_analysis)
                 VALUES (%s, %s, 'agent_learning', %s, %s, %s)
                 ON CONFLICT ON CONSTRAINT idx_kb_title_unique DO UPDATE SET
                     content = EXCLUDED.content, importance_score = EXCLUDED.importance_score,
                     ai_analysis = EXCLUDED.ai_analysis, updated_at = NOW()
-            """, (title, learning_content, tags, importance, json.dumps(ai_analysis)))
+            """,
+                (title, learning_content, tags, importance, json.dumps(ai_analysis)),
+            )
             conn.commit()
             cur.close()
             logger.info(f"[BridgeLearning] Captured learning: {title}")
@@ -125,7 +129,8 @@ def inject_learnings(
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
 
-        cur.execute("""
+        cur.execute(
+            """
             SELECT title, content, importance_score
             FROM knowledge_base
             WHERE source_type = 'agent_learning'
@@ -133,7 +138,9 @@ def inject_learnings(
               AND is_archived = FALSE
             ORDER BY importance_score DESC, updated_at DESC
             LIMIT %s
-        """, (agent_name, capability, effective_max))
+        """,
+            (agent_name, capability, effective_max),
+        )
 
         cards = cur.fetchall()
         cur.close()

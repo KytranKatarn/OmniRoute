@@ -27,10 +27,12 @@ def _get_dispatcher():
     if _dispatcher is None:
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
+
             _dispatcher = get_dispatcher()
         except Exception:
             pass
     return _dispatcher
+
 
 # Import V2 validators
 try:
@@ -268,9 +270,7 @@ NEW_CONTENT:
                 else:
                     # Retry with error feedback
                     # Handle case where previous change was None
-                    prev_change = (
-                        change if change else {"old_content": "", "new_content": ""}
-                    )
+                    prev_change = change if change else {"old_content": "", "new_content": ""}
                     change = self._generate_with_retry(
                         file_path=file_path,
                         file_content=file_info["content"],
@@ -297,15 +297,11 @@ NEW_CONTENT:
                     # Success!
                     all_changes.append(change)
                     all_validation_results.append(validation_result)
-                    print(
-                        f"   ✅ {file_path}: Valid change generated (attempt {retry_count + 1})"
-                    )
+                    print(f"   ✅ {file_path}: Valid change generated (attempt {retry_count + 1})")
                     break
                 else:
                     last_error = validation_result["error"]
-                    print(
-                        f"   ⚠️ {file_path}: Validation failed (attempt {retry_count + 1}): {last_error}"
-                    )
+                    print(f"   ⚠️ {file_path}: Validation failed (attempt {retry_count + 1}): {last_error}")
                     retry_count += 1
 
             if retry_count >= self.MAX_RETRIES:
@@ -323,11 +319,7 @@ NEW_CONTENT:
         if len(all_changes) == 0:
             if all_validation_results:
                 # Collect error messages from validation results
-                errors = [
-                    r.get("error", "Unknown error")
-                    for r in all_validation_results
-                    if not r.get("valid")
-                ]
+                errors = [r.get("error", "Unknown error") for r in all_validation_results if not r.get("valid")]
                 error_msg = (
                     f"Code generation failed: {'; '.join(errors)}"
                     if errors
@@ -431,9 +423,7 @@ NEW_CONTENT:
 
             if result and result["model"]:
                 print(f"   Skill-based selection: {result['name']} ({result['model']})")
-                print(
-                    f"   Matching skills: {result['matching_skills']}, Score: {result['skill_score']}"
-                )
+                print(f"   Matching skills: {result['matching_skills']}, Score: {result['skill_score']}")
                 return result["model"]
 
         except Exception as e:
@@ -444,9 +434,7 @@ NEW_CONTENT:
             from agent_delegation import select_best_agent_for_task
 
             task_desc = f"Generate code fix for {category} issue"
-            agent = select_best_agent_for_task(
-                task_description=task_desc, department_preference="Engineering"
-            )
+            agent = select_best_agent_for_task(task_description=task_desc, department_preference="Engineering")
             if agent and agent.get("model"):
                 return agent["model"]
         except ImportError:
@@ -548,9 +536,7 @@ NEW_CONTENT:
             return None
 
         # Parse the editor response
-        changes = self._parse_code_changes_from_response(
-            editor_result.response, category="general"
-        )
+        changes = self._parse_code_changes_from_response(editor_result.response, category="general")
 
         return changes[0] if changes else None
 
@@ -573,7 +559,9 @@ NEW_CONTENT:
         if "SyntaxError" in validation_error or "IndentationError" in validation_error:
             error_analysis = "The generated code has a syntax error. Check indentation and Python syntax."
         elif "not found" in validation_error.lower():
-            error_analysis = "The OLD_CONTENT doesn't match the actual file. Copy it exactly from the file content shown."
+            error_analysis = (
+                "The OLD_CONTENT doesn't match the actual file. Copy it exactly from the file content shown."
+            )
         else:
             error_analysis = validation_error
 
@@ -597,15 +585,11 @@ NEW_CONTENT:
         if not result.success:
             return None
 
-        changes = self._parse_code_changes_from_response(
-            result.response, category="general"
-        )
+        changes = self._parse_code_changes_from_response(result.response, category="general")
 
         return changes[0] if changes else None
 
-    def _validate_change(
-        self, change: Dict, file_path: str, file_content: str, language: str
-    ) -> Dict:
+    def _validate_change(self, change: Dict, file_path: str, file_content: str, language: str) -> Dict:
         """
         Validate a generated change before saving.
 
@@ -627,20 +611,14 @@ NEW_CONTENT:
                 stripped = test_code.strip()
 
                 # Check if it's a complete definition
-                if (
-                    stripped.startswith("def ")
-                    or stripped.startswith("class ")
-                    or stripped.startswith("import ")
-                ):
+                if stripped.startswith("def ") or stripped.startswith("class ") or stripped.startswith("import "):
                     # Try as standalone module
                     import ast
 
                     try:
                         ast.parse(test_code)
                     except SyntaxError as e:
-                        errors.append(
-                            f"SyntaxError in new_content: {e.msg} at line {e.lineno}"
-                        )
+                        errors.append(f"SyntaxError in new_content: {e.msg} at line {e.lineno}")
                 else:
                     # It's a code snippet - need to dedent and wrap appropriately
                     import ast
@@ -671,10 +649,7 @@ NEW_CONTENT:
 
                     # Try 3: Wrap in try/except (for except/finally blocks)
                     if not valid and ("except" in dedented or "finally" in dedented):
-                        wrapped = (
-                            "def _test():\n    try:\n        pass\n"
-                            + textwrap.indent(dedented, "    ")
-                        )
+                        wrapped = "def _test():\n    try:\n        pass\n" + textwrap.indent(dedented, "    ")
                         try:
                             ast.parse(wrapped)
                             valid = True
@@ -683,10 +658,7 @@ NEW_CONTENT:
 
                     # Try 4: Wrap in if block (for else/elif)
                     if not valid and ("else" in dedented or "elif" in dedented):
-                        wrapped = (
-                            "def _test():\n    if True:\n        pass\n"
-                            + textwrap.indent(dedented, "    ")
-                        )
+                        wrapped = "def _test():\n    if True:\n        pass\n" + textwrap.indent(dedented, "    ")
                         try:
                             ast.parse(wrapped)
                             valid = True
@@ -694,9 +666,7 @@ NEW_CONTENT:
                             last_error = e
 
                     if not valid and last_error:
-                        errors.append(
-                            f"SyntaxError in new_content: {last_error.msg} at line {last_error.lineno}"
-                        )
+                        errors.append(f"SyntaxError in new_content: {last_error.msg} at line {last_error.lineno}")
 
             else:
                 result = self.validator.validate(new_content, file_path)
@@ -710,9 +680,7 @@ NEW_CONTENT:
             if not match_result.match_found:
                 errors.append(f"old_content not found in file: {match_result.error}")
                 if match_result.suggestions:
-                    errors.append(
-                        f"Suggestions: {'; '.join(match_result.suggestions[:2])}"
-                    )
+                    errors.append(f"Suggestions: {'; '.join(match_result.suggestions[:2])}")
 
         if errors:
             return {"valid": False, "error": "; ".join(errors), "file_path": file_path}
@@ -723,9 +691,7 @@ NEW_CONTENT:
             "match_type": match_result.match_type if old_content else None,
         }
 
-    def _read_file_content(
-        self, file_path: str, line_number: Optional[int] = None
-    ) -> Optional[Dict]:
+    def _read_file_content(self, file_path: str, line_number: Optional[int] = None) -> Optional[Dict]:
         """
         Read actual file content from the codebase.
 
@@ -781,10 +747,7 @@ NEW_CONTENT:
                         start = max(0, line_number - 15)  # 15 lines before
                         end = min(len(lines), line_number + 15)  # 15 lines after
                         context_lines = lines[start:end]
-                        context = "\n".join(
-                            f"{start + i + 1}: {line}"
-                            for i, line in enumerate(context_lines)
-                        )
+                        context = "\n".join(f"{start + i + 1}: {line}" for i, line in enumerate(context_lines))
 
                     return {
                         "full_path": full_path,
@@ -885,9 +848,7 @@ NEW_CONTENT:
         validation = self._validate_target_files(target_files or [])
 
         if validation["missing_files"]:
-            print(
-                f"⚠️  Warning: Some target files don't exist: {validation['missing_files']}"
-            )
+            print(f"⚠️  Warning: Some target files don't exist: {validation['missing_files']}")
 
         # Read actual content for each valid file
         for file_info in validation["valid_files"]:
@@ -907,9 +868,7 @@ NEW_CONTENT:
                 # Include first 200 lines as context (or full file if smaller)
                 lines = file_info["content"].split("\n")
                 preview_lines = lines[:200]
-                preview = "\n".join(
-                    f"{i+1}: {line}" for i, line in enumerate(preview_lines)
-                )
+                preview = "\n".join(f"{i+1}: {line}" for i, line in enumerate(preview_lines))
                 if len(lines) > 200:
                     preview += f"\n... ({len(lines) - 200} more lines)"
 
@@ -980,13 +939,9 @@ NEW_CONTENT:
         if file_contexts:
             file_context_section = "\n**ACTUAL FILE CONTENT (READ THIS CAREFULLY):**\n"
             for fc in file_contexts:
-                file_context_section += (
-                    f"\n--- {fc['path']} ({fc['line_count']} lines) ---\n"
-                )
+                file_context_section += f"\n--- {fc['path']} ({fc['line_count']} lines) ---\n"
                 if fc.get("line_number"):
-                    file_context_section += (
-                        f"(Focus area: around line {fc['line_number']})\n"
-                    )
+                    file_context_section += f"(Focus area: around line {fc['line_number']})\n"
                 file_context_section += f"```\n{fc['context']}\n```\n"
         else:
             file_context_section = "\n**WARNING: Could not read target files. Creating new files instead.**\n"
@@ -1074,9 +1029,7 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
 
         return prompt
 
-    def _parse_code_changes_from_response(
-        self, ai_response: str, category: str
-    ) -> List[Dict]:
+    def _parse_code_changes_from_response(self, ai_response: str, category: str) -> List[Dict]:
         """
         Parse AI response to extract structured code changes
 
@@ -1120,21 +1073,15 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
             file_match = re.search(file_pattern, block, re.IGNORECASE)
             action_match = re.search(action_pattern, block, re.IGNORECASE)
             desc_match = re.search(description_pattern, block, re.IGNORECASE)
-            old_content_match = re.search(
-                old_content_pattern, block, re.DOTALL | re.IGNORECASE
-            )
-            new_content_match = re.search(
-                new_content_pattern, block, re.DOTALL | re.IGNORECASE
-            )
+            old_content_match = re.search(old_content_pattern, block, re.DOTALL | re.IGNORECASE)
+            new_content_match = re.search(new_content_pattern, block, re.DOTALL | re.IGNORECASE)
 
             if not file_match:
                 continue
 
             file_path = file_match.group(1).strip()
             # Clean up file path - remove trailing markers or notes
-            file_path = re.sub(
-                r"\s*\(.*\)\s*$", "", file_path
-            )  # Remove (create) or (modify) notes
+            file_path = re.sub(r"\s*\(.*\)\s*$", "", file_path)  # Remove (create) or (modify) notes
             file_path = file_path.strip("`").strip()
 
             # Determine action - default to modify if not specified
@@ -1145,15 +1092,9 @@ Notice: Both OLD_CONTENT and NEW_CONTENT preserve the 8-space indentation before
             else:
                 action = "modify"
 
-            description = (
-                desc_match.group(1).strip() if desc_match else f"Change to {file_path}"
-            )
-            old_content = (
-                old_content_match.group(1).strip() if old_content_match else ""
-            )
-            new_content = (
-                new_content_match.group(1).strip() if new_content_match else ""
-            )
+            description = desc_match.group(1).strip() if desc_match else f"Change to {file_path}"
+            old_content = old_content_match.group(1).strip() if old_content_match else ""
+            new_content = new_content_match.group(1).strip() if new_content_match else ""
 
             # Strip line number prefixes if AI accidentally included them (e.g., "215:         except:")
             def strip_line_numbers(content):

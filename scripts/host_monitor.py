@@ -84,9 +84,7 @@ def _get_lvm_info_direct():
         return run_command(["sudo", "-n"] + cmd_args)
 
     # Get Physical Volumes
-    output = try_lvm_cmd(
-        ["pvs", "--noheadings", "--units", "g", "-o", "pv_name,vg_name,pv_size,pv_free"]
-    )
+    output = try_lvm_cmd(["pvs", "--noheadings", "--units", "g", "-o", "pv_name,vg_name,pv_size,pv_free"])
     if output:
         for line in output.split("\n"):
             parts = line.split()
@@ -101,9 +99,7 @@ def _get_lvm_info_direct():
                 )
 
     # Get Volume Groups
-    output = try_lvm_cmd(
-        ["vgs", "--noheadings", "--units", "g", "-o", "vg_name,vg_size,vg_free"]
-    )
+    output = try_lvm_cmd(["vgs", "--noheadings", "--units", "g", "-o", "vg_name,vg_size,vg_free"])
     if output:
         for line in output.split("\n"):
             parts = line.split()
@@ -119,9 +115,7 @@ def _get_lvm_info_direct():
                 )
 
     # Get Logical Volumes
-    output = try_lvm_cmd(
-        ["lvs", "--noheadings", "--units", "g", "-o", "lv_name,vg_name,lv_size"]
-    )
+    output = try_lvm_cmd(["lvs", "--noheadings", "--units", "g", "-o", "lv_name,vg_name,lv_size"])
     if output:
         for line in output.split("\n"):
             parts = line.split()
@@ -148,9 +142,7 @@ def _derive_lvm_from_lsblk():
     - VG total size ≈ PV partition size
     - VG free = VG total - sum(LV sizes)
     """
-    output = run_command(
-        ["lsblk", "-J", "-b", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME"]
-    )
+    output = run_command(["lsblk", "-J", "-b", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME"])
     if not output:
         return None
 
@@ -195,9 +187,7 @@ def _derive_lvm_from_lsblk():
 
                             # Add PV entry (once per VG)
                             if not any(p["pv_name"] == pv_device for p in info["pvs"]):
-                                pv_free_bytes = (
-                                    pv_size_bytes - vg_map[vg_name]["lv_total_bytes"]
-                                )
+                                pv_free_bytes = pv_size_bytes - vg_map[vg_name]["lv_total_bytes"]
                                 info["pvs"].append(
                                     {
                                         "pv_name": pv_device,
@@ -216,20 +206,14 @@ def _derive_lvm_from_lsblk():
     # Build VG entries from accumulated data
     for vg_name, vg_data in vg_map.items():
         vg_size_gb = round(vg_data["size_bytes"] / (1024**3), 2)
-        vg_free_gb = round(
-            max(0, vg_data["size_bytes"] - vg_data["lv_total_bytes"]) / (1024**3), 2
-        )
-        info["vgs"].append(
-            {"vg_name": vg_name, "vg_size_gb": vg_size_gb, "vg_free_gb": vg_free_gb}
-        )
+        vg_free_gb = round(max(0, vg_data["size_bytes"] - vg_data["lv_total_bytes"]) / (1024**3), 2)
+        info["vgs"].append({"vg_name": vg_name, "vg_size_gb": vg_size_gb, "vg_free_gb": vg_free_gb})
 
     # Update PV free values now that we have final LV totals
     for pv in info["pvs"]:
         vg_name = pv["vg_name"]
         if vg_name in vg_map:
-            pv_free_bytes = (
-                vg_map[vg_name]["size_bytes"] - vg_map[vg_name]["lv_total_bytes"]
-            )
+            pv_free_bytes = vg_map[vg_name]["size_bytes"] - vg_map[vg_name]["lv_total_bytes"]
             pv["pv_free"] = f"{round(max(0, pv_free_bytes) / (1024**3), 2)}g"
 
     return info if (info["vgs"] or info["lvs"] or info["pvs"]) else None
@@ -308,11 +292,7 @@ def get_raid_status():
                     )
             i += 1
 
-        return (
-            {"arrays": arrays, "healthy": all(a["health"] == "healthy" for a in arrays)}
-            if arrays
-            else None
-        )
+        return {"arrays": arrays, "healthy": all(a["health"] == "healthy" for a in arrays)} if arrays else None
     except:
         return None
 
@@ -336,9 +316,7 @@ def get_systemd_services():
         "ollama",
     ]
 
-    output = run_command(
-        ["systemctl", "list-units", "--type=service", "--all", "--no-pager", "--plain"]
-    )
+    output = run_command(["systemctl", "list-units", "--type=service", "--all", "--no-pager", "--plain"])
     if output:
         for line in output.split("\n")[1:]:  # Skip header
             if ".service" not in line:
@@ -353,9 +331,7 @@ def get_systemd_services():
                 # Only include important services or active ones
                 if name in important_services or status == "active":
                     # Check if enabled
-                    enabled_output = run_command(
-                        ["systemctl", "is-enabled", f"{name}.service"]
-                    )
+                    enabled_output = run_command(["systemctl", "is-enabled", f"{name}.service"])
                     enabled = enabled_output == "enabled" if enabled_output else False
 
                     services.append(
@@ -400,9 +376,7 @@ def get_network_info():
                     ip_with_mask = parts[1]
                     ip = ip_with_mask.split("/")[0]
                     if not ip.startswith("127."):
-                        info["interfaces"].append(
-                            {"name": current_iface, "ip": ip, "cidr": ip_with_mask}
-                        )
+                        info["interfaces"].append({"name": current_iface, "ip": ip, "cidr": ip_with_mask})
                         if not info["primary_ip"]:
                             info["primary_ip"] = ip
 
@@ -511,11 +485,7 @@ def get_network_info():
         with open("/proc/net/dev", "r") as f:
             for line in f:
                 line = line.strip()
-                if (
-                    ":" not in line
-                    or line.startswith("Inter")
-                    or line.startswith(" face")
-                ):
+                if ":" not in line or line.startswith("Inter") or line.startswith(" face"):
                     continue
                 parts = line.split(":")
                 iface_name = parts[0].strip()
@@ -542,9 +512,7 @@ def get_disk_layout():
     disks = []
 
     # Use lsblk to get disk info
-    output = run_command(
-        ["lsblk", "-J", "-b", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME,MODEL"]
-    )
+    output = run_command(["lsblk", "-J", "-b", "-o", "NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,PKNAME,MODEL"])
     if output:
         try:
             data = json.loads(output)
@@ -556,17 +524,9 @@ def get_disk_layout():
                         "device": f"/dev/{device.get('name')}",
                         "size_bytes": int(device.get("size", 0)),
                         "size_gb": round(int(device.get("size", 0)) / (1024**3), 2),
-                        "model": (
-                            device.get("model", "Unknown").strip()
-                            if device.get("model")
-                            else "Unknown"
-                        ),
-                        "fstype": device.get(
-                            "fstype"
-                        ),  # Capture fstype for disks without partitions
-                        "mountpoint": device.get(
-                            "mountpoint"
-                        ),  # Capture mountpoint for disks without partitions
+                        "model": (device.get("model", "Unknown").strip() if device.get("model") else "Unknown"),
+                        "fstype": device.get("fstype"),  # Capture fstype for disks without partitions
+                        "mountpoint": device.get("mountpoint"),  # Capture mountpoint for disks without partitions
                         "partitions": [],
                     }
 
@@ -606,18 +566,14 @@ def get_disk_layout():
                                     if grandchild.get("type") == "lvm"
                                     else f"/dev/{grandchild.get('name')}"
                                 ),
-                                "size_gb": round(
-                                    int(grandchild.get("size", 0)) / (1024**3), 2
-                                ),
+                                "size_gb": round(int(grandchild.get("size", 0)) / (1024**3), 2),
                                 "type": grandchild.get("type"),
                                 "fstype": grandchild.get("fstype"),
                                 "mountpoint": grandchild.get("mountpoint"),
                             }
                             # Parse VG/LV names from device mapper name for LVM children
                             if grandchild.get("type") == "lvm":
-                                vg_name, lv_name = _parse_dm_name(
-                                    grandchild.get("name", "")
-                                )
+                                vg_name, lv_name = _parse_dm_name(grandchild.get("name", ""))
                                 if vg_name:
                                     child_entry["vg_name"] = vg_name
                                     child_entry["lv_name"] = lv_name
@@ -642,9 +598,7 @@ def get_disk_layout():
             # Calculate total partition sizes
             total_partitioned = sum(p["size_bytes"] for p in disk["partitions"])
             if disk["size_bytes"] > total_partitioned:
-                disk["unallocated_gb"] = round(
-                    (disk["size_bytes"] - total_partitioned) / (1024**3), 2
-                )
+                disk["unallocated_gb"] = round((disk["size_bytes"] - total_partitioned) / (1024**3), 2)
 
     # Add disk usage stats for mounted partitions and disks
     for disk in disks:
@@ -781,11 +735,7 @@ def get_disk_stable_identifiers():
             else:
                 serial = name_part
 
-        stable_id = (
-            f"{model}_{serial}"
-            if model and serial
-            else entry.split("-", 1)[1] if "-" in entry else entry
-        )
+        stable_id = f"{model}_{serial}" if model and serial else entry.split("-", 1)[1] if "-" in entry else entry
 
         # Only add if not already present (prefer ata- over scsi- entries)
         if device_name not in identifiers:
@@ -824,9 +774,7 @@ def get_disk_stable_identifiers():
         if parent_name in identifiers:
             identifiers[parent_name]["partitions"][device_name] = {
                 "by_id_path": full_path,
-                "stable_id": (
-                    f"{model}_{serial}-part{part_num}" if model and serial else entry
-                ),
+                "stable_id": (f"{model}_{serial}-part{part_num}" if model and serial else entry),
             }
 
     return identifiers
@@ -889,9 +837,7 @@ def get_smart_health():
             name = parts[0]
             # Use run_command_full because smartctl may return non-zero exit codes
             # even for healthy drives (e.g., exit code 32 for marginal attributes)
-            result = run_command_full(
-                ["sudo", "-n", "smartctl", "-H", f"/dev/{name}"], timeout=10
-            )
+            result = run_command_full(["sudo", "-n", "smartctl", "-H", f"/dev/{name}"], timeout=10)
             smart_out = result.get("stdout", "") + result.get("stderr", "")
             if "PASSED" in smart_out:
                 health[name] = "healthy"
@@ -943,9 +889,7 @@ def get_smart_details():
         }
 
         # Get SMART info including attributes
-        result = run_command_full(
-            ["sudo", "-n", "smartctl", "-a", f"/dev/{name}"], timeout=15
-        )
+        result = run_command_full(["sudo", "-n", "smartctl", "-a", f"/dev/{name}"], timeout=15)
         smart_out = result.get("stdout", "")
 
         if not smart_out:
@@ -1005,21 +949,15 @@ def get_smart_details():
                         elif attr_id == 5 or attr_name == "Reallocated_Sector_Ct":
                             disk_details["reallocated_sector_count"] = raw_int
                             if raw_int > 0:
-                                disk_details["warnings"].append(
-                                    f"Reallocated sectors: {raw_int}"
-                                )
+                                disk_details["warnings"].append(f"Reallocated sectors: {raw_int}")
                         elif attr_id == 197 or attr_name == "Current_Pending_Sector":
                             disk_details["current_pending_sector"] = raw_int
                             if raw_int > 0:
-                                disk_details["warnings"].append(
-                                    f"Pending sectors: {raw_int}"
-                                )
+                                disk_details["warnings"].append(f"Pending sectors: {raw_int}")
                         elif attr_id == 198 or attr_name == "Offline_Uncorrectable":
                             disk_details["offline_uncorrectable"] = raw_int
                             if raw_int > 0:
-                                disk_details["warnings"].append(
-                                    f"Offline uncorrectable: {raw_int}"
-                                )
+                                disk_details["warnings"].append(f"Offline uncorrectable: {raw_int}")
 
                         disk_details["smart_attributes"].append(
                             {"id": attr_id, "name": attr_name, "raw_value": raw_int}
@@ -1226,9 +1164,7 @@ def get_gpu_info():
                 if len(parts) >= 5:
                     gpu["vram_total_mb"] = int(parts[0]) if parts[0].isdigit() else None
                     gpu["vram_used_mb"] = int(parts[1]) if parts[1].isdigit() else None
-                    gpu["utilization_percent"] = (
-                        int(parts[2]) if parts[2].isdigit() else None
-                    )
+                    gpu["utilization_percent"] = int(parts[2]) if parts[2].isdigit() else None
                     gpu["temperature"] = int(parts[3]) if parts[3].isdigit() else None
                     gpu["driver"] = parts[4] if parts[4] != "[N/A]" else None
 
@@ -1298,9 +1234,7 @@ def get_memory_hardware():
                 if "GB" in cap_str:
                     result["max_capacity_gb"] = int(cap_str.replace("GB", "").strip())
                 elif "TB" in cap_str:
-                    result["max_capacity_gb"] = int(
-                        float(cap_str.replace("TB", "").strip()) * 1024
-                    )
+                    result["max_capacity_gb"] = int(float(cap_str.replace("TB", "").strip()) * 1024)
             elif line.startswith("Number Of Devices:"):
                 result["total_slots"] = int(line.split(":", 1)[1].strip())
             elif "Error Correction Type:" in line:
@@ -1343,16 +1277,10 @@ def get_memory_hardware():
                     else:
                         current_dimm["populated"] = True
                         if "GB" in size_str:
-                            current_dimm["size_gb"] = int(
-                                size_str.replace("GB", "").strip()
-                            )
+                            current_dimm["size_gb"] = int(size_str.replace("GB", "").strip())
                         elif "MB" in size_str:
-                            current_dimm["size_gb"] = (
-                                int(size_str.replace("MB", "").strip()) / 1024
-                            )
-                elif line_stripped.startswith("Type:") and not line_stripped.startswith(
-                    "Type Detail"
-                ):
+                            current_dimm["size_gb"] = int(size_str.replace("MB", "").strip()) / 1024
+                elif line_stripped.startswith("Type:") and not line_stripped.startswith("Type Detail"):
                     mem_type = line_stripped.split(":", 1)[1].strip()
                     if mem_type not in ["Unknown", "Other"]:
                         current_dimm["type"] = mem_type
@@ -1361,24 +1289,17 @@ def get_memory_hardware():
                 elif line_stripped.startswith("Speed:"):
                     speed_str = line_stripped.split(":", 1)[1].strip()
                     if "MT/s" in speed_str or "MHz" in speed_str:
-                        speed_val = (
-                            speed_str.replace("MT/s", "").replace("MHz", "").strip()
-                        )
+                        speed_val = speed_str.replace("MT/s", "").replace("MHz", "").strip()
                         try:
                             current_dimm["speed_mhz"] = int(speed_val)
-                            if (
-                                result["max_speed_mhz"] is None
-                                or current_dimm["speed_mhz"] > result["max_speed_mhz"]
-                            ):
+                            if result["max_speed_mhz"] is None or current_dimm["speed_mhz"] > result["max_speed_mhz"]:
                                 result["max_speed_mhz"] = current_dimm["speed_mhz"]
                         except ValueError:
                             pass
                 elif line_stripped.startswith("Configured Memory Speed:"):
                     speed_str = line_stripped.split(":", 1)[1].strip()
                     if "MT/s" in speed_str or "MHz" in speed_str:
-                        speed_val = (
-                            speed_str.replace("MT/s", "").replace("MHz", "").strip()
-                        )
+                        speed_val = speed_str.replace("MT/s", "").replace("MHz", "").strip()
                         try:
                             current_dimm["configured_speed_mhz"] = int(speed_val)
                         except ValueError:
@@ -1410,17 +1331,9 @@ def get_memory_hardware():
 
         # Estimate channels based on populated slots
         if result["populated_slots"] >= 4:
-            result["channels"] = (
-                "Quad Channel"
-                if result["populated_slots"] % 4 == 0
-                else "Multi-Channel"
-            )
+            result["channels"] = "Quad Channel" if result["populated_slots"] % 4 == 0 else "Multi-Channel"
         elif result["populated_slots"] >= 2:
-            result["channels"] = (
-                "Dual Channel"
-                if result["populated_slots"] % 2 == 0
-                else "Single Channel"
-            )
+            result["channels"] = "Dual Channel" if result["populated_slots"] % 2 == 0 else "Single Channel"
         elif result["populated_slots"] == 1:
             result["channels"] = "Single Channel"
 
@@ -1496,9 +1409,7 @@ def get_cpu_hardware():
                     speed_str = line_stripped.split(":", 1)[1].strip()
                     if "MHz" in speed_str:
                         try:
-                            current_proc["max_speed_mhz"] = int(
-                                speed_str.replace("MHz", "").strip()
-                            )
+                            current_proc["max_speed_mhz"] = int(speed_str.replace("MHz", "").strip())
                             if result["max_speed_mhz"] is None:
                                 result["max_speed_mhz"] = current_proc["max_speed_mhz"]
                         except ValueError:
@@ -1507,13 +1418,9 @@ def get_cpu_hardware():
                     speed_str = line_stripped.split(":", 1)[1].strip()
                     if "MHz" in speed_str:
                         try:
-                            current_proc["current_speed_mhz"] = int(
-                                speed_str.replace("MHz", "").strip()
-                            )
+                            current_proc["current_speed_mhz"] = int(speed_str.replace("MHz", "").strip())
                             if result["current_speed_mhz"] is None:
-                                result["current_speed_mhz"] = current_proc[
-                                    "current_speed_mhz"
-                                ]
+                                result["current_speed_mhz"] = current_proc["current_speed_mhz"]
                         except ValueError:
                             pass
                 elif line_stripped.startswith("Voltage:"):
@@ -1524,16 +1431,12 @@ def get_cpu_hardware():
                             result["voltage"] = voltage
                 elif line_stripped.startswith("Core Count:"):
                     try:
-                        current_proc["cores"] = int(
-                            line_stripped.split(":", 1)[1].strip()
-                        )
+                        current_proc["cores"] = int(line_stripped.split(":", 1)[1].strip())
                     except ValueError:
                         pass
                 elif line_stripped.startswith("Thread Count:"):
                     try:
-                        current_proc["threads"] = int(
-                            line_stripped.split(":", 1)[1].strip()
-                        )
+                        current_proc["threads"] = int(line_stripped.split(":", 1)[1].strip())
                     except ValueError:
                         pass
                 elif line_stripped.startswith("Status:"):
@@ -1744,9 +1647,7 @@ def get_pci_slots():
                         # Shorten long device names
                         if "[" in device_desc and "]" in device_desc:
                             # Extract bracketed model name: [Quadro M4000]
-                            device_desc = device_desc[
-                                device_desc.index("[") + 1 : device_desc.index("]")
-                            ]
+                            device_desc = device_desc[device_desc.index("[") + 1 : device_desc.index("]")]
                         elif len(device_desc) > 40:
                             device_desc = device_desc[:40] + "..."
                         pci_devices[addr] = device_desc
@@ -1785,20 +1686,14 @@ def get_pci_slots():
                     else:
                         current_slot["type"] = slot_type
                 elif line_stripped.startswith("Current Usage:"):
-                    current_slot["current_usage"] = line_stripped.split(":", 1)[
-                        1
-                    ].strip()
+                    current_slot["current_usage"] = line_stripped.split(":", 1)[1].strip()
                 elif line_stripped.startswith("Length:"):
                     current_slot["length"] = line_stripped.split(":", 1)[1].strip()
                 elif line_stripped.startswith("Bus Address:"):
                     bus_addr = line_stripped.split(":", 1)[1].strip()
                     current_slot["bus_address"] = bus_addr
                     # Try to match with lspci device (strip leading 0000: if present)
-                    short_addr = (
-                        bus_addr.replace("0000:", "")
-                        if bus_addr.startswith("0000:")
-                        else bus_addr
-                    )
+                    short_addr = bus_addr.replace("0000:", "") if bus_addr.startswith("0000:") else bus_addr
                     if short_addr in pci_devices:
                         current_slot["device"] = pci_devices[short_addr]
 
@@ -1857,23 +1752,17 @@ def get_sata_ports():
                                 target_path = os.path.join(host_path, subentry)
                                 for dev_entry in os.listdir(target_path):
                                     if ":" in dev_entry:
-                                        block_path = os.path.join(
-                                            target_path, dev_entry, "block"
-                                        )
+                                        block_path = os.path.join(target_path, dev_entry, "block")
                                         if os.path.exists(block_path):
                                             devices = os.listdir(block_path)
                                             if devices:
                                                 port_info["device"] = devices[0]
                                                 port_info["in_use"] = True
                                                 # Try to get model
-                                                model_path = os.path.join(
-                                                    target_path, dev_entry, "model"
-                                                )
+                                                model_path = os.path.join(target_path, dev_entry, "model")
                                                 if os.path.exists(model_path):
                                                     with open(model_path, "r") as f:
-                                                        port_info["device_model"] = (
-                                                            f.read().strip()
-                                                        )
+                                                        port_info["device_model"] = f.read().strip()
             except (OSError, IOError):
                 pass
 
@@ -2047,9 +1936,7 @@ def get_docker_container_pids():
     pid_to_container = {}
 
     # First get list of running containers
-    containers_output = run_command(
-        ["docker", "ps", "--format", "{{.Names}}"], timeout=10
-    )
+    containers_output = run_command(["docker", "ps", "--format", "{{.Names}}"], timeout=10)
     if not containers_output:
         return pid_to_container
 
@@ -2243,12 +2130,8 @@ def update_bandwidth_history(network_data, container_bandwidth=None):
                 for name, cur_vals in current.items():
                     if name in prev_counters:
                         prev_vals = prev_counters[name]
-                        rx_delta = max(
-                            0, cur_vals["rx_bytes"] - prev_vals.get("rx_bytes", 0)
-                        )
-                        tx_delta = max(
-                            0, cur_vals["tx_bytes"] - prev_vals.get("tx_bytes", 0)
-                        )
+                        rx_delta = max(0, cur_vals["rx_bytes"] - prev_vals.get("rx_bytes", 0))
+                        tx_delta = max(0, cur_vals["tx_bytes"] - prev_vals.get("tx_bytes", 0))
                         rates[name] = {
                             "rx_bps": round(rx_delta / dt),
                             "tx_bps": round(tx_delta / dt),
@@ -2352,9 +2235,7 @@ def run_command_full(cmd, timeout=120):
     """Run a command and return full result dict with returncode, stdout, stderr.
     cmd must be a list (no shell=True) to prevent injection."""
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, shell=False
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, shell=False)
         return {
             "returncode": result.returncode,
             "stdout": result.stdout,
@@ -2796,7 +2677,10 @@ COMMAND_REGISTRY = {
     "compliance_run_check": {
         "handler": "handle_compliance_run_check",
         "params": {
-            "check_type": {"required": True, "regex": r"^(file_permission|service_status|package_installed|port_listening|command_safe)$"},
+            "check_type": {
+                "required": True,
+                "regex": r"^(file_permission|service_status|package_installed|port_listening|command_safe)$",
+            },
             "target": {"required": True, "regex": r"^[a-zA-Z0-9_/.\-: ]+$"},
         },
     },
@@ -2929,8 +2813,14 @@ def handle_fail2ban_jail_status(params):
     output = run_command(["fail2ban-client", "status", jail], timeout=10)
     if output is None:
         return {"success": False, "error": f"Failed to get status for jail {jail}"}
-    status = {"jail": jail, "currently_failed": 0, "total_failed": 0,
-              "currently_banned": 0, "total_banned": 0, "banned_ips": []}
+    status = {
+        "jail": jail,
+        "currently_failed": 0,
+        "total_failed": 0,
+        "currently_banned": 0,
+        "total_banned": 0,
+        "banned_ips": [],
+    }
     for line in output.splitlines():
         line = line.strip()
         if "Currently failed:" in line:
@@ -2991,7 +2881,11 @@ def handle_arp_scan(params):
                 mac_idx = parts.index("lladdr") + 1
                 if mac_idx < len(parts):
                     mac = parts[mac_idx]
-            state = parts[-1] if parts[-1] in ("REACHABLE", "STALE", "DELAY", "PROBE", "FAILED", "INCOMPLETE") else "unknown"
+            state = (
+                parts[-1]
+                if parts[-1] in ("REACHABLE", "STALE", "DELAY", "PROBE", "FAILED", "INCOMPLETE")
+                else "unknown"
+            )
             if state == "FAILED" or state == "INCOMPLETE":
                 continue
             entries.append({"ip": ip, "mac": mac, "state": state})
@@ -3014,16 +2908,12 @@ def handle_service_control(params):
         }
 
     if action == "status":
-        result = run_command_full(
-            ["systemctl", "is-active", f"{service}.service"], timeout=10
-        )
+        result = run_command_full(["systemctl", "is-active", f"{service}.service"], timeout=10)
         status = result["stdout"].strip() if result["returncode"] == 0 else "unknown"
         return {"success": True, "service": service, "status": status}
 
     # For restart/start/stop, use sudo
-    result = run_command_full(
-        ["sudo", "-n", "systemctl", action, f"{service}.service"], timeout=30
-    )
+    result = run_command_full(["sudo", "-n", "systemctl", action, f"{service}.service"], timeout=30)
     if result["returncode"] == 0:
         return {"success": True, "message": f"Service {service} {action} successful"}
     else:
@@ -3181,9 +3071,7 @@ def handle_filesystem_resize(params):
     stop_containers_flag = params.get("stop_containers", True)  # Default to True
 
     # Detect filesystem type
-    fs_result = run_command_full(
-        ["sudo", "-n", "blkid", "-o", "value", "-s", "TYPE", device], timeout=10
-    )
+    fs_result = run_command_full(["sudo", "-n", "blkid", "-o", "value", "-s", "TYPE", device], timeout=10)
     if fs_result["returncode"] != 0:
         return {
             "success": False,
@@ -3217,9 +3105,7 @@ def handle_filesystem_resize(params):
         if fs_type in ("ext4", "ext3", "ext2"):
             # Try up to 3 times with delays if device is busy
             for attempt in range(3):
-                resize_result = run_command_full(
-                    ["sudo", "-n", "resize2fs", device], timeout=300
-                )
+                resize_result = run_command_full(["sudo", "-n", "resize2fs", device], timeout=300)
                 if resize_result["returncode"] == 0:
                     break
                 if "busy" in resize_result["stderr"].lower():
@@ -3229,9 +3115,7 @@ def handle_filesystem_resize(params):
         elif fs_type == "xfs":
             # xfs_growfs requires the mount point, not device path
             if mountpoint:
-                resize_result = run_command_full(
-                    ["sudo", "-n", "xfs_growfs", mountpoint], timeout=300
-                )
+                resize_result = run_command_full(["sudo", "-n", "xfs_growfs", mountpoint], timeout=300)
             else:
                 resize_result = {
                     "returncode": -1,
@@ -3294,9 +3178,7 @@ def handle_lvm_extend(params):
     lv_path = f"/dev/{vg_name}/{lv_name}"
 
     # Get mountpoint for container detection
-    mount_result = run_command_full(
-        ["findmnt", "-n", "-o", "TARGET", lv_path], timeout=10
-    )
+    mount_result = run_command_full(["findmnt", "-n", "-o", "TARGET", lv_path], timeout=10)
     mountpoint = mount_result["stdout"].strip()
 
     # Protected system paths - don't stop containers for these (too risky)
@@ -3318,9 +3200,7 @@ def handle_lvm_extend(params):
 
     # Check if this is a protected system path
     if mountpoint in PROTECTED_PATHS:
-        print(
-            f"Mountpoint {mountpoint} is a protected system path - skipping container stop"
-        )
+        print(f"Mountpoint {mountpoint} is a protected system path - skipping container stop")
         skip_container_stop = True
 
     # Stop containers using this mountpoint for safer resize (unless protected)
@@ -3330,9 +3210,7 @@ def handle_lvm_extend(params):
             # Never stop archie_platform - it's running this operation!
             containers = [c for c in containers if c != "archie_platform"]
             if containers:
-                print(
-                    f"Stopping {len(containers)} containers using {mountpoint} for extend operation"
-                )
+                print(f"Stopping {len(containers)} containers using {mountpoint} for extend operation")
                 stop_result = stop_containers(containers, timeout=120)
                 containers_to_restart = stop_result.get("stopped", [])
                 time.sleep(2)  # Give containers time to fully stop
@@ -3376,9 +3254,7 @@ def handle_lvm_extend(params):
                 }
 
         # Detect filesystem type and resize
-        fs_result = run_command_full(
-            ["sudo", "-n", "blkid", "-o", "value", "-s", "TYPE", lv_path], timeout=10
-        )
+        fs_result = run_command_full(["sudo", "-n", "blkid", "-o", "value", "-s", "TYPE", lv_path], timeout=10)
         fs_type = fs_result["stdout"].strip()
 
         # Try both the symlink path and the device mapper path for resize
@@ -3390,17 +3266,13 @@ def handle_lvm_extend(params):
         resize_result = None
         if fs_type in ("ext4", "ext3", "ext2"):
             for dev_path in device_paths:
-                resize_result = run_command_full(
-                    ["sudo", "-n", "resize2fs", dev_path], timeout=120
-                )
+                resize_result = run_command_full(["sudo", "-n", "resize2fs", dev_path], timeout=120)
                 if resize_result["returncode"] == 0:
                     break
                 # If "busy", wait and retry once
                 if "busy" in resize_result["stderr"].lower():
                     time.sleep(2)
-                    resize_result = run_command_full(
-                        ["sudo", "-n", "resize2fs", dev_path], timeout=120
-                    )
+                    resize_result = run_command_full(["sudo", "-n", "resize2fs", dev_path], timeout=120)
                     if resize_result["returncode"] == 0:
                         break
         elif fs_type == "xfs":
@@ -3412,14 +3284,10 @@ def handle_lvm_extend(params):
                     "filesystem": fs_type,
                     "containers_stopped": containers_to_restart,
                 }
-            resize_result = run_command_full(
-                ["sudo", "-n", "xfs_growfs", mountpoint], timeout=120
-            )
+            resize_result = run_command_full(["sudo", "-n", "xfs_growfs", mountpoint], timeout=120)
         else:
             lv_status = (
-                "LV extended"
-                if lv_extended
-                else ("LV already at max size" if lv_already_max else "LV unchanged")
+                "LV extended" if lv_extended else ("LV already at max size" if lv_already_max else "LV unchanged")
             )
             return {
                 "success": True,
@@ -3430,24 +3298,16 @@ def handle_lvm_extend(params):
 
         if resize_result is None or resize_result["returncode"] != 0:
             lv_status = (
-                "LV extended"
-                if lv_extended
-                else ("LV already at max size" if lv_already_max else "LV unchanged")
+                "LV extended" if lv_extended else ("LV already at max size" if lv_already_max else "LV unchanged")
             )
             return {
                 "success": False,
                 "message": f"{lv_status} but filesystem resize failed",
-                "error": (
-                    resize_result["stderr"] if resize_result else "No resize attempted"
-                ),
+                "error": (resize_result["stderr"] if resize_result else "No resize attempted"),
                 "containers_stopped": containers_to_restart,
             }
 
-        lv_status = (
-            "Extended LV and"
-            if lv_extended
-            else ("LV already at max size," if lv_already_max else "")
-        )
+        lv_status = "Extended LV and" if lv_extended else ("LV already at max size," if lv_already_max else "")
         final_result = {
             "success": True,
             "message": f"{lv_status} resized {fs_type} filesystem on {lv_path}".strip(),
@@ -3474,9 +3334,7 @@ def handle_lvm_shrink(params):
     lv_path = f"/dev/{vg_name}/{lv_name}"
 
     # Check filesystem type (only ext4 supports shrink)
-    fs_result = run_command_full(
-        ["sudo", "-n", "blkid", "-o", "value", "-s", "TYPE", lv_path], timeout=10
-    )
+    fs_result = run_command_full(["sudo", "-n", "blkid", "-o", "value", "-s", "TYPE", lv_path], timeout=10)
     fs_type = fs_result["stdout"].strip()
     if fs_type not in ("ext4", "ext3", "ext2"):
         return {
@@ -3485,9 +3343,7 @@ def handle_lvm_shrink(params):
         }
 
     # Check if mounted - get mountpoint
-    mount_check = run_command_full(
-        ["findmnt", "-n", "-o", "TARGET", lv_path], timeout=10
-    )
+    mount_check = run_command_full(["findmnt", "-n", "-o", "TARGET", lv_path], timeout=10)
     mountpoint = mount_check["stdout"].strip()
 
     # Protected system paths - cannot shrink these while system is running
@@ -3534,9 +3390,7 @@ def handle_lvm_shrink(params):
             # Never stop archie_platform - it's running this operation!
             containers = [c for c in containers if c != "archie_platform"]
             if containers:
-                print(
-                    f"Stopping {len(containers)} containers using {mountpoint} for shrink operation"
-                )
+                print(f"Stopping {len(containers)} containers using {mountpoint} for shrink operation")
                 stop_result = stop_containers(containers, timeout=120)
                 containers_to_restart = stop_result.get("stopped", [])
                 time.sleep(2)  # Give containers time to fully stop
@@ -3556,15 +3410,11 @@ def handle_lvm_shrink(params):
 
     try:
         # e2fsck first (required before shrinking)
-        fsck = run_command_full(
-            ["sudo", "-n", "e2fsck", "-f", "-y", lv_path], timeout=300
-        )
+        fsck = run_command_full(["sudo", "-n", "e2fsck", "-f", "-y", lv_path], timeout=300)
         if fsck["returncode"] not in (0, 1):  # 1 = errors corrected
             # Try to remount if we unmounted
             if mountpoint:
-                run_command_full(
-                    ["sudo", "-n", "mount", lv_path, mountpoint], timeout=30
-                )
+                run_command_full(["sudo", "-n", "mount", lv_path, mountpoint], timeout=30)
             return {
                 "success": False,
                 "error": f'e2fsck failed: {fsck["stderr"]}',
@@ -3572,15 +3422,11 @@ def handle_lvm_shrink(params):
             }
 
         # Shrink filesystem first (must be done before LV shrink)
-        resize = run_command_full(
-            ["sudo", "-n", "resize2fs", lv_path, f"{target_size_gb}G"], timeout=300
-        )
+        resize = run_command_full(["sudo", "-n", "resize2fs", lv_path, f"{target_size_gb}G"], timeout=300)
         if resize["returncode"] != 0:
             # Try to remount if we unmounted
             if mountpoint:
-                run_command_full(
-                    ["sudo", "-n", "mount", lv_path, mountpoint], timeout=30
-                )
+                run_command_full(["sudo", "-n", "mount", lv_path, mountpoint], timeout=30)
             return {
                 "success": False,
                 "error": f'resize2fs shrink failed: {resize["stderr"]}',
@@ -3595,9 +3441,7 @@ def handle_lvm_shrink(params):
         if lv_shrink["returncode"] != 0:
             # Filesystem is already shrunk, this is problematic but try to remount
             if mountpoint:
-                run_command_full(
-                    ["sudo", "-n", "mount", lv_path, mountpoint], timeout=30
-                )
+                run_command_full(["sudo", "-n", "mount", lv_path, mountpoint], timeout=30)
             return {
                 "success": False,
                 "error": f'lvreduce failed: {lv_shrink["stderr"]}',
@@ -3606,9 +3450,7 @@ def handle_lvm_shrink(params):
 
         # Remount if it was mounted
         if mountpoint:
-            remount = run_command_full(
-                ["sudo", "-n", "mount", lv_path, mountpoint], timeout=30
-            )
+            remount = run_command_full(["sudo", "-n", "mount", lv_path, mountpoint], timeout=30)
             if remount["returncode"] != 0:
                 return {
                     "success": True,
@@ -3642,12 +3484,8 @@ def handle_lvm_rename(params):
     old_path = f"/dev/{vg_name}/{old_lv_name}"
     new_path = f"/dev/{vg_name}/{new_lv_name}"
     # Mapper paths use double-dash to escape dashes in names
-    old_mapper = (
-        f'/dev/mapper/{vg_name.replace("-", "--")}-{old_lv_name.replace("-", "--")}'
-    )
-    new_mapper = (
-        f'/dev/mapper/{vg_name.replace("-", "--")}-{new_lv_name.replace("-", "--")}'
-    )
+    old_mapper = f'/dev/mapper/{vg_name.replace("-", "--")}-{old_lv_name.replace("-", "--")}'
+    new_mapper = f'/dev/mapper/{vg_name.replace("-", "--")}-{new_lv_name.replace("-", "--")}'
 
     # Check if old LV exists
     check = run_command_full(["sudo", "-n", "lvs", old_path], timeout=10)
@@ -3666,9 +3504,7 @@ def handle_lvm_rename(params):
     mountpoint = None
     mount_source = None
     for check_path in [old_path, old_mapper]:
-        mount_check = run_command_full(
-            ["findmnt", "-n", "-o", "TARGET", check_path], timeout=10
-        )
+        mount_check = run_command_full(["findmnt", "-n", "-o", "TARGET", check_path], timeout=10)
         if mount_check["returncode"] == 0 and mount_check["stdout"].strip():
             mountpoint = mount_check["stdout"].strip()
             mount_source = check_path
@@ -3679,28 +3515,16 @@ def handle_lvm_rename(params):
     if mountpoint:
         was_mounted = True
         # Get mount options to preserve them
-        opts_check = run_command_full(
-            ["findmnt", "-n", "-o", "OPTIONS", mountpoint], timeout=10
-        )
-        mount_options = (
-            opts_check["stdout"].strip()
-            if opts_check["returncode"] == 0
-            else "defaults"
-        )
+        opts_check = run_command_full(["findmnt", "-n", "-o", "OPTIONS", mountpoint], timeout=10)
+        mount_options = opts_check["stdout"].strip() if opts_check["returncode"] == 0 else "defaults"
 
         # Unmount the filesystem
         print(f"Unmounting {mountpoint} before LV rename")
-        unmount_result = run_command_full(
-            ["sudo", "-n", "umount", mountpoint], timeout=60
-        )
+        unmount_result = run_command_full(["sudo", "-n", "umount", mountpoint], timeout=60)
         if unmount_result["returncode"] != 0:
             # Try lazy unmount if regular unmount fails
-            print(
-                f"Regular unmount failed, trying lazy unmount: {unmount_result['stderr']}"
-            )
-            unmount_result = run_command_full(
-                ["sudo", "-n", "umount", "-l", mountpoint], timeout=30
-            )
+            print(f"Regular unmount failed, trying lazy unmount: {unmount_result['stderr']}")
+            unmount_result = run_command_full(["sudo", "-n", "umount", "-l", mountpoint], timeout=30)
             if unmount_result["returncode"] != 0:
                 return {
                     "success": False,
@@ -3708,9 +3532,7 @@ def handle_lvm_rename(params):
                 }
 
     # Rename the LV
-    rename_result = run_command_full(
-        ["sudo", "-n", "lvrename", vg_name, old_lv_name, new_lv_name], timeout=30
-    )
+    rename_result = run_command_full(["sudo", "-n", "lvrename", vg_name, old_lv_name, new_lv_name], timeout=30)
     if rename_result["returncode"] != 0:
         # If rename fails and we unmounted, try to remount with old path
         if was_mounted:
@@ -3738,15 +3560,11 @@ def handle_lvm_rename(params):
 
         if fstab_updated:
             # Backup fstab first
-            run_command_full(
-                ["sudo", "-n", "cp", "/etc/fstab", "/etc/fstab.bak"], timeout=10
-            )
+            run_command_full(["sudo", "-n", "cp", "/etc/fstab", "/etc/fstab.bak"], timeout=10)
             # Write new fstab
             with open("/tmp/fstab.new", "w") as f:
                 f.write(new_fstab)
-            run_command_full(
-                ["sudo", "-n", "cp", "/tmp/fstab.new", "/etc/fstab"], timeout=10
-            )
+            run_command_full(["sudo", "-n", "cp", "/tmp/fstab.new", "/etc/fstab"], timeout=10)
     except Exception as e:
         print(f"fstab update failed: {e}")
         # Continue - we'll try to remount anyway
@@ -3757,14 +3575,10 @@ def handle_lvm_rename(params):
         print(f"Remounting {mountpoint} with new path {new_path}")
         # Ensure mount point exists
         run_command_full(["sudo", "-n", "mkdir", "-p", mountpoint], timeout=10)
-        mount_result = run_command_full(
-            ["sudo", "-n", "mount", new_path, mountpoint], timeout=60
-        )
+        mount_result = run_command_full(["sudo", "-n", "mount", new_path, mountpoint], timeout=60)
         if mount_result["returncode"] != 0:
             # Try mapper path
-            mount_result = run_command_full(
-                ["sudo", "-n", "mount", new_mapper, mountpoint], timeout=60
-            )
+            mount_result = run_command_full(["sudo", "-n", "mount", new_mapper, mountpoint], timeout=60)
 
         remount_success = mount_result["returncode"] == 0
         if not remount_success:
@@ -3875,9 +3689,7 @@ def handle_vg_create(params):
         return {"success": False, "error": f'pvcreate failed: {result["stderr"]}'}
 
     # Create volume group
-    result = run_command_full(
-        ["sudo", "-n", "vgcreate", vg_name, pv_device], timeout=60
-    )
+    result = run_command_full(["sudo", "-n", "vgcreate", vg_name, pv_device], timeout=60)
     if result["returncode"] != 0:
         return {"success": False, "error": f'vgcreate failed: {result["stderr"]}'}
 
@@ -3973,9 +3785,7 @@ def handle_lvm_snapshot(params):
 
 def get_device_uuid(device):
     """Get UUID for a device using blkid"""
-    result = run_command_full(
-        ["blkid", "-s", "UUID", "-o", "value", device], timeout=10
-    )
+    result = run_command_full(["blkid", "-s", "UUID", "-o", "value", device], timeout=10)
     if result["returncode"] == 0 and result["stdout"].strip():
         return result["stdout"].strip()
     return None
@@ -3983,9 +3793,7 @@ def get_device_uuid(device):
 
 def get_device_fstype(device):
     """Get filesystem type for a device using blkid"""
-    result = run_command_full(
-        ["blkid", "-s", "TYPE", "-o", "value", device], timeout=10
-    )
+    result = run_command_full(["blkid", "-s", "TYPE", "-o", "value", device], timeout=10)
     if result["returncode"] == 0 and result["stdout"].strip():
         return result["stdout"].strip()
     return None
@@ -4117,16 +3925,12 @@ def add_fstab_entry(device_uuid, mountpoint, fstype="ext4"):
         # Use a different approach - write to temp and move
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".fstab"
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".fstab") as tmp:
             tmp.write(fstab_content)
             tmp_path = tmp.name
 
         # Copy with sudo
-        result = run_command_full(
-            ["sudo", "-n", "cp", tmp_path, fstab_path], timeout=10
-        )
+        result = run_command_full(["sudo", "-n", "cp", tmp_path, fstab_path], timeout=10)
         os.unlink(tmp_path)
 
         if result["returncode"] != 0:
@@ -4193,15 +3997,11 @@ def remove_fstab_entry(device=None, mountpoint=None, device_uuid=None):
         # Write back
         import tempfile
 
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, suffix=".fstab"
-        ) as tmp:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".fstab") as tmp:
             tmp.writelines(new_lines)
             tmp_path = tmp.name
 
-        result = run_command_full(
-            ["sudo", "-n", "cp", tmp_path, fstab_path], timeout=10
-        )
+        result = run_command_full(["sudo", "-n", "cp", tmp_path, fstab_path], timeout=10)
         os.unlink(tmp_path)
 
         if result["returncode"] != 0:
@@ -4273,9 +4073,7 @@ def handle_disk_unmount(params):
 
     device = params["device"]
     force = params.get("force", False)
-    remove_persist = params.get(
-        "remove_persist", True
-    )  # Default to removing fstab entry
+    remove_persist = params.get("remove_persist", True)  # Default to removing fstab entry
 
     # Get UUID before unmounting (needed for fstab removal)
     device_uuid = get_device_uuid(device) if remove_persist else None
@@ -4304,9 +4102,7 @@ def handle_disk_unmount(params):
     # Remove fstab entry
     fstab_message = ""
     if remove_persist:
-        fstab_result = remove_fstab_entry(
-            device=device, mountpoint=mountpoint, device_uuid=device_uuid
-        )
+        fstab_result = remove_fstab_entry(device=device, mountpoint=mountpoint, device_uuid=device_uuid)
         if fstab_result["success"]:
             if "No matching" not in fstab_result.get("message", ""):
                 fstab_message = " (removed from fstab)"
@@ -4326,9 +4122,7 @@ def handle_fix_stale_mount(params):
     new_device = params["new_device"]
 
     # Check if mountpoint is currently mounted
-    mount_check = run_command_full(
-        ["findmnt", "-n", "-o", "SOURCE", mountpoint], timeout=10
-    )
+    mount_check = run_command_full(["findmnt", "-n", "-o", "SOURCE", mountpoint], timeout=10)
     if mount_check["returncode"] != 0:
         return {"success": False, "error": f"{mountpoint} is not mounted"}
 
@@ -4336,20 +4130,12 @@ def handle_fix_stale_mount(params):
     print(f"Fixing stale mount at {mountpoint}: {old_source} -> {new_device}")
 
     # Get current mount options
-    opts_check = run_command_full(
-        ["findmnt", "-n", "-o", "OPTIONS", mountpoint], timeout=10
-    )
-    mount_options = (
-        opts_check["stdout"].strip() if opts_check["returncode"] == 0 else "defaults"
-    )
+    opts_check = run_command_full(["findmnt", "-n", "-o", "OPTIONS", mountpoint], timeout=10)
+    mount_options = opts_check["stdout"].strip() if opts_check["returncode"] == 0 else "defaults"
 
     # Get filesystem type
-    fstype_check = run_command_full(
-        ["findmnt", "-n", "-o", "FSTYPE", mountpoint], timeout=10
-    )
-    fstype = (
-        fstype_check["stdout"].strip() if fstype_check["returncode"] == 0 else "auto"
-    )
+    fstype_check = run_command_full(["findmnt", "-n", "-o", "FSTYPE", mountpoint], timeout=10)
+    fstype = fstype_check["stdout"].strip() if fstype_check["returncode"] == 0 else "auto"
 
     # Verify the new device exists
     if not os.path.exists(new_device):
@@ -4367,14 +4153,10 @@ def handle_fix_stale_mount(params):
         print(f"Container stop check failed: {e}")
 
     # Lazy unmount the stale mount
-    unmount_result = run_command_full(
-        ["sudo", "-n", "umount", "-l", mountpoint], timeout=30
-    )
+    unmount_result = run_command_full(["sudo", "-n", "umount", "-l", mountpoint], timeout=30)
     if unmount_result["returncode"] != 0:
         # Try force unmount
-        unmount_result = run_command_full(
-            ["sudo", "-n", "umount", "-f", mountpoint], timeout=30
-        )
+        unmount_result = run_command_full(["sudo", "-n", "umount", "-f", mountpoint], timeout=30)
         if unmount_result["returncode"] != 0:
             return {
                 "success": False,
@@ -4414,14 +4196,10 @@ def handle_fix_stale_mount(params):
         if old_source in fstab_content or mountpoint in fstab_content:
             new_fstab = fstab_content.replace(old_source, new_device)
             # Backup and write
-            run_command_full(
-                ["sudo", "-n", "cp", "/etc/fstab", "/etc/fstab.bak"], timeout=10
-            )
+            run_command_full(["sudo", "-n", "cp", "/etc/fstab", "/etc/fstab.bak"], timeout=10)
             with open("/tmp/fstab.new", "w") as f:
                 f.write(new_fstab)
-            run_command_full(
-                ["sudo", "-n", "cp", "/tmp/fstab.new", "/etc/fstab"], timeout=10
-            )
+            run_command_full(["sudo", "-n", "cp", "/tmp/fstab.new", "/etc/fstab"], timeout=10)
             fstab_updated = True
     except Exception as e:
         print(f"fstab update failed: {e}")
@@ -4468,12 +4246,14 @@ def restore_managed_mounts():
         cur = conn.cursor()
 
         # Get all managed mounts (excluding root filesystem)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT device, mount_point, filesystem, label
             FROM storage_mounts
             WHERE is_managed = true AND mount_point != '/'
             ORDER BY mount_point
-        """)
+        """
+        )
 
         managed_mounts = cur.fetchall()
         cur.close()
@@ -4536,9 +4316,7 @@ def restore_managed_mounts():
                 mount_info["message"] = "Device not found (may have been removed)"
                 results["skipped"] += 1
                 results["details"].append(mount_info)
-                print(
-                    f"[Mount Restore] {device} -> {mount_point}: Skipped (device not found)"
-                )
+                print(f"[Mount Restore] {device} -> {mount_point}: Skipped (device not found)")
                 continue
 
             # Attempt to mount
@@ -4546,24 +4324,18 @@ def restore_managed_mounts():
             print(f"[Mount Restore] Attempting to mount {device} -> {mount_point}")
 
             try:
-                mount_result = handle_disk_mount(
-                    {"device": device, "mountpoint": mount_point, "fstype": filesystem}
-                )
+                mount_result = handle_disk_mount({"device": device, "mountpoint": mount_point, "fstype": filesystem})
 
                 if mount_result.get("success"):
                     mount_info["status"] = "mounted"
-                    mount_info["message"] = mount_result.get(
-                        "message", "Mounted successfully"
-                    )
+                    mount_info["message"] = mount_result.get("message", "Mounted successfully")
                     results["mounted"] += 1
                     print(f"[Mount Restore] {device} -> {mount_point}: SUCCESS")
                 else:
                     mount_info["status"] = "failed"
                     mount_info["message"] = mount_result.get("error", "Unknown error")
                     results["failed"] += 1
-                    print(
-                        f"[Mount Restore] {device} -> {mount_point}: FAILED - {mount_info['message']}"
-                    )
+                    print(f"[Mount Restore] {device} -> {mount_point}: FAILED - {mount_info['message']}")
             except Exception as e:
                 mount_info["status"] = "failed"
                 mount_info["message"] = str(e)
@@ -4598,9 +4370,7 @@ def handle_disk_format(params):
     label = params.get("label")
 
     # Verify not currently mounted
-    mount_check = run_command_full(
-        ["findmnt", "-n", "-o", "TARGET", device], timeout=10
-    )
+    mount_check = run_command_full(["findmnt", "-n", "-o", "TARGET", device], timeout=10)
     if mount_check["returncode"] == 0 and mount_check["stdout"].strip():
         return {
             "success": False,
@@ -4649,9 +4419,7 @@ def handle_disk_wipe(params):
     base_device = device.rstrip("0123456789") if is_partition else device
 
     # Step 1: Find and unmount any mounts on this device or its children
-    lsblk_out = run_command(
-        ["lsblk", "-J", "-o", "NAME,MOUNTPOINT,TYPE", device], timeout=30
-    )
+    lsblk_out = run_command(["lsblk", "-J", "-o", "NAME,MOUNTPOINT,TYPE", device], timeout=30)
     if lsblk_out:
         try:
             import json
@@ -4669,9 +4437,7 @@ def handle_disk_wipe(params):
 
             mounts = find_mounts(lsblk_data.get("blockdevices", []))
             for mount in mounts:
-                umount_result = run_command_full(
-                    ["sudo", "-n", "umount", mount], timeout=30
-                )
+                umount_result = run_command_full(["sudo", "-n", "umount", mount], timeout=30)
                 if umount_result["returncode"] == 0:
                     messages.append(f"Unmounted {mount}")
                 else:
@@ -4684,9 +4450,7 @@ def handle_disk_wipe(params):
     # Step 2: Remove LVM structures if requested
     if wipe_lvm:
         # Find VGs that use this device as PV
-        pvs_out = run_command(
-            ["sudo", "-n", "pvs", "--noheadings", "-o", "pv_name,vg_name"], timeout=30
-        )
+        pvs_out = run_command(["sudo", "-n", "pvs", "--noheadings", "-o", "pv_name,vg_name"], timeout=30)
         if pvs_out:
             for line in pvs_out.strip().split("\n"):
                 parts = line.split()
@@ -4726,16 +4490,12 @@ def handle_disk_wipe(params):
                                         messages.append(f"Removed LV {lv_path}")
 
                         # Remove VG
-                        result = run_command_full(
-                            ["sudo", "-n", "vgremove", "-f", vg_name], timeout=60
-                        )
+                        result = run_command_full(["sudo", "-n", "vgremove", "-f", vg_name], timeout=60)
                         if result["returncode"] == 0:
                             messages.append(f"Removed VG {vg_name}")
 
                         # Remove PV
-                        result = run_command_full(
-                            ["sudo", "-n", "pvremove", "-f", pv_name], timeout=60
-                        )
+                        result = run_command_full(["sudo", "-n", "pvremove", "-f", pv_name], timeout=60)
                         if result["returncode"] == 0:
                             messages.append(f"Removed PV {pv_name}")
 
@@ -4783,14 +4543,10 @@ def handle_partition_create(params):
     part_type = params.get("part_type", "primary")
 
     # Check if device has a partition table
-    check_label = run_command_full(
-        ["sudo", "-n", "parted", "-s", device, "print"], timeout=30
-    )
+    check_label = run_command_full(["sudo", "-n", "parted", "-s", device, "print"], timeout=30)
     if "unrecognised disk label" in check_label.get("stderr", ""):
         # No partition table - create GPT by default
-        create_label = run_command_full(
-            ["sudo", "-n", "parted", "-s", device, "mklabel", "gpt"], timeout=30
-        )
+        create_label = run_command_full(["sudo", "-n", "parted", "-s", device, "mklabel", "gpt"], timeout=30)
         if create_label["returncode"] != 0:
             return {
                 "success": False,
@@ -4838,9 +4594,7 @@ def handle_pv_create_vg_extend(params):
         return {"success": False, "error": f'pvcreate failed: {pv_result["stderr"]}'}
 
     # vgextend
-    vg_result = run_command_full(
-        ["sudo", "-n", "vgextend", vg_name, device], timeout=60
-    )
+    vg_result = run_command_full(["sudo", "-n", "vgextend", vg_name, device], timeout=60)
     if vg_result["returncode"] != 0:
         return {"success": False, "error": f'vgextend failed: {vg_result["stderr"]}'}
 
@@ -4872,9 +4626,7 @@ def handle_disk_prepare(params):
         }
 
     # Verify nothing is mounted from this disk
-    mount_check = run_command_full(
-        ["lsblk", "-n", "-o", "MOUNTPOINT", device], timeout=10
-    )
+    mount_check = run_command_full(["lsblk", "-n", "-o", "MOUNTPOINT", device], timeout=10)
     if mount_check["returncode"] == 0:
         mounts = [m.strip() for m in mount_check["stdout"].split("\n") if m.strip()]
         if mounts:
@@ -4884,9 +4636,7 @@ def handle_disk_prepare(params):
             }
 
     # Step 1: Create new partition table (wipes existing partitions)
-    parted_label = run_command_full(
-        ["sudo", "-n", "parted", "-s", device, "mklabel", partition_table], timeout=30
-    )
+    parted_label = run_command_full(["sudo", "-n", "parted", "-s", device, "mklabel", partition_table], timeout=30)
     if parted_label["returncode"] != 0:
         return {
             "success": False,
@@ -4929,9 +4679,7 @@ def handle_disk_prepare(params):
             cmd.extend(["-n", label])
     cmd.append(new_partition)
 
-    format_result = run_command_full(
-        cmd, timeout=300
-    )  # Formatting can take time on large drives
+    format_result = run_command_full(cmd, timeout=300)  # Formatting can take time on large drives
     if format_result["returncode"] != 0:
         return {"success": False, "error": f'Format failed: {format_result["stderr"]}'}
 
@@ -4972,9 +4720,7 @@ def handle_disk_prepare_lvm(params):
         }
 
     # Unmount any mounted partitions from this disk
-    mount_check = run_command_full(
-        ["lsblk", "-n", "-o", "NAME,MOUNTPOINT", device], timeout=10
-    )
+    mount_check = run_command_full(["lsblk", "-n", "-o", "NAME,MOUNTPOINT", device], timeout=10)
     if mount_check["returncode"] == 0:
         for line in mount_check["stdout"].split("\n"):
             parts = line.split()
@@ -4983,9 +4729,7 @@ def handle_disk_prepare_lvm(params):
                 part_name = parts[0].lstrip("└─├─")
                 part_device = f"/dev/{part_name}"
                 print(f"[prepare_lvm] Unmounting {part_device} from {mp}")
-                umount_result = run_command_full(
-                    ["sudo", "-n", "umount", part_device], timeout=30
-                )
+                umount_result = run_command_full(["sudo", "-n", "umount", part_device], timeout=30)
                 if umount_result["returncode"] != 0:
                     return {
                         "success": False,
@@ -4997,9 +4741,7 @@ def handle_disk_prepare_lvm(params):
     # Ignore wipefs errors - drive might be empty
 
     # Step 2: Create new GPT partition table
-    parted_label = run_command_full(
-        ["sudo", "-n", "parted", "-s", device, "mklabel", "gpt"], timeout=30
-    )
+    parted_label = run_command_full(["sudo", "-n", "parted", "-s", device, "mklabel", "gpt"], timeout=30)
     if parted_label["returncode"] != 0:
         return {
             "success": False,
@@ -5030,24 +4772,18 @@ def handle_disk_prepare_lvm(params):
         }
 
     # Step 4: Create Physical Volume
-    pvcreate = run_command_full(
-        ["sudo", "-n", "pvcreate", "-f", new_partition], timeout=60
-    )
+    pvcreate = run_command_full(["sudo", "-n", "pvcreate", "-f", new_partition], timeout=60)
     if pvcreate["returncode"] != 0:
         return {"success": False, "error": f'pvcreate failed: {pvcreate["stderr"]}'}
 
     # Step 5: Create Volume Group
-    vgcreate = run_command_full(
-        ["sudo", "-n", "vgcreate", vg_name, new_partition], timeout=60
-    )
+    vgcreate = run_command_full(["sudo", "-n", "vgcreate", vg_name, new_partition], timeout=60)
     if vgcreate["returncode"] != 0:
         run_command_full(["sudo", "-n", "pvremove", "-f", new_partition], timeout=30)
         return {"success": False, "error": f'vgcreate failed: {vgcreate["stderr"]}'}
 
     # Step 6: Create Logical Volume using 100% of space
-    lvcreate = run_command_full(
-        ["sudo", "-n", "lvcreate", "-l", "100%FREE", "-n", lv_name, vg_name], timeout=60
-    )
+    lvcreate = run_command_full(["sudo", "-n", "lvcreate", "-l", "100%FREE", "-n", lv_name, vg_name], timeout=60)
     if lvcreate["returncode"] != 0:
         run_command_full(["sudo", "-n", "vgremove", "-f", vg_name], timeout=30)
         run_command_full(["sudo", "-n", "pvremove", "-f", new_partition], timeout=30)
@@ -5067,9 +4803,7 @@ def handle_disk_prepare_lvm(params):
     mounted = False
     if mountpoint:
         run_command_full(["sudo", "-n", "mkdir", "-p", mountpoint], timeout=10)
-        mount_result = run_command_full(
-            ["sudo", "-n", "mount", lv_path, mountpoint], timeout=30
-        )
+        mount_result = run_command_full(["sudo", "-n", "mount", lv_path, mountpoint], timeout=30)
         if mount_result["returncode"] == 0:
             mounted = True
             # Add to fstab
@@ -5131,12 +4865,8 @@ def handle_convert_to_lvm(params):
     fstype = params["fstype"]
 
     # Get current mountpoint before we unmount
-    mount_check = run_command_full(
-        ["findmnt", "-n", "-o", "TARGET", device], timeout=10
-    )
-    original_mountpoint = (
-        mount_check["stdout"].strip() if mount_check["returncode"] == 0 else None
-    )
+    mount_check = run_command_full(["findmnt", "-n", "-o", "TARGET", device], timeout=10)
+    original_mountpoint = mount_check["stdout"].strip() if mount_check["returncode"] == 0 else None
 
     # Step 1: Unmount if mounted
     if original_mountpoint:
@@ -5168,9 +4898,7 @@ def handle_convert_to_lvm(params):
         return {"success": False, "error": f'vgcreate failed: {vgcreate["stderr"]}'}
 
     # Step 5: Create Logical Volume using 100% of space
-    lvcreate = run_command_full(
-        ["sudo", "-n", "lvcreate", "-l", "100%FREE", "-n", lv_name, vg_name], timeout=60
-    )
+    lvcreate = run_command_full(["sudo", "-n", "lvcreate", "-l", "100%FREE", "-n", lv_name, vg_name], timeout=60)
     if lvcreate["returncode"] != 0:
         # Cleanup VG and PV on failure
         run_command_full(["sudo", "-n", "vgremove", "-f", vg_name], timeout=30)
@@ -5195,20 +4923,14 @@ def handle_convert_to_lvm(params):
                 fstab = f.read()
             if device in fstab:
                 new_fstab = fstab.replace(device, lv_path)
-                run_command_full(
-                    ["sudo", "-n", "cp", "/etc/fstab", "/etc/fstab.bak"], timeout=10
-                )
+                run_command_full(["sudo", "-n", "cp", "/etc/fstab", "/etc/fstab.bak"], timeout=10)
                 with open("/tmp/fstab.new", "w") as f:
                     f.write(new_fstab)
-                run_command_full(
-                    ["sudo", "-n", "cp", "/tmp/fstab.new", "/etc/fstab"], timeout=10
-                )
+                run_command_full(["sudo", "-n", "cp", "/tmp/fstab.new", "/etc/fstab"], timeout=10)
         except Exception:
             pass  # fstab update is best-effort
 
-        mount = run_command_full(
-            ["sudo", "-n", "mount", lv_path, original_mountpoint], timeout=30
-        )
+        mount = run_command_full(["sudo", "-n", "mount", lv_path, original_mountpoint], timeout=30)
         if mount["returncode"] != 0:
             return {
                 "success": True,
@@ -5352,9 +5074,7 @@ def handle_firewall_allow(params):
     port = params["port"]
     protocol = params["protocol"]
 
-    result = run_command_full(
-        ["sudo", "-n", "ufw", "allow", f"{port}/{protocol}"], timeout=30
-    )
+    result = run_command_full(["sudo", "-n", "ufw", "allow", f"{port}/{protocol}"], timeout=30)
     if result["returncode"] != 0:
         return {
             "success": False,
@@ -5369,9 +5089,7 @@ def handle_firewall_deny(params):
     port = params["port"]
     protocol = params["protocol"]
 
-    result = run_command_full(
-        ["sudo", "-n", "ufw", "deny", f"{port}/{protocol}"], timeout=30
-    )
+    result = run_command_full(["sudo", "-n", "ufw", "deny", f"{port}/{protocol}"], timeout=30)
     if result["returncode"] != 0:
         return {
             "success": False,
@@ -5385,9 +5103,7 @@ def handle_firewall_delete(params):
     """Delete a firewall rule by number (DANGEROUS)"""
     rule_number = params["rule_number"]
 
-    result = run_command_full(
-        ["sudo", "-n", "ufw", "--force", "delete", str(rule_number)], timeout=30
-    )
+    result = run_command_full(["sudo", "-n", "ufw", "--force", "delete", str(rule_number)], timeout=30)
     if result["returncode"] != 0:
         return {
             "success": False,
@@ -5421,14 +5137,11 @@ def handle_firewall_update(params):
     # Note: delete might fail if rule doesn't exist exactly, that's ok
 
     # Add new rule
-    add_result = run_command_full(
-        ["sudo", "-n", "ufw", action, f"{new_port}/{new_protocol}"], timeout=30
-    )
+    add_result = run_command_full(["sudo", "-n", "ufw", action, f"{new_port}/{new_protocol}"], timeout=30)
     if add_result["returncode"] != 0:
         return {
             "success": False,
-            "error": add_result["stderr"]
-            or f"Failed to add {action} {new_port}/{new_protocol}",
+            "error": add_result["stderr"] or f"Failed to add {action} {new_port}/{new_protocol}",
         }
 
     return {
@@ -5464,14 +5177,16 @@ def handle_nginx_list_configs(params):
                     size = os.path.getsize(fpath)
                 except OSError:
                     size = 0
-                configs.append({
-                    "name": fname,
-                    "directory": sites_dir,
-                    "path": fpath,
-                    "is_symlink": is_link,
-                    "link_target": link_target,
-                    "size_bytes": size,
-                })
+                configs.append(
+                    {
+                        "name": fname,
+                        "directory": sites_dir,
+                        "path": fpath,
+                        "is_symlink": is_link,
+                        "link_target": link_target,
+                        "size_bytes": size,
+                    }
+                )
     return {"success": True, "configs": configs}
 
 
@@ -5526,7 +5241,11 @@ def handle_nginx_reload(params):
 
 # Safe paths for compliance file reads — no /proc, /dev, or sensitive dirs
 _COMPLIANCE_SAFE_PREFIXES = (
-    "/etc/", "/var/log/", "/usr/", "/lib/", "/opt/",
+    "/etc/",
+    "/var/log/",
+    "/usr/",
+    "/lib/",
+    "/opt/",
 )
 
 
@@ -5585,9 +5304,7 @@ def handle_compliance_run_check(params):
         }
 
     elif check_type == "package_installed":
-        result = run_command_full(
-            ["dpkg-query", "-W", "-f=${Status}", target], timeout=10
-        )
+        result = run_command_full(["dpkg-query", "-W", "-f=${Status}", target], timeout=10)
         installed = "install ok installed" in result["stdout"]
         return {"success": True, "installed": installed, "status": result["stdout"].strip()}
 
@@ -5663,8 +5380,15 @@ _COMPLIANCE_FILE_ALLOW = {
 
 # Whitelist of services that can be controlled via remediation.
 _COMPLIANCE_SERVICE_ALLOW = {
-    "sshd", "ssh", "docker", "auditd", "ufw", "fail2ban",
-    "chronyd", "systemd-journald", "cron",
+    "sshd",
+    "ssh",
+    "docker",
+    "auditd",
+    "ufw",
+    "fail2ban",
+    "chronyd",
+    "systemd-journald",
+    "cron",
 }
 
 
@@ -5711,7 +5435,10 @@ def handle_compliance_fix_sysctl(params):
     persist_file = "/etc/sysctl.d/99-compliance.conf"
     entry = f"{param} = {value}"
     persist_cmd = [
-        "sudo", "-n", "bash", "-c",
+        "sudo",
+        "-n",
+        "bash",
+        "-c",
         f"touch {persist_file} && "
         f"sed -i '/^{param}[[:space:]]*=/d' {persist_file} && "
         f"echo '{entry}' >> {persist_file}",
@@ -5756,7 +5483,8 @@ def handle_compliance_fix_file_line(params):
     # Preview current state
     preview_lines = []
     current = run_command_full(
-        ["grep", f"^{key}", path], timeout=5,
+        ["grep", f"^{key}", path],
+        timeout=5,
     )
     if current["returncode"] == 0:
         preview_lines.append(f"Current: {current['stdout'].strip()}")
@@ -5779,9 +5507,11 @@ def handle_compliance_fix_file_line(params):
 
     # Remove any existing line with this key, then append the new line
     fix_cmd = [
-        "sudo", "-n", "bash", "-c",
-        f"sed -i '/^{key}[[:space:]]*/d' '{path}' && "
-        f"echo '{line}' | sudo tee -a '{path}' > /dev/null",
+        "sudo",
+        "-n",
+        "bash",
+        "-c",
+        f"sed -i '/^{key}[[:space:]]*/d' '{path}' && " f"echo '{line}' | sudo tee -a '{path}' > /dev/null",
     ]
     result = run_command_full(fix_cmd, timeout=15)
     if result["returncode"] != 0:
@@ -5875,9 +5605,10 @@ def handle_compliance_check_command(params):
     # Block any write/modify patterns — this is read-only
     # Use regex word boundaries to avoid false positives (e.g. "tcp" matching "cp")
     import re as _re
+
     blocked_re = _re.compile(
-        r'(?:^|[;&|]\s*)(?:rm|mv|cp|dd|mkfs|chmod|chown|tee|truncate|wget|apt|pip|pkill|reboot|shutdown)\s',
-        _re.IGNORECASE
+        r"(?:^|[;&|]\s*)(?:rm|mv|cp|dd|mkfs|chmod|chown|tee|truncate|wget|apt|pip|pkill|reboot|shutdown)\s",
+        _re.IGNORECASE,
     )
     blocked_exact = [">> /", "> /", "systemctl start", "systemctl stop", "systemctl restart", "kill -"]
     if blocked_re.search(command):
@@ -5918,9 +5649,7 @@ def handle_compliance_restore_file(params):
 
     # Write to temp file in /tmp, then sudo mv into place
     try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", delete=False, dir="/tmp", prefix="compliance_restore_"
-        ) as tf:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, dir="/tmp", prefix="compliance_restore_") as tf:
             tf.write(content)
             tmp_path = tf.name
         os.chmod(tmp_path, 0o644)
@@ -6153,9 +5882,7 @@ def process_command_queue():
             result = {"success": False, "error": f"Handler exception: {str(e)}"}
         duration = time.time() - start_time
 
-        print(
-            f"  Result: {'OK' if result.get('success') else 'FAIL'} ({duration:.1f}s)"
-        )
+        print(f"  Result: {'OK' if result.get('success') else 'FAIL'} ({duration:.1f}s)")
 
         # Write result
         _write_result(cmd_id, result, cmd_data=cmd_data, duration=duration)
@@ -6307,9 +6034,7 @@ def get_port_usage():
                 continue
 
     # Get Docker container port mappings
-    docker_ports = run_command(
-        ["docker", "ps", "--format", "{{.Names}}|{{.Ports}}"], timeout=10
-    )
+    docker_ports = run_command(["docker", "ps", "--format", "{{.Names}}|{{.Ports}}"], timeout=10)
     if docker_ports:
         for line in docker_ports.strip().split("\n"):
             if not line or "|" not in line:
@@ -6319,9 +6044,7 @@ def get_port_usage():
                 continue
             # Parse port mappings like "0.0.0.0:8080->80/tcp, :::8080->80/tcp"
             for mapping in port_str.split(", "):
-                match = re.search(
-                    r"(\d+\.\d+\.\d+\.\d+)?:?(\d+)->(\d+)/(tcp|udp)", mapping
-                )
+                match = re.search(r"(\d+\.\d+\.\d+\.\d+)?:?(\d+)->(\d+)/(tcp|udp)", mapping)
                 if match:
                     host_ip = match.group(1) or "0.0.0.0"
                     host_port = int(match.group(2))
@@ -6480,12 +6203,14 @@ def get_health_config():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             SELECT stack_name, metric_type, threshold_warning, threshold_critical,
                    enabled, cooldown_minutes
             FROM stack_health_config
             WHERE enabled = TRUE
-        """)
+        """
+        )
         rows = cur.fetchall()
         cur.close()
         conn.close()
@@ -6539,9 +6264,7 @@ def should_alert(container_name, alert_type, cooldown_minutes):
     return True
 
 
-def create_alert(
-    stack_name, container_name, alert_type, severity, message, details=None
-):
+def create_alert(stack_name, container_name, alert_type, severity, message, details=None):
     """Create a health alert in the database"""
     try:
         conn = get_db_connection()
@@ -6606,12 +6329,8 @@ def fire_health_webhooks(event_type, severity, alert_data):
         event_map = {
             "restart_loop": "container_crash",
             "crash": "container_crash",
-            "unhealthy": (
-                "health_warning" if severity == "warning" else "health_critical"
-            ),
-            "resource_threshold": (
-                "health_warning" if severity == "warning" else "health_critical"
-            ),
+            "unhealthy": ("health_warning" if severity == "warning" else "health_critical"),
+            "resource_threshold": ("health_warning" if severity == "warning" else "health_critical"),
         }
         webhook_event = event_map.get(event_type, "health_warning")
 
@@ -6733,7 +6452,6 @@ def record_container_metrics(containers):
 
 def check_container_health(containers):
     """Check containers against health thresholds and create alerts"""
-    global _last_restart_counts
 
     try:
         config = get_health_config()
@@ -6757,12 +6475,8 @@ def check_container_health(containers):
 
                 if should_alert(name, "restart_loop", cooldown):
                     # Check thresholds
-                    crit_threshold = get_threshold(
-                        config, stack_name, "restart_count", "critical"
-                    )
-                    warn_threshold = get_threshold(
-                        config, stack_name, "restart_count", "warning"
-                    )
+                    crit_threshold = get_threshold(config, stack_name, "restart_count", "critical")
+                    warn_threshold = get_threshold(config, stack_name, "restart_count", "warning")
 
                     if crit_threshold and current_restart >= crit_threshold:
                         create_alert(
@@ -6886,10 +6600,12 @@ def cleanup_old_metrics():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             DELETE FROM container_metrics_history
             WHERE recorded_at < NOW() - INTERVAL '7 days'
-        """)
+        """
+        )
         deleted = cur.rowcount
         conn.commit()
         cur.close()
@@ -6973,9 +6689,7 @@ def main():
         default=30,
         help="Update interval in seconds (default: 30)",
     )
-    parser.add_argument(
-        "--output", type=str, default=OUTPUT_FILE, help="Output file path"
-    )
+    parser.add_argument("--output", type=str, default=OUTPUT_FILE, help="Output file path")
     args = parser.parse_args()
 
     OUTPUT_FILE = args.output
@@ -6986,9 +6700,7 @@ def main():
     print("A.R.C.H.I.E. Host System Monitor")
     print(f"Output file: {OUTPUT_FILE}")
     print(f"Command queue: {COMMANDS_DIR}")
-    print(
-        f"Mode: {'Daemon (interval: {}s)'.format(args.interval) if args.daemon else 'Single run'}"
-    )
+    print(f"Mode: {'Daemon (interval: {}s)'.format(args.interval) if args.daemon else 'Single run'}")
     print("-" * 50)
 
     if args.daemon:
@@ -7010,6 +6722,7 @@ def main():
 
         # Dedicated queue-processing thread — never blocked by data collection
         import threading
+
         _queue_stop = threading.Event()
 
         def _queue_worker():
@@ -7017,9 +6730,7 @@ def main():
                 try:
                     processed = process_command_queue()
                     if processed > 0:
-                        print(
-                            f"[{datetime.now().strftime('%H:%M:%S')}] Queue worker processed {processed} command(s)"
-                        )
+                        print(f"[{datetime.now().strftime('%H:%M:%S')}] Queue worker processed {processed} command(s)")
                 except Exception as e:
                     print(f"Queue worker error: {e}")
                 _queue_stop.wait(3)  # Check every 3 seconds
@@ -7069,14 +6780,10 @@ def main():
         write_data(data)
         print("\nCollected data:")
         sys_info = data.get("system") or {}
-        print(
-            f"  Host: {sys_info.get('hostname', '?')} ({sys_info.get('distribution', '?')})"
-        )
+        print(f"  Host: {sys_info.get('hostname', '?')} ({sys_info.get('distribution', '?')})")
         print(f"  Kernel: {sys_info.get('kernel', '?')}")
         print(f"  Uptime: {sys_info.get('uptime_formatted', '?')}")
-        print(
-            f"  Processes: {sys_info.get('process_count', '?')}, Users: {sys_info.get('users_logged_in', '?')}"
-        )
+        print(f"  Processes: {sys_info.get('process_count', '?')}, Users: {sys_info.get('users_logged_in', '?')}")
         cpu_info = data.get("cpu") or {}
         print(
             f"  CPU: {cpu_info.get('model', '?')} ({cpu_info.get('physical_cores', '?')}c/{cpu_info.get('logical_cores', '?')}t), Temp: {cpu_info.get('temperature', '?')}°C"
@@ -7097,9 +6804,7 @@ def main():
         print(f"  RAID Arrays: {len(data['raid']['arrays']) if data['raid'] else 0}")
         print(f"  Processes: {len(data['processes'])} (top by CPU)")
         print(f"  Services: {len(data['services'])}")
-        print(
-            f"  Network: {data['network'].get('primary_ip', '?')} ({len(data['network']['interfaces'])} interfaces)"
-        )
+        print(f"  Network: {data['network'].get('primary_ip', '?')} ({len(data['network']['interfaces'])} interfaces)")
 
 
 if __name__ == "__main__":

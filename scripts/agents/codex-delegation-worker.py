@@ -47,17 +47,32 @@ GH = "/home/kytran/.local/bin/gh"
 def psql(sql: str) -> str:
     """Run SQL in the DB container; return stripped -tA output (| separated)."""
     r = subprocess.run(
-        ["docker", "exec", "-i", "archie_database", "psql", "-U", "archie",
-         "-d", "archie", "-tA", "-F", "|", "-c", sql],
-        capture_output=True, text=True, timeout=30,
+        [
+            "docker",
+            "exec",
+            "-i",
+            "archie_database",
+            "psql",
+            "-U",
+            "archie",
+            "-d",
+            "archie",
+            "-tA",
+            "-F",
+            "|",
+            "-c",
+            sql,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
     if r.returncode != 0:
         raise RuntimeError(f"psql failed: {r.stderr.strip()}")
     # psql -t still emits the DML command tag ("UPDATE 1", "INSERT 0 1", ...) on
     # its own line; strip those so they never leak into a claimed row's reason.
     lines = [
-        ln for ln in r.stdout.splitlines()
-        if not re.match(r"^(UPDATE|INSERT|DELETE|SELECT|MERGE)\s+\d", ln.strip())
+        ln for ln in r.stdout.splitlines() if not re.match(r"^(UPDATE|INSERT|DELETE|SELECT|MERGE)\s+\d", ln.strip())
     ]
     return "\n".join(lines).strip()
 
@@ -130,9 +145,10 @@ def fallback_pr(branch: str, task_id: int, reason: str) -> int | None:
     # Step 1 — look for an existing open PR on this branch
     try:
         r = subprocess.run(
-            [GH, "pr", "list", "--head", branch, "--state", "open",
-             "--json", "number", "--jq", ".[0].number"],
-            capture_output=True, text=True, timeout=30,
+            [GH, "pr", "list", "--head", branch, "--state", "open", "--json", "number", "--jq", ".[0].number"],
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         existing = r.stdout.strip()
         if existing.isdigit():
@@ -154,7 +170,9 @@ def fallback_pr(branch: str, task_id: int, reason: str) -> int | None:
     try:
         r = subprocess.run(
             [GH, "pr", "create", "--head", branch, "--title", title, "--body", body],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
         # gh pr create prints the PR URL as the last line on success
         url = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else ""
@@ -179,11 +197,19 @@ def queue_promote(pr_num: int, task_id: int, module: str | None = None) -> None:
     """
     mod = f"module={module!r}, " if module else ""
     subprocess.run(
-        ["docker", "exec", "-i", "archie_platform", "python3", "-c",
-         "import sys; sys.path[:0]=['/app','/mnt/archie_brain','/mnt/archie_brain/ai_bridge']; "
-         "from services.codex_promote_service import promote_codex_pr; "
-         f"print(promote_codex_pr({int(pr_num)}, {mod}title='Codex task #{int(task_id)}'))"],
-        timeout=60, check=False,
+        [
+            "docker",
+            "exec",
+            "-i",
+            "archie_platform",
+            "python3",
+            "-c",
+            "import sys; sys.path[:0]=['/app','/mnt/archie_brain','/mnt/archie_brain/ai_bridge']; "
+            "from services.codex_promote_service import promote_codex_pr; "
+            f"print(promote_codex_pr({int(pr_num)}, {mod}title='Codex task #{int(task_id)}'))",
+        ],
+        timeout=60,
+        check=False,
     )
 
 

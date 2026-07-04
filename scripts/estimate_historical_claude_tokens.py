@@ -63,10 +63,10 @@ MONTH_RANGES = {
 # Jan–Feb 2× parallel). Far below the theoretical ceilings. Tweak freely.
 #   key window (per MONTH_RANGES) -> monthly Claude output tokens
 CAPACITY_TOKENS = {
-    "2026-01": 1_800_000,   # Dec 17→Jan 31 (46d): 1× Pro fresh + 2× ramping, ~40k/day avg
-    "2026-02": 1_800_000,   # Feb (28d): 2× parallel, ~65k/day
-    "2026-03": 2_900_000,   # Mar (31d): heavier, ~95k/day
-    "2026-04": 3_600_000,   # Apr (30d): heaviest pre-Max, ~120k/day
+    "2026-01": 1_800_000,  # Dec 17→Jan 31 (46d): 1× Pro fresh + 2× ramping, ~40k/day avg
+    "2026-02": 1_800_000,  # Feb (28d): 2× parallel, ~65k/day
+    "2026-03": 2_900_000,  # Mar (31d): heavier, ~95k/day
+    "2026-04": 3_600_000,  # Apr (30d): heaviest pre-Max, ~120k/day
 }
 
 REPO = "/mnt/archie_brain"
@@ -116,7 +116,9 @@ def real_claude_output_tokens():
     sql = "SELECT COALESCE(SUM(tokens_used),0) FROM task_execution_log WHERE request_metadata->>'source'='claude_code_cli';"
     out = subprocess.run(
         ["docker", "exec", "-i", "archie_database", "psql", "-U", "archie", "-d", "archie", "-t", "-A"],
-        input=sql, text=True, capture_output=True,
+        input=sql,
+        text=True,
+        capture_output=True,
     ).stdout.strip()
     try:
         return int(out)
@@ -129,7 +131,10 @@ def main():
     real_tok = real_claude_output_tokens()
     mlines, mcommits = measured_window_proxies()
     if not (real_tok and mlines and mcommits):
-        print(f"[hist-est] missing anchors (real_tok={real_tok}, lines={mlines}, commits={mcommits}) — abort", file=sys.stderr)
+        print(
+            f"[hist-est] missing anchors (real_tok={real_tok}, lines={mlines}, commits={mcommits}) — abort",
+            file=sys.stderr,
+        )
         return 1
     lbm = lines_by_month(MONTHS[0])  # git lines (for the impact 'lines built' metric only)
 
@@ -152,9 +157,12 @@ def main():
             "method": "capacity-ceiling: conservative daily Claude output under 1x/2x account caps (AI was new); spread daily",
             # per-day share so the impact endpoint's SUM(lines_inserted) over daily
             # rows returns the true monthly/total git lines (not days×monthly).
-            "lines_inserted": round(lines / len(days)) if days else 0, "month_lines": lines,
+            "lines_inserted": round(lines / len(days)) if days else 0,
+            "month_lines": lines,
             "monthly_tokens_est": blended,
-            "month": m, "spread_range": [s, e], "spread_days": len(days),
+            "month": m,
+            "spread_range": [s, e],
+            "spread_days": len(days),
             "note": "rough capacity-limited estimate; Dec 1x Pro + Jan-Feb 2x parallel + DeepSeek(web) + hand-written; Max 20x ~May; not measured",
         }
         meta_json = json.dumps(meta)
@@ -185,7 +193,9 @@ def main():
         return 0
     proc = subprocess.run(
         ["docker", "exec", "-i", "archie_database", "psql", "-U", "archie", "-d", "archie", "-v", "ON_ERROR_STOP=1"],
-        input=sql_text, text=True, capture_output=True,
+        input=sql_text,
+        text=True,
+        capture_output=True,
     )
     if proc.returncode != 0:
         print("[hist-est] psql FAILED:\n" + proc.stderr, file=sys.stderr)

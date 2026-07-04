@@ -70,11 +70,7 @@ def extract_keywords(user_message: str) -> List[str]:
         keywords.extend(["error", "bug", "fix", "debugging"])
 
     # Task types
-    if (
-        "beginner" in message_lower
-        or "learn" in message_lower
-        or "tutorial" in message_lower
-    ):
+    if "beginner" in message_lower or "learn" in message_lower or "tutorial" in message_lower:
         keywords.extend(["beginner", "tutorial", "example"])
     if "advanced" in message_lower or "complex" in message_lower:
         keywords.extend(["advanced", "expert"])
@@ -108,9 +104,7 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
 
     try:
         # Use unified_knowledge_search with intelligent ranking
-        search_results = unified_knowledge_search(
-            query=user_message, types=None, limit=max_results  # Search ALL types
-        )
+        search_results = unified_knowledge_search(query=user_message, types=None, limit=max_results)  # Search ALL types
 
         results = search_results.get("results", [])
 
@@ -119,9 +113,7 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
 
         # Format results for A.R.C.H.I.E.'s context
         knowledge_context = "\n\n=== 🧠 RELEVANT KNOWLEDGE FROM MY BRAIN ===\n"
-        knowledge_context += (
-            f"I found {len(results)} relevant resources (ranked by importance):\n\n"
-        )
+        knowledge_context += f"I found {len(results)} relevant resources (ranked by importance):\n\n"
 
         for idx, item in enumerate(results, 1):
             knowledge_type = item["knowledge_type"]
@@ -144,9 +136,7 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
 
             knowledge_context += f"{idx}. {emoji} {title}\n"
             knowledge_context += f"   Type: {knowledge_type} | Category: {category}\n"
-            knowledge_context += (
-                f"   Importance: {importance:.2f} (weighted: {weighted_score:.2f})\n"
-            )
+            knowledge_context += f"   Importance: {importance:.2f} (weighted: {weighted_score:.2f})\n"
 
             # Special handling for mistake_learned
             if knowledge_type == "mistake_learned":
@@ -166,10 +156,10 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
             knowledge_context += "\n"
 
         knowledge_context += "=== END KNOWLEDGE BASE ===\n"
+        knowledge_context += "NOTE: You can reference these resources when helping the user.\n"
         knowledge_context += (
-            "NOTE: You can reference these resources when helping the user.\n"
+            "If you find mistake_learned entries (⚠️), make sure to warn the user about these known errors!\n"
         )
-        knowledge_context += "If you find mistake_learned entries (⚠️), make sure to warn the user about these known errors!\n"
 
         return knowledge_context
 
@@ -181,9 +171,7 @@ def get_relevant_knowledge(user_message: str, max_results: int = 5) -> str:
         return f"[Knowledge Retrieval] Error: {str(e)}\n"
 
 
-def get_relevant_knowledge_enhanced(
-    query: str, max_results: int = 10, use_semantic: bool = False
-) -> List[Dict]:
+def get_relevant_knowledge_enhanced(query: str, max_results: int = 10, use_semantic: bool = False) -> List[Dict]:
     """
     Enhanced knowledge retrieval that returns structured results for local answer generation.
 
@@ -215,9 +203,7 @@ def get_relevant_knowledge_enhanced(
         #     return results[:max_results]
 
         # Current implementation: keyword-only via unified_knowledge_search
-        search_results = unified_knowledge_search(
-            query=query, types=None, limit=max_results  # Search ALL types
-        )
+        search_results = unified_knowledge_search(query=query, types=None, limit=max_results)  # Search ALL types
 
         results = search_results.get("results", [])
 
@@ -262,10 +248,7 @@ def check_for_known_mistakes(user_message: str) -> Optional[str]:
             category = mistake.get("category", "").lower()
 
             # Simple keyword matching
-            if any(
-                word in message_lower
-                for word in ["error", "bug", "problem", "issue", "fail"]
-            ):
+            if any(word in message_lower for word in ["error", "bug", "problem", "issue", "fail"]):
                 # Check if mistake title/content/category matches query
                 if any(
                     keyword in title or keyword in content or keyword in category
@@ -274,15 +257,11 @@ def check_for_known_mistakes(user_message: str) -> Optional[str]:
 
                     # Found a relevant mistake!
                     warning = "\n\n⚠️ === KNOWN MISTAKE WARNING ===\n"
-                    warning += (
-                        f"I found a documented error related to your question:\n\n"
-                    )
+                    warning += f"I found a documented error related to your question:\n\n"
                     warning += f"Title: {mistake['title']}\n"
                     warning += f"Category: {mistake['category']}\n\n"
                     warning += f"{mistake['content'][:500]}...\n\n"
-                    warning += (
-                        "This mistake has been documented to prevent repetition.\n"
-                    )
+                    warning += "This mistake has been documented to prevent repetition.\n"
                     warning += "=== END WARNING ===\n\n"
 
                     return warning
@@ -371,13 +350,9 @@ def get_agent_context(task_description: str, agent_type: str = "general") -> Dic
         # Fallback to basic knowledge retrieval
         return {
             "mistakes_to_avoid": [],
-            "relevant_knowledge": get_relevant_knowledge_enhanced(
-                task_description, max_results=5
-            ),
+            "relevant_knowledge": get_relevant_knowledge_enhanced(task_description, max_results=5),
             "similar_past_tasks": [],
-            "suggestions": [
-                {"type": "info", "message": "Using fallback knowledge retrieval"}
-            ],
+            "suggestions": [{"type": "info", "message": "Using fallback knowledge retrieval"}],
         }
 
     try:
@@ -406,9 +381,7 @@ def record_mistake_from_error(error: Exception, context: Dict = None) -> Optiona
         Knowledge entry ID or None
     """
     if not UNIFIED_SERVICE_AVAILABLE:
-        print(
-            "[Knowledge Retrieval] Cannot record mistake: UnifiedKnowledgeService not available"
-        )
+        print("[Knowledge Retrieval] Cannot record mistake: UnifiedKnowledgeService not available")
         return None
 
     try:

@@ -192,9 +192,11 @@ def save_knowledge_card(
 
             # Quality gate: score asynchronously to not block card creation
             if card_id:
+
                 def _score_async(cid, t, c, kt):
                     try:
                         from services.quality_scoring_service import score_entry
+
                         score_entry(cid, t, c, kt, save_to_db=True)
                     except Exception as e:
                         logger.debug("Async quality scoring failed for card %d: %s", cid, e)
@@ -360,9 +362,7 @@ def _generate_markdown(row: dict, ai_analysis: dict, metadata: dict) -> str:
     card_type = ai_analysis.get("card_type", "concept")
     confidence = ai_analysis.get("confidence", 0.7)
     difficulty = ai_analysis.get("difficulty", "intermediate")
-    lines.append(
-        f"**Type:** {card_type} | **Confidence:** {confidence:.2f} | **Difficulty:** {difficulty}"
-    )
+    lines.append(f"**Type:** {card_type} | **Confidence:** {confidence:.2f} | **Difficulty:** {difficulty}")
     lines.append("")
 
     # Summary
@@ -411,9 +411,7 @@ def _generate_markdown(row: dict, ai_analysis: dict, metadata: dict) -> str:
     created_at = row.get("created_at", datetime.now())
     if isinstance(created_at, str):
         created_at = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-    lines.append(
-        f"*Source: {source_type} | Ref: {source_ref} | Created: {created_at.strftime('%Y-%m-%d %H:%M')}*"
-    )
+    lines.append(f"*Source: {source_type} | Ref: {source_ref} | Created: {created_at.strftime('%Y-%m-%d %H:%M')}*")
     lines.append(f"*Knowledge ID: {row['id']} | Analysis Version: 1*")
     lines.append("")
 

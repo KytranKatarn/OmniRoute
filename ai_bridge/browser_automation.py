@@ -24,9 +24,7 @@ from db import get_db
 
 logger = logging.getLogger("browser_automation")
 
-SCREENSHOT_DIR = os.getenv(
-    "BROWSER_SCREENSHOT_DIR", "/mnt/archie_brain/platform_v2/static/screenshots"
-)
+SCREENSHOT_DIR = os.getenv("BROWSER_SCREENSHOT_DIR", "/mnt/archie_brain/platform_v2/static/screenshots")
 
 
 class BrowserAutomation:
@@ -126,11 +124,7 @@ class BrowserAutomation:
                         task_id,
                         "success" if not result.get("error") else "failed",
                         result.get("screenshot_path"),
-                        (
-                            json.dumps(result.get("scraped_data"))
-                            if result.get("scraped_data")
-                            else None
-                        ),
+                        (json.dumps(result.get("scraped_data")) if result.get("scraped_data") else None),
                         result.get("page_title"),
                         result.get("page_url"),
                         duration_ms,
@@ -329,9 +323,7 @@ Respond with ONLY the Python code, no markdown fences."""
             from tools.department_hq.services.department_dispatcher import get_dispatcher
 
             dispatcher = get_dispatcher()
-            result = dispatcher.request_work(
-                "code", prompt, "browser_automation", timeout=120
-            )
+            result = dispatcher.request_work("code", prompt, "browser_automation", timeout=120)
             if not result.success:
                 return None
             script = result.response.strip()

@@ -19,12 +19,16 @@ Usage:
 
 import json
 import os
+
 try:
     from db import _get_db_password
 except ImportError:
+
     def _get_db_password():
         """Fallback: read DB password from env."""
         return os.getenv("DB_PASSWORD", "")
+
+
 import logging
 import re
 import psycopg2
@@ -73,7 +77,15 @@ def _get_db():
     )
 
 
-def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: int = 300, job_id: int = None, local_only: bool = False, prefer_agent: str = None) -> str:
+def _dispatch(
+    capability: str,
+    prompt: str,
+    system_prompt: str = None,
+    timeout: int = 300,
+    job_id: int = None,
+    local_only: bool = False,
+    prefer_agent: str = None,
+) -> str:
     """Route an LLM call through the BridgeDispatcher (ADR-013).
 
     All LLM work goes through the bridge so that:
@@ -109,9 +121,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
         )
         if result.success:
             return result.response
-        logger.error(
-            "Bridge dispatch failed (capability=%s): %s", capability, result.error
-        )
+        logger.error("Bridge dispatch failed (capability=%s): %s", capability, result.error)
         return ""
     except Exception as e:
         logger.error("Bridge dispatch error (capability=%s): %s", capability, e)
@@ -121,6 +131,7 @@ def _dispatch(capability: str, prompt: str, system_prompt: str = None, timeout: 
 # ---------------------------------------------------------------------------
 # Language detection
 # ---------------------------------------------------------------------------
+
 
 def detect_language(text: str) -> str:
     """Detect the language of a text string.
@@ -135,10 +146,7 @@ def detect_language(text: str) -> str:
         Defaults to 'en' if detection fails.
     """
     try:
-        prompt = (
-            "What language is this? Reply with ONLY the 2-letter ISO code.\n\n"
-            f"{text[:500]}"
-        )
+        prompt = "What language is this? Reply with ONLY the 2-letter ISO code.\n\n" f"{text[:500]}"
         result = _dispatch("detect_language", prompt)
         # Extract just the 2-letter code from the response
         code = re.search(r"\b([a-z]{2})\b", result.lower())
@@ -154,6 +162,7 @@ def detect_language(text: str) -> str:
 # ---------------------------------------------------------------------------
 # Glossary
 # ---------------------------------------------------------------------------
+
 
 def get_glossary(language: str) -> List[Dict]:
     """Fetch the translation glossary for a language.
@@ -199,6 +208,7 @@ def get_glossary(language: str) -> List[Dict]:
 # Batch translation
 # ---------------------------------------------------------------------------
 
+
 def batch_translate(
     strings: List[Tuple[str, str, str]],
     language: str,
@@ -232,14 +242,9 @@ def batch_translate(
     # Build glossary section for the prompt
     glossary_section = ""
     if glossary:
-        glossary_lines = [
-            f"  - \"{g['source_text']}\" \u2192 \"{g['translated_text']}\""
-            for g in glossary
-        ]
+        glossary_lines = [f"  - \"{g['source_text']}\" \u2192 \"{g['translated_text']}\"" for g in glossary]
         glossary_section = (
-            "GLOSSARY (use these exact translations when the term appears):\n"
-            + "\n".join(glossary_lines)
-            + "\n\n"
+            "GLOSSARY (use these exact translations when the term appears):\n" + "\n".join(glossary_lines) + "\n\n"
         )
 
     all_results = []
@@ -252,6 +257,7 @@ def batch_translate(
     if standalone:
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
+
             dispatcher = get_dispatcher()
             job_id = dispatcher.create_job(
                 job_type="batch_translate",
@@ -271,6 +277,7 @@ def batch_translate(
     else:
         try:
             from tools.department_hq.services.department_dispatcher import get_dispatcher
+
             dispatcher = get_dispatcher()
         except Exception:
             pass
@@ -295,13 +302,15 @@ def batch_translate(
             f"and 't' (the actual {lang_name} translation — not a placeholder).\n"
             f'Example format: [{{"n": 1, "t": "<{lang_name} translation>"}}, {{"n": 2, "t": "<{lang_name} translation>"}}]\n\n'
             f"{glossary_section}"
-            f"Strings to translate:\n"
-            + "\n".join(numbered)
+            f"Strings to translate:\n" + "\n".join(numbered)
         )
 
         logger.info(
             "[Linguistics] %s batch %d/%d (%d strings)",
-            language, batch_num, total_batches, len(batch),
+            language,
+            batch_num,
+            total_batches,
+            len(batch),
         )
         raw = _dispatch("translate", prompt, timeout=600, job_id=job_id, local_only=True, prefer_agent="C.O.D.E.X.")
 
@@ -314,32 +323,36 @@ def batch_translate(
             t = translations[i] if i < len(translations) else None
             is_placeholder = t and t.strip().lower() in _PLACEHOLDER_TRANSLATIONS
             if t and not is_placeholder:
-                batch_results.append({
-                    "key": key,
-                    "translation": t,
-                    "success": True,
-                })
+                batch_results.append(
+                    {
+                        "key": key,
+                        "translation": t,
+                        "success": True,
+                    }
+                )
                 batch_ok += 1
             else:
                 if is_placeholder:
                     logger.warning(
                         "Placeholder translation '%s' rejected for key=%s lang=%s",
-                        t, key, language,
+                        t,
+                        key,
+                        language,
                     )
                 else:
                     logger.warning("Missing translation for key=%s in batch", key)
-                batch_results.append({
-                    "key": key,
-                    "translation": english_text,
-                    "success": False,
-                })
+                batch_results.append(
+                    {
+                        "key": key,
+                        "translation": english_text,
+                        "success": False,
+                    }
+                )
 
         # Store this batch to DB immediately — no progress lost on crash
         if batch_ok > 0:
             try:
-                batch_stats = store_translations(
-                    batch_results, language, model or "codex", source_label
-                )
+                batch_stats = store_translations(batch_results, language, model or "codex", source_label)
                 total_ok += batch_stats.get("inserted", 0) + batch_stats.get("updated", 0)
                 total_fail += batch_stats.get("failed", 0)
             except Exception as e:
@@ -352,7 +365,11 @@ def batch_translate(
 
         logger.info(
             "[Linguistics] %s batch %d/%d done: %d/%d ok (stored)",
-            language, batch_num, total_batches, batch_ok, len(batch),
+            language,
+            batch_num,
+            total_batches,
+            batch_ok,
+            len(batch),
         )
 
         # Update job progress
@@ -429,6 +446,7 @@ def _parse_batch_response(raw: str, expected: int) -> List[Optional[str]]:
 # Single-string translation (for chat / real-time use)
 # ---------------------------------------------------------------------------
 
+
 def translate_text(
     text: str,
     target_language: str,
@@ -469,6 +487,7 @@ def translate_text(
 # ---------------------------------------------------------------------------
 # Translation storage
 # ---------------------------------------------------------------------------
+
 
 def store_translations(
     results: List[Dict],
@@ -551,6 +570,7 @@ def store_translations(
 # ---------------------------------------------------------------------------
 # Translation retrieval
 # ---------------------------------------------------------------------------
+
 
 def get_translations(language: str) -> Dict[str, str]:
     """Get all approved translations for a language.

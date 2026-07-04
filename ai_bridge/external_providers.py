@@ -170,15 +170,18 @@ def get_providers_with_capability(capability: str) -> List[Dict]:
     for key, provider in _provider_cache.items():
         caps = provider.get("capabilities", ["text_chat"])
         if capability in caps and provider.get("is_active", False):
-            results.append({
-                "provider_key": key,
-                "display_name": provider.get("display_name", key),
-                "capabilities": caps,
-                "is_free_tier": provider.get("tier_position", 99) >= 8 and not provider.get("is_cloud_proxy", False),
-                "tier_position": provider.get("tier_position", 99),
-                "models": provider.get("models", []),
-                "base_url": provider.get("base_url", ""),
-            })
+            results.append(
+                {
+                    "provider_key": key,
+                    "display_name": provider.get("display_name", key),
+                    "capabilities": caps,
+                    "is_free_tier": provider.get("tier_position", 99) >= 8
+                    and not provider.get("is_cloud_proxy", False),
+                    "tier_position": provider.get("tier_position", 99),
+                    "models": provider.get("models", []),
+                    "base_url": provider.get("base_url", ""),
+                }
+            )
     results.sort(key=lambda p: p["tier_position"])
     return results
 
@@ -197,11 +200,14 @@ def get_all_capabilities() -> Dict[str, List[Dict]]:
         for cap in provider.get("capabilities", ["text_chat"]):
             if cap not in caps_map:
                 caps_map[cap] = []
-            caps_map[cap].append({
-                "provider_key": key,
-                "display_name": provider.get("display_name", key),
-                "is_free_tier": provider.get("tier_position", 99) >= 8 and not provider.get("is_cloud_proxy", False),
-            })
+            caps_map[cap].append(
+                {
+                    "provider_key": key,
+                    "display_name": provider.get("display_name", key),
+                    "is_free_tier": provider.get("tier_position", 99) >= 8
+                    and not provider.get("is_cloud_proxy", False),
+                }
+            )
     return caps_map
 
 
@@ -501,8 +507,7 @@ def get_weekly_usage(provider: str) -> int:
         conn = get_db()
         cur = conn.cursor()
         cur.execute(
-            "SELECT COUNT(*) FROM cloud_model_usage "
-            "WHERE provider = %s AND created_at > NOW() - INTERVAL '7 days'",
+            "SELECT COUNT(*) FROM cloud_model_usage " "WHERE provider = %s AND created_at > NOW() - INTERVAL '7 days'",
             (provider,),
         )
         row = cur.fetchone()
@@ -532,14 +537,23 @@ def weekly_budget_status(provider: str, safety_margin: float = 0.1) -> dict:
     used = get_weekly_usage(provider)
     if not limit:
         return {
-            "provider": provider, "limit": None, "used": used, "remaining": None,
-            "effective_cap": None, "over_budget": False, "warn": False,
+            "provider": provider,
+            "limit": None,
+            "used": used,
+            "remaining": None,
+            "effective_cap": None,
+            "over_budget": False,
+            "warn": False,
         }
     cap = int(limit * (1 - safety_margin))
     return {
-        "provider": provider, "limit": limit, "used": used,
-        "remaining": max(0, cap - used), "effective_cap": cap,
-        "over_budget": used >= cap, "warn": used >= int(limit * 0.8),
+        "provider": provider,
+        "limit": limit,
+        "used": used,
+        "remaining": max(0, cap - used),
+        "effective_cap": cap,
+        "over_budget": used >= cap,
+        "warn": used >= int(limit * 0.8),
     }
 
 
@@ -553,7 +567,10 @@ def check_weekly_budget(provider: str, safety_margin: float = 0.1) -> bool:
     if st["limit"] and st["warn"]:
         logger.warning(
             "[ExternalProviders] %s weekly free tier at %s/%s requests (>=80%%)%s",
-            provider, st["used"], st["limit"], " — OVER effective cap" if st["over_budget"] else "",
+            provider,
+            st["used"],
+            st["limit"],
+            " — OVER effective cap" if st["over_budget"] else "",
         )
     return not st["over_budget"]
 
@@ -676,7 +693,7 @@ def _gemini_media_adapter(request: dict) -> dict:
             "sampleCount": 1,
             "aspectRatio": params.get("aspect_ratio", "1:1"),
             "safetyFilterLevel": "block_few",
-        }
+        },
     }
 
     start = time.time()
@@ -699,6 +716,7 @@ def _gemini_media_adapter(request: dict) -> dict:
 
     # Save to disk
     from datetime import datetime
+
     date_str = datetime.now().strftime("%Y-%m-%d")
     file_uuid = str(uuid.uuid4())[:12]
     rel_dir = f"static/media/images/{date_str}"
@@ -722,7 +740,7 @@ def _gemini_media_adapter(request: dict) -> dict:
             "file_size_bytes": len(img_bytes),
             "aspect_ratio": params.get("aspect_ratio", "1:1"),
             "duration_ms": duration_ms,
-        }
+        },
     }
 
 
@@ -780,6 +798,7 @@ def _openai_image_adapter(request: dict) -> dict:
 
     # Save to disk
     from datetime import datetime
+
     date_str = datetime.now().strftime("%Y-%m-%d")
     file_uuid = str(uuid.uuid4())[:12]
     rel_dir = f"static/media/images/{date_str}"
@@ -806,7 +825,7 @@ def _openai_image_adapter(request: dict) -> dict:
             "style": style,
             "revised_prompt": revised_prompt,
             "duration_ms": duration_ms,
-        }
+        },
     }
 
 
@@ -839,6 +858,7 @@ def _local_tts_adapter(request: dict) -> dict:
         audio_bytes = resp.content
 
         from datetime import datetime
+
         date_str = datetime.now().strftime("%Y-%m-%d")
         file_uuid = str(uuid.uuid4())[:12]
         rel_dir = f"static/media/audio/{date_str}"
@@ -862,11 +882,10 @@ def _local_tts_adapter(request: dict) -> dict:
                 "language": language,
                 "voice": voice,
                 "duration_ms": duration_ms,
-            }
+            },
         }
     except requests.ConnectionError:
         return {"success": False, "error": "Local TTS service unavailable"}
-
 
 
 # ============================================================================

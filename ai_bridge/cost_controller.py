@@ -135,10 +135,7 @@ class CostController:
             remaining_budget = max(0, self.daily_cost_limit - estimated_cost)
 
             can_process = remaining_tokens > 0 and remaining_budget > 0
-            limit_reached = (
-                total_tokens >= self.daily_token_limit
-                or estimated_cost >= self.daily_cost_limit
-            )
+            limit_reached = total_tokens >= self.daily_token_limit or estimated_cost >= self.daily_cost_limit
 
             return UsageStatus(
                 date=date.today(),
@@ -207,10 +204,7 @@ class CostController:
 
         # Check against limits
         status = self.get_daily_status()
-        within_limit = (
-            estimated_total <= status.remaining_tokens
-            and estimated_cost <= status.remaining_budget_usd
-        )
+        within_limit = estimated_total <= status.remaining_tokens and estimated_cost <= status.remaining_budget_usd
 
         would_exceed_tokens = max(0, estimated_total - status.remaining_tokens)
         would_exceed_usd = max(0, estimated_cost - status.remaining_budget_usd)
@@ -284,10 +278,7 @@ class CostController:
                 except Exception:
                     pass
 
-            logger.info(
-                f"Recorded usage: {input_tokens} in, {output_tokens} out, "
-                f"${total_cost:.4f} cost"
-            )
+            logger.info(f"Recorded usage: {input_tokens} in, {output_tokens} out, " f"${total_cost:.4f} cost")
             return True
 
         except Exception as e:

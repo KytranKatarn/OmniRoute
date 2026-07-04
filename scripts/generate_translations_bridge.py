@@ -44,9 +44,7 @@ def get_english_keys():
     """Fetch all English translation keys."""
     conn = get_db()
     cur = conn.cursor()
-    cur.execute(
-        "SELECT key, text FROM translations WHERE language = 'en' ORDER BY key"
-    )
+    cur.execute("SELECT key, text FROM translations WHERE language = 'en' ORDER BY key")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -78,9 +76,7 @@ def main():
         # Check if already has translations
         conn = get_db()
         cur = conn.cursor()
-        cur.execute(
-            "SELECT COUNT(*) FROM translations WHERE language = %s", (lang,)
-        )
+        cur.execute("SELECT COUNT(*) FROM translations WHERE language = %s", (lang,))
         existing = cur.fetchone()[0]
         cur.close()
         conn.close()
@@ -105,12 +101,14 @@ def main():
         try:
             conn = get_db()
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT model_used FROM task_execution_log
                 WHERE module_source = 'consciousness_linguistics'
                   AND capability = 'translate'
                 ORDER BY created_at DESC LIMIT 1
-            """)
+            """
+            )
             row = cur.fetchone()
             if row:
                 model_used = row[0]
@@ -134,14 +132,16 @@ def main():
     # Final stats
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("""
+    cur.execute(
+        """
         SELECT language, COUNT(*) as count,
                COUNT(*) FILTER (WHERE source = 'ai_generated') as ai,
                COUNT(*) FILTER (WHERE status = 'pending_review') as pending
         FROM translations
         GROUP BY language
         ORDER BY language
-    """)
+    """
+    )
     print("\nFinal translation counts:")
     for row in cur.fetchall():
         print(f"  {row[0]}: {row[1]} total ({row[2]} AI, {row[3]} pending)")

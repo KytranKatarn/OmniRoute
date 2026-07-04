@@ -13,6 +13,7 @@ that tier. Retention is expressed per-component, per-tier as a tuple of
 Spec: docs/superpowers/specs/2026-04-16-backup-system-design.md §6
 Plan: docs/superpowers/plans/2026-04-16-backup-system-redesign.md Task 17
 """
+
 import os
 import re
 import shutil
@@ -24,20 +25,20 @@ from pathlib import Path
 # (daily, weekly, monthly) keep counts per (component, tier).
 # Keys are folder names under a run_dir (which tier_sync scripts mirror to tiers).
 RETENTION = {
-    "database":     {"primary": (30, 12, 6),  "usb": (14, 4, 0),  "gdrive": (0, 4, 6),  "vps": (7, 0, 0)},
-    "code":         {"primary": (14, 8, 0),   "usb": (7, 4, 0),   "gdrive": (0, 4, 0),  "vps": (0, 0, 0)},
-    "gitbundles":   {"primary": (14, 0, 12),  "usb": (7, 4, 0),   "gdrive": (0, 4, 6),  "vps": (7, 0, 0)},
-    "config":       {"primary": (14, 0, 12),  "usb": (7, 0, 0),   "gdrive": (0, 0, 12), "vps": (7, 0, 0)},
-    "volumes":      {"primary": (14, 4, 0),   "usb": (0, 4, 0),   "gdrive": (0, 0, 0),  "vps": (0, 0, 0)},
-    "convlogs":     {"primary": (0, 8, 0),    "usb": (0, 0, 0),   "gdrive": (0, 0, 0),  "vps": (0, 0, 0)},
-    "kb_export":    {"primary": (0, 12, 6),   "usb": (0, 0, 0),   "gdrive": (0, 0, 6),  "vps": (0, 0, 0)},
-    "vps_pull":     {"primary": (0, 8, 3),    "usb": (0, 0, 0),   "gdrive": (0, 0, 0),  "vps": (0, 0, 0)},
-    "monthly_full": {"primary": (0, 0, 6),    "usb": (0, 0, 0),   "gdrive": (0, 0, 6),  "vps": (0, 0, 0)},
-    "pre-change":   {"primary": (20, 0, 0),   "usb": (0, 0, 0),   "gdrive": (0, 0, 0),  "vps": (0, 0, 0)},
+    "database": {"primary": (30, 12, 6), "usb": (14, 4, 0), "gdrive": (0, 4, 6), "vps": (7, 0, 0)},
+    "code": {"primary": (14, 8, 0), "usb": (7, 4, 0), "gdrive": (0, 4, 0), "vps": (0, 0, 0)},
+    "gitbundles": {"primary": (14, 0, 12), "usb": (7, 4, 0), "gdrive": (0, 4, 6), "vps": (7, 0, 0)},
+    "config": {"primary": (14, 0, 12), "usb": (7, 0, 0), "gdrive": (0, 0, 12), "vps": (7, 0, 0)},
+    "volumes": {"primary": (14, 4, 0), "usb": (0, 4, 0), "gdrive": (0, 0, 0), "vps": (0, 0, 0)},
+    "convlogs": {"primary": (0, 8, 0), "usb": (0, 0, 0), "gdrive": (0, 0, 0), "vps": (0, 0, 0)},
+    "kb_export": {"primary": (0, 12, 6), "usb": (0, 0, 0), "gdrive": (0, 0, 6), "vps": (0, 0, 0)},
+    "vps_pull": {"primary": (0, 8, 3), "usb": (0, 0, 0), "gdrive": (0, 0, 0), "vps": (0, 0, 0)},
+    "monthly_full": {"primary": (0, 0, 6), "usb": (0, 0, 0), "gdrive": (0, 0, 6), "vps": (0, 0, 0)},
+    "pre-change": {"primary": (20, 0, 0), "usb": (0, 0, 0), "gdrive": (0, 0, 0), "vps": (0, 0, 0)},
 }
 
 PRIMARY_ROOT = Path(os.environ.get("BACKUP_ROOT", "/mnt/data2/backups"))
-USB_ROOT     = Path(os.environ.get("BACKUP_USB",  "/mnt/external-backup"))
+USB_ROOT = Path(os.environ.get("BACKUP_USB", "/mnt/external-backup"))
 
 DATE_RE = re.compile(r"^(\d{8})_")
 
@@ -61,7 +62,7 @@ def parse_ts(name: str):
 
 def classify(date: datetime) -> set[str]:
     tags = {"daily"}
-    if date.weekday() == 6:     # Sunday
+    if date.weekday() == 6:  # Sunday
         tags.add("weekly")
     if date.day <= 3:
         tags.add("monthly")
@@ -94,11 +95,14 @@ def prune_dir(root: Path, component: str, tier: str) -> int:
         tags = classify(ts)
         keep = False
         if "monthly" in tags and kept_m < keep_m:
-            kept_m += 1; keep = True
+            kept_m += 1
+            keep = True
         elif "weekly" in tags and kept_w < keep_w:
-            kept_w += 1; keep = True
+            kept_w += 1
+            keep = True
         elif kept_d < keep_d:
-            kept_d += 1; keep = True
+            kept_d += 1
+            keep = True
         if not keep:
             if DRY_RUN:
                 print(f"[dry-run] would remove {comp_path}")
@@ -155,7 +159,8 @@ echo $deleted
 """
     r = subprocess.run(
         ["docker", "exec", "archie_platform", "bash", "-c", script],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
     )
     try:
         return int(r.stdout.strip().splitlines()[-1])
@@ -178,12 +183,24 @@ def main() -> None:
     # Backup Manager UI reflects THIS canonical engine (it was stale because the old module job
     # was the only writer — #4051).
     subprocess.run(
-        ["docker", "exec", "-i", "archie_database", "psql", "-U", "archie", "-d", "archie",
-         "-c", f"INSERT INTO backup_log (component, tier, status, notes, created_at) "
-               f"VALUES ('retention', 'primary', 'prune', '{total_deleted} deleted', NOW());"
-               f"UPDATE system_config SET value = NOW()::text WHERE key = 'retention_last_run';"
-               f"UPDATE system_config SET value = '{total_deleted}' WHERE key = 'retention_last_deleted_count';"],
-        check=False, capture_output=True,
+        [
+            "docker",
+            "exec",
+            "-i",
+            "archie_database",
+            "psql",
+            "-U",
+            "archie",
+            "-d",
+            "archie",
+            "-c",
+            f"INSERT INTO backup_log (component, tier, status, notes, created_at) "
+            f"VALUES ('retention', 'primary', 'prune', '{total_deleted} deleted', NOW());"
+            f"UPDATE system_config SET value = NOW()::text WHERE key = 'retention_last_run';"
+            f"UPDATE system_config SET value = '{total_deleted}' WHERE key = 'retention_last_deleted_count';",
+        ],
+        check=False,
+        capture_output=True,
     )
     print(f"retention prune: {total_deleted} items removed")
 

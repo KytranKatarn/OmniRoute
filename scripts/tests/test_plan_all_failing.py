@@ -1,4 +1,5 @@
 """Generate AI remediation plans for every currently-failing rule."""
+
 import sys
 import time
 import json
@@ -75,7 +76,7 @@ fb_count = sum(1 for r in results if r.get("fallback"))
 err_count = sum(1 for r in results if r.get("error"))
 
 print("=" * 80)
-print(f"DONE in {total}s ({round(total/60,1)} min)")
+print(f"DONE in {total}s ({round(total/60, 1)} min)")
 print(f"REAL plans: {real_count}   FALLBACK: {fb_count}   ERRORS: {err_count}")
 
 with open("/tmp/plan_sweep_results.json", "w") as f:

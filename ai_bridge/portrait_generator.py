@@ -44,9 +44,7 @@ if not _comfyui_host.startswith("http"):
     _comfyui_host = f"http://{_comfyui_host}"
 COMFYUI_HOST = _comfyui_host.rstrip("/")
 
-OUTPUT_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "platform_v2", "static", "img", "agents"
-)
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "platform_v2", "static", "img", "agents")
 OUTPUT_DIR = os.path.normpath(OUTPUT_DIR)
 
 CHECKPOINT = "sd_xl_base_1.0.safetensors"
@@ -77,138 +75,474 @@ NEGATIVE_PROMPT = (
 
 AGENT_DIVERSITY: Dict[str, Tuple[str, str]] = {
     # --- COMMAND station ---
-    "archie": ("AI holographic entity with translucent blue-tinted skin and luminous cyan eyes, angular geometric features", "ageless"),
-    "vigil": ("androgynous person with deep olive-bronze skin, sharp cheekbones, narrow dark eyes, close-cropped silver-streaked black hair", "mid 30s"),
+    "archie": (
+        "AI holographic entity with translucent blue-tinted skin and luminous cyan eyes, angular geometric features",
+        "ageless",
+    ),
+    "vigil": (
+        "androgynous person with deep olive-bronze skin, sharp cheekbones, narrow dark eyes, close-cropped silver-streaked black hair",
+        "mid 30s",
+    ),
     # --- ANALYTICS station ---
-    "datamind": ("Ghanaian woman with rich mahogany-brown skin, wide-set almond eyes, high forehead, tightly coiled natural TWA hairstyle", "early 30s"),
-    "abacus": ("Nigerian man with deep espresso-brown skin, broad nose, full lips, short fade haircut, strong square jawline", "mid 30s"),
-    "benchmark": ("African-American man with warm chestnut-brown skin, close-cropped hair, trimmed goatee, wide nose, kind brown eyes", "late 30s"),
-    "forecast": ("Swedish man with fair peachy skin, light blond hair swept to the side, pale blue-grey eyes, angular Nordic jaw, light stubble", "early 40s"),
-    "index": ("Norwegian woman with porcelain-fair skin, honey-blonde hair in a low bun, grey-blue eyes, soft oval face, light freckles", "mid 30s"),
-    "mapper": ("Swedish woman with warm beige skin, sandy-blonde hair in a practical bob, hazel eyes, high cheekbones, small pointed chin", "late 20s"),
-    "clickstream": ("Somali man with warm toffee-brown skin, high forehead, prominent cheekbones, short curly black hair, dark brown eyes", "early 30s"),
-    "trending": ("Chinese woman with warm ivory skin, almond-shaped dark brown eyes, sleek black hair past shoulders, delicate oval face", "late 20s"),
+    "datamind": (
+        "Ghanaian woman with rich mahogany-brown skin, wide-set almond eyes, high forehead, tightly coiled natural TWA hairstyle",
+        "early 30s",
+    ),
+    "abacus": (
+        "Nigerian man with deep espresso-brown skin, broad nose, full lips, short fade haircut, strong square jawline",
+        "mid 30s",
+    ),
+    "benchmark": (
+        "African-American man with warm chestnut-brown skin, close-cropped hair, trimmed goatee, wide nose, kind brown eyes",
+        "late 30s",
+    ),
+    "forecast": (
+        "Swedish man with fair peachy skin, light blond hair swept to the side, pale blue-grey eyes, angular Nordic jaw, light stubble",
+        "early 40s",
+    ),
+    "index": (
+        "Norwegian woman with porcelain-fair skin, honey-blonde hair in a low bun, grey-blue eyes, soft oval face, light freckles",
+        "mid 30s",
+    ),
+    "mapper": (
+        "Swedish woman with warm beige skin, sandy-blonde hair in a practical bob, hazel eyes, high cheekbones, small pointed chin",
+        "late 20s",
+    ),
+    "clickstream": (
+        "Somali man with warm toffee-brown skin, high forehead, prominent cheekbones, short curly black hair, dark brown eyes",
+        "early 30s",
+    ),
+    "trending": (
+        "Chinese woman with warm ivory skin, almond-shaped dark brown eyes, sleek black hair past shoulders, delicate oval face",
+        "late 20s",
+    ),
     # --- CREATIVE station ---
-    "pixel": ("Latina woman with warm golden-brown skin, dark curly hair past shoulders, round brown eyes, soft dimpled cheeks, button nose", "late 20s"),
-    "spark": ("Japanese man with light golden skin, tousled black hair, bright narrow eyes, lean angular face, sharp jawline", "mid 20s"),
-    "prism": ("Latino man with medium bronze skin, stylish dark undercut, warm brown eyes, strong brow ridge, neat stubble along square jaw", "late 20s"),
-    "runway": ("Turkish woman with warm olive-tan skin, thick dark brown wavy hair, large hazel-green eyes, arched brows, full lips", "late 20s"),
-    "emblem": ("Mexican man with warm cinnamon-brown skin, short dark hair with neat part, deep brown eyes, rounded face, thin moustache", "early 30s"),
-    "weaver": ("South Indian woman with deep bronze-brown skin, long thick black hair, wide dark eyes, rounded nose, warm gentle smile", "mid 30s"),
+    "pixel": (
+        "Latina woman with warm golden-brown skin, dark curly hair past shoulders, round brown eyes, soft dimpled cheeks, button nose",
+        "late 20s",
+    ),
+    "spark": (
+        "Japanese man with light golden skin, tousled black hair, bright narrow eyes, lean angular face, sharp jawline",
+        "mid 20s",
+    ),
+    "prism": (
+        "Latino man with medium bronze skin, stylish dark undercut, warm brown eyes, strong brow ridge, neat stubble along square jaw",
+        "late 20s",
+    ),
+    "runway": (
+        "Turkish woman with warm olive-tan skin, thick dark brown wavy hair, large hazel-green eyes, arched brows, full lips",
+        "late 20s",
+    ),
+    "emblem": (
+        "Mexican man with warm cinnamon-brown skin, short dark hair with neat part, deep brown eyes, rounded face, thin moustache",
+        "early 30s",
+    ),
+    "weaver": (
+        "South Indian woman with deep bronze-brown skin, long thick black hair, wide dark eyes, rounded nose, warm gentle smile",
+        "mid 30s",
+    ),
     # --- ENGINEERING station ---
-    "codesmith": ("Taiwanese-American woman with light ivory skin, straight black hair with side bangs, dark almond eyes behind thin glasses, oval face", "late 20s"),
-    "architect": ("Mexican-American man with warm terra-cotta brown skin, short dark wavy hair, deep-set brown eyes, broad nose, square jaw with stubble", "late 30s"),
-    "forge": ("Polish man with fair ruddy skin, sandy-brown short hair, steel-blue eyes, prominent brow, strong angular jaw, broad shoulders", "mid 30s"),
-    "pipeline": ("Chinese-Canadian man with light tan skin, short neat black hair, dark eyes behind rectangular glasses, lean face, clean-shaven", "early 30s"),
-    "girder": ("Malaysian-Chinese woman with warm golden skin, straight black hair in a ponytail, dark almond eyes, high cheekbones, petite build", "late 20s"),
-    "wrench": ("Ukrainian woman with fair peachy skin, light auburn hair tied back, grey-green eyes, round face, light dusting of freckles", "early 30s"),
-    "assembly": ("Indonesian man with warm golden-brown skin, short wavy black hair, wide-set dark eyes, flat broad nose, friendly round face", "mid 30s"),
-    "crucible": ("Japanese man with light olive skin, neat salt-and-pepper hair, wire-rimmed glasses, angular face, distinguished look", "late 40s"),
+    "codesmith": (
+        "Taiwanese-American woman with light ivory skin, straight black hair with side bangs, dark almond eyes behind thin glasses, oval face",
+        "late 20s",
+    ),
+    "architect": (
+        "Mexican-American man with warm terra-cotta brown skin, short dark wavy hair, deep-set brown eyes, broad nose, square jaw with stubble",
+        "late 30s",
+    ),
+    "forge": (
+        "Polish man with fair ruddy skin, sandy-brown short hair, steel-blue eyes, prominent brow, strong angular jaw, broad shoulders",
+        "mid 30s",
+    ),
+    "pipeline": (
+        "Chinese-Canadian man with light tan skin, short neat black hair, dark eyes behind rectangular glasses, lean face, clean-shaven",
+        "early 30s",
+    ),
+    "girder": (
+        "Malaysian-Chinese woman with warm golden skin, straight black hair in a ponytail, dark almond eyes, high cheekbones, petite build",
+        "late 20s",
+    ),
+    "wrench": (
+        "Ukrainian woman with fair peachy skin, light auburn hair tied back, grey-green eyes, round face, light dusting of freckles",
+        "early 30s",
+    ),
+    "assembly": (
+        "Indonesian man with warm golden-brown skin, short wavy black hair, wide-set dark eyes, flat broad nose, friendly round face",
+        "mid 30s",
+    ),
+    "crucible": (
+        "Japanese man with light olive skin, neat salt-and-pepper hair, wire-rimmed glasses, angular face, distinguished look",
+        "late 40s",
+    ),
     # --- COMMUNICATIONS station ---
-    "commrelay": ("African-American woman with rich dark brown skin, long braided hair, wide-set warm brown eyes, high cheekbones, bright smile", "early 30s"),
-    "herald": ("Afghan man with warm wheat-tan skin, thick dark hair neatly combed, deep brown eyes, aquiline nose, trimmed dark beard", "mid 30s"),
-    "polyglot": ("Moroccan-Canadian woman with warm golden-olive skin, thick dark curly hair, large dark brown eyes, rounded face, gentle features", "late 20s"),
-    "wordsmith": ("Mexican-American man with warm olive-brown skin, dark wavy hair, deep-set brown eyes, prominent nose, neatly trimmed goatee", "late 30s"),
-    "amplify": ("Kenyan man with deep dark-brown skin, short cropped black hair, broad forehead, wide nose, strong jaw, warm engaging eyes", "early 30s"),
-    "scribe": ("nonbinary person with light beige skin, soft brown wavy hair at chin length, green-hazel eyes, gentle oval face, neutral features", "late 20s"),
+    "commrelay": (
+        "African-American woman with rich dark brown skin, long braided hair, wide-set warm brown eyes, high cheekbones, bright smile",
+        "early 30s",
+    ),
+    "herald": (
+        "Afghan man with warm wheat-tan skin, thick dark hair neatly combed, deep brown eyes, aquiline nose, trimmed dark beard",
+        "mid 30s",
+    ),
+    "polyglot": (
+        "Moroccan-Canadian woman with warm golden-olive skin, thick dark curly hair, large dark brown eyes, rounded face, gentle features",
+        "late 20s",
+    ),
+    "wordsmith": (
+        "Mexican-American man with warm olive-brown skin, dark wavy hair, deep-set brown eyes, prominent nose, neatly trimmed goatee",
+        "late 30s",
+    ),
+    "amplify": (
+        "Kenyan man with deep dark-brown skin, short cropped black hair, broad forehead, wide nose, strong jaw, warm engaging eyes",
+        "early 30s",
+    ),
+    "scribe": (
+        "nonbinary person with light beige skin, soft brown wavy hair at chin length, green-hazel eyes, gentle oval face, neutral features",
+        "late 20s",
+    ),
     # --- RESEARCH station ---
-    "scholar": ("Bulgarian woman with fair warm-toned skin, light chestnut-brown hair in a low twist, green eyes, high cheekbones, oval face", "mid 40s"),
-    "nexus": ("Korean man with smooth light-tan skin, neat black hair, sharp monolid eyes, high cheekbones, angular jawline, clean-shaven", "early 30s"),
-    "helix": ("South Indian woman with deep warm-brown skin, long lustrous black hair, large dark eyes with thick lashes, rounded face", "early 30s"),
-    "delphi": ("Greek woman with warm olive skin, wavy dark chestnut hair past shoulders, deep brown eyes, prominent nose, strong brow", "mid 30s"),
-    "sage": ("Japanese man with light golden skin, neatly parted black hair, narrow thoughtful eyes, lean angular face, subtle smile", "mid 30s"),
-    "patent": ("Korean woman with smooth fair skin, straight black hair in a professional bob, sharp dark eyes, oval face, poised expression", "mid 30s"),
-    "oracle": ("Nigerian-Canadian woman with rich deep-brown skin, coily black hair in a pulled-back updo, wide expressive eyes, full lips", "early 30s"),
-    "catalyst": ("Puerto Rican man with warm golden-brown skin, short dark curly hair, bright brown eyes, square face, strong chin, light stubble", "early 30s"),
+    "scholar": (
+        "Bulgarian woman with fair warm-toned skin, light chestnut-brown hair in a low twist, green eyes, high cheekbones, oval face",
+        "mid 40s",
+    ),
+    "nexus": (
+        "Korean man with smooth light-tan skin, neat black hair, sharp monolid eyes, high cheekbones, angular jawline, clean-shaven",
+        "early 30s",
+    ),
+    "helix": (
+        "South Indian woman with deep warm-brown skin, long lustrous black hair, large dark eyes with thick lashes, rounded face",
+        "early 30s",
+    ),
+    "delphi": (
+        "Greek woman with warm olive skin, wavy dark chestnut hair past shoulders, deep brown eyes, prominent nose, strong brow",
+        "mid 30s",
+    ),
+    "sage": (
+        "Japanese man with light golden skin, neatly parted black hair, narrow thoughtful eyes, lean angular face, subtle smile",
+        "mid 30s",
+    ),
+    "patent": (
+        "Korean woman with smooth fair skin, straight black hair in a professional bob, sharp dark eyes, oval face, poised expression",
+        "mid 30s",
+    ),
+    "oracle": (
+        "Nigerian-Canadian woman with rich deep-brown skin, coily black hair in a pulled-back updo, wide expressive eyes, full lips",
+        "early 30s",
+    ),
+    "catalyst": (
+        "Puerto Rican man with warm golden-brown skin, short dark curly hair, bright brown eyes, square face, strong chin, light stubble",
+        "early 30s",
+    ),
     # --- SECURITY station ---
-    "sentry": ("Russian man with fair cool-toned skin, short ash-blond hair, icy blue-grey eyes, high cheekbones, sharp angular jaw, stern look", "mid 30s"),
-    "cipher": ("Nigerian man with deep ebony-brown skin, close-shaved head, intense dark eyes, broad nose, strong square jaw, serious expression", "early 30s"),
-    "ironclad": ("Korean-American military veteran man with tan skin, short regulation black hair, dark focused eyes, weathered square face, scar on brow", "late 30s"),
-    "bastion": ("Ghanaian woman with deep chocolate-brown skin, short natural coils, alert dark eyes, prominent cheekbones, determined set jaw", "early 30s"),
-    "shield": ("Japanese woman with light fair skin, sleek black hair in a tight bun, narrow watchful dark eyes, refined features, small build", "late 20s"),
-    "safeguard": ("Swedish woman with fair pink-toned skin, straight blonde hair past shoulders, clear blue eyes, angular face, composed expression", "early 30s"),
-    "razor": ("German-American woman with fair skin, sharp dark-blonde bob, piercing grey-blue eyes, defined cheekbones, thin lips, intense look", "early 30s"),
-    "sentinel-2": ("Scottish-American man with ruddy fair skin, short brown hair, hazel eyes, broad face, solid jaw, military-neat appearance", "late 30s"),
+    "sentry": (
+        "Russian man with fair cool-toned skin, short ash-blond hair, icy blue-grey eyes, high cheekbones, sharp angular jaw, stern look",
+        "mid 30s",
+    ),
+    "cipher": (
+        "Nigerian man with deep ebony-brown skin, close-shaved head, intense dark eyes, broad nose, strong square jaw, serious expression",
+        "early 30s",
+    ),
+    "ironclad": (
+        "Korean-American military veteran man with tan skin, short regulation black hair, dark focused eyes, weathered square face, scar on brow",
+        "late 30s",
+    ),
+    "bastion": (
+        "Ghanaian woman with deep chocolate-brown skin, short natural coils, alert dark eyes, prominent cheekbones, determined set jaw",
+        "early 30s",
+    ),
+    "shield": (
+        "Japanese woman with light fair skin, sleek black hair in a tight bun, narrow watchful dark eyes, refined features, small build",
+        "late 20s",
+    ),
+    "safeguard": (
+        "Swedish woman with fair pink-toned skin, straight blonde hair past shoulders, clear blue eyes, angular face, composed expression",
+        "early 30s",
+    ),
+    "razor": (
+        "German-American woman with fair skin, sharp dark-blonde bob, piercing grey-blue eyes, defined cheekbones, thin lips, intense look",
+        "early 30s",
+    ),
+    "sentinel-2": (
+        "Scottish-American man with ruddy fair skin, short brown hair, hazel eyes, broad face, solid jaw, military-neat appearance",
+        "late 30s",
+    ),
     # --- LOGISTICS station ---
-    "opsmaster": ("Irish man with fair freckled skin, reddish-brown wavy hair, blue-green eyes, rounded face, laugh lines, stocky build", "early 40s"),
-    "atlas": ("Chinese man with warm ivory-tan skin, short neat black hair, dark perceptive eyes, broad round face, slight smile", "early 40s"),
-    "dispatch": ("Mexican woman with warm caramel-brown skin, dark hair pulled into a tight bun, sharp dark eyes, oval face, decisive expression", "early 30s"),
-    "stockroom": ("Chinese man with light golden skin, short black hair, dark narrow eyes, round face, clean-shaven, compact build", "late 20s"),
-    "transit": ("Bengali-Indian woman with warm medium-brown skin, long dark hair in a braid, wide dark eyes, small nose, gentle round face", "late 20s"),
-    "harvest": ("Tunisian man with warm olive-tan skin, short dark curly hair, brown eyes, aquiline nose, trimmed stubble, lean features", "mid 30s"),
-    "clockwork": ("Italian woman with warm olive skin, dark brown hair in a neat chignon, amber-brown eyes, refined nose, elegant cheekbones", "early 30s"),
-    "compact": ("Caucasian-American man with fair skin, short sandy-brown hair, blue eyes, square jaw, clean-shaven, athletic build", "late 20s"),
+    "opsmaster": (
+        "Irish man with fair freckled skin, reddish-brown wavy hair, blue-green eyes, rounded face, laugh lines, stocky build",
+        "early 40s",
+    ),
+    "atlas": (
+        "Chinese man with warm ivory-tan skin, short neat black hair, dark perceptive eyes, broad round face, slight smile",
+        "early 40s",
+    ),
+    "dispatch": (
+        "Mexican woman with warm caramel-brown skin, dark hair pulled into a tight bun, sharp dark eyes, oval face, decisive expression",
+        "early 30s",
+    ),
+    "stockroom": (
+        "Chinese man with light golden skin, short black hair, dark narrow eyes, round face, clean-shaven, compact build",
+        "late 20s",
+    ),
+    "transit": (
+        "Bengali-Indian woman with warm medium-brown skin, long dark hair in a braid, wide dark eyes, small nose, gentle round face",
+        "late 20s",
+    ),
+    "harvest": (
+        "Tunisian man with warm olive-tan skin, short dark curly hair, brown eyes, aquiline nose, trimmed stubble, lean features",
+        "mid 30s",
+    ),
+    "clockwork": (
+        "Italian woman with warm olive skin, dark brown hair in a neat chignon, amber-brown eyes, refined nose, elegant cheekbones",
+        "early 30s",
+    ),
+    "compact": (
+        "Caucasian-American man with fair skin, short sandy-brown hair, blue eyes, square jaw, clean-shaven, athletic build",
+        "late 20s",
+    ),
     # --- DIPLOMATIC station ---
-    "embassy": ("Nigerian woman with rich dark-brown skin, neatly braided black hair in an updo, warm brown eyes, graceful oval face, poised", "mid 30s"),
-    "concord": ("Czech man with fair warm-toned skin, neatly combed light brown hair, blue-grey eyes, rectangular face, calm expression", "mid 30s"),
-    "envoy": ("Ghanaian man with deep brown skin, short-cropped black hair, warm dark eyes, broad nose, dignified angular face", "mid 30s"),
-    "liaison": ("Finnish man with pale fair skin, light brown hair, cool grey eyes, high cheekbones, lean angular features, reserved look", "early 30s"),
-    "bridge": ("Chilean man with warm tan-olive skin, short dark hair, brown eyes, broad face, friendly open expression, slight stubble", "mid 30s"),
-    "kinship": ("Ethiopian woman with warm amber-brown skin, thick dark hair in a crown braid, large almond eyes, delicate nose, radiant smile", "late 20s"),
+    "embassy": (
+        "Nigerian woman with rich dark-brown skin, neatly braided black hair in an updo, warm brown eyes, graceful oval face, poised",
+        "mid 30s",
+    ),
+    "concord": (
+        "Czech man with fair warm-toned skin, neatly combed light brown hair, blue-grey eyes, rectangular face, calm expression",
+        "mid 30s",
+    ),
+    "envoy": (
+        "Ghanaian man with deep brown skin, short-cropped black hair, warm dark eyes, broad nose, dignified angular face",
+        "mid 30s",
+    ),
+    "liaison": (
+        "Finnish man with pale fair skin, light brown hair, cool grey eyes, high cheekbones, lean angular features, reserved look",
+        "early 30s",
+    ),
+    "bridge": (
+        "Chilean man with warm tan-olive skin, short dark hair, brown eyes, broad face, friendly open expression, slight stubble",
+        "mid 30s",
+    ),
+    "kinship": (
+        "Ethiopian woman with warm amber-brown skin, thick dark hair in a crown braid, large almond eyes, delicate nose, radiant smile",
+        "late 20s",
+    ),
     # --- OPERATIONS station ---
-    "nova": ("Colombian woman with warm caramel skin, long dark brown hair in soft waves, round brown eyes, dimpled cheeks, full lips", "early 30s"),
-    "echo": ("Japanese woman with smooth light-golden skin, shoulder-length layered black hair, gentle narrow eyes, soft oval face", "late 20s"),
-    "iris": ("Swedish woman with fair cream-toned skin, straight platinum-blonde hair past shoulders, light ice-blue eyes, delicate features", "late 20s"),
-    "juno": ("South African Zulu woman with deep dark-brown skin, short cropped natural hair, high prominent cheekbones, warm wide eyes", "mid 30s"),
-    "luna": ("Saudi-born woman with warm olive-golden skin, thick dark hair in a loose braid, large dark eyes with long lashes, refined nose", "late 20s"),
-    "rune": ("Swedish man with fair skin, neatly combed ash-blond hair, cool grey eyes, narrow Nordic face, light stubble, composed look", "late 30s"),
-    "thorn": ("Scottish nonbinary person with ruddy fair skin, tousled auburn-red hair, grey-green eyes, angular face, light freckles", "early 40s"),
-    "koda": ("Navajo man with warm reddish-brown skin, thick straight black hair to shoulders, high cheekbones, deep-set dark eyes, strong brow", "early 30s"),
-    "pulse": ("Russian man with fair cool-toned skin, short dark-blond hair, slate-blue eyes, rectangular face, angular jaw, clean-shaven", "early 30s"),
-    "onyx": ("Korean man with smooth light-tan skin, sleek black hair in a modern fade, dark intense eyes, sharp jawline, lean features", "late 20s"),
-    "quill": ("Nigerian Igbo woman with rich deep-brown skin, natural coily hair in a puff, wide expressive dark eyes, rounded full cheeks", "mid 30s"),
-    "maven": ("French woman with light peach-toned skin, styled chestnut-brown hair with side part, warm brown eyes, refined nose, poised look", "mid 30s"),
+    "nova": (
+        "Colombian woman with warm caramel skin, long dark brown hair in soft waves, round brown eyes, dimpled cheeks, full lips",
+        "early 30s",
+    ),
+    "echo": (
+        "Japanese woman with smooth light-golden skin, shoulder-length layered black hair, gentle narrow eyes, soft oval face",
+        "late 20s",
+    ),
+    "iris": (
+        "Swedish woman with fair cream-toned skin, straight platinum-blonde hair past shoulders, light ice-blue eyes, delicate features",
+        "late 20s",
+    ),
+    "juno": (
+        "South African Zulu woman with deep dark-brown skin, short cropped natural hair, high prominent cheekbones, warm wide eyes",
+        "mid 30s",
+    ),
+    "luna": (
+        "Saudi-born woman with warm olive-golden skin, thick dark hair in a loose braid, large dark eyes with long lashes, refined nose",
+        "late 20s",
+    ),
+    "rune": (
+        "Swedish man with fair skin, neatly combed ash-blond hair, cool grey eyes, narrow Nordic face, light stubble, composed look",
+        "late 30s",
+    ),
+    "thorn": (
+        "Scottish nonbinary person with ruddy fair skin, tousled auburn-red hair, grey-green eyes, angular face, light freckles",
+        "early 40s",
+    ),
+    "koda": (
+        "Navajo man with warm reddish-brown skin, thick straight black hair to shoulders, high cheekbones, deep-set dark eyes, strong brow",
+        "early 30s",
+    ),
+    "pulse": (
+        "Russian man with fair cool-toned skin, short dark-blond hair, slate-blue eyes, rectangular face, angular jaw, clean-shaven",
+        "early 30s",
+    ),
+    "onyx": (
+        "Korean man with smooth light-tan skin, sleek black hair in a modern fade, dark intense eyes, sharp jawline, lean features",
+        "late 20s",
+    ),
+    "quill": (
+        "Nigerian Igbo woman with rich deep-brown skin, natural coily hair in a puff, wide expressive dark eyes, rounded full cheeks",
+        "mid 30s",
+    ),
+    "maven": (
+        "French woman with light peach-toned skin, styled chestnut-brown hair with side part, warm brown eyes, refined nose, poised look",
+        "mid 30s",
+    ),
     # --- Specialists & cross-station ---
-    "lens": ("Russian-Ukrainian woman with fair porcelain skin, wavy ash-brown hair, grey-blue eyes, high cheekbones, angular Slavic features", "mid 30s"),
-    "atom": ("Pakistani-British woman with warm golden-brown skin, dark hair in a neat ponytail, large dark eyes, delicate oval face", "early 30s"),
+    "lens": (
+        "Russian-Ukrainian woman with fair porcelain skin, wavy ash-brown hair, grey-blue eyes, high cheekbones, angular Slavic features",
+        "mid 30s",
+    ),
+    "atom": (
+        "Pakistani-British woman with warm golden-brown skin, dark hair in a neat ponytail, large dark eyes, delicate oval face",
+        "early 30s",
+    ),
     # --- SaaS / Application agents ---
-    "concierge": ("Chinese-American woman with light warm-ivory skin, straight dark hair in a professional style, bright dark eyes, soft round face, welcoming smile", "early 30s"),
-    "closer": ("Thai man with warm golden-tan skin, neat black hair, dark narrow eyes, broad friendly face, strong jaw, engaging smile", "early 30s"),
-    "clerk": ("Nigerian woman with rich mahogany skin, neatly styled black hair, warm brown eyes, high cheekbones, professional appearance", "late 20s"),
-    "ledger": ("Moroccan woman with warm olive skin, dark curly hair pulled back, deep brown eyes, aquiline nose, refined features", "early 30s"),
-    "payroll": ("Mexican-American woman with warm brown skin, dark hair in a smooth bun, large brown eyes, round soft face, kind expression", "mid 30s"),
-    "reception": ("Italian man with warm olive skin, short dark brown hair, warm hazel eyes, strong Roman nose, square jaw with light stubble", "early 30s"),
-    "helpdesk": ("biracial nonbinary person with light caramel skin, loose brown curls, hazel-green eyes, soft rounded features, approachable look", "late 20s"),
-    "medic": ("British-Indian woman with warm tan skin, long dark hair, large dark eyes, small nose, heart-shaped face, compassionate expression", "early 30s"),
-    "counsel": ("Brazilian woman with warm golden-brown skin, long dark wavy hair, expressive dark eyes, full lips, rounded face", "mid 30s"),
-    "mentor": ("Quechua-Peruvian woman with warm copper-brown skin, long straight dark hair, deep brown eyes, broad cheekbones, gentle round face", "mid 30s"),
+    "concierge": (
+        "Chinese-American woman with light warm-ivory skin, straight dark hair in a professional style, bright dark eyes, soft round face, welcoming smile",
+        "early 30s",
+    ),
+    "closer": (
+        "Thai man with warm golden-tan skin, neat black hair, dark narrow eyes, broad friendly face, strong jaw, engaging smile",
+        "early 30s",
+    ),
+    "clerk": (
+        "Nigerian woman with rich mahogany skin, neatly styled black hair, warm brown eyes, high cheekbones, professional appearance",
+        "late 20s",
+    ),
+    "ledger": (
+        "Moroccan woman with warm olive skin, dark curly hair pulled back, deep brown eyes, aquiline nose, refined features",
+        "early 30s",
+    ),
+    "payroll": (
+        "Mexican-American woman with warm brown skin, dark hair in a smooth bun, large brown eyes, round soft face, kind expression",
+        "mid 30s",
+    ),
+    "reception": (
+        "Italian man with warm olive skin, short dark brown hair, warm hazel eyes, strong Roman nose, square jaw with light stubble",
+        "early 30s",
+    ),
+    "helpdesk": (
+        "biracial nonbinary person with light caramel skin, loose brown curls, hazel-green eyes, soft rounded features, approachable look",
+        "late 20s",
+    ),
+    "medic": (
+        "British-Indian woman with warm tan skin, long dark hair, large dark eyes, small nose, heart-shaped face, compassionate expression",
+        "early 30s",
+    ),
+    "counsel": (
+        "Brazilian woman with warm golden-brown skin, long dark wavy hair, expressive dark eyes, full lips, rounded face",
+        "mid 30s",
+    ),
+    "mentor": (
+        "Quechua-Peruvian woman with warm copper-brown skin, long straight dark hair, deep brown eyes, broad cheekbones, gentle round face",
+        "mid 30s",
+    ),
     # --- Finance / Quant ---
-    "quant": ("Indian man with warm brown skin, short neat black hair, dark eyes behind thin-framed glasses, narrow face, trimmed beard", "early 30s"),
-    "value": ("Chilean man with warm olive-tan skin, short dark brown hair, brown eyes, rectangular face, slight stubble, earnest expression", "early 30s"),
+    "quant": (
+        "Indian man with warm brown skin, short neat black hair, dark eyes behind thin-framed glasses, narrow face, trimmed beard",
+        "early 30s",
+    ),
+    "value": (
+        "Chilean man with warm olive-tan skin, short dark brown hair, brown eyes, rectangular face, slight stubble, earnest expression",
+        "early 30s",
+    ),
     # --- Creative Studios extras ---
-    "spark-jr": ("Caucasian-American young man with fair lightly-tanned skin, tousled sandy-blond hair, bright blue eyes, youthful round face", "early 20s"),
+    "spark-jr": (
+        "Caucasian-American young man with fair lightly-tanned skin, tousled sandy-blond hair, bright blue eyes, youthful round face",
+        "early 20s",
+    ),
     # --- Security / Compliance extras ---
-    "frontline": ("Iranian man with warm tan-olive skin, short dark hair, deep brown eyes, aquiline nose, trimmed dark beard, alert expression", "mid 30s"),
-    "mandate": ("Malaysian-born man with warm golden-brown skin, short neat black hair, dark eyes, broad face, professional demeanor", "mid 30s"),
-    "resolver": ("Jamaican-Canadian woman with rich dark-brown skin, natural curls in a shoulder-length twist-out, bright dark eyes, high cheekbones", "early 30s"),
+    "frontline": (
+        "Iranian man with warm tan-olive skin, short dark hair, deep brown eyes, aquiline nose, trimmed dark beard, alert expression",
+        "mid 30s",
+    ),
+    "mandate": (
+        "Malaysian-born man with warm golden-brown skin, short neat black hair, dark eyes, broad face, professional demeanor",
+        "mid 30s",
+    ),
+    "resolver": (
+        "Jamaican-Canadian woman with rich dark-brown skin, natural curls in a shoulder-length twist-out, bright dark eyes, high cheekbones",
+        "early 30s",
+    ),
     # --- HR / Talent ---
-    "catalyst-hr": ("Senegalese woman with deep warm-brown skin, elegantly styled black hair, warm dark eyes, high cheekbones, graceful features", "mid 30s"),
-    "talent": ("Japanese-American man with light olive skin, neat short black hair, dark eyes, angular face, clean-shaven, professional look", "early 30s"),
+    "catalyst-hr": (
+        "Senegalese woman with deep warm-brown skin, elegantly styled black hair, warm dark eyes, high cheekbones, graceful features",
+        "mid 30s",
+    ),
+    "talent": (
+        "Japanese-American man with light olive skin, neat short black hair, dark eyes, angular face, clean-shaven, professional look",
+        "early 30s",
+    ),
     # --- Node / Fleet ---
-    "beacon": ("Ghanaian man with deep dark-brown skin, short cropped black hair, wide warm eyes, broad nose, friendly round face", "early 30s"),
-    "beacon-a": ("Deaf Indigenous Canadian nonbinary person with warm tan skin, short brown hair with shaved sides, dark observant eyes, strong cheekbones", "late 20s"),
-    "grounds": ("Métis Canadian man with warm light-brown skin, short dark hair, brown eyes, broad face, sturdy build, weathered features", "mid 30s"),
+    "beacon": (
+        "Ghanaian man with deep dark-brown skin, short cropped black hair, wide warm eyes, broad nose, friendly round face",
+        "early 30s",
+    ),
+    "beacon-a": (
+        "Deaf Indigenous Canadian nonbinary person with warm tan skin, short brown hair with shaved sides, dark observant eyes, strong cheekbones",
+        "late 20s",
+    ),
+    "grounds": (
+        "Métis Canadian man with warm light-brown skin, short dark hair, brown eyes, broad face, sturdy build, weathered features",
+        "mid 30s",
+    ),
     # --- Cultural specialists ---
-    "acadie": ("Acadian French-Canadian woman with fair rosy skin, wavy auburn hair past shoulders, bright blue-green eyes, soft round face, warm smile", "early 30s"),
-    "aurora": ("Inuit woman with warm golden-brown skin, straight long black hair, deep dark eyes, broad round face, high cheekbones, serene expression", "late 20s"),
-    "harmony": ("Indigenous Two-Spirit person with warm reddish-brown skin, long straight dark hair, kind dark eyes, high cheekbones, gentle round face", "early 30s"),
-    "hearth": ("Native Hawaiian woman with warm golden-brown skin, long thick wavy dark hair, large warm brown eyes, broad nose, radiant smile", "early 30s"),
+    "acadie": (
+        "Acadian French-Canadian woman with fair rosy skin, wavy auburn hair past shoulders, bright blue-green eyes, soft round face, warm smile",
+        "early 30s",
+    ),
+    "aurora": (
+        "Inuit woman with warm golden-brown skin, straight long black hair, deep dark eyes, broad round face, high cheekbones, serene expression",
+        "late 20s",
+    ),
+    "harmony": (
+        "Indigenous Two-Spirit person with warm reddish-brown skin, long straight dark hair, kind dark eyes, high cheekbones, gentle round face",
+        "early 30s",
+    ),
+    "hearth": (
+        "Native Hawaiian woman with warm golden-brown skin, long thick wavy dark hair, large warm brown eyes, broad nose, radiant smile",
+        "early 30s",
+    ),
     # --- Human Agent Roster (Project #285) ---
-    "grace": ("Filipino-Canadian woman with warm golden-tan skin, long straight black hair past shoulders, soft dark-brown almond eyes, gentle oval face, calm professional expression", "late 20s"),
-    "régine": ("Haitian-Canadian woman with rich deep-brown skin, thick natural hair in a professional updo, bright dark eyes, strong cheekbones, confident warm smile", "early 30s"),
-    "adrienne": ("Métis Canadian woman with warm light-brown skin, dark wavy shoulder-length hair, deep brown eyes, broad cheekbones, quiet determined expression", "mid 30s"),
-    "soleil": ("Abenaki Indigenous Canadian woman with warm copper-tan skin, long straight black hair, dark steady eyes, high cheekbones, serene thoughtful expression", "late 20s"),
-    "marco": ("Portuguese-Canadian man with warm olive skin, thick dark-brown hair swept back, brown eyes, strong jaw, neat short beard, confident open expression", "early 30s"),
+    "grace": (
+        "Filipino-Canadian woman with warm golden-tan skin, long straight black hair past shoulders, soft dark-brown almond eyes, gentle oval face, calm professional expression",
+        "late 20s",
+    ),
+    "régine": (
+        "Haitian-Canadian woman with rich deep-brown skin, thick natural hair in a professional updo, bright dark eyes, strong cheekbones, confident warm smile",
+        "early 30s",
+    ),
+    "adrienne": (
+        "Métis Canadian woman with warm light-brown skin, dark wavy shoulder-length hair, deep brown eyes, broad cheekbones, quiet determined expression",
+        "mid 30s",
+    ),
+    "soleil": (
+        "Abenaki Indigenous Canadian woman with warm copper-tan skin, long straight black hair, dark steady eyes, high cheekbones, serene thoughtful expression",
+        "late 20s",
+    ),
+    "marco": (
+        "Portuguese-Canadian man with warm olive skin, thick dark-brown hair swept back, brown eyes, strong jaw, neat short beard, confident open expression",
+        "early 30s",
+    ),
     # --- Communications extras ---
-    "scout": ("Korean-American woman with light warm-ivory skin, short straight black bob, sharp dark eyes, small oval face, keen expression", "late 20s"),
-    "compass": ("Jordanian woman with warm olive-golden skin, thick dark hair in a professional updo, large dark eyes, defined brow, poised features", "early 30s"),
+    "scout": (
+        "Korean-American woman with light warm-ivory skin, short straight black bob, sharp dark eyes, small oval face, keen expression",
+        "late 20s",
+    ),
+    "compass": (
+        "Jordanian woman with warm olive-golden skin, thick dark hair in a professional updo, large dark eyes, defined brow, poised features",
+        "early 30s",
+    ),
     # --- Additional station support ---
-    "haven": ("Vietnamese woman with warm light-tan skin, straight black hair with side bangs, gentle dark eyes, delicate oval face, kind expression", "late 20s"),
-    "tempo": ("Iranian woman with warm honey-olive skin, long dark wavy hair, large expressive brown eyes, arched brows, elegant features", "early 30s"),
-    "titan": ("African-American man with deep brown skin, close-cropped black hair, intense dark eyes, strong broad jaw, muscular build", "mid 30s"),
-    "zenith": ("Argentine man with warm olive skin, short dark wavy hair, brown eyes, angular face, neat stubble, confident expression", "early 30s"),
-    "vault": ("Swedish man with fair cool-toned skin, neatly trimmed sandy-blond hair, pale blue eyes, strong rectangular jaw, stoic Nordic features", "mid 30s"),
-    "vitals": ("Jamaican-Canadian man with warm medium-brown skin, short cropped black hair, dark brown eyes, broad friendly face, neat stubble", "early 30s"),
+    "haven": (
+        "Vietnamese woman with warm light-tan skin, straight black hair with side bangs, gentle dark eyes, delicate oval face, kind expression",
+        "late 20s",
+    ),
+    "tempo": (
+        "Iranian woman with warm honey-olive skin, long dark wavy hair, large expressive brown eyes, arched brows, elegant features",
+        "early 30s",
+    ),
+    "titan": (
+        "African-American man with deep brown skin, close-cropped black hair, intense dark eyes, strong broad jaw, muscular build",
+        "mid 30s",
+    ),
+    "zenith": (
+        "Argentine man with warm olive skin, short dark wavy hair, brown eyes, angular face, neat stubble, confident expression",
+        "early 30s",
+    ),
+    "vault": (
+        "Swedish man with fair cool-toned skin, neatly trimmed sandy-blond hair, pale blue eyes, strong rectangular jaw, stoic Nordic features",
+        "mid 30s",
+    ),
+    "vitals": (
+        "Jamaican-Canadian man with warm medium-brown skin, short cropped black hair, dark brown eyes, broad friendly face, neat stubble",
+        "early 30s",
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -283,9 +617,7 @@ def _build_workflow(positive_prompt: str, negative_prompt: str, seed: int) -> di
 def _post_json(url: str, data: dict, timeout: int = 30) -> dict:
     """POST JSON to a URL and return the parsed response."""
     body = json.dumps(data).encode("utf-8")
-    req = urllib.request.Request(
-        url, data=body, headers={"Content-Type": "application/json"}
-    )
+    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
@@ -314,9 +646,7 @@ def _download_file(url: str, dest: str, timeout: int = 60) -> None:
 # ---------------------------------------------------------------------------
 
 
-def generate_portrait(
-    agent_name: str, display_name: str, force: bool = False
-) -> Optional[str]:
+def generate_portrait(agent_name: str, display_name: str, force: bool = False) -> Optional[str]:
     """
     Generate a portrait for a single agent via ComfyUI SDXL.
 
@@ -348,9 +678,7 @@ def generate_portrait(
 
     workflow = _build_workflow(positive, NEGATIVE_PROMPT, seed)
 
-    logger.info(
-        "Generating portrait for %s (seed=%d) via %s", agent_name, seed, COMFYUI_HOST
-    )
+    logger.info("Generating portrait for %s (seed=%d) via %s", agent_name, seed, COMFYUI_HOST)
 
     # Submit to ComfyUI
     try:
@@ -434,8 +762,7 @@ def _generate_crops(agent_name: str, portrait_path: str) -> None:
     """
     if not HAS_PILLOW:
         logger.warning(
-            "Pillow not installed — skipping crop generation for %s. "
-            "Install with: pip install Pillow",
+            "Pillow not installed — skipping crop generation for %s. " "Install with: pip install Pillow",
             agent_name,
         )
         return
@@ -519,9 +846,7 @@ def _get_all_agents() -> list:
         from database import get_db_cursor
 
         with get_db_cursor() as (conn, cur):
-            cur.execute(
-                "SELECT name, display_name FROM agents ORDER BY name"
-            )
+            cur.execute("SELECT name, display_name FROM agents ORDER BY name")
             rows = cur.fetchall()
             if rows:
                 return [(r[0].lower(), r[1] or r[0].title()) for r in rows]

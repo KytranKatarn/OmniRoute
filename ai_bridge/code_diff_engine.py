@@ -96,9 +96,7 @@ class CodeDiffEngine:
             "has_changes": len(diff) > 0,
         }
 
-    def generate_side_by_side_diff(
-        self, old_content: str, new_content: str, filename: str = "file.txt"
-    ) -> Dict:
+    def generate_side_by_side_diff(self, old_content: str, new_content: str, filename: str = "file.txt") -> Dict:
         """
         Generate a side-by-side diff with line-by-line comparison.
 
@@ -118,9 +116,7 @@ class CodeDiffEngine:
             if opcode == "equal":
                 # Lines are the same
                 for i, line in enumerate(old_lines[i1:i2]):
-                    left_lines.append(
-                        {"line_num": i1 + i + 1, "content": line, "type": "equal"}
-                    )
+                    left_lines.append({"line_num": i1 + i + 1, "content": line, "type": "equal"})
                     right_lines.append(
                         {
                             "line_num": j1 + i + 1,
@@ -132,22 +128,14 @@ class CodeDiffEngine:
             elif opcode == "delete":
                 # Lines removed from old
                 for i, line in enumerate(old_lines[i1:i2]):
-                    left_lines.append(
-                        {"line_num": i1 + i + 1, "content": line, "type": "delete"}
-                    )
-                    right_lines.append(
-                        {"line_num": None, "content": "", "type": "empty"}
-                    )
+                    left_lines.append({"line_num": i1 + i + 1, "content": line, "type": "delete"})
+                    right_lines.append({"line_num": None, "content": "", "type": "empty"})
 
             elif opcode == "insert":
                 # Lines added to new
                 for i, line in enumerate(new_lines[j1:j2]):
-                    left_lines.append(
-                        {"line_num": None, "content": "", "type": "empty"}
-                    )
-                    right_lines.append(
-                        {"line_num": j1 + i + 1, "content": line, "type": "insert"}
-                    )
+                    left_lines.append({"line_num": None, "content": "", "type": "empty"})
+                    right_lines.append({"line_num": j1 + i + 1, "content": line, "type": "insert"})
 
             elif opcode == "replace":
                 # Lines changed
@@ -163,9 +151,7 @@ class CodeDiffEngine:
                             }
                         )
                     else:
-                        left_lines.append(
-                            {"line_num": None, "content": "", "type": "empty"}
-                        )
+                        left_lines.append({"line_num": None, "content": "", "type": "empty"})
 
                     # New side
                     if i < (j2 - j1):
@@ -177,9 +163,7 @@ class CodeDiffEngine:
                             }
                         )
                     else:
-                        right_lines.append(
-                            {"line_num": None, "content": "", "type": "empty"}
-                        )
+                        right_lines.append({"line_num": None, "content": "", "type": "empty"})
 
         language = self._detect_language(filename)
         stats = self._calculate_stats(old_lines, new_lines, [])
@@ -230,9 +214,7 @@ class CodeDiffEngine:
 
         return {"diffs": diffs, "stats": total_stats, "file_count": len(file_changes)}
 
-    def apply_diff_to_file(
-        self, filepath: str, new_content: str, backup: bool = True
-    ) -> Dict:
+    def apply_diff_to_file(self, filepath: str, new_content: str, backup: bool = True) -> Dict:
         """
         Apply new content to a file, optionally creating a backup.
 
@@ -283,9 +265,7 @@ class CodeDiffEngine:
         ext = os.path.splitext(filename)[1].lower()
         return self.language_patterns.get(ext, "text")
 
-    def _calculate_stats(
-        self, old_lines: List[str], new_lines: List[str], diff: List[str]
-    ) -> Dict:
+    def _calculate_stats(self, old_lines: List[str], new_lines: List[str], diff: List[str]) -> Dict:
         """Calculate diff statistics"""
         lines_added = 0
         lines_removed = 0
@@ -389,9 +369,7 @@ def quick_diff(old_content: str, new_content: str, filename: str = "file.txt") -
     return engine.generate_diff(old_content, new_content, filename)
 
 
-def side_by_side_diff(
-    old_content: str, new_content: str, filename: str = "file.txt"
-) -> Dict:
+def side_by_side_diff(old_content: str, new_content: str, filename: str = "file.txt") -> Dict:
     """Quick function to generate side-by-side diff"""
     engine = CodeDiffEngine()
     return engine.generate_side_by_side_diff(old_content, new_content, filename)
@@ -431,9 +409,7 @@ def goodbye():
     print("-" * 60)
     diff_data = quick_diff(old_code, new_code, "example.py")
     print(diff_data["diff_text"])
-    print(
-        f"\nStats: +{diff_data['stats']['lines_added']} -{diff_data['stats']['lines_removed']}"
-    )
+    print(f"\nStats: +{diff_data['stats']['lines_added']} -{diff_data['stats']['lines_removed']}")
 
     # Generate side-by-side diff
     print("\n2. SIDE-BY-SIDE DIFF:")
@@ -445,8 +421,6 @@ def goodbye():
     for i in range(min(5, len(sbs_diff["left_lines"]))):
         left = sbs_diff["left_lines"][i]
         right = sbs_diff["right_lines"][i]
-        print(
-            f"{left['type']:8} | {right['type']:8} | {left['content'][:30]:30} | {right['content'][:30]:30}"
-        )
+        print(f"{left['type']:8} | {right['type']:8} | {left['content'][:30]:30} | {right['content'][:30]:30}")
 
     print("\n✅ Code Diff Engine tests passed!")

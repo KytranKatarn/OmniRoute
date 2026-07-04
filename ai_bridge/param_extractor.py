@@ -14,13 +14,16 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+
 def _get_extraction_model():
     try:
         from tools.department_hq.services.department_dispatcher import get_dispatcher
+
         model = get_dispatcher().get_model_for_capability("conversation")
         return model or "dolphin3-8k:latest"
     except Exception:
         return os.getenv("ARCHIE_CHAT_MODEL", "dolphin3-8k:latest")
+
 
 EXTRACTION_MODEL = _get_extraction_model()
 
@@ -46,11 +49,13 @@ def _get_available_models():
     """Get available model names from smart router tiers."""
     try:
         from tools.department_hq.services.smart_router import SmartRouter
+
         router = SmartRouter()
         configs = router._get_model_configs()
         return [c.model_name for c in configs.values() if c.provider == "ollama"]
     except Exception:
         return ["dolphin3-8k:latest", "qwen3-coder-cpu:latest", "arctic-embed-cpu", "qwen25-classify", "minicpm-v-cpu"]
+
 
 AVAILABLE_MODELS = _get_available_models()
 

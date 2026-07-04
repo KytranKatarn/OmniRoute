@@ -8,6 +8,7 @@ the transition (Decision #441).
 Remove once every call site has been migrated to the new path. Deprecated
 as of 2026-04-11, updated 2026-04-15.
 """
+
 import warnings
 
 warnings.warn(

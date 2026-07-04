@@ -101,7 +101,12 @@ def _run_pytest(module: str) -> tuple[int, int, str]:
 def _post_to_task(cur, task_id: int, summary: str, ok: bool):
     cur.execute(
         "INSERT INTO work_notes (task_id, note_type, content, metadata) VALUES (%s, %s, %s, %s)",
-        (task_id, "qa_result", f"[P.R.O.B.E. host Playwright] {summary}", psycopg2.extras.Json({"source": "ui_qa_queue"})),
+        (
+            task_id,
+            "qa_result",
+            f"[P.R.O.B.E. host Playwright] {summary}",
+            psycopg2.extras.Json({"source": "ui_qa_queue"}),
+        ),
     )
     cur.execute(
         "UPDATE unified_tasks SET status=%s, updated_at=NOW() WHERE id=%s",

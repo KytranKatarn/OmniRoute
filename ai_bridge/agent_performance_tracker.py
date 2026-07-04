@@ -181,17 +181,9 @@ class AgentPerformanceTracker:
                 accuracy_scores = [float(log[4]) for log in logs if log[4] is not None]
                 timeliness_scores = [float(log[5]) for log in logs if log[5] is not None]
 
-                avg_quality = (
-                    sum(quality_scores) / len(quality_scores) if quality_scores else 0.75
-                )
-                avg_accuracy = (
-                    sum(accuracy_scores) / len(accuracy_scores) if accuracy_scores else 0.75
-                )
-                avg_timeliness = (
-                    sum(timeliness_scores) / len(timeliness_scores)
-                    if timeliness_scores
-                    else 0.75
-                )
+                avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0.75
+                avg_accuracy = sum(accuracy_scores) / len(accuracy_scores) if accuracy_scores else 0.75
+                avg_timeliness = sum(timeliness_scores) / len(timeliness_scores) if timeliness_scores else 0.75
 
                 # Calculate tasks in last 30 days
                 thirty_days_ago = datetime.now() - timedelta(days=30)
@@ -231,9 +223,7 @@ class AgentPerformanceTracker:
                 consensus_data = cur.fetchone()
                 total_evals = consensus_data[0] or 0
                 agreed_evals = consensus_data[1] or 0
-                consensus_agreement_rate = (
-                    (agreed_evals / total_evals) if total_evals > 0 else 0.0
-                )
+                consensus_agreement_rate = (agreed_evals / total_evals) if total_evals > 0 else 0.0
 
                 # Get proposal success metrics
                 cur.execute(
@@ -304,9 +294,7 @@ class AgentPerformanceTracker:
                 # Determine performance trend (compare last 10 tasks vs previous 10)
                 if len(logs) >= 20:
                     recent_success = sum(1 for log in logs[:10] if log[1] == "success") / 10
-                    older_success = (
-                        sum(1 for log in logs[10:20] if log[1] == "success") / 10
-                    )
+                    older_success = sum(1 for log in logs[10:20] if log[1] == "success") / 10
 
                     if recent_success > older_success + 0.1:
                         trend = "improving"
@@ -328,7 +316,6 @@ class AgentPerformanceTracker:
                     proficiency = "intermediate"
                 else:
                     proficiency = "novice"
-
 
                 metrics = {
                     "total_tasks_completed": total_tasks,

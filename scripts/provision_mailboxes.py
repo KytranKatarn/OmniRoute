@@ -37,9 +37,7 @@ def api_request(method, path, data=None):
         "Content-Type": "application/json",
     }
     body = json.dumps(data).encode() if data else None
-    req = urllib.request.Request(
-        f"{API_BASE}{path}", data=body, headers=headers, method=method
-    )
+    req = urllib.request.Request(f"{API_BASE}{path}", data=body, headers=headers, method=method)
     try:
         r = urllib.request.urlopen(req, timeout=10)
         return json.loads(r.read().decode())

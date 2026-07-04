@@ -66,10 +66,12 @@ class SemanticSearch:
             conn = get_db()
             try:
                 cur = conn.cursor()
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT COUNT(*) FROM knowledge_base
                     WHERE embedding IS NOT NULL
-                    """)
+                    """
+                )
                 count = cur.fetchone()[0]
                 self._embedding_available = count > 0
             finally:
@@ -131,9 +133,7 @@ class SemanticSearch:
         # Generate query embedding
         query_embedding = generate_embedding(query)
         if not query_embedding:
-            logger.warning(
-                "Failed to generate query embedding, falling back to keyword"
-            )
+            logger.warning("Failed to generate query embedding, falling back to keyword")
             return self._keyword_search(query, limit, filters)
 
         try:
@@ -304,10 +304,7 @@ class SemanticSearch:
         # Calculate fused scores
         fused = []
         for id, data in scores.items():
-            fused_score = (
-                VECTOR_WEIGHT * data["vector_score"]
-                + KEYWORD_WEIGHT * data["keyword_score"]
-            )
+            fused_score = VECTOR_WEIGHT * data["vector_score"] + KEYWORD_WEIGHT * data["keyword_score"]
 
             if fused_score >= MIN_SCORE_THRESHOLD:
                 result = data["result"]
@@ -432,15 +429,11 @@ class SemanticSearch:
                 total = cur.fetchone()[0]
 
                 # Count entries with embeddings
-                cur.execute(
-                    "SELECT COUNT(*) FROM knowledge_base WHERE embedding IS NOT NULL"
-                )
+                cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE embedding IS NOT NULL")
                 with_embeddings = cur.fetchone()[0]
 
                 # Count entries with search_vector
-                cur.execute(
-                    "SELECT COUNT(*) FROM knowledge_base WHERE search_vector IS NOT NULL"
-                )
+                cur.execute("SELECT COUNT(*) FROM knowledge_base WHERE search_vector IS NOT NULL")
                 with_search_vector = cur.fetchone()[0]
             finally:
                 try:
@@ -456,9 +449,7 @@ class SemanticSearch:
                 "total_entries": total,
                 "with_embeddings": with_embeddings,
                 "with_search_vector": with_search_vector,
-                "embedding_coverage": (
-                    round(with_embeddings / total * 100, 1) if total > 0 else 0
-                ),
+                "embedding_coverage": (round(with_embeddings / total * 100, 1) if total > 0 else 0),
                 "vector_search_available": with_embeddings > 0,
                 "keyword_search_available": with_search_vector > 0,
             }

@@ -1,8 +1,10 @@
 """Path B smoke test: run a handful of previously-failing suites with a
 shared, pre-authenticated session. Mirrors the new _run_qa_scheduled path."""
+
 import os
 import sys
 import time
+
 sys.path.insert(0, "/app")
 sys.path.insert(0, "/mnt/archie_brain")
 
@@ -25,8 +27,7 @@ TARGET_NAMES = [
 
 with get_db_cursor() as (conn, cur):
     cur.execute(
-        "SELECT id, name, spec FROM qa_test_suites "
-        "WHERE name = ANY(%s) AND is_active=true ORDER BY name",
+        "SELECT id, name, spec FROM qa_test_suites " "WHERE name = ANY(%s) AND is_active=true ORDER BY name",
         (TARGET_NAMES,),
     )
     rows = [dict(r) for r in cur.fetchall()]
@@ -84,5 +85,7 @@ for s in rows:
     time.sleep(2)
 
 dur_total = time.time() - start
-print(f"\nTotal: {dur_total:.1f}s  passed_suites={sum(1 for r in results_summary if r[3]==0 and r[2]==0)}/{len(results_summary)}")
+print(
+    f"\nTotal: {dur_total:.1f}s  passed_suites={sum(1 for r in results_summary if r[3] == 0 and r[2] == 0)}/{len(results_summary)}"
+)
 print(f"Errored suites: {[r[0] for r in results_summary if r[3] > 0 or r[2] > 0]}")

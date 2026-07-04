@@ -43,14 +43,13 @@ REQUEST_TIMEOUT = int(os.getenv("COMFYUI_TIMEOUT", "1800"))  # 30 min default â€
 POLL_INTERVAL = 3  # seconds between status polls
 
 # Default workflow path
-_default_workflow = os.path.join(
-    os.path.dirname(__file__), "..", "comfyui", "workflows", "txt2img_default.json"
-)
+_default_workflow = os.path.join(os.path.dirname(__file__), "..", "comfyui", "workflows", "txt2img_default.json")
 
 
 @dataclass
 class ComfyUIResult:
     """Result of a ComfyUI image generation operation."""
+
     success: bool
     file_path: Optional[str] = None
     error: Optional[str] = None
@@ -112,7 +111,8 @@ class ComfyUIService:
             if best_host:
                 logger.info(
                     "[ComfyUI] Auto-selected node %s (%.1fGB VRAM free)",
-                    best_host, best_vram_free,
+                    best_host,
+                    best_vram_free,
                 )
             return best_host
 
@@ -167,7 +167,9 @@ class ComfyUIService:
         try:
             result = subprocess.run(
                 ["docker", "inspect", "--format", "{{.State.Status}}", self.COMFYUI_CONTAINER_NAME],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             return result.stdout.strip() if result.returncode == 0 else "unknown"
         except Exception:
@@ -195,7 +197,9 @@ class ComfyUIService:
             try:
                 subprocess.run(
                     ["docker", "restart", self.COMFYUI_CONTAINER_NAME],
-                    capture_output=True, text=True, timeout=30,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
                 )
             except (subprocess.TimeoutExpired, FileNotFoundError) as e:
                 logger.warning("[ComfyUI] docker restart unavailable: %s", e)
@@ -205,7 +209,9 @@ class ComfyUIService:
             try:
                 result = subprocess.run(
                     ["docker", "start", self.COMFYUI_CONTAINER_NAME],
-                    capture_output=True, text=True, timeout=15,
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
                 )
                 if result.returncode != 0:
                     logger.warning("[ComfyUI] docker start failed: %s", result.stderr.strip())
@@ -249,7 +255,9 @@ class ComfyUIService:
         try:
             result = subprocess.run(
                 ["docker", "stop", self.COMFYUI_CONTAINER_NAME],
-                capture_output=True, text=True, timeout=30,
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
             if result.returncode == 0:
                 logger.info("[ComfyUI] Container stopped (P.I.X.E.L. idle)")
@@ -278,9 +286,7 @@ class ComfyUIService:
     def get_models(self) -> Dict:
         """Get available checkpoint models from ComfyUI."""
         try:
-            resp = requests.get(
-                f"{self.host}/object_info/CheckpointLoaderSimple", timeout=10
-            )
+            resp = requests.get(f"{self.host}/object_info/CheckpointLoaderSimple", timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 ckpts = (
@@ -339,11 +345,16 @@ class ComfyUIService:
             "3": {
                 "class_type": "KSampler",
                 "inputs": {
-                    "cfg": 7, "denoise": 1,
-                    "latent_image": ["5", 0], "model": ["4", 0],
-                    "negative": ["7", 0], "positive": ["6", 0],
+                    "cfg": 7,
+                    "denoise": 1,
+                    "latent_image": ["5", 0],
+                    "model": ["4", 0],
+                    "negative": ["7", 0],
+                    "positive": ["6", 0],
                     "sampler_name": "euler_ancestral",
-                    "scheduler": "normal", "seed": 42, "steps": 20,
+                    "scheduler": "normal",
+                    "seed": 42,
+                    "steps": 20,
                 },
             },
             "4": {
@@ -454,8 +465,16 @@ class ComfyUIService:
 
         try:
             return self._do_generate(
-                prompt, model, steps, width, height,
-                negative_prompt, seed, workflow_path, cfg, sampler,
+                prompt,
+                model,
+                steps,
+                width,
+                height,
+                negative_prompt,
+                seed,
+                workflow_path,
+                cfg,
+                sampler,
             )
         finally:
             self.host = original_host
@@ -520,7 +539,10 @@ class ComfyUIService:
 
         logger.info(
             "[ComfyUI] Generating: model=%s, steps=%d, %dx%d",
-            model or "default", steps, width, height,
+            model or "default",
+            steps,
+            width,
+            height,
         )
 
         try:
@@ -617,9 +639,7 @@ class ComfyUIService:
 
         while time.time() < deadline:
             try:
-                resp = requests.get(
-                    f"{self.host}/history/{prompt_id}", timeout=10
-                )
+                resp = requests.get(f"{self.host}/history/{prompt_id}", timeout=10)
                 if resp.status_code == 200:
                     data = resp.json()
                     if prompt_id in data:
@@ -647,9 +667,7 @@ class ComfyUIService:
 
         return {"success": False, "error": f"Timed out after {timeout}s"}
 
-    def _download_image(
-        self, filename: str, subfolder: str = "", img_type: str = "output"
-    ) -> Optional[bytes]:
+    def _download_image(self, filename: str, subfolder: str = "", img_type: str = "output") -> Optional[bytes]:
         """Download an output image from ComfyUI."""
         try:
             params = {
@@ -657,9 +675,7 @@ class ComfyUIService:
                 "subfolder": subfolder,
                 "type": img_type,
             }
-            resp = requests.get(
-                f"{self.host}/view", params=params, timeout=30
-            )
+            resp = requests.get(f"{self.host}/view", params=params, timeout=30)
             if resp.status_code == 200:
                 return resp.content
         except Exception as e:

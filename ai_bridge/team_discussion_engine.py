@@ -30,12 +30,14 @@ class TeamDiscussionEngine:
         try:
             conn = get_db()
             cur = conn.cursor()
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id FROM agents
                 WHERE name = 'A.R.C.H.I.E.'
                 AND status = 'active'
                 LIMIT 1
-            """)
+            """
+            )
             result = cur.fetchone()
             cur.close()
             conn.close()
@@ -44,9 +46,7 @@ class TeamDiscussionEngine:
             print(f"Error getting A.R.C.H.I.E. agent ID: {e}")
             return None
 
-    def start_discussion(
-        self, proposal_id: int, topic: str, description: Optional[str] = None
-    ) -> Optional[int]:
+    def start_discussion(self, proposal_id: int, topic: str, description: Optional[str] = None) -> Optional[int]:
         """
         Start a new discussion session for a proposal
 
@@ -173,9 +173,7 @@ class TeamDiscussionEngine:
             traceback.print_exc()
             return None
 
-    def assign_agents_to_discussion(
-        self, discussion_id: int, agent_ids: List[int]
-    ) -> bool:
+    def assign_agents_to_discussion(self, discussion_id: int, agent_ids: List[int]) -> bool:
         """
         Assign specialist agents to a discussion
 
@@ -299,9 +297,7 @@ class TeamDiscussionEngine:
             cur.close()
             conn.close()
 
-            print(
-                f"✅ Agent #{agent_id} contributed to discussion #{discussion_id} (message #{message_id})"
-            )
+            print(f"✅ Agent #{agent_id} contributed to discussion #{discussion_id} (message #{message_id})")
             return True
 
         except Exception as e:
@@ -401,9 +397,7 @@ class TeamDiscussionEngine:
             cur.close()
             conn.close()
 
-            print(
-                f"✅ Agent #{agent_id} created evaluation #{eval_id} for proposal #{proposal_id}"
-            )
+            print(f"✅ Agent #{agent_id} created evaluation #{eval_id} for proposal #{proposal_id}")
             return True
 
         except Exception as e:
@@ -479,14 +473,10 @@ class TeamDiscussionEngine:
                 needs_changes_count,
                 needs_testing_count,
             )
-            consensus_score = (
-                max_same_recommendation / total_count if total_count > 0 else 0.0
-            )
+            consensus_score = max_same_recommendation / total_count if total_count > 0 else 0.0
 
             # Average confidence
-            avg_confidence = (
-                sum(e[1] for e in evaluations) / total_count if total_count > 0 else 0.0
-            )
+            avg_confidence = sum(e[1] for e in evaluations) / total_count if total_count > 0 else 0.0
 
             # Aggregate concerns and benefits
             all_concerns = []
@@ -505,11 +495,7 @@ class TeamDiscussionEngine:
             # Risk assessment (take the highest risk level)
             risk_levels = {"low": 1, "medium": 2, "high": 3, "critical": 4}
             risk_assessments = [e[2] for e in evaluations if e[2]]
-            highest_risk = (
-                max(risk_assessments, key=lambda x: risk_levels.get(x, 0))
-                if risk_assessments
-                else "medium"
-            )
+            highest_risk = max(risk_assessments, key=lambda x: risk_levels.get(x, 0)) if risk_assessments else "medium"
 
             # Determine final recommendation
             if approval_count >= total_count * 0.7:
@@ -634,9 +620,7 @@ class TeamDiscussionEngine:
             cur.close()
             conn.close()
 
-            print(
-                f"✅ Team consensus #{consensus_id} created for proposal #{proposal_id}"
-            )
+            print(f"✅ Team consensus #{consensus_id} created for proposal #{proposal_id}")
             return consensus_id
 
         except Exception as e:
@@ -646,9 +630,7 @@ class TeamDiscussionEngine:
             traceback.print_exc()
             return None
 
-    def close_discussion(
-        self, discussion_id: int, consensus_reached: bool = True
-    ) -> bool:
+    def close_discussion(self, discussion_id: int, consensus_reached: bool = True) -> bool:
         """
         Close a discussion session
 
@@ -875,17 +857,13 @@ class TeamDiscussionEngine:
 
 
 # Convenience functions for easy import
-def start_team_discussion(
-    proposal_id: int, topic: str, description: str = None
-) -> Optional[int]:
+def start_team_discussion(proposal_id: int, topic: str, description: str = None) -> Optional[int]:
     """Start a new team discussion for a proposal"""
     engine = TeamDiscussionEngine()
     return engine.start_discussion(proposal_id, topic, description)
 
 
-def add_agent_to_discussion(
-    discussion_id: int, agent_id: int, message: str, message_type: str = "analysis"
-) -> bool:
+def add_agent_to_discussion(discussion_id: int, agent_id: int, message: str, message_type: str = "analysis") -> bool:
     """Add an agent's contribution to a discussion"""
     engine = TeamDiscussionEngine()
     return engine.agent_contribute(discussion_id, agent_id, message, message_type)

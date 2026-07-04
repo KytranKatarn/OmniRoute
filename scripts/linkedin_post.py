@@ -15,6 +15,7 @@ Requirements:
     - CREDENTIAL_VAULT_KEY set in environment
     - Account must exist in agent_platform_accounts (run provision_agent_linkedin.py first)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,9 +30,7 @@ from services.credential_vault_service import get_vault
 
 def _load_and_login(page, vault, agent_id: int | None, user_id: int | None) -> dict:
     """Load credentials from vault, try cookies first, fall back to password login."""
-    creds = vault.get_credentials(
-        platform="linkedin", agent_id=agent_id, user_id=user_id
-    )
+    creds = vault.get_credentials(platform="linkedin", agent_id=agent_id, user_id=user_id)
     if not creds:
         raise ValueError(
             f"No LinkedIn credentials found for agent_id={agent_id} user_id={user_id}. "
@@ -187,14 +186,10 @@ def post(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Post to LinkedIn as an ARCHIE agent."
-    )
+    parser = argparse.ArgumentParser(description="Post to LinkedIn as an ARCHIE agent.")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--agent-id", type=int, help="Post as this agent's account")
-    source.add_argument(
-        "--managed-user-id", type=int, help="Post as a managed human user account"
-    )
+    source.add_argument("--managed-user-id", type=int, help="Post as a managed human user account")
     parser.add_argument("--content", required=True, help="Post text content")
     parser.add_argument(
         "--target",

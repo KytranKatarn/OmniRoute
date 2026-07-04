@@ -1,4 +1,5 @@
 """Raw dispatch_json test to see what F.O.R.G.E. actually returns."""
+
 import sys
 import time
 
@@ -23,4 +24,4 @@ try:
     print(f"type: {type(result).__name__}")
     print(f"value: {str(result)[:800]}")
 except Exception as e:
-    print(f"EXCEPTION after {round(time.time()-t0,1)}s: {type(e).__name__}: {e}")
+    print(f"EXCEPTION after {round(time.time()-t0, 1)}s: {type(e).__name__}: {e}")

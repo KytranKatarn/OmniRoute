@@ -71,9 +71,7 @@ def _patch_beam_search_scorer():
     try:
         import transformers
 
-        version = tuple(
-            int(x) for x in transformers.__version__.split(".")[:2]
-        )
+        version = tuple(int(x) for x in transformers.__version__.split(".")[:2])
         if version < (4, 45):
             logger.debug("[XTTSCompat] transformers %s < 4.45, no patch needed", transformers.__version__)
             return
@@ -81,6 +79,7 @@ def _patch_beam_search_scorer():
         # Check if BeamSearchScorer still exists (future versions might re-add)
         try:
             from transformers import BeamSearchScorer  # noqa: F401
+
             logger.debug("[XTTSCompat] BeamSearchScorer still present, no patch needed")
             return
         except ImportError:
@@ -92,6 +91,7 @@ def _patch_beam_search_scorer():
                 BeamSearchScorer,
                 ConstrainedBeamSearchScorer,
             )
+
             # Re-export at top level
             transformers.BeamSearchScorer = BeamSearchScorer
             transformers.ConstrainedBeamSearchScorer = ConstrainedBeamSearchScorer

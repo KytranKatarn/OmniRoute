@@ -18,6 +18,7 @@ Usage:
     python3 scripts/generate_portrait_thumbnails.py --force   # regenerate all
     python3 scripts/generate_portrait_thumbnails.py --src /path/to/pngs  # custom root
 """
+
 import argparse
 import sys
 from pathlib import Path
@@ -25,9 +26,7 @@ from pathlib import Path
 try:
     from PIL import Image
 except ImportError:
-    sys.stderr.write(
-        "error: Pillow not installed. Install with `pip install Pillow`\n"
-    )
+    sys.stderr.write("error: Pillow not installed. Install with `pip install Pillow`\n")
     sys.exit(1)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent

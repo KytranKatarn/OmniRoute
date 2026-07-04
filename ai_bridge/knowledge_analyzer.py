@@ -231,37 +231,40 @@ class KnowledgeAnalyzer:
         except Exception as e:
             return {"status": "unhealthy", "backend": "bridge", "error": str(e)}
 
-
     def _parse_cards(self, data, source_type, source_ref, default_type="concept", default_techs=None):
         """Parse knowledge cards from LLM JSON response."""
         cards = []
         for cd in data.get("cards", []):
-            cards.append(KnowledgeCard(
-                title=cd.get("title", "Untitled"),
-                card_type=cd.get("card_type", default_type),
-                summary=cd.get("summary", ""),
-                detailed=cd.get("detailed", ""),
-                code_examples=cd.get("code_examples", []),
-                topics=cd.get("topics", []),
-                technologies=cd.get("technologies", default_techs or []),
-                difficulty=cd.get("difficulty", "intermediate"),
-                confidence=float(cd.get("confidence", 0.7)),
-                source_type=source_type,
-                source_ref=source_ref,
-            ))
+            cards.append(
+                KnowledgeCard(
+                    title=cd.get("title", "Untitled"),
+                    card_type=cd.get("card_type", default_type),
+                    summary=cd.get("summary", ""),
+                    detailed=cd.get("detailed", ""),
+                    code_examples=cd.get("code_examples", []),
+                    topics=cd.get("topics", []),
+                    technologies=cd.get("technologies", default_techs or []),
+                    difficulty=cd.get("difficulty", "intermediate"),
+                    confidence=float(cd.get("confidence", 0.7)),
+                    source_type=source_type,
+                    source_ref=source_ref,
+                )
+            )
         return cards
 
     def _parse_relationships(self, data, default_rel="related_to"):
         """Parse relationships from LLM JSON response."""
         rels = []
         for rd in data.get("relationships", []):
-            rels.append(ExtractedRelationship(
-                from_title=rd.get("from_title", ""),
-                to_title=rd.get("to_title", ""),
-                relationship_type=rd.get("relationship_type", default_rel),
-                strength=float(rd.get("strength", 0.5)),
-                reasoning=rd.get("reasoning", ""),
-            ))
+            rels.append(
+                ExtractedRelationship(
+                    from_title=rd.get("from_title", ""),
+                    to_title=rd.get("to_title", ""),
+                    relationship_type=rd.get("relationship_type", default_rel),
+                    strength=float(rd.get("strength", 0.5)),
+                    reasoning=rd.get("reasoning", ""),
+                )
+            )
         return rels
 
     def _call_llm(
@@ -382,7 +385,9 @@ class KnowledgeAnalyzer:
         )
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id, local_only=local_only)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(
+                prompt, job_id=job_id, local_only=local_only
+            )
             data = self._parse_json_response(response)
             cards = self._parse_cards(data, metadata.get("source_type", "conversation"), metadata.get("source_ref", ""))
             relationships = self._parse_relationships(data)
@@ -444,12 +449,12 @@ class KnowledgeAnalyzer:
         # Smart truncation to fit model context
         content = _smart_truncate(content, MAX_CONTENT_LENGTH)
 
-        prompt = CODE_ANALYSIS_PROMPT.format(
-            filename=filename, language=language, content=content
-        )
+        prompt = CODE_ANALYSIS_PROMPT.format(filename=filename, language=language, content=content)
 
         try:
-            response, input_tokens, output_tokens, elapsed = self._call_llm(prompt, job_id=job_id, local_only=local_only)
+            response, input_tokens, output_tokens, elapsed = self._call_llm(
+                prompt, job_id=job_id, local_only=local_only
+            )
             data = self._parse_json_response(response)
             cards = self._parse_cards(data, "github", filename, default_type="pattern", default_techs=[language])
             relationships = self._parse_relationships(data, default_rel="implements")

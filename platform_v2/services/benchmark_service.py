@@ -257,7 +257,6 @@ def _run_benchmark_thread(
     Uses a single DB connection for all writes to avoid exhausting the
     connection pool (the dispatcher opens its own connections per call).
     """
-    import json as _json
     import psycopg2
 
     capability = test_config.get("capability", "general")
@@ -282,19 +281,16 @@ def _run_benchmark_thread(
         logger.error("Benchmark thread %d: can't connect to DB: %s", run_id, e)
         return
 
-    # Pre-warm unique models so cold-start doesn't skew timing
+    # Pre-warm unique models so cold-start doesn't skew timing. ADR-013: warm
+    # via the DHQ dispatcher's model-ready path, NEVER a raw /api/generate call
+    # (KB #274105 — direct Ollama is forbidden even for warm-up/diagnostics).
+    # Equivalent hub warm-up as before (the old raw call also only hit the hub),
+    # but now with RAM-budget management + serialized load (120s-bounded).
     unique_models = list({a.get("model", "") for a in agents if a.get("model")})
-    if unique_models:
-        import requests as _req
-
-        ollama_host = __import__("os").getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
+    if unique_models and _dispatcher:
         for model in unique_models:
             try:
-                _req.post(
-                    f"{ollama_host}/api/generate",
-                    json={"model": model, "prompt": "hi", "options": {"num_predict": 1}},
-                    timeout=120,
-                )
+                _dispatcher.ensure_model_ready("benchmark", model)
                 logger.debug("Benchmark: pre-warmed model %s", model)
             except Exception as e:
                 logger.debug("Benchmark: warm-up failed for %s: %s", model, e)
@@ -500,9 +496,7 @@ def _run_image_benchmark_thread(
     Results are recorded as benchmark_results rows with the model as
     "agent_name" (since image gen doesn't use LLM agents).
     """
-    import json as _json
     import psycopg2
-    import time
 
     prompts = test_config.get("prompts", [])
     default_width = test_config.get("width", 512)
@@ -749,8 +743,6 @@ def _run_image_benchmark_thread(
                 )
 
                 try:
-                    import time
-
                     start_ms = int(time.time() * 1000)
                     result = c_adapter(
                         {
@@ -2076,8 +2068,6 @@ def generate_optimal_placement() -> Dict:
 
     Returns placement plan (not applied — needs human approval).
     """
-    import json as _json
-
     matrix = get_score_matrix()
     stations = matrix["stations"]
     scores = matrix["scores"]

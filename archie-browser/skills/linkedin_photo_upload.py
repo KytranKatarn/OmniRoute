@@ -32,9 +32,12 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(3000)
     _screenshot(page, "photo_before")
 
-    # Click the profile photo circle / camera icon
+    # Click the profile photo circle / camera icon (or the 'Add photo' LINK on a
+    # fresh account — KB #277427: it's an <a>, not a button).
     clicked = False
     for attempt in [
+        lambda: page.locator('a[aria-label="Add photo"]').first.click(timeout=8000),
+        lambda: page.locator('a[aria-label*="photo" i]').first.click(timeout=6000),
         lambda: page.locator('.pv-top-card-profile-picture button').first.click(timeout=8000),
         lambda: page.locator('button.profile-photo-edit__edit-btn').first.click(timeout=8000),
         lambda: page.locator('[aria-label*="profile photo"]').first.click(timeout=8000),
@@ -93,8 +96,11 @@ def execute(page, params: dict) -> dict:
     page.wait_for_timeout(3000)
     _screenshot(page, "photo_crop_ui")
 
-    # Handle crop UI — click Apply/Save to accept default crop
+    # Commit the edit. The photo editor's COMMIT button is 'Save changes'
+    # (KB #277427), NOT 'Save photo'/'Apply'. Try it first, then legacy fallbacks.
     for apply_btn in [
+        lambda: page.get_by_role("button", name="Save changes", exact=False).click(timeout=8000),
+        lambda: page.locator('button:has-text("Save changes")').last.click(timeout=5000),
         lambda: page.get_by_role("button", name="Apply", exact=True).click(timeout=8000),
         lambda: page.get_by_role("button", name="Save photo", exact=False).click(timeout=8000),
         lambda: page.locator('button:has-text("Apply")').last.click(timeout=5000),
@@ -108,30 +114,35 @@ def execute(page, params: dict) -> dict:
             continue
 
     _screenshot(page, "photo_after_apply")
+    page.wait_for_timeout(2500)
 
-    # Final save if another modal appears
-    for save_btn in [
-        lambda: page.get_by_role("button", name="Save", exact=True).last.click(timeout=6000),
-        lambda: page.locator('button[aria-label="Save"]').last.click(timeout=5000),
+    # Honesty gate (KB #277261): a real commit detaches the photo editor. If the
+    # 'Save changes' button / editor dialog is still present, LinkedIn did NOT
+    # commit the change — report failure instead of phantom-succeeding. (Do NOT
+    # press Escape first: that would cancel an open editor and hide the failure.)
+    editor_open = False
+    for sel in [
+        'button:has-text("Save changes")',
+        'div[role="dialog"] button:has-text("Apply")',
     ]:
         try:
-            save_btn()
-            page.wait_for_timeout(2000)
-            break
+            if page.locator(sel).first.is_visible(timeout=1500):
+                editor_open = True
+                break
         except Exception:
             continue
 
-    # Dismiss any follow-up modal
-    try:
-        page.keyboard.press("Escape")
-        page.wait_for_timeout(500)
-    except Exception:
-        pass
-
     final = _screenshot(page, "photo_final")
+    if editor_open:
+        return {
+            "success": False,
+            "result": "Photo editor still open after save — LinkedIn did not commit the photo",
+            "photo_path": photo_path,
+            "screenshot_path": final,
+        }
     return {
         "success": True,
-        "result": "Profile photo uploaded",
+        "result": "Profile photo committed (editor closed)",
         "photo_path": photo_path,
         "screenshot_path": final,
     }

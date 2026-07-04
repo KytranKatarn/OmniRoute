@@ -1791,7 +1791,6 @@ def register_dashboard_routes(bp, auth_decorator):
         keeps the render snappy and cuts DB load ~10x. Per-worker in-process
         cache; staleness is bounded by the TTL and acceptable for live activity.
         """
-        import time
 
         # TTL slightly above the 10s client poll so overlapping requests (multi-tab,
         # multiple viewers, a manual refresh landing on a busy worker) reuse the result.

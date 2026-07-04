@@ -764,7 +764,6 @@ class TelegramGateway:
             action = parts[1]
             node_db_id = int(parts[2])
 
-            import psycopg2
             from psycopg2.extras import RealDictCursor
 
             conn = psycopg2.connect(
@@ -830,7 +829,6 @@ class TelegramGateway:
             approved_by = user_info.get("display_name", "Kytran")
 
             if action == "rest8h":
-                import psycopg2
                 from psycopg2.extras import RealDictCursor
 
                 conn = psycopg2.connect(

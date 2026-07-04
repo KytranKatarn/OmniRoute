@@ -2219,7 +2219,6 @@ def save_conversation():
 
         # Try to generate embedding for semantic search
         try:
-            from .memory_service import store_embedding
 
             store_embedding("knowledge_base", memory_id, full_content)
             # Mark as having embedding

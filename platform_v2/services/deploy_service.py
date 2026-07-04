@@ -149,7 +149,6 @@ def _deploy_static_hostinger(domain: str, source_path: str) -> bool:
     Never call this expecting an immediate Hostinger push — it won't happen.
     """
     from database import get_db_cursor
-    import datetime
 
     key_st = f"website_deploy_last_status_{domain}"
     key_ts = f"website_deploy_last_run_{domain}"

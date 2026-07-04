@@ -94,7 +94,6 @@ def _update_pkg_job(job_id, status, progress_pct, error=None):
 
 def _build_deployment_package_bg(job_id, package_name, description, version_tag, from_backup, target_platform):
     """Background thread: run deployment package creation with progress updates."""
-    import hashlib
     import logging
 
     logger = logging.getLogger(__name__)
@@ -310,7 +309,7 @@ If the automated script fails, you can:
         _update_pkg_job(job_id, "failed", 0, error=str(e)[:500])
 
 
-def register_storage_routes(bp, admin_required):
+def register_storage_routes(bp, admin_required):  # noqa: F811
     """Register cloud / external USB / deployment packages / module storage routes onto the supplied blueprint."""
 
     @bp.route("/download/<backup_name>")

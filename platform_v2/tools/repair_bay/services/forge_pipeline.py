@@ -306,7 +306,6 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
     # 5. Update proposal status if provided
     if proposal_id:
         try:
-            import os
             import psycopg2
 
             conn = psycopg2.connect(

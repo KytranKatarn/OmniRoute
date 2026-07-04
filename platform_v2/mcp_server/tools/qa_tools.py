@@ -49,7 +49,6 @@ async def run_qa_suite_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     if no suite_id provided). Returns pass/fail summary with run_id for
     detailed follow-up.
     """
-    import json
     import subprocess
 
     suite_id = arguments.get("suite_id")

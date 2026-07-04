@@ -618,7 +618,6 @@ def instagram_authorize():
 @login_required
 def instagram_callback():
     """Handle Instagram OAuth callback."""
-    import time
 
     try:
         from flask import session
@@ -772,7 +771,6 @@ def tiktok_authorize():
 @login_required
 def tiktok_callback():
     """Handle TikTok OAuth callback."""
-    import time
 
     try:
         from flask import session
@@ -885,7 +883,6 @@ def tiktok_callback():
 @login_required
 def refresh_oauth_token(account_id):
     """Refresh OAuth token for an account."""
-    import time
 
     try:
         from .oauth_handler import (

@@ -31,7 +31,7 @@ from ._shared import (
 )
 
 
-def register_webhooks_routes(bp, admin_required):
+def register_webhooks_routes(bp, admin_required):  # noqa: F811
     """Register webhook CRUD + test + history routes onto the supplied blueprint."""
 
     @bp.route("/api/webhooks")

@@ -88,7 +88,7 @@ def _patch_beam_search_scorer():
 
         # Try to import from the old location (generation.beam_search)
         try:
-            from transformers.generation.beam_search import (  # noqa: F401
+            from transformers.generation.beam_search import (  # noqa: F401,F811
                 BeamSearchScorer,
                 ConstrainedBeamSearchScorer,
             )

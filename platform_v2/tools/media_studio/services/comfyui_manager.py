@@ -6,7 +6,7 @@ for fleet-wide ComfyUI status reported via heartbeat.
 
 import logging
 import os
-from typing import Dict, List, Optional, Tuple, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from database import get_db_cursor
 

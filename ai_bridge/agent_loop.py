@@ -7344,7 +7344,7 @@ class AgentLoop:
             "platform_v2"
         )
         _sys.path.insert(0, _platform_v2)
-        from services.agent_service import recover_idle, transition_shift_state
+        from services.agent_service import transition_shift_state
         from database import get_db_cursor
 
         applied = 0

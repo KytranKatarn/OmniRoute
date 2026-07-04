@@ -678,7 +678,7 @@ echo ""
 """
 
 
-def register_node_routes(bp, login_required, admin_required):
+def register_node_routes(bp, login_required, admin_required):  # noqa: F811
     """Register node-related routes on the fleet blueprint."""
 
     # ============================================================================
@@ -2611,8 +2611,6 @@ def register_node_routes(bp, login_required, admin_required):
                 # current_load is now hub-derived in the heartbeat (V6) — no manual
                 # increment here (the old counter leaked and inflated unbounded).
 
-                from tools.department_hq.fleet_helpers import node_inter_cluster_host
-
                 return jsonify(
                     {
                         "success": True,
@@ -2945,7 +2943,6 @@ def register_node_routes(bp, login_required, admin_required):
     @login_required
     def test_node_connection(node_id):
         """Test connectivity to a remote node's Ollama instance"""
-        import time
 
         try:
             with get_db_cursor(commit=False) as (conn, cur):
@@ -2965,7 +2962,6 @@ def register_node_routes(bp, login_required, admin_required):
                     return jsonify({"success": False, "error": "Node not found"}), 404
 
                 # Build endpoint URL
-                from tools.department_hq.fleet_helpers import node_inter_cluster_host
 
                 host = node_inter_cluster_host(node)
                 port = node["port"] or DEFAULT_NODE_PORT
@@ -3136,8 +3132,6 @@ def register_node_routes(bp, login_required, admin_required):
                     jsonify({"success": False, "error": "Node not found or inactive"}),
                     404,
                 )
-
-            from tools.department_hq.fleet_helpers import node_inter_cluster_host
 
             host = node_inter_cluster_host(node)
             port = node["port"] or DEFAULT_NODE_PORT
@@ -3751,8 +3745,6 @@ def register_node_routes(bp, login_required, admin_required):
         node = _get_node_for_user_by_int_id(node_id, current_user.id)
         if not node:
             return jsonify({"success": False, "error": "Node not found"}), 404
-
-        from tools.department_hq.fleet_helpers import node_inter_cluster_host
 
         hostname = node_inter_cluster_host(node)
         api_port = 3001  # node_api default port

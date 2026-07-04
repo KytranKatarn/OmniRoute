@@ -97,7 +97,7 @@ def _node_url(node_id: str) -> str:
     if node_id in ("hub", "archie-starbase"):
         return os.environ.get("OLLAMA_HOST") or os.environ.get("OLLAMA_URL") or "http://archie_ollama:11434"
     try:
-        from .fleet_service import get_node_status
+        from .fleet_service import get_node_status  # noqa: F811
 
         node = get_node_status(node_id)
         if node:

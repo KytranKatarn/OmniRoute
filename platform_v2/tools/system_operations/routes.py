@@ -1121,12 +1121,6 @@ def api_node_health_summary():
 # ============================================================================
 
 
-@system_operations_bp.route("/health")
-def health_check():
-    """Health check endpoint (no auth required)"""
-    return jsonify({"healthy": True, "module": "system_operations"})
-
-
 # --- Route files registered via __init__.py (ADR-045) ---
 # process_routes, docker_routes, stack_routes, storage_routes,
 # network_routes, firewall_routes, health_routes

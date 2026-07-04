@@ -110,9 +110,6 @@ class ArgusService:
     def get_modules(self) -> Dict[str, List[Dict]]:
         return CURATED_MODULES
 
-    def get_module_count(self) -> int:
-        return sum(len(mods) for mods in CURATED_MODULES.values())
-
     def start_scan(
         self, module_id: str, target: str, options: dict = None, triggered_by: str = "user"
     ) -> Optional[int]:

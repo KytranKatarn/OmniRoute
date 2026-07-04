@@ -50,7 +50,7 @@ from ._shared import (
 )
 
 
-def register_operations_routes(bp, admin_required):
+def register_operations_routes(bp, admin_required):  # noqa: F811
     """Register core operations (create, list, status, health, lock, verify, retention) routes onto the supplied blueprint."""
 
     @bp.route("/")

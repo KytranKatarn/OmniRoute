@@ -554,7 +554,6 @@ def improvements_chat():
             return jsonify({"success": False, "error": "No message"}), 400
 
         # Get or initialize conversation history from session
-        from flask import session
 
         session_key = f"improvements_conversation_{current_user.id}"
         conversation_id_key = f"improvements_conversation_id_{current_user.id}"
@@ -809,7 +808,6 @@ def improvements_chat_history():
 def improvements_chat_clear():
     """Clear improvement conversation history (both database and session)"""
     try:
-        from flask import session
 
         # Clear session conversation history
         session_key = f"archie_conversation_{current_user.id}"
@@ -3661,7 +3659,6 @@ def release_sandbox():
 def deploy_proposal(proposal_id):
     """Deploy an improvement proposal with full safety protocol"""
     try:
-        from flask import session
 
         data = request.get_json() or {}
         user_id = session.get("user_id")
@@ -3699,7 +3696,6 @@ def deploy_proposal(proposal_id):
 def deploy_proposal_to_production(proposal_id):
     """Deploy tested proposal to production - applies actual code changes"""
     try:
-        from flask import session
 
         conn = get_db()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

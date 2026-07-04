@@ -35,7 +35,7 @@ from ._shared import (
 )
 
 
-def register_admin_routes(bp, admin_required):
+def register_admin_routes(bp, admin_required):  # noqa: F811
     """Register admin (hooks, audit, config, snapshots) routes onto the supplied blueprint."""
 
     @bp.route("/api/hooks")

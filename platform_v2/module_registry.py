@@ -105,7 +105,6 @@ def placeholder_health_check(module_id: str, module_name: str) -> Dict:
 def game_studio_health_check() -> Dict:
     """Health check for Game Studio"""
     try:
-        import os
 
         # Check both possible paths (host mount and container path)
         paths_to_check = [
@@ -132,7 +131,6 @@ def game_studio_health_check() -> Dict:
 def content_studio_health_check() -> Dict:
     """Health check for Content Studio"""
     try:
-        import os
 
         # Check both possible paths (host mount and container path)
         paths_to_check = [
@@ -186,7 +184,6 @@ def content_studio_health_check() -> Dict:
 def media_studio_health_check() -> Dict:
     """Health check for Media Studio"""
     try:
-        import os
 
         paths_to_check = [
             "/app/tools/media_studio/templates/tools/media_studio/media_studio.html",
@@ -212,7 +209,6 @@ def media_studio_health_check() -> Dict:
 def pool_management_health_check() -> Dict:
     """Health check for Pool Management"""
     try:
-        import os
 
         paths_to_check = [
             "/app/templates/tools/pool_management.html",

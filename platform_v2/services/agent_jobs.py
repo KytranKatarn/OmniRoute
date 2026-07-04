@@ -1295,7 +1295,6 @@ def _check_proficiency_degradation(cur, conn):
 
             # Guard: skip if degraded within last 24 hours
             if skill_row["last_degraded_at"]:
-                from datetime import timezone
 
                 last_degraded = skill_row["last_degraded_at"]
                 if hasattr(last_degraded, "tzinfo") and last_degraded.tzinfo is None:
@@ -3970,7 +3969,6 @@ def register_agent_welfare_jobs(scheduler, flask_app):
     )
 
     # --- Project #261 #2101 observability jobs ---
-    from apscheduler.triggers.cron import CronTrigger
 
     scheduler.add_job(
         with_ctx(check_queue_exhaustion),

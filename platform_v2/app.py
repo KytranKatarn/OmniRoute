@@ -1394,7 +1394,6 @@ def signup():
 def accept_invite():
     """Public invite acceptance page — converts a token into a new user account."""
     from database import get_db
-    from werkzeug.security import generate_password_hash
     from services.auth_service import validate_password_complexity
 
     token = request.args.get("token") or request.form.get("token")
@@ -4835,7 +4834,6 @@ def change_password():
     """Force-password-change page for accounts provisioned with must_change_password=True.
     After a successful change, clears the flag and redirects to the dashboard."""
     from database import get_db_cursor
-    from werkzeug.security import generate_password_hash
 
     from services.auth_service import validate_password_complexity
 

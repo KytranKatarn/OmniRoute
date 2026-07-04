@@ -39,7 +39,7 @@ from ._shared import (
 )
 
 
-def register_restore_routes(bp, admin_required):
+def register_restore_routes(bp, admin_required):  # noqa: F811
     """Register restore + preview + sandbox + module backup routes onto the supplied blueprint."""
 
     @bp.route("/restore/<backup_name>", methods=["POST"])
@@ -191,7 +191,6 @@ def register_restore_routes(bp, admin_required):
                     sql_content = sql_content.replace("SET search_path = public", f"SET search_path = {schema_name}")
 
                     # Write modified SQL to temp file
-                    import tempfile
 
                     with tempfile.NamedTemporaryFile(mode="w", suffix=".sql", delete=False) as tmp:
                         tmp.write(sql_content)

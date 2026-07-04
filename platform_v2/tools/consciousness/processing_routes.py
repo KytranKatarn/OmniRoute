@@ -48,7 +48,6 @@ def _require_admin():
 CONVERSATION_LOGS_DIR = "/mnt/archie_brain/conversation_logs"
 
 # --- Server-side processing lock ---
-import threading
 import time as _time
 
 _processing_lock = threading.Lock()

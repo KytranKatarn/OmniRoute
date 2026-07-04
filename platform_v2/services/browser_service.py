@@ -210,6 +210,29 @@ def linkedin_delete(
     return run_skill_sync("linkedin_delete", params, agent_id)
 
 
+def linkedin_post_edit(
+    post_url: str,
+    new_content: str = "",
+    expect_contains: str = "",
+    dry_run: bool = False,
+    agent_id: int = DEFAULT_AGENT_ID,
+) -> dict:
+    """Edit a SINGLE published LinkedIn post by permalink (#2600).
+
+    Companion to ``linkedin_delete``. Guards live in the skill: single-post-by-URL
+    only, optional ``expect_contains`` confirmation, ``dry_run`` that opens the
+    editor and reports current text without saving, and an honesty gate that
+    reports failure (not phantom success) if LinkedIn's edit modal fails to close.
+    ``agent_id`` selects the browser identity; you can only edit your own posts.
+    """
+    params = {"post_url": post_url, "dry_run": dry_run}
+    if new_content:
+        params["new_content"] = new_content
+    if expect_contains:
+        params["expect_contains"] = expect_contains
+    return run_skill_sync("linkedin_post_edit", params, agent_id)
+
+
 def linkedin_profile_view(profile_url: str, agent_id: int = DEFAULT_AGENT_ID) -> dict:
     return run_skill_sync("linkedin_profile_view", {"profile_url": profile_url}, agent_id)
 

@@ -358,6 +358,16 @@ def _call_openai_compatible(
     if not _check_budget(provider):
         return {"success": False, "error": f"Monthly budget exceeded for {provider}", "provider": provider}
 
+    # #3658: per-provider WEEKLY free-tier request cap (rate_limits.free.weekly_limit).
+    # Fail-open, and a no-op for providers without a free weekly_limit configured.
+    if not check_weekly_budget(provider):
+        return {
+            "success": False,
+            "error": f"Weekly free-tier limit reached for {provider}",
+            "provider": provider,
+            "weekly_budget": weekly_budget_status(provider),
+        }
+
     messages = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
@@ -448,6 +458,128 @@ def call_external(
             return {"success": False, "error": "archie_bridge not available for cloud proxy", "provider": provider_key}
 
     return _call_openai_compatible(provider_key, prompt, model, system_prompt, json_mode, timeout)
+
+
+# ============================================================================
+# WEEKLY FREE-TIER BUDGET GUARD + PROVIDER ROTATION (#3658)
+# Free cloud TEXT providers have a per-week request allowance on their free tier
+# (contractor_providers.rate_limits.free.weekly_limit). These helpers count the
+# last-7-day usage from cloud_model_usage, refuse a provider that has run out
+# (with a safety margin), and pick the free provider with the most headroom so a
+# caller can rotate across providers instead of blowing one free tier into
+# paid overage. All fail-open: a counting error never blocks dispatch.
+# ============================================================================
+
+# Free-tier TEXT providers eligible for weekly-budget rotation. Ordered richest
+# free allowance first (groq 14.4k/wk > cerebras 8.4k/wk > cohere 1k/wk).
+FREE_TEXT_PROVIDERS = ["groq", "cerebras", "cohere"]
+
+
+def get_weekly_free_limit(provider: str) -> Optional[int]:
+    """Weekly free-tier request cap from rate_limits.free.weekly_limit, or None if uncapped."""
+    cfg = _get_provider_config(provider) or {}
+    free = (cfg.get("rate_limits") or {}).get("free") or {}
+    lim = free.get("weekly_limit")
+    return int(lim) if isinstance(lim, (int, float)) and lim else None
+
+
+def get_weekly_usage(provider: str) -> int:
+    """Successful+failed cloud text requests for a provider in the last 7 days.
+
+    Fail-open: any error returns 0 so a counting bug can never block dispatch.
+    """
+    conn = None
+    try:
+        from database import get_db
+
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM cloud_model_usage "
+            "WHERE provider = %s AND created_at > NOW() - INTERVAL '7 days'",
+            (provider,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        n = row[0] if not isinstance(row, dict) else list(row.values())[0]
+        return int(n or 0)
+    except Exception as e:
+        logger.warning("[ExternalProviders] weekly usage count failed for %s: %s", provider, e)
+        return 0
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+def weekly_budget_status(provider: str, safety_margin: float = 0.1) -> dict:
+    """Per-provider weekly free-tier budget snapshot.
+
+    Returns {provider, limit, used, remaining, effective_cap, over_budget, warn}.
+    A provider with no free weekly_limit is reported as uncapped (over_budget False).
+    ``effective_cap`` = limit * (1 - safety_margin) so we stop just short of the
+    real free ceiling. ``warn`` flips at 80% of the raw limit (the task's alert point).
+    """
+    limit = get_weekly_free_limit(provider)
+    used = get_weekly_usage(provider)
+    if not limit:
+        return {
+            "provider": provider, "limit": None, "used": used, "remaining": None,
+            "effective_cap": None, "over_budget": False, "warn": False,
+        }
+    cap = int(limit * (1 - safety_margin))
+    return {
+        "provider": provider, "limit": limit, "used": used,
+        "remaining": max(0, cap - used), "effective_cap": cap,
+        "over_budget": used >= cap, "warn": used >= int(limit * 0.8),
+    }
+
+
+def check_weekly_budget(provider: str, safety_margin: float = 0.1) -> bool:
+    """True if the provider still has weekly free-tier headroom (fail-open).
+
+    Logs a warning at >=80% (the task's alert threshold) so a monitor/Telegram
+    relay can surface it before the cap is hit.
+    """
+    st = weekly_budget_status(provider, safety_margin)
+    if st["limit"] and st["warn"]:
+        logger.warning(
+            "[ExternalProviders] %s weekly free tier at %s/%s requests (>=80%%)%s",
+            provider, st["used"], st["limit"], " — OVER effective cap" if st["over_budget"] else "",
+        )
+    return not st["over_budget"]
+
+
+def pick_free_text_provider(
+    candidates: Optional[List[str]] = None,
+    prefer: Optional[str] = None,
+    safety_margin: float = 0.1,
+) -> Optional[str]:
+    """Rotation: pick the free TEXT provider with the MOST weekly headroom.
+
+    ``prefer`` wins if it still has headroom (sticky routing); otherwise the
+    provider with the most remaining free requests is chosen. Returns None when
+    every candidate is out of free-tier budget (caller should fall back to local).
+    """
+    cands = candidates or FREE_TEXT_PROVIDERS
+    scored = []
+    for p in cands:
+        st = weekly_budget_status(p, safety_margin)
+        if st["over_budget"]:
+            continue
+        # Uncapped providers sort as effectively-infinite headroom.
+        rem = st["remaining"] if st["remaining"] is not None else 10**9
+        scored.append((rem, p))
+    if not scored:
+        return None
+    if prefer:
+        for _rem, p in scored:
+            if p == prefer:
+                return prefer
+    scored.sort(reverse=True)  # most remaining first
+    return scored[0][1]
 
 
 # ============================================================================

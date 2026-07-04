@@ -3847,6 +3847,18 @@ class DepartmentDispatcher:
 
             ext_provider_key = get_provider_for_model(model)
             if ext_provider_key:
+                # #4659 sovereignty budget gate (mode-independent — catches every
+                # cloud text dispatch regardless of how it was routed here). Over
+                # the weekly free cap → graceful failure so the caller falls back
+                # to local instead of exhausting the free allowance / paying.
+                if not self._cloud_budget_ok(ext_provider_key, capability or "unknown"):
+                    return {
+                        "success": False,
+                        "error": f"Cloud provider {ext_provider_key} over weekly free budget — staying local",
+                        "model": model,
+                        "provider": ext_provider_key,
+                        "cloud_budget_exhausted": True,
+                    }
                 ext_config = _get_provider_config(ext_provider_key)
                 if ext_config and ext_config.get("is_cloud_proxy"):
                     return call_ollama_cloud(prompt, model=model, system_prompt=system_prompt)
@@ -4643,9 +4655,94 @@ class DepartmentDispatcher:
             row = cur.fetchone()
             cur.close()
             conn.close()
-            return row[0] if row else "auto"
+            # Sovereign-by-default (#4659): no row → cloud OFF (local_only).
+            return row[0] if row else "local_only"
         except Exception as _exc:
-            return "auto"
+            # Fail CLOSED for sovereignty — a DB blip must never enable cloud.
+            return "local_only"
+
+    def _cloud_budget_ok(self, provider_key: str, capability: str = "unknown") -> bool:
+        """Weekly free-tier budget gate for a cloud TEXT provider (#4659).
+
+        The sovereignty guard. Before a cloud dispatch fires, confirm the
+        provider still has weekly free-tier headroom. Over the effective cap →
+        return False so the caller skips this provider (the escalation loop
+        rotates to the next) and ultimately falls back to LOCAL when every
+        cloud budget is exhausted. Providers with no declared free weekly limit
+        (uncapped/paid/unknown) fail-OPEN — always allowed. At >=80% usage a
+        throttled Telegram advisory fires.
+
+        NEVER raises: a counting bug must never block or crash dispatch.
+        """
+        try:
+            from ai_bridge.external_providers import weekly_budget_status
+
+            st = weekly_budget_status(provider_key)
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] cloud budget check failed for {provider_key}: {e}")
+            return True  # fail-open — never block on a counting error
+        # Provider without a declared free weekly_limit → uncapped, always allowed.
+        if not st.get("limit"):
+            return True
+        if st.get("warn"):
+            self._maybe_alert_cloud_budget(provider_key, st)
+        if st.get("over_budget"):
+            logger.warning(
+                "[BridgeDispatcher] Cloud budget guard: %s over weekly free cap "
+                "(%s/%s reqs, cap %s) for '%s' — skipping, falling back to local.",
+                provider_key,
+                st.get("used"),
+                st.get("limit"),
+                st.get("effective_cap"),
+                capability,
+            )
+            return False
+        return True
+
+    def _maybe_alert_cloud_budget(self, provider_key: str, status: dict) -> None:
+        """Throttled (24h/provider) Telegram advisory when a cloud free tier hits >=80%.
+
+        Throttle state lives in ``platform_settings`` (key
+        ``cloud_budget_alert_<provider>``), reusing the proven UPSERT pattern so
+        we touch no unfamiliar schema. Best effort — never raises.
+        """
+        skey = f"cloud_budget_alert_{provider_key}"
+        try:
+            conn = self._get_db()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT value FROM platform_settings WHERE key = %s " "AND updated_at > NOW() - INTERVAL '24 hours'",
+                (skey,),
+            )
+            if cur.fetchone():
+                cur.close()
+                conn.close()
+                return  # already alerted within the throttle window
+            cur.execute(
+                """
+                INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                VALUES (%s, %s, 'string', 'Cloud budget 80pct alert throttle', NOW())
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                """,
+                (skey, str(status.get("used"))),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            logger.debug(f"[BridgeDispatcher] cloud budget alert throttle skipped: {e}")
+            return
+        try:
+            from services.telegram_service import send_system
+
+            send_system(
+                "Cloud free tier at 80%",
+                f"{provider_key} used {status.get('used')}/{status.get('limit')} weekly "
+                f"free requests (>=80%). The sovereignty guard will skip it and keep "
+                f"dispatch local until the weekly window resets.",
+            )
+        except Exception:
+            pass
 
     # Cloud contractor models (free via OLLAMA_API_KEY) — legacy fallback.
     # Prefer _find_contractors_for_capability() which queries contractor_providers table.
@@ -4744,6 +4841,17 @@ class DepartmentDispatcher:
         """
         provider_key = contractor["provider_key"]
         model = contractor.get("default_model")
+
+        # #4659 sovereignty budget gate — skip a cloud provider that is over its
+        # weekly free tier so the escalation loop rotates to the next contractor
+        # (and falls back to local when all are exhausted). Covers the non-proxy
+        # call_external path, which does NOT flow through _execute_llm's gate.
+        if not self._cloud_budget_ok(provider_key, capability):
+            logger.info(
+                "[DepartmentDispatcher] Skipping contractor %s — over weekly free budget.",
+                provider_key,
+            )
+            return None
 
         try:
             if contractor.get("is_cloud_proxy"):
@@ -6506,6 +6614,11 @@ class DepartmentDispatcher:
 
                 contractor_succeeded = False
                 for contractor in contractors:
+                    # #4659 — skip over-budget cloud providers up front so we don't
+                    # even create a cloud job for them; the loop rotates to the next,
+                    # and falls through to local when all free tiers are exhausted.
+                    if not self._cloud_budget_ok(contractor["provider_key"], contractor_cap):
+                        continue
                     logger.info(
                         f"[DepartmentDispatcher] Department {blocked_department} exhausted "
                         f"for '{capability}' (cap={contractor_cap}). "

@@ -1283,7 +1283,8 @@ def register_fleet_routes(bp, auth_decorator):
             with get_db_cursor(commit=False) as (conn, cur):
                 cur.execute("SELECT value FROM platform_settings WHERE key = 'escalation_mode'")
                 row = cur.fetchone()
-                return jsonify({"success": True, "escalation_mode": row["value"] if row else "auto"})
+                # Sovereign-by-default (#4659): no row → cloud OFF, not auto.
+                return jsonify({"success": True, "escalation_mode": row["value"] if row else "local_only"})
         except Exception as e:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 

@@ -6324,9 +6324,10 @@ function showToast(msg, type) { console.log("[" + (type||"info") + "] " + msg); 
 
 async function loadContractors() {
     try {
-        var [provResp, modeResp] = await Promise.all([
+        var [provResp, modeResp, escResp] = await Promise.all([
             fetch('/tools/department-hq/api/external-providers'),
-            fetch('/tools/department-hq/api/routing-mode')
+            fetch('/tools/department-hq/api/routing-mode'),
+            fetch('/tools/department-hq/api/escalation-mode')
         ]);
         if (!provResp.ok) throw new Error('Failed to load providers');
         var data = await provResp.json();
@@ -6335,6 +6336,13 @@ async function loadContractors() {
             var modeData = await modeResp.json();
             if (modeData.success) routingMode = modeData.routing_mode || 'full';
         }
+        // #4659 — Cloud AI master toggle reflects escalation_mode (sovereign default).
+        var escalationMode = 'local_only';
+        if (escResp.ok) {
+            var escData = await escResp.json();
+            if (escData.success) escalationMode = escData.escalation_mode || 'local_only';
+        }
+        renderCloudMasterToggle(escalationMode);
         renderContractors(data.providers || [], routingMode, {
             creed_total_24h: data.creed_total_24h || 0,
             creed_blocked_24h: data.creed_blocked_24h || 0
@@ -6344,6 +6352,60 @@ async function loadContractors() {
         console.error('loadContractors error:', e);
         var grid = document.getElementById('contractors-grid');
         if (grid) grid.innerHTML = '<span class="briefing-muted">Failed to load contractors</span>';
+    }
+}
+
+// #4659 — Cloud AI master toggle. OFF = Sovereign (local_only, default).
+// ON = Ask-first: cloud available for testing/reviewing/comparing other AI,
+// every cloud call waits for Telegram Approve/Deny. Wired to escalation_mode.
+function renderCloudMasterToggle(mode) {
+    var el = document.getElementById('cloudMasterToggle');
+    if (!el) return;
+    var on = (mode === 'ask_first' || mode === 'auto');
+    var stateLabel = on ? 'ON · Ask-first' : 'OFF · Sovereign';
+    var stateColor = on ? '#f5a623' : '#00ffcc';
+    var sub = on
+        ? 'Cloud AI is available for testing / reviewing / comparing against other AI. Every cloud call waits for your Telegram Approve/Deny — nothing leaves the cluster silently. Free tiers are budget-guarded.'
+        : 'Local &amp; sovereign. Your systems and data stay on-cluster — no external AI is used. Turn on only to test / review / compare against other AI.';
+    var toggle = document.createElement('div');
+    toggle.style.cssText = 'border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:14px 16px;background:rgba(0,0,0,0.25);display:flex;align-items:center;gap:16px;flex-wrap:wrap;';
+    toggle.innerHTML =
+        '<div style="flex:1;min-width:220px;">' +
+          '<div style="font-family:\'Antonio\',sans-serif;letter-spacing:2px;text-transform:uppercase;font-size:0.95rem;color:' + stateColor + ';">☁️ Cloud AI &nbsp;·&nbsp; ' + stateLabel + '</div>' +
+          '<div style="font-size:0.72rem;color:var(--dhq-text-dim,#9aa);margin-top:6px;line-height:1.4;">' + sub + '</div>' +
+        '</div>' +
+        '<button id="cloudMasterBtn" type="button" role="switch" aria-checked="' + on + '" ' +
+          'title="' + (on ? 'Disable cloud (return to Sovereign)' : 'Enable cloud (Ask-first)') + '" ' +
+          'style="cursor:pointer;border:none;border-radius:22px;width:88px;height:36px;position:relative;flex-shrink:0;' +
+          'background:' + (on ? '#f5a623' : 'rgba(255,255,255,0.15)') + ';transition:background 0.2s;">' +
+          '<span style="position:absolute;top:3px;left:' + (on ? '55px' : '3px') + ';width:30px;height:30px;border-radius:50%;background:#010409;transition:left 0.2s;"></span>' +
+        '</button>';
+    el.innerHTML = '';
+    el.appendChild(toggle);
+    var btn = document.getElementById('cloudMasterBtn');
+    if (btn) btn.addEventListener('click', function() { setCloudMaster(!on); });
+}
+
+async function setCloudMaster(turnOn) {
+    var target = turnOn ? 'ask_first' : 'local_only';
+    try {
+        var resp = await fetch('/tools/department-hq/api/escalation-mode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ escalation_mode: target })
+        });
+        var res = await resp.json();
+        if (res && res.success) {
+            renderCloudMasterToggle(res.escalation_mode || target);
+            if (typeof showToast === 'function') {
+                showToast(turnOn ? 'Cloud AI enabled (Ask-first)' : 'Cloud AI disabled — Sovereign / local', 'success');
+            }
+        } else if (typeof showToast === 'function') {
+            showToast('Failed to change cloud mode', 'error');
+        }
+    } catch (e) {
+        console.error('setCloudMaster failed:', e);
+        if (typeof showToast === 'function') showToast('Failed to change cloud mode', 'error');
     }
 }
 

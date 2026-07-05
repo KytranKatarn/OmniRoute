@@ -1468,6 +1468,20 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # #4661 Cloud Comparison Lane: drains approved cloud A/B runs (dispatch
+        # local+cloud, local judge, complete/cancel). Toggle via
+        # work:ab_compare_worker:enabled (work_control_service); no-ops when
+        # there are no pending ab_compare runs.
+        self.scheduler.add_job(
+            with_app_context(self.ab_compare_worker),
+            trigger=IntervalTrigger(seconds=30),
+            id="ab_compare_worker",
+            name="Agent Loop: Cloud A/B Comparison Worker (Agent Academy)",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         self.scheduler.add_job(
             with_app_context(self._model_dispatch_worker),
             trigger=IntervalTrigger(seconds=15),
@@ -2743,6 +2757,200 @@ class AgentLoop:
 
         except Exception as exc:
             logger.error("portrait_refinement_worker outer error: %s", exc)
+
+    def ab_compare_worker(self):
+        """Drain approved cloud A/B comparison runs (#4661). ~30s cadence.
+
+        Claims 'pending_approval' action_benchmark_runs whose linked
+        autonomy_approval_queue row has resolved (approved/rejected/expired),
+        then dispatches + judges the approved ones. Toggle via
+        work:ab_compare_worker:enabled (work_control_service).
+        """
+        from services.work_control_service import is_enabled
+
+        if not is_enabled("ab_compare_worker", default=True):
+            return
+
+        from tools.agent_academy.ab_compare import decide_worker_action
+        from database import get_db_cursor
+        import json
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT r.id, r.test_config, r.metadata, "
+                    "  EXTRACT(EPOCH FROM (NOW() - r.started_at)) AS age, "
+                    "  a.status AS approval_status "
+                    "FROM action_benchmark_runs r "
+                    "LEFT JOIN autonomy_approval_queue a "
+                    "  ON a.id = (r.metadata->>'approval_id')::int "
+                    "WHERE r.status = 'pending_approval' "
+                    "  AND r.test_config->>'type' = 'ab_compare' LIMIT 10"
+                )
+                pending = cur.fetchall()
+        except Exception as e:
+            logger.warning("ab_compare_worker fetch failed: %s", e)
+            return
+
+        # Reaper: the scan above only ever revisits 'pending_approval' rows, so
+        # a run that was claimed ('running') and then orphaned by a mid-flight
+        # worker crash/restart would otherwise stay 'running' forever with no
+        # path back to a terminal state (#4661 final-review Important fix).
+        # Age-gated + scoped to ab_compare so it can't touch the synchronous
+        # both-local ab_test path or the older per-agent benchmark runner.
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE action_benchmark_runs SET status='failed', completed_at=NOW(), "
+                    "metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb),'{cancelled_reason}', "
+                    "%s::jsonb) "
+                    "WHERE test_config->>'type' = 'ab_compare' AND status = 'running' "
+                    "AND started_at < NOW() - INTERVAL '15 minutes'",
+                    (json.dumps("worker_timeout"),),
+                )
+        except Exception as e:
+            logger.warning("ab_compare_worker reaper sweep failed: %s", e)
+
+        for run in pending:
+            action = decide_worker_action(run["approval_status"] or "pending", float(run["age"] or 0))
+            if action == "skip":
+                continue
+            run_id = run["id"]
+            if action == "cancel":
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE action_benchmark_runs SET status='cancelled', completed_at=NOW(), "
+                        "metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb),'{cancelled_reason}', "
+                        "%s::jsonb) WHERE id=%s AND status='pending_approval'",
+                        (json.dumps(f"approval {run['approval_status']}"), run_id),
+                    )
+                continue
+            # action == "run": idempotent claim — another tick/worker may have grabbed it first
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE action_benchmark_runs SET status='running' "
+                    "WHERE id=%s AND status='pending_approval' RETURNING id",
+                    (run_id,),
+                )
+                claimed = cur.fetchone()
+            if not claimed:
+                continue  # another worker took it
+            try:
+                self._run_ab_comparison(run_id, run["test_config"])
+            except Exception as exc:
+                logger.exception("ab_compare_worker: run %s failed: %s", run_id, exc)
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE action_benchmark_runs SET status='failed', completed_at=NOW(), "
+                        "metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb),'{cancelled_reason}', "
+                        "%s::jsonb) WHERE id=%s",
+                        (json.dumps(f"worker exception: {exc}"[:500]), run_id),
+                    )
+
+    def _run_ab_comparison(self, run_id, cfg):
+        """Dispatch both sides of an approved cloud A/B run, judge locally, complete the run (#4661).
+
+        Integration notes (verified against live code, not assumed):
+        - DispatchResult (department_dispatcher.py) has no `total_tokens` field —
+          only `prompt_tokens` + `completion_tokens`. Both are stored individually
+          (action_benchmark_results.prompt_tokens/completion_tokens) plus their
+          sum (total_tokens), so /api/ab-test/run/<id> can report real token
+          fidelity instead of dumping the whole total into completion_tokens
+          (#4661 final-review fix).
+        - `agent_id` on action_benchmark_results is NOT NULL + FK->agents(id).
+          DispatchResult.agent_id can be None (contractor/error/queued paths)
+          and there is no agents.id=0 row, so a bare `agent_id=0` (as the
+          existing synchronous ab_test path uses) would raise a
+          ForeignKeyViolation. Fall back to id=2 (A.R.C.H.I.E.) — the same
+          "system" placeholder id already used elsewhere in
+          department_dispatcher.py (e.g. parent_agent_id=2).
+        - dispatch_json() returns Optional[Dict] (already-parsed JSON or
+          None on failure) — NOT a DispatchResult-like object. It has no
+          .response/.success. Re-serialize the dict so parse_judge_result
+          (which expects raw text and does its own robust extraction +
+          score clamping) can run unchanged.
+        """
+        from tools.agent_academy.ab_compare import build_judge_prompt, parse_judge_result
+        from tools.department_hq.services.department_dispatcher import dispatch, dispatch_json
+        from database import get_db_cursor
+        import json
+
+        def run_side(sel, label):
+            kwargs = {"model_override": sel["model"]}
+            if sel["kind"] == "local":
+                kwargs["local_only"] = True
+            res = dispatch(
+                cfg.get("capability", "benchmark"),
+                cfg["prompt"],
+                module_id=f"agent_academy:ab_compare:{label}",
+                **kwargs,
+            )
+            provider = sel["provider"] if sel["kind"] == "cloud" else "ollama"
+            return res, provider
+
+        res_a, prov_a = run_side(cfg["sel_a"], "a")
+        res_b, prov_b = run_side(cfg["sel_b"], "b")
+
+        def insert_result(name, sel, res, provider):
+            prompt_tok = getattr(res, "prompt_tokens", 0) or 0
+            completion_tok = getattr(res, "completion_tokens", 0) or 0
+            total_tok = prompt_tok + completion_tok
+            agent_id_val = getattr(res, "agent_id", None) or 2
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO action_benchmark_results (run_id, agent_id, agent_name, model_used, "
+                    "provider, duration_ms, prompt_tokens, completion_tokens, total_tokens, success, "
+                    "error_message, response_preview, tested_at) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
+                    (
+                        run_id,
+                        agent_id_val,
+                        name,
+                        sel["model"],
+                        provider,
+                        getattr(res, "duration_ms", None),
+                        prompt_tok,
+                        completion_tok,
+                        total_tok,
+                        bool(getattr(res, "success", False)),
+                        getattr(res, "error", None),
+                        (getattr(res, "response", "") or "")[:4000],
+                    ),
+                )
+
+        insert_result("model_a", cfg["sel_a"], res_a, prov_a)
+        insert_result("model_b", cfg["sel_b"], res_b, prov_b)
+
+        # local judge (only if both sides succeeded)
+        judge = {"score_a": None, "score_b": None, "winner": None, "rationale": "skipped (a side failed)"}
+        if getattr(res_a, "success", False) and getattr(res_b, "success", False):
+            jp = build_judge_prompt(cfg["prompt"], res_a.response, res_b.response)
+            jres = dispatch_json(
+                "analyze",
+                jp,
+                module_id="agent_academy:ab_judge",
+                model_override="qwen2.5:7b",
+                local_only=True,
+            )
+            # jres is Optional[Dict] (see docstring) — never a DispatchResult.
+            judge = parse_judge_result(json.dumps(jres) if isinstance(jres, dict) else "")
+            with get_db_cursor(commit=True) as (conn, cur):
+                for name, sc, rk in (
+                    ("model_a", judge["score_a"], 1 if judge["winner"] == "a" else 2),
+                    ("model_b", judge["score_b"], 1 if judge["winner"] == "b" else 2),
+                ):
+                    cur.execute(
+                        "UPDATE action_benchmark_results SET score=%s, rank=%s " "WHERE run_id=%s AND agent_name=%s",
+                        (sc, rk, run_id, name),
+                    )
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE action_benchmark_runs SET status='completed', completed_at=NOW(), "
+                "metadata = jsonb_set(COALESCE(metadata,'{}'::jsonb),'{judge_result}', %s::jsonb) "
+                "WHERE id=%s",
+                (json.dumps(judge), run_id),
+            )
 
     def _model_dispatch_worker(self):
         """Model-affinity dispatch queue drainer. Department HQ — all products.

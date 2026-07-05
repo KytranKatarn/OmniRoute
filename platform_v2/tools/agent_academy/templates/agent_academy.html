@@ -228,7 +228,10 @@
             </button>
         </div>
 
+        <div id="ab-message"></div>
+
         <div id="ab-result-container" style="display:none">
+            <button class="aa-btn" onclick="toggleDiff()" id="btn-toggle-diff" style="margin-bottom:0.5rem">Show divergence</button>
             <div class="aa-ab-comparison">
                 <div class="aa-ab-side" id="ab-side-a">
                     <h3 class="aa-ab-label">MODEL A</h3>
@@ -245,6 +248,8 @@
                 </div>
             </div>
         </div>
+
+        <div id="ab-judge-card"></div>
 
         <h2 class="aa-panel-title" style="margin-top:1.5rem">Test History</h2>
         <div id="ab-history-container"></div>

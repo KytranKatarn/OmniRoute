@@ -9,6 +9,8 @@ const AA_BASE = '/tools/agent-academy';
 let aaAgents = [];
 let aaModels = [];
 let aaTabLoaded = {};
+let aaLastABResults = null;
+let aaDiffShown = false;
 
 // ============================================================
 // Init
@@ -17,6 +19,7 @@ let aaTabLoaded = {};
 document.addEventListener('DOMContentLoaded', function() {
     loadAgentList();
     loadAvailableModels();
+    populateModelSelects();
     switchTab('benchmarks');
     if (typeof lucide !== 'undefined') lucide.createIcons();
 });
@@ -47,6 +50,12 @@ function esc(s) {
     return d.innerHTML;
 }
 
+// Alias — Cloud Comparison Lane (#4661) judge/diff renderers call escHtml();
+// reuse the existing esc() implementation rather than duplicating it.
+function escHtml(s) {
+    return esc(s);
+}
+
 function setContent(el, safeHtml) {
     if (typeof el === 'string') el = document.getElementById(el);
     if (el) el.innerHTML = safeHtml;
@@ -73,7 +82,7 @@ function loadAvailableModels() {
         aaModels = data.available || [];
         document.getElementById('loaded-count').textContent = data.loaded_count || 0;
         document.getElementById('available-count').textContent = data.available_count || 0;
-        populateModelSelects(data.available || [], data.loaded_names || []);
+        populateModelEditSelect(data.available || [], data.loaded_names || []);
     }).catch(function(e) {
         console.error('Failed to load models:', e);
     });
@@ -125,25 +134,64 @@ function populateDeptFilter() {
     });
 }
 
-function populateModelSelects(models, loadedNames) {
-    var selects = ['ab-model-a', 'ab-model-b', 'modal-model'];
-    selects.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (!el) return;
-        var val = el.value;
-        el.textContent = '';
-        var defOpt = document.createElement('option');
-        defOpt.value = '';
-        defOpt.textContent = 'Select Model...';
-        el.appendChild(defOpt);
-        models.forEach(function(m) {
-            var opt = document.createElement('option');
-            opt.value = m.name;
-            var loaded = loadedNames.indexOf(m.name) >= 0 ? ' [LOADED]' : '';
-            opt.textContent = m.name + loaded + ' (' + (m.parameter_size || '?') + ')';
-            el.appendChild(opt);
+function populateModelEditSelect(models, loadedNames) {
+    var el = document.getElementById('modal-model');
+    if (!el) return;
+    var val = el.value;
+    el.textContent = '';
+    var defOpt = document.createElement('option');
+    defOpt.value = '';
+    defOpt.textContent = 'Select Model...';
+    el.appendChild(defOpt);
+    models.forEach(function(m) {
+        var opt = document.createElement('option');
+        opt.value = m.name;
+        var loaded = loadedNames.indexOf(m.name) >= 0 ? ' [LOADED]' : '';
+        opt.textContent = m.name + loaded + ' (' + (m.parameter_size || '?') + ')';
+        el.appendChild(opt);
+    });
+    if (val) el.value = val;
+}
+
+// Cloud Comparison Lane (#4661): local + cloud optgroups for the A/B model
+// pickers. Built via DOM API (not innerHTML string concat) so untrusted
+// model/provider names can't break out of an attribute value.
+function populateModelSelects() {
+    api('/api/ab-test/models').then(function(d) {
+        var localModels = d.local || [];
+        var cloudModels = d.cloud || [];
+        ['ab-model-a', 'ab-model-b'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            var val = el.value;
+            el.textContent = '';
+
+            var localGroup = document.createElement('optgroup');
+            localGroup.label = 'Local (sovereign)';
+            localModels.forEach(function(m) {
+                var opt = document.createElement('option');
+                opt.value = m.name;
+                opt.textContent = m.name;
+                localGroup.appendChild(opt);
+            });
+            el.appendChild(localGroup);
+
+            var cloudGroup = document.createElement('optgroup');
+            cloudGroup.label = 'Cloud (ask-first)';
+            cloudModels.forEach(function(c) {
+                var rem = (c.weekly_remaining === null || c.weekly_remaining === undefined) ? '∞' : c.weekly_remaining;
+                var opt = document.createElement('option');
+                opt.value = 'provider:' + c.provider_key + ':' + c.model;
+                opt.textContent = '☁ ' + c.display_name + ' (' + c.model + ') — ' + rem + ' left';
+                if (c.disabled) opt.disabled = true;
+                cloudGroup.appendChild(opt);
+            });
+            el.appendChild(cloudGroup);
+
+            if (val) el.value = val;
         });
-        if (val) el.value = val;
+    }).catch(function(e) {
+        console.error('Failed to load AB test models:', e);
     });
 }
 
@@ -468,22 +516,28 @@ function runABTest() {
     var btn = document.getElementById('btn-run-ab');
     btn.disabled = true;
     btn.textContent = 'TESTING...';
+    showABMessage('');
+    renderJudge(null);
 
     api('/api/ab-test/run', {
         method: 'POST',
         body: JSON.stringify({ model_a: modelA, model_b: modelB, test_prompt: prompt, capability: capability }),
     }).then(function(data) {
-        var resultContainer = document.getElementById('ab-result-container');
-        resultContainer.style.display = 'block';
-
-        ['a', 'b'].forEach(function(side) {
-            var r = data.results[side];
-            document.getElementById('ab-name-' + side).textContent = r.model;
-            document.getElementById('ab-stats-' + side).textContent =
-                r.duration_ms + 'ms | ' + (r.prompt_tokens + r.completion_tokens) + ' tokens | ' + (r.success ? 'OK' : 'FAILED');
-            document.getElementById('ab-response-' + side).textContent = r.response || r.error || 'No response';
-        });
-
+        if (data.status === 'budget_exhausted') {
+            showABMessage('Cloud provider ' + data.provider + ' is out of free weekly budget (' + data.weekly_remaining + ' left).');
+            return;
+        }
+        if (data.status === 'approval_unavailable') {
+            showABMessage(data.message || 'Cloud comparison approval is unavailable right now.');
+            return;
+        }
+        if (data.status === 'pending_approval') {
+            showABMessage('⏳ Pending your Telegram approval… results will appear when you approve.');
+            pollABRun(data.run_id);
+            return;
+        }
+        // existing synchronous both-local path (no `status` field on this response)
+        renderABResults(data.results);
         aaTabLoaded['ab-test'] = false;
         loadABHistory();
     }).catch(function(e) {
@@ -492,6 +546,110 @@ function runABTest() {
         btn.disabled = false;
         btn.textContent = 'RUN A/B TEST';
     });
+}
+
+// Renders one {a, b} result pair into the comparison panel. Shared by the
+// synchronous both-local path and pollABRun()'s 'completed' branch.
+function renderABResults(results) {
+    aaLastABResults = results || {};
+    aaDiffShown = false;
+    var diffBtn = document.getElementById('btn-toggle-diff');
+    if (diffBtn) diffBtn.textContent = 'Show divergence';
+
+    var resultContainer = document.getElementById('ab-result-container');
+    resultContainer.style.display = 'block';
+
+    ['a', 'b'].forEach(function(side) {
+        var r = (results && results[side]) || {};
+        document.getElementById('ab-name-' + side).textContent = r.model || '-';
+        var stats = (r.duration_ms != null ? r.duration_ms + 'ms' : '-')
+            + ' | ' + ((r.prompt_tokens || 0) + (r.completion_tokens || 0)) + ' tokens'
+            + ' | ' + (r.success ? 'OK' : 'FAILED');
+        if (r.provider) { stats += ' | ☁ ' + r.provider; }
+        document.getElementById('ab-stats-' + side).textContent = stats;
+        document.getElementById('ab-response-' + side).textContent = r.response || r.error || 'No response';
+    });
+}
+
+// Poll a cloud-comparison run until the async worker finishes (or cancels).
+function pollABRun(runId) {
+    var tries = 0;
+    var iv = setInterval(function() {
+        tries++;
+        api('/api/ab-test/run/' + runId).then(function(d) {
+            if (d.status === 'completed') {
+                clearInterval(iv);
+                renderABResults(d.results);
+                renderJudge(d.judge);
+                showABMessage('');
+                aaTabLoaded['ab-test'] = false;
+                loadABHistory();
+            } else if (d.status === 'cancelled') {
+                clearInterval(iv);
+                showABMessage('Cloud comparison ' + (d.cancelled_reason || 'cancelled') + '.');
+            } else if (tries > 100) {
+                clearInterval(iv);
+                showABMessage('Timed out waiting for results.');
+            }
+        }).catch(function(e) {
+            if (tries > 100) {
+                clearInterval(iv);
+                showABMessage('Error polling for results: ' + e.message);
+            }
+        });
+    }, 3000);
+}
+
+// Local-judge (qwen2.5:7b) verdict card. Pass null/undefined to clear it.
+function renderJudge(j) {
+    var el = document.getElementById('ab-judge-card');
+    if (!el) return;
+    if (!j || (j.score_a == null && j.score_b == null)) { el.innerHTML = ''; return; }
+    var win = j.winner === 'a' ? 'Model A' : j.winner === 'b' ? 'Model B' : 'Tie';
+    el.innerHTML = '<div class="aa-card"><b>Local judge (qwen2.5:7b)</b> — '
+        + 'A: ' + (j.score_a != null ? j.score_a : '—') + ' · B: ' + (j.score_b != null ? j.score_b : '—')
+        + ' · Winner: <b>' + win + '</b><br>'
+        + '<span class="aa-badge-dim"></span>' + escHtml(j.rationale || '') + '</div>';
+}
+
+// Word-level diff — no external lib (strict CSP). Highlights tokens in A
+// that aren't in B, and vice-versa, via <mark class="aa-diff">.
+function wordDiff(a, b) {
+    var at = new Set((a || '').split(/\s+/));
+    var bt = new Set((b || '').split(/\s+/));
+    var mark = function(text, other) {
+        return (text || '').split(/\s+/).map(function(w) {
+            return other.has(w) ? escHtml(w) : '<mark class="aa-diff">' + escHtml(w) + '</mark>';
+        }).join(' ');
+    };
+    return { a: mark(a, bt), b: mark(b, at) };
+}
+
+// Toggles #ab-response-{a,b} between raw text and the word-diff HTML view.
+function toggleDiff() {
+    if (!aaLastABResults) return;
+    aaDiffShown = !aaDiffShown;
+    var btn = document.getElementById('btn-toggle-diff');
+    var ra = aaLastABResults.a || {};
+    var rb = aaLastABResults.b || {};
+    if (aaDiffShown) {
+        var diff = wordDiff(ra.response || '', rb.response || '');
+        setContent('ab-response-a', diff.a);
+        setContent('ab-response-b', diff.b);
+        if (btn) btn.textContent = 'Hide divergence';
+    } else {
+        document.getElementById('ab-response-a').textContent = ra.response || ra.error || 'No response';
+        document.getElementById('ab-response-b').textContent = rb.response || rb.error || 'No response';
+        if (btn) btn.textContent = 'Show divergence';
+    }
+}
+
+// Status/progress line above the history table (pending approval, budget
+// exhausted, cancelled, timeout). textContent-only — no HTML rendering, so
+// no escaping concerns even though messages interpolate provider/model text.
+function showABMessage(msg) {
+    var el = document.getElementById('ab-message');
+    if (el) el.textContent = msg || '';
 }
 
 function loadABHistory() {

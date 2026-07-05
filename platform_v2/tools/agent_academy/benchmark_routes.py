@@ -8,7 +8,9 @@ import json
 import logging
 import time
 
-from flask import jsonify, request
+from flask import jsonify, request, Response
+from psycopg2.extras import Json
+
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
@@ -273,6 +275,130 @@ def register_benchmark_routes(bp, admin_required):
         if not model_a or not model_b or not test_prompt:
             return jsonify({"error": "model_a, model_b, and test_prompt required"}), 400
 
+        # --- Cloud Comparison Lane (#4661): branch off to the async approval
+        # path when either side selects a cloud provider. Both-local falls
+        # through unchanged to the existing synchronous path below.
+        from tools.agent_academy.ab_compare import parse_model_selection, classify_run
+
+        sel_a = parse_model_selection(model_a)
+        sel_b = parse_model_selection(model_b)
+        klass = classify_run(sel_a, sel_b)
+
+        if klass["has_cloud"]:
+            from tools.department_hq.services.department_dispatcher import get_dispatcher
+            from ai_bridge.external_providers import weekly_budget_status
+            from ai_bridge.agent_loop import request_approval
+
+            disp = get_dispatcher()
+            # 1. budget guard — refuse before enqueue if any cloud provider is over budget
+            for pk in klass["cloud_providers"]:
+                if not disp._cloud_budget_ok(pk, "ab_compare"):
+                    st = weekly_budget_status(pk)
+                    return Response(
+                        json.dumps(
+                            {
+                                "status": "budget_exhausted",
+                                "provider": pk,
+                                "weekly_remaining": st.get("remaining"),
+                            },
+                            default=str,
+                        ),
+                        mimetype="application/json",
+                    )
+
+            # 2. enqueue pending_approval run
+            # NOTE: action_benchmark_runs.station_code is NOT NULL (no default)
+            # and started_by is INT (references a user id) — the original
+            # design draft omitted station_code and put a string into
+            # started_by, which would fail (NOT NULL violation / int cast
+            # error). Fixed here against the live schema (migration 129):
+            # station_code='ENGINEERING' matches the existing sync-path
+            # convention below; started_by is left NULL (nullable, no int
+            # user id available from this caller).
+            test_config = {
+                "type": "ab_compare",
+                "capability": capability,
+                "prompt": test_prompt,
+                "model_a": model_a,
+                "model_b": model_b,
+                "sel_a": sel_a,
+                "sel_b": sel_b,
+                "cloud_providers": klass["cloud_providers"],
+                "judge": True,
+            }
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """INSERT INTO action_benchmark_runs
+                       (action_key, station_code, status, test_config, started_at)
+                       VALUES (%s, 'ENGINEERING', 'pending_approval', %s, NOW())
+                       RETURNING id""",
+                    (f"academy.ab_test.{capability}", Json(test_config)),
+                )
+                run_id = cur.fetchone()["id"]
+
+            # 3. ask-first Telegram approval (per-run; independent of global escalation_mode)
+            approval_id = request_approval(
+                action_type="cloud_comparison",
+                action_data={
+                    "run_id": run_id,
+                    "prompt_preview": test_prompt[:200],
+                    "cloud_providers": klass["cloud_providers"],
+                    "model_a": model_a,
+                    "model_b": model_b,
+                },
+                reason=f"A/B compare: {model_a} vs {model_b}",
+                requested_by="ab_compare",
+                tier=2,
+            )
+
+            # 3b. request_approval() returns None when it couldn't enqueue a
+            # Telegram approval — most commonly the global per-action_type
+            # dedup in _check_existing_approval() (cloud_comparison has no
+            # per-run dedup key, so ANY second concurrent comparison collides
+            # with an already-pending one). Returning a fake pending_approval
+            # here would leave the UI polling forever with no Telegram message
+            # to ever approve, until the worker's 24h expiry. Fail the run
+            # honestly instead (#4661 review fix).
+            if approval_id is None:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE action_benchmark_runs SET status = 'failed', completed_at = NOW(), "
+                        "metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{cancelled_reason}', "
+                        "%s::jsonb) WHERE id = %s",
+                        (json.dumps("approval_unavailable"), run_id),
+                    )
+                return Response(
+                    json.dumps(
+                        {
+                            "status": "approval_unavailable",
+                            "run_id": run_id,
+                            "message": (
+                                "A cloud comparison is already awaiting your Telegram "
+                                "approval — approve or deny that one first."
+                            ),
+                        },
+                        default=str,
+                    ),
+                    mimetype="application/json",
+                )
+
+            # 4. link approval back onto the run for the worker
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE action_benchmark_runs SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), "
+                    "'{approval_id}', %s::jsonb) WHERE id = %s",
+                    (json.dumps(approval_id), run_id),
+                )
+
+            return Response(
+                json.dumps(
+                    {"status": "pending_approval", "run_id": run_id, "approval_id": approval_id},
+                    default=str,
+                ),
+                mimetype="application/json",
+            )
+
+        # else: both-local -> fall through to the EXISTING synchronous path unchanged
         results = {}
         for label, model_name in [("a", model_a), ("b", model_b)]:
             try:
@@ -366,6 +492,66 @@ def register_benchmark_routes(bp, admin_required):
             }
         )
 
+    @bp.route("/api/ab-test/run/<int:run_id>", methods=["GET"])
+    @admin_required
+    def ab_test_run_status(run_id):
+        """Poll status of an A/B test run — cloud pending_approval, running, or completed."""
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT status, test_config, metadata FROM action_benchmark_runs WHERE id = %s",
+                (run_id,),
+            )
+            run = cur.fetchone()
+            if not run:
+                return Response(json.dumps({"error": "not found"}), status=404, mimetype="application/json")
+
+            cur.execute(
+                """SELECT agent_name, model_used, provider, duration_ms,
+                          prompt_tokens, completion_tokens, total_tokens, success,
+                          error_message, response_preview, score, rank
+                   FROM action_benchmark_results
+                   WHERE run_id = %s
+                   ORDER BY agent_name""",
+                (run_id,),
+            )
+            rows = cur.fetchall()
+
+        # Remap raw DB columns to the field names renderABResults() (agent-academy.js)
+        # actually reads — the same shape the synchronous both-local path in
+        # run_ab_test() already returns. Without this remap a completed cloud
+        # comparison renders blank (#4661 final-review Critical fix): the raw
+        # columns are model_used/response_preview/error_message/total_tokens,
+        # but the frontend reads model/response/error/prompt_tokens+completion_tokens.
+        results = {}
+        for r in rows:
+            side = "a" if r["agent_name"] == "model_a" else "b"
+            results[side] = {
+                "model": r["model_used"],
+                "response": r["response_preview"],
+                "prompt_tokens": r["prompt_tokens"] or 0,
+                "completion_tokens": r["completion_tokens"] or 0,
+                "success": r["success"],
+                "error": r["error_message"],
+                "duration_ms": r["duration_ms"],
+                "provider": r["provider"],
+                "score": r["score"],
+                "rank": r["rank"],
+            }
+
+        meta = run["metadata"] or {}
+        return Response(
+            json.dumps(
+                {
+                    "status": run["status"],
+                    "results": results or None,
+                    "judge": meta.get("judge_result"),
+                    "cancelled_reason": meta.get("cancelled_reason"),
+                },
+                default=str,
+            ),
+            mimetype="application/json",
+        )
+
     @bp.route("/api/benchmarks/summary")
     @admin_required
     def benchmark_summary():
@@ -422,3 +608,58 @@ def register_benchmark_routes(bp, admin_required):
                 runs.append(run)
 
         return jsonify({"tests": runs})
+
+    @bp.route("/api/ab-test/models", methods=["GET"])
+    @admin_required
+    def ab_test_models():
+        """Local + cloud model lists for A/B testing, with weekly budget headroom."""
+        try:
+            from tools.department_hq.fleet_helpers import (
+                get_ollama_models,
+                OLLAMA_LOCAL_HOST,
+                OLLAMA_DEFAULT_PORT,
+            )
+
+            local = [{"name": m} for m in get_ollama_models(OLLAMA_LOCAL_HOST, int(OLLAMA_DEFAULT_PORT))]
+        except Exception:
+            local = []
+
+        cloud = []
+        try:
+            from ai_bridge.external_providers import weekly_budget_status
+
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT provider_key, display_name, default_model, is_cloud_proxy, tier_position "
+                    "FROM contractor_providers WHERE capabilities ? 'text_chat' AND is_active = true "
+                    "ORDER BY display_name"
+                )
+                rows = cur.fetchall()
+            for r in rows:
+                pk = r["provider_key"]
+                free_tier = bool(r["tier_position"] and r["tier_position"] >= 8 and not r["is_cloud_proxy"])
+                try:
+                    status = weekly_budget_status(pk)
+                    weekly_remaining = status.get("remaining")
+                    disabled = bool(status.get("over_budget"))
+                except Exception as budget_err:
+                    # Advisory only — the real spend guard is _cloud_budget_ok at
+                    # dispatch time. A per-provider hiccup here must not drop the
+                    # provider from the list (nor drop the rest of the loop).
+                    logger.warning("ab_test_models budget lookup failed for %s: %s", pk, budget_err)
+                    weekly_remaining = None
+                    disabled = False
+                cloud.append(
+                    {
+                        "provider_key": pk,
+                        "display_name": r["display_name"],
+                        "model": r["default_model"],
+                        "free_tier": free_tier,
+                        "weekly_remaining": weekly_remaining,
+                        "disabled": disabled,
+                    }
+                )
+        except Exception as e:
+            logger.warning("ab_test_models cloud enumerate failed: %s", e)
+
+        return Response(json.dumps({"local": local, "cloud": cloud}, default=str), mimetype="application/json")

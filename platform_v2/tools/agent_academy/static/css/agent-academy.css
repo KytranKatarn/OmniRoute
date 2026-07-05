@@ -366,6 +366,11 @@
     font-weight: 700;
 }
 
+/* Cloud Comparison Lane (#4661) — judge card, word-diff highlight, status line */
+mark.aa-diff { background: rgba(255,196,0,.35); color: inherit; border-radius: 2px; }
+#ab-judge-card .aa-card { border-left: 3px solid var(--aa-accent); padding: 8px 12px; margin: 10px 0; }
+#ab-message { color: var(--aa-accent); margin: 8px 0; min-height: 1.2em; }
+
 /* Gap card */
 .aa-gap-card {
     display: inline-flex;

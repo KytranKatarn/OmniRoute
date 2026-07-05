@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!--
+  Manual/Playwright DOM test for #3328 — loads the REAL bias-logic.js + content.js with
+  chrome.storage + fetch stubbed, so we can verify badges inject on a real browser DOM.
+  Open via file:// (see tests/README or the extension README).
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WTF Bias — DOM test</title>
+  <link rel="stylesheet" href="../bias-badge.css" />
+  <script>
+    // Stub chrome + fetch BEFORE the content scripts run.
+    const MOCK_SOURCES = [
+      { domain: "cbc.ca", name: "CBC News", band: "center-left", avg_score: -0.3, bias_lean: "center-left" },
+      { domain: "nationalpost.com", name: "National Post", band: "center-right", avg_score: 0.3, bias_lean: "center-right" },
+    ];
+    window.chrome = {
+      storage: { local: { get: (keys, cb) => cb({}), set: () => {} } },
+    };
+    window.fetch = async () => ({ json: async () => ({ ok: true, sources: MOCK_SOURCES }) });
+  </script>
+</head>
+<body>
+  <p><a href="https://www.cbc.ca/news/story-1">CBC story</a> — expect LEFT badge</p>
+  <p><a href="https://nationalpost.com/opinion/x">National Post</a> — expect RIGHT badge</p>
+  <p><a href="https://example.com/random">Random site</a> — expect NO badge</p>
+  <p><a href="/relative/path">Relative link</a> — expect NO badge</p>
+
+  <script src="../bias-logic.js"></script>
+  <script src="../content.js"></script>
+</body>
+</html>

@@ -3,8 +3,13 @@
   "name": "What The Fact — Bias Ratings",
   "version": "0.1.0",
   "description": "See Canadian news outlet bias ratings while browsing social media.",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["storage", "alarms"],
   "host_permissions": ["https://what-the-fact.com/*"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "content_scripts": [
     {
       "matches": [
@@ -14,7 +19,7 @@
         "https://www.linkedin.com/*",
         "https://www.reddit.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["bias-logic.js", "content.js"],
       "css": ["bias-badge.css"]
     }
   ],
@@ -23,6 +28,11 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "What The Fact"
+    "default_title": "What The Fact",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }

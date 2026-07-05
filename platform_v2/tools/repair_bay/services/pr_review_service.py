@@ -508,6 +508,83 @@ def mark_review_pending(pr_number: int, repo: str = None) -> None:
         )
 
 
+def decide_reap_action(reap_count: int, max_retries: int = 3) -> str:
+    """Pure: given how many times a stuck review has already been reaped, pick the next action.
+
+    'reset' → flip back to pending for another server-side drive; 'skip' → give up (a
+    genuinely-broken review, e.g. an un-fetchable diff, must not loop pending↔in_progress forever).
+    """
+    return "reset" if reap_count < max_retries else "skip"
+
+
+def reap_stale_reviews(stale_minutes: int = 20, max_retries: int = 3) -> dict:
+    """Recover PR reviews stuck in 'in_progress' past the stale window (#4583).
+
+    When an on-demand review_pr() dies mid-flight (CLI killed, session ended), the row is left
+    'in_progress' forever — mark_review_started() ran but mark_review_done() never did (KB
+    #270002). This resets such rows to 'pending' so the sidecar re-drives them, capped by
+    metadata.reap_count so a permanently-broken review goes 'skipped' instead of looping.
+    stale_minutes=20 matches get_pending_reviews so a legitimately in-flight review (cold-load
+    can take minutes) is never reaped. Only OPEN PRs are reaped (closed ones are handled by
+    sync_closed_prs). Returns {"reset": [...], "skipped": [...]}; each item is {"pr_number", "repo"}.
+    """
+    reset: list = []
+    skipped: list = []
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """
+            SELECT pr_number, repo, COALESCE((metadata->>'reap_count')::int, 0) AS reap_count
+            FROM pr_reviews
+            WHERE review_status = 'in_progress'
+              AND state = 'open'
+              AND updated_at < NOW() - make_interval(mins => %s)
+            """,
+            (stale_minutes,),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            pr, repo = r["pr_number"], r["repo"]
+            if decide_reap_action(r["reap_count"], max_retries) == "reset":
+                cur.execute(
+                    """
+                    UPDATE pr_reviews
+                    SET review_status='pending', updated_at=NOW(),
+                        metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb),
+                                             '{reap_count}', to_jsonb(%s::int))
+                    WHERE pr_number=%s AND repo=%s
+                    """,
+                    (r["reap_count"] + 1, pr, repo),
+                )
+                reset.append({"pr_number": pr, "repo": repo})
+            else:
+                cur.execute(
+                    """
+                    UPDATE pr_reviews
+                    SET review_status='skipped', updated_at=NOW(),
+                        ai_summary = COALESCE(ai_summary, '') || %s,
+                        metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb),
+                                             '{reap_reason}', to_jsonb(%s::text))
+                    WHERE pr_number=%s AND repo=%s
+                    """,
+                    (
+                        f"\n[review-reaper] skipped after {max_retries} stuck-recovery attempts.",
+                        "max_stuck_retries",
+                        pr,
+                        repo,
+                    ),
+                )
+                skipped.append({"pr_number": pr, "repo": repo})
+    if reset or skipped:
+        logger.info(
+            "[review-reaper] reset=%s skipped=%s (stale>%dm, cap=%d)",
+            [x["pr_number"] for x in reset],
+            [x["pr_number"] for x in skipped],
+            stale_minutes,
+            max_retries,
+        )
+    return {"reset": reset, "skipped": skipped}
+
+
 def list_reviews(state: str = None, review_status: str = None, limit: int = 50) -> list:
     """List PR reviews with optional filters."""
     query = "SELECT * FROM pr_reviews WHERE 1=1"

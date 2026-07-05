@@ -1295,6 +1295,19 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # F.O.R.G.E. review durability net (#4583): recover PR reviews stuck 'in_progress'
+        # (an on-demand review_pr() that died with its CLI) → reset to pending + re-drive
+        # server-side, so review lifetime no longer depends on any caller process staying alive.
+        self.scheduler.add_job(
+            with_app_context(self._run_review_reaper),
+            trigger=IntervalTrigger(minutes=5),
+            id="forge_review_reaper",
+            name="Agent Loop: F.O.R.G.E. Stuck-Review Reaper",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # Email IMAP sync is owned solely by JobService (jobsvc_email_imap_sync,
         # registered via register_email_sync_jobs in app.py). It is the canonical
         # autonomy_loop_log writer and carries the #1687 outage-detection. The
@@ -7715,6 +7728,31 @@ class AgentLoop:
             )
         except Exception as e:
             logger.error("pr_diff_analysis failed: %s", e)
+
+    def _run_review_reaper(self):
+        """#4583: recover PR reviews stuck 'in_progress' past the stale window, then re-drive them.
+
+        Makes F.O.R.G.E. review durable — a review whose on-demand review_pr() died with its CLI
+        no longer stays stuck forever; the sidecar resets it (or 'skipped' past the retry cap) and
+        re-runs it server-side. Runs in the archie_scheduler sidecar, never the web thread.
+        """
+        try:
+            from tools.repair_bay.services.pr_review_service import reap_stale_reviews
+
+            res = reap_stale_reviews()
+            reset = res.get("reset", [])
+            skipped = res.get("skipped", [])
+            if reset or skipped:
+                logger.info("review_reaper: reset=%d skipped=%d", len(reset), len(skipped))
+            # Re-drive promptly via the established drain (same path + auto-merge policy as the
+            # 10-min forge_pr_diff_analysis poller), instead of waiting for its next tick. No-op
+            # if nothing was reset. A rare double-drive overlap with that poller is harmless.
+            if reset:
+                from tools.repair_bay.services.pr_diff_analyzer import analyze_pending_prs
+
+                analyze_pending_prs(max_prs=max(3, len(reset)))
+        except Exception as e:
+            logger.error("review_reaper failed: %s", e)
 
     def _run_repo_health_check(self):
         """Daily per-repo GitHub presence health check (Project #247, Task #1803)."""

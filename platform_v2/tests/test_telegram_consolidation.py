@@ -20,8 +20,10 @@ import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 
 # Ensure platform_v2 is importable (mirrors agent_loop bootstrap)
-if os.getenv('ARCHIE_PLATFORM_PATH', '') != '':
-    sys.path.insert(0, "${ARCHIE_PLATFORM_PATH}")
+# os.environ.get() is used to avoid hardcoding secrets
+ARCHIE_PLATFORM_PATH = os.environ.get('ARCHIE_PLATFORM_PATH', '')
+if ARCHIE_PLATFORM_PATH != '':
+    sys.path.insert(0, ARCHIE_PLATFORM_PATH)
 if "/mnt/archie_brain/ai_bridge" not in sys.path:
     sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 

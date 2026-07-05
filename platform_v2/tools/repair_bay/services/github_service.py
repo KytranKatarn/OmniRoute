@@ -13,6 +13,8 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
+from services.github_rate_helper import check_before_write, observe
+
 logger = logging.getLogger(__name__)
 
 # Repository config
@@ -70,6 +72,16 @@ def _api_headers() -> Dict[str, str]:
     return headers
 
 
+def _rate_blocked(method: str, path: str, rl: Dict) -> Tuple[bool, Dict]:
+    """Uniform (False, {...}) result when the rate guard blocks a write."""
+    logger.warning("GitHub %s %s blocked by rate guard: %s", method, path, rl.get("reason"))
+    return False, {
+        "error": f"github rate limit guard: {rl.get('reason')}",
+        "rate_limited": True,
+        "rate_limit": rl,
+    }
+
+
 def _api_get(path: str, params: Dict = None, timeout: int = 15) -> Tuple[bool, Dict]:
     """GitHub API GET request."""
     try:
@@ -79,6 +91,9 @@ def _api_get(path: str, params: Dict = None, timeout: int = 15) -> Tuple[bool, D
             params=params,
             timeout=timeout,
         )
+        # Read token = different quota bucket: harvest only for secondary-limit
+        # detection, never move the write-bucket counter.
+        observe(resp, is_write=False)
         if resp.status_code < 300:
             return True, resp.json()
         return False, {"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]}
@@ -88,6 +103,9 @@ def _api_get(path: str, params: Dict = None, timeout: int = 15) -> Tuple[bool, D
 
 def _api_post(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Dict]:
     """GitHub API POST request."""
+    allowed, rl = check_before_write(token=_get_token())
+    if not allowed:
+        return _rate_blocked("POST", path, rl)
     try:
         resp = requests.post(
             f"{API_BASE}{path}",
@@ -95,6 +113,7 @@ def _api_post(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Di
             json=data or {},
             timeout=timeout,
         )
+        observe(resp, is_write=True)
         if resp.status_code < 300:
             return True, resp.json()
         return False, {"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]}
@@ -104,6 +123,9 @@ def _api_post(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Di
 
 def _api_patch(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Dict]:
     """GitHub API PATCH request."""
+    allowed, rl = check_before_write(token=_get_token())
+    if not allowed:
+        return _rate_blocked("PATCH", path, rl)
     try:
         resp = requests.patch(
             f"{API_BASE}{path}",
@@ -111,6 +133,7 @@ def _api_patch(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, D
             json=data or {},
             timeout=timeout,
         )
+        observe(resp, is_write=True)
         if resp.status_code < 300:
             return True, resp.json()
         return False, {"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]}
@@ -308,6 +331,16 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
     is copied into the clone, or staged as a deletion when missing. Sparse
     checkout of only the touched paths keeps tmpfs usage minimal.
     """
+    allowed, rl = check_before_write(token=_get_token())
+    if not allowed:
+        logger.warning("push to %s blocked by rate guard: %s", branch_name, rl.get("reason"))
+        return {
+            "success": False,
+            "error": f"github rate limit guard: {rl.get('reason')}",
+            "rate_limited": True,
+            "rate_limit": rl,
+        }
+
     import shutil
 
     # Path-traversal guard (security review on PR #1557): `files` originates
@@ -523,6 +556,16 @@ def merge_pr(pr_number: int, method: str = "squash", repo: str = None) -> Dict:
                     f"Rebase the branch on main and resolve conflicts first."
                 ),
             }
+    allowed, rl = check_before_write(token=_get_token())
+    if not allowed:
+        logger.warning("merge PR #%s blocked by rate guard: %s", pr_number, rl.get("reason"))
+        return {
+            "success": False,
+            "merged": False,
+            "error": f"github rate limit guard: {rl.get('reason')}",
+            "rate_limited": True,
+            "rate_limit": rl,
+        }
     try:
         resp = requests.put(
             f"{API_BASE}/repos/{_repo}/pulls/{pr_number}/merge",
@@ -530,6 +573,7 @@ def merge_pr(pr_number: int, method: str = "squash", repo: str = None) -> Dict:
             json={"merge_method": method},
             timeout=30,
         )
+        observe(resp, is_write=True)
         if resp.status_code >= 300:
             return {
                 "success": False,

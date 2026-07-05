@@ -81,13 +81,39 @@ def register_compose_routes(bp, admin_required):
             if not allowed:
                 return jsonify({"error": "Mailbox not in your accessible set"}), 403
 
+        # Optional reply threading + per-human-agent SLA capture (#3282): when replying to a
+        # stored inbound message, thread via its RFC Message-ID and record the reply event.
+        source_message_id = data.get("source_message_id")
+        in_reply_to = None
+        if source_message_id:
+            try:
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "SELECT message_id FROM email_messages WHERE id = %s",
+                        (source_message_id,),
+                    )
+                    src = cur.fetchone()
+                if src and src.get("message_id"):
+                    in_reply_to = src["message_id"]
+            except Exception as exc:
+                logger.warning("[email-compose] source lookup failed (%s): %s", source_message_id, exc)
+
         # Send via the shared Stalwart helper (also used by the Telegram approve-to-send executor).
         from .send_service import send_email_via_stalwart
 
-        result = send_email_via_stalwart(from_address, to_address, subject, body)
+        result = send_email_via_stalwart(from_address, to_address, subject, body, in_reply_to=in_reply_to)
         if not result.get("success"):
             err = result.get("error", "Send failed")
             client_error = any(s in err for s in ("required", "Recipient refused", "not provisioned"))
             return jsonify({"error": err}), (400 if client_error else 500)
+
+        # Best-effort: record the human-agent reply for SLA metrics (no-op unless FROM a
+        # human_agent mailbox; never raises). Attributes to the sending user + the mailbox owner.
+        try:
+            from .human_sla_service import record_human_reply
+
+            record_human_reply(from_address, source_message_id, getattr(current_user, "id", None))
+        except Exception as exc:
+            logger.warning("[email-compose] SLA capture failed: %s", exc)
 
         return jsonify({"success": True})

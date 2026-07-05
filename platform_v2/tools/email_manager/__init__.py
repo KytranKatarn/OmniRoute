@@ -59,6 +59,11 @@ from .sla_routes import register_sla_routes  # noqa: F401, E402
 
 register_sla_routes(email_manager_bp, email_access_required)
 
+# Human-agent reply SLA — per-agent reply-time metrics from email_reply_events (#3282)
+from .human_sla_routes import register_human_sla_routes  # noqa: F401, E402
+
+register_human_sla_routes(email_manager_bp, email_access_required)
+
 # SSE stream — real-time new-mail push (T3279)
 from .sync_routes import register_sync_routes  # noqa: F401, E402
 

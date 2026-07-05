@@ -1082,6 +1082,89 @@
       table.appendChild(tbody);
       tableWrap.appendChild(table);
       container.appendChild(tableWrap);
+
+      // #3282: per-human-agent reply SLA section (reply-time, not read-time).
+      appendHumanReplySla(container, currentWindow);
+    }
+
+    function appendHumanReplySla(container, windowDays) {
+      var section = document.createElement('div');
+      section.style.cssText = 'margin-top:16px;';
+      var h = document.createElement('div');
+      h.style.cssText = 'font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;';
+      h.textContent = 'Human Agent Reply SLA';
+      section.appendChild(h);
+      container.appendChild(section);
+
+      api('/api/email/human-sla/stats?days=' + windowDays).then(function (d) {
+        var agents = (d && d.agents) || [];
+        var tgt = document.createElement('span');
+        tgt.style.cssText = 'font-size:10px;color:#64748b;';
+        tgt.textContent = ' · target ' + ((d && d.sla_target_hours) || 4) + 'h';
+        h.appendChild(tgt);
+
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'overflow-x:auto;';
+        var table = document.createElement('table');
+        table.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;';
+        var thead = document.createElement('thead');
+        var hrow = document.createElement('tr');
+        ['Agent', 'Replies', 'Avg', 'Within SLA', 'Open', 'Reply %'].forEach(function (t) {
+          var th = document.createElement('th');
+          th.style.cssText = 'text-align:left;padding:4px 6px;border-bottom:1px solid #1a1a2e;color:#6b7280;white-space:nowrap;';
+          th.textContent = t;
+          hrow.appendChild(th);
+        });
+        thead.appendChild(hrow);
+        table.appendChild(thead);
+
+        var tbody = document.createElement('tbody');
+        var active = agents.filter(function (a) { return a.reply_count > 0 || a.open_threads > 0; });
+        if (active.length === 0) {
+          var er = document.createElement('tr');
+          var ec = document.createElement('td');
+          ec.colSpan = 6;
+          ec.style.cssText = 'padding:12px;text-align:center;color:#6b7280;';
+          ec.textContent = 'No human-agent reply activity yet — metrics accrue from the first reply.';
+          er.appendChild(ec);
+          tbody.appendChild(er);
+        } else {
+          active.forEach(function (a) {
+            var tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #111827';
+            var within = (a.within_sla_pct === null || a.within_sla_pct === undefined) ? '—' : a.within_sla_pct + '%';
+            var rate = (a.reply_rate_pct === null || a.reply_rate_pct === undefined) ? '—' : a.reply_rate_pct + '%';
+            [
+              { text: (a.agent_name || a.address || '').split('@')[0], color: '#e5e7eb', tip: a.address, truncate: true },
+              { text: a.reply_count, color: '#9ca3af' },
+              { text: a.avg_response_display || '—', color: '#a78bfa' },
+              { text: within, color: (a.within_sla_pct !== null && a.within_sla_pct !== undefined && a.within_sla_pct < 80) ? '#ef4444' : '#22c55e' },
+              { text: a.open_threads, color: a.open_threads > 0 ? '#f59e0b' : '#9ca3af' },
+              { text: rate, color: '#9ca3af' },
+            ].forEach(function (c) {
+              var td = document.createElement('td');
+              td.style.cssText = 'padding:4px 6px;white-space:nowrap;color:' + c.color + ';';
+              if (c.truncate) {
+                td.style.maxWidth = '90px';
+                td.style.overflow = 'hidden';
+                td.style.textOverflow = 'ellipsis';
+                td.title = c.tip || '';
+              }
+              td.textContent = c.text;
+              tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+          });
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        section.appendChild(wrap);
+      }).catch(function () {
+        var e = document.createElement('div');
+        e.style.cssText = 'font-size:11px;color:#6b7280;padding:6px;';
+        e.textContent = 'Failed to load reply SLA';
+        section.appendChild(e);
+      });
     }
 
     function loadData() {
@@ -1160,7 +1243,7 @@
           (fromEl ? fromEl.textContent : '') + ' wrote:\n[See original message]';
         var subject = subjEl ? 'Re: ' + subjEl.textContent : '';
         var myMailbox = state.currentMsg && state.currentMsg.mailbox_address;
-        openCompose(fromEl ? fromEl.textContent : '', subject, d.draft + quote, myMailbox);
+        openCompose(fromEl ? fromEl.textContent : '', subject, d.draft + quote, myMailbox, state.currentMessageId);
         // Show agent attribution in compose status
         var statusEl = el('em-compose-status');
         if (statusEl) {
@@ -1225,7 +1308,7 @@
     var quote = bodyEl ? '\n\n---\nOn ' + (dateEl ? dateEl.textContent : '') + ', ' +
       (fromEl ? fromEl.textContent : '') + ' wrote:\n' + (bodyEl.textContent || '').slice(0, 2000) : '';
     var myMailbox = state.currentMsg && state.currentMsg.mailbox_address;
-    openCompose(fromEl ? fromEl.textContent : '', subjEl ? 'Re: ' + subjEl.textContent : '', quote, myMailbox);
+    openCompose(fromEl ? fromEl.textContent : '', subjEl ? 'Re: ' + subjEl.textContent : '', quote, myMailbox, state.currentMessageId);
   }
 
   function forwardMessage() {
@@ -1259,7 +1342,9 @@
   }
 
   // ── Compose modal ─────────────────────────────────────────────────────
-  function openCompose(toAddr, subject, quotedBody, fromAddr) {
+  function openCompose(toAddr, subject, quotedBody, fromAddr, sourceMessageId) {
+    // #3282: remember which inbound message this compose replies to (for reply-SLA capture).
+    state.composeSourceMessageId = sourceMessageId || null;
     api('/api/email/compose/mailboxes').then(function (d) {
       var sel = el('em-compose-from');
       if (!sel) return;
@@ -1310,7 +1395,7 @@
     if (sendBtn) sendBtn.disabled = true;
     if (statusEl) { statusEl.style.display = ''; statusEl.style.color = '#64748b'; statusEl.textContent = 'Sending…'; }
 
-    apiPost('/api/email/compose/send', { from_address: fromAddr, to_address: toAddr, subject: subject, body: body })
+    apiPost('/api/email/compose/send', { from_address: fromAddr, to_address: toAddr, subject: subject, body: body, source_message_id: state.composeSourceMessageId || null })
       .then(function (d) {
         if (d.success) {
           if (statusEl) { statusEl.style.color = '#22c55e'; statusEl.textContent = '✓ Sent'; }

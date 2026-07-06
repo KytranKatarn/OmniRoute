@@ -25,7 +25,7 @@ Legend: ✅ verified light · 🔧 fixed this pass · ⏳ pending visual audit �
 | Backup Manager | `/tools/backup-manager` | ✅ | clean |
 | C.R.E.E.D. Command | `/tools/creed-command` | ✅ | clean (E.T.H.O.S. KPIs readable) |
 | Media Studio | `/tools/media-studio` | ✅ | clean (dashboard readable; the "Page not found" toasts are 404'ing media-backend calls — a data issue, NOT light-mode) |
-| WTF Hub | `/tools/wtf-hub` | 🔧⏳ | **found broken** — template-based: `.wtf-card`/`.wtf-tab` hardcode `#0d1117` in inline `<style>` + inline `style=` attrs. Needs a template edit + platform restart (separate deploy unit) — fix in a follow-up PR |
+| WTF Hub | `/tools/wtf-hub` | 🔧 | fixed — `body.light-mode` overrides in the template `<style>` for `.wtf-card`/`.wtf-tab`/`.wtf-btn-sm` + `#wtf-mail-list/read` (`!important` beats inline styles). Template change → platform restart. Overview verified light AND dark (`.wtf-card` stays `#0d1117` in dark) |
 | StockBot | `/tools/stockbot` | ⛔ | redirects → Market Watch standalone |
 | A.R.C.H.I.E. Chat | `/tools/archie-chat` | ⛔ | redirects → comms service (:3002) |
 | Website Designer | `/tools/website-studio` | ⛔ | redirects → dashboard (disabled) |

@@ -972,6 +972,51 @@ def deploy_to_production(proposal_id):
         if proposal["status"] not in ("approved", "tested", "ready_for_review"):
             return {"success": False, "error": f"Proposal cannot be deployed (status: {proposal['status']})"}
 
+        # ── W.A.R.D.E.N. pre-deploy governance clearance (#2706) ─────────────────
+        # This is the AUTOMATED deploy path (Telegram deploy_approve, director-approval
+        # callback), so it must acknowledge the backup-freshness gate exactly like
+        # run_proposal() does — otherwise a whole class of deploys skipped governance.
+        # Severity from the proposal's priority column (no severity column). medium/low
+        # HARD-block on stale backups; critical/high are advisory. Fail-open so a
+        # governance/import error never blocks a deploy.
+        _severity = "medium"
+        _pri = (proposal.get("priority") or "").lower()
+        if _pri in ("critical", "high", "medium", "low"):
+            _severity = _pri
+        try:
+            from services.backup_governance_service import request_deploy_clearance
+            from database import get_db_cursor
+
+            clearance = request_deploy_clearance(
+                module=str(proposal_id),
+                severity=_severity,
+                triggered_by="deploy_to_production",
+                proposal_id=proposal_id,
+            )
+            try:
+                with get_db_cursor(commit=True) as (_cc, _clr_cur):
+                    _clr_cur.execute(
+                        """UPDATE improvement_proposals SET
+                               backup_clearance_approved = %s,
+                               backup_clearance_snapshot_id = %s,
+                               backup_clearance_reason = %s,
+                               backup_clearance_at = NOW()
+                           WHERE id = %s""",
+                        (clearance["approved"], clearance.get("snapshot_id"), clearance["reason"], proposal_id),
+                    )
+            except Exception as _upd_err:
+                logger.warning("Could not record clearance on proposal %s: %s", proposal_id, _upd_err)
+            if not clearance["approved"]:
+                return {
+                    "success": False,
+                    "error": f"W.A.R.D.E.N. clearance denied: {clearance['reason']}",
+                    "clearance": clearance,
+                }
+        except ImportError:
+            pass  # governance service unavailable — fail open
+        except Exception as _gov_err:
+            logger.warning("Governance check failed (fail-open): %s", _gov_err)
+
         # --- Create pre-deploy backup via Backup Manager ---
         from tools.backup_manager._shared import create_backup_programmatic
         from database import get_db_cursor as _get_db_cursor

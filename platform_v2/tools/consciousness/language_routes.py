@@ -1297,7 +1297,18 @@ def register_language_routes(bp, admin_required):
         try:
             data = request.get_json() or {}
             language = data.get("language", "fr")
-            model = data.get("model", "qwen3-coder-cpu")
+            model = data.get("model")
+            if not model:
+                # No hardcoded qwen3-coder-cpu (a 55GB code model translation never
+                # runs). Label generated_by with the ACTUAL per-language translate
+                # model so provenance is honest; inference is routed by the
+                # 'translate' capability, not this label. Fail-open to a generic label.
+                try:
+                    from tools.consciousness.translation_scanners.generator import get_translate_routing
+
+                    model = get_translate_routing(language)[0]
+                except Exception:
+                    model = None
             provided_strings = data.get("strings")
 
             if language == "en":

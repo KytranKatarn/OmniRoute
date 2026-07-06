@@ -52,7 +52,7 @@ SUPPORTED_LANGUAGES = {
 }
 
 # How many strings to translate per LLM call
-# Kept at 5 to stay within CPU model timeout (qwen3-coder-cpu ~2-4min/batch)
+# Kept at 5 to stay within the translate-model batch timeout (mistral:7b / gemma3:12b)
 BATCH_SIZE = 5
 
 # Module ID for bridge tracking
@@ -228,7 +228,9 @@ def batch_translate(
         parent_job_id: If provided, update this job's progress instead of
                        creating a new sub-job. batch_offset is the number
                        of batches already completed in prior languages.
-        model: Model name for generated_by tracking (default: qwen3-coder-cpu).
+        model: generated_by LABEL for the stored rows (default None → generic).
+                       Inference is routed by the 'translate' capability
+                       (mistral:7b / gemma3:12b), NOT this label.
 
     Returns:
         List of dicts: {"key": str, "translation": str, "success": bool}

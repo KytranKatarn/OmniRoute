@@ -176,7 +176,7 @@ CAPABILITY_ROUTING = {
     "conversation": "local",  # Chat
     "summarize": "local",  # Summarization
     "embed": "local",  # (handled by embedding service, not router)
-    "translate": "local_analysis",  # Translation via qwen3-coder-cpu
+    "translate": "local_analysis",  # Translation via the 'translate' capability (mistral:7b / gemma3:12b)
     "detect_language": "classify",  # Language detection via qwen25-classify
     "image_generation": "minimax_cloud",  # Placeholder — actual routing via media adapters
     "video_generation": "minimax_cloud",  # Placeholder — actual routing via media adapters

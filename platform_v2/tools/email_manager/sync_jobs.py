@@ -55,17 +55,25 @@ def _strip_nul(value):
     return value.replace("\x00", "") if isinstance(value, str) else value
 
 
-def get_synced_uids(cur, mailbox_id: int) -> Set[int]:
-    """Return imap_uid values already stored for this mailbox."""
+def get_synced_uids(cur, mailbox_id: int, folder: str = "INBOX") -> Set[int]:
+    """Return imap_uid values already stored for this mailbox+folder.
+
+    IMAP UIDs are per-folder, so the skip-set MUST be scoped to the folder — INBOX
+    UID 5 is a different message than Junk UID 5 (#4519). Without the folder filter,
+    syncing Junk would wrongly skip every UID already seen in INBOX."""
     cur.execute(
-        "SELECT imap_uid FROM email_messages WHERE mailbox_id = %s AND imap_uid IS NOT NULL",
-        (mailbox_id,),
+        "SELECT imap_uid FROM email_messages " "WHERE mailbox_id = %s AND folder = %s AND imap_uid IS NOT NULL",
+        (mailbox_id, folder),
     )
     return {row["imap_uid"] for row in cur.fetchall()}
 
 
-def insert_email_message(cur, mailbox_id: int, imap_uid: int, msg, raw: bytes) -> bool:
-    """Parse msg and insert one row into email_messages. Returns True if inserted."""
+def insert_email_message(cur, mailbox_id: int, imap_uid: int, msg, raw: bytes, folder: str = "INBOX") -> bool:
+    """Parse msg and insert one row into email_messages. Returns True if inserted.
+
+    ``folder`` attributes the message to its source IMAP folder (#4519). Row dedup
+    stays keyed on the globally-unique (mailbox_id, message_id), so a message present
+    in two folders is stored once (keeping whichever folder synced it first)."""
     from .thread_service import resolve_thread
 
     message_id = _strip_nul((msg.get("Message-ID") or "").strip()) or f"<local.{mailbox_id}.{imap_uid}@archie>"
@@ -87,14 +95,15 @@ def insert_email_message(cur, mailbox_id: int, imap_uid: int, msg, raw: bytes) -
 
     cur.execute(
         """INSERT INTO email_messages
-           (mailbox_id, imap_uid, message_id, from_address, to_address, cc_address,
+           (mailbox_id, folder, imap_uid, message_id, from_address, to_address, cc_address,
             subject, received_at, body_html, body_text, body_preview,
             has_attachments, attachment_count, size_bytes,
             in_reply_to, references_header, thread_id)
-           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
            ON CONFLICT DO NOTHING""",
         (
             mailbox_id,
+            folder,
             imap_uid,
             message_id,
             from_addr,
@@ -116,13 +125,132 @@ def insert_email_message(cur, mailbox_id: int, imap_uid: int, msg, raw: bytes) -
     return bool(cur.rowcount)
 
 
-def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> int:
-    """Sync one mailbox: fetch new UIDs, write full bodies to email_messages.
+def _sync_folders() -> list:
+    """Ordered, de-duplicated IMAP folders to sync (#4519).
 
-    Returns count of newly inserted messages.
-    """
+    From platform_settings ``mailhq:sync:folders`` (comma-separated), default
+    ``INBOX,Junk Mail``. INBOX is always present and first (it is the only
+    triaged/notified folder). Fail-safe to the default on any error. NOTE: Stalwart's
+    junk folder is "Junk Mail" (with a space), not "Junk"."""
+    raw = "INBOX,Junk Mail"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'mailhq:sync:folders'")
+            row = cur.fetchone()
+            if row and row.get("value"):
+                raw = row["value"]
+    except Exception:
+        pass
+    out = ["INBOX"]
+    for f in raw.split(","):
+        f = f.strip()
+        if f and f not in out:
+            out.append(f)
+    return out
+
+
+def _sync_one_folder(imap, mailbox_id: int, address: str, folder: str) -> int:
+    """Sync a single IMAP folder for one mailbox. Returns newly-inserted count (#4519).
+
+    A folder that does not exist on this mailbox (e.g. Junk) is skipped, not fatal.
+    Rules/triage + the A.R.C.H.I.E. new-mail advisory run for INBOX ONLY — other
+    folders are stored for coverage/search but never triaged or notified (so we never
+    draft replies to spam or ping the owner about Junk)."""
     from database import get_db_cursor
 
+    try:
+        # IMAP mailbox names containing a space (e.g. Stalwart's "Junk Mail") must be
+        # quoted or the server parses only the first word and errors.
+        sel_name = '"%s"' % folder if any(c in folder for c in ' "\\') else folder
+        status, _sel = imap.select(sel_name, readonly=True)
+        if status != "OK":
+            logger.info("[email_imap_sync] %s: folder %r not found — skipping", address, folder)
+            return 0
+    except imaplib.IMAP4.error as exc:
+        logger.info("[email_imap_sync] %s: cannot select folder %r (%s) — skipping", address, folder, exc)
+        return 0
+
+    _, data = imap.search(None, "ALL")
+    all_uids = [int(u) for u in (data[0].split() if data[0] else [])]
+
+    with get_db_cursor() as (conn, cur):
+        already_synced = get_synced_uids(cur, mailbox_id, folder)
+
+    new_uids = [u for u in all_uids if u not in already_synced][-_BATCH_SIZE:]
+    if not new_uids:
+        return 0
+
+    is_inbox = folder.upper() == "INBOX"
+    inserted = 0
+    new_for_notify = []  # Slice 2 A.R.C.H.I.E. advisory — INBOX only
+    for uid in new_uids:
+        try:
+            _, msg_data = imap.fetch(str(uid).encode(), "(RFC822)")
+            raw = msg_data[0][1] if msg_data and msg_data[0] else None
+            if not raw:
+                continue
+            msg = email_lib.message_from_bytes(raw)
+            with get_db_cursor(commit=True) as (conn, cur):
+                new_id = None
+                if insert_email_message(cur, mailbox_id, uid, msg, raw, folder):
+                    inserted += 1
+                    cur.execute(
+                        "SELECT id, received_at FROM email_messages "
+                        "WHERE mailbox_id=%s AND folder=%s AND imap_uid=%s",
+                        (mailbox_id, folder, uid),
+                    )
+                    row = cur.fetchone()
+                    if row:
+                        new_id = row["id"]
+                        if is_inbox:
+                            new_for_notify.append(
+                                {
+                                    "from": decode_header_value(msg.get("From", "")),
+                                    "subject": decode_header_value(msg.get("Subject", "")),
+                                    "received_at": row.get("received_at"),
+                                }
+                            )
+            if new_id and is_inbox:
+                from .rules_service import apply_rules
+                from .triage_service import triage_message_async
+
+                rule_result = apply_rules(
+                    new_id,
+                    mailbox_id,
+                    {
+                        "from_address": msg.get("From", ""),
+                        "subject": msg.get("Subject", ""),
+                        "to_address": msg.get("To", ""),
+                        "body_preview": "",
+                    },
+                )
+                if rule_result.get("action_type") != "skip_triage":
+                    triage_message_async(new_id)
+        except Exception as msg_exc:
+            # One malformed message must not abort the whole mailbox sync.
+            # (A NUL-byte poison-pill at the front of the queue froze ALL
+            # sync since 2026-06-11 — now isolated + logged, not fatal.)
+            logger.warning("Skipping message uid=%s folder=%s in %s: %s", uid, folder, address, msg_exc)
+            continue
+
+    if new_for_notify:
+        try:
+            from .notify_service import notify_new_mail
+
+            notify_new_mail(mailbox_id, address, new_for_notify)
+        except Exception:
+            pass  # Slice 2 advisory must never break mail sync
+
+    return inserted
+
+
+def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> int:
+    """Sync one mailbox across all configured folders (#4519 — INBOX + Junk + …).
+
+    Returns count of newly inserted messages across folders.
+    """
     username = address.split("@")[0]
     ctx = ssl.create_default_context()
     ctx.check_hostname = (
@@ -133,76 +261,10 @@ def sync_single_mailbox_full(mailbox_id: int, address: str, password: str) -> in
     try:
         with imaplib.IMAP4_SSL(_IMAP_HOST, _IMAP_PORT, ssl_context=ctx) as imap:
             imap.login(username, password)
-            imap.select("INBOX", readonly=True)
-            _, data = imap.search(None, "ALL")
-            all_uids = [int(u) for u in (data[0].split() if data[0] else [])]
-
-            with get_db_cursor() as (conn, cur):
-                already_synced = get_synced_uids(cur, mailbox_id)
-
-            new_uids = [u for u in all_uids if u not in already_synced][-_BATCH_SIZE:]
-            if not new_uids:
-                return 0
-
-            inserted = 0
-            new_for_notify = []  # Slice 2: collect newly-inserted msgs for the A.R.C.H.I.E. advisory
-            for uid in new_uids:
-                try:
-                    _, msg_data = imap.fetch(str(uid).encode(), "(RFC822)")
-                    raw = msg_data[0][1] if msg_data and msg_data[0] else None
-                    if not raw:
-                        continue
-                    msg = email_lib.message_from_bytes(raw)
-                    with get_db_cursor(commit=True) as (conn, cur):
-                        new_id = None
-                        if insert_email_message(cur, mailbox_id, uid, msg, raw):
-                            inserted += 1
-                            cur.execute(
-                                "SELECT id, received_at FROM email_messages WHERE mailbox_id=%s AND imap_uid=%s",
-                                (mailbox_id, uid),
-                            )
-                            row = cur.fetchone()
-                            if row:
-                                new_id = row["id"]
-                                new_for_notify.append(
-                                    {
-                                        "from": decode_header_value(msg.get("From", "")),
-                                        "subject": decode_header_value(msg.get("Subject", "")),
-                                        "received_at": row.get("received_at"),
-                                    }
-                                )
-                    if new_id:
-                        from .rules_service import apply_rules
-                        from .triage_service import triage_message_async
-
-                        rule_result = apply_rules(
-                            new_id,
-                            mailbox_id,
-                            {
-                                "from_address": msg.get("From", ""),
-                                "subject": msg.get("Subject", ""),
-                                "to_address": msg.get("To", ""),
-                                "body_preview": "",
-                            },
-                        )
-                        if rule_result.get("action_type") != "skip_triage":
-                            triage_message_async(new_id)
-                except Exception as msg_exc:
-                    # One malformed message must not abort the whole mailbox sync.
-                    # (A NUL-byte poison-pill at the front of the queue froze ALL
-                    # sync since 2026-06-11 — now isolated + logged, not fatal.)
-                    logger.warning("Skipping message uid=%s in %s: %s", uid, address, msg_exc)
-                    continue
-
-            if new_for_notify:
-                try:
-                    from .notify_service import notify_new_mail
-
-                    notify_new_mail(mailbox_id, address, new_for_notify)
-                except Exception:
-                    pass  # Slice 2 advisory must never break mail sync
-
-            return inserted
+            total_inserted = 0
+            for folder in _sync_folders():
+                total_inserted += _sync_one_folder(imap, mailbox_id, address, folder)
+            return total_inserted
 
     except imaplib.IMAP4.error as exc:
         # Auth/protocol failure for THIS mailbox. Raise (don't return 0) so the

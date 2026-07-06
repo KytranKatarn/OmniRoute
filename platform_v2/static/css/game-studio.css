@@ -579,3 +579,19 @@
 .gs-select-sm,.gs-input-sm { font-size:0.7rem;padding:0.2rem 0.4rem;height:1.8rem; }
 .gs-event-affects { font-size:0.6rem;color:rgba(100,200,255,0.7);margin-left:0.4rem; }
 .gs-event-label   { font-size:0.68rem;color:#ffcc44;font-weight:600; }
+
+/* ── Light mode (#1998) ────────────────────────────────────────────────────────
+   game-studio's --gs-* tokens are dark literals at :root, so the project cards +
+   panels rendered dark-on-light with near-illegible text. Re-map the tokens under
+   body.light-mode. The builder canvas surface (hardcoded #000/#0a0a14/#0d0d1a on
+   .gs-entity-card internals) is intentionally dark and left as-is. Dark mode is the
+   default and untouched; accent darkened for contrast on white. */
+body.light-mode {
+  --gs-bg:       #ffffff;
+  --gs-panel-bg: #f8fafc;
+  --gs-hover-bg: #eef2f7;
+  --gs-border:   #e2e8f0;
+  --gs-text:     #334155;
+  --gs-muted:    #64748b;
+  --gs-accent:   #16a34a;
+}

@@ -883,3 +883,22 @@
 .gws-vault-fact-date { color: #778; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 78px; }
 .gws-vault-fact-type { color: var(--gws-accent, #f59e0b); text-transform: uppercase; font-size: 0.6rem; min-width: 70px; }
 .gws-vault-fact-content { color: var(--gws-text, #ccd); }
+
+/* ── Light mode (#1998) ────────────────────────────────────────────────────────
+   The module's --gws-* tokens are dark literals declared at :root, so the shared
+   --archie-* light-mode fix cannot reach them — the whole Gmail workspace rendered
+   dark on the light platform. Re-map the tokens (and the one hardcoded-dark
+   textarea) to light values under body.light-mode. Dark mode is the default and is
+   untouched. Accents darkened for contrast on white. */
+body.light-mode {
+  --gws-bg:      #ffffff;
+  --gws-bg2:     #f1f5f9;
+  --gws-border:  #e2e8f0;
+  --gws-text:    #334155;
+  --gws-text-hi: #0f172a;
+  --gws-muted:   #64748b;
+  --gws-accent:  #0891b2;
+  --gws-accent2: #0369a1;
+}
+body.light-mode .gws-textarea { background: #ffffff; color: #334155; }
+body.light-mode .gws-label-sidebar { background: rgba(0, 0, 0, 0.03); }

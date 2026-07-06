@@ -51,6 +51,8 @@ def list_proposals(status=None):
                        ip.priority, ip.status, ip.proposed_at, ip.proposed_by,
                        ip.plan_steps, ip.metadata, ip.assigned_agent_id,
                        ip.code_diff, ip.retry_count,
+                       ip.backup_clearance_approved, ip.backup_clearance_reason,
+                       ip.backup_clearance_at,
                        a.display_name AS agent_display_name,
                        a.name AS agent_code_name,
                        a.model AS agent_model
@@ -69,6 +71,8 @@ def list_proposals(status=None):
             d = dict(p)
             if d.get("proposed_at"):
                 d["proposed_at"] = d["proposed_at"].isoformat()
+            if d.get("backup_clearance_at"):
+                d["backup_clearance_at"] = d["backup_clearance_at"].isoformat()
             out.append(d)
         return {"success": True, "proposals": out, "count": len(out)}
     except Exception as e:

@@ -2444,6 +2444,23 @@ function renderProposals(proposals) {
             meta.appendChild(pri);
         }
 
+        // Backup-clearance badge (#2709) — W.A.R.D.E.N. pre-deploy backup gate result.
+        // Populated by request_deploy_clearance() on deploy; shown on every card.
+        var bc = document.createElement('span');
+        bc.className = 'dp-severity';
+        if (p.backup_clearance_at) {
+            bc.classList.add(p.backup_clearance_approved ? 'low' : 'high');
+            bc.textContent = '🛡 backup ' + (p.backup_clearance_approved ? '✓' : '✗');
+            bc.title = 'W.A.R.D.E.N. backup gate ' + (p.backup_clearance_approved ? 'cleared' : 'denied')
+                + (p.backup_clearance_reason ? ': ' + p.backup_clearance_reason : '');
+        } else {
+            bc.classList.add('low');
+            bc.style.opacity = '0.5';
+            bc.textContent = '🛡 backup —';
+            bc.title = 'No pre-deploy backup clearance recorded yet';
+        }
+        meta.appendChild(bc);
+
         // Agent info row for agent-processed proposals
         var agentName = p.agent_display_name || p.agent_code_name || (p.metadata && p.metadata.assigned_agent_name);
         var agentModel = p.agent_model || (p.metadata && p.metadata.agent_model);

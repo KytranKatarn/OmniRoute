@@ -326,6 +326,53 @@ class TestLegacySymbolsRemoved:
         )
 
 
+class TestModelIsGpuClass:
+    """GPU-overflow follow-up (RCA KB #278774): _model_is_gpu_class scopes the
+    saturation-driven GPU escalation to the contended mid/large models only.
+
+    Execs the REAL source definitions (marker tuple + fn) so no dispatcher import
+    is needed — same rationale as TestLegacySymbolsRemoved (heavy DB import at
+    module load). A false positive here would push small warm-set models off the
+    hub under load; a false negative would leave a 7B stuck thrashing hub CPU.
+    """
+
+    _DISPATCHER_PATH = "tools/department_hq/services/department_dispatcher.py"
+
+    def _fn(self):
+        import ast
+        import os
+
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(base, self._DISPATCHER_PATH)) as f:
+            src = f.read()
+        tree = ast.parse(src)
+        ns: dict = {"Optional": __import__("typing").Optional}
+        for node in tree.body:
+            targets = getattr(node, "targets", [])
+            is_markers = isinstance(node, ast.Assign) and any(
+                getattr(t, "id", None) == "_SMALL_MODEL_MARKERS" for t in targets
+            )
+            is_fn = isinstance(node, ast.FunctionDef) and node.name == "_model_is_gpu_class"
+            if is_markers or is_fn:
+                exec(compile(ast.Module(body=[node], type_ignores=[]), "<dispatcher>", "exec"), ns)
+        return ns["_model_is_gpu_class"]
+
+    def test_seven_b_and_larger_are_gpu_class(self):
+        fn = self._fn()
+        for m in ("qwen2.5:7b", "mistral:7b", "gemma3:12b", "dolphin3:latest"):
+            assert fn(m) is True, f"{m} should be GPU-class (contended)"
+
+    def test_small_warm_set_is_not_gpu_class(self):
+        fn = self._fn()
+        for m in ("qwen2.5:1.5b", "llama3.2:3b", "nomic-embed-text", "moondream"):
+            assert fn(m) is False, f"{m} should NOT be GPU-class (runs fine on hub CPU)"
+
+    def test_empty_or_none_model_is_not_gpu_class(self):
+        fn = self._fn()
+        assert fn("") is False
+        assert fn(None) is False
+
+
 class TestAgentNameConsistency:
     """Regression guard for task #2164 Phase 1.
 

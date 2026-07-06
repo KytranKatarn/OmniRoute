@@ -845,6 +845,19 @@ def _fleet_routing_enabled() -> bool:
         return True
 
 
+_SMALL_MODEL_MARKERS = ("1.5b", "1b", "0.5b", "3b", "embed", "nomic", "moondream", "tiny")
+
+
+def _model_is_gpu_class(model: Optional[str]) -> bool:
+    """True for mid/large models (7B+) that thrash the hub CPU under load — i.e. NOT the
+    small warm-set models (1.5b/3b/embeds) that run fine on hub CPU. Scopes GPU-overflow
+    (RCA KB #278774) to the models that actually cause the hub-saturation cascade."""
+    m = (model or "").lower()
+    if not m:
+        return False
+    return not any(mk in m for mk in _SMALL_MODEL_MARKERS)
+
+
 def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
     """Return the best fleet node DB id for a task, or None for hub.
 
@@ -882,6 +895,22 @@ def _pick_fleet_node(model: str, agent: Optional[dict]) -> Optional[int]:
                 profile_pref = "gpu" if _mode == "platform" else "cpu" if _mode == "news" else None
         except Exception:
             profile_pref = None
+
+        # GPU-OVERFLOW (RCA KB #278774): when the hub is saturated on the contended 7B
+        # lanes, override the profile pref to 'gpu' so this 7B escalates to an online GPU
+        # node (Starship RTX) instead of piling another 240s CPU timeout on the hub.
+        # Reuses find_best_node_for_model, which already respects node health + load
+        # scoring + the 8PM-6AM rest window — so it no-ops back to the hub when no GPU node
+        # is available (rest / offline). Fail-open; shares the admission-control kill switch
+        # (dispatch:hub_inflight_max<=0 → hub_lane_over_cap False → no overflow).
+        try:
+            if _model_is_gpu_class(model):
+                from services.welfare_governance_service import hub_lane_over_cap
+
+                if hub_lane_over_cap():
+                    profile_pref = "gpu"
+        except Exception:
+            pass
 
         return find_best_node_for_model(model, home, profile_pref=profile_pref)
     except Exception:

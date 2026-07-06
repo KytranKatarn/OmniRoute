@@ -438,10 +438,27 @@ docker run -d --name archie_outpost_sync \
   && ok "archie_outpost_sync started (heartbeats every 60 s)" \
   || warn "sync agent failed — check: docker logs archie_outpost_sync"
 
-# 9f. Open node_api port to Headscale mesh peers only
+# 9f. Mesh-only firewall for node_api :3001 (KB #278720). A UFW allow does NOT
+# protect Docker-published ports — Docker bypasses UFW — so :3001 would stay
+# reachable (unauthenticated) from the public internet. Install the boot-persistent
+# DOCKER-USER rule (allows mesh/loopback/bridge, drops public). Fail-soft: a
+# firewall hiccup never aborts enrollment.
 if command -v ufw &>/dev/null; then
   ufw allow from 100.64.0.0/10 to any port 3001 comment 'Mesh->NodeAPI' 2>/dev/null || true
-  ok "UFW: port 3001 open to Headscale mesh"
+fi
+info "Installing node_api :3001 mesh-only firewall (DOCKER-USER)..."
+for FW in nodeapi-mesh-firewall.sh archie-nodeapi-firewall.service; do
+  curl -fsSL "$HUB_URL/tools/department-hq/api/nodes/vps/$FW" -o "$INSTALL_DIR/$FW" --max-time 30 \
+    && ok "  $FW" \
+    || warn "  $FW — download failed (firewall NOT applied — install manually)"
+done
+if [ -f "$INSTALL_DIR/nodeapi-mesh-firewall.sh" ]; then
+  chmod +x "$INSTALL_DIR/nodeapi-mesh-firewall.sh"
+  cp "$INSTALL_DIR/archie-nodeapi-firewall.service" /etc/systemd/system/archie-nodeapi-firewall.service 2>/dev/null || true
+  systemctl daemon-reload 2>/dev/null || true
+  systemctl enable --now archie-nodeapi-firewall 2>/dev/null \
+    && ok "node_api :3001 mesh-firewalled (public internet blocked)" \
+    || warn "firewall enable failed — run: $INSTALL_DIR/nodeapi-mesh-firewall.sh"
 fi"""
         _next_steps = """\
   1. Approve at https://platform.kytranempowerment.com
@@ -1061,6 +1078,10 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
             "node_api.py",
             "node_sync.py",
             "requirements.txt",
+            # Mesh-only firewall for node_api :3001 (KB #278720) — served so the
+            # outpost enrollment script (step 9f) can install the DOCKER-USER rule.
+            "nodeapi-mesh-firewall.sh",
+            "archie-nodeapi-firewall.service",
         }
         if filename not in allowed:
             return jsonify({"error": "File not found or not allowed"}), 404

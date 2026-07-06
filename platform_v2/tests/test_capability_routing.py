@@ -164,6 +164,62 @@ def test_all_capabilities_mapped_in_dispatcher():
     assert not missing, f"Missing from dispatcher map: {missing}"
 
 
+def _resolve_affinity_map():
+    """Resolve CAPABILITY_NODE_AFFINITY (which references node-id constants like
+    _GPU_CLUSTER / _CITADEL / _WTF_CPU_FIRST) from source WITHOUT importing the
+    dispatcher (heavy import-time side effects). exec's only the self-contained
+    constant + dict block — literals + list concat, no imports, no defs."""
+    import re
+
+    path = os.path.join(
+        os.path.dirname(__file__), "..", "tools", "department_hq", "services", "department_dispatcher.py"
+    )
+    with open(path) as f:
+        src = f.read()
+    start = src.index("_GPU_CLUSTER = [")
+    m = re.search(r"CAPABILITY_NODE_AFFINITY\s*=\s*\{.*?\n\}", src[start:], re.DOTALL)
+    assert m, "Could not find CAPABILITY_NODE_AFFINITY block"
+    ns: dict = {}
+    exec(src[start : start + m.end()], ns)  # noqa: S102 — our own literal block
+    return ns
+
+
+def test_gpu_affinity_completion_3955():
+    """#3955 completion: security -> GPU cluster; compliance -> hub only (12B
+    evictor must not hit the Defiant); WTF fact-check/bias -> CPU-first with the
+    GPU cluster as OVERFLOW only (the Defiant is never the primary for that work,
+    protecting interactive F.O.R.G.E. reviews on its warm 7B — #1905)."""
+    ns = _resolve_affinity_map()
+    aff = ns["CAPABILITY_NODE_AFFINITY"]
+    GPU = ns["_GPU_CLUSTER"]
+    CITADEL = ns["_CITADEL"]
+    DEFIANT = GPU[0]  # starship_76583490e36955ab — 8GB node holding the warm review 7B
+
+    # security (qwen2.5:7b) prefers the GPU cluster.
+    assert set(aff["security"]) == set(GPU)
+
+    # compliance (gemma3:12b) routes to hub CPU ONLY — never the Defiant.
+    assert aff["compliance"] == ["archie-starbase"]
+    assert DEFIANT not in aff["compliance"]
+
+    # WTF high-volume 7B work: Citadel first, hub included as CPU fallback, GPU
+    # cluster as the overflow tail, Defiant never the primary preference.
+    wtf = [
+        "fact_check",
+        "fact_check_backlog",
+        "factcheck_quick",
+        "bias_analysis",
+        "bias_quick",
+        "bias_backlog",
+    ]
+    for cap in wtf:
+        nodes = aff[cap]
+        assert nodes[0] == CITADEL, f"{cap} must prefer Citadel first, got {nodes[0]!r}"
+        assert "archie-starbase" in nodes, f"{cap} must include hub as CPU fallback"
+        assert nodes[-len(GPU) :] == GPU, f"{cap} must have the GPU cluster as the overflow tail"
+        assert nodes[0] != DEFIANT, f"{cap} must not make the Defiant its primary node"
+
+
 def test_director_skills_seeded():
     """Each director must have skills for their department's capabilities."""
     checks = [

@@ -417,6 +417,16 @@ _CITADEL = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 — has mistral:7b i
 # 8GB is reserved for the warm review 7B (#1905). _RUNABOUT is already in _GPU_CLUSTER (drift-guarded).
 # Vision is low-volume + cold-load-tolerant (describe_portrait accepts a 60-90s load), so no keep-warm.
 _RUNABOUT = "starship_5501c2766526e746"  # USS-245 Runabout — has moondream + minicpm-v
+# WTF CPU-first tier (#3955 owner decision, 2026-07-05): the platform's highest-volume
+# heavy-7B work (WTF fact-check/bias, ~40k/7d, all qwen2.5:7b) prefers CPU — Citadel
+# (boston-2, co-locates the WTF stack, cap=5, has qwen2.5:7b) then hub — with the GPU
+# cluster as OVERFLOW only. dispatch:node_cap:enabled is ON, so the preferred_node loop
+# spills to the next candidate when a node is at cap: load spreads Citadel->hub->GPU and
+# the Defiant is reached only when both CPU nodes saturate, keeping its 8GB free for
+# interactive F.O.R.G.E. reviews (#1905). Citadel-first (not hub) both co-locates with the
+# WTF data and stays safe even if the cap kill-switch is ever flipped off (Citadel is the
+# expendable async node; the hub is the platform core). See the fact_check/bias entries.
+_WTF_CPU_FIRST = [_CITADEL, "archie-starbase"] + _GPU_CLUSTER
 CAPABILITY_NODE_AFFINITY = {
     "code_review": _GPU_CLUSTER,
     "code": _GPU_CLUSTER,
@@ -440,6 +450,22 @@ CAPABILITY_NODE_AFFINITY = {
     "policy_assessment": _GPU_CLUSTER,
     "vision": [_RUNABOUT, "archie-starbase"],  # Win 3: vision -> .245 small GPU (moondream), hub fallback
     "multimodal": [_RUNABOUT, "archie-starbase"],
+    # Security & Compliance (#3955 completion, 2026-07-05). S.H.I.E.L.D.'s `security`
+    # work runs qwen2.5:7b — GPU-safe (shares the warm review 7B) -> GPU cluster.
+    # V.I.G.I.L.'s `compliance` runs gemma3:12b — an 8GB-GPU evictor (like translate),
+    # so it must stay on hub CPU (gemma3:12b is CPU-pinned there) and never reach the
+    # Defiant, or it would evict the warm review model.
+    "security": _GPU_CLUSTER,
+    "compliance": ["archie-starbase"],
+    # WTF fact-check/bias (#3955, owner decision 2026-07-05): the platform's highest-
+    # volume heavy-7B work (~40k/7d, all qwen2.5:7b). CPU-first, GPU overflow — see the
+    # _WTF_CPU_FIRST comment above.
+    "fact_check": _WTF_CPU_FIRST,
+    "fact_check_backlog": _WTF_CPU_FIRST,
+    "factcheck_quick": _WTF_CPU_FIRST,
+    "bias_analysis": _WTF_CPU_FIRST,
+    "bias_quick": _WTF_CPU_FIRST,
+    "bias_backlog": _WTF_CPU_FIRST,
 }
 
 

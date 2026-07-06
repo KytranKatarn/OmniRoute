@@ -3780,6 +3780,29 @@ class DepartmentDispatcher:
         flow through ``request_work`` — only the final model-call step branches
         on whether images are present.
         """
+        # ── Hub admission control (RCA KB #278774) ───────────────────────────────
+        # _execute_llm is the HUB/local execution chokepoint (node dispatch goes via
+        # _dispatch_to_node). The contended 7B lanes (fact_check/bias/code_review/…) all
+        # run on the hub CPU; a concurrent burst thrashes it so every job blows past the
+        # 240s timeout, cascading into queue congestion that even starves F.O.R.G.E.
+        # reviews. Shed the burst here — return the same {success:False} backpressure
+        # shape the cold-boot / cloud-budget gates below already use (callers handle it).
+        # Fail-OPEN + generous default cap + disableable (dispatch:hub_inflight_max<=0).
+        try:
+            from services.welfare_governance_service import (
+                HUB_CONTENDED_LANES,
+                hub_lane_over_cap,
+            )
+
+            if capability in HUB_CONTENDED_LANES and hub_lane_over_cap():
+                return {
+                    "success": False,
+                    "error": "hub saturated — contended 7B lane over the in-flight admission cap; shed to relieve the hub (retry shortly)",
+                    "backpressure": True,
+                }
+        except Exception:
+            pass  # fail-open — a gate error must never block inference
+
         # Vision short-circuit. Uses the first image (single-image per call
         # for v1); the existing helper handles Ollama /api/generate payload
         # construction and node routing for vision models.

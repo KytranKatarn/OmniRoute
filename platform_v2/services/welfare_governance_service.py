@@ -175,6 +175,80 @@ def in_flight_over_cap(
         return False
 
 
+# The 7B "lanes" that all contend for the hub's single 8GB GPU — which can't hold a 7B
+# beside the warm small set, so they run on hub CPU. A concurrent BURST of these saturates
+# the hub → 240s-timeout cascade that also starves F.O.R.G.E. reviews (RCA KB #278774).
+HUB_CONTENDED_LANES = (
+    "fact_check",
+    "fact_check_backlog",
+    "bias_analysis",
+    "bias_backlog",
+    "code_review",
+    "geo_extraction",
+    "analyze",
+)
+
+
+def hub_lane_over_cap(
+    cap_key: str = "dispatch:hub_inflight_max",
+    default_cap: int = 8,
+    window_minutes: int = 10,
+) -> bool:
+    """True when the hub-contended 7B lanes ALREADY have >= cap in-flight ``bridge_jobs`` — an
+    AGGREGATE admission gate for the shared hub CPU (complements per-job_type
+    ``in_flight_over_cap``).
+
+    fact_check / bias / code_review / geo / analyze all run 7B on the hub CPU (the 8GB M4000
+    can't hold a 7B beside the warm small models). A concurrent burst thrashes the CPU so each
+    job blows past the 240s dispatch timeout, cascading into queue congestion that also starves
+    F.O.R.G.E. reviews (RCA KB #278774). Capping the AGGREGATE in-flight count sheds the burst
+    so the admitted jobs actually finish.
+
+    Cap tunable via ``platform_settings[cap_key]`` (default 8 — set GENEROUSLY so it only fires
+    under genuine saturation). cap <= 0 DISABLES the gate (always False) with no deploy. Only
+    rows within ``window_minutes`` are counted, so a stuck zombie can never permanently gate.
+
+    Fail-OPEN: missing data / any error → ``False`` (never gate).
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (cap_key,))
+            _row = cur.fetchone()
+            try:
+                cap = int(float(_row["value"])) if _row and _row.get("value") not in (None, "") else default_cap
+            except (TypeError, ValueError):
+                cap = default_cap
+            if cap <= 0:
+                return False  # disabled via settings
+            cur.execute(
+                """
+                SELECT COUNT(*) AS n
+                FROM bridge_jobs
+                WHERE job_type = ANY(%s)
+                  AND status NOT IN ('completed', 'failed', 'cancelled')
+                  AND created_at > NOW() - make_interval(mins => %s)
+                """,
+                (list(HUB_CONTENDED_LANES), window_minutes),
+            )
+            r = cur.fetchone()
+            in_flight = int(r["n"]) if r and r.get("n") is not None else 0
+            over = in_flight >= cap
+            if over:
+                logger.info(
+                    "[HubAdmission] gating hub 7B lane: aggregate in-flight %d >= cap %d (key=%s, window=%dm)",
+                    in_flight,
+                    cap,
+                    cap_key,
+                    window_minutes,
+                )
+            return over
+    except Exception:
+        logger.warning("[HubAdmission] in-flight check failed; not gating", exc_info=True)
+        return False
+
+
 def load_break_config(cur):
     """Read the tunable welfare:break:* thresholds (platform_settings) → merged cfg."""
     try:

@@ -197,3 +197,55 @@ def test_in_flight_fail_open_on_db_error(monkeypatch):
     # any DB exception on the count query → fail OPEN (never gate, never raise)
     _patch(monkeypatch, _FakeInFlightCur(count=999, raise_on="bridge_jobs"))
     assert wgs.in_flight_over_cap("fact_check") is False
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# hub_lane_over_cap — aggregate hub 7B admission gate (RCA KB #278774)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_hub_lane_gates_at_or_above_default_cap(monkeypatch):
+    # 8 in-flight across the contended lanes, default cap 8 → GATE
+    _patch(monkeypatch, _FakeInFlightCur(count=8))
+    assert wgs.hub_lane_over_cap() is True
+
+
+def test_hub_lane_not_gated_below_cap(monkeypatch):
+    _patch(monkeypatch, _FakeInFlightCur(count=5))
+    assert wgs.hub_lane_over_cap() is False
+
+
+def test_hub_lane_custom_cap_from_settings(monkeypatch):
+    # cap 3 from settings, 4 in-flight → GATE (would NOT gate at the 8 default)
+    _patch(monkeypatch, _FakeInFlightCur(settings={"dispatch:hub_inflight_max": "3"}, count=4))
+    assert wgs.hub_lane_over_cap() is True
+
+
+def test_hub_lane_cap_zero_disables_gate(monkeypatch):
+    # cap <= 0 disables even with a huge in-flight count (no-deploy kill switch)
+    _patch(monkeypatch, _FakeInFlightCur(settings={"dispatch:hub_inflight_max": "0"}, count=1000))
+    assert wgs.hub_lane_over_cap() is False
+
+
+def test_hub_lane_reads_the_cap_key(monkeypatch):
+    cur = _FakeInFlightCur(settings={"dispatch:hub_inflight_max": "8"}, count=1)
+    _patch(monkeypatch, cur)
+    wgs.hub_lane_over_cap()
+    assert cur.keys_read == ["dispatch:hub_inflight_max"]
+
+
+def test_hub_lane_bad_cap_falls_back_to_default(monkeypatch):
+    # non-numeric cap → default 8; 9 in-flight → GATE
+    _patch(monkeypatch, _FakeInFlightCur(settings={"dispatch:hub_inflight_max": "abc"}, count=9))
+    assert wgs.hub_lane_over_cap() is True
+
+
+def test_hub_lane_fail_open_on_db_error(monkeypatch):
+    _patch(monkeypatch, _FakeInFlightCur(count=999, raise_on="bridge_jobs"))
+    assert wgs.hub_lane_over_cap() is False
+
+
+def test_hub_contended_lanes_include_the_flooders():
+    # the lanes that caused the RCA KB #278774 saturation must be gated
+    for lane in ("fact_check", "bias_analysis", "code_review"):
+        assert lane in wgs.HUB_CONTENDED_LANES

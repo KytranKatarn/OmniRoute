@@ -1,0 +1,17 @@
+# Security fix (KB #278720) — re-applies the mesh-only DOCKER-USER firewall for
+# node_api :3001 at boot. iptables rules are cleared on reboot; this oneshot
+# restores the DROP after Docker has created the DOCKER-USER chain. Install to
+# /etc/systemd/system/archie-nodeapi-firewall.service then:
+#   systemctl daemon-reload && systemctl enable --now archie-nodeapi-firewall
+[Unit]
+Description=A.R.C.H.I.E. node_api :3001 mesh-only firewall (KB #278720)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/archie-node/nodeapi-mesh-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

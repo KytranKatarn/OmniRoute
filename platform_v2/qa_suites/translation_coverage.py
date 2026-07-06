@@ -17,14 +17,33 @@ logger = logging.getLogger(__name__)
 
 TARGET_PAGES = {
     "website_kytranempowerment": ["/", "/pricing", "/about"],
-    "website_what_the_fact": ["/"],
 }
 
+# Public, user-facing URLs for every translation source in the canonical
+# EXTERNAL_SCAN_SOURCES list (tools/consciousness/language_routes.py). These are the
+# PUBLIC domains a real visitor hits — external QA of the deployed site, so public
+# hostnames are correct here (this is NOT an inter-cluster dispatch path). Kept in
+# sync with .claude/rules/operational-state.md.
 BASE_URLS = {
+    # Marketing / brand sites
     "website_kytranempowerment": "https://www.kytranempowerment.com",
-    "website_what_the_fact": "https://wtf.kytranempowerment.com",
-    "product_what_the_fact": "https://what-the-fact.com",
+    "website_creed": "https://creed-ai.org",
+    "website_kso": "https://server.kytranempowerment.com",
+    # What The Fact — consumer (.com) + tech (.tech) surfaces
+    "website_what_the_fact": "https://what-the-fact.com",
+    "product_what_the_fact": "https://what-the-fact.tech",
+    # Watch products
+    "product_civic_watch": "https://civic.kytranempowerment.com",
+    "product_gov_watch": "https://gov.kytranempowerment.com",
+    "product_legal_watch": "https://legal.kytranempowerment.com",
+    "product_market_watch": "https://market.kytranempowerment.com",
+    # Standalones
+    "product_business_suite": "https://business.kytranempowerment.com",
+    "product_creed_governance": "https://creed.kytranempowerment.com",
 }
+
+# All sources the suite knows how to check — run(None) covers every one.
+ALL_SOURCES = tuple(BASE_URLS.keys())
 
 LANGS = ["fr", "es", "pt", "de", "zh", "ar", "he"]
 
@@ -37,12 +56,13 @@ def _base_url_for(source: str) -> str:
     return BASE_URLS.get(source, "")
 
 
-def run(sources: Iterable[str]) -> dict:
+def run(sources: Iterable[str] | None = None) -> dict:
     """Run Playwright + OCR translation coverage checks for each source.
 
     Args:
         sources: Iterable of source identifiers (e.g. "website_what_the_fact").
-                 Pass all keys from BASE_URLS to check every external site.
+                 Pass None (the default) to check ALL_SOURCES — every source in the
+                 canonical EXTERNAL_SCAN_SOURCES list. Unknown labels are skipped.
 
     Returns:
         dict with keys: checks (int), failures (int), details (list of dicts).
@@ -52,6 +72,9 @@ def run(sources: Iterable[str]) -> dict:
     from langdetect import detect, DetectorFactory
     from playwright.sync_api import sync_playwright
     from database import get_db_cursor
+
+    if sources is None:
+        sources = ALL_SOURCES
 
     DetectorFactory.seed = 0
     summary: dict = {"checks": 0, "failures": 0, "details": []}

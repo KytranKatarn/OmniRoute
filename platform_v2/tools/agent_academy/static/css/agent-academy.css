@@ -519,3 +519,14 @@ mark.aa-diff { background: rgba(255,196,0,.35); color: inherit; border-radius: 2
     .aa-title { font-size: 1rem; }
     .aa-header-status { display: none; }
 }
+
+/* ── Light mode (#1998) — --aa-* tokens are dark literals at :root; re-map under
+   body.light-mode (accent colors kept; modal overlay rgba(0,0,0,.7) left dark). */
+body.light-mode {
+  --aa-bg:            #f0f2f5;
+  --aa-surface:       #ffffff;
+  --aa-surface-light: #f1f5f9;
+  --aa-border:        #e2e8f0;
+  --aa-text:          #1e293b;
+  --aa-text-dim:      #64748b;
+}

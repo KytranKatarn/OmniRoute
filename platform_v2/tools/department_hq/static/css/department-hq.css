@@ -2225,3 +2225,27 @@
         height: min(500px, calc(100vw - 40px)) !important;
     }
 }
+
+/* ── Light mode (#1998) ────────────────────────────────────────────────────────
+   department-hq's --dhq-* tokens are dark literals at :root, and --dhq-card-bg is
+   undefined (so .dhq-hero-card falls back to #111827). Nearly every card uses
+   var(--dhq-surface); re-mapping the tokens under body.light-mode fixes the Overview
+   stat/hero cards, dept cards, panels, org/perf/creed/session cards + text/borders
+   across all 12 tabs. Dept floor colors + --dhq-accent kept. Dark mode is the default
+   and untouched. */
+body.light-mode {
+  --dhq-bg:        #f0f2f5;
+  --dhq-surface:   #ffffff;
+  --dhq-surface-2: #f1f5f9;
+  --dhq-border:    #e2e8f0;
+  --dhq-text:      #1e293b;
+  --dhq-text-dim:  #64748b;
+  --dhq-card-bg:   #ffffff;
+}
+
+/* Roster crew cards/headers use semi-transparent black (rgba(0,0,0,.3-.4)) — fine on
+   the dark theme, but a dark overlay on the light page. Give them light values in
+   light mode. (#agentDetailOverlay's rgba(0,0,0,.8) is a MODAL dimmer — left dark.) */
+body.light-mode .dhq-crew-card { background: #ffffff; }
+body.light-mode .dhq-crew-group-header { background: #f1f5f9; }
+body.light-mode .dhq-crew-group-header:hover { background: #e2e8f0; }

@@ -8,7 +8,7 @@ aliases under `body.light-mode` so they resolve light at body scope — this rep
 module that styles with `--archie-*` tokens. Modules below marked *clean* benefited from this
 (or were already fine); modules marked *fixed* also needed a private-namespace/literal-hex remap.
 
-Legend: ✅ verified light · 🔧 fixed this pass · ⏳ pending visual audit · ⛔ N/A (disabled/redirect)
+Legend: ✅ verified light (browser) · 🔧 fixed this pass · ☑︎ static-clean (no private namespace / dark literals → expected clean via the systemic fix; not screenshotted) · ⏳ pending · ⛔ N/A (disabled/redirect)
 
 | Module | Route | Status | Notes |
 |--------|-------|--------|-------|
@@ -31,16 +31,16 @@ Legend: ✅ verified light · 🔧 fixed this pass · ⏳ pending visual audit �
 | Website Designer | `/tools/website-studio` | ⛔ | redirects → dashboard (disabled) |
 | System Operations | `/tools/system-operations` | ⛔ | disabled (→ KSO standalone) |
 | Media Hub | `/tools/media-hub` | ⛔ | redirects → dashboard (launch tile → standalone) |
-| Family Tree | `/tools/family-tree` | ⏳ | |
-| Fitness | `/tools/fitness` | ⏳ | |
-| Therapy | `/tools/therapy` | ⏳ | |
-| DOC | `/tools/doc` | ⏳ | |
-| Mailbox Story | `/tools/mailbox-story` | ⏳ | |
-| WTF Hub | `/tools/wtf-hub` | ⏳ | |
-| SaaS Manager | `/tools/saas-manager` | ⏳ | folded into Account Center ORGS |
-| My Profile | `/tools/my-profile` | ⏳ | |
-| Archie Pool | `/tools/archie-pool` | ⏳ | |
-| Pool Management | `/tools/pool-management` | ⏳ | |
+| Family Tree | `/tools/family-tree` | ✅ | main UI clean; the gray area is a cosmetic `.ft-tree-canvas` `rgba(0,0,0,.4)` viewport overlay; person-node/modal dark styling (family-tree.css literals) untested on an empty tree |
+| Fitness | `/tools/fitness` | ✅ | clean (representative `--archie-*`-token consumer app) |
+| Therapy | `/tools/therapy` | ☑︎ | static-clean (`--archie-*` tokens, no private namespace / dark literals) → expected clean via systemic fix; not screenshotted |
+| DOC | `/tools/doc` | ☑︎ | static-clean → expected clean; not screenshotted |
+| Mailbox Story | `/tools/mailbox-story` | ☑︎ | static-clean → expected clean; not screenshotted |
+| SaaS Manager | `/tools/saas-manager` | ☑︎ | folded into Account Center ORGS; static-clean |
+| My Profile | `/tools/my-profile` | ☑︎ | static-clean → expected clean; not screenshotted |
+| Archie Pool | `/tools/archie-pool` | ☑︎ | static-clean → expected clean; not screenshotted |
+| Pool Management | `/tools/pool-management` | ☑︎ | static-clean → expected clean; not screenshotted |
+| Content Studio | `/tools/content-studio` | ⛔ | redirects → dashboard (disabled) |
 
 ## Root-cause pattern (KB #278763)
 1. **`--archie-*` bare-token modules** → fixed globally by the `light-mode.css` alias re-declaration.

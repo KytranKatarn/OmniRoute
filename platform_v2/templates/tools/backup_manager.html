@@ -552,6 +552,32 @@
                                     </div>
                                 </div>
 
+                                <!-- W.A.R.D.E.N. Pre-Deploy Governance Gates (#2708) -->
+                                <div class="retention-info" style="margin-top: var(--archie-space-5); padding-top: var(--archie-space-4); border-top: 1px solid rgba(167,139,250,0.2);">
+                                    <h4><span data-i18n="backup_manager.governance_gates">W.A.R.D.E.N. Pre-Deploy Governance Gates</span></h4>
+                                    <p style="font-size:12px;color:var(--archie-text-secondary);margin-bottom:var(--archie-space-3);">
+                                        Max backup age (hours) before a Repair Bay deploy at each severity is gated.
+                                        <b>soft</b> = warn &amp; continue; <b>hard</b> = block the deploy.
+                                    </p>
+                                    <div style="overflow-x:auto;">
+                                    <table id="governanceGatesTable" style="width:100%;min-width:420px;font-size:12px;border-collapse:collapse;">
+                                        <thead><tr style="text-align:left;color:var(--archie-text-tertiary);border-bottom:1px solid rgba(255,255,255,0.08);">
+                                            <th style="padding:6px 8px;">Severity</th>
+                                            <th style="padding:6px 8px;">Max age (h)</th>
+                                            <th style="padding:6px 8px;">Gate</th>
+                                            <th style="padding:6px 8px;">Override</th>
+                                        </tr></thead>
+                                        <tbody id="governanceGatesBody">
+                                            <tr><td colspan="4" style="padding:8px;color:var(--archie-text-tertiary);">Loading gates…</td></tr>
+                                        </tbody>
+                                    </table>
+                                    </div>
+                                    <div style="margin-top: var(--archie-space-3); display:flex; align-items:center; gap:12px;">
+                                        <button class="btn" onclick="saveGovernanceGates()" style="border-color:#a78bfa;color:#c4b5fd;">Save Gates</button>
+                                        <span id="governanceGatesMsg" style="font-size:12px;"></span>
+                                    </div>
+                                </div>
+
                                 <div style="margin-bottom: var(--archie-space-5);">
                                     <h4 class="section-header"><span data-i18n="backup_manager.retention_status">Retention Status</span></h4>
                                     <div id="retentionStatus">
@@ -910,7 +936,7 @@
         if (tabId === 'deployments') loadDeploymentBackups();
         if (tabId === 'modules') { loadAvailableModules(); loadModuleBackups(); }
         if (tabId === 'packages') loadDeploymentPackages();
-        if (tabId === 'retention') { checkRetention(); }
+        if (tabId === 'retention') { checkRetention(); loadGovernanceGates(); }
         if (tabId === 'external') { loadExternalStatus(); loadExternalBackups(); }
         if (tabId === 'standalones') loadStandaloneSystems();
         if (tabId === 'cloud') { loadCloudStatus(); }
@@ -1829,6 +1855,74 @@
             if (data.success) showToast('Retention policy saved', 'success');
             else showToast('Failed: ' + escapeHtml(data.error || 'unknown'), 'error');
         } catch (e) { showToast('Network error', 'error'); }
+    }
+
+    // ── W.A.R.D.E.N. pre-deploy governance gates (#2708) ──────────────────────
+    const _GATE_SEVERITIES = ['critical', 'high', 'medium', 'low'];
+    function _gatesError(body, txt) {
+        body.textContent = '';
+        const tr = document.createElement('tr'), td = document.createElement('td');
+        td.colSpan = 4; td.style.padding = '8px'; td.style.color = '#ef4444'; td.textContent = txt;
+        tr.appendChild(td); body.appendChild(tr);
+    }
+    async function loadGovernanceGates() {
+        const body = document.getElementById('governanceGatesBody');
+        if (!body) return;
+        try {
+            const resp = await fetch('/tools/backup-manager/api/governance-gates', {credentials: 'same-origin'});
+            const data = await resp.json();
+            if (!data.success) { _gatesError(body, 'Error: ' + (data.error || 'load failed')); return; }
+            const gates = data.gates || {};
+            const selCss = 'background:var(--archie-bg-tertiary);color:var(--archie-text-primary);border:1px solid rgba(255,255,255,0.1);border-radius:4px;font-size:12px;padding:2px;';
+            body.textContent = '';
+            _GATE_SEVERITIES.forEach(function(sev) {
+                const g = gates[sev] || {};
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid rgba(255,255,255,0.04)';
+                const cSev = document.createElement('td');
+                cSev.style.cssText = 'padding:6px 8px;text-transform:uppercase;font-weight:600;';
+                cSev.textContent = sev; tr.appendChild(cSev);
+                const cAge = document.createElement('td'); cAge.style.padding = '6px 8px';
+                const inp = document.createElement('input');
+                inp.type = 'number'; inp.min = '0'; inp.max = '8760'; inp.id = 'gate_' + sev + '_age';
+                inp.value = (g.max_age_hours != null ? g.max_age_hours : 24);
+                inp.style.cssText = 'width:70px;background:transparent;border:none;border-bottom:1px solid #a78bfa;color:var(--archie-text-primary);text-align:center;font-size:13px;';
+                cAge.appendChild(inp); tr.appendChild(cAge);
+                const cType = document.createElement('td'); cType.style.padding = '6px 8px';
+                const selT = document.createElement('select'); selT.id = 'gate_' + sev + '_type'; selT.style.cssText = selCss;
+                ['soft', 'hard'].forEach(function(v) { const o = document.createElement('option'); o.value = v; o.textContent = v; if ((g.gate_type || '') === v) o.selected = true; selT.appendChild(o); });
+                cType.appendChild(selT); tr.appendChild(cType);
+                const cOv = document.createElement('td'); cOv.style.padding = '6px 8px';
+                const selO = document.createElement('select'); selO.id = 'gate_' + sev + '_override'; selO.style.cssText = selCss;
+                ['none', 'telegram_approval', 'kytran_approval'].forEach(function(v) { const o = document.createElement('option'); o.value = v; o.textContent = v; if ((g.override || 'none') === v) o.selected = true; selO.appendChild(o); });
+                cOv.appendChild(selO); tr.appendChild(cOv);
+                body.appendChild(tr);
+            });
+        } catch (e) { _gatesError(body, 'Network error'); }
+    }
+    async function saveGovernanceGates() {
+        const msg = document.getElementById('governanceGatesMsg');
+        const setMsg = function(t, ok) { if (msg) { msg.style.color = ok ? '#22c55e' : '#ef4444'; msg.textContent = t; } };
+        const gates = {};
+        for (const sev of _GATE_SEVERITIES) {
+            const ageEl = document.getElementById('gate_' + sev + '_age');
+            const age = parseInt(ageEl ? ageEl.value : NaN);
+            if (isNaN(age) || age < 0 || age > 8760) { setMsg(sev + ': max age must be 0–8760', false); return; }
+            gates[sev] = {
+                max_age_hours: age,
+                gate_type: (document.getElementById('gate_' + sev + '_type') || {}).value || 'hard',
+                override: (document.getElementById('gate_' + sev + '_override') || {}).value || 'none'
+            };
+        }
+        try {
+            const resp = await fetch('/tools/backup-manager/api/governance-gates', {
+                method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'same-origin',
+                body: JSON.stringify({gates: gates})
+            });
+            const data = await resp.json();
+            if (data.success) { setMsg('Gates saved ✓', true); showToast('Governance gates saved', 'success'); }
+            else { setMsg('Failed: ' + (data.error || 'unknown'), false); showToast('Failed to save gates', 'error'); }
+        } catch (e) { setMsg('Network error', false); showToast('Network error', 'error'); }
     }
 
     async function loadWardenRetentionStatus() {

@@ -38,6 +38,60 @@ from ._shared import (
 def register_admin_routes(bp, admin_required):  # noqa: F811
     """Register admin (hooks, audit, config, snapshots) routes onto the supplied blueprint."""
 
+    # ── W.A.R.D.E.N. pre-deploy governance gates (#2708) ─────────────────────────
+    @bp.route("/api/governance-gates", methods=["GET"])
+    @admin_required
+    def get_governance_gates():
+        """Return the backup-freshness gate config (system_config 'backup_governance_gates',
+        or the service defaults when unset) that W.A.R.D.E.N. uses before Repair Bay deploys."""
+        try:
+            from services.backup_governance_service import _load_gate_config
+
+            return jsonify({"success": True, "gates": _load_gate_config()})
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/governance-gates", methods=["POST"])
+    @admin_required
+    def save_governance_gates():
+        """Validate + persist the gate config. Body: {"gates": {sev: {max_age_hours, gate_type, override}}}."""
+        from database import get_db_cursor
+
+        VALID_SEV = ("critical", "high", "medium", "low")
+        VALID_GATE = ("soft", "hard")
+        VALID_OVERRIDE = ("none", "telegram_approval", "kytran_approval")
+        data = request.get_json(force=True) or {}
+        gates = data.get("gates") or {}
+        clean = {}
+        for sev in VALID_SEV:
+            g = gates.get(sev) or {}
+            try:
+                max_age = int(g.get("max_age_hours"))
+            except (TypeError, ValueError):
+                return jsonify({"success": False, "error": f"{sev}: max_age_hours must be an integer"}), 400
+            if not (0 <= max_age <= 8760):
+                return jsonify({"success": False, "error": f"{sev}: max_age_hours out of range (0-8760)"}), 400
+            gate_type = str(g.get("gate_type", "")).lower()
+            if gate_type not in VALID_GATE:
+                return jsonify({"success": False, "error": f"{sev}: gate_type must be soft|hard"}), 400
+            override = str(g.get("override", "none"))
+            if override not in VALID_OVERRIDE:
+                override = "none"
+            clean[sev] = {"max_age_hours": max_age, "gate_type": gate_type, "override": override}
+        try:
+            uid = getattr(current_user, "id", None)
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """INSERT INTO system_config (key, value, updated_at, updated_by)
+                       VALUES ('backup_governance_gates', %s, NOW(), %s)
+                       ON CONFLICT (key) DO UPDATE
+                         SET value = EXCLUDED.value, updated_at = NOW(), updated_by = EXCLUDED.updated_by""",
+                    (json.dumps(clean), uid),
+                )
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": True, "gates": clean})
+
     @bp.route("/api/hooks")
     @admin_required
     def list_hooks():

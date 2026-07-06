@@ -728,3 +728,47 @@
 .em-toast--success { background: #0f2d1a; color: #22c55e; border: 1px solid #22c55e; }
 .em-toast--error   { background: #2d0f0f; color: #ef4444; border: 1px solid #ef4444; }
 .em-toast--info    { background: #0f1a2d; color: #7eb8f7; border: 1px solid #7eb8f7; }
+
+/* ── Light-mode overrides — hardcoded-hex holdouts (#1998) ─────────────────────
+   The shared bare-token fix in light-mode.css re-themes every token-driven panel
+   (surface/text/border/bg). The rules below use literal dark hex (not tokens), so
+   they need explicit light values here. Scoped to body.light-mode — the default
+   dark theme is untouched. */
+body.light-mode .em-nav-item:hover,
+body.light-mode .em-mailbox-item:hover { background: #eef2f7; }
+body.light-mode .em-nav-active,
+body.light-mode .em-nav-item.em-nav-active,
+body.light-mode .em-mailbox-item.em-mailbox-active {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-left-color: #0369a1;
+}
+body.light-mode .em-badge { background: #e2e8f0; color: #374151; }
+body.light-mode .em-badge--cyan { background: #cffafe; color: #0369a1; }
+body.light-mode .em-badge--red  { background: #fee2e2; color: #dc2626; }
+body.light-mode .em-mailbox-unread { background: #cffafe; color: #0369a1; }
+body.light-mode .em-group-header { background: #f1f5f9; }
+body.light-mode .em-message-list::-webkit-scrollbar-thumb,
+body.light-mode .em-read-body::-webkit-scrollbar-thumb { background: #cbd5e1; }
+body.light-mode .em-msg-row { border-bottom-color: #eef2f7; }
+body.light-mode .em-msg-row:hover { background: #f1f5f9; }
+body.light-mode .em-msg-row.em-msg-selected { background: #e0f2fe; border-left-color: #2563eb; }
+body.light-mode .em-priority-action { background: #fee2e2; color: #dc2626; }
+body.light-mode .em-priority-review { background: #fef3c7; color: #b45309; }
+body.light-mode .em-priority-info   { background: #dcfce7; color: #15803d; }
+body.light-mode .em-ai-banner { background: #f1f5f9; border-bottom-color: #e2e8f0; }
+body.light-mode .em-read-from { color: #2563eb; }
+body.light-mode .em-meta-sep { color: #cbd5e1; }
+body.light-mode .em-read-body a { color: #0369a1; }
+body.light-mode .em-read-body pre,
+body.light-mode .em-read-body code { background: #f1f5f9; color: #334155; }
+body.light-mode .em-action-btn { background: #e0f2fe; border-color: #bae6fd; color: #0369a1; }
+body.light-mode .em-action-muted { background: #f1f5f9; border-color: #e2e8f0; color: #475569; }
+body.light-mode .em-action-danger { background: #fef2f2; border-color: #fecaca; color: #dc2626; }
+body.light-mode .em-icon-btn:hover,
+body.light-mode .em-text-btn:hover { color: #0891b2; }
+body.light-mode .em-status-badge.active  { background: #dcfce7; color: #15803d; border-color: #86efac; }
+body.light-mode .em-status-badge.pending { background: #fef3c7; color: #b45309; border-color: #fcd34d; }
+body.light-mode .em-toast--success { background: #dcfce7; color: #15803d; }
+body.light-mode .em-toast--error   { background: #fee2e2; color: #dc2626; }
+body.light-mode .em-toast--info    { background: #dbeafe; color: #1d4ed8; }

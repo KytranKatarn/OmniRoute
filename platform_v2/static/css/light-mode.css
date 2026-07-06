@@ -65,6 +65,28 @@ body.light-mode {
     --archie-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.10);
     --archie-shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.12);
     --archie-shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.15);
+
+    /* ── Bare / convenience token aliases (SHARED light-mode fix) ──────────────
+       lcars-tokens.css / theme.css declare these aliases at :root, e.g.
+       `--archie-surface: var(--archie-bg-tertiary)`. Because they are declared on
+       <html>, their var() resolves against html's DARK -variant tokens — BEFORE the
+       body-level -variant overrides above take effect — so every module that uses a
+       bare token (var(--archie-surface|text|border|bg|muted|...)) stayed dark in
+       light mode (Email HQ, A.R.C.H.I.E. Chat, Repair Bay, StockBot, etc.).
+       Re-declaring the aliases here at body.light-mode scope makes them re-resolve
+       against the LIGHT variants set above. Light-mode-only; dark mode untouched. */
+    --archie-primary:    var(--archie-bg-primary);
+    --archie-bg:         var(--archie-bg-void);
+    --archie-bg-deep:    var(--archie-bg-void);
+    --archie-bg-surface: var(--archie-bg-tertiary);
+    --archie-bg-card:    var(--archie-bg-tertiary);
+    --archie-bg-input:   var(--archie-bg-elevated);
+    --archie-card-bg:    var(--archie-bg-tertiary);
+    --archie-surface:    var(--archie-bg-tertiary);
+    --archie-text:       var(--archie-text-secondary);
+    --archie-text-dim:   var(--archie-text-tertiary);
+    --archie-muted:      var(--archie-text-muted);
+    --archie-border:     var(--archie-border-default);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

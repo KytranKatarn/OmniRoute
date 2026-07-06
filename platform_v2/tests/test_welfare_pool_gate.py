@@ -139,6 +139,7 @@ class _FakeInFlightCur:
         self._raise_on = raise_on
         self._last = None
         self.keys_read = []
+        self.count_params = None  # params passed to the bridge_jobs COUNT query
 
     def execute(self, sql, params=None):
         if self._raise_on and self._raise_on in sql:
@@ -146,6 +147,8 @@ class _FakeInFlightCur:
         self._last = (sql, params)
         if "platform_settings" in sql and params:
             self.keys_read.append(params[0])
+        if "bridge_jobs" in sql:
+            self.count_params = params
 
     def fetchone(self):
         sql = self._last[0]
@@ -228,10 +231,11 @@ def test_hub_lane_cap_zero_disables_gate(monkeypatch):
 
 
 def test_hub_lane_reads_the_cap_key(monkeypatch):
+    # Reads the cap key first, then the configurable-lanes key (both platform_settings).
     cur = _FakeInFlightCur(settings={"dispatch:hub_inflight_max": "8"}, count=1)
     _patch(monkeypatch, cur)
     wgs.hub_lane_over_cap()
-    assert cur.keys_read == ["dispatch:hub_inflight_max"]
+    assert cur.keys_read == ["dispatch:hub_inflight_max", "dispatch:hub_contended_lanes"]
 
 
 def test_hub_lane_bad_cap_falls_back_to_default(monkeypatch):
@@ -249,3 +253,48 @@ def test_hub_contended_lanes_include_the_flooders():
     # the lanes that caused the RCA KB #278774 saturation must be gated
     for lane in ("fact_check", "bias_analysis", "code_review"):
         assert lane in wgs.HUB_CONTENDED_LANES
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# effective_hub_lanes + configurable count (RCA KB #278774 generalization f/u)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_effective_hub_lanes_defaults_when_empty():
+    # No/empty setting → exactly the defaults (order-stable).
+    assert wgs.effective_hub_lanes(None) == list(wgs.HUB_CONTENDED_LANES)
+    assert wgs.effective_hub_lanes("") == list(wgs.HUB_CONTENDED_LANES)
+    assert wgs.effective_hub_lanes("   ") == list(wgs.HUB_CONTENDED_LANES)
+
+
+def test_effective_hub_lanes_is_additive_never_drops_defaults():
+    # A configured extra ADDS to the count; defaults are always retained (no foot-gun).
+    lanes = wgs.effective_hub_lanes("summarize, research")
+    for lane in wgs.HUB_CONTENDED_LANES:
+        assert lane in lanes
+    assert "summarize" in lanes and "research" in lanes
+
+
+def test_effective_hub_lanes_strips_and_dedups():
+    # whitespace trimmed, empty tokens dropped, dupes (incl. a default) collapsed once
+    lanes = wgs.effective_hub_lanes(" fact_check , summarize ,, summarize ")
+    assert lanes.count("summarize") == 1
+    assert lanes.count("fact_check") == 1
+
+
+def test_hub_lane_count_uses_defaults_when_no_setting(monkeypatch):
+    cur = _FakeInFlightCur(count=8)
+    _patch(monkeypatch, cur)
+    assert wgs.hub_lane_over_cap() is True
+    assert set(cur.count_params[0]) == set(wgs.HUB_CONTENDED_LANES)
+
+
+def test_hub_lane_count_includes_configured_extra(monkeypatch):
+    # a future 7B producer added via the CSV setting is folded into the aggregate count
+    cur = _FakeInFlightCur(settings={"dispatch:hub_contended_lanes": "summarize,research"}, count=8)
+    _patch(monkeypatch, cur)
+    assert wgs.hub_lane_over_cap() is True
+    assert "summarize" in cur.count_params[0]
+    assert "research" in cur.count_params[0]
+    for lane in wgs.HUB_CONTENDED_LANES:  # defaults preserved alongside extras
+        assert lane in cur.count_params[0]

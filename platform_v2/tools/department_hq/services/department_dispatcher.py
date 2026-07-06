@@ -3809,24 +3809,26 @@ class DepartmentDispatcher:
         flow through ``request_work`` — only the final model-call step branches
         on whether images are present.
         """
-        # ── Hub admission control (RCA KB #278774) ───────────────────────────────
+        # ── Hub admission control (RCA KB #278774; generalized f/u) ──────────────
         # _execute_llm is the HUB/local execution chokepoint (node dispatch goes via
-        # _dispatch_to_node). The contended 7B lanes (fact_check/bias/code_review/…) all
-        # run on the hub CPU; a concurrent burst thrashes it so every job blows past the
-        # 240s timeout, cascading into queue congestion that even starves F.O.R.G.E.
-        # reviews. Shed the burst here — return the same {success:False} backpressure
-        # shape the cold-boot / cloud-budget gates below already use (callers handle it).
-        # Fail-OPEN + generous default cap + disableable (dispatch:hub_inflight_max<=0).
+        # _dispatch_to_node), so anything reaching here is about to run on the hub. The hub's
+        # single 8GB M4000 can't hold a 7B beside the warm small set → 7B runs on hub CPU; a
+        # concurrent burst thrashes it so every job blows past the 240s timeout, cascading into
+        # queue congestion that even starves F.O.R.G.E. reviews.
+        #
+        # Gate on MODEL CLASS, not a fixed capability tuple: _model_is_gpu_class(model) is True
+        # for any 7B+ model (excludes the 1.5b/3b/embed warm set that runs fine on hub CPU), so
+        # a FUTURE 7B producer is auto-covered with no code change. Shed the burst here — return
+        # the same {success:False} backpressure shape the cold-boot / cloud-budget gates below
+        # already use (callers handle it). Fail-OPEN + generous default cap + disableable
+        # (dispatch:hub_inflight_max<=0 → hub_lane_over_cap False).
         try:
-            from services.welfare_governance_service import (
-                HUB_CONTENDED_LANES,
-                hub_lane_over_cap,
-            )
+            from services.welfare_governance_service import hub_lane_over_cap
 
-            if capability in HUB_CONTENDED_LANES and hub_lane_over_cap():
+            if _model_is_gpu_class(model) and hub_lane_over_cap():
                 return {
                     "success": False,
-                    "error": "hub saturated — contended 7B lane over the in-flight admission cap; shed to relieve the hub (retry shortly)",
+                    "error": "hub saturated — 7B in-flight admission cap reached; shed to relieve the hub (retry shortly)",
                     "backpressure": True,
                 }
         except Exception:

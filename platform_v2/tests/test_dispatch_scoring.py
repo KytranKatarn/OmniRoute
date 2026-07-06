@@ -373,6 +373,35 @@ class TestModelIsGpuClass:
         assert fn(None) is False
 
 
+class TestHubAdmissionGeneralized:
+    """RCA KB #278774 generalization f/u: the _execute_llm hub-admission guard must gate on
+    MODEL CLASS (_model_is_gpu_class(model)) — NOT a fixed capability tuple — so a future 7B
+    producer is auto-covered. Source-inspects the dispatcher (heavy DB import at module load,
+    same rationale as TestModelIsGpuClass) to lock the generalized shape and prevent a revert.
+    """
+
+    _DISPATCHER_PATH = "tools/department_hq/services/department_dispatcher.py"
+
+    def _admission_block(self):
+        import os
+
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(base, self._DISPATCHER_PATH)) as f:
+            src = f.read()
+        idx = src.index("Hub admission control")
+        return src[idx : idx + 2200]
+
+    def test_gate_uses_model_class_not_capability_tuple(self):
+        block = self._admission_block()
+        assert "_model_is_gpu_class(model)" in block, "gate must use model-class, not a tuple"
+        assert "capability in HUB_CONTENDED_LANES" not in block, "must not revert to the fixed tuple"
+
+    def test_gate_preserves_backpressure_shape(self):
+        block = self._admission_block()
+        assert '"backpressure": True' in block
+        assert '"success": False' in block
+
+
 class TestAgentNameConsistency:
     """Regression guard for task #2164 Phase 1.
 

@@ -178,6 +178,8 @@ def in_flight_over_cap(
 # The 7B "lanes" that all contend for the hub's single 8GB GPU — which can't hold a 7B
 # beside the warm small set, so they run on hub CPU. A concurrent BURST of these saturates
 # the hub → 240s-timeout cascade that also starves F.O.R.G.E. reviews (RCA KB #278774).
+# These are the DEFAULT baseline; a future 7B producer can be ADDED to the aggregate count
+# via platform_settings[HUB_LANES_KEY] (CSV) with no deploy — see effective_hub_lanes().
 HUB_CONTENDED_LANES = (
     "fact_check",
     "fact_check_backlog",
@@ -187,6 +189,24 @@ HUB_CONTENDED_LANES = (
     "geo_extraction",
     "analyze",
 )
+
+# platform_settings key holding ADDITIONAL contended-lane job_types (CSV) to fold into the
+# aggregate count. bridge_jobs has no model column, so the AGGREGATE denominator must be
+# job_type-scoped — this makes that scope tunable without a deploy. (The GATE side in
+# department_dispatcher._execute_llm is separately generalized to _model_is_gpu_class(model),
+# which auto-covers any future 7B producer regardless of this list — RCA KB #278774 f/u.)
+HUB_LANES_KEY = "dispatch:hub_contended_lanes"
+
+
+def effective_hub_lanes(extra_csv=None):
+    """DEFAULT ``HUB_CONTENDED_LANES`` ∪ additive extras parsed from ``extra_csv``.
+
+    Pure (no DB). ADDITIVE-ONLY: extras are unioned onto the defaults, never replace them,
+    so a bad/empty setting can NEVER drop a known-critical lane from the count. Order-stable
+    and de-duplicated. Called by ``hub_lane_over_cap`` with the live setting value.
+    """
+    extra = [t.strip() for t in str(extra_csv or "").split(",") if t.strip()]
+    return list(dict.fromkeys(list(HUB_CONTENDED_LANES) + extra))
 
 
 def hub_lane_over_cap(
@@ -208,6 +228,10 @@ def hub_lane_over_cap(
     under genuine saturation). cap <= 0 DISABLES the gate (always False) with no deploy. Only
     rows within ``window_minutes`` are counted, so a stuck zombie can never permanently gate.
 
+    The counted lane set = ``HUB_CONTENDED_LANES`` ∪ ``platform_settings[HUB_LANES_KEY]`` (an
+    ADDITIVE CSV) — a future 7B producer joins the aggregate with no deploy (bridge_jobs has no
+    model column, so the denominator must be job_type-scoped). See ``effective_hub_lanes``.
+
     Fail-OPEN: missing data / any error → ``False`` (never gate).
     """
     from database import get_db_cursor
@@ -222,6 +246,11 @@ def hub_lane_over_cap(
                 cap = default_cap
             if cap <= 0:
                 return False  # disabled via settings
+            # Effective lane list = DEFAULT tuple ∪ additive CSV setting (no deploy needed).
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (HUB_LANES_KEY,))
+            _lrow = cur.fetchone()
+            _extra = _lrow["value"] if _lrow and _lrow.get("value") not in (None, "") else None
+            lanes = effective_hub_lanes(_extra)
             cur.execute(
                 """
                 SELECT COUNT(*) AS n
@@ -230,7 +259,7 @@ def hub_lane_over_cap(
                   AND status NOT IN ('completed', 'failed', 'cancelled')
                   AND created_at > NOW() - make_interval(mins => %s)
                 """,
-                (list(HUB_CONTENDED_LANES), window_minutes),
+                (lanes, window_minutes),
             )
             r = cur.fetchone()
             in_flight = int(r["n"]) if r and r.get("n") is not None else 0

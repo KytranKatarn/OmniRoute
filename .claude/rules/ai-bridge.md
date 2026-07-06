@@ -31,13 +31,13 @@ globs: ["ai_bridge/**"]
 
 ### Starship-246 (100.64.0.3 / RTX 3070 8GB / 32GB RAM)
 - Container: `archie_node_ollama` port 11434
-- **MAX_LOADED_MODELS=3 | KEEP_ALIVE=10m | NUM_PARALLEL=3** (updated via OTA 2026-05-20)
+- **MAX_LOADED_MODELS=6 | KEEP_ALIVE=60m | NUM_PARALLEL=1** (2026-07-06 — mirror the starbase warm-boot: hold the full parallel GPU+CPU set + single-stream per model (NUM_PARALLEL>1 blows the 8GB KV-cache) + long keep-alive (no cold-load thrash). Applied live via SSH container **recreate** — the node ollama is `docker run`, not compose, so env is immutable; procedure + Windows-cmd gotchas in KB #278809. Was 2/10m/2 live.)
 - Warm model set: `qwen2.5:1.5b` GPU + `llama3.2:3b` GPU + `qwen2.5:7b` CPU
 - Available: qwen2.5:7b, qwen2.5:1.5b, llama3.2:3b, mistral:7b, dolphin3:latest, gemma3:12b
 
-### Starship-245 (100.64.0.6 / RTX 3070 4GB / 12GB RAM)
+### Starship-245 (100.64.0.6 / RTX 3050 4GB / 12GB RAM)
 - Container: `archie_node_ollama` port 11434
-- **MAX_LOADED_MODELS=2 | KEEP_ALIVE=10m | NUM_PARALLEL=1** (set via OTA 2026-05-19)
+- **MAX_LOADED_MODELS=4 | KEEP_ALIVE=60m | NUM_PARALLEL=1** (2026-07-06 — long keep-alive + single-stream; smaller than node-246 (4GB VRAM can't GPU-hold a 7B; 12GB RAM caps the set). Applied live via SSH recreate; KB #278809. Was 3/10m/2 live.)
 - Warm model set: `qwen2.5:1.5b` GPU + `llama3.2:3b` CPU (4GB VRAM limit)
 - Available: qwen2.5:7b, qwen2.5:1.5b, llama3.2:3b, mistral:7b, dolphin3:latest
 

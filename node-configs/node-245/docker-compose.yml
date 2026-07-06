@@ -26,9 +26,12 @@ services:
               capabilities: [gpu]
         limits:
           memory: 10G
+    # Warm-boot profile (2026-07-06, KB #278809): long keep-alive + single-stream.
+    # Smaller than node-246 — 4GB VRAM can't GPU-hold a 7B, 12GB RAM caps the set.
     environment:
-      - OLLAMA_KEEP_ALIVE=10m
+      - OLLAMA_KEEP_ALIVE=60m
       - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=4
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ollama_data:/root/.ollama

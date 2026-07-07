@@ -45,6 +45,15 @@ WARM_STATE_WINDOW_MINUTES = 15
 HEAVY_CONCURRENCY_CAP = 2
 HEAVY_OVERCAP_PENALTY = 1.5
 
+# Hub (starbase) 7B de-preference (#375): the hub Quadro M4000 runs 7B at ~100s (an
+# old Maxwell card) — slower than even the RTX-3050 laptop's CPU (~67s). Its GPU-fit
+# path scores it ABOVE the faster Starship-245 for 7B overflow, so 7B spills onto the
+# slow hub when Starship-246 hits its heavy cap. Penalize the hub for prefer_gpu
+# (7B+) models so overflow prefers a Starship; sized to drop the hub below the
+# RTX-3050's cpu-demoted score while staying a positive LAST-RESORT failover (rest
+# window / all Starships offline). See score_node_for_model. Tunable.
+HUB_HEAVY_PENALTY = 1.5
+
 # Observed-latency signal (refined-B slice 3): refine the STATIC gpu_perf_weight guess
 # with MEASURED recent latency. find_best_node_for_model computes node["_latency_ratio"]
 # = (this node's recent avg latency for the model) / (the fastest node's), from
@@ -229,6 +238,15 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
         # (RTX 3070 ~1.2 > RTX 3050 ~0.54 > hub Quadro M4000 ~0.14), with the
         # next-fastest then the hub as failover. Sized to beat 80% home-colocation.
         score += 1.2 * gpu_perf_weight(node.get("gpu_model"))
+
+    # Hub 7B de-preference (#375): keep the slow hub M4000 as a LAST-RESORT failover
+    # for 7B+ — its GPU-fit path above otherwise outscores the faster Starship-245
+    # (confirmed live: hub 1.94 > 245 0.60 for qwen2.5:7b, yet the hub runs it at
+    # ~100s vs 245's ~67s). Penalize prefer_gpu models on the starbase so overflow
+    # prefers a Starship (246's queue, then 245); the hub stays positive so it still
+    # serves 7B when every Starship is offline/asleep. Small CPU models untouched.
+    if footprint.prefer_gpu and str(node.get("deployment_mode") or "") == "starbase":
+        score -= HUB_HEAVY_PENALTY
 
     # Warm-resident preference (latency): the model is ALREADY loaded on this node,
     # so this dispatch skips the cold-load. ``_model_warm`` is precomputed by

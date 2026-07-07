@@ -2860,6 +2860,12 @@ def _register_own_jobs(scheduler, flask_app):
         _os_wtf.getenv("WTF_MAX_PER_CYCLE", "60")
     )  # reduced from 200 — prevents fleet queue saturation (stale-reaper KB #267773)
     _WTF_FAILBACK_THRESHOLD = 3
+    # Tier-2 gate for the full-7B backlog drains (#4536 follow-on): only deep-review
+    # articles that clear the same body-length bar as the live WTF_TIER2_GATE_MIN_BODY_CHARS
+    # (Citadel Lever A = 3000) get a full fact-check / bias pass. Shallow items (short
+    # blurbs, wires) are skipped so the backlog can't flood the hub with 7B demand.
+    # Already-flagged tier2_pending rows always qualify.
+    _WTF_BACKLOG_MIN_BODY_CHARS = int(_os_wtf.getenv("WTF_BACKLOG_MIN_BODY_CHARS", "3000"))
 
     # Context manager: connects to the wtf database (separate from archie DB).
     # wtf tables live in the wtf schema of archie_database container, dbname=wtf.
@@ -3566,10 +3572,13 @@ def _register_own_jobs(scheduler, flask_app):
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.fact_checks fc WHERE fc.article_id = a.id
                           )
+                          -- tier-2 gate: only deep-review-worthy articles get a full 7B
+                          -- fact-check; shallow items ride the Tier-1 quick lane (#4536)
+                          AND (LENGTH(a.body) >= %s OR a.tier2_pending = true)
                         ORDER BY a.published_at ASC
                         LIMIT %s
                         """,
-                        (_WTF_BATCH,),
+                        (_WTF_BACKLOG_MIN_BODY_CHARS, _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 
@@ -3801,11 +3810,14 @@ def _register_own_jobs(scheduler, flask_app):
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
                           )
+                          -- tier-2 gate: only deep-review-worthy articles get a full 7B
+                          -- bias pass; shallow items ride the Tier-1 quick lane (#4536)
+                          AND (LENGTH(a.body) >= %s OR a.tier2_pending = true)
                           AND a.id != ALL(%s)
                         ORDER BY a.published_at ASC
                         LIMIT %s
                         """,
-                        (list(tried_ids) or [0], _WTF_BATCH),
+                        (_WTF_BACKLOG_MIN_BODY_CHARS, list(tried_ids) or [0], _WTF_BATCH),
                     )
                     batch = cur.fetchall() or []
 

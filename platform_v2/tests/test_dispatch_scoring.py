@@ -949,6 +949,101 @@ class TestSpecialistPreference:
         assert selected["name"] == "C.O.D.E.X.", "director should still win unmapped capabilities"
 
 
+class TestNewsBeatClassificationSpecialist:
+    """News beat-classification ownership (#4702 Part B).
+
+    WTF beat-classification (wtf_hub ``classify_beat`` task, ~153/day) used to
+    dispatch the *generic* ``classify`` capability → Analytics & Intelligence
+    (I.R.I.S./W.A.T.C.H.), overloading the Analytics coordinator pool with news
+    work. Part B gives News & Media its own ``beat_classification`` capability,
+    owned by the beat specialist P.U.B.L.I.S.H. (repurposed to qwen2.5:1.5b), so
+    the news team owns its own beat work and the specialist beats the News
+    director F.A.C.T. — the same #3977 pattern that flipped translate to
+    R.O.S.E.T.T.A.
+    """
+
+    DEPT = "News & Media"
+
+    def _coord_with_cache(self, agent_cache, welfare_cache=None):
+        from services.department_coordinator import DepartmentCoordinator
+
+        coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+        coord._agent_cache = agent_cache
+        coord._welfare_cache = welfare_cache or {}
+        coord._cache_time = float("inf")
+        coord._reserved_agents = set()
+        import threading
+
+        coord._lock = threading.Lock()
+        return coord
+
+    def _publish_and_fact(self, *, fact_has_skill: bool = True):
+        # P.U.B.L.I.S.H. (#58) — the news beat specialist (small model, not director)
+        _, publish_info = _make_agent(
+            name="P.U.B.L.I.S.H.",
+            department=self.DEPT,
+            skills={"beat_classification": 4, "content_classification": 3},
+            is_department_ai=False,
+            agent_id=58,
+        )
+        # F.A.C.T. (#2) — the News & Media director (+0.3 is_department_ai bonus)
+        fact_skills = {"editorial": 5}
+        if fact_has_skill:
+            fact_skills["beat_classification"] = 4
+        _, fact_info = _make_agent(
+            name="F.A.C.T.",
+            department=self.DEPT,
+            skills=fact_skills,
+            is_department_ai=True,
+            agent_id=2,
+        )
+        return publish_info, fact_info
+
+    def test_beat_classification_mapped_to_news(self):
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+        assert CAPABILITY_DEPARTMENT_MAP.get("beat_classification") == "News & Media"
+
+    def test_beat_classification_has_publish_as_specialist(self):
+        from services.department_coordinator import CAPABILITY_SPECIALIST_MAP
+
+        assert CAPABILITY_SPECIALIST_MAP.get("beat_classification") == "P.U.B.L.I.S.H."
+
+    def test_publish_specialist_outscores_fact_director_at_equal_proficiency(self):
+        """Even when the News director F.A.C.T. also holds beat_classification at
+        equal proficiency, the +0.75 specialist bonus flips the director's +0.3."""
+        publish_info, fact_info = self._publish_and_fact(fact_has_skill=True)
+        coord = self._coord_with_cache(
+            {"P.U.B.L.I.S.H.": publish_info, "F.A.C.T.": fact_info},
+            {58: _make_welfare(), 2: _make_welfare()},
+        )
+
+        publish_score, publish_block = coord.score_agent(
+            "P.U.B.L.I.S.H.", publish_info, "beat_classification", self.DEPT
+        )
+        fact_score, fact_block = coord.score_agent("F.A.C.T.", fact_info, "beat_classification", self.DEPT)
+
+        assert publish_block is None and fact_block is None
+        assert publish_score > fact_score, (
+            f"specialist P.U.B.L.I.S.H. ({publish_score:.3f}) must beat "
+            f"director F.A.C.T. ({fact_score:.3f}) for beat_classification"
+        )
+
+    def test_select_agent_picks_publish_for_beat(self):
+        """Realistic roster — only P.U.B.L.I.S.H. holds the beat skill, so it
+        wins over the unskilled director F.A.C.T. (who takes the -1.0 unskilled
+        penalty)."""
+        publish_info, fact_info = self._publish_and_fact(fact_has_skill=False)
+        coord = self._coord_with_cache(
+            {"P.U.B.L.I.S.H.": publish_info, "F.A.C.T.": fact_info},
+            {58: _make_welfare(), 2: _make_welfare()},
+        )
+
+        selected = coord.select_agent(capability="beat_classification", department=self.DEPT)
+        assert selected is not None
+        assert selected["name"] == "P.U.B.L.I.S.H.", f"expected P.U.B.L.I.S.H., got {selected.get('name')}"
+
+
 class TestTokenBudgetThrottle:
     """#4090 / ADR-004 — an agent over its 24h token budget is THROTTLED (a healthy
     peer is preferred) but never STARVED.

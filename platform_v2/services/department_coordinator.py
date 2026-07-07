@@ -328,6 +328,7 @@ CAPABILITY_DEPARTMENT_MAP = {
     "news_writing": "News & Media",
     "editorial": "News & Media",
     "content_classification": "News & Media",  # WTF article classify — P.U.B.L.I.S.H.
+    "beat_classification": "News & Media",  # WTF news beat topic classify — P.U.B.L.I.S.H. (qwen2.5:1.5b, #4702 Part B)
     "metadata_enrichment": "News & Media",  # WTF article metadata — P.U.B.L.I.S.H.
     # I.N.K. — story clustering for WTF pipeline (DHQ job, Project #350)
     "clustering": "News & Media",
@@ -372,6 +373,11 @@ def _is_news_capability(capability: Optional[str]) -> bool:
 
 CAPABILITY_SPECIALIST_MAP = {
     "translate": "R.O.S.E.T.T.A.",
+    # WTF news beat classification (#4702 Part B) is News & Media work owned by
+    # P.U.B.L.I.S.H. (repurposed to qwen2.5:1.5b). The specialist bonus keeps beat
+    # work on P.U.B.L.I.S.H. even if the News director F.A.C.T. ever also gains the
+    # skill — so it never regresses onto a heavy 7B director the way translate did.
+    "beat_classification": "P.U.B.L.I.S.H.",
 }
 
 # Must beat is_department_ai (+0.3) plus typical welfare deltas (~±0.4),

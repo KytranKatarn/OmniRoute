@@ -59,10 +59,14 @@ def _resolve_agents() -> None:
         # is the load-bearing piece — the others are supporting context).
         _AGENT_IDS["deep_analysis"] = _get_agent_id("V.E.R.I.F.Y.")
     if not _AGENT_IDS["classify_beat"]:
-        # Beat classification routes to F.A.C.T. (News & Media director).
-        # Dispatches via capability="classify" → DHQ routes to Analytics &
-        # Intelligence (S.P.E.C.T.R.A./W.A.T.C.H.) for the actual inference.
-        _AGENT_IDS["classify_beat"] = _get_agent_id("F.A.C.T.")
+        # Beat classification is News & Media work (#4702 Part B): the
+        # beat_classification capability routes to the News beat specialist
+        # P.U.B.L.I.S.H. (qwen2.5:1.5b) via DHQ skill-first selection — not the
+        # generic Analytics `classify`. No model_override: the agent's small model
+        # drives it and warm-path fleet routing distributes across nodes (mirrors
+        # L.O.C.A.L./geo). This id is only the existence guard + response label;
+        # the dispatcher still picks the real agent by capability.
+        _AGENT_IDS["classify_beat"] = _get_agent_id("P.U.B.L.I.S.H.")
 
 
 def _auth_ok(req) -> bool:
@@ -187,7 +191,7 @@ def analyze():
         "factcheck": "V.E.R.I.F.Y.",
         "geo": "L.O.C.A.L.",
         "deep_analysis": "V.E.R.I.F.Y.",
-        "classify_beat": "F.A.C.T.",
+        "classify_beat": "P.U.B.L.I.S.H.",
     }
     agent_name = agent_names[task]
     agent_id = _AGENT_IDS.get(task)
@@ -210,7 +214,7 @@ def analyze():
         "factcheck": "fact_check",
         "geo": "geo_extraction",
         "deep_analysis": "fact_check",  # routes to V.E.R.I.F.Y. — same agent, longer prompt
-        "classify_beat": "classify",  # routes to Analytics & Intelligence (S.P.E.C.T.R.A./W.A.T.C.H.)
+        "classify_beat": "beat_classification",  # News & Media — P.U.B.L.I.S.H. (qwen2.5:1.5b, fleet-distributed), #4702 Part B
     }
 
     # Backpressure (#4536): if this capability's dispatch pipe is already saturated with

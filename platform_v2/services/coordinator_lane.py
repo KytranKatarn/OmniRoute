@@ -95,3 +95,20 @@ def coordinator_dispatch(capability, prompt, *, module_id="coordinator", json_mo
         timeout=timeout_s,
         **kwargs,
     )
+
+
+COORDINATOR_CAPABILITIES = frozenset({"classify", "sentiment", "tagging", "detect_language"})
+
+
+def should_apply_floor(capability, caller_pinned_model: bool) -> bool:
+    """True when the dispatcher should force the coordinator model for this capability.
+
+    A lightweight coordinator capability + lane enabled + the caller did NOT pin a
+    model (model_override/prefer_model). Pure except for the config read; fail-open
+    via coordinator_lane_enabled()'s own fail-open.
+    """
+    if caller_pinned_model:
+        return False
+    if capability not in COORDINATOR_CAPABILITIES:
+        return False
+    return coordinator_lane_enabled()

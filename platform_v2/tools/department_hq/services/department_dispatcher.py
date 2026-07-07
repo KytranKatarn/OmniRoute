@@ -6012,6 +6012,22 @@ class DepartmentDispatcher:
             except Exception as _crp_err:
                 logger.debug("[BridgeDispatcher] complexity routing skipped: %s", _crp_err)
 
+        # Coordinator model-floor (#4702): lightweight meta-capabilities
+        # (classify/sentiment/tagging/detect_language) run on the config-driven
+        # small coordinator model unless the caller pinned a model. Guarantees
+        # they never fall to a heavy 7B when the small-model pool agents are
+        # momentarily resting or the agent cache lags a shift change. Escape
+        # hatch: an explicit model_override/prefer_model wins. Kill switch:
+        # platform_settings dispatch:coordinator_lane_enabled. Fail-open.
+        try:
+            from services.coordinator_lane import should_apply_floor, get_coordinator_model
+
+            if should_apply_floor(capability, caller_pinned_model=bool(model_override or prefer_model)):
+                model_override = get_coordinator_model()
+                logger.info("[BridgeDispatcher] coordinator model-floor: %s -> %s", capability, model_override)
+        except Exception as _cf_err:
+            logger.debug("[BridgeDispatcher] coordinator floor skipped: %s", _cf_err)
+
         # Force-refresh busy agents list (bypass 30s welfare cache TTL)
         try:
             from psycopg2.extras import RealDictCursor

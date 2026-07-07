@@ -215,6 +215,77 @@ def _send_hr_telegram_alerts(cur, conn, flask_app):
 _flask_app = None
 
 
+def _check_cluster_saturation(cur):
+    """K.I.N. cluster advisory — PROACTIVE + ACTIONABLE (#375).
+
+    When the hub sheds a burst of 7B dispatches under saturation, emit ONE
+    consolidated root-cause advisory with recommended actions instead of N
+    per-agent 'high error rate' pages. (Those false pages are already gone —
+    sheds are excluded from the error rate — but the underlying saturation is a
+    real condition worth surfacing ONCE, with the fix, rather than silently.)
+    Self-dedups to one advisory / 2h (agent_id IS NULL; _create_hr_alert's own
+    `= %s` dedup never matches NULL).
+    """
+    try:
+        cur.execute(
+            """SELECT 1 FROM agent_alerts
+               WHERE agent_id IS NULL AND alert_type = 'cluster_saturation'
+                 AND resolved = FALSE AND created_at > NOW() - INTERVAL '2 hours' LIMIT 1"""
+        )
+        if cur.fetchone():
+            return 0
+
+        cur.execute(
+            """
+            SELECT COUNT(*) AS sheds,
+                   COUNT(DISTINCT agent_name) AS agents,
+                   ARRAY_AGG(DISTINCT agent_name) AS agent_list
+            FROM task_execution_log
+            WHERE created_at > NOW() - INTERVAL '1 hour'
+              AND success = FALSE
+              AND (error_message ILIKE '%hub saturated%'
+                   OR error_message ILIKE '%admission cap%'
+                   OR error_message ILIKE '%shed to relieve%'
+                   OR error_message ILIKE '%backpressure%')
+            """
+        )
+        row = cur.fetchone() or {}
+        sheds = row.get("sheds") or 0
+        agents = row.get("agents") or 0
+        # A real saturation BURST, not a one-off. Tunable.
+        if sheds < 20 or agents < 2:
+            return 0
+
+        agent_list = [a for a in (row.get("agent_list") or []) if a][:8]
+        who = ", ".join(agent_list)
+        title = f"Hub 7B saturated — {sheds} dispatches shed across {agents} agents (1h)"
+        message = (
+            f"{sheds} dispatches were SHED across {agents} agents ({who}) in the last hour "
+            f"because the hub's 8GB GPU cannot hold 7B under load. These are NOT agent errors "
+            f"— it is the admission control shedding load to protect the hub.\n\n"
+            f"Root cause: 7B fact_check/bias work piling onto the contended hub GPU while the "
+            f"RTX Starships have headroom.\n\n"
+            f"Recommended actions:\n"
+            f"• Fleet → PLATFORM profile: give platform/interactive work GPU priority so 7B "
+            f"prefers the Starships.\n"
+            f"• Throttle the WTF fact_check/bias flood (welfare:backlog cap) if the backlog is high.\n"
+            f"• Longer term: rebalance the 7B tier off the slow hub (Project #375).\n\n"
+            f"Fleet tab: https://platform.kytranempowerment.com/tools/department-hq/#fleet"
+        )
+        return _create_hr_alert(
+            cur,
+            None,
+            "cluster_saturation",
+            "warning",
+            title,
+            message,
+            {"sheds_1h": sheds, "agents": agents, "agent_list": agent_list},
+        )
+    except Exception as e:
+        logger.warning("cluster saturation advisory failed: %s", e)
+        return 0
+
+
 def track_agent_hr():
     """Aggregate task_execution_log into agent_daily_summary.
     Check for overwork, high error rates, and idle agents.
@@ -260,6 +331,23 @@ def track_agent_hr():
                    COUNT(*) as total_tasks,
                    COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
                    COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
+                   -- Infra-backpressure "failures" (#4538 class): the hub admission
+                   -- control SHEDDING 7B under saturation, queue timeouts, reaper kills.
+                   -- These are NOT the agent's fault -- they are load-shedding working
+                   -- as designed. Excluding them from the error rate stops K.I.N. from
+                   -- firing a storm of false "high error rate" HR alerts on a systemic
+                   -- hub-saturation event (every 7B agent shows ~100% otherwise).
+                   COUNT(CASE WHEN success = FALSE AND (
+                       error_message ILIKE '%hub saturated%'
+                       OR error_message ILIKE '%admission cap%'
+                       OR error_message ILIKE '%shed to relieve%'
+                       OR error_message ILIKE '%backpressure%'
+                       OR error_message ILIKE '%reaped%'
+                       OR error_message ILIKE '%did not respond%'
+                       OR error_message ILIKE '%auto-killed%'
+                       OR error_message ILIKE '%queue timeout%'
+                       OR error_message ILIKE '%timeout after%'
+                   ) THEN 1 END) as infra_failed,
                    COALESCE(SUM(duration_ms), 0) as total_duration,
                    COALESCE(AVG(duration_ms), 0) as avg_duration,
                    ARRAY_AGG(DISTINCT model_used) FILTER (WHERE model_used IS NOT NULL) as models,
@@ -276,9 +364,15 @@ def track_agent_hr():
         agent_stats = cur.fetchall()
 
         for stat in agent_stats:
-            error_rate = 0
-            if stat["total_tasks"] > 0:
-                error_rate = round((stat["failed"] / stat["total_tasks"]) * 100, 2)
+            # Error rate reflects the agent's OWN failures, EXCLUDING infra
+            # backpressure sheds/timeouts (#4538 class) — those are the hub shedding
+            # load, not agent error. Without this, a hub-saturation event shows every
+            # 7B agent at ~100% "error rate" and fires a storm of false HR alerts (and
+            # unfairly penalises them in the welfare formula, which reads error_rate_pct).
+            infra_failed = stat.get("infra_failed") or 0
+            real_failed = max(stat["failed"] - infra_failed, 0)
+            real_total = max(stat["total_tasks"] - infra_failed, 0)
+            error_rate = round((real_failed / real_total) * 100, 2) if real_total > 0 else 0
 
             # Calculate utilization
             hours_elapsed = max(
@@ -355,6 +449,11 @@ def track_agent_hr():
                     "total_tasks": row["total_tasks"],
                 },
             )
+
+        # 2a.5 Cluster saturation advisory (proactive + correlated, #375). One
+        # root-cause advisory when the hub sheds a 7B burst — replaces the storm
+        # of per-agent 'high error rate' pages with a single actionable message.
+        alerts_created += _check_cluster_saturation(cur)
 
         # 2b. Overwork — hours-based escalation
         #   8-12h + at task queue limit: K.I.N. workload monitor handles (auto 30-min rest)

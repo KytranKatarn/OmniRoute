@@ -845,7 +845,19 @@ def _fleet_routing_enabled() -> bool:
         return True
 
 
-_SMALL_MODEL_MARKERS = ("1.5b", "1b", "0.5b", "3b", "embed", "nomic", "moondream", "tiny")
+_SMALL_MODEL_MARKERS = (
+    "1.5b",
+    "1b",
+    "0.5b",
+    "3b",
+    ":2b",
+    "classify",
+    "mini",
+    "embed",
+    "nomic",
+    "moondream",
+    "tiny",
+)
 
 
 def _model_is_gpu_class(model: Optional[str]) -> bool:

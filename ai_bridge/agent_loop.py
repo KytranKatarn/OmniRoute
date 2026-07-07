@@ -3426,11 +3426,15 @@ class AgentLoop:
         import requests as req
 
         # (model, num_gpu) — all on the hub CPU. 7d volume: qwen2.5:7b 14k @33s, mistral:7b 7.9k @43s,
-        # qwen25-classify 2.4k @24s. All confirmed present on the hub Ollama.
+        # qwen25-classify 2.4k @24s. All confirmed present on the hub Ollama. Coordinator slot is
+        # config-driven (services.coordinator_lane) so a Phase 3 model swap keeps keep-warm in sync
+        # without a code change — fail-open to the "qwen25-classify" default on any DB/read error.
+        from services.coordinator_lane import get_coordinator_model
+
         registry = [
             ("qwen2.5:7b", 0),
             ("mistral:7b", 0),
-            ("qwen25-classify", 0),
+            (get_coordinator_model(), 0),
         ]
         ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
         if not ollama_host.startswith("http"):

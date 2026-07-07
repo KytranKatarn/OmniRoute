@@ -154,7 +154,7 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
         return None
 
     try:
-        from tools.department_hq.services.department_dispatcher import get_dispatcher
+        from services.coordinator_lane import coordinator_dispatch
 
         prompt = (
             "Analyze the emotional sentiment of this text. "
@@ -168,14 +168,12 @@ def _llm_classify_sentiment(text: str) -> Optional[Dict[str, any]]:
             '"signals":["list","of","detected","signals"]}'
         )
 
-        dispatcher = get_dispatcher()
-        dispatch_result = dispatcher.request_work(
+        dispatch_result = coordinator_dispatch(
             "classify",
             prompt,
-            "emotional_intelligence",
+            module_id="emotional_intelligence",
             json_mode=True,
-            timeout=10,
-            prefer_agent="I.R.I.S.",
+            timeout_s=10,
         )
 
         if not dispatch_result.success:

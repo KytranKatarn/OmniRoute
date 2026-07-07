@@ -33,7 +33,6 @@ sys.path.insert(0, "/app")
 
 import psycopg2
 import psycopg2.extras
-from tools.department_hq.services.department_dispatcher import dispatch  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Config
@@ -211,11 +210,14 @@ def classify_batch(articles: list, log) -> list:
     )
 
     try:
-        result = dispatch(
-            capability="classify",
-            prompt=prompt,
+        from services.coordinator_lane import coordinator_dispatch
+
+        result = coordinator_dispatch(
+            "classify",
+            prompt,
             module_id="wtf_beat_backfill",
             json_mode=True,
+            timeout_s=120,
         )
     except Exception as exc:
         log.warning("Dispatcher error: %s — marking batch None", exc)

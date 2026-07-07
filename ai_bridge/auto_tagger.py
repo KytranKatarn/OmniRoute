@@ -316,7 +316,7 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
         return regex_tags
 
     try:
-        from tools.department_hq.services.department_dispatcher import get_dispatcher
+        from services.coordinator_lane import coordinator_dispatch
 
         domains = ", ".join(KNOWLEDGE_DOMAINS.keys())
         prompt = (
@@ -328,14 +328,12 @@ def _llm_enrich_tags(text: str, regex_tags: List[str]) -> List[str]:
             f'Respond with JSON only: {{"tags": ["tag1", "tag2"]}}'
         )
 
-        dispatcher = get_dispatcher()
-        result = dispatcher.request_work(
+        result = coordinator_dispatch(
             "classify",
             prompt,
-            "auto_tagger",
+            module_id="auto_tagger",
             json_mode=True,
-            timeout=10,
-            prefer_agent="I.R.I.S.",
+            timeout_s=10,
         )
 
         if result.success:

@@ -106,6 +106,20 @@ def _dispatch(
         Generated text, or empty string on failure.
     """
     try:
+        if capability == "detect_language":
+            from services.coordinator_lane import coordinator_dispatch
+
+            result = coordinator_dispatch(
+                capability,
+                prompt,
+                module_id=MODULE_ID,
+                timeout_s=10,
+            )
+            if result.success:
+                return result.response
+            logger.error("Bridge dispatch failed (capability=%s): %s", capability, result.error)
+            return ""
+
         from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()

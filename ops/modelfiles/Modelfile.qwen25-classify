@@ -1,0 +1,27 @@
+# Modelfile for qwen25-classify — the A.R.C.H.I.E. coordinator-lane model.
+#
+# The coordinator lane routes dispatch's lightweight meta-reasoning
+# (classify / sentiment / tagging / detect_language) to this one designated,
+# always-warm, GPU-free small model. See platform_v2/services/coordinator_lane.py
+# and .claude/plans/2026-07-06-coordinator-lane-design.md.
+#
+# Provenance (verified on the live hub Ollama, 2026-07-07):
+#   qwen25-classify shares the EXACT qwen2.5:1.5b weights blob
+#   (sha256-183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4,
+#   986 MB). It is qwen2.5:1.5b re-created with a CPU pin (num_gpu 0) + a fixed
+#   2048-token context. Captured via `ollama show qwen25-classify --modelfile`
+#   and rewritten with a portable `FROM qwen2.5:1.5b` (the live model's FROM is
+#   a raw blob path, which is NOT reproducible off-hub — this is).
+#
+# The CPU pin (num_gpu 0) is a coordinator-lane invariant: the model must stay
+# small + GPU-free so hub admission control never sheds it (it is classified as
+# non-GPU-class in model_sizes + _SMALL_MODEL_MARKERS).
+#
+# Rebuild on any node that already has qwen2.5:1.5b:
+#   ollama create qwen25-classify -f Modelfile.qwen25-classify
+#
+# TEMPLATE + LICENSE are inherited from qwen2.5:1.5b automatically.
+FROM qwen2.5:1.5b
+SYSTEM """You are Qwen, created by Alibaba Cloud. You are a helpful assistant."""
+PARAMETER num_ctx 2048
+PARAMETER num_gpu 0

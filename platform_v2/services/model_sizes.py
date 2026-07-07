@@ -33,6 +33,7 @@ class ModelFootprint:
 _TABLE: dict[str, ModelFootprint] = {
     # Tiny — fit anywhere
     "qwen2.5:0.5b": ModelFootprint(1.0, 2.0, False),
+    "qwen25-classify": ModelFootprint(1.0, 2.0, False),
     "qwen2.5:1.5b": ModelFootprint(2.0, 3.0, False),
     "llama3.2:3b": ModelFootprint(3.0, 5.0, False),
     "phi3.5": ModelFootprint(3.0, 5.0, False),

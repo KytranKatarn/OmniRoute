@@ -372,6 +372,15 @@ class TestModelIsGpuClass:
         assert fn("") is False
         assert fn(None) is False
 
+    def test_coordinator_and_small_candidates_are_not_gpu_class(self):
+        """Isolation linchpin (KB #278774 f/u): the coordinator model and the
+        Phase-3 small candidates must classify as small/non-GPU-class so the
+        hub admission gate doesn't shed them and mis-escalate to GPU nodes.
+        """
+        fn = self._fn()
+        for m in ("qwen25-classify", "gemma2:2b", "phi4-mini"):
+            assert fn(m) is False, f"{m} must be small/non-GPU-class"
+
 
 class TestHubAdmissionGeneralized:
     """RCA KB #278774 generalization f/u: the _execute_llm hub-admission guard must gate on

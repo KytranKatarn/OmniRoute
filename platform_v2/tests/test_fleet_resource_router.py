@@ -137,6 +137,44 @@ def test_higher_priority_node_scores_higher():
     assert s_high > s_low
 
 
+# ---------------------------------------------------------------------------
+# Warm-resident preference (latency-aware routing, refined-B / KB #278809)
+# ---------------------------------------------------------------------------
+
+
+def test_warm_resident_model_scores_higher_by_the_bonus():
+    from services.fleet_resource_router import WARM_MODEL_BONUS
+
+    cold = score_node_for_model(HUB, "qwen2.5:7b")
+    warm_node = dict(HUB)
+    warm_node["_model_warm"] = True
+    warm = score_node_for_model(warm_node, "qwen2.5:7b")
+    assert cold is not None and warm is not None
+    assert warm == cold + WARM_MODEL_BONUS
+
+
+def test_warm_flag_absent_or_false_is_unchanged():
+    # No/False flag → byte-for-byte the old score (backward compat for other callers).
+    base = score_node_for_model(HUB, "qwen2.5:7b")
+    false_node = dict(HUB)
+    false_node["_model_warm"] = False
+    assert score_node_for_model(false_node, "qwen2.5:7b") == base
+
+
+def test_warm_model_can_outrank_a_faster_cold_gpu():
+    # A warm model on an RTX 3070 should beat the SAME model COLD on a faster RTX 4090 —
+    # the cold-load cost exceeds the per-card speed delta between adjacent tiers.
+    fast_cold = dict(HUB)
+    fast_cold["gpu_model"] = "RTX 4090"
+    warm_slower = dict(HUB)
+    warm_slower["gpu_model"] = "RTX 3070"
+    warm_slower["_model_warm"] = True
+    s_fast_cold = score_node_for_model(fast_cold, "qwen2.5:7b")
+    s_warm = score_node_for_model(warm_slower, "qwen2.5:7b")
+    assert s_fast_cold is not None and s_warm is not None
+    assert s_warm > s_fast_cold
+
+
 def test_iso_string_heartbeat_is_parsed():
     node = dict(HUB)
     node["last_heartbeat"] = _fresh_hb().isoformat()

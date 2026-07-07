@@ -24,6 +24,17 @@ from services.model_sizes import lookup
 STALE_HEARTBEAT_SECONDS = 180
 STALE_HEARTBEAT_PENALTY = 1.0
 
+# Latency-aware routing (refined-B / K.I.N.-advises): a node that already has the
+# model LOADED (warm-resident, per model_load_state) skips a multi-GB cold-load —
+# the dominant dispatch latency (the 3-13 min / warmup-thrash we measured; KB #278809).
+# Additive bonus so a warm node beats a cold one and can outrank a somewhat-faster
+# COLD card. find_best_node_for_model precomputes node["_model_warm"]; other callers
+# omit it → byte-for-byte unchanged. Tunable.
+WARM_MODEL_BONUS = 1.0
+# Freshness window for a model_load_state row to count as "still warm". The state
+# save job refreshes ~every 5m and KEEP_ALIVE is 60m, so 15m = 3 cycles of tolerance.
+WARM_STATE_WINDOW_MINUTES = 15
+
 
 def _safe(value, default=0):
     return value if value is not None else default
@@ -178,6 +189,12 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
         # next-fastest then the hub as failover. Sized to beat 80% home-colocation.
         score += 1.2 * gpu_perf_weight(node.get("gpu_model"))
 
+    # Warm-resident preference (latency): the model is ALREADY loaded on this node,
+    # so this dispatch skips the cold-load. ``_model_warm`` is precomputed by
+    # find_best_node_for_model from model_load_state; absent for other callers (no-op).
+    if node.get("_model_warm"):
+        score += WARM_MODEL_BONUS
+
     # Load pressure — softer when the node is idle.
     max_conc = max(int(_safe(node.get("max_concurrent"), 1)), 1)
     cur_load = max(int(_safe(node.get("current_load"), 0)), 0)
@@ -301,6 +318,25 @@ def find_best_node_for_model(
                 """,
             )
             nodes = [dict(r) for r in cur.fetchall()]
+            # Warm-resident set: nodes with the model currently LOADED (model_load_state,
+            # keyed by node_db_id = remote_nodes.id). Preferring these skips the multi-GB
+            # cold-load. Fail-safe: any error → empty set → routing byte-for-byte unchanged.
+            # :latest is normalized on both sides (e.g. dolphin3 vs dolphin3:latest).
+            warm_ids: set = set()
+            try:
+                cur.execute(
+                    """
+                    SELECT DISTINCT node_db_id FROM model_load_state
+                    WHERE host_type = 'node' AND node_db_id IS NOT NULL
+                      AND saved_at > NOW() - make_interval(mins => %s)
+                      AND regexp_replace(model_name, ':latest$', '')
+                          = regexp_replace(%s, ':latest$', '')
+                    """,
+                    (WARM_STATE_WINDOW_MINUTES, model),
+                )
+                warm_ids = {r["node_db_id"] for r in cur.fetchall() if r.get("node_db_id") is not None}
+            except Exception:
+                warm_ids = set()
     except Exception:
         return home_node_db_id
 
@@ -332,6 +368,8 @@ def find_best_node_for_model(
         # to a node that 404s on it (#4272); the hub fallback serves it instead.
         if not node_has_model(node, model):
             continue
+        # Warm-resident flag → the scorer adds WARM_MODEL_BONUS (skip the cold-load).
+        node["_model_warm"] = node["id"] in warm_ids
         score = score_node_for_model(node, model)
         if score is None:
             score = 0.001  # admitted by fit; rank last rather than disqualify

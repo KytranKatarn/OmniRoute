@@ -404,15 +404,20 @@ def register_benchmark_routes(bp, admin_required):
             try:
                 from tools.department_hq.services.department_dispatcher import dispatch
 
-                # See note at the earlier call site: model kwarg was silently
-                # dropped by the canonical signature. Encode target model in
-                # module_id until #2129 adds prefer_model.
+                # #4707: actually run the SELECTED local model. model_override IS
+                # honored by request_work (unlike the bare `model` kwarg, which the
+                # canonical signature drops) — so each side runs its own model and the
+                # judge compares two DIFFERENT models instead of one routed model vs
+                # itself. model_override pins to the hub: fine for a controlled A/B
+                # (both sides same node = fair). Timeout bumped for cold-loading
+                # larger candidates (e.g. an 8B first-load).
                 start = time.time()
                 result = dispatch(
                     capability="benchmark",
                     prompt=test_prompt,
                     module_id=f"agent_academy:{model_name}",
-                    timeout=120,
+                    model_override=model_name,
+                    timeout=240,
                 )
                 duration_ms = int((time.time() - start) * 1000)
 

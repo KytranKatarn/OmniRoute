@@ -324,29 +324,34 @@ def track_agent_hr():
 
         hours_map = real_compute_hours_today(cur)
 
-        # 1. Aggregate today's task_execution_log into agent_daily_summary
+        # 1. Aggregate today's task_execution_log into agent_daily_summary.
+        # WARNING: this SELECT is parameterized (the `= %s` for `today`), so psycopg2
+        # scans the ENTIRE query string -- SQL comments included -- for percent signs.
+        # EVERY literal percent must be doubled or psycopg2 reads it as a positional
+        # placeholder and the whole HR job dies with "IndexError: tuple index out of
+        # range" at step 1. Keep this SQL free of stray percent signs: the ILIKE
+        # wildcards below are the only ones, doubled to `%%`. Do NOT put a bare percent
+        # in the SQL comments either. (Regression from #2091; KB #268832 / #277249.)
         cur.execute(
             """
             SELECT agent_id,
                    COUNT(*) as total_tasks,
                    COUNT(CASE WHEN success = TRUE THEN 1 END) as successful,
                    COUNT(CASE WHEN success = FALSE THEN 1 END) as failed,
-                   -- Infra-backpressure "failures" (#4538 class): the hub admission
-                   -- control SHEDDING 7B under saturation, queue timeouts, reaper kills.
-                   -- These are NOT the agent's fault -- they are load-shedding working
-                   -- as designed. Excluding them from the error rate stops K.I.N. from
-                   -- firing a storm of false "high error rate" HR alerts on a systemic
-                   -- hub-saturation event (every 7B agent shows ~100% otherwise).
+                   -- infra-backpressure "failures" (#4538 class): hub admission-control
+                   -- sheds, queue timeouts, reaper kills -- NOT the agent's fault. Excluded
+                   -- from the real error rate so a hub-saturation burst does not fire a storm
+                   -- of false "high error rate" HR alerts (nor unfairly penalise welfare).
                    COUNT(CASE WHEN success = FALSE AND (
-                       error_message ILIKE '%hub saturated%'
-                       OR error_message ILIKE '%admission cap%'
-                       OR error_message ILIKE '%shed to relieve%'
-                       OR error_message ILIKE '%backpressure%'
-                       OR error_message ILIKE '%reaped%'
-                       OR error_message ILIKE '%did not respond%'
-                       OR error_message ILIKE '%auto-killed%'
-                       OR error_message ILIKE '%queue timeout%'
-                       OR error_message ILIKE '%timeout after%'
+                       error_message ILIKE '%%hub saturated%%'
+                       OR error_message ILIKE '%%admission cap%%'
+                       OR error_message ILIKE '%%shed to relieve%%'
+                       OR error_message ILIKE '%%backpressure%%'
+                       OR error_message ILIKE '%%reaped%%'
+                       OR error_message ILIKE '%%did not respond%%'
+                       OR error_message ILIKE '%%auto-killed%%'
+                       OR error_message ILIKE '%%queue timeout%%'
+                       OR error_message ILIKE '%%timeout after%%'
                    ) THEN 1 END) as infra_failed,
                    COALESCE(SUM(duration_ms), 0) as total_duration,
                    COALESCE(AVG(duration_ms), 0) as avg_duration,

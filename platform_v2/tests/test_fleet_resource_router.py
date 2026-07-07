@@ -175,6 +175,47 @@ def test_warm_model_can_outrank_a_faster_cold_gpu():
     assert s_warm > s_fast_cold
 
 
+# ---------------------------------------------------------------------------
+# Concurrent-heavy cap (latency-aware routing, refined-B slice 2)
+# ---------------------------------------------------------------------------
+
+
+def test_heavy_model_over_concurrency_cap_is_penalised():
+    from services.fleet_resource_router import HEAVY_CONCURRENCY_CAP, HEAVY_OVERCAP_PENALTY
+
+    base = score_node_for_model(HUB, "qwen2.5:7b")
+    over = dict(HUB)
+    over["_heavy_inflight"] = HEAVY_CONCURRENCY_CAP  # at/over cap
+    over_score = score_node_for_model(over, "qwen2.5:7b")
+    assert base is not None and over_score is not None
+    assert abs(over_score - (base - HEAVY_OVERCAP_PENALTY)) < 1e-9
+
+
+def test_heavy_model_under_cap_not_penalised():
+    from services.fleet_resource_router import HEAVY_CONCURRENCY_CAP
+
+    base = score_node_for_model(HUB, "qwen2.5:7b")
+    under = dict(HUB)
+    under["_heavy_inflight"] = HEAVY_CONCURRENCY_CAP - 1
+    assert score_node_for_model(under, "qwen2.5:7b") == base
+
+
+def test_small_cpu_model_not_subject_to_heavy_cap():
+    # prefer_gpu=False models don't contend for the GPU → the cap never applies,
+    # even with many heavy jobs in flight on the node.
+    base = score_node_for_model(OUTPOST, "qwen2.5:1.5b")
+    loaded = dict(OUTPOST)
+    loaded["_heavy_inflight"] = 99
+    assert score_node_for_model(loaded, "qwen2.5:1.5b") == base
+
+
+def test_heavy_inflight_absent_is_unchanged():
+    base = score_node_for_model(HUB, "qwen2.5:7b")
+    n = dict(HUB)
+    n.pop("_heavy_inflight", None)
+    assert score_node_for_model(n, "qwen2.5:7b") == base
+
+
 def test_iso_string_heartbeat_is_parsed():
     node = dict(HUB)
     node["last_heartbeat"] = _fresh_hb().isoformat()

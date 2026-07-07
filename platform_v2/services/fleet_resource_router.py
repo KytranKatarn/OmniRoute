@@ -35,6 +35,16 @@ WARM_MODEL_BONUS = 1.0
 # save job refreshes ~every 5m and KEEP_ALIVE is 60m, so 15m = 3 cycles of tolerance.
 WARM_STATE_WINDOW_MINUTES = 15
 
+# Concurrent-heavy cap (refined-B slice 2): with NUM_PARALLEL=1 a node serves one
+# request per model at a time, so stacking heavy (prefer_gpu / 7B+) jobs on one node
+# SERIALIZES them — the Nth waits for N-1 to finish. When a node already has this many
+# heavy jobs in flight, deprioritize it for ANOTHER heavy job so the work spreads across
+# GPU nodes. Absolute (not scaled by max_concurrent — heavy work is GPU-bound). The
+# penalty deprioritizes, never disqualifies (fail-open: all-saturated still routes to the
+# least-bad). ``_heavy_inflight`` is precomputed by find_best_node_for_model. Tunable.
+HEAVY_CONCURRENCY_CAP = 2
+HEAVY_OVERCAP_PENALTY = 1.5
+
 
 def _safe(value, default=0):
     return value if value is not None else default
@@ -200,6 +210,14 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     cur_load = max(int(_safe(node.get("current_load"), 0)), 0)
     score -= 0.5 * (cur_load / max_conc)
 
+    # Concurrent-heavy cap (latency): a node already running >= HEAVY_CONCURRENCY_CAP
+    # heavy jobs would SERIALIZE another one behind them (NUM_PARALLEL=1). Firmly
+    # deprioritize so heavy work spreads to a less-loaded GPU node — penalty only, never
+    # disqualify. Only for prefer_gpu models; small CPU models don't contend for the GPU.
+    # ``_heavy_inflight`` precomputed by find_best_node_for_model; absent → no-op.
+    if footprint.prefer_gpu and node.get("_heavy_inflight", 0) >= HEAVY_CONCURRENCY_CAP:
+        score -= HEAVY_OVERCAP_PENALTY
+
     # Priority — node operators set priority 1-10 to influence routing.
     priority = int(_safe(node.get("priority"), 10))
     score += 0.1 * (priority / 10.0)
@@ -337,6 +355,32 @@ def find_best_node_for_model(
                 warm_ids = {r["node_db_id"] for r in cur.fetchall() if r.get("node_db_id") is not None}
             except Exception:
                 warm_ids = set()
+            # Heavy-inflight per node: count in-flight (queued/running) dispatch rows whose
+            # model is prefer_gpu (GPU-bound, classified via model_sizes.lookup). With
+            # NUM_PARALLEL=1 these serialize on the node, so the scorer deprioritizes a node
+            # at/over HEAVY_CONCURRENCY_CAP for another heavy job. Fail-safe → empty on error.
+            heavy_inflight: dict = {}
+            try:
+                cur.execute(
+                    """
+                    SELECT COALESCE(result_node_id, preferred_node_id) AS nid, model_needed
+                    FROM dispatch_pending_queue
+                    WHERE status IN ('queued', 'running')
+                      AND queued_at > NOW() - INTERVAL '10 minutes'
+                      AND COALESCE(result_node_id, preferred_node_id) IS NOT NULL
+                    """,
+                )
+                for r in cur.fetchall():
+                    nid, mdl = r["nid"], r.get("model_needed")
+                    if nid is None or not mdl:
+                        continue
+                    try:
+                        if lookup(mdl).prefer_gpu:
+                            heavy_inflight[nid] = heavy_inflight.get(nid, 0) + 1
+                    except Exception:
+                        continue
+            except Exception:
+                heavy_inflight = {}
     except Exception:
         return home_node_db_id
 
@@ -370,6 +414,7 @@ def find_best_node_for_model(
             continue
         # Warm-resident flag → the scorer adds WARM_MODEL_BONUS (skip the cold-load).
         node["_model_warm"] = node["id"] in warm_ids
+        node["_heavy_inflight"] = heavy_inflight.get(node["id"], 0)
         score = score_node_for_model(node, model)
         if score is None:
             score = 0.001  # admitted by fit; rank last rather than disqualify

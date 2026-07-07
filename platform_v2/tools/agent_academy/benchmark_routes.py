@@ -441,6 +441,31 @@ def register_benchmark_routes(bp, admin_required):
                     "error": str(e)[:500],
                 }
 
+        # #4718: run the LOCAL judge on the two answers so local-vs-local yields a real
+        # verdict (score + winner + rationale) instead of the old hardcoded score=0.
+        # Cloud runs already judge via the async worker; this brings the sync local path
+        # to parity. Only judge when BOTH sides produced a response.
+        verdict = {"score_a": None, "score_b": None, "winner": None, "rationale": ""}
+        if results.get("a", {}).get("success") and results.get("b", {}).get("success"):
+            try:
+                from tools.department_hq.services.department_dispatcher import dispatch as _judge_dispatch
+                from tools.agent_academy.ab_compare import build_judge_prompt, parse_judge_result
+
+                _judge_model = "qwen2.5:7b"
+                _jr = _judge_dispatch(
+                    capability="benchmark",
+                    prompt=build_judge_prompt(test_prompt, results["a"]["response"], results["b"]["response"]),
+                    module_id="agent_academy:judge",
+                    model_override=_judge_model,
+                    timeout=180,
+                )
+                if _jr and _jr.success:
+                    verdict = parse_judge_result(_jr.response)
+                    verdict["judge_model"] = _judge_model
+            except Exception as _je:
+                logger.warning("ab_test judge failed: %s", _je)
+        _score_for = {"a": verdict.get("score_a"), "b": verdict.get("score_b")}
+
         # Store A/B test in benchmark runs
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
@@ -458,6 +483,7 @@ def register_benchmark_routes(bp, admin_required):
                             "prompt": test_prompt[:500],
                             "model_a": model_a,
                             "model_b": model_b,
+                            "verdict": verdict,
                         }
                     ),
                     sum(1 for r in results.values() if r["success"]),
@@ -473,7 +499,7 @@ def register_benchmark_routes(bp, admin_required):
                        (run_id, agent_id, agent_name, display_name, model_used,
                         duration_ms, prompt_tokens, completion_tokens, total_tokens,
                         success, error_message, response_preview, score)
-                       VALUES (%s, 0, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0)""",
+                       VALUES (%s, NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                     (
                         run_id,
                         f"model_{label}",
@@ -486,6 +512,7 @@ def register_benchmark_routes(bp, admin_required):
                         r["success"],
                         r["error"],
                         r["response"][:1000],
+                        _score_for.get(label),
                     ),
                 )
 
@@ -494,6 +521,7 @@ def register_benchmark_routes(bp, admin_required):
                 "run_id": run_id,
                 "capability": capability,
                 "results": results,
+                "verdict": verdict,
             }
         )
 

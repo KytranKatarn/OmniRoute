@@ -33,6 +33,12 @@ log = logging.getLogger("platform.model_dispatch")
 MAX_TASKS_PER_MODEL = 8
 # Max total tasks dispatched per cycle across all models + nodes
 MAX_TASKS_PER_CYCLE = 20
+# Guaranteed per-cycle drain slice for tasks pinned to a fleet node (kin_warmth
+# warmups + cold-load-acceptable pinned work). Pinned tasks run on the NODE's
+# Ollama, not hub RAM, so reserve a floor even when the unpinned queue has filled
+# MAX_TASKS_PER_CYCLE — otherwise the pinned drain is skipped forever under load
+# and fleet warmups starve → expire unclaimed → warm-keep never lands (#3804/#375).
+PINNED_RESERVED_SLICE = 2
 # Thread pool for concurrent CPU-model dispatches (prevents blocking the worker thread)
 _CPU_EXECUTOR = ThreadPoolExecutor(max_workers=6, thread_name_prefix="mdw_cpu")
 
@@ -1455,9 +1461,17 @@ def model_dispatch_worker() -> None:
                 log.warning("model_dispatch: task execution raised: %s", exc)
         log.info("model_dispatch: parallel drain — %d/%d tasks completed", completed, len(futures))
 
-    # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable)
-    if total_executed < MAX_TASKS_PER_CYCLE:
-        preferred_tasks = _claim_preferred_node_tasks(limit=4)
+    # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable). RESERVED slice:
+    # pinned tasks execute on the pinned NODE's Ollama (not hub RAM) and are mostly
+    # cheap kin_warmth pings, so guarantee a floor every cycle. Previously this was
+    # gated behind `total_executed < MAX_TASKS_PER_CYCLE`, so a sustained unpinned
+    # queue filled the budget and the pinned drain was skipped forever — fleet
+    # warmups starved and expired unclaimed, so the warm-keep never landed
+    # (#3804/#375). Now: up to 4 when there is headroom, but always at least
+    # PINNED_RESERVED_SLICE even when the cycle is otherwise full.
+    _pinned_limit = min(4, max(PINNED_RESERVED_SLICE, MAX_TASKS_PER_CYCLE - total_executed))
+    if _pinned_limit > 0:
+        preferred_tasks = _claim_preferred_node_tasks(limit=_pinned_limit)
         pref_futures = []
         for task in preferred_tasks:
             fut = _CPU_EXECUTOR.submit(_execute_task, task)

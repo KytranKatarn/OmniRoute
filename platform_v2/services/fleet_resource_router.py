@@ -45,6 +45,37 @@ WARM_STATE_WINDOW_MINUTES = 15
 HEAVY_CONCURRENCY_CAP = 2
 HEAVY_OVERCAP_PENALTY = 1.5
 
+# Observed-latency signal (refined-B slice 3): refine the STATIC gpu_perf_weight guess
+# with MEASURED recent latency. find_best_node_for_model computes node["_latency_ratio"]
+# = (this node's recent avg latency for the model) / (the fastest node's), from
+# dispatch_pending_queue done rows in the last LATENCY_WINDOW_MINUTES (>= LATENCY_MIN_SAMPLES
+# each). A node empirically FAST for this model gets +LATENCY_FAST_BONUS; a SLOW one
+# (>= LATENCY_SLOW_RATIO x the fastest) gets -LATENCY_SLOW_PENALTY; linear between. Bounded
+# small so it refines, never overrides tier/warm/cap. Absent ratio → 0 (fail-open). Tunable.
+LATENCY_WINDOW_MINUTES = 30
+LATENCY_MIN_SAMPLES = 2
+LATENCY_FAST_BONUS = 0.3
+LATENCY_SLOW_PENALTY = 0.3
+LATENCY_SLOW_RATIO = 2.0
+
+
+def observed_latency_adj(ratio) -> float:
+    """Bounded routing adjustment from a node's recent-latency RATIO (its avg / the fastest
+    node's avg for the same model). 1.0 = fastest → +LATENCY_FAST_BONUS; >= LATENCY_SLOW_RATIO
+    → -LATENCY_SLOW_PENALTY; linear between. None/invalid → 0.0 (no data → no adjustment)."""
+    if ratio is None:
+        return 0.0
+    try:
+        r = float(ratio)
+    except (TypeError, ValueError):
+        return 0.0
+    if r <= 1.0:
+        return LATENCY_FAST_BONUS
+    if r >= LATENCY_SLOW_RATIO:
+        return -LATENCY_SLOW_PENALTY
+    frac = (r - 1.0) / (LATENCY_SLOW_RATIO - 1.0)
+    return LATENCY_FAST_BONUS - frac * (LATENCY_FAST_BONUS + LATENCY_SLOW_PENALTY)
+
 
 def _safe(value, default=0):
     return value if value is not None else default
@@ -204,6 +235,11 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     # find_best_node_for_model from model_load_state; absent for other callers (no-op).
     if node.get("_model_warm"):
         score += WARM_MODEL_BONUS
+
+    # Observed-latency refinement (measured): nudge toward nodes empirically FAST for this
+    # model recently, tempering the STATIC per-card gpu_perf_weight guess. Bounded ±small.
+    # ``_latency_ratio`` precomputed by find_best_node_for_model; absent → 0 (no-op).
+    score += observed_latency_adj(node.get("_latency_ratio"))
 
     # Load pressure — softer when the node is idle.
     max_conc = max(int(_safe(node.get("max_concurrent"), 1)), 1)
@@ -381,6 +417,38 @@ def find_best_node_for_model(
                         continue
             except Exception:
                 heavy_inflight = {}
+            # Observed-latency per node: recent avg execution time for THIS model (done rows,
+            # last LATENCY_WINDOW_MINUTES, >= LATENCY_MIN_SAMPLES each) → ratio vs the fastest
+            # node, so the scorer nudges toward empirically-fast nodes. Fail-safe → {} on error.
+            latency_ratio: dict = {}
+            try:
+                cur.execute(
+                    """
+                    SELECT COALESCE(result_node_id, preferred_node_id) AS nid,
+                           AVG(EXTRACT(EPOCH FROM (completed_at - claimed_at))) AS avg_s,
+                           COUNT(*) AS n
+                    FROM dispatch_pending_queue
+                    WHERE status = 'done'
+                      AND completed_at IS NOT NULL AND claimed_at IS NOT NULL
+                      AND queued_at > NOW() - make_interval(mins => %s)
+                      AND COALESCE(result_node_id, preferred_node_id) IS NOT NULL
+                      AND regexp_replace(model_needed, ':latest$', '')
+                          = regexp_replace(%s, ':latest$', '')
+                    GROUP BY 1
+                    HAVING COUNT(*) >= %s
+                    """,
+                    (LATENCY_WINDOW_MINUTES, model, LATENCY_MIN_SAMPLES),
+                )
+                _avgs = {
+                    r["nid"]: float(r["avg_s"])
+                    for r in cur.fetchall()
+                    if r.get("nid") is not None and r.get("avg_s") is not None and float(r["avg_s"]) > 0
+                }
+                _fastest = min(_avgs.values()) if _avgs else None
+                if _fastest and _fastest > 0:
+                    latency_ratio = {nid: v / _fastest for nid, v in _avgs.items()}
+            except Exception:
+                latency_ratio = {}
     except Exception:
         return home_node_db_id
 
@@ -415,6 +483,7 @@ def find_best_node_for_model(
         # Warm-resident flag → the scorer adds WARM_MODEL_BONUS (skip the cold-load).
         node["_model_warm"] = node["id"] in warm_ids
         node["_heavy_inflight"] = heavy_inflight.get(node["id"], 0)
+        node["_latency_ratio"] = latency_ratio.get(node["id"])
         score = score_node_for_model(node, model)
         if score is None:
             score = 0.001  # admitted by fit; rank last rather than disqualify

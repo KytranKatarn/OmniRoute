@@ -216,6 +216,47 @@ def test_heavy_inflight_absent_is_unchanged():
     assert score_node_for_model(n, "qwen2.5:7b") == base
 
 
+# ---------------------------------------------------------------------------
+# Observed-latency signal (latency-aware routing, refined-B slice 3)
+# ---------------------------------------------------------------------------
+
+
+def test_observed_latency_adj_bounds_and_midpoint():
+    from services.fleet_resource_router import (
+        observed_latency_adj,
+        LATENCY_FAST_BONUS,
+        LATENCY_SLOW_PENALTY,
+        LATENCY_SLOW_RATIO,
+    )
+
+    assert observed_latency_adj(None) == 0.0  # no data → no adjustment
+    assert observed_latency_adj("abc") == 0.0  # invalid → no adjustment
+    assert observed_latency_adj(1.0) == LATENCY_FAST_BONUS  # fastest node
+    assert observed_latency_adj(0.5) == LATENCY_FAST_BONUS  # clamped at fastest
+    assert observed_latency_adj(LATENCY_SLOW_RATIO) == -LATENCY_SLOW_PENALTY
+    assert observed_latency_adj(LATENCY_SLOW_RATIO + 1) == -LATENCY_SLOW_PENALTY
+    mid = 1.0 + (LATENCY_SLOW_RATIO - 1.0) / 2.0  # halfway → ~0
+    assert abs(observed_latency_adj(mid)) < 1e-9
+
+
+def test_fast_node_outscores_slow_node_by_latency():
+    fast = dict(HUB)
+    fast["_latency_ratio"] = 1.0
+    slow = dict(HUB)
+    slow["_latency_ratio"] = 2.0
+    s_fast = score_node_for_model(fast, "qwen2.5:7b")
+    s_slow = score_node_for_model(slow, "qwen2.5:7b")
+    assert s_fast is not None and s_slow is not None
+    assert s_fast > s_slow
+
+
+def test_latency_ratio_absent_is_unchanged():
+    base = score_node_for_model(HUB, "qwen2.5:7b")
+    n = dict(HUB)
+    n["_latency_ratio"] = None
+    assert score_node_for_model(n, "qwen2.5:7b") == base
+
+
 def test_iso_string_heartbeat_is_parsed():
     node = dict(HUB)
     node["last_heartbeat"] = _fresh_hb().isoformat()

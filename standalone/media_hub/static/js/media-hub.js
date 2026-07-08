@@ -2517,14 +2517,14 @@ function showRequestDetail(req) {
     // Overview
     const overviewSection = document.createElement('div');
     overviewSection.className = 'request-modal-overview';
-    overviewSection.innerHTML = `<h3>Overview</h3><p>${req.overview || 'No overview available.'}</p>`;
+    overviewSection.innerHTML = `<h3>Overview</h3><p>${_mhEsc(req.overview) || 'No overview available.'}</p>`;
 
     // Request details
     const detailsSection = document.createElement('div');
     detailsSection.className = 'request-modal-details';
     detailsSection.innerHTML = `
         <h3>Request Details</h3>
-        <div class="detail-row"><span>Requested by:</span> <strong>${req.requested_by || 'Unknown'}</strong></div>
+        <div class="detail-row"><span>Requested by:</span> <strong>${_mhEsc(req.requested_by) || 'Unknown'}</strong></div>
         <div class="detail-row"><span>Requested:</span> <strong>${formatDate(req.requested_at)}</strong></div>
         <div class="detail-row"><span>TMDB ID:</span> <strong>${req.tmdb_id || 'N/A'}</strong></div>
         ${req.seasons_requested && req.seasons_requested.length > 0 ?
@@ -3052,9 +3052,9 @@ function renderTopRated(topRatedData) {
         card.onclick = () => openMediaDetails(item);
 
         card.innerHTML = `
-            <img class="top-rated-poster" src="${item.poster_url || '/static/img/no-poster.png'}" alt="${item.title}" loading="lazy" onerror="this.src='/static/img/no-poster.png'">
+            <img class="top-rated-poster" src="${_mhEsc(item.poster_url || '/static/img/no-poster.png')}" alt="${_mhEsc(item.title)}" loading="lazy" onerror="this.src='/static/img/no-poster.png'">
             <div class="top-rated-info">
-                <div class="top-rated-title" title="${item.title}">${item.title}</div>
+                <div class="top-rated-title" title="${_mhEsc(item.title)}">${_mhEsc(item.title)}</div>
                 <div class="top-rated-rating">
                     <i data-lucide="star"></i>
                     <span>${item.rating ? item.rating.toFixed(1) : 'N/A'}</span>
@@ -3867,6 +3867,14 @@ async function toggleEpisodeWatched(episode, seasonNumber, toggleBtn, statusBadg
 // ─────────────────────────────────────────────────────────────────────────────
 
 let currentStreamInfo = null;
+
+// HTML-escape untrusted strings before innerHTML interpolation (audit XSS fix #385).
+function _mhEsc(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+}
 
 // ── Phone fullscreen + landscape rotation + idle chrome-fade for the player (#4739) ──
 let _mhChromeTimer = null;

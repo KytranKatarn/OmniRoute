@@ -48,15 +48,21 @@ def _get_fernet():
                 "MEDIA_HUB_ENCRYPTION_KEY is invalid. Generate new key with: "
                 'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
             )
-    else:
-        # Generate a key for development (NOT RECOMMENDED FOR PRODUCTION)
+    elif os.getenv("MEDIA_HUB_ALLOW_EPHEMERAL_KEY", "").lower() in ("1", "true", "yes"):
+        # Explicit dev opt-in ONLY. Ephemeral key = all stored API keys lost on restart.
         _key_source = "generated"
         _fernet = Fernet(Fernet.generate_key())
         logger.warning(
-            "MEDIA_HUB_ENCRYPTION_KEY not set! "
-            "Using generated key - API keys will be lost on restart. "
-            "Generate a permanent key with: "
-            'python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+            "MEDIA_HUB_ENCRYPTION_KEY not set — using an EPHEMERAL dev key "
+            "(MEDIA_HUB_ALLOW_EPHEMERAL_KEY=1). Stored API keys will be lost on restart."
+        )
+    else:
+        # SAFETY (audit 2026-07-08): fail CLOSED. Silently falling back to a random key
+        # made every stored API key undecryptable after a restart AND masked the misconfig.
+        raise ValueError(
+            "MEDIA_HUB_ENCRYPTION_KEY is not set. Set a persistent Fernet key "
+            '(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"), '
+            "or set MEDIA_HUB_ALLOW_EPHEMERAL_KEY=1 for throwaway dev use."
         )
 
     return _fernet

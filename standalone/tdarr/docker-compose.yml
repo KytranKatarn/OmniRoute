@@ -32,7 +32,11 @@ services:
       - /mnt/data2/tdarr/server:/app/server
       - /mnt/data2/tdarr/configs:/app/configs
       - /mnt/data2/tdarr/logs:/app/logs
-      - /mnt/Plex/media:/media                       # rw — replace-in-place after approval
+      - /mnt/Plex/media:/media                       # rw — TV + the /media/movies symlink
+      # Media is SPLIT across two drives: /media/movies is a symlink → /mnt/data2/plex/movies,
+      # which lives OUTSIDE the /mnt/Plex/media mount. Bind the real movies dir over the symlink
+      # so Tdarr's scanner doesn't abort on a broken link (KB: split-library mount).
+      - /mnt/data2/plex/movies:/media/movies:rw
       - /mnt/data2/tdarr/transcode_cache:/temp       # roomy scratch, OFF the media volume
     mem_limit: 6g
     cpus: 4.0                     # cap so a CPU transcode never starves the platform

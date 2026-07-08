@@ -4,6 +4,7 @@ Jellyfin Media Server Client
 Client for interacting with Jellyfin Media Server API.
 """
 
+import os
 import requests
 import logging
 from typing import List, Optional, Dict
@@ -28,6 +29,13 @@ class JellyfinClient(MediaServerInterface):
         """
         protocol = "https" if use_ssl else "http"
         self.base_url = f"{protocol}://{host}:{port}"
+        # Browser-facing base for STREAM + subtitle URLs. base_url is a LAN IP
+        # over plain HTTP, which a browser on the HTTPS Media Hub page blocks as
+        # mixed content (and cannot reach off-LAN). Hand the browser the public
+        # HTTPS Jellyfin URL instead; server-side API calls keep using base_url.
+        self.public_base_url = os.environ.get("JELLYFIN_PUBLIC_URL", "https://jellyfin.kytranempowerment.com").rstrip(
+            "/"
+        )
         self.api_key = api_key
         self.timeout = 10
         self._user_id = None
@@ -610,14 +618,14 @@ class JellyfinClient(MediaServerInterface):
         if direct and media_source.get("SupportsDirectStream", False) and not needs_audio_transcode:
             # Direct stream - no transcoding (video and audio both compatible)
             stream_url = (
-                f"{self.base_url}/Videos/{media_id}/stream.{container}"
+                f"{self.public_base_url}/Videos/{media_id}/stream.{container}"
                 f"?Static=true&mediaSourceId={media_source_id}&api_key={self.api_key}"
             )
             transcode = False
         else:
             # HLS transcode stream
             stream_url = (
-                f"{self.base_url}/Videos/{media_id}/master.m3u8"
+                f"{self.public_base_url}/Videos/{media_id}/master.m3u8"
                 f"?mediaSourceId={media_source_id}"
                 f"&api_key={self.api_key}"
                 f"&VideoCodec=h264"
@@ -638,7 +646,7 @@ class JellyfinClient(MediaServerInterface):
                         "language": stream.get("Language", "und"),
                         "title": stream.get("DisplayTitle", stream.get("Language", "Unknown")),
                         "url": (
-                            f"{self.base_url}/Videos/{media_id}/{media_source_id}"
+                            f"{self.public_base_url}/Videos/{media_id}/{media_source_id}"
                             f"/Subtitles/{sub_index}/Stream.vtt?api_key={self.api_key}"
                         ),
                         "forced": stream.get("IsForced", False),

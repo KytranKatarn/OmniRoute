@@ -74,6 +74,13 @@ services:
       # M.A.V.E.N. chat model — qwen2.5:1.5b fits in VRAM alongside platform agents.
       # qwen2.5:7b (former default) crashes the Quadro M4000 when platform has loaded models.
       MAVEN_CHAT_MODEL: ${MAVEN_CHAT_MODEL:-qwen2.5:1.5b}
+      # A.R.C.H.I.E. coordination (project #385 Phase 1) — M.A.V.E.N. reaches the
+      # hub's /api/internal/{notify,approval-request,approval} surface over the
+      # Headscale mesh (NEVER the public CDN host). ARCHIE_INTERNAL_API_KEY MUST
+      # equal the platform INTERNAL_API_KEY; empty => notify/approval stay no-op.
+      # No env_file: here, so these MUST be listed explicitly (integration contract).
+      ARCHIE_HUB_URL: ${ARCHIE_HUB_URL:-http://100.64.0.4:3000}
+      ARCHIE_INTERNAL_API_KEY: ${ARCHIE_INTERNAL_API_KEY:-}
     # Container DNS override — host DNS is Tailscale-owned which SERVFAILs on
     # external hostnames inside Docker (discovered 2026-04-21 via Prowlarr).
     # Use AdGuard first, Cloudflare fallback.

@@ -223,12 +223,12 @@ def maven_diagnostic_probe() -> None:
             )
 
             # Best-effort: notify the A.R.C.H.I.E. platform hub
-            hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+            hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
             api_key = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
             if api_key:
                 try:
                     requests.post(
-                        f"{hub_url}/api/notifications",
+                        f"{hub_url}/api/internal/notify",
                         json={
                             "type": "warning",
                             "title": "M.A.V.E.N. — Media Hub alert",
@@ -236,7 +236,7 @@ def maven_diagnostic_probe() -> None:
                             "source": "media_hub_maven",
                             "priority": "high",
                         },
-                        headers={"X-Internal-Key": api_key},
+                        headers={"Authorization": f"Bearer {api_key}"},
                         timeout=5,
                     )
                 except Exception:
@@ -282,7 +282,7 @@ def quality_probe() -> None:
         if len(flagged) > 5:
             msgs.append(f"…+{len(flagged) - 5} more")
 
-        hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+        hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
         api_key = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
         if api_key:
             try:
@@ -448,7 +448,7 @@ def download_pipeline_probe() -> None:
 
     # Notify A.R.C.H.I.E. — auto-fixes get 'normal' priority (informational),
     # stalls that need human eyes get 'high' so A.R.C.H.I.E. escalates via Telegram.
-    hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+    hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
     if api_key_env:
         action_str = (" Auto-fixed: " + "; ".join(actions) + ".") if actions else ""
@@ -464,7 +464,7 @@ def download_pipeline_probe() -> None:
                     "source": "media_hub_maven_pipeline",
                     "priority": priority,
                 },
-                headers={"X-Internal-Key": api_key_env},
+                headers={"Authorization": f"Bearer {api_key_env}"},
                 timeout=5,
             )
         except Exception:
@@ -557,7 +557,7 @@ def download_client_health_probe() -> None:
         log.info("download_client_health_probe: all download clients healthy")
         return
 
-    hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+    hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
     if api_key_env:
         try:
@@ -570,7 +570,7 @@ def download_client_health_probe() -> None:
                     "source": "media_hub_maven_dlclient",
                     "priority": "high" if issues else "normal",
                 },
-                headers={"X-Internal-Key": api_key_env},
+                headers={"Authorization": f"Bearer {api_key_env}"},
                 timeout=5,
             )
         except Exception:
@@ -682,7 +682,7 @@ def stale_queue_probe() -> None:
                 log.warning("stale_queue_probe: purged %d matching SABnzbd history item(s)", purged)
 
         # Notify hub
-        hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+        hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
         api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
         if api_key_env:
             try:
@@ -695,7 +695,7 @@ def stale_queue_probe() -> None:
                         "source": "media_hub_maven_stale_queue",
                         "priority": "normal",
                     },
-                    headers={"X-Internal-Key": api_key_env},
+                    headers={"Authorization": f"Bearer {api_key_env}"},
                     timeout=5,
                 )
             except Exception:
@@ -829,7 +829,7 @@ def library_coverage_probe() -> None:
     if not issues:
         return
 
-    hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+    hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
     if api_key_env:
         action_str = (" Auto-triggered: " + "; ".join(actions) + ".") if actions else " No auto-fix available."
@@ -843,7 +843,7 @@ def library_coverage_probe() -> None:
                     "source": "media_hub_maven_coverage",
                     "priority": "high",
                 },
-                headers={"X-Internal-Key": api_key_env},
+                headers={"Authorization": f"Bearer {api_key_env}"},
                 timeout=5,
             )
         except Exception:
@@ -923,7 +923,7 @@ def arr_database_probe() -> None:
     if not all_msgs:
         return
 
-    hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+    hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
     if api_key_env:
         try:
@@ -936,7 +936,7 @@ def arr_database_probe() -> None:
                     "source": "media_hub_maven_arrdb",
                     "priority": "high" if issues else "normal",
                 },
-                headers={"X-Internal-Key": api_key_env},
+                headers={"Authorization": f"Bearer {api_key_env}"},
                 timeout=5,
             )
         except Exception:
@@ -988,7 +988,7 @@ def grab_notify_probe() -> None:
     cutoff = datetime.now(tz=timezone.utc).timestamp() - 600  # 10 min
     STATUS_LABEL = {3: "downloading now 📥", 5: "available ✅"}
 
-    hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")
+    hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
 
     for req in results:
@@ -1033,7 +1033,7 @@ def grab_notify_probe() -> None:
                         "source": "media_hub_maven_grab",
                         "priority": "normal",
                     },
-                    headers={"X-Internal-Key": api_key_env},
+                    headers={"Authorization": f"Bearer {api_key_env}"},
                     timeout=5,
                 )
             except Exception:

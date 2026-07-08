@@ -4553,6 +4553,127 @@ def api_internal_engine_telemetry():
         return jsonify({"error": "telemetry insert failed"}), 500
 
 
+# ── Media Hub / M.A.V.E.N. coordination surface (project #385 Phase 1) ───────
+# Standalone services (Media Hub) run off-host and cannot use the @login_required
+# notification/approval routes. These app-level, Bearer-authed aliases let
+# M.A.V.E.N. speak through A.R.C.H.I.E. (notifications + Telegram) and raise
+# Telegram-gated approvals for destructive actions. App-level (not on a /tools/*
+# blueprint) so the auth middleware does not redirect the service call to
+# /dashboard — same rationale as the dhq/chat + telemetry routes above.
+
+
+@app.route("/api/internal/notify", methods=["POST"])
+@_require_internal_key
+def api_internal_notify():
+    """Internal notify surface for standalone agents (Media Hub / M.A.V.E.N.).
+
+    Creates a platform notification and — for high/urgent priority (or an explicit
+    telegram=true) — also speaks it on Telegram in A.R.C.H.I.E.'s voice, so a
+    standalone agent's alert reaches Kytran through the single A.R.C.H.I.E. channel
+    instead of a silent 401 against the @login_required /api/notifications route.
+    Bearer INTERNAL_API_KEY.
+
+    Body: {title, message, priority?(low|normal|high|urgent), source?, telegram?(bool)}
+    """
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "Notification").strip()
+    message = (data.get("message") or "").strip()
+    priority = (data.get("priority") or "normal").strip().lower()
+    source = (data.get("source") or "media_hub").strip()
+    want_tg = bool(data.get("telegram")) or priority in ("high", "urgent")
+    try:
+        from services.notification_service import create_notification
+
+        ntype = "warning" if priority in ("high", "urgent") else "info"
+        create_notification(
+            notification_type=ntype,
+            title=title,
+            message=message,
+            source=source,
+            priority=priority,
+            visibility="all",
+        )
+    except Exception as exc:
+        app.logger.error("internal notify: create_notification failed: %s", exc)
+    tg = False
+    if want_tg and message:
+        try:
+            from services import telegram_service
+
+            # Always A.R.C.H.I.E.'s voice — she is the single outbound channel for
+            # every agent (M.A.V.E.N. speaks THROUGH her, never as itself). send_info
+            # sets source_agent="A.R.C.H.I.E." and delivers directly to Kytran.
+            telegram_service.send_info(title, message, priority=priority)
+            tg = True
+        except Exception as exc:
+            app.logger.error("internal notify: telegram send failed: %s", exc)
+    return jsonify({"ok": True, "telegram": tg})
+
+
+@app.route("/api/internal/approval-request", methods=["POST"])
+@_require_internal_key
+def api_internal_approval_request():
+    """Raise a Tier-2 (human) approval for a standalone destructive/major action.
+
+    Used by Media Hub / M.A.V.E.N. for deletes + major changes (e.g. re-encode
+    that replaces the original). Creates an autonomy_approval_queue row
+    (action_type='media_hub_action') and sends the Telegram Approve/Deny buttons
+    via the existing approval pipeline. The standalone polls
+    GET /api/internal/approval/<id> and executes locally on approval — the
+    platform can't reach Radarr/SABnzbd/Tdarr. Bearer INTERNAL_API_KEY.
+
+    Body: {title, reason, payload?(dict)}  ->  {ok, approval_id}
+    """
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "Media Hub action").strip()
+    reason = (data.get("reason") or title).strip()
+    payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+    payload.setdefault("title", title)
+    try:
+        from ai_bridge.agent_loop import request_approval
+
+        approval_id = request_approval(
+            action_type="media_hub_action",
+            action_data=payload,
+            reason=reason,
+            requested_by="maven",
+            tier=2,
+        )
+        if not approval_id:
+            # None => dedup collision (a media_hub_action is already pending) or
+            # validation failure. 409 tells the caller to back off, not retry hard.
+            return jsonify({"ok": False, "error": "approval not created (pending duplicate?)"}), 409
+        return jsonify({"ok": True, "approval_id": approval_id})
+    except Exception as exc:
+        app.logger.error("internal approval-request failed: %s", exc)
+        return jsonify({"ok": False, "error": "approval request failed"}), 500
+
+
+@app.route("/api/internal/approval/<int:approval_id>", methods=["GET"])
+@_require_internal_key
+def api_internal_approval_status(approval_id):
+    """Return an approval row's status so a standalone can poll it before acting.
+    Bearer INTERNAL_API_KEY.  ->  {ok, id, status, action_type}
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT status, action_type FROM autonomy_approval_queue WHERE id = %s",
+                (approval_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "not found"}), 404
+        status = row["status"] if isinstance(row, dict) else row[0]
+        atype = row["action_type"] if isinstance(row, dict) else row[1]
+        return jsonify({"ok": True, "id": approval_id, "status": status, "action_type": atype})
+    except Exception as exc:
+        app.logger.error("internal approval status failed: %s", exc)
+        return jsonify({"ok": False, "error": "status lookup failed"}), 500
+
+
 # ── Code Health engine-facing surface (#4262 — the loop-closer) ──────────────
 # The containerized A.R.C.H.I.E. build engine has no browser session, so the
 # @login_required Code-Health routes in tools/consciousness are unreachable to

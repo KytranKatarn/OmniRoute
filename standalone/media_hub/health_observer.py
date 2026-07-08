@@ -346,6 +346,27 @@ def download_pipeline_probe() -> None:
         try:
             q_resp = requests.get(base, params={"mode": "queue", "output": "json", "apikey": key}, timeout=8)
             queue = q_resp.json().get("queue", {})
+
+            # ---- SABnzbd PAUSED auto-resume (task #4721) ----
+            # A globally-paused download client silently stalls the ENTIRE
+            # library (found 2026-07-07: 12 items stuck for days, incl. Rick &
+            # Morty S9). Auto-resume instead of waiting for the owner to notice.
+            # Recorded as issue+action so A.R.C.H.I.E. still notifies below (a
+            # bare 'action' with no 'issue' returns before the notify block).
+            if queue.get("paused") or queue.get("status") == "Paused":
+                n_stuck = queue.get("noofslots", 0)
+                issues.append(f"SABnzbd was PAUSED with {n_stuck} item(s) queued — downloads were stalled")
+                log.warning("download_pipeline_probe: SABnzbd paused (%s queued) — auto-resuming", n_stuck)
+                try:
+                    r_res = requests.get(base, params={"mode": "resume", "apikey": key}, timeout=8)
+                    if r_res.ok and r_res.json().get("status"):
+                        actions.append("auto-resumed SABnzbd")
+                    else:
+                        needs_human = True
+                except Exception as e:
+                    log.warning("download_pipeline_probe: SABnzbd resume failed: %s", e)
+                    needs_human = True
+
             sab_idle = queue.get("status") == "Idle" and not queue.get("slots")
 
             if sab_idle:

@@ -46,6 +46,15 @@ _stats_cache = {
     "ttl": 3600,  # 1 hour cache TTL
 }
 
+# Cache for the comprehensive /api/stats breakdown (quality/genres/HDR/size).
+# That endpoint fetches up to 500 movies + iterates — expensive — so a short TTL
+# keeps the Stats tab's background refresh cheap. ?refresh=true bypasses. #4746.
+_full_stats_cache = {
+    "data": None,
+    "timestamp": 0,
+    "ttl": 300,  # 5 min
+}
+
 # Cache for TMDB metadata enrichment
 _tmdb_enrichment_cache = {}
 
@@ -2734,7 +2743,20 @@ def api_tmdb_tv_details(tv_id):
 
 @media_hub_bp.route("/api/stats")
 def api_statistics():
-    """Get comprehensive library statistics"""
+    """Get comprehensive library statistics (server-side TTL cached — #4746)."""
+    force_refresh = request.args.get("refresh", "false").lower() == "true"
+    now = time.time()
+    if (
+        not force_refresh
+        and _full_stats_cache["data"] is not None
+        and (now - _full_stats_cache["timestamp"]) < _full_stats_cache["ttl"]
+    ):
+        return jsonify({
+            **_full_stats_cache["data"],
+            "cached": True,
+            "cache_age": int(now - _full_stats_cache["timestamp"]),
+        })
+
     media_server, server_type = get_primary_media_server()
     if not media_server:
         return jsonify({"success": False, "error": "No media server configured"})
@@ -2783,22 +2805,26 @@ def api_statistics():
         # For now we'll estimate based on total - movies
         size_breakdown["shows"] = max(0, stats.total_size_bytes - size_breakdown["movies"])
 
-        return jsonify(
-            {
-                "success": True,
-                "stats": stats.to_dict(),
-                "quality_breakdown": quality_breakdown,
-                "hdr_count": hdr_count,
-                "atmos_count": atmos_count,
-                "dolby_vision_count": dolby_vision_count,
-                "size_breakdown": size_breakdown,
-                "genres": genres,
-                "source": server_type,
-            }
-        )
+        payload = {
+            "success": True,
+            "stats": stats.to_dict(),
+            "quality_breakdown": quality_breakdown,
+            "hdr_count": hdr_count,
+            "atmos_count": atmos_count,
+            "dolby_vision_count": dolby_vision_count,
+            "size_breakdown": size_breakdown,
+            "genres": genres,
+            "source": server_type,
+        }
+        _full_stats_cache["data"] = payload
+        _full_stats_cache["timestamp"] = now
+        return jsonify({**payload, "cached": False})
     except Exception as e:
         logger.error(f"Error getting statistics: {e}")
         traceback.print_exc()
+        # Serve stale cache on error rather than a bare failure, if we have any.
+        if _full_stats_cache["data"] is not None:
+            return jsonify({**_full_stats_cache["data"], "cached": True, "stale": True})
         return jsonify({"success": False, "error": str(e)})
 
 

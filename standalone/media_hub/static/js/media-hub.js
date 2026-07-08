@@ -471,7 +471,7 @@ function switchTab(tabId) {
             loadCalendar();
             break;
         case 'stats':
-            loadStatistics(true); // always fetch fresh — bypass stale localStorage cache
+            loadStatistics(); // cache-first: render cached instantly, refresh in background
             break;
     }
 }
@@ -2743,25 +2743,50 @@ async function requestMedia(item) {
 // STATISTICS
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function loadStatistics(forceRefresh = false) {
-    // Show loading state in individual sections
-    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'statsRecentAdditions', 'topRatedGrid'];
-    sections.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.innerHTML = '<div class="breakdown-placeholder">Loading...</div>';
-    });
+// Subtle "updating…" pill shown while the Stats tab refreshes over cached data.
+// Self-contained (creates its own element) so it needs no template/CSS changes.
+function setStatsUpdating(on) {
+    let badge = document.getElementById('statsUpdatingBadge');
+    if (on) {
+        if (!badge) {
+            const host = document.getElementById('tab-stats') || document.body;
+            if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+            badge = document.createElement('div');
+            badge.id = 'statsUpdatingBadge';
+            badge.textContent = '⟳ Updating…';
+            badge.style.cssText = 'position:absolute;top:8px;right:12px;z-index:5;font-size:12px;'
+                + 'opacity:0.75;padding:2px 10px;border-radius:12px;background:rgba(0,0,0,0.35);'
+                + 'color:var(--archie-text,#cfe);pointer-events:none;';
+            host.appendChild(badge);
+        }
+        badge.style.display = 'block';
+    } else if (badge) {
+        badge.style.display = 'none';
+    }
+}
 
-    // Load from cache first for instant display (unless force refresh)
-    const cached = !forceRefresh && cacheGet('statistics', 300000); // 5 min cache
+async function loadStatistics(forceRefresh = false) {
+    const sections = ['qualityBreakdown', 'featuresGrid', 'storageBreakdown', 'genresBreakdown', 'statsRecentAdditions', 'topRatedGrid'];
+
+    // Cache-first (stale-while-revalidate): render cached data INSTANTLY if present,
+    // and only paint "Loading..." on a first-ever load with no cache. forceRefresh
+    // still refetches (and bypasses the SERVER cache) but no longer blanks the screen.
+    const cached = cacheGet('statistics', 300000); // 5 min freshness window (still returns stale)
     if (cached && cached.data) {
         renderStatistics(cached.data);
-        console.log(`[Media Hub] Statistics loaded from cache`);
+        setStatsUpdating(true); // subtle "updating…" while we refresh in the background
+    } else {
+        sections.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '<div class="breakdown-placeholder">Loading...</div>';
+        });
     }
 
-    // Fetch fresh data
+    // Fetch fresh data in the background
     try {
+        const q = forceRefresh ? '?refresh=true' : '';
         const [statsResponse, recentResponse, topRatedResponse] = await Promise.all([
-            fetch(`${API_BASE}/stats`),
+            fetch(`${API_BASE}/stats${q}`),
             fetch(`${API_BASE}/library/recent-activity?days=7`),
             fetch(`${API_BASE}/library/top-rated?limit=10`)
         ]);
@@ -2778,14 +2803,16 @@ async function loadStatistics(forceRefresh = false) {
             };
             renderStatistics(fullData);
             cacheSet('statistics', fullData);
-        } else if (!cached) {
+        } else if (!(cached && cached.data)) {
             showStatsError('Statistics unavailable');
         }
     } catch (error) {
         console.error('Failed to load statistics:', error);
-        if (!cached) {
+        if (!(cached && cached.data)) {
             showStatsError('Failed to load statistics');
         }
+    } finally {
+        setStatsUpdating(false);
     }
 }
 
@@ -4691,6 +4718,72 @@ window.addEventListener('appinstalled', () => {
     showToast('Media Hub installed!', 'success');
 });
 
+// iOS 'Add to Home Screen' hint. iOS Safari NEVER fires beforeinstallprompt, so the
+// Android install button/banner above never appears on iPhone/iPad — the app looked
+// "missing" to iOS users. Show a manual, dismissible hint instead. Safari-only can
+// actually install; other iOS browsers get an "open in Safari" nudge. project #385.
+function maybeShowIosInstallHint() {
+    try {
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) ||
+            (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1); // iPadOS 13+
+        if (!isIOS) return;                                    // Android has its own prompt
+        if (window.navigator.standalone === true ||
+            window.matchMedia('(display-mode: standalone)').matches) return;  // already installed
+        if (localStorage.getItem('media-hub-ios-install-dismissed') === '1') return;
+        if (document.body.classList.contains('tv-mode')) return;
+
+        // Only Safari can install a PWA on iOS; Chrome/Firefox/Edge on iOS cannot.
+        const isSafari = /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS|OPiOS|GSA)/.test(ua);
+
+        const banner = document.createElement('div');
+        banner.className = 'pwa-install-banner';  // reuse the existing banner styling
+
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'pwa-install-icon';
+        const iconEl = document.createElement('i');
+        iconEl.setAttribute('data-lucide', isSafari ? 'share' : 'compass');
+        iconDiv.appendChild(iconEl);
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'pwa-install-content';
+        const title = document.createElement('h3');
+        title.className = 'pwa-install-title';
+        const text = document.createElement('p');
+        text.className = 'pwa-install-text';
+        if (isSafari) {
+            title.textContent = 'Install Media Hub';
+            text.textContent = "Tap the Share button, then “Add to Home Screen”.";
+        } else {
+            title.textContent = 'Open in Safari to install';
+            text.textContent = 'On iPhone, apps install from Safari — open this page in Safari, then Share → Add to Home Screen.';
+        }
+        contentDiv.appendChild(title);
+        contentDiv.appendChild(text);
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'pwa-install-actions';
+        const okBtn = document.createElement('button');
+        okBtn.className = 'pwa-install-btn primary';
+        okBtn.textContent = 'Got it';
+        okBtn.addEventListener('click', () => {
+            banner.classList.remove('show');
+            setTimeout(() => banner.remove(), 400);
+            try { localStorage.setItem('media-hub-ios-install-dismissed', '1'); } catch (e) { /* ignore */ }
+        });
+        actionsDiv.appendChild(okBtn);
+
+        banner.appendChild(iconDiv);
+        banner.appendChild(contentDiv);
+        banner.appendChild(actionsDiv);
+        document.body.appendChild(banner);
+        if (window.lucide && lucide.createIcons) lucide.createIcons();
+        setTimeout(() => banner.classList.add('show'), 100);
+    } catch (e) {
+        /* never break the app over an install hint */
+    }
+}
+
 // Initialize TV mode detection on load
 document.addEventListener('DOMContentLoaded', () => {
     detectTVMode();
@@ -4700,6 +4793,10 @@ document.addEventListener('DOMContentLoaded', () => {
         hideInstallButton();
         console.log('[Media Hub] Running in standalone mode - already installed');
     }
+
+    // iOS install hint (Android is covered by beforeinstallprompt above). Small
+    // delay so the app paints first — smoother than popping on first frame.
+    setTimeout(maybeShowIosInstallHint, 2500);
 });
 
 // ── Slim the decorative LCARS sidebars on phones so content uses the full width (#4740) ──

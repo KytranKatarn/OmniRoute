@@ -17,7 +17,7 @@ services:
     volumes:
       - mediahub_pgdata:/var/lib/postgresql/data
       # One-shot schema bootstrap on first startup (postgres:16 runs *.sql in this dir).
-      - ../../platform_v2/tools/media_hub/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./tools/media_hub/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     # Compliance hardening per .claude/rules/compliance-standards.md
     cap_drop: ["ALL"]
     cap_add: ["CHOWN", "SETGID", "SETUID", "DAC_OVERRIDE", "FOWNER"]

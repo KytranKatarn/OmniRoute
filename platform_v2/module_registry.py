@@ -582,10 +582,10 @@ MODULES: List[ModuleDefinition] = [
     # ============================================
     # media_hub
     #
-    # Extracted as a standalone Docker product (Project #273).
-    # Runs at https://media.kytranempowerment.com (hub :8105, NPM host 32).
-    # In-platform blueprint stays mounted during the transition so existing
-    # integrations keep working; dashboard card now launches the standalone.
+    # Extracted as a standalone Docker product (Project #273 / #384).
+    # Runs at https://media.kytranempowerment.com (hub :8105).
+    # Fully consolidated 2026-07-08: the in-platform blueprint was retired and
+    # all module code relocated into standalone/media_hub/. Launch tile only.
     ModuleDefinition(
         id="media_hub",
         name="Media Hub",
@@ -594,13 +594,12 @@ MODULES: List[ModuleDefinition] = [
         category=ModuleCategory.APPLICATIONS_CONCEPTS,
         route="/tools/media-hub",
         external_url="https://media.kytranempowerment.com",
-        blueprint_import="tools.media_hub.routes:media_hub_bp",
         required_permissions=[],
         minimum_role="USER",
         minimum_tier="staff",
         enabled=True,
         coming_soon=False,
-        health_check=lambda: check_service_health("media_hub", "/tools/media-hub/api/health"),
+        health_check=lambda: default_health_check("media_hub"),
         priority=1,
         tags=[
             "media",

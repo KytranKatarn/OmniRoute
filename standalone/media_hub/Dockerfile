@@ -43,12 +43,12 @@ COPY standalone/media_hub/scripts/       /app/scripts/
 # Platform templates the Media Hub route renders directly
 # (the blueprint static/standalone base is already inside tools/media_hub/
 #  via #2151; these two live in platform_v2/templates and need lifting).
-COPY platform_v2/templates/tools/media_hub.html          /app/templates/tools/media_hub.html
+COPY standalone/media_hub/templates/tools/media_hub.html          /app/templates/tools/media_hub.html
 COPY platform_v2/templates/includes/lcars-header.html    /app/templates/includes/lcars-header.html
 
 # Platform /static/ assets the Media Hub template hard-codes references to.
 # Flask(__name__) default static_folder=./static → served at /static/*.
-COPY platform_v2/static/css/media-hub.css          /app/static/css/media-hub.css
+COPY standalone/media_hub/static/css/media-hub.css          /app/static/css/media-hub.css
 COPY platform_v2/static/css/lcars-header.css       /app/static/css/lcars-header.css
 COPY platform_v2/static/css/lcars-frames.css       /app/static/css/lcars-frames.css
 # Full LCARS design-token + shared-component stack so the dark theme actually
@@ -61,9 +61,9 @@ COPY platform_v2/static/css/lcars-modals.css       /app/static/css/lcars-modals.
 COPY platform_v2/static/css/animations.css         /app/static/css/animations.css
 COPY platform_v2/static/css/archie-breakpoints.css /app/static/css/archie-breakpoints.css
 COPY platform_v2/static/css/mobile.css             /app/static/css/mobile.css
-COPY platform_v2/static/js/media-hub.js        /app/static/js/media-hub.js
-COPY platform_v2/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
-COPY platform_v2/static/js/media-hub-cast.js   /app/static/js/media-hub-cast.js
+COPY standalone/media_hub/static/js/media-hub.js        /app/static/js/media-hub.js
+COPY standalone/media_hub/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
+COPY standalone/media_hub/static/js/media-hub-cast.js   /app/static/js/media-hub-cast.js
 COPY platform_v2/static/js/lcars-header.js          /app/static/js/lcars-header.js
 COPY standalone/media_hub/static/js/i18n.js          /app/static/js/i18n.js
 COPY standalone/media_hub/static/js/media-hub-chat.js /app/static/js/media-hub-chat.js
@@ -81,7 +81,7 @@ COPY standalone/media_hub/static/manifest.json /app/static/manifest.json
 COPY standalone/media_hub/static/css/tv-mode.css /app/static/css/tv-mode.css
 
 # The Media Hub module itself — this is the whole product
-COPY platform_v2/tools/media_hub/ /app/tools/media_hub/
+COPY standalone/media_hub/tools/media_hub/ /app/tools/media_hub/
 
 # Standalone is always in standalone mode by construction
 ENV MEDIA_HUB_STANDALONE=1 \

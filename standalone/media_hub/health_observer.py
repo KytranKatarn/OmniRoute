@@ -1040,6 +1040,19 @@ def grab_notify_probe() -> None:
                 pass
 
 
+# --- M.A.V.E.N. approved-removal executor ----------------------------------
+
+def _maven_removal_executor() -> None:
+    """Execute A.R.C.H.I.E.-approved M.A.V.E.N. removals; drop denied ones.
+    project #385 task #4745. Wrapped so a failure never kills the scheduler."""
+    try:
+        from maven_manager import process_approved_removals
+
+        process_approved_removals()
+    except Exception as exc:  # noqa: BLE001
+        log.error("maven_removal_executor failed: %s", exc)
+
+
 # --- scheduler wiring ------------------------------------------------------
 
 _scheduler: Optional[BackgroundScheduler] = None
@@ -1070,6 +1083,16 @@ def start_scheduler() -> BackgroundScheduler:
         max_instances=1,
         coalesce=True,
         next_run_time=datetime.utcnow(),
+    )
+    # Execute A.R.C.H.I.E.-approved M.A.V.E.N. removals (project #385 task #4745).
+    # No startup fire — a pending approval can wait the first 5 min.
+    _scheduler.add_job(
+        _maven_removal_executor,
+        "interval",
+        minutes=5,
+        id="maven_removal_executor",
+        max_instances=1,
+        coalesce=True,
     )
     _scheduler.add_job(
         maven_diagnostic_probe,

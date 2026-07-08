@@ -3396,6 +3396,25 @@ function renderMediaDetails(item) {
             playBtn.appendChild(playText);
             actions.appendChild(playBtn);
         });
+
+        // Remove from library (admin-only backend + double "are you sure?").
+        // Series/movie-level only — NOT a single episode/season (that would delete
+        // the whole show). project #385 task #4745.
+        const removableType = item.media_type === 'movie' ? 'movie'
+            : (item.media_type === 'show' || item.media_type === 'tv' || item.media_type === 'series') ? 'tv'
+            : null;
+        if (removableType) {
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-danger';
+            removeBtn.onclick = () => confirmRemoveMedia(item, removableType);
+            const rmIcon = document.createElement('i');
+            rmIcon.setAttribute('data-lucide', 'trash-2');
+            removeBtn.appendChild(rmIcon);
+            const rmText = document.createElement('span');
+            rmText.textContent = 'Remove';
+            removeBtn.appendChild(rmText);
+            actions.appendChild(removeBtn);
+        }
     } else {
         // Request button
         const requestBtn = document.createElement('button');
@@ -3430,6 +3449,96 @@ function renderMediaDetails(item) {
     content.appendChild(main);
 
     lucide.createIcons();
+}
+
+// Two-step "are you sure?" removal (project #385 task #4745). The backend
+// (/api/library/delete) is ADMIN-ONLY and deletes the movie/show AND its files
+// (Radarr/Sonarr deleteFiles=true); this UI gate is the DOUBLE human confirmation.
+// All titles rendered via textContent — never innerHTML (external strings).
+function confirmRemoveMedia(item, mediaType) {
+    const title = item.title || 'this item';
+    const overlay = document.createElement('div');
+    overlay.className = 'request-modal-overlay';
+    const box = document.createElement('div');
+    box.className = 'request-modal';
+    box.style.maxWidth = '440px';
+    box.style.padding = '24px';
+    overlay.appendChild(box);
+    const close = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };
+
+    const render = (heading, body, confirmLabel, onConfirm) => {
+        box.textContent = '';
+        const h = document.createElement('h3');
+        h.textContent = heading;
+        h.style.margin = '0 0 12px';
+        const p = document.createElement('p');
+        p.textContent = body;
+        p.style.margin = '0 0 20px';
+        p.style.opacity = '0.85';
+        const row = document.createElement('div');
+        row.className = 'request-modal-actions';
+        const cancel = document.createElement('button');
+        cancel.className = 'btn btn-secondary';
+        cancel.textContent = 'Cancel';
+        cancel.onclick = close;
+        const go = document.createElement('button');
+        go.className = 'btn btn-danger';
+        go.textContent = confirmLabel;
+        go.onclick = onConfirm;
+        row.appendChild(cancel);
+        row.appendChild(go);
+        box.appendChild(h);
+        box.appendChild(p);
+        box.appendChild(row);
+    };
+
+    const step1 = () => render(
+        `Remove "${title}"?`,
+        `This permanently deletes ${mediaType === 'movie' ? 'the movie file' : 'the show and all its episode files'} from your library. This cannot be undone.`,
+        'Continue', step2);
+
+    function step2() {
+        render('Are you absolutely sure?',
+            `Second confirmation required — "${title}" and its file(s) will be permanently deleted.`,
+            'Delete Permanently', doDelete);
+    }
+
+    async function doDelete(e) {
+        const btn = e.target;
+        btn.disabled = true;
+        btn.textContent = 'Deleting…';
+        try {
+            const resp = await fetch(`${API_BASE}/library/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    media_type: mediaType, tmdb_id: item.tmdb_id,
+                    title: item.title, year: item.year,
+                }),
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data.success) {
+                showToast(`Removed "${title}"`, 'success');
+                close();
+                closeMediaPanel();
+                if (mediaType === 'movie') { loadMovies(); } else { loadShows(); }
+            } else {
+                const msg = resp.status === 403 ? 'Admin access required to remove media'
+                    : (data.error || 'Remove failed');
+                showToast(msg, 'error');
+                btn.disabled = false;
+                btn.textContent = 'Delete Permanently';
+            }
+        } catch (err) {
+            showToast('Remove request failed', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Delete Permanently';
+        }
+    }
+
+    step1();
+    document.body.appendChild(overlay);
 }
 
 function closeMediaPanel() {

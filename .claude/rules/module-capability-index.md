@@ -162,10 +162,11 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 
 ## applications_concepts (6)
 
-### Media Hub — `media_hub` · `/tools/media-hub` · ✅ · 🟢
-- **Capability**: Plex + Jellyfin, Overseerr requests, SABnzbd, Prowlarr, Sonarr/Radarr, TMDB enrichment w/ LRU cache.
-- **Tables**: `media_hub_services`, `media_hub_requests`
-- **Standalone** (media.kytranempowerment.com port 8105): own DB. M.A.V.E.N. probes: grab_notify (5m), download_pipeline (30m), download_client_health (30m), library_coverage (2h), arr_database (30m), stale_queue (30m). Chat: "request X" / "delete X" (with red confirm). Phase 2: qwen2.5:7b, federated search, watchlist, i18n EN/FR/ES.
+### Media Hub — `media_hub` · standalone-only (platform = launch tile) · ✅ · 🟢
+- **CONSOLIDATED 2026-07-08 (Project #384, PRs #2100/#2101)**: whole module now lives ONLY in `standalone/media_hub/tools/media_hub/` (container `mediahub_app` :8105, own postgres `mediahub_db`, media.kytranempowerment.com). In-platform `/tools/media-hub` blueprint RETIRED — `module_registry` media_hub is a pure `external_url` launch tile (no `blueprint_import`), like KSO/KBS/Watch. Deploy: image-baked + read_only → `cd standalone/media_hub && docker compose up -d --build mediahub_app` (a merge does NOT deploy without rebuild). KB #279308.
+- **Capability**: Plex + Jellyfin browse/stream (in-browser HTML5 player + Chromecast), Overseerr requests, SABnzbd, Prowlarr, Sonarr/Radarr, TMDB enrichment. **Streaming = browse+stream from the SAME server: `media_hub_services.is_primary` = Jellyfin** (Plex/Jellyfin are identical mirrors; the Plex-ID→Jellyfin title bridge was too fragile → "could not stream url"). is_primary read ONLY in routes.py (NOT M.A.V.E.N.) → flipping is downloads-safe. KB mistake #279310.
+- **Tables** (mediahub_db): `media_hub_services` + Phase-2 (#2100): `media_library_cache`, `media_requests`, `media_upcoming_episodes`, `media_download_queue` (+3 views).
+- **Standalone** M.A.V.E.N. probes: grab_notify (5m), download_pipeline (30m, auto-resumes paused SABnzbd #2097), download_client_health (30m), library_coverage (2h, aired-missing auto-search #2099), arr_database (30m), stale_queue (30m). Host cron `scripts/media/streaming_watchdog.py` (5m) restarts Jellyfin/Plex if endpoint dead. KSO Docker tab already shows+manages `media_hub` stack (Phase 7, no change needed). Chat: "request X" / "delete X".
 - **Gotchas**: SABnzbd `set_config` unreliable — edit sabnzbd.ini directly (KB 261306). Stale Sonarr queue loop requires purging SABnzbd history too (KB 261307).
 - **Audit**: KB 256846 · KB 261305 · **Rules**: `media-home.md`
 

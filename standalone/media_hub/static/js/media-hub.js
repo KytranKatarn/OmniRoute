@@ -2029,59 +2029,86 @@ async function loadMovies(append = false) {
     const grid = document.getElementById('moviesGrid');
     if (!grid) return;
 
+    const cardFn = () => (currentMovieView === 'list' ? createListCard : createPosterCard);
+    const addLoadMore = (count) => {
+        if (count === 200) {
+            const loadMore = document.createElement('button');
+            loadMore.className = 'load-more-btn';
+            loadMore.textContent = 'Load More';
+            loadMore.onclick = () => { loadMore.remove(); loadMovies(true); };
+            grid.appendChild(loadMore);
+        }
+    };
+
     if (!append) {
         grid.textContent = '';
         grid.className = currentMovieView === 'list' ? 'media-list' : 'media-grid';
         moviesOffset = 0;
         currentMovieGenre = 'all'; // Reset genre filter
+
+        // Cache-first (stale-while-revalidate): paint the last-known first page from
+        // localStorage INSTANTLY, then refresh below and only re-render if it changed
+        // (flash-free). project #385 #4746.
+        const cachedM = cacheGet('movies-firstpage');
+        if (cachedM && cachedM.data && cachedM.data.length) {
+            allMoviesCache = cachedM.data;
+            populateGenreFilters(allMoviesCache, 'movieGenreFilters');
+            const cc = cardFn();
+            cachedM.data.forEach(item => grid.appendChild(cc(item)));
+            addLoadMore(cachedM.data.length);
+            grid.dataset.mhSig = cachedM.data.map(i => i.id).join(',');
+            moviesOffset = cachedM.data.length;
+            lucide.createIcons();
+        }
     }
 
-    const loading = createLoadingElement('Loading movies...');
-    grid.appendChild(loading);
+    // Blocking spinner ONLY when nothing is on screen (i.e. no cached render).
+    let loading = null;
+    if (grid.children.length === 0) {
+        loading = createLoadingElement('Loading movies...');
+        grid.appendChild(loading);
+    }
 
     try {
         const sort = currentMovieSort || 'added';
-        // Load more items for genre filtering
         const response = await fetch(`${API_BASE}/library/movies?limit=200&offset=${moviesOffset}&sort=${sort}`);
         const data = await response.json();
 
-        loading.remove();
+        if (loading) loading.remove();
 
         if (data.success && data.items) {
-            // Cache all movies for filtering
             if (!append) {
+                const sig = data.items.map(i => i.id).join(',');
                 allMoviesCache = data.items;
+                cacheSet('movies-firstpage', data.items);
+                if (sig !== grid.dataset.mhSig) {
+                    // Fresh differs from the cached render → rebuild the grid.
+                    grid.textContent = '';
+                    grid.className = currentMovieView === 'list' ? 'media-list' : 'media-grid';
+                    populateGenreFilters(allMoviesCache, 'movieGenreFilters');
+                    const cc = cardFn();
+                    data.items.forEach(item => grid.appendChild(cc(item)));
+                    addLoadMore(data.items.length);
+                    grid.dataset.mhSig = sig;
+                }
+                moviesOffset = data.items.length;
             } else {
                 allMoviesCache = [...allMoviesCache, ...data.items];
-            }
-
-            // Populate genre filters
-            populateGenreFilters(allMoviesCache, 'movieGenreFilters');
-
-            // Render the movies
-            const createCard = currentMovieView === 'list' ? createListCard : createPosterCard;
-            data.items.forEach(item => {
-                grid.appendChild(createCard(item));
-            });
-            moviesOffset += data.items.length;
-
-            // Load more button if there might be more
-            if (data.items.length === 200) {
-                const loadMore = document.createElement('button');
-                loadMore.className = 'load-more-btn';
-                loadMore.textContent = 'Load More';
-                loadMore.onclick = () => {
-                    loadMore.remove();
-                    loadMovies(true);
-                };
-                grid.appendChild(loadMore);
+                populateGenreFilters(allMoviesCache, 'movieGenreFilters');
+                const cc = cardFn();
+                data.items.forEach(item => grid.appendChild(cc(item)));
+                moviesOffset += data.items.length;
+                addLoadMore(data.items.length);
             }
         }
         lucide.createIcons();
     } catch (error) {
-        loading.remove();
-        grid.appendChild(createEmptyState('alert-circle', 'Failed to load movies'));
-        lucide.createIcons();
+        if (loading) loading.remove();
+        // Keep any cached render on error rather than blanking to an error state.
+        if (grid.children.length === 0) {
+            grid.appendChild(createEmptyState('alert-circle', 'Failed to load movies'));
+            lucide.createIcons();
+        }
     }
 }
 
@@ -2089,58 +2116,83 @@ async function loadShows(append = false) {
     const grid = document.getElementById('showsGrid');
     if (!grid) return;
 
+    const cardFn = () => (currentShowView === 'list' ? createListCard : createPosterCard);
+    const addLoadMore = (count) => {
+        if (count === 200) {
+            const loadMore = document.createElement('button');
+            loadMore.className = 'load-more-btn';
+            loadMore.textContent = 'Load More';
+            loadMore.onclick = () => { loadMore.remove(); loadShows(true); };
+            grid.appendChild(loadMore);
+        }
+    };
+
     if (!append) {
         grid.textContent = '';
         grid.className = currentShowView === 'list' ? 'media-list' : 'media-grid';
         showsOffset = 0;
         currentShowGenre = 'all'; // Reset genre filter
+
+        // Cache-first (stale-while-revalidate): paint the last-known first page from
+        // localStorage INSTANTLY, then refresh and only re-render if changed. #4746.
+        const cachedS = cacheGet('shows-firstpage');
+        if (cachedS && cachedS.data && cachedS.data.length) {
+            allShowsCache = cachedS.data;
+            populateGenreFilters(allShowsCache, 'showGenreFilters');
+            const cc = cardFn();
+            cachedS.data.forEach(item => grid.appendChild(cc(item)));
+            addLoadMore(cachedS.data.length);
+            grid.dataset.mhSig = cachedS.data.map(i => i.id).join(',');
+            showsOffset = cachedS.data.length;
+            lucide.createIcons();
+        }
     }
 
-    const loading = createLoadingElement('Loading shows...');
-    grid.appendChild(loading);
+    // Blocking spinner ONLY when nothing is on screen (no cached render).
+    let loading = null;
+    if (grid.children.length === 0) {
+        loading = createLoadingElement('Loading shows...');
+        grid.appendChild(loading);
+    }
 
     try {
         const sort = currentShowSort || 'added';
-        // Load more items for genre filtering
         const response = await fetch(`${API_BASE}/library/shows?limit=200&offset=${showsOffset}&sort=${sort}`);
         const data = await response.json();
 
-        loading.remove();
+        if (loading) loading.remove();
 
         if (data.success && data.items) {
-            // Cache all shows for filtering
             if (!append) {
+                const sig = data.items.map(i => i.id).join(',');
                 allShowsCache = data.items;
+                cacheSet('shows-firstpage', data.items);
+                if (sig !== grid.dataset.mhSig) {
+                    grid.textContent = '';
+                    grid.className = currentShowView === 'list' ? 'media-list' : 'media-grid';
+                    populateGenreFilters(allShowsCache, 'showGenreFilters');
+                    const cc = cardFn();
+                    data.items.forEach(item => grid.appendChild(cc(item)));
+                    addLoadMore(data.items.length);
+                    grid.dataset.mhSig = sig;
+                }
+                showsOffset = data.items.length;
             } else {
                 allShowsCache = [...allShowsCache, ...data.items];
-            }
-
-            // Populate genre filters
-            populateGenreFilters(allShowsCache, 'showGenreFilters');
-
-            // Render the shows
-            const createCard = currentShowView === 'list' ? createListCard : createPosterCard;
-            data.items.forEach(item => {
-                grid.appendChild(createCard(item));
-            });
-            showsOffset += data.items.length;
-
-            if (data.items.length === 200) {
-                const loadMore = document.createElement('button');
-                loadMore.className = 'load-more-btn';
-                loadMore.textContent = 'Load More';
-                loadMore.onclick = () => {
-                    loadMore.remove();
-                    loadShows(true);
-                };
-                grid.appendChild(loadMore);
+                populateGenreFilters(allShowsCache, 'showGenreFilters');
+                const cc = cardFn();
+                data.items.forEach(item => grid.appendChild(cc(item)));
+                showsOffset += data.items.length;
+                addLoadMore(data.items.length);
             }
         }
         lucide.createIcons();
     } catch (error) {
-        loading.remove();
-        grid.appendChild(createEmptyState('alert-circle', 'Failed to load shows'));
-        lucide.createIcons();
+        if (loading) loading.remove();
+        if (grid.children.length === 0) {
+            grid.appendChild(createEmptyState('alert-circle', 'Failed to load shows'));
+            lucide.createIcons();
+        }
     }
 }
 

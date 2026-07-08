@@ -129,6 +129,33 @@ git fetch origin && git reset --hard origin/main
 
 ---
 
+### Step 7.5: Redeploy the affected product FROM main + verify integrated (anti-drift — never skip for image-baked products)
+
+**Why:** an image-baked product (`COPY .` Dockerfile — every standalone: media_hub,
+the watch products, KBS, KSO) only ever runs whatever branch it was last built from.
+If you (or a parallel session) deployed feature branches during the work, the live
+container reflects only the LAST branch — the others were silently reverted. "Verified
+live" on a feature branch goes stale the moment another branch is built. See KB mistake
+**#279350** (deploy-from-feature-branch drift) + `.claude/rules/deploy-provenance.md`.
+
+After the merges land on main:
+
+```bash
+# Rebuild the affected product FROM the integrated main, stamping its commit:
+scripts/deploy_with_sha.sh <compose-dir> <service>     # e.g. standalone/media_hub mediahub_app
+
+# Confirm the running image now reports main's HEAD (no drift):
+scripts/deploy_drift_check.py
+```
+
+Then re-verify the merged features **together** in the freshly-built container (not the
+per-branch checks from earlier — those are stale). If the product is on a VPS, deploy per
+`.claude/rules/outpost-vps.md` and hit its `/version` to confirm the commit.
+
+Skip only if nothing image-baked changed (e.g. a docs-only or platform-volume-mounted change).
+
+---
+
 ### Step 8: Queue documentation (MANDATORY — never skip)
 
 **Always queue documentation after every merge — even if there's no time to write it now.**

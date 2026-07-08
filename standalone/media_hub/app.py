@@ -462,6 +462,18 @@ def create_app() -> Flask:
     def health():
         return {"status": "ok", "mode": "standalone", "product": "media_hub"}, 200
 
+    @app.route("/version")
+    def version():
+        """Build provenance — the git commit baked into THIS image + when it was
+        built. Stamped by scripts/deploy_with_sha.sh at build time. Lets
+        scripts/deploy_drift_check.py compare the running image against
+        origin/main and catch deploy-from-feature-branch drift (KB #279350)."""
+        return {
+            "product": "media_hub",
+            "git_sha": os.environ.get("MEDIA_HUB_GIT_SHA", "unknown"),
+            "build_time": os.environ.get("MEDIA_HUB_BUILD_TIME", "unknown"),
+        }, 200
+
     # Digital Asset Links — Fire TV / Android TV TWA trust binding.
     # ANDROID_APK_PACKAGE defaults to the Bubblewrap package id; SHA-256
     # fingerprints come from the signing keystore (see bubblewrap/README).

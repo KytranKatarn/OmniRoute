@@ -34,6 +34,12 @@ services:
     build:
       context: ../..
       dockerfile: standalone/media_hub/Dockerfile
+      # Build provenance — export GIT_SHA + BUILD_TIME before `up -d --build`
+      # (scripts/deploy_with_sha.sh does this) so the image self-reports its
+      # commit at /version. Defaults to "unknown" for a bare build.
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        BUILD_TIME: ${BUILD_TIME:-unknown}
     image: mediahub:standalone
     container_name: mediahub_app
     restart: unless-stopped

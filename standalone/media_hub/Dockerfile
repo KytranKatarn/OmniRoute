@@ -84,9 +84,22 @@ COPY standalone/media_hub/static/css/tv-mode.css /app/static/css/tv-mode.css
 # The Media Hub module itself — this is the whole product
 COPY standalone/media_hub/tools/media_hub/ /app/tools/media_hub/
 
+# Build provenance — stamped by scripts/deploy_with_sha.sh at build time and
+# exposed at /version. Lets scripts/deploy_drift_check.py compare the running
+# image's baked commit against origin/main and catch deploy-from-feature-branch
+# drift (KB #279350). ARGs live here (near the end) so a changing SHA doesn't
+# invalidate the cache of the expensive COPY/pip layers above. Default "unknown"
+# keeps a plain `docker build` (no --build-arg) working.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+LABEL org.opencontainers.image.revision="$GIT_SHA" \
+      org.opencontainers.image.created="$BUILD_TIME"
+
 # Standalone is always in standalone mode by construction
 ENV MEDIA_HUB_STANDALONE=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    MEDIA_HUB_GIT_SHA=$GIT_SHA \
+    MEDIA_HUB_BUILD_TIME=$BUILD_TIME
 
 USER mediahub
 

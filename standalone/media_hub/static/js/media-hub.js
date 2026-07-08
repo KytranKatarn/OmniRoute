@@ -3490,7 +3490,7 @@ function renderMediaDetails(item) {
             rmIcon.setAttribute('data-lucide', 'trash-2');
             removeBtn.appendChild(rmIcon);
             const rmText = document.createElement('span');
-            rmText.textContent = 'Remove';
+            rmText.textContent = window.MEDIA_HUB_IS_ADMIN === true ? 'Remove' : 'Request Removal';
             removeBtn.appendChild(rmText);
             actions.appendChild(removeBtn);
         }
@@ -3530,12 +3530,17 @@ function renderMediaDetails(item) {
     lucide.createIcons();
 }
 
-// Two-step "are you sure?" removal (project #385 task #4745). The backend
-// (/api/library/delete) is ADMIN-ONLY and deletes the movie/show AND its files
-// (Radarr/Sonarr deleteFiles=true); this UI gate is the DOUBLE human confirmation.
+// Removal flow (project #385 #4745/#4746). Role-aware via window.MEDIA_HUB_IS_ADMIN,
+// backed by POST /api/library/remove which decides by role:
+//   • admin        → two-step "are you sure?" → deletes the movie/show + files now.
+//   • regular user → single confirm → a REQUEST that pings Kytran on Telegram to
+//     approve; NOTHING is deleted until he approves.
 // All titles rendered via textContent — never innerHTML (external strings).
 function confirmRemoveMedia(item, mediaType) {
     const title = item.title || 'this item';
+    const isAdmin = window.MEDIA_HUB_IS_ADMIN === true;
+    const whatFiles = mediaType === 'movie' ? 'the movie file' : 'the show and all its episode files';
+
     const overlay = document.createElement('div');
     overlay.className = 'request-modal-overlay';
     const box = document.createElement('div');
@@ -3572,23 +3577,31 @@ function confirmRemoveMedia(item, mediaType) {
         box.appendChild(row);
     };
 
-    const step1 = () => render(
-        `Remove "${title}"?`,
-        `This permanently deletes ${mediaType === 'movie' ? 'the movie file' : 'the show and all its episode files'} from your library. This cannot be undone.`,
-        'Continue', step2);
+    const step1 = () => {
+        if (isAdmin) {
+            render(`Remove "${title}"?`,
+                `This permanently deletes ${whatFiles} from your library. This cannot be undone.`,
+                'Continue', step2);
+        } else {
+            render(`Request removal of "${title}"?`,
+                `This sends a request to Kytran to approve removing ${whatFiles}. Nothing is deleted until he approves.`,
+                'Send Request', doRemove);
+        }
+    };
 
     function step2() {
         render('Are you absolutely sure?',
             `Second confirmation required — "${title}" and its file(s) will be permanently deleted.`,
-            'Delete Permanently', doDelete);
+            'Delete Permanently', doRemove);
     }
 
-    async function doDelete(e) {
+    async function doRemove(e) {
         const btn = e.target;
+        const label = btn.textContent;
         btn.disabled = true;
-        btn.textContent = 'Deleting…';
+        btn.textContent = isAdmin ? 'Deleting…' : 'Sending…';
         try {
-            const resp = await fetch(`${API_BASE}/library/delete`, {
+            const resp = await fetch(`${API_BASE}/library/remove`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -3598,21 +3611,25 @@ function confirmRemoveMedia(item, mediaType) {
             });
             const data = await resp.json().catch(() => ({}));
             if (resp.ok && data.success) {
-                showToast(`Removed "${title}"`, 'success');
-                close();
-                closeMediaPanel();
-                if (mediaType === 'movie') { loadMovies(); } else { loadShows(); }
+                if (data.mode === 'requested') {
+                    showToast(`Removal request sent to Kytran for "${title}"`, 'success');
+                    close();
+                    closeMediaPanel();
+                } else {
+                    showToast(`Removed "${title}"`, 'success');
+                    close();
+                    closeMediaPanel();
+                    if (mediaType === 'movie') { loadMovies(); } else { loadShows(); }
+                }
             } else {
-                const msg = resp.status === 403 ? 'Admin access required to remove media'
-                    : (data.error || 'Remove failed');
-                showToast(msg, 'error');
+                showToast(data.error || 'Removal failed', 'error');
                 btn.disabled = false;
-                btn.textContent = 'Delete Permanently';
+                btn.textContent = label;
             }
         } catch (err) {
-            showToast('Remove request failed', 'error');
+            showToast('Request failed', 'error');
             btn.disabled = false;
-            btn.textContent = 'Delete Permanently';
+            btn.textContent = label;
         }
     }
 

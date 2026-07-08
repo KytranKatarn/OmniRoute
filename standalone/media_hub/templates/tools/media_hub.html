@@ -866,6 +866,7 @@
 <script src="//www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
+<script>window.MEDIA_HUB_IS_ADMIN = {{ 'true' if (current_user.is_authenticated and current_user.is_admin) else 'false' }};</script>
 <script src="{{ url_for('static', filename='js/media-hub.js') }}"></script>
 <script src="{{ url_for('static', filename='js/media-hub-cast.js') }}"></script>
 <script>

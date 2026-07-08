@@ -11,7 +11,7 @@ import re
 import threading
 
 from flask import render_template, jsonify, request
-from flask_login import login_required
+from flask_login import login_required, current_user
 from . import media_hub_bp
 from .auth import media_hub_admin_required
 from .encryption import encrypt_api_key, decrypt_api_key, get_key_source
@@ -1055,6 +1055,57 @@ def api_maven_remove():
         year=data.get("year"),
         reason=data.get("reason") or "M.A.V.E.N. removal request",
     )
+    return jsonify(res), (200 if res.get("success") else 400)
+
+
+@media_hub_bp.route("/api/library/remove", methods=["POST"])
+@login_required
+def api_library_remove():
+    """Role-aware removal — available to ANY authenticated user (task #4746).
+
+      • admin        → deletes the movie/show + files immediately (_delete_library_item).
+      • regular user → raises an A.R.C.H.I.E. Telegram approval to Kytran
+        (maven_manager.request_removal). NOTHING is deleted until Kytran approves;
+        the maven_removal_executor job performs the delete on approval.
+
+    The item is dry-run-resolved first so a bad title/id returns 404 to the user
+    instead of pinging Kytran with a phantom approval. Body: {media_type, tmdb_id?,
+    title?, year?}. Returns {mode:'deleted'|'requested', ...}."""
+    data = request.get_json() or {}
+    media_type = data.get("media_type")
+    tmdb_id = data.get("tmdb_id")
+    title = data.get("title")
+    year = data.get("year")
+
+    # Admin → delete immediately.
+    if getattr(current_user, "is_admin", False):
+        res = _delete_library_item(media_type=media_type, tmdb_id=tmdb_id, title=title, year=year)
+        if res.get("deleted"):
+            logger.warning("library remove (admin direct): %s", res["deleted"])
+        res["mode"] = "deleted"
+        err = (res.get("error") or "").lower()
+        code = 200 if res.get("success") else (404 if "not found" in err else 400)
+        return jsonify(res), code
+
+    # Regular user → validate the item resolves, THEN raise a Telegram approval.
+    check = _delete_library_item(
+        media_type=media_type, tmdb_id=tmdb_id, title=title, year=year, dry_run=True
+    )
+    if not check.get("success"):
+        err = (check.get("error") or "").lower()
+        return jsonify({"success": False, "mode": "requested", "error": check.get("error")}), (
+            404 if "not found" in err else 400
+        )
+    try:
+        from maven_manager import request_removal
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"success": False, "error": f"approval unavailable: {e}"}), 500
+    who = getattr(current_user, "username", None) or getattr(current_user, "id", "a user")
+    res = request_removal(
+        media_type=media_type, tmdb_id=tmdb_id, title=title, year=year,
+        reason=f"Removal requested by {who}",
+    )
+    res["mode"] = "requested"
     return jsonify(res), (200 if res.get("success") else 400)
 
 

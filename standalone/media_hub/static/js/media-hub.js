@@ -4515,3 +4515,18 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('[Media Hub] Running in standalone mode - already installed');
     }
 });
+
+// ── Slim the decorative LCARS sidebars on phones so content uses the full width (#4740) ──
+// The sidebars carry inline `width:56px !important`, which external CSS can't override,
+// so nudge them here. Phone-only; captures the original width to restore on desktop/rotate.
+function _mhSlimLcarsSidebars() {
+    var phone = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+    document.querySelectorAll('.lcars-sidebar').forEach(function (sb) {
+        if (!sb.dataset.mhOrigW) sb.dataset.mhOrigW = sb.style.width || '56px';
+        sb.style.setProperty('width', phone ? '20px' : sb.dataset.mhOrigW, 'important');
+    });
+}
+if (document.readyState !== 'loading') _mhSlimLcarsSidebars();
+else document.addEventListener('DOMContentLoaded', _mhSlimLcarsSidebars);
+window.addEventListener('resize', _mhSlimLcarsSidebars);
+setTimeout(_mhSlimLcarsSidebars, 600);

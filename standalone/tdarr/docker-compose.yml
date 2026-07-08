@@ -1,0 +1,47 @@
+# Tdarr — video health + transcode-for-space, M.A.V.E.N.-orchestrated (project #385 Phase 3).
+#
+# The all-in-one image runs the Tdarr SERVER + a built-in (internal) CPU NODE, so this one
+# container gives the hub a working Server + a CPU transcode node. GPU nodes on the Starships
+# (Phase B) are separate `tdarr_node` containers that connect to serverIP 100.64.0.4:8266.
+#
+# Cache + config live on /mnt/data2 (228 GB free) — NEVER the 87 GB-free media volume.
+# The hub M4000 is Maxwell (H.264-only NVENC, no HEVC) + Ollama-saturated, so this node is
+# CPU-only on purpose (no --gpus); HEVC space-optimizing runs on the Starship GPU nodes.
+#
+# Run:  cd standalone/tdarr && docker compose up -d
+services:
+  tdarr:
+    image: ghcr.io/haveagitgat/tdarr@sha256:6153e00470667b5ed4f6f6f1bfaa016432efa4c20b1919de229d9b7265bff70b  # 2.82.02, digest-pinned (no :latest)
+    container_name: tdarr
+    restart: unless-stopped
+    environment:
+      TZ: America/Toronto
+      PUID: "1000"
+      PGID: "1000"
+      UMASK_SET: "002"
+      serverIP: 0.0.0.0
+      serverPort: "8266"
+      webUIPort: "8265"
+      internalNode: "true"       # hub CPU node built-in
+      inContainer: "true"
+      nodeName: tdarr-hub-cpu
+    ports:
+      - "8265:8265"              # web UI + REST API
+      - "8266:8266"              # server (Starship nodes connect here)
+    volumes:
+      - /mnt/data2/tdarr/server:/app/server
+      - /mnt/data2/tdarr/configs:/app/configs
+      - /mnt/data2/tdarr/logs:/app/logs
+      - /mnt/Plex/media:/media                       # rw — replace-in-place after approval
+      - /mnt/data2/tdarr/transcode_cache:/temp       # roomy scratch, OFF the media volume
+    mem_limit: 6g
+    cpus: 4.0                     # cap so a CPU transcode never starves the platform
+    security_opt: ["no-new-privileges:true"]
+    networks:
+      default:
+      tdarr_net:                  # shared with mediahub_app for M.A.V.E.N. → Tdarr API (Phase C)
+
+networks:
+  default:
+  tdarr_net:
+    external: true

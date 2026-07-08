@@ -742,6 +742,47 @@ def library_coverage_probe() -> None:
         except Exception as e:
             log.warning("library_coverage_probe: Sonarr error: %s", e)
 
+        # ---- Aired-but-missing episodes -> auto-search (task #4724) ----
+        # The 0%-coverage check above only catches series with NO files. It
+        # misses the Rick & Morty S9 case: a series with SOME files where
+        # specific AIRED episodes were never grabbed (SABnzbd paused / bad
+        # releases). Search for recently-aired missing episodes only (last 30d,
+        # so we don't hammer indexers for ancient unavailable specials in the
+        # backlog), skipping any already in the download queue.
+        try:
+            from datetime import datetime as _dtm, timedelta as _tdl, timezone as _tzu
+
+            cutoff = (_dtm.now(_tzu.utc) - _tdl(days=30)).date().isoformat()
+            wanted = requests.get(
+                f"{base}/wanted/missing",
+                params={"pageSize": 100, "monitored": "true"},
+                headers={"X-Api-Key": key},
+                timeout=10,
+            ).json()
+            recent = [r for r in wanted.get("records", []) if (r.get("airDate") or "") >= cutoff]
+            if recent:
+                q = requests.get(
+                    f"{base}/queue", params={"pageSize": 200}, headers={"X-Api-Key": key}, timeout=10
+                ).json()
+                in_queue = {r.get("episodeId") for r in q.get("records", [])}
+                ep_ids = [r["id"] for r in recent if r["id"] not in in_queue][:40]
+                if ep_ids:
+                    requests.post(
+                        f"{base}/command",
+                        json={"name": "EpisodeSearch", "episodeIds": ep_ids},
+                        headers={"X-Api-Key": key},
+                        timeout=10,
+                    )
+                    issues.append(
+                        f"Sonarr: {len(ep_ids)} recently-aired episode(s) missing files — searching"
+                    )
+                    actions.append(
+                        f"triggered Sonarr EpisodeSearch for {len(ep_ids)} aired-missing episode(s)"
+                    )
+                    log.warning("library_coverage_probe: %s", issues[-1])
+        except Exception as e:
+            log.warning("library_coverage_probe: aired-missing search error: %s", e)
+
     # ---- Radarr: monitored movies without files ----
     radarr_row = by_type.get("radarr")
     if radarr_row:

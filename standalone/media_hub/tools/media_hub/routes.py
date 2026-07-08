@@ -13,6 +13,7 @@ import threading
 from flask import render_template, jsonify, request
 from flask_login import login_required
 from . import media_hub_bp
+from .auth import media_hub_admin_required
 from .encryption import encrypt_api_key, decrypt_api_key, get_key_source
 from .discovery import discover_all_api_keys
 from .services import get_service_client
@@ -23,6 +24,15 @@ import time
 
 # Allowlist for Plex thumbnail paths — blocks path traversal / SSRF
 _PLEX_PATH_RE = re.compile(r"^/library/[a-zA-Z0-9/_.-]+$")
+# Jellyfin item ids are 32-hex GUIDs (dashless canonical form; some deployments
+# emit the dashed 8-4-4-4-12 variant). Anchored + charset-limited so a crafted
+# `id` cannot inject `/`, `?`, `#` or `..` into the upstream Jellyfin URL path
+# (SSRF / path-traversal against the media server's own API with its api_key).
+_JELLYFIN_ID_RE = re.compile(r"^[0-9a-fA-F]{32}$|^[0-9a-fA-F-]{36}$")
+# Jellyfin image types — allowlist (the only values the UI ever requests).
+_JELLYFIN_IMG_TYPES = frozenset(
+    {"Primary", "Backdrop", "Thumb", "Logo", "Banner", "Art", "Disc", "Box", "Menu"}
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1089,6 +1099,7 @@ def api_create_request():
 
 
 @media_hub_bp.route("/api/requests/<int:request_id>", methods=["DELETE"])
+@media_hub_admin_required
 def api_delete_request(request_id):
     """Delete a media request"""
     overseerr_config = get_service_config("overseerr") or get_service_config("jellyseerr")
@@ -1570,6 +1581,7 @@ def api_settings():
 
 
 @media_hub_bp.route("/api/settings/services", methods=["POST"])
+@media_hub_admin_required
 def api_add_service():
     """Add or update a service configuration"""
     data = request.get_json() or {}
@@ -1670,6 +1682,7 @@ def api_add_service():
 
 
 @media_hub_bp.route("/api/settings/discover", methods=["POST"])
+@media_hub_admin_required
 def api_discover_services():
     """Auto-discover API keys from config files"""
     try:
@@ -1729,6 +1742,7 @@ def api_discover_services():
 
 
 @media_hub_bp.route("/api/settings/test/<int:service_id>", methods=["POST"])
+@media_hub_admin_required
 def api_test_service(service_id):
     """Test connection to a specific service"""
     try:
@@ -1790,6 +1804,7 @@ def api_test_service(service_id):
 
 
 @media_hub_bp.route("/api/settings/services/<int:service_id>", methods=["DELETE"])
+@media_hub_admin_required
 def api_delete_service(service_id):
     """Delete a service configuration"""
     try:
@@ -1810,6 +1825,7 @@ def api_delete_service(service_id):
 
 
 @media_hub_bp.route("/api/settings/set-primary/<int:service_id>", methods=["POST"])
+@media_hub_admin_required
 def api_set_primary_server(service_id):
     """Set a service as the primary media server"""
     try:
@@ -2282,7 +2298,12 @@ def api_proxy_thumb():
                 return "", 404
             item_id = request.args.get("id", "")
             img_type = request.args.get("type", "Primary")
-            if not item_id:
+            # Validate BOTH before interpolating into the upstream path — a crafted
+            # id/type could otherwise inject `/`, `?`, `#` or `..` to reach other
+            # Jellyfin endpoints (SSRF / path-traversal) carrying the admin api_key.
+            if not _JELLYFIN_ID_RE.match(item_id):
+                return "", 400
+            if img_type not in _JELLYFIN_IMG_TYPES:
                 return "", 400
             scheme = "https" if config["use_ssl"] else "http"
             url = (
@@ -2409,6 +2430,7 @@ def api_download_resume(nzo_id):
 
 
 @media_hub_bp.route("/api/downloads/<nzo_id>", methods=["DELETE"])
+@media_hub_admin_required
 def api_download_delete(nzo_id):
     """Delete a download from queue"""
     client = get_sabnzbd_client()

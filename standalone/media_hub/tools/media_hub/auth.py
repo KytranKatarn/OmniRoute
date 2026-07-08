@@ -21,7 +21,7 @@ Design:
 
 from functools import wraps
 
-from flask import current_app, jsonify, request
+from flask import abort, current_app, jsonify, request
 from flask_login import current_user
 
 
@@ -84,5 +84,30 @@ def media_hub_login_required(fn):
         if _is_api_request():
             return jsonify({"error": "Authentication required"}), 401
         return current_app.login_manager.unauthorized()
+
+    return wrapper
+
+
+def media_hub_admin_required(fn):
+    """Per-route ADMIN gate for privileged mutations (service config, deletes).
+
+    Login is already enforced blueprint-wide by ``_require_login``; this adds the
+    ``is_admin`` check so a non-admin family member (a viewer, or an SSO user the
+    IdP did not issue an admin role to) cannot rewrite service credentials or
+    delete downloads/requests. Returns JSON 403 for API requests — consistent
+    with the JSON 401 the login gate returns — and an HTML 403 otherwise.
+    """
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not current_user.is_authenticated:
+            if _is_api_request():
+                return jsonify({"error": "Authentication required"}), 401
+            return current_app.login_manager.unauthorized()
+        if not getattr(current_user, "is_admin", False):
+            if _is_api_request():
+                return jsonify({"error": "Admin privileges required"}), 403
+            abort(403)
+        return fn(*args, **kwargs)
 
     return wrapper

@@ -54,6 +54,19 @@
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
         .poster { aspect-ratio: 2/3; background: var(--archie-bg-secondary, #1e293b) center/cover;
                   border-radius: 8px; margin-bottom: 0.5rem; }
+        /* Phone layout (#4738) — additive, phone-only (<=480px). Desktop / TV / Fold5-unfolded unchanged. */
+        @media (max-width: 480px) {
+            html, body { max-width: 100%; overflow-x: hidden; }   /* kill horizontal scroll ("doesn't fit") */
+            .maven-content { padding: 1rem 0.8rem 3rem; }
+            h1 { font-size: 1.4rem; }
+            .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.6rem; }
+            .summary { gap: 0.5rem; margin-bottom: 1.25rem; }
+            .card { padding: 1rem; }
+            /* lang selector is desktop-pinned beside the LCARS strip (right:11.5rem);
+               the strip reflows on phone so that slot overlaps — pin it to the corner */
+            #maven-lang-fixed { right: 0.5rem !important; }
+            #lang-select { font-size: 0.62rem; padding: 0.15rem 0.3rem; }
+        }
     </style>
 </head>
 <body>
@@ -96,7 +109,7 @@
 {% include 'includes/lcars-header.html' %}
 
 {# Language selector — fixed top-right, adjacent to the LCARS strip #}
-<div style="position:fixed;top:0.55rem;right:11.5rem;z-index:9999;display:flex;align-items:center;gap:0.3rem;">
+<div id="maven-lang-fixed" style="position:fixed;top:0.55rem;right:11.5rem;z-index:9999;display:flex;align-items:center;gap:0.3rem;">
   <select id="lang-select"
     style="background:#0f172a;color:#94a3b8;border:1px solid #1e293b;border-radius:6px;
            padding:0.2rem 0.4rem;font-size:0.7rem;font-family:inherit;cursor:pointer;"

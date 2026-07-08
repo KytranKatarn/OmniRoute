@@ -5178,3 +5178,15 @@ body.light-mode .stat-value { color: #1a1a1a; }
 
 /* --- Visibility --- */
 .mh-hidden { display: none; }
+
+/* ═══ Phone width optimization (#4738/#4739) — fluid fit + full-width use ═══ */
+@media (max-width: 600px) {
+    /* Kill any stray horizontal scroll ("doesn't fit the screen"). */
+    html, body { overflow-x: hidden; }
+    .media-hub-container, .media-hub, .media-hub-content { max-width: 100%; overflow-x: hidden; }
+    /* Reclaim the desktop 24px side gutters → 12px so content uses the full phone width. */
+    .hub-content, .hub-header { padding-left: 12px; padding-right: 12px; }
+    /* Header wraps and the search bar takes the whole row instead of being squeezed. */
+    .hub-header .header-content { flex-wrap: wrap; gap: 10px; }
+    .hub-header .header-search { flex: 1 1 100%; width: 100%; order: 5; margin-top: 8px; }
+}

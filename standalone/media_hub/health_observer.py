@@ -608,6 +608,7 @@ def stale_queue_probe() -> None:
         ).json()
 
         stale_ids: list[int] = []
+        stale_download_ids: list[str] = []
         for item in queue.get("records", []):
             if item.get("status") != "completed" or item.get("trackedDownloadStatus") != "warning":
                 continue
@@ -620,6 +621,12 @@ def stale_queue_probe() -> None:
                         m = _re.search(r"import in (.+?)$", text)
                         if m:
                             folder = m.group(1).strip().rstrip("/")
+                            # SAFETY (audit 2026-07-08): this container has NO download-folder
+                            # mount, so it cannot verify emptiness. Only act when the folder is
+                            # actually readable HERE; if we can't see it, SKIP — never delete on
+                            # an unverifiable check (old code failed OPEN → blind deletion).
+                            if not os.path.isdir(folder):
+                                continue
                             has_video = False
                             try:
                                 for root, _, files in os.walk(folder):
@@ -630,9 +637,11 @@ def stale_queue_probe() -> None:
                                         has_video = True
                                         break
                             except OSError:
-                                pass
+                                continue  # cannot read folder → do NOT delete
                             if not has_video:
                                 stale_ids.append(item["id"])
+                                if item.get("downloadId"):
+                                    stale_download_ids.append(item["downloadId"])
 
         if not stale_ids:
             log.info("stale_queue_probe: queue clean")
@@ -647,24 +656,30 @@ def stale_queue_probe() -> None:
         )
         log.warning("stale_queue_probe: removed %d stale completed/warning item(s)", len(stale_ids))
 
-        # Also purge SABnzbd history so Sonarr doesn't re-add them
+        # Purge ONLY the matching SABnzbd history entries so Sonarr doesn't re-add them.
+        # SAFETY (audit 2026-07-08): scoped to the specific stale nzo_ids — NEVER value="all"
+        # (old code purged the ENTIRE history, nuking unrelated/in-flight downloads).
         sab_row = by_type.get("sabnzbd")
-        if sab_row:
+        if sab_row and stale_download_ids:
             _, _, _, sab_host, sab_port, sab_ssl, sab_enc, _ = sab_row
             sab_key = _decrypt(sab_enc)
             sab_scheme = "https" if sab_ssl else "http"
             sab_base = f"{sab_scheme}://{sab_host}:{sab_port}"
-            try:
-                resp = requests.get(
-                    f"{sab_base}/api",
-                    params={"mode": "history", "name": "delete", "value": "all",
-                            "del_files": "0", "output": "json", "apikey": sab_key},
-                    timeout=10,
-                )
-                if resp.json().get("status"):
-                    log.warning("stale_queue_probe: SABnzbd history purged")
-            except Exception as e:
-                log.warning("stale_queue_probe: SABnzbd history purge failed: %s", e)
+            purged = 0
+            for nzo in stale_download_ids:
+                try:
+                    resp = requests.get(
+                        f"{sab_base}/api",
+                        params={"mode": "history", "name": "delete", "value": nzo,
+                                "del_files": "0", "output": "json", "apikey": sab_key},
+                        timeout=10,
+                    )
+                    if resp.json().get("status"):
+                        purged += 1
+                except Exception as e:
+                    log.warning("stale_queue_probe: SAB history delete %s failed: %s", nzo, e)
+            if purged:
+                log.warning("stale_queue_probe: purged %d matching SABnzbd history item(s)", purged)
 
         # Notify hub
         hub_url = os.getenv("ARCHIE_HUB_URL", "http://192.168.1.200:3000")

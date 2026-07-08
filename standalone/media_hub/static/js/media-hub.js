@@ -2241,20 +2241,32 @@ function renderFilteredRequests() {
         filtered = allRequests.filter(r => r.status === currentRequestsFilter);
     }
 
-    // Update summary
+    // Update summary — break the blanket "processing" bucket into honest
+    // downloading / importing / searching counts so a stalled or import-pending
+    // request is never miscounted as an active download (see requestProgressState).
     if (summary) {
+        let dl = 0, imp = 0, srch = 0;
+        allRequests.filter(r => r.status === 'processing').forEach(r => {
+            const st = requestProgressState(r);
+            if (!st) return;
+            if (st.key === 'downloading') dl++;
+            else if (st.key === 'importing') imp++;
+            else srch++;
+        });
         const counts = {
             pending: allRequests.filter(r => r.status === 'pending').length,
             approved: allRequests.filter(r => r.status === 'approved').length,
-            processing: allRequests.filter(r => r.status === 'processing').length,
             available: allRequests.filter(r => r.status === 'available').length
         };
-        summary.innerHTML = `
-            <span class="summary-item"><span class="dot pending"></span>${counts.pending} pending</span>
-            <span class="summary-item"><span class="dot approved"></span>${counts.approved} approved</span>
-            <span class="summary-item"><span class="dot processing"></span>${counts.processing} downloading</span>
-            <span class="summary-item"><span class="dot available"></span>${counts.available} completed</span>
-        `;
+        const chips = [
+            `<span class="summary-item"><span class="dot pending"></span>${counts.pending} pending</span>`,
+            `<span class="summary-item"><span class="dot approved"></span>${counts.approved} approved</span>`
+        ];
+        if (dl)   chips.push(`<span class="summary-item"><span class="dot processing"></span>${dl} downloading</span>`);
+        if (imp)  chips.push(`<span class="summary-item"><span class="dot processing"></span>${imp} importing</span>`);
+        if (srch) chips.push(`<span class="summary-item"><span class="dot approved"></span>${srch} searching</span>`);
+        chips.push(`<span class="summary-item"><span class="dot available"></span>${counts.available} completed</span>`);
+        summary.innerHTML = chips.join('\n');
     }
 
     // Sort and limit
@@ -2277,6 +2289,35 @@ function renderFilteredRequests() {
         container.appendChild(createEmptyState('inbox', 'No requests match this filter'));
     }
     lucide.createIcons();
+}
+
+// Derive the REAL sub-state of a 'processing' request from live queue progress.
+// Overseerr flips a request to 'processing' the instant it's approved and handed
+// to Radarr/Sonarr — long before (or entirely without) an actual download. So a
+// flat "Downloading" label lies: an approved-but-not-yet-grabbed item shows
+// "Downloading" with no progress bar, and a finished-but-not-imported item shows
+// the same. This maps to what is really happening:
+//   downloading — bytes are transferring (percent < 100)
+//   importing   — download finished, waiting on the library import (importPending)
+//   searching   — approved, nothing grabbed yet (no queue entry)
+// Returns null for non-processing requests (callers fall back to the flat map).
+function requestProgressState(req) {
+    if (req.status !== 'processing') return null;
+    const p = req.tmdb_id ? queueProgress[String(req.tmdb_id)] : null;
+    if (!p) {
+        return { key: 'searching', label: 'Searching…', icon: 'search', percent: null };
+    }
+    const st = String(p.status || '').toLowerCase();
+    if (st.indexOf('import') !== -1 || (typeof p.percent === 'number' && p.percent >= 100)) {
+        return { key: 'importing', label: 'Importing…', icon: 'folder-input', percent: 100 };
+    }
+    return {
+        key: 'downloading',
+        label: 'Downloading',
+        icon: 'download',
+        percent: (typeof p.percent === 'number' && p.percent >= 0) ? p.percent : null,
+        eta: p.eta
+    };
 }
 
 function createRequestCard(req) {
@@ -2306,24 +2347,34 @@ function createRequestCard(req) {
     const rating = req.rating ? ` • ⭐ ${req.rating.toFixed(1)}` : '';
     meta.innerHTML = `<i data-lucide="${typeIcon}" style="width:14px;height:14px;display:inline;vertical-align:middle;margin-right:4px;"></i>${req.year || 'N/A'}${runtime}${rating}`;
 
-    // Status badge with icon
+    // Status badge with icon — for a 'processing' request, show its REAL sub-state
+    // (downloading / importing / searching) rather than a blanket "Downloading".
     const status = document.createElement('div');
     status.className = `request-status status-${req.status}`;
-    const statusIcons = {
-        'pending': 'clock',
-        'approved': 'check',
-        'processing': 'download',
-        'available': 'check-circle',
-        'declined': 'x-circle'
-    };
-    const statusLabels = {
-        'pending': 'Pending',
-        'approved': 'Approved',
-        'processing': 'Downloading',
-        'available': 'Available',
-        'declined': 'Declined'
-    };
-    status.innerHTML = `<i data-lucide="${statusIcons[req.status] || 'circle'}" style="width:12px;height:12px;"></i> ${statusLabels[req.status] || req.status}`;
+    const pstate = requestProgressState(req);
+    let sIcon, sLabel;
+    if (pstate) {
+        sIcon = pstate.icon;
+        sLabel = pstate.label;
+    } else {
+        const statusIcons = {
+            'pending': 'clock',
+            'approved': 'check',
+            'processing': 'download',
+            'available': 'check-circle',
+            'declined': 'x-circle'
+        };
+        const statusLabels = {
+            'pending': 'Pending',
+            'approved': 'Approved',
+            'processing': 'Downloading',
+            'available': 'Available',
+            'declined': 'Declined'
+        };
+        sIcon = statusIcons[req.status] || 'circle';
+        sLabel = statusLabels[req.status] || req.status;
+    }
+    status.innerHTML = `<i data-lucide="${sIcon}" style="width:12px;height:12px;"></i> ${sLabel}`;
 
     // Overview preview
     if (req.overview) {
@@ -2337,22 +2388,34 @@ function createRequestCard(req) {
     info.appendChild(meta);
     info.appendChild(status);
 
-    // Download progress bar for processing items
-    if (req.status === 'processing' && req.tmdb_id) {
-        const p = queueProgress[String(req.tmdb_id)];
-        if (p && p.percent >= 0) {
-            const bar = document.createElement('div');
-            bar.className = 'download-progress';
-            const fill = document.createElement('div');
-            fill.className = 'download-progress-bar';
-            fill.style.width = `${p.percent}%`;
-            bar.appendChild(fill);
-            const label = document.createElement('span');
-            label.className = 'download-progress-text';
-            label.textContent = p.eta ? `${p.percent}% · ${p.eta}` : `${p.percent}%`;
-            info.appendChild(bar);
-            info.appendChild(label);
-        }
+    // Progress indicator — only render a bar when something is really happening:
+    //   downloading → live percent + ETA
+    //   importing   → full bar labelled "Importing…" (download done, awaiting import)
+    //   searching   → nothing (no fake bar for a request that isn't transferring)
+    if (pstate && pstate.key === 'downloading' && pstate.percent !== null) {
+        const bar = document.createElement('div');
+        bar.className = 'download-progress';
+        const fill = document.createElement('div');
+        fill.className = 'download-progress-bar';
+        fill.style.width = `${pstate.percent}%`;
+        bar.appendChild(fill);
+        const label = document.createElement('span');
+        label.className = 'download-progress-text';
+        label.textContent = pstate.eta ? `${pstate.percent}% · ${pstate.eta}` : `${pstate.percent}%`;
+        info.appendChild(bar);
+        info.appendChild(label);
+    } else if (pstate && pstate.key === 'importing') {
+        const bar = document.createElement('div');
+        bar.className = 'download-progress';
+        const fill = document.createElement('div');
+        fill.className = 'download-progress-bar';
+        fill.style.width = '100%';
+        bar.appendChild(fill);
+        const label = document.createElement('span');
+        label.className = 'download-progress-text';
+        label.textContent = 'Importing to library…';
+        info.appendChild(bar);
+        info.appendChild(label);
     }
 
     card.appendChild(poster);
@@ -2427,17 +2490,23 @@ function showRequestDetail(req) {
         headerInfo.appendChild(genres);
     }
 
-    // Status badge
+    // Status badge — reflect the real sub-state for a 'processing' request.
     const status = document.createElement('div');
     status.className = `request-modal-status status-${req.status}`;
-    const statusLabels = {
-        'pending': '⏳ Pending Approval',
-        'approved': '✓ Approved',
-        'processing': '⬇️ Downloading',
-        'available': '✅ Available',
-        'declined': '❌ Declined'
-    };
-    status.textContent = statusLabels[req.status] || req.status;
+    const mstate = requestProgressState(req);
+    if (mstate) {
+        const emoji = mstate.key === 'downloading' ? '⬇️' : (mstate.key === 'importing' ? '📥' : '🔎');
+        status.textContent = `${emoji} ${mstate.label}`;
+    } else {
+        const statusLabels = {
+            'pending': '⏳ Pending Approval',
+            'approved': '✓ Approved',
+            'processing': '⬇️ Downloading',
+            'available': '✅ Available',
+            'declined': '❌ Declined'
+        };
+        status.textContent = statusLabels[req.status] || req.status;
+    }
 
     headerInfo.appendChild(title);
     headerInfo.appendChild(metaRow);

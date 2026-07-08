@@ -4523,7 +4523,7 @@ function _mhSlimLcarsSidebars() {
     var phone = window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
     document.querySelectorAll('.lcars-sidebar').forEach(function (sb) {
         if (!sb.dataset.mhOrigW) sb.dataset.mhOrigW = sb.style.width || '56px';
-        sb.style.setProperty('width', phone ? '20px' : sb.dataset.mhOrigW, 'important');
+        sb.style.setProperty('width', phone ? '12px' : sb.dataset.mhOrigW, 'important');
     });
 }
 if (document.readyState !== 'loading') _mhSlimLcarsSidebars();

@@ -1110,6 +1110,57 @@ def api_library_remove():
 
 
 # =============================================================================
+# TDARR — video review + optimize (project #385 Phase 3)
+# =============================================================================
+
+
+@media_hub_bp.route("/api/tdarr/status")
+@login_required
+def api_tdarr_status():
+    """Tdarr engine status + the node farm (hub CPU + Starship GPUs)."""
+    import tdarr_client
+
+    return jsonify({
+        "success": True,
+        "up": tdarr_client.is_up(),
+        "status": tdarr_client.status(),
+        "nodes": tdarr_client.nodes(),
+    })
+
+
+@media_hub_bp.route("/api/tdarr/review", methods=["POST"])
+@media_hub_admin_required
+def api_tdarr_review():
+    """Scan the Tdarr library + report space-optimize candidates (admin). Notifies A.R.C.H.I.E."""
+    from maven_manager import video_review
+
+    data = request.get_json(silent=True) or {}
+    res = video_review(min_gb=float(data.get("min_gb", 4.0)))
+    return jsonify(res), (200 if res.get("success") else 400)
+
+
+@media_hub_bp.route("/api/tdarr/optimize", methods=["POST"])
+@login_required
+def api_tdarr_optimize():
+    """Request a space-saving HEVC transcode of a file — ALWAYS Telegram-approved
+    (destructive: replaces the original), for admins and regular users alike. Kytran
+    approves; the maven_optimize_executor job then queues it on Tdarr. Body:
+    {file_id, title?, resolution?, est_savings_gb?}."""
+    from maven_manager import request_optimize
+
+    data = request.get_json() or {}
+    who = getattr(current_user, "username", None) or getattr(current_user, "id", "a user")
+    res = request_optimize(
+        file_id=data.get("file_id"),
+        title=data.get("title"),
+        resolution=data.get("resolution"),
+        est_savings_gb=data.get("est_savings_gb"),
+        reason=f"Optimize requested by {who}",
+    )
+    return jsonify(res), (200 if res.get("success") else 400)
+
+
+# =============================================================================
 # REQUEST ENDPOINTS
 # =============================================================================
 

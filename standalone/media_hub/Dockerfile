@@ -38,6 +38,7 @@ COPY standalone/media_hub/preferences_routes.py /app/preferences_routes.py
 COPY standalone/media_hub/health_observer.py    /app/health_observer.py
 COPY standalone/media_hub/archie_coordination.py /app/archie_coordination.py
 COPY standalone/media_hub/maven_manager.py       /app/maven_manager.py
+COPY standalone/media_hub/tdarr_client.py        /app/tdarr_client.py
 COPY standalone/media_hub/maven/         /app/maven/
 COPY standalone/media_hub/templates/     /app/templates/
 COPY standalone/media_hub/scripts/       /app/scripts/

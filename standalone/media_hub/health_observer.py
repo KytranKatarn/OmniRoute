@@ -1053,6 +1053,26 @@ def _maven_removal_executor() -> None:
         log.error("maven_removal_executor failed: %s", exc)
 
 
+def _maven_optimize_executor() -> None:
+    """Queue A.R.C.H.I.E.-approved Tdarr transcodes; drop denied. project #385 Phase 3."""
+    try:
+        from maven_manager import process_approved_optimizes
+
+        process_approved_optimizes()
+    except Exception as exc:  # noqa: BLE001
+        log.error("maven_optimize_executor failed: %s", exc)
+
+
+def _tdarr_library_review() -> None:
+    """Periodic Tdarr library review — report space-optimize candidates. Phase 3."""
+    try:
+        from maven_manager import video_review
+
+        video_review()
+    except Exception as exc:  # noqa: BLE001
+        log.error("tdarr_library_review failed: %s", exc)
+
+
 # --- scheduler wiring ------------------------------------------------------
 
 _scheduler: Optional[BackgroundScheduler] = None
@@ -1091,6 +1111,23 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         minutes=5,
         id="maven_removal_executor",
+        max_instances=1,
+        coalesce=True,
+    )
+    # Tdarr video optimize (project #385 Phase 3): drain approved transcodes + periodic review.
+    _scheduler.add_job(
+        _maven_optimize_executor,
+        "interval",
+        minutes=5,
+        id="maven_optimize_executor",
+        max_instances=1,
+        coalesce=True,
+    )
+    _scheduler.add_job(
+        _tdarr_library_review,
+        "interval",
+        hours=6,
+        id="tdarr_library_review",
         max_instances=1,
         coalesce=True,
     )

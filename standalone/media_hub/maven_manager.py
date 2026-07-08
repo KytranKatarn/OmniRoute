@@ -45,6 +45,8 @@ def _ensure_table() -> None:
             )
             """
         )
+        # payload carries action-specific data (optimize: tdarr file_id + resolution).
+        cur.execute("ALTER TABLE maven_pending_actions ADD COLUMN IF NOT EXISTS payload JSONB")
 
 
 def _mark(approval_id: int, status: str) -> None:
@@ -114,7 +116,7 @@ def process_approved_removals() -> None:
             cur.execute(
                 """SELECT approval_id, media_type, tmdb_id, title, year
                      FROM maven_pending_actions
-                    WHERE status='awaiting'
+                    WHERE status='awaiting' AND action='remove'
                     ORDER BY created_at LIMIT 20"""
             )
             rows = cur.fetchall()
@@ -144,3 +146,149 @@ def process_approved_removals() -> None:
             _mark(approval_id, "denied")
             log.info("removal %s (%s) denied — dropped", approval_id, label)
         # else: still pending -> leave for the next cycle
+
+
+# ── Video optimize (Tdarr) — approval-gated, mirrors the removal flow (Phase 3) ──
+
+# Consider a file a space-optimize candidate if it's a large, non-efficient codec.
+_EFFICIENT = ("hevc", "h265", "av1", "vp9")
+
+
+def _file_info(doc: dict) -> dict:
+    """Pull {id, path, codec, resolution, size_gb} from a Tdarr FileJSONDB doc,
+    tolerating field-name variation across Tdarr versions."""
+    def first(*keys):
+        for k in keys:
+            v = doc.get(k)
+            if v not in (None, "", 0):
+                return v
+        return None
+
+    size = first("file_size", "bytes", "size") or 0
+    try:
+        size_gb = round(float(size) / (1024 ** 3), 2) if float(size) > 1024 ** 2 else round(float(size) / 1024, 2)
+    except Exception:  # noqa: BLE001
+        size_gb = 0.0
+    return {
+        "id": doc.get("_id"),
+        "path": first("file", "path", "_id"),
+        "codec": str(first("video_codec_name", "ffProbeData_codec", "codec") or "").lower(),
+        "resolution": str(first("video_resolution", "resolution") or ""),
+        "size_gb": size_gb,
+    }
+
+
+def video_review(min_gb: float = 4.0, top: int = 15) -> dict:
+    """Scan the Tdarr library and REPORT space-optimize candidates (no transcoding).
+    Emits an A.R.C.H.I.E. notification. Returns {candidates, est_savings_gb}."""
+    import tdarr_client
+
+    if not tdarr_client.is_up():
+        return {"success": False, "error": "Tdarr unreachable", "candidates": []}
+    files = tdarr_client.library_files()
+    cands = []
+    for d in files:
+        info = _file_info(d)
+        if not info["id"]:
+            continue
+        eff = any(e in info["codec"] for e in _EFFICIENT)
+        # Candidate: big AND not already an efficient codec (HEVC/AV1 saves ~30-50%).
+        if info["size_gb"] >= min_gb and not eff:
+            info["est_savings_gb"] = round(info["size_gb"] * 0.4, 2)
+            cands.append(info)
+    cands.sort(key=lambda c: c["est_savings_gb"], reverse=True)
+    cands = cands[:top]
+    est = round(sum(c["est_savings_gb"] for c in cands), 1)
+
+    from archie_coordination import notify_archie
+
+    if cands:
+        lines = "\n".join(f"• {(c['path'] or '').split('/')[-1][:48]} — {c['size_gb']}GB {c['codec'] or '?'} {c['resolution']}"
+                          for c in cands[:8])
+        notify_archie(
+            "Media Hub: video optimize candidates",
+            f"{len(cands)} file(s) could save ~{est}GB by re-encoding to HEVC:\n{lines}",
+            priority="normal",
+        )
+    else:
+        notify_archie("Media Hub: library already efficient",
+                      "No large non-HEVC files found to optimize.", priority="low")
+    return {"success": True, "candidates": cands, "est_savings_gb": est}
+
+
+def request_optimize(file_id, title=None, resolution=None, est_savings_gb=None, reason="optimize") -> dict:
+    """Raise a Telegram approval for a space-saving transcode (REPLACES the original =
+    destructive). Records a pending 'optimize' row; process_approved_optimizes queues it
+    on Tdarr only after Kytran approves. NEVER transcodes here."""
+    from archie_coordination import request_approval
+
+    if not file_id:
+        return {"success": False, "error": "file_id required"}
+    label = (title or str(file_id)).split("/")[-1][:60]
+    approval_id = request_approval(
+        title=f"Optimize (HEVC) {label}" + (f" — save ~{est_savings_gb}GB" if est_savings_gb else ""),
+        reason=reason,
+        payload={"action": "media_hub_optimize", "file_id": file_id, "title": label,
+                 "resolution": resolution},
+    )
+    if not approval_id:
+        return {"success": False, "error": "could not raise approval (hub unreachable or duplicate)"}
+    try:
+        import json as _json
+
+        _ensure_table()
+        from database import get_db_cursor
+
+        with get_db_cursor(cursor_factory=None, commit=True) as (_c, cur):
+            cur.execute(
+                """INSERT INTO maven_pending_actions
+                     (approval_id, action, media_type, title, reason, payload)
+                   VALUES (%s,'optimize','video',%s,%s,%s)
+                   ON CONFLICT (approval_id) DO NOTHING""",
+                (approval_id, label, reason,
+                 _json.dumps({"file_id": file_id, "resolution": resolution})),
+            )
+    except Exception as e:  # noqa: BLE001
+        log.warning("request_optimize: record failed: %s", e)
+    return {"success": True, "approval_id": approval_id, "status": "awaiting_approval"}
+
+
+def process_approved_optimizes() -> None:
+    """Observer job: queue the Tdarr transcodes Kytran approved; drop the denied ones.
+    M.A.V.E.N. picks the node (GPU-when-idle else hub CPU) via tdarr_client.pick_node."""
+    import tdarr_client
+    from archie_coordination import check_approval, notify_archie
+
+    try:
+        _ensure_table()
+        from database import get_db_cursor
+
+        with get_db_cursor(cursor_factory=None) as (_c, cur):
+            cur.execute(
+                """SELECT approval_id, title, payload FROM maven_pending_actions
+                    WHERE status='awaiting' AND action='optimize'
+                    ORDER BY created_at LIMIT 20"""
+            )
+            rows = cur.fetchall()
+    except Exception as e:  # noqa: BLE001
+        log.warning("process_approved_optimizes: read failed: %s", e)
+        return
+
+    for approval_id, title, payload in rows:
+        st = check_approval(approval_id)
+        if st == "approved":
+            payload = payload or {}
+            file_id = payload.get("file_id") if isinstance(payload, dict) else None
+            node = tdarr_client.pick_node(resolution=(payload or {}).get("resolution"))
+            ok = tdarr_client.queue_transcode(file_id) if file_id else False
+            _mark(approval_id, "executed" if ok else "failed")
+            where = f" on {node['name']}" if node else ""
+            if ok:
+                notify_archie(f"Optimizing {title}",
+                              f"Approved — queued a HEVC transcode{where}.", priority="normal")
+            else:
+                notify_archie(f"Optimize FAILED: {title}",
+                              "Approved but Tdarr couldn't queue it (library scanned? node online?).",
+                              priority="high")
+        elif st in ("denied", "rejected", "cancelled"):
+            _mark(approval_id, "denied")

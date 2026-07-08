@@ -87,6 +87,9 @@ services:
       # No env_file: here, so these MUST be listed explicitly (integration contract).
       ARCHIE_HUB_URL: ${ARCHIE_HUB_URL:-http://100.64.0.4:3000}
       ARCHIE_INTERNAL_API_KEY: ${ARCHIE_INTERNAL_API_KEY:-}
+      # Tdarr video-optimize engine (project #385 Phase 3) — reachable via the shared
+      # tdarr_net (container name), so M.A.V.E.N. can review/queue transcodes.
+      TDARR_URL: ${TDARR_URL:-http://tdarr:8265}
     # Container DNS override — host DNS is Tailscale-owned which SERVFAILs on
     # external hostnames inside Docker (discovered 2026-04-21 via Prowlarr).
     # Use AdGuard first, Cloudflare fallback.
@@ -101,6 +104,14 @@ services:
     security_opt: ["no-new-privileges:true"]
     mem_limit: 512m
     cpus: 1.0
+    networks:
+      default: {}        # keep the compose default so mediahub_db stays reachable by name
+      tdarr_net: {}      # shared with the Tdarr container for M.A.V.E.N. → Tdarr API
+
+networks:
+  default: {}
+  tdarr_net:
+    external: true
 
 volumes:
   mediahub_pgdata:

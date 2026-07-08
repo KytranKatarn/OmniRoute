@@ -3799,6 +3799,59 @@ async function toggleEpisodeWatched(episode, seasonNumber, toggleBtn, statusBadg
 
 let currentStreamInfo = null;
 
+// ── Phone fullscreen + landscape rotation + idle chrome-fade for the player (#4739) ──
+let _mhChromeTimer = null;
+function _mhIsPhone() {
+    return !!(window.matchMedia
+        && window.matchMedia('(max-width: 768px)').matches
+        && window.matchMedia('(pointer: coarse)').matches);
+}
+function _mhLockLandscape() {
+    try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function(){}); } catch (e) {}
+}
+function _mhUnlockOrientation() {
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+}
+function _mhEnterFullscreen() {
+    // Called within the tap gesture (before any await) so Android honours it; iOS ignores container FS gracefully.
+    const modal = document.getElementById('videoPlayerModal');
+    const el = (modal && modal.querySelector('.video-player-container')) || modal;
+    if (!el) return;
+    try {
+        if (el.requestFullscreen) { el.requestFullscreen().then(_mhLockLandscape).catch(function(){}); }
+        else if (el.webkitRequestFullscreen) { el.webkitRequestFullscreen(); }
+    } catch (e) {}
+}
+function _mhExitFullscreen() {
+    try {
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function(){});
+        else if (document.webkitFullscreenElement && document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } catch (e) {}
+    _mhUnlockOrientation();
+}
+function _mhShowChrome() {
+    const modal = document.getElementById('videoPlayerModal');
+    if (!modal) return;
+    modal.classList.remove('chrome-hidden');
+    if (_mhChromeTimer) clearTimeout(_mhChromeTimer);
+    _mhChromeTimer = setTimeout(function () {
+        const v = document.getElementById('videoPlayer');
+        if (v && !v.paused) modal.classList.add('chrome-hidden');   // only auto-hide while playing
+    }, 3500);
+}
+function _mhSetupChromeFade() {
+    const modal = document.getElementById('videoPlayerModal');
+    if (!modal || modal._mhFadeBound) return;
+    modal._mhFadeBound = true;
+    ['mousemove', 'touchstart', 'click'].forEach(function (ev) {
+        modal.addEventListener(ev, _mhShowChrome, { passive: true });
+    });
+    // Also lock landscape when the native <video> fullscreen button is used (covers iOS).
+    document.addEventListener('fullscreenchange', function () {
+        if (document.fullscreenElement) _mhLockLandscape(); else _mhUnlockOrientation();
+    });
+}
+
 async function openVideoPlayer(item) {
     const modal = document.getElementById('videoPlayerModal');
     const video = document.getElementById('videoPlayer');
@@ -3810,6 +3863,11 @@ async function openVideoPlayer(item) {
     // Show modal with loading state
     modal.classList.add('active');
     loading.classList.remove('hidden');
+    // Phone: request full screen + landscape NOW (still inside the tap gesture, before the
+    // async fetch below), and arm the idle chrome-fade. Best-effort — wrapped in try/catch.
+    _mhSetupChromeFade();
+    _mhShowChrome();
+    if (_mhIsPhone()) _mhEnterFullscreen();
     title.textContent = item.title || 'Now Playing';
     qualityInfo.innerHTML = '';
     subtitleSelector.innerHTML = '';
@@ -3958,6 +4016,11 @@ async function openVideoPlayer(item) {
 function closeVideoPlayer() {
     const modal = document.getElementById('videoPlayerModal');
     const video = document.getElementById('videoPlayer');
+
+    // Leave fullscreen, release the landscape lock, and stop the idle-fade timer (#4739).
+    _mhExitFullscreen();
+    if (_mhChromeTimer) { clearTimeout(_mhChromeTimer); _mhChromeTimer = null; }
+    if (modal) modal.classList.remove('chrome-hidden');
 
     // Cleanup HLS instance FIRST if exists (before touching video element)
     if (video.hlsInstance) {

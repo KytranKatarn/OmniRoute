@@ -115,3 +115,59 @@ def check_approval(approval_id: Optional[int]) -> Optional[str]:
     except Exception as exc:  # noqa: BLE001
         log.warning("check_approval failed (%s) — %s", approval_id, exc)
         return None
+
+
+def log_dispatch(
+    action: str,
+    capability: Optional[str] = None,
+    description: Optional[str] = None,
+    success: bool = True,
+    duration_ms: int = 0,
+    target: Optional[str] = None,
+    error: Optional[str] = None,
+    metadata: Optional[dict] = None,
+) -> bool:
+    """Record ONE M.A.V.E.N. action as a 0-token task_execution_log row on the hub
+    so her work is visible in the DHQ A.R.M.A.D.A. dispatch feed — History +
+    media_hub source-drill + markers=all (#4755, the S.C.O.U.T. 0-token telemetry
+    pattern). It is NOT LLM inference (carbon n/a) and is excluded from the default
+    "real inference only" traffic view by design, exactly like S.C.O.U.T. rows.
+
+    Best-effort and NEVER raises: a visibility-logging failure must never break the
+    action it describes. Returns True on 2xx.
+    """
+    h = _headers()
+    if not h:
+        # No key — the action still ran; just no hub visibility this time.
+        log.debug("log_dispatch: ARCHIE_INTERNAL_API_KEY unset — skipping (%s)", action)
+        return False
+    # Normalize the optional inputs the same way the hub endpoint does, so a
+    # missing/odd value never produces a malformed row (both sides stay in
+    # agreement — the hub re-applies its own defaults/clamps as a backstop).
+    action = (action or "action").strip()
+    try:
+        dur = max(0, int(duration_ms or 0))
+    except (TypeError, ValueError):
+        dur = 0
+    body: dict = {
+        "agent": "M.A.V.E.N.",
+        "action": action,
+        "capability": (capability or action),
+        "description": (description or action),
+        "success": bool(success),
+        "duration_ms": dur,
+    }
+    if target:
+        body["target"] = str(target)
+    if error:
+        body["error"] = str(error)
+    if metadata:
+        body["metadata"] = metadata
+    try:
+        r = requests.post(f"{_hub()}/api/internal/dispatch-log", json=body, headers=h, timeout=6)
+        if not r.ok:
+            log.warning("log_dispatch non-2xx (%s): %s", action, r.status_code)
+        return r.ok
+    except Exception as exc:  # noqa: BLE001 — best-effort, hub outage must not break the action
+        log.warning("log_dispatch failed (%s) — %s", action, exc)
+        return False

@@ -4674,6 +4674,73 @@ def api_internal_approval_status(approval_id):
         return jsonify({"ok": False, "error": "status lookup failed"}), 500
 
 
+@app.route("/api/internal/dispatch-log", methods=["POST"])
+@_require_internal_key
+def api_internal_dispatch_log():
+    """Log a M.A.V.E.N. (or other standalone-agent) ACTION as a 0-token
+    task_execution_log row so it surfaces in the DHQ A.R.M.A.D.A. dispatch
+    History + source-drill (fsource=media_hub) + ?markers=all view (#4755) — the
+    S.C.O.U.T. 0-token telemetry pattern (see browser_service._audit_headed_run).
+
+    worker_type='internal' + model_used='internal' means this is NOT LLM
+    inference: carbon shows n/a (carbon_footprint_service._NON_LLM_MODELS) and it
+    is correctly excluded from the default "real inference only" traffic feed,
+    exactly like S.C.O.U.T. browser rows. It is always visible in Dispatch
+    History and in the traffic feed via the media_hub source drill / markers=all.
+    Bearer INTERNAL_API_KEY.
+
+    Body: {action, agent?, agent_id?, capability?, description?, target?,
+           success?(bool), duration_ms?(int), error?, metadata?(dict)}  ->  {ok}
+    """
+    data = request.get_json(silent=True) or {}
+    agent = (data.get("agent") or "M.A.V.E.N.").strip()[:100]
+    action = (data.get("action") or "action").strip()[:100]
+    capability = (data.get("capability") or action or "media_hub_action").strip()[:50]
+    description = (data.get("description") or action).strip()[:200]
+    success = bool(data.get("success", True))
+    try:
+        duration_ms = max(0, int(data.get("duration_ms") or 0))
+    except (TypeError, ValueError):
+        duration_ms = 0
+    agent_id = data.get("agent_id") if isinstance(data.get("agent_id"), int) else None
+    meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    meta.setdefault("action", action)
+    if data.get("target"):
+        meta.setdefault("target", str(data.get("target"))[:200])
+    err = data.get("error")
+    try:
+        import json as _json
+
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """INSERT INTO task_execution_log
+                       (agent_id, agent_name, worker_type, task_type, task_description,
+                        capability, module_source, request_origin, model_used,
+                        tokens_used, duration_ms, success, error_message,
+                        request_metadata, created_at)
+                   VALUES (%s, %s, 'internal', 'media_hub_action', %s,
+                           %s, 'media_hub', 'maven', 'internal',
+                           0, %s, %s, %s,
+                           %s, NOW())""",
+                (
+                    agent_id,
+                    agent,
+                    description,
+                    capability,
+                    duration_ms,
+                    success,
+                    (str(err)[:300] if err else None),
+                    _json.dumps(meta),
+                ),
+            )
+        return jsonify({"ok": True})
+    except Exception as exc:
+        app.logger.error("internal dispatch-log failed: %s", exc)
+        return jsonify({"ok": False, "error": "dispatch-log failed"}), 500
+
+
 # ── Code Health engine-facing surface (#4262 — the loop-closer) ──────────────
 # The containerized A.R.C.H.I.E. build engine has no browser session, so the
 # @login_required Code-Health routes in tools/consciousness are unreachable to

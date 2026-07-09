@@ -106,7 +106,7 @@ def request_removal(media_type, tmdb_id=None, title=None, year=None, reason="rem
 
 def process_approved_removals() -> None:
     """Observer job: execute the removals Kytran approved, drop the ones denied."""
-    from archie_coordination import check_approval, notify_archie
+    from archie_coordination import check_approval, log_dispatch, notify_archie
 
     try:
         _ensure_table()
@@ -129,10 +129,15 @@ def process_approved_removals() -> None:
         label = title or f"tmdb:{tmdb_id}"
         if status == "approved":
             # Lazy import to avoid a load-time cycle (routes imports lots).
+            import time as _time
+
             from tools.media_hub.routes import _delete_library_item
 
+            _t0 = _time.monotonic()
             res = _delete_library_item(media_type=media_type, tmdb_id=tmdb_id, title=title, year=year)
-            if res.get("success"):
+            _dur = int((_time.monotonic() - _t0) * 1000)
+            ok = bool(res.get("success"))
+            if ok:
                 _mark(approval_id, "executed")
                 notify_archie(f"Removed {media_type}: {label}",
                               f"Approved removal complete — {res.get('deleted')}",
@@ -142,6 +147,12 @@ def process_approved_removals() -> None:
                 notify_archie(f"Removal FAILED: {label}",
                               f"Approved but the delete failed: {res.get('error')}",
                               priority="high")
+            # A.R.M.A.D.A. visibility (#4755) — 0-token row per executed action.
+            log_dispatch("media_remove", capability="media_removal",
+                         description=f"remove {media_type}: {label}", success=ok,
+                         duration_ms=_dur, target=label,
+                         error=(None if ok else str(res.get("error"))),
+                         metadata={"media_type": media_type, "tmdb_id": tmdb_id})
         elif status in ("denied", "rejected", "cancelled"):
             _mark(approval_id, "denied")
             log.info("removal %s (%s) denied — dropped", approval_id, label)
@@ -181,10 +192,13 @@ def _file_info(doc: dict) -> dict:
 def video_review(min_gb: float = 4.0, top: int = 15) -> dict:
     """Scan the Tdarr library and REPORT space-optimize candidates (no transcoding).
     Emits an A.R.C.H.I.E. notification. Returns {candidates, est_savings_gb}."""
+    import time as _time
+
     import tdarr_client
 
     if not tdarr_client.is_up():
         return {"success": False, "error": "Tdarr unreachable", "candidates": []}
+    _t0 = _time.monotonic()
     files = tdarr_client.library_files()
     cands = []
     for d in files:
@@ -200,7 +214,7 @@ def video_review(min_gb: float = 4.0, top: int = 15) -> dict:
     cands = cands[:top]
     est = round(sum(c["est_savings_gb"] for c in cands), 1)
 
-    from archie_coordination import notify_archie
+    from archie_coordination import log_dispatch, notify_archie
 
     if cands:
         lines = "\n".join(f"• {(c['path'] or '').split('/')[-1][:48]} — {c['size_gb']}GB {c['codec'] or '?'} {c['resolution']}"
@@ -213,6 +227,11 @@ def video_review(min_gb: float = 4.0, top: int = 15) -> dict:
     else:
         notify_archie("Media Hub: library already efficient",
                       "No large non-HEVC files found to optimize.", priority="low")
+    # A.R.M.A.D.A. visibility (#4755) — record the review as a 0-token action.
+    log_dispatch("video_review", capability="video_review",
+                 description=f"reviewed library — {len(cands)} candidate(s), ~{est}GB",
+                 success=True, duration_ms=int((_time.monotonic() - _t0) * 1000),
+                 metadata={"candidates": len(cands), "est_savings_gb": est})
     return {"success": True, "candidates": cands, "est_savings_gb": est}
 
 
@@ -257,7 +276,7 @@ def process_approved_optimizes() -> None:
     """Observer job: queue the Tdarr transcodes Kytran approved; drop the denied ones.
     M.A.V.E.N. picks the node (GPU-when-idle else hub CPU) via tdarr_client.pick_node."""
     import tdarr_client
-    from archie_coordination import check_approval, notify_archie
+    from archie_coordination import check_approval, log_dispatch, notify_archie
 
     try:
         _ensure_table()
@@ -277,10 +296,14 @@ def process_approved_optimizes() -> None:
     for approval_id, title, payload in rows:
         st = check_approval(approval_id)
         if st == "approved":
+            import time as _time
+
             payload = payload or {}
             file_id = payload.get("file_id") if isinstance(payload, dict) else None
             node = tdarr_client.pick_node(resolution=(payload or {}).get("resolution"))
+            _t0 = _time.monotonic()
             ok = tdarr_client.queue_transcode(file_id) if file_id else False
+            _dur = int((_time.monotonic() - _t0) * 1000)
             _mark(approval_id, "executed" if ok else "failed")
             where = f" on {node['name']}" if node else ""
             if ok:
@@ -290,5 +313,10 @@ def process_approved_optimizes() -> None:
                 notify_archie(f"Optimize FAILED: {title}",
                               "Approved but Tdarr couldn't queue it (library scanned? node online?).",
                               priority="high")
+            # A.R.M.A.D.A. visibility (#4755) — 0-token row per queued transcode.
+            log_dispatch("video_optimize", capability="media_optimize",
+                         description=f"HEVC transcode {title}", success=ok,
+                         duration_ms=_dur, target=title,
+                         metadata={"node": (node or {}).get("name"), "file_id": file_id})
         elif st in ("denied", "rejected", "cancelled"):
             _mark(approval_id, "denied")

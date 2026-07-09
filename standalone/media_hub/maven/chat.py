@@ -387,11 +387,32 @@ def _svc(service_type: str) -> Optional[Dict]:
 
 def execute_action(action_type: str, title: str, media_type: str) -> Dict:
     """Execute a request or delete action. Returns {ok, message}."""
+    import time as _time
+
+    _t0 = _time.monotonic()
     if action_type == "request":
-        return _do_request(title, media_type)
-    if action_type == "delete":
-        return _do_delete(title, media_type)
-    return {"ok": False, "message": f"Unknown action: {action_type}"}
+        res = _do_request(title, media_type)
+    elif action_type == "delete":
+        res = _do_delete(title, media_type)
+    else:
+        return {"ok": False, "message": f"Unknown action: {action_type}"}
+    # A.R.M.A.D.A. visibility (#4755) — record the chat/UI action as a 0-token row.
+    try:
+        from archie_coordination import log_dispatch
+
+        log_dispatch(
+            f"media_{action_type}",
+            capability=("media_request" if action_type == "request" else "media_delete"),
+            description=f"{action_type} {media_type}: {title}"[:200],
+            success=bool(res.get("ok")),
+            duration_ms=int((_time.monotonic() - _t0) * 1000),
+            target=title,
+            error=(None if res.get("ok") else str(res.get("message"))),
+            metadata={"media_type": media_type},
+        )
+    except Exception:  # noqa: BLE001 — visibility logging must never break the action
+        pass
+    return res
 
 
 def _do_request(title: str, media_type: str) -> Dict:

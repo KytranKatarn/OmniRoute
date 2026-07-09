@@ -4176,6 +4176,7 @@ function _dhqSourceLabel(source) {
     var MAP = {
         'agent_loop': 'Autonomy · jobs',
         'scraper': 'S.C.O.U.T. · browser',
+        'media_hub': 'M.A.V.E.N. · media',
         'fleet_warmup': 'Fleet warm-up',
         'kin_warmth': 'K.I.N. warm-up',
         'model_dispatch': 'Cold-load queue',

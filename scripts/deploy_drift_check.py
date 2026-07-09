@@ -64,7 +64,18 @@ PRODUCTS = {
     "kbs": {"url": os.getenv("DRIFT_KBS_URL", "http://192.168.1.200:8091/version"), "repo": None, "path": None},
     "kso": {"url": os.getenv("DRIFT_KSO_URL", "http://192.168.1.200:8085/version"), "repo": None, "path": None},
     # Citadel / boston-2 (mesh 100.64.0.10) — separate repos (repo/path wired at part 1)
-    "wtf_consumer": {"url": os.getenv("DRIFT_WTF_URL", "http://100.64.0.10:8103/version"), "repo": None, "path": None},
+    "wtf_consumer": {
+        "url": os.getenv("DRIFT_WTF_URL", "http://100.64.0.10:8103/version"),
+        "repo": _ARCHIE,  # WTF lives IN the archie-platform monorepo (subtree)
+        "path": "what-the-fact",  # path-aware, like media_hub
+        "branch": "main",
+    },
+    "wtf_tech": {
+        "url": os.getenv("DRIFT_WTF_TECH_URL", "http://100.64.0.10:8104/version"),
+        "repo": _ARCHIE,
+        "path": "what-the-fact",
+        "branch": "main",
+    },
     "gov_watch": {
         "url": os.getenv("DRIFT_GOV_URL", "http://100.64.0.10:8102/version"),
         "repo": "KytranKatarn/kytran-gov-watch",  # own repo; whole tree = the product

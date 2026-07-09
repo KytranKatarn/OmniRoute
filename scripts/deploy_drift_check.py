@@ -71,7 +71,12 @@ PRODUCTS = {
         "repo": None,
         "path": None,
     },
-    "legal_watch": {"url": os.getenv("DRIFT_LEGAL_URL", "http://100.64.0.10:8100/version"), "repo": None, "path": None},
+    "legal_watch": {
+        "url": os.getenv("DRIFT_LEGAL_URL", "http://100.64.0.10:8100/version"),
+        "repo": "KytranKatarn/kytran-legal-watch",  # own repo; whole tree = the product
+        "path": None,
+        "branch": "master",
+    },
     "civic_watch": {
         "url": os.getenv("DRIFT_CIVIC_URL", "http://100.64.0.10:8099/version"),
         "repo": "KytranKatarn/kytran-civic-watch",  # own repo; whole tree = the product

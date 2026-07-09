@@ -86,6 +86,29 @@ def test_notify_on_fail_false_skips_alert(audit_spy, monkeypatch):
     assert notified == []
 
 
+def test_fn_args_are_passed_to_the_job(audit_spy):
+    """fn_args lets governed_job wrap fn(app) / fn(app, sched) style jobs (#4791)."""
+    seen = []
+
+    def job_with_args(a, b):
+        seen.append((a, b))
+
+    jg.governed_job(job_with_args, department="Test", fn_args=("app", "sched"))()
+    assert seen == [("app", "sched")]
+    assert [o for _, o in audit_spy] == ["running", "success"]
+
+
+def test_fn_args_defaults_to_zero_arg(audit_spy):
+    """Default fn_args=() keeps the zero-arg contract (back-compat)."""
+    ran = []
+
+    def zero_arg():
+        ran.append(1)
+
+    jg.governed_job(zero_arg, department="Test")()
+    assert ran == [1]
+
+
 def test_governance_write_failure_never_breaks_the_job(monkeypatch):
     """A broken audit writer must not stop the job from running."""
 

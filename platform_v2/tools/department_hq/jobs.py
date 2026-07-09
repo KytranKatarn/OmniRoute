@@ -764,24 +764,16 @@ def _register_own_jobs(scheduler, flask_app):
         return governed_job(fn, department="Department HQ", flask_app=flask_app)
 
     def with_ctx_app(fn):
-        """Wrap function that needs flask_app to run inside Flask app context."""
-
-        def wrapper():
-            with flask_app.app_context():
-                fn(flask_app)
-
-        wrapper.__name__ = fn.__name__
-        return wrapper
+        """Governed variant of with_ctx for a job registered as fn(flask_app)
+        (project #332, #4791): app context + governance_audit_log trail +
+        quiet-hours-gated failure alert. Additive + fail-safe."""
+        return governed_job(fn, department="Department HQ", flask_app=flask_app, fn_args=(flask_app,))
 
     def with_ctx_app_sched(fn):
-        """Wrap function that needs flask_app + scheduler to run inside Flask app context."""
-
-        def wrapper():
-            with flask_app.app_context():
-                fn(flask_app, scheduler)
-
-        wrapper.__name__ = fn.__name__
-        return wrapper
+        """Governed variant of with_ctx for a job registered as fn(flask_app, scheduler)
+        (project #332, #4791): app context + governance_audit_log trail +
+        quiet-hours-gated failure alert. Additive + fail-safe."""
+        return governed_job(fn, department="Department HQ", flask_app=flask_app, fn_args=(flask_app, scheduler))
 
     # Job #40 — Daily Code Metrics Scan (3:00 AM)
     scheduler.add_job(
@@ -853,7 +845,7 @@ def _register_own_jobs(scheduler, flask_app):
     # 03:00 reserved by #40 (code_metrics), 03:15 by forge_dep_drift,
     # 03:30 by #58 (module_audit) — 03:45 is the next clean slot.
     scheduler.add_job(
-        daily_recompute_perf_baselines,
+        with_ctx(daily_recompute_perf_baselines),
         trigger=CronTrigger(hour=3, minute=45, timezone="America/Toronto"),
         id="agent_recompute_perf_baselines",
         name="Agent Loop: Nightly Recompute Perf Baselines",
@@ -864,7 +856,7 @@ def _register_own_jobs(scheduler, flask_app):
 
     # Job — Interrupted-Job Recovery Reaper (#1716, every 10 min)
     scheduler.add_job(
-        job_recovery_reaper,
+        with_ctx(job_recovery_reaper),
         trigger=IntervalTrigger(minutes=10),
         id="job_recovery_reaper",
         name="Agent Loop: Interrupted-Job Recovery Reaper",
@@ -877,7 +869,7 @@ def _register_own_jobs(scheduler, flask_app):
     # 03:00/03:15/03:30/03:45/04:00 are taken). Deletes old terminal bridge_jobs +
     # dispatch_pending_queue rows. Tunable / disable-able via platform_settings.
     scheduler.add_job(
-        dispatch_retention_prune,
+        with_ctx(dispatch_retention_prune),
         trigger=CronTrigger(hour=4, minute=15, timezone="America/Toronto"),
         id="dispatch_retention_prune",
         name="Agent Loop: Dispatch Retention Prune",
@@ -1117,7 +1109,7 @@ def _register_own_jobs(scheduler, flask_app):
         from services.civic_geds_refresh import run_geds_refresh_sync
 
         scheduler.add_job(
-            run_geds_refresh_sync,
+            with_ctx(run_geds_refresh_sync),
             trigger=CronTrigger(hour=3, minute=31, timezone="America/Toronto"),
             id="civic_transparency_geds_refresh",
             name="Civic Transparency — GEDS daily refresh",

@@ -154,11 +154,14 @@ def governed_job(
     flask_app=None,
     notify_fn: Optional[Callable] = None,
     notify_on_fail: bool = True,
+    fn_args: tuple = (),
 ) -> Callable:
     """Wrap a scheduled-job callable with additive, fail-safe DHQ governance.
 
-    - runs ``fn`` inside ``flask_app.app_context()`` when ``flask_app`` given
-      (so DB/telegram inside the job — and the failure alert — have context)
+    - runs ``fn(*fn_args)`` inside ``flask_app.app_context()`` when ``flask_app``
+      given (so DB/telegram inside the job — and the failure alert — have context).
+      ``fn_args`` defaults to ``()`` (zero-arg); pass e.g. ``(flask_app,)`` for a
+      job registered as ``fn(app)`` or ``(flask_app, scheduler)`` for ``fn(app, sched)``.
     - writes governance_audit_log: start(running) → success(duration_ms)
       | failed(duration_ms + error)
     - on failure (and ``notify_on_fail``): A.R.C.H.I.E. Telegram via ``notify_fn``
@@ -187,7 +190,7 @@ def governed_job(
         started = time.monotonic()
         _safe_audit("running")
         try:
-            fn()
+            fn(*fn_args)
         except Exception as e:  # noqa: BLE001 — swallow so the scheduler survives
             dur = int((time.monotonic() - started) * 1000)
             logger.exception("Scheduled job %s failed", job_name)

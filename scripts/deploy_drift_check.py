@@ -65,11 +65,17 @@ PRODUCTS = {
     "kso": {"url": os.getenv("DRIFT_KSO_URL", "http://192.168.1.200:8085/version"), "repo": None, "path": None},
     # Citadel / boston-2 (mesh 100.64.0.10) — separate repos (repo/path wired at part 1)
     "wtf_consumer": {"url": os.getenv("DRIFT_WTF_URL", "http://100.64.0.10:8103/version"), "repo": None, "path": None},
-    "gov_watch": {"url": os.getenv("DRIFT_GOV_URL", "http://100.64.0.10:8102/version"), "repo": None, "path": None},
+    "gov_watch": {
+        "url": os.getenv("DRIFT_GOV_URL", "http://100.64.0.10:8102/version"),
+        "repo": "KytranKatarn/kytran-gov-watch",  # own repo; whole tree = the product
+        "path": None,
+        "branch": "main",
+    },
     "market_watch": {
         "url": os.getenv("DRIFT_MARKET_URL", "http://100.64.0.10:8101/version"),
-        "repo": None,
+        "repo": "KytranKatarn/kytran-market-watch",  # own repo; whole tree = the product
         "path": None,
+        "branch": "master",
     },
     "legal_watch": {
         "url": os.getenv("DRIFT_LEGAL_URL", "http://100.64.0.10:8100/version"),

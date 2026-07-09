@@ -11,7 +11,9 @@ suite:
 tests:
   - name: "phone player interactions (#4739)"
     type: e2e
-    path: /
+    # The player lives on the media_hub_bp page; the app root "/" redirects authed
+    # users to /maven/discover (no player). Verified live: all 4 js_eval pass here.
+    path: /tools/media-hub/
     wait_until: load
     expect:
       js_eval:

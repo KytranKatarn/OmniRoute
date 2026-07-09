@@ -107,6 +107,60 @@ def _send_approval_telegram(approval_id: int, action_type: str, action_data: dic
             for k, v in list(action_data.items())[:3]:
                 lines.append(f"{k}: {v}")
 
+        # Fast-path (#4757): media_hub (M.A.V.E.N.) approvals are interactive \u2014 the
+        # owner is usually waiting on the request, so the ~30s triage-consumer poll
+        # + inbox roundtrip is felt. Send the Approve/Deny Telegram INLINE here.
+        # FAIL-SAFE: only skip the inbox when the inline send actually lands (a
+        # message_id comes back); on ANY problem we fall through to submit_via_inbox
+        # below, so delivery is never lost (worst case == the existing path). Scoped
+        # to media_hub_action only \u2014 every other approval type is unchanged.
+        if action_type == "media_hub_action":
+            try:
+                from services import telegram_service as _tg
+
+                _res = _tg.send(
+                    category="approval_request",
+                    # Keep "#<id>" in the title \u2014 telegram_service.send parses it to
+                    # build the esc_approve_{id}/esc_deny_{id} callback buttons.
+                    title=f"[MEDIUM] Approval Required \u2014 {action_type} #{approval_id}",
+                    message="\n".join(lines),
+                    source_agent="A.R.C.H.I.E.",
+                    force=True,
+                    _privileged=True,
+                )
+                _mid = _res.get("message_id") if isinstance(_res, dict) else None
+                if _mid:
+                    try:
+                        from database import get_db_cursor
+
+                        with get_db_cursor(commit=True) as (_c2, _cur2):
+                            _cur2.execute(
+                                "UPDATE autonomy_approval_queue " "SET telegram_message_id = %s WHERE id = %s",
+                                (_mid, approval_id),
+                            )
+                    except Exception as _mid_err:
+                        logger.warning(
+                            "approval #%s: inline message_id persist failed: %s",
+                            approval_id,
+                            _mid_err,
+                        )
+                    logger.info(
+                        "Approval #%s sent inline to Telegram (media_hub fast-path)",
+                        approval_id,
+                    )
+                    return  # delivered \u2014 do NOT also submit to the inbox (no double-send)
+                logger.warning(
+                    "approval #%s inline send returned no message_id \u2014 falling back to inbox",
+                    approval_id,
+                )
+            except Exception as _inline_err:
+                logger.warning(
+                    "approval #%s inline Telegram send failed (%s) \u2014 falling back to inbox",
+                    approval_id,
+                    _inline_err,
+                    exc_info=True,
+                )
+
         submit_via_inbox(
             category="approval_request",
             title=f"Approval Required \u2014 {action_type} #{approval_id}",

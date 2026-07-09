@@ -1597,217 +1597,228 @@ async function loadCalendar() {
     }
 }
 
+// Render the 7-day week grid from a list of episodes (pure DOM build, for the
+// CURRENT calendarWeekOffset). Extracted so loadWeekView can paint from cache. #4772.
+function renderWeek(episodes) {
+    const container = document.getElementById('calendarGrid');
+    if (!container) return;
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() + (calendarWeekOffset * 7));
+    const todayStr = today.toISOString().split('T')[0];
+
+    const grouped = {};
+    (episodes || []).forEach(ep => {
+        const date = ep.air_date || 'Unknown';
+        if (!grouped[date]) grouped[date] = [];
+        grouped[date].push(ep);
+    });
+
+    container.textContent = '';
+    for (let i = 0; i < 7; i++) {
+        const cellDate = new Date(startDate);
+        cellDate.setDate(cellDate.getDate() + i);
+        const dateStr = cellDate.toISOString().split('T')[0];
+        const dayEpisodes = grouped[dateStr] || [];
+
+        const daySection = document.createElement('div');
+        daySection.className = 'calendar-day' + (dateStr === todayStr ? ' today' : '');
+
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'calendar-day-header';
+        dayHeader.innerHTML = `<div>${cellDate.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                               <div>${cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
+        daySection.appendChild(dayHeader);
+
+        const dayContent = document.createElement('div');
+        dayContent.className = 'calendar-day-content';
+        if (dayEpisodes.length > 0) {
+            dayEpisodes.forEach(ep => dayContent.appendChild(createCalendarEpisode(ep)));
+        } else {
+            const empty = document.createElement('div');
+            empty.className = 'calendar-empty';
+            empty.textContent = 'No episodes';
+            dayContent.appendChild(empty);
+        }
+
+        daySection.appendChild(dayContent);
+        container.appendChild(daySection);
+    }
+    lucide.createIcons();
+}
+
 async function loadWeekView() {
     const container = document.getElementById('calendarGrid');
     if (!container) return;
 
-    // Calculate date range based on offset
-    const today = new Date();
-    const startDate = new Date(today);
+    const startDate = new Date();
     startDate.setDate(startDate.getDate() + (calendarWeekOffset * 7));
-
     const startStr = startDate.toISOString().split('T')[0];
+    const cacheKey = 'calendar-week-' + startStr;
 
-    container.innerHTML = '<div class="calendar-loading"><div class="loading-pulse"></div><span>Loading calendar...</span></div>';
+    // Cache-first (stale-while-revalidate): paint the last-known episodes for THIS week
+    // from localStorage INSTANTLY (no "Loading calendar..." flash), then refresh and only
+    // re-render if changed. Per-week cache key so navigation stays correct. #4772.
+    const cachedW = cacheGet(cacheKey);
+    const hadCache = !!(cachedW && Array.isArray(cachedW.data));
+    if (hadCache) {
+        renderWeek(cachedW.data);
+        container.dataset.mhSig = JSON.stringify(cachedW.data);
+    } else {
+        container.innerHTML = '<div class="calendar-loading"><div class="loading-pulse"></div><span>Loading calendar...</span></div>';
+    }
 
     try {
         const response = await fetch(`${API_BASE}/calendar/upcoming?days=7&start=${startStr}`);
         const data = await response.json();
-
-        container.textContent = '';
-
-        if (data.success && data.episodes && data.episodes.length > 0) {
-            // Group by date
-            const grouped = {};
-            data.episodes.forEach(ep => {
-                const date = ep.air_date || 'Unknown';
-                if (!grouped[date]) grouped[date] = [];
-                grouped[date].push(ep);
-            });
-
-            // Create 7-day grid
-            const todayStr = today.toISOString().split('T')[0];
-            for (let i = 0; i < 7; i++) {
-                const cellDate = new Date(startDate);
-                cellDate.setDate(cellDate.getDate() + i);
-                const dateStr = cellDate.toISOString().split('T')[0];
-                const episodes = grouped[dateStr] || [];
-
-                const daySection = document.createElement('div');
-                daySection.className = 'calendar-day' + (dateStr === todayStr ? ' today' : '');
-
-                const dayHeader = document.createElement('div');
-                dayHeader.className = 'calendar-day-header';
-                dayHeader.innerHTML = `<div>${cellDate.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                       <div>${cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
-                daySection.appendChild(dayHeader);
-
-                const dayContent = document.createElement('div');
-                dayContent.className = 'calendar-day-content';
-
-                if (episodes.length > 0) {
-                    episodes.forEach(ep => {
-                        dayContent.appendChild(createCalendarEpisode(ep));
-                    });
-                } else {
-                    const empty = document.createElement('div');
-                    empty.className = 'calendar-empty';
-                    empty.textContent = 'No episodes';
-                    dayContent.appendChild(empty);
-                }
-
-                daySection.appendChild(dayContent);
-                container.appendChild(daySection);
+        if (data.success) {
+            const eps = data.episodes || [];
+            cacheSet(cacheKey, eps);
+            const sig = JSON.stringify(eps);
+            if (sig !== container.dataset.mhSig) {
+                renderWeek(eps);
+                container.dataset.mhSig = sig;
             }
-        } else {
-            // Still show 7-day grid even if empty
-            const todayStr = today.toISOString().split('T')[0];
-            for (let i = 0; i < 7; i++) {
-                const cellDate = new Date(startDate);
-                cellDate.setDate(cellDate.getDate() + i);
-                const dateStr = cellDate.toISOString().split('T')[0];
-
-                const daySection = document.createElement('div');
-                daySection.className = 'calendar-day' + (dateStr === todayStr ? ' today' : '');
-
-                const dayHeader = document.createElement('div');
-                dayHeader.className = 'calendar-day-header';
-                dayHeader.innerHTML = `<div>${cellDate.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                       <div>${cellDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>`;
-                daySection.appendChild(dayHeader);
-
-                const dayContent = document.createElement('div');
-                dayContent.className = 'calendar-day-content';
-                const empty = document.createElement('div');
-                empty.className = 'calendar-empty';
-                empty.textContent = 'No episodes';
-                dayContent.appendChild(empty);
-
-                daySection.appendChild(dayContent);
-                container.appendChild(daySection);
-            }
+        } else if (!hadCache) {
+            renderWeek([]); // still show the empty 7-day grid
         }
-        lucide.createIcons();
     } catch (error) {
-        container.textContent = '';
-        container.appendChild(createEmptyState('alert-circle', 'Failed to load calendar'));
-        lucide.createIcons();
+        // Keep any cached render on error rather than blanking.
+        if (!hadCache) {
+            container.textContent = '';
+            container.appendChild(createEmptyState('alert-circle', 'Failed to load calendar'));
+            lucide.createIcons();
+        }
     }
+}
+
+// Month-grid geometry for the CURRENT calendarMonthOffset (start-of-grid + total days).
+function _monthGridRange() {
+    const today = new Date();
+    const targetMonth = new Date(today.getFullYear(), today.getMonth() + calendarMonthOffset, 1);
+    const year = targetMonth.getFullYear();
+    const month = targetMonth.getMonth();
+    const firstDayOfMonth = new Date(year, month, 1);
+    const lastDayOfMonth = new Date(year, month + 1, 0);
+    const startOfGrid = new Date(firstDayOfMonth);
+    startOfGrid.setDate(startOfGrid.getDate() - firstDayOfMonth.getDay());
+    const endOfGrid = new Date(lastDayOfMonth);
+    endOfGrid.setDate(endOfGrid.getDate() + (6 - lastDayOfMonth.getDay()));
+    const totalDays = Math.ceil((endOfGrid - startOfGrid) / (1000 * 60 * 60 * 24)) + 1;
+    return { today, month, startOfGrid, totalDays, startStr: startOfGrid.toISOString().split('T')[0] };
+}
+
+// Render the month grid from a list of episodes (pure DOM build). Extracted so
+// loadMonthView can paint from cache. #4772.
+function renderMonth(episodes) {
+    const container = document.getElementById('monthGrid');
+    if (!container) return;
+    const { today, month, startOfGrid, totalDays } = _monthGridRange();
+    const todayStr = today.toISOString().split('T')[0];
+
+    const episodesByDate = {};
+    (episodes || []).forEach(ep => {
+        const date = ep.air_date || '';
+        if (date) {
+            if (!episodesByDate[date]) episodesByDate[date] = [];
+            episodesByDate[date].push(ep);
+        }
+    });
+
+    container.textContent = '';
+    for (let i = 0; i < totalDays; i++) {
+        const cellDate = new Date(startOfGrid);
+        cellDate.setDate(cellDate.getDate() + i);
+        const dateStr = cellDate.toISOString().split('T')[0];
+        const isOtherMonth = cellDate.getMonth() !== month;
+        const isToday = dateStr === todayStr;
+        const cellEpisodes = episodesByDate[dateStr] || [];
+
+        const cell = document.createElement('div');
+        cell.className = 'month-cell';
+        if (isOtherMonth) cell.classList.add('other-month');
+        if (isToday) cell.classList.add('today');
+        if (cellEpisodes.length > 0) cell.classList.add('has-episodes');
+
+        const dateNum = document.createElement('div');
+        dateNum.className = 'month-cell-date';
+        dateNum.textContent = cellDate.getDate();
+        cell.appendChild(dateNum);
+
+        if (cellEpisodes.length > 0) {
+            const epList = document.createElement('div');
+            epList.className = 'month-cell-episodes';
+            const maxShow = 3;
+            cellEpisodes.slice(0, maxShow).forEach(ep => {
+                const epEl = document.createElement('div');
+                epEl.className = 'month-episode ' + (ep.has_file ? 'has-file' : 'no-file');
+                epEl.textContent = ep.series_title || 'Unknown';
+                epEl.title = `${ep.series_title} S${ep.season_number}E${ep.episode_number}`;
+                epEl.onclick = () => showDayDetail(dateStr, cellEpisodes);
+                epList.appendChild(epEl);
+            });
+            if (cellEpisodes.length > maxShow) {
+                const more = document.createElement('div');
+                more.className = 'month-cell-more';
+                more.textContent = `+${cellEpisodes.length - maxShow} more`;
+                more.onclick = () => showDayDetail(dateStr, cellEpisodes);
+                epList.appendChild(more);
+            }
+            cell.appendChild(epList);
+        }
+
+        cell.onclick = (e) => {
+            if ((e.target === cell || e.target === dateNum) && cellEpisodes.length > 0) {
+                showDayDetail(dateStr, cellEpisodes);
+            }
+        };
+
+        container.appendChild(cell);
+    }
+    lucide.createIcons();
 }
 
 async function loadMonthView() {
     const container = document.getElementById('monthGrid');
     if (!container) return;
 
-    const today = new Date();
-    const targetMonth = new Date(today.getFullYear(), today.getMonth() + calendarMonthOffset, 1);
-    const year = targetMonth.getFullYear();
-    const month = targetMonth.getMonth();
+    const { totalDays, startStr } = _monthGridRange();
+    const cacheKey = 'calendar-month-' + startStr;
 
-    // Calculate first day of month grid (include previous month days to fill week)
-    const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
-    const startOfGrid = new Date(firstDayOfMonth);
-    startOfGrid.setDate(startOfGrid.getDate() - firstDayOfMonth.getDay());
-
-    // Calculate days needed (6 weeks max)
-    const endOfGrid = new Date(lastDayOfMonth);
-    const daysToEnd = 6 - lastDayOfMonth.getDay();
-    endOfGrid.setDate(endOfGrid.getDate() + daysToEnd);
-
-    const totalDays = Math.ceil((endOfGrid - startOfGrid) / (1000 * 60 * 60 * 24)) + 1;
-
-    container.innerHTML = '<div class="calendar-loading" style="grid-column: 1/-1;"><div class="loading-pulse"></div><span>Loading calendar...</span></div>';
+    // Cache-first (stale-while-revalidate): paint the last-known episodes for THIS month
+    // grid from localStorage INSTANTLY, then refresh and only re-render if changed. #4772.
+    const cachedM = cacheGet(cacheKey);
+    const hadCache = !!(cachedM && Array.isArray(cachedM.data));
+    if (hadCache) {
+        renderMonth(cachedM.data);
+        container.dataset.mhSig = JSON.stringify(cachedM.data);
+    } else {
+        container.innerHTML = '<div class="calendar-loading" style="grid-column: 1/-1;"><div class="loading-pulse"></div><span>Loading calendar...</span></div>';
+    }
 
     try {
-        // Fetch episodes for the entire grid period
-        const startStr = startOfGrid.toISOString().split('T')[0];
         const response = await fetch(`${API_BASE}/calendar/upcoming?days=${totalDays}&start=${startStr}`);
         const data = await response.json();
-
-        // Group episodes by date
-        const episodesByDate = {};
-        if (data.success && data.episodes) {
-            data.episodes.forEach(ep => {
-                const date = ep.air_date || '';
-                if (date) {
-                    if (!episodesByDate[date]) episodesByDate[date] = [];
-                    episodesByDate[date].push(ep);
-                }
-            });
-        }
-
-        container.textContent = '';
-
-        const todayStr = today.toISOString().split('T')[0];
-
-        // Build month grid
-        for (let i = 0; i < totalDays; i++) {
-            const cellDate = new Date(startOfGrid);
-            cellDate.setDate(cellDate.getDate() + i);
-            const dateStr = cellDate.toISOString().split('T')[0];
-            const isOtherMonth = cellDate.getMonth() !== month;
-            const isToday = dateStr === todayStr;
-            const episodes = episodesByDate[dateStr] || [];
-
-            const cell = document.createElement('div');
-            cell.className = 'month-cell';
-            if (isOtherMonth) cell.classList.add('other-month');
-            if (isToday) cell.classList.add('today');
-            if (episodes.length > 0) cell.classList.add('has-episodes');
-
-            // Date number
-            const dateNum = document.createElement('div');
-            dateNum.className = 'month-cell-date';
-            dateNum.textContent = cellDate.getDate();
-            cell.appendChild(dateNum);
-
-            // Episodes list
-            if (episodes.length > 0) {
-                const epList = document.createElement('div');
-                epList.className = 'month-cell-episodes';
-
-                // Show up to 3 episodes, then "more"
-                const maxShow = 3;
-                episodes.slice(0, maxShow).forEach(ep => {
-                    const epEl = document.createElement('div');
-                    epEl.className = 'month-episode ' + (ep.has_file ? 'has-file' : 'no-file');
-                    epEl.textContent = ep.series_title || 'Unknown';
-                    epEl.title = `${ep.series_title} S${ep.season_number}E${ep.episode_number}`;
-                    epEl.onclick = () => showDayDetail(dateStr, episodes);
-                    epList.appendChild(epEl);
-                });
-
-                if (episodes.length > maxShow) {
-                    const more = document.createElement('div');
-                    more.className = 'month-cell-more';
-                    more.textContent = `+${episodes.length - maxShow} more`;
-                    more.onclick = () => showDayDetail(dateStr, episodes);
-                    epList.appendChild(more);
-                }
-
-                cell.appendChild(epList);
+        if (data.success) {
+            const eps = data.episodes || [];
+            cacheSet(cacheKey, eps);
+            const sig = JSON.stringify(eps);
+            if (sig !== container.dataset.mhSig) {
+                renderMonth(eps);
+                container.dataset.mhSig = sig;
             }
-
-            // Click on empty cell to show day
-            cell.onclick = (e) => {
-                if (e.target === cell || e.target === dateNum) {
-                    if (episodes.length > 0) {
-                        showDayDetail(dateStr, episodes);
-                    }
-                }
-            };
-
-            container.appendChild(cell);
+        } else if (!hadCache) {
+            renderMonth([]); // still show the empty month grid
         }
-
-        lucide.createIcons();
     } catch (error) {
-        container.textContent = '';
-        const errorMsg = document.createElement('div');
-        errorMsg.style.cssText = 'grid-column: 1/-1; text-align: center; color: var(--archie-text-muted); padding: 40px;';
-        errorMsg.textContent = 'Failed to load calendar';
-        container.appendChild(errorMsg);
+        // Keep any cached render on error rather than blanking.
+        if (!hadCache) {
+            container.textContent = '';
+            const errorMsg = document.createElement('div');
+            errorMsg.style.cssText = 'grid-column: 1/-1; text-align: center; color: var(--archie-text-muted); padding: 40px;';
+            errorMsg.textContent = 'Failed to load calendar';
+            container.appendChild(errorMsg);
+        }
     }
 }
 

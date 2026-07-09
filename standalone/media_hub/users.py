@@ -265,6 +265,19 @@ def get_user(user_id: int) -> Optional[User]:
         return _row_to_user(cur.fetchone())
 
 
+def get_user_by_username(username: str) -> Optional[User]:
+    """Look up an ACTIVE user by username WITHOUT a password — used only by the
+    internal QA-auth endpoint (P.R.O.B.E.), which is token-gated. Returns None if
+    the user is missing or inactive."""
+    with get_db_cursor(cursor_factory=None) as (_c, cur):
+        cur.execute(
+            f"SELECT {_USER_SELECT_COLS} FROM media_hub_users "
+            "WHERE username = %s AND is_active = TRUE",
+            (username,),
+        )
+        return _row_to_user(cur.fetchone())
+
+
 def set_password(user_id: int, new_password: str) -> None:
     with get_db_cursor(cursor_factory=None, commit=True) as (_c, cur):
         cur.execute(

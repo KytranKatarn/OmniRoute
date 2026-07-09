@@ -5,10 +5,10 @@ Imports users.authenticate + login_user to populate the Flask-Login session.
 
 from urllib.parse import urlparse, urljoin
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
-from users import authenticate, is_sso_only_account
+from users import authenticate, get_user_by_username, is_sso_only_account
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -55,3 +55,40 @@ def logout():
     logout_user()
     flash("Signed out.", "info")
     return redirect(url_for("auth.login"))
+
+
+@auth_bp.route("/api/qa/auth", methods=["POST"])
+def qa_auth():
+    """Internal QA authentication — lets P.R.O.B.E.'s qa_spec_runner establish a
+    Flask-Login session via the shared ARCHIE_QA_TOKEN instead of a password/SSO
+    flow (the media_hub 'claude' account is SSO-only, so the form-login fallback
+    401s). Triple-gated: env token must be set (403), caller must be on an internal
+    /RFC1918 network (403 — behind the published-port DNAT every legit caller is the
+    docker gateway), and the token must match via constant-time compare (401). Only
+    logs in an EXISTING active user — never creates one. Mirrors KSO
+    (kytran_system_operations/auth.py qa_auth) + KB #270283/#270289.
+
+    Body: {token, username?} -> {success, username} | error."""
+    import hmac
+    import ipaddress
+    import os
+
+    qa_token = os.environ.get("ARCHIE_QA_TOKEN", "")
+    if not qa_token:
+        return jsonify({"error": "QA auth disabled"}), 403
+    ip = request.remote_addr or ""
+    try:
+        is_internal = ip in ("127.0.0.1", "::1") or ipaddress.ip_address(ip).is_private
+    except ValueError:
+        is_internal = False
+    if not is_internal:
+        return jsonify({"error": "QA auth only available from internal networks"}), 403
+    data = request.get_json(silent=True) or {}
+    if not hmac.compare_digest(str(data.get("token", "")), qa_token):
+        return jsonify({"error": "Invalid QA token"}), 401
+    username = (data.get("username") or "probe").strip()
+    user = get_user_by_username(username)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    login_user(user, remember=True)
+    return jsonify({"success": True, "username": user.username})

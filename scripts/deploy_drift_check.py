@@ -67,7 +67,12 @@ PRODUCTS = {
         "path": None,
         "branch": "main",
     },
-    "kso": {"url": os.getenv("DRIFT_KSO_URL", "http://192.168.1.200:8085/version"), "repo": None, "path": None},
+    "kso": {
+        "url": os.getenv("DRIFT_KSO_URL", "http://192.168.1.200:8085/version"),
+        "repo": "KytranKatarn/kytran-system-operations",  # own repo (public); whole tree = the product
+        "path": None,
+        "branch": "main",
+    },
     # Citadel / boston-2 (mesh 100.64.0.10) — separate repos (repo/path wired at part 1)
     "wtf_consumer": {
         "url": os.getenv("DRIFT_WTF_URL", "http://100.64.0.10:8103/version"),

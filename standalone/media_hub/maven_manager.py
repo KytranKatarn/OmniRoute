@@ -282,7 +282,7 @@ def process_approved_optimizes() -> None:
     library's HEVC candidates. Two jobs: (1) auto-stop + report a run that has drained;
     (2) start a run for any freshly-approved request. #4762."""
     import tdarr_client
-    from archie_coordination import check_approval, log_dispatch, notify_archie
+    from archie_coordination import check_approval, fleet_inference_pressure, log_dispatch, notify_archie
 
     # (1) Auto-stop a finished run — keeps it approval-gated (engine OFF except during a run).
     try:
@@ -319,7 +319,22 @@ def process_approved_optimizes() -> None:
     for approval_id, title in rows:
         st = check_approval(approval_id)
         if st == "approved":
+            import os
             import time as _time
+
+            # Welfare gate (#4766): don't KICK OFF a fresh run during a fleet inference crunch
+            # (starting the engine enables transcoding + windows). Defer — leave the approval
+            # 'awaiting' so it retries next executor cycle. Fail-open: unknown pressure -> proceed.
+            pressure = fleet_inference_pressure()
+            try:
+                run_cap = max(0, int(os.getenv("TDARR_RUN_MAX_PRESSURE", "12")))
+            except (TypeError, ValueError):
+                run_cap = 12
+            if pressure is not None and pressure >= run_cap:
+                log_dispatch("optimize_run_deferred", capability="media_optimize",
+                             description=f"start deferred (welfare) — fleet inference pressure {pressure} ≥ {run_cap} ({title})",
+                             success=True, target=title)
+                continue  # leave 'awaiting'; retry next 5-min executor cycle
 
             _t0 = _time.monotonic()
             ok = tdarr_client.set_processing(True)  # start the owner-approved optimize run

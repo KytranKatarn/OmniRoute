@@ -138,6 +138,23 @@ def fleet_gpu_load() -> Optional[dict]:
         return None
 
 
+def fleet_inference_pressure(load: Optional[dict] = None) -> Optional[int]:
+    """Fleet-wide INFERENCE PRESSURE — the welfare signal (#4766) M.A.V.E.N. uses to decide
+    whether starting/continuing a Tdarr optimize run would starve the inference agents.
+    Pressure = queued/running DHQ inference + real inferences on the GPU nodes in the last
+    ~2 min (from a fleet_gpu_load payload). Pass an already-fetched `load` to avoid a second
+    call, or omit to fetch. Returns None if the signal is unavailable — the caller then does
+    NOT gate (fail-open toward doing the work, never wedging the drain on a hub blip)."""
+    if load is None:
+        load = fleet_gpu_load()
+    if not isinstance(load, dict) or not load.get("ok"):
+        return None
+    pressure = int(load.get("fleet_inference_queued") or 0)
+    for n in load.get("nodes") or []:
+        pressure += int(n.get("recent_inference") or 0)
+    return pressure
+
+
 def fleet_gpu_lease(node: str, action: str, models: Optional[list] = None) -> Optional[dict]:
     """Acquire/release a Tdarr transcode VRAM lease on a fleet GPU node (#385 v2) — the
     mesh call that evicts a node's Ollama models to free VRAM for a bounded transcode

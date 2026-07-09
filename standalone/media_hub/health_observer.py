@@ -1132,6 +1132,20 @@ def _orch_windows_enabled() -> bool:
     return os.getenv("TDARR_OPPORTUNITY_WINDOWS", "1").strip().lower() not in ("0", "false", "no", "off")
 
 
+def _orch_window_max_pressure() -> int:
+    """Welfare gate (#4766): the max fleet INFERENCE PRESSURE at which an opportunity
+    window may still be granted. A window EVICTS a node's inference models, so above this
+    threshold we must NOT grant one — inference welfare comes first (the plain per-node
+    yield still lets transcodes fill genuinely idle GPU time). Env-tunable
+    TDARR_WINDOW_MAX_PRESSURE (default 6); 0 = never window while ANY inference is active."""
+    import os
+
+    try:
+        return max(0, int(os.getenv("TDARR_WINDOW_MAX_PRESSURE", "6")))
+    except (TypeError, ValueError):
+        return 6
+
+
 def _orch_release(node, st, fleet_gpu_lease, tdarr_client, actions, reason):
     """Release a node's VRAM lease (reload its Ollama models) if one is held. Best-effort."""
     models = st.get("leased_models") or []
@@ -1160,7 +1174,7 @@ def _tdarr_dispatch_orchestration() -> None:
         from datetime import datetime, timedelta, timezone
 
         import tdarr_client
-        from archie_coordination import fleet_gpu_lease, fleet_gpu_load
+        from archie_coordination import fleet_gpu_lease, fleet_gpu_load, fleet_inference_pressure
 
         gpu_nodes = [n for n in tdarr_client.nodes() if n.get("is_gpu")]
         if not gpu_nodes:
@@ -1248,20 +1262,32 @@ def _tdarr_dispatch_orchestration() -> None:
                     actions.append(f"yield {n['name']} → DHQ inference (transcodegpu 0)")
                 starved = (now - st["yield_since"]).total_seconds() >= starve_s
                 gap_ok = (not st.get("last_window_at")) or (now - st["last_window_at"]).total_seconds() >= gap_s
-                if (starved and gap_ok and pending > 0 and not window_active
-                        and st.get("fleet_node_id") and _orch_windows_enabled()):
-                    lease = fleet_gpu_lease(st["fleet_node_id"], "acquire")
-                    if lease and lease.get("ok"):
-                        st["leased_models"] = lease.get("unloaded") or []
-                        st["window_until"] = now + timedelta(seconds=window_s)
-                        st["yield_since"] = None
-                        window_active = True
-                        tdarr_client.resume_gpu_transcodes(nid, 1)
+                would_grant = (starved and gap_ok and pending > 0 and not window_active
+                               and st.get("fleet_node_id") and _orch_windows_enabled())
+                if would_grant:
+                    # Welfare gate (#4766): a window EVICTS this node's inference models, so
+                    # skip it when the fleet is actively serving inference. Fail-open: if the
+                    # pressure signal is unavailable (None), proceed rather than wedge the drain.
+                    pressure = fleet_inference_pressure(load)
+                    cap = _orch_window_max_pressure()
+                    if pressure is not None and pressure >= cap:
                         actions.append(
-                            f"OPPORTUNITY WINDOW on {n['name']} — VRAM leased "
-                            f"(evicted {len(st['leased_models'])} model(s)); transcoding {_ORCH_WINDOW_MIN}m"
+                            f"window for {n['name']} DEFERRED (welfare) — fleet inference "
+                            f"pressure {pressure} ≥ {cap}"
                         )
-                    # lease failed → stay yielded (fail-open; inference stays safe)
+                    else:
+                        lease = fleet_gpu_lease(st["fleet_node_id"], "acquire")
+                        if lease and lease.get("ok"):
+                            st["leased_models"] = lease.get("unloaded") or []
+                            st["window_until"] = now + timedelta(seconds=window_s)
+                            st["yield_since"] = None
+                            window_active = True
+                            tdarr_client.resume_gpu_transcodes(nid, 1)
+                            actions.append(
+                                f"OPPORTUNITY WINDOW on {n['name']} — VRAM leased "
+                                f"(evicted {len(st['leased_models'])} model(s)); transcoding {_ORCH_WINDOW_MIN}m"
+                            )
+                        # lease failed → stay yielded (fail-open; inference stays safe)
             # busy is None (node not matched) → leave as-is, don't starve the drain
 
         _log_selfheal("tdarr_dispatch_orchestration", "media_optimize", actions)

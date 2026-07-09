@@ -183,11 +183,23 @@ def submit_director_report(
             report_id = cur.fetchone()
 
             if report_id is None:
+                # Dedup collision (ON CONFLICT DO NOTHING) — an identical report
+                # already exists within the 5-min window. This is an idempotent
+                # SUCCESS, not a failure: fetch the existing row's id and return
+                # it so /api/director/report responds 200 instead of a misleading
+                # 500. (That dedup-as-500 was the recurring "submit_via_inbox
+                # failed: 500" seen during bursts of near-identical reports.)
+                cur.execute(
+                    "SELECT id FROM director_reports WHERE dedup_key = %s", (dedup_key,)
+                )
+                existing = cur.fetchone()
                 conn.commit()
                 logger.debug(
                     "director_report deduped (key=%s): [%s] %s from %s — %s",
                     dedup_key, severity, category, director_agent, title,
                 )
+                if existing:
+                    return existing["id"] if isinstance(existing, dict) else existing[0]
                 return None
 
             rid = report_id["id"] if isinstance(report_id, dict) else report_id[0]
@@ -213,7 +225,11 @@ def submit_director_report(
             return rid
 
     except Exception as e:
-        logger.error("briefing_service: submit_director_report failed: %s", e)
+        logger.error(
+            "briefing_service: submit_director_report failed for [%s/%s] '%s' from %s — %s",
+            severity, category, title, director_agent, e,
+            exc_info=True,
+        )
         return None
 
 

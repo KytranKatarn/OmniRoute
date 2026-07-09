@@ -365,27 +365,39 @@ def api_director_report():
     if not token or not hmac.compare_digest(token, ARCHIE_SERVICE_TOKEN):
         return jsonify({"error": "Unauthorized"}), 401
 
-    from services.briefing_service import submit_director_report
+    try:
+        from services.briefing_service import submit_director_report
 
-    data = request.get_json() or {}
-    required = ["department", "director_agent", "severity", "category", "title", "summary"]
-    missing = [f for f in required if not data.get(f)]
-    if missing:
-        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+        data = request.get_json() or {}
+        required = ["department", "director_agent", "severity", "category", "title", "summary"]
+        missing = [f for f in required if not data.get(f)]
+        if missing:
+            return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
-    report_id = submit_director_report(
-        department=data["department"],
-        director_agent=data["director_agent"],
-        severity=data["severity"],
-        category=data["category"],
-        title=data["title"],
-        summary=data["summary"],
-        details=data.get("details"),
-    )
+        report_id = submit_director_report(
+            department=data["department"],
+            director_agent=data["director_agent"],
+            severity=data["severity"],
+            category=data["category"],
+            title=data["title"],
+            summary=data["summary"],
+            details=data.get("details"),
+        )
 
-    if report_id:
-        return jsonify({"success": True, "report_id": report_id})
-    return jsonify({"error": "Failed to submit report"}), 500
+        if report_id:
+            return jsonify({"success": True, "report_id": report_id})
+        # submit_director_report returns None ONLY on a genuine failure now (a
+        # dedup collision returns the existing id). Log at the HTTP boundary so
+        # the 500 is diagnosable instead of a bare "Failed to submit report".
+        app.logger.error(
+            "api_director_report: submit returned no id for [%s/%s] '%s' from %s",
+            data.get("severity"), data.get("category"),
+            data.get("title"), data.get("director_agent"),
+        )
+        return jsonify({"error": "Failed to submit report"}), 500
+    except Exception as exc:
+        app.logger.error("api_director_report: unhandled error — %s", exc, exc_info=True)
+        return jsonify({"error": "internal error", "detail": str(exc)[:200]}), 500
 
 
 @app.route("/api/internal/director-reports", methods=["GET"])

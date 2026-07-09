@@ -751,15 +751,17 @@ def _register_own_jobs(scheduler, flask_app):
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
 
+    from services.job_governance import governed_job
+
     def with_ctx(fn):
-        """Wrap function to run inside Flask app context."""
-
-        def wrapper():
-            with flask_app.app_context():
-                fn()
-
-        wrapper.__name__ = fn.__name__
-        return wrapper
+        """Wrap a DHQ job so it runs inside the Flask app context AND under DHQ
+        governance (project #332, #2743): every run writes a governance_audit_log
+        trail (start/complete/fail) and a failure raises a quiet-hours-gated
+        A.R.C.H.I.E. alert. Additive + fail-safe — never changes a job's logic and
+        never crashes the shared scheduler. NOTE: with_ctx_app / with_ctx_app_sched
+        pass args to fn and are intentionally left un-governed here (they need an
+        arg-passing governed_job variant — tracked follow-up)."""
+        return governed_job(fn, department="Department HQ", flask_app=flask_app)
 
     def with_ctx_app(fn):
         """Wrap function that needs flask_app to run inside Flask app context."""

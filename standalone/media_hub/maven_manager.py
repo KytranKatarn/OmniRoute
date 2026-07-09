@@ -320,3 +320,41 @@ def process_approved_optimizes() -> None:
                          metadata={"node": (node or {}).get("name"), "file_id": file_id})
         elif st in ("denied", "rejected", "cancelled"):
             _mark(approval_id, "denied")
+
+
+# ── Tdarr library rescan (#4754) — M.A.V.E.N. refreshes her own view ──────────
+
+
+def library_scan(mode: str = "scanFindNew") -> dict:
+    """M.A.V.E.N. rescans the Tdarr library (non-destructive re-index) so
+    video_review sees the current files (#4754). The scan runs async in Tdarr;
+    success = the scan was accepted + started (Tdarr logs 'Starting file scan').
+    Logs the action to the DHQ A.R.M.A.D.A. feed + notifies A.R.C.H.I.E.
+    Returns {success, files, mode}."""
+    import time as _time
+
+    import tdarr_client
+
+    if not tdarr_client.is_up():
+        return {"success": False, "error": "Tdarr unreachable", "files": 0, "mode": mode}
+    _t0 = _time.monotonic()
+    ok = tdarr_client.library_scan(mode=mode)
+    files = len(tdarr_client.library_files())
+    _dur = int((_time.monotonic() - _t0) * 1000)
+
+    from archie_coordination import log_dispatch, notify_archie
+
+    # A.R.M.A.D.A. visibility (#4755) — record the rescan as a 0-token action.
+    log_dispatch("library_scan", capability="library_scan",
+                 description=f"Tdarr rescan ({mode}) — {files} files indexed",
+                 success=ok, duration_ms=_dur,
+                 metadata={"mode": mode, "files": files})
+    if ok:
+        notify_archie("Media Hub: Tdarr library rescanned",
+                      f"M.A.V.E.N. triggered a Tdarr rescan ({mode}); {files} files indexed.",
+                      priority="low")
+    else:
+        notify_archie("Media Hub: Tdarr rescan FAILED",
+                      "M.A.V.E.N. could not trigger a Tdarr rescan (unreachable or rejected).",
+                      priority="normal")
+    return {"success": ok, "files": files, "mode": mode}

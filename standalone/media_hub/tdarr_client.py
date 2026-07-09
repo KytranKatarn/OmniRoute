@@ -91,6 +91,25 @@ def library_files(limit: int = 5000) -> list[dict]:
     return res[:limit] if isinstance(res, list) else []
 
 
+# Real Media library id (folder=/media). The junk 'Library Name'/BUQ0l-6oQ lib is ignored.
+_DEFAULT_LIBRARY = "medialib1"
+
+
+def library_scan(db_id: str = _DEFAULT_LIBRARY, mode: str = "scanFindNew") -> bool:
+    """Trigger a Tdarr library scan so FileJSONDB reflects current media.
+    mode='scanFindNew' = incremental (pick up newly-downloaded / removed files);
+    'scanFresh' = full re-probe. Returns True if Tdarr ACCEPTED the scan (it then
+    runs async — Tdarr logs 'Starting file scan'). Requires the library mount
+    intact (BOTH split drives; a broken /media/movies symlink aborts the scanner
+    with 'Files found:0' — KB #279356 / PR #2120). Best-effort; never raises."""
+    res = _post(
+        "/api/v2/scan-files",
+        {"data": {"scanConfig": {"dbID": db_id, "arrayOrPath": [], "mode": mode}}},
+    )
+    # Tdarr returns the bare string 'OK' on accept (some builds return a dict/list).
+    return res is not None and (res == "OK" or res is True or isinstance(res, (dict, list)))
+
+
 def queue_transcode(file_id: str) -> bool:
     """Best-effort: add a file to Tdarr's transcode queue. Requires a scanned library.
     Tdarr drives transcodes via library flows; this pokes the manual-queue endpoint and

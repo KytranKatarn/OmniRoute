@@ -1098,10 +1098,13 @@ def _maven_optimize_executor() -> None:
 
 
 def _tdarr_library_review() -> None:
-    """Periodic Tdarr library review — report space-optimize candidates. Phase 3."""
+    """Periodic Tdarr rescan + library review — M.A.V.E.N. refreshes her own view
+    of the library (#4754) then reports space-optimize candidates on the fresh
+    data. Phase 3."""
     try:
-        from maven_manager import video_review
+        from maven_manager import library_scan, video_review
 
+        library_scan()  # #4754 — pick up newly-downloaded/removed files first
         video_review()
     except Exception as exc:  # noqa: BLE001
         log.error("tdarr_library_review failed: %s", exc)

@@ -4835,6 +4835,56 @@ def api_internal_fleet_gpu_load():
     )
 
 
+@app.route("/api/internal/fleet-gpu-lease", methods=["POST"])
+@_require_internal_key
+def api_internal_fleet_gpu_lease():
+    """Grant/release a Tdarr transcode VRAM lease on a fleet GPU node — the mesh-reachable
+    mirror of the ComfyUI/SDXL swap (#385 v2). On the Starships the warm inference models
+    fully own the 8GB/4GB VRAM, so NVENC can't coexist; to stop the optimize drain from
+    STARVING under sustained inference, M.A.V.E.N. leases a node for a bounded OPPORTUNITY
+    WINDOW: 'acquire' evicts that node's Ollama models (freeing VRAM for the transcode),
+    'release' reloads them. Reuses the dispatcher's proven pair
+    (_vram_swap_for_comfyui / _vram_restore_after_comfyui). The caller holds the lease only
+    for the window and always releases; the fleet warm-keep job reloads evicted models as a
+    backstop if a release is ever missed. Bearer INTERNAL_API_KEY.
+    Body: {node, action:'acquire'|'release', models?:[...]} -> {ok, unloaded:[...]}
+    (node = remote_nodes node_id | mesh_ip | node_name). Fail-open (ok:False, HTTP 200)."""
+    data = request.get_json(silent=True) or {}
+    node = str(data.get("node") or "").strip()
+    action = (data.get("action") or "").strip().lower()
+    if not node or action not in ("acquire", "release"):
+        return jsonify({"ok": False, "error": "bad request"}), 400
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT id FROM remote_nodes WHERE node_id=%s OR mesh_ip=%s OR node_name=%s LIMIT 1",
+                (node, node, node),
+            )
+            row = cur.fetchone()
+        if not row:
+            return jsonify({"ok": False, "error": "unknown node"}), 404
+        node_db_id = row["id"]
+
+        from tools.department_hq.services.department_dispatcher import get_dispatcher
+
+        disp = get_dispatcher()
+        if action == "acquire":
+            unloaded = disp._vram_swap_for_comfyui(node_db_id) or []
+            app.logger.info("fleet-gpu-lease acquire node=%s evicted=%s", node, unloaded)
+            return jsonify({"ok": True, "unloaded": list(unloaded)})
+        # release
+        models = data.get("models")
+        if isinstance(models, list) and models:
+            disp._vram_restore_after_comfyui(models, node_db_id)
+        app.logger.info("fleet-gpu-lease release node=%s restored=%s", node, models)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        app.logger.warning("fleet-gpu-lease failed: %s", exc)
+        return jsonify({"ok": False, "error": "lease failed"}), 200
+
+
 # ── Code Health engine-facing surface (#4262 — the loop-closer) ──────────────
 # The containerized A.R.C.H.I.E. build engine has no browser session, so the
 # @login_required Code-Health routes in tools/consciousness are unreachable to

@@ -1110,61 +1110,160 @@ def _tdarr_library_review() -> None:
         log.error("tdarr_library_review failed: %s", exc)
 
 
-def _tdarr_dispatch_orchestration() -> None:
-    """Dispatch-orchestrated Tdarr drain (#385): the two Tdarr GPU nodes (USS-246 /
-    USS-245) are ALSO fleet inference nodes, so while an approved optimize RUN is
-    active M.A.V.E.N. yields each Starship's transcode workers to DHQ inference —
-    pause a node's transcodegpu workers when the hub reports that node busy with
-    (or queued for) inference, resume when it goes idle. Inference always wins;
-    transcodes fill only idle GPU time. When NO run is active, any node left paused
-    by a prior run is restored to its normal limit (cleanup). Every step is
-    best-effort; a failure never kills the scheduler.
+# --- dispatch-orchestrated Tdarr drain (#385 v2: priority queue + opportunity windows) ---
+# Per-node fairness state, module-level (safe: mediahub runs a SINGLE gunicorn worker with
+# ONE scheduler). Keyed by Tdarr node id -> {yield_since, window_until, leased_models,
+# last_window_at, fleet_node_id}. Lost on restart (a soft fairness clock — acceptable).
+_orch_state: dict = {}
 
-    The hub signal (GET /api/internal/fleet-gpu-load) is fail-open: if it's
-    unreachable we leave the worker limits untouched rather than thrash."""
+# Fairness knobs (minutes). Under SUSTAINED inference a node would otherwise starve forever;
+# once it has been yielded this long we lease it (VRAM-evict) for a bounded transcode window.
+_ORCH_MAX_STARVE_MIN = 20   # continuous-yield time before the drain earns an opportunity window
+_ORCH_WINDOW_MIN = 6        # how long a granted transcode window lasts
+_ORCH_MIN_GAP_MIN = 20      # minimum spacing between windows on the same node
+
+
+def _orch_windows_enabled() -> bool:
+    """Kill-switch for the VRAM-evicting opportunity windows (they briefly displace a
+    node's inference). Default ON; set TDARR_OPPORTUNITY_WINDOWS=0 to fall back to pure
+    yield (never lease) without a redeploy."""
+    import os
+
+    return os.getenv("TDARR_OPPORTUNITY_WINDOWS", "1").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _orch_release(node, st, fleet_gpu_lease, tdarr_client, actions, reason):
+    """Release a node's VRAM lease (reload its Ollama models) if one is held. Best-effort."""
+    models = st.get("leased_models") or []
+    if models and st.get("fleet_node_id"):
+        fleet_gpu_lease(st["fleet_node_id"], "release", models)
+        actions.append(f"released VRAM lease on {node} — reloading {len(models)} model(s) ({reason})")
+    st["leased_models"] = []
+    st["window_until"] = None
+
+
+def _tdarr_dispatch_orchestration() -> None:
+    """Dispatch-orchestrated Tdarr drain (#385 v2). The two Tdarr GPU nodes (USS-246 /
+    USS-245) are ALSO fleet inference nodes whose warm models fully own the 8GB/4GB VRAM,
+    so a transcode can't co-run with inference. While an approved optimize RUN is active
+    M.A.V.E.N. treats the drain as a PRIORITY QUEUE, not a starving background task:
+      • node idle  -> transcode (resume workers);
+      • node busy with DHQ inference -> yield (pause workers) — inference wins;
+      • node busy but the drain has been YIELDED past _ORCH_MAX_STARVE_MIN -> grant a bounded
+        OPPORTUNITY WINDOW: lease the node (VRAM-evict its Ollama models via the hub, mirroring
+        the ComfyUI/SDXL swap), transcode for _ORCH_WINDOW_MIN, then release (reload models).
+    Only ONE node is ever leased at a time (the other stays available for inference). When NO
+    run is active, any paused/leased node is restored (cleanup). Fail-open on the hub signal;
+    every step best-effort — a failure never kills the scheduler."""
     try:
         import re
+        from datetime import datetime, timedelta, timezone
 
         import tdarr_client
-        from archie_coordination import fleet_gpu_load
+        from archie_coordination import fleet_gpu_lease, fleet_gpu_load
 
         gpu_nodes = [n for n in tdarr_client.nodes() if n.get("is_gpu")]
         if not gpu_nodes:
             return
+        now = datetime.now(timezone.utc)
+        actions: list = []
 
-        # No active run → restore any node still paused from a prior run, then stop.
+        # No active run → release any lease + restore any paused node, reset state, stop.
         if not tdarr_client.is_processing():
-            restored = []
             for n in gpu_nodes:
+                st = _orch_state.get(n["id"])
+                if st:
+                    _orch_release(n["name"], st, fleet_gpu_lease, tdarr_client, actions, "run ended")
                 if (tdarr_client.node_worker_limit(n["id"]) or 0) < 1:
                     if tdarr_client.resume_gpu_transcodes(n["id"], 1):
-                        restored.append(f"restored {n['name']} transcodegpu=1 (no active run)")
-            _log_selfheal("tdarr_dispatch_orchestration", "media_optimize", restored)
+                        actions.append(f"restored {n['name']} transcodegpu=1 (no active run)")
+            _orch_state.clear()
+            _log_selfheal("tdarr_dispatch_orchestration", "media_optimize", actions)
             return
 
-        # Active run → consult the hub for per-node inference load.
+        # Active run → consult the hub for per-node inference load (fail-open).
         load = fleet_gpu_load()
         if not load or not load.get("ok"):
             log.info("tdarr_dispatch_orchestration: fleet-gpu-load unavailable — leaving worker limits as-is")
             return
-        busy_by_key = {
-            str(fn.get("match_key")): bool(fn.get("busy"))
-            for fn in (load.get("nodes") or [])
-            if fn.get("match_key")
-        }
+        busy_by_key, nodeid_by_key = {}, {}
+        for fn in load.get("nodes") or []:
+            k = fn.get("match_key")
+            if k:
+                busy_by_key[str(k)] = bool(fn.get("busy"))
+                nodeid_by_key[str(k)] = fn.get("node_id")
 
-        actions = []
+        pending = tdarr_client.transcode_pending()
+        starve_s, window_s, gap_s = (
+            _ORCH_MAX_STARVE_MIN * 60, _ORCH_WINDOW_MIN * 60, _ORCH_MIN_GAP_MIN * 60,
+        )
+        # Never evict more than one GPU at once — keep a node for inference.
+        window_active = any(
+            (s.get("window_until") and now < s["window_until"]) for s in _orch_state.values()
+        )
+
         for n in gpu_nodes:
+            nid = n["id"]
             m = re.search(r"(\d{3})", str(n.get("name") or ""))
-            busy = busy_by_key.get(m.group(1)) if m else None
-            cur = tdarr_client.node_worker_limit(n["id"]) or 0
-            if busy is True and cur > 0:
-                if tdarr_client.pause_gpu_transcodes(n["id"]):
-                    actions.append(f"yield {n['name']} → DHQ inference (transcodegpu 0)")
-            elif busy is False and cur < 1:
-                if tdarr_client.resume_gpu_transcodes(n["id"], 1):
+            key = m.group(1) if m else None
+            busy = busy_by_key.get(key) if key else None
+            st = _orch_state.setdefault(
+                nid, {"yield_since": None, "window_until": None, "leased_models": [],
+                      "last_window_at": None, "fleet_node_id": None}
+            )
+            if key:
+                st["fleet_node_id"] = nodeid_by_key.get(key)
+            cur = tdarr_client.node_worker_limit(nid) or 0
+
+            # (1) In an active opportunity window → keep transcoding.
+            if st.get("window_until") and now < st["window_until"]:
+                if cur < 1:
+                    tdarr_client.resume_gpu_transcodes(nid, 1)
+                continue
+
+            # (2) Window just ended → release the lease, then fall back to yield/idle.
+            if st.get("window_until") and now >= st["window_until"]:
+                _orch_release(n["name"], st, fleet_gpu_lease, tdarr_client, actions, "window ended")
+                st["last_window_at"] = now
+                if busy is False:
+                    tdarr_client.resume_gpu_transcodes(nid, 1)
+                    st["yield_since"] = None
+                else:
+                    tdarr_client.pause_gpu_transcodes(nid)
+                    st["yield_since"] = now
+                continue
+
+            # (3) Node idle → transcode.
+            if busy is False:
+                if cur < 1 and tdarr_client.resume_gpu_transcodes(nid, 1):
                     actions.append(f"resume {n['name']} transcode (node idle)")
-            # busy is None (node not matched in hub signal) → leave as-is, don't starve the drain
+                st["yield_since"] = None
+                continue
+
+            # (4) Node busy → yield, unless the drain has starved long enough to earn a window.
+            if busy is True:
+                if not st.get("yield_since"):
+                    st["yield_since"] = now
+                if cur > 0 and tdarr_client.pause_gpu_transcodes(nid):
+                    actions.append(f"yield {n['name']} → DHQ inference (transcodegpu 0)")
+                starved = (now - st["yield_since"]).total_seconds() >= starve_s
+                gap_ok = (not st.get("last_window_at")) or (now - st["last_window_at"]).total_seconds() >= gap_s
+                if (starved and gap_ok and pending > 0 and not window_active
+                        and st.get("fleet_node_id") and _orch_windows_enabled()):
+                    lease = fleet_gpu_lease(st["fleet_node_id"], "acquire")
+                    if lease and lease.get("ok"):
+                        st["leased_models"] = lease.get("unloaded") or []
+                        st["window_until"] = now + timedelta(seconds=window_s)
+                        st["yield_since"] = None
+                        window_active = True
+                        tdarr_client.resume_gpu_transcodes(nid, 1)
+                        actions.append(
+                            f"OPPORTUNITY WINDOW on {n['name']} — VRAM leased "
+                            f"(evicted {len(st['leased_models'])} model(s)); transcoding {_ORCH_WINDOW_MIN}m"
+                        )
+                    # lease failed → stay yielded (fail-open; inference stays safe)
+            # busy is None (node not matched) → leave as-is, don't starve the drain
+
         _log_selfheal("tdarr_dispatch_orchestration", "media_optimize", actions)
     except Exception as exc:  # noqa: BLE001
         log.error("tdarr_dispatch_orchestration failed: %s", exc)

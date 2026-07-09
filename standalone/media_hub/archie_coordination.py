@@ -138,6 +138,31 @@ def fleet_gpu_load() -> Optional[dict]:
         return None
 
 
+def fleet_gpu_lease(node: str, action: str, models: Optional[list] = None) -> Optional[dict]:
+    """Acquire/release a Tdarr transcode VRAM lease on a fleet GPU node (#385 v2) — the
+    mesh call that evicts a node's Ollama models to free VRAM for a bounded transcode
+    OPPORTUNITY WINDOW and reloads them after (mirrors the ComfyUI/SDXL swap). node =
+    remote_nodes node_id | mesh_ip | node_name. action='acquire' -> {ok, unloaded:[...]}
+    (pass those back on release); action='release' with models=[...] reloads them.
+    Returns the hub payload or None on error / missing key. Best-effort; never raises."""
+    h = _headers()
+    if not h:
+        return None
+    body: dict = {"node": node, "action": action}
+    if models:
+        body["models"] = list(models)
+    try:
+        r = requests.post(f"{_hub()}/api/internal/fleet-gpu-lease", json=body, headers=h, timeout=25)
+        if r.ok:
+            return r.json() or None
+        log.warning("fleet_gpu_lease non-2xx (%s/%s): %s", node, action, r.status_code)
+        return None
+    except Exception as exc:  # noqa: BLE001 — best-effort; a client timeout on release still
+        # completes server-side and the fleet warm-keep job reloads evicted models anyway.
+        log.warning("fleet_gpu_lease failed (%s/%s) — %s", node, action, exc)
+        return None
+
+
 def log_dispatch(
     action: str,
     capability: Optional[str] = None,

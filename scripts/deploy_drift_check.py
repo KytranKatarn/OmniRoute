@@ -33,9 +33,25 @@ import urllib.request
 
 REPO = os.getenv("ARCHIE_REPO", "/mnt/archie_brain")
 
-# product -> /version URL. Extend as watch products adopt the /version stamp.
+# product -> /version URL. Every image-baked product belongs here; each stays FAIL-OPEN
+# ("no stamp yet" — never counted as drift) until it adopts the /version route (task #4749
+# part 1), so listing an un-stamped product early is safe and doubles as a rollout checklist.
+#
+# Transport (userland-proxy=false host-hairpin caveat, KB #275737): the hub host can't reach
+# its OWN published ports via 192.168.1.200 — for hub-local products override DRIFT_*_URL to a
+# container/bridge address when running from a host cron. Citadel/boston-2 products are reached
+# over the Headscale mesh (100.64.0.10). All URLs are env-overridable for exactly this reason.
 PRODUCTS = {
+    # Hub
     "media_hub": os.getenv("DRIFT_MEDIA_HUB_URL", "http://192.168.1.200:8105/version"),
+    "kbs": os.getenv("DRIFT_KBS_URL", "http://192.168.1.200:8091/version"),
+    "kso": os.getenv("DRIFT_KSO_URL", "http://192.168.1.200:8085/version"),
+    # Citadel / boston-2 (mesh 100.64.0.10)
+    "wtf_consumer": os.getenv("DRIFT_WTF_URL", "http://100.64.0.10:8103/version"),
+    "gov_watch": os.getenv("DRIFT_GOV_URL", "http://100.64.0.10:8102/version"),
+    "market_watch": os.getenv("DRIFT_MARKET_URL", "http://100.64.0.10:8101/version"),
+    "legal_watch": os.getenv("DRIFT_LEGAL_URL", "http://100.64.0.10:8100/version"),
+    "civic_watch": os.getenv("DRIFT_CIVIC_URL", "http://100.64.0.10:8099/version"),
 }
 
 
@@ -59,11 +75,11 @@ def _notify(title: str, message: str) -> None:
         return
     hub = (os.getenv("ARCHIE_HUB_URL") or "http://100.64.0.4:3000").rstrip("/")
     body = json.dumps(
-        {"title": title, "message": message, "priority": "high",
-         "source": "deploy_drift_monitor", "telegram": True}
+        {"title": title, "message": message, "priority": "high", "source": "deploy_drift_monitor", "telegram": True}
     ).encode()
     req = urllib.request.Request(
-        f"{hub}/api/internal/notify", data=body,
+        f"{hub}/api/internal/notify",
+        data=body,
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     )
     try:
@@ -96,8 +112,9 @@ def main() -> None:
 
     if drift and args.notify:
         lines = "\n".join(f"• {n}: running {s[:12]}, main {head[:12]}" for n, s in drift)
-        _notify("Deploy drift detected",
-                f"{len(drift)} product(s) running a non-main image:\n{lines}\nRebuild from main.")
+        _notify(
+            "Deploy drift detected", f"{len(drift)} product(s) running a non-main image:\n{lines}\nRebuild from main."
+        )
     sys.exit(1 if drift else 0)
 
 

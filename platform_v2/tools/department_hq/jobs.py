@@ -996,6 +996,66 @@ def _register_own_jobs(scheduler, flask_app):
         coalesce=True,
     )
 
+    # Job — Deploy-provenance drift monitor (#4749, KB #279350). Daily: for each image-baked
+    # product, compare its running /version baked SHA against origin/main HEAD; --notify alerts
+    # A.R.C.H.I.E./Telegram on CONCRETE drift only. Fail-open (unreachable/unstamped ≠ drift). Runs
+    # the repo script in-container — git + ./.git + ./scripts are mounted; safe.directory is set for
+    # the root-owned bind mount (mirrors the agent_loop git-in-container pattern).
+    def _run_deploy_drift_monitor():
+        import os as _dd_os
+        import subprocess as _dd_sp
+        import time as _dd_t
+
+        _dd_start = _dd_t.time()
+        script = "/mnt/archie_brain/scripts/deploy_drift_check.py"
+        if not _dd_os.path.exists(script):
+            logger.warning("[DeployDrift] %s not found — skipping", script)
+            return
+        env = dict(_dd_os.environ)
+        env.update(
+            {
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "safe.directory",
+                "GIT_CONFIG_VALUE_0": "/mnt/archie_brain",
+            }
+        )
+        try:
+            r = _dd_sp.run(
+                ["python3", script, "--notify"],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=env,
+            )
+            # deploy_drift_check.py exits 1 on concrete drift, 0 otherwise.
+            tag = "DRIFT" if r.returncode == 1 else "in-sync"
+            logger.info("[DeployDrift] %s (rc=%s)\n%s", tag, r.returncode, (r.stdout or "").strip()[-1500:])
+            if (r.stderr or "").strip():
+                logger.debug("[DeployDrift] stderr: %s", r.stderr.strip()[-500:])
+        except Exception as exc:  # noqa: BLE001 — a monitor must never crash the scheduler
+            logger.warning("[DeployDrift] check failed (fail-open): %s", exc)
+            return
+        try:
+            from services.telemetry_writer import log_marker
+
+            log_marker(
+                agent_name="F.O.R.G.E.",
+                capability="code_review",
+                duration_ms=int((_dd_t.time() - _dd_start) * 1000),
+            )
+        except Exception as _tel:
+            logger.debug("[DeployDrift] task_execution_log write failed: %s", _tel)
+
+    scheduler.add_job(
+        with_ctx(_run_deploy_drift_monitor),
+        trigger=CronTrigger(hour=6, minute=20, timezone="America/Toronto"),
+        id="deploy_drift_monitor",
+        name="Repair Bay: Deploy-provenance drift monitor",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     # Job #62 — F.O.R.G.E. PR Analyze (every 4h at +20min offset) — AI review pending PRs
     def _run_forge_pr_analyze():
         import time as _fpa_t

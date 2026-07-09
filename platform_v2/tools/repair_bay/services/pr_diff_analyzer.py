@@ -884,6 +884,58 @@ def _dispatch_json_review(prompt: str, kw: dict):
     return (parsed, "parsed") if parsed else (None, "parse_fail")
 
 
+def _check_dockerfile_provenance(diff: str) -> list:
+    """Deterministic deploy-provenance guard (#4749, KB mistake #279350).
+
+    An image-baked Dockerfile (``COPY .`` — bakes the whole source into the image)
+    that ships WITHOUT a ``GIT_SHA`` build ARG can't stamp its commit, so ``/version``
+    can't report it and deploy-drift monitoring goes blind (the exact project-#385
+    failure: per-branch deploys silently reverting each other). Flag any diff section
+    for a Dockerfile that ADDS a whole-context COPY but introduces no ``GIT_SHA`` arg.
+
+    Advisory only (severity 'low' → never blocks a merge; verdict blocks solely on
+    CRITICAL/WARNING) and conservative: a GIT_SHA already in the surrounding context
+    lines suppresses the finding, so editing an already-stamped Dockerfile won't
+    false-positive. Fail-open: any parse issue or a missing diff returns []."""
+    if not diff or "Dockerfile" not in diff:
+        return []
+    findings = []
+    try:
+        for sec in re.split(r"(?=^diff --git )", diff, flags=re.MULTILINE):
+            first = sec.splitlines()[0] if sec else ""
+            if "Dockerfile" not in first:
+                continue
+            m = re.search(r" b/(\S+)", first)
+            path = m.group(1) if m else "Dockerfile"
+            if not path.rsplit("/", 1)[-1].startswith("Dockerfile"):
+                continue
+            added = "\n".join(ln[1:] for ln in sec.splitlines() if ln.startswith("+") and not ln.startswith("+++"))
+            # Only when the change ADDS a whole-context copy (COPY .  /  COPY ./  /  COPY . .).
+            if not re.search(r"^\s*COPY\s+\.\.?/?(\s|$)", added, re.MULTILINE):
+                continue
+            # Suppress if a GIT_SHA arg is present anywhere in this file's hunk (added OR context).
+            if re.search(r"\bARG\s+GIT_SHA\b", sec) or "GIT_SHA" in added:
+                continue
+            findings.append(
+                {
+                    "severity": "low",
+                    "title": f"Dockerfile `{path}` bakes source (COPY .) without a GIT_SHA build ARG",
+                    "why": (
+                        "Image-baked products must stamp their commit so /version reports it and "
+                        "deploy-drift monitoring works (deploy-provenance, KB #279350). Add "
+                        "`ARG GIT_SHA` + `ENV <PRODUCT>_GIT_SHA=$GIT_SHA` near the end of the "
+                        "Dockerfile, pass `build.args: {GIT_SHA: ...}` in compose, and deploy via "
+                        "scripts/deploy_with_sha.sh."
+                    ),
+                    "evidence": f"{path} adds a whole-context COPY but no `ARG GIT_SHA`.",
+                }
+            )
+    except Exception as exc:  # noqa: BLE001 — advisory check must never break a review
+        logger.info("[PR Review] dockerfile-provenance check skipped: %s", exc)
+        return []
+    return findings
+
+
 def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None):
     """PR-B: JSON-structured grounded review. Returns canonical review TEXT, or None to fall back
     to the freeform path (disabled flag / queue / empty / unparseable JSON — all fail-safe)."""
@@ -961,6 +1013,12 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     n_demoted = sum(1 for i in issues if isinstance(i, dict) and i.get("_demoted_from"))
     if n_demoted:
         note = (note + "; " if note else "") + f"normalized {n_demoted} nit(s) to INFO"
+    # Deploy-provenance guard (#4749): deterministic, appended AFTER normalize so it stays
+    # advisory 'low' (non-blocking) and isn't counted among the demoted nits.
+    dockerfile_findings = _check_dockerfile_provenance(diff)
+    if dockerfile_findings:
+        issues.extend(dockerfile_findings)
+        note = (note + "; " if note else "") + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
     parsed["issues"] = issues
     # ST-2: an unverified CRITICAL must not ASSERT a block — exclude it from the verdict computation,
     # then floor to NEEDS REVIEW so it reaches a human (unless a real blocker already requests changes).
@@ -1046,10 +1104,11 @@ def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str
         return _apply_severity_gate(text)
     try:
         issues = _parse_freeform_issues(text)
-        if not issues or not diff:
+        dockerfile_findings = _check_dockerfile_provenance(diff) if diff else []
+        if (not issues and not dockerfile_findings) or not diff:
             return _apply_severity_gate(text)
         notes = []
-        if _evidence_verification_enabled():
+        if issues and _evidence_verification_enabled():
             kept, dropped = _verify_evidence(issues, diff)
             if dropped:
                 notes.append(f"dropped {len(dropped)} issue(s) with evidence not in the diff")
@@ -1060,6 +1119,11 @@ def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str
         n_demoted = sum(1 for i in issues if isinstance(i, dict) and i.get("_demoted_from"))
         if n_demoted:
             notes.append(f"normalized {n_demoted} nit(s) to INFO")
+        # Deploy-provenance guard (#4749): deterministic, appended AFTER normalize so it stays
+        # advisory 'low' (non-blocking) and isn't counted among the demoted nits.
+        if dockerfile_findings:
+            issues.extend(dockerfile_findings)
+            notes.append(f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)")
         verdict = _recompute_verdict(issues, None, _review_confidence_min())
         return _render_freeform_gated(_extract_summary_block(text), issues, verdict, "; ".join(notes))
     except Exception as exc:

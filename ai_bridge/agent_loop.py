@@ -127,6 +127,13 @@ def _send_approval_telegram(approval_id: int, action_type: str, action_data: dic
                     source_agent="A.R.C.H.I.E.",
                     force=True,
                     _privileged=True,
+                    # voice=False = fast string template, NOT the LLM personality
+                    # engine. This runs inline in the /api/internal/approval-request
+                    # request path, and the M.A.V.E.N. caller times out at 8s — the
+                    # LLM formatter can take ~8s and blow that budget (leaving the
+                    # standalone thinking the approval failed while it actually
+                    # succeeded). Same rationale as the Mail HQ new-mail advisory.
+                    voice=False,
                 )
                 _mid = _res.get("message_id") if isinstance(_res, dict) else None
                 if _mid:

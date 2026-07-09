@@ -18,6 +18,10 @@ _HARD_RULES = {"ADR-013", "HARDCODED_SECRET"}
 
 _CAP_MAP_CACHE = None
 
+# Deploy-provenance matrix cache (#4777): (monotonic_ts, payload). The drift check
+# makes ~9 GitHub-API + /version calls, so serve a ~2-min-cached result to the tab.
+_PROVENANCE_CACHE = None
+
 
 def _capability_map():
     """Lazily load CAPABILITY_DEPARTMENT_MAP from the DHQ dispatcher.
@@ -385,6 +389,51 @@ def register_deploy_routes(bp, admin_required):
             "verify_url": "https://creed-ai.org",
         },
     ]
+
+    @bp.route("/api/deploy/provenance")
+    @login_required
+    @admin_required
+    def deploy_provenance():
+        """Deploy-provenance matrix (#4777): for every image-baked product, its running
+        /version baked SHA vs its source-repo head. Reuses scripts/deploy_drift_check.py
+        (the SAME logic the daily deploy_drift_monitor job + F.O.R.G.E. Dockerfile guard
+        use). Result cached ~2 min (the check makes ~9 GitHub-API + /version calls).
+        Fail-safe: any error returns ok=false, never breaks the Ship tab."""
+        import sys as _sys
+        import time as _time
+
+        global _PROVENANCE_CACHE
+        now = _time.monotonic()
+        if _PROVENANCE_CACHE and now - _PROVENANCE_CACHE[0] < 120:
+            return jsonify(_PROVENANCE_CACHE[1])
+
+        scripts_dir = "/mnt/archie_brain/scripts"
+        if scripts_dir not in _sys.path:
+            _sys.path.insert(0, scripts_dir)
+        try:
+            import deploy_drift_check as _ddc
+
+            products = _ddc.check_products()
+        except Exception as exc:  # noqa: BLE001 — a check error must not break the tab
+            logger.warning("[DeployProvenance] check failed: %s", exc)
+            return jsonify({"ok": False, "products": [], "error": str(exc)})
+
+        try:
+            from services.time_utils import now_utc
+
+            checked_at = now_utc().isoformat()
+        except Exception:  # noqa: BLE001
+            checked_at = None
+        payload = {
+            "ok": True,
+            "checked_at": checked_at,
+            "products": products,
+            "in_sync_count": sum(1 for p in products if p["status"] == "in_sync"),
+            "drift_count": sum(1 for p in products if p["status"] == "drift"),
+            "fail_open_count": sum(1 for p in products if p["status"] == "fail_open"),
+        }
+        _PROVENANCE_CACHE = (now, payload)
+        return jsonify(payload)
 
     @bp.route("/api/deploy/website-status")
     @login_required

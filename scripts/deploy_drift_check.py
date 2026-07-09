@@ -175,22 +175,49 @@ def _notify(title: str, message: str) -> None:
         print("  alert failed:", e)
 
 
+def check_products() -> list:
+    """Run the drift check for every product. Returns a list of dicts —
+    ``{product, url, baked_sha, expected_sha, status}`` where status is one of
+    ``in_sync`` | ``drift`` | ``fail_open`` — reusable by both the CLI and the
+    Repair Bay Deploy-Provenance API (GET /api/deploy/provenance)."""
+    results = []
+    for name, meta in PRODUCTS.items():
+        expected = _expected_sha(meta.get("repo"), meta.get("path"), meta.get("branch"))
+        baked = _baked_sha(meta["url"])
+        bare = baked.split("+", 1)[0]  # a stamp may carry a "+dirty" suffix
+        # fail-open: no resolvable expected SHA (repo not wired) OR product
+        # unreachable/unstamped — never counted as drift.
+        if not expected or baked == "unknown" or baked.startswith("unreachable"):
+            status = "fail_open"
+        elif bare == expected:
+            status = "in_sync"
+        else:
+            status = "drift"
+        results.append(
+            {
+                "product": name,
+                "url": meta["url"],
+                "baked_sha": baked,
+                "expected_sha": expected,
+                "status": status,
+            }
+        )
+    return results
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--notify", action="store_true", help="alert A.R.C.H.I.E. on drift")
     args = ap.parse_args()
 
     drift = []
-    for name, meta in PRODUCTS.items():
-        expected = _expected_sha(meta.get("repo"), meta.get("path"), meta.get("branch"))
-        baked = _baked_sha(meta["url"])
-        bare = baked.split("+", 1)[0]  # a stamp may carry a "+dirty" suffix
+    for r in check_products():
+        name, baked, expected, status = r["product"], r["baked_sha"], r["expected_sha"], r["status"]
         short = baked[:12]
-        if not expected:
-            print(f"  ? {name}: {short} — source repo not wired yet (fail-open, not drift)")
-        elif baked == "unknown" or baked.startswith("unreachable"):
-            print(f"  ? {name}: {short} — no stamp yet / unreachable (fail-open, not drift)")
-        elif bare == expected:
+        if status == "fail_open":
+            reason = "source repo not wired yet" if not expected else "no stamp yet / unreachable"
+            print(f"  ? {name}: {short} — {reason} (fail-open, not drift)")
+        elif status == "in_sync":
             print(f"  ✓ {name}: in sync ({short})")
         else:
             print(f"  ✗ {name}: DRIFT — running {short}, source head is {expected[:12]}")

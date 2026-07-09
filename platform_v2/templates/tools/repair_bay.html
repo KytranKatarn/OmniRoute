@@ -595,6 +595,7 @@
             <button class="dp-subtab active" data-subtab="ready" onclick="switchSubTab('deploy', 'ready')">Ready to Deploy</button>
             <button class="dp-subtab" data-subtab="deployed" onclick="switchSubTab('deploy', 'deployed')">Deployment History</button>
             <button class="dp-subtab" data-subtab="website" onclick="switchSubTab('deploy', 'website'); loadWebsiteDeployStatus();">Website</button>
+            <button class="dp-subtab" data-subtab="provenance" onclick="switchSubTab('deploy', 'provenance'); loadDeployProvenance();">Provenance</button>
             <button class="dp-subtab" data-subtab="forge" onclick="switchSubTab('deploy', 'forge'); loadForgeStats();" style="color:#8b5cf6;">F.O.R.G.E.</button>
         </div>
 
@@ -623,6 +624,20 @@
             </div>
             <div id="wdSiteList" style="display:flex;flex-direction:column;gap:12px;">
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading website deploy status...</div></div>
+            </div>
+        </div>
+
+        <!-- Deploy Provenance sub-tab (#4777) -->
+        <div id="deploy-subtab-provenance" class="dp-subtab-content">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                <div>
+                    <div style="font-family:Orbitron,sans-serif;font-size:1rem;color:#00e5ff;letter-spacing:2px;">DEPLOY PROVENANCE</div>
+                    <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);margin-top:2px;">Each image-baked product's running /version SHA vs its source-repo head — the same drift check the daily monitor + F.O.R.G.E. Dockerfile guard use</div>
+                </div>
+                <button id="provRefreshBtn" onclick="loadDeployProvenance(true)" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:8px 18px;font-size:0.8rem;font-family:Orbitron,sans-serif;letter-spacing:1px;cursor:pointer;">REFRESH</button>
+            </div>
+            <div id="provList" style="display:flex;flex-direction:column;gap:10px;">
+                <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading deploy provenance...</div></div>
             </div>
         </div>
 
@@ -3261,6 +3276,70 @@ function loadWebsiteDeployStatus() {
         desc.textContent = 'Error loading website deploy status.';
         err.appendChild(desc);
         el.appendChild(err);
+    });
+}
+
+function loadDeployProvenance(force) {
+    var el = document.getElementById('provList');
+    if (!el) return;
+    el.innerHTML = '';
+    var loading = document.createElement('div');
+    loading.className = 'dp-empty'; loading.style.padding = '30px';
+    var ld = document.createElement('div'); ld.className = 'dp-empty-desc';
+    ld.textContent = 'Checking each product /version against its source repo...';
+    loading.appendChild(ld); el.appendChild(loading);
+    var url = API + '/deploy/provenance' + (force ? '?_=' + Date.now() : '');
+    fetch(url).then(function(r){return r.json();}).then(function(data){
+        el.innerHTML = '';
+        if (!data.ok || !data.products || !data.products.length) {
+            var empty = document.createElement('div'); empty.className = 'dp-empty';
+            var desc = document.createElement('div'); desc.className = 'dp-empty-desc';
+            desc.textContent = data.error ? ('Error: ' + data.error) : 'No products configured.';
+            empty.appendChild(desc); el.appendChild(empty); return;
+        }
+        var summary = document.createElement('div');
+        summary.style.cssText = 'font-size:0.72rem;color:rgba(255,255,255,0.5);margin-bottom:6px;';
+        var chk = data.checked_at ? new Date(data.checked_at).toLocaleString() : '—';
+        summary.textContent = data.in_sync_count + ' in sync · ' + data.drift_count + ' drift · ' +
+            data.fail_open_count + ' fail-open (unwired/unreachable) · checked ' + chk;
+        el.appendChild(summary);
+        data.products.forEach(function(p) {
+            var color = p.status === 'in_sync' ? '#22c55e' : (p.status === 'drift' ? '#ef4444' : '#6b7280');
+            var label = p.status === 'in_sync' ? 'IN SYNC' : (p.status === 'drift' ? 'DRIFT' : 'FAIL-OPEN');
+            var baked = (p.baked_sha || '').slice(0, 12);
+            var expected = (p.expected_sha || '').slice(0, 12);
+
+            var card = document.createElement('div');
+            card.style.cssText = 'background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:12px 16px;display:flex;align-items:center;gap:14px;';
+
+            var dot = document.createElement('span');
+            dot.className = 'dp-status-dot ' + (p.status === 'in_sync' ? 'online' : 'offline');
+            if (p.status === 'fail_open') { dot.className = 'dp-status-dot'; dot.style.background = color; }
+
+            var info = document.createElement('div'); info.style.flex = '1';
+            var nameEl = document.createElement('div');
+            nameEl.style.cssText = 'font-family:Orbitron,sans-serif;font-size:0.82rem;color:#00e5ff;letter-spacing:1px;';
+            nameEl.textContent = p.product;
+            var shaEl = document.createElement('div');
+            shaEl.style.cssText = 'font-family:monospace;font-size:0.72rem;color:rgba(255,255,255,0.45);margin-top:3px;';
+            if (p.status === 'drift') shaEl.textContent = 'running ' + baked + '  →  source head ' + expected;
+            else if (p.status === 'in_sync') shaEl.textContent = baked;
+            else shaEl.textContent = baked + '  (' + (p.expected_sha ? 'unreachable/unstamped' : 'repo not wired') + ')';
+            info.appendChild(nameEl); info.appendChild(shaEl);
+
+            var badge = document.createElement('span');
+            badge.style.cssText = 'padding:3px 8px;border-radius:3px;font-size:0.65rem;letter-spacing:1px;background:' + color + '22;color:' + color + ';border:1px solid ' + color + '44;';
+            badge.textContent = label;
+
+            card.appendChild(dot); card.appendChild(info); card.appendChild(badge);
+            el.appendChild(card);
+        });
+    }).catch(function(){
+        el.innerHTML = '';
+        var err = document.createElement('div'); err.className = 'dp-empty';
+        var desc = document.createElement('div'); desc.className = 'dp-empty-desc';
+        desc.textContent = 'Error loading deploy provenance.';
+        err.appendChild(desc); el.appendChild(err);
     });
 }
 

@@ -23,7 +23,7 @@ Project #279 / tasks #2243 (indexer re-checker) + #2244 (services staleness).
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 import requests
@@ -309,6 +309,29 @@ def quality_probe() -> None:
         log.error("quality_probe failed: %s", exc)
 
 
+# --- A.R.M.A.D.A. visibility helper (#4757) --------------------------------
+
+def _log_selfheal(probe: str, capability: str, actions: list) -> None:
+    """Record an autonomous self-heal in the DHQ A.R.M.A.D.A. dispatch feed
+    (#4757) — one 0-token task_execution_log row per probe run that actually
+    took a corrective action. No-op when the probe only observed or escalated
+    without fixing (empty actions). Best-effort; never breaks the probe."""
+    if not actions:
+        return
+    try:
+        from archie_coordination import log_dispatch
+
+        log_dispatch(
+            probe,
+            capability=capability,
+            description=f"{probe}: " + "; ".join(str(a) for a in actions),
+            success=True,
+            metadata={"actions": list(actions)},
+        )
+    except Exception:  # noqa: BLE001 — visibility logging must never break a probe
+        pass
+
+
 # --- download pipeline probe (every 30 min) --------------------------------
 
 def download_pipeline_probe() -> None:
@@ -446,6 +469,8 @@ def download_pipeline_probe() -> None:
         log.info("download_pipeline_probe: pipeline healthy")
         return
 
+    _log_selfheal("download_pipeline", "media_pipeline_heal", actions)
+
     # Notify A.R.C.H.I.E. — auto-fixes get 'normal' priority (informational),
     # stalls that need human eyes get 'high' so A.R.C.H.I.E. escalates via Telegram.
     hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
@@ -556,6 +581,8 @@ def download_client_health_probe() -> None:
     if not issues and not actions:
         log.info("download_client_health_probe: all download clients healthy")
         return
+
+    _log_selfheal("download_client_health", "media_client_heal", actions)
 
     hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
@@ -680,6 +707,9 @@ def stale_queue_probe() -> None:
                     log.warning("stale_queue_probe: SAB history delete %s failed: %s", nzo, e)
             if purged:
                 log.warning("stale_queue_probe: purged %d matching SABnzbd history item(s)", purged)
+
+        _log_selfheal("stale_queue", "media_queue_purge",
+                      [f"removed {len(stale_ids)} stale completed/warning queue item(s)"])
 
         # Notify hub
         hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
@@ -829,6 +859,8 @@ def library_coverage_probe() -> None:
     if not issues:
         return
 
+    _log_selfheal("library_coverage", "media_coverage_search", actions)
+
     hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
     if api_key_env:
@@ -922,6 +954,8 @@ def arr_database_probe() -> None:
     all_msgs = issues + actions
     if not all_msgs:
         return
+
+    _log_selfheal("arr_database", "media_db_recover", actions)
 
     hub_url = os.getenv("ARCHIE_HUB_URL", "http://100.64.0.4:3000")
     api_key_env = os.getenv("ARCHIE_INTERNAL_API_KEY", "")
@@ -1085,7 +1119,7 @@ def start_scheduler() -> BackgroundScheduler:
     if _scheduler is not None and _scheduler.running:
         return _scheduler
 
-    _scheduler = BackgroundScheduler(daemon=True, timezone="UTC")
+    _scheduler = BackgroundScheduler(daemon=True, timezone=timezone.utc)
     _scheduler.add_job(
         service_health_probe,
         "interval",
@@ -1093,7 +1127,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="service_health",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),  # fire once at startup
+        next_run_time=datetime.now(timezone.utc),  # fire once at startup
     )
     _scheduler.add_job(
         indexer_health_probe,
@@ -1102,7 +1136,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="indexer_health",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     # Execute A.R.C.H.I.E.-approved M.A.V.E.N. removals (project #385 task #4745).
     # No startup fire — a pending approval can wait the first 5 min.
@@ -1139,7 +1173,7 @@ def start_scheduler() -> BackgroundScheduler:
         max_instances=1,
         coalesce=True,
         # Offset 5 min from startup so service health runs first
-        next_run_time=datetime.utcnow().replace(second=0, microsecond=0),
+        next_run_time=datetime.now(timezone.utc).replace(second=0, microsecond=0),
     )
     _scheduler.add_job(
         quality_probe,
@@ -1156,7 +1190,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="download_pipeline",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.add_job(
         download_client_health_probe,
@@ -1165,7 +1199,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="download_client_health",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.add_job(
         library_coverage_probe,
@@ -1174,7 +1208,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="library_coverage",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.add_job(
         arr_database_probe,
@@ -1183,7 +1217,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="arr_database",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.add_job(
         stale_queue_probe,
@@ -1192,7 +1226,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="stale_queue",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.add_job(
         grab_notify_probe,
@@ -1201,7 +1235,7 @@ def start_scheduler() -> BackgroundScheduler:
         id="grab_notify",
         max_instances=1,
         coalesce=True,
-        next_run_time=datetime.utcnow(),
+        next_run_time=datetime.now(timezone.utc),
     )
     _scheduler.start()
     log.info(

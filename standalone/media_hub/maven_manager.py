@@ -245,8 +245,11 @@ def request_optimize(file_id, title=None, resolution=None, est_savings_gb=None, 
         return {"success": False, "error": "file_id required"}
     label = (title or str(file_id)).split("/")[-1][:60]
     approval_id = request_approval(
-        title=f"Optimize (HEVC) {label}" + (f" — save ~{est_savings_gb}GB" if est_savings_gb else ""),
-        reason=reason,
+        title=f"Start HEVC optimize run on GPU (e.g. {label}" + (f", ~{est_savings_gb}GB" if est_savings_gb else "") + ")",
+        reason=(reason + " — approving enables Tdarr's engine to re-encode the library's HEVC "
+                "candidates on the GPU nodes (originals kept when the new file isn't smaller); "
+                "M.A.V.E.N. turns the engine back off when the run drains. Tdarr 2.82 optimizes "
+                "by-library, not per-file."),
         payload={"action": "media_hub_optimize", "file_id": file_id, "title": label,
                  "resolution": resolution},
     )
@@ -273,18 +276,34 @@ def request_optimize(file_id, title=None, resolution=None, est_savings_gb=None, 
 
 
 def process_approved_optimizes() -> None:
-    """Observer job: queue the Tdarr transcodes Kytran approved; drop the denied ones.
-    M.A.V.E.N. picks the node (GPU-when-idle else hub CPU) via tdarr_client.pick_node."""
+    """Observer job (5-min). Tdarr 2.82 optimizes BY-LIBRARY (no per-file queue —
+    /api/v2/manual-queue is 404), so M.A.V.E.N. keeps the engine OFF (approval-gated)
+    and, on an owner-approved optimize, ENABLES it — the GPU nodes then re-encode the
+    library's HEVC candidates. Two jobs: (1) auto-stop + report a run that has drained;
+    (2) start a run for any freshly-approved request. #4762."""
     import tdarr_client
     from archie_coordination import check_approval, log_dispatch, notify_archie
 
+    # (1) Auto-stop a finished run — keeps it approval-gated (engine OFF except during a run).
+    try:
+        if tdarr_client.is_processing() and tdarr_client.transcode_active() == 0 and tdarr_client.transcode_pending() == 0:
+            tdarr_client.set_processing(False)
+            notify_archie("Media Hub: optimize run complete",
+                          "M.A.V.E.N. finished the approved HEVC optimize run — the Tdarr engine is back OFF (approval-gated).",
+                          priority="low")
+            log_dispatch("optimize_run_complete", capability="media_optimize",
+                         description="approved HEVC optimize run drained — engine disabled", success=True)
+    except Exception as e:  # noqa: BLE001
+        log.warning("process_approved_optimizes: auto-stop check failed: %s", e)
+
+    # (2) Start a run for any freshly-approved optimize request; drop the denied ones.
     try:
         _ensure_table()
         from database import get_db_cursor
 
         with get_db_cursor(cursor_factory=None) as (_c, cur):
             cur.execute(
-                """SELECT approval_id, title, payload FROM maven_pending_actions
+                """SELECT approval_id, title FROM maven_pending_actions
                     WHERE status='awaiting' AND action='optimize'
                     ORDER BY created_at LIMIT 20"""
             )
@@ -293,31 +312,27 @@ def process_approved_optimizes() -> None:
         log.warning("process_approved_optimizes: read failed: %s", e)
         return
 
-    for approval_id, title, payload in rows:
+    for approval_id, title in rows:
         st = check_approval(approval_id)
         if st == "approved":
             import time as _time
 
-            payload = payload or {}
-            file_id = payload.get("file_id") if isinstance(payload, dict) else None
-            node = tdarr_client.pick_node(resolution=(payload or {}).get("resolution"))
             _t0 = _time.monotonic()
-            ok = tdarr_client.queue_transcode(file_id) if file_id else False
+            ok = tdarr_client.set_processing(True)  # start the owner-approved optimize run
             _dur = int((_time.monotonic() - _t0) * 1000)
             _mark(approval_id, "executed" if ok else "failed")
-            where = f" on {node['name']}" if node else ""
             if ok:
-                notify_archie(f"Optimizing {title}",
-                              f"Approved — queued a HEVC transcode{where}.", priority="normal")
+                notify_archie("Media Hub: optimize run started",
+                              f"Approved — M.A.V.E.N. started a HEVC optimize run on the GPU nodes ({title}). "
+                              "Tdarr re-encodes the beneficial candidates and keeps originals when HEVC isn't "
+                              "smaller; the engine turns back off when the run drains.", priority="normal")
             else:
-                notify_archie(f"Optimize FAILED: {title}",
-                              "Approved but Tdarr couldn't queue it (library scanned? node online?).",
+                notify_archie(f"Optimize FAILED to start: {title}",
+                              "Approved but M.A.V.E.N. could not enable the Tdarr engine (unreachable?).",
                               priority="high")
-            # A.R.M.A.D.A. visibility (#4755) — 0-token row per queued transcode.
             log_dispatch("video_optimize", capability="media_optimize",
-                         description=f"HEVC transcode {title}", success=ok,
-                         duration_ms=_dur, target=title,
-                         metadata={"node": (node or {}).get("name"), "file_id": file_id})
+                         description=f"start approved HEVC optimize run ({title})", success=ok,
+                         duration_ms=_dur, target=title)
         elif st in ("denied", "rejected", "cancelled"):
             _mark(approval_id, "denied")
 

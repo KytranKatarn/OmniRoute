@@ -61,7 +61,12 @@ PRODUCTS = {
         "path": "standalone/media_hub",
     },
     # Hub — separate trees (repo/path wired at part 1)
-    "kbs": {"url": os.getenv("DRIFT_KBS_URL", "http://192.168.1.200:8091/version"), "repo": None, "path": None},
+    "kbs": {
+        "url": os.getenv("DRIFT_KBS_URL", "http://192.168.1.200:8091/version"),
+        "repo": "KytranKatarn/kytran-business-suite",  # own repo; whole tree = the product
+        "path": None,
+        "branch": "main",
+    },
     "kso": {"url": os.getenv("DRIFT_KSO_URL", "http://192.168.1.200:8085/version"), "repo": None, "path": None},
     # Citadel / boston-2 (mesh 100.64.0.10) — separate repos (repo/path wired at part 1)
     "wtf_consumer": {

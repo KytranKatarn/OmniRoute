@@ -1710,15 +1710,21 @@ def register_security_jobs(scheduler, flask_app):
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
 
+    from services.job_governance import governed_job
+    from services.telegram_service import send_security
+
     def with_ctx(fn):
-        """Wrap a job function so it runs inside the Flask app context."""
-
-        def wrapper():
-            with flask_app.app_context():
-                fn()
-
-        wrapper.__name__ = fn.__name__
-        return wrapper
+        """Wrap a job so it runs inside the Flask app context AND under DHQ
+        governance (project #332, #2741): every run writes a governance_audit_log
+        trail (start/complete/fail) and a failure raises a quiet-hours-gated
+        A.R.C.H.I.E. alert via V.I.G.I.L.'s security channel. Additive + fail-safe
+        — never changes a job's logic and never crashes the shared scheduler."""
+        return governed_job(
+            fn,
+            department="Security & Compliance",
+            flask_app=flask_app,
+            notify_fn=send_security,
+        )
 
     # --- Network monitoring ---
     scheduler.add_job(

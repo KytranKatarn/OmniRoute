@@ -1,0 +1,34 @@
+suite:
+  name: "media-hub-player-e2e"
+  description: "Media Hub phone video player (#4739) — Playwright e2e that loads the live authed page and asserts the player mechanisms fire: fullscreen-on-stream (requestFullscreen invoked), landscape lock (screen.orientation.lock('landscape')), and auto-fading controls (chrome-hidden toggles after idle, returns on interaction). Calls the phone helpers directly so it is viewport-independent; the native fullscreen/rotation VISUAL is a real-device check that no headless harness can do."
+  base_url: "http://192.168.1.200:8105"
+  auth:
+    # media_hub /api/qa/auth (token path) — the e2e runner authenticates via the shared
+    # ARCHIE_QA_TOKEN and binds the fixed non-admin qa_probe identity (PRs #2132/#2133).
+    username: "${MEDIA_TEST_USERNAME}"
+    password: "${MEDIA_TEST_PASSWORD}"
+
+tests:
+  - name: "phone player interactions (#4739)"
+    type: e2e
+    path: /
+    wait_until: load
+    expect:
+      js_eval:
+        # 1) The player JS + DOM actually loaded on the authed page.
+        - name: player_present
+          expr: "typeof _mhEnterFullscreen==='function' && typeof _mhLockLandscape==='function' && typeof _mhShowChrome==='function' && !!document.getElementById('videoPlayerModal') && !!document.getElementById('videoPlayer')"
+          equals: true
+        # 2) Fullscreen-on-stream: _mhEnterFullscreen() invokes the container's requestFullscreen.
+        - name: fullscreen_on_stream
+          expr: "(()=>{const m=document.getElementById('videoPlayerModal');const el=m.querySelector('.video-player-container')||m;let called=false;el.requestFullscreen=function(){called=true;return Promise.resolve();};try{_mhEnterFullscreen();}catch(e){}return called;})()"
+          equals: true
+        # 3) Rotation: _mhLockLandscape() invokes screen.orientation.lock('landscape').
+        - name: landscape_lock
+          expr: "(()=>{let locked='';try{if(!screen.orientation){Object.defineProperty(screen,'orientation',{configurable:true,value:{}});}screen.orientation.lock=function(o){locked=o;return Promise.resolve();};}catch(e){}try{_mhLockLandscape();}catch(e){}return locked;})()"
+          equals: "landscape"
+        # 4) Auto-fading controls: while 'playing', chrome hides after the idle timer and
+        #    reappears on interaction. Mocks video.paused=false so the timer fires.
+        - name: controls_auto_fade
+          expr: "(async()=>{const m=document.getElementById('videoPlayerModal');const v=document.getElementById('videoPlayer');try{Object.defineProperty(v,'paused',{configurable:true,get:()=>false});}catch(e){}if(typeof _mhSetupChromeFade==='function')_mhSetupChromeFade();_mhShowChrome();await new Promise(r=>setTimeout(r,3800));const hidden=m.classList.contains('chrome-hidden');m.dispatchEvent(new Event('click',{bubbles:true}));await new Promise(r=>setTimeout(r,80));const reshown=!m.classList.contains('chrome-hidden');return hidden&&reshown;})()"
+          equals: true

@@ -4,6 +4,7 @@ Phase 2: Replaces the e2e stub in qa_spec_runner.py.
 """
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -54,9 +55,28 @@ class E2ERunner:
             logger.debug("E2E cleanup error: %s", e)
 
     async def authenticate(self, base_url, auth):
-        """Log in via the login form."""
+        """Establish a browser session. Prefer the token /api/qa/auth endpoint (shared
+        ARCHIE_QA_TOKEN — same mechanism the HTTP runner uses, and the only way to auth
+        SSO-only accounts like media_hub); fall back to the login form if that endpoint
+        is absent/errors. The APIRequestContext shares the browser context's cookie jar,
+        so a successful token POST leaves the session cookie in place for page.goto."""
         if not auth or not auth.get("username"):
             return
+        qa_token = os.getenv("ARCHIE_QA_TOKEN", "")
+        if qa_token:
+            try:
+                resp = await self.context.request.post(
+                    f"{base_url}/api/qa/auth",
+                    data=json.dumps({"token": qa_token, "username": auth["username"]}),
+                    headers={"Content-Type": "application/json"},
+                    timeout=10000,
+                )
+                if resp.ok:
+                    logger.info("E2E auth via /api/qa/auth ok")
+                    return
+                logger.debug("E2E /api/qa/auth -> %s; falling back to form login", resp.status)
+            except Exception as e:
+                logger.debug("E2E token auth failed (%s); falling back to form login", e)
         try:
             await self.page.goto(f"{base_url}/login", wait_until="networkidle", timeout=10000)
             await self.page.fill('input[name="username"], #username, input[type="text"]', auth["username"])
@@ -320,6 +340,23 @@ class E2ERunner:
         if "title_contains" in expect:
             title = await self.page.title()
             results["title_contains"] = "pass" if expect["title_contains"] in title else "fail"
+
+        # js_eval: [{name?, expr, equals?}] — run JS in the page (may be async; page.evaluate
+        # awaits a returned promise) and assert the result. Lets a spec verify BEHAVIOUR the
+        # DOM selectors can't — e.g. that a click invokes requestFullscreen / orientation.lock,
+        # or that a CSS class toggles over time. `equals` defaults to True (truthy check).
+        for i, item in enumerate(expect.get("js_eval") or []):
+            expr = item.get("expr", "")
+            want = item.get("equals", True)
+            label = item.get("name") or f"expr{i}"
+            try:
+                got = await self.page.evaluate(expr)
+                results[f"js_{label}"] = "pass" if got == want else "fail"
+                if results[f"js_{label}"] == "fail":
+                    logger.info("E2E js_eval %s: expected %r, got %r", label, want, got)
+            except Exception as e:
+                results[f"js_{label}"] = "fail"
+                logger.info("E2E js_eval %s errored: %s", label, e)
 
         return results
 

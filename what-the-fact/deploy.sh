@@ -13,7 +13,13 @@ VPS_DIR="/opt/archie-products/what-the-fact"
 LOCAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVICE="${1:-all}"
 
-echo "==> WTF Deploy — service: $SERVICE"
+# Deploy-provenance (#4776): stamp the built image with the archie-platform commit so
+# /version reports it and the fleet drift monitor can compare against the repo head.
+# Forwarded into the remote `docker compose build` env → picked up by build.args.
+GIT_SHA="$(git -C "$LOCAL_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+echo "==> WTF Deploy — service: $SERVICE (git_sha ${GIT_SHA:0:12})"
 echo "==> Source: $LOCAL_DIR"
 echo "==> Target: $VPS:$VPS_DIR"
 echo ""
@@ -36,10 +42,10 @@ echo "      ✓ Rsync complete"
 echo "[2/3] Rebuilding containers on VPS..."
 if [ "$SERVICE" = "all" ]; then
   ssh -i "$KEY" "$VPS" \
-    "cd $VPS_DIR && docker compose up -d --build wtf-consumer wtf-ingest wtf-tech"
+    "cd $VPS_DIR && GIT_SHA=$GIT_SHA BUILD_TIME=$BUILD_TIME docker compose up -d --build wtf-consumer wtf-ingest wtf-tech"
 else
   ssh -i "$KEY" "$VPS" \
-    "cd $VPS_DIR && docker compose up -d --build $SERVICE"
+    "cd $VPS_DIR && GIT_SHA=$GIT_SHA BUILD_TIME=$BUILD_TIME docker compose up -d --build $SERVICE"
 fi
 
 echo "      ✓ Containers rebuilt"

@@ -11,6 +11,14 @@ COPY shared/ /app/shared/
 COPY ingest/ /app/ingest/
 COPY consumer/ /app/consumer/
 ENV PYTHONPATH=/app
+
+# Deploy-provenance stamp (#4776, KB #279350): the commit this image was built from,
+# surfaced at GET /version so the fleet drift monitor can compare it to the repo head.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV WTF_GIT_SHA=$GIT_SHA
+ENV WTF_BUILD_TIME=$BUILD_TIME
+
 EXPOSE 8103
 USER nobody
 CMD ["gunicorn", "--bind", "0.0.0.0:8103", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "consumer.app:create_app()"]

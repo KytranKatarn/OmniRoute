@@ -40,4 +40,15 @@ def create_app():
     # Dedup review UI — ADMIN-only (fail-closed X-Admin-Key), resolves merge_review_queue (#3792)
     from .dedup_admin_routes import dedup_admin_bp
     app.register_blueprint(dedup_admin_bp)
+
+    @app.route("/version")
+    def version():
+        """GET /version — deploy-provenance (#4776): the git commit this image was built
+        from, so the fleet drift monitor can compare it against the repo head. Public."""
+        return {
+            "product": "wtf_consumer",
+            "git_sha": os.environ.get("WTF_GIT_SHA", "unknown"),
+            "build_time": os.environ.get("WTF_BUILD_TIME", "unknown"),
+        }
+
     return app

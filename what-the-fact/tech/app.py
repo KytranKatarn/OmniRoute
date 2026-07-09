@@ -18,4 +18,15 @@ def create_app():
     app.register_blueprint(bp)
     from .api import api
     app.register_blueprint(api)
+
+    @app.route("/version")
+    def version():
+        """GET /version — deploy-provenance (#4776): the git commit this image was built
+        from, so the fleet drift monitor can compare it against the repo head. Public."""
+        return {
+            "product": "wtf_tech",
+            "git_sha": os.environ.get("WTF_GIT_SHA", "unknown"),
+            "build_time": os.environ.get("WTF_BUILD_TIME", "unknown"),
+        }
+
     return app

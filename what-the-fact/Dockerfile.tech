@@ -14,6 +14,14 @@ RUN pip install --no-cache-dir /app/kytran-auth-pkg/
 COPY shared/ /app/shared/
 COPY tech/ /app/tech/
 ENV PYTHONPATH=/app
+
+# Deploy-provenance stamp (#4776, KB #279350): the commit this image was built from,
+# surfaced at GET /version so the fleet drift monitor can compare it to the repo head.
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ENV WTF_GIT_SHA=$GIT_SHA
+ENV WTF_BUILD_TIME=$BUILD_TIME
+
 EXPOSE 8104
 USER nobody
 CMD ["gunicorn", "--bind", "0.0.0.0:8104", "--workers", "2", "--timeout", "300", "--access-logfile", "-", "tech.app:create_app()"]

@@ -2225,8 +2225,20 @@ async function loadRequests() {
     const container = document.getElementById('requestsList');
     if (!container) return;
 
-    container.textContent = '';
-    container.appendChild(createLoadingElement('Loading requests...'));
+    // Cache-first (stale-while-revalidate): paint the last-known requests from
+    // localStorage INSTANTLY (no "Loading requests..." flash), then refresh and only
+    // re-render if the set changed or live progress needs updating. #4746.
+    const sigOf = (reqs) => (reqs || []).map(r => `${r.id}:${r.status}`).join(',');
+    const cachedR = cacheGet('requests');
+    const hadCache = !!(cachedR && cachedR.data && cachedR.data.length);
+    if (hadCache) {
+        allRequests = cachedR.data;
+        renderFilteredRequests();
+        container.dataset.mhSig = sigOf(cachedR.data);
+    } else {
+        container.textContent = '';
+        container.appendChild(createLoadingElement('Loading requests...'));
+    }
 
     try {
         const [response, progressResponse] = await Promise.all([
@@ -2239,23 +2251,32 @@ async function loadRequests() {
             if (pd.success) queueProgress = pd.progress || {};
         }
 
-        container.textContent = '';
-
         if (data.success && data.requests) {
             allRequests = data.requests;
-            renderFilteredRequests();
+            cacheSet('requests', data.requests);
+            // Re-render if the fresh set differs from what's on screen, OR whenever live
+            // progress is present (progress bars must refresh even if id/status is unchanged).
+            const sig = sigOf(data.requests);
+            if (sig !== container.dataset.mhSig || Object.keys(queueProgress || {}).length) {
+                renderFilteredRequests();
+                container.dataset.mhSig = sig;
+            }
             // Auto-refresh while any request is in-flight (approved = grabbed by arr,
             // processing = importing, either can transition to available)
             const inFlight = allRequests.some(r => ['processing', 'approved'].includes(r.status));
             inFlight ? startRequestRefresh() : stopRequestRefresh();
-        } else {
+        } else if (!hadCache) {
+            container.textContent = '';
             container.appendChild(createEmptyState('inbox', 'No media requests'));
         }
         lucide.createIcons();
     } catch (error) {
-        container.textContent = '';
-        container.appendChild(createEmptyState('alert-circle', 'Failed to load requests'));
-        lucide.createIcons();
+        // Keep any cached render on error rather than blanking to an error state.
+        if (!hadCache) {
+            container.textContent = '';
+            container.appendChild(createEmptyState('alert-circle', 'Failed to load requests'));
+            lucide.createIcons();
+        }
     }
 }
 
@@ -4363,20 +4384,35 @@ async function loadSettings() {
     const container = document.getElementById('servicesGrid');
     if (!container) return;
 
+    // Cache-first (stale-while-revalidate): paint the last-known services from
+    // localStorage INSTANTLY, then refresh and only re-render if changed (flash-free). #4746.
+    const sigOf = (svcs) => (svcs || []).map(s => `${s.id}:${s.host}:${s.port}:${s.health_status || ''}`).join(',');
+    const renderServices = (svcs) => {
+        container.textContent = '';
+        svcs.forEach(service => container.appendChild(createServiceCard(service)));
+        lucide.createIcons();
+    };
+    const cachedS = cacheGet('settings-services');
+    if (cachedS && cachedS.data && cachedS.data.length) {
+        renderServices(cachedS.data);
+        container.dataset.mhSig = sigOf(cachedS.data);
+    }
+
     try {
         const response = await fetch(`${API_BASE}/settings`);
         const data = await response.json();
 
-        container.textContent = '';
-
         if (data.success && data.services) {
-            data.services.forEach(service => {
-                container.appendChild(createServiceCard(service));
-            });
+            cacheSet('settings-services', data.services);
+            const sig = sigOf(data.services);
+            if (sig !== container.dataset.mhSig) {
+                renderServices(data.services);
+                container.dataset.mhSig = sig;
+            }
         }
-        lucide.createIcons();
     } catch (error) {
         console.error('Settings load error:', error);
+        // Keep any cached render on error rather than blanking.
     }
 }
 

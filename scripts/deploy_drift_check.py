@@ -72,23 +72,32 @@ PRODUCTS = {
         "path": None,
     },
     "legal_watch": {"url": os.getenv("DRIFT_LEGAL_URL", "http://100.64.0.10:8100/version"), "repo": None, "path": None},
-    "civic_watch": {"url": os.getenv("DRIFT_CIVIC_URL", "http://100.64.0.10:8099/version"), "repo": None, "path": None},
+    "civic_watch": {
+        "url": os.getenv("DRIFT_CIVIC_URL", "http://100.64.0.10:8099/version"),
+        "repo": "KytranKatarn/kytran-civic-watch",  # own repo; whole tree = the product
+        "path": None,
+        "branch": "master",
+    },
 }
 
 _GH_BRANCH = os.getenv("DRIFT_MAIN_BRANCH", "main")
 
 
 def _gh_token() -> str:
-    return os.getenv("GITHUB_TOKEN") or os.getenv("FORGE_REVIEW_TOKEN") or ""
+    # FORGE_REVIEW_TOKEN is the read-only ALL-repos token — it reads the separate watch-product
+    # repos too. GITHUB_TOKEN is archie-platform-scoped and 404s on those. Prefer the former;
+    # fall back to GITHUB_TOKEN (fine for the archie-platform-resident products).
+    return os.getenv("FORGE_REVIEW_TOKEN") or os.getenv("GITHUB_TOKEN") or ""
 
 
-def _expected_sha(repo, path) -> str:
-    """Latest commit SHA on ``repo``'s main branch that touched ``path`` (or the branch
-    head when path is falsy), via the GitHub API. Returns None on any failure / when repo
-    is None — the caller then fails-open (never drift). No local git required."""
+def _expected_sha(repo, path, branch=None) -> str:
+    """Latest commit SHA on ``repo``'s ``branch`` (default main; watch products are ``master``)
+    that touched ``path`` (or the branch head when path is falsy), via the GitHub API. Returns
+    None on any failure / when repo is None — the caller then fails-open (never drift). No local
+    git required."""
     if not repo:
         return None
-    q = {"sha": _GH_BRANCH, "per_page": "1"}
+    q = {"sha": branch or _GH_BRANCH, "per_page": "1"}
     if path:
         q["path"] = path
     url = f"https://api.github.com/repos/{repo}/commits?" + urllib.parse.urlencode(q)
@@ -141,7 +150,7 @@ def main() -> None:
 
     drift = []
     for name, meta in PRODUCTS.items():
-        expected = _expected_sha(meta.get("repo"), meta.get("path"))
+        expected = _expected_sha(meta.get("repo"), meta.get("path"), meta.get("branch"))
         baked = _baked_sha(meta["url"])
         bare = baked.split("+", 1)[0]  # a stamp may carry a "+dirty" suffix
         short = baked[:12]

@@ -60,15 +60,20 @@ def logout():
 @auth_bp.route("/api/qa/auth", methods=["POST"])
 def qa_auth():
     """Internal QA authentication — lets P.R.O.B.E.'s qa_spec_runner establish a
-    Flask-Login session via the shared ARCHIE_QA_TOKEN instead of a password/SSO
-    flow (the media_hub 'claude' account is SSO-only, so the form-login fallback
-    401s). Triple-gated: env token must be set (403), caller must be on an internal
-    /RFC1918 network (403 — behind the published-port DNAT every legit caller is the
-    docker gateway), and the token must match via constant-time compare (401). Only
-    logs in an EXISTING active user — never creates one. Mirrors KSO
-    (kytran_system_operations/auth.py qa_auth) + KB #270283/#270289.
+    Flask-Login session via the shared ARCHIE_QA_TOKEN (the media_hub 'claude'
+    account is SSO-only, so the form-login fallback 401s).
 
-    Body: {token, username?} -> {success, username} | error."""
+    SECURITY (hardened per the 2026-07-09 review): the hmac ARCHIE_QA_TOKEN is the
+    ONLY real gate. The internal-IP check is weak defence-in-depth ONLY — behind the
+    published-port DNAT every caller appears as the docker gateway (an RFC1918
+    address), so it does NOT bound who can call this; never rely on it. To cap the
+    blast radius of a leaked token, the requested username is DELIBERATELY IGNORED
+    and this endpoint always logs in a FIXED, NON-ADMIN QA account (QA_AUTH_USER,
+    default 'qa_probe'). It therefore can never mint an admin session or impersonate
+    a real user, and fails closed if that account is missing / inactive / admin.
+    Only logs in an existing user — never creates one.
+
+    Body: {token} -> {success, username} | error."""
     import hmac
     import ipaddress
     import os
@@ -81,14 +86,16 @@ def qa_auth():
         is_internal = ip in ("127.0.0.1", "::1") or ipaddress.ip_address(ip).is_private
     except ValueError:
         is_internal = False
-    if not is_internal:
+    if not is_internal:  # weak defence-in-depth; the token below is the real gate
         return jsonify({"error": "QA auth only available from internal networks"}), 403
     data = request.get_json(silent=True) or {}
     if not hmac.compare_digest(str(data.get("token", "")), qa_token):
         return jsonify({"error": "Invalid QA token"}), 401
-    username = (data.get("username") or "probe").strip()
-    user = get_user_by_username(username)
-    if not user:
-        return jsonify({"error": "User not found"}), 404
+    # Fixed, non-admin QA identity — the requested username is intentionally NOT used,
+    # so a leaked token can never escalate to admin or impersonate a real account.
+    qa_user = os.environ.get("QA_AUTH_USER", "qa_probe")
+    user = get_user_by_username(qa_user)
+    if not user or user.is_admin:
+        return jsonify({"error": "QA account unavailable"}), 403
     login_user(user, remember=True)
     return jsonify({"success": True, "username": user.username})

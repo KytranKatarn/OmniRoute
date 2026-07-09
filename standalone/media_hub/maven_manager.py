@@ -288,11 +288,15 @@ def process_approved_optimizes() -> None:
     try:
         if tdarr_client.is_processing() and tdarr_client.transcode_active() == 0 and tdarr_client.transcode_pending() == 0:
             tdarr_client.set_processing(False)
+            # Restore any GPU node the dispatch-orchestration yield-loop left paused (#385)
+            # so Tdarr's normal per-node worker limits return immediately.
+            for _nid in tdarr_client.gpu_node_ids():
+                tdarr_client.resume_gpu_transcodes(_nid, 1)
             notify_archie("Media Hub: optimize run complete",
                           "M.A.V.E.N. finished the approved HEVC optimize run — the Tdarr engine is back OFF (approval-gated).",
                           priority="low")
             log_dispatch("optimize_run_complete", capability="media_optimize",
-                         description="approved HEVC optimize run drained — engine disabled", success=True)
+                         description="approved HEVC optimize run drained — engine disabled, GPU workers restored", success=True)
     except Exception as e:  # noqa: BLE001
         log.warning("process_approved_optimizes: auto-stop check failed: %s", e)
 

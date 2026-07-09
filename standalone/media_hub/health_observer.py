@@ -1110,6 +1110,66 @@ def _tdarr_library_review() -> None:
         log.error("tdarr_library_review failed: %s", exc)
 
 
+def _tdarr_dispatch_orchestration() -> None:
+    """Dispatch-orchestrated Tdarr drain (#385): the two Tdarr GPU nodes (USS-246 /
+    USS-245) are ALSO fleet inference nodes, so while an approved optimize RUN is
+    active M.A.V.E.N. yields each Starship's transcode workers to DHQ inference —
+    pause a node's transcodegpu workers when the hub reports that node busy with
+    (or queued for) inference, resume when it goes idle. Inference always wins;
+    transcodes fill only idle GPU time. When NO run is active, any node left paused
+    by a prior run is restored to its normal limit (cleanup). Every step is
+    best-effort; a failure never kills the scheduler.
+
+    The hub signal (GET /api/internal/fleet-gpu-load) is fail-open: if it's
+    unreachable we leave the worker limits untouched rather than thrash."""
+    try:
+        import re
+
+        import tdarr_client
+        from archie_coordination import fleet_gpu_load
+
+        gpu_nodes = [n for n in tdarr_client.nodes() if n.get("is_gpu")]
+        if not gpu_nodes:
+            return
+
+        # No active run → restore any node still paused from a prior run, then stop.
+        if not tdarr_client.is_processing():
+            restored = []
+            for n in gpu_nodes:
+                if (tdarr_client.node_worker_limit(n["id"]) or 0) < 1:
+                    if tdarr_client.resume_gpu_transcodes(n["id"], 1):
+                        restored.append(f"restored {n['name']} transcodegpu=1 (no active run)")
+            _log_selfheal("tdarr_dispatch_orchestration", "media_optimize", restored)
+            return
+
+        # Active run → consult the hub for per-node inference load.
+        load = fleet_gpu_load()
+        if not load or not load.get("ok"):
+            log.info("tdarr_dispatch_orchestration: fleet-gpu-load unavailable — leaving worker limits as-is")
+            return
+        busy_by_key = {
+            str(fn.get("match_key")): bool(fn.get("busy"))
+            for fn in (load.get("nodes") or [])
+            if fn.get("match_key")
+        }
+
+        actions = []
+        for n in gpu_nodes:
+            m = re.search(r"(\d{3})", str(n.get("name") or ""))
+            busy = busy_by_key.get(m.group(1)) if m else None
+            cur = tdarr_client.node_worker_limit(n["id"]) or 0
+            if busy is True and cur > 0:
+                if tdarr_client.pause_gpu_transcodes(n["id"]):
+                    actions.append(f"yield {n['name']} → DHQ inference (transcodegpu 0)")
+            elif busy is False and cur < 1:
+                if tdarr_client.resume_gpu_transcodes(n["id"], 1):
+                    actions.append(f"resume {n['name']} transcode (node idle)")
+            # busy is None (node not matched in hub signal) → leave as-is, don't starve the drain
+        _log_selfheal("tdarr_dispatch_orchestration", "media_optimize", actions)
+    except Exception as exc:  # noqa: BLE001
+        log.error("tdarr_dispatch_orchestration failed: %s", exc)
+
+
 # --- scheduler wiring ------------------------------------------------------
 
 _scheduler: Optional[BackgroundScheduler] = None
@@ -1165,6 +1225,17 @@ def start_scheduler() -> BackgroundScheduler:
         "interval",
         hours=6,
         id="tdarr_library_review",
+        max_instances=1,
+        coalesce=True,
+    )
+    # Dispatch-orchestrated Tdarr drain (#385): yield GPU transcode workers to DHQ
+    # inference every minute while an approved optimize run is active (+ cleanup when
+    # idle). Cheap local Tdarr reads + one fail-open hub call; no startup fire.
+    _scheduler.add_job(
+        _tdarr_dispatch_orchestration,
+        "interval",
+        minutes=1,
+        id="tdarr_dispatch_orchestration",
         max_instances=1,
         coalesce=True,
     )

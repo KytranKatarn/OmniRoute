@@ -4741,6 +4741,100 @@ def api_internal_dispatch_log():
         return jsonify({"ok": False, "error": "dispatch-log failed"}), 500
 
 
+@app.route("/api/internal/fleet-gpu-load", methods=["GET"])
+@_require_internal_key
+def api_internal_fleet_gpu_load():
+    """Per-GPU-node inference-busy signal for M.A.V.E.N.'s dispatch-orchestrated Tdarr
+    drain (#385). The Starship GPUs (USS-246 RTX3070 / USS-245 RTX3050) are ALSO fleet
+    inference nodes, so M.A.V.E.N. yields a node's Tdarr transcode workers whenever that
+    node is doing (or queued for) DHQ inference — inference always wins, transcodes fill
+    idle GPU time. Read-only, fail-open (ok=False, HTTP 200 — the caller then leaves the
+    Tdarr worker limits untouched rather than thrash on a transient hub blip).
+
+    A GPU node is 'busy' if ANY of:
+      • a REAL inference row landed against it in the last 120s
+        (task_execution_log.node_used_id, LLM-only — excludes M.A.V.E.N./markers/embeds); OR
+      • its latest heartbeat shows current_load>0 (DHQ's inference task count); OR
+      • it has a model loaded AND the fleet has queued/running inference demand.
+
+    NOTE: gpu_usage is returned for visibility but deliberately NOT used in the busy
+    decision — nvidia-smi utilization can be raised by Tdarr's OWN NVENC transcode, which
+    would make the node look "busy" and pause its own drain → resume → flap. recent_inference
+    and current_load track DHQ inference only (Tdarr is invisible to them), so they're stable.
+
+    Bearer INTERNAL_API_KEY. Returns {ok, recent_window_s, fleet_inference_queued,
+    nodes:[{node_id, node_name, mesh_ip, match_key, gpu, busy, recent_inference,
+    current_load, gpu_usage, hb_age_s}]}. match_key = 3-digit token from node_name
+    (USS-246 -> '246') so the caller can map a Tdarr node (tdarr-246-*) to a fleet node.
+    """
+    import re
+
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT COUNT(*) AS n FROM dispatch_pending_queue WHERE status IN ('queued','running')")
+            fleet_q = int((cur.fetchone() or {}).get("n") or 0)
+            cur.execute(
+                """
+                SELECT rn.id, rn.node_id, rn.node_name, rn.mesh_ip,
+                       hb.current_load, hb.gpu_usage,
+                       EXTRACT(EPOCH FROM (NOW() - hb.created_at))::int AS hb_age_s,
+                       (SELECT COUNT(*) FROM task_execution_log tel
+                          WHERE tel.node_used_id = rn.id
+                            AND tel.created_at > NOW() - INTERVAL '120 seconds'
+                            AND tel.worker_type IS NOT NULL
+                            AND COALESCE(tel.model_used,'') NOT IN
+                                ('internal','bridge-managed','batch','browser','comfyui','')
+                            AND COALESCE(tel.model_used,'') NOT ILIKE '%embed%'
+                       ) AS recent_inf,
+                       (SELECT COUNT(*) FROM model_load_state mls WHERE mls.node_db_id = rn.id) AS loaded
+                FROM remote_nodes rn
+                LEFT JOIN LATERAL (
+                    SELECT current_load, gpu_usage, created_at FROM node_heartbeats
+                    WHERE node_id = rn.id ORDER BY created_at DESC LIMIT 1
+                ) hb ON TRUE
+                WHERE rn.gpu_available IS TRUE OR COALESCE(rn.gpu_vram_gb, 0) > 0
+                """
+            )
+            rows = cur.fetchall() or []
+    except Exception as exc:
+        app.logger.warning("fleet-gpu-load failed: %s", exc)
+        return jsonify({"ok": False, "error": "fleet-gpu-load failed"}), 200
+
+    nodes = []
+    for r in rows:
+        cl = int(r.get("current_load") or 0)
+        gu = float(r.get("gpu_usage") or 0.0)
+        recent = int(r.get("recent_inf") or 0)
+        loaded = int(r.get("loaded") or 0)
+        hb_age = r.get("hb_age_s")
+        busy = bool(recent > 0 or cl > 0 or (loaded > 0 and fleet_q > 0))
+        m = re.search(r"(\d{3})", str(r.get("node_name") or ""))
+        nodes.append(
+            {
+                "node_id": r.get("node_id"),
+                "node_name": r.get("node_name"),
+                "mesh_ip": r.get("mesh_ip"),
+                "match_key": m.group(1) if m else None,
+                "gpu": True,
+                "busy": busy,
+                "recent_inference": recent,
+                "current_load": cl,
+                "gpu_usage": gu,
+                "hb_age_s": hb_age,
+            }
+        )
+    return jsonify(
+        {
+            "ok": True,
+            "recent_window_s": 120,
+            "fleet_inference_queued": fleet_q,
+            "nodes": nodes,
+        }
+    )
+
+
 # ── Code Health engine-facing surface (#4262 — the loop-closer) ──────────────
 # The containerized A.R.C.H.I.E. build engine has no browser session, so the
 # @login_required Code-Health routes in tools/consciousness are unreachable to

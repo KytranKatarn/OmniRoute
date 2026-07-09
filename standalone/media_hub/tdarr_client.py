@@ -178,6 +178,59 @@ def set_node_paused(node_id: str, paused: bool) -> bool:
     return res is not None
 
 
+# ── Per-node GPU worker-limit control (dispatch-orchestrated yield, #385) ──
+# Tdarr exposes each node's `workerLimits.transcodegpu` in get-nodes. alter-worker-limit
+# steps it ±1 and PERSISTS (verified Phase B). M.A.V.E.N. yields a GPU to DHQ inference by
+# dropping that node's transcodegpu limit to 0, and resumes by raising it back to 1.
+
+def node_worker_limit(node_id: str, worker_type: str = "transcodegpu") -> Optional[int]:
+    """Current worker LIMIT for a node+type (not live worker count), or None if unknown."""
+    raw = _get("/api/v2/get-nodes") or {}
+    n = raw.get(node_id) if isinstance(raw, dict) else None
+    if not isinstance(n, dict):
+        return None
+    lim = (n.get("workerLimits") or {}).get(worker_type)
+    try:
+        return int(lim)
+    except (TypeError, ValueError):
+        return None
+
+
+def set_node_worker_limit(node_id: str, target: int, worker_type: str = "transcodegpu") -> bool:
+    """Step a node's worker LIMIT to an absolute `target` via alter-worker-limit (±1 per
+    call). Reads the current limit so it's idempotent (no-op when already at target) and
+    never over/under-shoots. Best-effort; never raises. Bounded to ≤16 steps as a guard."""
+    cur = node_worker_limit(node_id, worker_type)
+    if cur is None:
+        return False
+    target = max(0, int(target))
+    steps = 0
+    while cur != target and steps < 16:
+        process = "increase" if target > cur else "decrease"
+        r = _post("/api/v2/alter-worker-limit",
+                  {"data": {"nodeID": node_id, "process": process, "workerType": worker_type}})
+        if r is None:
+            return False
+        cur += 1 if process == "increase" else -1
+        steps += 1
+    return cur == target
+
+
+def pause_gpu_transcodes(node_id: str) -> bool:
+    """Yield a GPU node to DHQ inference — drop its transcodegpu worker limit to 0."""
+    return set_node_worker_limit(node_id, 0, "transcodegpu")
+
+
+def resume_gpu_transcodes(node_id: str, target: int = 1) -> bool:
+    """Give the GPU back to Tdarr — restore the node's transcodegpu worker limit (default 1)."""
+    return set_node_worker_limit(node_id, target, "transcodegpu")
+
+
+def gpu_node_ids() -> list[str]:
+    """Tdarr node ids that are GPU nodes (transcode targets M.A.V.E.N. orchestrates)."""
+    return [n["id"] for n in nodes() if n.get("is_gpu")]
+
+
 def pick_node(resolution: Optional[str] = None, gpu_busy_ids: Optional[set] = None) -> Optional[dict]:
     """M.A.V.E.N.'s node choice among the online Tdarr nodes:
       - prefer a GPU node that is NOT flagged busy-with-inference (gpu_busy_ids);

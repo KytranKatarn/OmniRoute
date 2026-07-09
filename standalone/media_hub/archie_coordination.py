@@ -117,6 +117,27 @@ def check_approval(approval_id: Optional[int]) -> Optional[str]:
         return None
 
 
+def fleet_gpu_load() -> Optional[dict]:
+    """Fetch per-GPU-node inference-busy state from the hub so M.A.V.E.N. can yield a
+    Starship's Tdarr transcode workers to DHQ inference (#385, dispatch-orchestrated
+    drain). Returns the hub payload {ok, fleet_inference_queued, nodes:[{match_key,
+    busy, recent_inference, ...}]} or None on error / missing key — on None the caller
+    leaves the Tdarr worker limits UNTOUCHED (no thrash on a transient hub blip).
+    Best-effort; never raises."""
+    h = _headers()
+    if not h:
+        return None
+    try:
+        r = requests.get(f"{_hub()}/api/internal/fleet-gpu-load", headers=h, timeout=6)
+        if r.ok:
+            return r.json() or None
+        log.warning("fleet_gpu_load non-2xx: %s", r.status_code)
+        return None
+    except Exception as exc:  # noqa: BLE001 — best-effort, hub outage must not break a probe
+        log.warning("fleet_gpu_load failed — %s", exc)
+        return None
+
+
 def log_dispatch(
     action: str,
     capability: Optional[str] = None,

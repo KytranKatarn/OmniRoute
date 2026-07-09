@@ -3112,15 +3112,21 @@ def register_consciousness_jobs(scheduler, flask_app):
     from apscheduler.triggers.interval import IntervalTrigger
     from apscheduler.triggers.cron import CronTrigger
 
+    from services.job_governance import governed_job
+
     def with_ctx(fn):
-        """Wrap function to run inside Flask app context."""
-
-        def wrapper():
-            with flask_app.app_context():
-                fn()
-
-        wrapper.__name__ = fn.__name__
-        return wrapper
+        """Wrap a job so it runs inside the Flask app context AND under DHQ
+        governance (project #332, #2742): every run writes a governance_audit_log
+        trail (start/complete/fail) and a failure raises a quiet-hours-gated
+        A.R.C.H.I.E. alert. Additive + fail-safe — never changes a job's logic
+        (embedding stays on its ADR-013 direct path, dispatch-wired jobs keep
+        theirs) and never crashes the shared scheduler. Default notify channel is
+        send_system (A.R.C.H.I.E. voice — C.O.D.E.X. has no dedicated channel)."""
+        return governed_job(
+            fn,
+            department="Documentation & Knowledge",
+            flask_app=flask_app,
+        )
 
     scheduler.add_job(
         with_ctx(deduplicate_knowledge),

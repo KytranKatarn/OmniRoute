@@ -1281,3 +1281,42 @@ class TestNewsDedicationWall:
         coord = self._coord_with_cache(cache)
         result = coord.find_cross_department_agent("research", blocked_department="Engineering & Technology")
         assert result is None, "News agent must not be pulled cross-dept even as sole skill holder"
+
+
+def test_select_agents_returns_top_n_home_department_only():
+    """All Hands #2586: select_agents() returns up to N welfare-gated agents by
+    score (home-department only), and n<=0 → []. (score_agent's welfare/K.I.N.
+    blocking is covered by the score_agent tests above; here we verify the new
+    N-cap + department filter + guard.)"""
+    import threading
+
+    from services.department_coordinator import DepartmentCoordinator
+
+    dept = "Research & Development"
+    cap = "research"
+    _, a1 = _make_agent(name="D.A.R.W.I.N.", department=dept, skills={cap: 5}, is_department_ai=True, agent_id=1)
+    _, a2 = _make_agent(name="W.A.T.C.H.", department=dept, skills={cap: 4}, agent_id=2)
+    _, a3 = _make_agent(name="S.C.O.U.T.", department=dept, skills={cap: 3}, agent_id=3)
+    _, a4 = _make_agent(name="F.O.R.G.E.", department="Engineering & Technology", skills={cap: 5}, agent_id=4)
+
+    welfare = {1: _make_welfare(), 2: _make_welfare(), 3: _make_welfare(), 4: _make_welfare()}
+    coord = DepartmentCoordinator.__new__(DepartmentCoordinator)
+    coord._agent_cache = {"D.A.R.W.I.N.": a1, "W.A.T.C.H.": a2, "S.C.O.U.T.": a3, "F.O.R.G.E.": a4}
+    coord._welfare_cache = welfare
+    coord._cache_time = float("inf")
+    coord._reserved_agents = set()
+    coord._lock = threading.Lock()
+    coord._refresh_distress = lambda: None  # no DB
+
+    # n=2 → exactly 2, home-dept only (F.O.R.G.E. is in another dept → never selected)
+    top2 = coord.select_agents(cap, 2, department=dept)
+    names2 = [a["name"] for a in top2]
+    assert len(top2) == 2
+    assert "F.O.R.G.E." not in names2
+
+    # n greater than the pool → all 3 in-dept eligible, still no cross-dept
+    allc = {a["name"] for a in coord.select_agents(cap, 10, department=dept)}
+    assert allc == {"D.A.R.W.I.N.", "W.A.T.C.H.", "S.C.O.U.T."}
+
+    # n<=0 → empty
+    assert coord.select_agents(cap, 0, department=dept) == []

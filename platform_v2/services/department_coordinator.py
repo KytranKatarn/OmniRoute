@@ -858,6 +858,56 @@ class DepartmentCoordinator:
         )
         return best_info
 
+    def select_agents(
+        self,
+        capability: str,
+        n: int,
+        department: Optional[str] = None,
+        recommended_tier: Optional[str] = None,
+    ) -> list:
+        """Select up to ``n`` DISTINCT welfare-gated agents for a capability —
+        the fan-out counterpart of ``select_agent`` (All Hands protocol, #2586).
+
+        Reuses the SAME candidate build + ``score_agent`` welfare / K.I.N. gating
+        as ``select_agent`` (resting, over-``task_queue_limit``, stressed, or
+        reserved agents are excluded), but returns the top-``n`` distinct agents
+        by score instead of only the single best.
+
+        Home-department only (no cross-department / barracked fallback — that is
+        the single-agent path's job); a fan-out is a best-effort burst, so this
+        MAY return fewer than ``n`` (or ``[]``) when capacity is constrained —
+        the caller falls back to un-pinned dispatch. Returns a list of agent-info
+        dicts, highest score first.
+        """
+        if n <= 0:
+            return []
+        self._refresh_caches()
+        self._refresh_distress()
+        dept = department or self.resolve_department(capability)
+
+        candidates = []
+        for name, info in self._agent_cache.items():
+            if info.get("department") != dept:
+                continue
+            score, block_reason = self.score_agent(name, info, capability, dept, recommended_tier=recommended_tier)
+            if score > 0 and block_reason is None:
+                with self._lock:
+                    if info["id"] in self._reserved_agents:
+                        continue
+                candidates.append((score, name, info))
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        selected = [info for _, _, info in candidates[:n]]
+        logger.debug(
+            "coordinator: select_agents('%s', n=%d) → %d agent(s) in %s: %s",
+            capability,
+            n,
+            len(selected),
+            dept,
+            [i.get("name") for i in selected],
+        )
+        return selected
+
     def _wake_barracked_specialist(
         self,
         capability: str,

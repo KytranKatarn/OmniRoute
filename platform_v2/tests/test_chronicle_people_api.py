@@ -89,3 +89,61 @@ def test_list_people_and_person_detail():
             cur.execute("DELETE FROM chronicle_entity WHERE owner_id=%s", (OWNER,))
             if imp is not None:
                 cur.execute("DELETE FROM mailbox_imports WHERE id=%s", (imp,))
+
+
+def test_person_detail_timeline_dedups_multialias():
+    """One entity with two aliases both mentioned in the SAME email must yield ONE timeline row."""
+    from database import get_db_cursor
+
+    owner = -779
+    imp = ce = None
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO mailbox_imports (owner_id, filename, stored_path, status, email_count, source_kind) "
+                "VALUES (%s,%s,%s,%s,%s,%s) RETURNING id",
+                (owner, "t2", "t2", "extracted", 1, "gmail"),
+            )
+            imp = cur.fetchone()["id"]
+            cur.execute(
+                "INSERT INTO mailbox_emails (import_id, message_id, from_addr, subject, body_text, "
+                "sent_at, has_attachments) VALUES (%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                (imp, "pm-dup", "a@b.c", "Dup", "body", datetime(2026, 1, 3), False),
+            )
+            em = cur.fetchone()["id"]
+            # two aliases of the same person, BOTH mentioned in the one email
+            me_ids = []
+            for nm, nn in (("Bob Smith", "bob smith"), ("Robert Smith", "robert smith")):
+                cur.execute(
+                    "INSERT INTO mailbox_entities (import_id, name, entity_type, normalized_name, mention_count) "
+                    "VALUES (%s,%s,%s,%s,%s) RETURNING id",
+                    (imp, nm, "person", nn, 1),
+                )
+                mid = cur.fetchone()["id"]
+                me_ids.append(mid)
+                cur.execute(
+                    "INSERT INTO mailbox_email_entities (email_id, entity_id) VALUES (%s,%s)",
+                    (em, mid),
+                )
+            cur.execute(
+                "INSERT INTO chronicle_entity (owner_id, canonical_name, entity_type, aliases) "
+                "VALUES (%s,%s,%s,%s) RETURNING id",
+                (owner, "Bob Smith", "person", Json(["Bob Smith", "Robert Smith"])),
+            )
+            ce = cur.fetchone()["id"]
+            for mid in me_ids:  # two links → email reachable twice without dedup
+                cur.execute(
+                    "INSERT INTO chronicle_entity_link (chronicle_entity_id, mailbox_entity_id) VALUES (%s,%s)",
+                    (ce, mid),
+                )
+
+        d = _person_detail(ce)
+        assert len(d["timeline"]) == 1, f"expected 1 deduped row, got {len(d['timeline'])}"
+        assert d["timeline"][0]["email_id"] == em
+    finally:
+        from database import get_db_cursor as _get_db_cursor
+
+        with _get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("DELETE FROM chronicle_entity WHERE owner_id=%s", (owner,))
+            if imp is not None:
+                cur.execute("DELETE FROM mailbox_imports WHERE id=%s", (imp,))

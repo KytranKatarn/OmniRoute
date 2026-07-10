@@ -131,14 +131,18 @@ def _person_detail(ce_id):
         )
         v = cur.fetchone()
         voice = dict(v) if v else None
+        # DISTINCT ON (em.id): an entity with multiple aliases (links) can reach the same email
+        # via >1 link — dedupe to one row per email, then order chronologically + cap.
         cur.execute(
-            "SELECT em.id AS email_id, em.sent_at, em.from_addr, em.subject, "
+            "SELECT * FROM ("
+            "SELECT DISTINCT ON (em.id) em.id AS email_id, em.sent_at, em.from_addr, em.subject, "
             "left(em.body_text, 240) AS snippet, i.source_kind, i.id AS import_id "
             "FROM chronicle_entity_link cel "
             "JOIN mailbox_email_entities mee ON mee.entity_id=cel.mailbox_entity_id "
             "JOIN mailbox_emails em ON em.id=mee.email_id "
             "JOIN mailbox_imports i ON i.id=em.import_id "
-            "WHERE cel.chronicle_entity_id=%s ORDER BY em.sent_at NULLS LAST LIMIT 100",
+            "WHERE cel.chronicle_entity_id=%s ORDER BY em.id"
+            ") t ORDER BY t.sent_at NULLS LAST LIMIT 100",
             (ce_id,),
         )
         timeline = [dict(r) for r in cur.fetchall()]

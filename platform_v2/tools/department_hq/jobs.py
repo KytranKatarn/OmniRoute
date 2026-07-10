@@ -2157,6 +2157,11 @@ def _register_own_jobs(scheduler, flask_app):
                 _refreshed = 0
                 for _aid in _refresh_ids:
                     try:
+                        # Fix #C (C.R.E.E.D. accounting): token_util is intentionally NOT
+                        # passed here — update_welfare_after_task computes it internally
+                        # (cheap per-agent 24h SUM against agent_budgets) when omitted, so
+                        # this decay refresh picks up token-budget overwork for free
+                        # without a fleet-wide bulk query in this loop.
                         _agent_svc.update_welfare_after_task(
                             _aid,
                             success=True,

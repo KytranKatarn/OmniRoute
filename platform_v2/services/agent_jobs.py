@@ -706,6 +706,12 @@ def track_agent_hr():
                       FROM task_execution_log tl
                      WHERE tl.agent_id = ads.agent_id
                        AND tl.created_at >= NOW() - INTERVAL '1 hour') AS dur_ms_1h,
+                   -- Fix #C (C.R.E.E.D. accounting): 24h token sum for the budget
+                   -- overwork term, same shape as toks_1h above but a wider window.
+                   (SELECT COALESCE(SUM(tl.tokens_used), 0)
+                      FROM task_execution_log tl
+                     WHERE tl.agent_id = ads.agent_id
+                       AND tl.created_at >= NOW() - INTERVAL '24 hours') AS tokens_24h,
                    (SELECT ab.token_limit_per_day
                       FROM agent_budgets ab
                      WHERE ab.agent_id = ads.agent_id) AS token_limit
@@ -729,12 +735,22 @@ def track_agent_hr():
             from services.welfare_load import compute_token_load, stress_energy_from_load
 
             _load = compute_token_load(row.get("toks_1h"), row.get("dur_ms_1h"), row.get("token_limit"))
+
+            # Fix #C: token-budget overwork term. token_util = tokens_24h / daily
+            # budget; 0.0 (no budget configured) is the safe "unknown" no-op.
+            _token_limit = row.get("token_limit")
+            if _token_limit and float(_token_limit) > 0:
+                _token_util = float(row.get("tokens_24h") or 0) / float(max(_token_limit, 1))
+            else:
+                _token_util = 0.0
+
             stress, energy = stress_energy_from_load(
                 _load,
                 failures=float(row["error_rate_pct"] or 0),
                 total=100.0,
                 hours_on_duty=hours,
                 is_resting=is_resting,
+                token_util=_token_util,
             )
 
             # Mood reflects combined state

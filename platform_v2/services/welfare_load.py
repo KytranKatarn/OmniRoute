@@ -100,6 +100,17 @@ ENERGY_LOAD_COEF = 0.6
 ENERGY_FAILURE_COEF = 0.2
 ENERGY_FLOOR = 0.1
 
+# Token-budget overwork term (C.R.E.E.D. accounting Fix #C). ``token_util`` =
+# tokens_24h / daily_budget. An agent deep over its daily token budget (e.g.
+# 364%) previously read as "relaxed" (stress ~0.20) because base stress only
+# tracked task-load/hours, never budget utilization — dishonest for the public
+# C.R.E.E.D. welfare grade AND unprotective (the agent never rested via this
+# signal). This term only kicks in above 70% of budget so normal load is
+# unaffected; only genuinely over-budget agents accrue extra stress from it.
+TOKEN_STRESS_THRESHOLD = 0.7
+TOKEN_STRESS_COEF = 0.30
+TOKEN_STRESS_RANGE = 0.8  # (1.0 - TOKEN_STRESS_THRESHOLD) + 0.1 headroom past 100%
+
 # Hours-on-duty fatigue (C.R.E.E.D. work-life-balance / 12h mandatory-rest axis).
 # Folded into THIS one formula so every welfare writer — per-task
 # (update_welfare_after_task), hr_tracker, and the K.I.N. decay refresh — agrees.
@@ -169,14 +180,20 @@ def compute_token_load(
     return min(TOKEN_WEIGHT * token_load + DURATION_WEIGHT * duration_load, 1.0)
 
 
-def stress_energy_from_load(load, failures, total, hours_on_duty=0.0, is_resting=False) -> tuple[float, float]:
-    """Map load (+ failure rate + hours on duty + rest) to ``(stress, energy)``.
+def stress_energy_from_load(
+    load, failures, total, hours_on_duty=0.0, is_resting=False, token_util: float = 0.0
+) -> tuple[float, float]:
+    """Map load (+ failure rate + hours on duty + rest + token-budget overwork) to
+    ``(stress, energy)``.
 
     THE single welfare formula. ``load`` (token+duration over the window) is the
     compute term, ``failure_rate`` adds strain, ``hours_on_duty`` adds the C.R.E.E.D.
-    fatigue term, and an active rest cycle (``is_resting``) recovers both. With
-    ``hours_on_duty=0.0`` and ``is_resting=False`` the result is identical to the
-    pre-convergence formula, so existing callers are unaffected until they opt in.
+    fatigue term, an active rest cycle (``is_resting``) recovers both, and
+    ``token_util`` (tokens_24h / daily_budget) adds the C.R.E.E.D. accounting Fix #C
+    token-overwork term (see ``TOKEN_STRESS_*`` above). With ``hours_on_duty=0.0``,
+    ``is_resting=False``, and the default ``token_util=0.0`` the result is identical
+    to the pre-convergence formula, so existing callers are unaffected until they
+    opt in (``token_util=0.0`` is also the safe "unknown budget/usage" value).
     Output stays within DB CHECK ranges (stress ≤ 0.9, energy ≥ 0.1).
     """
     load = max(0.0, min(_num(load), 1.0))
@@ -189,10 +206,22 @@ def stress_energy_from_load(load, failures, total, hours_on_duty=0.0, is_resting
     rest_stress = REST_RECOVERY_STRESS if is_resting else 0.0
     rest_energy = REST_RECOVERY_ENERGY if is_resting else 0.0
 
+    # Token-budget overwork (Fix #C): 0 below 70% budget, ~0.11 at 100%, ~0.30 at
+    # 150%+. Added to the pre-clamp stress sum so the EXISTING ceiling still bounds
+    # the final result — this term cannot itself push stress out of DB CHECK range.
+    token_stress = TOKEN_STRESS_COEF * max(
+        0.0, min(1.0, (_num(token_util) - TOKEN_STRESS_THRESHOLD) / TOKEN_STRESS_RANGE)
+    )
+
     stress = round(
         min(
             max(
-                STRESS_BASE + load * STRESS_LOAD_COEF + failure_rate * STRESS_FAILURE_COEF + hours_stress - rest_stress,
+                STRESS_BASE
+                + load * STRESS_LOAD_COEF
+                + failure_rate * STRESS_FAILURE_COEF
+                + hours_stress
+                + token_stress
+                - rest_stress,
                 0.0,
             ),
             STRESS_CEILING,
@@ -348,4 +377,17 @@ if __name__ == "__main__":  # pragma: no cover - self-test
     assert stress_energy_from_load(heavy, 0, 10) == (s0, e0), "0h/not-resting must equal legacy"
     assert hours_fatigue_stress(0) == 0.0 and hours_fatigue_stress(12) == 0.30
     print(f"hours fatigue: 0h stress={s0} | 12h stress={s12} | 12h+rest stress={s12r}")
+
+    # Token-budget overwork term (Fix #C, KB accounting): token_util=0.0 is the
+    # backward-compatible default (identical to pre-Fix#C behavior); the term only
+    # kicks in above 70% budget.
+    base_s, base_e = stress_energy_from_load(0.5, 0, 10)
+    same_s, same_e = stress_energy_from_load(0.5, 0, 10, token_util=0.0)
+    assert (base_s, base_e) == (same_s, same_e), "token_util=0.0 must not change legacy behavior"
+    at_100, _ = stress_energy_from_load(0.5, 0, 10, token_util=1.0)
+    at_150, _ = stress_energy_from_load(0.5, 0, 10, token_util=1.5)
+    assert round(at_100 - base_s, 2) == 0.11, "100% budget must add ~0.11 stress"
+    assert round(at_150 - base_s, 2) == 0.30, "150%+ budget must add ~0.30 stress"
+    assert at_150 <= STRESS_CEILING, "token overwork term must stay within DB CHECK ceiling"
+    print(f"token overwork: base={base_s} | 100% budget={at_100} | 150% budget={at_150}")
     print("welfare_load self-test: ALL PASS")

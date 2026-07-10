@@ -1669,13 +1669,14 @@ def reconcile_task_counters():
     return corrected
 
 
-def update_welfare_after_task(agent_id, success=True, hours_on_duty=None, is_resting=None):
+def update_welfare_after_task(agent_id, success=True, hours_on_duty=None, is_resting=None, token_util=None):
     """Update an agent's emotional state based on recent task performance.
 
     Queries the 1-hour rolling window of task executions to calculate
     token-load-based stress, energy, and mood, PLUS the C.R.E.E.D. hours-on-duty
-    fatigue term — all via the one shared ``welfare_load`` formula. Respects DB
-    CHECK constraints (stress <= 0.9, energy >= 0.1).
+    fatigue term and the token-budget overwork term — all via the one shared
+    ``welfare_load`` formula. Respects DB CHECK constraints (stress <= 0.9,
+    energy >= 0.1).
 
     KB #270628 convergence: hours_on_duty is now part of THIS writer too, so the
     K.I.N. decay refresh (which calls this for every agent) no longer strips the
@@ -1686,6 +1687,13 @@ def update_welfare_after_task(agent_id, success=True, hours_on_duty=None, is_res
             for this one agent (interval-union). The decay-refresh loop passes a
             precomputed value to avoid one full-fleet query per agent.
         is_resting: active-rest flag; ``None`` → queried here.
+        token_util: tokens_24h / daily_budget (C.R.E.E.D. accounting Fix #C);
+            ``None`` → computed here from a cheap agent-scoped 24h SUM against
+            the already-fetched ``token_limit_per_day`` (0.0 if no budget is
+            configured — "unknown" is safe/no-op, never inflates stress). The
+            K.I.N. decay refresh does not pass this explicitly, so it is computed
+            fresh on every recompute — this is what makes an idle-but-over-budget
+            agent's stress honest even when it isn't actively completing tasks.
 
     Returns dict with success, stress, energy, and mood.
     """
@@ -1723,6 +1731,26 @@ def update_welfare_after_task(agent_id, success=True, hours_on_duty=None, is_res
         load = compute_token_load(stats["toks"], stats["dur_ms"], token_limit)
         failure_rate = (failures / total) if total > 0 else 0.0
 
+        # Token-budget overwork term (C.R.E.E.D. accounting Fix #C). token_util =
+        # tokens_24h / daily_budget; None (not passed) → compute here from a cheap
+        # agent-scoped 24h SUM. 0.0 (no budget configured) is the safe "unknown" no-op.
+        if token_util is None:
+            if token_limit and float(token_limit) > 0:
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(tokens_used), 0) AS tokens_24h
+                    FROM task_execution_log
+                    WHERE agent_id = %s
+                      AND created_at >= NOW() - INTERVAL '24 hours'
+                    """,
+                    (agent_id,),
+                )
+                _tok24 = cur.fetchone()
+                tokens_24h = (_tok24["tokens_24h"] if _tok24 else 0) or 0
+                token_util = float(tokens_24h) / float(max(token_limit, 1))
+            else:
+                token_util = 0.0
+
         # Hours-on-duty fatigue + rest recovery (KB #270628 convergence). Computed
         # here when not supplied so per-task welfare carries the C.R.E.E.D. 12h axis;
         # the K.I.N. decay refresh passes precomputed values (avoids a fleet scan/agent).
@@ -1746,7 +1774,7 @@ def update_welfare_after_task(agent_id, success=True, hours_on_duty=None, is_res
             )
             is_resting = cur.fetchone() is not None
 
-        stress, energy = stress_energy_from_load(load, failures, total, hours_on_duty, is_resting)
+        stress, energy = stress_energy_from_load(load, failures, total, hours_on_duty, is_resting, token_util)
 
         # Mood state machine (extended per LLM Ecosystem Redesign spec Section 9) —
         # 'utilization' is now token-based 'load'.

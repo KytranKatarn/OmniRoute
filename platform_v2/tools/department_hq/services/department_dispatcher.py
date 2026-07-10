@@ -24,7 +24,7 @@ from db import _get_db_password
 import re as _re
 import requests
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 from dataclasses import dataclass
 
 # Bias sampling — 10% inline fairness monitoring (Project #358 T3)
@@ -703,6 +703,19 @@ class DispatchResult:
     department: str = ""
     queued: bool = False  # True when task was deferred to dispatch_pending_queue
     queue_id: Optional[int] = None  # dispatch_pending_queue.id when queued (for async callbacks)
+    # C.R.E.E.D. accounting-integrity Fix #3 (KB #279350-family): cloud/contractor
+    # escalations happen when NO single internal agent was matched (department
+    # capacity exhausted before any candidate was selected — see
+    # resolve_department_escalation_owner()), so agent_id/agent_name are
+    # generic ("CONTRACTOR→x"/"CLOUD→x", agent_id=None) and every OTHER use of
+    # those two fields in _log_execution (welfare update, agent memory,
+    # performance metrics, Claude notify) must stay byte-for-byte unchanged.
+    # These two carry the department-director proxy attribution used ONLY when
+    # building the task_execution_log INSERT, so that director's per-agent
+    # K.I.N./budget view stops silently missing cloud spend incurred
+    # escalating on behalf of their department.
+    escalating_agent_id: Optional[int] = None
+    escalating_agent_name: Optional[str] = None
 
     def __post_init__(self):
         # Normalize: if department was passed, use it; else derive from station_code
@@ -730,6 +743,35 @@ class DispatchResult:
             "provider": self.provider,
             "error": self.error,
         }
+
+
+def resolve_department_escalation_owner(
+    agent_cache: Dict[str, Dict], department: Optional[str]
+) -> Tuple[Optional[int], Optional[str]]:
+    """Best-effort owner to attribute an orphaned cloud/contractor escalation to.
+
+    Cloud/contractor dispatch (see dispatch()'s "not agent and
+    department_exhausted" branch) only fires once department capacity is
+    exhausted AND no single internal agent could be matched at all — there is
+    no specific agent that "escalated". The department's AI director
+    (``is_department_ai``) is the closest real owner: they represent the
+    department's demand, so their per-agent K.I.N./budget view should reflect
+    cloud spend incurred escalating on behalf of their department instead of
+    it vanishing into an ``agent_id IS NULL`` bucket (C.R.E.E.D.
+    accounting-integrity Fix #3).
+
+    Pure function — no DB, no ``self`` — so it is directly unit-testable.
+    Fail-open: returns ``(None, None)`` when there is no cached director for
+    the department (never raises, never blocks a dispatch).
+    """
+    if not department or not agent_cache:
+        return None, None
+    for name, info in agent_cache.items():
+        if not isinstance(info, dict):
+            continue
+        if info.get("department") == department and info.get("is_department_ai"):
+            return info.get("id"), name
+    return None, None
 
 
 def create_job_via_service(job_type, module_source, description, total_steps, capability=None, metadata=None):
@@ -4283,6 +4325,26 @@ class DepartmentDispatcher:
             is_contractor = meta.get("is_cloud", False)
             worker_type = "contract" if is_contractor else "internal"
 
+            # C.R.E.E.D. accounting-integrity Fix #3 (KB #279350-family): a
+            # cloud/contractor row has no single internal "owner" — agent
+            # selection failed entirely before the dispatcher escalated (see
+            # resolve_department_escalation_owner()) — so it was historically
+            # logged as (agent_id=None, agent_name="CONTRACTOR→x"/"CLOUD→x"),
+            # which silently drops that cloud spend from the escalating
+            # department director's per-agent K.I.N./budget view (that view
+            # is driven by task_execution_log.agent_id — see
+            # services/agent_load_service.py). Attribute ONLY the logged row
+            # to the department-director proxy the escalation path stashed on
+            # the result; `result.agent_id`/`result.agent_name` themselves are
+            # left untouched below so welfare update, agent memory, and
+            # performance-metric crediting behave exactly as before this fix.
+            log_agent_id = result.agent_id
+            log_agent_name = result.agent_name
+            if is_contractor and getattr(result, "escalating_agent_id", None):
+                log_agent_id = result.escalating_agent_id
+                esc_name = result.escalating_agent_name or "?"
+                log_agent_name = f"{esc_name} →{result.agent_name}" if result.agent_name else esc_name
+
             # Fleet node attribution (migration 384). Populated by
             # _dispatch_to_node via metadata["node_id"] (= remote_nodes.id PK).
             # NULL for hub-direct dispatches. Cast defensively in case metadata
@@ -4398,8 +4460,8 @@ class DepartmentDispatcher:
                 )
                 """,
                 (
-                    result.agent_id,
-                    result.agent_name,
+                    log_agent_id,
+                    log_agent_name,
                     # module_source: fall back to capability when the caller didn't
                     # tag a module_id, so internal agent-loop dispatches (knowledge_analysis,
                     # workforce_planning, welfare_monitoring, …) are attributed by what
@@ -4922,12 +4984,21 @@ class DepartmentDispatcher:
         system_prompt: str = None,
         json_mode: bool = False,
         timeout: int = 120,
+        escalating_agent_id: Optional[int] = None,
+        escalating_agent_name: Optional[str] = None,
     ) -> Optional["DispatchResult"]:
         """Dispatch work to a cloud contractor provider.
 
         For cloud proxy providers (is_cloud_proxy=True), uses _execute_llm()
         which routes through Ollama cloud. For standard providers, uses
         external_providers.call_external().
+
+        ``escalating_agent_id``/``escalating_agent_name`` (C.R.E.E.D.
+        accounting-integrity Fix #3): the department-director proxy resolved by
+        the caller via ``resolve_department_escalation_owner()`` — carried onto
+        the returned ``DispatchResult`` ONLY so ``_log_execution`` can attribute
+        the ``task_execution_log`` row to a real agent; routing/welfare/cost
+        logic here is unaffected.
 
         Returns DispatchResult on success, None on failure.
         """
@@ -4979,6 +5050,8 @@ class DepartmentDispatcher:
                             "creed_tier": contractor.get("creed_compliance_tier", 2),
                             "is_cloud_proxy": True,
                         },
+                        escalating_agent_id=escalating_agent_id,
+                        escalating_agent_name=escalating_agent_name,
                     )
             else:
                 # Standard external provider (OpenAI-compatible)
@@ -5012,6 +5085,8 @@ class DepartmentDispatcher:
                             "creed_tier": contractor.get("creed_compliance_tier", 2),
                             "is_cloud_proxy": False,
                         },
+                        escalating_agent_id=escalating_agent_id,
+                        escalating_agent_name=escalating_agent_name,
                     )
         except Exception as e:
             logger.warning(f"[DepartmentDispatcher] Contractor dispatch failed ({provider_key}): {e}")
@@ -6651,6 +6726,14 @@ class DepartmentDispatcher:
         if not agent and department_exhausted:
             blocked_department = home_department or capability_department
 
+            # C.R.E.E.D. accounting-integrity Fix #3: no single agent was ever
+            # matched here (that's what department_exhausted means), so any
+            # cloud/contractor dispatch below has no specific "escalating
+            # agent". Resolve the department's AI director as the best-effort
+            # proxy owner ONCE — used only to attribute the eventual
+            # task_execution_log row; routing/welfare/cost logic is untouched.
+            _esc_agent_id, _esc_agent_name = resolve_department_escalation_owner(self._agent_cache, blocked_department)
+
             # 2c. Department at capacity — cloud is the fallback.
             #     Requires Telegram approval.
             routing_mode = "local_only" if local_only else self._get_routing_mode()
@@ -6749,6 +6832,8 @@ class DepartmentDispatcher:
                         system_prompt=system_prompt,
                         json_mode=json_mode,
                         timeout=timeout,
+                        escalating_agent_id=_esc_agent_id,
+                        escalating_agent_name=_esc_agent_name,
                     )
                     if contractor_result:
                         self._complete_cloud_job(cloud_job_id, success=True)
@@ -6839,6 +6924,8 @@ class DepartmentDispatcher:
                                     "cloud_model": cloud_model,
                                     "cloud_provider": "ollama_cloud",
                                 },
+                                escalating_agent_id=_esc_agent_id,
+                                escalating_agent_name=_esc_agent_name,
                             )
                             self._log_execution(result, module_id, user_id, job_id=job_id)
                             return result

@@ -427,6 +427,15 @@ def starship_compat_redirect(subpath):
     return redirect(new_url, code=307)
 
 
+@app.route("/tools/mailbox-story", defaults={"subpath": ""})
+@app.route("/tools/mailbox-story/<path:subpath>", methods=["GET", "POST", "PUT", "DELETE"])
+def mailbox_story_compat_redirect(subpath):
+    """Chronicle rename (2026-07-10): old Mailbox Story path → /tools/chronicle.
+    307 preserves method + body so the internal capture-share POST keeps working."""
+    q = ("?" + request.query_string.decode()) if request.query_string else ""
+    return redirect(f"/tools/chronicle/{subpath}".rstrip("/") + q, code=307)
+
+
 @app.route("/tools/directory", methods=["GET"])
 @app.route("/tools/directory/", methods=["GET"])
 def directory_compat_redirect():

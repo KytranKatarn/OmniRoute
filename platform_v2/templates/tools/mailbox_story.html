@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Mailbox Story Extractor{% endblock %}
+{% block title %}Chronicle{% endblock %}
 
 {% block module_name %}mailbox_story{% endblock %}
 
@@ -46,7 +46,7 @@
 {% block content %}
 <div class="ms-wrap">
   <div class="ms-hero">
-    <h1>Mailbox Story Extractor</h1>
+    <h1>Chronicle</h1>
     <p>Upload a <code>.pst</code> mailbox — a <strong>local</strong> AI reconstructs the account's story. Nothing leaves the infra.</p>
     <span class="ms-priv">🔒 Local-only · admin-gated · files never leave local disk</span>
   </div>
@@ -102,7 +102,7 @@
 
 <script>
 (function () {
-  const BASE = "/tools/mailbox-story";
+  const BASE = "/tools/chronicle";
   const $ = (id) => document.getElementById(id);
   let pollTimer = null;
   let sel = { importId: null, offset: 0, limit: 50, total: 0 };

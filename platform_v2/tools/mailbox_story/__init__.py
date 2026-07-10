@@ -15,7 +15,7 @@ from flask_login import current_user
 mailbox_story_bp = Blueprint(
     "mailbox_story",
     __name__,
-    url_prefix="/tools/mailbox-story",
+    url_prefix="/tools/chronicle",
 )
 
 

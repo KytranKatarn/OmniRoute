@@ -22,12 +22,6 @@ logger = logging.getLogger(__name__)
 STORAGE_ROOT = "/mnt/data2/mailbox_story"  # tests monkeypatch this
 
 
-def _scalar(row):
-    if row is None:
-        return None
-    return row["id"] if isinstance(row, dict) else row[0]
-
-
 def _account_for_import(import_id):
     from database import get_db_cursor
 
@@ -70,7 +64,9 @@ def _get_attachment_bytes(account_id, gmail_id, attachment_id):
 def _safe_name(filename):
     base = os.path.basename(filename or "").strip()
     base = base.replace("/", "_").replace("\\", "_")
-    return base or "attachment"
+    if base in ("", ".", ".."):
+        return "attachment"
+    return base
 
 
 def run_attachment_download(import_id, limit=50):

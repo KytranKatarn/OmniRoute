@@ -16,6 +16,10 @@ def test_safe_name():
     assert a._safe_name("a/b.pdf") == "b.pdf"
     assert a._safe_name("") == "attachment"
     assert a._safe_name(None) == "attachment"
+    # bare dot names must not survive as a path component (traversal hardening)
+    assert a._safe_name(".") == "attachment"
+    assert a._safe_name("..") == "attachment"
+    assert a._safe_name("  ..  ") == "attachment"
 
 
 def test_download_saves_and_registers(tmp_path, monkeypatch):

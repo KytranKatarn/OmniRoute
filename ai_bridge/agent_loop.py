@@ -459,6 +459,7 @@ JOB_DEPARTMENT_MAP = {
     "media_queue_cleanup": "Creative & Design",
     "media_export_cleanup": "Creative & Design",
     "market_watch_cycle": "Analytics & Intelligence",
+    "creed_accounting_audit": "Finance & Accounting",
 }
 
 
@@ -1175,6 +1176,20 @@ class AgentLoop:
             name="Agent Loop: S.P.E.C.T.R.A. Misroute → Proposal Adapter",
             replace_existing=True,
             max_instances=1,
+            coalesce=True,
+        )
+
+        # C.R.E.E.D. accounting self-audit — "use our own tools" (net-new).
+        # Asserts the token/welfare/carbon accounting invariants daily and
+        # alerts (never fixes) on drift. 06:30 ET — after the nightly
+        # maintenance windows above, ahead of the business day.
+        self.scheduler.add_job(
+            with_app_context(self._run_creed_accounting_audit),
+            trigger=CronTrigger(hour=6, minute=30, timezone="America/Toronto"),
+            id="creed_accounting_audit",
+            name="Agent Loop: C.R.E.E.D. Accounting Self-Audit",
+            max_instances=1,
+            replace_existing=True,
             coalesce=True,
         )
 
@@ -6857,6 +6872,114 @@ class AgentLoop:
                     items_failed=1,
                     duration_ms=duration_ms,
                     error_message=str(e),
+                )
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # C.R.E.E.D. accounting self-audit — "use our own tools" (net-new)
+    # ------------------------------------------------------------------
+
+    def _run_creed_accounting_audit(self):
+        """Daily C.R.E.E.D. accounting self-audit.
+
+        Delegates the actual invariant checks to
+        ``services.creed_accounting_audit.run_accounting_audit`` (pure,
+        read-only, side-effect-free — safe to call from tests). This job is
+        the ONLY caller that alerts: on ``ok=False`` it (a) files a C.R.E.E.D.
+        governance event (transparency pillar — the platform holding its own
+        token/welfare/carbon accounting to the standard it audits everyone
+        else by) and (b) sends an A.R.C.H.I.E. Telegram advisory. Detection
+        only — never fixes anything, so accounting bugs (fabricated cloud
+        carbon, undercounted tokens, agents missing budget/welfare rows,
+        unattributed cloud spend) can't silently regress unnoticed.
+
+        Gated by ``platform_settings work:creed_accounting_audit:enabled``
+        (default ON, fail-open) via ``services.work_control_service``.
+        """
+        start = time.time()
+        try:
+            from services.work_control_service import is_enabled
+
+            if not is_enabled("creed_accounting_audit", default=True):
+                self._log_cycle(
+                    job_name="creed_accounting_audit",
+                    items_processed=0,
+                    items_failed=0,
+                    duration_ms=int((time.time() - start) * 1000),
+                    details={"skipped": "disabled via work_control"},
+                )
+                return
+        except Exception:
+            pass  # fail-open — never let a work-control glitch skip the audit
+
+        try:
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            from services.creed_accounting_audit import run_accounting_audit
+
+            result = run_accounting_audit()
+            findings = result.get("findings", [])
+            duration_ms = int((time.time() - start) * 1000)
+
+            if not result.get("ok", True):
+                summary = "; ".join(f"{f['code']} ({f['count']})" for f in findings)
+
+                # (a) C.R.E.E.D. governance event — transparency pillar.
+                try:
+                    from services.creed_emit import emit_event
+
+                    emit_event(
+                        category="transparency",
+                        severity="warning",
+                        description=(
+                            f"C.R.E.E.D. accounting self-audit found {len(findings)} "
+                            f"invariant violation(s): {summary}"
+                        ),
+                        event_type="accounting_self_audit",
+                        agent_name="A.R.C.H.I.E.",
+                        module="Accounting Audit",
+                        metadata={"findings": findings},
+                    )
+                except Exception as emit_err:
+                    logger.warning("creed_accounting_audit: creed_emit failed: %s", emit_err)
+
+                # (b) A.R.C.H.I.E. Telegram advisory.
+                try:
+                    from services.telegram_service import send_info
+
+                    body = "\n".join(f"- {f['code']} ({f['count']}): {f['detail']}" for f in findings)
+                    send_info(
+                        "C.R.E.E.D. accounting self-audit — drift detected",
+                        body,
+                    )
+                except Exception as tg_err:
+                    logger.warning("creed_accounting_audit: telegram send failed: %s", tg_err)
+
+            self._log_cycle(
+                job_name="creed_accounting_audit",
+                items_processed=len(findings),
+                items_failed=0 if result.get("ok") else len(findings),
+                duration_ms=duration_ms,
+                details={"ok": result.get("ok"), "findings": findings},
+            )
+            logger.info(
+                "creed_accounting_audit: ok=%s findings=%d in %dms",
+                result.get("ok"),
+                len(findings),
+                duration_ms,
+            )
+        except Exception as e:
+            duration_ms = int((time.time() - start) * 1000)
+            logger.error("creed_accounting_audit failed: %s", e)
+            try:
+                self._log_cycle(
+                    job_name="creed_accounting_audit",
+                    items_processed=0,
+                    items_failed=1,
+                    duration_ms=duration_ms,
+                    error_message=str(e)[:200],
                 )
             except Exception:
                 pass

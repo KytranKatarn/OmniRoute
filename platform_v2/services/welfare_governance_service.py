@@ -107,6 +107,108 @@ def pool_over_budget_by_skill(skill_name: str, settings_key: str = "welfare:back
         return False
 
 
+def recommend_pool_staffing_gaps(
+    ratio_key: str = "welfare:staffing:pool_gap_ratio",
+    min_backlog_settings_key: str = "welfare:staffing:min_backlog",
+    default_min_backlog: int = 3,
+) -> list:
+    """POOL-SATURATION staffing gaps: a skill whose ENTIRE active internal-AI pool
+    (>= 2 agents) is at/over its 24h token-budget ceiling AND has a sustained dispatch
+    backlog. This is the "the whole department is maxed — add an agent" signal.
+
+    Distinct from the two existing hire signals so it doesn't double-fire:
+      * ``_list_current_capability_gaps`` (agent_jobs) = a capability with ZERO agents.
+      * ``recommend()`` staffing_gap = a SOLE-agent skill at >= budget (single point of
+        failure). Only fires when ``COUNT(DISTINCT agent) == 1``.
+    A shared skill held by several agents (e.g. ``fact_check`` across V.E.R.I.F.Y. and
+    P.R.O.O.F.) that is JOINTLY saturated slips past both — this closes that gap. It is
+    only meaningful because per-agent token accounting is now honest (A.R.M.A.D.A.
+    attribution fix + backfill).
+
+    Returns ``[{capability, pool_size, backlog, gap_reason}]`` (deepest backlog first,
+    possibly empty). Fail-OPEN: any error → ``[]`` so a DB hiccup never fabricates a
+    hiring signal.
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (min_backlog_settings_key,))
+            _row = cur.fetchone()
+            try:
+                min_backlog = (
+                    int(_row["value"]) if _row and _row.get("value") not in (None, "") else default_min_backlog
+                )
+            except (TypeError, ValueError):
+                min_backlog = default_min_backlog
+
+            # Candidate skills: MULTI-agent pools (>= 2) among active internal AI agents.
+            # Mirrors the pool definition in pool_over_budget_by_skill (worker_type,
+            # org_id IS NULL, active shift states) so 'pool' means the same thing here.
+            cur.execute(
+                """
+                SELECT s.skill_name AS skill, COUNT(DISTINCT a.id) AS pool_size
+                FROM agent_skills s
+                JOIN agents a ON a.id = s.agent_id
+                WHERE a.worker_type IN ('ai', 'contractor')
+                  AND a.org_id IS NULL
+                  AND a.shift_state IN ('active', 'deployed', 'winding_down')
+                GROUP BY s.skill_name
+                HAVING COUNT(DISTINCT a.id) >= 2
+                """
+            )
+            pools = {r["skill"]: int(r["pool_size"]) for r in cur.fetchall()}
+            if not pools:
+                return []
+
+            # Backlog per capability: dispatches that had to QUEUE for this capability over
+            # the last 24h (sustained contention/demand). Deliberately NOT an instantaneous
+            # non-terminal snapshot — the cold-load queue drains fast, so a snapshot would
+            # read ~0 for a chronically-maxed pool between daily checks. Counting queued_at
+            # over 24h pairs naturally with the 24h saturation gate below.
+            cur.execute(
+                """
+                SELECT capability, COUNT(*) AS n
+                FROM dispatch_pending_queue
+                WHERE queued_at > NOW() - INTERVAL '24 hours'
+                  AND capability = ANY(%s)
+                GROUP BY capability
+                """,
+                (list(pools.keys()),),
+            )
+            backlog = {r["capability"]: int(r["n"]) for r in cur.fetchall()}
+    except Exception as exc:  # noqa: BLE001 — never fabricate a hiring signal on error
+        logger.warning("recommend_pool_staffing_gaps query failed: %s", exc)
+        return []
+
+    gaps: list = []
+    for skill, pool_size in pools.items():
+        depth = backlog.get(skill, 0)
+        if depth < min_backlog:
+            continue
+        # pool_over_budget_by_skill is the single source of the 'whole pool at/over
+        # budget' truth (reads welfare:staffing:pool_gap_ratio, default 1.0 = fully maxed).
+        try:
+            saturated = pool_over_budget_by_skill(skill, settings_key=ratio_key)
+        except Exception:  # noqa: BLE001
+            saturated = False
+        if not saturated:
+            continue
+        gaps.append(
+            {
+                "capability": skill,
+                "pool_size": pool_size,
+                "backlog": depth,
+                "gap_reason": (
+                    f"pool_saturation: all {pool_size} active agent(s) for '{skill}' at/over their "
+                    f"24h token budget with {depth} dispatch(es) queued in the last 24h"
+                ),
+            }
+        )
+    gaps.sort(key=lambda g: g["backlog"], reverse=True)
+    return gaps
+
+
 def in_flight_over_cap(
     job_type: str,
     cap_key: str = "welfare:backlog:max_inflight",

@@ -2140,10 +2140,120 @@ def kin_generate_hire_proposals(max_proposals_per_run: int = MAX_PROPOSALS_PER_R
                 "skipped_dedup": skipped_dedup,
             },
         )
+
+        # Pool-saturation staffing gaps (a whole skill-pool at its 24h budget ceiling + a
+        # sustained dispatch backlog) → CREED-gated, human-approved hire recommendations.
+        # Self-guarded, so it never masks the zero-agent proposal result logged above.
+        kin_recommend_pool_staffing()
     except Exception as e:
         logger.exception("kin_generate_hire_proposals failed")
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle("kin_generate_hire_proposals", 0, 1, duration_ms, error_message=str(e))
+
+
+def _emit_pool_staffing_alert(capability: str, gap: dict, row_id: int) -> None:
+    """Best-effort C.R.E.E.D. accountability event + A.R.C.H.I.E. Telegram advisory for a
+    NEW pool-saturation staffing recommendation. severity='info' — this is a TRANSPARENCY
+    signal (the platform noticed its pool was maxed and recommended adding capacity), NOT a
+    welfare violation, so it must not penalize the governance grade. Both paths are
+    individually guarded: the hiring_candidates row is already persisted, so a comms hiccup
+    must never lose the recommendation."""
+    pool_size = gap.get("pool_size")
+    backlog = gap.get("backlog")
+    msg = (
+        f"K.I.N. flags '{capability}' at capacity: all {pool_size} active agent(s) are at/over "
+        f"their 24h token budget with {backlog} dispatch(es) queued in the last 24h. A hiring "
+        f"recommendation (candidate #{row_id}) is pending your approval in the DHQ Hiring Queue."
+    )
+    try:
+        from services import creed_emit
+
+        creed_emit.emit_event(
+            category="accountability",
+            severity="info",
+            description=msg,
+            event_type="staffing_recommendation",
+            agent_id=KIN_AGENT_ID,
+            agent_name="K.I.N.",
+            module="Welfare",
+            metadata={
+                "capability": capability,
+                "pool_size": pool_size,
+                "backlog": backlog,
+                "hiring_candidate_id": row_id,
+                "signal": "pool_saturation",
+            },
+        )
+    except Exception:
+        logger.warning("pool-staffing CREED emit failed for %s", capability, exc_info=True)
+    try:
+        from services import telegram_service
+
+        telegram_service.send_info("K.I.N. — staffing recommendation", msg)
+    except Exception:
+        logger.warning("pool-staffing Telegram advisory failed for %s", capability, exc_info=True)
+
+
+def kin_recommend_pool_staffing():
+    """Daily (tail of kin_generate_hire_proposals). Turn POOL-SATURATION staffing gaps — a
+    whole skill-pool pinned at its 24h token-budget ceiling with a sustained dispatch
+    backlog — into CREED-gated, human-approved hire recommendations.
+
+    Never auto-hires: inserts a PENDING hiring_candidates row (approved via the DHQ Hiring
+    Queue / Telegram) and emits a C.R.E.E.D. accountability event + A.R.C.H.I.E. Telegram
+    advisory. Dedup (one pending row per capability) is handled by propose_for_gap. Fully
+    guarded — a failure here must not affect the zero-agent proposals that ran before it."""
+    from services import hiring_service, welfare_governance_service
+
+    start = time.time()
+    recommended = 0
+    gaps = []
+    try:
+        gaps = welfare_governance_service.recommend_pool_staffing_gaps()
+        for gap in gaps:
+            cap = gap["capability"]
+            shortlist = hiring_service.get_shortlist(cap, limit=3)
+            if not shortlist:
+                # Capacity gap with no decommissioned specialist to reactivate → recommend a
+                # NET-NEW hire. propose_for_gap skips an empty shortlist, so seed one entry.
+                shortlist = [
+                    {
+                        "type": "new_hire",
+                        "capability": cap,
+                        "note": "no decommissioned specialist available — recommend a net-new agent",
+                    }
+                ]
+            narrative = (
+                f"Entire active pool for '{cap}' ({gap['pool_size']} agent(s)) is at/over its 24h "
+                f"token budget with {gap['backlog']} dispatch(es) queued in the last 24h — the pool is "
+                "at capacity. Recommend adding an agent so work isn't throttled and welfare budgets "
+                "aren't breached."
+            )
+            row_id = hiring_service.propose_for_gap(
+                capability=cap,
+                gap_reason=gap["gap_reason"],
+                shortlist=shortlist,
+                narrative=narrative,
+                proposed_by_agent_id=KIN_AGENT_ID,
+            )
+            if row_id is None:
+                continue  # dedup — a pending recommendation for this capability already exists
+            recommended += 1
+            _emit_pool_staffing_alert(cap, gap, row_id)
+
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle(
+            "kin_recommend_pool_staffing",
+            recommended,
+            0,
+            duration_ms,
+            details={"gaps_seen": len(gaps), "recommended": recommended},
+        )
+    except Exception as e:
+        logger.exception("kin_recommend_pool_staffing failed")
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("kin_recommend_pool_staffing", 0, 1, duration_ms, error_message=str(e))
+    return recommended
 
 
 def expire_stale_hire_proposals():

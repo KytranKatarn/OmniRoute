@@ -68,6 +68,84 @@ def _run_extract(import_id, pst_path, eml_dir):
             logger.exception("could not mark import %s as error", import_id)
 
 
+def _list_people(owner_id, entity_type=None, limit=500):
+    """Cross-source people/orgs for an owner, with per-entity aggregates. Reads chronicle_* layer."""
+    from database import get_db_cursor
+
+    params = [owner_id]
+    type_clause = ""
+    if entity_type:
+        type_clause = "AND ce.entity_type=%s "
+        params.append(entity_type)
+    params.append(limit)
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT ce.id, ce.canonical_name, ce.entity_type, ce.aliases, ce.primary_email, "
+            "count(DISTINCT mee.email_id) AS item_count, "
+            "array_agg(DISTINCT i.source_kind) FILTER (WHERE i.source_kind IS NOT NULL) AS sources, "
+            "EXISTS(SELECT 1 FROM chronicle_entity_story s WHERE s.chronicle_entity_id=ce.id) AS has_story, "
+            "EXISTS(SELECT 1 FROM chronicle_voice_profile v WHERE v.chronicle_entity_id=ce.id) AS has_voice "
+            "FROM chronicle_entity ce "
+            "LEFT JOIN chronicle_entity_link cel ON cel.chronicle_entity_id=ce.id "
+            "LEFT JOIN mailbox_email_entities mee ON mee.entity_id=cel.mailbox_entity_id "
+            "LEFT JOIN mailbox_emails em ON em.id=mee.email_id "
+            "LEFT JOIN mailbox_imports i ON i.id=em.import_id "
+            "WHERE ce.owner_id IS NOT DISTINCT FROM %s "
+            + type_clause
+            + "GROUP BY ce.id ORDER BY count(DISTINCT mee.email_id) DESC, ce.canonical_name LIMIT %s",
+            tuple(params),
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    for r in rows:
+        r["sources"] = r.get("sources") or []
+        r["aliases"] = r.get("aliases") or []
+    return rows
+
+
+def _person_detail(ce_id):
+    """One entity: identity + story + voice + fused cross-source timeline (<=100 items). None if absent."""
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            "SELECT id, owner_id, canonical_name, entity_type, aliases, primary_email "
+            "FROM chronicle_entity WHERE id=%s",
+            (ce_id,),
+        )
+        ent = cur.fetchone()
+        if not ent:
+            return None
+        ent = dict(ent)
+        ent["aliases"] = ent.get("aliases") or []
+        cur.execute(
+            "SELECT narrative, span_start, span_end, source_kinds, email_count, model_used, updated_at "
+            "FROM chronicle_entity_story WHERE chronicle_entity_id=%s",
+            (ce_id,),
+        )
+        s = cur.fetchone()
+        story = dict(s) if s else None
+        cur.execute(
+            "SELECT style_guide, sample_count, span_start, span_end, model_used, updated_at "
+            "FROM chronicle_voice_profile WHERE chronicle_entity_id=%s",
+            (ce_id,),
+        )
+        v = cur.fetchone()
+        voice = dict(v) if v else None
+        cur.execute(
+            "SELECT em.id AS email_id, em.sent_at, em.from_addr, em.subject, "
+            "left(em.body_text, 240) AS snippet, i.source_kind, i.id AS import_id "
+            "FROM chronicle_entity_link cel "
+            "JOIN mailbox_email_entities mee ON mee.entity_id=cel.mailbox_entity_id "
+            "JOIN mailbox_emails em ON em.id=mee.email_id "
+            "JOIN mailbox_imports i ON i.id=em.import_id "
+            "WHERE cel.chronicle_entity_id=%s ORDER BY em.sent_at NULLS LAST LIMIT 100",
+            (ce_id,),
+        )
+        timeline = [dict(r) for r in cur.fetchall()]
+    sources = sorted({t["source_kind"] for t in timeline if t.get("source_kind")})
+    return {"entity": ent, "story": story, "voice": voice, "sources": sources, "timeline": timeline}
+
+
 @mailbox_story_bp.route("/")
 @admin_required
 def index():
@@ -576,3 +654,20 @@ def delete_import(import_id):
         return _json({"error": "not found"}, status=404)
     logger.info("mailbox import %s deleted (files + rows)", import_id)
     return _json({"deleted": import_id})
+
+
+@mailbox_story_bp.route("/api/people")
+@admin_required
+def list_people():
+    owner = request.args.get("owner", default=4, type=int)  # Kytran's Chronicle (single-owner, admin-gated)
+    etype = request.args.get("type") or None
+    return _json({"people": _list_people(owner, etype)})
+
+
+@mailbox_story_bp.route("/api/people/<int:ce_id>")
+@admin_required
+def person_detail(ce_id):
+    d = _person_detail(ce_id)
+    if d is None:
+        return _json({"error": "not found"}, status=404)
+    return _json(d)

@@ -84,14 +84,18 @@ def _route_to_review(
 
 # Per-language translation routing (bake-off verified 2026-06-01). gemma3:12b is
 # the only local model that handles Arabic + Hebrew cleanly (and German more
-# precisely than mistral); R.O.S.E.T.T.A./mistral:7b covers the rest. Each maps
-# to a real Documentation & Knowledge agent so the dispatch is welfare/governance
-# tracked (K.I.N./C.R.E.E.D.). Override per language without a deploy via
-# platform_settings 'translate_route_<lang>' = "<model>|<agent>".
+# precisely than mistral); mistral:7b covers the rest. The AGENT is always the AI
+# translate owner R.O.S.E.T.T.A. (worker_type='ai') so the dispatch genuinely bills a
+# budgeted AI agent and is welfare/governance tracked (K.I.N./C.R.E.E.D.) —
+# model_override decouples the model from the agent, so ar/he/de keep gemma3:12b
+# while still billing R.O.S.E.T.T.A. (routing ar/he/de to the internal persona
+# 'Amina' silently defeated that: she is worker_type='internal', invisible to the AI
+# accounting — its 1.4M tok/30d floated unattributed). Override per language without a
+# deploy via platform_settings 'translate_route_<lang>' = "<model>|<agent>".
 _LANG_ROUTING = {
-    "ar": ("gemma3:12b", "Amina"),
-    "he": ("gemma3:12b", "Amina"),
-    "de": ("gemma3:12b", "Amina"),
+    "ar": ("gemma3:12b", "R.O.S.E.T.T.A."),
+    "he": ("gemma3:12b", "R.O.S.E.T.T.A."),
+    "de": ("gemma3:12b", "R.O.S.E.T.T.A."),
 }
 _DEFAULT_ROUTING = ("mistral:7b", "R.O.S.E.T.T.A.")
 # Models that don't reliably emit the strict JSON envelope — use raw-text mode.

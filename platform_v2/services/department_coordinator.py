@@ -378,6 +378,15 @@ CAPABILITY_SPECIALIST_MAP = {
     # work on P.U.B.L.I.S.H. even if the News director F.A.C.T. ever also gains the
     # skill — so it never regresses onto a heavy 7B director the way translate did.
     "beat_classification": "P.U.B.L.I.S.H.",
+    # knowledge_analysis + research_synthesis were regressing onto legacy INTERNAL
+    # personas (Nexus/Oracle, Sage) that hold the skill but are worker_type='internal'
+    # → invisible to the AI budget/welfare/K.I.N. accounting (~1.2M + 65k tok/30d
+    # floated unattributed). Pin them to the AI capability owner so the load bills a
+    # budgeted AI agent. S.P.E.C.T.R.A. already holds knowledge_analysis lvl5;
+    # D.A.R.W.I.N. is granted research_synthesis in migration 456 (else score_agent's
+    # -1.0 unskilled penalty would cancel this +0.75 bonus).
+    "knowledge_analysis": "S.P.E.C.T.R.A.",
+    "research_synthesis": "D.A.R.W.I.N.",
 }
 
 # Must beat is_department_ai (+0.3) plus typical welfare deltas (~±0.4),

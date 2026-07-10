@@ -20,7 +20,7 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from typing import Optional
 
 import requests
@@ -1355,6 +1355,26 @@ def _expire_stale_tasks() -> int:
             rowcount = cur.rowcount
             for _qid in expiring_delegations:
                 _handle_failure_callback(cur, _qid, "queue task expired before execution")
+
+            # Reap orphaned 'running' rows. A dead worker thread or a timed-out
+            # completion barrier can leave a task 'running' forever — no other reaper
+            # touches 'running', and _claim_tasks only claims 'queued'. Threshold sits
+            # well above the ~240s max cold-load so live-but-slow tasks are never reaped.
+            cur.execute("SELECT value FROM platform_settings WHERE key='dispatch:running_reap_secs'")
+            _rr = cur.fetchone()
+            try:
+                reap_secs = int(str(_rr["value"])) if _rr else 900
+            except (ValueError, TypeError):
+                reap_secs = 900
+            cur.execute(
+                "UPDATE dispatch_pending_queue SET status='failed', error=%s, completed_at=NOW() "
+                "WHERE status='running' AND claimed_at IS NOT NULL "
+                "AND claimed_at < NOW() - make_interval(secs => %s) RETURNING id",
+                ("reaped: stuck running > %ss" % reap_secs, reap_secs),
+            )
+            reaped = cur.rowcount
+            if reaped:
+                log.warning("[MDW] reaped %s orphaned 'running' task(s) (stuck > %ss)", reaped, reap_secs)
             return rowcount
     except Exception as exc:
         log.debug("model_dispatch: expire_stale_tasks failed: %s", exc)
@@ -1453,12 +1473,20 @@ def model_dispatch_worker() -> None:
     # so the next cycle doesn't double-claim still-running tasks.
     if futures:
         completed = 0
-        for fut in as_completed(futures, timeout=300):
-            try:
-                fut.result()
-                completed += 1
-            except Exception as exc:
-                log.warning("model_dispatch: task execution raised: %s", exc)
+        try:
+            for fut in as_completed(futures, timeout=300):
+                try:
+                    fut.result()
+                    completed += 1
+                except Exception as exc:
+                    log.warning("model_dispatch: task execution raised: %s", exc)
+        except FuturesTimeoutError:
+            _still = sum(1 for f in futures if not f.done())
+            log.warning(
+                "model_dispatch: completion barrier hit 300s; %d task(s) still running "
+                "— the stale-running reaper will mop up",
+                _still,
+            )
         log.info("model_dispatch: parallel drain — %d/%d tasks completed", completed, len(futures))
 
     # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable). RESERVED slice:
@@ -1477,11 +1505,19 @@ def model_dispatch_worker() -> None:
             fut = _CPU_EXECUTOR.submit(_execute_task, task)
             pref_futures.append(fut)
             total_executed += 1
-        for fut in as_completed(pref_futures, timeout=300):
-            try:
-                fut.result()
-            except Exception as exc:
-                log.warning("model_dispatch: preferred-node task raised: %s", exc)
+        try:
+            for fut in as_completed(pref_futures, timeout=300):
+                try:
+                    fut.result()
+                except Exception as exc:
+                    log.warning("model_dispatch: preferred-node task raised: %s", exc)
+        except FuturesTimeoutError:
+            _still = sum(1 for f in pref_futures if not f.done())
+            log.warning(
+                "model_dispatch: preferred-node barrier hit 300s; %d still running "
+                "— the stale-running reaper will mop up",
+                _still,
+            )
 
     # 4. If capacity remaining and nothing was warm for the queue,
     #    clear RAM if needed then load the highest-priority model batch

@@ -118,12 +118,32 @@ def extract_attachment(attachment_id: int) -> str:
             )
         return "error"
 
-    with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "UPDATE mailbox_attachments SET extracted_text=%s, ocr_used=%s, "
-            "extract_status='done', error=NULL WHERE id=%s",
-            (text, ocr_used, attachment_id),
-        )
+    # Postgres TEXT columns cannot hold NUL (0x00) bytes, which OCR/PDF extraction routinely
+    # emits. Strip them so the row stores as 'done' — otherwise the write below raises, the
+    # row stays 'new', and run_attachment_extraction re-selects and re-fails it every cycle
+    # (poison-pill spin). The text is still recovered, just without the stray NULs.
+    if text and "\x00" in text:
+        text = text.replace("\x00", "")
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE mailbox_attachments SET extracted_text=%s, ocr_used=%s, "
+                "extract_status='done', error=NULL WHERE id=%s",
+                (text, ocr_used, attachment_id),
+            )
+    except Exception as e:  # noqa: BLE001 — defense-in-depth: a failed store must persist
+        # 'error', never leave the row 'new' (which would re-spin it forever).
+        logger.exception("attachment %s store failed", attachment_id)
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "UPDATE mailbox_attachments SET extract_status='error', error=%s WHERE id=%s",
+                    (str(e)[:500], attachment_id),
+                )
+        except Exception:  # noqa: BLE001 — best-effort; even the error-write must not raise
+            logger.exception("attachment %s error-write failed", attachment_id)
+        return "error"
     return "done"
 
 

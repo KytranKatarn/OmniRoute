@@ -2278,6 +2278,9 @@ class DepartmentDispatcher:
                 )
                 return {
                     "agent_name": agent_name,
+                    # hub_agent_id so the caller can attribute task_execution_log.agent_id to
+                    # this cross-department fleet agent (the one that actually runs the work).
+                    "hub_agent_id": candidate.get("hub_agent_id"),
                     "model": model,
                     "node_hostname": resolved_host,
                     "node_port": resolved_port,
@@ -6383,7 +6386,11 @@ class DepartmentDispatcher:
                                     success=True,
                                     response=_pn_res.get("response", ""),
                                     agent_name=_pn_info["agent_name"],
-                                    agent_id=None,
+                                    # Attribute to the selected agent (routed to a preferred
+                                    # node) — mirrors the score-routed branch below. Was
+                                    # hardcoded None, so fleet-node-routed work counted toward
+                                    # no agent's budget/K.I.N. welfare.
+                                    agent_id=(agent.get("id") if isinstance(agent, dict) else None),
                                     model_used=_pn_info["model"],
                                     department=dispatch_department,
                                     capability=capability,
@@ -6481,7 +6488,9 @@ class DepartmentDispatcher:
                             success=True,
                             response=_fleet_res.get("response", ""),
                             agent_name=_node_assign["agent_name"],
-                            agent_id=None,
+                            # _node_assign is this same agent's fleet stationing (looked up by
+                            # agent.get("id") above), so attribute to it — was hardcoded None.
+                            agent_id=(agent.get("id") if isinstance(agent, dict) else None),
                             model_used=_node_assign["model"],
                             department=dispatch_department,
                             capability=capability,
@@ -6696,7 +6705,10 @@ class DepartmentDispatcher:
                         success=True,
                         response=fleet_result.get("response", ""),
                         agent_name=fleet_agent["agent_name"],
-                        agent_id=None,
+                        # Cross-dept fallback: the CROSS-department fleet_agent ran the work
+                        # (not the blocked home-dept agent), so attribute to fleet_agent's id
+                        # to match agent_name above — was hardcoded None.
+                        agent_id=(fleet_agent.get("hub_agent_id") if isinstance(fleet_agent, dict) else None),
                         model_used=fleet_agent["model"],
                         department=blocked_department,
                         capability=capability,

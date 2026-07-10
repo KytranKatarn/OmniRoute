@@ -41,6 +41,7 @@ def _candidate_emails(import_id, limit):
         cur.execute(
             "SELECT e.id, e.message_id FROM mailbox_emails e WHERE e.import_id=%s "
             "AND e.has_attachments=TRUE AND e.message_id IS NOT NULL "
+            "AND e.attachment_fetch_status IS DISTINCT FROM 'unavailable' "
             "AND NOT EXISTS (SELECT 1 FROM mailbox_attachments a WHERE a.email_id=e.id) "
             "ORDER BY e.id LIMIT %s",
             (import_id, limit),
@@ -53,6 +54,24 @@ def _candidate_emails(import_id, limit):
         else:
             out.append((r[0], r[1]))
     return out
+
+
+def _http_status(exc):
+    """HTTP status of a googleapiclient HttpError, else None. Duck-typed so this module
+    needs no googleapiclient import: HttpError carries `.resp.status` (int)."""
+    return getattr(getattr(exc, "resp", None), "status", None)
+
+
+def _mark_attachments_unavailable(email_id):
+    """Flag an email whose Gmail message is gone (404) so it stops being an attachment
+    candidate. has_attachments is left TRUE (it was, and the reader displays it)."""
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE mailbox_emails SET attachment_fetch_status='unavailable' WHERE id=%s",
+            (email_id,),
+        )
 
 
 def _get_attachment_bytes(account_id, gmail_id, attachment_id):
@@ -81,9 +100,21 @@ def run_attachment_download(import_id, limit=50):
     for email_id, gmail_id in emails:
         try:
             atts = gmail_service.get_email(account_id, gmail_id).get("attachments") or []
-        except Exception:  # noqa: BLE001 — one bad message must not abort the run
+        except Exception as exc:  # noqa: BLE001 — one bad message must not abort the run
             errors += 1
-            logger.exception("chronicle att: get_email failed import=%s email=%s", import_id, email_id)
+            # A 404 means the Gmail message is gone — its attachments are permanently
+            # unretrievable. Mark it so it stops being a candidate; otherwise it stays one
+            # forever and the drainer spins on it every cycle (poison pill). Any other error
+            # is treated as transient and left retryable (attachment_fetch_status stays NULL).
+            if _http_status(exc) == 404:
+                _mark_attachments_unavailable(email_id)
+                logger.warning(
+                    "chronicle att: message gone (404) — marked unavailable import=%s email=%s",
+                    import_id,
+                    email_id,
+                )
+            else:
+                logger.exception("chronicle att: get_email failed import=%s email=%s", import_id, email_id)
             continue
         dest_dir = os.path.join(STORAGE_ROOT, str(import_id), "att", str(email_id))
         for att in atts:

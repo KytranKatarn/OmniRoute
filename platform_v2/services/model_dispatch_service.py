@@ -1366,10 +1366,14 @@ def _expire_stale_tasks() -> int:
                 reap_secs = int(str(_rr["value"])) if _rr else 900
             except (ValueError, TypeError):
                 reap_secs = 900
+            # Floor-clamp: a fat-fingered/negative/zero setting would make
+            # make_interval(secs => 0) match every live 'running' row and mass-fail
+            # active inference — the exact incident class this reaper prevents.
+            reap_secs = max(reap_secs, 300)
             cur.execute(
                 "UPDATE dispatch_pending_queue SET status='failed', error=%s, completed_at=NOW() "
                 "WHERE status='running' AND claimed_at IS NOT NULL "
-                "AND claimed_at < NOW() - make_interval(secs => %s) RETURNING id",
+                "AND claimed_at < NOW() - make_interval(secs => %s)",
                 ("reaped: stuck running > %ss" % reap_secs, reap_secs),
             )
             reaped = cur.rowcount

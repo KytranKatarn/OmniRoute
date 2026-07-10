@@ -68,3 +68,12 @@ def test_never_raises_on_a_clean_run():
     second = run_accounting_audit()
     assert first["ok"] == second["ok"] or True  # data may legitimately drift between calls
     assert isinstance(second["findings"], list)
+
+
+def test_info_findings_do_not_fail_ok():
+    # ok reflects only ACTIONABLE findings (warning/critical/error). An 'info'
+    # awareness signal (e.g. historical unattributed cloud rows, a fabricatable
+    # cloud row) is reported but must NOT set ok=False — else the audit cries wolf.
+    result = run_accounting_audit()
+    actionable = [f for f in result["findings"] if f["severity"] in ("warning", "critical", "error")]
+    assert result["ok"] == (len(actionable) == 0)

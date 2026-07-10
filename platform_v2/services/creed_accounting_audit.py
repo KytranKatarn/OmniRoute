@@ -49,16 +49,21 @@ def _check_no_cloud_carbon(cur) -> Dict[str, Any] | None:
     """Cloud dispatches (``worker_type='contract'``) that used a real-LLM
     ``model_used`` would get watts x Canada-grid-factor carbon fabricated onto
     them by ``carbon_footprint_service.run_carbon_footprint_job()`` /
-    ``per_agent_efficiency()`` — those Python aggregators classify purely by
-    ``_is_llm_model(model)`` and never exclude ``worker_type='contract'``. Only
-    ``co2_g_sql()`` (the A.R.M.A.D.A. display path) already has that exclusion.
-    Provider-side (OpenAI/Anthropic/etc.) inference doesn't run on our grid —
-    0 offending rows expected."""
+    ``per_agent_efficiency()``. As of PR #2175 all three carbon consumers
+    (co2_g_sql + both Python aggregators) exclude ``worker_type='contract'``, so
+    no cloud carbon is fabricated. This is now an INFO awareness signal for the
+    PRECONDITION: a cloud dispatch that is actually fabricatable (success + real
+    ``duration_ms`` + real-LLM model) — a runtime audit can't prove a code guard
+    is present (that is covered by the PR #2175 unit tests), so it surfaces such
+    rows so the guards can be confirmed. Duration-less/failed cloud rows can't
+    fabricate carbon (watts x 0 = 0) and are ignored. 0 rows expected normally."""
     cur.execute(
         """
         SELECT model_used, COUNT(*) AS n
         FROM task_execution_log
         WHERE worker_type = 'contract'
+          AND success = true
+          AND duration_ms > 0
           AND created_at >= NOW() - INTERVAL '%s hours'
         GROUP BY model_used
         """,
@@ -70,11 +75,12 @@ def _check_no_cloud_carbon(cur) -> Dict[str, Any] | None:
         return None
     return _finding(
         "no_cloud_carbon",
-        "warning",
+        "info",
         (
-            f"{count} cloud (worker_type='contract') dispatch(es) in the last {WINDOW_HOURS}h used a "
-            f"real-LLM model_used — carbon_footprint_service's Python aggregators would fabricate "
-            f"local-grid CO2/kWh for provider-side inference. By model: {offending}"
+            f"{count} fabricatable cloud (worker_type='contract') dispatch(es) in the last "
+            f"{WINDOW_HOURS}h (real-LLM model + real duration). The carbon consumers all exclude "
+            f"'contract' (PR #2175, unit-tested), so no carbon is fabricated — this is an awareness "
+            f"signal to confirm those guards hold. By model: {offending}"
         ),
         count,
     )
@@ -249,4 +255,8 @@ def run_accounting_audit() -> Dict[str, Any]:
             "findings": [_finding("audit_error", "error", f"audit query failed: {exc}", 1)],
         }
 
-    return {"ok": len(findings) == 0, "checked_at": checked_at, "findings": findings}
+    # ok = no ACTIONABLE finding. 'info' findings (awareness signals like a fabricatable
+    # cloud row, or historical unattributed rows that age out of the window) are reported
+    # but do NOT fail the audit — only warning/critical/error do.
+    actionable = [f for f in findings if f.get("severity") in ("warning", "critical", "error")]
+    return {"ok": len(actionable) == 0, "checked_at": checked_at, "findings": findings}

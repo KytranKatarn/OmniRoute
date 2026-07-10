@@ -40,6 +40,7 @@
   .ms-muted { opacity:.55; }
   .ms-pager { display:flex; gap:.5rem; align-items:center; margin-top:.75rem; font-size:.8rem; }
   .ms-empty { opacity:.5; padding:1rem; text-align:center; font-size:.85rem; }
+  .ms-chip { display:inline-block; padding:.05rem .4rem; margin:0 .2rem .2rem 0; font-size:.68rem; border-radius:10px; background:rgba(var(--ms-accent-rgb),.14); border:1px solid rgba(var(--ms-accent-rgb),.3); text-transform:lowercase; }
 </style>
 {% endblock %}
 
@@ -70,6 +71,23 @@
   <div class="ms-card">
     <h2>Imports</h2>
     <div id="msImports"><div class="ms-empty">Loading…</div></div>
+  </div>
+
+  <div class="ms-card" id="msPeopleCard">
+    <h2>People <span class="ms-muted" id="msPeopleCount" style="font-size:.8rem;"></span></h2>
+    <p class="ms-muted" style="font-size:.8rem; margin:.2rem 0 .6rem;">Everyone Chronicle knows, unified across every source. Click a person for their cross-source story.</p>
+    <input id="msPeopleSearch" placeholder="Search people…" style="width:100%; max-width:320px; margin-bottom:.6rem; background:rgba(255,255,255,.05); color:inherit; border:1px solid rgba(var(--ms-accent-rgb),.4); border-radius:4px; padding:.35rem .6rem;" />
+    <div id="msPeople"><div class="ms-empty">Loading…</div></div>
+  </div>
+
+  <div class="ms-card" id="msPersonCard" style="display:none;">
+    <button class="ms-btn" id="msPersonBack" style="margin-bottom:.6rem;">← People</button>
+    <div id="msPersonHead"></div>
+    <div id="msPersonSources" style="margin:.5rem 0;"></div>
+    <div id="msPersonStory" style="margin:.6rem 0;"></div>
+    <div id="msPersonVoice" style="margin:.6rem 0;"></div>
+    <h3 style="margin:.8rem 0 .3rem; font-size:.9rem;">Timeline <span class="ms-muted" id="msPersonTlCount" style="font-size:.75rem;"></span></h3>
+    <div id="msPersonTimeline"></div>
   </div>
 
   <div class="ms-card" id="msEmailsCard" style="display:none;">
@@ -515,6 +533,107 @@
     $("msNext").disabled = sel.offset + sel.limit >= sel.total;
   }
 
+  // ---- People hub (cross-source chronicle_entity) ----
+  let _people = [];
+
+  async function loadPeople() {
+    const host = $("msPeople");
+    let data;
+    try { data = await (await fetch(BASE + "/api/people")).json(); }
+    catch (_) { host.textContent = ""; const e = document.createElement("div"); e.className = "ms-empty"; e.textContent = "Failed to load people."; host.appendChild(e); return; }
+    _people = data.people || [];
+    $("msPeopleCount").textContent = "(" + _people.length + ")";
+    renderPeople(_people);
+  }
+
+  function _chip(text) {
+    const s = document.createElement("span");
+    s.className = "ms-chip";
+    s.textContent = text;
+    return s;
+  }
+
+  function renderPeople(list) {
+    const host = $("msPeople");
+    host.textContent = "";
+    if (!list.length) { const e = document.createElement("div"); e.className = "ms-empty"; e.textContent = "No people yet."; host.appendChild(e); return; }
+    const tbl = document.createElement("table");
+    tbl.className = "ms-tbl";
+    const thead = document.createElement("thead");
+    thead.innerHTML = "<tr><th>Name</th><th>Type</th><th>Items</th><th>Sources</th><th></th></tr>"; // static markup only
+    tbl.appendChild(thead);
+    const tb = document.createElement("tbody");
+    list.forEach((p) => {
+      const tr = document.createElement("tr");
+      tr.className = "clickable";
+      const name = document.createElement("td"); name.textContent = p.canonical_name || "(unknown)";
+      const type = document.createElement("td"); type.textContent = p.entity_type || "";
+      const items = document.createElement("td"); items.textContent = p.item_count;
+      const src = document.createElement("td"); (p.sources || []).forEach((s) => src.appendChild(_chip(s)));
+      const badges = document.createElement("td");
+      if (p.has_story) badges.appendChild(_chip("story"));
+      if (p.has_voice) badges.appendChild(_chip("voice"));
+      tr.append(name, type, items, src, badges);
+      tr.addEventListener("click", () => openPerson(p.id));
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb);
+    host.appendChild(tbl);
+  }
+
+  async function openPerson(id) {
+    $("msPersonCard").style.display = "";
+    $("msPersonCard").scrollIntoView({ behavior: "smooth" });
+    const head = $("msPersonHead");
+    head.textContent = "Loading…";
+    let d;
+    try { d = await (await fetch(BASE + "/api/people/" + id)).json(); }
+    catch (_) { head.textContent = "Failed to load."; return; }
+    const e = d.entity || {};
+    head.textContent = "";
+    const h = document.createElement("h2"); h.textContent = e.canonical_name || "(unknown)"; head.appendChild(h);
+    const meta = document.createElement("div"); meta.className = "ms-muted"; meta.style.fontSize = ".8rem";
+    meta.textContent = (e.entity_type || "") + (e.primary_email ? " · " + e.primary_email : "") + ((e.aliases && e.aliases.length > 1) ? " · aka " + e.aliases.join(", ") : "");
+    head.appendChild(meta);
+
+    const srcHost = $("msPersonSources"); srcHost.textContent = "Sources: ";
+    (d.sources || []).forEach((s) => srcHost.appendChild(_chip(s)));
+
+    const storyHost = $("msPersonStory"); storyHost.textContent = "";
+    const sh = document.createElement("h3"); sh.style.cssText = "margin:.2rem 0; font-size:.9rem;"; sh.textContent = "Story"; storyHost.appendChild(sh);
+    const sp = document.createElement("div");
+    if (d.story && d.story.narrative) { sp.textContent = d.story.narrative; }
+    else { sp.className = "ms-muted"; sp.style.fontSize = ".82rem"; sp.textContent = "No story yet — synthesize it from the People pipeline."; }
+    storyHost.appendChild(sp);
+
+    const voiceHost = $("msPersonVoice"); voiceHost.textContent = "";
+    const vh = document.createElement("h3"); vh.style.cssText = "margin:.2rem 0; font-size:.9rem;"; vh.textContent = "Voice"; voiceHost.appendChild(vh);
+    const vp = document.createElement("div"); vp.className = "ms-muted"; vp.style.fontSize = ".82rem";
+    vp.textContent = d.voice ? ("Voice profile · " + (d.voice.sample_count || 0) + " samples") : "No voice profile yet.";
+    voiceHost.appendChild(vp);
+    const draftBtn = document.createElement("button"); draftBtn.className = "ms-btn"; draftBtn.disabled = true;
+    draftBtn.textContent = "✍️ Draft in this voice (coming soon)"; draftBtn.style.marginTop = ".4rem";
+    voiceHost.appendChild(draftBtn);
+
+    const tl = d.timeline || [];
+    $("msPersonTlCount").textContent = "(" + tl.length + ")";
+    const tlHost = $("msPersonTimeline"); tlHost.textContent = "";
+    if (!tl.length) { const em = document.createElement("div"); em.className = "ms-empty"; em.textContent = "No linked items."; tlHost.appendChild(em); return; }
+    const tbl = document.createElement("table"); tbl.className = "ms-tbl";
+    tbl.innerHTML = "<thead><tr><th>When</th><th>From</th><th>Subject</th><th>Source</th></tr></thead>"; // static
+    const tb = document.createElement("tbody");
+    tl.forEach((t) => {
+      const tr = document.createElement("tr");
+      const when = document.createElement("td"); when.textContent = t.sent_at ? String(t.sent_at).slice(0, 10) : "—";
+      const from = document.createElement("td"); from.textContent = t.from_addr || "";
+      const subj = document.createElement("td"); subj.textContent = t.subject || "(no subject)"; subj.title = t.snippet || "";
+      const src = document.createElement("td"); src.appendChild(_chip(t.source_kind || ""));
+      tr.append(when, from, subj, src);
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb); tlHost.appendChild(tbl);
+  }
+
   // ---- wire up ----
   const drop = $("msDrop"), fileInput = $("msFile");
   fileInput.addEventListener("change", () => upload(fileInput.files[0]));
@@ -555,8 +674,14 @@
   $("msSensFilter").onchange = () => { sel.offset = 0; renderEmails(); loadTimeline(); };
   $("msPrev").onclick = () => { if (sel.offset > 0) { sel.offset -= sel.limit; renderEmails(); } };
   $("msNext").onclick = () => { if (sel.offset + sel.limit < sel.total) { sel.offset += sel.limit; renderEmails(); } };
+  $("msPeopleSearch").addEventListener("input", (ev) => {
+    const q = ev.target.value.trim().toLowerCase();
+    renderPeople(!q ? _people : _people.filter((p) => (p.canonical_name || "").toLowerCase().includes(q)));
+  });
+  $("msPersonBack").addEventListener("click", () => { $("msPersonCard").style.display = "none"; });
 
   loadImports();
+  loadPeople();
 })();
 </script>
 {% endblock %}

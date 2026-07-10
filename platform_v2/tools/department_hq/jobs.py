@@ -4201,6 +4201,52 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered mailbox_story_worker job (every 10 min, local-only)")
 
+    # Chronicle — per-entity cross-source story synthesis worker.
+    # Synthesizes chronicle_entity_story narratives for resolved chronicle_entity rows with >=2
+    # linked emails and no story yet. Local-only 'summarize' dispatch through the DHQ queue (drains
+    # on a warm cluster node, resumable + defer-on-cold); welfare-gated on the 'summarize' pool;
+    # toggle via platform_settings work:chronicle_story:enabled (default ON). Offset cron minutes
+    # so it doesn't collide with mailbox_story_worker.
+    def _run_chronicle_story_backlog():
+        from database import get_db_cursor as _gdc
+
+        try:
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute(
+                    "SELECT value FROM platform_settings WHERE key=%s",
+                    ("work:chronicle_story:enabled",),
+                )
+                _row = cur.fetchone()
+            if _row and str(_row.get("value")).strip().lower() in ("false", "0", "off", "no"):
+                return
+        except Exception:
+            pass
+        if _wtf_backlog_pool_over_budget("summarize"):
+            logger.info("[ChronicleStory] summarize pool over 24h token budget — deferring (welfare-gated)")
+            return
+        if _wtf_backlog_in_flight_over_cap("summarize"):
+            logger.info("[ChronicleStory] summarize dispatch pipe at in-flight cap — deferring (backpressure)")
+            return
+        try:
+            from services.chronicle_story_service import run_entity_stories
+
+            res = run_entity_stories(owner_id=4, limit=5)
+            if res.get("stories"):
+                logger.info("[ChronicleStory] cycle %s", res)
+        except Exception:
+            logger.exception("[ChronicleStory] cycle failed")
+
+    scheduler.add_job(
+        with_ctx(_run_chronicle_story_backlog),
+        trigger=CronTrigger(minute="7,17,27,37,47,57", timezone="America/Toronto"),
+        id="chronicle_story_worker",
+        name="Chronicle: local-only per-entity story synthesis worker",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered chronicle_story_worker job (every 10 min, local-only)")
+
     # #4343 drift guard: a stale _GPU_CLUSTER node_id (renamed/removed) silently no-ops
     # every GPU-affinity / preferred_node pin -> hub-CPU fallback (the cont-49 stale-name
     # bug class). Hourly check; surfaces drift to logs + an admin notification.

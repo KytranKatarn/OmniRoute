@@ -150,6 +150,10 @@ def per_agent_efficiency(hours: int = 24):
             WHERE created_at > NOW() - INTERVAL '%s hours'
               AND agent_id IS NOT NULL
               AND model_used IS NOT NULL
+              -- Exclude cloud/contractor rows: once cloud dispatch carries the real
+              -- escalating agent_id, the agent_id IS NOT NULL filter no longer excludes
+              -- them, so guard explicitly or we'd fabricate local carbon for cloud calls.
+              AND worker_type IS DISTINCT FROM 'contract'
             GROUP BY agent_id, agent_name, model_used
             """,
             (hours,),
@@ -234,6 +238,11 @@ def run_carbon_footprint_job() -> dict:
                 WHERE success = true
                   AND created_at >= NOW() - INTERVAL '1 hour'
                   AND duration_ms > 0
+                  -- Cloud/contractor inference does NOT run on our cluster, so applying
+                  -- our GPU/CPU wattage to it would FABRICATE local carbon. Mirror the
+                  -- A.R.M.A.D.A. feed (co2_g_sql) + per_agent_efficiency exclusion so the
+                  -- public CREED environmental pillar reconciles across all consumers.
+                  AND worker_type IS DISTINCT FROM 'contract'
                 """,
             )
             rows = cur.fetchall()

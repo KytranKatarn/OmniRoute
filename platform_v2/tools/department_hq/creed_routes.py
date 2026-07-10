@@ -95,7 +95,21 @@ _COORD_WARN_COST_USD = 2.0  # flag when estimated chain cost exceeds $2
 _COORD_BLOCK_COST_USD = 10.0  # block when estimated chain cost exceeds $10
 
 # Welfare thresholds
+# Fallback daily-token limit ONLY for agents with no agent_budgets row. The welfare
+# score uses each agent's real token_limit_per_day (see _build_fleet_agents); this
+# flat value is a safety default, no longer the primary threshold.
 _TOKEN_DAY_LIMIT = 100_000
+
+
+def _welfare_score(stress: float, energy: float, tokens_24h: int, budget: int) -> int:
+    """Public wellness score 0-100 = (1-stress)*40 + energy*30 + token_component,
+    where token_component = 30 * clamp(1 - tokens_24h/budget, 0, 1) against the agent's
+    REAL daily budget (fallback _TOKEN_DAY_LIMIT if the agent has no budget row). An
+    over-budget agent's token_component -> 0, so it reads "strained" not "relaxed".
+    Pure function so the honest-transparency formula is unit-testable."""
+    b = budget if budget and budget > 0 else _TOKEN_DAY_LIMIT
+    token_component = 30.0 * max(0.0, min(1.0, 1.0 - (tokens_24h or 0) / b))
+    return round((1 - stress) * 40 + energy * 30 + token_component)
 
 
 # ── ISED Voluntary Code questionnaire (T3258) ────────────────────────────────
@@ -1856,7 +1870,8 @@ def _build_fleet_agents():
     """Build fleet agent roster grouped by node.
 
     Each agent includes welfare_score = (1-stress)*40 + energy*30 +
-    (30 if 24h tokens <= 100k else 0).
+    30*clamp(1 - tokens_24h/real_budget, 0, 1) — the token component is proportional
+    to load against the agent's REAL daily budget, so an over-budget agent scores low.
     """
     tok_subquery = """
         LEFT JOIN (
@@ -1956,6 +1971,13 @@ def _build_fleet_agents():
         )
         hub_rows = cur.fetchall() or []
 
+        # Real per-agent daily token budget (varies 50k-300k+ by model). The welfare
+        # score MUST measure token-load against THIS, not a flat 100k — otherwise it
+        # mislabels low-budget models "overloaded" and high-budget ones "healthy", and
+        # the PUBLIC CREED grade built on it is dishonest.
+        cur.execute("SELECT agent_id, token_limit_per_day FROM agent_budgets")
+        budgets = {r["agent_id"]: int(r["token_limit_per_day"] or 0) for r in (cur.fetchall() or [])}
+
     nodes: dict = {}
 
     def _add_row(row, node_name, mesh_ip=None):
@@ -1974,8 +1996,7 @@ def _build_fleet_agents():
         stress = float(row["stress_level"])
         energy = float(row["energy_level"])
         tokens_24h = int(row.get("tokens_24h") or 0)
-        not_overloaded = tokens_24h <= _TOKEN_DAY_LIMIT
-        welfare_score = round((1 - stress) * 40 + energy * 30 + (30 if not_overloaded else 0))
+        welfare_score = _welfare_score(stress, energy, tokens_24h, budgets.get(row["id"], 0))
         nodes[node_name]["agents"].append(
             {
                 "id": row["id"],

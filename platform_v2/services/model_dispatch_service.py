@@ -890,6 +890,22 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
         log.debug("model_dispatch: callback failed for task %d: %s", task_id, exc)
 
 
+_WARMUP_MODULES = ("fleet_warmup", "kin_warmth")
+
+
+def _queue_attributed_agent_id(task: dict, module_id: str):
+    """agent_id for a queue-drained task_execution_log row: the SELECTED agent carried on
+    the queue row (``dispatch_pending_queue.agent_id``), EXCEPT warm-up keep-alive
+    (fleet_warmup / kin_warmth) which stays unattributed (None). recal/budget currently
+    exclude warm-up ONLY via ``agent_id IS NULL`` (no module_source filter), so attributing
+    keep-warm pings to their agent would inflate its budget — whether keep-warm should count
+    is the separate 'warm-up pseudo-agent' decision. Returns None when the queue row carries
+    no agent_id."""
+    if module_id in _WARMUP_MODULES:
+        return None
+    return task.get("agent_id")
+
+
 def _log_to_tel(task: dict, result: dict, model_used: str, node_id, duration_ms: int = 0) -> None:
     """Mirror a queue-drained dispatch into task_execution_log (P1.2, #3801).
 
@@ -928,10 +944,20 @@ def _log_to_tel(task: dict, result: dict, model_used: str, node_id, duration_ms:
                 dur_ms = _td // 1_000_000 if _td > 1_000_000 else _td
             except Exception:
                 dur_ms = 0
+        # source_product is the meaningful attribution (wtf_hub, wtf_dhq_*, …) so
+        # module_source is never a useless "unknown" bucket for queue work.
+        module_id = task.get("source_product") or task.get("module_id") or "model_dispatch"
+        # Attribute to the SELECTED agent (the queue row carries agent_id) so cold-load
+        # queue-drained inference is billed to that agent instead of a NULL agent — the sync
+        # path already sets it; this path dropped it, so ~half of drained rows (~1.8M tok/7d)
+        # logged agent_id=NULL and were invisible to per-agent budget/welfare/K.I.N.
+        # accounting. Warm-up keep-alive is deliberately excluded (see
+        # _queue_attributed_agent_id) so recal isn't inflated by keep-warm pings.
         dr = DispatchResult(
             success=True,
             response=result.get("response", "") or "",
             agent_name=task.get("agent_name") or "model_dispatch",
+            agent_id=_queue_attributed_agent_id(task, module_id),
             model_used=result.get("model") or model_used,
             capability=task.get("capability", "") or "",
             prompt_tokens=prompt_toks,
@@ -941,9 +967,6 @@ def _log_to_tel(task: dict, result: dict, model_used: str, node_id, duration_ms:
             metadata=meta,
             queued=False,
         )
-        # source_product is the meaningful attribution (wtf_hub, wtf_dhq_*, …) so
-        # module_source is never a useless "unknown" bucket for queue work.
-        module_id = task.get("source_product") or task.get("module_id") or "model_dispatch"
         get_dispatcher()._log_execution(dr, module_id, task.get("user_id"))
     except Exception as exc:  # never let TEL logging break the drain
         log.debug("model_dispatch: TEL log failed (non-fatal): %s", exc)

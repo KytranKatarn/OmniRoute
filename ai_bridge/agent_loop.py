@@ -475,6 +475,17 @@ class AgentLoop:
         self._last_down_set: frozenset = frozenset()
         self._last_dns_class: str = "healthy"  # vigil_dns_monitor dedup (#4571)
 
+    def _send_telegram(self, message, title="🔔 A.R.C.H.I.E."):
+        """Send a Telegram alert as A.R.C.H.I.E. (thin wrapper over telegram_service.send_info).
+
+        Restores the helper assumed by 8 monitor jobs (Stalwart queue, dependency-CVE,
+        DNS-failure, KIN digest, network alerts, ...). It was never defined, so those
+        alerts silently failed via their surrounding try/except.
+        """
+        from services.telegram_service import send_info
+
+        return send_info(title, message)
+
     def start(self):
         """Attach agent loop jobs to the scheduler."""
         from apscheduler.triggers.interval import IntervalTrigger

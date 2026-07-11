@@ -295,6 +295,20 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
             )
             return cur.fetchone() is not None
 
+    if action_type == "improvement_approve_red":
+        # Red Code-Health findings card the OWNER for permission at proposal
+        # time (owner order 2026-07-11): distinct red proposals must be able to
+        # await approval simultaneously, while the same proposal can never
+        # queue twice (same per-item pattern as linkedin_post / #3944).
+        pid = (action_data or {}).get("proposal_id")
+        if pid is not None:
+            cur.execute(
+                "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+                "AND action_data->>'proposal_id' = %s LIMIT 1",
+                (action_type, str(pid)),
+            )
+            return cur.fetchone() is not None
+
     cur.execute(
         "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
         (action_type,),
@@ -5515,8 +5529,10 @@ class AgentLoop:
                 logger.error(f"Container restart from approval failed: {restart_err}")
                 return {"executed": False, "error": str(restart_err)}
 
-        elif action_type == "improvement_approve":
-            # Approved improvement proposal — trigger auto-execution pipeline
+        elif action_type in ("improvement_approve", "improvement_approve_red"):
+            # Approved improvement proposal — trigger auto-execution pipeline.
+            # improvement_approve_red = a RED Code-Health finding the owner just
+            # approved from the Telegram card; identical execution from here.
             proposal_id = data.get("proposal_id")
             if not proposal_id:
                 return {"executed": False, "error": "No proposal_id in action_data"}

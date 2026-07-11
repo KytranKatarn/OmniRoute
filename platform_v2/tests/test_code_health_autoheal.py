@@ -8,7 +8,17 @@ engine build handoff when explicitly asked.
 
 import inspect
 
+import pytest
+
 import services.code_health_autoheal as ah
+
+
+@pytest.fixture(autouse=True)
+def _stub_recard(monkeypatch):
+    """Keep the pre-existing cycle tests hermetic: the red-permission gate
+    (2026-07-11) added a DB-touching re-card step to the cycle; these tests
+    stub it. test_red_permission_gate.py covers the recard behavior itself."""
+    monkeypatch.setattr(ah, "_recard_unapproved_reds", lambda: 0, raising=False)
 
 
 def _summary(**over):

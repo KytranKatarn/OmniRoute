@@ -474,6 +474,14 @@ def _has_open_audit_proposal(file_path, issue_code):
         return cur.fetchone() is not None
 
 
+def _approval_action_type(severity):
+    """Red findings card the OWNER for permission at PROPOSAL time (owner order
+    2026-07-11): improvement_approve_red is NOT in the tier-1 auto-approve list,
+    so the requested Tier-2 stands and a Telegram approve/deny card is sent.
+    Yellow quality findings stay advise-only (auto-approved improvement_approve)."""
+    return "improvement_approve_red" if severity == "red" else "improvement_approve"
+
+
 def _proposal_metadata(issue, module_name, file_path):
     """Build the proposal metadata dict. Optional issue['meta_extra'] keys (e.g.
     scan_tier/tool/verified_by/line from the static-analysis tier) are merged in
@@ -557,7 +565,7 @@ def _create_audit_proposal(issue, module_name, file_path):
         from agent_loop import request_approval
 
         request_approval(
-            action_type="improvement_approve",
+            action_type=_approval_action_type(severity),
             action_data={
                 "proposal_id": proposal_id,
                 "title": title,
@@ -960,6 +968,8 @@ def dispatch_audit_proposals(limit=20):
             """SELECT id, metadata FROM improvement_proposals
                WHERE status IN ('pending', 'approved', 'fix_requested')
                  AND metadata->>'source' = 'code_health_audit'
+                 AND (COALESCE(metadata->>'severity_tier', 'yellow') <> 'red'
+                      OR status IN ('approved', 'fix_requested'))
                  AND (metadata->>'dispatch_attempted') IS NULL
                ORDER BY
                  CASE WHEN priority = 'critical' THEN 0 ELSE 1 END,

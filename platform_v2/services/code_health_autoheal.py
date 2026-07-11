@@ -85,6 +85,59 @@ def _reverify_static(fingerprints):
     return {"fixed": fixed, "still_open": still_open}
 
 
+def _load_unapproved_reds():
+    """Red static proposals still awaiting owner permission with NO live pending
+    card — created before the red gate existed, or their 24h card expired."""
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """SELECT p.id, p.title FROM improvement_proposals p
+               WHERE p.metadata->>'scan_tier' = 'static'
+                 AND p.metadata->>'severity_tier' = 'red'
+                 AND p.status = 'pending'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM autonomy_approval_queue q
+                     WHERE q.action_type = 'improvement_approve_red'
+                       AND q.status = 'pending'
+                       AND q.action_data->>'proposal_id' = p.id::text)"""
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+
+def _request_red_approval(proposal):
+    """Card the owner (Telegram approve/deny) for one red proposal."""
+    import sys
+
+    sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+    from agent_loop import request_approval
+
+    request_approval(
+        action_type="improvement_approve_red",
+        action_data={"proposal_id": proposal["id"], "title": proposal.get("title", "")},
+        reason=f"RED Code Health finding awaits owner permission: {(proposal.get('title') or '')[:120]}",
+        requested_by="code_health_autoheal",
+        priority=3,
+        tier=2,
+    )
+
+
+def _recard_unapproved_reds():
+    """Safety net: re-card red proposals whose Telegram card expired or never
+    existed, so a missed 24h window can never orphan a red fix. Idempotent —
+    _check_existing_approval dedups per proposal."""
+    recarded = 0
+    for proposal in _load_unapproved_reds():
+        try:
+            _request_red_approval(proposal)
+            recarded += 1
+        except Exception:
+            logger.warning("autoheal: red re-card failed for proposal %s", proposal.get("id"), exc_info=True)
+    if recarded:
+        logger.info("autoheal: re-carded %d red proposals for owner permission", recarded)
+    return recarded
+
+
 def _trigger_engine_build():
     """Ask the archie_engine (Building Machine) to pull Repair Bay work and run
     its coordinate->build->test->PR loop. Mirrors the proven WS frame used by
@@ -117,6 +170,14 @@ def run_autoheal_cycle(target="platform", max_fixes=10, engine_build=False):
     job's telemetry."""
     scan = _deep_scan(target)
 
+    # Re-card any red proposal whose owner-permission card expired (fix work on
+    # reds is HELD until the owner approves; yellows flow advise-only).
+    reds_recarded = 0
+    try:
+        reds_recarded = _recard_unapproved_reds()
+    except Exception:
+        logger.warning("autoheal: red re-card step failed", exc_info=True)
+
     fix_dispatch = {"dispatched": 0, "failed": 0, "skipped": 0}
     if scan.get("proposals_created", 0) > 0:
         try:
@@ -142,6 +203,7 @@ def run_autoheal_cycle(target="platform", max_fixes=10, engine_build=False):
         "advisory": scan.get("advisory", 0),
         "proposals_created": scan.get("proposals_created", 0),
         "skipped_duplicates": scan.get("skipped_duplicates", 0),
+        "reds_recarded": reds_recarded,
         "fix_dispatch": fix_dispatch,
         "static_reverify": static_reverify,
         "coverage": scan.get("coverage", {}),

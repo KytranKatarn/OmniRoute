@@ -21,7 +21,6 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
 from services.time_utils import now_local
 
 logger = logging.getLogger("agent_loop")
@@ -138,7 +137,6 @@ def run_security_audit():
 
         # 2. Check fail2ban
         try:
-            import socket
 
             # Check if fail2ban log exists (proxy for service running)
             r = subprocess.run(
@@ -278,7 +276,7 @@ def daily_dns_report():
             f"Queries: {queries:,} | Blocked: {blocked:,} ({block_pct}%)\n"
             f"Safe browsing blocks: {safe}\n"
             f"Top clients:\n" + "\n".join(client_lines[:3]) + "\n"
-            f"Top blocked:\n" + "\n".join(blocked_lines[:3])
+            "Top blocked:\n" + "\n".join(blocked_lines[:3])
         )
 
         create_security_alert(
@@ -1480,14 +1478,12 @@ def enrich_ip_geolocation():
 def generate_vigil_threat_report():
     """Generate V.I.G.I.L. daily security intelligence report and store in KB."""
     t0 = time.time()
-    enriched = 0
     try:
         from tools.security_network.vigil_analysis import generate_threat_report
         from tools.security_network.security_alerts import create_security_alert
         from database import get_db_cursor
 
         report = generate_threat_report()
-        enriched = 1
 
         # Store in knowledge base for historical record
         try:

@@ -590,7 +590,7 @@ def track_agent_hr():
                         from services.telegram_service import send_info as _archie_coo_send
 
                         _archie_coo_send(
-                            title=f"⚖️ A.R.C.H.I.E. — Agent Welfare Decision",
+                            title="⚖️ A.R.C.H.I.E. — Agent Welfare Decision",
                             message=(
                                 f"I have approved *{row['name']}*'s 8-hour rest cycle as COO.\n\n"
                                 f"{row['name']} has worked *{hours} hours* today, reaching the C.R.E.E.D. "
@@ -665,7 +665,7 @@ def track_agent_hr():
                         )
                         _welfare_buttons(
                             category="agent",
-                            title=f"⚠️ A.R.C.H.I.E. — Welfare Approval Needed",
+                            title="⚠️ A.R.C.H.I.E. — Welfare Approval Needed",
                             message=(
                                 f"*{row['name']}* has worked *{hours} hours* today.\n\n"
                                 f"K.I.N. is monitoring. At *12 hours* I will enforce an 8h rest under C.R.E.E.D. authority.\n\n"
@@ -1497,8 +1497,8 @@ def _check_proficiency_degradation(cur, conn):
                             f"Agent '{display_name}' failed {failure_rate}% of '{capability}' tasks "
                             f"({row['failures']}/{row['total']} in {lookback_days} days).\n\n"
                             f"Recent errors:\n" + "\n".join(error_texts[:10]) + "\n\n"
-                            f"What specific patterns are causing failures? "
-                            f"Give 2-3 actionable corrections the agent should apply."
+                            "What specific patterns are causing failures? "
+                            "Give 2-3 actionable corrections the agent should apply."
                         )
                         result = disp.request_work(
                             capability="summarize",
@@ -2754,7 +2754,6 @@ def signal_linkedin_draft(account_filter="all"):
     into the Tier-2 approval queue — Kytran approves/denies via Telegram.
     On approval, agent_loop executes linkedin_post via browser_service.
     """
-    import json
     import sys
 
     sys.path.insert(0, "/app")
@@ -2805,7 +2804,6 @@ def signal_linkedin_draft(account_filter="all"):
         conn.close()
 
         # ── 3. Dispatch to S.I.G.N.A.L. for content generation ───────────────
-        from tools.department_hq.services.department_dispatcher import dispatch
 
         # Day-of-week content theme — resolved from per-account DB calendar
         from datetime import datetime as _dt
@@ -3266,7 +3264,6 @@ def signal_notification_monitor():
     as Tier-2 approvals. Kytran approves/edits via Telegram before sending.
     """
     from services.browser_service import run_skill_sync
-    from tools.department_hq.services.department_dispatcher import dispatch
 
     start = time.time()
     try:
@@ -3583,14 +3580,13 @@ def signal_tender_post(tender: dict):
     Args:
         tender: {title, value, agency, deadline, url, description}
     """
-    from tools.department_hq.services.department_dispatcher import dispatch
 
     start = time.time()
     title = tender.get("title", "New Federal Tender")
     value = tender.get("value", "")
     agency = tender.get("agency", "")
     deadline = tender.get("deadline", "")
-    tender_url = tender.get("url", "https://canadabuys.canada.ca")
+    tender.get("url", "https://canadabuys.canada.ca")
     value_str = f"${value:,.0f}" if isinstance(value, (int, float)) else str(value)
 
     prompt = (

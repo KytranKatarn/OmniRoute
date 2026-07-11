@@ -127,7 +127,6 @@ def pattern_compliance_check():
     """Job #41: Scan for pattern violations at 4:00 AM."""
     try:
         import os
-        import re
         from services.code_metrics_service import log_audit
 
         tools_dir = "/app/tools" if os.path.isdir("/app/tools") else "/mnt/archie_brain/platform_v2/tools"
@@ -5984,8 +5983,6 @@ def _register_own_jobs(scheduler, flask_app):
           - Accountability       : audit_summary
           - Transparency         : third_party_data_share
         """
-        import json as _json
-        from datetime import datetime as _dt
 
         try:
             from services.creed_privacy_logger import log_privacy_event

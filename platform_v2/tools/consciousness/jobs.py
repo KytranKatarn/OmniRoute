@@ -585,15 +585,15 @@ def sync_learned_skills():
                        WHERE target = 'claude_code'"""
                 )
                 inst_stats = cur_stats.fetchone()
-                lines.append(f"\n## Skill Catalog Pipeline\n")
+                lines.append("\n## Skill Catalog Pipeline\n")
                 lines.append(
                     "> ⚠️ These GitHub-ingested skills are **reference docs**, NOT loadable "
                     "Claude Code skills. Claude Code only loads `.claude/skills/<name>/SKILL.md` "
                     "dirs + `.claude/commands/*.md`; flat files are silently ignored "
                     "(KB #272126). Use them via `mcp search_knowledge` + the index above.\n"
                 )
-                lines.append(f"| Metric | Count |")
-                lines.append(f"|--------|-------|")
+                lines.append("| Metric | Count |")
+                lines.append("|--------|-------|")
                 lines.append(f"| Cataloged (KB-searchable) | {inst_stats['installed']} |")
                 lines.append(f"| Tested (pass) | {inst_stats['passed']} |")
                 lines.append(f"| Tested (fail) | {inst_stats['failed']} |")
@@ -1336,7 +1336,6 @@ Respond with ONLY a JSON object (no markdown, no explanation):
             try:
                 bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
                 if bot_token:
-                    import requests as _req
 
                     text = (
                         f"\U0001f52c *Skill Analysis Complete*\n\n"
@@ -1525,7 +1524,7 @@ def daily_self_reflection():
             daily_self_reflection as _daily_self_reflection,
         )
 
-        result = _daily_self_reflection()
+        _daily_self_reflection()
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle("daily_self_reflection", 1, 0, duration_ms, department="Executive Office")
         if _session:
@@ -1736,7 +1735,7 @@ Respond with ONLY valid JSON:
                     tags = result.get("relevance_tags", [])
                     connections = result.get("platform_connections", [])
                     reasoning = result.get("reasoning", "")
-                    recommendation = result.get("recommendation", "review")
+                    result.get("recommendation", "review")
 
                     # Decision logic: auto-approve high relevance, escalate rest
                     if relevance == "high" and confidence >= 0.7:
@@ -1773,7 +1772,6 @@ Respond with ONLY valid JSON:
                         try:
                             bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
                             if bot_token:
-                                import requests as _req
 
                                 text = (
                                     f"\U0001f50d *Repo Review Needed*\n\n"
@@ -1898,7 +1896,7 @@ def auto_adapt_skills():
         logger.info(f"[SkillAdapt] Adapting {len(skills)} skills for A.R.C.H.I.E.")
 
         for skill in skills:
-            skill_id = skill["skill_id"]
+            skill["skill_id"]
             content = skill.get("normalized_content") or skill.get("description") or ""
             if not content or len(content.strip()) < 50:
                 continue
@@ -2038,7 +2036,6 @@ capabilities: [<list>]
             try:
                 bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
                 if bot_token:
-                    import requests as _req
 
                     text = (
                         f"\U0001f9ec *Skill Adaptation Complete*\n\n"
@@ -2824,9 +2821,6 @@ def _check_push_failure_alerts():
         bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
         if not bot_token:
             return
-
-        import requests as _req
-        from db import get_db
 
         text = "\u26a0\ufe0f *Skill Push Failures*\n\n" f"*{len(failures)}* skills stuck (3+ failures):\n"
         for f in failures[:5]:

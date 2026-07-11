@@ -1047,7 +1047,7 @@ def portrait_auto_approve():
     for row in pending:
         agent_id = row["agent_id"]
         media_id = row["result_media_id"]
-        queue_id = row["queue_id"]
+        row["queue_id"]
         try:
             result = approve_canonical(agent_id, media_id)
             if result.get("error"):

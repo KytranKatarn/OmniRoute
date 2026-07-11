@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import sys
 
@@ -33,9 +33,7 @@ if "/mnt/archie_brain/platform_v2" not in sys.path:
 
 from services.time_utils import now_local_str
 from services.agent_service import (
-    add_skill,
     recover_idle,
-    update_welfare,
 )
 
 logger = logging.getLogger("agent_loop")
@@ -5551,7 +5549,6 @@ class AgentLoop:
                 else:
                     # Trigger Phase 4 auto-execution for non-audit proposals
                     import threading
-                    import importlib
 
                     def _run_auto_execute():
                         try:
@@ -6665,7 +6662,7 @@ class AgentLoop:
                 logger.debug("Dependency audit: no findings")
                 return
 
-            scan_id = store_dependency_findings(findings)
+            store_dependency_findings(findings)
 
             # Alert on critical/high
             critical = [f for f in findings if f["severity"] in ("critical", "high")]
@@ -6674,8 +6671,8 @@ class AgentLoop:
                     "\u26a0\ufe0f *Dependency Audit*\n\n"
                     f"*{len(critical)}* critical/high CVEs found:\n"
                     + "\n".join(f"- {f['package']}=={f['version']}: {f['vuln_id']}" for f in critical[:5])
-                    + f"\n\n[View in Repair Bay]"
-                    f"(http://192.168.1.200:3000/tools/repair-bay)"
+                    + "\n\n[View in Repair Bay]"
+                    "(http://192.168.1.200:3000/tools/repair-bay)"
                 )
 
             duration_ms = int((time.time() - start) * 1000)
@@ -8394,7 +8391,6 @@ class AgentLoop:
         One task per job fire — keeps the queue predictable and Codex from
         building up a backlog faster than it can drain.
         """
-        import json as _json
 
         from database import get_db_cursor
         from services.delegation_service import delegate_task
@@ -9543,7 +9539,6 @@ class AgentLoop:
         Also prunes rows older than 24h so the table stays bounded.
         """
         try:
-            import json
             import socket
             from database import get_db_cursor
             from psycopg2.extras import Json
@@ -9631,7 +9626,7 @@ class AgentLoop:
             # Alert if no successful primary backup in the last 36h.
             try:
                 from database import get_db_cursor
-                from datetime import datetime as _dt, timedelta as _td
+                from datetime import datetime as _dt
 
                 with get_db_cursor() as (_c, _cur):
                     _cur.execute(
@@ -10534,8 +10529,8 @@ class AgentLoop:
                                 f"Agent '{display_name}' failed {failure_rate}% of '{capability}' tasks "
                                 f"({row['failures']}/{row['total']} in {lookback_days} days).\n\n"
                                 f"Recent errors:\n" + "\n".join(error_texts[:10]) + "\n\n"
-                                f"What specific patterns are causing failures? "
-                                f"Give 2-3 actionable corrections the agent should apply."
+                                "What specific patterns are causing failures? "
+                                "Give 2-3 actionable corrections the agent should apply."
                             )
                             result = disp.request_work(
                                 capability="summarize",
@@ -10660,7 +10655,6 @@ class AgentLoop:
     def _send_hr_telegram_alerts(self, cur, conn):
         """Send unnotified critical/warning alerts via Telegram."""
         try:
-            from ai_bridge.telegram_gateway import TelegramGateway
             import asyncio
 
             # Find the running gateway instance

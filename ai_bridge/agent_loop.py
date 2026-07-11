@@ -2364,7 +2364,7 @@ class AgentLoop:
         # Carbon Footprint Monitor — CREED environmental pillar (#3254)
         # Runs every hour, aggregates inference kWh/CO2, pushes to CREED environmental pillar.
         def _run_carbon_footprint():
-            with app.app_context():
+            with self.flask_app.app_context():
                 from services.carbon_footprint_service import run_carbon_footprint_job
 
                 result = run_carbon_footprint_job()
@@ -9517,8 +9517,8 @@ class AgentLoop:
 
             self._log_cycle(
                 "ollama_placement_telemetry",
-                processed=total,
-                failed=cpu if anomaly else 0,
+                items_processed=total,
+                items_failed=cpu if anomaly else 0,
                 duration_ms=int((time.time() - start) * 1000),
                 error_message=(f"sustained_cpu_fallback cpu_share={cpu_share:.2f}" if anomaly else None),
             )
@@ -11627,7 +11627,8 @@ class AgentLoop:
 
             # Build variables dict
             if content_type == "agent_moment":
-                agent = svs.pick_agent_for_content()
+                agent = svs.pick_agent_for_content(content_type)
+                agent_id = agent.get("id")
                 variables = {
                     "agent_name": agent.get("display_name") or agent.get("name", ""),
                     "department": agent.get("department", ""),
@@ -11636,6 +11637,7 @@ class AgentLoop:
                     "project_note": "",
                 }
             else:
+                agent_id = None
                 quotes = [
                     ("The only way to do great work is to love what you do.", "Steve Jobs"),
                     ("The future belongs to those who believe in the beauty of their dreams.", "Eleanor Roosevelt"),
@@ -11665,16 +11667,20 @@ class AgentLoop:
 
             # Determine approval tier and auto-approve eligibility
             approval_tier = rendered.get("approval_tier", "manual")
-            if content_type == "agent_moment" and svs.should_auto_approve(rendered):
+            if content_type == "agent_moment" and svs.should_auto_approve(agent_id, content_type):
                 approval_tier = "auto"
 
             # Create queue item
             item = svs.create_queue_item(
-                template_id=template["id"],
                 content_type=content_type,
-                variables=variables,
-                rendered=rendered,
+                prompt=rendered.get("prompt", ""),
+                caption=rendered.get("caption", ""),
+                hashtags=rendered.get("hashtags"),
+                target_platforms=rendered.get("platforms"),
+                agent_id=agent_id,
+                template_id=template["id"],
                 approval_tier=approval_tier,
+                generation_params=rendered.get("video_params"),
                 created_by="agent_loop",
             )
             logger.info(

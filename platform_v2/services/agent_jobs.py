@@ -3377,6 +3377,8 @@ def _draft_personal_post_from_context(kytran_reply: str, state: dict) -> None:
         # R.O.S.E.T.T.A. short Québécois translation
         qc_draft = ""
         try:
+            from tools.department_hq.services.department_dispatcher import dispatch
+
             t = dispatch(
                 capability="translate",
                 prompt=(

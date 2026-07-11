@@ -2667,9 +2667,9 @@ class AgentLoop:
                             )
                         if _gen_success:
                             try:
-                                from services.agent_service import get_agent_service
+                                from services.agent_service import increment_usage
 
-                                get_agent_service().increment_usage(_pid)
+                                increment_usage(_pid)
                             except Exception:
                                 pass
                     except Exception as _tel_err:
@@ -11744,13 +11744,7 @@ class AgentLoop:
 
                     for platform in platforms:
                         try:
-                            if platform in ("instagram", "facebook"):
-                                from tools.social_media.publishing_service import publish_video
-
-                                result = publish_video(platform, video_path, caption, hashtags)
-                                if result:
-                                    post_urls[platform] = result
-                            elif platform == "indeed":
+                            if platform == "indeed":
                                 from tools.social_media.platform_clients import get_indeed_client
 
                                 result = get_indeed_client().post_video(video_path, caption, hashtags)

@@ -4013,11 +4013,11 @@ def _run_warden_pre_deploy_verify():
         if not ok:
             logger.error("W.A.R.D.E.N.: pre-deploy backup integrity check FAILED: %s", backup_name)
             try:
-                from services.telegram_service import send_alert
+                from services.telegram_service import send_system
 
-                send_alert(
-                    f"W.A.R.D.E.N.: Pre-deploy backup integrity FAILED for {backup_name}. "
-                    f"Review before accepting deploy."
+                send_system(
+                    "W.A.R.D.E.N.: Backup Integrity FAILED",
+                    f"Pre-deploy backup integrity FAILED for {backup_name}. " f"Review before accepting deploy.",
                 )
             except Exception:
                 pass

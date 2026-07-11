@@ -12535,9 +12535,9 @@ class AgentLoop:
 
                                 submit_via_inbox(
                                     category="creed_alert",
-                                    subject=(f"C.R.E.E.D. score alert — {drop}pt drop"),
-                                    body=alert_msg,
-                                    priority="high",
+                                    title=f"C.R.E.E.D. score alert — {drop}pt drop",
+                                    message=alert_msg,
+                                    severity="high",
                                 )
                                 logger.warning(
                                     "[CREED Reporter] Score drop alert sent: " "%.1f -> %.1f",

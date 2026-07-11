@@ -71,6 +71,11 @@ def _ch_async_job(job_type, description, total_steps, work_fn):
 _TOKEN_USAGE_CACHE = {}
 _TOKEN_USAGE_TTL = 600  # seconds
 
+# Same short TTL for the token-buckets endpoint (accounting-integrity view: every
+# token → agent-local / cloud-CLI / infrastructure keep-alive / 0-token marker).
+_TOKEN_BUCKETS_CACHE = {}
+_TOKEN_BUCKETS_TTL = 600  # seconds
+
 
 # ── Engine-facing helpers ─────────────────────────────────────────────────────
 # Shared by the @login_required+@admin_required session routes below AND the
@@ -411,6 +416,93 @@ def register_code_health_routes(bp, admin_required):
 
         snapshots = get_snapshots(limit=365)
         return jsonify({"snapshots": snapshots})
+
+    @bp.route("/api/code-health/token-buckets")
+    @login_required
+    @admin_required
+    def code_health_token_buckets():
+        """Accounting-integrity view for the Token Economy tab: WHERE every token goes.
+
+        Buckets every task_execution_log row in the window into exactly one of:
+          agent   — real local inference attributed to a budgeted AI agent
+          cloud   — worker_type='contract' cloud/CLI (agentless by design)
+          infra   — warm-up keep-alive (fleet_warmup/kin_warmth) — no agent
+          markers — 0-token orchestration/bookkeeping rows
+          other   — real-local rows still lacking an agent_id (should trend to 0)
+        Plus local-vs-cloud totals. Sourced from task_execution_log; short TTL cache.
+        """
+        _INTERVALS = {
+            "1h": "1 hour",
+            "24h": "24 hours",
+            "7": "7 days",
+            "30": "30 days",
+            "90": "90 days",
+            "365": "365 days",
+        }
+        rng = (request.args.get("range") or "").lower()
+        if rng not in _INTERVALS:
+            try:
+                _d = int(request.args.get("days", 30))
+            except (TypeError, ValueError):
+                _d = 30
+            rng = str(_d) if str(_d) in _INTERVALS else "30"
+        interval = _INTERVALS[rng]
+
+        if request.args.get("refresh") != "1":
+            _hit = _TOKEN_BUCKETS_CACHE.get(rng)
+            if _hit and (time.time() - _hit[0]) < _TOKEN_BUCKETS_TTL:
+                payload = dict(_hit[1])
+                payload["_cached"] = True
+                return jsonify(payload)
+
+        # Fixed CASE order = the 5 accounting buckets. Mirrors the exclusion order the
+        # accounting uses: worker_type='contract' first (cloud/CLI is agentless), then
+        # warm-up infra, then 0-token markers, then a real attributed agent row, else a
+        # stray real-local row (target: 0). No user input in the SQL (all literal).
+        bucket_case = (
+            "CASE WHEN worker_type='contract' THEN 'cloud' "
+            "WHEN module_source IN ('fleet_warmup','kin_warmth') THEN 'infra' "
+            "WHEN COALESCE(tokens_used,0)=0 THEN 'markers' "
+            "WHEN agent_id IS NOT NULL THEN 'agent' "
+            "ELSE 'other' END"
+        )
+        rows_by_key = {}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                f"""SELECT {bucket_case} AS bucket,
+                        COUNT(*) AS rows,
+                        COALESCE(SUM(tokens_used),0) AS tok
+                    FROM task_execution_log
+                    WHERE created_at > now() - %s::interval
+                    GROUP BY 1""",
+                (interval,),
+            )
+            for r in cur.fetchall():
+                rows_by_key[r["bucket"]] = (int(r["rows"] or 0), int(r["tok"] or 0))
+
+        _META = [
+            ("agent", "Agent · local inference", "attributed to a budgeted AI agent"),
+            ("cloud", "Cloud / CLI", "worker_type=contract · agentless by design"),
+            ("infra", "Infrastructure · keep-alive", "warm-up — charged to no agent"),
+            ("markers", "Orchestration markers", "0-token bookkeeping rows"),
+            ("other", "Unattributed (stray)", "real-local rows lacking an agent — trends to 0"),
+        ]
+        buckets = []
+        for key, label, desc in _META:
+            rows, tok = rows_by_key.get(key, (0, 0))
+            buckets.append({"key": key, "label": label, "desc": desc, "rows": rows, "tokens": tok})
+        total = sum(b["tokens"] for b in buckets)
+        cloud = rows_by_key.get("cloud", (0, 0))[1]
+        payload = {
+            "range": rng,
+            "total_tokens": total,
+            "cloud_tokens": cloud,
+            "local_tokens": total - cloud,
+            "pct_local": round(100.0 * (total - cloud) / total, 1) if total else 100.0,
+            "buckets": buckets,
+        }
+        _TOKEN_BUCKETS_CACHE[rng] = (time.time(), payload)
+        return jsonify(dict(payload))
 
     @bp.route("/api/code-health/token-usage")
     @login_required

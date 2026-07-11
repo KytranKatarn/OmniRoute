@@ -3929,10 +3929,45 @@ function _mixLocalCloudColor(pct) {
 var _teCache = {};            // {range: {t: epoch_ms, d: payload}}
 var _teClientTTL = 300000;    // 5 min — instant in-session tab re-opens
 
+// --- Token Buckets: accounting-integrity view (WHERE every token goes). Loaded
+// alongside loadTokenEconomy so the same range buttons drive both panels. ---
+var _tbCache = {};
+var _tbClientTTL = 300000;
+var _TB_COLORS = { agent: "#34d399", cloud: "#f59e0b", infra: "#60a5fa", markers: "#64748b", other: "#f43f5e" };
+function _tbFmt(n) { n = +n || 0; if (n >= 1e6) return (n / 1e6).toFixed(2) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "k"; return String(n); }
+function _renderTokenBuckets(d) {
+  var el = document.getElementById("teBuckets");
+  if (!el || !d || !d.buckets) return;
+  var total = d.total_tokens || 0;
+  var html = '<div class="tb-flow">';
+  d.buckets.forEach(function(b) {
+    var pct = total ? (100 * b.tokens / total) : 0;
+    if (pct > 0) html += '<div style="width:' + pct.toFixed(2) + "%;background:" + (_TB_COLORS[b.key] || "#888") + '" title="' + escHtml(b.label) + '"></div>';
+  });
+  html += '</div><div class="tb-legend">';
+  d.buckets.forEach(function(b) {
+    html += '<div class="tb-row"><span class="tb-sw" style="background:' + (_TB_COLORS[b.key] || "#888") + '"></span>'
+      + '<span class="tb-nm">' + escHtml(b.label) + "<span>" + escHtml(b.desc || "") + "</span></span>"
+      + '<span class="tb-tk">' + _tbFmt(b.tokens) + "</span>"
+      + '<span class="tb-rw">' + (b.rows || 0).toLocaleString() + " rows</span></div>";
+  });
+  html += "</div>";
+  el.innerHTML = html;
+}
+function loadTokenBuckets(rng, force) {
+  rng = String(rng || 30);
+  var c = _tbCache[rng];
+  if (!force && c && (Date.now() - c.t) < _tbClientTTL) { _renderTokenBuckets(c.d); return; }
+  api("/api/code-health/token-buckets?range=" + encodeURIComponent(rng) + (force ? "&refresh=1" : ""))
+    .then(function(d) { _tbCache[rng] = { t: Date.now(), d: d }; _renderTokenBuckets(d); })
+    .catch(function() { /* non-critical — never break the tab */ });
+}
+
 // rng is a range token: "1h" | "24h" | 7 | 30 | 90 | 365. Numbers keep the old
 // callers working (loadTokenEconomy(30)); they map to the same daily windows.
 function loadTokenEconomy(rng, force) {
   rng = String(rng || 30);
+  try { loadTokenBuckets(rng, force); } catch (e) {}
   var btns = document.querySelectorAll(".te-range");
   for (var i = 0; i < btns.length; i++) {
     btns[i].classList.toggle("active", String(btns[i].getAttribute("data-te")) === rng);

@@ -2580,14 +2580,18 @@ def _warmup_kokoro():
             import sys
 
             sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-            from ai_bridge.voice_synthesis import KokoroEngine
+            # Warm the ACTUAL request-serving synthesizer singleton with HER exact
+            # voice (agent 2 = af_heart+af_jessica blend + profile + emotion), not a
+            # throwaway KokoroEngine that leaves the singleton cold. Owner directive:
+            # always-loaded voice — the first cockpit/HA TTS must be instant.
+            from ai_bridge.voice_synthesis import get_voice_synthesizer
 
-            if KokoroEngine.check_available():
-                engine = KokoroEngine()
-                engine._get_pipeline("af_heart")  # Load American English pipeline
-                logger.info("Kokoro TTS pipeline warmed up successfully")
+            synth = get_voice_synthesizer()
+            res = synth.synthesize_for_agent("Voice systems online.", 2, user_id=2)
+            if res.get("success"):
+                logger.info("Kokoro TTS warmed (singleton, her voice) — first synth is instant")
             else:
-                logger.info("Kokoro TTS not available, skipping warmup")
+                logger.info("Kokoro warmup: synth unavailable (%s), will lazy-load", res.get("error"))
         except Exception as e:
             logger.warning(f"Kokoro warmup skipped: {e}")
 

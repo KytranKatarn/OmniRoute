@@ -65,3 +65,17 @@ def test_transcribe_failsoft(monkeypatch):
     monkeypatch.setattr(vp.requests, "post", boom)
     out = vp.transcribe(b"x", None)
     assert out["text"] == "" and "error" in out
+
+
+def test_synthesize_uses_long_timeout(monkeypatch):
+    # A first synth that races the platform Kokoro warmup can cold-load (~40s);
+    # the proxy timeout must be long enough not to abort it.
+    seen = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        seen["timeout"] = timeout
+        return _Resp(200, {"success": True, "audio_base64": "QUJD"})
+
+    monkeypatch.setattr(vp.requests, "post", fake_post)
+    vp.synthesize("hi", 2)
+    assert seen["timeout"] >= 90

@@ -30,7 +30,9 @@ def synthesize(text, user_id):
             f"{_base()}/api/internal/voice/synthesize",
             json={"text": text, "user_id": user_id},
             headers=_headers(),
-            timeout=30,
+            # 90s: a first synth that races the platform Kokoro warmup can cold-load
+            # (~40s); after warmup it returns in well under a second.
+            timeout=90,
         )
         data = r.json() if r.content else {}
         if r.status_code == 200:

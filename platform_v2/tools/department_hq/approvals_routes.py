@@ -13,6 +13,31 @@ from flask_login import login_required, current_user
 logger = logging.getLogger(__name__)
 
 
+def _code_fix_label(action_type, meta):
+    """Human-readable label + category for a Code-Health fix approval card,
+    from the proposal metadata — turns the raw 'improvement_approve_red'
+    action_type into e.g. '🔴 Code fix — WRONG_SUBMODULE_IMPORT in
+    security_network/routes.py'. Degrades gracefully when metadata is missing."""
+    meta = meta or {}
+    code = meta.get("issue_code") or "code issue"
+    module = meta.get("module_name") or "?"
+    file_path = meta.get("file_path") or ""
+    short = file_path.rsplit("/", 1)[-1] if file_path else ""
+    loc = f"{module}/{short}" if short else module
+    if str(action_type).endswith("_red"):
+        return "code_fix_red", f"🔴 Code fix — {code} in {loc}"
+    return "code_fix", f"🔧 Code fix — {code} in {loc}"
+
+
+def _code_fix_reason(meta, proposal_id):
+    """Detail line for a code-fix card: SEVERITY · what's wrong · proposal #."""
+    meta = meta or {}
+    sev = (meta.get("severity_tier") or "").upper()
+    detail = meta.get("detail") or meta.get("issue_code") or ""
+    parts = [p for p in (sev, detail, f"proposal #{proposal_id}" if proposal_id else "") if p]
+    return " · ".join(parts)
+
+
 def _build_escalation_chain(agent_display, department, agent_cache):
     """Return [agent_name, department_director_name, 'A.R.C.H.I.E.'] or None.
 
@@ -302,6 +327,33 @@ def register_approvals_routes(bp, admin_required_decorator):
             approvals: list = []
 
             with get_db_cursor() as (conn, cur):
+                # Prefetch Code-Health proposal metadata for rich code-fix labels
+                # (one query, keyed by proposal_id) so every improvement_approve*
+                # card shows real module/issue/file instead of the raw action_type.
+                _prop_meta = {}
+                try:
+                    cur.execute(
+                        """SELECT id, metadata FROM improvement_proposals
+                           WHERE id IN (
+                               SELECT (action_data->>'proposal_id')::int
+                               FROM autonomy_approval_queue
+                               WHERE status = 'pending' AND tier >= 2
+                                 AND action_type IN ('improvement_approve', 'improvement_approve_red')
+                                 AND action_data->>'proposal_id' ~ '^[0-9]+$')"""
+                    )
+                    import json as _json
+
+                    for _pr in cur.fetchall():
+                        _pr = dict(_pr)
+                        _md = (
+                            _pr["metadata"]
+                            if isinstance(_pr["metadata"], dict)
+                            else _json.loads(_pr["metadata"] or "{}")
+                        )
+                        _prop_meta[_pr["id"]] = _md
+                except Exception:
+                    logger.warning("approvals: code-fix metadata prefetch failed", exc_info=True)
+
                 # 1. autonomy_approval_queue — Tier-2 agent loop
                 cur.execute(
                     """SELECT id, action_type, action_data, tier, priority,
@@ -347,6 +399,20 @@ def register_approvals_routes(bp, admin_required_decorator):
                         _to = (_ad.get("to_address") or "?") if isinstance(_ad, dict) else "?"
                         _subj = (_ad.get("subject") or "") if isinstance(_ad, dict) else ""
                         category, display = "email_reply", f"✉️ Reply to {_to} — {_subj[:50]}"
+                    elif at in ("improvement_approve", "improvement_approve_red"):
+                        _ad = r.get("action_data") or {}
+                        try:
+                            _pid = (
+                                int(_ad.get("proposal_id"))
+                                if isinstance(_ad, dict) and _ad.get("proposal_id") is not None
+                                else None
+                            )
+                        except (TypeError, ValueError):
+                            _pid = None
+                        _md = _prop_meta.get(_pid, {})
+                        category, display = _code_fix_label(at, _md)
+                        # override the reason with the concrete finding detail
+                        r["reason"] = _code_fix_reason(_md, _pid) or r.get("reason")
                     else:
                         category, display = "other", at
                     approvals.append(

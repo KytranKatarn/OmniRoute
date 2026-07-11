@@ -718,9 +718,10 @@ def signal_group_image_retry():
             from services.telegram_service import send_info
 
             send_info(
-                "🖼️ WTF group images FIXED — LinkedIn accepted the cover+logo replace "
+                "🖼️ WTF group images fixed",
+                "LinkedIn accepted the cover+logo replace "
                 f"on weekly retry #{count + 1}. Check linkedin.com/groups/37040054/. "
-                "The weekly retry job has self-disabled."
+                "The weekly retry job has self-disabled.",
             )
         except Exception:
             pass
@@ -738,9 +739,10 @@ def signal_group_image_retry():
                 from services.telegram_service import send_info
 
                 send_info(
-                    "🖼️ WTF group image weekly retry giving up after 12 attempts — "
+                    "🖼️ WTF group image retry gave up",
+                    "Weekly retry giving up after 12 attempts — "
                     "LinkedIn still 422s the replace. Fix via mobile app or re-enable "
-                    "by clearing platform_settings signal:group_images:fixed."
+                    "by clearing platform_settings signal:group_images:fixed.",
                 )
             except Exception:
                 pass
@@ -1529,7 +1531,8 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 try:
                     send_system(
-                        f"⚠️ Queue zombie reaper: expired {len(reaped)} tasks " f"stuck >30 min.\nAgents: {summary}"
+                        "⚠️ Queue zombie reaper",
+                        f"Expired {len(reaped)} tasks stuck >30 min.\nAgents: {summary}",
                     )
                 except Exception:
                     pass
@@ -2885,8 +2888,8 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 try:
                     send_system(
-                        f"⚠️ Media generation reaper: {len(reaped)} stuck job(s) "
-                        f"reset to pending (node may have dropped).\n{summary}"
+                        "⚠️ Media generation reaper",
+                        f"{len(reaped)} stuck job(s) reset to pending (node may have dropped).\n{summary}",
                     )
                 except Exception:
                     pass

@@ -493,7 +493,7 @@ def _inbox_send(
     return result
 
 
-def send_security(title: str, message: str, **kwargs) -> dict:
+def send_security(title: str, message: str = "", **kwargs) -> dict:
     """Critical security alert via V.I.G.I.L. — writes to director_reports inbox."""
     return _inbox_send(
         category="security",
@@ -505,7 +505,7 @@ def send_security(title: str, message: str, **kwargs) -> dict:
     )
 
 
-def send_system(title: str, message: str, **kwargs) -> dict:
+def send_system(title: str, message: str = "", **kwargs) -> dict:
     """Infrastructure alert via B.A.S.E. — writes to director_reports inbox.
 
     Persistent conditions (same title + source) are suppressed after the first
@@ -523,7 +523,7 @@ def send_system(title: str, message: str, **kwargs) -> dict:
     )
 
 
-def send_forge(title: str, message: str, **kwargs) -> dict:
+def send_forge(title: str, message: str = "", **kwargs) -> dict:
     """F.O.R.G.E. pipeline notification — writes to director_reports inbox."""
     return _inbox_send(
         category="forge",
@@ -535,7 +535,7 @@ def send_forge(title: str, message: str, **kwargs) -> dict:
     )
 
 
-def send_agent(title: str, message: str, **kwargs) -> dict:
+def send_agent(title: str, message: str = "", **kwargs) -> dict:
     """Agent lifecycle notification via K.I.N. — writes to director_reports inbox."""
     return _inbox_send(
         category="agent",
@@ -547,7 +547,7 @@ def send_agent(title: str, message: str, **kwargs) -> dict:
     )
 
 
-def send_sync(title: str, message: str, **kwargs) -> dict:
+def send_sync(title: str, message: str = "", **kwargs) -> dict:
     """Background sync notification via C.O.D.E.X. — writes to director_reports inbox."""
     return _inbox_send(
         category="sync",
@@ -559,7 +559,7 @@ def send_sync(title: str, message: str, **kwargs) -> dict:
     )
 
 
-def send_info(title: str, message: str, **kwargs) -> dict:
+def send_info(title: str, message: str = "", **kwargs) -> dict:
     """Informational notification from A.R.C.H.I.E. directly (privileged — bypasses inbox)."""
     kwargs.setdefault("source_agent", "A.R.C.H.I.E.")
     kwargs.setdefault("source_department", "Executive Office")

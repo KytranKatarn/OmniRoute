@@ -57,7 +57,11 @@
       <button class="ac-quick-btn" data-cmd="/test" type="button">Run Tests</button>
       <button class="ac-quick-btn" data-cmd="/plan " type="button">Plan Feature</button>
     </div>
+    <div id="ac-attach-chip" class="ac-attach-chip" style="display:none"></div>
     <div class="ac-input-bar">
+      <input type="file" id="ac-attach-input" style="display:none"
+        accept=".pdf,.docx,.doc,.txt,.md,.csv,.json,.png,.jpg,.jpeg,.webp,.gif">
+      <button class="ac-attach-btn" id="ac-attach-btn" type="button" title="Attach a file">&#128206;</button>
       <textarea class="ac-input" id="ac-input" rows="1"
         placeholder="Ask ARCHIE anything&#8230; or delegate a task to her team"
       ></textarea>

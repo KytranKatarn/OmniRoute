@@ -1499,3 +1499,42 @@ body {
   font-size: 12px;
   font-weight: 700;
 }
+
+/* ── Attachments — 📎 button + pending chip (COO Cockpit Slice 2) ─────────── */
+.ac-attach-btn {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+  color: var(--ac-accent-cyan, #00ffff);
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 10px;
+  cursor: pointer;
+}
+.ac-attach-btn:hover { background: rgba(0, 255, 255, 0.10); }
+
+.ac-attach-chip {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+  border-radius: 6px;
+  background: var(--ac-bg-panel, #0d1526);
+  color: var(--ac-text-secondary, #8899aa);
+  font-size: 12px;
+  max-width: 100%;
+}
+.ac-attach-chip-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-attach-chip-x {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--ac-text-dim, #556677);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ac-attach-chip-x:hover { color: var(--ac-accent-red, #ff4444); }

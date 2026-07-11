@@ -128,11 +128,14 @@ class MessageStream {
   }
 
   async send(message, terminalContext = null, isPlanRequest = false) {
-    if (!message.trim()) return;
+    message = (message || '').trim();
+    if (!message && !_pendingAttachment) return;
+    const att = _consumePendingAttachment();
+    if (!message && att) message = 'Please take a look at this attachment.';
     this.inputEl.disabled = true;
     this.sendBtn.disabled = true;
 
-    this._appendBubble('inbound', message, '');
+    this._appendBubble('inbound', message, att ? ('📎 ' + att.filename) : '');
     this._scrollToBottom();
     this._streamingBubble = this._appendBubble('outbound', '', '');
     this._streamingBubble.querySelector('.ac-message-bubble').classList.add('ac-streaming-cursor');
@@ -142,7 +145,7 @@ class MessageStream {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message,
+          message: att ? (att.block + message) : message,
           conversation_id: this.currentConvId,
           terminal_context: terminalContext,
           is_plan_request: isPlanRequest,
@@ -649,6 +652,50 @@ async function _actApproval(id, verb, el) {
   }
 }
 
+/* ── Attachments (COO Cockpit Slice 2) ──────────────────────── */
+// The pending attachment's `block` is prepended to the outgoing message so it
+// rides the DHQ prompt; the bubble shows the typed text + a "📎 filename" meta.
+let _pendingAttachment = null;   // { block, filename, chars, truncated }
+
+function _showAttachChip(a) {
+  const chip = document.getElementById('ac-attach-chip');
+  if (!chip) return;
+  chip.textContent = '';
+  const label = _mk('span', 'ac-attach-chip-label');
+  label.textContent = '📎 ' + a.filename + (a.chars ? ' (' + a.chars + ' chars' + (a.truncated ? ', truncated' : '') + ')' : '');
+  const x = _mk('button', 'ac-attach-chip-x'); x.type = 'button'; x.textContent = '×';
+  x.addEventListener('click', () => {
+    _pendingAttachment = null; chip.style.display = 'none'; chip.textContent = '';
+  });
+  chip.appendChild(label); chip.appendChild(x);
+  chip.style.display = 'flex';
+}
+
+async function _onAttachSelected(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';               // allow re-selecting the same file
+  if (!file) return;
+  const chip = document.getElementById('ac-attach-chip');
+  if (chip) { chip.style.display = 'flex'; chip.textContent = 'Reading ' + file.name + '…'; }
+  try {
+    const fd = new FormData(); fd.append('file', file);
+    const r = await fetch('/api/chat/attach', { method: 'POST', body: fd });
+    const out = await r.json().catch(() => ({}));
+    if (r.ok && out.ok) { _pendingAttachment = out; _showAttachChip(out); }
+    else { _pendingAttachment = null; if (chip) chip.textContent = out.error || 'Could not attach file'; }
+  } catch (_) {
+    _pendingAttachment = null; if (chip) chip.textContent = 'Could not attach file';
+  }
+}
+
+// consume + clear the pending attachment; returns the object or null
+function _consumePendingAttachment() {
+  const a = _pendingAttachment; _pendingAttachment = null;
+  const chip = document.getElementById('ac-attach-chip');
+  if (chip) { chip.style.display = 'none'; chip.textContent = ''; }
+  return a;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('ac-layout');
   if (!layout) return;
@@ -900,6 +947,14 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   document.getElementById('ac-send-btn').addEventListener('click', doSend);
+
+  // Attachments: 📎 opens the file picker; a selection uploads + shows a chip.
+  const _attachBtn = document.getElementById('ac-attach-btn');
+  const _attachInput = document.getElementById('ac-attach-input');
+  if (_attachBtn && _attachInput) {
+    _attachBtn.addEventListener('click', () => _attachInput.click());
+    _attachInput.addEventListener('change', _onAttachSelected);
+  }
   document.getElementById('ac-input').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
   });

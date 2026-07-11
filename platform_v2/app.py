@@ -4566,6 +4566,30 @@ def api_internal_approvals_deny(approval_id):
     return jsonify({"ok": ok_bool}), (200 if ok_bool else 409)
 
 
+ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB upload ceiling for cockpit attachments
+
+
+@app.route("/api/internal/attachments/extract", methods=["POST"])
+@_require_internal_key
+def api_internal_attachments_extract():
+    """Sovereign attachment extraction for the COO cockpit. Bearer INTERNAL_API_KEY.
+    Decodes content_b64 -> temp file -> extract_text_from_file -> capped text.
+    Fail-soft (an unreadable file returns text=''); oversize -> 413."""
+    import base64
+
+    from services.attachment_extract_service import extract_payload
+
+    data = request.get_json(silent=True) or {}
+    filename = data.get("filename") or "attachment"
+    try:
+        raw = base64.b64decode(data.get("content_b64") or "", validate=True)
+    except Exception:
+        return jsonify({"error": "invalid content_b64"}), 400
+    if len(raw) > ATTACHMENT_MAX_BYTES:
+        return jsonify({"error": "file too large", "max_bytes": ATTACHMENT_MAX_BYTES}), 413
+    return jsonify(extract_payload(filename, raw, data.get("mime")))
+
+
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
 @_require_internal_key
 def api_internal_get_session_state(agent_id, platform):

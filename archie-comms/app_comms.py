@@ -314,6 +314,44 @@ def api_approvals_act(approval_id, verb):
     return jsonify(out), (200 if out.get("ok") else 502)
 
 
+_ATTACH_MAX_BYTES = 10 * 1024 * 1024  # 10 MB cockpit upload ceiling
+
+
+@app.route("/api/chat/attach", methods=["POST"])
+def api_chat_attach():
+    """Owner-only: extract an uploaded file's text (sovereign, on the platform).
+    Bytes are held in memory only and forwarded base64 to the platform extract
+    endpoint. Fail-SOFT: an extraction failure still returns a block with a note
+    so the chat message can send without the attachment context."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "no file"}), 400
+    raw = f.read()
+    if len(raw) > _ATTACH_MAX_BYTES:
+        return jsonify({"error": "file too large (max 10 MB)"}), 413
+    from services.attachment_proxy import extract, format_attachment_block
+
+    name = f.filename or "attachment"
+    res = extract(name, raw, f.mimetype)
+    if not res.get("ok"):
+        block = format_attachment_block(name, "(could not read this file)", False, 0)
+        return jsonify(
+            {"ok": True, "filename": name, "chars": 0, "ocr_used": False,
+             "truncated": False, "block": block, "note": res.get("error")}
+        )
+    text = res.get("text") or "(no readable text found)"
+    chars = res.get("chars", len(text))
+    block = format_attachment_block(name, text, res.get("ocr_used"), chars)
+    return jsonify(
+        {"ok": True, "filename": name, "chars": chars, "ocr_used": bool(res.get("ocr_used")),
+         "truncated": bool(res.get("truncated")), "block": block}
+    )
+
+
 @app.route("/api/send", methods=["POST"])
 def api_send():
     """Platform calls this to send a message through A.R.C.H.I.E.'s voice."""

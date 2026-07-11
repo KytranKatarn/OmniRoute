@@ -3934,6 +3934,7 @@ var _teClientTTL = 300000;    // 5 min — instant in-session tab re-opens
 var _tbCache = {};
 var _tbClientTTL = 300000;
 var _TB_COLORS = { agent: "#34d399", cloud: "#f59e0b", infra: "#60a5fa", markers: "#64748b", other: "#f43f5e" };
+var _chBucketChart = null;
 function _tbFmt(n) { n = +n || 0; if (n >= 1e6) return (n / 1e6).toFixed(2) + "M"; if (n >= 1e3) return (n / 1e3).toFixed(1) + "k"; return String(n); }
 function _renderTokenBuckets(d) {
   var el = document.getElementById("teBuckets");
@@ -3953,6 +3954,35 @@ function _renderTokenBuckets(d) {
   });
   html += "</div>";
   el.innerHTML = html;
+
+  // Buckets over time — stacked area (mirrors chTokenChart). Markers omitted (0-token).
+  var cv = document.getElementById("chBucketChart");
+  if (cv && window.Chart && d.series) {
+    var labels = d.series.map(function(s) { return s.label || s.day; });
+    var mk = function(k) { return d.series.map(function(s) { return s[k] || 0; }); };
+    if (_chBucketChart) _chBucketChart.destroy();
+    _chBucketChart = new Chart(cv, {
+      type: "line",
+      data: { labels: labels, datasets: [
+        { label: "Agent · local", data: mk("agent"), stack: "b", borderColor: _TB_COLORS.agent, backgroundColor: "rgba(52,211,153,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+        { label: "Cloud / CLI", data: mk("cloud"), stack: "b", borderColor: _TB_COLORS.cloud, backgroundColor: "rgba(245,158,11,0.28)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+        { label: "Infrastructure", data: mk("infra"), stack: "b", borderColor: _TB_COLORS.infra, backgroundColor: "rgba(96,165,250,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+        { label: "Stray", data: mk("other"), stack: "b", borderColor: _TB_COLORS.other, backgroundColor: "rgba(244,63,94,0.30)", fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5 }
+      ]},
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 0 },
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          legend: { labels: { color: "rgba(255,255,255,0.6)", boxWidth: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { label: function(c) { return c.dataset.label + ": " + _tbFmt(c.parsed.y); } } }
+        },
+        scales: {
+          x: { ticks: { color: "rgba(255,255,255,0.5)", maxTicksLimit: 8, font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.05)" } },
+          y: { stacked: true, ticks: { color: "rgba(255,255,255,0.5)", font: { size: 10 }, callback: function(v) { return _tbFmt(v); } }, grid: { color: "rgba(255,255,255,0.06)" } }
+        }
+      }
+    });
+  }
 }
 function loadTokenBuckets(rng, force) {
   rng = String(rng || 30);

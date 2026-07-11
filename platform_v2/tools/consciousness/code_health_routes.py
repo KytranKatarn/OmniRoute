@@ -431,22 +431,37 @@ def register_code_health_routes(bp, admin_required):
           other   — real-local rows still lacking an agent_id (should trend to 0)
         Plus local-vs-cloud totals. Sourced from task_execution_log; short TTL cache.
         """
-        _INTERVALS = {
-            "1h": "1 hour",
-            "24h": "24 hours",
-            "7": "7 days",
-            "30": "30 days",
-            "90": "90 days",
-            "365": "365 days",
+        # Range -> interval + time-bucket expression (5min/hour/day) + Toronto-local axis
+        # label -- mirrors the token-usage endpoint so the buckets-over-time chart lines up
+        # with the Local-vs-External one. bucket/label are a fixed whitelist (never user
+        # input) so they are safe to embed; the window is a bound ::interval param.
+        _b5 = "to_timestamp(floor(extract(epoch from created_at)/300)*300)"
+        _bh = "to_timestamp(floor(extract(epoch from created_at)/3600)*3600)"
+        _bd = "(created_at AT TIME ZONE 'America/Toronto')::date"
+        _RANGE = {
+            "1h": {
+                "interval": "1 hour",
+                "bucket": _b5,
+                "label": f"to_char({_b5} AT TIME ZONE 'America/Toronto', 'HH24:MI')",
+            },
+            "24h": {
+                "interval": "24 hours",
+                "bucket": _bh,
+                "label": f"to_char({_bh} AT TIME ZONE 'America/Toronto', 'HH24:MI')",
+            },
+            "7": {"interval": "7 days", "bucket": _bd, "label": "NULL"},
+            "30": {"interval": "30 days", "bucket": _bd, "label": "NULL"},
+            "90": {"interval": "90 days", "bucket": _bd, "label": "NULL"},
+            "365": {"interval": "365 days", "bucket": _bd, "label": "NULL"},
         }
         rng = (request.args.get("range") or "").lower()
-        if rng not in _INTERVALS:
+        if rng not in _RANGE:
             try:
                 _d = int(request.args.get("days", 30))
             except (TypeError, ValueError):
                 _d = 30
-            rng = str(_d) if str(_d) in _INTERVALS else "30"
-        interval = _INTERVALS[rng]
+            rng = str(_d) if str(_d) in _RANGE else "30"
+        spec = _RANGE[rng]
 
         if request.args.get("refresh") != "1":
             _hit = _TOKEN_BUCKETS_CACHE.get(rng)
@@ -466,7 +481,21 @@ def register_code_health_routes(bp, admin_required):
             "WHEN agent_id IS NOT NULL THEN 'agent' "
             "ELSE 'other' END"
         )
+        # Per-bucket token sum for the over-time series (markers omitted -- always 0
+        # tokens). worker_type IS DISTINCT FROM 'contract' == "not cloud" (NULL-safe).
+        series_sql = (
+            "COALESCE(SUM(CASE WHEN worker_type='contract' THEN tokens_used END),0) cloud,"
+            "COALESCE(SUM(CASE WHEN worker_type IS DISTINCT FROM 'contract'"
+            " AND module_source IN ('fleet_warmup','kin_warmth') THEN tokens_used END),0) infra,"
+            "COALESCE(SUM(CASE WHEN worker_type IS DISTINCT FROM 'contract'"
+            " AND COALESCE(module_source,'') NOT IN ('fleet_warmup','kin_warmth')"
+            " AND agent_id IS NOT NULL THEN tokens_used END),0) agent,"
+            "COALESCE(SUM(CASE WHEN worker_type IS DISTINCT FROM 'contract'"
+            " AND COALESCE(module_source,'') NOT IN ('fleet_warmup','kin_warmth')"
+            " AND agent_id IS NULL AND COALESCE(tokens_used,0)>0 THEN tokens_used END),0) other"
+        )
         rows_by_key = {}
+        series = []
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 f"""SELECT {bucket_case} AS bucket,
@@ -475,10 +504,30 @@ def register_code_health_routes(bp, admin_required):
                     FROM task_execution_log
                     WHERE created_at > now() - %s::interval
                     GROUP BY 1""",
-                (interval,),
+                (spec["interval"],),
             )
             for r in cur.fetchall():
                 rows_by_key[r["bucket"]] = (int(r["rows"] or 0), int(r["tok"] or 0))
+
+            cur.execute(
+                f"""SELECT {spec['bucket']} d, {spec['label']} lbl, {series_sql}
+                    FROM task_execution_log
+                    WHERE created_at > now() - %s::interval
+                    GROUP BY d, lbl ORDER BY d""",
+                (spec["interval"],),
+            )
+            for r in cur.fetchall():
+                _d = r.get("d")
+                series.append(
+                    {
+                        "day": _d.isoformat() if _d is not None and hasattr(_d, "isoformat") else _d,
+                        "label": r.get("lbl"),
+                        "agent": int(r.get("agent") or 0),
+                        "cloud": int(r.get("cloud") or 0),
+                        "infra": int(r.get("infra") or 0),
+                        "other": int(r.get("other") or 0),
+                    }
+                )
 
         _META = [
             ("agent", "Agent · local inference", "attributed to a budgeted AI agent"),
@@ -500,6 +549,7 @@ def register_code_health_routes(bp, admin_required):
             "local_tokens": total - cloud,
             "pct_local": round(100.0 * (total - cloud) / total, 1) if total else 100.0,
             "buckets": buckets,
+            "series": series,
         }
         _TOKEN_BUCKETS_CACHE[rng] = (time.time(), payload)
         return jsonify(dict(payload))

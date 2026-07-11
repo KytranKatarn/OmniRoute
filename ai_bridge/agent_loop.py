@@ -8172,7 +8172,7 @@ class AgentLoop:
 
         # Persist a vault note for trend analysis (next run can correlate).
         try:
-            from services.knowledge_service import store_knowledge
+            from tools.consciousness.services.knowledge_service import create_doc
 
             content_lines = [
                 f"# Fleet Capacity Report — {now_local_str()}",
@@ -8191,13 +8191,13 @@ class AgentLoop:
                     f"{'GPU ' + str(n['gpu_vram_gb']) + 'GB' if n['gpu_available'] else 'CPU'}, "
                     f"{n['ram_gb']}GB RAM, status={n['status']}"
                 )
-            store_knowledge(
+            content_lines.append("")
+            content_lines.append("Tags: fleet, capacity-report, autonomy")
+            create_doc(
                 title=f"Fleet Capacity Report {datetime.now(timezone.utc).strftime('%Y-%m-%d')}",
                 content="\n".join(content_lines),
-                knowledge_type="vault_note",
+                doc_type="user",
                 category="fleet_capacity",
-                tags=["fleet", "capacity-report", "autonomy"],
-                importance_score=0.5,
             )
         except Exception as e:
             logger.warning(f"fleet_capacity_report: KB write failed: {e}")
@@ -9312,7 +9312,7 @@ class AgentLoop:
         """Service health probe every 15 min — migrated from app.py."""
         start = time.time()
         try:
-            from tools.dev_hq.routes import _run_and_store_health_check
+            from tools.consciousness.devhq_routes import _run_and_store_health_check
 
             _run_and_store_health_check()
             duration_ms = int((time.time() - start) * 1000)

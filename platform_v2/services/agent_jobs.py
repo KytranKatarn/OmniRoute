@@ -1489,7 +1489,7 @@ def _check_proficiency_degradation(cur, conn):
                         failure_summary["error_patterns"].append(msg[:100])
 
                 if error_texts:
-                    from tools.department_hq.services.bridge_dispatcher import get_dispatcher
+                    from tools.department_hq.services.department_dispatcher import get_dispatcher
 
                     disp = get_dispatcher()
                     if disp:
@@ -2839,16 +2839,17 @@ def signal_linkedin_draft(account_filter="all"):
         # Fetch S.I.G.N.A.L.'s style guide from KB (denial learnings)
         style_notes = ""
         try:
-            from services.knowledge_service import search_knowledge
+            from tools.consciousness.services.knowledge_service import search_knowledge
 
-            style_entries = search_knowledge(
-                query="linkedin style guide denied draft avoid",
+            _sk = search_knowledge(
+                search="linkedin style guide denied draft avoid",
                 category="signal_style_guide",
                 limit=3,
             )
+            style_entries = (_sk or {}).get("entries", [])
             if style_entries:
                 style_notes = "\n\nStyle guide (avoid these patterns):\n" + "\n".join(
-                    f"- {e['content'][:150]}" for e in style_entries
+                    f"- {(e.get('snippet') or e.get('content') or '')[:150]}" for e in style_entries
                 )
         except Exception:
             pass
@@ -3496,21 +3497,20 @@ def signal_post_performance_check():
             preview = (post["content"] or "")[:200]
             hashtags = post.get("hashtags") or []
             try:
-                from services.knowledge_service import store_knowledge
+                from tools.consciousness.services.knowledge_service import create_doc
 
-                store_knowledge(
+                create_doc(
                     title=f"High-Performing LinkedIn Post — {post['posted_at'].strftime('%Y-%m-%d')}",
                     content=(
                         f"This post got {post['impressions']} impressions "
                         f"(avg: {avg_impressions:.0f}, {post['impressions']/avg_impressions:.1f}x baseline).\n\n"
                         f"Hashtags: {', '.join(hashtags)}\n\n"
                         f"Content preview: {preview}\n\n"
-                        f"S.I.G.N.A.L.: write more posts like this."
+                        f"S.I.G.N.A.L.: write more posts like this.\n\n"
+                        f"Tags: linkedin, signal, performance, high_performer"
                     ),
-                    knowledge_type="vault_note",
+                    doc_type="user",
                     category="signal_performance",
-                    tags=["linkedin", "signal", "performance", "high_performer"],
-                    importance_score=0.85,
                 )
                 insights_stored += 1
             except Exception:

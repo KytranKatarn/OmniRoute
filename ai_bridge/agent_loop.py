@@ -11787,8 +11787,8 @@ class AgentLoop:
     def _social_video_slideshow_render(self):
         """Pick up draft social_video_queue items with images and render AutoShorts slideshows."""
         try:
-            from platform_v2.tools.media_studio.services import social_video_service as svs
-            from platform_v2.tools.media_studio.services.slideshow_generator import generate_slideshow
+            from tools.media_studio.services import social_video_service as svs
+            from tools.media_studio.services.slideshow_generator import generate_slideshow
             from database import get_db_cursor
 
             items = svs.svq_get_renderable(limit=2)
@@ -11816,7 +11816,7 @@ class AgentLoop:
                             fp = "/" + fp
                         # Resolve to filesystem path
                         if fp.startswith("/static/"):
-                            from platform_v2.tools.media_studio.services.slideshow_generator import _APP_ROOT
+                            from tools.media_studio.services.slideshow_generator import _APP_ROOT
 
                             abs_path = _APP_ROOT + fp
                         else:
@@ -11839,7 +11839,7 @@ class AgentLoop:
                 )
 
                 if result.get("success"):
-                    from platform_v2.tools.media_studio.services.slideshow_generator import _APP_ROOT as _SG_ROOT
+                    from tools.media_studio.services.slideshow_generator import _APP_ROOT as _SG_ROOT
 
                     def _to_web(p):
                         if p and p.startswith(_SG_ROOT):
@@ -11860,12 +11860,12 @@ class AgentLoop:
     def _social_content_auto_suggest(self):
         """Daily 8am: auto-generate content for calendar slots + detect gaps → Telegram."""
         try:
-            from platform_v2.tools.media_studio.services.calendar_service import (
+            from tools.media_studio.services.calendar_service import (
                 generate_themed_caption,
                 get_empty_days_this_week,
                 get_slots_due_for_generation,
             )
-            from platform_v2.tools.media_studio.services.social_video_service import svq_create
+            from tools.media_studio.services.social_video_service import svq_create
 
             due = get_slots_due_for_generation(days_ahead=3)
             for slot in due:

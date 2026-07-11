@@ -778,6 +778,29 @@ class DepartmentCoordinator:
         """Map a capability to its home department."""
         return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
 
+    @staticmethod
+    def _drop_internal_when_ai_holds_skill(candidates, capability):
+        """From scored ``(score, name, info)`` candidates, drop worker_type='internal'
+        ones IFF a worker_type='ai' candidate holds the skill — so internal agents are
+        selectable only when no AI holds the capability. Never empties the list (the AI
+        holders that trigger the drop are retained). No-op when ``capability`` is falsy
+        or no AI holds it, so internal-only capabilities are unaffected.
+
+        This is the durable generalization of the per-capability skill retirements
+        (migration 457, mistake #279528): a fresh/low-util internal persona could
+        out-score a loaded AI owner, billing real inference to a worker_type='internal'
+        agent that is invisible to the AI budget/welfare/K.I.N. accounting.
+        """
+        if not capability:
+            return candidates
+        ai_holds_skill = any(
+            info.get("worker_type") == "ai" and capability in (info.get("skills") or {})
+            for _score, _name, info in candidates
+        )
+        if not ai_holds_skill:
+            return candidates
+        return [c for c in candidates if c[2].get("worker_type") != "internal"]
+
     def select_agent(
         self,
         capability: str,
@@ -808,6 +831,13 @@ class DepartmentCoordinator:
                     if info["id"] in self._reserved_agents:
                         continue
                 candidates.append((score, name, info))
+
+        # Prefer budgeted AI agents over legacy INTERNAL personas for any capability
+        # an AI can do (keeps real inference on a worker_type='ai' agent visible to the
+        # budget/welfare/K.I.N. accounting). Falls through untouched for internal-only
+        # capabilities. If this empties the ACTIVE set (all AI holders were blocked and
+        # only internal qualified) the barracked-specialist wake below still fires.
+        candidates = self._drop_internal_when_ai_holds_skill(candidates, capability)
 
         if not candidates:
             # Every active candidate blocked/reserved/no-skill-match. Try
@@ -1061,6 +1091,7 @@ class DepartmentCoordinator:
         # (2) Outbound dedication wall — never pull a News & Media agent out.
         skip = {blocked_department, "Executive Office", NEWS_DEPARTMENT}
 
+        internal_fallback = None
         for dept in sorted(all_departments - skip):
             for name, info in self._agent_cache.items():
                 if info.get("department") != dept:
@@ -1073,6 +1104,14 @@ class DepartmentCoordinator:
                     with self._lock:
                         if info["id"] in self._reserved_agents:
                             continue
+                    # Prefer a budgeted AI/contractor holder over a legacy INTERNAL
+                    # persona (same rule as select_agent): keep the first qualifying
+                    # internal as a fallback, but return a non-internal holder if one
+                    # exists so cross-dept inference stays visible to the accounting.
+                    if info.get("worker_type") == "internal":
+                        if internal_fallback is None:
+                            internal_fallback = (info, dept, name)
+                        continue
                     logger.info(
                         "coordinator: cross-dept fallback %s→%s (%s) for %s",
                         blocked_department,
@@ -1081,6 +1120,16 @@ class DepartmentCoordinator:
                         capability,
                     )
                     return info
+        if internal_fallback is not None:
+            info, dept, name = internal_fallback
+            logger.info(
+                "coordinator: cross-dept fallback %s→%s (%s, internal — no AI holder) for %s",
+                blocked_department,
+                dept,
+                name,
+                capability,
+            )
+            return info
         return None
 
     # ------------------------------------------------------------------

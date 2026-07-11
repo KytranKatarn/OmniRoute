@@ -221,13 +221,6 @@ JOB_REGISTRY = {
         "interval": "30m",
         "source_file": "ai_bridge/agent_loop.py",
     },
-    "agent_media_hub_health_check": {
-        "department": "Operations & Infrastructure",
-        "director": "B.A.S.E.",
-        "description": "Probe every enabled Media Hub service (Plex/Jellyfin/Sonarr/…) and persist health_status + health_message",
-        "interval": "10m",
-        "source_file": "ai_bridge/agent_loop.py",
-    },
     "agent_mission_schedule": {
         "department": "Operations & Infrastructure",
         "director": "B.A.S.E.",

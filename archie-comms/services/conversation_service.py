@@ -78,6 +78,74 @@ def _dhq_chat_reply(system_prompt, user_prompt, user_id=None):
         return None
 
 
+def dhq_chat_raw(user_prompt, system_prompt=None, user_id=None):
+    """Full-payload variant of _dhq_chat_reply for API callers that need agent
+    attribution: returns the platform's response dict ({success, response,
+    agent_name, model_used}) or None on ANY failure — same DHQ-preferred,
+    fail-to-None contract so callers degrade explicitly (the v1 REST API
+    returns 502 instead of silently falling back to the local voice)."""
+    key = os.getenv("INTERNAL_API_KEY", "")
+    if not key:
+        return None
+    platform_url = os.getenv("PLATFORM_URL", "http://archie_platform:3000").rstrip("/")
+    try:
+        import requests
+
+        resp = requests.post(
+            f"{platform_url}/api/internal/dhq/chat",
+            json={"prompt": user_prompt, "system_prompt": system_prompt, "user_id": user_id},
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=float(os.getenv("DHQ_CHAT_TIMEOUT", "90")),
+        )
+        if resp.status_code != 200:
+            logger.warning("DHQ chat (v1 api) returned %s", resp.status_code)
+            return None
+        data = resp.json()
+        if data.get("success") and (data.get("response") or "").strip():
+            return data
+        return None
+    except Exception as exc:
+        logger.warning("DHQ chat (v1 api) unreachable: %s", exc)
+        return None
+
+
+def save_chat_message(
+    conversation_id,
+    role,
+    content,
+    agent_used=None,
+    model_used=None,
+    station_code=None,
+    thinking_steps=None,
+    governance_events=None,
+    duration_ms=None,
+    channel="api",
+):
+    """Chat-schema writer for the v1 REST API: stores a unified_messages row
+    shaped exactly as get_conversation_messages() unpacks it (metadata carries
+    role/agent_used/model_used/station_code/duration_ms/thinking/governance).
+    Returns {'id': ...} or None."""
+    direction = "inbound" if role == "user" else "outbound"
+    sender = "user" if role == "user" else (agent_used or "ARCHIE")
+    metadata = {"role": role}
+    if agent_used:
+        metadata["agent_used"] = agent_used
+    if model_used:
+        metadata["model_used"] = model_used
+    if station_code:
+        metadata["station_code"] = station_code
+    if duration_ms is not None:
+        metadata["duration_ms"] = duration_ms
+    if thinking_steps:
+        metadata["thinking_steps"] = thinking_steps
+    if governance_events:
+        metadata["governance_events"] = governance_events
+    result = save_message(conversation_id, channel, direction, sender, content, metadata)
+    if isinstance(result, dict):
+        return result
+    return {"id": result} if result is not None else None
+
+
 def get_or_create_conversation(user_id, topic=None):
     """Get the active conversation for a user, or create a new one."""
     try:

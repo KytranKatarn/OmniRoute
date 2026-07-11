@@ -24,7 +24,7 @@ from services.conversation_service import (
     create_conversation,
     get_conversations,
     get_conversation_by_uuid,
-    save_message,
+    save_chat_message,
     get_conversation_messages,
     archive_conversation,
     auto_title_conversation,
@@ -103,6 +103,25 @@ def _error(code, message, status=400):
     return jsonify({"success": False, "error": {"code": code, "message": message}}), status
 
 
+def dhq_chat(prompt, system_prompt=None, user_id=None):
+    """Seam for the DHQ round-trip (monkeypatched in tests)."""
+    from services.conversation_service import dhq_chat_raw
+
+    return dhq_chat_raw(prompt, system_prompt=system_prompt, user_id=user_id)
+
+
+class _V1Result:
+    """Adapter: DHQ chat payload -> the orchestration-result shape this route
+    renders (agent_used/response/model_used/thinking/governance)."""
+
+    def __init__(self, data):
+        self.response = (data.get("response") or "").strip()
+        self.agent_used = data.get("agent_name") or "A.R.C.H.I.E."
+        self.model_used = data.get("model_used")
+        self.thinking_steps = None
+        self.governance_events = None
+
+
 def _serialize_datetime(obj):
     """Convert datetime fields in a dict to ISO-8601 strings."""
     if obj is None:
@@ -158,9 +177,12 @@ def register_routes(bp, admin_required):
                 return _error("NOT_FOUND", "Conversation not found or access denied", 404)
         else:
             conv = create_conversation(user_id, team_id=team_id, agent_target=agent_target)
+            if not conv:
+                return _error("CONVERSATION_ERROR", "Failed to create conversation", 502)
 
-        # Save user message
-        user_msg = save_message(conv["id"], "user", message)
+        # Save user message (chat-schema writer — save_message's unified
+        # 6-param signature made the old 3-arg call a latent TypeError)
+        save_chat_message(conv["id"], "user", message)
 
         # Auto-title from first message (only when conversation was just created)
         if not conversation_id_param:
@@ -185,13 +207,20 @@ def register_routes(bp, admin_required):
             title_prefix = f"[This conversation is about: {conv['title']}]\n\n"
         contextual_message = f"{title_prefix}{conv_context}{message}" if (title_prefix or conv_context) else message
 
-        # Call orchestration engine
-        # TODO: route through platform HTTP API (archie-comms standalone — no direct bridge access)
+        # Route through the platform's DHQ chat endpoint — welfare/cost-gated,
+        # cold-load-queued, fleet-routed (the ADR-013-compliant path for a
+        # standalone). Explicit 502 when the platform is unreachable: an API
+        # caller should see the degradation, not a silent local fallback.
         try:
-            raise NotImplementedError("archie-comms: orchestration not yet wired to platform API")
-        except NotImplementedError as exc:
-            log.exception("Orchestration failed: %s", exc)
-            return _error("ORCHESTRATION_ERROR", "Failed to generate response", 500)
+            from services.archie_voice_service import _get_system_prompt as _sys_prompt
+
+            system_prompt = _sys_prompt()
+        except Exception:
+            system_prompt = "You are A.R.C.H.I.E., an AI Chief Operating Officer."
+        result_data = dhq_chat(contextual_message, system_prompt=system_prompt, user_id=user_id)
+        if not result_data:
+            return _error("ORCHESTRATION_ERROR", "Failed to generate response", 502)
+        result = _V1Result(result_data)
 
         # Look up agent display_name and station_code
         agent_display_name = None
@@ -236,7 +265,7 @@ def register_routes(bp, admin_required):
             else None
         )
 
-        assistant_msg = save_message(
+        assistant_msg = save_chat_message(
             conv["id"],
             "assistant",
             result.response,
@@ -246,7 +275,7 @@ def register_routes(bp, admin_required):
             station_code=agent_station,
             governance_events=governance_dicts,
             duration_ms=duration_ms,
-        )
+        ) or {"id": None}
 
         # Cross-session memory: ingest conversation for knowledge retrieval
         # TODO: route through platform HTTP API (archie-comms standalone)

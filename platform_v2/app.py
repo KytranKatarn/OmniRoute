@@ -4497,6 +4497,29 @@ def api_internal_dhq_chat():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/internal/session-link", methods=["POST", "GET"])
+@_require_internal_key
+def api_internal_session_link():
+    """archie_engine records/resolves an engine-session <-> comms-conversation
+    link (CLI collaboration: cockpit, archie-tui and the Claude MCP co-drive
+    all resolve the same thread). Service-to-service: Bearer INTERNAL_API_KEY."""
+    from services.session_link_service import get_link, record_link
+
+    if request.method == "GET":
+        session_id = (request.args.get("session_id") or "").strip()
+        if not session_id:
+            return jsonify({"success": False, "error": "session_id required"}), 400
+        return jsonify({"success": True, "session_id": session_id, "conversation_id": get_link(session_id)})
+
+    data = request.get_json(silent=True) or {}
+    session_id = (data.get("session_id") or "").strip()
+    conversation_id = (data.get("conversation_id") or "").strip()
+    if not session_id or not conversation_id:
+        return jsonify({"success": False, "error": "session_id and conversation_id required"}), 400
+    record_link(session_id, conversation_id)
+    return jsonify({"success": True}), 200
+
+
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
 @_require_internal_key
 def api_internal_get_session_state(agent_id, platform):

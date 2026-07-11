@@ -561,7 +561,14 @@ def api_chat_send_message():
     import json as _json
     from flask import Response, session as flask_session, stream_with_context
 
+    # CLI/API-key callers stream with a Bearer chat key (Track B: the CLI's
+    # first-class entry point); browser sessions keep working unchanged.
     user_id = flask_session.get("user_id")
+    if not user_id:
+        from chat.auth_middleware import _check_bearer_token
+
+        bearer_user = _check_bearer_token()
+        user_id = (bearer_user or {}).get("id")
     if not user_id:
         return jsonify({"error": "Not authenticated"}), 401
 

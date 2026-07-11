@@ -4348,6 +4348,18 @@ class DepartmentDispatcher:
                 esc_name = result.escalating_agent_name or "?"
                 log_agent_name = f"{esc_name} →{result.agent_name}" if result.agent_name else esc_name
 
+            # Warm-up keep-alive is INFRASTRUCTURE overhead, not agent work (decision:
+            # warm-up pseudo-agent = NO — warm-up is infra, stays unattributed). Log it
+            # UNATTRIBUTED (agent_id=NULL; keep agent_name as an informational marker of which
+            # model was warmed) so it never inflates any per-agent budget / welfare / K.I.N.
+            # accounting — all of which are keyed on task_execution_log.agent_id. This is the
+            # SINGLE source-of-truth gate (covers sync + queue paths); the recal module_source
+            # filter is belt-and-suspenders for the 30d window. Aggregate carbon/tokens are
+            # unaffected (real model, real energy). Mirrors the contractor override above.
+            is_warmup = module_id in ("fleet_warmup", "kin_warmth")
+            if is_warmup:
+                log_agent_id = None
+
             # Fleet node attribution (migration 384). Populated by
             # _dispatch_to_node via metadata["node_id"] (= remote_nodes.id PK).
             # NULL for hub-direct dispatches. Cast defensively in case metadata
@@ -4503,19 +4515,21 @@ class DepartmentDispatcher:
             # Also update agent-level performance summary via agent_service
             # (Project #241 Track C.3). Skip when contractor did the work —
             # don't credit the agent.
-            if result.agent_id and not is_contractor:
+            if result.agent_id and not is_contractor and not is_warmup:
                 try:
                     from services import agent_service
 
                     agent_service.update_performance_metrics(result.agent_id, result.success)
                 except Exception as exc:
                     logger.warning(f"update_performance_metrics failed: {exc}")
-            # After logging, update agent emotional state based on recent performance
-            if _HAS_AGENT_SERVICE:
-                svc_update_welfare_after_task(result.agent_id, result.success)
-                self._welfare_cache_time = 0
-            else:
-                self._update_agent_welfare(result.agent_id, result.success)
+            # After logging, update agent emotional state based on recent performance.
+            # Skipped for warm-up keep-alive — infrastructure overhead is not a creditable task.
+            if not is_warmup:
+                if _HAS_AGENT_SERVICE:
+                    svc_update_welfare_after_task(result.agent_id, result.success)
+                    self._welfare_cache_time = 0
+                else:
+                    self._update_agent_welfare(result.agent_id, result.success)
             # Record agent memory from this task execution
             self._record_agent_memory(result, module_id)
             # Cloud dispatch is a governed action (#3663 / Cloud Gov D) —

@@ -4058,6 +4058,13 @@ def recalibrate_token_budgets():
                 FROM task_execution_log
                 WHERE created_at >= NOW() - INTERVAL '30 days'
                   AND agent_id IS NOT NULL
+                  -- Warm-up keep-alive is INFRASTRUCTURE overhead, not agent work, so it must
+                  -- never inflate an agent's budget (decision: warm-up pseudo-agent = NO —
+                  -- warm-up is infra, stays unattributed). Today it's already agent_id IS NULL,
+                  -- but exclude by module_source EXPLICITLY so the invariant survives any future
+                  -- warm-up attribution (mirrors model_dispatch_service._WARMUP_MODULES; the
+                  -- fragile agent_id-NULL-only exclusion was KB mistake #279534).
+                  AND COALESCE(module_source, '') NOT IN ('fleet_warmup', 'kin_warmth')
                 GROUP BY agent_id, d
             )
             SELECT da.agent_id, a.name, a.model,

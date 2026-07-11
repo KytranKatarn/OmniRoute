@@ -86,7 +86,7 @@ def creed_gate_pre_fix(proposal_id, agent_id):
 
             # --- 1. Self-modification constraint ---
             cur.execute(
-                """SELECT a.name, a.display_name, a.department
+                """SELECT a.name, a.display_name, a.department, a.shift_state
                    FROM agents a WHERE a.id = %s""",
                 (agent_id,),
             )

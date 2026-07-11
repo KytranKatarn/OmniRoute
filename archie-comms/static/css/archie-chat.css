@@ -1538,3 +1538,44 @@ body {
   cursor: pointer;
 }
 .ac-attach-chip-x:hover { color: var(--ac-accent-red, #ff4444); }
+
+/* ── Voice — 🎤 mic + 🔊 TTS toggle (COO Cockpit Slice 3) ─────────────────── */
+.ac-mic-btn,
+.ac-voice-toggle {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+  color: var(--ac-accent-cyan, #00ffff);
+  border-radius: 6px;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 10px;
+  cursor: pointer;
+}
+.ac-mic-btn:hover,
+.ac-voice-toggle:hover { background: rgba(0, 255, 255, 0.10); }
+
+/* voice toggle ON */
+.ac-voice-toggle[aria-pressed="true"] {
+  background: rgba(0, 255, 255, 0.15);
+  border-color: var(--ac-accent-cyan, #00ffff);
+  box-shadow: 0 0 6px var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+}
+/* she is speaking */
+.ac-voice-toggle.ac-speaking { animation: ac-voice-pulse 1s ease-in-out infinite; }
+
+/* mic recording */
+.ac-mic-btn.ac-recording {
+  color: var(--ac-accent-red, #ff4444);
+  border-color: var(--ac-accent-red, #ff4444);
+  animation: ac-mic-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ac-voice-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--ac-accent-cyan, #00ffff); }
+  50% { box-shadow: 0 0 12px var(--ac-accent-cyan, #00ffff); }
+}
+@keyframes ac-mic-pulse {
+  0%, 100% { box-shadow: 0 0 4px var(--ac-accent-red, #ff4444); }
+  50% { box-shadow: 0 0 12px var(--ac-accent-red, #ff4444); }
+}

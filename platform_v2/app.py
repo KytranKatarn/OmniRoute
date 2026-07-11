@@ -4590,6 +4590,37 @@ def api_internal_attachments_extract():
     return jsonify(extract_payload(filename, raw, data.get("mime")))
 
 
+@app.route("/api/internal/voice/synthesize", methods=["POST"])
+@_require_internal_key
+def api_internal_voice_synthesize():
+    """Cockpit TTS. Bearer INTERNAL_API_KEY. Wraps Kokoro synthesize_for_agent
+    (agent 2 = her canonical af_heart voice + live emotion). Fail-soft."""
+    from services.voice_service import synthesize
+
+    data = request.get_json(silent=True) or {}
+    text = (data.get("text") or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "no text"}), 400
+    return jsonify(synthesize(text, user_id=data.get("user_id") or 2, emotion=data.get("emotion")))
+
+
+@app.route("/api/internal/voice/transcribe", methods=["POST"])
+@_require_internal_key
+def api_internal_voice_transcribe():
+    """Cockpit STT. Bearer INTERNAL_API_KEY. Proxies to the sovereign archie_whisper
+    sidecar (audio never leaves the cluster). Fail-soft."""
+    import base64
+
+    from services.voice_service import transcribe
+
+    data = request.get_json(silent=True) or {}
+    try:
+        raw = base64.b64decode(data.get("audio_b64") or "", validate=True)
+    except Exception:
+        return jsonify({"text": "", "error": "invalid audio_b64"}), 400
+    return jsonify(transcribe(raw, data.get("mime")))
+
+
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
 @_require_internal_key
 def api_internal_get_session_state(agent_id, platform):

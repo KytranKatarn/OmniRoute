@@ -678,6 +678,41 @@ services:
       timeout: 10s
       retries: 3
 
+  # archie_whisper — sovereign STT sidecar (COO Cockpit Slice 3).
+  # faster-whisper 'base' on CPU (no GPU contention with the LLM/image workloads);
+  # model preloaded/warm at boot. Reached by the platform at http://archie_whisper:8090
+  # (Docker-internal only — audio never leaves the cluster).
+  archie_whisper:
+    build: ./whisper_service
+    container_name: archie_whisper
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    volumes:
+      - whisper_models:/models
+    mem_limit: 3g
+    cpus: 2.0
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETGID
+      - SETUID
+    environment:
+      - WHISPER_MODEL=base
+      - PORT=8090
+      - HF_HOME=/models
+      - TZ=America/Toronto
+    networks:
+      - archie_internal
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
   archie_headscale:
     image: headscale/headscale:0.25
@@ -1205,6 +1240,9 @@ networks:
     driver: bridge
 
 volumes:
+  whisper_models:
+    driver: local
+    name: archie_whisper_models
   archie_db:
     driver: local
     name: archie_database

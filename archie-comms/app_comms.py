@@ -352,6 +352,50 @@ def api_chat_attach():
     )
 
 
+@app.route("/api/voice/synthesize", methods=["POST"])
+def api_voice_synthesize():
+    """Owner-only TTS: speak a reply in A.R.C.H.I.E.'s Kokoro voice. Fail-soft
+    (no audio -> the cockpit just shows text)."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    text = ((request.get_json(silent=True) or {}).get("text") or "").strip()
+    if not text:
+        return jsonify({"success": False, "error": "no text"}), 400
+    from services.voice_proxy import synthesize
+
+    return jsonify(synthesize(text, flask_session.get("user_id")))
+
+
+@app.route("/api/voice/transcribe", methods=["POST"])
+def api_voice_transcribe():
+    """Owner-only STT: mic clip (multipart `audio`, or json `audio_b64`) -> the
+    sovereign whisper sidecar. Fail-soft (no transcript -> owner types)."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    f = request.files.get("audio")
+    if f:
+        raw = f.read()
+        mime = f.mimetype
+    else:
+        import base64
+
+        data = request.get_json(silent=True) or {}
+        try:
+            raw = base64.b64decode(data.get("audio_b64") or "")
+        except Exception:
+            return jsonify({"text": "", "error": "bad audio"}), 400
+        mime = data.get("mime")
+    if len(raw) > 25 * 1024 * 1024:
+        return jsonify({"text": "", "error": "audio too large"}), 413
+    from services.voice_proxy import transcribe
+
+    return jsonify(transcribe(raw, mime))
+
+
 @app.route("/api/send", methods=["POST"])
 def api_send():
     """Platform calls this to send a message through A.R.C.H.I.E.'s voice."""

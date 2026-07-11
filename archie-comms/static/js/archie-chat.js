@@ -193,11 +193,14 @@ class MessageStream {
               this._appendToken(evt.content);
               if (!this._userScrolled) this._scrollToBottom();
             } else if (evt.type === 'done') {
+              const _replyText = (this._streamingBubble
+                ? this._streamingBubble.querySelector('.ac-message-bubble').textContent : '').trim();
               this._finaliseStream();
               if (evt.conversation_id && !this.currentConvId) {
                 this.currentConvId = evt.conversation_id;
                 if (this.onConvCreated) this.onConvCreated(evt.conversation_id);
               }
+              if (_voiceOn && _replyText) _speak(_replyText);   // she speaks the reply
             } else if (evt.type === 'error') {
               this._appendToken('\n[Error: ' + evt.message + ']');
               this._finaliseStream();
@@ -696,6 +699,66 @@ function _consumePendingAttachment() {
   return a;
 }
 
+/* ── Voice: TTS playback + mic STT (COO Cockpit Slice 3) ───── */
+// Voice is fail-SOFT everywhere: TTS failure -> no audio (text stays); mic
+// denied/STT failure -> no transcript (owner types). Audio never leaves the
+// cluster (whisper is hub-local). She speaks in her canonical Kokoro voice.
+let _voiceOn = false;
+let _mediaRecorder = null;
+let _audioChunks = [];
+
+function _setPresence(state) {
+  // minimal in this slice (idle|thinking|speaking|listening); full avatar = Slice 4
+  document.body.dataset.presence = state;
+  const vt = document.getElementById('ac-voice-toggle');
+  if (vt) vt.classList.toggle('ac-speaking', state === 'speaking');
+}
+
+async function _speak(text) {
+  try {
+    const r = await fetch('/api/voice/synthesize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+    });
+    const out = await r.json().catch(() => ({}));
+    if (!out.success || !out.audio_base64) return;    // fail-soft: no audio, no error
+    _setPresence('speaking');
+    const audio = new Audio('data:audio/wav;base64,' + out.audio_base64);
+    audio.onended = () => _setPresence('idle');
+    audio.onerror = () => _setPresence('idle');
+    audio.play().catch(() => _setPresence('idle'));
+  } catch (_) { _setPresence('idle'); }
+}
+
+async function _toggleMic(btn) {
+  if (_mediaRecorder && _mediaRecorder.state === 'recording') { _mediaRecorder.stop(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    _mediaRecorder = new MediaRecorder(stream);
+    _audioChunks = [];
+    _mediaRecorder.ondataavailable = e => { if (e.data && e.data.size) _audioChunks.push(e.data); };
+    _mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      btn.classList.remove('ac-recording');
+      _setPresence('idle');
+      const blob = new Blob(_audioChunks, { type: 'audio/webm' });
+      const fd = new FormData();
+      fd.append('audio', blob, 'clip.webm');
+      try {
+        const r = await fetch('/api/voice/transcribe', { method: 'POST', body: fd });
+        const out = await r.json().catch(() => ({}));
+        if (out.text) {                     // fill the input; owner edits + sends (spec default)
+          const inp = document.getElementById('ac-input');
+          inp.value = (inp.value ? inp.value + ' ' : '') + out.text;
+          inp.focus();
+        }
+      } catch (_) { /* fail-soft */ }
+    };
+    _mediaRecorder.start();
+    btn.classList.add('ac-recording');
+    _setPresence('listening');
+  } catch (_) { /* mic denied -> owner types */ }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('ac-layout');
   if (!layout) return;
@@ -954,6 +1017,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (_attachBtn && _attachInput) {
     _attachBtn.addEventListener('click', () => _attachInput.click());
     _attachInput.addEventListener('change', _onAttachSelected);
+  }
+
+  // Voice: 🎤 mic (record -> transcribe -> fill input) + 🔊 TTS toggle (persisted).
+  const _micBtn = document.getElementById('ac-mic-btn');
+  if (_micBtn) _micBtn.addEventListener('click', () => _toggleMic(_micBtn));
+  const _voiceToggle = document.getElementById('ac-voice-toggle');
+  if (_voiceToggle) {
+    _voiceOn = localStorage.getItem('ac_voice_on') === '1';
+    _voiceToggle.setAttribute('aria-pressed', _voiceOn ? 'true' : 'false');
+    _voiceToggle.addEventListener('click', () => {
+      _voiceOn = !_voiceOn;
+      localStorage.setItem('ac_voice_on', _voiceOn ? '1' : '0');
+      _voiceToggle.setAttribute('aria-pressed', _voiceOn ? 'true' : 'false');
+    });
   }
   document.getElementById('ac-input').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }

@@ -496,6 +496,41 @@ def daily_code_health_scan():
         )
 
 
+def _autoheal_enabled():
+    from services.work_control_service import is_enabled
+
+    return is_enabled("agent_code_health_autoheal", default=False)
+
+
+def _run_autoheal():
+    from services.code_health_autoheal import run_autoheal_cycle
+
+    return run_autoheal_cycle(target="platform", max_fixes=10)
+
+
+def code_health_autoheal_job():
+    """Autonomous Code Health heal cycle: static deep scan -> auto-verify gate
+    -> Repair Bay proposals -> DHQ fix dispatch (F.O.R.G.E./V.I.G.I.L.) ->
+    static reverify. Deploy stays HUMAN-GATED. DEFAULT OFF — toggle the
+    work-control key 'agent_code_health_autoheal' in the Autonomy tab."""
+    if not _autoheal_enabled():
+        return
+    start = time.time()
+    try:
+        summary = _run_autoheal() or {}
+        logger.info("[CodeHealthAutoheal] cycle summary: %s", summary)
+        _log_cycle("code_health_autoheal", 1, 0, int((time.time() - start) * 1000))
+    except Exception as e:
+        logger.warning(f"Code health autoheal failed: {e}")
+        _log_cycle(
+            "code_health_autoheal",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
 def daily_recompute_perf_baselines():
     """Job #59: Nightly recompute of P.R.O.B.E. perf baselines (03:45 EDT).
 
@@ -831,6 +866,19 @@ def _register_own_jobs(scheduler, flask_app):
         id="agent_code_health_scan",
         name="Agent Loop: Daily Code Health Scan",
         replace_existing=True,
+    )
+
+    # Autonomous Code Health heal cycle (02:45 AM — after the 2:00 scan;
+    # 03:00/03:15/03:30/03:45 slots are taken). DEFAULT OFF via work-control
+    # key 'agent_code_health_autoheal'. Deploy stays human-gated.
+    scheduler.add_job(
+        with_ctx(code_health_autoheal_job),
+        trigger=CronTrigger(hour=2, minute=45, timezone="America/Toronto"),
+        id="agent_code_health_autoheal",
+        name="Code Health: Autonomous Heal Cycle (static tier)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     # Job #52 — Competitor Landscape Scan (every 2 weeks)

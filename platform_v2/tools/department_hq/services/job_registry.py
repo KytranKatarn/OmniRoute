@@ -5,11 +5,23 @@ Single source of truth for job ownership. Used by:
 - autonomy_loop_log department column
 - Job health reporting
 
-Total: 127 active jobs across 8 source files and 13 departments.
+Total: 128 active jobs across 8 source files and 13 departments.
 """
 
 # Each entry: job_id -> {department, director, description, interval, source_file}
 JOB_REGISTRY = {
+    # ── Code Health static tier (2026-07-11 spec) ──
+    "agent_code_health_autoheal": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": (
+            "Autonomous Code Health heal cycle: static deep scan -> auto-verify gate -> "
+            "Repair Bay proposals -> DHQ fix dispatch -> static reverify. Deploy human-gated. "
+            "DEFAULT OFF — toggled in Autonomy tab"
+        ),
+        "interval": "daily 02:45 ET",
+        "source_file": "tools/department_hq/jobs.py",
+    },
     # =========================================================================
     # ai_bridge/agent_loop.py — 55 jobs
     # =========================================================================

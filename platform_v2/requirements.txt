@@ -135,3 +135,12 @@ weasyprint>=62.0
 # insightface>=0.7.3 and onnxruntime>=1.16.0 — install manually for face detection
 # (requires g++/build-essential; face_service.py degrades gracefully without them)
 langdetect==1.0.9
+
+# Code Health static-analysis scanner tier (2026-07-11 spec)
+# Faithful-runtime linters used by services/code_static_analyzer.py — the
+# scanner reports any of these missing as tools_skipped (partial coverage).
+mypy==1.11.2
+pyflakes==3.2.0
+ruff==0.6.9
+pylint==3.2.7
+bandit==1.7.9

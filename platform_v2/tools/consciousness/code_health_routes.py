@@ -218,6 +218,104 @@ def code_health_job_status_payload(job_id):
     }, 200
 
 
+# ── Static-analysis Deep Scan (scanner tier, Slice 1 — spec 2026-07-11) ──────
+# Seams are module-level + lazily imported so the worker is unit-testable
+# without DB/dispatch and the heavy services only load when a scan runs.
+
+
+def _static_run(target):
+    from services.code_static_analyzer import run as _static_analyzer_run
+
+    return _static_analyzer_run(target)
+
+
+def _gate_findings(findings):
+    from services.finding_gate import gate as _gate
+
+    return _gate(findings)
+
+
+def _submit_confirmed(module_name, issues):
+    from services.audit_pipeline import process_audit_findings
+
+    return process_audit_findings(module_name, issues)
+
+
+def _deep_scan_worker(target="platform", progress_cb=None):
+    """Deep static-analysis scan: faithful-runtime toolchain -> auto-verify gate
+    -> Repair Bay proposals (grouped per module, deduped by the pipeline).
+    Advisory findings are logged + counted, never proposed. Returns the summary
+    dict consumed by code_health_autoheal."""
+
+    def _tick():
+        if progress_cb:
+            try:
+                progress_cb()
+            except Exception:
+                pass
+
+    scan = _static_run(target)
+    _tick()
+    gated = _gate_findings(scan["findings"])
+    _tick()
+
+    confirmed = []
+    advisory = list(gated["advisory"])
+    for finding in gated["confirmed"]:
+        if finding.get("module"):
+            confirmed.append(finding)
+        else:  # unknown runtime root — never mint a broken pipeline file_path
+            advisory.append({**finding, "advisory": True, "gate_reason": "unmapped_path"})
+
+    by_module = {}
+    for finding in confirmed:
+        issue = {
+            "code": finding["code"],
+            "severity": finding.get("severity", "yellow"),
+            "file": finding.get("rel_file") or finding.get("file", ""),
+            "detail": finding.get("message") or finding.get("detail", ""),
+            "meta_extra": {
+                "scan_tier": "static",
+                "tool": finding.get("tool"),
+                "verified_by": finding.get("verified_by"),
+                "line": finding.get("line"),
+                "runtime_file": finding.get("file"),
+            },
+        }
+        by_module.setdefault(finding["module"], []).append(issue)
+
+    proposals_created = 0
+    skipped_duplicates = 0
+    for module_name, issues in by_module.items():
+        try:
+            res = _submit_confirmed(module_name, issues) or {}
+            proposals_created += res.get("proposals_created", 0)
+            skipped_duplicates += res.get("skipped_duplicates", 0)
+        except Exception:
+            logger.warning("deep-scan: Repair Bay submit failed for %s", module_name, exc_info=True)
+    _tick()
+
+    summary = {
+        "target": target,
+        "confirmed": len(confirmed),
+        "advisory": len(advisory),
+        "proposals_created": proposals_created,
+        "skipped_duplicates": skipped_duplicates,
+        "coverage": scan.get("coverage", {}),
+        # (module, rel_file, code) triples of every confirmed finding — the
+        # static reverify in code_health_autoheal compares deployed proposals
+        # against these to stamp fixed/still_open.
+        "fingerprints": [[f["module"], f.get("rel_file") or f.get("file", ""), f["code"]] for f in confirmed],
+    }
+    logger.info("deep-scan summary: %s", summary)
+    if advisory:
+        logger.info(
+            "deep-scan advisories (surfaced, not proposed): %s",
+            [(a.get("tool"), a.get("code"), a.get("file"), a.get("line")) for a in advisory][:50],
+        )
+    return summary
+
+
 def compute_orchestration():
     """Department-ownership + lifecycle aggregation of Code-Health findings.
 
@@ -308,6 +406,23 @@ def register_code_health_routes(bp, admin_required):
         Returns a job_id immediately; poll /api/code-health/job-status/<id>."""
         payload, code = start_code_health_scan()
         return jsonify(payload), code
+
+    @bp.route("/api/code-health/deep-scan", methods=["POST"])
+    @login_required
+    @admin_required
+    def code_health_deep_scan():
+        """Static-analysis deep scan (AST sweeps + linters in the faithful
+        runtime) -> auto-verify gate -> Repair Bay proposals. Async; poll
+        /api/code-health/job-status/<id>."""
+        target = (request.get_json(silent=True) or {}).get("target", "platform")
+
+        def work(job_id, svc):
+            _deep_scan_worker(target, progress_cb=lambda: svc.update_job_progress(job_id, completed_delta=1))
+
+        job_id, err = _ch_async_job("code_health_deep_scan", f"Deep static-analysis scan: {target}", 3, work)
+        if err:
+            return jsonify({"success": False, "already_running": True, "job_id": job_id, "error": err}), 409
+        return jsonify({"success": True, "job_id": job_id, "status": "running"}), 202
 
     @bp.route("/api/code-health/job-status/<int:job_id>")
     @login_required

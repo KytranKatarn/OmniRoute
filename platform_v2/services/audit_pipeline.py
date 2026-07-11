@@ -402,9 +402,13 @@ def reverify_deployed_findings(module_name=None):
     """
     from services.code_metrics_service import audit_single_module, scan_codebase
 
+    # scan_tier='static' proposals are reverified by the static deep-scan
+    # (code_health_autoheal) — this regex re-audit cannot see those codes and
+    # would wrongly stamp them 'fixed'.
     sql = (
         "SELECT id, metadata FROM improvement_proposals "
         "WHERE metadata->>'source' = 'code_health_audit' "
+        "AND COALESCE(metadata->>'scan_tier', 'regex') <> 'static' "
         "AND status IN ('deployed', 'implemented') "
         "AND COALESCE(metadata->>'reverified', '') = '' "
     )
@@ -470,6 +474,23 @@ def _has_open_audit_proposal(file_path, issue_code):
         return cur.fetchone() is not None
 
 
+def _proposal_metadata(issue, module_name, file_path):
+    """Build the proposal metadata dict. Optional issue['meta_extra'] keys (e.g.
+    scan_tier/tool/verified_by/line from the static-analysis tier) are merged in
+    but can never override the core pipeline keys the fix/dedup/reverify paths
+    depend on."""
+    return {
+        **(issue.get("meta_extra") or {}),
+        "source": "code_health_audit",
+        "file_path": file_path,
+        "issue_code": issue["code"],
+        "severity_tier": issue["severity"],
+        "module_name": module_name,
+        "detail": issue.get("detail", ""),
+        "auto_generated": True,
+    }
+
+
 def _create_audit_proposal(issue, module_name, file_path):
     """Create an improvement proposal from a single audit finding. Returns proposal_id."""
     severity = issue["severity"]
@@ -497,17 +518,7 @@ def _create_audit_proposal(issue, module_name, file_path):
         f"({'security — requires immediate attention' if severity == 'red' else 'quality — should be addressed'})\n"
     )
 
-    metadata = json.dumps(
-        {
-            "source": "code_health_audit",
-            "file_path": file_path,
-            "issue_code": issue_code,
-            "severity_tier": severity,
-            "module_name": module_name,
-            "detail": detail,
-            "auto_generated": True,
-        }
-    )
+    metadata = json.dumps(_proposal_metadata(issue, module_name, file_path))
 
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -578,6 +589,17 @@ _ISSUE_CAPABILITY_MAP = {
     "BARE_EXCEPT": "code_review",
     "LARGE_FILE": "code_review",
     "MISSING_INIT": "code",
+    # Static-analysis scanner tier (Slice 1, 2026-07-11) — imports/symbols/arity/
+    # types route to F.O.R.G.E. (code); bandit-confirmed security to V.I.G.I.L.
+    "WRONG_ROOT_IMPORT": "code",
+    "WRONG_SUBMODULE_IMPORT": "code",
+    "MISSING_SYMBOL": "code",
+    "MISSING_METHOD": "code",
+    "WRONG_KWARG": "code",
+    "ARITY_MISMATCH": "code",
+    "TYPE_ERROR": "code",
+    "SYNTAX_ERROR": "code",
+    "SECURITY_STATIC": "vulnerability_scan",
 }
 
 _FIX_PROMPTS = {
@@ -609,7 +631,61 @@ _FIX_PROMPTS = {
         "Return a plan, not a rewrite."
     ),
     "MISSING_INIT": ("Create an __init__.py that imports and exposes the module's public Blueprint and key functions."),
+    # Static-analysis scanner tier (Slice 1, 2026-07-11)
+    "WRONG_ROOT_IMPORT": (
+        "The import path does not resolve in the runtime. Find the correct module path for "
+        "the imported symbols (check tools/, services/, ai_bridge/) and fix ONLY the import "
+        "statement. Keep all other code unchanged."
+    ),
+    "WRONG_SUBMODULE_IMPORT": (
+        "The submodule in this import path does not exist (the root package does). Find the "
+        "correct submodule path for the imported symbols and fix ONLY the import statement. "
+        "Keep all other code unchanged."
+    ),
+    "MISSING_SYMBOL": (
+        "The named symbol is not exported by that module. Locate the correct symbol name, or "
+        "the module that actually exports it, and fix the import. Keep all other code unchanged."
+    ),
+    "MISSING_METHOD": (
+        "The method/attribute does not exist on that object. Either call the correct existing "
+        "method or add the missing method following the class's conventions. Keep the change minimal."
+    ),
+    "WRONG_KWARG": (
+        "The call passes a keyword argument the function does not accept. Consult the function's "
+        "real signature and fix the call site with the correct parameter names. Keep all other "
+        "code unchanged."
+    ),
+    "ARITY_MISMATCH": (
+        "The call passes more positional arguments than the function accepts. Consult the real "
+        "signature and fix the call site. Keep all other code unchanged."
+    ),
+    "TYPE_ERROR": (
+        "mypy flags a type inconsistency at the flagged line. Fix the value/annotation mismatch "
+        "without changing behavior. Keep the change minimal."
+    ),
+    "SYNTAX_ERROR": ("The file fails to parse. Fix the syntax error at the flagged line only."),
+    "SECURITY_STATIC": (
+        "Bandit flagged a potential security issue and an agent verified it as real. Apply the "
+        "minimal secure fix (parameterize queries, avoid unsafe primitives, validate input). "
+        "Keep all other code unchanged."
+    ),
 }
+
+# Codes whose detail strings carry "(line N)" — the fix prompt excerpts around
+# that line instead of sending the first 200 lines (useless for a bug at L4000).
+_LINE_EXCERPT_CODES = (
+    "SQL_INJECTION_RISK",
+    "BARE_EXCEPT",
+    "HARDCODED_SECRET",
+    "WRONG_ROOT_IMPORT",
+    "WRONG_SUBMODULE_IMPORT",
+    "MISSING_SYMBOL",
+    "MISSING_METHOD",
+    "WRONG_KWARG",
+    "ARITY_MISMATCH",
+    "TYPE_ERROR",
+    "SYNTAX_ERROR",
+)
 
 # Code Health scanner emits module placeholders that don't match real filesystem paths.
 # Map placeholder prefix -> real path root (relative to /mnt/archie_brain).
@@ -730,7 +806,7 @@ def dispatch_proposal_fix(proposal_id):
     # For analysis (large file), send first 150 lines
     source_lines = source_content.split("\n")
     detail_str = meta.get("detail", "")
-    if issue_code in ("SQL_INJECTION_RISK", "BARE_EXCEPT", "HARDCODED_SECRET") and "line" in detail_str:
+    if issue_code in _LINE_EXCERPT_CODES and "line" in detail_str:
         try:
             line_num = int("".join(c for c in detail_str.split("line")[-1].strip() if c.isdigit())[:5])
             start_line = max(0, line_num - 20)

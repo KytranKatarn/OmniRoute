@@ -279,6 +279,41 @@ def api_status():
     )
 
 
+@app.route("/api/approvals/pending", methods=["GET"])
+def api_approvals_pending():
+    """Owner-only: the pending Tier-2 approvals the cockpit right-rail renders.
+    Session-auth (kytran_auth OIDC); execution stays on the platform behind the
+    internal key. Read path is fail-soft (empty list on platform trouble)."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.approvals_proxy import list_pending
+
+    return jsonify({"approvals": list_pending()})
+
+
+@app.route("/api/approvals/<path:approval_id>/<verb>", methods=["POST"])
+def api_approvals_act(approval_id, verb):
+    """Owner-only approve/deny for one Tier-2 card. Session-auth; the logged-in
+    user_id is forwarded to the platform. Fail-CLOSED: a non-ok proxy result ->
+    502 so the UI keeps the row pending (never optimistic)."""
+    from flask import session as flask_session
+
+    uid = flask_session.get("user_id")
+    if not uid:
+        return jsonify({"error": "Not authenticated"}), 401
+    if verb not in ("approve", "deny"):
+        return jsonify({"error": "bad verb"}), 400
+    from services.approvals_proxy import approve, deny
+
+    if verb == "approve":
+        out = approve(approval_id, uid)
+    else:
+        out = deny(approval_id, uid, (request.get_json(silent=True) or {}).get("reason", ""))
+    return jsonify(out), (200 if out.get("ok") else 502)
+
+
 @app.route("/api/send", methods=["POST"])
 def api_send():
     """Platform calls this to send a message through A.R.C.H.I.E.'s voice."""
@@ -602,6 +637,21 @@ def api_chat_send_message():
                     except Exception as exc:
                         logger.error("delegation fire failed: %s", exc)
                         yield f"data: {_json.dumps({'type': 'delegation_failed', 'reason': item.get('reason', '')})}\n\n"
+                elif isinstance(item, dict) and item.get("type") == "approvals_list_request":
+                    # A.R.C.H.I.E. asked to show pending approvals -> fetch + render inline.
+                    from services.approvals_proxy import list_pending
+
+                    yield f"data: {_json.dumps({'type': 'approvals_list', 'approvals': list_pending()})}\n\n"
+                elif isinstance(item, dict) and item.get("type") == "approval_action":
+                    # Chat-native approve/deny. Owner user_id (bearer or session) forwarded;
+                    # fail-CLOSED -> ok reflects the platform's real result.
+                    from services.approvals_proxy import approve, deny
+
+                    if item.get("verb") == "approve":
+                        res = approve(item["approval_id"], user_id)
+                    else:
+                        res = deny(item["approval_id"], user_id, item.get("reason", ""))
+                    yield f"data: {_json.dumps({'type': 'approval_done', 'approval_id': item['approval_id'], 'verb': item.get('verb'), 'ok': res.get('ok', False)})}\n\n"
                 elif isinstance(item, dict):
                     yield f"data: {_json.dumps(item)}\n\n"
                 else:

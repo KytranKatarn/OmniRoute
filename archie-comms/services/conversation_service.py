@@ -940,6 +940,46 @@ _DELEGATION_SYSTEM_PROMPT = (
     "include it for regular conversation."
 )
 
+# --- Approval markers (COO Cockpit Slice 1) — same rail as {{DELEGATE}} -------
+_APPROVALS_RE = _re.compile(r"\{\{APPROVALS\}\}")
+_APPROVE_RE = _re.compile(r'\{\{APPROVE\s+id="([^"]+)"\s*\}\}')
+_DENY_RE = _re.compile(r'\{\{DENY\s+id="([^"]+)"(?:\s+reason="([^"]*)")?\s*\}\}')
+
+_APPROVALS_SYSTEM_PROMPT = (
+    "[APPROVALS] You help the owner manage his pending approvals. When he asks to SEE "
+    "pending approvals, emit the marker {{APPROVALS}} (nothing else needed). When he "
+    'tells you to approve a specific one, emit {{APPROVE id="autonomy:N"}} using the id '
+    "from the list you last showed him; to deny, emit "
+    '{{DENY id="autonomy:N" reason="..."}}. Resolve references like "the family_tree one" '
+    "to the matching id from that list. Emit a marker ONLY when he explicitly asks; never "
+    "invent ids."
+)
+
+
+def _extract_approval_markers(text):
+    """Return (events, clean_text): harvest {{APPROVALS}}/{{APPROVE}}/{{DENY}}
+    markers into SSE events and strip them from the visible reply text."""
+    events = []
+    if _APPROVALS_RE.search(text):
+        events.append({"type": "approvals_list_request"})
+    for m in _APPROVE_RE.finditer(text):
+        events.append(
+            {"type": "approval_action", "verb": "approve", "approval_id": m.group(1), "reason": ""}
+        )
+    for m in _DENY_RE.finditer(text):
+        events.append(
+            {
+                "type": "approval_action",
+                "verb": "deny",
+                "approval_id": m.group(1),
+                "reason": m.group(2) or "",
+            }
+        )
+    clean = _APPROVALS_RE.sub("", text)
+    clean = _APPROVE_RE.sub("", clean)
+    clean = _DENY_RE.sub("", clean)
+    return events, clean
+
 
 # ---------------------------------------------------------------------------
 # Sub-A KB Memory Helpers and Streaming (Task #2349)
@@ -1076,6 +1116,7 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     if memory_prefix:
         system_prompt = f"{memory_prefix}\n\n{system_prompt}"
     system_prompt = f"{system_prompt}\n\n{_DELEGATION_SYSTEM_PROMPT}"
+    system_prompt = f"{system_prompt}\n\n{_APPROVALS_SYSTEM_PROMPT}"
     if is_plan_request:
         system_prompt = f"{_PLANNING_SYSTEM_PROMPT}\n\n{system_prompt}"
     if terminal_context:
@@ -1120,11 +1161,15 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
         })
         return ""
 
-    clean_text = _DELEGATE_RE.sub(_collect_delegate, complete_text).strip()
+    clean_text = _DELEGATE_RE.sub(_collect_delegate, complete_text)
+    # Harvest {{APPROVALS}}/{{APPROVE}}/{{DENY}} on the same rail as {{DELEGATE}}.
+    approval_events, clean_text = _extract_approval_markers(clean_text)
+    clean_text = clean_text.strip()
 
-    # Yield clean chunks before done — re-emit each chunk with markers stripped
+    # Yield clean chunks before done — re-emit each chunk with ALL markers stripped
     for raw_token in full_parts:
         clean_token = _DELEGATE_RE.sub("", raw_token)
+        _drop, clean_token = _extract_approval_markers(clean_token)
         if clean_token:
             yield clean_token
 
@@ -1141,7 +1186,9 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
             {"role": "assistant", "conversation_id": conv_id},
         )
 
-    # Yield done first, then any delegation events
+    # Yield done first, then delegation events, then approval events
     yield {"type": "done", "conversation_id": conv_id}
     for evt in delegation_events:
+        yield evt
+    for evt in approval_events:
         yield evt

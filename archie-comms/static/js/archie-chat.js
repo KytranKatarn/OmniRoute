@@ -174,6 +174,18 @@ class MessageStream {
               if (!this._userScrolled) this._scrollToBottom();
             } else if (evt.type === 'delegation_failed') {
               this._appendToken('\n[Delegation failed: ' + (evt.reason || 'unknown') + ']');
+            } else if (evt.type === 'approvals_list') {
+              const items = evt.approvals || [];
+              const wrap = _mk('div', 'ac-approvals-inline');
+              const head = _mk('div', 'ac-approvals-inline-head');
+              head.textContent = items.length ? ('Pending approvals (' + items.length + ')') : 'No pending approvals';
+              wrap.appendChild(head);
+              items.forEach(a => wrap.appendChild(_renderApprovalCard(a)));
+              this.messageListEl.appendChild(wrap);
+              if (!this._userScrolled) this._scrollToBottom();
+            } else if (evt.type === 'approval_done') {
+              this._appendToken('\n[' + (evt.verb === 'approve' ? 'Approved' : 'Denied') + ' ' + evt.approval_id + ': ' + (evt.ok ? 'done' : 'failed') + ']');
+              loadApprovals();
             } else if (evt.type === 'token') {
               this._appendToken(evt.content);
               if (!this._userScrolled) this._scrollToBottom();
@@ -565,6 +577,78 @@ class DelegationCard {
 }
 
 /* ── Boot ───────────────────────────────────────────────── */
+/* ── Approvals panel (COO Cockpit Slice 1) ──────────────────── */
+// display_name + reason arrive pre-formatted from the platform (_code_fix_label,
+// PR #2205). All text via textContent — XSS-safe. Approve/Deny are fail-CLOSED:
+// the card is only removed on a real ok, otherwise it stays and flags an error.
+function _renderApprovalCard(a) {
+  const el = _mk('div', 'ac-approval-card');
+  el.dataset.id = a.id;
+  const title = _mk('div', 'ac-approval-title');
+  title.textContent = a.display_name || a.action_type || a.id;
+  const reason = _mk('div', 'ac-approval-reason');
+  reason.textContent = a.reason || '';
+  const btns = _mk('div', 'ac-approval-btns');
+  const ok = _mk('button', 'ac-approval-approve');
+  ok.type = 'button';
+  ok.textContent = 'Approve';
+  ok.addEventListener('click', () => _actApproval(a.id, 'approve', el));
+  const no = _mk('button', 'ac-approval-deny');
+  no.type = 'button';
+  no.textContent = 'Deny';
+  no.addEventListener('click', () => _actApproval(a.id, 'deny', el));
+  btns.appendChild(ok);
+  btns.appendChild(no);
+  el.appendChild(title);
+  el.appendChild(reason);
+  el.appendChild(btns);
+  return el;
+}
+
+async function loadApprovals() {
+  const listEl = document.getElementById('ac-approvals-list');
+  const countEl = document.getElementById('ac-approvals-count');
+  if (!listEl) return;
+  try {
+    const r = await fetch('/api/approvals/pending');
+    if (!r.ok) return;
+    const data = await r.json();
+    const approvals = data.approvals || [];
+    listEl.textContent = '';
+    if (!approvals.length) {
+      const empty = _mk('div', 'ac-approvals-empty');
+      empty.textContent = 'No pending approvals';
+      listEl.appendChild(empty);
+    } else {
+      approvals.forEach(a => listEl.appendChild(_renderApprovalCard(a)));
+    }
+    if (countEl) countEl.textContent = approvals.length;
+  } catch (_) { /* fail-soft: leave the last-rendered panel in place */ }
+}
+
+async function _actApproval(id, verb, el) {
+  el.classList.remove('ac-error');
+  el.classList.add('ac-busy');
+  try {
+    const r = await fetch(`/api/approvals/${encodeURIComponent(id)}/${verb}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    const out = await r.json().catch(() => ({}));
+    if (r.ok && out.ok) {
+      el.remove();          // only clear the card on a REAL success
+      loadApprovals();      // refresh the right-rail count
+    } else {
+      el.classList.remove('ac-busy');
+      el.classList.add('ac-error');   // fail-CLOSED: card stays pending
+    }
+  } catch (_) {
+    el.classList.remove('ac-busy');
+    el.classList.add('ac-error');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('ac-layout');
   if (!layout) return;
@@ -827,6 +911,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   sessions.load();
   status.start();
+
+  // Approvals right-rail panel: load now + refresh every 30s.
+  loadApprovals();
+  setInterval(loadApprovals, 30000);
 
   document.querySelectorAll('.ac-quick-btn').forEach(btn => {
     btn.addEventListener('click', () => {

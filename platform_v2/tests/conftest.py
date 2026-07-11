@@ -156,7 +156,10 @@ def _load_flask_app():
     internal import (e.g. `from app import User`) resolves to this module
     rather than the /app/__init__.py package stub.
     """
-    spec = importlib.util.spec_from_file_location("flask_app_module", "/app/app.py")
+    # Default to the live checkout; ARCHIE_APP_PY lets a bundle/worktree run
+    # (feature branch synced to /tmp/wt) test its OWN app.py instead of /app.
+    app_py = os.environ.get("ARCHIE_APP_PY", "/app/app.py")
+    spec = importlib.util.spec_from_file_location("flask_app_module", app_py)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["app"] = mod  # shadow the package stub before exec
     spec.loader.exec_module(mod)

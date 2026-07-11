@@ -1421,3 +1421,81 @@ body {
 }
 .ac-collab-send:hover:not(:disabled) { background: #5cffff; }
 .ac-collab-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Approvals panel + cards (COO Cockpit Slice 1) ───────────── */
+.ac-approvals-badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  margin-left: 6px;
+  border-radius: 9px;
+  background: var(--ac-accent-cyan, #00ffff);
+  color: #041018;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 18px;
+}
+.ac-approvals-list { display: flex; flex-direction: column; gap: 6px; }
+.ac-approvals-empty { color: var(--ac-text-dim, #556677); font-size: 12px; padding: 4px 2px; }
+
+.ac-approval-card {
+  background: var(--ac-bg-panel, #0d1526);
+  border: 1px solid var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+  border-left: 3px solid var(--ac-accent-cyan, #00ffff);
+  border-radius: 4px;
+  padding: 8px;
+  transition: opacity var(--ac-transition, 0.25s ease);
+}
+.ac-approval-card.ac-busy { opacity: 0.5; pointer-events: none; }
+.ac-approval-card.ac-error { border-left-color: var(--ac-accent-red, #ff4444); }
+.ac-approval-title {
+  color: var(--ac-text-primary, #e0e6f0);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  word-break: break-word;
+}
+.ac-approval-reason {
+  color: var(--ac-text-secondary, #8899aa);
+  font-size: 11px;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.ac-approval-btns { display: flex; gap: 6px; }
+.ac-approval-btns button {
+  flex: 1;
+  padding: 4px 8px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+}
+.ac-approval-approve {
+  color: var(--ac-accent-green, #00ff88);
+  border-color: var(--ac-accent-green, #00ff88) !important;
+}
+.ac-approval-approve:hover { background: rgba(0, 255, 136, 0.12); }
+.ac-approval-deny {
+  color: var(--ac-accent-red, #ff4444);
+  border-color: var(--ac-accent-red, #ff4444) !important;
+}
+.ac-approval-deny:hover { background: rgba(255, 68, 68, 0.12); }
+
+/* chat-inline approvals (from a {{APPROVALS}} request) */
+.ac-approvals-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 8px;
+  border: 1px dashed var(--ac-border-cyan, rgba(0, 255, 255, 0.25));
+  border-radius: 6px;
+}
+.ac-approvals-inline-head {
+  color: var(--ac-accent-cyan, #00ffff);
+  font-size: 12px;
+  font-weight: 700;
+}

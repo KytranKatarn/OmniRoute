@@ -4520,6 +4520,52 @@ def api_internal_session_link():
     return jsonify({"success": True}), 200
 
 
+@app.route("/api/internal/approvals/pending", methods=["GET"])
+@_require_internal_key
+def api_internal_approvals_pending():
+    """Cockpit-facing pending Tier-2 approvals. Service-to-service: Bearer
+    INTERNAL_API_KEY. Reuses the exact list the DHQ Approvals tab renders
+    (incl. the PR #2205 code-fix labels), so the archie_comms cockpit shows
+    the same 77 red cards + others."""
+    from tools.department_hq.approvals_routes import list_pending_approvals
+
+    return jsonify({"approvals": list_pending_approvals()})
+
+
+@app.route("/api/internal/approvals/<path:approval_id>/approve", methods=["POST"])
+@_require_internal_key
+def api_internal_approvals_approve(approval_id):
+    """Cockpit approve. Bearer INTERNAL_API_KEY; owner user_id from the body
+    (default 2 = Kytran). Fail-closed: a non-ok executor result -> 409 and the
+    queue row stays pending. Slice 1 targets autonomy:* (the red Code-Health
+    cards); contractor/bridge sources are 501 until a later slice wires them."""
+    from tools.department_hq.approvals_routes import _approve_autonomy, parse_approval_id
+
+    user_id = (request.get_json(silent=True) or {}).get("user_id") or 2
+    source, source_id = parse_approval_id(approval_id)
+    if source != "autonomy":
+        return jsonify({"ok": False, "error": f"source '{source}' not supported yet"}), 501
+    ok, action_type = _approve_autonomy(source_id, user_id)
+    return jsonify({"ok": bool(ok), "action_type": action_type}), (200 if ok else 409)
+
+
+@app.route("/api/internal/approvals/<path:approval_id>/deny", methods=["POST"])
+@_require_internal_key
+def api_internal_approvals_deny(approval_id):
+    """Cockpit deny. Same auth/owner-default/fail-closed contract as approve."""
+    from tools.department_hq.approvals_routes import _deny_autonomy, parse_approval_id
+
+    data = request.get_json(silent=True) or {}
+    user_id = data.get("user_id") or 2
+    reason = data.get("reason") or "denied via cockpit"
+    source, source_id = parse_approval_id(approval_id)
+    if source != "autonomy":
+        return jsonify({"ok": False, "error": f"source '{source}' not supported yet"}), 501
+    ok = _deny_autonomy(source_id, user_id, reason)
+    ok_bool = ok[0] if isinstance(ok, tuple) else bool(ok)
+    return jsonify({"ok": ok_bool}), (200 if ok_bool else 409)
+
+
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
 @_require_internal_key
 def api_internal_get_session_state(agent_id, platform):

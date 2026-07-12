@@ -608,6 +608,23 @@ class AgentLoop:
             coalesce=True,
         )
 
+        # Cockpit fast-front keep-warm (2026-07-12): keep the cockpit's conversational model
+        # (COCKPIT_CHAT_MODEL, llama3.2:3b) resident on the Defiant GPU node so A.R.C.H.I.E.'s
+        # FIRST reply never cold-loads (the 14-34s variance the owner saw after PR #2217 routed
+        # cockpit chat there). The deepen follow-up's 7B is already warmed by
+        # forge_review_model_keepwarm on the same node, so this warms ONLY the small fast-front
+        # model — no second 7B runner, no 8GB-VRAM crowding. Online-gated, every 4 min / 10m
+        # keep_alive. Toggle via id=cockpit_node_model_keepwarm.
+        self.scheduler.add_job(
+            with_app_context(self._keep_cockpit_node_model_warm),
+            trigger=IntervalTrigger(minutes=4),
+            id="cockpit_node_model_keepwarm",
+            name="Agent Loop: Cockpit Node Model Keep-Warm",
+            max_instances=1,
+            replace_existing=True,
+            coalesce=True,
+        )
+
         # ST-4 observer (2026-06-23): alert if F.O.R.G.E. review quality silently regresses — a guard
         # flag turned off, or the structured(json) ratio crashing. Every 6h, 12h alert cooldown.
         self.scheduler.add_job(
@@ -3435,6 +3452,78 @@ class AgentLoop:
             )
         except Exception as e:
             logger.warning("[Agent Loop] F.O.R.G.E. review keep-warm failed: %s", e)
+
+    def _keep_cockpit_node_model_warm(self):
+        """Keep the interactive cockpit FAST-FRONT model (llama3.2:3b) resident on the
+        cockpit's GPU node (Starship-246 'Defiant', RTX 3070) so A.R.C.H.I.E.'s first
+        reply never cold-loads.
+
+        The cockpit chat routes its conversational reply to this node with a fast
+        GPU-resident model (COCKPIT_CHAT_MODEL, default llama3.2:3b) — PR #2217. But
+        cockpit chats are sporadic (usually far apart), so the model unloaded between them
+        (the node KEEP_ALIVE lapsed) and each first reply cold-loaded → the 14-34s variance
+        the owner saw. This pins it resident. The deepen follow-up's 7B is already covered by
+        _keep_forge_review_model_warm on this SAME node, so we warm ONLY the small fast-front
+        model here (no second 7B runner → no 8GB-VRAM crowding).
+
+        Warmed at the cockpit's default num_ctx (the cockpit dispatch sets none) so the chat
+        reuses this exact runner with no reload. Online-gated (graceful skip when the node is
+        offline / in its 8PM-6AM hardware rest). Runs every 4 min with a 10m keep_alive —
+        mirrors the sibling keep-warms so even a chat that resets keep_alive never lapses
+        before the next ping. A direct /api/generate ping is the sanctioned ADR-013 exception
+        for keep-warm only. Toggle via the job id `cockpit_node_model_keepwarm`.
+        """
+        import time
+
+        start = time.time()
+        node_id = "starship_76583490e36955ab"  # Defiant USS-246 (RTX 3070)
+        node_label = "Defiant USS-246"
+        model = os.getenv("COCKPIT_CHAT_MODEL", "llama3.2:3b")  # matches the cockpit fast-front routing
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute(
+                    "SELECT mesh_ip, hostname, status, "
+                    "EXTRACT(EPOCH FROM (NOW() - last_heartbeat)) AS hb_age "
+                    "FROM remote_nodes WHERE node_id = %s",
+                    (node_id,),
+                )
+                row = cur.fetchone()
+        except Exception as e:
+            logger.warning("[Agent Loop] Cockpit node keep-warm: node lookup failed: %s", e)
+            return
+        if not row:
+            return
+        host = row.get("mesh_ip") or row.get("hostname")
+        if row.get("status") != "online" or (row.get("hb_age") or 9999) > 180 or not host:
+            logger.info("[Agent Loop] Cockpit node keep-warm: %s offline/stale — skip", node_label)
+            return
+
+        try:
+            import requests as req
+
+            data = {
+                "model": model,
+                "prompt": "warm",
+                "stream": False,
+                # No num_ctx → matches the cockpit dispatch's default runner (a different
+                # num_ctx is a separate Ollama runner = a reload). No num_gpu → the small 3B
+                # lands on the RTX 3070 first (fast); it's tiny so a CPU spill is fine too.
+                "options": {"num_predict": 1},
+                "keep_alive": "10m",
+            }
+            resp = req.post(f"http://{host}:11434/api/generate", json=data, timeout=600)
+            ok = resp.status_code == 200
+            logger.info(
+                "[Agent Loop] Cockpit node keep-warm: %s on %s %s (%dms)",
+                model,
+                node_label,
+                "warm" if ok else f"FAILED {resp.status_code}",
+                int((time.time() - start) * 1000),
+            )
+        except Exception as e:
+            logger.warning("[Agent Loop] Cockpit node keep-warm failed: %s", e)
 
     def _keep_citadel_async_model_warm(self):
         """Win 2 (2026-06-23): keep the documentation model (mistral:7b) warm on Citadel (boston-2,

@@ -268,7 +268,13 @@ def api_public_stats():
     """Public landing-page stats (no auth) — live active-agent + knowledge-base counts from
     the shared DB, so the marketing landing shows real numbers instead of '—'/stale hardcodes.
     Only aggregate marketing counts are exposed. Fail-soft: nulls for anything unavailable."""
-    out = {"agents_active": None, "departments": None, "kb_entries": None, "kb_coverage_pct": None}
+    out = {
+        "agents_active": None,
+        "departments": None,
+        "kb_entries": None,
+        "kb_coverage_pct": None,
+        "telegram_last": None,
+    }
     try:
         from database import get_db_cursor
 
@@ -290,6 +296,12 @@ def api_public_stats():
             if r and r["total"]:
                 out["kb_entries"] = r["total"]
                 out["kb_coverage_pct"] = round(r["emb"] / r["total"] * 100)
+            # Telegram liveness — most-recent ops-message timestamp ONLY (no content). Kept
+            # LAST so a failure here can't poison the agent/KB values already set above.
+            cur.execute("SELECT MAX(created_at) AS last FROM telegram_message_log")
+            r = cur.fetchone()
+            if r and r["last"]:
+                out["telegram_last"] = r["last"].isoformat()
     except Exception as exc:
         logger.error("api_public_stats failed: %s", exc)
     return jsonify(out)

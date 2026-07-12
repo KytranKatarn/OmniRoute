@@ -20,15 +20,18 @@ def _fresh_app(monkeypatch):
 def test_public_stats_returns_live_counts(monkeypatch):
     app_comms = _fresh_app(monkeypatch)
 
-    class _Cur:
-        def __init__(self):
-            self._kb = False
+    from datetime import datetime, timezone
 
+    class _Cur:
         def execute(self, sql):
-            self._kb = "knowledge_base" in sql
+            self._q = "tg" if "telegram_message_log" in sql else ("kb" if "knowledge_base" in sql else "agents")
 
         def fetchone(self):
-            return {"total": 36592, "emb": 36400} if self._kb else {"n": 54, "depts": 17}
+            if self._q == "kb":
+                return {"total": 36592, "emb": 36400}
+            if self._q == "tg":
+                return {"last": datetime(2026, 7, 12, 22, 0, tzinfo=timezone.utc)}
+            return {"n": 54, "depts": 17}
 
     @contextlib.contextmanager
     def _fake_cursor(*a, **k):
@@ -39,6 +42,7 @@ def test_public_stats_returns_live_counts(monkeypatch):
         d = c.get("/api/public/stats").get_json()
     assert d["agents_active"] == 54 and d["departments"] == 17
     assert d["kb_entries"] == 36592 and d["kb_coverage_pct"] == 99  # round(36400/36592*100)
+    assert d["telegram_last"].startswith("2026-07-12")  # ISO timestamp, no message content
 
 
 def test_public_stats_failsoft(monkeypatch):

@@ -13,7 +13,18 @@ def test_action_marker_regex():
 def test_action_system_prompt_mentions_marker_and_keys():
     assert "{{ACTION:" in cs._ACTION_SYSTEM_PROMPT
     # the curated safe keys must be named so the model only emits those
-    for key in ("health", "qa", "dep_drift", "misroute_audit", "briefing_health"):
+    for key in (
+        "health",
+        "qa",
+        "dep_drift",
+        "misroute_audit",
+        "briefing_health",
+        "welfare",
+        "infra",
+        "dispatch",
+        "knowledge",
+        "fleet",
+    ):
         assert key in cs._ACTION_SYSTEM_PROMPT
 
 

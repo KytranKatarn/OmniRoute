@@ -10,9 +10,37 @@ def test_list_actions_is_curated_safe():
 
     out = svc.list_actions()
     keys = {a["key"] for a in out}
-    assert "health" in keys and "qa" in keys
-    caps = {svc._CATALOG[a["key"]]["capability"] for a in out}
-    assert not (caps & {"deploy_static", "deploy_vps", "restore_production", "run_misroute_to_proposal_adapter"})
+    # original known-tool diagnostics + the read-only local-runner diagnostics
+    assert {"health", "qa", "welfare", "infra", "dispatch", "knowledge", "fleet"} <= keys
+    # no state-changing known-tool capability may be in the catalog (runner entries have none)
+    caps = {svc._CATALOG[a["key"]].get("capability") for a in out}
+    caps.discard(None)
+    assert not (
+        caps
+        & {
+            "deploy_static",
+            "deploy_vps",
+            "restore_production",
+            "restore_sandbox",
+            "run_misroute_to_proposal_adapter",
+            "external_fetch",
+            "capture_chat_share",
+            "translation_coverage_scan",
+            "portrait_refinement",
+            "documentation",
+        }
+    )
+
+
+def test_run_action_runs_local_diagnostic(monkeypatch):
+    # A `runner` entry runs its local read-only function (no delegation-service call needed).
+    import services.coo_actions_service as svc
+
+    monkeypatch.setitem(
+        svc._CATALOG["welfare"], "runner", lambda: {"success": True, "summary": "Welfare ok", "result": {"x": 1}}
+    )
+    out = svc.run_action("welfare")
+    assert out["ok"] and out["summary"] == "Welfare ok" and out["label"] == "Agent welfare"
 
 
 def test_run_action_rejects_unknown_key():

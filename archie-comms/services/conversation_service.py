@@ -1137,13 +1137,15 @@ from services.coo_actions import run as _coo_run_action  # noqa: E402  (module-l
 _ACTION_RE = _re.compile(r"\{\{ACTION:([^}]+)\}\}")
 
 _ACTION_SYSTEM_PROMPT = (
-    "[RUN ACTION] You can run a SMALL curated set of safe diagnostics for Kytran: "
+    "[RUN ACTION] You can run a curated set of SAFE, read-only diagnostics for Kytran: "
     "health (platform health), qa (QA suite), dep_drift (dependency drift), "
-    "misroute_audit (agent dispatch misroutes), briefing_health (session-briefing pipeline). "
-    "When Kytran asks you to run/check one of these, briefly say you're running it, then on "
-    "its own line emit exactly {{ACTION:<key>}} using ONE of those exact keys "
-    "(e.g. {{ACTION:health}}). Emit AT MOST ONE action marker, and ONLY those keys — for "
-    "anything else (deploys, restarts, sending mail, or anything not in that list) do NOT "
+    "misroute_audit (agent dispatch misroutes), briefing_health (session-briefing pipeline), "
+    "welfare (agent welfare / K.I.N.), infra (critical container heartbeat), "
+    "dispatch (24h dispatch health), knowledge (knowledge-base size + embedding coverage), "
+    "fleet (fleet node status). When Kytran asks you to run/check one of these, briefly say "
+    "you're running it, then on its own line emit exactly {{ACTION:<key>}} using ONE of those "
+    "exact keys (e.g. {{ACTION:health}}). Emit AT MOST ONE action marker, and ONLY those keys — "
+    "for anything else (deploys, restarts, sending mail, or anything not in that list) do NOT "
     "emit it; those go through the normal approval path."
 )
 

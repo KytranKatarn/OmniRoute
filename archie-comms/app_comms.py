@@ -452,6 +452,45 @@ def api_mail_queue_reply():
     return jsonify(queue_reply(int(data.get("message_id") or 0), data.get("body") or ""))
 
 
+def _require_session(fn):
+    """Cockpit session gate (owner-only browser session): 401 if no user_id, else run the
+    handler. One definition — the action routes below share it instead of each re-inlining
+    the check. The INTERNAL_API_KEY is applied server-side in the proxy, never client-side."""
+    from functools import wraps
+
+    @wraps(fn)
+    def _wrapped(*a, **k):
+        from flask import session as fs
+
+        if not fs.get("user_id"):
+            return jsonify({"error": "Not authenticated"}), 401
+        return fn(*a, **k)
+
+    return _wrapped
+
+
+@app.route("/api/actions/catalog", methods=["GET"])
+@_require_session
+def api_actions_catalog():
+    """Curated SAFE action catalog for the cockpit Tools & Actions bar. Slice 4 (COO
+    command surface). Session-gated via @_require_session."""
+    from services.coo_actions import catalog
+
+    return jsonify(catalog())
+
+
+@app.route("/api/actions/run", methods=["POST"])
+@_require_session
+def api_actions_run():
+    """Run ONE curated SAFE action by key. Session-gated via @_require_session. The platform
+    side runs only catalog keys (read-only diagnostics) — anything else is rejected there. Slice 4."""
+    from flask import request as fr
+
+    from services.coo_actions import run
+
+    return jsonify(run((fr.get_json(silent=True) or {}).get("key") or ""))
+
+
 @app.route("/api/voice/synthesize", methods=["POST"])
 def api_voice_synthesize():
     """Owner-only TTS: speak a reply in A.R.C.H.I.E.'s Kokoro voice. Fail-soft

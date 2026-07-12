@@ -4678,6 +4678,33 @@ def api_internal_mail_queue_reply():
         return jsonify({"success": False, "error": "exception"}), 200
 
 
+@app.route("/api/internal/actions/catalog", methods=["GET"])
+@_require_internal_key
+def api_internal_actions_catalog():
+    """Curated safe actions the cockpit can run (Slice 4). Fail-soft."""
+    try:
+        from services.coo_actions_service import list_actions
+
+        return jsonify({"success": True, "actions": list_actions()})
+    except Exception as e:
+        logger.warning(f"actions/catalog failed: {e}")
+        return jsonify({"success": False, "actions": []}), 200
+
+
+@app.route("/api/internal/actions/run", methods=["POST"])
+@_require_internal_key
+def api_internal_actions_run():
+    """Run a curated safe action synchronously (Slice 4). Only catalog keys run. Fail-soft."""
+    try:
+        from services.coo_actions_service import run_action
+
+        data = request.get_json(silent=True) or {}
+        return jsonify(run_action(data.get("key") or ""))
+    except Exception as e:
+        logger.warning(f"actions/run failed: {e}")
+        return jsonify({"ok": False, "error": "exception"}), 200
+
+
 @app.route("/api/internal/session-link", methods=["POST", "GET"])
 @_require_internal_key
 def api_internal_session_link():

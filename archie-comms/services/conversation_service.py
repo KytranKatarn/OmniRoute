@@ -1125,6 +1125,84 @@ def _spawn_consult(conv_id, channel, target, user_prompt, user_id):
     ).start()
 
 
+# --- Action marker (COO command surface, Slice 4) — she runs a curated safe tool -----
+# When Kytran asks her to run a known diagnostic (platform health, QA suite, dep drift,
+# misroute audit, briefing health), the fast front acks and emits {{ACTION:<key>}}. We run
+# the curated known-tool through the platform (welfare/cost/C.R.E.E.D. + tier-gated there;
+# the catalog is SAFE read-only diagnostics ONLY — nothing state-changing) and relay the
+# result in her voice as a NEW follow-up message the cockpit's 5s poll renders — the same
+# async pattern as {{CONSULT}}. Unified voice: she reports it.
+from services.coo_actions import run as _coo_run_action  # noqa: E402  (module-level test seam)
+
+_ACTION_RE = _re.compile(r"\{\{ACTION:([^}]+)\}\}")
+
+_ACTION_SYSTEM_PROMPT = (
+    "[RUN ACTION] You can run a SMALL curated set of safe diagnostics for Kytran: "
+    "health (platform health), qa (QA suite), dep_drift (dependency drift), "
+    "misroute_audit (agent dispatch misroutes), briefing_health (session-briefing pipeline). "
+    "When Kytran asks you to run/check one of these, briefly say you're running it, then on "
+    "its own line emit exactly {{ACTION:<key>}} using ONE of those exact keys "
+    "(e.g. {{ACTION:health}}). Emit AT MOST ONE action marker, and ONLY those keys — for "
+    "anything else (deploys, restarts, sending mail, or anything not in that list) do NOT "
+    "emit it; those go through the normal approval path."
+)
+
+
+def _run_action(conv_id, channel, key, user_id):
+    """Run the curated action on the platform and persist the result as a follow-up (in her
+    voice; the cockpit poll delivers it). Fail-soft."""
+    ctx = None
+    try:  # save_message may need a Flask app context in this background thread
+        from app_comms import app
+
+        ctx = app.app_context()
+        ctx.push()
+    except Exception:  # pragma: no cover
+        ctx = None
+    try:
+        try:
+            res = _coo_run_action(key)
+        except Exception:  # pragma: no cover
+            res = None
+        if res and res.get("ok"):
+            label = res.get("label") or key
+            summary = (res.get("summary") or "").strip() or "Done — no issues reported."
+            content = f"**{label}** — done.\n\n{summary}"
+            meta = {
+                "role": "assistant",
+                "conversation_id": conv_id,
+                "action": True,
+                "action_key": key,
+            }
+        else:
+            label = (res or {}).get("label") or key
+            content = f"I couldn't run {label} just now — I'll try again, or we can look into it."
+            meta = {
+                "role": "assistant",
+                "conversation_id": conv_id,
+                "action": True,
+                "action_key": key,
+                "action_failed": True,
+            }
+        save_message(conv_id, channel, "outbound", "archie", content, meta)
+    except Exception as exc:  # pragma: no cover — background best-effort
+        logger.warning("action worker error: %s", exc)
+    finally:
+        if ctx is not None:
+            ctx.pop()
+
+
+def _spawn_action(conv_id, channel, key, user_id):
+    """Run the curated action in a background thread so the fast reply returns now."""
+    import threading
+
+    threading.Thread(
+        target=_run_action,
+        args=(conv_id, channel, key, user_id),
+        daemon=True,
+    ).start()
+
+
 def _extract_approval_markers(text):
     """Return (events, clean_text): harvest {{APPROVALS}}/{{APPROVE}}/{{DENY}}
     markers into SSE events and strip them from the visible reply text."""
@@ -1290,6 +1368,7 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     system_prompt = f"{system_prompt}\n\n{_APPROVALS_SYSTEM_PROMPT}"
     system_prompt = f"{system_prompt}\n\n{_DEEPEN_SYSTEM_PROMPT}"
     system_prompt = f"{system_prompt}\n\n{_CONSULT_SYSTEM_PROMPT}"
+    system_prompt = f"{system_prompt}\n\n{_ACTION_SYSTEM_PROMPT}"
     if is_plan_request:
         system_prompt = f"{_PLANNING_SYSTEM_PROMPT}\n\n{system_prompt}"
     if terminal_context:
@@ -1350,6 +1429,10 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     _consult_match = _CONSULT_RE.search(clean_text)
     consult_target = _consult_match.group(1).strip() if _consult_match else None
     clean_text = _CONSULT_RE.sub("", clean_text).strip()
+    # {{ACTION:<key>}}: she wants to run a curated safe diagnostic. Capture the key, strip the marker.
+    _action_match = _ACTION_RE.search(clean_text)
+    action_key = _action_match.group(1).strip() if _action_match else None
+    clean_text = _ACTION_RE.sub("", clean_text).strip()
 
     # Yield clean chunks before done — re-emit each chunk with ALL markers stripped
     for raw_token in full_parts:
@@ -1357,6 +1440,7 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
         _drop, clean_token = _extract_approval_markers(clean_token)
         clean_token = _DEEPEN_RE.sub("", clean_token)
         clean_token = _CONSULT_RE.sub("", clean_token)
+        clean_token = _ACTION_RE.sub("", clean_token)
         if clean_token:
             yield clean_token
 
@@ -1383,6 +1467,10 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     # Pass the raw user question (message), not the history-wrapped prompt.
     if consult_target and conv_id:
         _spawn_consult(conv_id, channel, consult_target, message, user_id)
+    # Action lane (COO command surface): she flagged a curated safe diagnostic to run ->
+    # run it on the platform and relay the result (in her voice) as a follow-up the 5s poll renders.
+    if action_key and conv_id:
+        _spawn_action(conv_id, channel, action_key, user_id)
 
     # Yield done first (carrying the DHQ agent+model for the cockpit attribution
     # badge), then delegation events, then approval events

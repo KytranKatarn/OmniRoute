@@ -1068,6 +1068,35 @@
   color: #00ffff;
 }
 
+/* Tools & Actions bar (Slice 4) — curated safe diagnostics she runs from chat */
+.ac-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 8px;
+  flex-shrink: 0;
+}
+
+.ac-action-chip {
+  background: rgba(0, 255, 255, 0.06);
+  border: 1px solid rgba(0, 255, 255, 0.2);
+  color: #9fb4c8;
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.ac-action-chip:hover {
+  background: rgba(0, 255, 255, 0.12);
+  color: #00ffff;
+  border-color: rgba(0, 255, 255, 0.45);
+}
+
 .ac-repair-bay-row {
   display: flex;
   align-items: center;

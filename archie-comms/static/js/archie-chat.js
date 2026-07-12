@@ -932,11 +932,39 @@ async function _loadCrew() {
   } catch (_) { /* fail-soft: switcher stays A.R.C.H.I.E.-only */ }
 }
 
+async function _loadActions() {
+  // Populate the Tools & Actions bar (Slice 4) from the platform's CURATED SAFE catalog.
+  // Each chip fills the input with a run-request and clicks the real send button, so the
+  // {{ACTION}} rail fires through the normal chat flow (result arrives as a poll follow-up).
+  const bar = document.getElementById('ac-actions-bar');
+  if (!bar) return;
+  try {
+    const r = await fetch('/api/actions/catalog', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!Array.isArray(d.actions)) return;
+    d.actions.forEach((a) => {
+      if (!a || !a.key) return;
+      const chip = _mk('button', 'ac-action-chip');
+      chip.type = 'button';
+      chip.textContent = '⚡ ' + (a.label || a.key);   // textContent-only -> XSS-safe
+      chip.title = a.description || '';
+      chip.addEventListener('click', () => {
+        const input = document.getElementById('ac-input');
+        const send = document.getElementById('ac-send-btn');
+        if (input && send) { input.value = 'Run the ' + (a.label || a.key) + ' action'; send.click(); }
+      });
+      bar.appendChild(chip);
+    });
+  } catch (_) { /* fail-soft: no action chips */ }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('ac-layout');
   if (!layout) return;
   _loadAvatar();   // her face in the persona header (fail-soft -> monogram)
   _loadCrew();     // crew switcher (COO consult) -> department directors
+  _loadActions();  // Tools & Actions bar (Slice 4) -> curated safe diagnostics
 
   let sessions, stream, terminalDrawer;
   stream = new MessageStream({

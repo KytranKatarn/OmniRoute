@@ -404,6 +404,54 @@ def api_coms_overview():
     )
 
 
+@app.route("/api/mail/inbox", methods=["GET"])
+def api_mail_inbox():
+    from flask import request as fr
+    from flask import session as fs
+
+    if not fs.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.mail_hq import inbox
+
+    return jsonify(inbox(limit=int(fr.args.get("limit", 40) or 40)))
+
+
+@app.route("/api/mail/message/<int:mid>", methods=["GET"])
+def api_mail_message(mid):
+    from flask import session as fs
+
+    if not fs.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.mail_hq import message
+
+    return jsonify(message(mid))
+
+
+@app.route("/api/mail/draft-reply", methods=["POST"])
+def api_mail_draft_reply():
+    from flask import request as fr
+    from flask import session as fs
+
+    if not fs.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.mail_hq import draft_reply
+
+    return jsonify(draft_reply(int((fr.get_json(silent=True) or {}).get("message_id") or 0)))
+
+
+@app.route("/api/mail/queue-reply", methods=["POST"])
+def api_mail_queue_reply():
+    from flask import request as fr
+    from flask import session as fs
+
+    if not fs.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.mail_hq import queue_reply
+
+    data = fr.get_json(silent=True) or {}
+    return jsonify(queue_reply(int(data.get("message_id") or 0), data.get("body") or ""))
+
+
 @app.route("/api/voice/synthesize", methods=["POST"])
 def api_voice_synthesize():
     """Owner-only TTS: speak a reply in A.R.C.H.I.E.'s Kokoro voice. Fail-soft

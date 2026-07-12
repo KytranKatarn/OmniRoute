@@ -4611,6 +4611,73 @@ def api_internal_coms_overview():
         return jsonify({"success": False, "messages": [], "config": {}, "migration": {}}), 200
 
 
+@app.route("/api/internal/mail/inbox", methods=["GET"])
+@_require_internal_key
+def api_internal_mail_inbox():
+    """Owner/business inbox for the cockpit Mail tab (read-only). Slice 3. Fail-soft."""
+    try:
+        from services.mail_hq_service import list_inbox
+
+        msgs = list_inbox(
+            limit=int(request.args.get("limit", 40) or 40),
+            mailbox_id=(request.args.get("mailbox_id") or None),
+        )
+        return jsonify({"success": True, "messages": msgs})
+    except Exception as e:
+        logger.warning(f"mail/inbox failed: {e}")
+        return jsonify({"success": False, "messages": []}), 200
+
+
+@app.route("/api/internal/mail/message/<int:mid>", methods=["GET"])
+@_require_internal_key
+def api_internal_mail_message(mid):
+    """Read a single owner/business message (full body). Fail-soft."""
+    try:
+        from services.mail_hq_service import read_message
+
+        m = read_message(mid)
+        if not m:
+            return jsonify({"success": False, "error": "not_found"}), 200
+        return jsonify({"success": True, "message": m})
+    except Exception as e:
+        logger.warning(f"mail/message failed: {e}")
+        return jsonify({"success": False, "error": "exception"}), 200
+
+
+@app.route("/api/internal/mail/draft-reply", methods=["POST"])
+@_require_internal_key
+def api_internal_mail_draft_reply():
+    """R.E.S.O.L.V.E. drafts a reply (read-only; nothing is sent or queued here). Fail-soft."""
+    try:
+        from services.mail_hq_service import draft_reply
+
+        data = request.get_json(silent=True) or {}
+        d = draft_reply(int(data.get("message_id") or 0))
+        if not d:
+            return jsonify({"success": False, "error": "no_draft"}), 200
+        return jsonify({"success": True, **d})
+    except Exception as e:
+        logger.warning(f"mail/draft-reply failed: {e}")
+        return jsonify({"success": False, "error": "exception"}), 200
+
+
+@app.route("/api/internal/mail/queue-reply", methods=["POST"])
+@_require_internal_key
+def api_internal_mail_queue_reply():
+    """Queue a reply into the EXISTING approve-to-send gate (never sends directly). Fail-soft."""
+    try:
+        from services.mail_hq_service import queue_reply
+
+        data = request.get_json(silent=True) or {}
+        q = queue_reply(int(data.get("message_id") or 0), data.get("body") or "")
+        if not q:
+            return jsonify({"success": False, "error": "not_queued"}), 200
+        return jsonify({"success": True, **q})
+    except Exception as e:
+        logger.warning(f"mail/queue-reply failed: {e}")
+        return jsonify({"success": False, "error": "exception"}), 200
+
+
 @app.route("/api/internal/session-link", methods=["POST", "GET"])
 @_require_internal_key
 def api_internal_session_link():

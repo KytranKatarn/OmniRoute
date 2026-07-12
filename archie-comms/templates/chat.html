@@ -24,7 +24,8 @@
     ("history", "History", "clock"),
     ("collaboration", "Collaboration", "users"),
     ("terminal", "Claude TTY", "terminal"),
-    ("coms", "COMs", "radio")
+    ("coms", "COMs", "radio"),
+    ("mail", "Mail", "mail")
 ] %}
 {% include 'lcars-header.html' %}
 
@@ -186,6 +187,14 @@
   <div class="ac-coms-wrap">
     <div class="ac-coms-header" id="ac-coms-header">Loading COMs&#8230;</div>
     <div class="ac-coms-feed" id="ac-coms-feed"></div>
+  </div>
+</div>
+
+<!-- TAB: Mail HQ — inbox + read + R.E.S.O.L.V.E. draft + gated queue (COO command surface) -->
+<div id="panel-mail" class="comms-panel">
+  <div class="ac-mail-wrap">
+    <div class="ac-mail-list" id="ac-mail-list">Loading inbox&#8230;</div>
+    <div class="ac-mail-read" id="ac-mail-read"></div>
   </div>
 </div>
 

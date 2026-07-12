@@ -630,6 +630,78 @@ function _renderApprovalCard(a) {
   return el;
 }
 
+async function loadMail() {
+  // Mail HQ tab (COO command surface, Slice 3): owner/business inbox. XSS-safe (_mk+textContent).
+  const listEl = document.getElementById('ac-mail-list');
+  const readEl = document.getElementById('ac-mail-read');
+  if (!listEl || !readEl) return;
+  try {
+    const r = await fetch('/api/mail/inbox?limit=40', { credentials: 'same-origin' });
+    const d = r.ok ? await r.json() : { messages: [] };
+    listEl.textContent = '';
+    const msgs = Array.isArray(d.messages) ? d.messages : [];
+    if (!msgs.length) { listEl.textContent = 'Inbox is empty (owner/business mailboxes).'; return; }
+    msgs.forEach((m) => {
+      const row = _mk('div', 'ac-mail-row' + (m.is_read ? '' : ' ac-mail-unread'));
+      const pri = _mk('span', 'ac-mail-pri ac-mail-pri-' + (m.ai_priority || 'info'));
+      pri.textContent = (m.ai_priority || 'info');
+      const from = _mk('span', 'ac-mail-from'); from.textContent = m.from_address || '';
+      const subj = _mk('div', 'ac-mail-subj'); subj.textContent = m.subject || '(no subject)';
+      const prev = _mk('div', 'ac-mail-prev'); prev.textContent = m.body_preview || '';
+      row.appendChild(pri); row.appendChild(from); row.appendChild(subj); row.appendChild(prev);
+      row.addEventListener('click', () => _openMail(m.id));
+      listEl.appendChild(row);
+    });
+  } catch (e) { listEl.textContent = 'Mail unavailable right now.'; }
+}
+
+async function _openMail(id) {
+  const readEl = document.getElementById('ac-mail-read');
+  if (!readEl) return;
+  readEl.textContent = 'Loading message…';
+  try {
+    const r = await fetch('/api/mail/message/' + id, { credentials: 'same-origin' });
+    const d = await r.json();
+    const m = d && d.message;
+    if (!m) { readEl.textContent = 'Message unavailable.'; return; }
+    readEl.textContent = '';
+    const h = _mk('div', 'ac-mail-read-head');
+    h.textContent = (m.from_address || '') + '  —  ' + (m.subject || '');
+    const body = _mk('div', 'ac-mail-read-body'); body.textContent = m.body_text || m.body_preview || '';
+    const actions = _mk('div', 'ac-mail-actions');
+    const draftBtn = _mk('button', 'ac-mail-btn'); draftBtn.textContent = '✍ Draft reply (R.E.S.O.L.V.E.)';
+    const ta = _mk('textarea', 'ac-mail-reply'); ta.placeholder = 'Reply… (Queue sends it via the Approvals gate)';
+    const queueBtn = _mk('button', 'ac-mail-btn'); queueBtn.textContent = '↗ Queue for send (gated)';
+    const note = _mk('div', 'ac-mail-note');
+    draftBtn.addEventListener('click', async () => {
+      draftBtn.disabled = true; note.textContent = 'R.E.S.O.L.V.E. is drafting…';
+      try {
+        const rr = await fetch('/api/mail/draft-reply', { method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: id }) });
+        const dd = await rr.json();
+        if (dd && dd.draft) { ta.value = dd.draft; note.textContent = 'Draft ready — edit, then Queue.'; }
+        else note.textContent = 'Could not draft right now.';
+      } catch (e) { note.textContent = 'Draft failed.'; }
+      draftBtn.disabled = false;
+    });
+    queueBtn.addEventListener('click', async () => {
+      if (!ta.value.trim()) { note.textContent = 'Write or draft a reply first.'; return; }
+      queueBtn.disabled = true;
+      try {
+        const rr = await fetch('/api/mail/queue-reply', { method: 'POST', credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message_id: id, body: ta.value }) });
+        const dd = await rr.json();
+        note.textContent = (dd && dd.queued) ? '✓ Queued — approve it in the Approvals panel or Telegram to send.'
+          : 'Could not queue the reply.';
+      } catch (e) { note.textContent = 'Queue failed.'; }
+      queueBtn.disabled = false;
+    });
+    actions.appendChild(draftBtn); actions.appendChild(queueBtn);
+    readEl.appendChild(h); readEl.appendChild(body); readEl.appendChild(actions);
+    readEl.appendChild(ta); readEl.appendChild(note);
+  } catch (e) { readEl.textContent = 'Message unavailable.'; }
+}
+
 async function loadComs() {
   // COMs tab (COO command surface, Slice 2): Telegram ops feed + config/migration header.
   // XSS-safe by construction — every dynamic value is written via _mk + textContent (never
@@ -951,6 +1023,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (tabId === 'history') loadHistoryList();
     if (tabId === 'collaboration' && window.acCollab) window.acCollab.onOpen();
     if (tabId === 'coms') loadComs();
+    if (tabId === 'mail') loadMail();
   };
 
   const status = new StatusPanel({

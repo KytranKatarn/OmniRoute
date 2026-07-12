@@ -52,6 +52,22 @@ def test_service_caller_untouched(client, monkeypatch):
     assert seen["priority"] == "normal"
 
 
+def test_deepen_follow_up_7b_routes_to_node(client, monkeypatch):
+    # The {{DEEPEN}} follow-up: A.R.C.H.I.E. conversation pinned to qwen2.5:7b -> the node
+    # GPU (hub fallback) at NORMAL priority (async, not the interactive fast lane).
+    seen = _patch_dispatch(monkeypatch)
+    monkeypatch.setenv("INTERNAL_API_KEY", "k")
+    r = client.post(
+        "/api/internal/dhq/chat",
+        json={"prompt": "deep q", "prefer_agent": "A.R.C.H.I.E.", "model": "qwen2.5:7b", "capability": "conversation"},
+        headers={"Authorization": "Bearer k"},
+    )
+    assert r.status_code == 200
+    assert seen["model_override"] == "qwen2.5:7b"
+    assert seen["preferred_node"] == ["starship_76583490e36955ab", "archie-starbase"]
+    assert seen["priority"] == "normal"
+
+
 def test_cockpit_chat_model_is_env_tunable(client, monkeypatch):
     seen = _patch_dispatch(monkeypatch)
     monkeypatch.setenv("INTERNAL_API_KEY", "k")

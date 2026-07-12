@@ -958,6 +958,96 @@ _APPROVALS_SYSTEM_PROMPT = (
     "invent ids."
 )
 
+# --- Deepen marker (responsive chat) — fast front acks + async 7B follow-up ----
+# The fast conversational model (llama3.2:3b) answers instantly; when it judges a
+# question needs depth it emits {{DEEPEN}}, and A.R.C.H.I.E.'s full qwen2.5:7b brain
+# answers the same question in the background, delivered as a NEW follow-up message
+# (the cockpit's 5s poll renders it). Owner-confirmed: quick chat stays one message;
+# only substantive asks get a follow-up.
+_DEEPEN_RE = _re.compile(r"\{\{DEEPEN\}\}")
+
+_DEEPEN_SYSTEM_PROMPT = (
+    "[DEEPER FOLLOW-UP] You are replying FAST with a lightweight model. If the user's "
+    "message is a SUBSTANTIVE question that would genuinely benefit from deeper analysis, "
+    "real data, or careful reasoning (e.g. 'how is X trending', 'analyse Y', 'what should "
+    "we do about Z'), give a brief honest first answer, tell him you're looking into it "
+    "more deeply (e.g. 'digging into that now'), AND append the marker {{DEEPEN}} on its "
+    "own line — a fuller answer will follow as a separate message. For simple, "
+    "conversational, or greeting messages, just answer naturally and NEVER emit {{DEEPEN}}."
+)
+
+_DEEPEN_ANSWER_PROMPT = (
+    "You are giving a considered, thorough follow-up to the user's question — a fast first "
+    "reply has already been sent. Answer completely and accurately in your own voice. Do "
+    "NOT use any {{...}} markers."
+)
+
+
+def _deepen_reply(system_prompt, user_prompt, user_id):
+    """Full-7B deeper answer for the async cockpit follow-up. Long timeout (background,
+    not latency-critical). Returns the answer string, or None on any failure."""
+    key = os.getenv("INTERNAL_API_KEY", "")
+    if not key:
+        return None
+    platform_url = os.getenv("PLATFORM_URL", "http://archie_platform:3000").rstrip("/")
+    try:
+        import requests
+
+        resp = requests.post(
+            f"{platform_url}/api/internal/dhq/chat",
+            json={
+                "prompt": user_prompt,
+                "system_prompt": system_prompt,
+                "user_id": user_id,
+                "model": os.getenv("DEEPEN_MODEL", "qwen2.5:7b"),  # her full working brain
+            },
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=float(os.getenv("DEEPEN_TIMEOUT", "300")),
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get("success") and (data.get("response") or "").strip():
+                return data["response"].strip()
+    except Exception as exc:
+        logger.warning("deepen follow-up failed: %s", exc)
+    return None
+
+
+def _run_deepen(conv_id, channel, system_prompt, user_prompt, user_id):
+    """Generate + persist the deeper follow-up as a new outbound message (the cockpit
+    poll delivers it). Fail-soft — a missed follow-up is never fatal."""
+    ctx = None
+    try:  # save_message may need a Flask app context in this background thread
+        from app_comms import app
+
+        ctx = app.app_context()
+        ctx.push()
+    except Exception:  # pragma: no cover — save_message works without it
+        ctx = None
+    try:
+        answer = _deepen_reply(system_prompt, user_prompt, user_id)
+        if answer:
+            save_message(
+                conv_id, channel, "outbound", "archie", answer,
+                {"role": "assistant", "conversation_id": conv_id, "deepen": True},
+            )
+    except Exception as exc:  # pragma: no cover — background best-effort
+        logger.warning("deepen worker error: %s", exc)
+    finally:
+        if ctx is not None:
+            ctx.pop()
+
+
+def _spawn_deepen(conv_id, channel, system_prompt, user_prompt, user_id):
+    """Run the deeper 7B follow-up in a background thread so the fast reply returns now."""
+    import threading
+
+    threading.Thread(
+        target=_run_deepen,
+        args=(conv_id, channel, system_prompt, user_prompt, user_id),
+        daemon=True,
+    ).start()
+
 
 def _extract_approval_markers(text):
     """Return (events, clean_text): harvest {{APPROVALS}}/{{APPROVE}}/{{DENY}}
@@ -1118,8 +1208,11 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     system_prompt = (_get_system_prompt() if _get_system_prompt else None) or "You are A.R.C.H.I.E., an AI Chief Operating Officer."
     if memory_prefix:
         system_prompt = f"{memory_prefix}\n\n{system_prompt}"
+    # Persona-only prompt (no interactive markers) for the async deeper 7B follow-up.
+    deep_system_prompt = f"{system_prompt}\n\n{_DEEPEN_ANSWER_PROMPT}"
     system_prompt = f"{system_prompt}\n\n{_DELEGATION_SYSTEM_PROMPT}"
     system_prompt = f"{system_prompt}\n\n{_APPROVALS_SYSTEM_PROMPT}"
+    system_prompt = f"{system_prompt}\n\n{_DEEPEN_SYSTEM_PROMPT}"
     if is_plan_request:
         system_prompt = f"{_PLANNING_SYSTEM_PROMPT}\n\n{system_prompt}"
     if terminal_context:
@@ -1172,12 +1265,16 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     clean_text = _DELEGATE_RE.sub(_collect_delegate, complete_text)
     # Harvest {{APPROVALS}}/{{APPROVE}}/{{DENY}} on the same rail as {{DELEGATE}}.
     approval_events, clean_text = _extract_approval_markers(clean_text)
-    clean_text = clean_text.strip()
+    # {{DEEPEN}} (responsive chat): the fast front flagged that a deeper 7B follow-up
+    # should follow. Strip the marker from the visible reply; the follow-up is spawned below.
+    wants_deepen = bool(_DEEPEN_RE.search(clean_text))
+    clean_text = _DEEPEN_RE.sub("", clean_text).strip()
 
     # Yield clean chunks before done — re-emit each chunk with ALL markers stripped
     for raw_token in full_parts:
         clean_token = _DELEGATE_RE.sub("", raw_token)
         _drop, clean_token = _extract_approval_markers(clean_token)
+        clean_token = _DEEPEN_RE.sub("", clean_token)
         if clean_token:
             yield clean_token
 
@@ -1193,6 +1290,12 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
             clean_text,
             {"role": "assistant", "conversation_id": conv_id},
         )
+
+    # Responsive chat: the fast front flagged depth -> run her full 7B brain on the same
+    # question in the background; its answer arrives as a NEW follow-up message that the
+    # cockpit's 5s poll renders. The fast reply returns now; no one waits on the 7B.
+    if wants_deepen and conv_id:
+        _spawn_deepen(conv_id, channel, deep_system_prompt, user_prompt, user_id)
 
     # Yield done first (carrying the DHQ agent+model for the cockpit attribution
     # badge), then delegation events, then approval events

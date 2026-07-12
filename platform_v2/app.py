@@ -4479,11 +4479,15 @@ def api_internal_dhq_chat():
     # Detected before we set the model so the cockpit keeps its high-priority lane.
     # Service callers that pin their own model (engine plan step: qwen2.5-coder:7b)
     # are untouched — they keep their model + default hub routing.
-    is_cockpit_chat = model_override is None and prefer_agent == "A.R.C.H.I.E."
-    preferred_node = None
+    # Fast front = A.R.C.H.I.E. conversation, no caller-pinned model -> llama3.2:3b (high
+    # priority). Deep follow-up = A.R.C.H.I.E. conversation pinned to qwen2.5:7b (the
+    # {{DEEPEN}} path, normal priority). BOTH are her cockpit conversation, so both route
+    # to the node GPU (hub fallback) — off the CPU-saturated hub.
+    is_archie_conversation = prefer_agent == "A.R.C.H.I.E." and capability == "conversation"
+    is_cockpit_chat = is_archie_conversation and model_override is None
     if is_cockpit_chat:
         model_override = os.getenv("COCKPIT_CHAT_MODEL", "llama3.2:3b")
-        preferred_node = ["starship_76583490e36955ab", "archie-starbase"]
+    preferred_node = ["starship_76583490e36955ab", "archie-starbase"] if is_archie_conversation else None
 
     try:
         result = dispatch(

@@ -201,6 +201,16 @@
         b.classList.add('status-offline');b.classList.remove('status-online');
         document.getElementById('statusText').textContent='Offline';
     });
+    // Live landing stats (public endpoint) — fills the cards + stats-bar with real
+    // numbers, replacing the '—' placeholders and the stale hardcoded 47 / 25K+.
+    var setTxt = function(id, val){ var el=document.getElementById(id); if(el && val!=null) el.textContent=val; };
+    var kFmt = function(n){ return n>=1000 ? Math.floor(n/1000)+'K+' : String(n); };
+    fetch('/api/public/stats').then(r=>r.json()).then(function(s){
+        if(s.agents_active!=null){ setTxt('agentsActive', s.agents_active); setTxt('statAgents', s.agents_active); }
+        if(s.departments!=null){ setTxt('deptCount', s.departments); setTxt('statDepts', s.departments); }
+        if(s.kb_entries!=null){ setTxt('kbEntries', Number(s.kb_entries).toLocaleString()); setTxt('statKB', kFmt(s.kb_entries)); }
+        if(s.kb_coverage_pct!=null){ setTxt('kbCoverage', s.kb_coverage_pct+'%'); }
+    }).catch(function(){});
     // Refresh status every 30s
     setInterval(()=>{
         fetch('/api/health').then(r=>r.json()).then(d=>{

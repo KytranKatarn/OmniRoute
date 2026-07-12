@@ -263,6 +263,38 @@ def health():
     return jsonify({"status": "ok", "service": "archie_comms", "version": "1.0.0"})
 
 
+@app.route("/api/public/stats")
+def api_public_stats():
+    """Public landing-page stats (no auth) — live active-agent + knowledge-base counts from
+    the shared DB, so the marketing landing shows real numbers instead of '—'/stale hardcodes.
+    Only aggregate marketing counts are exposed. Fail-soft: nulls for anything unavailable."""
+    out = {"agents_active": None, "departments": None, "kb_entries": None, "kb_coverage_pct": None}
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT COUNT(*) AS n, COUNT(DISTINCT department) AS depts
+                FROM agents
+                WHERE worker_type = 'ai'
+                  AND shift_state NOT IN ('decommissioned', 'barracked', 'off_duty')
+                """
+            )
+            r = cur.fetchone()
+            if r:
+                out["agents_active"] = r["n"]
+                out["departments"] = r["depts"]
+            cur.execute("SELECT COUNT(*) AS total, COUNT(embedding) AS emb FROM knowledge_base")
+            r = cur.fetchone()
+            if r and r["total"]:
+                out["kb_entries"] = r["total"]
+                out["kb_coverage_pct"] = round(r["emb"] / r["total"] * 100)
+    except Exception as exc:
+        logger.error("api_public_stats failed: %s", exc)
+    return jsonify(out)
+
+
 @app.route("/api/status")
 def api_status():
     from flask import session as flask_session

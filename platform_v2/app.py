@@ -4520,6 +4520,75 @@ def api_internal_dhq_chat():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/internal/coo/agents", methods=["GET"])
+@_require_internal_key
+def api_internal_coo_agents():
+    """Consultable crew (department directors) + department list for the cockpit switcher.
+
+    Slice 1 of the COO command surface: A.R.C.H.I.E. consults the crew from her cockpit chat.
+    """
+    try:
+        from services.coo_consult_service import list_consultable_agents
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+        agents = list_consultable_agents()
+        departments = sorted(set(CAPABILITY_DEPARTMENT_MAP.values()))
+        return jsonify({"success": True, "agents": agents, "departments": departments})
+    except Exception as e:
+        logger.warning(f"coo/agents failed: {e}")
+        return jsonify({"success": False, "agents": [], "departments": []}), 200
+
+
+@app.route("/api/internal/coo/consult", methods=["POST"])
+@_require_internal_key
+def api_internal_coo_consult():
+    """Resolve a consult target (agent/department) and dispatch to it via DHQ; return the answer.
+
+    She relays this back in her own voice cockpit-side (unified voice). Fail-soft: always 200
+    with success:false on a miss so the chat never breaks.
+    """
+    from tools.department_hq.services.department_dispatcher import dispatch
+    from services.coo_consult_service import resolve_consult_target
+
+    data = request.get_json(silent=True) or {}
+    target = (data.get("target") or "").strip()
+    prompt = (data.get("prompt") or "").strip()
+    user_id = data.get("user_id")
+    if not target or not prompt:
+        return jsonify({"success": False, "error": "target_and_prompt_required"}), 200
+    resolved = resolve_consult_target(target)
+    if not resolved:
+        return jsonify({"success": False, "error": "unknown_target", "target": target}), 200
+    try:
+        result = dispatch(
+            capability=resolved["capability"],
+            prompt=prompt,
+            module_id="archie_comms_coo",
+            user_id=user_id,
+            prefer_agent=resolved["agent_name"],
+            local_only=True,
+            priority="normal",
+        )
+        if not getattr(result, "success", False):
+            return (
+                jsonify({"success": False, "error": "dispatch_failed", "resolved_target": resolved["agent_name"]}),
+                200,
+            )
+        return jsonify(
+            {
+                "success": True,
+                "response": (result.response or "").strip(),
+                "agent_name": result.agent_name,
+                "model_used": result.model_used,
+                "resolved_target": resolved["agent_name"],
+                "department": resolved["department"],
+            }
+        )
+    except Exception as e:
+        logger.warning(f"coo/consult failed: {e}")
+        return jsonify({"success": False, "error": "exception"}), 200
+
+
 @app.route("/api/internal/session-link", methods=["POST", "GET"])
 @_require_internal_key
 def api_internal_session_link():

@@ -1049,6 +1049,82 @@ def _spawn_deepen(conv_id, channel, system_prompt, user_prompt, user_id):
     ).start()
 
 
+# --- Consult marker (COO command surface, Slice 1) — she consults the crew ---------
+# When Kytran asks something a department/agent should answer, the fast front acks and
+# emits {{CONSULT:<agent-or-department>}}. We dispatch to that crew member via DHQ and
+# relay their answer in her voice as a NEW follow-up message (the cockpit's 5s poll
+# renders it) — the same async pattern as {{DEEPEN}}. Unified voice: she reports it.
+from services.coo_consult import consult as _coo_consult  # noqa: E402  (module-level test seam)
+
+_CONSULT_RE = _re.compile(r"\{\{CONSULT:([^}]+)\}\}")
+
+_CONSULT_SYSTEM_PROMPT = (
+    "[CREW CONSULT] You are the COO with a crew of department directors. When Kytran asks "
+    "something a specific department/agent should answer (security -> V.I.G.I.L., mail/support "
+    "-> R.E.S.O.L.V.E., backups -> W.A.R.D.E.N., engineering -> F.O.R.G.E., etc.), briefly say "
+    "you're checking with them, then on its own line emit exactly "
+    "{{CONSULT:<AGENT-OR-DEPARTMENT>}} (e.g. {{CONSULT:V.I.G.I.L.}}). Emit AT MOST ONE consult "
+    "marker, and only when a specialist should answer — for anything you can answer yourself, "
+    "do NOT emit it."
+)
+
+
+def _run_consult(conv_id, channel, target, user_prompt, user_id):
+    """Dispatch the consult to the crew member and persist their answer as an attributed
+    follow-up (in her voice; the cockpit poll delivers it). Fail-soft."""
+    ctx = None
+    try:  # save_message may need a Flask app context in this background thread
+        from app_comms import app
+
+        ctx = app.app_context()
+        ctx.push()
+    except Exception:  # pragma: no cover
+        ctx = None
+    try:
+        try:
+            res = _coo_consult(target, user_prompt, user_id)
+        except Exception:  # pragma: no cover
+            res = None
+        if res and res.get("success") and (res.get("response") or "").strip():
+            agent = res.get("agent_name") or target
+            model = res.get("model_used") or ""
+            badge = f" · {model}" if model else ""
+            content = f"**{agent}{badge}** reports —\n\n{res['response'].strip()}"
+            meta = {
+                "role": "assistant",
+                "conversation_id": conv_id,
+                "consult": True,
+                "agent": agent,
+                "model": model,
+            }
+        else:
+            content = f"I couldn't reach {target} just now — I'll try again, or I can take it myself."
+            meta = {
+                "role": "assistant",
+                "conversation_id": conv_id,
+                "consult": True,
+                "agent": target,
+                "consult_failed": True,
+            }
+        save_message(conv_id, channel, "outbound", "archie", content, meta)
+    except Exception as exc:  # pragma: no cover — background best-effort
+        logger.warning("consult worker error: %s", exc)
+    finally:
+        if ctx is not None:
+            ctx.pop()
+
+
+def _spawn_consult(conv_id, channel, target, user_prompt, user_id):
+    """Run the crew consult in a background thread so the fast reply returns now."""
+    import threading
+
+    threading.Thread(
+        target=_run_consult,
+        args=(conv_id, channel, target, user_prompt, user_id),
+        daemon=True,
+    ).start()
+
+
 def _extract_approval_markers(text):
     """Return (events, clean_text): harvest {{APPROVALS}}/{{APPROVE}}/{{DENY}}
     markers into SSE events and strip them from the visible reply text."""
@@ -1213,6 +1289,7 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     system_prompt = f"{system_prompt}\n\n{_DELEGATION_SYSTEM_PROMPT}"
     system_prompt = f"{system_prompt}\n\n{_APPROVALS_SYSTEM_PROMPT}"
     system_prompt = f"{system_prompt}\n\n{_DEEPEN_SYSTEM_PROMPT}"
+    system_prompt = f"{system_prompt}\n\n{_CONSULT_SYSTEM_PROMPT}"
     if is_plan_request:
         system_prompt = f"{_PLANNING_SYSTEM_PROMPT}\n\n{system_prompt}"
     if terminal_context:
@@ -1269,12 +1346,17 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     # should follow. Strip the marker from the visible reply; the follow-up is spawned below.
     wants_deepen = bool(_DEEPEN_RE.search(clean_text))
     clean_text = _DEEPEN_RE.sub("", clean_text).strip()
+    # {{CONSULT:<target>}}: she wants a crew member to answer. Capture the target, strip the marker.
+    _consult_match = _CONSULT_RE.search(clean_text)
+    consult_target = _consult_match.group(1).strip() if _consult_match else None
+    clean_text = _CONSULT_RE.sub("", clean_text).strip()
 
     # Yield clean chunks before done — re-emit each chunk with ALL markers stripped
     for raw_token in full_parts:
         clean_token = _DELEGATE_RE.sub("", raw_token)
         _drop, clean_token = _extract_approval_markers(clean_token)
         clean_token = _DEEPEN_RE.sub("", clean_token)
+        clean_token = _CONSULT_RE.sub("", clean_token)
         if clean_token:
             yield clean_token
 
@@ -1296,6 +1378,11 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     # cockpit's 5s poll renders. The fast reply returns now; no one waits on the 7B.
     if wants_deepen and conv_id:
         _spawn_deepen(conv_id, channel, deep_system_prompt, user_prompt, user_id)
+    # Consult lane (COO command surface): she flagged a crew member should answer -> dispatch
+    # to them and relay their answer (in her voice) as a follow-up message the 5s poll renders.
+    # Pass the raw user question (message), not the history-wrapped prompt.
+    if consult_target and conv_id:
+        _spawn_consult(conv_id, channel, consult_target, message, user_id)
 
     # Yield done first (carrying the DHQ agent+model for the cockpit attribution
     # badge), then delegation events, then approval events

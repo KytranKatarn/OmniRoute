@@ -370,6 +370,19 @@ def api_archie_avatar():
     return Response(raw, mimetype=mime, headers={"Cache-Control": "public, max-age=86400"})
 
 
+@app.route("/api/coo/agents", methods=["GET"])
+def api_coo_agents():
+    """Consultable crew (department directors) for the cockpit switcher. Session-gated;
+    the INTERNAL_API_KEY is applied server-side in the proxy. Slice 1 (COO command surface)."""
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.coo_consult import list_agents
+
+    return jsonify(list_agents())
+
+
 @app.route("/api/voice/synthesize", methods=["POST"])
 def api_voice_synthesize():
     """Owner-only TTS: speak a reply in A.R.C.H.I.E.'s Kokoro voice. Fail-soft

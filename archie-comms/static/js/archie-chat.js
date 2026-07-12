@@ -130,6 +130,13 @@ class MessageStream {
   async send(message, terminalContext = null, isPlanRequest = false) {
     message = (message || '').trim();
     if (!message && !_pendingAttachment) return;
+    // Crew switcher (COO consult): an explicit target prefixes the message so her {{CONSULT}}
+    // rail routes to that department director; reset to A.R.C.H.I.E. after.
+    const _crewSel = document.getElementById('ac-crew-switcher');
+    if (_crewSel && _crewSel.value && message) {
+      message = 'Consult ' + _crewSel.value + ': ' + message;
+      _crewSel.value = '';
+    }
     const att = _consumePendingAttachment();
     if (!message && att) message = 'Please take a look at this attachment.';
     this.inputEl.disabled = true;
@@ -787,10 +794,29 @@ async function _toggleMic(btn) {
   } catch (_) { /* mic denied -> owner types */ }
 }
 
+async function _loadCrew() {
+  // Populate the crew switcher (COO consult) from the platform crew directory; fail-soft.
+  try {
+    const r = await fetch('/api/coo/agents', { credentials: 'same-origin' });
+    if (!r.ok) return;
+    const d = await r.json();
+    const sel = document.getElementById('ac-crew-switcher');
+    if (!sel || !Array.isArray(d.agents)) return;
+    d.agents.forEach((a) => {
+      if (!a || !a.name) return;
+      const opt = _mk('option');
+      opt.value = a.name;                                  // textContent-only -> XSS-safe
+      opt.textContent = a.department ? (a.name + ' — ' + a.department) : a.name;
+      sel.appendChild(opt);
+    });
+  } catch (_) { /* fail-soft: switcher stays A.R.C.H.I.E.-only */ }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('ac-layout');
   if (!layout) return;
   _loadAvatar();   // her face in the persona header (fail-soft -> monogram)
+  _loadCrew();     // crew switcher (COO consult) -> department directors
 
   let sessions, stream, terminalDrawer;
   stream = new MessageStream({

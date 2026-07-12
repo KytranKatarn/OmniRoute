@@ -1661,3 +1661,20 @@ body {
   color: var(--ac-text-dim, #556677);
   opacity: 0.85;
 }
+
+/* Crew switcher (COO consult, Slice 1) — consult a department director from the header */
+.ac-crew-switcher {
+  background: var(--ac-panel, #10151c);
+  color: var(--ac-text, #cfe3ff);
+  border: 1px solid var(--ac-line, #24405c);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 11px;
+  max-width: 220px;
+  margin-left: auto;
+}
+.ac-crew-switcher:focus {
+  outline: none;
+  border-color: var(--ac-accent, #00e5ff);
+}

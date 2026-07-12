@@ -4470,6 +4470,21 @@ def api_internal_dhq_chat():
     if not prompt:
         return jsonify({"success": False, "error": "prompt required"}), 400
 
+    # A.R.C.H.I.E.'s CONVERSATIONAL front (the interactive cockpit reply) is
+    # latency-critical; on the CPU-saturated hub her qwen2.5:7b times out (~90s).
+    # Give the conversation a fast GPU-resident model on a fleet node (llama3.2:3b
+    # fits the Starship-246 RTX 3070, ~1.4s warm), hub as automatic fallback when the
+    # node rests. This swaps ONLY the chat-reply model — A.R.C.H.I.E. the working
+    # agent stays qwen2.5:7b for delegation + the deeper COO work behind the chat.
+    # Detected before we set the model so the cockpit keeps its high-priority lane.
+    # Service callers that pin their own model (engine plan step: qwen2.5-coder:7b)
+    # are untouched — they keep their model + default hub routing.
+    is_cockpit_chat = model_override is None and prefer_agent == "A.R.C.H.I.E."
+    preferred_node = None
+    if is_cockpit_chat:
+        model_override = os.getenv("COCKPIT_CHAT_MODEL", "llama3.2:3b")
+        preferred_node = ["starship_76583490e36955ab", "archie-starbase"]
+
     try:
         result = dispatch(
             capability=capability,
@@ -4478,12 +4493,12 @@ def api_internal_dhq_chat():
             system_prompt=system_prompt,
             user_id=user_id,
             prefer_agent=prefer_agent,  # cockpit default = A.R.C.H.I.E.; engine plan step = F.O.R.G.E.
-            model_override=model_override,  # cockpit = None (agent's model); engine plan = qwen2.5-coder:7b
-            local_only=True,  # stays on the hub — fleet escalation = ~260s contention (KB #269363)
-            # #4270: the interactive cockpit voice (no model_override) enters the
-            # interactive lane so it is admitted ahead of queued batch; the engine
-            # plan step (pins a coder model) stays normal/batch.
-            priority="high" if model_override is None else "normal",
+            model_override=model_override,  # cockpit chat -> COCKPIT_CHAT_MODEL (llama3.2:3b); engine = qwen2.5-coder:7b
+            preferred_node=preferred_node,  # cockpit chat -> Starship-246 GPU (hub fallback); None otherwise
+            local_only=True,  # no cloud escalation; sovereign-only (ADR-003 #4 / KB #269363)
+            # #4270: the interactive cockpit chat enters the interactive lane so it is
+            # admitted ahead of queued batch; the engine plan step stays normal/batch.
+            priority="high" if is_cockpit_chat else "normal",
         )
         if result.success and (result.response or "").strip():
             return jsonify(

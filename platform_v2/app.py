@@ -4625,6 +4625,16 @@ def api_internal_voice_transcribe():
     return jsonify(transcribe(raw, data.get("mime")))
 
 
+@app.route("/api/internal/archie/portrait", methods=["GET"])
+@_require_internal_key
+def api_internal_archie_portrait():
+    """A.R.C.H.I.E.'s portrait for the cockpit avatar. Bearer INTERNAL_API_KEY.
+    Serves agent-2's canonical image base64; fail-soft ({ok:false} -> monogram)."""
+    from services.archie_face_service import get_portrait
+
+    return jsonify(get_portrait())
+
+
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["GET"])
 @_require_internal_key
 def api_internal_get_session_state(agent_id, platform):

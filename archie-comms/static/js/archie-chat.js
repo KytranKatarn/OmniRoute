@@ -139,6 +139,7 @@ class MessageStream {
     this._scrollToBottom();
     this._streamingBubble = this._appendBubble('outbound', '', '');
     this._streamingBubble.querySelector('.ac-message-bubble').classList.add('ac-streaming-cursor');
+    _setPresence('thinking');   // she's working on the reply -> header ring pulses
 
     try {
       const resp = await fetch('/api/chat/send_message', {
@@ -193,14 +194,25 @@ class MessageStream {
               this._appendToken(evt.content);
               if (!this._userScrolled) this._scrollToBottom();
             } else if (evt.type === 'done') {
-              const _replyText = (this._streamingBubble
-                ? this._streamingBubble.querySelector('.ac-message-bubble').textContent : '').trim();
+              const bubbleWrap = this._streamingBubble;   // capture before _finaliseStream nulls it
+              const _replyText = (bubbleWrap
+                ? bubbleWrap.querySelector('.ac-message-bubble').textContent : '').trim();
               this._finaliseStream();
+              // attribution badge: who answered (⟨agent · model⟩), when both are present
+              if (bubbleWrap && evt.agent_name && evt.model_used) {
+                const meta = bubbleWrap.querySelector('.ac-message-meta');
+                if (meta) {
+                  const badge = _mk('span', 'ac-attrib');
+                  badge.textContent = '⟨' + evt.agent_name + ' · ' + evt.model_used + '⟩';
+                  meta.appendChild(badge);
+                }
+              }
               if (evt.conversation_id && !this.currentConvId) {
                 this.currentConvId = evt.conversation_id;
                 if (this.onConvCreated) this.onConvCreated(evt.conversation_id);
               }
-              if (_voiceOn && _replyText) _speak(_replyText);   // she speaks the reply
+              if (_voiceOn && _replyText) _speak(_replyText);   // she speaks (sets speaking -> idle)
+              else _setPresence('idle');                        // otherwise back to idle
             } else if (evt.type === 'error') {
               this._appendToken('\n[Error: ' + evt.message + ']');
               this._finaliseStream();
@@ -708,10 +720,26 @@ let _mediaRecorder = null;
 let _audioChunks = [];
 
 function _setPresence(state) {
-  // minimal in this slice (idle|thinking|speaking|listening); full avatar = Slice 4
+  // idle | thinking | speaking | listening -> body + avatar ring + header label
   document.body.dataset.presence = state;
+  const av = document.getElementById('ac-avatar');
+  if (av) av.dataset.presence = state;
+  const label = document.getElementById('ac-presence-label');
+  if (label) {
+    label.textContent = ({ idle: 'online', thinking: 'thinking…', speaking: 'speaking…', listening: 'listening…' })[state] || 'online';
+  }
   const vt = document.getElementById('ac-voice-toggle');
   if (vt) vt.classList.toggle('ac-speaking', state === 'speaking');
+}
+
+// Load her avatar into the persona header; on any error fall back to the CSS monogram.
+function _loadAvatar() {
+  const img = document.getElementById('ac-avatar-img');
+  const av = document.getElementById('ac-avatar');
+  if (!img || !av) return;
+  img.onerror = () => { av.classList.add('ac-avatar-mono-on'); img.style.display = 'none'; };
+  img.onload = () => { av.classList.remove('ac-avatar-mono-on'); };
+  img.src = '/api/archie/avatar?ts=' + Date.now();
 }
 
 async function _speak(text) {
@@ -762,6 +790,7 @@ async function _toggleMic(btn) {
 document.addEventListener('DOMContentLoaded', () => {
   const layout = document.getElementById('ac-layout');
   if (!layout) return;
+  _loadAvatar();   // her face in the persona header (fail-soft -> monogram)
 
   let sessions, stream, terminalDrawer;
   stream = new MessageStream({

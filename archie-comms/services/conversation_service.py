@@ -41,7 +41,8 @@ def _dhq_chat_reply(system_prompt, user_prompt, user_id=None):
     so the reply is welfare/cost-gated + cold-load-queued + fleet-routed instead
     of a raw Ollama call that hangs when the hub GPU is saturated.
 
-    Returns the full reply string, or ``None`` on ANY failure (no key, hub
+    Returns the platform reply dict ``{response, agent_name, model_used}`` (+
+    ``success``), or ``None`` on ANY failure (no key, hub
     unreachable, non-200, empty body) so the caller falls back to the
     direct-Ollama voice path — A.R.C.H.I.E. must still talk if the platform is
     down (ADR-013 voice-survives-crash waiver). This is DHQ-PREFERRED, not
@@ -71,7 +72,9 @@ def _dhq_chat_reply(system_prompt, user_prompt, user_id=None):
             return None
         data = resp.json()
         if data.get("success") and (data.get("response") or "").strip():
-            return data["response"]
+            # Slice 4: return the full dict {response, agent_name, model_used} so the
+            # cockpit can badge each reply with who answered (was the bare string).
+            return data
         return None
     except Exception as exc:
         logger.warning("DHQ chat unreachable (%s) — falling back to direct Ollama", exc)
@@ -1136,9 +1139,14 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
     full_parts = []
     stream_error = None
     dhq_reply = _dhq_chat_reply(system_prompt, user_prompt, user_id)
+    dhq_agent = None
+    dhq_model = None
     if dhq_reply is not None:
-        # DHQ is non-streaming: deliver the full reply as a single chunk.
-        full_parts = [dhq_reply]
+        # DHQ is non-streaming: deliver the full reply as a single chunk; carry the
+        # agent + model through to the done event for the cockpit attribution badge.
+        full_parts = [dhq_reply["response"]]
+        dhq_agent = dhq_reply.get("agent_name")
+        dhq_model = dhq_reply.get("model_used")
     else:
         streamer = _stream_ollama if _stream_ollama else iter([])
         try:
@@ -1186,8 +1194,9 @@ def stream_send_message(user_id, message, channel="web", conversation_id=None, t
             {"role": "assistant", "conversation_id": conv_id},
         )
 
-    # Yield done first, then delegation events, then approval events
-    yield {"type": "done", "conversation_id": conv_id}
+    # Yield done first (carrying the DHQ agent+model for the cockpit attribution
+    # badge), then delegation events, then approval events
+    yield {"type": "done", "conversation_id": conv_id, "agent_name": dhq_agent, "model_used": dhq_model}
     for evt in delegation_events:
         yield evt
     for evt in approval_events:

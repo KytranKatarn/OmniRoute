@@ -352,6 +352,24 @@ def api_chat_attach():
     )
 
 
+@app.route("/api/archie/avatar", methods=["GET"])
+def api_archie_avatar():
+    """A.R.C.H.I.E.'s avatar image (proxied from the platform). 404 -> the frontend
+    falls back to a CSS monogram. Cached a day (her face rarely changes)."""
+    from flask import Response
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.face_proxy import portrait
+
+    got = portrait()
+    if not got:
+        return ("", 404)
+    raw, mime = got
+    return Response(raw, mimetype=mime, headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.route("/api/voice/synthesize", methods=["POST"])
 def api_voice_synthesize():
     """Owner-only TTS: speak a reply in A.R.C.H.I.E.'s Kokoro voice. Fail-soft

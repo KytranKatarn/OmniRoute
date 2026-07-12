@@ -630,6 +630,54 @@ function _renderApprovalCard(a) {
   return el;
 }
 
+async function loadComs() {
+  // COMs tab (COO command surface, Slice 2): Telegram ops feed + config/migration header.
+  // XSS-safe by construction — every dynamic value is written via _mk + textContent (never
+  // innerHTML), which the browser renders as inert text, so feed content needs no HTML sanitization.
+  const header = document.getElementById('ac-coms-header');
+  const feed = document.getElementById('ac-coms-feed');
+  if (!header || !feed) return;
+  try {
+    const r = await fetch('/api/coms/overview?limit=60', { credentials: 'same-origin' });
+    const d = r.ok ? await r.json() : { messages: [], config: {}, migration: {} };
+    header.textContent = '';
+    const status = _mk('span', 'ac-coms-status');
+    status.textContent = d.config && d.config.bot_token_set ? '● Telegram connected' : '○ Telegram not configured';
+    header.appendChild(status);
+    if (d.migration && d.migration.progress) {
+      const mig = _mk('span', 'ac-coms-mig');
+      mig.textContent = '  ·  ' + (d.migration.progress.migrated || 0) + '/' + (d.migration.progress.total || 0) +
+        ' senders migrated (' + (d.migration.progress.percentage || 0) + '%)';
+      header.appendChild(mig);
+    }
+    feed.textContent = '';
+    const msgs = Array.isArray(d.messages) ? d.messages : [];
+    if (!msgs.length) {
+      const empty = _mk('div', 'ac-coms-empty');
+      empty.textContent = 'No Telegram messages logged yet.';
+      feed.appendChild(empty);
+      return;
+    }
+    msgs.forEach((m) => {
+      const row = _mk('div', 'ac-coms-row');
+      const meta = _mk('div', 'ac-coms-meta');
+      meta.textContent = (m.source_agent || m.source_module || 'system') + ' · ' + (m.category || '') +
+        ' · ' + (m.status || '');
+      const body = _mk('div', 'ac-coms-body');
+      body.textContent = m.title ? (m.title + ' — ' + (m.message || '')) : (m.message || '');
+      const time = _mk('div', 'ac-coms-time');
+      time.textContent = m.created_at || '';
+      row.appendChild(meta);
+      row.appendChild(body);
+      row.appendChild(time);
+      feed.appendChild(row);
+    });
+  } catch (e) {
+    header.textContent = 'COMs unavailable right now.';
+  }
+}
+
+
 async function loadApprovals() {
   const listEl = document.getElementById('ac-approvals-list');
   const countEl = document.getElementById('ac-approvals-count');
@@ -902,6 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (typeof _prevTabSwitch === 'function') { try { _prevTabSwitch(tabId); } catch (e) {} }
     if (tabId === 'history') loadHistoryList();
     if (tabId === 'collaboration' && window.acCollab) window.acCollab.onOpen();
+    if (tabId === 'coms') loadComs();
   };
 
   const status = new StatusPanel({

@@ -23,7 +23,8 @@
     ("chat", "Chat", "message-square"),
     ("history", "History", "clock"),
     ("collaboration", "Collaboration", "users"),
-    ("terminal", "Claude TTY", "terminal")
+    ("terminal", "Claude TTY", "terminal"),
+    ("coms", "COMs", "radio")
 ] %}
 {% include 'lcars-header.html' %}
 
@@ -178,6 +179,14 @@
                 allow="clipboard-read; clipboard-write"
                 title="Claude Terminal"></iframe>
     </div>
+</div>
+
+<!-- TAB: COMs — Telegram ops feed + config/migration (COO command surface) -->
+<div id="panel-coms" class="comms-panel">
+  <div class="ac-coms-wrap">
+    <div class="ac-coms-header" id="ac-coms-header">Loading COMs&#8230;</div>
+    <div class="ac-coms-feed" id="ac-coms-feed"></div>
+  </div>
 </div>
 
 <script>

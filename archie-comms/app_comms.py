@@ -383,6 +383,27 @@ def api_coo_agents():
     return jsonify(list_agents())
 
 
+@app.route("/api/coms/overview", methods=["GET"])
+def api_coms_overview():
+    """COMs/Telegram hub read view for the cockpit COMs tab. Session-gated; the internal
+    key is applied server-side in the proxy. Slice 2 (COO command surface)."""
+    from flask import request as flask_request
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    from services.coms_hub import overview
+
+    return jsonify(
+        overview(
+            limit=int(flask_request.args.get("limit", 50) or 50),
+            category=(flask_request.args.get("category") or "").strip() or None,
+            source_agent=(flask_request.args.get("source_agent") or "").strip() or None,
+            status=(flask_request.args.get("status") or "").strip() or None,
+        )
+    )
+
+
 @app.route("/api/voice/synthesize", methods=["POST"])
 def api_voice_synthesize():
     """Owner-only TTS: speak a reply in A.R.C.H.I.E.'s Kokoro voice. Fail-soft

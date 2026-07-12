@@ -1678,3 +1678,17 @@ body {
   outline: none;
   border-color: var(--ac-accent, #00e5ff);
 }
+
+/* COMs tab (Slice 2) — Telegram ops feed + config/migration header */
+#panel-coms { padding: 12px 16px; overflow-y: auto; }
+.ac-coms-header { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px;
+  color: var(--ac-text-dim, #7f95a8); padding: 6px 0 10px; border-bottom: 1px solid var(--ac-line, #24405c); }
+.ac-coms-status { color: var(--ac-accent, #00e5ff); }
+.ac-coms-feed { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; }
+.ac-coms-row { background: var(--ac-panel, #10151c); border: 1px solid var(--ac-line, #24405c);
+  border-radius: 6px; padding: 8px 10px; }
+.ac-coms-meta { font-size: 10px; color: var(--ac-accent, #00e5ff);
+  font-family: "IBM Plex Mono", ui-monospace, monospace; }
+.ac-coms-body { font-size: 13px; color: var(--ac-text, #cfe3ff); margin: 3px 0; }
+.ac-coms-time { font-size: 10px; color: var(--ac-text-dim, #556677); }
+.ac-coms-empty { color: var(--ac-text-dim, #556677); font-size: 12px; padding: 12px 0; }

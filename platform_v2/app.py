@@ -4589,6 +4589,28 @@ def api_internal_coo_consult():
         return jsonify({"success": False, "error": "exception"}), 200
 
 
+@app.route("/api/internal/coms/overview", methods=["GET"])
+@_require_internal_key
+def api_internal_coms_overview():
+    """COMs/Telegram hub read view (feed + config + migration) for the cockpit COMs tab.
+
+    Read-only (Slice 2 of the COO command surface). Fail-soft: 200 with empties on error.
+    """
+    try:
+        from services.coms_hub_service import overview
+
+        data = overview(
+            limit=int(request.args.get("limit", 50) or 50),
+            category=(request.args.get("category") or "").strip() or None,
+            source_agent=(request.args.get("source_agent") or "").strip() or None,
+            status=(request.args.get("status") or "").strip() or None,
+        )
+        return jsonify({"success": True, **data})
+    except Exception as e:
+        logger.warning(f"coms/overview failed: {e}")
+        return jsonify({"success": False, "messages": [], "config": {}, "migration": {}}), 200
+
+
 @app.route("/api/internal/session-link", methods=["POST", "GET"])
 @_require_internal_key
 def api_internal_session_link():

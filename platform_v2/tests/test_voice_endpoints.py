@@ -42,6 +42,65 @@ def test_synthesize_failsoft(monkeypatch):
     assert out["success"] is False and "error" in out
 
 
+def test_synthesize_prefers_gpu_node(monkeypatch):
+    """When KOKORO_NODE_URL is set + the node answers, use it (fast GPU) and never
+    touch the in-process hub synth."""
+    vs = importlib.import_module("services.voice_service")
+    monkeypatch.setenv("KOKORO_NODE_URL", "http://node:8092")
+
+    class _Synth:
+        def get_archie_emotional_state(self, uid):
+            return "confident"
+
+        def synthesize_for_agent(self, *a, **k):
+            raise AssertionError("hub must not be called when the node succeeds")
+
+    monkeypatch.setattr(vs, "get_voice_synthesizer", lambda: _Synth())
+
+    class _R:
+        status_code = 200
+
+        def json(self):
+            return {"success": True, "audio_base64": "Tk9ERQ==", "device": "cuda"}
+
+    seen = {}
+    monkeypatch.setattr(
+        vs.requests, "post", lambda url, json=None, timeout=None: seen.update(url=url, body=json) or _R()
+    )
+
+    out = vs.synthesize("hello", user_id=2)
+    assert out["success"] is True and out["via"] == "node"
+    assert out["audio_base64"] == "Tk9ERQ==" and out["device"] == "cuda"
+    assert seen["url"].endswith("/synthesize")
+    assert seen["body"]["emotion"] == "confident"  # her resolved mood forwarded
+    assert seen["body"]["voice_blend"] == "af_heart,af_jessica"
+
+
+def test_synthesize_falls_back_to_hub_when_node_down(monkeypatch):
+    """Node resting/offline => fall back to the always-on in-process hub synth."""
+    vs = importlib.import_module("services.voice_service")
+    monkeypatch.setenv("KOKORO_NODE_URL", "http://node:8092")
+
+    class _Synth:
+        def get_archie_emotional_state(self, uid):
+            return "neutral"
+
+        def synthesize_for_agent(self, text, agent_id, emotion=None, user_id=None):
+            assert agent_id == 2
+            return {"success": True, "audio_base64": "SFVC", "cached": False}
+
+    monkeypatch.setattr(vs, "get_voice_synthesizer", lambda: _Synth())
+
+    def node_down(*a, **k):
+        raise RuntimeError("node resting")
+
+    monkeypatch.setattr(vs.requests, "post", node_down)
+
+    out = vs.synthesize("hello", user_id=2)
+    assert out["success"] is True and out["via"] == "hub"
+    assert out["audio_base64"] == "SFVC"
+
+
 # ── pure service: transcribe (whisper sidecar) ────────────────────────────────
 
 

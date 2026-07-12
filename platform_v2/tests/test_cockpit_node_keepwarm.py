@@ -67,3 +67,12 @@ def test_cockpit_node_keepwarm_warms_only_the_fast_front_not_a_second_7b():
     # same node; this handler must NOT spin up a second 7B runner (would crowd the 8GB card).
     assert "DEEPEN_MODEL" not in handler
     assert "qwen2.5:7b" not in handler
+
+
+def test_cockpit_node_keepwarm_is_cpu_pinned_to_match_dispatch_runner():
+    handler = _handler()
+    # CPU-pin (num_gpu=0): on the full-GPU node build_options CPU-places the 3B, so the keep-warm
+    # must warm the CPU runner the dispatch actually creates. A GPU warm copy is a different Ollama
+    # runner the dispatch won't reuse (observed: a real cockpit chat cold-loaded at 11.7s despite a
+    # fresh GPU-preferred keep-warm ping).
+    assert '"num_gpu": 0' in handler

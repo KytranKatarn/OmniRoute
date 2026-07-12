@@ -613,8 +613,9 @@ class AgentLoop:
         # FIRST reply never cold-loads (the 14-34s variance the owner saw after PR #2217 routed
         # cockpit chat there). The deepen follow-up's 7B is already warmed by
         # forge_review_model_keepwarm on the same node, so this warms ONLY the small fast-front
-        # model — no second 7B runner, no 8GB-VRAM crowding. Online-gated, every 4 min / 10m
-        # keep_alive. Toggle via id=cockpit_node_model_keepwarm.
+        # model — no second 7B runner, no 8GB-VRAM crowding. CPU-pinned (matches the dispatch's
+        # runner on the full-GPU node) + online-gated, every 4 min / 30m keep_alive. Toggle via
+        # id=cockpit_node_model_keepwarm.
         self.scheduler.add_job(
             with_app_context(self._keep_cockpit_node_model_warm),
             trigger=IntervalTrigger(minutes=4),
@@ -3466,11 +3467,12 @@ class AgentLoop:
         _keep_forge_review_model_warm on this SAME node, so we warm ONLY the small fast-front
         model here (no second 7B runner → no 8GB-VRAM crowding).
 
-        Warmed at the cockpit's default num_ctx (the cockpit dispatch sets none) so the chat
-        reuses this exact runner with no reload. Online-gated (graceful skip when the node is
-        offline / in its 8PM-6AM hardware rest). Runs every 4 min with a 10m keep_alive —
-        mirrors the sibling keep-warms so even a chat that resets keep_alive never lapses
-        before the next ping. A direct /api/generate ping is the sanctioned ADR-013 exception
+        Warmed CPU-only (num_gpu=0) at the cockpit's default num_ctx so it matches the runner the
+        dispatch actually creates on the full-GPU node (build_options CPU-places the 3B when the
+        forge 7B holds the GPU — a GPU warm copy would be a different runner the dispatch won't
+        reuse). Online-gated (graceful skip when the node is offline / in its 8PM-6AM hardware
+        rest). Runs every 4 min with a 30m keep_alive — mirrors the sibling keep-warms so even a
+        chat that resets keep_alive never lapses before the next ping. A direct /api/generate ping is the sanctioned ADR-013 exception
         for keep-warm only. Toggle via the job id `cockpit_node_model_keepwarm`.
         """
         import time
@@ -3507,11 +3509,16 @@ class AgentLoop:
                 "model": model,
                 "prompt": "warm",
                 "stream": False,
-                # No num_ctx → matches the cockpit dispatch's default runner (a different
-                # num_ctx is a separate Ollama runner = a reload). No num_gpu → the small 3B
-                # lands on the RTX 3070 first (fast); it's tiny so a CPU spill is fine too.
-                "options": {"num_predict": 1},
-                "keep_alive": "10m",
+                # CPU-pin (num_gpu=0): on the contended 8GB card the forge review 7B holds the
+                # GPU, so build_options CPU-places the cockpit 3B too — warming it CPU-only here
+                # MATCHES the runner the dispatch actually creates. A GPU warm copy is a DIFFERENT
+                # Ollama runner the dispatch won't reuse, so it cold-loads anyway (observed: a real
+                # cockpit chat = 11.7s despite a fresh GPU keep-warm). CPU also keeps it resident in
+                # the node's ample 32GB RAM instead of thrashing against the 7B for VRAM. Mirrors the
+                # hub cockpit keep-warm (#4270). No num_ctx → both default, so the runners also match
+                # on context.
+                "options": {"num_predict": 1, "num_gpu": 0},
+                "keep_alive": "30m",
             }
             resp = req.post(f"http://{host}:11434/api/generate", json=data, timeout=600)
             ok = resp.status_code == 200

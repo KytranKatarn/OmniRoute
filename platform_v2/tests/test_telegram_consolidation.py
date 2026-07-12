@@ -174,7 +174,7 @@ class TestSendEscalationNotification:
             mock_bot_msg = msg_mock
 
         gw = object.__new__(TelegramGateway)
-        gw.bot_token = "test-token"
+        gw.bot_token = "$TELEGRAM_BOT_TOKEN"
         gw._running = True
         loop = asyncio.new_event_loop()
         gw._loop = loop

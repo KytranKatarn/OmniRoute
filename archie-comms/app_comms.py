@@ -273,7 +273,7 @@ def api_public_stats():
         "departments": None,
         "kb_entries": None,
         "kb_coverage_pct": None,
-        "telegram_last": None,
+        "telegram_recency": None,
     }
     try:
         from database import get_db_cursor
@@ -296,12 +296,20 @@ def api_public_stats():
             if r and r["total"]:
                 out["kb_entries"] = r["total"]
                 out["kb_coverage_pct"] = round(r["emb"] / r["total"] * 100)
-            # Telegram liveness — most-recent ops-message timestamp ONLY (no content). Kept
-            # LAST so a failure here can't poison the agent/KB values already set above.
+            # Telegram liveness — a COARSE recency bucket only (today / this week / earlier),
+            # never a precise timestamp or content. This public, unauthenticated endpoint must
+            # not leak exact internal ops-activity timing. Kept LAST so a failure here can't
+            # poison the agent/KB values already set above.
             cur.execute("SELECT MAX(created_at) AS last FROM telegram_message_log")
             r = cur.fetchone()
             if r and r["last"]:
-                out["telegram_last"] = r["last"].isoformat()
+                from datetime import datetime, timezone
+
+                last = r["last"]
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+                age_h = (datetime.now(timezone.utc) - last).total_seconds() / 3600.0
+                out["telegram_recency"] = "today" if age_h < 24 else ("this week" if age_h < 168 else "earlier")
     except Exception as exc:
         logger.error("api_public_stats failed: %s", exc)
     return jsonify(out)

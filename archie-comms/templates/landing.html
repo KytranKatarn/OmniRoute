@@ -205,19 +205,12 @@
     // numbers, replacing the '—' placeholders and the stale hardcoded 47 / 25K+.
     var setTxt = function(id, val){ var el=document.getElementById(id); if(el && val!=null) el.textContent=val; };
     var kFmt = function(n){ return n>=1000 ? Math.floor(n/1000)+'K+' : String(n); };
-    var relTime = function(iso){
-        var s=(Date.now()-new Date(iso).getTime())/1000; if(!(s>=0)) return null;
-        if(s<60) return 'just now';
-        if(s<3600) return Math.floor(s/60)+'m ago';
-        if(s<86400) return Math.floor(s/3600)+'h ago';
-        return Math.floor(s/86400)+'d ago';
-    };
     fetch('/api/public/stats').then(r=>r.json()).then(function(s){
         if(s.agents_active!=null){ setTxt('agentsActive', s.agents_active); setTxt('statAgents', s.agents_active); }
         if(s.departments!=null){ setTxt('deptCount', s.departments); setTxt('statDepts', s.departments); }
         if(s.kb_entries!=null){ setTxt('kbEntries', Number(s.kb_entries).toLocaleString()); setTxt('statKB', kFmt(s.kb_entries)); }
         if(s.kb_coverage_pct!=null){ setTxt('kbCoverage', s.kb_coverage_pct+'%'); }
-        if(s.telegram_last){ setTxt('lastMessage', relTime(s.telegram_last)); }
+        if(s.telegram_recency){ setTxt('lastMessage', s.telegram_recency); }  // coarse recency only
     }).catch(function(){});
     // Refresh status every 30s
     setInterval(()=>{

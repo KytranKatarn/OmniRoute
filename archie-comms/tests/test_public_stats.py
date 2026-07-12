@@ -20,7 +20,7 @@ def _fresh_app(monkeypatch):
 def test_public_stats_returns_live_counts(monkeypatch):
     app_comms = _fresh_app(monkeypatch)
 
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
 
     class _Cur:
         def execute(self, sql):
@@ -30,7 +30,7 @@ def test_public_stats_returns_live_counts(monkeypatch):
             if self._q == "kb":
                 return {"total": 36592, "emb": 36400}
             if self._q == "tg":
-                return {"last": datetime(2026, 7, 12, 22, 0, tzinfo=timezone.utc)}
+                return {"last": datetime.now(timezone.utc) - timedelta(hours=1)}
             return {"n": 54, "depts": 17}
 
     @contextlib.contextmanager
@@ -42,7 +42,7 @@ def test_public_stats_returns_live_counts(monkeypatch):
         d = c.get("/api/public/stats").get_json()
     assert d["agents_active"] == 54 and d["departments"] == 17
     assert d["kb_entries"] == 36592 and d["kb_coverage_pct"] == 99  # round(36400/36592*100)
-    assert d["telegram_last"].startswith("2026-07-12")  # ISO timestamp, no message content
+    assert d["telegram_recency"] == "today"  # coarse recency only — no precise timestamp/content
 
 
 def test_public_stats_failsoft(monkeypatch):

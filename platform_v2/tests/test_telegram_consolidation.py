@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 ARCHIE_PLATFORM_PATH = os.getenv('ARCHIE_PLATFORM_PATH')
 if ARCHIE_PLATFORM_PATH != '':
     sys.path.insert(0, ARCHIE_PLATFORM_PATH)
-if "/mnt/archie_brain/ai_bridge" not in sys.path:
+if "$ARCHIE_AI_BRIDGE_PATH" not in sys.path:
     sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 
 # ---------------------------------------------------------------------------

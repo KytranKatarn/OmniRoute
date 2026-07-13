@@ -48,9 +48,22 @@ _HEADERS = {
     "User-Agent": "Mozilla/5.0 WTFIngest (+https://what-the-fact.com)",
     "Accept-Encoding": "identity",   # never gzip — we stream + parse as plain text
 }
-# a cabinet minister's disclosed title contains 'minister' but NOT these (which are officials,
-# not members of the ministry).
-_NON_MINISTER = ("deputy", "associate", "assistant", "parliamentary secretary", "chief of staff")
+# a cabinet minister's disclosed title usually contains 'minister' but NOT these (which are
+# officials/exempt staff, not members of the ministry). Word-accurate so "Deputy Prime Minister"
+# and a hypothetical "Associate Minister" are NOT swept up with "Deputy Minister" / "Associate
+# Deputy Minister" / "Assistant Deputy Minister".
+_NON_MINISTER = ("deputy minister", "associate deputy", "assistant deputy",
+                 "parliamentary secretary", "chief of staff")
+# Cabinet positions whose disclosed title does NOT contain the word 'minister', so the
+# 'minister'-substring test alone would wrongly drop them. All ARE members of the ministry.
+_CABINET_EXTRA = (
+    "president of the treasury board",
+    "president of the king's privy council",
+    "president of the queen's privy council",
+    "president of the privy council",
+    "leader of the government in the house of commons",
+    "deputy prime minister",
+)
 
 # SSRF guard: this ingest fetches whatever resource URL CKAN's package_show hands back, and it
 # runs inside wtf-ingest (which can reach the mesh/DB). Only ever fetch government open-data over
@@ -122,6 +135,8 @@ def _date_to_period(date_str: str):
 
 def _is_minister_title(title: str) -> bool:
     t = (title or "").lower()
+    if any(x in t for x in _CABINET_EXTRA):   # cabinet titles without the word 'minister'
+        return True
     return "minister" in t and not any(x in t for x in _NON_MINISTER)
 
 
@@ -131,6 +146,12 @@ def _accumulate(url, kind, fam_idx, full_idx, agg):
     amt_field = "total"
     for row in _stream_rows(url):
         scanned += 1
+        # 'SLE' (Senior Level Employees) = senior BUREAUCRATS (deputy/asst-deputy ministers,
+        # agency heads) — never members of the ministry. A same-surname SLE official must never be
+        # attributed to a minister. Ministers file under 'MPSES' (or a blank group in older rows).
+        # Belt-and-suspenders with the title filter below.
+        if (row.get("disclosure_group") or "").strip().upper() == "SLE":
+            continue
         if not _is_minister_title(row.get("title_en") or row.get("title_fr")):
             continue
         mp_id = _match_mp(row.get("name") or "", fam_idx, full_idx)

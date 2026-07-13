@@ -27,6 +27,9 @@ Read-only: opens a short connection off the passed SQLAlchemy `engine`; never wr
 
 from __future__ import annotations
 
+import re
+import unicodedata
+
 from sqlalchemy import text
 
 # Fiscal years the model covers (parliament.mp_expenses spans 2021-Q1 .. 2025-Q4).
@@ -64,6 +67,80 @@ def _topup_role(cabinet_role):
     if "speaker" in c:
         return "speaker_topup"
     return "minister_topup"
+
+
+# --- name matching (civic official -> parliamentary roster) ------------------
+# Mirrors the matchers in ingest.parliament.cabinet / .senators: normalize, then
+# key on the family name (last token) and disambiguate shared surnames by
+# given-name token overlap. Read-only; NEVER guesses a number on a miss.
+
+_TITLE_PREFIXES = (
+    "the right honourable ", "the honourable ", "honourable ", "hon. ", "hon ",
+)
+
+
+def _strip_title(name: str) -> str:
+    low = (name or "").lower()
+    for pref in _TITLE_PREFIXES:
+        if low.startswith(pref):
+            return name[len(pref):]
+    return name
+
+
+def _norm(name: str) -> str:
+    """Lowercase, strip accents, drop punctuation, collapse spaces."""
+    name = unicodedata.normalize("NFKD", name or "").encode("ascii", "ignore").decode()
+    name = re.sub(r"[.'’\-]", " ", name.lower())
+    return re.sub(r"\s+", " ", name).strip()
+
+
+def _name_tokens(name: str) -> list:
+    """Normalized tokens of a full name, title stripped (e.g. 'Given Surname')."""
+    return _norm(_strip_title(name)).split()
+
+
+def _index_by_family(rows) -> dict:
+    """Build {family_key: [{id, name, given:set}]} from roster rows (id, name, given, family).
+
+    family_key = last token of the normalized family name (fallback: last token of the
+    full name). given = the normalized given-name tokens (fallback: all-but-last of the
+    full name) used to disambiguate a shared surname.
+    """
+    idx: dict = {}
+    for r in rows:
+        rid, full, given_name, family_name = r[0], r[1], r[2], r[3]
+        fam = _norm(family_name).split() or _name_tokens(full)
+        if not fam:
+            continue
+        given = set(_norm(given_name).split())
+        if not given:
+            given = set(_name_tokens(full)[:-1])
+        idx.setdefault(fam[-1], []).append({"id": rid, "name": full, "given": given})
+    return idx
+
+
+def _match_official(idx: dict, name: str):
+    """Match an official's 'Given Surname' to one roster entry, or None.
+
+    Single candidate for the surname -> match. Multiple -> pick the one with the most
+    given-name token overlap; a zero-overlap or tied best is AMBIGUOUS -> None (public
+    financial data: never attribute a cost on a guess).
+    """
+    toks = _name_tokens(name)
+    if not toks:
+        return None
+    cands = idx.get(toks[-1], [])
+    if not cands:
+        return None
+    if len(cands) == 1:
+        return cands[0]
+    off_given = set(toks[:-1])
+    scored = sorted(cands, key=lambda c: len(off_given & c["given"]), reverse=True)
+    best = len(off_given & scored[0]["given"])
+    second = len(off_given & scored[1]["given"]) if len(scored) > 1 else -1
+    if best == 0 or best == second:
+        return None
+    return scored[0]
 
 
 def _mp_cost(conn, mp_id: int, year: int, rates_by_year: dict) -> dict:
@@ -333,3 +410,84 @@ def parliament_cost_summary(engine) -> dict:
             "indemnity (matched current senators; some former-senator spend is unattributed)"
         ),
     }
+
+
+def officials_cost(engine, officials) -> list:
+    """Approximate 5-year taxpayer cost for a batch of NAMED civic officials.
+
+    Cross-product entry point (civic-watch transparency registry). Each official is
+    name-matched to the WTF parliamentary roster, then costed via the EXISTING single
+    source of truth (mp_cost_5yr / senator_cost_5yr) -- never recomputed here.
+
+        officials: [{"name": "Given Surname", "role": "minister" | "senator"}, ...]
+          role 'minister' -> parliament.mps WHERE cabinet_role IS NOT NULL
+          role 'senator'  -> parliament.senators (current)
+
+    Returns a list (INPUT ORDER preserved):
+        [{name, role, matched, subject_type, subject_id,
+          five_year_total, latest_year, latest_total, _note}, ...]
+    On a miss (unknown role, no surname match, ambiguous surname): matched=False and
+    every figure is None -- a public financial figure is never guessed.
+    """
+    # One connection builds both surname indexes; the per-member cost then goes back
+    # through the SSOT functions (which open their own short connections).
+    with engine.connect() as conn:
+        min_idx = _index_by_family(
+            conn.execute(
+                text(
+                    "SELECT id, name, COALESCE(given_name, ''), COALESCE(family_name, '') "
+                    "FROM parliament.mps WHERE cabinet_role IS NOT NULL"
+                )
+            ).fetchall()
+        )
+        sen_idx = _index_by_family(
+            conn.execute(
+                text(
+                    "SELECT id, name, COALESCE(given_name, ''), COALESCE(family_name, '') "
+                    "FROM parliament.senators WHERE is_current = true"
+                )
+            ).fetchall()
+        )
+
+    out = []
+    for off in officials or []:
+        name = (off.get("name") or "").strip() if isinstance(off, dict) else ""
+        role = (off.get("role") or "").strip().lower() if isinstance(off, dict) else ""
+        rec = {
+            "name": name,
+            "role": role,
+            "matched": False,
+            "subject_type": None,
+            "subject_id": None,
+            "five_year_total": None,
+            "latest_year": None,
+            "latest_total": None,
+            "_note": "no matching MP or senator in the parliamentary roster",
+        }
+
+        if role == "minister":
+            member, subject_type, cost_fn = _match_official(min_idx, name), "mp", mp_cost_5yr
+        elif role == "senator":
+            member, subject_type, cost_fn = _match_official(sen_idx, name), "senator", senator_cost_5yr
+        else:
+            member, subject_type, cost_fn = None, None, None
+            rec["_note"] = "unsupported role (expected 'minister' or 'senator')"
+
+        if member:
+            cost = cost_fn(engine, member["id"])
+            years = cost.get("years") or []
+            latest = years[-1] if years else None
+            rec.update(
+                {
+                    "matched": True,
+                    "subject_type": subject_type,
+                    "subject_id": member["id"],
+                    "five_year_total": cost.get("five_year_total"),
+                    "latest_year": latest["year"] if latest else None,
+                    "latest_total": latest["total"] if latest else None,
+                    "_note": _NOTE,
+                }
+            )
+        out.append(rec)
+
+    return out

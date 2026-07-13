@@ -11,13 +11,22 @@ so the public number is never presented as exact. Read-only: connects ONLY to
 WTF_DATABASE_URL and never writes. Short TTL cache guards the gunicorn workers.
 """
 
+import hashlib
+import json
 import os
 import time
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from sqlalchemy import create_engine
 
-from ingest.parliament.cost import mp_cost_5yr, parliament_cost_summary, senator_cost_5yr
+from ingest.parliament.cost import (
+    mp_cost_5yr,
+    officials_cost,
+    parliament_cost_summary,
+    senator_cost_5yr,
+)
+
+_MAX_OFFICIALS = 200  # cap the batch — a page shows dozens of officials, never thousands
 
 cost_bp = Blueprint("cost", __name__)
 
@@ -80,3 +89,42 @@ def api_cost_summary():
     data = dict(_cached("summary", lambda: parliament_cost_summary(_get_engine())))
     data["_source"] = _SOURCE
     return jsonify(data)
+
+
+@cost_bp.route("/api/cost/officials", methods=["POST"])
+def api_cost_officials():
+    """Batch: 5-year approximate taxpayer cost for a list of NAMED civic officials.
+
+    Cross-product surface (civic-watch transparency registry). Body:
+        {"officials": [{"name": "Given Surname", "role": "minister"|"senator"}, ...]}
+    Each is name-matched to the WTF parliamentary roster and costed via the single
+    source of truth (cost.officials_cost). Public, cached by request hash. XSS n/a (JSON).
+    Unmatched officials come back matched=false with no figures.
+    """
+    body = request.get_json(silent=True) or {}
+    raw = body.get("officials")
+    if not isinstance(raw, list):
+        raw = []
+    # sanitize + cap: only well-formed {name, role} entries, bounded length
+    officials = [
+        {"name": str(o["name"])[:120], "role": str(o.get("role") or "")[:32]}
+        for o in raw[:_MAX_OFFICIALS]
+        if isinstance(o, dict) and o.get("name")
+    ]
+    key = "officials:" + hashlib.sha1(
+        json.dumps(officials, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    rows = _cached(key, lambda: officials_cost(_get_engine(), officials))
+    return jsonify(
+        {
+            "officials": rows,
+            "count": len(rows),
+            "matched": sum(1 for r in rows if r.get("matched")),
+            "_source": _SOURCE,
+            "_note": (
+                "approximate 5-year taxpayer cost (office expenses + indemnity; excludes "
+                "pensions and central costs); name-matched to the Library of Parliament "
+                "roster -- unmatched officials carry no figure"
+            ),
+        }
+    )

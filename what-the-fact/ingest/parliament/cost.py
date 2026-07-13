@@ -429,8 +429,12 @@ def officials_cost(engine, officials) -> list:
     On a miss (unknown role, no surname match, ambiguous surname): matched=False and
     every figure is None -- a public financial figure is never guessed.
     """
-    # One connection builds both surname indexes; the per-member cost then goes back
-    # through the SSOT functions (which open their own short connections).
+    # ONE connection for the whole batch: build both surname indexes, preload the rate
+    # table once, then cost every matched member through the core SSOT helpers
+    # (_mp_cost / _senator_cost — the exact math mp_cost_5yr / senator_cost_5yr use).
+    # A per-member mp_cost_5yr(engine, id) would open a fresh connection AND re-query the
+    # rates for each of ~46 officials — ~10s cold over the mesh. Sharing one connection +
+    # one rate preload brings the batch well under the caller's timeout. Same figures.
     with engine.connect() as conn:
         min_idx = _index_by_family(
             conn.execute(
@@ -448,46 +452,48 @@ def officials_cost(engine, officials) -> list:
                 )
             ).fetchall()
         )
+        rates = _all_rates(conn)  # preload once — shared across every member below
 
-    out = []
-    for off in officials or []:
-        name = (off.get("name") or "").strip() if isinstance(off, dict) else ""
-        role = (off.get("role") or "").strip().lower() if isinstance(off, dict) else ""
-        rec = {
-            "name": name,
-            "role": role,
-            "matched": False,
-            "subject_type": None,
-            "subject_id": None,
-            "five_year_total": None,
-            "latest_year": None,
-            "latest_total": None,
-            "_note": "no matching MP or senator in the parliamentary roster",
-        }
+        out = []
+        for off in officials or []:
+            name = (off.get("name") or "").strip() if isinstance(off, dict) else ""
+            role = (off.get("role") or "").strip().lower() if isinstance(off, dict) else ""
+            rec = {
+                "name": name,
+                "role": role,
+                "matched": False,
+                "subject_type": None,
+                "subject_id": None,
+                "five_year_total": None,
+                "latest_year": None,
+                "latest_total": None,
+                "_note": "no matching MP or senator in the parliamentary roster",
+            }
 
-        if role == "minister":
-            member, subject_type, cost_fn = _match_official(min_idx, name), "mp", mp_cost_5yr
-        elif role == "senator":
-            member, subject_type, cost_fn = _match_official(sen_idx, name), "senator", senator_cost_5yr
-        else:
-            member, subject_type, cost_fn = None, None, None
-            rec["_note"] = "unsupported role (expected 'minister' or 'senator')"
+            if role == "minister":
+                member, subject_type, core = _match_official(min_idx, name), "mp", _mp_cost
+            elif role == "senator":
+                member, subject_type, core = _match_official(sen_idx, name), "senator", _senator_cost
+            else:
+                member, subject_type, core = None, None, None
+                rec["_note"] = "unsupported role (expected 'minister' or 'senator')"
 
-        if member:
-            cost = cost_fn(engine, member["id"])
-            years = cost.get("years") or []
-            latest = years[-1] if years else None
-            rec.update(
-                {
-                    "matched": True,
-                    "subject_type": subject_type,
-                    "subject_id": member["id"],
-                    "five_year_total": cost.get("five_year_total"),
-                    "latest_year": latest["year"] if latest else None,
-                    "latest_total": latest["total"] if latest else None,
-                    "_note": _NOTE,
-                }
-            )
-        out.append(rec)
+            if member:
+                # one row per year the member served (mirrors *_cost_5yr), on the shared conn
+                years = [core(conn, member["id"], y, rates) for y in YEARS]
+                years = [c for c in years if c["served"]]
+                latest = years[-1] if years else None
+                rec.update(
+                    {
+                        "matched": True,
+                        "subject_type": subject_type,
+                        "subject_id": member["id"],
+                        "five_year_total": sum(c["total"] for c in years),
+                        "latest_year": latest["year"] if latest else None,
+                        "latest_total": latest["total"] if latest else None,
+                        "_note": _NOTE,
+                    }
+                )
+            out.append(rec)
 
     return out

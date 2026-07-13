@@ -957,7 +957,9 @@ def api_chat_escalate():
     if not message:
         return jsonify({"error": "Empty message"}), 400
 
-    user_id = session.get("user_id", 2)
+    user_id = session.get("user_id")
+    if not user_id:  # fail closed — never fall back to another user's (id 2) data
+        return jsonify({"error": "Unauthorized"}), 401
     from services.conversation_service import escalate_to_claude
 
     result = escalate_to_claude(user_id=user_id, message=message)
@@ -1058,7 +1060,9 @@ def api_chat_conversations():
     if "user_id" not in session and "kytran_user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    user_id = session.get("user_id", 2)
+    user_id = session.get("user_id")
+    if not user_id:  # fail closed — never fall back to another user's (id 2) data
+        return jsonify({"error": "Unauthorized"}), 401
     from services.conversation_service import get_conversations
 
     result = get_conversations(user_id)
@@ -1092,7 +1096,9 @@ def api_chat_new():
     if "user_id" not in session and "kytran_user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    user_id = session.get("user_id", 2)
+    user_id = session.get("user_id")
+    if not user_id:  # fail closed — never fall back to another user's (id 2) data
+        return jsonify({"error": "Unauthorized"}), 401
     data = request.get_json() or {}
     from services.conversation_service import new_conversation
 
@@ -1109,7 +1115,9 @@ def api_chat_delete_conversation(conv_id):
     if "user_id" not in session and "kytran_user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    user_id = session.get("user_id", 2)
+    user_id = session.get("user_id")
+    if not user_id:  # fail closed — never fall back to another user's (id 2) data
+        return jsonify({"error": "Unauthorized"}), 401
     from database import get_db_cursor
 
     with get_db_cursor(commit=True) as (conn, cur):
@@ -1139,7 +1147,9 @@ def api_chat_history():
     if "user_id" not in session and "kytran_user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
 
-    user_id = session.get("user_id", 2)
+    user_id = session.get("user_id")
+    if not user_id:  # fail closed — never fall back to another user's (id 2) data
+        return jsonify({"error": "Unauthorized"}), 401
     from database import get_db_cursor
 
     with get_db_cursor() as (conn, cur):

@@ -36,7 +36,8 @@
         .status-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:1.5rem;transition:border-color 0.3s;}
         .status-card:hover{border-color:var(--accent);}
         .status-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;}
-        .status-card-title{font-family:'Orbitron',sans-serif;font-size:0.64rem;color:var(--accent);letter-spacing:1px;text-transform:uppercase;}
+        .status-card-title{font-family:'Orbitron',sans-serif;font-size:0.7rem;color:var(--accent);letter-spacing:2px;text-transform:uppercase;}
+        .status-card-title--long{font-size:0.6rem;letter-spacing:0.5px;}  /* only long labels (COLLABORATION) shrink to fit one line */
         .status-indicator{display:flex;align-items:center;gap:5px;font-size:0.68rem;white-space:nowrap;}
         .status-indicator.ok{color:var(--green);}
         .status-indicator.warn{color:var(--amber);}
@@ -146,7 +147,7 @@
         </div>
         <div class="status-card">
             <div class="status-card-header">
-                <span class="status-card-title">Collaboration</span>
+                <span class="status-card-title status-card-title--long">Collaboration</span>
                 <span class="status-indicator ok" id="collabStatus"><span class="dot-sm"></span> Available</span>
             </div>
             <div class="status-detail">

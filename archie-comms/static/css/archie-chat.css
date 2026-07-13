@@ -46,9 +46,9 @@
   color: var(--ac-text-primary, #e0e6f0);
   font-family: 'IBM Plex Mono', 'Courier New', monospace;
   overflow: hidden;
-  transition:
-    grid-template-columns var(--ac-transition),
-    padding var(--ac-transition);
+  /* .ac-layout is flexbox, not grid — only padding transitions (dropped the dead
+     grid-template-columns transition). */
+  transition: padding var(--ac-transition);
 }
 
 /* ============================================================
@@ -809,7 +809,10 @@
    Conversations list (and its "+ New Conversation" bottom bar) and collapse the right
    intel rail here so the chat gets room; the rail returns on true desktop (>1024).
    Mirrors the ≤768 escalation — the right rail is the first column to go. */
-@media (min-width: 769px) and (max-width: 1024px) {
+/* Up to 1200px keep the 2-column layout (left sidebar + chat) — hide the supplementary
+   right rail. This covers the Fold5-unfolded LANDSCAPE band (~1104px) so the rail no longer
+   pops in abruptly at 1025px on a near-square screen; true desktops >1200px still get it. */
+@media (min-width: 769px) and (max-width: 1200px) {
   .ac-sidebar-right {
     display: none;
   }

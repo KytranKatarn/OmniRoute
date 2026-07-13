@@ -32,7 +32,11 @@ import unicodedata
 
 from sqlalchemy import text
 
-# Fiscal years the model covers (parliament.mp_expenses spans 2021-Q1 .. 2025-Q4).
+# Default/fallback window. The LIVE window is computed dynamically from the data by
+# _complete_years() so the model auto-advances as new quarters are disclosed — a year rolls
+# into the headline once its 4th quarter lands, an incomplete year never inflates it, and the
+# current partial year is detected automatically. This is what keeps the public totals honest +
+# up to date over time without a manual code bump (the trap that once froze ingestion for weeks).
 YEARS = (2021, 2022, 2023, 2024, 2025)
 
 _NOTE = (
@@ -41,6 +45,47 @@ _NOTE = (
 
 
 # --------------------------------------------------------------------------- helpers
+
+def _year_quarters(conn) -> dict:
+    """{fiscal_year: {quarters}} present in parliament.mp_expenses — the completeness signal
+    (MP expenditures are the primary, most-current source; senator/ministerial data is added
+    where available for a year the MP data has established)."""
+    out: dict = {}
+    for yr, q in conn.execute(
+        text("SELECT LEFT(period, 4)::int, RIGHT(period, 2) FROM parliament.mp_expenses GROUP BY 1, 2")
+    ).fetchall():
+        out.setdefault(int(yr), set()).add(q)
+    return out
+
+
+def _complete_years(conn) -> tuple:
+    """Fiscal years with all 4 quarters on file — the headline window. DYNAMIC: auto-advances
+    as quarters are disclosed; an incomplete year is never counted in the headline (it drops to
+    an addendum). Falls back to the static YEARS only if the table is unexpectedly empty."""
+    yq = _year_quarters(conn)
+    complete = tuple(sorted(y for y, qs in yq.items() if len(qs) >= 4))
+    return complete or YEARS
+
+
+def _current_partial_year(conn):
+    """The latest disclosed year NEWER than the complete window that is still partial (< 4
+    quarters) — i.e. 'the current year, to date'. Returns the int year or None. This is the year
+    we surface as a live addendum + project a full-year estimate for."""
+    yq = _year_quarters(conn)
+    latest_complete = _complete_years(conn)[-1]
+    newer = sorted(y for y in yq if y > latest_complete)
+    return newer[-1] if newer else None
+
+
+def _project(ytd, quarters):
+    """Annualized full-year projection from a partial year, or None when there isn't enough
+    signal. Only projects from >= 2 disclosed quarters — a single quarter is far too noisy to
+    annualize honestly (one heavy quarter would 4x into an absurd number). Refines automatically
+    as more quarters land."""
+    q = int(quarters or 0)
+    if q < 2 or q >= 4 or not ytd:
+        return None
+    return round(float(ytd) / q * 4)
 
 def _all_rates(conn) -> dict:
     """{fiscal_year: {role: amount_float}} from the sourced reference table (one query)."""
@@ -240,6 +285,40 @@ def _senator_cost(conn, senator_id: int, year: int, rates_by_year: dict) -> dict
     }
 
 
+def _current_year_block(conn, core, table: str, id_col: str, sid: int, rates_by_year: dict):
+    """One member's CURRENT partial-year cost (year-to-date) + a projected full year, or None
+    if they have no current-year disclosure. `core` = _mp_cost/_senator_cost; `table`/`id_col`
+    (hardcoded constants — never user input) locate the member's rows to count disclosed
+    quarters. The projection is annualized from >=2 quarters (see _project), refining over time."""
+    cur = _current_partial_year(conn)
+    if cur is None:
+        return None
+    c = core(conn, int(sid), cur, rates_by_year)
+    if not c["served"]:
+        return None
+    nq = conn.execute(
+        text(
+            "SELECT COUNT(DISTINCT RIGHT(period, 2)) FROM " + table
+            + " WHERE " + id_col + " = :sid AND LEFT(period, 4) = :yr"
+        ),
+        {"sid": int(sid), "yr": str(cur)},
+    ).scalar()
+    nq = int(nq or 0)
+    return {
+        "year": cur,
+        "quarters": nq,
+        "total": c["total"],
+        "office_total": c["office_total"],
+        "indemnity": c["indemnity"],
+        "top_up": c.get("top_up", 0),
+        "projected_full_year": _project(c["total"], nq),
+        "_note": (
+            "year-to-date — {0} quarter(s) disclosed so far; projected = annualized estimate, "
+            "actuals will differ".format(nq)
+        ),
+    }
+
+
 # --------------------------------------------------------------------------- public API
 
 def mp_cost(engine, mp_id: int, year: int) -> dict:
@@ -263,10 +342,11 @@ def mp_cost_5yr(engine, mp_id: int) -> dict:
             text("SELECT name FROM parliament.mps WHERE id = :mid"), {"mid": int(mp_id)}
         ).scalar()
         years = []
-        for y in YEARS:
+        for y in _complete_years(conn):
             c = _mp_cost(conn, int(mp_id), y, rates)
             if c["served"]:
                 years.append(c)
+        current = _current_year_block(conn, _mp_cost, "parliament.mp_expenses", "mp_id", int(mp_id), rates)
 
     five_year_total = sum(y["total"] for y in years)
     return {
@@ -274,6 +354,8 @@ def mp_cost_5yr(engine, mp_id: int) -> dict:
         "name": name,
         "years": years,
         "five_year_total": five_year_total,
+        # current partial year (year-to-date) + projected full year — NEVER in five_year_total.
+        "current": current,
         # Ministerial (departmental) travel + hospitality — borne CENTRALLY, a separate line
         # ON TOP of the MP office budget above (never folded into five_year_total). Zero for a
         # non-minister. This is the cost the MP budget can't show (why the PM shows ~$0 travel).
@@ -292,6 +374,7 @@ def minister_travel_5yr(engine, mp_id: int) -> dict:
     five_year_total is 0 for a non-minister.
     """
     with engine.connect() as conn:
+        cy = _complete_years(conn)
         rows = conn.execute(
             text(
                 """
@@ -304,7 +387,7 @@ def minister_travel_5yr(engine, mp_id: int) -> dict:
                  GROUP BY 1 ORDER BY 1
                 """
             ),
-            {"mid": int(mp_id), "y0": YEARS[0], "y1": YEARS[-1]},
+            {"mid": int(mp_id), "y0": cy[0], "y1": cy[-1]},
         ).fetchall()
 
     years = []
@@ -344,16 +427,21 @@ def senator_cost_5yr(engine, senator_id: int) -> dict:
             {"sid": int(senator_id)},
         ).scalar()
         years = []
-        for y in YEARS:
+        for y in _complete_years(conn):
             c = _senator_cost(conn, int(senator_id), y, rates)
             if c["served"]:
                 years.append(c)
+        current = _current_year_block(
+            conn, _senator_cost, "parliament.senator_expenses", "senator_id", int(senator_id), rates
+        )
     five_year_total = sum(y["total"] for y in years)
     return {
         "senator_id": int(senator_id),
         "name": name,
         "years": years,
         "five_year_total": five_year_total,
+        # current partial year (year-to-date) + projected full year — NEVER in five_year_total.
+        "current": current,
         "_note": _NOTE,
     }
 
@@ -447,7 +535,13 @@ def parliament_cost_summary(engine) -> dict:
         amount = rates.get(int(yr), {}).get(role, 0.0) if role else 0.0
         topup_by_year[int(yr)] = topup_by_year.get(int(yr), 0.0) + amount * int(n)
 
-    by_year = []          # the COMPLETE fiscal years (YEARS) — drive the headline + chart
+    # DYNAMIC window: the COMPLETE fiscal years (>= 4 quarters on file) drive the headline; it
+    # auto-advances as new quarters are disclosed. current_year = the latest partial year beyond
+    # the window (the "current year, to date"). Falls back to the static YEARS if the table is empty.
+    complete_years = tuple(sorted(y for y, qs in quarters_by_year.items() if len(qs) >= 4)) or YEARS
+    current_year = max((y for y in quarters_by_year if y > complete_years[-1]), default=None)
+
+    by_year = []          # the COMPLETE fiscal years — drive the headline + chart
     addenda = []          # disclosed years OUTSIDE the window (partial quarters) — addenda only
     grand_total_5yr = 0
     ministerial_grand_5yr = 0
@@ -473,31 +567,52 @@ def parliament_cost_summary(engine) -> dict:
             "ministerial_total": ministerial_total,
             "avg_per_mp": round(total / mp_count) if mp_count else 0,
         }
-        if yr in YEARS:
+        if yr in complete_years:
             by_year.append(row)
             grand_total_5yr += total
             ministerial_grand_5yr += ministerial_total
         else:
-            # A disclosed year OUTSIDE the 5 complete years — always PARTIAL (fewer than 4
-            # quarters on file). Reported as an addendum beneath the headline, NEVER folded
-            # into the totals above, with its quarters flagged for honesty.
+            # A disclosed year OUTSIDE the complete window — always PARTIAL (< 4 quarters).
+            # Reported as an addendum beneath the headline, NEVER folded into the totals above:
+            # split by chamber (MP / Senate / ministerial) + quarters, and for the CURRENT year a
+            # projected full-year (annualized from >= 2 quarters, else null — honest + auto-refining).
+            mp_total = office_total + mp_indemnity_total
+            mp_q = len(quarters_by_year.get(yr, []))
+            projected = None
+            if yr == current_year and mp_q >= 2:
+                projected = {
+                    "mp": _project(mp_total, mp_q),
+                    "senator": _project(senator_total, mp_q),
+                    "parliamentary": _project(total, mp_q),
+                    "ministerial": _project(ministerial_total, mp_q),
+                    "combined": _project(total + ministerial_total, mp_q),
+                    "from_quarters": mp_q,
+                }
             addenda.append({
                 "year": yr,
                 "quarters": quarters_by_year.get(yr, []),
-                "kind": "latest_ytd" if yr > YEARS[-1] else "partial_pre_window",
+                "kind": "latest_ytd" if yr > complete_years[-1] else "partial_pre_window",
+                "mp": mp_total,
+                "mp_office": office_total,
+                "mp_indemnity": mp_indemnity_total,
+                "mp_count": mp_count,
+                "senator": senator_total,
+                "senator_count": sen_count,
                 "parliamentary": total,
                 "ministerial": ministerial_total,
                 "combined": total + ministerial_total,
+                "projected": projected,
             })
 
     addenda.sort(key=lambda a: a["year"])
     return {
         "window": {
-            "start": YEARS[0],
-            "end": YEARS[-1],
-            "years": list(YEARS),
+            "start": complete_years[0],
+            "end": complete_years[-1],
+            "years": list(complete_years),
+            "current_year": current_year,
             "label": "{0} complete fiscal years ({1}–{2})".format(
-                len(YEARS), YEARS[0], YEARS[-1]
+                len(complete_years), complete_years[0], complete_years[-1]
             ),
         },
         "by_year": by_year,
@@ -506,8 +621,9 @@ def parliament_cost_summary(engine) -> dict:
         # SEPARATE figure (never folded into grand_total_5yr) + a combined headline.
         "ministerial_grand_5yr": ministerial_grand_5yr,
         "combined_grand_5yr": grand_total_5yr + ministerial_grand_5yr,
-        # disclosed data OUTSIDE the 5 complete years (partial quarters) — shown beneath the
-        # headline as addenda (e.g. 2026 year-to-date), NEVER summed into the totals above.
+        # disclosed data OUTSIDE the complete years (partial quarters) — shown beneath the headline
+        # as addenda (e.g. 2026 year-to-date, split by chamber + projected), NEVER summed into the
+        # totals above.
         "addenda": addenda,
         "_note": (
             _NOTE
@@ -518,7 +634,7 @@ def parliament_cost_summary(engine) -> dict:
             "some former-senator spend is unattributed); ministerial_grand_5yr = cabinet "
             "ministers' departmental travel + hospitality borne centrally (open.canada.ca "
             "proactive disclosure), reported separately, NOT part of grand_total_5yr"
-        ).format(len(YEARS), YEARS[0], YEARS[-1]),
+        ).format(len(complete_years), complete_years[0], complete_years[-1]),
     }
 
 
@@ -563,6 +679,7 @@ def officials_cost(engine, officials) -> list:
             ).fetchall()
         )
         rates = _all_rates(conn)  # preload once — shared across every member below
+        cy = _complete_years(conn)  # dynamic window (auto-advances) — same for every member
 
         out = []
         for off in officials or []:
@@ -591,7 +708,7 @@ def officials_cost(engine, officials) -> list:
 
             if member:
                 # one row per year the member served (mirrors *_cost_5yr), on the shared conn
-                years = [core(conn, member["id"], y, rates) for y in YEARS]
+                years = [core(conn, member["id"], y, rates) for y in cy]
                 years = [c for c in years if c["served"]]
                 latest = years[-1] if years else None
                 rec.update(
@@ -617,7 +734,7 @@ def officials_cost(engine, officials) -> list:
                     "WHERE mp_id = ANY(:ids) AND LEFT(period, 4)::int BETWEEN :y0 AND :y1 "
                     "GROUP BY mp_id"
                 ),
-                {"ids": min_ids, "y0": YEARS[0], "y1": YEARS[-1]},
+                {"ids": min_ids, "y0": cy[0], "y1": cy[-1]},
             ).fetchall()
             mmap = {int(mid): round(float(t)) for mid, t in mrows}
             for r in out:
@@ -642,8 +759,9 @@ def cost_reconciliation(engine) -> dict:
     """
     from collections import defaultdict
 
-    y0, y1 = YEARS[0], YEARS[-1]
     with engine.connect() as conn:
+        cy = _complete_years(conn)      # dynamic window — same the summary/member pages use
+        y0, y1 = cy[0], cy[-1]
         rates = _all_rates(conn)
 
         # MPs — per (mp, year) office + role over the window; cost each exactly as _mp_cost does
@@ -725,7 +843,7 @@ def cost_reconciliation(engine) -> dict:
     tolerance = max(2, len(mp_tot) + len(sen_tot))   # <= ~$1-2/member = pure rounding
     # both sides sum the same records; any residual is per-year vs window rounding (the headline
     # rounds each year's aggregate, the member sum rounds each member's annual figures).
-    reconciles = abs(diff) <= tolerance and abs(min_diff) <= max(2, len(YEARS) * 2)
+    reconciles = abs(diff) <= tolerance and abs(min_diff) <= max(2, len(cy) * 2)
 
     members = sorted(
         [{"name": v["name"], "type": "mp", "five_year_total": v["total"]} for v in mp_tot.values()]
@@ -759,5 +877,5 @@ def cost_reconciliation(engine) -> dict:
             "every MP + senator over the {0} complete fiscal years {1}-{2}, plus the ministerial "
             "line (reported separately). Any residual is presentational rounding. Figures are "
             "approximate; a public figure is never guessed — an unmatched official is not counted."
-        ).format(len(YEARS), y0, y1),
+        ).format(len(cy), y0, y1),
     }

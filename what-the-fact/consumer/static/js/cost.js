@@ -209,17 +209,40 @@
         }
       }
 
-      // addenda — disclosed partial years, shown for completeness, NEVER in the headline total
+      // addenda — disclosed partial years (e.g. the current year to date), shown for
+      // completeness + split by chamber + projected, NEVER folded into the headline total.
       var addBox = root.querySelector("[data-cost-addenda]");
       if (addBox) {
         clear(addBox);
         (data.addenda || []).forEach(function (a) {
           var qs = (a.quarters || []).join(", ");
           var kind = a.kind === "latest_ytd" ? "year-to-date" : "partial year";
-          var line = el("div", { css: "font-size:12px;color:" + C.subtle + ";margin-top:6px;line-height:1.6;" });
-          line.appendChild(el("span", { text: "＋ " + a.year + " " + kind + (qs ? " (" + qs + ")" : "") + ": ", css: "color:" + C.text + ";font-weight:600;" }));
-          line.appendChild(el("span", { text: fmtFull(a.combined) + " disclosed so far — shown for completeness, not in the total above." }));
-          addBox.appendChild(line);
+          var wrap = el("div", { css: "margin-top:8px;padding-top:8px;border-top:1px solid rgba(148,163,184,0.1);" });
+          var head = el("div", { css: "font-size:12px;line-height:1.6;" });
+          head.appendChild(el("span", { text: "＋ " + a.year + " " + kind + (qs ? " (" + qs + ")" : "") + ": ", css: "color:" + C.text + ";font-weight:600;" }));
+          head.appendChild(el("span", { text: fmtFull(a.combined) + " disclosed so far — shown for completeness, not in the total above.", css: "color:" + C.subtle + ";" }));
+          wrap.appendChild(head);
+          // chamber split — MP vs Senate vs ministerial
+          var split = el("div", { css: "font-size:11px;color:" + C.subtle + ";margin-top:3px;padding-left:14px;" });
+          var splitTxt = "House of Commons " + fmtFull(a.mp) + (a.mp_count ? " (" + a.mp_count + " MPs)" : "")
+            + "  ·  Senate " + fmtFull(a.senator) + (a.senator_count ? " (" + a.senator_count + " senators)" : "");
+          if (num(a.ministerial) > 0) splitTxt += "  ·  ministerial " + fmtFull(a.ministerial);
+          split.appendChild(el("span", { text: splitTxt }));
+          wrap.appendChild(split);
+          // projected full year — only for the current year; annualized once >=2 quarters land
+          if (a.projected && a.projected.combined) {
+            var fq = a.projected.from_quarters;
+            wrap.appendChild(el("div", {
+              text: "↗ projected full year ≈ " + fmtFull(a.projected.combined) + " (House " + fmtFull(a.projected.parliamentary) + " + ministerial " + fmtFull(a.projected.ministerial) + ") — annualized from " + fq + " quarter" + (fq === 1 ? "" : "s") + "; estimate, actuals will differ",
+              css: "font-size:11px;color:" + C.topup + ";margin-top:3px;padding-left:14px;line-height:1.5;"
+            }));
+          } else if (a.kind === "latest_ytd") {
+            wrap.appendChild(el("div", {
+              text: "↗ a full-year projection appears here once ≥2 quarters are disclosed",
+              css: "font-size:11px;color:" + C.muted + ";margin-top:3px;padding-left:14px;"
+            }));
+          }
+          addBox.appendChild(wrap);
         });
       }
 
@@ -362,6 +385,24 @@
         container.appendChild(mbox);
       }
 
+      // Current partial year (year-to-date) + projected full year — NEVER in the 5-year total.
+      var cur = data.current;
+      if (cur && num(cur.total) > 0) {
+        var cbox = el("div", { css: "margin-top:16px;padding:12px 14px;border:1px dashed rgba(148,163,184,0.32);border-radius:8px;" });
+        cbox.appendChild(el("span", { text: cur.year + " so far", css: "font-weight:800;color:" + C.text + ";font-size:13px;" }));
+        cbox.appendChild(el("span", { text: " · " + cur.quarters + " quarter" + (cur.quarters === 1 ? "" : "s") + " disclosed — shown for completeness, not in the total above", css: "font-size:11px;color:" + C.subtle + ";" }));
+        var chead = el("div", { css: "display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-top:6px;" });
+        chead.appendChild(el("span", { text: fmtCompact(cur.total), css: "font-size:24px;font-weight:800;color:" + C.office + ";line-height:1;" }));
+        chead.appendChild(el("span", { text: fmtFull(cur.total) + " year-to-date", css: "font-size:11px;color:" + C.subtle + ";" }));
+        cbox.appendChild(chead);
+        if (cur.projected_full_year) {
+          cbox.appendChild(el("div", { text: "↗ projected full year ≈ " + fmtFull(cur.projected_full_year) + " (annualized from " + cur.quarters + " quarter" + (cur.quarters === 1 ? "" : "s") + " — estimate, actuals will differ)", css: "font-size:11px;color:" + C.topup + ";margin-top:6px;" }));
+        } else {
+          cbox.appendChild(el("div", { text: "↗ a full-year projection appears once ≥2 quarters are disclosed", css: "font-size:11px;color:" + C.muted + ";margin-top:6px;" }));
+        }
+        container.appendChild(cbox);
+      }
+
       container.appendChild(honestyBlock(data._note, data._source));
     }).catch(function () {
       errorMsg(container, "Cost figures are temporarily unavailable.");
@@ -412,8 +453,10 @@
         "Each member's base salary / sessional indemnity, any cabinet or role top-up, and office expenses (travel, hospitality, contracts and staff salaries). Cabinet ministers additionally carry their departmental travel & hospitality, borne centrally, shown as a separate line."));
       box.appendChild(dl("What's excluded",
         "Pensions, severance, and central costs (departmental program spending, security details, buildings). These are the cost of members and their offices — not the whole cost of government."));
-      box.appendChild(dl("The window",
-        "The headline covers the " + (d.window ? d.window.label : "5 complete fiscal years") + " — every year with all four quarters on file. Partial years (shown above the chart) are disclosed for completeness but never summed into the headline."));
+      box.appendChild(dl("The window (tracked automatically)",
+        "The headline covers the " + (d.window ? d.window.label : "5 complete fiscal years") + " — every year with all four quarters on file. This window is computed from the data and advances on its own: a year rolls into the headline the moment its fourth quarter is disclosed, and an incomplete year can never inflate it. Partial years (shown above the chart) are disclosed for completeness but never summed into the headline."));
+      box.appendChild(dl("Current year & projections",
+        "The current year to date is shown separately — split by chamber (House of Commons vs Senate) plus ministerial — as quarters are published. A projected full year is annualized once at least two quarters are on file (a single quarter is too noisy to project honestly); it is always labelled an estimate and refines as more data lands. Projections are never part of the official total."));
       box.appendChild(dl("How members are matched",
         "Every disclosed record is name-matched to the Library of Parliament roster. A public figure is never guessed — an official we cannot confidently match is simply not counted, so the total is a floor, not an over-count."));
 

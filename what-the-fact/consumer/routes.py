@@ -942,6 +942,24 @@ def team():
     return render_template("team.html", agents=agents, source_count=source_count)
 
 
+@bp.get("/cost")
+def cost_of_parliament():
+    """"What Parliament Costs Canadians" — national cost-to-taxpayers page.
+
+    Renders the shell only; the figures are fetched client-side from the public,
+    cached /api/cost/summary endpoint (the single source of truth in
+    ingest.parliament.cost). Every figure is labelled approximate and sourced in
+    the template. Public (no paywall) — this is public money.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        source_count = c.execute(
+            text(f"SELECT COUNT(*) FROM {S}.sources")
+        ).scalar() or 0
+    return render_template("cost.html", source_count=source_count,
+                           is_subscriber=is_subscriber())
+
+
 @bp.get("/")
 def index():
     S = _schema()

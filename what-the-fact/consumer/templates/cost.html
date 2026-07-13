@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}What Parliament Costs Canadians · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="The approximate annual and 5-year cost to taxpayers of Canada's Parliament — MP and senator salaries plus office expenses. Sourced from public disclosures, every figure labelled approximate.">
+<meta property="og:title" content="What Parliament Costs Canadians">
+<meta property="og:description" content="How much the House and Senate cost taxpayers each year — salaries + office expenses, from public disclosures.">
+<meta property="og:url" content="https://what-the-fact.com/cost">
+{% endblock %}
+{% block content %}
+<style>
+  .cost-wrap { max-width: 1000px; margin: 0 auto; padding: 8px 4px 40px; }
+  .cost-kicker { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #ef4444; margin: 18px 0 6px; }
+  .cost-title { font-family: 'Orbitron', Georgia, serif; font-size: clamp(22px, 4.5vw, 34px); color: #e5e7eb; margin: 0 0 8px; line-height: 1.15; }
+  .cost-lede { font-size: 13px; color: #9ca3af; line-height: 1.75; max-width: 640px; margin: 0 0 22px; }
+  .cost-headline { padding: 20px 0 6px; }
+  .cost-panel { background: rgba(148,163,184,0.05); border: 1px solid rgba(148,163,184,0.16); border-radius: 10px; padding: 20px; margin: 18px 0; }
+  .cost-panel-h { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin: 0 0 4px; }
+  .cost-stats { display: flex; flex-wrap: wrap; gap: 12px; margin: 20px 0; }
+  .cost-cta { display: inline-block; margin-top: 8px; font-size: 12px; color: #0af; text-decoration: none; border: 1px solid #0af; padding: 9px 18px; border-radius: 4px; letter-spacing: .04em; }
+  .cost-cta:hover { background: rgba(0,170,255,0.1); }
+  @media (max-width: 560px) { .cost-panel { padding: 16px 14px; } }
+</style>
+
+<div class="cost-wrap" data-cost-summary>
+  <div class="cost-kicker">💵 Accountability · Public money</div>
+  <h1 class="cost-title">What Parliament Costs Canadians</h1>
+  <p class="cost-lede">
+    The approximate cost to taxpayers of Canada's federal legislature — every Member of
+    Parliament and senator's salary plus their office expenses (travel, hospitality,
+    contracts and staff). Figures are drawn from public disclosures and the Library of
+    Parliament's published salary tables. Pensions and some central costs are excluded.
+    All figures are <strong>approximate</strong> and cited below.
+  </p>
+
+  <div class="cost-headline" data-cost-headline></div>
+
+  <div class="cost-stats" data-cost-stats></div>
+
+  <div class="cost-panel">
+    <div class="cost-panel-h">The rising cost of Parliament</div>
+    <div data-cost-chart></div>
+  </div>
+
+  <div>
+    <a class="cost-cta" href="/mps">See every MP &amp; senator &rarr;</a>
+    <div style="font-size:11px;color:#6b7280;margin-top:8px;">
+      Each member's profile shows their own 5-year cost breakdown.
+    </div>
+  </div>
+
+  <div data-cost-footer></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/cost.js') }}"></script>
+{% endblock %}

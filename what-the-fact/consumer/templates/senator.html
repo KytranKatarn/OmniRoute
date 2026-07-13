@@ -86,6 +86,14 @@
 </div>
 {% endif %}
 
+{# ── Cost to taxpayers — public financial figures (approximate). Public: shown before the paywall. ── #}
+<div class="wtf-sen-section">
+  <div class="wtf-sen-section-title">💵 Cost to taxpayers — approximate</div>
+  <div data-cost-member data-kind="senator" data-id="{{ senator.id }}"
+       style="font-size:12px;color:#9ca3af;">Loading cost figures…</div>
+</div>
+<script src="{{ url_for('static', filename='js/cost.js') }}"></script>
+
 {# ── Paywalled detail section ───────────────────────────────────────────── #}
 {% if is_subscriber %}
 

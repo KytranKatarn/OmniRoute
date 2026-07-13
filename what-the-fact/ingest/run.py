@@ -366,6 +366,7 @@ def main():
     _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
     _last_securities_date = None  # TSX issuer directory ingest (weekly, Tue) — #373 Market L6 Phase 0
     _last_securities_eg_date = None  # securities -> graph reconcile (market_reaction_to, weekly Wed) — L6 step 2
+    _last_drift_date = None     # parliamentary cost/funds drift guard (daily)
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -492,6 +493,18 @@ def main():
             except Exception:
                 log.exception("entity_graph wtf reconcile crashed")
             _last_covered_date = today
+
+        # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
+        # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.
+        # on onset; logs to parliament.ingest_log either way (it can't silently stop the way the
+        # sources it watches once did — mp_expenses 8wk / ec_contributions 3wk).
+        if _last_drift_date != today:
+            try:
+                from ingest.parliament.drift_guard import run_drift_guard
+                log.info("parliament drift guard: %s", run_drift_guard(engine))
+            except Exception:
+                log.exception("parliament drift guard crashed")
+            _last_drift_date = today
 
         if today.weekday() == 5 and _last_ec_date != today:
             try:

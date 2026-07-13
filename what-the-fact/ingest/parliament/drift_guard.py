@@ -1,0 +1,185 @@
+"""drift_guard.py — the self-policing guard for the parliamentary cost / funds data.
+
+Runs daily. Two checks, each of which would have caught a multi-week SILENT freeze in week
+one instead of by luck weeks later:
+
+  1. RECONCILIATION — cost_reconciliation() must still tie out (the national headline == the
+     independent member-by-member sum). A broken window/matcher/ingest that skews the total
+     trips this.
+  2. SOURCE FRESHNESS — every critical ingest source must have a RECENT SUCCESSFUL run in
+     parliament.ingest_log, and its MOST-RECENT run must not be an error. This is the exact
+     signal that was there but unwatched when mp_expenses (8 wks) and ec_contributions (3 wks)
+     silently stopped.
+
+On a problem it alerts Kytran THROUGH A.R.C.H.I.E. (hub /api/internal/notify → Telegram, her
+single outbound voice) and logs to parliament.ingest_log (task='drift_guard') EITHER WAY — so
+the guard itself is fail-loud + visible, and can never silently stop the way its subjects did.
+Alerts are deduped: one message per problem onset/change, not a daily nag.
+
+Env (all tunable without a deploy):
+    WTF_HUB_URL              http://100.64.0.4:3000   mesh hub (never public)
+    INTERNAL_API_KEY         —                        bearer for /api/internal/notify
+    WTF_DRIFT_MP_DAYS        21   mp_expenses      max age (days) of the last success
+    WTF_DRIFT_MIN_DAYS       21   minister_travel
+    WTF_DRIFT_EC_DAYS        21   ec_contributions
+    WTF_DRIFT_SEN_DAYS       45   senator_expenses (the Senate genuinely lags a quarter)
+"""
+import json
+import logging
+import os
+import urllib.error
+import urllib.request
+
+from sqlalchemy import text
+
+logger = logging.getLogger("wtf-ingest.parliament")
+
+_HUB_URL = os.environ.get("WTF_HUB_URL", "http://100.64.0.4:3000").rstrip("/")
+_INTERNAL_KEY = os.environ.get("INTERNAL_API_KEY", "")
+
+# per-source max age (days) for the last SUCCESSFUL ingest before we flag staleness. Sources
+# sync weekly, so these catch a freeze within ~2-3 weeks; the last-run-was-an-error check below
+# fires the very next day regardless.
+# task name -> max age (days). Names MUST match what each sync writes to parliament.ingest_log
+# (the senator sync logs under 'senator_expenses_sync', NOT 'senator_expenses').
+_MAX_AGE_DAYS = {
+    "mp_expenses": int(os.environ.get("WTF_DRIFT_MP_DAYS", "21")),
+    "minister_travel": int(os.environ.get("WTF_DRIFT_MIN_DAYS", "21")),
+    "ec_contributions": int(os.environ.get("WTF_DRIFT_EC_DAYS", "21")),
+    "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
+}
+
+
+def _source_freshness(engine) -> list:
+    """One problem string per stale/failing source (empty list = every source healthy).
+
+    The age is computed IN SQL (now() - run_at) so it's timezone-safe regardless of whether the
+    ingest_log.run_at column is naive or aware — mixing the two in Python raises."""
+    problems = []
+    with engine.connect() as conn:
+        for task, max_days in _MAX_AGE_DAYS.items():
+            row = conn.execute(
+                text(
+                    "SELECT count(*) AS n, "
+                    " EXTRACT(EPOCH FROM (now() - MAX(run_at) FILTER (WHERE COALESCE(error,'') = ''))) / 86400 "
+                    "   AS age_days, "
+                    " (array_agg(COALESCE(error,'') ORDER BY run_at DESC))[1] AS latest_error "
+                    "FROM parliament.ingest_log WHERE task = :t"
+                ),
+                {"t": task},
+            ).fetchone()
+            n_entries, age_days, latest_error = (row[0], row[1], row[2]) if row else (0, None, None)
+            if not n_entries:
+                # Never logged — there's no baseline to assess freshness against, and the sync
+                # may simply predate ingest_log tracking (the data can still be present). Skip
+                # quietly rather than false-alarm; it starts being watched once it logs once.
+                logger.info("drift_guard: %s not yet tracked in ingest_log — skipping", task)
+                continue
+            if latest_error:
+                problems.append("%s: last run FAILED — %s" % (task, latest_error[:100]))
+            elif age_days is None or float(age_days) > max_days:
+                shown = ("%.0fd" % float(age_days)) if age_days is not None else "n/a"
+                problems.append("%s: last success %s ago (> %dd threshold)" % (task, shown, max_days))
+    return problems
+
+
+def _reconciliation_problems(engine) -> list:
+    """Empty unless the national headline no longer equals the member-by-member sum."""
+    from ingest.parliament.cost import cost_reconciliation
+
+    rec = cost_reconciliation(engine)
+    if rec.get("reconciles"):
+        return []
+    head = (rec.get("headline") or {}).get("parliamentary")
+    return [
+        "cost total no longer reconciles member-by-member "
+        "(discrepancy %s; headline %s)" % (rec.get("discrepancy"), head)
+    ]
+
+
+def _alert(title: str, message: str, priority: str = "high") -> bool:
+    """Speak the alert to Kytran through A.R.C.H.I.E. (hub notify → Telegram). Fail-soft — a
+    comms hiccup must never crash the guard (the ingest_log record still stands)."""
+    if not _INTERNAL_KEY:
+        logger.warning("drift_guard: no INTERNAL_API_KEY — cannot alert: %s", title)
+        return False
+    payload = json.dumps(
+        {"title": title, "message": message, "priority": priority, "source": "wtf-parliament", "telegram": True}
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        _HUB_URL + "/api/internal/notify",
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": "Bearer " + _INTERNAL_KEY},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            return r.status == 200
+    except (urllib.error.URLError, OSError) as exc:
+        logger.error("drift_guard: alert POST failed: %s", exc)
+        return False
+
+
+def run_drift_guard(engine) -> dict:
+    """Daily guard: reconciliation + source freshness. Alerts on any NEW problem, logs every run.
+
+    Returns {ok, problems:[...], alerted}. Never raises — a guard that can crash is no guard.
+    """
+    problems = []
+    for check in (_reconciliation_problems, _source_freshness):
+        try:
+            problems.extend(check(engine))
+        except Exception as exc:  # a check crashing is itself a problem worth surfacing
+            problems.append("%s crashed: %s" % (check.__name__, exc))
+
+    ok = not problems
+    joined = ("; ".join(problems))[:500]
+
+    # dedup: only Telegram on onset/change, not the same problem every single day
+    try:
+        with engine.connect() as conn:
+            prev = conn.execute(
+                text(
+                    "SELECT COALESCE(error, '') FROM parliament.ingest_log "
+                    "WHERE task = 'drift_guard' ORDER BY run_at DESC LIMIT 1"
+                )
+            ).scalar()
+    except Exception:
+        prev = None
+    alerted = False
+    if not ok and joined != (prev or ""):
+        alerted = _alert(
+            "⚠️ Parliament data drift",
+            "The Parliament cost / funds data needs attention:\n• " + "\n• ".join(problems),
+        )
+    elif ok and (prev or ""):   # was in a problem state last run — announce the recovery, then quiet
+        alerted = _alert(
+            "✅ Parliament data recovered",
+            "The earlier Parliament data drift has cleared — the cost total reconciles "
+            "member-by-member and every source is fresh again.",
+            priority="normal",
+        )
+
+    # fail-loud: the guard's own outcome is always visible in ingest_log
+    try:
+        with engine.begin() as conn:
+            if ok:
+                conn.execute(
+                    text(
+                        "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                        "VALUES ('drift_guard', 0, 0)"
+                    )
+                )
+            else:
+                conn.execute(
+                    text("INSERT INTO parliament.ingest_log (task, error) VALUES ('drift_guard', :e)"),
+                    {"e": joined},
+                )
+    except Exception as exc:
+        logger.error("drift_guard: could not write ingest_log: %s", exc)
+
+    if ok:
+        logger.info("drift_guard: all healthy (reconciles + %d sources fresh)", len(_MAX_AGE_DAYS))
+    else:
+        logger.warning("drift_guard: %d problem(s)%s: %s", len(problems),
+                        " (alerted)" if alerted else " (already alerted)", problems)
+    return {"ok": ok, "problems": problems, "alerted": alerted}

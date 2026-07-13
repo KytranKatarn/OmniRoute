@@ -274,7 +274,58 @@ def mp_cost_5yr(engine, mp_id: int) -> dict:
         "name": name,
         "years": years,
         "five_year_total": five_year_total,
+        # Ministerial (departmental) travel + hospitality — borne CENTRALLY, a separate line
+        # ON TOP of the MP office budget above (never folded into five_year_total). Zero for a
+        # non-minister. This is the cost the MP budget can't show (why the PM shows ~$0 travel).
+        "ministerial": minister_travel_5yr(engine, int(mp_id)),
         "_note": _NOTE,
+    }
+
+
+def minister_travel_5yr(engine, mp_id: int) -> dict:
+    """Ministerial (departmental) travel + hospitality for an MP over the cost window.
+
+    From parliament.minister_travel (open.canada.ca proactive disclosure) — the cost of a
+    cabinet role that is borne CENTRALLY (government travel, official hospitality) and is NOT
+    in the MP office budget. Aggregated per calendar year (matching mp_cost_5yr's window).
+    Returns {years:[{year, travel, hospitality, total}], five_year_total, title, _note};
+    five_year_total is 0 for a non-minister.
+    """
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                """
+                SELECT LEFT(period, 4)::int          AS yr,
+                       COALESCE(SUM(travel_cad), 0)      AS travel,
+                       COALESCE(SUM(hospitality_cad), 0) AS hosp,
+                       MAX(title)                        AS title
+                  FROM parliament.minister_travel
+                 WHERE mp_id = :mid AND LEFT(period, 4)::int BETWEEN :y0 AND :y1
+                 GROUP BY 1 ORDER BY 1
+                """
+            ),
+            {"mid": int(mp_id), "y0": YEARS[0], "y1": YEARS[-1]},
+        ).fetchall()
+
+    years = []
+    title = None
+    for yr, travel, hosp, t in rows:
+        years.append({
+            "year": int(yr),
+            "travel": round(float(travel)),
+            "hospitality": round(float(hosp)),
+            "total": round(float(travel) + float(hosp)),
+        })
+        if t:
+            title = t
+    return {
+        "years": years,
+        "five_year_total": sum(y["total"] for y in years),
+        "title": title,
+        "_note": (
+            "ministerial (departmental) travel + hospitality — borne centrally (government "
+            "travel/official hospitality), NOT charged to the MP office budget"
+        ),
     }
 
 

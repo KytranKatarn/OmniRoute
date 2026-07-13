@@ -323,6 +323,23 @@
         container.appendChild(tbl);
       }
 
+      // Ministerial (departmental) travel & hospitality — borne CENTRALLY, a line ON TOP of the
+      // MP office budget above (why a PM/minister's MP-budget travel can read ~$0).
+      var mn = data.ministerial;
+      if (mn && num(mn.five_year_total) > 0) {
+        var mbox = el("div", { css: "margin-top:16px;padding:12px 14px;border:1px solid " + C.topup + "55;border-radius:8px;background:" + C.topup + "14;" });
+        mbox.appendChild(el("span", { text: "＋ Ministerial travel & hospitality", css: "font-weight:800;color:" + C.text + ";font-size:13px;" }));
+        mbox.appendChild(el("div", { text: "Cost of their cabinet role, borne centrally — government travel + official hospitality. NOT charged to the MP office budget above.", css: "font-size:11px;color:" + C.subtle + ";margin:3px 0 9px;" }));
+        var mhead = el("div", { css: "display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;" });
+        mhead.appendChild(el("span", { text: fmtCompact(mn.five_year_total), css: "font-size:24px;font-weight:800;color:" + C.topup + ";line-height:1;" }));
+        mhead.appendChild(el("span", { text: fmtFull(mn.five_year_total) + " · 5-year ministerial travel & hospitality", css: "font-size:11px;color:" + C.subtle + ";" }));
+        mbox.appendChild(mhead);
+        var combined = num(data.five_year_total) + num(mn.five_year_total);
+        mbox.appendChild(el("div", { text: "Combined 5-year cost to taxpayers ≈ " + fmtFull(combined), css: "font-size:12px;font-weight:700;color:" + C.text + ";margin-top:9px;" }));
+        mbox.appendChild(el("div", { text: "MP office budget " + fmtFull(data.five_year_total) + " + ministerial " + fmtFull(mn.five_year_total), css: "font-size:10px;color:" + C.subtle + ";margin-top:1px;" }));
+        container.appendChild(mbox);
+      }
+
       container.appendChild(honestyBlock(data._note, data._source));
     }).catch(function () {
       errorMsg(container, "Cost figures are temporarily unavailable.");

@@ -695,6 +695,7 @@ def officials_cost(engine, officials) -> list:
                 "ministerial_5yr": None,   # departmental travel/hospitality (ministers only)
                 "latest_year": None,
                 "latest_total": None,
+                "current": None,   # current partial year (year-to-date) + projected — matched only
                 "_note": "no matching MP or senator in the parliamentary roster",
             }
 
@@ -711,6 +712,10 @@ def officials_cost(engine, officials) -> list:
                 years = [core(conn, member["id"], y, rates) for y in cy]
                 years = [c for c in years if c["served"]]
                 latest = years[-1] if years else None
+                cur_tbl, cur_id = (
+                    ("parliament.mp_expenses", "mp_id") if subject_type == "mp"
+                    else ("parliament.senator_expenses", "senator_id")
+                )
                 rec.update(
                     {
                         "matched": True,
@@ -719,6 +724,9 @@ def officials_cost(engine, officials) -> list:
                         "five_year_total": sum(c["total"] for c in years),
                         "latest_year": latest["year"] if latest else None,
                         "latest_total": latest["total"] if latest else None,
+                        # current partial year (year-to-date) + projected full year — the same
+                        # block the WTF member pages show (never part of five_year_total)
+                        "current": _current_year_block(conn, core, cur_tbl, cur_id, member["id"], rates),
                         "_note": _NOTE,
                     }
                 )

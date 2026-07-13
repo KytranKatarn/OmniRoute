@@ -516,6 +516,7 @@ def officials_cost(engine, officials) -> list:
                 "subject_type": None,
                 "subject_id": None,
                 "five_year_total": None,
+                "ministerial_5yr": None,   # departmental travel/hospitality (ministers only)
                 "latest_year": None,
                 "latest_total": None,
                 "_note": "no matching MP or senator in the parliamentary roster",
@@ -546,5 +547,22 @@ def officials_cost(engine, officials) -> list:
                     }
                 )
             out.append(rec)
+
+        # Ministerial (departmental) travel + hospitality for the matched MINISTERS — ONE batched
+        # query (borne centrally, NOT in the MP office budget). Senators aren't in this dataset.
+        min_ids = [r["subject_id"] for r in out if r.get("subject_type") == "mp" and r.get("subject_id")]
+        if min_ids:
+            mrows = conn.execute(
+                text(
+                    "SELECT mp_id, COALESCE(SUM(total_cad), 0) AS t FROM parliament.minister_travel "
+                    "WHERE mp_id = ANY(:ids) AND LEFT(period, 4)::int BETWEEN :y0 AND :y1 "
+                    "GROUP BY mp_id"
+                ),
+                {"ids": min_ids, "y0": YEARS[0], "y1": YEARS[-1]},
+            ).fetchall()
+            mmap = {int(mid): round(float(t)) for mid, t in mrows}
+            for r in out:
+                if r.get("subject_id") in mmap:
+                    r["ministerial_5yr"] = mmap[r["subject_id"]]
 
     return out

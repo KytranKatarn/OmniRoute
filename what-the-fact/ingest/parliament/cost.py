@@ -1,0 +1,335 @@
+"""cost.py -- "What Parliament Costs Canadians" cost model (project #348, Phase 1: MPs).
+
+Pure, read-only functions that compute the approximate annual + 5-year cost to taxpayers of
+an MP (and, in Phase 2, a senator). This module is the SINGLE SOURCE OF TRUTH for the number;
+the consumer API (consumer/cost_routes.py) and any surface just call these.
+
+    taxpayer_cost(mp, year) = base_indemnity(year) + role_top_up(role, year) + office_expenses(year)
+
+  * base_indemnity / role_top_up -- published yearly constants from parliament.indemnity_rates
+    (seeded + SOURCED by migration 039; Library of Parliament "Indemnities, Salaries and
+    Allowances"). Rounded to the nearest $100 at source.
+  * office_expenses -- travel + hospitality + contracts + office-staff salaries, summed from
+    parliament.mp_expenses (House of Commons proactive Members' Expenditures disclosures).
+
+HONESTY RAILS (public financial display):
+  * every figure is labelled "approximate" (see _NOTE) and the components are exposed, never a
+    single opaque number;
+  * indemnity is charged ONLY for a year the member actually served -- proxied by having >=1
+    mp_expenses row that year (an MP with no disclosure that year cost taxpayers no salary in
+    this model), so the national total matches the raw disclosure;
+  * pensions and some central costs are OUT of scope;
+  * top-ups key to the member's CURRENT cabinet_role (parliament.mps has no historical role
+    dimension), so pre-2025 minister/PM top-ups are approximate -- documented in migration 039.
+
+Read-only: opens a short connection off the passed SQLAlchemy `engine`; never writes.
+"""
+
+from __future__ import annotations
+
+from sqlalchemy import text
+
+# Fiscal years the model covers (parliament.mp_expenses spans 2021-Q1 .. 2025-Q4).
+YEARS = (2021, 2022, 2023, 2024, 2025)
+
+_NOTE = (
+    "approximate -- office expenses + indemnity; excludes pensions and central costs"
+)
+
+
+# --------------------------------------------------------------------------- helpers
+
+def _all_rates(conn) -> dict:
+    """{fiscal_year: {role: amount_float}} from the sourced reference table (one query)."""
+    rows = conn.execute(
+        text("SELECT fiscal_year, role, amount_cad FROM parliament.indemnity_rates")
+    ).fetchall()
+    out: dict = {}
+    for fy, role, amount in rows:
+        out.setdefault(int(fy), {})[role] = float(amount)
+    return out
+
+
+def _topup_role(cabinet_role):
+    """Map a parliament.mps.cabinet_role string to an indemnity_rates top-up role, or None.
+
+    Per the design: minister_topup whenever a cabinet_role is set, pm_topup for the PM.
+    Speaker handled defensively (paid at minister level) though no MP currently carries it.
+    """
+    if not cabinet_role:
+        return None
+    c = cabinet_role.lower()
+    if "prime minister" in c:
+        return "pm_topup"
+    if "speaker" in c:
+        return "speaker_topup"
+    return "minister_topup"
+
+
+def _mp_cost(conn, mp_id: int, year: int, rates_by_year: dict) -> dict:
+    """Core per-(mp, year) cost using an open connection + preloaded rates. Read-only."""
+    row = conn.execute(
+        text(
+            """
+            SELECT COALESCE(SUM(e.travel_cad), 0)      AS travel,
+                   COALESCE(SUM(e.hospitality_cad), 0) AS hospitality,
+                   COALESCE(SUM(e.contracts_cad), 0)   AS contracts,
+                   COALESCE(SUM(e.salaries_cad), 0)    AS salaries,
+                   COUNT(*)                            AS n_rows,
+                   MAX(m.cabinet_role)                 AS cabinet_role
+              FROM parliament.mp_expenses e
+              JOIN parliament.mps m ON m.id = e.mp_id
+             WHERE e.mp_id = :mid
+               AND LEFT(e.period, 4) = :yr
+            """
+        ),
+        {"mid": mp_id, "yr": str(year)},
+    ).fetchone()
+
+    travel, hospitality, contracts, salaries = (
+        float(row[0]), float(row[1]), float(row[2]), float(row[3])
+    )
+    served = int(row[4]) > 0
+    cabinet_role = row[5]
+
+    rates = rates_by_year.get(int(year), {}) if served else {}
+    office_total = round(travel + hospitality + contracts + salaries)
+    indemnity = round(rates.get("mp", 0.0)) if served else 0
+    tu_role = _topup_role(cabinet_role) if served else None
+    top_up = round(rates.get(tu_role, 0.0)) if tu_role else 0
+
+    return {
+        "year": int(year),
+        "served": served,
+        "indemnity": indemnity,
+        "top_up": top_up,
+        "top_up_role": tu_role,
+        "office": {
+            "travel": round(travel),
+            "hospitality": round(hospitality),
+            "contracts": round(contracts),
+            "salaries": round(salaries),
+        },
+        "office_total": office_total,
+        "total": office_total + indemnity + top_up,
+        "_note": _NOTE,
+    }
+
+
+def _senator_cost(conn, senator_id: int, year: int, rates_by_year: dict) -> dict:
+    """Core per-(senator, year) cost. Read-only. Mirrors _mp_cost using
+    parliament.senator_expenses (travel + hospitality + contracts + office + living) +
+    the senator base indemnity. Senators carry no cabinet top-up."""
+    row = conn.execute(
+        text(
+            """
+            SELECT COALESCE(SUM(e.travel_cad), 0)      AS travel,
+                   COALESCE(SUM(e.hospitality_cad), 0) AS hospitality,
+                   COALESCE(SUM(e.contracts_cad), 0)   AS contracts,
+                   COALESCE(SUM(e.office_cad), 0)      AS office,
+                   COALESCE(SUM(e.living_cad), 0)      AS living,
+                   COUNT(*)                            AS n_rows
+              FROM parliament.senator_expenses e
+             WHERE e.senator_id = :sid
+               AND LEFT(e.period, 4) = :yr
+            """
+        ),
+        {"sid": senator_id, "yr": str(year)},
+    ).fetchone()
+
+    travel, hospitality, contracts, office, living = (
+        float(row[0]), float(row[1]), float(row[2]), float(row[3]), float(row[4])
+    )
+    served = int(row[5]) > 0
+    office_total = round(travel + hospitality + contracts + office + living)
+    indemnity = round(rates_by_year.get(int(year), {}).get("senator", 0.0)) if served else 0
+
+    return {
+        "year": int(year),
+        "served": served,
+        "indemnity": indemnity,
+        "top_up": 0,
+        "top_up_role": None,
+        "office": {
+            "travel": round(travel),
+            "hospitality": round(hospitality),
+            "contracts": round(contracts),
+            "office": round(office),
+            "living": round(living),
+        },
+        "office_total": office_total,
+        "total": office_total + indemnity,
+        "_note": _NOTE,
+    }
+
+
+# --------------------------------------------------------------------------- public API
+
+def mp_cost(engine, mp_id: int, year: int) -> dict:
+    """Approximate taxpayer cost of one MP for one year.
+
+    Returns {year, served, indemnity, top_up, top_up_role,
+             office:{travel,hospitality,contracts,salaries}, office_total, total, _note}.
+    """
+    with engine.connect() as conn:
+        return _mp_cost(conn, int(mp_id), int(year), _all_rates(conn))
+
+
+def mp_cost_5yr(engine, mp_id: int) -> dict:
+    """5-year cost for one MP -- one row per year the member served + the running total.
+
+    Returns {mp_id, name, years:[mp_cost, ...], five_year_total, _note}.
+    """
+    with engine.connect() as conn:
+        rates = _all_rates(conn)
+        name = conn.execute(
+            text("SELECT name FROM parliament.mps WHERE id = :mid"), {"mid": int(mp_id)}
+        ).scalar()
+        years = []
+        for y in YEARS:
+            c = _mp_cost(conn, int(mp_id), y, rates)
+            if c["served"]:
+                years.append(c)
+
+    five_year_total = sum(y["total"] for y in years)
+    return {
+        "mp_id": int(mp_id),
+        "name": name,
+        "years": years,
+        "five_year_total": five_year_total,
+        "_note": _NOTE,
+    }
+
+
+def senator_cost(engine, senator_id: int, year: int) -> dict:
+    """Approximate taxpayer cost of one senator for one year."""
+    with engine.connect() as conn:
+        return _senator_cost(conn, int(senator_id), int(year), _all_rates(conn))
+
+
+def senator_cost_5yr(engine, senator_id: int) -> dict:
+    """5-year cost for one senator -- one row per year served + the running total."""
+    with engine.connect() as conn:
+        rates = _all_rates(conn)
+        name = conn.execute(
+            text("SELECT name FROM parliament.senators WHERE id = :sid"),
+            {"sid": int(senator_id)},
+        ).scalar()
+        years = []
+        for y in YEARS:
+            c = _senator_cost(conn, int(senator_id), y, rates)
+            if c["served"]:
+                years.append(c)
+    five_year_total = sum(y["total"] for y in years)
+    return {
+        "senator_id": int(senator_id),
+        "name": name,
+        "years": years,
+        "five_year_total": five_year_total,
+        "_note": _NOTE,
+    }
+
+
+def parliament_cost_summary(engine) -> dict:
+    """National "cost of Parliament" per year + the 5-year grand total (MPs; senators = Phase 2).
+
+    Returns {by_year:[{year, mp_count, mp_office_total, mp_indemnity_total, senator_total,
+                        total, avg_per_mp}, ...], grand_total_5yr, _note}.
+    mp_indemnity_total = base indemnity (per served MP) + PM/minister top-ups.
+    senator_total is the Phase-2 hook -- always 0 until parliament.senator_expenses lands.
+    """
+    with engine.connect() as conn:
+        rates = _all_rates(conn)
+
+        # office spend + how many distinct MPs disclosed (i.e. served), per year
+        office_rows = conn.execute(
+            text(
+                """
+                SELECT LEFT(e.period, 4)::int                                     AS yr,
+                       COUNT(DISTINCT e.mp_id)                                     AS mp_count,
+                       COALESCE(SUM(e.travel_cad + e.hospitality_cad
+                                    + e.contracts_cad + e.salaries_cad), 0)        AS office_total
+                  FROM parliament.mp_expenses e
+                 GROUP BY 1
+                 ORDER BY 1
+                """
+            )
+        ).fetchall()
+
+        # distinct served cabinet MPs per (year, cabinet_role) -> maps to a top-up role
+        topup_rows = conn.execute(
+            text(
+                """
+                SELECT LEFT(e.period, 4)::int  AS yr,
+                       m.cabinet_role          AS cabinet_role,
+                       COUNT(DISTINCT e.mp_id) AS n
+                  FROM parliament.mp_expenses e
+                  JOIN parliament.mps m ON m.id = e.mp_id
+                 WHERE m.cabinet_role IS NOT NULL
+                 GROUP BY 1, 2
+                """
+            )
+        ).fetchall()
+
+        # senator office spend + distinct-senator count per year (0 rows until
+        # parliament.senator_expenses is populated)
+        senator_rows = conn.execute(
+            text(
+                """
+                SELECT LEFT(e.period, 4)::int AS yr,
+                       COUNT(DISTINCT e.senator_id) AS sen_count,
+                       COALESCE(SUM(COALESCE(e.travel_cad, 0) + COALESCE(e.hospitality_cad, 0)
+                                    + COALESCE(e.contracts_cad, 0) + COALESCE(e.office_cad, 0)
+                                    + COALESCE(e.living_cad, 0)), 0) AS office_total
+                  FROM parliament.senator_expenses e
+                 GROUP BY 1
+                """
+            )
+        ).fetchall()
+
+    senator_by_year: dict = {
+        int(yr): (int(sc), float(ot or 0)) for yr, sc, ot in senator_rows
+    }
+
+    topup_by_year: dict = {}
+    for yr, cabinet_role, n in topup_rows:
+        role = _topup_role(cabinet_role)
+        amount = rates.get(int(yr), {}).get(role, 0.0) if role else 0.0
+        topup_by_year[int(yr)] = topup_by_year.get(int(yr), 0.0) + amount * int(n)
+
+    by_year = []
+    grand_total_5yr = 0
+    for yr, mp_count, office_total in office_rows:
+        yr = int(yr)
+        mp_count = int(mp_count)
+        office_total = round(float(office_total or 0))
+        base_indemnity = round(rates.get(yr, {}).get("mp", 0.0)) * mp_count
+        top_ups = round(topup_by_year.get(yr, 0.0))
+        mp_indemnity_total = base_indemnity + top_ups
+        sen_count, sen_office = senator_by_year.get(yr, (0, 0.0))
+        senator_total = round(sen_office) + round(rates.get(yr, {}).get("senator", 0.0)) * sen_count
+        total = office_total + mp_indemnity_total + senator_total
+        grand_total_5yr += total
+        by_year.append(
+            {
+                "year": yr,
+                "mp_count": mp_count,
+                "mp_office_total": office_total,
+                "mp_indemnity_total": mp_indemnity_total,
+                "senator_count": sen_count,
+                "senator_total": senator_total,
+                "total": total,
+                "avg_per_mp": round(total / mp_count) if mp_count else 0,
+            }
+        )
+
+    return {
+        "by_year": by_year,
+        "grand_total_5yr": grand_total_5yr,
+        "_note": (
+            _NOTE
+            + "; mp_indemnity_total includes PM/minister top-ups (current cabinet applied "
+            "across years -- approximate); senator_total = senator office expenses + base "
+            "indemnity (matched current senators; some former-senator spend is unattributed)"
+        ),
+    }

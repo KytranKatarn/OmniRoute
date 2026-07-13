@@ -427,6 +427,28 @@ def main():
                 except Exception:
                     pass
 
+            # Senate senators' quarterly expenditures (sencanada.ca proactive
+            # disclosure).  Runs AFTER the roster sync so rows match the fresh
+            # senators.  Own try/except + ingest_log row.
+            try:
+                from ingest.parliament.senator_expenses import run_senator_expenses_sync
+                senexp = run_senator_expenses_sync(engine)
+                log.info("senator_expenses sync: %s", senexp)
+                with engine.begin() as _c:
+                    _c.execute(text(
+                        "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                        "VALUES ('senator_expenses_sync', :f, :u)"),
+                        {"f": senexp.get("reports", 0), "u": senexp.get("inserted", 0)})
+            except Exception as exc:
+                log.exception("senator_expenses sync crashed")
+                try:
+                    with engine.begin() as _c:
+                        _c.execute(text(
+                            "INSERT INTO parliament.ingest_log (task, error) "
+                            "VALUES ('senator_expenses_sync', :e)"), {"e": str(exc)[:500]})
+                except Exception:
+                    pass
+
             # Entity graph: refresh cast_vote edges (Link 3) now that new votes synced (#373)
             try:
                 from ingest.entity_graph_parliament_reconcile import run as _parl_eg

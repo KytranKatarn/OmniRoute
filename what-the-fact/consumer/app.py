@@ -40,6 +40,9 @@ def create_app():
     # Dedup review UI — ADMIN-only (fail-closed X-Admin-Key), resolves merge_review_queue (#3792)
     from .dedup_admin_routes import dedup_admin_bp
     app.register_blueprint(dedup_admin_bp)
+    # "What Parliament Costs Canadians" cost API — public, read-only, cached (Phase 1: MPs, #348)
+    from .cost_routes import cost_bp
+    app.register_blueprint(cost_bp)
 
     @app.route("/version")
     def version():

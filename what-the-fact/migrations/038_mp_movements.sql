@@ -21,3 +21,10 @@ CREATE TABLE IF NOT EXISTS parliament.mp_movements (
 CREATE INDEX IF NOT EXISTS ix_mp_movements_detected ON parliament.mp_movements (detected_at DESC);
 CREATE INDEX IF NOT EXISTS ix_mp_movements_subject  ON parliament.mp_movements (subject_type);
 CREATE INDEX IF NOT EXISTS ix_mp_movements_slug     ON parliament.mp_movements (subject_type, subject_slug);
+
+-- The wtf-ingest app connects as `wtfuser` (not the table owner), so it must be
+-- granted write access to the audit trail — otherwise sync_mps / senators /
+-- cabinet abort with "permission denied for table mp_movements". Idempotent;
+-- mirrors the grants wtfuser already holds on parliament.mps / senators.
+GRANT SELECT, INSERT, UPDATE, DELETE ON parliament.mp_movements TO wtfuser;
+GRANT USAGE, SELECT ON SEQUENCE parliament.mp_movements_id_seq TO wtfuser;

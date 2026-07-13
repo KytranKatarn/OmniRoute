@@ -81,6 +81,7 @@ def detect_movements(conn, snapshot_id: int) -> Dict[str, int]:
         "departed": 0,
         "title_changed": 0,
         "org_changed": 0,
+        "role_changed": 0,
         "classification_changed": 0,
     }
 
@@ -151,6 +152,63 @@ def detect_movements(conn, snapshot_id: int) -> Dict[str, int]:
             (this_started, this_started, prior_finished, snapshot_id),
         )
         out["departed"] = cur.rowcount
+
+        # ORG / ROLE CHANGES: diff each ACTIVE employee's current
+        # (org_unit_id, role_tag) against the last-known-value cache in
+        # geds_employee_state. Only employees already present in the cache
+        # (populated by a PRIOR run) are diffable via the JOIN, so freshly-'new'
+        # rows cannot false-positive as changes; departed_at IS NULL excludes
+        # departed rows. title_en / classification are NULL-mostly, so we
+        # deliberately do NOT diff them.
+        cur.execute(
+            """
+            INSERT INTO civic_transparency.geds_movements
+              (snapshot_id, employee_id, movement_type, before_value, after_value)
+            SELECT %s, e.id, 'org_changed',
+                   jsonb_build_object('org_unit_id', s.org_unit_id),
+                   jsonb_build_object('org_unit_id', e.org_unit_id)
+              FROM civic_transparency.federal_employees e
+              JOIN civic_transparency.geds_employee_state s ON s.employee_id = e.id
+             WHERE e.departed_at IS NULL
+               AND e.org_unit_id IS DISTINCT FROM s.org_unit_id
+            """,
+            (snapshot_id,),
+        )
+        out["org_changed"] = cur.rowcount
+
+        cur.execute(
+            """
+            INSERT INTO civic_transparency.geds_movements
+              (snapshot_id, employee_id, movement_type, before_value, after_value)
+            SELECT %s, e.id, 'role_changed',
+                   jsonb_build_object('role_tag', s.role_tag),
+                   jsonb_build_object('role_tag', e.role_tag)
+              FROM civic_transparency.federal_employees e
+              JOIN civic_transparency.geds_employee_state s ON s.employee_id = e.id
+             WHERE e.departed_at IS NULL
+               AND e.role_tag IS DISTINCT FROM s.role_tag
+            """,
+            (snapshot_id,),
+        )
+        out["role_changed"] = cur.rowcount
+
+        # Refresh the last-known-value cache to THIS snapshot's active roster.
+        # MUST run AFTER the diffs above, otherwise the cache would already equal
+        # the current values and every diff would return zero.
+        cur.execute(
+            """
+            INSERT INTO civic_transparency.geds_employee_state
+              (employee_id, org_unit_id, role_tag, updated_snapshot_id)
+            SELECT id, org_unit_id, role_tag, %s
+              FROM civic_transparency.federal_employees
+             WHERE departed_at IS NULL
+            ON CONFLICT (employee_id) DO UPDATE
+               SET org_unit_id = EXCLUDED.org_unit_id,
+                   role_tag = EXCLUDED.role_tag,
+                   updated_snapshot_id = EXCLUDED.updated_snapshot_id
+            """,
+            (snapshot_id,),
+        )
 
     conn.commit()
     log.info("Movements detected: %s", out)

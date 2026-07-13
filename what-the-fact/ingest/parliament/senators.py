@@ -14,6 +14,7 @@ Env: WTF_DATABASE_URL
 Run: python -m ingest.parliament.senators   (from what-the-fact/ root)
      or pass --dry-run to print without writing
 """
+import json
 import logging
 import re
 import time
@@ -373,6 +374,48 @@ def _scrape_committees() -> dict[str, list[dict]]:
     return slug_committees
 
 
+# ── senator roster scrape (the "fetched set" for change detection) ────────────
+
+def _scrape_senator_roster(page) -> dict:
+    """Scrape the current-senators list view → {slug: name} (the fetched set).
+
+    Unlike enrichment (which iterates the DB-loaded current senators), this is an
+    INDEPENDENT fetch of who is currently a senator — the signal needed to detect
+    departures/appointments.  sencanada.ca is fully JS-rendered, so a live
+    Playwright `page` is required; returns {} on any failure so the caller's
+    plausibility guard falls back to enrichment-only (no false departures).
+
+    NOTE: the list/standings-view selectors are best-effort and NOT verified
+    against a live headless render in this change (live scraping was out of
+    scope).  The caller's >=80%-of-prior-current guard makes a wrong/empty
+    result a safe no-op rather than a data-corrupting mass-departure.
+    """
+    if page is None:
+        return {}
+    roster: dict = {}
+    for view in ("?v=list", "?v=contact", ""):
+        url = f"{_SEN_BASE}/en/senators/{view}"
+        try:
+            page.goto(url, wait_until="networkidle", timeout=25000)
+            page.wait_for_timeout(2000)
+        except Exception as exc:
+            logger.warning("senator roster nav failed (%s): %s", url, exc)
+            continue
+        for link in page.query_selector_all("a[href*='/senators/']"):
+            href = link.get_attribute("href") or ""
+            m = re.search(r"/senators/([\w-]+)/?$", href, re.IGNORECASE)
+            if not m:
+                continue
+            slug = m.group(1).lower()
+            if slug in ("", "list", "contact"):
+                continue
+            roster.setdefault(slug, (link.inner_text() or "").strip())
+        if len(roster) >= 50:      # plausible full roster obtained — stop trying views
+            break
+    logger.info("senator roster scrape: %d slugs", len(roster))
+    return roster
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _get_engine():
@@ -381,6 +424,95 @@ def _get_engine():
     if not url:
         raise RuntimeError("WTF_DATABASE_URL not set")
     return create_engine(url)
+
+
+def _record_movement(conn, movement_type: str, *, subject_slug=None, subject_id=None,
+                     name=None, before=None, after=None) -> None:
+    """Append a senator movement to parliament.mp_movements (migration 038).
+
+    Mirrors openparl.record_movement — kept local so senators.py stays runnable
+    standalone via `python -m ingest.parliament.senators`.
+    """
+    conn.execute(text("""
+        INSERT INTO parliament.mp_movements
+            (subject_type, subject_slug, subject_id, name, movement_type,
+             before_value, after_value)
+        VALUES
+            ('senator', :slug, :sid, :name, :mt, CAST(:bv AS JSONB), CAST(:av AS JSONB))
+    """), {
+        "slug": subject_slug, "sid": subject_id, "name": name, "mt": movement_type,
+        "bv": json.dumps(before) if before is not None else None,
+        "av": json.dumps(after) if after is not None else None,
+    })
+
+
+def _snapshot_senators(engine) -> dict:
+    """{slug: {name, is_current}} for ALL senators — captured before any writes."""
+    with engine.connect() as conn:
+        rows = conn.execute(text(
+            "SELECT slug, name, is_current FROM parliament.senators"
+        )).fetchall()
+    return {r[0]: {"name": r[1], "is_current": r[2]} for r in rows}
+
+
+def _reconcile_senator_roster(engine, snapshot: dict, roster: dict,
+                              dry_run: bool, stats: dict) -> None:
+    """Flip is_current for departed/appointed senators + record movements.
+
+    `roster` = {slug: name} scraped as the current set.  Guarded: only acts when
+    the scrape returned a plausible roster (>=80% of prior current count); a
+    failed/empty scrape falls back to enrichment-only (zero movements, no flips).
+    A no-op run where roster == the current set emits ZERO movements.
+    """
+    stats.setdefault("departed", 0)
+    stats.setdefault("appointed", 0)
+    prior_current = [slug for slug, v in snapshot.items() if v["is_current"]]
+    seen = set(roster)
+    if not seen or len(seen) < max(1, int(0.8 * len(prior_current))):
+        if prior_current:
+            logger.warning(
+                "senator roster diff skipped — scraped %d vs %d prior-current (guard); "
+                "enrichment-only this run", len(seen), len(prior_current))
+        return
+
+    current_set = set(prior_current)
+
+    # Departures: is_current=true but not in the scraped roster
+    for slug in prior_current:
+        if slug in seen:
+            continue
+        if not dry_run:
+            with engine.begin() as conn:
+                conn.execute(text(
+                    "UPDATE parliament.senators SET is_current = false, synced_at = NOW() "
+                    "WHERE slug = :s"), {"s": slug})
+                _record_movement(conn, "departed", subject_slug=slug,
+                                 name=snapshot[slug].get("name"),
+                                 before={"is_current": True}, after={"is_current": False})
+        stats["departed"] += 1
+
+    # Appointments: in the roster but not currently is_current=true
+    for slug, name in roster.items():
+        if slug in current_set:
+            continue
+        if not dry_run:
+            with engine.begin() as conn:
+                if slug in snapshot:      # returning senator → reactivate
+                    conn.execute(text(
+                        "UPDATE parliament.senators SET is_current = true, synced_at = NOW() "
+                        "WHERE slug = :s"), {"s": slug})
+                else:                     # brand-new → minimal stub (enrichment fills the rest)
+                    conn.execute(text(
+                        "INSERT INTO parliament.senators (slug, name, is_current, synced_at) "
+                        "VALUES (:s, :n, true, NOW()) "
+                        "ON CONFLICT (slug) DO UPDATE SET is_current = true, synced_at = NOW()"),
+                        {"s": slug, "n": name or slug})
+                _record_movement(conn, "appointed", subject_slug=slug, name=name or slug,
+                                 after={"is_current": True})
+        stats["appointed"] += 1
+
+    logger.info("senator roster diff: departed=%d appointed=%d",
+                stats["departed"], stats["appointed"])
 
 
 def _load_senators(engine) -> list[dict]:
@@ -424,6 +556,7 @@ def _update_senator(engine, senator_id: int, fields: dict, dry_run: bool) -> Non
 def sync_senators(dry_run: bool = False) -> dict:
     engine = _get_engine()
     senators = _load_senators(engine)
+    snapshot = _snapshot_senators(engine)   # prior state for change detection
     logger.info("Enriching %d senators…", len(senators))
 
     # Fetch all Wikidata DOBs once
@@ -441,6 +574,7 @@ def sync_senators(dry_run: bool = False) -> dict:
     _pw_ctx = None
     _pw_browser = None
     _pw_page = None
+    roster: dict = {}
     try:
         from playwright.sync_api import sync_playwright as _sync_playwright
         _pw_ctx = _sync_playwright().__enter__()
@@ -451,6 +585,9 @@ def sync_senators(dry_run: bool = False) -> dict:
         _pw_page = _pw_browser.new_page()
         _pw_page.set_extra_http_headers(_HEADERS)
         logger.info("Playwright browser ready for profile scraping")
+        # Fetch the current senator roster (the independent "seen set") while the
+        # page is live — used after enrichment to detect departures/appointments.
+        roster = _scrape_senator_roster(_pw_page)
     except Exception as exc:
         logger.warning("Playwright unavailable — bios will not be extracted: %s", exc)
 
@@ -518,8 +655,14 @@ def sync_senators(dry_run: bool = False) -> dict:
             except Exception:
                 pass
 
-    logger.info("Done. updated=%d no_bio=%d committees=%d dob_matched=%d",
-                stats["updated"], stats["no_bio"], stats["committees_total"], stats["dob_matched"])
+    # ── roster diff → is_current flips + movements (guarded; safe no-op if the
+    #    roster scrape came back implausible) ──────────────────────────────────
+    _reconcile_senator_roster(engine, snapshot, roster, dry_run, stats)
+
+    logger.info("Done. updated=%d no_bio=%d committees=%d dob_matched=%d "
+                "departed=%d appointed=%d",
+                stats["updated"], stats["no_bio"], stats["committees_total"],
+                stats["dob_matched"], stats.get("departed", 0), stats.get("appointed", 0))
     return stats
 
 

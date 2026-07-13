@@ -381,6 +381,52 @@ def main():
                 log.info("parliament sync: %s", result)
             except Exception:
                 log.exception("parliament sync crashed — skipping this week")
+
+            # Cabinet-role refresh from pm.gc.ca (runs AFTER MPs are synced so it
+            # matches against the fresh roster).  Own try/except + ingest_log row
+            # so a failure never kills the senators sync or the entity-graph step.
+            try:
+                from ingest.parliament.cabinet import refresh_cabinet
+                cab = refresh_cabinet(engine)
+                log.info("cabinet refresh: %s", cab)
+                with engine.begin() as _c:
+                    _c.execute(text(
+                        "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                        "VALUES ('cabinet_refresh', :f, :u)"),
+                        {"f": cab.get("fetched", 0),
+                         "u": cab.get("added", 0) + cab.get("changed", 0) + cab.get("removed", 0)})
+            except Exception as exc:
+                log.exception("cabinet refresh crashed")
+                try:
+                    with engine.begin() as _c:
+                        _c.execute(text(
+                            "INSERT INTO parliament.ingest_log (task, error) "
+                            "VALUES ('cabinet_refresh', :e)"), {"e": str(exc)[:500]})
+                except Exception:
+                    pass
+
+            # Senate roster + enrichment sync (previously NOT wired into the weekly
+            # run).  Own try/except + ingest_log row.
+            try:
+                from ingest.parliament.senators import sync_senators
+                sen = sync_senators()
+                log.info("senators sync: %s", sen)
+                with engine.begin() as _c:
+                    _c.execute(text(
+                        "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                        "VALUES ('senators_sync', :f, :u)"),
+                        {"f": sen.get("total", 0),
+                         "u": sen.get("updated", 0) + sen.get("departed", 0) + sen.get("appointed", 0)})
+            except Exception as exc:
+                log.exception("senators sync crashed")
+                try:
+                    with engine.begin() as _c:
+                        _c.execute(text(
+                            "INSERT INTO parliament.ingest_log (task, error) "
+                            "VALUES ('senators_sync', :e)"), {"e": str(exc)[:500]})
+                except Exception:
+                    pass
+
             # Entity graph: refresh cast_vote edges (Link 3) now that new votes synced (#373)
             try:
                 from ingest.entity_graph_parliament_reconcile import run as _parl_eg

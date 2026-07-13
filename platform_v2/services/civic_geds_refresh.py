@@ -63,6 +63,7 @@ async def run_geds_refresh(rate_per_sec: float = 2.0, max_depth: int = 5):
         "departed": 0,
         "title_changed": 0,
         "org_changed": 0,
+        "role_changed": 0,
         "classification_changed": 0,
     }
 
@@ -98,7 +99,10 @@ async def run_geds_refresh(rate_per_sec: float = 2.0, max_depth: int = 5):
             employees_new=movements["new"],
             employees_departed=movements["departed"],
             employees_changed=(
-                movements["title_changed"] + movements["org_changed"] + movements["classification_changed"]
+                movements["title_changed"]
+                + movements["org_changed"]
+                + movements["role_changed"]
+                + movements["classification_changed"]
             ),
             error_message=err,
         )

@@ -14,6 +14,7 @@ Env: WTF_DATABASE_URL (same as rest of WTF ingest)
 Rate limit: OpenParliament asks for polite crawling. We sleep 0.5s between
 pages and 1s between the three full-table syncs.
 """
+import json
 import logging
 import time
 from datetime import date, datetime, timezone
@@ -87,21 +88,65 @@ def _province_from_riding(riding: dict) -> Optional[str]:
     return _MAP.get(province)
 
 
+# ── movement capture (change-history audit trail) ─────────────────────────────
+
+def record_movement(conn, subject_type: str, movement_type: str, *,
+                    subject_slug: Optional[str] = None, subject_id: Optional[int] = None,
+                    name: Optional[str] = None, before: Optional[dict] = None,
+                    after: Optional[dict] = None) -> None:
+    """Append one row to parliament.mp_movements (migration 038).
+
+    `conn` is an open SQLAlchemy connection inside a transaction (engine.begin()).
+    `before`/`after` are plain dicts serialized to JSONB (NULL when omitted).
+    Shared by cabinet.py (imports this); senators.py keeps a mirrored copy so it
+    stays independently runnable via `python -m ingest.parliament.senators`.
+    """
+    conn.execute(text("""
+        INSERT INTO parliament.mp_movements
+            (subject_type, subject_slug, subject_id, name, movement_type,
+             before_value, after_value)
+        VALUES
+            (:st, :slug, :sid, :name, :mt, CAST(:bv AS JSONB), CAST(:av AS JSONB))
+    """), {
+        "st": subject_type, "slug": subject_slug, "sid": subject_id,
+        "name": name, "mt": movement_type,
+        "bv": json.dumps(before) if before is not None else None,
+        "av": json.dumps(after) if after is not None else None,
+    })
+
+
 # ── sync_mps ─────────────────────────────────────────────────────────────────
 
 def sync_mps(engine) -> dict:
-    """Fetch all current MPs and upsert into parliament.mps."""
+    """Fetch all current MPs, upsert into parliament.mps, and record change
+    history (appointments, party/riding changes, departures) to
+    parliament.mp_movements — the fix for the old upsert-only behaviour where
+    is_current was never flipped false and no history was captured.
+    """
     politicians = _paginate("/politicians/", {"current": "true"})
     if not politicians:
         logger.warning("openparl: sync_mps returned 0 politicians")
         return {"fetched": 0, "upserted": 0}
 
+    # ── snapshot prior state for change detection (before any writes) ─────────
+    with engine.connect() as c:
+        snap_rows = c.execute(text(
+            "SELECT slug, name, party, riding_name, cabinet_role, is_current "
+            "FROM parliament.mps"
+        )).fetchall()
+    snapshot = {r[0]: {"name": r[1], "party": r[2], "riding_name": r[3],
+                       "cabinet_role": r[4], "is_current": r[5]} for r in snap_rows}
+    prior_current = sum(1 for v in snapshot.values() if v["is_current"])
+
     upserted = 0
+    movements = 0
+    seen: set[str] = set()
     for pol in politicians:
         url = pol.get("url") or ""
         slug = url.strip("/").split("/")[-1] if url else ""
         if not slug:
             continue
+        seen.add(slug)
 
         # Fetch detail for full fields (given_name, family_name, twitter, email)
         detail = _get(url) or {}
@@ -152,10 +197,60 @@ def sync_mps(engine) -> dict:
                 "url": _BASE + url,
             })
         upserted += 1
+
+        # ── change detection vs snapshot ─────────────────────────────────────
+        prev = snapshot.get(slug)
+        mp_name = pol.get("name") or ""
+        with engine.begin() as c:
+            if prev is None:
+                record_movement(c, "mp", "appointed", subject_slug=slug, name=mp_name,
+                                 after={"party": party, "riding_name": riding_name})
+                movements += 1
+            else:
+                if (prev.get("party") or "") and party and prev["party"] != party:
+                    record_movement(c, "mp", "party_change", subject_slug=slug, name=mp_name,
+                                     before={"party": prev["party"]},
+                                     after={"party": party})
+                    movements += 1
+                if (prev.get("riding_name") or "") and riding_name and prev["riding_name"] != riding_name:
+                    record_movement(c, "mp", "riding_change", subject_slug=slug, name=mp_name,
+                                     before={"riding_name": prev["riding_name"]},
+                                     after={"riding_name": riding_name})
+                    movements += 1
         time.sleep(0.1)  # detail fetch already sleeps via _get; be polite
 
-    logger.info("openparl.sync_mps: fetched=%d upserted=%d", len(politicians), upserted)
-    return {"fetched": len(politicians), "upserted": upserted}
+    # ── departures: prior is_current but NOT seen this run ───────────────────
+    # Safety guard: only flip departures when the fetch returned a plausible
+    # roster (>=80% of prior current count).  A partial/degraded OpenParliament
+    # response must never mass-mark MPs not-current.  A no-op full fetch → 0.
+    departed = 0
+    if prior_current and len(seen) < max(1, int(0.8 * prior_current)):
+        logger.warning(
+            "openparl.sync_mps: fetched only %d of %d prior-current MPs — skipping "
+            "departure detection (guard) to avoid false mass-departures",
+            len(seen), prior_current)
+    else:
+        for slug, prev in snapshot.items():
+            if not prev["is_current"] or slug in seen:
+                continue
+            with engine.begin() as c:
+                c.execute(text(
+                    "UPDATE parliament.mps SET is_current = false, updated_at = NOW() "
+                    "WHERE slug = :s"
+                ), {"s": slug})
+                record_movement(c, "mp", "departed", subject_slug=slug,
+                                 name=prev.get("name"),
+                                 before={"party": prev.get("party"),
+                                         "riding_name": prev.get("riding_name"),
+                                         "is_current": True},
+                                 after={"is_current": False})
+            departed += 1
+            movements += 1
+
+    logger.info("openparl.sync_mps: fetched=%d upserted=%d movements=%d departed=%d",
+                len(politicians), upserted, movements, departed)
+    return {"fetched": len(politicians), "upserted": upserted,
+            "movements": movements, "departed": departed}
 
 
 # ── sync_votes ────────────────────────────────────────────────────────────────

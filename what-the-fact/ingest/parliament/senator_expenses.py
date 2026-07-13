@@ -179,6 +179,43 @@ def _contracts_value(raw: str):
 
 
 def run_senator_expenses_sync(engine, max_quarters: int = 8, since_year: int | None = None) -> dict:
+    """Public entry point — run the senator-expenditure sync and SELF-LOG the outcome to
+    parliament.ingest_log (task='senator_expenses_sync'), exactly like mp_expenses /
+    minister_travel / ec_contributions. This is what lets the drift guard watch it: an error or
+    empty run is now recorded, never silent. Returns the sync result + elapsed_s.
+    """
+    t0 = time.time()
+    try:
+        result = _sync_senator_expenses(engine, max_quarters=max_quarters, since_year=since_year)
+    except Exception as exc:  # a crash is itself a fail-loud event
+        logger.exception("senator_expenses sync crashed: %s", exc)
+        result = {"error": str(exc)}
+    # An empty run (no reports AND no rows) is treated as an error so the guard can't read a
+    # broken fetch as "fresh". A normal run re-upserts the recent quarters (inserted > 0).
+    if not result.get("error") and not result.get("reports") and not result.get("inserted"):
+        result = {"error": "no senator reports/rows fetched"}
+    try:
+        with engine.begin() as c:
+            if result.get("error"):
+                c.execute(
+                    text("INSERT INTO parliament.ingest_log (task, error) VALUES ('senator_expenses_sync', :e)"),
+                    {"e": str(result["error"])[:500]},
+                )
+            else:
+                c.execute(
+                    text(
+                        "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                        "VALUES ('senator_expenses_sync', :f, :u)"
+                    ),
+                    {"f": result.get("reports", 0), "u": result.get("inserted", 0)},
+                )
+    except Exception as exc:
+        logger.error("senator_expenses: could not write ingest_log: %s", exc)
+    result["elapsed_s"] = round(time.time() - t0, 1)
+    return result
+
+
+def _sync_senator_expenses(engine, max_quarters: int = 8, since_year: int | None = None) -> dict:
     """Fetch Senate quarterly senator-expenditure reports and upsert them.
 
     max_quarters: how many of the most-recent available quarters to fetch

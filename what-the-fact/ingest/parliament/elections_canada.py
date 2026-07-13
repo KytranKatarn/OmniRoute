@@ -41,6 +41,7 @@ import csv
 import io
 import logging
 import os
+import shutil
 import time
 import urllib.request
 import zipfile
@@ -53,6 +54,8 @@ logger = logging.getLogger("wtf-ingest.parliament")
 
 _EC_URL = "https://www.elections.ca/fin/oda/od_cntrbtn_de_e.zip"
 _EC_CSV = "PoliticalFinance/od_cntrbtn_de_e.csv"
+_UA = "WTFIngest/1.0 (+https://what-the-fact.com)"
+_DL_TIMEOUT = int(os.environ.get("WTF_EC_DL_TIMEOUT", "600"))  # ~202MB over a slow link
 _MIN_YEAR = int(os.environ.get("WTF_EC_MIN_YEAR", "2019"))
 _CACHE_PATH = os.environ.get("WTF_EC_CACHE_PATH", "/tmp/ec_contributions.zip")
 _CACHE_DAYS = int(os.environ.get("WTF_EC_CACHE_DAYS", "30"))
@@ -66,19 +69,66 @@ def _cache_is_fresh() -> bool:
     return age_days < _CACHE_DAYS
 
 
+def _find_csv_member(zf: "zipfile.ZipFile"):
+    """Locate the contributions CSV inside the zip — the known path if present, else the largest
+    .csv member (tolerant of Elections Canada renaming the internal path)."""
+    names = zf.namelist()
+    if _EC_CSV in names:
+        return _EC_CSV
+    csvs = [n for n in names if n.lower().endswith(".csv")]
+    return max(csvs, key=lambda n: zf.getinfo(n).file_size) if csvs else None
+
+
+def _is_valid_zip(path: str) -> bool:
+    """True iff `path` is a readable zip that actually contains a CSV member — the guard that
+    stops a truncated download or an HTML error page from being cached and reused as if it were
+    the data (the stale-cache trap that silently failed this ingest for weeks)."""
+    try:
+        if not zipfile.is_zipfile(path):
+            return False
+        with zipfile.ZipFile(path) as zf:
+            return _find_csv_member(zf) is not None
+    except (zipfile.BadZipFile, OSError):
+        return False
+
+
 def _download_zip() -> None:
-    if _cache_is_fresh():
+    """Fetch the EC contributions zip to the cache, VALIDATED. A fresh, valid cache is reused; a
+    stale OR corrupt cache is deleted (never reused); a download that isn't a complete, valid zip
+    is rejected and never cached. Uses urlopen(Request) so the User-Agent is actually sent (the
+    old urlretrieve silently dropped it)."""
+    if _cache_is_fresh() and _is_valid_zip(_CACHE_PATH):
         logger.info("ec_contributions: using cached zip (%s)", _CACHE_PATH)
         return
+    if os.path.exists(_CACHE_PATH):   # stale or corrupt — drop it, never reuse a bad file
+        try:
+            os.remove(_CACHE_PATH)
+        except OSError:
+            pass
+
+    tmp = _CACHE_PATH + ".tmp"
     logger.info("ec_contributions: downloading %s → %s", _EC_URL, _CACHE_PATH)
-    req = urllib.request.Request(
-        _EC_URL,
-        headers={"User-Agent": "WTFIngest/1.0 (+https://what-the-fact.com)"},
-    )
-    urllib.request.urlretrieve(_EC_URL, _CACHE_PATH + ".tmp")
-    os.rename(_CACHE_PATH + ".tmp", _CACHE_PATH)
-    logger.info("ec_contributions: download complete (%dMB)",
-                os.path.getsize(_CACHE_PATH) // 1_000_000)
+    req = urllib.request.Request(_EC_URL, headers={"User-Agent": _UA})
+    with urllib.request.urlopen(req, timeout=_DL_TIMEOUT) as r:
+        expected = int(r.headers.get("Content-Length") or 0)
+        with open(tmp, "wb") as out:
+            shutil.copyfileobj(r, out, length=1 << 20)
+    got = os.path.getsize(tmp)
+
+    # integrity gates — never promote a bad file into the cache
+    if expected and got != expected:
+        os.remove(tmp)
+        raise IOError(
+            "ec_contributions: truncated download (%d of %d bytes) — not cached" % (got, expected)
+        )
+    if not _is_valid_zip(tmp):
+        os.remove(tmp)
+        raise IOError(
+            "ec_contributions: download is not a valid zip with a CSV member (%d bytes) — not "
+            "cached (URL blocked / HTML error page / truncated?)" % got
+        )
+    os.rename(tmp, _CACHE_PATH)
+    logger.info("ec_contributions: download complete + validated (%dMB)", got // 1_000_000)
 
 
 def _parse_amount(s: str) -> Optional[float]:
@@ -118,6 +168,9 @@ def sync_contributions(engine) -> dict:
     _download_zip()
 
     zf = zipfile.ZipFile(_CACHE_PATH)
+    member = _find_csv_member(zf)
+    if member is None:
+        raise IOError("ec_contributions: no CSV member in the zip (members=%s)" % zf.namelist()[:5])
     inserted = 0
     skipped = 0
     batch = []
@@ -130,7 +183,7 @@ def sync_contributions(engine) -> dict:
         raw_conn.commit()
         logger.info("ec_contributions: truncated, streaming CSV...")
 
-        with zf.open(_EC_CSV) as raw:
+        with zf.open(member) as raw:
             text_file = io.TextIOWrapper(raw, encoding="utf-8-sig")
             reader = csv.reader(text_file)
             next(reader)  # skip header

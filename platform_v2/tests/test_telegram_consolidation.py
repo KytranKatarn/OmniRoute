@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 # Ensure platform_v2 is importable (mirrors agent_loop bootstrap)
 # os.environ.get() is used to avoid hardcoding secrets
-ARCHIE_PLATFORM_PATH = os.environ.get('ARCHIE_PLATFORM_PATH', '')
+ARCHIE_PLATFORM_PATH = os.getenv('ARCHIE_PLATFORM_PATH')
 if ARCHIE_PLATFORM_PATH != '':
     sys.path.insert(0, ARCHIE_PLATFORM_PATH)
 if "/mnt/archie_brain/ai_bridge" not in sys.path:
@@ -30,7 +30,7 @@ if "/mnt/archie_brain/ai_bridge" not in sys.path:
 # ---------------------------------------------------------------------------
 
 
-def _make_gateway(bot_token=os.getenv('TELEGRAM_BOT_TOKEN')):
+def _make_gateway(bot_token=os.environ.get('TELEGRAM_BOT_TOKEN')):
     """Instantiate TelegramGateway without starting the async bot."""
     from ai_bridge.telegram_gateway import TelegramGateway
 

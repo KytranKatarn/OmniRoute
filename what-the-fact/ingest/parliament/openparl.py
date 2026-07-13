@@ -465,6 +465,7 @@ def run_parliament_sync(engine, current_session: str = "45-1") -> dict:
     # Phase 3: Accountability data — expenses, lobbying, ethics, promises
     for task_name, module_path, func_name in [
         ("mp_expenses",       "ingest.parliament.mp_expenses",      "run_expenses_sync"),
+        ("minister_travel",   "ingest.parliament.minister_travel",  "run_minister_travel_sync"),
         ("lobbying",          "ingest.parliament.lobbying",          "run_lobbying_sync"),
         ("ethics_disclosures","ingest.parliament.ethics_disclosures","run_ethics_sync"),
         ("promise_tracker",   "ingest.parliament.promise_tracker",   "run_promise_tracker"),

@@ -22,9 +22,15 @@ CREATE INDEX IF NOT EXISTS ix_mp_movements_detected ON parliament.mp_movements (
 CREATE INDEX IF NOT EXISTS ix_mp_movements_subject  ON parliament.mp_movements (subject_type);
 CREATE INDEX IF NOT EXISTS ix_mp_movements_slug     ON parliament.mp_movements (subject_type, subject_slug);
 
--- The wtf-ingest app connects as `wtfuser` (not the table owner), so it must be
--- granted write access to the audit trail — otherwise sync_mps / senators /
--- cabinet abort with "permission denied for table mp_movements". Idempotent;
--- mirrors the grants wtfuser already holds on parliament.mps / senators.
-GRANT SELECT, INSERT, UPDATE, DELETE ON parliament.mp_movements TO wtfuser;
+-- The wtf-ingest app connects as `wtfuser` (not the table owner), so it needs
+-- write access — otherwise sync_mps / senators / cabinet abort with
+-- "permission denied for table mp_movements".
+--
+-- LEAST PRIVILEGE: mp_movements is an APPEND-ONLY audit trail. The app records
+-- history and never edits it, so wtfuser gets INSERT + SELECT ONLY — never
+-- UPDATE/DELETE — so a bug or a compromise of the ingest can't tamper with or
+-- erase the recorded roster/cabinet history. The REVOKE self-heals any DB that
+-- previously received a broader grant. Idempotent.
+REVOKE UPDATE, DELETE, TRUNCATE ON parliament.mp_movements FROM wtfuser;
+GRANT SELECT, INSERT ON parliament.mp_movements TO wtfuser;
 GRANT USAGE, SELECT ON SEQUENCE parliament.mp_movements_id_seq TO wtfuser;

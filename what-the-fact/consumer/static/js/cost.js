@@ -199,6 +199,13 @@
         clear(headline);
         headline.appendChild(el("div", { text: fmtCompact(grand), css: "font-size:clamp(40px,9vw,72px);font-weight:800;color:" + C.office + ";line-height:1;letter-spacing:-.02em;" }));
         headline.appendChild(el("div", { text: fmtFull(grand) + " · approximate 5-year total (" + first.year + "–" + last.year + ")", css: "font-size:13px;color:" + C.subtle + ";margin-top:10px;" }));
+        var minG = num(data.ministerial_grand_5yr);
+        if (minG > 0) {
+          headline.appendChild(el("div", {
+            text: "＋ " + fmtFull(minG) + " ministerial travel & hospitality (borne centrally — not in the total above) · combined ≈ " + fmtFull(num(data.combined_grand_5yr) || (grand + minG)),
+            css: "font-size:12px;color:" + C.topup + ";margin-top:8px;font-weight:600;"
+          }));
+        }
       }
 
       // stat tiles: latest-year total, trend, per-member avg, member counts

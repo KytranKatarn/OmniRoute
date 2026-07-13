@@ -415,9 +415,19 @@ def parliament_cost_summary(engine) -> dict:
             )
         ).fetchall()
 
+        # ministerial (departmental) travel + hospitality per year — borne CENTRALLY, kept as a
+        # SEPARATE line from the parliamentary total (never folded into `total`).
+        min_rows = conn.execute(
+            text(
+                "SELECT LEFT(period, 4)::int AS yr, COALESCE(SUM(total_cad), 0) AS t "
+                "FROM parliament.minister_travel GROUP BY 1"
+            )
+        ).fetchall()
+
     senator_by_year: dict = {
         int(yr): (int(sc), float(ot or 0)) for yr, sc, ot in senator_rows
     }
+    ministerial_by_year: dict = {int(yr): round(float(t or 0)) for yr, t in min_rows}
 
     topup_by_year: dict = {}
     for yr, cabinet_role, n in topup_rows:
@@ -427,6 +437,7 @@ def parliament_cost_summary(engine) -> dict:
 
     by_year = []
     grand_total_5yr = 0
+    ministerial_grand_5yr = 0
     for yr, mp_count, office_total in office_rows:
         yr = int(yr)
         mp_count = int(mp_count)
@@ -437,7 +448,9 @@ def parliament_cost_summary(engine) -> dict:
         sen_count, sen_office = senator_by_year.get(yr, (0, 0.0))
         senator_total = round(sen_office) + round(rates.get(yr, {}).get("senator", 0.0)) * sen_count
         total = office_total + mp_indemnity_total + senator_total
+        ministerial_total = ministerial_by_year.get(yr, 0)   # separate line, not in `total`
         grand_total_5yr += total
+        ministerial_grand_5yr += ministerial_total
         by_year.append(
             {
                 "year": yr,
@@ -447,6 +460,7 @@ def parliament_cost_summary(engine) -> dict:
                 "senator_count": sen_count,
                 "senator_total": senator_total,
                 "total": total,
+                "ministerial_total": ministerial_total,
                 "avg_per_mp": round(total / mp_count) if mp_count else 0,
             }
         )
@@ -454,11 +468,18 @@ def parliament_cost_summary(engine) -> dict:
     return {
         "by_year": by_year,
         "grand_total_5yr": grand_total_5yr,
+        # ministerial (departmental) travel + hospitality — borne CENTRALLY, reported as a
+        # SEPARATE figure (never folded into grand_total_5yr) + a combined headline.
+        "ministerial_grand_5yr": ministerial_grand_5yr,
+        "combined_grand_5yr": grand_total_5yr + ministerial_grand_5yr,
         "_note": (
             _NOTE
             + "; mp_indemnity_total includes PM/minister top-ups (current cabinet applied "
             "across years -- approximate); senator_total = senator office expenses + base "
-            "indemnity (matched current senators; some former-senator spend is unattributed)"
+            "indemnity (matched current senators; some former-senator spend is unattributed); "
+            "ministerial_grand_5yr = cabinet ministers' departmental travel + hospitality borne "
+            "centrally (open.canada.ca proactive disclosure), reported separately, NOT part of "
+            "grand_total_5yr"
         ),
     }
 

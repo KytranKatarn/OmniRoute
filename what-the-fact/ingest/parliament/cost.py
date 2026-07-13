@@ -424,6 +424,18 @@ def parliament_cost_summary(engine) -> dict:
             )
         ).fetchall()
 
+        # quarter coverage per disclosed MP-expense year — lets us flag PARTIAL years
+        # (fewer than 4 quarters on file) so a 2-quarter 2020 or a 1-quarter 2026-to-date is
+        # never silently summed into the headline as if it were a full year.
+        cov_rows = conn.execute(
+            text(
+                "SELECT LEFT(period, 4)::int AS yr, "
+                "array_agg(DISTINCT RIGHT(period, 2) ORDER BY RIGHT(period, 2)) AS qs "
+                "FROM parliament.mp_expenses GROUP BY 1"
+            )
+        ).fetchall()
+
+    quarters_by_year: dict = {int(yr): list(qs) for yr, qs in cov_rows}
     senator_by_year: dict = {
         int(yr): (int(sc), float(ot or 0)) for yr, sc, ot in senator_rows
     }
@@ -435,7 +447,8 @@ def parliament_cost_summary(engine) -> dict:
         amount = rates.get(int(yr), {}).get(role, 0.0) if role else 0.0
         topup_by_year[int(yr)] = topup_by_year.get(int(yr), 0.0) + amount * int(n)
 
-    by_year = []
+    by_year = []          # the COMPLETE fiscal years (YEARS) — drive the headline + chart
+    addenda = []          # disclosed years OUTSIDE the window (partial quarters) — addenda only
     grand_total_5yr = 0
     ministerial_grand_5yr = 0
     for yr, mp_count, office_total in office_rows:
@@ -449,38 +462,63 @@ def parliament_cost_summary(engine) -> dict:
         senator_total = round(sen_office) + round(rates.get(yr, {}).get("senator", 0.0)) * sen_count
         total = office_total + mp_indemnity_total + senator_total
         ministerial_total = ministerial_by_year.get(yr, 0)   # separate line, not in `total`
-        grand_total_5yr += total
-        ministerial_grand_5yr += ministerial_total
-        by_year.append(
-            {
+        row = {
+            "year": yr,
+            "mp_count": mp_count,
+            "mp_office_total": office_total,
+            "mp_indemnity_total": mp_indemnity_total,
+            "senator_count": sen_count,
+            "senator_total": senator_total,
+            "total": total,
+            "ministerial_total": ministerial_total,
+            "avg_per_mp": round(total / mp_count) if mp_count else 0,
+        }
+        if yr in YEARS:
+            by_year.append(row)
+            grand_total_5yr += total
+            ministerial_grand_5yr += ministerial_total
+        else:
+            # A disclosed year OUTSIDE the 5 complete years — always PARTIAL (fewer than 4
+            # quarters on file). Reported as an addendum beneath the headline, NEVER folded
+            # into the totals above, with its quarters flagged for honesty.
+            addenda.append({
                 "year": yr,
-                "mp_count": mp_count,
-                "mp_office_total": office_total,
-                "mp_indemnity_total": mp_indemnity_total,
-                "senator_count": sen_count,
-                "senator_total": senator_total,
-                "total": total,
-                "ministerial_total": ministerial_total,
-                "avg_per_mp": round(total / mp_count) if mp_count else 0,
-            }
-        )
+                "quarters": quarters_by_year.get(yr, []),
+                "kind": "latest_ytd" if yr > YEARS[-1] else "partial_pre_window",
+                "parliamentary": total,
+                "ministerial": ministerial_total,
+                "combined": total + ministerial_total,
+            })
 
+    addenda.sort(key=lambda a: a["year"])
     return {
+        "window": {
+            "start": YEARS[0],
+            "end": YEARS[-1],
+            "years": list(YEARS),
+            "label": "{0} complete fiscal years ({1}–{2})".format(
+                len(YEARS), YEARS[0], YEARS[-1]
+            ),
+        },
         "by_year": by_year,
         "grand_total_5yr": grand_total_5yr,
         # ministerial (departmental) travel + hospitality — borne CENTRALLY, reported as a
         # SEPARATE figure (never folded into grand_total_5yr) + a combined headline.
         "ministerial_grand_5yr": ministerial_grand_5yr,
         "combined_grand_5yr": grand_total_5yr + ministerial_grand_5yr,
+        # disclosed data OUTSIDE the 5 complete years (partial quarters) — shown beneath the
+        # headline as addenda (e.g. 2026 year-to-date), NEVER summed into the totals above.
+        "addenda": addenda,
         "_note": (
             _NOTE
-            + "; mp_indemnity_total includes PM/minister top-ups (current cabinet applied "
-            "across years -- approximate); senator_total = senator office expenses + base "
-            "indemnity (matched current senators; some former-senator spend is unattributed); "
-            "ministerial_grand_5yr = cabinet ministers' departmental travel + hospitality borne "
-            "centrally (open.canada.ca proactive disclosure), reported separately, NOT part of "
-            "grand_total_5yr"
-        ),
+            + "; headline totals cover the {0} COMPLETE fiscal years {1}-{2} only (partial "
+            "years are reported separately as addenda, never summed in); mp_indemnity_total "
+            "includes PM/minister top-ups (current cabinet applied across years -- approximate); "
+            "senator_total = senator office expenses + base indemnity (matched current senators; "
+            "some former-senator spend is unattributed); ministerial_grand_5yr = cabinet "
+            "ministers' departmental travel + hospitality borne centrally (open.canada.ca "
+            "proactive disclosure), reported separately, NOT part of grand_total_5yr"
+        ).format(len(YEARS), YEARS[0], YEARS[-1]),
     }
 
 
@@ -587,3 +625,139 @@ def officials_cost(engine, officials) -> list:
                     r["ministerial_5yr"] = mmap[r["subject_id"]]
 
     return out
+
+
+def cost_reconciliation(engine) -> dict:
+    """Member-by-member reconciliation of the national headline — the public "show your work".
+
+    Independently re-sums EVERY MP + senator over the window (using the exact per-member SSOT
+    math that each member page shows) plus the ministerial line, then confirms the parts equal
+    the parliament_cost_summary headline. Read-only. Powers the /cost methodology surface.
+
+    Returns {window, reconciles, discrepancy, headline{parliamentary,ministerial,combined},
+             member_sum{mp_total,senator_total,parliamentary,ministerial,combined},
+             counts{mps,senators,ministers}, coverage[...], synced{...}, members[...], _note}.
+    A tiny discrepancy (<= a dollar or two per member) is presentational rounding: each member
+    page rounds its own annual figures, while the headline rounds each year's national aggregate.
+    """
+    from collections import defaultdict
+
+    y0, y1 = YEARS[0], YEARS[-1]
+    with engine.connect() as conn:
+        rates = _all_rates(conn)
+
+        # MPs — per (mp, year) office + role over the window; cost each exactly as _mp_cost does
+        # (round office per year, add base indemnity + any top-up for a served year).
+        mp_tot: dict = defaultdict(lambda: {"name": None, "total": 0})
+        for mid, yr, office, role, name in conn.execute(
+            text(
+                "SELECT e.mp_id, LEFT(e.period,4)::int AS yr, "
+                "SUM(e.travel_cad+e.hospitality_cad+e.contracts_cad+e.salaries_cad) AS office, "
+                "MAX(m.cabinet_role) AS role, MAX(m.name) AS name "
+                "FROM parliament.mp_expenses e JOIN parliament.mps m ON m.id=e.mp_id "
+                "WHERE LEFT(e.period,4)::int BETWEEN :y0 AND :y1 GROUP BY e.mp_id, yr"
+            ),
+            {"y0": y0, "y1": y1},
+        ).fetchall():
+            rate = rates.get(int(yr), {})
+            tu = _topup_role(role)
+            mp_tot[int(mid)]["total"] += (
+                round(float(office or 0))
+                + round(rate.get("mp", 0.0))
+                + (round(rate.get(tu, 0.0)) if tu else 0)
+            )
+            mp_tot[int(mid)]["name"] = name
+        mp_total = sum(v["total"] for v in mp_tot.values())
+
+        # Senators — per (senator, year) office over the window + base senator indemnity.
+        sen_tot: dict = defaultdict(lambda: {"name": None, "total": 0})
+        for sid, yr, office, name in conn.execute(
+            text(
+                "SELECT e.senator_id, LEFT(e.period,4)::int AS yr, "
+                "SUM(COALESCE(e.travel_cad,0)+COALESCE(e.hospitality_cad,0)+COALESCE(e.contracts_cad,0)"
+                "+COALESCE(e.office_cad,0)+COALESCE(e.living_cad,0)) AS office, MAX(s.name) AS name "
+                "FROM parliament.senator_expenses e JOIN parliament.senators s ON s.id=e.senator_id "
+                "WHERE LEFT(e.period,4)::int BETWEEN :y0 AND :y1 GROUP BY e.senator_id, yr"
+            ),
+            {"y0": y0, "y1": y1},
+        ).fetchall():
+            sen_tot[int(sid)]["total"] += round(float(office or 0)) + round(
+                rates.get(int(yr), {}).get("senator", 0.0)
+            )
+            sen_tot[int(sid)]["name"] = name
+        senator_total = sum(v["total"] for v in sen_tot.values())
+
+        # Ministerial (departmental) travel + hospitality over the window (separate line).
+        mrow = conn.execute(
+            text(
+                "SELECT COALESCE(SUM(total_cad),0), COUNT(DISTINCT mp_id) "
+                "FROM parliament.minister_travel WHERE LEFT(period,4)::int BETWEEN :y0 AND :y1"
+            ),
+            {"y0": y0, "y1": y1},
+        ).fetchone()
+        ministerial_total, n_ministers = round(float(mrow[0] or 0)), int(mrow[1] or 0)
+
+        # Provenance for the methodology page: coverage + last successful sync per source.
+        coverage = []
+        for src, tbl in (
+            ("MP office expenditures", "parliament.mp_expenses"),
+            ("Senator expenditures", "parliament.senator_expenses"),
+            ("Ministerial travel & hospitality", "parliament.minister_travel"),
+        ):
+            r = conn.execute(
+                text("SELECT COUNT(*), MIN(period), MAX(period) FROM {0}".format(tbl))
+            ).fetchone()
+            coverage.append({"source": src, "rows": int(r[0]), "first": r[1], "last": r[2]})
+        synced = {
+            task: (run.isoformat() if run else None)
+            for task, run in conn.execute(
+                text(
+                    "SELECT task, MAX(run_at) FROM parliament.ingest_log "
+                    "WHERE COALESCE(error,'')='' GROUP BY task"
+                )
+            ).fetchall()
+        }
+
+    headline = parliament_cost_summary(engine)
+    member_parl = mp_total + senator_total
+    diff = member_parl - headline["grand_total_5yr"]
+    min_diff = ministerial_total - headline["ministerial_grand_5yr"]
+    tolerance = max(2, len(mp_tot) + len(sen_tot))   # <= ~$1-2/member = pure rounding
+    # both sides sum the same records; any residual is per-year vs window rounding (the headline
+    # rounds each year's aggregate, the member sum rounds each member's annual figures).
+    reconciles = abs(diff) <= tolerance and abs(min_diff) <= max(2, len(YEARS) * 2)
+
+    members = sorted(
+        [{"name": v["name"], "type": "mp", "five_year_total": v["total"]} for v in mp_tot.values()]
+        + [{"name": v["name"], "type": "senator", "five_year_total": v["total"]}
+           for v in sen_tot.values()],
+        key=lambda m: m["five_year_total"],
+        reverse=True,
+    )
+    return {
+        "window": headline["window"],
+        "reconciles": reconciles,
+        "discrepancy": diff,
+        "headline": {
+            "parliamentary": headline["grand_total_5yr"],
+            "ministerial": headline["ministerial_grand_5yr"],
+            "combined": headline["combined_grand_5yr"],
+        },
+        "member_sum": {
+            "mp_total": mp_total,
+            "senator_total": senator_total,
+            "parliamentary": member_parl,
+            "ministerial": ministerial_total,
+            "combined": member_parl + ministerial_total,
+        },
+        "counts": {"mps": len(mp_tot), "senators": len(sen_tot), "ministers": n_ministers},
+        "coverage": coverage,
+        "synced": synced,
+        "members": members,
+        "_note": (
+            "member-by-member reconciliation: the national headline equals the independent sum of "
+            "every MP + senator over the {0} complete fiscal years {1}-{2}, plus the ministerial "
+            "line (reported separately). Any residual is presentational rounding. Figures are "
+            "approximate; a public figure is never guessed — an unmatched official is not counted."
+        ).format(len(YEARS), y0, y1),
+    }

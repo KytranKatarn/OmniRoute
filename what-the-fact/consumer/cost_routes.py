@@ -20,6 +20,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy import create_engine
 
 from ingest.parliament.cost import (
+    cost_reconciliation,
     mp_cost_5yr,
     officials_cost,
     parliament_cost_summary,
@@ -47,6 +48,10 @@ _SOURCE = {
     "senator_expenses": (
         "Senate of Canada -- Senators' quarterly expenditures "
         "(https://sencanada.ca, parliament.senator_expenses)"
+    ),
+    "ministerial": (
+        "Treasury Board of Canada Secretariat -- Proactive disclosure of travel & "
+        "hospitality (https://open.canada.ca, parliament.minister_travel)"
     ),
 }
 
@@ -87,6 +92,23 @@ def api_cost_senator(senator_id):
 def api_cost_summary():
     """National "cost of Parliament" per year + 5-year grand total. Public, cached."""
     data = dict(_cached("summary", lambda: parliament_cost_summary(_get_engine())))
+    data["_source"] = _SOURCE
+    return jsonify(data)
+
+
+@cost_bp.route("/api/cost/reconciliation")
+def api_cost_reconciliation():
+    """Member-by-member reconciliation of the national headline -- the public "show your work".
+
+    Confirms the 5-year total equals the independent sum of every MP + senator (plus the
+    ministerial line, reported separately), with data coverage + provenance. Public, cached.
+    `?members=all` returns the full roster breakdown; default returns the 25 costliest.
+    """
+    scope = "all" if request.args.get("members") == "all" else "top"
+    data = dict(_cached("reconciliation", lambda: cost_reconciliation(_get_engine())))
+    if scope == "top":
+        data["members"] = (data.get("members") or [])[:25]
+        data["members_truncated"] = True
     data["_source"] = _SOURCE
     return jsonify(data)
 

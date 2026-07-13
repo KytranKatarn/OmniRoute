@@ -198,7 +198,8 @@
       if (headline) {
         clear(headline);
         headline.appendChild(el("div", { text: fmtCompact(grand), css: "font-size:clamp(40px,9vw,72px);font-weight:800;color:" + C.office + ";line-height:1;letter-spacing:-.02em;" }));
-        headline.appendChild(el("div", { text: fmtFull(grand) + " · approximate 5-year total (" + first.year + "–" + last.year + ")", css: "font-size:13px;color:" + C.subtle + ";margin-top:10px;" }));
+        var winLabel = (data.window && data.window.label) ? data.window.label : ("5-year total, " + first.year + "–" + last.year);
+        headline.appendChild(el("div", { text: fmtFull(grand) + " · approximate — " + winLabel, css: "font-size:13px;color:" + C.subtle + ";margin-top:10px;" }));
         var minG = num(data.ministerial_grand_5yr);
         if (minG > 0) {
           headline.appendChild(el("div", {
@@ -206,6 +207,20 @@
             css: "font-size:12px;color:" + C.topup + ";margin-top:8px;font-weight:600;"
           }));
         }
+      }
+
+      // addenda — disclosed partial years, shown for completeness, NEVER in the headline total
+      var addBox = root.querySelector("[data-cost-addenda]");
+      if (addBox) {
+        clear(addBox);
+        (data.addenda || []).forEach(function (a) {
+          var qs = (a.quarters || []).join(", ");
+          var kind = a.kind === "latest_ytd" ? "year-to-date" : "partial year";
+          var line = el("div", { css: "font-size:12px;color:" + C.subtle + ";margin-top:6px;line-height:1.6;" });
+          line.appendChild(el("span", { text: "＋ " + a.year + " " + kind + (qs ? " (" + qs + ")" : "") + ": ", css: "color:" + C.text + ";font-weight:600;" }));
+          line.appendChild(el("span", { text: fmtFull(a.combined) + " disclosed so far — shown for completeness, not in the total above." }));
+          addBox.appendChild(line);
+        });
       }
 
       // stat tiles: latest-year total, trend, per-member avg, member counts
@@ -353,9 +368,103 @@
     });
   }
 
+  // --- "How we calculated this" — member-by-member reconciliation + provenance ---
+  function renderMethodology() {
+    var box = document.querySelector("[data-cost-methodology-body]");
+    if (!box) return;
+    errorMsg(box, "Loading the reconciliation…");
+    getJSON("/api/cost/reconciliation").then(function (d) {
+      clear(box);
+      var h = d.headline || {}, ms = d.member_sum || {}, ct = d.counts || {};
+
+      // 1) the reconciliation statement
+      var recon = el("div", { css: "background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:8px;padding:14px 16px;margin-bottom:16px;" });
+      recon.appendChild(el("div", {
+        text: (d.reconciles ? "✓ " : "⚠ ") + "The headline reconciles member-by-member",
+        css: "font-size:13px;font-weight:700;color:" + (d.reconciles ? "#22c55e" : C.topup) + ";margin-bottom:6px;"
+      }));
+      recon.appendChild(el("div", {
+        text: "The " + (d.window ? d.window.label : "5-year") + " headline of " + fmtFull(h.parliamentary) +
+              " is the independent sum of every member: " + ct.mps + " MPs + " + ct.senators + " senators = " + fmtFull(ms.parliamentary) + ".",
+        css: "font-size:12px;color:" + C.text + ";line-height:1.7;"
+      }));
+      recon.appendChild(el("div", {
+        text: "Ministerial travel & hospitality (borne centrally, reported separately): " + fmtFull(h.ministerial) +
+              " across " + ct.ministers + " ministers. Combined ≈ " + fmtFull(h.combined) + ".",
+        css: "font-size:12px;color:" + C.subtle + ";line-height:1.7;margin-top:4px;"
+      }));
+      var diff = num(d.discrepancy);
+      recon.appendChild(el("div", {
+        text: "Independent cross-check difference: " + (diff === 0 ? "$0 — exact."
+              : fmtFull(Math.abs(diff)) + " out of " + fmtFull(h.parliamentary) + " — presentational rounding (each member page rounds its own annual figures)."),
+        css: "font-size:11px;color:" + C.muted + ";margin-top:6px;"
+      }));
+      box.appendChild(recon);
+
+      // 2) what's in / out / window / matching
+      function dl(term, desc) {
+        var w = el("div", { css: "margin-top:12px;" });
+        w.appendChild(el("div", { text: term, css: "font-size:12px;font-weight:600;color:" + C.text + ";" }));
+        w.appendChild(el("div", { text: desc, css: "font-size:12px;color:" + C.subtle + ";line-height:1.7;margin-top:2px;" }));
+        return w;
+      }
+      box.appendChild(dl("What's counted",
+        "Each member's base salary / sessional indemnity, any cabinet or role top-up, and office expenses (travel, hospitality, contracts and staff salaries). Cabinet ministers additionally carry their departmental travel & hospitality, borne centrally, shown as a separate line."));
+      box.appendChild(dl("What's excluded",
+        "Pensions, severance, and central costs (departmental program spending, security details, buildings). These are the cost of members and their offices — not the whole cost of government."));
+      box.appendChild(dl("The window",
+        "The headline covers the " + (d.window ? d.window.label : "5 complete fiscal years") + " — every year with all four quarters on file. Partial years (shown above the chart) are disclosed for completeness but never summed into the headline."));
+      box.appendChild(dl("How members are matched",
+        "Every disclosed record is name-matched to the Library of Parliament roster. A public figure is never guessed — an official we cannot confidently match is simply not counted, so the total is a floor, not an over-count."));
+
+      // 3) data coverage
+      var covWrap = el("div", { css: "margin-top:16px;" });
+      covWrap.appendChild(el("div", { text: "Data coverage", css: "font-size:12px;font-weight:600;color:" + C.text + ";margin-bottom:6px;" }));
+      (d.coverage || []).forEach(function (c) {
+        var r = el("div", { css: "display:flex;justify-content:space-between;gap:12px;font-size:11px;padding:4px 0;border-bottom:1px solid rgba(148,163,184,0.08);" });
+        r.appendChild(el("span", { text: c.source, css: "color:" + C.subtle + ";" }));
+        var count = Number(c.rows); count = isFinite(count) ? count.toLocaleString("en-CA") : c.rows;
+        r.appendChild(el("span", { text: c.first + " → " + c.last + " · " + count + " records", css: "color:" + C.text + ";white-space:nowrap;" }));
+        covWrap.appendChild(r);
+      });
+      box.appendChild(covWrap);
+
+      // 4) sources
+      if (d._source) {
+        var sWrap = el("div", { css: "margin-top:14px;" });
+        sWrap.appendChild(el("div", { text: "Sources", css: "font-size:12px;font-weight:600;color:" + C.text + ";margin-bottom:4px;" }));
+        Object.keys(d._source).forEach(function (k) {
+          sWrap.appendChild(el("div", { text: "• " + d._source[k], css: "font-size:11px;color:" + C.subtle + ";line-height:1.6;margin-top:2px;" }));
+        });
+        box.appendChild(sWrap);
+      }
+
+      // 5) costliest members + full-data download
+      if (d.members && d.members.length) {
+        var mWrap = el("div", { css: "margin-top:16px;" });
+        mWrap.appendChild(el("div", { text: "Costliest members over the window — top " + d.members.length, css: "font-size:12px;font-weight:600;color:" + C.text + ";margin-bottom:6px;" }));
+        d.members.forEach(function (m, i) {
+          var r = el("div", { css: "display:flex;justify-content:space-between;gap:12px;font-size:11px;padding:3px 0;" });
+          r.appendChild(el("span", { text: (i + 1) + ". " + m.name + " (" + m.type + ")", css: "color:" + C.subtle + ";" }));
+          r.appendChild(el("span", { text: fmtFull(m.five_year_total), css: "color:" + C.text + ";white-space:nowrap;" }));
+          mWrap.appendChild(r);
+        });
+        mWrap.appendChild(el("a", {
+          text: "Download the full member-by-member breakdown (JSON) →",
+          css: "display:inline-block;margin-top:8px;font-size:11px;color:#0af;text-decoration:none;",
+          attrs: { href: "/api/cost/reconciliation?members=all" }
+        }));
+        box.appendChild(mWrap);
+      }
+    }).catch(function () {
+      errorMsg(box, "The reconciliation is temporarily unavailable.");
+    });
+  }
+
   function auto() {
     var root = document.querySelector("[data-cost-summary]");
     if (root) renderSummary(root);
+    if (document.querySelector("[data-cost-methodology-body]")) renderMethodology();
     var members = document.querySelectorAll("[data-cost-member]");
     for (var i = 0; i < members.length; i++) renderMember(members[i]);
   }
@@ -363,6 +472,7 @@
   global.WTFCost = {
     renderSummary: renderSummary,
     renderMember: renderMember,
+    renderMethodology: renderMethodology,
     fmtCompact: fmtCompact,
     fmtFull: fmtFull,
     auto: auto

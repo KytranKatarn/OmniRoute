@@ -1097,6 +1097,58 @@ def _maven_optimize_executor() -> None:
         log.error("maven_optimize_executor failed: %s", exc)
 
 
+def _maven_daily_optimize_proposal() -> None:
+    """Daily: raise ONE optimize approval (Telegram + Department HQ Approvals tab) to reclaim
+    space. M.A.V.E.N. picks the top oversized candidate and proposes it via request_optimize,
+    which fans out to Telegram Approve/Deny + the DHQ approvals feed like any other request.
+    Dedup-guarded — skips when an optimize is already awaiting approval or a Tdarr run is active,
+    so proposals never stack (one steady approval a day; approve it to reclaim ~size).
+    Owner-requested pacing. project #385 Phase 3."""
+    try:
+        import tdarr_client
+        from maven_manager import request_optimize, video_review
+
+        if tdarr_client.is_processing():
+            log.info("maven_daily_optimize: a Tdarr run is active — skipping today's proposal")
+            return
+        try:
+            from database import get_db_cursor
+            from maven_manager import _ensure_table
+
+            _ensure_table()
+            with get_db_cursor(cursor_factory=None) as (_c, cur):
+                cur.execute(
+                    "SELECT count(*) FROM maven_pending_actions "
+                    "WHERE status='awaiting' AND action='optimize'"
+                )
+                if (cur.fetchone() or [0])[0]:
+                    log.info("maven_daily_optimize: an optimize is already awaiting approval — skipping")
+                    return
+        except Exception:  # noqa: BLE001
+            log.warning(
+                "maven_daily_optimize: dedup check failed — relying on request_optimize dedup",
+                exc_info=True,
+            )
+
+        rev = video_review(min_gb=4.0, top=1) or {}
+        cands = rev.get("candidates") or []
+        if not cands:
+            log.info("maven_daily_optimize: no optimize candidates found today")
+            return
+        top = cands[0]
+        fid = top.get("id") or top.get("path")
+        res = request_optimize(
+            file_id=fid,
+            title=top.get("title") or str(fid or "").split("/")[-1],
+            resolution=top.get("resolution"),
+            est_savings_gb=rev.get("est_savings_gb"),
+            reason="daily space optimize",
+        )
+        log.info("maven_daily_optimize: proposed optimize -> %s", res)
+    except Exception as exc:  # noqa: BLE001
+        log.error("maven_daily_optimize_proposal failed: %s", exc)
+
+
 def _tdarr_library_review() -> None:
     """Periodic Tdarr rescan + library review — M.A.V.E.N. refreshes her own view
     of the library (#4754) then reports space-optimize candidates on the fresh
@@ -1436,12 +1488,26 @@ def start_scheduler() -> BackgroundScheduler:
         coalesce=True,
         next_run_time=datetime.now(timezone.utc),
     )
+    # Owner-requested: one optimize approval per day (Telegram + DHQ Approvals). Hour is UTC
+    # (this scheduler runs UTC); default 14:00 UTC ~= 10:00 ET. Env MAVEN_DAILY_OPTIMIZE_HOUR_UTC.
+    import os as _os
+
+    _scheduler.add_job(
+        _maven_daily_optimize_proposal,
+        "cron",
+        hour=int(_os.getenv("MAVEN_DAILY_OPTIMIZE_HOUR_UTC", "14")),
+        minute=0,
+        id="maven_daily_optimize",
+        max_instances=1,
+        coalesce=True,
+    )
     _scheduler.start()
     log.info(
         "media hub observer scheduler started ("
         "every 5m: grab_notify; "
         "every 30m: service_health, indexer_health, maven_diagnostic, download_pipeline, "
         "download_client_health, arr_database, stale_queue; "
-        "every 2h: library_coverage; every 12h: quality_probe)"
+        "every 2h: library_coverage; every 12h: quality_probe; "
+        "daily: maven_daily_optimize)"
     )
     return _scheduler

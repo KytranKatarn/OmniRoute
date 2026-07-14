@@ -20,3 +20,8 @@ CREATE INDEX IF NOT EXISTS idx_newsletter_active
 -- Partial index drives the KBS CRM sync worker's "not yet pushed" scan.
 CREATE INDEX IF NOT EXISTS idx_newsletter_kbs_unsynced
     ON wtf.newsletter_subscribers (id) WHERE kbs_synced_at IS NULL AND active;
+
+-- The consumer + ingest connect as the limited wtfuser role (not the table
+-- owner) — without these grants every INSERT 500s with InsufficientPrivilege.
+GRANT SELECT, INSERT, UPDATE ON wtf.newsletter_subscribers TO wtfuser;
+GRANT USAGE ON SEQUENCE wtf.newsletter_subscribers_id_seq TO wtfuser;

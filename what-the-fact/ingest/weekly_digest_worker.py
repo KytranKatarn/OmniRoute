@@ -22,8 +22,13 @@ from sqlalchemy import text
 logger = logging.getLogger("wtf-ingest")
 
 _ENABLED = os.environ.get("WTF_WEEKLY_DIGEST_ENABLED", "false").lower() == "true"
-_SMTP_HOST = os.environ.get("WTF_SMTP_HOST", "100.64.0.4")
-_SMTP_PORT = int(os.environ.get("WTF_SMTP_PORT", "587"))
+# Default = the cluster SMTP egress relay on outpost-us (mesh IP, port 25,
+# unauthenticated from mesh peers, handles DKIM + PTR relay.kytranempowerment.com)
+# — the same proven path Legal Watch's daily digest uses from this host. Hub
+# Stalwart :587 is NOT reachable from Citadel containers (connection closed).
+# Setting WTF_SMTP_PASS switches to authenticated STARTTLS submission instead.
+_SMTP_HOST = os.environ.get("WTF_SMTP_HOST", "100.64.0.2")
+_SMTP_PORT = int(os.environ.get("WTF_SMTP_PORT", "25"))
 _SMTP_USER = os.environ.get("WTF_SMTP_USER", "archie@kytranempowerment.com")
 _SMTP_PASS = os.environ.get("WTF_SMTP_PASS", "")
 _FROM_ADDR = os.environ.get("WTF_SMTP_FROM", "digest@kytranempowerment.com")
@@ -181,19 +186,19 @@ def _build_html(data: dict, week_str: str) -> str:
 
 
 def _send_digest(recipient: str, html_body: str, week_str: str) -> bool:
-    if not _SMTP_PASS:
-        logger.warning("[weekly_digest] SMTP password not set — skipping")
-        return False
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"WTF Weekly Bias Digest — {week_str}"
         msg["From"] = _FROM_ADDR
         msg["To"] = recipient
         msg.attach(MIMEText(html_body, "html"))
-        ctx = ssl.create_default_context()
         with smtplib.SMTP(_SMTP_HOST, _SMTP_PORT, timeout=15) as srv:
-            srv.starttls(context=ctx)
-            srv.login(_SMTP_USER, _SMTP_PASS)
+            if _SMTP_PASS:
+                # Authenticated STARTTLS submission (mailbox creds provided)
+                ctx = ssl.create_default_context()
+                srv.starttls(context=ctx)
+                srv.login(_SMTP_USER, _SMTP_PASS)
+            # else: mesh egress relay — no auth, relay handles DKIM/signing
             srv.sendmail(_FROM_ADDR, [recipient], msg.as_string())
         return True
     except Exception as exc:

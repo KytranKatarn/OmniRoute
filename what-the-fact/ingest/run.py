@@ -53,6 +53,7 @@ from ingest import (
     alerts_digest_worker,
     factcheck_partner_worker,
     weekly_digest_worker,
+    newsletter_kbs_sync,
 )
 from shared.creed_events import emit as creed_emit
 
@@ -622,6 +623,16 @@ def main():
                 log.info("weekly_digest: %s", result)
         except Exception:
             log.exception("weekly_digest crashed")
+
+        # KBS CRM sync — push new newsletter subscribers to kbs_crm (#4899).
+        # Default OFF until KBS_INTERNAL_KEY is set; unreachable KBS defers
+        # the batch to the next cycle (kbs_synced_at stays NULL).
+        try:
+            result = newsletter_kbs_sync.run_sync(engine)
+            if result.get("synced") or result.get("errors"):
+                log.info("newsletter_kbs_sync: %s", result)
+        except Exception:
+            log.exception("newsletter_kbs_sync crashed")
 
         time.sleep(POLL_SECS)
 

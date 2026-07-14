@@ -83,14 +83,26 @@ def _fetch_digest_data(engine, schema: str) -> dict:
     }
 
 
-def _fetch_recipients(engine, schema: str) -> list[str]:
-    """Return distinct emails from active alert subscribers."""
+def _fetch_recipients(engine, schema: str) -> list[tuple[str, str | None]]:
+    """Return (email, unsub_token|None) — active alert subscribers UNION the
+    public newsletter list (#4899). When an address is on both, the newsletter
+    row wins so the email carries a working one-click unsubscribe token;
+    alert-only recipients keep the /account manage link (token None)."""
     with engine.connect() as c:
         rows = c.execute(text(f"""
-            SELECT DISTINCT user_email FROM {schema}.user_alerts
-            WHERE active = TRUE AND user_email IS NOT NULL AND user_email != ''
+            SELECT DISTINCT ON (email) email, unsub_token::text AS token
+            FROM (
+                SELECT LOWER(user_email) AS email, NULL::uuid AS unsub_token, 0 AS pri
+                FROM {schema}.user_alerts
+                WHERE active = TRUE AND user_email IS NOT NULL AND user_email != ''
+                UNION ALL
+                SELECT LOWER(email), unsub_token, 1
+                FROM {schema}.newsletter_subscribers
+                WHERE active = TRUE
+            ) u
+            ORDER BY email, pri DESC
         """)).fetchall()
-    return [r[0] for r in rows]
+    return [(r[0], r[1]) for r in rows]
 
 
 def _already_sent_this_week(engine, schema: str) -> bool:
@@ -162,7 +174,7 @@ def _build_html(data: dict, week_str: str) -> str:
   <table style="width:100%;border-collapse:collapse;margin-bottom:24px;">{outlet_rows}</table>
   <div style="border-top:1px solid #1f2937;padding-top:16px;font-size:11px;color:#4b5563;">
     <a href="{_APP_URL}" style="color:#60a5fa;text-decoration:none;">what-the-fact.com</a>
-    · <a href="{_APP_URL}/account" style="color:#4b5563;text-decoration:none;">Manage subscription</a>
+    · __UNSUB_LINK__
     · Built on radical transparency.
   </div>
 </div></body></html>"""
@@ -210,8 +222,16 @@ def run_weekly_digest(engine, schema: str = "wtf") -> dict:
     html_body = _build_html(data, week_str)
 
     sent = errors = 0
-    for email in recipients:
-        if _send_digest(email, html_body, week_str):
+    for email, token in recipients:
+        # CASL: newsletter recipients get a one-click tokenized unsubscribe;
+        # alert-only recipients (no token) keep the account manage link.
+        if token:
+            unsub = (f'<a href="{_APP_URL}/newsletter/unsubscribe?token={token}" '
+                     f'style="color:#4b5563;text-decoration:none;">Unsubscribe</a>')
+        else:
+            unsub = (f'<a href="{_APP_URL}/account" '
+                     f'style="color:#4b5563;text-decoration:none;">Manage subscription</a>')
+        if _send_digest(email, html_body.replace("__UNSUB_LINK__", unsub), week_str):
             sent += 1
         else:
             errors += 1

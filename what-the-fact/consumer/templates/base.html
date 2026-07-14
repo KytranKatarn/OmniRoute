@@ -145,6 +145,34 @@
       <span class="wtf-footer-sep">|</span>
       <a class="wtf-footer-site" href="https://creed-ai.org">creed-ai.org</a>
     </div>
+    <div class="wtf-footer-newsletter" style="margin:10px 0 4px;text-align:center;">
+      <form id="wtf-nl-form" onsubmit="return wtfNlSubmit(event)" style="display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center;">
+        <span style="font-size:11px;letter-spacing:1px;color:#9ca3af;text-transform:uppercase;">&#128238; Weekly Bias Digest</span>
+        <input type="email" id="wtf-nl-email" placeholder="you@example.com" required maxlength="254"
+               style="background:#0a1520;border:1px solid #1f2937;color:#e0e0e0;font-size:12px;padding:5px 8px;border-radius:3px;width:190px;">
+        <input type="text" id="wtf-nl-website" style="display:none" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button type="submit" style="background:#dc2626;border:none;color:#fff;font-size:11px;letter-spacing:1px;padding:6px 12px;border-radius:3px;cursor:pointer;text-transform:uppercase;">Subscribe</button>
+        <span id="wtf-nl-msg" style="font-size:11px;color:#9ca3af;"></span>
+      </form>
+      <div style="font-size:10px;color:#4b5563;margin-top:4px;">Top stories + outlet bias averages, Mondays. Unsubscribe anytime.</div>
+    </div>
+    <script>
+    function wtfNlSubmit(e) {
+      e.preventDefault();
+      var email = document.getElementById('wtf-nl-email').value.trim();
+      var hp = document.getElementById('wtf-nl-website').value;
+      var msg = document.getElementById('wtf-nl-msg');
+      msg.textContent = '…';
+      fetch('/api/newsletter/subscribe', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: email, website: hp})
+      }).then(function(r){ return r.json(); }).then(function(d){
+        msg.textContent = d.ok ? '✓ Subscribed — first digest Monday.' : 'Invalid email.';
+        if (d.ok) document.getElementById('wtf-nl-email').value = '';
+      }).catch(function(){ msg.textContent = 'Try again later.'; });
+      return false;
+    }
+    </script>
     <div class="wtf-footer-links">
       <span data-i18n="footer.copyright">Built on radical transparency.</span>
       <a href="https://what-the-fact.tech" data-i18n="nav.transparency">How we score bias →</a>

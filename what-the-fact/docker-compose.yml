@@ -32,6 +32,14 @@ services:
       WTF_BEAT_BACKLOG_ENABLED: "true"
       WTF_BEAT_BACKLOG_MAX_PER_RUN: "200"
       WTF_BEAT_BACKLOG_DISPATCH_SLEEP_SEC: "1"
+      # Weekly digest + KBS CRM sync (#4899) — secrets live in the deploy-host
+      # .env (append-only); these passthroughs let compose interpolate them.
+      WTF_WEEKLY_DIGEST_ENABLED: ${WTF_WEEKLY_DIGEST_ENABLED:-false}
+      WTF_SMTP_USER: ${WTF_SMTP_USER:-}
+      WTF_SMTP_FROM: ${WTF_SMTP_FROM:-}
+      WTF_SMTP_PASS: ${WTF_SMTP_PASS:-}
+      KBS_INTERNAL_URL: ${KBS_INTERNAL_URL:-http://100.64.0.4:8091}
+      KBS_INTERNAL_KEY: ${KBS_INTERNAL_KEY:-}
   wtf-consumer:
     build:
       context: .

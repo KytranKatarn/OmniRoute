@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -3551,6 +3552,62 @@ def api_map_data():
             "latest": r["latest"].isoformat() if r["latest"] else None,
         })
     return jsonify({"ok": True, "pins": pins, "window_days": 7})
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Newsletter capture (#4899, ADR-011) — public weekly-digest signup.
+# CASL: express consent at the form (consent_at), unsubscribe token in every
+# digest email, identified sender. Rows sync to KBS CRM via the ingest cycle.
+# ───────────────────────────────────────────────────────────────────────────
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+
+
+@bp.post("/api/newsletter/subscribe")
+def newsletter_subscribe():
+    data = request.get_json(silent=True) or {}
+    # Honeypot — real users never fill the hidden 'website' field; bots that
+    # do get a quiet 200 and no row.
+    if (data.get("website") or "").strip():
+        return jsonify({"ok": True})
+    email = (data.get("email") or "").strip().lower()
+    if not email or len(email) > 254 or not _EMAIL_RE.match(email):
+        return jsonify({"ok": False, "error": "invalid_email"}), 400
+    S = _schema()
+    with _db().begin() as c:
+        c.execute(
+            text(f"""
+                INSERT INTO {S}.newsletter_subscribers (email, source)
+                VALUES (:email, 'footer')
+                ON CONFLICT (email) DO UPDATE
+                  SET active = TRUE, unsubscribed_at = NULL
+            """),
+            {"email": email},
+        )
+    return jsonify({"ok": True})
+
+
+@bp.get("/newsletter/unsubscribe")
+def newsletter_unsubscribe():
+    token = (request.args.get("token") or "").strip()
+    ok = False
+    if token:
+        S = _schema()
+        try:
+            with _db().begin() as c:
+                row = c.execute(
+                    text(f"""
+                        UPDATE {S}.newsletter_subscribers
+                        SET active = FALSE, unsubscribed_at = NOW()
+                        WHERE unsub_token = CAST(:tok AS uuid)
+                        RETURNING id
+                    """),
+                    {"tok": token},
+                ).fetchone()
+            ok = row is not None
+        except Exception:
+            ok = False  # malformed token — treat as invalid, no 500
+    return render_template("unsubscribe.html", ok=ok)
 
 
 # ───────────────────────────────────────────────────────────────────────────

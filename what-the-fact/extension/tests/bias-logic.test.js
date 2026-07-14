@@ -83,4 +83,19 @@ t("formatBandLabel + biasDirectionText are human-readable", () => {
   assert.equal(B.biasDirectionText("wtf-bias-unknown"), "Unrated");
 });
 
+t("extractDomainFromText resolves X t.co links from the display text (#4671)", () => {
+  // X renders the real domain as the link text even though the href is t.co/...
+  assert.equal(B.extractDomainFromText("nytimes.com/2024/…"), "nytimes.com");
+  assert.equal(B.extractDomainFromText("https://www.cbc.ca/news/canada"), "cbc.ca");
+  assert.equal(B.extractDomainFromText("theglobeandmail.com"), "theglobeandmail.com");
+  assert.equal(B.extractDomainFromText("nationalpost.com/opinion "), "nationalpost.com");
+  // Not a URL → null (don't badge junk text).
+  assert.equal(B.extractDomainFromText("Read more"), null);
+  assert.equal(B.extractDomainFromText("…"), null);
+  assert.equal(B.extractDomainFromText(""), null);
+  assert.equal(B.extractDomainFromText(null), null);
+  // The shortener set is exported so content.js can detect t.co links.
+  assert.ok(B.SHORTENER_DOMAINS.has("t.co"));
+});
+
 console.log(`\n${passed}/${passed} tests passed.`);

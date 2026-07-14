@@ -131,12 +131,43 @@
     return "Unrated";
   }
 
+  // URL shorteners whose href hides the real outlet. X/Twitter rewrites EVERY external
+  // link to t.co/..., so a t.co href can't be domain-matched — but the real domain is in
+  // the link's visible text (see extractDomainFromText). (#4671)
+  const SHORTENER_DOMAINS = new Set([
+    "t.co",
+    "bit.ly",
+    "trib.al",
+    "dlvr.it",
+    "ow.ly",
+    "buff.ly",
+  ]);
+
+  // Pull an outlet domain out of a link's DISPLAY text. On X an external link renders its
+  // expanded URL as the text, e.g. "nytimes.com/2024/…" or "https://www.cbc.ca/news".
+  // Returns the bare hostname ("nytimes.com") or null if the text isn't a URL. (#4671)
+  function extractDomainFromText(text) {
+    if (!text) return null;
+    const token = String(text)
+      .trim()
+      .split(/\s/)[0]
+      .replace(/^https?:\/\//i, "");
+    const host = token.split("/")[0].replace(/^www\./i, "").toLowerCase();
+    // Must look like a real domain: labels + a 2+ char alpha TLD (rejects "…", "1.2", etc.).
+    if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(host) && /\.[a-z]{2,}$/.test(host)) {
+      return host;
+    }
+    return null;
+  }
+
   root.WTFBias = {
     CANADIAN_NEWS_DOMAINS,
+    SHORTENER_DOMAINS,
     biasLabelToClass,
     biasScoreToClass,
     resolveBiasClass,
     extractDomain,
+    extractDomainFromText,
     buildBiasMap,
     buildNameMap,
     formatBandLabel,

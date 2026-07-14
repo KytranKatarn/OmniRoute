@@ -64,7 +64,14 @@ function scanLinks(biasMap, nameMap) {
     const href = link.getAttribute("href");
     if (!href) continue;
 
-    const domain = WTFBias.extractDomain(href);
+    let domain = WTFBias.extractDomain(href);
+    // X/Twitter rewrites external links to t.co/... — the outlet can't be read from the
+    // href, but its real domain is in the visible link text. Resolve it so those links
+    // still get badged. (#4671)
+    if (!domain || WTFBias.SHORTENER_DOMAINS.has(domain)) {
+      const fromText = WTFBias.extractDomainFromText(link.textContent);
+      if (fromText) domain = fromText;
+    }
     if (!domain) continue;
 
     // Match if it's a known Canadian outlet (hardcoded fast-path OR API-sourced).

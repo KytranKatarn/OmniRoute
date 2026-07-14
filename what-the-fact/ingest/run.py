@@ -368,6 +368,7 @@ def main():
     _last_securities_eg_date = None  # securities -> graph reconcile (market_reaction_to, weekly Wed) — L6 step 2
     _last_drift_date = None     # parliamentary cost/funds drift guard (daily)
     _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
+    _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -496,6 +497,18 @@ def main():
             except Exception:
                 log.exception("parliament dept_contracts sync crashed")
             _last_dept_contracts_date = today
+
+        # Issuer contract-award rollup (#373 "Contract -> Market" link, L6) — daily. Mirrors Gov
+        # Watch's per-TSX-issuer contract totals into securities.issuer_contracts, adding the
+        # dollar footprint to the already-live market_reaction_to graph edge ("company X won $Y
+        # federal, its stock is TSX:X"). Fail-loud (parliament.ingest_log task='issuer_contracts').
+        if _last_issuer_contracts_date != today:
+            try:
+                from ingest.securities_issuer_contracts import run_issuer_contracts_sync
+                log.info("securities issuer_contracts sync: %s", run_issuer_contracts_sync(engine))
+            except Exception:
+                log.exception("securities issuer_contracts sync crashed")
+            _last_issuer_contracts_date = today
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

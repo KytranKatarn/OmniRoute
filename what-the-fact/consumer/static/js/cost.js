@@ -385,6 +385,26 @@
         container.appendChild(mbox);
       }
 
+      // Federal contracts the minister's PORTFOLIO oversees (#373 Contract chain link) — NOT the
+      // minister's personal cost; the department they lead awarded these. Portfolio-level, approximate.
+      var ct = mn && mn.contracts;
+      if (ct && num(ct.total) > 0) {
+        var fys = ct.by_fy ? Object.keys(ct.by_fy).sort() : [];
+        var winTxt = fys.length ? fys[0] + " – " + fys[fys.length - 1] : "";
+        var ctbox = el("div", { css: "margin-top:16px;padding:12px 14px;border:1px dashed rgba(148,163,184,0.32);border-radius:8px;" });
+        ctbox.appendChild(el("span", { text: "Federal contracts their portfolio oversees", css: "font-weight:800;color:" + C.text + ";font-size:13px;" }));
+        ctbox.appendChild(el("div", { text: "Awarded by " + ct.department + " — the department this minister leads. NOT their personal cost, and not personally directed; shown to trace where public money flows.", css: "font-size:11px;color:" + C.subtle + ";margin:3px 0 9px;" }));
+        var cthead = el("div", { css: "display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;" });
+        cthead.appendChild(el("span", { text: fmtCompact(ct.total), css: "font-size:24px;font-weight:800;color:" + C.text + ";line-height:1;" }));
+        cthead.appendChild(el("span", { text: fmtFull(ct.total) + " · " + ct.n + " contract award" + (ct.n === 1 ? "" : "s") + (winTxt ? " (" + winTxt + ")" : ""), css: "font-size:11px;color:" + C.subtle + ";" }));
+        ctbox.appendChild(cthead);
+        if (ct.central_purchaser) {
+          ctbox.appendChild(el("div", { text: "This department is the government's central purchasing agent — much of this is procured on behalf of other departments.", css: "font-size:10px;color:" + C.muted + ";margin-top:7px;" }));
+        }
+        ctbox.appendChild(el("div", { text: "Approximate & partial — CanadaBuys open procurement data, via Gov Watch.", css: "font-size:10px;color:" + C.muted + ";margin-top:7px;" }));
+        container.appendChild(ctbox);
+      }
+
       // Current partial year (year-to-date) + projected full year — NEVER in the 5-year total.
       var cur = data.current;
       if (cur && num(cur.total) > 0) {

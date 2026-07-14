@@ -53,6 +53,11 @@ _SOURCE = {
         "Treasury Board of Canada Secretariat -- Proactive disclosure of travel & "
         "hospitality (https://open.canada.ca, parliament.minister_travel)"
     ),
+    "contracts": (
+        "CanadaBuys contract award notices (open procurement data), via Gov Watch "
+        "(gov_watch.award_notices) -- federal contracts by awarding department, "
+        "portfolio-level & approximate"
+    ),
 }
 
 

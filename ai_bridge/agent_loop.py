@@ -9847,7 +9847,21 @@ class AgentLoop:
                     with _wc.cursor() as _wcur:
                         _wcur.execute("SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ingested_at))) / 60.0 FROM wtf.articles")
                         _wrow = _wcur.fetchone()
+                        # Coverage check on the SETTLED cohort (24-48h old — workers had a
+                        # full day to process it). beat IS NOT NULL = processed ('none' is
+                        # the legit no-match sentinel). Guards against the classifier
+                        # silently under-sweeping again (#4897 — coverage sat at 8-27%
+                        # for weeks with zero alerts).
+                        _wcur.execute(
+                            "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE beat IS NOT NULL) "
+                            "/ GREATEST(COUNT(*), 1), 1) "
+                            "FROM wtf.articles "
+                            "WHERE ingested_at BETWEEN NOW() - INTERVAL '48 hours' "
+                            "AND NOW() - INTERVAL '24 hours'"
+                        )
+                        _crow = _wcur.fetchone()
                     _wtf_gap = _wrow[0] if _wrow else None
+                    _beat_cov = float(_crow[0]) if _crow and _crow[0] is not None else None
                 finally:
                     _wc.close()
                 if (
@@ -9865,6 +9879,27 @@ class AgentLoop:
                             f"what-the-fact.com: newest article is {_wtf_gap:.0f} min old "
                             f"(threshold 90m). The front page may be frozen — check the "
                             f"wtf-ingest worker on boston-2."
+                        ),
+                        actions=["details", "snooze"],
+                    )
+                # Floor 30% catches total-breakage while the historical backlog drains
+                # post-#2272; raise to ~70% once the settled cohort stabilises high.
+                if (
+                    _beat_cov is not None
+                    and _beat_cov < 30.0
+                    and now - self._watchdog_last_alert.get("wtf_beat_coverage", 0) > dedup_s
+                ):
+                    self._watchdog_last_alert["wtf_beat_coverage"] = now
+                    from services.alert_actions_service import send_alert
+
+                    send_alert(
+                        alert_key="wtf_beat_coverage",
+                        title="⚠️ WTF beat coverage low",
+                        message=(
+                            f"what-the-fact.com: only {_beat_cov:.0f}% of the settled "
+                            f"(24-48h) article cohort has been beat-classified "
+                            f"(floor 30%). The category tabs are starving — check the "
+                            f"beat_backlog_worker on boston-2."
                         ),
                         actions=["details", "snooze"],
                     )

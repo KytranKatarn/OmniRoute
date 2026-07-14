@@ -149,11 +149,33 @@ def _wtf_ingest_details() -> str:
                     """
                 )
                 gap, h1, h24 = cur.fetchone()
+                # Pipeline coverage on the SETTLED cohort (24-48h old — workers had a
+                # full day). beat IS NOT NULL = processed ('none' = legit no-match);
+                # geo counts mapped vs explicitly 'unmappable'. (#4897)
+                cur.execute(
+                    """
+                    SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE beat IS NOT NULL)
+                                 / GREATEST(COUNT(*), 1), 1),
+                           ROUND(100.0 * COUNT(*) FILTER (WHERE province_code IS NOT NULL
+                                                             OR country_code IS NOT NULL)
+                                 / GREATEST(COUNT(*), 1), 1),
+                           ROUND(100.0 * COUNT(*) FILTER (WHERE geo_scope = 'unmappable')
+                                 / GREATEST(COUNT(*), 1), 1)
+                      FROM wtf.articles
+                     WHERE ingested_at BETWEEN NOW() - INTERVAL '48 hours'
+                                           AND NOW() - INTERVAL '24 hours'
+                    """
+                )
+                beat_cov, geo_mapped, geo_unmappable = cur.fetchone()
         finally:
             conn.close()
         lines = ["📊 *WTF ingest freshness*", ""]
         lines.append(f"Newest article: {gap:.0f} min ago" if gap is not None else "No articles found")
         lines.append(f"Ingested — last 1h: {h1} · last 24h: {h24}")
+        lines.append(
+            f"Settled cohort (24-48h): beat processed {beat_cov}% · "
+            f"geo mapped {geo_mapped}% (+{geo_unmappable}% unmappable)"
+        )
         if gap is not None and gap > 90:
             lines += [
                 "",

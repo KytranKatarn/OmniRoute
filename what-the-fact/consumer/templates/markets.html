@@ -14,7 +14,7 @@
 .mk-rank { font-family:'Orbitron',sans-serif; font-size:13px; color:#4b5563; min-width:26px; text-align:right; }
 .mk-name { flex:1; min-width:0; }
 .mk-name-main { font-size:14px; color:#e5e7eb; }
-.mk-jv { font-size:9px; color:#6b7280; }
+.mk-jv { display:block; font-size:9px; color:#6b7280; margin-top:2px; }
 .mk-ticker { font-size:11px; color:#38bdf8; margin-top:2px; font-family:'IBM Plex Mono',monospace; }
 .mk-fig { text-align:right; white-space:nowrap; }
 .mk-num { font-size:15px; color:#f59e0b; font-weight:700; }
@@ -37,8 +37,9 @@
   <a class="mk-row" href="/entity/{{ i.entity_id }}">
     <span class="mk-rank">{{ loop.index }}</span>
     <span class="mk-name">
-      <div class="mk-name-main">{{ i.name }}{% if i.jv %} <span class="mk-jv">· incl. JV it leads (upper bound)</span>{% endif %}</div>
+      <div class="mk-name-main">{{ i.name }}</div>
       <div class="mk-ticker">{{ i.exchange }}:{{ i.ticker }}</div>
+      {% if i.jv %}<div class="mk-jv">incl. JV it leads · upper bound</div>{% endif %}
     </span>
     <span class="mk-fig">
       <div class="mk-num">${{ '{:,}'.format(i.total) }}</div>

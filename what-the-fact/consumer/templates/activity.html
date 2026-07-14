@@ -26,7 +26,7 @@
      transparency is public by design, like the badge + /api/public/score (#3358). #}
   {% if creed_scan %}
   <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <span style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;">C.R.E.E.D. Governance</span>
+    <a href="/governance" style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
     <span style="color:#a78bfa;font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
     <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
     <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:#a78bfa;">{{ creed_scan.overall }}%</strong></span>
@@ -36,8 +36,10 @@
     {% endif %}
     {% if creed_scan.by_category %}
     <span style="color:#6b7280;font-size:0.65rem;margin-left:auto;">
-      {% for cat, score in creed_scan.by_category.items() %}
-      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ score }}%</span></span>
+      {# pillar values are dicts {score, grade, events, provisional, note} — the old
+         "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
+      {% for cat, pv in creed_scan.by_category.items() %}
+      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
       {% endfor %}
     </span>
     {% endif %}
@@ -353,7 +355,7 @@
 
   {% if creed_scan %}
   <div style="background:#0d0a1a;border:1px solid #4c1d95;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-    <span style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;">C.R.E.E.D. Governance</span>
+    <a href="/governance" style="color:#7c3aed;font-size:0.55rem;letter-spacing:2px;text-transform:uppercase;font-weight:700;flex-shrink:0;text-decoration:none;">AI Newsroom Governance</a>
     <span style="color:#a78bfa;font-size:0.7rem;">Grade <strong style="color:#c4b5fd;">{{ creed_scan.grade }}</strong></span>
     <span style="color:#6b7280;font-size:0.65rem;">&middot;</span>
     <span style="color:#9ca3af;font-size:0.7rem;">Compliance <strong style="color:#a78bfa;">{{ creed_scan.overall }}%</strong></span>
@@ -363,8 +365,10 @@
     {% endif %}
     {% if creed_scan.by_category %}
     <span style="color:#6b7280;font-size:0.65rem;margin-left:auto;">
-      {% for cat, score in creed_scan.by_category.items() %}
-      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ score }}%</span></span>
+      {# pillar values are dicts {score, grade, events, provisional, note} — the old
+         "{{ score }}%" printed the raw dict repr. &deg; marks provisional (<100 events). #}
+      {% for cat, pv in creed_scan.by_category.items() %}
+      <span style="margin-right:8px;text-transform:capitalize;">{{ cat }}&nbsp;<span style="color:#a78bfa;">{{ (pv.score if pv is mapping else pv) | round(0) | int }}%{% if pv is mapping and pv.provisional %}&deg;{% endif %}</span></span>
       {% endfor %}
     </span>
     {% endif %}

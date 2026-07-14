@@ -76,11 +76,14 @@ _CREED_SCAN_CACHE_TTL = 300
 
 
 def _fetch_creed_scan() -> dict | None:
-    """Return C.R.E.E.D. /api/v1/scores as a flat dict or None on any error.
+    """Return WTF's OWN C.R.E.E.D. tenant score as a flat dict, or None on error.
 
+    Repointed (#4898, ADR-011) from the Institute alias /api/v1/scores to the
+    what-the-fact ORG tenant — 9 News & Media agents emit governance events to
+    it, so this is the AI newsroom's own score, not the Institute's self-score.
     Calls CREED_API_URL (mesh value on VPS: http://100.64.0.4:8086) server-side
     so the internal URL is never exposed to browser JS (KB #267314).
-    300s cache. Fail-open — returns None so the template skips the banner.
+    300s cache. Fail-open — returns None so templates skip the banner.
     """
     now = time.time()
     if _CREED_SCAN_CACHE.get("ts", 0) + _CREED_SCAN_CACHE_TTL > now:
@@ -88,7 +91,7 @@ def _fetch_creed_scan() -> dict | None:
     creed_url = os.environ.get("CREED_API_URL", "https://creed.kytranempowerment.com")
     try:
         req = urllib.request.Request(
-            f"{creed_url}/api/v1/scores",
+            f"{creed_url}/api/v1/orgs/what-the-fact/scores",
             headers={"Accept": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -97,7 +100,11 @@ def _fetch_creed_scan() -> dict | None:
             "overall": int(raw.get("overall") or 0),
             "grade": raw.get("grade") or "?",
             "event_count": int(raw.get("event_count") or 0),
+            # per-pillar dicts: {score, grade, events, provisional, note}
             "by_category": raw.get("by_category") or {},
+            # pillars with enough events (>=100) to count toward the overall
+            "overall_categories": raw.get("overall_categories") or [],
+            "freshness": raw.get("freshness") or {},
             "ok": True,
         }
         _CREED_SCAN_CACHE["ts"] = now
@@ -1021,12 +1028,13 @@ _CREED_FALLBACK_SVG = (
 
 @bp.get("/api/creed-badge")
 def creed_badge():
-    """Proxy the C.R.E.E.D. overall badge SVG server-side so the internal
-    CREED_API_URL is never exposed to browser JavaScript."""
+    """Proxy WTF's OWN C.R.E.E.D. tenant badge SVG server-side so the internal
+    CREED_API_URL is never exposed to browser JavaScript. (Repointed from the
+    Institute overall badge to the what-the-fact org badge — #4898, ADR-011.)"""
     creed_url = os.environ.get("CREED_API_URL", "https://creed.kytranempowerment.com")
     try:
         req = urllib.request.Request(
-            creed_url + "/api/v1/badge/overall",
+            creed_url + "/api/v1/badge/what-the-fact/overall",
             headers={"Accept": "image/svg+xml"},
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -1034,6 +1042,26 @@ def creed_badge():
         return Response(svg_data, content_type="image/svg+xml")
     except Exception:
         return Response(_CREED_FALLBACK_SVG, content_type="image/svg+xml")
+
+
+@bp.get("/governance")
+def governance_page():
+    """WTF's own AI-newsroom governance page — the live what-the-fact C.R.E.E.D.
+    tenant score with per-pillar breakdown (#4898, ADR-011). Public by design,
+    like the /activity banner and the badge (#3358)."""
+    scan = _fetch_creed_scan()
+    S = _schema()
+    source_count = 0
+    try:
+        with _db().begin() as c:
+            source_count = c.execute(
+                text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
+            ).scalar() or 0
+    except Exception:
+        pass
+    return render_template(
+        "governance.html", scan=scan, source_count=source_count, is_subscriber=is_subscriber()
+    )
 
 
 # Canonical beats — single source of truth is VALID_BEATS (defined above). The old

@@ -58,6 +58,8 @@ a { color: inherit; }
   top: 0;
   z-index: 100;
   gap: 1rem;
+  flex-wrap: wrap;
+  row-gap: 0.4rem;
 }
 .wtf-nav-brand {
   display: flex;
@@ -80,7 +82,7 @@ a { color: inherit; }
   color: #6b7280;
   text-transform: uppercase;
 }
-.wtf-nav-links { display: flex; gap: 1.5rem; align-items: center; }
+.wtf-nav-links { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; min-width: 0; row-gap: 0.5rem; }
 .wtf-nav-links a {
   font-size: 0.75rem;
   letter-spacing: 0.1em;

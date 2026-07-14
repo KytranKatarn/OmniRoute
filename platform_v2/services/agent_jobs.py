@@ -184,15 +184,19 @@ def _send_hr_telegram_alerts(cur, conn, flask_app):
                 f"{alert['message']}\n\n" f"Type: {alert['alert_type']} | Agent: {alert['agent_name'] or 'System'}"
             )
             try:
-                # Route via inbox → shows in DHQ Approvals tab; A.R.C.H.I.E. relays to Telegram
-                # cooldown_hours=2 prevents repeated alerts for the same persistent condition
-                _hr_send(
+                # Interactive alert: ✓ Acknowledge (resolves the agent_alerts row) +
+                # 📊 Details + 🔕 Snooze 24h (#alert-buttons). Sent DIRECT so the buttons
+                # survive (the inbox relay strips reply_markup); keyed by the row id.
+                # notified_telegram (below) still provides dedup for persistent conditions.
+                from services.alert_actions_service import send_alert
+
+                send_alert(
+                    alert_key=f"hr_{alert['id']}",
                     title=f"HR Alert: {alert['title']}",
                     message=message,
+                    actions=["ack", "details", "snooze"],
                     source_agent="K.I.N.",
                     source_department="Human Resources & Culture",
-                    source_module="agent_jobs",
-                    cooldown_hours=2.0,
                 )
                 cur.execute(
                     "UPDATE agent_alerts SET notified_telegram = TRUE WHERE id = %s",

@@ -26,7 +26,7 @@ from db import get_db
 
 # Module-level import: resolve platform_v2 path once at startup rather than on
 # every _send_telegram_message call in a long-running process.
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'platform_v2'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "platform_v2"))
 try:
     from services.telegram_service import send as _telegram_service_send
 except ImportError:
@@ -58,9 +58,7 @@ class TelegramGateway:
             logger.warning("Telegram bot already running")
             return
 
-        self._thread = threading.Thread(
-            target=self._run_bot, daemon=True, name="telegram-bot"
-        )
+        self._thread = threading.Thread(target=self._run_bot, daemon=True, name="telegram-bot")
         self._thread.start()
         self._running = True
         logger.info("Telegram gateway started")
@@ -113,28 +111,15 @@ class TelegramGateway:
             app.add_handler(CommandHandler("heal", self._cmd_heal))
             app.add_handler(CommandHandler("repairs", self._cmd_repairs))
             app.add_handler(CommandHandler("scan", self._cmd_scan))
-            app.add_handler(
-                CallbackQueryHandler(self._email_callback, pattern=r"^email_")
-            )
-            app.add_handler(
-                CallbackQueryHandler(self._escalation_callback, pattern=r"^esc_")
-            )
-            app.add_handler(
-                CallbackQueryHandler(self._node_callback, pattern=r"^node_")
-            )
-            app.add_handler(
-                CallbackQueryHandler(self._social_callback, pattern=r"^social_")
-            )
-            app.add_handler(
-                CallbackQueryHandler(self._pr_merge_callback, pattern=r"^pr_merge_")
-            )
-            app.add_handler(
-                CallbackQueryHandler(self._welfare_callback, pattern=r"^welfare_")
-            )
+            app.add_handler(CallbackQueryHandler(self._email_callback, pattern=r"^email_"))
+            app.add_handler(CallbackQueryHandler(self._escalation_callback, pattern=r"^esc_"))
+            app.add_handler(CallbackQueryHandler(self._node_callback, pattern=r"^node_"))
+            app.add_handler(CallbackQueryHandler(self._social_callback, pattern=r"^social_"))
+            app.add_handler(CallbackQueryHandler(self._pr_merge_callback, pattern=r"^pr_merge_"))
+            app.add_handler(CallbackQueryHandler(self._welfare_callback, pattern=r"^welfare_"))
+            app.add_handler(CallbackQueryHandler(self._alert_callback, pattern=r"^alert_"))
             app.add_handler(CallbackQueryHandler(self._callback_handler))
-            app.add_handler(
-                MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
-            )
+            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
             app.add_handler(MessageHandler(filters.VOICE, self._handle_voice))
 
             logger.info("Telegram bot polling started")
@@ -193,9 +178,7 @@ class TelegramGateway:
         args = context.args
 
         if not args:
-            await update.message.reply_text(
-                "Usage: /link YOUR_CODE\nGet a code from the web dashboard."
-            )
+            await update.message.reply_text("Usage: /link YOUR_CODE\nGet a code from the web dashboard.")
             return
 
         code = args[0].strip()
@@ -216,9 +199,7 @@ class TelegramGateway:
                 row = cur.fetchone()
 
                 if not row:
-                    await update.message.reply_text(
-                        "Invalid or expired code. Please generate a new one."
-                    )
+                    await update.message.reply_text("Invalid or expired code. Please generate a new one.")
                     return
 
                 # Update with Telegram info
@@ -283,23 +264,16 @@ class TelegramGateway:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
 
                 # Unread notifications
-                cur.execute(
-                    "SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE"
-                )
+                cur.execute("SELECT COUNT(*) as c FROM system_notifications WHERE is_read = FALSE")
                 unread = cur.fetchone()["c"]
 
                 # Pending approvals
-                cur.execute(
-                    "SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'"
-                )
+                cur.execute("SELECT COUNT(*) as c FROM autonomy_approval_queue WHERE status = 'pending'")
                 pending = cur.fetchone()["c"]
 
                 # Unread emails
-                cur.execute(
-                    "SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE"
-                )
+                cur.execute("SELECT COUNT(*) as c FROM email_inbox WHERE is_read = FALSE AND is_archived = FALSE")
                 unread_emails = cur.fetchone()["c"]
-
 
                 await update.message.reply_text(
                     "ARCHIE Status\n"
@@ -333,13 +307,15 @@ class TelegramGateway:
             conn = get_db()
             try:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT id, action_type, reason, priority, created_at
                     FROM autonomy_approval_queue
                     WHERE status = 'pending'
                     ORDER BY priority ASC, created_at ASC
                     LIMIT 5
-                    """)
+                    """
+                )
                 items = cur.fetchall()
 
                 if not items:
@@ -350,12 +326,8 @@ class TelegramGateway:
                     keyboard = InlineKeyboardMarkup(
                         [
                             [
-                                InlineKeyboardButton(
-                                    "Approve", callback_data=f"approve_{item['id']}"
-                                ),
-                                InlineKeyboardButton(
-                                    "Reject", callback_data=f"reject_{item['id']}"
-                                ),
+                                InlineKeyboardButton("Approve", callback_data=f"approve_{item['id']}"),
+                                InlineKeyboardButton("Reject", callback_data=f"reject_{item['id']}"),
                             ]
                         ]
                     )
@@ -390,13 +362,15 @@ class TelegramGateway:
             conn = get_db()
             try:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT from_name, from_address, subject, ai_category, ai_priority, received_at
                     FROM email_inbox
                     WHERE is_read = FALSE AND is_archived = FALSE
                     ORDER BY received_at DESC
                     LIMIT 10
-                    """)
+                    """
+                )
                 emails = cur.fetchall()
 
                 if not emails:
@@ -437,9 +411,7 @@ class TelegramGateway:
             user_info["user_id"],
             voice_mode=True,
         )
-        await update.message.reply_text(
-            response or "Unable to generate briefing right now."
-        )
+        await update.message.reply_text(response or "Unable to generate briefing right now.")
 
     # ------------------------------------------------------------------
     # Message Handlers
@@ -448,12 +420,27 @@ class TelegramGateway:
     def _detect_heal_intent(self, text: str) -> bool:
         """Return True if the message is a self-healing / repair command."""
         t = text.lower().strip()
-        return any(kw in t for kw in [
-            "run self-healing", "run self healing", "self heal", "run fixes",
-            "apply repairs", "deploy all safe", "batch deploy", "fix all issues",
-            "run healing", "auto fix", "/heal", "/repairs", "/scan",
-            "repair bay status", "what needs fixing", "deploy queue",
-        ])
+        return any(
+            kw in t
+            for kw in [
+                "run self-healing",
+                "run self healing",
+                "self heal",
+                "run fixes",
+                "apply repairs",
+                "deploy all safe",
+                "batch deploy",
+                "fix all issues",
+                "run healing",
+                "auto fix",
+                "/heal",
+                "/repairs",
+                "/scan",
+                "repair bay status",
+                "what needs fixing",
+                "deploy queue",
+            ]
+        )
 
     async def _handle_heal_request(self, update, text: str) -> None:
         """Run batch self-healing and report results to Telegram."""
@@ -471,40 +458,42 @@ class TelegramGateway:
             try:
                 _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                 from services.proposal_service import get_deploy_ready, request_tiered_deploy_approval
+
                 ready = get_deploy_ready()
-                proposals = [p for p in ready.get("proposals", [])
-                             if p.get("risk_level") in ("low", "medium")][:10]
+                proposals = [p for p in ready.get("proposals", []) if p.get("risk_level") in ("low", "medium")][:10]
                 results = []
                 for p in proposals:
                     r = request_tiered_deploy_approval(p["id"])
-                    results.append({
-                        "id": p["id"], "title": p["title"][:50],
-                        "approver": r.get("approver"), "queue_id": r.get("queue_id"),
-                    })
+                    results.append(
+                        {
+                            "id": p["id"],
+                            "title": p["title"][:50],
+                            "approver": r.get("approver"),
+                            "queue_id": r.get("queue_id"),
+                        }
+                    )
 
                 queued = sum(1 for r in results if r.get("queue_id"))
                 total_ready = len(ready.get("proposals", []))
-                lines = [f"✅ F.O.R.G.E. self-healing queued {queued}/{len(proposals)} proposals",
-                         f"📊 Total ready: {total_ready} | Queued: {queued}",
-                         ""]
+                lines = [
+                    f"✅ F.O.R.G.E. self-healing queued {queued}/{len(proposals)} proposals",
+                    f"📊 Total ready: {total_ready} | Queued: {queued}",
+                    "",
+                ]
                 for r in results[:5]:
                     icon = "🤖" if r.get("queue_id") else "⏭"
-                    lines.append(f"{icon} #{r['id']}: {r['title'][:45]} → {r.get('approver','?')}")
+                    lines.append(f"{icon} #{r['id']}: {r['title'][:45]} → {r.get('approver', '?')}")
                 if len(results) > 5:
                     lines.append(f"… and {len(results)-5} more")
                 lines.append("\nmodel_dispatch_worker will execute reviews → sandbox gate → deploy automatically.")
 
                 import asyncio
-                asyncio.run_coroutine_threadsafe(
-                    update.message.reply_text("\n".join(lines)),
-                    self._loop
-                )
+
+                asyncio.run_coroutine_threadsafe(update.message.reply_text("\n".join(lines)), self._loop)
             except Exception as e:
                 import asyncio
-                asyncio.run_coroutine_threadsafe(
-                    update.message.reply_text(f"❌ Self-healing error: {e}"),
-                    self._loop
-                )
+
+                asyncio.run_coroutine_threadsafe(update.message.reply_text(f"❌ Self-healing error: {e}"), self._loop)
 
         threading.Thread(target=_run, daemon=True).start()
 
@@ -515,9 +504,11 @@ class TelegramGateway:
     async def _cmd_repairs(self, update, context):
         """/repairs — show ready-to-deploy repair proposals."""
         import sys as _sys
+
         _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
         try:
             from services.proposal_service import get_deploy_ready
+
             ready = get_deploy_ready()
             proposals = ready.get("proposals", [])
             if not proposals:
@@ -539,7 +530,9 @@ class TelegramGateway:
         """/scan [module] — run P.R.O.B.E. scan on a module."""
         args = context.args
         module = args[0] if args else ""
-        import sys as _sys, threading as _t
+        import sys as _sys
+        import threading as _t
+
         _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
         await update.message.reply_text(
@@ -549,24 +542,23 @@ class TelegramGateway:
         def _run():
             try:
                 from services.qa_service import run_suite_for_module
+
                 results = run_suite_for_module(module or "platform", triggered_by="telegram_scan")
                 passed = sum(r.get("passed", 0) for r in results)
                 total = sum(r.get("total", 0) for r in results)
                 icon = "✅" if passed == total else "⚠️"
                 import asyncio
+
                 asyncio.run_coroutine_threadsafe(
                     update.message.reply_text(
-                        f"{icon} Scan complete: {passed}/{total} tests passed\n"
-                        f"Suites run: {len(results)}"
+                        f"{icon} Scan complete: {passed}/{total} tests passed\n" f"Suites run: {len(results)}"
                     ),
-                    self._loop
+                    self._loop,
                 )
             except Exception as e:
                 import asyncio
-                asyncio.run_coroutine_threadsafe(
-                    update.message.reply_text(f"❌ Scan error: {e}"),
-                    self._loop
-                )
+
+                asyncio.run_coroutine_threadsafe(update.message.reply_text(f"❌ Scan error: {e}"), self._loop)
 
         _t.Thread(target=_run, daemon=True).start()
 
@@ -576,12 +568,18 @@ class TelegramGateway:
 
         text_lower = text.lower().strip()
         patterns = [
-            (r'(?:write|create|draft|make|compose)\s+(?:a\s+)?(?:linkedin\s+post|linkedin\s+update)\s+(?:about\s+)?(.+)', "linkedin"),
-            (r'(?:write|create|draft|make|compose)\s+(?:a\s+)?tweet\s+(?:about\s+)?(.+)', "twitter"),
-            (r'post\s+(?:something\s+)?(?:on\s+linkedin\s+)?about\s+(.+)', "linkedin"),
-            (r'tweet\s+about\s+(.+)', "twitter"),
-            (r'(?:write|create|draft|make|compose)\s+(?:a\s+)?(?:social\s+(?:media\s+)?)?post\s+(?:about\s+)?(.+)', "both"),
-            (r'(?:s\.i\.g\.n\.a\.l\.|signal)[,:\s]+(?:write|post|create|draft)\s+(?:about\s+)?(.+)', "both"),
+            (
+                r"(?:write|create|draft|make|compose)\s+(?:a\s+)?(?:linkedin\s+post|linkedin\s+update)\s+(?:about\s+)?(.+)",
+                "linkedin",
+            ),
+            (r"(?:write|create|draft|make|compose)\s+(?:a\s+)?tweet\s+(?:about\s+)?(.+)", "twitter"),
+            (r"post\s+(?:something\s+)?(?:on\s+linkedin\s+)?about\s+(.+)", "linkedin"),
+            (r"tweet\s+about\s+(.+)", "twitter"),
+            (
+                r"(?:write|create|draft|make|compose)\s+(?:a\s+)?(?:social\s+(?:media\s+)?)?post\s+(?:about\s+)?(.+)",
+                "both",
+            ),
+            (r"(?:s\.i\.g\.n\.a\.l\.|signal)[,:\s]+(?:write|post|create|draft)\s+(?:about\s+)?(.+)", "both"),
         ]
         for pattern, platform in patterns:
             m = re.match(pattern, text_lower, re.IGNORECASE)
@@ -610,8 +608,20 @@ class TelegramGateway:
 
         try:
             # Generate content
-            payload = json.dumps({"capability": "social_content", "prompt": f"Write a social media post about: {topic}", "platform": platform, "tone": "professional"}).encode()
-            req = _urlreq.Request("http://localhost:3000/api/signal/dispatch", data=payload, headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}, method="POST")
+            payload = json.dumps(
+                {
+                    "capability": "social_content",
+                    "prompt": f"Write a social media post about: {topic}",
+                    "platform": platform,
+                    "tone": "professional",
+                }
+            ).encode()
+            req = _urlreq.Request(
+                "http://localhost:3000/api/signal/dispatch",
+                data=payload,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+                method="POST",
+            )
             with _urlreq.urlopen(req, timeout=60) as resp:
                 data = json.loads(resp.read())
             content = data.get("response", "").strip()
@@ -621,11 +631,16 @@ class TelegramGateway:
 
             # Save to KBS DB
             from services.social_content_jobs import _save_draft, _notify_telegram
+
             draft_id = _save_draft(content, account_id, kytran_tenant_id)
             if draft_id:
-                _notify_telegram(content, platform if platform != "both" else "linkedin", account_name, draft_id, kytran_tenant_id)
+                _notify_telegram(
+                    content, platform if platform != "both" else "linkedin", account_name, draft_id, kytran_tenant_id
+                )
             else:
-                await update.message.reply_text(f"✅ S.I.G.N.A.L. wrote:\n\n{content}\n\n_(draft could not be saved to KBS)_", parse_mode="Markdown")
+                await update.message.reply_text(
+                    f"✅ S.I.G.N.A.L. wrote:\n\n{content}\n\n_(draft could not be saved to KBS)_", parse_mode="Markdown"
+                )
 
         except Exception as exc:
             logger.error("[TelegramGateway] social request failed: %s", exc)
@@ -653,13 +668,16 @@ class TelegramGateway:
             await update.message.reply_text(
                 "✅ Got it — S.I.G.N.A.L. is drafting your personal post with A.R.C.H.I.E.'s briefing + your input."
             )
-            import asyncio as _asyncio, threading as _threading
+            import asyncio as _asyncio
+            import threading as _threading
 
             def _do_draft():
                 try:
                     import sys
+
                     sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                     from services.agent_jobs import _draft_personal_post_from_context
+
                     _draft_personal_post_from_context(reply_text, checkin_state)
                 except Exception as _e:
                     logger.error("[TelegramGateway] personal checkin draft failed: %s", _e)
@@ -689,16 +707,12 @@ class TelegramGateway:
             await self._handle_heal_request(update, text)
             return
 
-        response = self._orchestrate_message(
-            text, user_info["user_id"], voice_mode=True
-        )
+        response = self._orchestrate_message(text, user_info["user_id"], voice_mode=True)
         if response:
             self._log_message(user_info["id"], "out", "text", response)
             await update.message.reply_text(response)
         else:
-            await update.message.reply_text(
-                "I couldn't process that right now. Please try again."
-            )
+            await update.message.reply_text("I couldn't process that right now. Please try again.")
 
     async def _handle_voice(self, update, context):
         """Handle voice messages — download, transcribe, respond."""
@@ -709,9 +723,7 @@ class TelegramGateway:
             await update.message.reply_text("Please link your account first with /link")
             return
 
-        await update.message.reply_text(
-            "Voice messages are not yet supported. Please send text."
-        )
+        await update.message.reply_text("Voice messages are not yet supported. Please send text.")
 
     @staticmethod
     async def _safe_answer(query):
@@ -784,7 +796,9 @@ class TelegramGateway:
                     row = cur.fetchone()
                     conn.commit()
                     name = row["node_name"] if row else f"#{node_db_id}"
-                    await query.edit_message_text(f"✅ Node '{name}' approved by {user_info.get('display_name', 'admin')}")
+                    await query.edit_message_text(
+                        f"✅ Node '{name}' approved by {user_info.get('display_name', 'admin')}"
+                    )
                 elif action == "deny":
                     cur.execute(
                         "UPDATE remote_nodes SET approval_status = 'rejected' WHERE id = %s RETURNING node_name",
@@ -793,7 +807,9 @@ class TelegramGateway:
                     row = cur.fetchone()
                     conn.commit()
                     name = row["node_name"] if row else f"#{node_db_id}"
-                    await query.edit_message_text(f"❌ Node '{name}' denied by {user_info.get('display_name', 'admin')}")
+                    await query.edit_message_text(
+                        f"❌ Node '{name}' denied by {user_info.get('display_name', 'admin')}"
+                    )
                 else:
                     await query.edit_message_text(f"Unknown action: {action}")
             finally:
@@ -801,6 +817,72 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"[TelegramGateway] Node callback error: {e}")
             await query.edit_message_text(f"Error processing node action")
+
+    async def _alert_callback(self, update, context):
+        """Handle interactive operational-alert buttons from Telegram (#alert-buttons).
+
+        Callback data: alert_<action>_<alert_key>  — split with maxsplit=2 so an
+        alert_key containing '_' (e.g. 'disk_primary', 'hr_1234') is preserved:
+          alert_details_<key> — read-only diagnostic, posted as a REPLY (original
+                                 alert + its buttons stay intact so you can still snooze)
+          alert_snooze_<key>  — suppress this alert_key for 24h (edits msg, clears buttons)
+          alert_ack_hr_<id>   — resolve an agent_alerts row (edits msg, clears buttons)
+        All actions live in services/alert_actions_service.py and are SAFE — no
+        destructive one-tap op (deletes stay on the approval path).
+        """
+        query = update.callback_query
+        await self._safe_answer(query)
+
+        user_info = self._get_authorized_user(query.from_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
+        by = user_info.get("display_name", "Kytran")
+
+        # Markdown alert keys contain '_' → guard every send with a plain-text retry
+        # (mirrors telegram_service's own 400 "can't parse entities" fallback).
+        async def _out(txt, edit=True):
+            fn = query.edit_message_text if edit else query.message.reply_text
+            try:
+                await fn(txt, parse_mode="Markdown")
+            except Exception:
+                try:
+                    await fn(txt)
+                except Exception as _e:
+                    logger.debug("[TelegramGateway] alert reply failed: %s", _e)
+
+        data = query.data  # e.g. "alert_snooze_disk_primary" / "alert_ack_hr_1234"
+        try:
+            parts = data.split("_", 2)  # ["alert", action, key]
+            action = parts[1] if len(parts) > 1 else ""
+            alert_key = parts[2] if len(parts) > 2 else ""
+
+            from services.alert_actions_service import (
+                acknowledge_hr,
+                alert_details,
+                snooze,
+            )
+
+            if action == "details":
+                await _out(alert_details(alert_key), edit=False)
+            elif action == "snooze":
+                await _out(snooze(alert_key, 24, by), edit=True)
+            elif action == "ack":
+                if alert_key.startswith("hr_"):
+                    try:
+                        alert_id = int(alert_key.split("_", 1)[1])
+                    except (IndexError, ValueError):
+                        await _out("⚠️ Malformed alert id.", edit=True)
+                        return
+                    await _out(acknowledge_hr(alert_id, by), edit=True)
+                else:
+                    await _out("⚠️ Nothing to acknowledge for this alert.", edit=True)
+            else:
+                await _out(f"Unknown alert action: {action}", edit=True)
+        except Exception as e:
+            logger.error(f"[TelegramGateway] Alert callback error: {e}")
+            await _out("⚠️ Couldn't complete that alert action.", edit=True)
 
     async def _welfare_callback(self, update, context):
         """Handle K.I.N. welfare action buttons from Telegram.
@@ -911,10 +993,7 @@ class TelegramGateway:
                         )
 
                     conn.commit()
-                    logger.info(
-                        "[Welfare] %s granted 8h rest for agent %s (id=%d)",
-                        approved_by, agent_name, agent_id
-                    )
+                    logger.info("[Welfare] %s granted 8h rest for agent %s (id=%d)", approved_by, agent_name, agent_id)
                     await query.edit_message_text(
                         f"😴 *{agent_name}* granted 8h rest.\n\n"
                         f"Agent is winding down current tasks and will be restored "
@@ -961,9 +1040,7 @@ class TelegramGateway:
                             _dc.close()
                     except Exception as _de:
                         logger.warning("[Welfare] dismiss queue update failed: %s", _de)
-                await query.edit_message_text(
-                    f"🔕 Welfare alert dismissed. No rest scheduled."
-                )
+                await query.edit_message_text(f"🔕 Welfare alert dismissed. No rest scheduled.")
 
             else:
                 await query.edit_message_text(f"Unknown welfare action: {action}")
@@ -991,9 +1068,7 @@ class TelegramGateway:
         # --- Simple advisory buttons (no ID) ---
         if data == "esc_ack":
             original = query.message.text or ""
-            await query.edit_message_text(
-                f"{original}\n\n\u2705 Acknowledged"
-            )
+            await query.edit_message_text(f"{original}\n\n\u2705 Acknowledged")
             return
 
         if data == "esc_cloud":
@@ -1040,16 +1115,23 @@ class TelegramGateway:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
 
                 if action == "approve":
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE autonomy_approval_queue
                         SET status = 'approved', approved_by = %s, approved_at = NOW(), updated_at = NOW()
                         WHERE id = %s AND status = 'pending'
                         RETURNING action_data
-                    """, (user_info["user_id"], approval_id))
+                    """,
+                        (user_info["user_id"], approval_id),
+                    )
                     row = cur.fetchone()
                     conn.commit()
                     if row:
-                        action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
+                        action_data = (
+                            row["action_data"]
+                            if isinstance(row["action_data"], dict)
+                            else json.loads(row["action_data"])
+                        )
                         await query.edit_message_text(
                             f"\u2705 Approved escalation #{approval_id}\n"
                             f"Model: {action_data.get('escalated_model', '?')}\n"
@@ -1059,21 +1141,27 @@ class TelegramGateway:
                         await query.edit_message_text(f"Escalation #{approval_id} not found or already processed.")
 
                 elif action == "deny":
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE autonomy_approval_queue
                         SET status = 'rejected', approved_by = %s,
                             rejected_reason = 'Denied via Telegram', updated_at = NOW()
                         WHERE id = %s AND status = 'pending'
-                    """, (user_info["user_id"], approval_id))
+                    """,
+                        (user_info["user_id"], approval_id),
+                    )
                     conn.commit()
                     await query.edit_message_text(f"\u274c Denied escalation #{approval_id}")
 
                 elif action == "defer":
-                    cur.execute("""
+                    cur.execute(
+                        """
                         UPDATE autonomy_approval_queue
                         SET expires_at = NOW() + INTERVAL '1 hour', updated_at = NOW()
                         WHERE id = %s AND status = 'pending'
-                    """, (approval_id,))
+                    """,
+                        (approval_id,),
+                    )
                     conn.commit()
                     await query.edit_message_text(f"\u23f3 Deferred escalation #{approval_id} for 1 hour")
 
@@ -1099,9 +1187,7 @@ class TelegramGateway:
             from database import get_db_cursor
 
             with get_db_cursor() as (_c, _cur):
-                _cur.execute(
-                    "SELECT value FROM system_config WHERE key = 'signal_personal_checkin'"
-                )
+                _cur.execute("SELECT value FROM system_config WHERE key = 'signal_personal_checkin'")
                 row = _cur.fetchone()
             if not row:
                 return None
@@ -1135,7 +1221,9 @@ class TelegramGateway:
                 if not row:
                     await update.message.reply_text(f"❌ Approval #{approval_id} not found.")
                     return
-                action_data = row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
+                action_data = (
+                    row["action_data"] if isinstance(row["action_data"], dict) else json.loads(row["action_data"])
+                )
                 original_draft = action_data.get("content", "")
                 cur.execute(
                     """UPDATE autonomy_approval_queue
@@ -1156,10 +1244,12 @@ class TelegramGateway:
 
             # Redraft via S.I.G.N.A.L. (blocking call — run in executor)
             import asyncio as _asyncio
+
             loop = _asyncio.get_event_loop()
 
             def _do_redraft():
                 from signal_dispatch import redraft_with_suggestion
+
                 return redraft_with_suggestion(original_draft, suggestion, action_data)
 
             new_approval_id, preview = await loop.run_in_executor(None, _do_redraft)
@@ -1179,7 +1269,7 @@ class TelegramGateway:
         if not self._running or not self._loop:
             return
 
-        dept = context.get('department', context.get('station', '?'))
+        dept = context.get("department", context.get("station", "?"))
         text = (
             f"Escalation Request #{approval_id}\n"
             f"Agent: {context.get('agent_name', '?')} ({dept})\n"
@@ -1191,13 +1281,16 @@ class TelegramGateway:
         )
 
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-        keyboard = InlineKeyboardMarkup([
+
+        keyboard = InlineKeyboardMarkup(
             [
-                InlineKeyboardButton("Approve", callback_data=f"esc_approve_{approval_id}"),
-                InlineKeyboardButton("Deny", callback_data=f"esc_deny_{approval_id}"),
-                InlineKeyboardButton("Defer 1hr", callback_data=f"esc_defer_{approval_id}"),
+                [
+                    InlineKeyboardButton("Approve", callback_data=f"esc_approve_{approval_id}"),
+                    InlineKeyboardButton("Deny", callback_data=f"esc_deny_{approval_id}"),
+                    InlineKeyboardButton("Defer 1hr", callback_data=f"esc_defer_{approval_id}"),
+                ]
             ]
-        ])
+        )
 
         async def _send():
             try:
@@ -1227,6 +1320,7 @@ class TelegramGateway:
                         # Mirror to telegram_message_log via unified service (one row per send).
                         try:
                             from services.telegram_service import _log_message as _tg_log
+
                             _tg_log(
                                 category="escalation",
                                 title=f"Escalation #{approval_id}",
@@ -1284,6 +1378,7 @@ class TelegramGateway:
                                     conv_id = first["id"] if isinstance(first, dict) else first[0]
 
                                 import json as _json
+
                                 uc_cur.execute(
                                     """INSERT INTO unified_messages
                                        (conversation_id, channel, direction, sender, content, metadata, created_at)
@@ -1294,14 +1389,18 @@ class TelegramGateway:
                                         "outbound",
                                         "A.R.C.H.I.E.",
                                         text,
-                                        _json.dumps({
-                                            "approval_id": approval_id,
-                                            "agent_name": context.get("agent_name"),
-                                            "department": context.get("department"),
-                                            "est_cost": context.get("est_cost"),
-                                            "telegram_message_id": getattr(msg_obj, "message_id", None) if msg_obj else None,
-                                            "send_status": send_status,
-                                        }),
+                                        _json.dumps(
+                                            {
+                                                "approval_id": approval_id,
+                                                "agent_name": context.get("agent_name"),
+                                                "department": context.get("department"),
+                                                "est_cost": context.get("est_cost"),
+                                                "telegram_message_id": (
+                                                    getattr(msg_obj, "message_id", None) if msg_obj else None
+                                                ),
+                                                "send_status": send_status,
+                                            }
+                                        ),
                                     ),
                                 )
                         except Exception as uc_err:
@@ -1330,6 +1429,7 @@ class TelegramGateway:
         """
         try:
             from services.telegram_service import send as _tg_send
+
             _tg_send(
                 category="info",
                 title=title,
@@ -1363,8 +1463,8 @@ class TelegramGateway:
 
         data = query.data  # e.g. "social_pub_42_9908"
         try:
-            parts = data.split("_")   # ["social", "pub"|"dis", draft_id, tenant_id]
-            action = parts[1]         # "pub" or "dis"
+            parts = data.split("_")  # ["social", "pub"|"dis", draft_id, tenant_id]
+            action = parts[1]  # "pub" or "dis"
             draft_id = int(parts[2])
             tenant_id = int(parts[3])
         except (IndexError, ValueError):
@@ -1374,11 +1474,13 @@ class TelegramGateway:
         kbs_url = os.getenv("KBS_APP_URL", "http://kbs_app:8091")
         token = os.getenv("ARCHIE_COMMS_SERVICE_TOKEN", "")
         endpoint = f"{kbs_url}/api/social/telegram-callback"
-        payload = _json.dumps({
-            "action": "publish" if action == "pub" else "discard",
-            "draft_id": draft_id,
-            "tenant_id": tenant_id,
-        }).encode()
+        payload = _json.dumps(
+            {
+                "action": "publish" if action == "pub" else "discard",
+                "draft_id": draft_id,
+                "tenant_id": tenant_id,
+            }
+        ).encode()
 
         try:
             req = _urlreq.Request(
@@ -1429,9 +1531,7 @@ class TelegramGateway:
                 result = merge_pr(pr_number, "squash")
                 if result.get("merged"):
                     _mark_tier_processed(pr_number, tier=3)
-                    await query.edit_message_text(
-                        f"✅ Kytran approved — PR #{pr_number} merged successfully."
-                    )
+                    await query.edit_message_text(f"✅ Kytran approved — PR #{pr_number} merged successfully.")
                 else:
                     await query.edit_message_text(
                         f"❌ Merge failed for PR #{pr_number}: {result.get('error', 'unknown error')}"
@@ -1476,9 +1576,7 @@ class TelegramGateway:
 
         user = self._get_authorized_user(query.from_user.id)
         if not user:
-            await query.message.reply_text(
-                "Not authorized. Use /link to connect your account."
-            )
+            await query.message.reply_text("Not authorized. Use /link to connect your account.")
             return
 
         # Mail HQ Smart Inbox (Slice 4): approve-to-send drafted replies. These act on
@@ -1580,9 +1678,7 @@ class TelegramGateway:
             if res.get("success"):
                 await query.edit_message_text(query.message.text + "\n\n✅ Sent")
             else:
-                await query.edit_message_text(
-                    query.message.text + f"\n\n⚠️ Not sent: {res.get('error', 'unknown')}"
-                )
+                await query.edit_message_text(query.message.text + f"\n\n⚠️ Not sent: {res.get('error', 'unknown')}")
         except Exception as e:
             # Full traceback — this drives a real email send, so failures must be diagnosable.
             logger.exception("email reply action failed (q=%s, action=%s): %s", queue_id, action, e)
@@ -1617,14 +1713,10 @@ class TelegramGateway:
                     return
 
                 # Get SMTP settings
-                cur.execute(
-                    "SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1"
-                )
+                cur.execute("SELECT * FROM email_settings WHERE is_default = TRUE AND is_active = TRUE LIMIT 1")
                 smtp = cur.fetchone()
                 if not smtp:
-                    await update.message.reply_text(
-                        "No SMTP configured. Cannot send reply."
-                    )
+                    await update.message.reply_text("No SMTP configured. Cannot send reply.")
                     del context.user_data["pending_reply_email_id"]
                     return
 
@@ -1729,27 +1821,31 @@ class TelegramGateway:
                 cur = conn.cursor(cursor_factory=RealDictCursor)
 
                 # Get un-forwarded notifications
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT n.id, n.type, n.title, n.message, n.priority, n.source, n.created_at
                     FROM system_notifications n
                     WHERE n.telegram_forwarded = FALSE AND n.is_read = FALSE
                     ORDER BY n.created_at DESC
                     LIMIT 20
-                    """)
+                    """
+                )
                 notifications = cur.fetchall()
 
                 if not notifications:
                     return
 
                 # Get authorized users with rules
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT tu.id, tu.telegram_id, tu.user_id,
                            tnr.notification_type, tnr.priority_min, tnr.source_filter,
                            tnr.quiet_hours_start, tnr.quiet_hours_end
                     FROM telegram_users tu
                     JOIN telegram_notification_rules tnr ON tnr.telegram_user_id = tu.id
                     WHERE tu.is_authorized = TRUE AND tu.telegram_id IS NOT NULL AND tnr.is_active = TRUE
-                    """)
+                    """
+                )
                 rules = cur.fetchall()
 
                 forwarded_ids = set()
@@ -1763,9 +1859,7 @@ class TelegramGateway:
                                 )
                                 forwarded_ids.add(notif["id"])
                             except Exception as e:
-                                logger.warning(
-                                    f"Failed to forward notification #{notif['id']}: {e}"
-                                )
+                                logger.warning(f"Failed to forward notification #{notif['id']}: {e}")
 
                 # Mark as forwarded
                 if forwarded_ids:
@@ -1791,16 +1885,11 @@ class TelegramGateway:
     def _matches_rule(self, notification: dict, rule: dict) -> bool:
         """Check if a notification matches a forwarding rule."""
         # Type filter
-        if (
-            rule["notification_type"]
-            and rule["notification_type"] != notification["type"]
-        ):
+        if rule["notification_type"] and rule["notification_type"] != notification["type"]:
             return False
 
         # Source filter
-        if rule["source_filter"] and rule["source_filter"] != notification.get(
-            "source"
-        ):
+        if rule["source_filter"] and rule["source_filter"] != notification.get("source"):
             return False
 
         # Priority filter
@@ -1888,9 +1977,7 @@ class TelegramGateway:
             logger.error(f"Failed to get authorized user: {e}")
             return None
 
-    def _orchestrate_message(
-        self, message: str, user_id: int, voice_mode: bool = False
-    ) -> Optional[str]:
+    def _orchestrate_message(self, message: str, user_id: int, voice_mode: bool = False) -> Optional[str]:
         """Route a message through the orchestration engine."""
         try:
             import sys
@@ -1949,9 +2036,7 @@ class TelegramGateway:
         except Exception as e:
             logger.error(f"Failed to process approval: {e}")
 
-    def _log_message(
-        self, telegram_user_id: int, direction: str, msg_type: str, content: str
-    ):
+    def _log_message(self, telegram_user_id: int, direction: str, msg_type: str, content: str):
         """Log a Telegram message."""
         try:
             conn = get_db()

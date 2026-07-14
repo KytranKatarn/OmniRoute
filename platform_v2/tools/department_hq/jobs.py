@@ -1577,9 +1577,14 @@ def _register_own_jobs(scheduler, flask_app):
                     summary,
                 )
                 try:
-                    send_system(
-                        "⚠️ Queue zombie reaper",
-                        f"Expired {len(reaped)} tasks stuck >30 min.\nAgents: {summary}",
+                    # Interactive alert: 📊 Details + 🔕 Snooze 24h (#alert-buttons).
+                    from services.alert_actions_service import send_alert
+
+                    send_alert(
+                        alert_key="zombie_reaper",
+                        title="⚠️ Queue zombie reaper",
+                        message=f"Expired {len(reaped)} tasks stuck >30 min.\nAgents: {summary}",
+                        actions=["details", "snooze"],
                     )
                 except Exception:
                     pass

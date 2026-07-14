@@ -9828,11 +9828,16 @@ class AgentLoop:
 
             for category, msg in triggered:
                 try:
-                    from services.telegram_service import send_system
+                    # Interactive alert: 📊 Details + 🔕 Snooze 24h buttons (#alert-buttons).
+                    # send_alert is snooze-gated + sends direct (buttons survive; the inbox
+                    # relay strips reply_markup). `category` here is the alert_key (disk_primary…).
+                    from services.alert_actions_service import send_alert
 
-                    send_system(
+                    send_alert(
+                        alert_key=category,
                         title=f"Platform Watchdog: {category.upper()} pressure",
                         message=f"{msg}\nload1={load1:.1f} mem_avail={mem_avail_gb:.1f}GB swap_free={swap_free_gb:.2f}GB",
+                        actions=["details", "snooze"],
                     )
                 except Exception as e:
                     logger.warning(f"watchdog telegram failed: {e}")

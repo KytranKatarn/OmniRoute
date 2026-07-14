@@ -101,6 +101,25 @@
 </div>
 {% endif %}
 
+{# ── Publicly traded — federal contracts (free — public money, #373 Contract→Market link L6) ── #}
+{% if market %}
+<div class="wtf-cw-section">
+  <div class="wtf-cw-section-title">📈 Publicly traded — federal contracts won</div>
+  <div class="wtf-cw-prod" style="border-left-color:#f59e0b;max-width:100%;">
+    <span style="font-size:16px;">📈</span>
+    <div>
+      <div class="wtf-cw-prod-label">Trades as <strong>{{ market.exchange }}:{{ market.ticker }}</strong></div>
+      <div class="wtf-cw-prod-sub">Federal contracts won · {{ market.n }} award{{ '' if market.n == 1 else 's' }} · cumulative</div>
+    </div>
+    <span class="wtf-cw-prod-num" style="color:#f59e0b;">${{ '{:,}'.format(market.total) }}</span>
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">
+    A publicly-listed company that is also a federal contractor — where public money meets the markets.
+    Approximate &amp; partial (CanadaBuys open procurement data, via Gov Watch){% if market.jv %}; includes joint ventures it leads, so the total is an upper bound{% endif %}. Not investment advice.
+  </div>
+</div>
+{% endif %}
+
 {% if is_subscriber %}
 {# ── Accountability chain links (premium) ── #}
 <div class="wtf-cw-section">

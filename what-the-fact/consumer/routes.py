@@ -2543,6 +2543,25 @@ def entity_profile_page(entity_id):
                 """), {"e": entity_id}).mappings().all()
                 if (r["news_url"] or "").startswith(("http://", "https://"))
             ]
+        # Publicly-traded federal contractor (FREE — public money, the #373 Contract->Market
+        # link, L6). The company entity --market_reaction_to--> its security node (slug
+        # 'security-<ticker>'); join securities.issuer_contracts for the dollar footprint the
+        # structural graph edge lacks. Read-only; market=None when the company isn't a linked
+        # TSX contractor.
+        market = None
+        if ent["entity_type"] == "organization":
+            mrow = c.execute(text(f"""
+                SELECT upper(replace(s.slug, 'security-', '')) AS ticker, ic.exchange,
+                       ic.total, ic.n, ic.jv
+                  FROM {SH}.entity_relationships r
+                  JOIN {SH}.entities s ON s.id = r.to_entity_id AND s.slug LIKE 'security-%'
+                  JOIN securities.issuer_contracts ic
+                       ON upper(replace(s.slug, 'security-', '')) = upper(ic.ticker)
+                 WHERE r.from_entity_id = :e AND r.relationship_type = 'market_reaction_to'
+                   AND ic.total > 0
+                 ORDER BY ic.total DESC LIMIT 1
+            """), {"e": entity_id}).mappings().first()
+            market = dict(mrow) if mrow else None
         # Premium: chain links + co-mentioned (WTF-bounded, like the journalist page).
         links, co = [], []
         if subscribed:
@@ -2571,6 +2590,7 @@ def entity_profile_page(entity_id):
                            products=[dict(r) for r in products],
                            recent=[dict(r) for r in recent],
                            competition=competition,
+                           market=market,
                            links=[dict(r) for r in links],
                            co_mentioned=[dict(r) for r in co],
                            total_mentions=total_mentions,

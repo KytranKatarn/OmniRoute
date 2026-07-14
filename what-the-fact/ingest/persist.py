@@ -53,7 +53,13 @@ def upsert_article(
         r = c.execute(
             text(f"""
                 INSERT INTO {S}.articles (source_id, external_id, title, body, url, published_at)
-                VALUES (:sid, :eid, :t, :b, :u, :p)
+                VALUES (:sid, :eid, :t, :b, :u,
+                        -- Clamp a wildly-future published_at (source date-parse error) so a
+                        -- bogus date can't pin the article atop every feed (front page,
+                        -- clusters, digests all sort by it). NULL / normal dates pass through
+                        -- unchanged. (WTF front-page freeze, 2026-07-14)
+                        CASE WHEN :p IS NOT NULL AND :p > NOW() + INTERVAL '2 hours'
+                             THEN NOW() + INTERVAL '2 hours' ELSE :p END)
                 ON CONFLICT (source_id, external_id) DO NOTHING
                 RETURNING id
             """),

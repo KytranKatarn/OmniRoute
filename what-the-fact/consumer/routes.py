@@ -978,6 +978,11 @@ def index():
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
+            -- Guard: a source occasionally emits a wildly-future published_at (a date
+            -- parse error) that would pin that one article atop the feed indefinitely.
+            -- Exclude anything more than a small grace window ahead of now.
+            -- (WTF front-page freeze, 2026-07-14)
+            WHERE a.published_at <= NOW() + INTERVAL '2 hours'
             ORDER BY a.published_at DESC LIMIT 50
         """)).mappings().all()
         source_count = c.execute(

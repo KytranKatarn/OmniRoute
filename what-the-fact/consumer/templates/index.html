@@ -146,6 +146,7 @@ body { background: var(--wtf-bg); color: #e0e0e0; font-family: 'IBM Plex Mono', 
       {% for a in articles[:5] %}
       <div class="wtf-top-story">
         <a href="/article/{{ a.id }}" style="color:#ccc;text-decoration:none;">{{ a.title[:80] }}</a>
+        {% if a.published_at %}<span class="wtf-ago" data-ts="{{ a.published_at.isoformat() }}" style="color:#6b7280;font-size:10px;margin-left:6px;white-space:nowrap;"></span>{% endif %}
       </div>
       {% endfor %}
     </div>
@@ -525,8 +526,9 @@ function loadArticleFeed_country(cc) {
       container.innerHTML = articles.map(function(a) {
         var band = ((a.bias && a.bias.band) || 'center').replace(/ /g,'-');
         var src = (a.source && a.source.name) ? esc(a.source.name) : '';
+        var ago = a.published_at ? ' &middot; <span style="color:#6b7280;">' + esc(timeAgo(a.published_at)) + '</span>' : '';
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
-          '<div class="wtf-card-meta"><span>' + src + ' &middot; ' + esc(cc) + '</span>' +
+          '<div class="wtf-card-meta"><span>' + src + ' &middot; ' + esc(cc) + ago + '</span>' +
           (IS_SUBSCRIBER ? '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' : '') + '</div>' +
           '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a></div>';
       }).join('');
@@ -640,6 +642,8 @@ function loadArticleFeed() {
         var band = ((a.bias && a.bias.band) || 'center').replace(/ /g,'-');
         var src = (a.source && a.source.name) ? esc(a.source.name) : '';
         var prov = (a.geo && a.geo.province_code) ? ' &middot; ' + esc(a.geo.province_code) : '';
+        // Relative publish time shown next to the source (WTF front-page, 2026-07-14)
+        var ago = a.published_at ? ' &middot; <span style="color:#6b7280;">' + esc(timeAgo(a.published_at)) + '</span>' : '';
         var badges = '';
         if (IS_SUBSCRIBER) {
           if (a.ai_analyzed) badges += '<span class="wtf-card-badge wtf-badge-ai">AI Analyzed</span>';
@@ -652,7 +656,7 @@ function loadArticleFeed() {
           }
         }
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
-          '<div class="wtf-card-meta"><span>' + src + prov + '</span>' +
+          '<div class="wtf-card-meta"><span>' + src + prov + ago + '</span>' +
           (IS_SUBSCRIBER ? '<span class="wtf-bias-pill wtf-bias-' + esc(band) + '">' + band.toUpperCase() + '</span>' : '') + '</div>' +
           '<a class="wtf-card-title" href="/article/' + a.id + '">' + esc(a.title) + '</a>' +
           (badges ? '<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:4px;">' + badges + '</div>' : '') +
@@ -731,6 +735,11 @@ function toggleProvinceDropdown(e) {
 
 // Initial article feed load
 loadArticleFeed();
+
+// Fill server-rendered relative timestamps (F.A.C.T. Top Stories) via the shared timeAgo()
+document.querySelectorAll('.wtf-ago').forEach(function(el) {
+  if (el.dataset.ts) el.textContent = timeAgo(el.dataset.ts);
+});
 </script>
 
 <footer style="border-top:1px solid #1f2937;padding:20px 24px;margin-top:40px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#6b7280;">

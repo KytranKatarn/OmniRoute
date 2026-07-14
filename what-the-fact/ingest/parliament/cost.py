@@ -319,6 +319,58 @@ def _current_year_block(conn, core, table: str, id_col: str, sid: int, rates_by_
     }
 
 
+# --------------------------------------------------------------------------- contract link
+
+def _canonical_dept(owner_org: str) -> str:
+    """The English canonical department name used as the parliament.dept_contracts key.
+
+    parliament.minister_travel.owner_org is bilingual ('English | French'); the dept-contract
+    rollup (mirrored from Gov Watch) is keyed by that English half, so a minister joins to their
+    portfolio's contract volume with no extra normalization."""
+    if not owner_org:
+        return ""
+    return owner_org.split(" | ", 1)[0].strip()
+
+
+def _dept_contracts_map(conn, depts) -> dict:
+    """{canonical dept -> {total, n, by_fy, central_purchaser, window, source}} from
+    parliament.dept_contracts, for the given canonical department names.
+
+    Fail-soft: if the table does not exist yet (pre-migration) or the query errors, returns {}
+    so the contract link simply stays dark — the cost figures themselves are never affected."""
+    depts = [d for d in (depts or []) if d]
+    if not depts:
+        return {}
+    try:
+        rows = conn.execute(
+            text(
+                "SELECT canonical_dept, total, n, by_fy, central_purchaser, "
+                "       window_start, window_end, source "
+                "FROM parliament.dept_contracts WHERE canonical_dept = ANY(:d)"
+            ),
+            {"d": list(depts)},
+        ).fetchall()
+    except Exception:
+        return {}
+    out = {}
+    for cd, total, n, by_fy, central, ws, we, source in rows:
+        if isinstance(by_fy, str):
+            import json as _json
+            try:
+                by_fy = _json.loads(by_fy)
+            except ValueError:
+                by_fy = {}
+        out[cd] = {
+            "total": int(total) if total is not None else 0,
+            "n": int(n) if n is not None else 0,
+            "by_fy": by_fy if isinstance(by_fy, dict) else {},
+            "central_purchaser": bool(central),
+            "window": {"start": str(ws) if ws else None, "end": str(we) if we else None},
+            "source": source,
+        }
+    return out
+
+
 # --------------------------------------------------------------------------- public API
 
 def mp_cost(engine, mp_id: int, year: int) -> dict:
@@ -390,6 +442,21 @@ def minister_travel_5yr(engine, mp_id: int) -> dict:
             {"mid": int(mp_id), "y0": cy[0], "y1": cy[-1]},
         ).fetchall()
 
+        # Contract chain link (#373): this minister's CURRENT department (the most recent
+        # minister_travel.owner_org) -> the federal contract volume their portfolio oversees
+        # (parliament.dept_contracts, mirrored from Gov Watch). Fail-soft (None if no data).
+        latest_org = conn.execute(
+            text(
+                "SELECT owner_org FROM parliament.minister_travel "
+                "WHERE mp_id = :mid AND COALESCE(owner_org, '') <> '' "
+                "ORDER BY period DESC LIMIT 1"
+            ),
+            {"mid": int(mp_id)},
+        ).scalar()
+        _canon = _canonical_dept(latest_org or "")
+        _cmap = _dept_contracts_map(conn, [_canon]) if _canon else {}
+    contracts = {**_cmap[_canon], "department": _canon} if _canon and _canon in _cmap else None
+
     years = []
     title = None
     for yr, travel, hosp, t in rows:
@@ -405,6 +472,7 @@ def minister_travel_5yr(engine, mp_id: int) -> dict:
         "years": years,
         "five_year_total": sum(y["total"] for y in years),
         "title": title,
+        "contracts": contracts,   # portfolio contract volume (#373 Contract link); None if none
         "_note": (
             "ministerial (departmental) travel + hospitality — borne centrally (government "
             "travel/official hospitality), NOT charged to the MP office budget"
@@ -696,6 +764,7 @@ def officials_cost(engine, officials) -> list:
                 "latest_year": None,
                 "latest_total": None,
                 "current": None,   # current partial year (year-to-date) + projected — matched only
+                "contracts": None, # portfolio contract volume (#373 Contract link) — ministers only
                 "_note": "no matching MP or senator in the parliamentary roster",
             }
 
@@ -748,6 +817,25 @@ def officials_cost(engine, officials) -> list:
             for r in out:
                 if r.get("subject_id") in mmap:
                     r["ministerial_5yr"] = mmap[r["subject_id"]]
+
+            # Contract chain link (#373): each matched minister's CURRENT department (the most
+            # recent minister_travel.owner_org) -> the federal contract volume their portfolio
+            # oversees (parliament.dept_contracts, mirrored from Gov Watch). Batched + fail-soft;
+            # only confidently-crosswalked departments carry a figure.
+            drows = conn.execute(
+                text(
+                    "SELECT DISTINCT ON (mp_id) mp_id, owner_org FROM parliament.minister_travel "
+                    "WHERE mp_id = ANY(:ids) AND COALESCE(owner_org, '') <> '' "
+                    "ORDER BY mp_id, period DESC"
+                ),
+                {"ids": min_ids},
+            ).fetchall()
+            dept_by_mp = {int(mid): _canonical_dept(org) for mid, org in drows}
+            cmap = _dept_contracts_map(conn, sorted(set(dept_by_mp.values())))
+            for r in out:
+                canon = dept_by_mp.get(r.get("subject_id"))
+                if canon and canon in cmap:
+                    r["contracts"] = {**cmap[canon], "department": canon}
 
     return out
 

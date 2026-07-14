@@ -47,6 +47,7 @@ _MAX_AGE_DAYS = {
     "minister_travel": int(os.environ.get("WTF_DRIFT_MIN_DAYS", "21")),
     "ec_contributions": int(os.environ.get("WTF_DRIFT_EC_DAYS", "21")),
     "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
+    "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
 }
 
 

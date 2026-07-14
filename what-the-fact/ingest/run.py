@@ -367,6 +367,7 @@ def main():
     _last_securities_date = None  # TSX issuer directory ingest (weekly, Tue) — #373 Market L6 Phase 0
     _last_securities_eg_date = None  # securities -> graph reconcile (market_reaction_to, weekly Wed) — L6 step 2
     _last_drift_date = None     # parliamentary cost/funds drift guard (daily)
+    _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
     while True:
         # Weekly geo report on Mondays
         today = datetime.date.today()
@@ -482,6 +483,19 @@ def main():
             except Exception:
                 log.exception("entity_graph wtf reconcile crashed")
             _last_covered_date = today
+
+        # Department contract-award rollup (#373 "Contract" chain link) — daily. Mirrors Gov
+        # Watch's canonical-department contract totals into parliament.dept_contracts so the cost
+        # pages can sit a minister's office cost beside the federal contract volume their portfolio
+        # oversees. Fail-loud (parliament.ingest_log); the drift guard below watches it. Runs
+        # BEFORE the guard so a same-day refresh is already fresh when the guard checks freshness.
+        if _last_dept_contracts_date != today:
+            try:
+                from ingest.parliament.dept_contracts import run_dept_contracts_sync
+                log.info("parliament dept_contracts sync: %s", run_dept_contracts_sync(engine))
+            except Exception:
+                log.exception("parliament dept_contracts sync crashed")
+            _last_dept_contracts_date = today
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

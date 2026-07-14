@@ -40,6 +40,12 @@ RETENTION = {
 PRIMARY_ROOT = Path(os.environ.get("BACKUP_ROOT", "/mnt/data2/backups"))
 USB_ROOT = Path(os.environ.get("BACKUP_USB", "/mnt/external-backup"))
 
+# USB whole-dir age cap (see prune_usb_stale_dirs): the USB tier keeps <=4 weekly (~28d) + 0
+# monthly for every component, so nothing the recurring retention keeps is older than ~35d.
+# One-off / manual / test / Daily_Scheduled backups use a different internal layout that the
+# per-component prune never matches, so they accumulate forever — sweep any older whole dir.
+USB_MAX_AGE_DAYS = int(os.environ.get("BACKUP_USB_MAX_AGE_DAYS", "45"))
+
 DATE_RE = re.compile(r"^(\d{8})_")
 
 # --dry-run: report what WOULD be pruned without deleting anything (DR-critical safety).
@@ -125,17 +131,19 @@ def prune_dir(root: Path, component: str, tier: str) -> int:
     return deleted
 
 
-def prune_usb_via_container(component: str) -> int:
-    """USB is root-owned; delegate to archie_platform container."""
+def prune_usb_via_container(component: str, dry_run: bool) -> int:
+    """Per-component keep-newest-N on the USB tier (root-owned -> delegate to archie_platform).
+    Honours dry_run: prints WOULD-PRUNE lines and deletes nothing."""
     keep_d, keep_w, keep_m = RETENTION.get(component, {}).get("usb", (0, 0, 0))
     if keep_d == 0 and keep_w == 0 and keep_m == 0:
         return 0
 
+    dry = "1" if dry_run else "0"
     # Script-in-a-string approach — keeps this function self-contained.
     script = f"""
 set -e
 cd /mnt/external-backup 2>/dev/null || exit 0
-DAILY={keep_d}; WEEKLY={keep_w}; MONTHLY={keep_m}
+DAILY={keep_d}; WEEKLY={keep_w}; MONTHLY={keep_m}; DRY={dry}
 kept_d=0; kept_w=0; kept_m=0
 deleted=0
 for d in $(ls -r | grep -E '^[0-9]{{8}}_'); do
@@ -150,9 +158,13 @@ for d in $(ls -r | grep -E '^[0-9]{{8}}_'); do
     elif [ "$kept_d" -lt "$DAILY" ]; then kept_d=$((kept_d+1)); keep=1
     fi
     if [ "$keep" -eq 0 ]; then
-        rm -rf "$comp_path"
+        if [ "$DRY" = "1" ]; then
+            echo "WOULD-PRUNE $comp_path"
+        else
+            rm -rf "$comp_path"
+            [ -z "$(ls -A "$d" 2>/dev/null)" ] && rmdir "$d" 2>/dev/null || true
+        fi
         deleted=$((deleted+1))
-        [ -z "$(ls -A "$d" 2>/dev/null)" ] && rmdir "$d" 2>/dev/null || true
     fi
 done
 echo $deleted
@@ -162,6 +174,48 @@ echo $deleted
         capture_output=True,
         text=True,
     )
+    if dry_run:
+        for line in r.stdout.splitlines():
+            if line.startswith("WOULD-PRUNE "):
+                print(f"[dry-run] usb/{component}: {line[len('WOULD-PRUNE '):]}")
+    try:
+        return int(r.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return 0
+
+
+def prune_usb_stale_dirs(dry_run: bool) -> int:
+    """Sweep WHOLE dated USB dirs older than USB_MAX_AGE_DAYS. The per-component prune only
+    touches <datedir>/<component> subdirs matching RETENTION keys, so one-off / manual / test /
+    Daily_Scheduled backups (a different internal layout) are never matched and pile up forever —
+    that is what filled the USB. USB keeps <=4 weekly (~28d) + 0 monthly, so a 45d cap never
+    removes anything the recurring retention would keep. Root-owned -> via archie_platform."""
+    cap = USB_MAX_AGE_DAYS
+    dry = "1" if dry_run else "0"
+    script = f"""
+set -e
+cd /mnt/external-backup 2>/dev/null || exit 0
+DRY={dry}
+cutoff=$(date -d "-{cap} days" +%Y%m%d)
+deleted=0
+for d in $(ls -1 | grep -E '^[0-9]{{8}}_'); do
+    dp=${{d:0:8}}
+    if [ "$dp" -lt "$cutoff" ]; then
+        if [ "$DRY" = "1" ]; then echo "WOULD-SWEEP $d"; else rm -rf "$d"; fi
+        deleted=$((deleted+1))
+    fi
+done
+echo $deleted
+"""
+    r = subprocess.run(
+        ["docker", "exec", "archie_platform", "bash", "-c", script],
+        capture_output=True,
+        text=True,
+    )
+    if dry_run:
+        for line in r.stdout.splitlines():
+            if line.startswith("WOULD-SWEEP "):
+                print(f"[dry-run] usb sweep (>{cap}d): {line[len('WOULD-SWEEP '):]}")
     try:
         return int(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
@@ -170,13 +224,19 @@ echo $deleted
 
 def main() -> None:
     total_deleted = 0
+    usb_deleted = 0
     for component in RETENTION.keys():
         total_deleted += prune_dir(PRIMARY_ROOT, component, "primary")
-        if not DRY_RUN:
-            total_deleted += prune_usb_via_container(component)
+        usb_deleted += prune_usb_via_container(component, DRY_RUN)
+    # Whole-dir age sweep for one-off / non-standard USB backups the per-component prune misses.
+    usb_deleted += prune_usb_stale_dirs(DRY_RUN)
+    total_deleted += usb_deleted
 
     if DRY_RUN:
-        print(f"[dry-run] retention prune: {total_deleted} items WOULD be removed (primary tier only)")
+        print(
+            f"[dry-run] retention prune: {total_deleted} items WOULD be removed "
+            f"(primary + usb; {usb_deleted} on usb)"
+        )
         return
 
     # Record the run: backup_log row + system_config retention_last_run/deleted_count so the

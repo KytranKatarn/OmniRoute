@@ -112,10 +112,55 @@ def alert_details(alert_key: str) -> str:
             return _zombie_details()
         if alert_key.startswith("hr_"):
             return _hr_details(alert_key)
+        if alert_key.startswith("wtf"):
+            return _wtf_ingest_details()
         return f"No extra detail available for {alert_key}."
     except Exception as exc:
         logger.debug("alert_actions.alert_details(%s) failed: %s", alert_key, exc)
         return "⚠️ Detail lookup failed (logged)."
+
+
+def _wtf_ingest_details() -> str:
+    """WTF ingest freshness diagnostic — queries the hub `wtf` DB directly (separate
+    database from the platform `archie` DB). Read-only; never raises. (#4890)"""
+    try:
+        import os
+
+        import psycopg2
+
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST", "192.168.1.200"),
+            port=int(os.getenv("DB_PORT", "5432")),
+            dbname="wtf",
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
+            connect_timeout=8,
+        )
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ingested_at))) / 60.0,
+                           COUNT(*) FILTER (WHERE ingested_at > NOW() - INTERVAL '1 hour'),
+                           COUNT(*) FILTER (WHERE ingested_at > NOW() - INTERVAL '24 hours')
+                      FROM wtf.articles
+                    """
+                )
+                gap, h1, h24 = cur.fetchone()
+        finally:
+            conn.close()
+        lines = ["📊 *WTF ingest freshness*", ""]
+        lines.append(f"Newest article: {gap:.0f} min ago" if gap is not None else "No articles found")
+        lines.append(f"Ingested — last 1h: {h1} · last 24h: {h24}")
+        if gap is not None and gap > 90:
+            lines += [
+                "",
+                "⚠️ Ingest looks STALLED. Check `wtf-ingest` on boston-2 " "(`docker logs what-the-fact-wtf-ingest-1`).",
+            ]
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.debug("alert_actions._wtf_ingest_details failed: %s", exc)
+        return "⚠️ WTF ingest detail unavailable (logged)."
 
 
 def _disk_details() -> str:

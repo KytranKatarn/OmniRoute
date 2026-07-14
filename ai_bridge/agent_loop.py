@@ -9826,6 +9826,49 @@ class AgentLoop:
             except Exception as _te:
                 logger.warning(f"watchdog tier-health check failed: {_te}")
 
+            # WTF ingest-freshness — the wtf-ingest worker runs on boston-2 but writes to
+            # the hub `wtf` DB; a silent crash (e.g. a bad row) freezes the front page with
+            # NO self-report (it happened 2026-07-14). Check externally: alert if no new
+            # article in >90 min. Sends its own interactive alert directly. (#4890)
+            try:
+                import psycopg2 as _pg
+
+                _wc = _pg.connect(
+                    host=os.getenv("DB_HOST", "192.168.1.200"),
+                    port=int(os.getenv("DB_PORT", "5432")),
+                    dbname="wtf",
+                    user=os.getenv("DB_USER", "archie"),
+                    password=os.getenv("DB_PASSWORD", ""),
+                    connect_timeout=8,
+                )
+                try:
+                    with _wc.cursor() as _wcur:
+                        _wcur.execute("SELECT EXTRACT(EPOCH FROM (NOW() - MAX(ingested_at))) / 60.0 FROM wtf.articles")
+                        _wrow = _wcur.fetchone()
+                    _wtf_gap = _wrow[0] if _wrow else None
+                finally:
+                    _wc.close()
+                if (
+                    _wtf_gap is not None
+                    and _wtf_gap > 90
+                    and now - self._watchdog_last_alert.get("wtf_ingest_stale", 0) > dedup_s
+                ):
+                    self._watchdog_last_alert["wtf_ingest_stale"] = now
+                    from services.alert_actions_service import send_alert
+
+                    send_alert(
+                        alert_key="wtf_ingest_stale",
+                        title="⚠️ WTF ingest stalled",
+                        message=(
+                            f"what-the-fact.com: newest article is {_wtf_gap:.0f} min old "
+                            f"(threshold 90m). The front page may be frozen — check the "
+                            f"wtf-ingest worker on boston-2."
+                        ),
+                        actions=["details", "snooze"],
+                    )
+            except Exception as _we:
+                logger.warning(f"watchdog wtf-ingest freshness check failed: {_we}")
+
             for category, msg in triggered:
                 try:
                     # Interactive alert: 📊 Details + 🔕 Snooze 24h buttons (#alert-buttons).

@@ -134,9 +134,13 @@
       <span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="{{ a.mp_mentions }}">🏛 {{ a.mp_mentions[:40] }}{% if a.mp_mentions|length > 40 %}…{% endif %}</span>
       {% endif %}
       {% if a.overall_verdict %}
-      {% set _cv_col = '#4ade80' if a.overall_verdict in ('verified','mostly_true') else '#fbbf24' if a.overall_verdict == 'mixed' else '#f87171' if a.overall_verdict == 'disputed' else '#6b7280' %}
-      {% set _cv_lbl = '✓ Established' if a.overall_verdict in ('verified','mostly_true') else '⚡ Developing' if a.overall_verdict == 'mixed' else '⚠ Contested' if a.overall_verdict == 'disputed' else '○ Unverifiable' %}
-      <span class="wtf-card-badge" style="background:{{ _cv_col }}15;color:{{ _cv_col }};border:1px solid {{ _cv_col }}33;" title="{% if a.overall_verdict not in ('verified','mostly_true','mixed','disputed') %}The fact-check model could not independently verify claims in this article. This does not mean the article is false.{% else %}Certainty: {{ a.overall_verdict.replace('_',' ').title() }}{% endif %}">{{ _cv_lbl }}</span>
+      {# Positive set widened (#4898 tuning): the checker emits variants like
+         'true' / 'verified_facts' / 'factual_reporting' / 'descriptive_reporting'
+         that were wrongly falling through to the grey Unverifiable state. #}
+      {% set _cv_pos = a.overall_verdict in ('verified','mostly_true','true','verified_facts','factual_reporting','factual_statements','descriptive_reporting') %}
+      {% set _cv_col = '#4ade80' if _cv_pos else '#fbbf24' if a.overall_verdict == 'mixed' else '#f87171' if a.overall_verdict == 'disputed' else '#6b7280' %}
+      {% set _cv_lbl = '✓ Established' if _cv_pos else '⚡ Developing' if a.overall_verdict == 'mixed' else '⚠ Contested' if a.overall_verdict == 'disputed' else '○ Unverifiable' %}
+      <span class="wtf-card-badge" style="background:{{ _cv_col }}15;color:{{ _cv_col }};border:1px solid {{ _cv_col }}33;" title="{% if not _cv_pos and a.overall_verdict not in ('mixed','disputed') %}The fact-check model could not independently verify claims in this article. This does not mean the article is false.{% else %}Certainty: {{ a.overall_verdict.replace('_',' ').title() }}{% endif %}">{{ _cv_lbl }}</span>
       {% endif %}
     </div>
   </div>

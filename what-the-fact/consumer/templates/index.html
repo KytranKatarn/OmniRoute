@@ -663,17 +663,22 @@ function loadArticleFeed() {
             badges += '<span class="wtf-card-badge" style="background:#0a1a2a;color:#a78bfa;border:1px solid #4c1d9544;font-size:9px;" title="' + escAttr(a.mp_mentions) + '">🏛 ' + mp + '</span>';
           }
         }
-        // Fact-check verdict chip — PUBLIC (mirrors the /news card exactly:
-        // same 4-state mapping + honest "unverifiable ≠ false" tooltip).
+        // Fact-check verdict chip — PUBLIC, informative verdicts only. 94.5%
+        // of the corpus is 'unverifiable' (a local model can't independently
+        // confirm most wire copy), so the front page renders a chip ONLY when
+        // the checker actually established something — no chip = no claim.
+        // The grey unverifiable state (with its nuanced tooltip) lives on
+        // /news and the article page.
         if (a.overall_verdict) {
           var v = a.overall_verdict;
-          var vEst = (v === 'verified' || v === 'mostly_true');
-          var vc = vEst ? '#4ade80' : v === 'mixed' ? '#fbbf24' : v === 'disputed' ? '#f87171' : '#6b7280';
-          var vl = vEst ? '✓ Established' : v === 'mixed' ? '⚡ Developing' : v === 'disputed' ? '⚠ Contested' : '○ Unverifiable';
-          var vt = (vEst || v === 'mixed' || v === 'disputed')
-            ? 'Certainty: ' + v.replace(/_/g, ' ')
-            : 'The fact-check model could not independently verify claims in this article. This does not mean the article is false.';
-          badges += '<span class="wtf-card-badge" style="background:' + vc + '15;color:' + vc + ';border:1px solid ' + vc + '33;" title="' + escAttr(vt) + '">' + esc(vl) + '</span>';
+          var vEst = ['verified', 'mostly_true', 'true', 'verified_facts',
+                      'factual_reporting', 'factual_statements',
+                      'descriptive_reporting'].indexOf(v) !== -1;
+          if (vEst || v === 'mixed' || v === 'disputed') {
+            var vc = vEst ? '#4ade80' : v === 'mixed' ? '#fbbf24' : '#f87171';
+            var vl = vEst ? '✓ Established' : v === 'mixed' ? '⚡ Developing' : '⚠ Contested';
+            badges += '<span class="wtf-card-badge" style="background:' + vc + '15;color:' + vc + ';border:1px solid ' + vc + '33;" title="' + escAttr('Certainty: ' + v.replace(/_/g, ' ')) + '">' + esc(vl) + '</span>';
+          }
         }
         return '<div class="wtf-article-card wtf-article-card--' + esc(band) + '">' +
           '<div class="wtf-card-meta"><span>' + src + prov + ago + '</span>' +

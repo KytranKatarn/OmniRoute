@@ -3152,7 +3152,10 @@ def api_v1_articles():
                    (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
                     FROM {S}.article_mp_tags t
                     JOIN parliament.mps m ON m.id = t.mp_id
-                    WHERE t.article_id = a.id) AS mp_mentions
+                    WHERE t.article_id = a.id) AS mp_mentions,
+                   (SELECT fc.overall_verdict FROM {S}.fact_checks fc
+                    WHERE fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+                    ORDER BY fc.checked_at DESC LIMIT 1) AS overall_verdict
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
@@ -3176,6 +3179,7 @@ def api_v1_articles():
                            "bias_lean": r["source_bias_lean"]},
                 "bias": {"band": r["bias_band"],
                          "score": float(r["bias_score"]) if r["bias_score"] is not None else None},
+                "overall_verdict": r["overall_verdict"],
                 "geo": {"province_code": r["province_code"],
                         "country_code": r["country_code"],
                         "scope": r["geo_scope"]},

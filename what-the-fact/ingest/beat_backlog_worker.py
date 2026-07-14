@@ -32,6 +32,15 @@ _MAX_PER_RUN = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_PER_RUN", "150"))
 # Bail out of the run after this many CONSECUTIVE dispatch failures (hub down /
 # cold model) instead of terminally poisoning each failed article as 'none'.
 _MAX_CONSEC_FAILURES = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_CONSEC_FAILURES", "5"))
+# Wall-clock budget per run — a full 150-200 article run paced at the hub's
+# per-task interval (~5s) takes ~15-25 min; yield to the main loop after this.
+_MAX_RUN_SECS = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_RUN_SECS", "1500"))
+# Per-article attempts when the hub answers rate_limited: honor its retry_after
+# hint (clamped 1..30s) and try again — the OLD behaviour abandoned the ENTIRE
+# run on the first rate-limit, capping throughput at a handful of articles per
+# 30-60 min cycle (audit 2026-07-14: hub interval is 5s; the worker's 1s cadence
+# tripped it instantly and then quit).
+_MAX_RATE_LIMIT_ATTEMPTS = int(os.environ.get("WTF_BEAT_BACKLOG_RATE_LIMIT_ATTEMPTS", "4"))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
@@ -90,32 +99,59 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
     rate_limited = 0
     failed = 0
     consec_failures = 0
+    deadline = time.monotonic() + _MAX_RUN_SECS
 
     while processed < _MAX_PER_RUN:
+        if time.monotonic() > deadline:
+            logger.info(
+                "beat_backlog_worker: run deadline %ds reached — yielding "
+                "(processed=%d tagged=%d)", _MAX_RUN_SECS, processed, tagged,
+            )
+            return {"processed": processed, "tagged": tagged, "failed": failed,
+                    "rate_limited": rate_limited, "stopped": "run_deadline"}
         remaining = min(_BATCH_SIZE, _MAX_PER_RUN - processed)
         batch = _fetch_batch(engine, schema, remaining)
         if not batch:
             break
 
         for row in batch:
-            result = analyze_with_status(
-                task="classify_beat",
-                article_id=row["id"],
-                title=row["title"] or "",
-                body=row["body"] or "",
-                source_slug=row["source_slug"] or "",
-            )
+            if time.monotonic() > deadline:
+                return {"processed": processed, "tagged": tagged, "failed": failed,
+                        "rate_limited": rate_limited, "stopped": "run_deadline"}
+
+            # Dispatch with rate-limit pacing: honor the hub's retry_after hint
+            # (the hub's per-task interval is ~5s; genuine saturation — the
+            # welfare in-flight cap — persists across attempts and we yield).
+            result = {"result": None, "status": "failed"}
+            for _attempt in range(_MAX_RATE_LIMIT_ATTEMPTS):
+                result = analyze_with_status(
+                    task="classify_beat",
+                    article_id=row["id"],
+                    title=row["title"] or "",
+                    body=row["body"] or "",
+                    source_slug=row["source_slug"] or "",
+                )
+                if result["status"] != "rate_limited":
+                    break
+                rate_limited += 1
+                wait = max(1, min(int(result.get("retry_after") or 5), 30))
+                if time.monotonic() + wait > deadline:
+                    return {"processed": processed, "tagged": tagged, "failed": failed,
+                            "rate_limited": rate_limited, "stopped": "run_deadline"}
+                time.sleep(wait)
 
             if result["status"] == "rate_limited":
-                # Hub rate-limited — stop for this cycle, retry next ingest cycle
+                # Still limited after honoring retry_after N times — the hub is
+                # genuinely saturated (in-flight cap). Yield until next cycle.
                 logger.info(
-                    "beat_backlog_worker: rate-limited after %d articles — "
-                    "will resume next cycle", processed
+                    "beat_backlog_worker: hub saturated after %d paced attempts "
+                    "(processed=%d) — yielding this cycle",
+                    _MAX_RATE_LIMIT_ATTEMPTS, processed,
                 )
-                rate_limited += 1
                 return {
                     "processed": processed,
                     "tagged": tagged,
+                    "failed": failed,
                     "rate_limited": rate_limited,
                     "stopped": "rate_limited",
                 }

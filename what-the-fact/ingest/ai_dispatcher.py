@@ -48,7 +48,13 @@ def analyze_with_status(task: str, article_id: int, title: str, body: str,
         data = resp.json()
         if data.get("ok"):
             if data.get("rate_limited"):
-                return {"result": None, "status": "rate_limited"}
+                # Surface the hub's pacing hint so callers can wait-and-continue
+                # instead of abandoning their run (audit 2026-07-14, #4897).
+                return {
+                    "result": None,
+                    "status": "rate_limited",
+                    "retry_after": data.get("retry_after"),
+                }
             return {"result": data.get("result"), "status": "ok"}
         logger.warning("ai_dispatcher: task=%s failed: %s", task, data.get("error"))
         return {"result": None, "status": "failed"}

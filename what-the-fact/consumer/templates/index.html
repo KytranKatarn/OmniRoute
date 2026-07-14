@@ -223,8 +223,6 @@ var worldLayer = null;
 var mapMode = 'canada';
 var currentBeat = 'all';
 var currentProvince = null;
-var _lastMapData = null;
-var _lastGeo = null;
 var IS_SUBSCRIBER = {{ is_subscriber | tojson }};
 
 function esc(s) {
@@ -292,15 +290,16 @@ function buildActivityItem(ev) {
 }
 
 function loadMapData() {
+  // World rendering is owned by loadArticlesGeo() — bail before fetching so the
+  // 30-min refresh + beat switches never double-build worldLayer from a second
+  // data source (the old renderWorldMap raced loadArticlesGeo → flicker).
+  if (mapMode === 'world') return;
   Promise.all([
     fetch("/static/canada-provinces.geojson").then(function(r){ return r.json(); }),
     fetch("/api/proxy/map-data?beat=" + currentBeat).then(function(r){ return r.json(); })
   ]).then(function(results) {
     var geo = results[0];
     var data = results[1];
-    _lastGeo = geo;
-    _lastMapData = data;
-    if (mapMode === 'world') { renderWorldMap(data); return; }
     var provinces = data.provinces || {};
 
     if (provinceLayer) map.removeLayer(provinceLayer);
@@ -311,7 +310,12 @@ function loadMapData() {
         var name = feature.properties.name || "";
         var pc = PROVINCE_CODES[name] || "";
         var pd = provinces[pc];
-        var colour = pd ? (BIAS_COLOURS[pd.band] || "#9ca3af") : "#1a3a5a";
+        // Province fill = coverage LEAN (ADR-011): continuous avg bias score on
+        // the Canadian party ramp (red left / grey balanced / blue right) — the
+        // same leanColour() as the count circles, grey under LEAN_MIN_N articles.
+        // (The old MODE-band fill rendered ~every province the same 'center'
+        // green; avg_bias is the tech map-data endpoint's continuous mean.)
+        var colour = pd ? leanColour(pd.avg_bias, pd.articles) : "#1a3a5a";
         var opacity = pd ? Math.min(0.3 + pd.articles / 50, 0.85) : 0.15;
         return { fillColor: colour, fillOpacity: opacity, color: "#1a3a5a", weight: 1 };
       },
@@ -322,7 +326,7 @@ function loadMapData() {
         if (pd) {
           layer.bindTooltip(
             "<b>" + esc(name) + "</b><br>" +
-            pd.articles + " stories · " + esc(pd.band) +
+            pd.articles + " stories" + leanLabel(pd.avg_bias, pd.articles) +
             "<br>Top: " + esc(pd.dominant_outlet)
           );
         }
@@ -573,41 +577,8 @@ function loadArticleFeed_country(cc) {
     .catch(function(e) { console.warn('Country feed failed:', e); });
 }
 
-function renderWorldMap(data) {
-  if (worldLayer) map.removeLayer(worldLayer);
-  worldLayer = L.layerGroup();
-
-  // Ottawa pin for national (Canada-wide) articles
-  var natCount = (data.national || {}).articles || 0;
-  if (natCount > 0) {
-    var ottawa = [45.4215, -75.6972];
-    var nr = Math.min(8 + Math.sqrt(natCount) * 0.6, 26);
-    var nc = L.circleMarker(ottawa, {radius:nr, fillColor:'#0af', fillOpacity:0.85, color:'#fff', weight:2});
-    nc.bindTooltip('🍁 NATIONAL \xb7 ' + natCount + ' stories \xb7 Canada-wide');
-    nc.on('click', function() { window.location = '/news'; });
-    worldLayer.addLayer(nc);
-    worldLayer.addLayer(L.marker(ottawa, {
-      icon: L.divIcon({html:"<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;'>"+natCount+"</div>",className:'',iconSize:[30,12],iconAnchor:[15,6]}),
-      interactive: false
-    }));
-  }
-
-  // International country clusters
-  (data.countries || []).forEach(function(cn) {
-    var colour = BIAS_COLOURS[cn.band] || BIAS_COLOURS['center'];
-    var r = Math.min(6 + Math.sqrt(cn.articles) * 1.8, 24);
-    var circle = L.circleMarker([cn.lat, cn.lng], {radius:r, fillColor:colour, fillOpacity:0.8, color:'#fff', weight:1.5});
-    circle.bindTooltip(cn.code + ' \xb7 ' + cn.articles + ' stories \xb7 ' + cn.band);
-    circle.on('click', function() { window.location = '/news?country=' + cn.code; });
-    worldLayer.addLayer(circle);
-    worldLayer.addLayer(L.marker([cn.lat, cn.lng], {
-      icon: L.divIcon({html:"<div style='font-size:9px;font-family:monospace;color:#fff;text-align:center;line-height:1;margin-top:-3px;'>"+cn.articles+"</div>",className:'',iconSize:[20,12],iconAnchor:[10,6]}),
-      interactive: false
-    }));
-  });
-
-  worldLayer.addTo(map);
-}
+// renderWorldMap removed (#4898): world rendering is owned solely by
+// loadArticlesGeo() — the old second builder raced it on worldLayer (flicker).
 
 loadMapData();
 loadAgentActivity();

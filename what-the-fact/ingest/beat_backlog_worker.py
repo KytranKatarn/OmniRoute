@@ -23,8 +23,15 @@ logger = logging.getLogger("wtf-ingest")
 
 _ENABLED = os.environ.get("WTF_BEAT_BACKLOG_ENABLED", "false").lower() == "true"
 _BATCH_SIZE = int(os.environ.get("WTF_BEAT_BACKLOG_BATCH_SIZE", "10"))
-_DISPATCH_SLEEP_SEC = float(os.environ.get("WTF_BEAT_BACKLOG_DISPATCH_SLEEP_SEC", "5"))
-_MAX_PER_RUN = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_PER_RUN", "50"))
+# Throughput fix (audit 2026-07-14, #4897): sleep LOWERED 5s → 2s (faster cadence)
+# and per-run cap RAISED 50 → 150 (more articles per cycle). At the old defaults the
+# worker could tag at most ~110/day against ~1,100 new articles/day, so beat
+# coverage mathematically never caught up (cohorts flat at 8-27%).
+_DISPATCH_SLEEP_SEC = float(os.environ.get("WTF_BEAT_BACKLOG_DISPATCH_SLEEP_SEC", "2"))
+_MAX_PER_RUN = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_PER_RUN", "150"))
+# Bail out of the run after this many CONSECUTIVE dispatch failures (hub down /
+# cold model) instead of terminally poisoning each failed article as 'none'.
+_MAX_CONSEC_FAILURES = int(os.environ.get("WTF_BEAT_BACKLOG_MAX_CONSEC_FAILURES", "5"))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
@@ -81,6 +88,8 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
     processed = 0
     tagged = 0
     rate_limited = 0
+    failed = 0
+    consec_failures = 0
 
     while processed < _MAX_PER_RUN:
         remaining = min(_BATCH_SIZE, _MAX_PER_RUN - processed)
@@ -118,24 +127,44 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
                     beat = (raw.get("beat") or "").strip().lower()
                     if beat not in VALID_BEATS:
                         beat = None
+                # _persist writes the beat, or the terminal 'none' sentinel for a
+                # GENUINE classified-but-no-match — the only case 'none' is correct.
                 _persist(engine, schema, row["id"], beat)
+                consec_failures = 0
                 if beat:
                     tagged += 1
                     logger.debug(
                         "beat_backlog_worker: article %d → %s", row["id"], beat
                     )
                 else:
-                    _persist(engine, schema, row["id"], None)  # saves as 'none'
                     logger.debug(
                         "beat_backlog_worker: article %d → none (no match)", row["id"]
                     )
             else:
-                # Hard failure — mark 'none' so we don't retry endlessly
-                _persist(engine, schema, row["id"], None)
+                # Transient dispatch failure (hub down / cold model / timeout) —
+                # leave the row NULL so it is retried on a later cycle. The old
+                # behaviour terminally marked failures 'none', permanently
+                # mis-filing articles during every dispatch-churn window
+                # (1,547 contaminated in the week of the 2026-07-14 audit).
+                failed += 1
+                consec_failures += 1
                 logger.debug(
-                    "beat_backlog_worker: article %d dispatch failed — marking none",
+                    "beat_backlog_worker: article %d dispatch failed — will retry",
                     row["id"],
                 )
+                if consec_failures >= _MAX_CONSEC_FAILURES:
+                    logger.warning(
+                        "beat_backlog_worker: %d consecutive failures — yielding "
+                        "this cycle (processed=%d tagged=%d failed=%d)",
+                        consec_failures, processed, tagged, failed,
+                    )
+                    return {
+                        "processed": processed,
+                        "tagged": tagged,
+                        "failed": failed,
+                        "rate_limited": rate_limited,
+                        "stopped": "consecutive_failures",
+                    }
 
             processed += 1
             time.sleep(_DISPATCH_SLEEP_SEC)

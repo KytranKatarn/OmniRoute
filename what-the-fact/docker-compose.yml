@@ -27,6 +27,11 @@ services:
       WTF_FACTCHECK_BACKLOG_ENABLED: "true"
       WTF_FACTCHECK_BACKLOG_MAX_RUNS_PER_NIGHT: "5000"
       WTF_FACTCHECK_BACKLOG_CONCURRENCY: "4"
+      # Beat classifier — coverage fix (audit 2026-07-14, #4897): at the old 50/run
+      # + 5s sleep defaults the worker tagged ~110/day vs ~1,100 new articles/day.
+      WTF_BEAT_BACKLOG_ENABLED: "true"
+      WTF_BEAT_BACKLOG_MAX_PER_RUN: "200"
+      WTF_BEAT_BACKLOG_DISPATCH_SLEEP_SEC: "1"
   wtf-consumer:
     build:
       context: .

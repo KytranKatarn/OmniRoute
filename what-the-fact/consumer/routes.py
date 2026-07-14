@@ -303,7 +303,7 @@ def join():
     S = _schema()
     with _db().begin() as c:
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
         total_articles = c.execute(
             text(f"SELECT COUNT(*) FROM {S}.articles")
@@ -384,7 +384,7 @@ def news():
 
     with _db().begin() as c:
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
         params = {}
         where_clauses = []
@@ -622,7 +622,7 @@ def activity():
 
     with _db().begin() as c:
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
         stats = c.execute(text(f"""
             SELECT
@@ -927,7 +927,7 @@ def team():
     S = _schema()
     with _db().begin() as c:
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
     portrait_lookup = _get_portrait_lookup()
     welfare_lookup = _get_welfare_lookup()
@@ -954,7 +954,7 @@ def cost_of_parliament():
     S = _schema()
     with _db().begin() as c:
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
     return render_template("cost.html", source_count=source_count,
                            is_subscriber=is_subscriber())
@@ -986,7 +986,7 @@ def index():
             ORDER BY a.published_at DESC LIMIT 50
         """)).mappings().all()
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
     return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url,
                            source_count=source_count, is_subscriber=is_subscriber())
@@ -1036,9 +1036,25 @@ def creed_badge():
         return Response(_CREED_FALLBACK_SVG, content_type="image/svg+xml")
 
 
-_VALID_BEATS = {"all","sports","healthcare","climate","crime","parliament","business","economy",
-                "municipal","transit","sci-tech","arts","education","indigenous","foreign",
-                "justice","immigration","housing","labour"}
+# Canonical beats — single source of truth is VALID_BEATS (defined above). The old
+# private copy here DRIFTED (transit/sci-tech/arts/foreign are not the stored beat
+# names), so those categories silently returned 0 rows. Legacy aliases are mapped to
+# canonical instead of rejected. (WTF audit 2026-07-14, #4895)
+_BEAT_ALIASES = {"transit": "transportation", "sci-tech": "science-tech",
+                 "arts": "arts-culture", "foreign": "foreign-policy"}
+_VALID_BEATS = set(VALID_BEATS)
+
+
+def _norm_beat(beat: str) -> str:
+    """Map legacy beat aliases to canonical names; unknown values → 'all'."""
+    beat = _BEAT_ALIASES.get(beat, beat)
+    return beat if beat in _VALID_BEATS else "all"
+
+
+# The 13 real province/territory codes — the geocoder occasionally misfires
+# (KY/US/TX/'11' seen live); aggregates must not leak junk codes. (#4895)
+_PROVINCE_CODES = ("AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT")
+_PROVINCE_SQL_LIST = "('" + "','".join(_PROVINCE_CODES) + "')"
 _VALID_SCOPES = {"all","national","provincial","international"}
 
 
@@ -1046,8 +1062,7 @@ _VALID_SCOPES = {"all","national","provincial","international"}
 def proxy_map_data():
     beat = request.args.get("beat", "all")
     scope = request.args.get("scope", "all")
-    if beat not in _VALID_BEATS:
-        beat = "all"
+    beat = _norm_beat(beat)
     if scope not in _VALID_SCOPES:
         scope = "all"
     return _proxy_tech("/api/v1/map-data?" + urllib.parse.urlencode({"beat": beat, "scope": scope}))
@@ -1061,8 +1076,7 @@ def proxy_agent_activity():
 @bp.get("/api/proxy/articles/geo")
 def proxy_articles_geo():
     beat = request.args.get("beat", "all")
-    if beat not in _VALID_BEATS:
-        beat = "all"
+    beat = _norm_beat(beat)
     province = (request.args.get("province") or "").strip().upper()[:2]
     scope = (request.args.get("scope") or "canada").strip()[:10]
     S = _schema()
@@ -1097,7 +1111,7 @@ def proxy_articles_geo():
             } for r in agg_rows}
         else:
             # Province aggregate for Canada mode
-            prov_where = ["a.province_code IS NOT NULL", "a.lat IS NOT NULL"]
+            prov_where = [f"a.province_code IN {_PROVINCE_SQL_LIST}", "a.lat IS NOT NULL"]
             if beat and beat != "all":
                 prov_where.append("a.beat = :beat")
             if province:
@@ -1755,7 +1769,7 @@ def cluster_comparison(cluster_id: int):
         cluster_summary = dict(summary_row) if summary_row else None
 
         source_count = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
         distinct_source_count = len({a["source_name"] for a in articles})
 
@@ -1979,7 +1993,7 @@ def crtc_decisions():
         """.format("WHERE decision_type = :dtype" if dtype != "all" else "")
         params = {"dtype": dtype} if dtype != "all" else {}
         rows = c.execute(text(query), params).mappings().all()
-        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
 
         # Ownership concentration data for the CRTC panel
         owner_rows = c.execute(text(f"""
@@ -2115,7 +2129,7 @@ def owners_listing():
             SELECT COUNT(*) FROM {S}.sources WHERE owner_name IS NULL
         """)).scalar() or 0
 
-        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
 
     owners = [dict(r) for r in owner_rows]
     return render_template("owners.html", owners=owners, unattributed=unattributed,
@@ -2150,7 +2164,7 @@ def mps_listing():
         provinces = c.execute(text(
             "SELECT DISTINCT province_code FROM parliament.mps WHERE is_current=true AND province_code IS NOT NULL ORDER BY province_code"
         )).scalars().all()
-        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
         senators = c.execute(text("""
             SELECT slug, name, given_name, family_name, caucus, province, photo_url, profile_url, appointed_at
             FROM parliament.senators WHERE is_current = true ORDER BY caucus, name
@@ -2300,7 +2314,7 @@ def mp_profile(slug: str):
             LIMIT 15
         """), {"mp_id": mp["id"]}).mappings().all()
 
-        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
 
     stats = {r["ballot"]: r["cnt"] for r in vote_stats}
     total_votes = sum(stats.values())
@@ -2706,12 +2720,16 @@ def score_url():
     """Subscriber-gated: paste any article text for instant AI analysis."""
     from flask import request as _req, redirect
     subscribed = is_subscriber()
-    if not _user_email():
-        return redirect("/login?next=/score")
+    # GET renders publicly (score.html shows the Subscribe CTA when not subscribed) —
+    # the old top-of-route login bounce sent anonymous visitors straight to the
+    # platform SSO ("A.R.C.H.I.E. — System Access"), a dead end + internal-branding
+    # leak for a public nav item. Only the POST (actual analysis) is gated. (#4895)
     result = None
     error = None
     article_text = ""
     if _req.method == "POST":
+        if not _user_email():
+            return redirect("/login?next=/score")
         if not subscribed:
             return redirect("/join?gated=score")
         article_text = (_req.form.get("text") or "").strip()[:5000]
@@ -2739,7 +2757,7 @@ def score_url():
     source_count = 0
     try:
         with _db().begin() as c:
-            source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+            source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
     except Exception:
         pass
     return render_template("score.html", subscribed=subscribed, result=result,
@@ -2755,7 +2773,7 @@ def search():
     results = []
     if q:
         with _db().begin() as c:
-            source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
+            source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
             rows = c.execute(text(f"""
                 SELECT a.id, a.title, a.url, a.published_at,
                        s.name AS source, s.slug AS source_slug, b.band,
@@ -3056,8 +3074,7 @@ def api_v1_articles():
     country = (_req.args.get("country") or "").strip().upper()[:2]
     since = (_req.args.get("since") or "").strip()[:25]  # ISO 8601 stub
     beat = (_req.args.get("beat") or "all").strip()[:20]
-    if beat not in _VALID_BEATS:
-        beat = "all"
+    beat = _norm_beat(beat)
     try:
         limit = min(100, max(1, int(_req.args.get("limit", 50))))
         offset = max(0, int(_req.args.get("offset", 0)))
@@ -3991,7 +4008,7 @@ def edu_api_stats():
     S = _schema()
     with _db().begin() as c:
         total_sources = c.execute(
-            text(f"SELECT COUNT(*) FROM {S}.sources")
+            text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
 
         total_articles = c.execute(

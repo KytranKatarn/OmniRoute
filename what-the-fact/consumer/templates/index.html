@@ -372,11 +372,31 @@ var PROVINCE_CENTROIDS = {
   "NB":[46.57,-66.46],"NS":[44.68,-63.74],"NL":[53.14,-57.66],
   "PE":[46.51,-63.42],"YT":[64.28,-135.00],"NT":[64.28,-119.18],"NU":[70.30,-83.11]
 };
-var PROVINCE_COLOURS = {
-  "ON":"#0af","QC":"#a78bfa","AB":"#f59e0b","BC":"#4ade80",
-  "SK":"#34d399","MB":"#60a5fa","NS":"#f97316","NB":"#f97316",
-  "NL":"#94a3b8","PE":"#94a3b8","YT":"#94a3b8","NT":"#94a3b8","NU":"#94a3b8"
-};
+// Province LEAN colouring (ADR-011) — CANADIAN political colour semantics:
+// red = coverage leans LEFT (Liberal red), blue = leans RIGHT (Conservative blue).
+// Continuous ramp on the province's average bias score, anchored at the NATIONAL
+// mean (the corpus reads centre-heavy; anchoring at absolute 0 would render one
+// colour everywhere). Provinces with fewer than LEAN_MIN_N articles show neutral
+// grey ("insufficient data") so low-n noise never paints a province.
+var LEAN_MIN_N = 20;
+var LEAN_ANCHOR = -0.028;   // national mean of avg bias score
+var LEAN_SPREAD = 0.06;     // score delta from the anchor that saturates the ramp
+function leanColour(avgScore, count) {
+  if (avgScore === null || avgScore === undefined || count < LEAN_MIN_N) return "#9ca3af";
+  var t = Math.max(-1, Math.min(1, (avgScore - LEAN_ANCHOR) / LEAN_SPREAD));
+  // Interpolate neutral #94a3b8 → left-red #dc2626 (t<0) or right-blue #2563eb (t>0)
+  var k = Math.abs(t), r, g, b;
+  if (t < 0) { r = Math.round(148 + k * (220 - 148)); g = Math.round(163 - k * (163 - 38)); b = Math.round(184 - k * (184 - 38)); }
+  else       { r = Math.round(148 - k * (148 - 37));  g = Math.round(163 - k * (163 - 99)); b = Math.round(184 + k * (235 - 184)); }
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+function leanLabel(avgScore, count) {
+  if (avgScore === null || avgScore === undefined || count < LEAN_MIN_N) return " · lean: insufficient data";
+  var d = avgScore - LEAN_ANCHOR;
+  if (d < -0.015) return " · coverage leans left";
+  if (d > 0.015) return " · coverage leans right";
+  return " · balanced coverage";
+}
 
 function loadArticlesGeo() {
   var _scope = (mapMode === 'world') ? 'world' : 'canada';
@@ -427,12 +447,13 @@ function loadArticlesGeo() {
           var pcData = aggregateCounts[pc];
           var count = typeof pcData === 'object' ? pcData.count : pcData;
           var radius = Math.min(6 + Math.sqrt(count) * 1.5, 20);
-          var colour = PROVINCE_COLOURS[pc] || "#9ca3af";
+          var avgScore = (typeof pcData === 'object' && pcData.avg_score !== undefined) ? pcData.avg_score : null;
+          var colour = leanColour(avgScore, count);   // bias-lean ramp (ADR-011)
           var circle = L.circleMarker(centroid, {
             pane: 'clusterPane', radius: radius,
             fillColor: colour, fillOpacity: 0.85, color: "#ffffff", weight: 1.5,
           });
-          circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories");
+          circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories" + leanLabel(avgScore, count));
           var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
           var cpopup =
             "<div style='font-family:monospace;font-size:13px;color:#fff;text-align:center;'>" +
@@ -452,6 +473,22 @@ function loadArticlesGeo() {
           }));
         });
         clusterLayer.addTo(map);
+        // Lean legend — created once, bottom-left of the map (ADR-011)
+        if (!window._leanLegend) {
+          window._leanLegend = L.control({ position: "bottomleft" });
+          window._leanLegend.onAdd = function () {
+            var div = L.DomUtil.create("div");
+            div.style.cssText = "background:#0a1520cc;border:1px solid #1a3a5a;border-radius:3px;padding:4px 8px;font-family:monospace;font-size:9px;letter-spacing:0.5px;color:#9ca3af;";
+            div.innerHTML =
+              "COVERAGE LEAN&nbsp; " +
+              "<span style='color:#dc2626;'>&#9679;</span> left &nbsp;" +
+              "<span style='color:#94a3b8;'>&#9679;</span> balanced &nbsp;" +
+              "<span style='color:#2563eb;'>&#9679;</span> right &nbsp;" +
+              "<span style='color:#6b7280;'>(Canadian party colours &middot; grey = &lt;" + LEAN_MIN_N + " articles)</span>";
+            return div;
+          };
+          window._leanLegend.addTo(map);
+        }
       }
 
       // Layer 3: Individual bias pins (hidden at zoom < 5)

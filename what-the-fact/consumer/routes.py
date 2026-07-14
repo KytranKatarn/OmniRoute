@@ -1116,15 +1116,28 @@ def proxy_articles_geo():
                 prov_where.append("a.beat = :beat")
             if province:
                 prov_where.append("a.province_code = :province")
+            # SQL-injection safety: every f-string interpolation here is a static,
+            # server-controlled literal — {S} is the env-configured schema name,
+            # prov_where contains only the hardcoded _PROVINCE_SQL_LIST plus
+            # ":beat"/":province" PLACEHOLDERS (their user-supplied values are bound
+            # via `params`, never interpolated).
             prov_rows = c.execute(text(f"""
                 SELECT a.province_code, COUNT(*) AS cnt,
-                       MODE() WITHIN GROUP (ORDER BY b.band) AS dominant_band
+                       MODE() WITHIN GROUP (ORDER BY b.band) AS dominant_band,
+                       AVG(b.score) AS avg_score
                 FROM {S}.articles a
                 LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
                 WHERE {' AND '.join(prov_where)}
                 GROUP BY a.province_code
             """), params).mappings().all()
-            province_counts = {r["province_code"]: {"count": r["cnt"], "band": r["dominant_band"]} for r in prov_rows}
+            # avg_score powers the province LEAN colouring (ADR-011): a continuous
+            # average is required because MODE(band) is 'center' for every province
+            # (92.9% of bias rows) — categorical colouring would be monochrome.
+            province_counts = {r["province_code"]: {
+                "count": r["cnt"],
+                "band": r["dominant_band"],
+                "avg_score": float(r["avg_score"]) if r["avg_score"] is not None else None,
+            } for r in prov_rows}
 
         # Individual pins (limited for performance)
         pin_rows = c.execute(text(f"""

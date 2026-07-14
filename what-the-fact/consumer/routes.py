@@ -2659,6 +2659,43 @@ def cross_watch_explorer():
                            source_count=source_count, is_subscriber=is_subscriber())
 
 
+@bp.get("/markets")
+def markets_page():
+    """Publicly traded federal contractors (#373 Contract->Market, chain link L6) — a
+    browsable, menu-visible ranked list of the TSX-listed companies that are also federal
+    contractors, by cumulative federal-contract $. Public (like the per-entity market
+    block). Each row links to that company's /entity/<id> Cross-Watch footprint. Picks,
+    per issuer, the most-connected linked entity so the link lands on a rich page."""
+    S = _schema()
+    SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+    with _db().begin() as c:
+        source_count = c.execute(text(f"SELECT count(*) FROM {S}.sources")).scalar() or 0
+        rows = c.execute(text(f"""
+            SELECT ic.ticker, ic.name, ic.exchange, ic.total, ic.n, ic.jv, link.entity_id
+            FROM securities.issuer_contracts ic
+            JOIN {SH}.entities s
+                 ON s.slug LIKE 'security-%'
+                AND upper(replace(s.slug, 'security-', '')) = upper(ic.ticker)
+            JOIN LATERAL (
+                SELECT r.from_entity_id AS entity_id
+                FROM {SH}.entity_relationships r
+                WHERE r.to_entity_id = s.id AND r.relationship_type = 'market_reaction_to'
+                ORDER BY (SELECT count(*) FROM {SH}.entity_relationships rr
+                          WHERE rr.from_entity_id = r.from_entity_id
+                             OR rr.to_entity_id = r.from_entity_id) DESC, r.from_entity_id
+                LIMIT 1
+            ) link ON true
+            WHERE ic.total > 0
+            ORDER BY ic.total DESC
+        """)).mappings().all()
+    issuers = [{"ticker": r["ticker"], "name": r["name"], "exchange": r["exchange"],
+                "total": int(r["total"] or 0), "n": int(r["n"] or 0), "jv": bool(r["jv"]),
+                "entity_id": r["entity_id"]} for r in rows]
+    total_all = sum(i["total"] for i in issuers)
+    return render_template("markets.html", issuers=issuers, total_all=total_all,
+                           source_count=source_count, is_subscriber=is_subscriber())
+
+
 @bp.route("/score", methods=["GET", "POST"])
 def score_url():
     """Subscriber-gated: paste any article text for instant AI analysis."""

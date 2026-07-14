@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Publicly traded federal contractors · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="TSX-listed companies that are also federal contractors, ranked by cumulative federal-contract dollars — where public money meets the markets. Approximate & partial, via Gov Watch open procurement data.">
+{% endblock %}
+{% block content %}
+<style>
+.mk-intro { font-size:11px; color:#6b7280; line-height:1.7; max-width:640px; margin-bottom:14px; }
+.mk-total { font-size:11px; color:#f59e0b; letter-spacing:.04em; margin-bottom:16px; }
+.mk-row { display:flex; align-items:center; gap:12px; padding:11px 13px; margin-bottom:8px;
+          background:#0d1117; border:1px solid #0d1f2d; border-left:3px solid #f59e0b;
+          border-radius:8px; text-decoration:none; }
+.mk-row:hover { border-color:#1e3a52; border-left-color:#fbbf24; }
+.mk-rank { font-family:'Orbitron',sans-serif; font-size:13px; color:#4b5563; min-width:26px; text-align:right; }
+.mk-name { flex:1; min-width:0; }
+.mk-name-main { font-size:14px; color:#e5e7eb; }
+.mk-jv { font-size:9px; color:#6b7280; }
+.mk-ticker { font-size:11px; color:#38bdf8; margin-top:2px; font-family:'IBM Plex Mono',monospace; }
+.mk-fig { text-align:right; white-space:nowrap; }
+.mk-num { font-size:15px; color:#f59e0b; font-weight:700; }
+.mk-awards { font-size:10px; color:#4b5563; }
+.mk-note { font-size:9px; color:#374151; margin-top:18px; line-height:1.6; max-width:680px; }
+</style>
+
+<div style="font-size:10px;color:#4b5563;letter-spacing:1px;text-transform:uppercase;margin:16px 0 6px;">📈 Shared Entity Graph · Cross-Watch</div>
+<h1 style="font-family:'Orbitron',sans-serif;font-size:18px;color:#e5e7eb;margin:0 0 6px;">📈 Publicly traded federal contractors</h1>
+<p class="mk-intro">
+  TSX-listed companies that are also federal contractors — ranked by the cumulative value of federal
+  contracts they've won. Where public money meets the markets. Open any company for its full
+  Cross-Watch accountability footprint.
+</p>
+<div class="mk-total">{{ issuers|length }} companies · ${{ '{:,}'.format(total_all) }} in federal contracts (approximate &amp; partial)</div>
+
+{% if issuers %}
+<div>
+  {% for i in issuers %}
+  <a class="mk-row" href="/entity/{{ i.entity_id }}">
+    <span class="mk-rank">{{ loop.index }}</span>
+    <span class="mk-name">
+      <div class="mk-name-main">{{ i.name }}{% if i.jv %} <span class="mk-jv">· incl. JV it leads (upper bound)</span>{% endif %}</div>
+      <div class="mk-ticker">{{ i.exchange }}:{{ i.ticker }}</div>
+    </span>
+    <span class="mk-fig">
+      <div class="mk-num">${{ '{:,}'.format(i.total) }}</div>
+      <div class="mk-awards">{{ i.n }} award{{ '' if i.n == 1 else 's' }}</div>
+    </span>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div style="color:#6b7280;font-size:12px;padding:24px 0;">No publicly-traded contractors resolved yet.</div>
+{% endif %}
+
+<div class="mk-note">
+  Each figure is the cumulative value of federal contracts won by the company — and, where it leads a
+  joint venture, that JV (so the total is an upper bound) — matched from CanadaBuys open procurement
+  data via Gov Watch. Curated to named corporate entities: approximate &amp; partial, not exhaustive.
+  Not investment advice.
+</div>
+{% endblock %}

@@ -128,12 +128,14 @@ def _wtf_ingest_details() -> str:
 
         import psycopg2
 
+        from database import _get_db_password
+
         conn = psycopg2.connect(
             host=os.getenv("DB_HOST", "192.168.1.200"),
             port=int(os.getenv("DB_PORT", "5432")),
             dbname="wtf",
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),  # DB_PASSWORD is a Docker secret, not an env var
             connect_timeout=8,
         )
         try:

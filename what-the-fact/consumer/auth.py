@@ -20,7 +20,12 @@ _CLIENT_ID = os.environ.get("WTF_CLIENT_ID", "wtf-consumer")
 _CLIENT_SECRET = os.environ.get("WTF_CLIENT_SECRET", "")
 # Explicit default prevents http:// mismatches when Flask runs behind Caddy proxy.
 _CALLBACK_URL = os.environ.get("WTF_CALLBACK_URL", "https://what-the-fact.com/auth/callback")
-_SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business", "kytran", "owner", "admin"}
+# Canonical subscribed-tier set — shared single source of truth (tiers.py).
+# The old private copy here omitted solo/team/agency → paying subscribers paywalled.
+try:
+    from .tiers import SUBSCRIBED_TIERS as _SUBSCRIBED_TIERS
+except ImportError:  # script-style import (gunicorn runs the package flat)
+    from tiers import SUBSCRIBED_TIERS as _SUBSCRIBED_TIERS
 
 
 def is_subscriber() -> bool:

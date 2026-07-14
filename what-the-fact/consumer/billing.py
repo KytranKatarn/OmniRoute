@@ -1,4 +1,4 @@
-"""WTF Consumer Stripe billing — Starter $19/mo CAD."""
+"""WTF Consumer Stripe billing — Starter subscription (price set by WTF_STRIPE_PRICE_STARTER; $4.99/mo CAD as of 2026-07)."""
 import logging
 import os
 
@@ -13,7 +13,11 @@ _WEBHOOK_SECRET = os.environ.get("WTF_STRIPE_WEBHOOK_SECRET", "")
 _APP_URL = os.environ.get("WTF_APP_URL", "https://what-the-fact.com")
 _PRICE_STARTER = os.environ.get("WTF_STRIPE_PRICE_STARTER", "")
 
-_SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business", "kytran", "owner", "admin"}
+# Canonical subscribed-tier set — shared single source of truth (tiers.py).
+try:
+    from .tiers import SUBSCRIBED_TIERS as _SUBSCRIBED_TIERS
+except ImportError:  # script-style import (gunicorn runs the package flat)
+    from tiers import SUBSCRIBED_TIERS as _SUBSCRIBED_TIERS
 
 
 def _get_beat_price_id(beat_slug: str) -> str:

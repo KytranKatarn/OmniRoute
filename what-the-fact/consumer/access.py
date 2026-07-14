@@ -21,7 +21,12 @@ from flask import redirect, request, session
 
 logger = logging.getLogger(__name__)
 
-_SUBSCRIBED_TIERS = {"starter", "professional", "enterprise", "vip", "pro", "business"}
+# Canonical subscribed-tier set — shared single source of truth (tiers.py).
+# The old private copy here also omitted kytran/owner/admin (the owner got gated).
+try:
+    from .tiers import SUBSCRIBED_TIERS as _SUBSCRIBED_TIERS
+except ImportError:  # script-style import (gunicorn runs the package flat)
+    from tiers import SUBSCRIBED_TIERS as _SUBSCRIBED_TIERS
 
 _PLATFORM = os.environ.get("WTF_PLATFORM_URL", "https://platform.kytranempowerment.com")
 _INTERNAL_KEY = os.environ.get("ARCHIE_INTERNAL_KEY", "")

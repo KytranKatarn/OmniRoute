@@ -671,9 +671,10 @@ function loadArticleFeed() {
         // /news and the article page.
         if (a.overall_verdict) {
           var v = a.overall_verdict;
+          // descriptive_reporting deliberately absent: it means "no checkable
+          // claims", not "established" — no chip is the honest rendering.
           var vEst = ['verified', 'mostly_true', 'true', 'verified_facts',
-                      'factual_reporting', 'factual_statements',
-                      'descriptive_reporting'].indexOf(v) !== -1;
+                      'factual_reporting', 'factual_statements'].indexOf(v) !== -1;
           if (vEst || v === 'mixed' || v === 'disputed') {
             var vc = vEst ? '#4ade80' : v === 'mixed' ? '#fbbf24' : '#f87171';
             var vl = vEst ? '✓ Established' : v === 'mixed' ? '⚡ Developing' : '⚠ Contested';

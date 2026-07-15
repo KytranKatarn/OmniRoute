@@ -5,7 +5,35 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
+
+
+def _parse_llm_json(text: str) -> dict:
+    """Parse a model's JSON response, tolerating markdown code fences and
+    surrounding prose. Local models frequently wrap output in ```json fences
+    despite 'Return ONLY valid JSON' — a bare json.loads then fails and the
+    verdict is lost as {'raw': ...} (756 null verdicts/7d before this fix).
+    Raises ValueError when no JSON object can be extracted."""
+    text = (text or "").strip()
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    # The regex only LOCATES a fenced block — json.loads still does the actual
+    # parsing, so malformed content inside a fence raises like any bad JSON.
+    # Unexpected shapes that defeat this layer fall through to the outermost-
+    # brace slice below, and a total miss raises — which the call sites catch
+    # and degrade to {'raw': ...}, i.e. the exact pre-fix behaviour. Brittleness
+    # is bounded: this function can only ever RECOVER verdicts, never lose one.
+    fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.S)
+    if fence:
+        return json.loads(fence.group(1))
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        return json.loads(text[start : end + 1])
+    raise ValueError("no JSON object found in model response")
+
 
 from flask import jsonify, render_template, render_template_string, request
 from flask_login import login_required
@@ -260,7 +288,7 @@ def analyze():
         )
         if result.success:
             try:
-                parsed = json.loads(result.response)
+                parsed = _parse_llm_json(result.response)
             except Exception:
                 parsed = {"raw": result.response}
             return jsonify({"ok": True, "result": parsed, "agent": agent_names[task]})
@@ -450,7 +478,7 @@ def analyze_quick():
             )
 
         try:
-            parsed = json.loads(result.response)
+            parsed = _parse_llm_json(result.response)
         except Exception:
             parsed = {"raw": result.response}
 

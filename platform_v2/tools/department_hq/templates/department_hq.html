@@ -1381,16 +1381,54 @@ function _renderApprovalCard(a) {
     card.appendChild(details);
 
     // ---- Hire source: render expandable shortlist picker ----
-    var hireState = { chosenAgentId: null };
+    var hireState = { chosenAgentId: null, newAgent: null };
     if (a.category === 'hiring' && a.payload && Array.isArray(a.payload.shortlist)) {
         var shortlistBox = document.createElement('div');
         shortlistBox.style.cssText = 'background:rgba(192,132,252,0.08);border:1px solid rgba(192,132,252,0.2);padding:8px 12px;border-radius:4px;margin-bottom:12px';
         var slHeader = document.createElement('div');
         slHeader.style.cssText = 'font-size:0.7rem;color:#c084fc;font-weight:bold;margin-bottom:6px;letter-spacing:0.05em';
-        slHeader.textContent = 'RECOMMENDED CANDIDATES \u2014 PICK ONE';
+        var _isNetNew = a.payload.shortlist.some(function(c) { return c.type === 'new_hire' || c.agent_id == null; });
+        slHeader.textContent = _isNetNew ? 'NO EXISTING SPECIALIST \u2014 CREATE A NEW AGENT' : 'RECOMMENDED CANDIDATES \u2014 PICK ONE';
         shortlistBox.appendChild(slHeader);
 
         a.payload.shortlist.forEach(function(cand, idx) {
+            // Net-new entry: no existing agent to reactivate \u2014 render a small
+            // create form (name + model) instead of a pick-one radio.
+            if (cand.type === 'new_hire' || cand.agent_id == null) {
+                var cap = cand.capability || (a.payload && a.payload.capability) || '';
+                var defaultModel = /(_quick)$/.test(cap) ? 'qwen2.5:1.5b' : 'qwen2.5:7b';
+                hireState.newAgent = { name: '', model: defaultModel, capability: cap };
+
+                var form = document.createElement('div');
+                form.style.cssText = 'display:flex;flex-direction:column;gap:6px;padding:4px 2px';
+
+                var nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.placeholder = 'New agent name (e.g. V.E.R.I.F.Y.)';
+                nameInput.style.cssText = 'background:#0a0f1a;border:1px solid rgba(192,132,252,0.3);color:#e2e8f0;font-size:0.8rem;padding:6px 8px;border-radius:3px';
+                nameInput.oninput = function() { hireState.newAgent.name = nameInput.value.trim(); };
+
+                var modelSel = document.createElement('select');
+                modelSel.style.cssText = 'background:#0a0f1a;border:1px solid rgba(192,132,252,0.3);color:#e2e8f0;font-size:0.8rem;padding:6px 8px;border-radius:3px';
+                ['qwen2.5:1.5b','llama3.2:3b','qwen2.5:7b','mistral:7b'].forEach(function(m) {
+                    var opt = document.createElement('option');
+                    opt.value = m; opt.textContent = m;
+                    if (m === defaultModel) opt.selected = true;
+                    modelSel.appendChild(opt);
+                });
+                modelSel.onchange = function() { hireState.newAgent.model = modelSel.value; };
+
+                var hint = document.createElement('div');
+                hint.style.cssText = 'color:#94a3b8;font-size:0.72rem';
+                hint.textContent = (cand.note || 'Net-new agent') + (cap ? ' \u00b7 skill: ' + cap : '');
+
+                form.appendChild(nameInput);
+                form.appendChild(modelSel);
+                form.appendChild(hint);
+                shortlistBox.appendChild(form);
+                return;
+            }
+
             var row = document.createElement('label');
             row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;border-radius:3px';
             var radio = document.createElement('input');
@@ -1445,7 +1483,7 @@ function _renderApprovalCard(a) {
     if (a.category === 'hiring') {
         approveBtn.textContent = 'Approve Selected';
         (function(capturedHireState) {
-            approveBtn.onclick = function() { _dhqApproveHire(a.id, capturedHireState.chosenAgentId, approveBtn); };
+            approveBtn.onclick = function() { _dhqApproveHire(a.id, capturedHireState, approveBtn); };
         })(hireState);
     } else {
         approveBtn.onclick = function() { _dhqApproveApproval(a.id, approveBtn); };
@@ -1666,23 +1704,46 @@ async function _dhqDenyApproval(approvalId, btn) {
     }
 }
 
-async function _dhqApproveHire(approvalId, chosenAgentId, btn) {
-    if (!chosenAgentId) {
-        await _dhqLcarsModal({
-            title: 'NO CANDIDATE SELECTED',
-            message: 'Pick a candidate from the shortlist before approving.',
-            accent: '#ef4444',
-            rgb: '239,68,68',
-            cancelLabel: false
-        });
-        return;
+async function _dhqApproveHire(approvalId, hireState, btn) {
+    hireState = hireState || {};
+    var isNetNew = !!hireState.newAgent;
+    var body, confirmTitle, confirmMsg, okLabel, doneLabel;
+    if (isNetNew) {
+        var na = hireState.newAgent;
+        if (!na.name) {
+            await _dhqLcarsModal({
+                title: 'NAME REQUIRED',
+                message: 'Enter a name for the new agent before approving.',
+                accent: '#ef4444', rgb: '239,68,68', cancelLabel: false
+            });
+            return;
+        }
+        body = { new_agent: { name: na.name, model: na.model }, notes: '' };
+        confirmTitle = 'CREATE NEW AGENT';
+        confirmMsg = 'Create and activate a brand-new agent "' + na.name + '" (' + na.model + ') for this capability?\n\nA model-availability pre-check runs before creation.';
+        okLabel = 'Create & Hire';
+        doneLabel = 'Hired \u2713';
+    } else {
+        if (!hireState.chosenAgentId) {
+            await _dhqLcarsModal({
+                title: 'NO CANDIDATE SELECTED',
+                message: 'Pick a candidate from the shortlist before approving.',
+                accent: '#ef4444', rgb: '239,68,68', cancelLabel: false
+            });
+            return;
+        }
+        body = { chosen_agent_id: Number(hireState.chosenAgentId), notes: '' };
+        confirmTitle = 'REACTIVATE AGENT';
+        confirmMsg = 'Approve reactivation of agent #' + hireState.chosenAgentId + ' for this capability?\n\nA model-availability pre-check runs before the shift transition.';
+        okLabel = 'Reactivate';
+        doneLabel = 'Reactivated \u2713';
     }
     var ok = await _dhqLcarsModal({
-        title: 'REACTIVATE AGENT',
-        message: 'Approve reactivation of agent #' + chosenAgentId + ' for this capability?\n\nA model-availability pre-check runs before the shift transition.',
+        title: confirmTitle,
+        message: confirmMsg,
         accent: '#c084fc',
         rgb: '192,132,252',
-        okLabel: 'Reactivate'
+        okLabel: okLabel
     });
     if (!ok) return;
 
@@ -1699,11 +1760,11 @@ async function _dhqApproveHire(approvalId, chosenAgentId, btn) {
         var resp = await fetch('/tools/department-hq/api/approvals/hire/' + hireId + '/approve', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ chosen_agent_id: Number(chosenAgentId), notes: '' })
+            body: JSON.stringify(body)
         });
         var data = await resp.json();
         if (resp.ok && data.ok) {
-            btn.textContent = 'Reactivated \u2713';
+            btn.textContent = doneLabel;
             setTimeout(loadDhqApprovals, 1500);
         } else {
             btn.textContent = 'Failed';

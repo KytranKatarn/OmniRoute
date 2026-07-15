@@ -171,20 +171,155 @@ def _audit(
         logger.warning("governance_audit_log write failed: %s", e)
 
 
+def _department_for_capability(capability: str) -> str:
+    """Resolve a capability to its home department (CAPABILITY_DEPARTMENT_MAP,
+    the authoritative map). Defaults to Engineering & Technology, matching the
+    dispatcher's own fallback. Lazy import avoids a boot-time cycle."""
+    try:
+        from tools.department_hq.services.department_coordinator import (
+            CAPABILITY_DEPARTMENT_MAP,
+        )
+
+        return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
+    except Exception:
+        return "Engineering & Technology"
+
+
+def _create_new_hire(
+    cur,
+    *,
+    hire_id: int,
+    capability: str,
+    gap_reason: str,
+    new_agent: dict[str, Any],
+    decided_by_user_id: int,
+    notes: str,
+) -> dict[str, Any]:
+    """Net-new branch of approve_candidate: create a brand-new agent for a
+    `type:new_hire` shortlist entry (no existing agent to reactivate) using the
+    agent_service single-writer primitives, grant the capability skill (so the
+    agent is actually dispatchable), seed its budget, then mark the candidate
+    approved. `cur` is the caller's open (commit=True) cursor."""
+    name = (new_agent.get("name") or "").strip()
+    if not name:
+        return {"ok": False, "reason": "name_required", "agent_id": None}
+    model = (new_agent.get("model") or "").strip()
+    if not model:
+        return {"ok": False, "reason": "model_required", "agent_id": None}
+    display_name = (new_agent.get("display_name") or "").strip() or (
+        f"{capability.replace('_', ' ').title()} Specialist"
+    )
+    department = _department_for_capability(capability)
+
+    # Model must actually be servable (same precheck as reactivation).
+    ok, msg = _verify_model_available(model)
+    if not ok:
+        cur.execute(
+            "UPDATE hiring_candidates SET precheck_status = %s, precheck_message = %s "
+            "WHERE id = %s AND status = 'pending'",
+            (
+                "model_missing" if "not present" in msg.lower() else "ollama_unreachable",
+                msg,
+                hire_id,
+            ),
+        )
+        return {"ok": False, "reason": "model_missing", "agent_id": None, "message": msg}
+
+    # Name-collision guard across every shift_state (mirrors propose_hire).
+    cur.execute("SELECT id, shift_state FROM agents WHERE name = %s LIMIT 1", (name,))
+    existing = cur.fetchone()
+    if existing:
+        eid = existing["id"] if isinstance(existing, dict) else existing[0]
+        return {
+            "ok": False,
+            "reason": "name_exists",
+            "agent_id": None,
+            "message": f"Agent name {name!r} already exists (agent #{eid}).",
+        }
+
+    from services import agent_service
+
+    try:
+        new_agent_id = agent_service.create_agent(
+            name=name,
+            display_name=display_name,
+            department=department,
+            model=model,
+            shift_state="active",
+            worker_type="internal",
+            tier=3,
+            system_prompt=(f"You are {name}, a specialist in {capability} in the " f"{department} department."),
+        )
+        # agent_skills is what dispatch selection matches on — without this the
+        # new hire would never actually serve the capability it was hired for.
+        agent_service.add_skill(new_agent_id, capability, level=3, category=capability)
+        agent_service.init_budget(new_agent_id)
+        try:
+            agent_service.log_creation_event(
+                child_agent_id=new_agent_id,
+                reason=f"Hired via DHQ queue for '{capability}': {gap_reason}",
+                source="hiring_queue",
+                capabilities=[capability],
+                department=department,
+            )
+        except Exception as _le:  # creation-event logging is best-effort
+            logger.warning("log_creation_event failed for #%s: %s", new_agent_id, _le)
+    except ValueError as ve:
+        return {"ok": False, "reason": "create_rejected", "agent_id": None, "message": str(ve)}
+    except Exception as e:
+        logger.exception("net-new create_agent failed (hire_id=%s)", hire_id)
+        return {"ok": False, "reason": "create_failed", "agent_id": None, "message": str(e)}
+
+    cur.execute(
+        """
+        UPDATE hiring_candidates
+           SET status = 'approved',
+               chosen_agent_id = %s,
+               decided_by_user_id = %s,
+               decided_at = NOW(),
+               decision_notes = %s,
+               precheck_status = 'ok',
+               precheck_message = NULL
+         WHERE id = %s AND status = 'pending'
+         RETURNING id
+        """,
+        (new_agent_id, decided_by_user_id, notes, hire_id),
+    )
+    if cur.fetchone() is None:
+        # Lost the race after creating — leave the agent active but flag it.
+        logger.warning("net-new hire race lost after creating agent #%s", new_agent_id)
+        return {"ok": True, "reason": "hired_race", "agent_id": new_agent_id}
+
+    _audit(
+        "hire_new_agent_approved",
+        decided_by_user_id,
+        new_agent_id,
+        {"hire_id": hire_id, "capability": capability, "name": name, "model": model, "notes": notes},
+    )
+    return {"ok": True, "reason": "hired", "agent_id": new_agent_id}
+
+
 def approve_candidate(
     *,
     hire_id: int,
-    chosen_agent_id: int,
+    chosen_agent_id: Optional[int] = None,
     decided_by_user_id: int,
     notes: str = "",
+    new_agent: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Approve a hiring candidate. See spec §'Approve flow'.
+
+    Two modes:
+    - reactivation: `chosen_agent_id` names an existing (decommissioned/barracked)
+      agent from the shortlist → transition it to active.
+    - net-new: `new_agent={name, model, display_name?}` for a `type:new_hire`
+      shortlist entry (no agent to reactivate) → create a brand-new agent.
 
     Returns {"ok": bool, "reason": str, "agent_id": int | None, "message": str?}.
     """
     with get_db_cursor(commit=True) as (_conn, cur):
         cur.execute(
-            "SELECT id, status, shortlist FROM hiring_candidates WHERE id = %s",
+            "SELECT id, status, shortlist, capability, gap_reason " "FROM hiring_candidates WHERE id = %s",
             (hire_id,),
         )
         row = cur.fetchone()
@@ -192,10 +327,29 @@ def approve_candidate(
             return {"ok": False, "reason": "not_found", "agent_id": None}
         status = row["status"] if isinstance(row, dict) else row[1]
         shortlist = row["shortlist"] if isinstance(row, dict) else row[2]
+        capability = row["capability"] if isinstance(row, dict) else row[3]
+        gap_reason = (row["gap_reason"] if isinstance(row, dict) else row[4]) or ""
         if status != "pending":
             return {"ok": False, "reason": "already_decided", "agent_id": None}
 
         entries = shortlist if isinstance(shortlist, list) else json.loads(shortlist)
+
+        # Net-new branch: the chosen shortlist entry has no existing agent to
+        # reactivate — create one instead. Guarded so a net-new payload can only
+        # approve a candidate that actually offers a new_hire option.
+        if new_agent is not None:
+            if not any(e.get("type") == "new_hire" for e in entries):
+                return {"ok": False, "reason": "not_a_new_hire_candidate", "agent_id": None}
+            return _create_new_hire(
+                cur,
+                hire_id=hire_id,
+                capability=capability,
+                gap_reason=gap_reason,
+                new_agent=new_agent,
+                decided_by_user_id=decided_by_user_id,
+                notes=notes,
+            )
+
         match = next((e for e in entries if e.get("agent_id") == chosen_agent_id), None)
         if match is None:
             return {"ok": False, "reason": "candidate_not_in_shortlist", "agent_id": None}

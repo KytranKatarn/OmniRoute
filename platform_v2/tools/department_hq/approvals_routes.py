@@ -581,15 +581,18 @@ def register_approvals_routes(bp, admin_required_decorator):
 
         body = request.get_json(silent=True) or {}
         chosen_agent_id = body.get("chosen_agent_id")
+        new_agent = body.get("new_agent")
         notes = body.get("notes", "") or ""
-        if not isinstance(chosen_agent_id, int):
-            return jsonify({"ok": False, "reason": "chosen_agent_id required"}), 400
+        # Reactivation needs an existing-agent pick; a net-new hire needs a spec.
+        if new_agent is None and not isinstance(chosen_agent_id, int):
+            return jsonify({"ok": False, "reason": "chosen_agent_id or new_agent required"}), 400
 
         result = hiring_service.approve_candidate(
             hire_id=hire_id,
-            chosen_agent_id=chosen_agent_id,
+            chosen_agent_id=chosen_agent_id if isinstance(chosen_agent_id, int) else None,
             decided_by_user_id=current_user.id,
             notes=notes,
+            new_agent=new_agent if isinstance(new_agent, dict) else None,
         )
 
         if result.get("ok"):
@@ -598,6 +601,12 @@ def register_approvals_routes(bp, admin_required_decorator):
             "not_found": 404,
             "already_decided": 409,
             "candidate_not_in_shortlist": 400,
+            "not_a_new_hire_candidate": 400,
+            "name_required": 400,
+            "model_required": 400,
+            "name_exists": 409,
+            "create_rejected": 400,
+            "create_failed": 500,
             "model_missing": 409,
             "ollama_unreachable": 409,
             "transition_failed": 500,

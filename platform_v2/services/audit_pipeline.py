@@ -25,36 +25,76 @@ logger = logging.getLogger(__name__)
 # C.R.E.E.D. Governance Gates
 # ---------------------------------------------------------------------------
 
-# Department-to-module mapping for self-modification detection
-_DEPARTMENT_MODULE_MAP = {
-    "Engineering & Technology": [
-        "repair_bay",
-        "consciousness",
-        "dev_hq",
-    ],
-    "Security & Compliance": [
-        "security_network",
-        "backup_manager",
-    ],
-    "Operations & Infrastructure": [
-        "system_operations",
-        "media_hub",
-    ],
-    "Creative & Design": [
-        "media_studio",
-        "game_studio",
-        "content_studio",
-    ],
-}
+# The automated repair pipeline must never auto-fix its OWN oversight / execution
+# machinery — that would let the AI workforce weaken the controls on its own fixes.
+# This is TARGET-based (file path / module) and agent-independent, checked BEFORE
+# dispatch so a denied proposal never costs an LLM call. A human can still fix these
+# files via a normal PR. (Replaces the old department-based self-mod rule, which
+# wrongly blocked F.O.R.G.E. — the platform's sole code-fixer — from every
+# Engineering-filed module incl. consciousness/dev_hq; #4934.)
+_SELF_GOVERNANCE_MODULES = {"repair_bay", "creed_command"}
+_SELF_GOVERNANCE_PATH_MARKERS = (
+    "services/audit_pipeline.py",  # this pipeline + the C.R.E.E.D. gate itself
+    "services/agent_service.py",  # agent definitions / lifecycle
+    "services/agent_dispatch.py",
+    "services/agent_models.py",
+    "department_dispatcher.py",  # dispatch / orchestration substrate
+    "orchestration_engine.py",
+    "smart_router.py",
+    "creed_emit.py",  # C.R.E.E.D. governance emission
+    "welfare_governance",  # welfare governance scorers / services
+)
+
+
+def creed_gate_pre_dispatch(proposal_id):
+    """C.R.E.E.D. Gate 1a — self-governance check, run BEFORE inference.
+
+    The automated repair pipeline must not auto-fix its own oversight/execution
+    machinery (this gate, agent_service, the dispatcher/router, C.R.E.E.D.
+    emission, the repair_bay module). Target-based and agent-independent, so it
+    runs before dispatch and a denied proposal costs no LLM call. A human can
+    still fix these files via a normal PR.
+
+    Returns {"approved": bool, "reason": str}.
+    """
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute(
+                "SELECT metadata FROM improvement_proposals WHERE id = %s",
+                (proposal_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return {"approved": False, "reason": f"proposal #{proposal_id} not found"}
+            meta = row["metadata"] if isinstance(row["metadata"], dict) else json.loads(row["metadata"] or "{}")
+            module_name = (meta.get("module_name") or "").strip()
+            target = (meta.get("file_path") or meta.get("runtime_file") or "").replace("\\", "/").lower()
+            if module_name in _SELF_GOVERNANCE_MODULES or any(
+                marker in target for marker in _SELF_GOVERNANCE_PATH_MARKERS
+            ):
+                reason = (
+                    "self-modification blocked — the automated repair pipeline may not "
+                    f"auto-fix its own oversight machinery ({module_name or target or '?'}); "
+                    "requires human review"
+                )
+                _log_creed_gate("repair_fix_generation", "denied", None, reason)
+                return {"approved": False, "reason": reason}
+    except Exception as e:
+        logger.error("C.R.E.E.D. pre-dispatch gate error for proposal #%d: %s", proposal_id, e)
+        return {"approved": False, "reason": f"gate error: {e}"}
+    return {"approved": True, "reason": "self-governance check passed"}
 
 
 def creed_gate_pre_fix(proposal_id, agent_id):
-    """C.R.E.E.D. Gate 1 — called BEFORE an agent generates a fix.
+    """C.R.E.E.D. Gate 1 — agent-state check, run AFTER the fix agent is resolved.
 
-    Checks:
-        1. Self-modification constraint (agent cannot fix its own department's module)
-        2. Welfare check (stress/energy thresholds)
-        3. Capability check (agent exists and is active)
+    Checks the agent that actually produced the fix:
+        1. Welfare check (stress/energy thresholds)
+        2. Capability check (agent exists and is active)
+
+    The self-modification / self-governance constraint is target-based and runs
+    BEFORE dispatch — see creed_gate_pre_dispatch() — so a self-governance denial
+    never costs an LLM call (#4934).
 
     Returns:
         {"approved": bool, "reason": str}
@@ -64,27 +104,7 @@ def creed_gate_pre_fix(proposal_id, agent_id):
 
     try:
         with get_db_cursor(commit=False) as (conn, cur):
-            # --- Load proposal metadata ---
-            cur.execute(
-                "SELECT metadata FROM improvement_proposals WHERE id = %s",
-                (proposal_id,),
-            )
-            row = cur.fetchone()
-            if not row:
-                approved = False
-                reason = f"proposal #{proposal_id} not found"
-                _log_creed_gate(
-                    "repair_fix_generation",
-                    "denied" if not approved else "approved",
-                    agent_id,
-                    reason,
-                )
-                return {"approved": approved, "reason": reason}
-
-            meta = row["metadata"] if isinstance(row["metadata"], dict) else json.loads(row["metadata"] or "{}")
-            module_name = meta.get("module_name", "")
-
-            # --- 1. Self-modification constraint ---
+            # --- Resolve the agent that produced the fix ---
             cur.execute(
                 """SELECT a.name, a.display_name, a.department, a.shift_state
                    FROM agents a WHERE a.id = %s""",
@@ -103,23 +123,7 @@ def creed_gate_pre_fix(proposal_id, agent_id):
                 )
                 return {"approved": approved, "reason": reason}
 
-            agent_dept = (agent.get("department") or "").strip()
-            dept_modules = _DEPARTMENT_MODULE_MAP.get(agent_dept, [])
-            if module_name and module_name in dept_modules:
-                approved = False
-                reason = (
-                    f"self-modification blocked — agent '{agent.get('display_name', agent['name'])}' "
-                    f"(dept: {agent_dept}) cannot fix module '{module_name}'"
-                )
-                _log_creed_gate(
-                    "repair_fix_generation",
-                    "denied",
-                    agent_id,
-                    reason,
-                )
-                return {"approved": approved, "reason": reason}
-
-            # --- 2. Welfare check ---
+            # --- 1. Welfare check ---
             cur.execute(
                 """SELECT stress_level, energy_level
                    FROM agent_emotional_state
@@ -145,7 +149,7 @@ def creed_gate_pre_fix(proposal_id, agent_id):
                     )
                     return {"approved": approved, "reason": reason}
 
-            # --- 3. Capability check (agent exists and active) ---
+            # --- 2. Capability check (agent exists and active) ---
             shift = (agent.get("shift_state") or "").strip()
             if shift not in ("active", "deployed"):
                 approved = False
@@ -900,6 +904,19 @@ def dispatch_proposal_fix(proposal_id):
         "rewrite the whole file.\n\n"
         f"--- SOURCE ---\n{source_excerpt}"
     )
+
+    # C.R.E.E.D. Gate 1a — self-governance check BEFORE inference (no wasted LLM
+    # call on a denied self-modification target). Agent-independent, target-based.
+    predispatch = creed_gate_pre_dispatch(proposal_id)
+    if not predispatch["approved"]:
+        logger.info(
+            "C.R.E.E.D. pre-dispatch gate denied proposal #%d: %s",
+            proposal_id,
+            predispatch["reason"],
+        )
+        if session_id:
+            fail_work_session(session_id, error_msg=f"C.R.E.E.D. pre-dispatch denied: {predispatch['reason']}")
+        return {"success": False, "error": f"C.R.E.E.D. pre-dispatch denied: {predispatch['reason']}"}
 
     # Dispatch via DHQ — canonical dispatcher (ADR-013 compliant, routes to cluster)
     try:

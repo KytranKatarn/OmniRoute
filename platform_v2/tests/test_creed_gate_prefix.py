@@ -68,3 +68,80 @@ def test_barracked_agent_still_denied(monkeypatch):
     out = ap.creed_gate_pre_fix(123, 42)
     assert out["approved"] is False
     assert "shift_state" in out["reason"]
+
+
+# ---------------------------------------------------------------------------
+# C.R.E.E.D. Gate 1a — pre-dispatch self-governance check (#4934)
+#
+# The old self-modification rule was DEPARTMENT-based: it blocked an agent from
+# fixing any module in its own department. But F.O.R.G.E. (the platform's SOLE
+# `code`-capability fixer) lives in Engineering & Technology, which "owned"
+# repair_bay / consciousness / dev_hq — so those modules could never get a code
+# fix (~261 audit denials). The genuine safety is narrower and TARGET-based: the
+# automated repair pipeline must not auto-fix its OWN oversight/execution
+# machinery, regardless of department. That check is now agent-independent and
+# runs BEFORE inference (creed_gate_pre_dispatch), so a denied proposal costs no
+# LLM call. A human can still fix those files via a normal PR.
+# ---------------------------------------------------------------------------
+
+
+class _PropCursor:
+    """Cursor that returns one proposal's metadata for the pre-dispatch gate."""
+
+    def __init__(self, metadata):
+        self._metadata = metadata
+        self._row = None
+
+    def execute(self, sql, params=()):
+        s = " ".join(sql.split())
+        if "FROM improvement_proposals" in s:
+            self._row = {"metadata": self._metadata}
+        else:  # governance_audit_log insert etc.
+            self._row = None
+
+    def fetchone(self):
+        return self._row
+
+
+class _PropCtx:
+    def __init__(self, metadata):
+        self._m = metadata
+
+    def __enter__(self):
+        return (None, _PropCursor(self._m))
+
+    def __exit__(self, *a):
+        return False
+
+
+def test_pre_dispatch_allows_normal_module(monkeypatch):
+    # THE unblock: fixing consciousness is NOT self-modification — it must pass.
+    meta = {"module_name": "consciousness", "file_path": "platform_v2/tools/consciousness/jobs.py"}
+    monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False: _PropCtx(meta))
+    out = ap.creed_gate_pre_dispatch(99)
+    assert out["approved"] is True, f"pre-dispatch wrongly blocked consciousness: {out['reason']}"
+
+
+def test_pre_dispatch_blocks_self_governance_module(monkeypatch):
+    # repair_bay IS the pipeline's own machinery — auto-fix must be blocked.
+    meta = {"module_name": "repair_bay", "file_path": "platform_v2/tools/repair_bay/routes.py"}
+    monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False: _PropCtx(meta))
+    out = ap.creed_gate_pre_dispatch(99)
+    assert out["approved"] is False
+    assert "self-mod" in out["reason"].lower() or "oversight" in out["reason"].lower()
+
+
+def test_pre_dispatch_blocks_oversight_file_by_path(monkeypatch):
+    # target-based: even a normal-looking module_name is blocked when the file
+    # itself is oversight machinery (the gate/agent-service/dispatcher).
+    meta = {"module_name": "department_hq", "file_path": "platform_v2/services/agent_service.py"}
+    monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False: _PropCtx(meta))
+    out = ap.creed_gate_pre_dispatch(99)
+    assert out["approved"] is False
+
+
+def test_pre_dispatch_blocks_the_gate_itself(monkeypatch):
+    meta = {"module_name": "repair_bay", "file_path": "platform_v2/services/audit_pipeline.py"}
+    monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False: _PropCtx(meta))
+    out = ap.creed_gate_pre_dispatch(99)
+    assert out["approved"] is False

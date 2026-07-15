@@ -716,6 +716,60 @@ _PLACEHOLDER_MAP = {
 _SKIP_PREFIXES = ("[dispatch_routing]/",)
 
 
+def _parse_fix_json(text):
+    """Extract a {"find","replace"} JSON object from an LLM reply (fence/prose tolerant)."""
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith("```"):
+        parts = s.split("```")
+        if len(parts) >= 2:
+            s = parts[1]
+            if s.lstrip()[:4].lower() == "json":
+                s = s.lstrip()[4:]
+    a, b = s.find("{"), s.rfind("}")
+    if a == -1 or b == -1 or b < a:
+        return None
+    try:
+        obj = json.loads(s[a : b + 1])
+    except Exception:
+        return None
+    return obj if isinstance(obj, dict) else None
+
+
+def _apply_targeted_fix(source_content, model_response):
+    """Apply an LLM search/replace fix to ``source_content``.
+
+    Returns ``(fixed_content, "ok")`` on success, else ``(None, reason)``.
+
+    The old flow diffed the FULL source against a short model reply, so any file
+    over ~200 lines produced a whole-file-deletion diff. Here the model returns a
+    minimal ``{"find","replace"}`` and we splice it into the full source — the
+    resulting diff is therefore always a correct, minimal patch, or nothing at
+    all (fail-closed). ``find`` must be an exact, unique substring, and the result
+    may never gut the file.
+    """
+    data = _parse_fix_json(model_response)
+    if not data:
+        return None, "unparseable"
+    find = data.get("find") or ""
+    replace = data.get("replace")
+    if not find or replace is None:
+        return None, "missing_find_or_replace"
+    occurrences = source_content.count(find)
+    if occurrences == 0:
+        return None, "find_not_located"
+    if occurrences > 1:
+        return None, "find_ambiguous"
+    fixed = source_content.replace(find, replace, 1)
+    if fixed == source_content:
+        return None, "no_change"
+    # A targeted fix must never gut the file (the old whole-file-deletion bug).
+    if len(fixed) < len(source_content) * 0.5:
+        return None, "destructive_shrink"
+    return fixed, "ok"
+
+
 def dispatch_proposal_fix(proposal_id):
     """Dispatch a single audit proposal to a Bridge agent for AI-powered fix generation.
 
@@ -819,10 +873,11 @@ def dispatch_proposal_fix(proposal_id):
             line_num = int("".join(c for c in detail_str.split("line")[-1].strip() if c.isdigit())[:5])
             start_line = max(0, line_num - 20)
             end_line = min(len(source_lines), line_num + 30)
-            excerpt = "\n".join(
-                f"{i+1}: {l}" for i, l in enumerate(source_lines[start_line:end_line], start=start_line)
+            excerpt = "\n".join(source_lines[start_line:end_line])
+            source_excerpt = (
+                f"(lines {start_line+1}-{end_line} of {len(source_lines)}; "
+                f"copy `find` verbatim, no line numbers)\n{excerpt}"
             )
-            source_excerpt = f"(showing lines {start_line+1}-{end_line} of {len(source_lines)})\n{excerpt}"
         except (ValueError, IndexError):
             source_excerpt = "\n".join(source_lines[:200])
     elif issue_code == "LARGE_FILE":
@@ -831,14 +886,19 @@ def dispatch_proposal_fix(proposal_id):
         source_excerpt = "\n".join(source_lines[:200])
 
     prompt = (
-        f"You are fixing a Code Health audit finding in the A.R.C.H.I.E. platform.\n\n"
+        f"Fix this Code Health finding in the A.R.C.H.I.E. platform.\n\n"
         f"**Issue:** {issue_code}\n"
         f"**File:** {file_path}\n"
         f"**Module:** {module_name}\n"
         f"**Detail:** {meta.get('detail', '')}\n\n"
         f"**Instructions:** {fix_instruction}\n\n"
-        f"Return a brief, targeted fix or plan. No full file rewrites.\n\n"
-        f"--- SOURCE EXCERPT ---\n{source_excerpt}"
+        "Return ONLY a JSON object describing the SMALLEST change that fixes the issue:\n"
+        '{"find": "<code copied VERBATIM from the source below>", "replace": "<corrected code>"}\n'
+        "Rules: `find` must be an EXACT, UNIQUE substring of the source (copy it "
+        "character-for-character including indentation; include a few surrounding lines so "
+        "it appears exactly once). Change as little as possible. No line numbers. Never "
+        "rewrite the whole file.\n\n"
+        f"--- SOURCE ---\n{source_excerpt}"
     )
 
     # Dispatch via DHQ — canonical dispatcher (ADR-013 compliant, routes to cluster)
@@ -851,9 +911,10 @@ def dispatch_proposal_fix(proposal_id):
             prompt=prompt,
             module_id="audit_pipeline",
             system_prompt=(
-                "You are a code repair agent. Fix ONLY the specific issue described. "
-                "Return the complete fixed file. Do not add comments, docstrings, or "
-                "other changes beyond the fix. Preserve all existing code exactly."
+                "You are a precise code-repair agent. Fix ONLY the specific issue. "
+                'Reply with STRICT JSON only — a single {"find": ..., "replace": ...} '
+                "object where `find` is copied verbatim from the source. No prose, no "
+                "markdown fences, no explanation."
             ),
             priority="high" if meta.get("severity_tier") == "red" else "normal",
         )
@@ -863,13 +924,21 @@ def dispatch_proposal_fix(proposal_id):
             fail_work_session(session_id, error_msg=f"Bridge dispatch failed: {e}")
         return {"success": False, "error": f"Bridge dispatch failed: {e}"}
 
+    if result is not None and getattr(result, "queued", False):
+        # Cold-load queued — NOT a failure. Defer so the next batch retries once the
+        # model is warm; never park a queued dispatch (KB #276153 masking pattern).
+        logger.info("Proposal #%d dispatch queued (cold-load) — deferring", proposal_id)
+        if session_id:
+            fail_work_session(session_id, error_msg="queued_cold_load")
+        return {"success": False, "queued": True, "error": "queued_cold_load"}
+
     if not result or not getattr(result, "response", None):
         logger.warning("Bridge returned empty response for proposal #%d", proposal_id)
         if session_id:
             fail_work_session(session_id, error_msg="Bridge returned empty response")
         return {"success": False, "error": "Bridge returned empty response"}
 
-    fixed_content = result.response.strip()
+    raw_response = result.response.strip()
     agent_name = getattr(result, "agent_name", "unknown")
 
     # C.R.E.E.D. Gate 1: Can this agent fix this code?
@@ -903,6 +972,16 @@ def dispatch_proposal_fix(proposal_id):
             )
     except Exception as gate_err:
         logger.warning("C.R.E.E.D. Gate 1 check failed (non-blocking): %s", gate_err)
+
+    # Apply the model's targeted {find, replace} to the FULL source (fail-closed).
+    # Never store a diff computed against a short/plan reply — that was the
+    # whole-file-deletion bug. On any apply failure the proposal stays eligible.
+    fixed_content, apply_reason = _apply_targeted_fix(source_content, raw_response)
+    if fixed_content is None:
+        logger.warning("Proposal #%d fix not applied (%s)", proposal_id, apply_reason)
+        if session_id:
+            fail_work_session(session_id, error_msg=f"fix_apply:{apply_reason}")
+        return {"success": False, "error": f"fix_apply:{apply_reason}"}
 
     # Generate diff
     try:
@@ -985,6 +1064,7 @@ def dispatch_audit_proposals(limit=20):
 
     dispatched = 0
     failed = 0
+    deferred = 0
 
     for row in proposals:
         proposal_id = row["id"]
@@ -992,6 +1072,10 @@ def dispatch_audit_proposals(limit=20):
             result = dispatch_proposal_fix(proposal_id)
             if result.get("success"):
                 dispatched += 1
+            elif result.get("queued"):
+                # Deferred (cold-load): leave eligible for the next batch, never park.
+                deferred += 1
+                logger.info("Proposal #%d deferred (queued cold-load)", proposal_id)
             else:
                 failed += 1
                 logger.warning(
@@ -1007,13 +1091,14 @@ def dispatch_audit_proposals(limit=20):
             _mark_dispatch_attempted(proposal_id, str(e))
 
     logger.info(
-        "Audit dispatch batch: %d dispatched, %d failed out of %d",
+        "Audit dispatch batch: %d dispatched, %d deferred, %d failed out of %d",
         dispatched,
+        deferred,
         failed,
         len(proposals),
     )
 
-    return {"dispatched": dispatched, "failed": failed, "skipped": 0}
+    return {"dispatched": dispatched, "failed": failed, "deferred": deferred, "skipped": 0}
 
 
 def verify_fix_deployment(module_name, proposal_id, pre_issue_count):

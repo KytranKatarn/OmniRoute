@@ -2570,7 +2570,7 @@ function showRequestDetail(req) {
     if (req.genres && req.genres.length > 0) {
         const genres = document.createElement('div');
         genres.className = 'request-modal-genres';
-        genres.innerHTML = req.genres.map(g => `<span class="genre-tag">${g}</span>`).join('');
+        genres.innerHTML = req.genres.map(g => `<span class="genre-tag">${_mhEsc(g)}</span>`).join('');
         headerInfo.appendChild(genres);
     }
 
@@ -3077,7 +3077,7 @@ function renderGenresBreakdown(genres) {
         const row = document.createElement('div');
         row.className = 'genre-bar-row';
         row.innerHTML = `
-            <span class="genre-label" title="${genre}">${genre}</span>
+            <span class="genre-label" title="${_mhEsc(genre)}">${_mhEsc(genre)}</span>
             <div class="genre-bar-container">
                 <div class="genre-bar-fill" style="width: ${percent}%"></div>
             </div>

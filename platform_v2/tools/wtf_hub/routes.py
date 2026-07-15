@@ -58,6 +58,7 @@ _AGENT_IDS: dict[str, int | None] = {
     "geo": None,
     "deep_analysis": None,
     "classify_beat": None,
+    "factcheck_relevance": None,
 }
 
 
@@ -95,6 +96,10 @@ def _resolve_agents() -> None:
         # L.O.C.A.L./geo). This id is only the existence guard + response label;
         # the dispatcher still picks the real agent by capability.
         _AGENT_IDS["classify_beat"] = _get_agent_id("P.U.B.L.I.S.H.")
+    if not _AGENT_IDS["factcheck_relevance"]:
+        # #2137 relevance gate — existence guard + label only; capability routing
+        # (beat_classification) picks the real small-model News agent.
+        _AGENT_IDS["factcheck_relevance"] = _get_agent_id("P.U.B.L.I.S.H.")
 
 
 def _auth_ok(req) -> bool:
@@ -132,7 +137,7 @@ def analyze():
 
     data = request.get_json(force=True, silent=True) or {}
     task = data.get("task", "")
-    if task not in ("bias", "factcheck", "geo", "deep_analysis", "classify_beat"):
+    if task not in ("bias", "factcheck", "geo", "deep_analysis", "classify_beat", "factcheck_relevance"):
         return jsonify({"ok": False, "error": f"unknown task: {task}"}), 400
 
     title = (data.get("title") or "")[:200]
@@ -216,6 +221,23 @@ def analyze():
             f"Title: {title}\nBody: {body[:1000]}\n\n"
             'Return ONLY valid JSON: {"beat": "healthcare"}'
         ),
+        # #2137 relevance gate: a third-party fact-check (from Google FCTAPI) is
+        # keyword-matched to an article by title, so it often surfaces a review of
+        # a DIFFERENT claim that merely shares a name. `title` is the article
+        # headline; `body` carries the partner claim text. Decide if the
+        # fact-check actually assesses a claim THIS article makes/reports.
+        "factcheck_relevance": (
+            f"A third-party fact-check was matched to a news article by keyword. "
+            f"Decide whether the fact-check actually assesses a specific claim that "
+            f"THIS article makes or reports on — not merely a claim about the same "
+            f"person, place, or topic.\n\n"
+            f"ARTICLE HEADLINE: {title}\n"
+            f"FACT-CHECK CLAIM: {body[:600]}\n\n"
+            "Relevant ONLY if the fact-check addresses substantially the same event "
+            "or assertion as the article. Sharing a name (e.g. a politician) or a "
+            "broad topic is NOT enough.\n"
+            'Return ONLY valid JSON: {"relevant": true or false, "confidence": 0.0-1.0}'
+        ),
     }
 
     agent_names = {
@@ -224,6 +246,7 @@ def analyze():
         "geo": "L.O.C.A.L.",
         "deep_analysis": "V.E.R.I.F.Y.",
         "classify_beat": "P.U.B.L.I.S.H.",
+        "factcheck_relevance": "P.U.B.L.I.S.H.",
     }
     agent_name = agent_names[task]
     agent_id = _AGENT_IDS.get(task)
@@ -247,6 +270,10 @@ def analyze():
         "geo": "geo_extraction",
         "deep_analysis": "fact_check",  # routes to V.E.R.I.F.Y. — same agent, longer prompt
         "classify_beat": "beat_classification",  # News & Media — P.U.B.L.I.S.H. (qwen2.5:1.5b, fleet-distributed), #4702 Part B
+        # #2137: a binary yes/no relevance judgment — reuse the small-model News
+        # route (P.U.B.L.I.S.H., qwen2.5:1.5b) rather than the heavy fact_check
+        # model. The capability is routing plumbing; the prompt does the work.
+        "factcheck_relevance": "beat_classification",
     }
 
     # Backpressure (#4536): if this capability's dispatch pipe is already saturated with

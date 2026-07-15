@@ -1,0 +1,4 @@
+Drop LCARS display font here as antonio-600.woff2 (weight 600).
+It is auto-copied into the image via the Dockerfile `static/fonts/` directory COPY,
+and activated by the @font-face in ../css/theme-tokens.css. Until then LCARS
+falls back to "Arial Narrow" (see theme-tokens.css). Self-hosted / CSP-safe.

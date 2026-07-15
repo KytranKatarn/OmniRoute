@@ -1,4 +1,13 @@
 /* Media Hub theme tokens — one set per theme. :root = Neutral Poster-Forward (default). */
+
+/* LCARS display font (self-hosted, CSP-safe). Inert until antonio-600.woff2 is dropped into
+   ../fonts/ (auto-copied via the Dockerfile static/fonts/ dir COPY) — LCARS falls back to
+   "Arial Narrow" until then. Only requested when the LCARS theme is active. */
+@font-face{
+  font-family:"Antonio"; font-style:normal; font-weight:600; font-display:swap;
+  src:url("../fonts/antonio-600.woff2") format("woff2");
+}
+
 :root {
   --mh-bg:#0d0f13; --mh-surface:#161a21; --mh-surface-2:#1e232c;
   --mh-text:#e9ecf1; --mh-text-muted:#98a0ad; --mh-text-faint:#6d7480;

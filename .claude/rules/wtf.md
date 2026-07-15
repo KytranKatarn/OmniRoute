@@ -98,12 +98,37 @@ OAuth SSO via Kytran Empowerment identity provider (same as other Watch products
 
 ## Ingest Pipeline
 
-- 10 Canadian news sources
+- 46 Canadian news sources
 - RSS poll: every 30 minutes (`wtf-ingest`)
+- **Sitemap sources (#4909, PR #2282)**: sources whose publisher removed RSS
+  (Postmedia: montreal_gazette / regina_leaderpost / saskatoon_starphoenix)
+  set `wtf.sources.rss_feed = 'sitemap:<index url>'` — the generic loop routes
+  the prefix to `ingest/sources/sitemap_generic.py` (newest 2 day-sitemaps,
+  page-fetched og:titles for NEW urls only, body left for the scout backlog).
+  Reviving another RSS-less source = one UPDATE, no code. GOTCHA: the slug
+  must NOT also be in run.py's hardcoded SOURCES list (`handled_slugs`
+  shadows the DB-driven path).
+- **Hub analyze contract (PRs #2276/#2283/#2285)**: workers calling
+  `/tools/wtf-hub/api/analyze` MUST honor `retry_after` on rate_limited
+  (never abandon the run); the hub paces per-task at `WTF_ANALYZE_INTERVAL`
+  (live=5s). Fact-check verdicts are enum-constrained
+  (verified|mostly_true|mixed|disputed|unverifiable|descriptive_reporting);
+  `mostly_true` = attributed + internally consistent. `_parse_llm_json`
+  tolerates fence-wrapped model JSON. After `archie_platform` restart the
+  endpoint needs ~3-5 min warmup (boot-race 500s are noise).
 - Clustering: Jaccard similarity on headlines/keywords
 - Summarization: extractive (no LLM required for basic)
 - Bias scoring: `wtf.bias_scores` + `wtf.outlet_bias_scores` aggregate
 - LLM backlog: `WTF_LLM_BACKLOG_ENABLED=true`, max 14 days, max 100 runs/night
+- **Newsletter + digest (#4899, PRs #2278/#2279)**: footer signup →
+  `wtf.newsletter_subscribers` (migration 047 incl. **wtfuser GRANTs** — new
+  wtf tables MUST grant to wtfuser, apps don't connect as the owner);
+  tokenized `/newsletter/unsubscribe`; Monday digest = user_alerts ∪
+  newsletter list, sends via the **outpost-us SMTP egress relay
+  100.64.0.2:25 unauth** (hub Stalwart :587 unreachable from Citadel,
+  ADR-014); subscribers sync to KBS CRM via
+  `ingest/newsletter_kbs_sync.py` → `POST {KBS}/plugins/crm/api/internal/upsert-contact`
+  (X-Internal-Key, tenant 1, ADR-015).
 
 ## Container Resource Limits
 

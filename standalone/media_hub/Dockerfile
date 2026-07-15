@@ -52,6 +52,7 @@ COPY platform_v2/templates/includes/lcars-header.html    /app/templates/includes
 # Platform /static/ assets the Media Hub template hard-codes references to.
 # Flask(__name__) default static_folder=./static → served at /static/*.
 COPY standalone/media_hub/static/css/media-hub.css          /app/static/css/media-hub.css
+COPY standalone/media_hub/static/css/theme-tokens.css       /app/static/css/theme-tokens.css
 COPY platform_v2/static/css/lcars-header.css       /app/static/css/lcars-header.css
 COPY platform_v2/static/css/lcars-frames.css       /app/static/css/lcars-frames.css
 # Full LCARS design-token + shared-component stack so the dark theme actually
@@ -65,6 +66,7 @@ COPY platform_v2/static/css/animations.css         /app/static/css/animations.cs
 COPY platform_v2/static/css/archie-breakpoints.css /app/static/css/archie-breakpoints.css
 COPY platform_v2/static/css/mobile.css             /app/static/css/mobile.css
 COPY standalone/media_hub/static/js/media-hub.js        /app/static/js/media-hub.js
+COPY standalone/media_hub/static/js/theme-switcher.js   /app/static/js/theme-switcher.js
 COPY standalone/media_hub/static/js/media-hub-sw.js     /app/static/js/media-hub-sw.js
 COPY standalone/media_hub/static/js/media-hub-cast.js   /app/static/js/media-hub-cast.js
 COPY platform_v2/static/js/lcars-header.js          /app/static/js/lcars-header.js

@@ -20,12 +20,12 @@ from ingest.sources.canadaland import fetch_articles as cl_fetch, SOURCE_SLUG as
 from ingest.sources.radio_canada import fetch_articles as rc_fetch, SOURCE_SLUG as RC_SLUG, SOURCE_NAME as RC_NAME, SOURCE_URL as RC_URL, RSS_URL as RC_RSS, BIAS_LEAN as RC_BIAS
 from ingest.sources.le_devoir import fetch_articles as ld_fetch, SOURCE_SLUG as LD_SLUG, SOURCE_NAME as LD_NAME, SOURCE_URL as LD_URL, RSS_URL as LD_RSS, BIAS_LEAN as LD_BIAS
 from ingest.sources.vancouver_sun import fetch_articles as vs_fetch, SOURCE_SLUG as VS_SLUG, SOURCE_NAME as VS_NAME, SOURCE_URL as VS_URL, RSS_URL as VS_RSS, BIAS_LEAN as VS_BIAS
-from ingest.sources.montreal_gazette import fetch_articles as mg_fetch, SOURCE_SLUG as MG_SLUG, SOURCE_NAME as MG_NAME, SOURCE_URL as MG_URL, RSS_URL as MG_RSS, BIAS_LEAN as MG_BIAS
+# montreal_gazette / saskatoon_starphoenix / regina_leaderpost moved to the
+# DB-driven sitemap path (#4909) — Postmedia removed their RSS feeds; their
+# wtf.sources.rss_feed now carries a 'sitemap:' URL (migration 048).
 from ingest.sources.ottawa_citizen import fetch_articles as oc_fetch, SOURCE_SLUG as OC_SLUG, SOURCE_NAME as OC_NAME, SOURCE_URL as OC_URL, RSS_URL as OC_RSS, BIAS_LEAN as OC_BIAS
 from ingest.sources.calgary_herald import fetch_articles as ch_fetch, SOURCE_SLUG as CH_SLUG, SOURCE_NAME as CH_NAME, SOURCE_URL as CH_URL, RSS_URL as CH_RSS, BIAS_LEAN as CH_BIAS
 from ingest.sources.edmonton_journal import fetch_articles as ej_fetch, SOURCE_SLUG as EJ_SLUG, SOURCE_NAME as EJ_NAME, SOURCE_URL as EJ_URL, RSS_URL as EJ_RSS, BIAS_LEAN as EJ_BIAS
-from ingest.sources.saskatoon_starphoenix import fetch_articles as sp_fetch, SOURCE_SLUG as SP_SLUG, SOURCE_NAME as SP_NAME, SOURCE_URL as SP_URL, RSS_URL as SP_RSS, BIAS_LEAN as SP_BIAS
-from ingest.sources.regina_leaderpost import fetch_articles as rl_fetch, SOURCE_SLUG as RL_SLUG, SOURCE_NAME as RL_NAME, SOURCE_URL as RL_URL, RSS_URL as RL_RSS, BIAS_LEAN as RL_BIAS
 from ingest.sources.winnipeg_free_press import fetch_articles as wp_fetch, SOURCE_SLUG as WP_SLUG, SOURCE_NAME as WP_NAME, SOURCE_URL as WP_URL, RSS_URL as WP_RSS, BIAS_LEAN as WP_BIAS
 from ingest.sources.the_tyee import fetch_articles as tt_fetch, SOURCE_SLUG as TT_SLUG, SOURCE_NAME as TT_NAME, SOURCE_URL as TT_URL, RSS_URL as TT_RSS, BIAS_LEAN as TT_BIAS
 from ingest.sources.ricochet_media import fetch_articles as rm_fetch, SOURCE_SLUG as RM_SLUG, SOURCE_NAME as RM_NAME, SOURCE_URL as RM_URL, RSS_URL as RM_RSS, BIAS_LEAN as RM_BIAS
@@ -77,13 +77,10 @@ SOURCES = [
     (RC_SLUG,        RC_NAME,                    RC_URL,                             RC_RSS,         RC_BIAS,        rc_fetch),
     (LD_SLUG,        LD_NAME,                    LD_URL,                             LD_RSS,         LD_BIAS,        ld_fetch),
     (VS_SLUG,        VS_NAME,                    VS_URL,                             VS_RSS,         VS_BIAS,        vs_fetch),
-    (MG_SLUG,        MG_NAME,                    MG_URL,                             MG_RSS,         MG_BIAS,        mg_fetch),
     (OC_SLUG,        OC_NAME,                    OC_URL,                             OC_RSS,         OC_BIAS,        oc_fetch),
     # ── Expansion batch 2: regional, French-language, Indigenous, business ─────
     (CH_SLUG,        CH_NAME,                    CH_URL,                             CH_RSS,         CH_BIAS,        ch_fetch),
     (EJ_SLUG,        EJ_NAME,                    EJ_URL,                             EJ_RSS,         EJ_BIAS,        ej_fetch),
-    (SP_SLUG,        SP_NAME,                    SP_URL,                             SP_RSS,         SP_BIAS,        sp_fetch),
-    (RL_SLUG,        RL_NAME,                    RL_URL,                             RL_RSS,         RL_BIAS,        rl_fetch),
     (WP_SLUG,        WP_NAME,                    WP_URL,                             WP_RSS,         WP_BIAS,        wp_fetch),
     (TT_SLUG,        TT_NAME,                    TT_URL,                             TT_RSS,         TT_BIAS,        tt_fetch),
     (RM_SLUG,        RM_NAME,                    RM_URL,                             RM_RSS,         RM_BIAS,        rm_fetch),
@@ -155,6 +152,7 @@ def run_once(engine) -> dict:
     # to the DB via migrations are automatically ingested with zero code change.
     handled_slugs = frozenset(s for s, *_ in SOURCES)
     from ingest.sources.rss_generic import fetch_rss as _generic_fetch
+    from ingest.sources.sitemap_generic import fetch_sitemap as _sitemap_fetch
     try:
         with engine.connect() as c:
             db_rows = c.execute(
@@ -165,7 +163,24 @@ def run_once(engine) -> dict:
                 continue
             _slug = src["slug"]
             _rss = src["rss_feed"]
-            fetch_fn = lambda u=_rss, s=_slug: _generic_fetch(u, s)
+            if _rss.startswith("sitemap:"):
+                # RSS-less source (#4909, e.g. Postmedia) — sitemap-index path.
+                # Pass recently-known URLs so title lookups only hit NEW pages.
+                _map_url = _rss[len("sitemap:"):]
+                try:
+                    with engine.connect() as c:
+                        _known = {r[0] for r in c.execute(
+                            text("""
+                                SELECT a.url FROM wtf.articles a
+                                JOIN wtf.sources s ON s.id = a.source_id
+                                WHERE s.slug = :s
+                                  AND a.ingested_at > NOW() - INTERVAL '14 days'
+                            """), {"s": _slug}).fetchall()}
+                except Exception:
+                    _known = set()
+                fetch_fn = lambda u=_map_url, s=_slug, k=_known: _sitemap_fetch(u, s, known_urls=k)
+            else:
+                fetch_fn = lambda u=_rss, s=_slug: _generic_fetch(u, s)
             _process_source(engine, _slug, src["name"] or _slug,
                             src["url"] or "", _rss,
                             src["bias_lean"] or "center", fetch_fn, stats)

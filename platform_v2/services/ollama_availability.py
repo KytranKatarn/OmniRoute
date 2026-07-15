@@ -29,6 +29,10 @@ def is_model_available(
 
     host = hub_host or os.environ.get("OLLAMA_HOST") or DEFAULT_HUB
     host = host.rstrip("/")
+    # OLLAMA_HOST in the platform container is scheme-less ("host.docker.internal:11434");
+    # the http client needs a scheme or it raises InvalidSchema. Normalize defensively.
+    if not host.startswith(("http://", "https://")):
+        host = f"http://{host}"
 
     try:
         r = requests.get(f"{host}/api/tags", timeout=5)
@@ -36,6 +40,11 @@ def is_model_available(
         return False, f"ollama timeout at {host}"
     except requests.ConnectionError:
         return False, f"ollama unreachable at {host}"
+    except requests.RequestException as exc:
+        # Any other request error (e.g. InvalidSchema from a scheme-less host) —
+        # fail closed, never propagate: a crash here previously took down every
+        # hire-queue approval (reactivation and net-new alike).
+        return False, f"ollama probe error at {host}: {exc}"
 
     if r.status_code != 200:
         return False, f"ollama returned {r.status_code}"

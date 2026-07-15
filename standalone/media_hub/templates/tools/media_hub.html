@@ -671,6 +671,11 @@
                         </div>
                         <div style="flex: 1 !important; padding: 16px !important;">
             <div class="settings-layout">
+                <div class="settings-section">
+                    <h2><i data-lucide="palette"></i> Appearance</h2>
+                    <p class="settings-hint">Pick a theme. Saved to this browser.</p>
+                    <div id="mh-theme-picker" class="theme-picker" role="group" aria-label="Theme"></div>
+                </div>
                 <!-- Admin Tools (admin-only) -->
                 {% if current_user.is_authenticated and current_user.is_admin %}
                 <div class="settings-section">

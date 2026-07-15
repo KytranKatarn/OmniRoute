@@ -1,0 +1,103 @@
+/* Media Hub theme tokens — one set per theme. :root = Neutral Poster-Forward (default). */
+:root {
+  --mh-bg:#0d0f13; --mh-surface:#161a21; --mh-surface-2:#1e232c;
+  --mh-text:#e9ecf1; --mh-text-muted:#98a0ad; --mh-text-faint:#6d7480;
+  --mh-border:rgba(255,255,255,.09); --mh-border-strong:rgba(255,255,255,.16);
+  --mh-accent:#6ea8fe; --mh-accent-ink:#0b1220; --mh-accent-soft:rgba(110,168,254,.14);
+  --mh-good:#3ecf8e; --mh-warn:#e6b450; --mh-crit:#f87171; --mh-info:#6ea8fe;
+  --mh-chip:rgba(255,255,255,.06);
+  --mh-radius:12px; --mh-radius-sm:8px;
+  --mh-font-ui:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mh-font-display:var(--mh-font-ui);
+  --mh-display-tt:none; --mh-display-ls:normal; --mh-display-weight:700;
+  --mh-shadow:0 8px 30px rgba(0,0,0,.35);
+  /* back-compat aliases (do not remove during migration) */
+  --mh-accent-bright:#8fc0ff; --mh-accent-dim:#3f6aa8;
+  --mh-accent-alpha-10:rgba(110,168,254,.10); --mh-accent-alpha-20:rgba(110,168,254,.20);
+  --mh-accent-alpha-30:rgba(110,168,254,.30); --mh-glow:0 0 20px rgba(110,168,254,.35);
+}
+html[data-mh-theme="lcars"]{
+  --mh-bg:#000; --mh-surface:#0c0b08; --mh-surface-2:#17130a;
+  --mh-text:#f4e7d3; --mh-text-muted:#c7a061; --mh-text-faint:#8a6d3b;
+  --mh-border:#ff9966; --mh-border-strong:#ffb380;
+  --mh-accent:#ff9966; --mh-accent-ink:#150a03; --mh-accent-soft:rgba(255,153,102,.16);
+  --mh-good:#77cc99; --mh-warn:#ffcc66; --mh-crit:#cc6666; --mh-info:#9999ff;
+  --mh-chip:rgba(255,153,102,.13);
+  --mh-radius:22px; --mh-radius-sm:16px;
+  --mh-font-display:"Antonio","Arial Narrow",system-ui,sans-serif;
+  --mh-display-tt:uppercase; --mh-display-ls:.06em; --mh-display-weight:600;
+  --mh-accent-bright:#ffb380; --mh-accent-dim:#cc7a4d;
+  --mh-accent-alpha-10:rgba(255,153,102,.10); --mh-accent-alpha-20:rgba(255,153,102,.20);
+  --mh-accent-alpha-30:rgba(255,153,102,.30); --mh-glow:0 0 20px rgba(255,153,102,.35);
+}
+html[data-mh-theme="light"]{
+  --mh-bg:#f4f6f9; --mh-surface:#fff; --mh-surface-2:#eef1f5;
+  --mh-text:#171a1f; --mh-text-muted:#5b6472; --mh-text-faint:#8a93a1;
+  --mh-border:rgba(20,24,31,.12); --mh-border-strong:rgba(20,24,31,.22);
+  --mh-accent:#2f6bff; --mh-accent-ink:#fff; --mh-accent-soft:rgba(47,107,255,.10);
+  --mh-good:#12a15f; --mh-warn:#b7791f; --mh-crit:#d64545; --mh-info:#2f6bff;
+  --mh-chip:rgba(20,24,31,.05); --mh-shadow:0 8px 30px rgba(20,24,31,.12);
+  --mh-accent-bright:#5a8bff; --mh-accent-dim:#274fbf;
+  --mh-accent-alpha-10:rgba(47,107,255,.10); --mh-accent-alpha-20:rgba(47,107,255,.20);
+  --mh-accent-alpha-30:rgba(47,107,255,.30); --mh-glow:0 0 20px rgba(47,107,255,.25);
+}
+html[data-mh-theme="plex"]{
+  --mh-bg:#0a0a0f; --mh-surface:#14141c; --mh-surface-2:#1c1c26;
+  --mh-text:#ececec; --mh-text-muted:#9a9aa8; --mh-text-faint:#6c6c7a;
+  --mh-border:rgba(229,160,13,.18); --mh-border-strong:rgba(229,160,13,.30);
+  --mh-accent:#e5a00d; --mh-accent-ink:#160f00; --mh-accent-soft:rgba(229,160,13,.14);
+  --mh-good:#46b26a; --mh-warn:#e5a00d; --mh-crit:#e06666; --mh-info:#5aa0e5;
+  --mh-chip:rgba(229,160,13,.10);
+  --mh-accent-bright:#ffc230; --mh-accent-dim:#b8860b;
+  --mh-accent-alpha-10:rgba(229,160,13,.10); --mh-accent-alpha-20:rgba(229,160,13,.20);
+  --mh-accent-alpha-30:rgba(229,160,13,.30); --mh-glow:0 0 20px rgba(229,160,13,.40);
+}
+html[data-mh-theme="oled"]{
+  --mh-bg:#000; --mh-surface:#0a0a0a; --mh-surface-2:#141414;
+  --mh-text:#fff; --mh-text-muted:#8b8b8b; --mh-text-faint:#5c5c5c;
+  --mh-border:rgba(255,255,255,.10); --mh-border-strong:rgba(255,255,255,.20);
+  --mh-accent:#22d3ee; --mh-accent-ink:#00181c; --mh-accent-soft:rgba(34,211,238,.12);
+  --mh-good:#34d399; --mh-warn:#fbbf24; --mh-crit:#fb7185; --mh-info:#22d3ee;
+  --mh-chip:rgba(255,255,255,.05);
+  --mh-accent-bright:#67e8f9; --mh-accent-dim:#0e7490;
+  --mh-accent-alpha-10:rgba(34,211,238,.10); --mh-accent-alpha-20:rgba(34,211,238,.20);
+  --mh-accent-alpha-30:rgba(34,211,238,.30); --mh-glow:0 0 20px rgba(34,211,238,.35);
+}
+
+.theme-picker{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;}
+.theme-card{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;
+  background:var(--mh-surface-2);border:1px solid var(--mh-border);border-radius:var(--mh-radius-sm);
+  padding:10px;color:var(--mh-text);font:inherit;font-size:.78rem;min-width:78px;}
+.theme-card:hover{border-color:var(--mh-border-strong);}
+.theme-card[aria-pressed="true"]{border-color:var(--mh-accent);box-shadow:0 0 0 1px var(--mh-accent);}
+.theme-card:focus-visible{outline:2px solid var(--mh-accent);outline-offset:2px;}
+.theme-card-swatch{width:52px;height:34px;border-radius:6px;border:2px solid;
+  display:flex;align-items:flex-end;justify-content:flex-end;padding:4px;}
+.theme-card-dot{width:10px;height:10px;border-radius:50%;}
+.theme-card-label{color:var(--mh-text-muted);}
+.theme-card[aria-pressed="true"] .theme-card-label{color:var(--mh-text);}
+
+/* Bridge: point the platform --archie-* tokens the app already uses at the active --mh-* theme.
+   Co-declared on :root with the --mh-* defaults so both resolve on <html>; per-theme --mh-* overrides
+   on html[data-mh-theme] flow through. Reskins every media-hub surface with zero media-hub.css edits.
+   Categorical data-viz accents (cyan/blue/purple) are left at platform defaults for chart legibility. */
+:root{
+  --archie-bg-primary:var(--mh-bg); --archie-bg-secondary:var(--mh-surface);
+  --archie-bg-tertiary:var(--mh-surface-2); --archie-bg-elevated:var(--mh-surface-2);
+  --archie-text-primary:var(--mh-text); --archie-text-secondary:var(--mh-text-muted);
+  --archie-text-muted:var(--mh-text-muted); --archie-text-tertiary:var(--mh-text-faint);
+  --archie-border-default:var(--mh-border-strong); --archie-border-muted:var(--mh-border);
+  --archie-border-subtle:var(--mh-border);
+  --archie-gold:var(--mh-accent); --archie-orange:var(--mh-accent); --archie-orange-dim:var(--mh-accent-dim);
+  --archie-orange-alpha-10:var(--mh-accent-alpha-10); --archie-orange-alpha-20:var(--mh-accent-alpha-20);
+  --archie-orange-alpha-30:var(--mh-accent-alpha-30); --archie-glow-orange:var(--mh-glow);
+  --archie-green:var(--mh-good); --archie-red:var(--mh-crit); --archie-amber:var(--mh-warn);
+  --archie-font-display:var(--mh-font-display); --archie-font-body:var(--mh-font-ui);
+  /* Coverage-check addition (beyond the plan's literal snippet): media-hub.css also references
+     --archie-green-alpha-20 / --archie-red-alpha-20 as tinted status-badge backgrounds paired with
+     the solid green/red text color (e.g. .request-status.available/.declined, .svc-badge.online).
+     These are CHROME (status badges), not categorical data-viz, so they're bridged via color-mix()
+     against the already-bridged --mh-good/--mh-crit so badge tints re-theme with the solid colors. */
+  --archie-green-alpha-20:color-mix(in srgb, var(--mh-good) 20%, transparent);
+  --archie-red-alpha-20:color-mix(in srgb, var(--mh-crit) 20%, transparent);
+}

@@ -4425,6 +4425,41 @@ async function loadSettings() {
         console.error('Settings load error:', error);
         // Keep any cached render on error rather than blanking.
     }
+
+    renderThemePicker();
+}
+
+function renderThemePicker() {
+  var host = document.getElementById('mh-theme-picker');
+  if (!host || !window.MHTheme) return;
+  var cur = window.MHTheme.current();
+  host.innerHTML = '';
+  window.MHTheme.THEMES.forEach(function (t) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'theme-card';
+    b.dataset.key = t.key;
+    b.setAttribute('aria-pressed', String(t.key === cur));
+    var sw = document.createElement('span');
+    sw.className = 'theme-card-swatch';
+    sw.style.background = t.swatch.bg;
+    sw.style.borderColor = t.swatch.accent;
+    var dot = document.createElement('span');
+    dot.className = 'theme-card-dot';
+    dot.style.background = t.swatch.accent;
+    sw.appendChild(dot);
+    var label = document.createElement('span');
+    label.className = 'theme-card-label';
+    label.textContent = t.label;              // static label — textContent (XSS rule)
+    b.appendChild(sw); b.appendChild(label);
+    b.addEventListener('click', function () {
+      window.MHTheme.applyTheme(t.key);
+      host.querySelectorAll('.theme-card').forEach(function (c) {
+        c.setAttribute('aria-pressed', String(c.dataset.key === t.key));
+      });
+    });
+    host.appendChild(b);
+  });
 }
 
 function createServiceCard(service) {

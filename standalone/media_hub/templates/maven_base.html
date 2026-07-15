@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
+    <script>try{var t=localStorage.getItem('mh-theme');if(t)document.documentElement.setAttribute('data-mh-theme',t);}catch(e){}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}M.A.V.E.N.{% endblock %} — Media Hub</title>
@@ -16,6 +17,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-header.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/lcars-modals.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme-tokens.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/media-hub.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tv-mode.css') }}">
     <!-- Lucide icons (CDN — not copied into standalone) -->
@@ -136,6 +138,7 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+<script src="{{ url_for('static', filename='js/theme-switcher.js') }}"></script>
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script>
     // Init Lucide icons

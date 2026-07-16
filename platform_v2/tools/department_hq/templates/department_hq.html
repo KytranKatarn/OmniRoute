@@ -1407,7 +1407,18 @@ function _renderApprovalCard(a) {
                 nameInput.className = 'dhq-hire-name';
                 nameInput.placeholder = 'New agent name (e.g. V.E.R.I.F.Y.)';
                 nameInput.style.cssText = 'background:#0a0f1a;border:1px solid rgba(192,132,252,0.3);color:#e2e8f0;font-size:0.8rem;padding:6px 8px;border-radius:3px';
-                nameInput.oninput = function() { hireState.newAgent.name = nameInput.value.trim(); };
+                nameInput.oninput = function() {
+                    hireState.newAgent.name = nameInput.value.trim();
+                    // A hand-edited name invalidates the generated identity — clear the
+                    // cached rich fields so we never persist a prompt/bio/portrait that
+                    // describes a different name. Server rebuilds a consistent identity.
+                    hireState.newAgent.expansion = '';
+                    hireState.newAgent.title = '';
+                    hireState.newAgent.bio = '';
+                    hireState.newAgent.personality = '';
+                    hireState.newAgent.system_prompt = '';
+                    hireState.newAgent.portrait_prompt = '';
+                };
 
                 var modelSel = document.createElement('select');
                 modelSel.style.cssText = 'background:#0a0f1a;border:1px solid rgba(192,132,252,0.3);color:#e2e8f0;font-size:0.8rem;padding:6px 8px;border-radius:3px';
@@ -1459,7 +1470,12 @@ function _renderApprovalCard(a) {
                             hireState.newAgent.display_name = gd.name;
                             hireState.newAgent.expansion = gd.expansion || '';
                             hireState.newAgent.title = gd.title || '';
+                            hireState.newAgent.bio = gd.bio || '';
+                            hireState.newAgent.personality = gd.personality || '';
+                            hireState.newAgent.system_prompt = gd.system_prompt || '';
+                            hireState.newAgent.portrait_prompt = gd.portrait_prompt || '';
                             var _meta = ((gd.expansion || '') + (gd.title ? ' \u00b7 ' + gd.title : '')) || 'Generated.';
+                            if (gd.bio) { _meta += ' \u2014 ' + gd.bio; }
                             hint.textContent = gd.source === 'fallback'
                                 ? _meta + ' \u00b7 \u26a0 fleet warming \u2014 deterministic name; click Generate again for an AI name.'
                                 : _meta;
@@ -1771,7 +1787,7 @@ async function _dhqApproveHire(approvalId, hireState, btn) {
             });
             return;
         }
-        body = { new_agent: { name: na.name, model: na.model, display_name: na.display_name || na.name, expansion: na.expansion || '', title: na.title || '' }, notes: '' };
+        body = { new_agent: { name: na.name, model: na.model, display_name: na.display_name || na.name, expansion: na.expansion || '', title: na.title || '', bio: na.bio || '', personality: na.personality || '', system_prompt: na.system_prompt || '', portrait_prompt: na.portrait_prompt || '' }, notes: '' };
         confirmTitle = 'CREATE NEW AGENT';
         confirmMsg = 'Create and activate a brand-new agent "' + na.name + '" (' + na.model + ') for this capability?\n\nA model-availability pre-check runs before creation.';
         okLabel = 'Create & Hire';

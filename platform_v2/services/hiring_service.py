@@ -239,18 +239,57 @@ def _create_new_hire(
             "message": f"Agent name {name!r} already exists (agent #{eid}).",
         }
 
-    from services import agent_service
+    from services import agent_service, agent_identity_builder
+
+    # Authoritative COMPLETE identity. Trust the reviewed Generate result when it
+    # carries a rich prompt; otherwise (manual name / no Generate) build it
+    # server-side so every hire is complete. existing_name keeps the reviewed name.
+    ident = {
+        "name": name,
+        "expansion": expansion,
+        "title": title,
+        "bio": (new_agent.get("bio") or "").strip(),
+        "personality": (new_agent.get("personality") or "").strip(),
+        "system_prompt": (new_agent.get("system_prompt") or "").strip(),
+        "portrait_prompt": (new_agent.get("portrait_prompt") or "").strip(),
+    }
+    # Consistency guard: a client may send a rich identity built for a DIFFERENT
+    # name (e.g. the name was edited after Generate). _assemble_system_prompt always
+    # begins "You are {name} (...)", so a consistent prompt contains the name. If it
+    # doesn't, the cached identity is stale — discard it and rebuild for the real name.
+    if ident["system_prompt"] and name not in ident["system_prompt"]:
+        ident = {
+            "name": name,
+            "expansion": "",
+            "title": "",
+            "bio": "",
+            "personality": "",
+            "system_prompt": "",
+            "portrait_prompt": "",
+        }
+
+    if len(ident["system_prompt"]) < agent_identity_builder.MIN_SYSTEM_PROMPT_CHARS:
+        try:
+            built = agent_identity_builder.build_identity(capability, department=department, existing_name=name)
+            for k in ("expansion", "title", "bio", "personality", "system_prompt", "portrait_prompt"):
+                if not ident.get(k):
+                    ident[k] = built.get(k) or ""
+            if len(ident["system_prompt"]) < agent_identity_builder.MIN_SYSTEM_PROMPT_CHARS:
+                ident["system_prompt"] = built["system_prompt"]
+        except Exception as _be:
+            logger.warning("identity build fallback failed for %s: %s", name, _be)
 
     try:
         new_agent_id = agent_service.create_agent(
             name=name,
-            display_name=display_name,
+            display_name=(display_name or name),
             department=department,
             model=model,
             shift_state="active",
             worker_type="internal",
             tier=3,
-            system_prompt=(f"You are {name}, a specialist in {capability} in the " f"{department} department."),
+            system_prompt=ident["system_prompt"]
+            or f"You are {name}, a specialist in {capability} in the {department} department.",
         )
         # agent_skills is what dispatch selection matches on — without this the
         # new hire would never actually serve the capability it was hired for.
@@ -272,20 +311,30 @@ def _create_new_hire(
         logger.exception("net-new create_agent failed (hire_id=%s)", hire_id)
         return {"ok": False, "reason": "create_failed", "agent_id": None, "message": str(e)}
 
-    # Persist acronym metadata so the roster shows what the letters stand for +
-    # a human role (F.O.R.G.E./M.A.V.E.N. convention). Goes through the agents
+    # Enrich the row with the full identity (acronym, expansion, title, bio,
+    # personality, portrait prompt) so the roster shows a complete agent, not
+    # just a name (F.O.R.G.E./M.A.V.E.N. convention). Goes through the agents
     # single-writer (agent_service.update_agent) — never raw SQL (K.I.N.
     # guardrail). Best-effort: a hiccup must not fail an otherwise-successful hire.
-    if expansion or title:
+    try:
+        agent_service.update_agent(
+            new_agent_id,
+            acronym=name,
+            acronym_expansion=ident["expansion"] or None,
+            title=ident["title"] or None,
+            bio=ident["bio"] or None,
+            personality_prompt=ident["personality"] or None,
+            portrait_prompt=ident["portrait_prompt"] or None,
+        )
+    except Exception as _ue:
+        logger.warning("identity enrich failed for #%s: %s", new_agent_id, _ue)
+
+    # Queue a representative sci-fi portrait (async, fail-open — never blocks the hire).
+    if ident["portrait_prompt"]:
         try:
-            agent_service.update_agent(
-                new_agent_id,
-                acronym=name,
-                acronym_expansion=expansion or None,
-                title=title or None,
-            )
-        except Exception as _ue:
-            logger.warning("acronym-metadata update failed for #%s: %s", new_agent_id, _ue)
+            agent_service.add_portrait(new_agent_id, ident["portrait_prompt"], style="sci-fi")
+        except Exception as _pe:
+            logger.warning("portrait enqueue failed for #%s: %s", new_agent_id, _pe)
 
     cur.execute(
         """

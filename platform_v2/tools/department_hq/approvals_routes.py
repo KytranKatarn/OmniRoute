@@ -626,7 +626,7 @@ def register_approvals_routes(bp, admin_required_decorator):
         blocks approval.
         """
         from database import get_db_cursor
-        from services import agent_name_generator
+        from services import agent_identity_builder
 
         try:
             with get_db_cursor(commit=False) as (_conn, cur):
@@ -635,7 +635,7 @@ def register_approvals_routes(bp, admin_required_decorator):
             if not row:
                 return jsonify({"ok": False, "error": "hire_not_found"}), 404
             capability = row["capability"] if isinstance(row, dict) else row[0]
-            result = agent_name_generator.suggest_name(capability)
+            result = agent_identity_builder.build_identity(capability)
             return jsonify({"ok": True, **result}), 200
         except Exception as exc:
             logger.warning("suggest_hire_name(%s) failed: %s", hire_id, exc)

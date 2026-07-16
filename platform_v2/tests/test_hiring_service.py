@@ -2,7 +2,21 @@
 
 from __future__ import annotations
 
+import sys
+import types
 from unittest.mock import MagicMock, patch
+
+if "/app" not in sys.path:
+    sys.path.insert(0, "/app")
+
+# `from services import agent_service` (deferred inside _create_new_hire) can pull
+# ai_bridge.agent_loop; stub it so the import resolves cleanly under pytest.
+# Mirrors the shim in test_hiring_acronym_persist.py.
+_stub_pkg = sys.modules.setdefault("ai_bridge", types.ModuleType("ai_bridge"))
+_stub_agent_loop = types.ModuleType("ai_bridge.agent_loop")
+_stub_agent_loop.request_approval = MagicMock(return_value=None)
+sys.modules["ai_bridge.agent_loop"] = _stub_agent_loop
+_stub_pkg.agent_loop = _stub_agent_loop
 
 
 def test_shortlist_returns_top_3_decommissioned_by_proficiency():
@@ -135,6 +149,8 @@ def test_approve_candidate_precheck_model_missing_blocks_transition():
         "id": 17,
         "status": "pending",
         "shortlist": [{"agent_id": 7, "display_name": "Oracle", "primary_model": "mistral:7b"}],
+        "capability": "translate",
+        "gap_reason": "only 2 active",
     }
     cur = MagicMock()
     cur.fetchone.return_value = row
@@ -165,6 +181,8 @@ def test_approve_candidate_invalid_chosen_agent_rejected():
         "id": 17,
         "status": "pending",
         "shortlist": [{"agent_id": 7, "display_name": "Oracle"}],
+        "capability": "translate",
+        "gap_reason": "only 2 active",
     }
     cur = MagicMock()
     cur.fetchone.return_value = row
@@ -185,7 +203,7 @@ def test_approve_candidate_invalid_chosen_agent_rejected():
 def test_approve_candidate_already_decided_rejected():
     from services import hiring_service
 
-    row = {"id": 17, "status": "approved", "shortlist": []}
+    row = {"id": 17, "status": "approved", "shortlist": [], "capability": "translate", "gap_reason": "n/a"}
     cur = MagicMock()
     cur.fetchone.return_value = row
     cur.__enter__ = lambda self: self
@@ -284,3 +302,130 @@ def test_propose_for_gap_serializes_datetime_in_shortlist():
             proposed_by_agent_id=145,
         )
     assert out == 99
+
+
+def test_create_new_hire_persists_complete_identity(monkeypatch):
+    """Approving a net-new hire with no rich fields still yields a complete agent."""
+    from services import hiring_service, agent_service, agent_identity_builder
+
+    calls = {}
+    monkeypatch.setattr(
+        agent_identity_builder,
+        "build_identity",
+        lambda cap, **k: {
+            "name": k.get("existing_name") or "N.O.V.A.",
+            "expansion": "New Operations Virtual Agent",
+            "title": "Ops Analyst",
+            "bio": "A backstory.",
+            "personality": "calm",
+            "system_prompt": "S" * 500,
+            "portrait_prompt": "sci-fi portrait",
+            "source": "fallback",
+        },
+    )
+    monkeypatch.setattr(agent_service, "create_agent", lambda **kw: (calls.update(create=kw) or 9991))
+    monkeypatch.setattr(agent_service, "add_skill", lambda *a, **k: None)
+    monkeypatch.setattr(agent_service, "init_budget", lambda *a, **k: None)
+    monkeypatch.setattr(agent_service, "log_creation_event", lambda **k: None)
+    monkeypatch.setattr(agent_service, "update_agent", lambda aid, **f: calls.setdefault("update", f))
+    monkeypatch.setattr(
+        agent_service, "add_portrait", lambda aid, prompt, **k: calls.setdefault("portrait", (aid, prompt))
+    )
+    monkeypatch.setattr(hiring_service, "_verify_model_available", lambda m: (True, "ok"))
+    monkeypatch.setattr(hiring_service, "_audit", lambda *a, **k: None)
+
+    # cur stub (reuses the MagicMock + fetchone.side_effect pattern already
+    # established in test_hiring_acronym_persist.py): the name-collision SELECT
+    # returns None (no clash), the approve UPDATE ... RETURNING returns a row.
+    cur = MagicMock()
+    cur.fetchone.side_effect = [None, {"id": 1}]
+
+    res = hiring_service._create_new_hire(
+        cur,
+        hire_id=1,
+        capability="analyze",
+        gap_reason="gap",
+        new_agent={"name": "N.O.V.A.", "model": "qwen2.5:7b"},
+        decided_by_user_id=4,
+        notes="",
+    )
+    assert res["ok"]
+    assert len(calls["create"]["system_prompt"]) >= 400  # rich prompt, not the 90-char stub
+    assert calls["update"]["bio"] and calls["update"]["personality_prompt"]
+    assert calls["update"]["acronym_expansion"] and calls["update"]["title"]
+    assert calls["update"]["portrait_prompt"]
+    assert calls["portrait"][0] == 9991  # portrait queued for the new agent
+
+
+def test_create_new_hire_rebuilds_identity_when_prompt_names_stale_agent(monkeypatch):
+    """Regression: Generate built a rich identity for name Q.U.A.R.T.Z., then the
+    admin hand-edited the name field to N.O.V.A. before Approve. The stale rich
+    fields (system_prompt/bio/personality/portrait_prompt) still describe
+    Q.U.A.R.T.Z. The consistency guard must detect the mismatch and discard the
+    stale fields so build_identity() rebuilds a fresh identity for the real
+    name — the persisted agent must never have a name/system_prompt mismatch."""
+    from services import hiring_service, agent_service, agent_identity_builder
+
+    _BUILT_IDENTITY = {
+        "name": "N.O.V.A.",
+        "expansion": "New Operations Virtual Agent",
+        "title": "Ops Analyst",
+        "bio": "Freshly built bio for N.O.V.A.",
+        "personality": "calm",
+        "system_prompt": "You are N.O.V.A. (New Operations Virtual Agent), " + "n" * 400,
+        "portrait_prompt": "sci-fi portrait of N.O.V.A.",
+        "source": "fallback",
+    }
+    calls = {}
+    monkeypatch.setattr(
+        agent_identity_builder,
+        "build_identity",
+        lambda cap, **k: dict(_BUILT_IDENTITY, name=k.get("existing_name") or _BUILT_IDENTITY["name"]),
+    )
+    monkeypatch.setattr(agent_service, "create_agent", lambda **kw: (calls.update(create=kw) or 9992))
+    monkeypatch.setattr(agent_service, "add_skill", lambda *a, **k: None)
+    monkeypatch.setattr(agent_service, "init_budget", lambda *a, **k: None)
+    monkeypatch.setattr(agent_service, "log_creation_event", lambda **k: None)
+    monkeypatch.setattr(agent_service, "update_agent", lambda aid, **f: calls.setdefault("update", f))
+    monkeypatch.setattr(
+        agent_service, "add_portrait", lambda aid, prompt, **k: calls.setdefault("portrait", (aid, prompt))
+    )
+    monkeypatch.setattr(hiring_service, "_verify_model_available", lambda m: (True, "ok"))
+    monkeypatch.setattr(hiring_service, "_audit", lambda *a, **k: None)
+
+    cur = MagicMock()
+    cur.fetchone.side_effect = [None, {"id": 1}]
+
+    # Name was hand-edited to N.O.V.A. AFTER Generate built a rich identity for
+    # a different name (Q.U.A.R.T.Z.) — simulates the client not clearing the
+    # cached fields (defense-in-depth for direct API callers; the frontend fix
+    # clears these client-side, but the server must not trust it blindly).
+    stale_new_agent = {
+        "name": "N.O.V.A.",
+        "model": "qwen2.5:7b",
+        "expansion": "Quantum Analytics Reasoning Tool",
+        "title": "Data Specialist",
+        "bio": "Q.U.A.R.T.Z. was forged in the analytics division.",
+        "personality": "precise",
+        "system_prompt": "You are Q.U.A.R.T.Z. (Quantum Analytics Reasoning Tool), " + "z" * 400,
+        "portrait_prompt": "sci-fi portrait of Q.U.A.R.T.Z.",
+    }
+
+    res = hiring_service._create_new_hire(
+        cur,
+        hire_id=1,
+        capability="analyze",
+        gap_reason="gap",
+        new_agent=stale_new_agent,
+        decided_by_user_id=4,
+        notes="",
+    )
+    assert res["ok"]
+    # Persisted identity must be the freshly-built one for N.O.V.A. — the stale
+    # Q.U.A.R.T.Z. prompt/bio must never leak into the created agent.
+    assert calls["create"]["system_prompt"] == _BUILT_IDENTITY["system_prompt"]
+    assert "Q.U.A.R.T.Z." not in calls["create"]["system_prompt"]
+    assert calls["update"]["bio"] == _BUILT_IDENTITY["bio"]
+    assert calls["update"]["personality_prompt"] == _BUILT_IDENTITY["personality"]
+    assert calls["update"]["acronym_expansion"] == _BUILT_IDENTITY["expansion"]
+    assert calls["update"]["portrait_prompt"] == _BUILT_IDENTITY["portrait_prompt"]

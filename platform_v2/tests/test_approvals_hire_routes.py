@@ -259,22 +259,27 @@ class TestRejectHireEndpoint:
 
 class TestSuggestHireName:
     def test_suggest_name_returns_generated_name(self, db, approvals_client):
-        """Seed a candidate, POST suggest-name, assert the generated name comes back
-        and the capability was derived server-side from the row (not the client)."""
+        """Seed a candidate, POST suggest-name, assert the generated identity comes
+        back and the capability was derived server-side from the row (not the
+        client)."""
         from unittest.mock import patch as _patch
 
-        from services import agent_name_generator as _ang
+        from services import agent_identity_builder as _aib
 
         _login_as_admin(approvals_client)
         hire_id = _seed_hire(db, capability="fact_check")
         try:
             with _patch.object(
-                _ang,
-                "suggest_name",
+                _aib,
+                "build_identity",
                 return_value={
                     "name": "V.E.R.I.F.Y.",
                     "expansion": "Validation Engine ...",
                     "title": "Fact Checker",
+                    "bio": "b",
+                    "personality": "p",
+                    "system_prompt": "x" * 500,
+                    "portrait_prompt": "sci-fi ...",
                     "source": "llm",
                 },
             ) as mock_gen:
@@ -305,17 +310,55 @@ class TestSuggestHireName:
         """A generator exception -> HTTP 200 {ok: false} (never blocks approval)."""
         from unittest.mock import patch as _patch
 
-        from services import agent_name_generator as _ang
+        from services import agent_identity_builder as _aib
 
         _login_as_admin(approvals_client)
         hire_id = _seed_hire(db, capability="translate")
         try:
-            with _patch.object(_ang, "suggest_name", side_effect=RuntimeError("boom")):
+            with _patch.object(_aib, "build_identity", side_effect=RuntimeError("boom")):
                 resp = approvals_client.post(
                     f"/tools/department-hq/api/approvals/hire/{hire_id}/suggest-name",
                     json={},
                 )
             assert resp.status_code == 200
             assert resp.get_json()["ok"] is False
+        finally:
+            _cleanup_hire(db, hire_id)
+
+    def test_suggest_name_returns_full_identity(self, db, approvals_client, monkeypatch):
+        """The route now returns the FULL identity package (bio, personality,
+        system_prompt, portrait_prompt) — a superset of the old
+        name/expansion/title/source response. Deterministic: monkeypatches
+        agent_identity_builder.build_identity so no live fleet is needed."""
+        from services import agent_identity_builder
+
+        _login_as_admin(approvals_client)
+        hire_id = _seed_hire(db, capability="fact_check")
+        try:
+            monkeypatch.setattr(
+                agent_identity_builder,
+                "build_identity",
+                lambda cap, **k: {
+                    "name": "V.E.R.I.F.Y.",
+                    "expansion": "Validation Engine ...",
+                    "title": "Fact Checker",
+                    "bio": "b",
+                    "personality": "p",
+                    "system_prompt": "x" * 500,
+                    "portrait_prompt": "sci-fi ...",
+                    "source": "llm",
+                },
+            )
+            resp = approvals_client.post(
+                f"/tools/department-hq/api/approvals/hire/{hire_id}/suggest-name",
+                json={},
+            )
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["ok"] is True
+            assert data["bio"] == "b"
+            assert data["system_prompt"] == "x" * 500
+            assert data["portrait_prompt"] == "sci-fi ..."
+            assert data["name"] == "V.E.R.I.F.Y."
         finally:
             _cleanup_hire(db, hire_id)

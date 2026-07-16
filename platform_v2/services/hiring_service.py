@@ -209,6 +209,8 @@ def _create_new_hire(
     display_name = (new_agent.get("display_name") or "").strip() or (
         f"{capability.replace('_', ' ').title()} Specialist"
     )
+    expansion = (new_agent.get("expansion") or "").strip()
+    title = (new_agent.get("title") or "").strip()
     department = _department_for_capability(capability)
 
     # Model must actually be servable (same precheck as reactivation).
@@ -269,6 +271,21 @@ def _create_new_hire(
     except Exception as e:
         logger.exception("net-new create_agent failed (hire_id=%s)", hire_id)
         return {"ok": False, "reason": "create_failed", "agent_id": None, "message": str(e)}
+
+    # Persist acronym metadata so the roster shows what the letters stand for +
+    # a human role (F.O.R.G.E./M.A.V.E.N. convention). Goes through the agents
+    # single-writer (agent_service.update_agent) — never raw SQL (K.I.N.
+    # guardrail). Best-effort: a hiccup must not fail an otherwise-successful hire.
+    if expansion or title:
+        try:
+            agent_service.update_agent(
+                new_agent_id,
+                acronym=name,
+                acronym_expansion=expansion or None,
+                title=title or None,
+            )
+        except Exception as _ue:
+            logger.warning("acronym-metadata update failed for #%s: %s", new_agent_id, _ue)
 
     cur.execute(
         """

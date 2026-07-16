@@ -255,3 +255,67 @@ class TestRejectHireEndpoint:
         assert resp.status_code == 200
         mock_reject.assert_called_once()
         assert mock_reject.call_args.kwargs.get("hire_id") == 17
+
+
+class TestSuggestHireName:
+    def test_suggest_name_returns_generated_name(self, db, approvals_client):
+        """Seed a candidate, POST suggest-name, assert the generated name comes back
+        and the capability was derived server-side from the row (not the client)."""
+        from unittest.mock import patch as _patch
+
+        from services import agent_name_generator as _ang
+
+        _login_as_admin(approvals_client)
+        hire_id = _seed_hire(db, capability="fact_check")
+        try:
+            with _patch.object(
+                _ang,
+                "suggest_name",
+                return_value={
+                    "name": "V.E.R.I.F.Y.",
+                    "expansion": "Validation Engine ...",
+                    "title": "Fact Checker",
+                    "source": "llm",
+                },
+            ) as mock_gen:
+                resp = approvals_client.post(
+                    f"/tools/department-hq/api/approvals/hire/{hire_id}/suggest-name",
+                    json={},
+                )
+            assert resp.status_code == 200
+            body = resp.get_json()
+            assert body["ok"] is True
+            assert body["name"] == "V.E.R.I.F.Y."
+            assert body["title"] == "Fact Checker"
+            assert mock_gen.call_args.args[0] == "fact_check"
+        finally:
+            _cleanup_hire(db, hire_id)
+
+    def test_suggest_name_not_found(self, approvals_client):
+        """Unknown hire_id -> 404 {ok: false}."""
+        _login_as_admin(approvals_client)
+        resp = approvals_client.post(
+            "/tools/department-hq/api/approvals/hire/999999/suggest-name",
+            json={},
+        )
+        assert resp.status_code == 404
+        assert resp.get_json()["ok"] is False
+
+    def test_suggest_name_failsoft_on_generator_error(self, db, approvals_client):
+        """A generator exception -> HTTP 200 {ok: false} (never blocks approval)."""
+        from unittest.mock import patch as _patch
+
+        from services import agent_name_generator as _ang
+
+        _login_as_admin(approvals_client)
+        hire_id = _seed_hire(db, capability="translate")
+        try:
+            with _patch.object(_ang, "suggest_name", side_effect=RuntimeError("boom")):
+                resp = approvals_client.post(
+                    f"/tools/department-hq/api/approvals/hire/{hire_id}/suggest-name",
+                    json={},
+                )
+            assert resp.status_code == 200
+            assert resp.get_json()["ok"] is False
+        finally:
+            _cleanup_hire(db, hire_id)

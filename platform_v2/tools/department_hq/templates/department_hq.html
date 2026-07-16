@@ -1418,11 +1418,54 @@ function _renderApprovalCard(a) {
                 });
                 modelSel.onchange = function() { hireState.newAgent.model = modelSel.value; };
 
+                var genBtn = document.createElement('button');
+                genBtn.type = 'button';
+                genBtn.textContent = '\u2728 Generate';
+                genBtn.style.cssText = 'background:rgba(192,132,252,0.15);border:1px solid rgba(192,132,252,0.5);color:#e9d5ff;font-size:0.75rem;padding:6px 10px;border-radius:3px;cursor:pointer;white-space:nowrap';
+
+                var nameRow = document.createElement('div');
+                nameRow.style.cssText = 'display:flex;gap:6px;align-items:stretch';
+                nameInput.style.flex = '1';
+                nameRow.appendChild(nameInput);
+                nameRow.appendChild(genBtn);
+
                 var hint = document.createElement('div');
                 hint.style.cssText = 'color:#94a3b8;font-size:0.72rem';
                 hint.textContent = (cand.note || 'Net-new agent') + (cap ? ' \u00b7 skill: ' + cap : '');
 
-                form.appendChild(nameInput);
+                genBtn.onclick = async function() {
+                    var hid = String(a.id).split(':')[1] || '';
+                    if (!hid) { hint.textContent = 'Cannot generate (missing id).'; return; }
+                    genBtn.disabled = true;
+                    var _prev = genBtn.textContent;
+                    genBtn.textContent = 'Generating\u2026';
+                    hint.textContent = 'Asking the fleet for a name\u2026';
+                    try {
+                        var gr = await fetch('/tools/department-hq/api/approvals/hire/' + hid + '/suggest-name', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: '{}'
+                        });
+                        var gd = await gr.json();
+                        if (gd && gd.ok && gd.name) {
+                            nameInput.value = gd.name;
+                            hireState.newAgent.name = gd.name;
+                            hireState.newAgent.display_name = gd.name;
+                            hireState.newAgent.expansion = gd.expansion || '';
+                            hireState.newAgent.title = gd.title || '';
+                            hint.textContent = ((gd.expansion || '') + (gd.title ? ' \u00b7 ' + gd.title : '')) || 'Generated.';
+                        } else {
+                            hint.textContent = 'Could not generate \u2014 type a name or try again.';
+                        }
+                    } catch (e) {
+                        hint.textContent = 'Could not generate \u2014 type a name or try again.';
+                    } finally {
+                        genBtn.disabled = false;
+                        genBtn.textContent = _prev;
+                    }
+                };
+
+                form.appendChild(nameRow);
                 form.appendChild(modelSel);
                 form.appendChild(hint);
                 shortlistBox.appendChild(form);
@@ -1718,7 +1761,7 @@ async function _dhqApproveHire(approvalId, hireState, btn) {
             });
             return;
         }
-        body = { new_agent: { name: na.name, model: na.model }, notes: '' };
+        body = { new_agent: { name: na.name, model: na.model, display_name: na.display_name || na.name, expansion: na.expansion || '', title: na.title || '' }, notes: '' };
         confirmTitle = 'CREATE NEW AGENT';
         confirmMsg = 'Create and activate a brand-new agent "' + na.name + '" (' + na.model + ') for this capability?\n\nA model-availability pre-check runs before creation.';
         okLabel = 'Create & Hire';

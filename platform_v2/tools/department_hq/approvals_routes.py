@@ -615,6 +615,32 @@ def register_approvals_routes(bp, admin_required_decorator):
         status = status_map.get(result.get("reason", ""), 400)
         return jsonify(result), status
 
+    @bp.route("/api/approvals/hire/<int:hire_id>/suggest-name", methods=["POST"])
+    @admin_required_decorator
+    def suggest_hire_name(hire_id: int):
+        """Generate a unique, job-fit acronym name for a net-new hire.
+
+        The server reads the candidate's capability itself (nothing
+        client-supplied to trust). Fail-soft: any error returns HTTP 200
+        {ok: false} so the UI can fall back to manual typing — this never
+        blocks approval.
+        """
+        from database import get_db_cursor
+        from services import agent_name_generator
+
+        try:
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute("SELECT capability FROM hiring_candidates WHERE id = %s", (hire_id,))
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": "hire_not_found"}), 404
+            capability = row["capability"] if isinstance(row, dict) else row[0]
+            result = agent_name_generator.suggest_name(capability)
+            return jsonify({"ok": True, **result}), 200
+        except Exception as exc:
+            logger.warning("suggest_hire_name(%s) failed: %s", hire_id, exc)
+            return jsonify({"ok": False, "error": "generation_failed"}), 200
+
     @bp.route("/api/approvals/hire/<int:hire_id>/reject", methods=["POST"])
     @admin_required_decorator
     def reject_hire(hire_id: int):

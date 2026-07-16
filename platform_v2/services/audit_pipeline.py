@@ -1094,14 +1094,37 @@ def dispatch_audit_proposals(limit=20):
                 deferred += 1
                 logger.info("Proposal #%d deferred (queued cold-load)", proposal_id)
             else:
-                failed += 1
-                logger.warning(
-                    "Proposal #%d dispatch failed: %s",
-                    proposal_id,
-                    result.get("error"),
-                )
-                # Mark as attempted to avoid retry loops
-                _mark_dispatch_attempted(proposal_id, result.get("error", ""))
+                error_msg = result.get("error", "")
+                if _is_transient_dispatch_error(error_msg):
+                    # Transient (agent resting / model busy): retry, don't park —
+                    # but cap retries so a chronically-resting agent's proposal
+                    # can't block the oldest-first batch head forever.
+                    defer_n = _record_transient_defer(proposal_id, error_msg)
+                    if defer_n > _MAX_TRANSIENT_DEFERS:
+                        failed += 1
+                        logger.warning(
+                            "Proposal #%d exceeded %d transient defers — marking attempted",
+                            proposal_id,
+                            _MAX_TRANSIENT_DEFERS,
+                        )
+                        _mark_dispatch_attempted(proposal_id, f"max_transient_defers:{error_msg[:120]}")
+                    else:
+                        deferred += 1
+                        logger.info(
+                            "Proposal #%d deferred (transient x%d): %s",
+                            proposal_id,
+                            defer_n,
+                            error_msg[:80],
+                        )
+                else:
+                    failed += 1
+                    logger.warning(
+                        "Proposal #%d dispatch failed (permanent): %s",
+                        proposal_id,
+                        error_msg,
+                    )
+                    # Mark permanent failures attempted to avoid retry loops
+                    _mark_dispatch_attempted(proposal_id, error_msg)
         except Exception as e:
             failed += 1
             logger.error("Proposal #%d dispatch error: %s", proposal_id, e)
@@ -1210,3 +1233,51 @@ def _mark_dispatch_attempted(proposal_id, error_msg):
                WHERE id = %s""",
             (json.dumps({"dispatch_attempted": True, "dispatch_error": error_msg[:200]}), proposal_id),
         )
+
+
+# Transient dispatch failures resolve on their own — the assigned agent was resting
+# (C.R.E.E.D. welfare gate: shift_state winding_down/cooldown) or the model returned
+# nothing (cold-load / Ollama saturation / timeout). These MUST be RETRIED, not marked
+# permanently attempted, or the self-heal backlog silently dies (~0.35% yield bug,
+# 2026-07-16). Permanent failures (file-not-found, fix_apply rejects, synthetic
+# placeholders) stay marked-attempted so they don't loop forever.
+_TRANSIENT_DISPATCH_MARKERS = (
+    "shift_state",  # welfare gate — agent winding_down / cooldown / off_duty
+    "empty response",  # bridge/model returned nothing (cold-load / saturation)
+    "queued",  # cold-load queue
+    "cold_load",
+    "cold load",
+    "timeout",
+    "did not respond",
+    "reaped",
+)
+
+# Cap retries so a proposal whose agent is chronically resting cannot block the
+# oldest-first batch head forever (head-of-line starvation of newer proposals).
+_MAX_TRANSIENT_DEFERS = 30
+
+
+def _is_transient_dispatch_error(error_msg):
+    """True when a fix dispatch failed for a self-resolving reason (agent resting /
+    model busy) that should be RETRIED rather than marked permanently attempted."""
+    if not error_msg:
+        return False
+    low = str(error_msg).lower()
+    return any(m in low for m in _TRANSIENT_DISPATCH_MARKERS)
+
+
+def _record_transient_defer(proposal_id, error_msg):
+    """Bump the transient-defer counter WITHOUT setting dispatch_attempted, so the
+    proposal stays eligible for retry. Returns the new defer count."""
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE improvement_proposals
+               SET metadata = metadata || jsonb_build_object(
+                     'defer_count', COALESCE((metadata->>'defer_count')::int, 0) + 1,
+                     'last_defer_error', %s)
+               WHERE id = %s
+               RETURNING (metadata->>'defer_count')::int AS defer_count""",
+            (str(error_msg)[:200], proposal_id),
+        )
+        row = cur.fetchone()
+    return (row["defer_count"] if row else 1) or 1

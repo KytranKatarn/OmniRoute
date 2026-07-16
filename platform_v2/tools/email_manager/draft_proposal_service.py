@@ -43,6 +43,22 @@ _COOLDOWN_MIN_KEY = "mailhq:draft:cooldown_min"  # tunable; default below
 _DEFAULT_MAX_ATTEMPTS = 3
 _DEFAULT_COOLDOWN_MIN = 60
 
+# --------------------------------------------------------------------------- #
+# Collaborator persona drafting (Slice 1) — extends the draft path to the 21
+# `human_agent` collaborator mailboxes, each drafted in its OWN persona on a
+# shared small model. Independently gated (default OFF) so it can be turned on
+# WITHOUT touching the owner/business draft path above.
+# --------------------------------------------------------------------------- #
+COLLAB_FLAG_KEY = "mailhq:draft:collaborators"  # platform_settings; absent/false => no-op
+_COLLAB_MAILBOX_TYPE = "human_agent"  # the COLLABORATOR marker
+_COLLAB_MODEL = "llama3.2:3b"  # shared small model forced for every collaborator draft
+# Separate attempt map so the collaborator job never races the owner/business one.
+_COLLAB_ATTEMPTS_KEY = "mailhq:draft:collab_attempts"
+
+
+def _collaborators_enabled() -> bool:
+    return str(_setting(COLLAB_FLAG_KEY, "false") or "false").strip().lower() in ("1", "true", "on", "yes")
+
 
 def _setting(key: str, default: str | None = None) -> str | None:
     from database import get_db_cursor
@@ -81,9 +97,9 @@ def _int_setting(key: str, default: int) -> int:
         return default
 
 
-def _load_attempts() -> dict:
+def _load_attempts(key: str = _ATTEMPTS_KEY) -> dict:
     """Load the per-message draft-attempt map from platform_settings (best-effort)."""
-    raw = _setting(_ATTEMPTS_KEY, "") or ""
+    raw = _setting(key, "") or ""
     if not raw:
         return {}
     try:
@@ -93,9 +109,9 @@ def _load_attempts() -> dict:
         return {}
 
 
-def _save_attempts(attempts: dict) -> None:
+def _save_attempts(attempts: dict, key: str = _ATTEMPTS_KEY) -> None:
     try:
-        _set_setting(_ATTEMPTS_KEY, json.dumps(attempts))
+        _set_setting(key, json.dumps(attempts))
     except Exception as exc:  # never let bookkeeping break the job
         logger.debug("[mailhq-draft] could not persist attempts map: %s", exc)
 
@@ -253,6 +269,193 @@ def _create_proposal(c: dict) -> bool:
                VALUES ('email_reply', %s, 2, 'pending', 5, 'mailhq', %s)
                RETURNING id""",
             (Json(action_data), f"Draft reply to {c['from_address']} re: {subject[:80]}"),
+        )
+        qrow = cur.fetchone()
+    queue_id = qrow["id"] if isinstance(qrow, dict) else qrow[0]
+
+    _send_proposal_buttons(queue_id, c, draft, agent)
+    return True
+
+
+# --------------------------------------------------------------------------- #
+# Slice 1 — collaborator persona draft job (human_agent mailboxes)
+# --------------------------------------------------------------------------- #
+def _process_candidates(candidates: list, create_fn, attempts_key: str) -> dict:
+    """Shared retry-cap/cooldown drain loop (used by the collaborator job).
+
+    Mirrors the poison-message guard in ``run_mailhq_draft_proposals`` but is
+    parameterised on the attempt-map key + the per-candidate create function, so a
+    second producer never has to reimplement (or race) the owner/business loop.
+    Returns ``{"created", "capped", "cooling"}``.
+    """
+    from services.time_utils import now_utc
+
+    attempts = _load_attempts(attempts_key)
+    max_attempts = _int_setting(_MAX_ATTEMPTS_KEY, _DEFAULT_MAX_ATTEMPTS)
+    cooldown = timedelta(minutes=_int_setting(_COOLDOWN_MIN_KEY, _DEFAULT_COOLDOWN_MIN))
+    now = now_utc()
+
+    created = capped = cooling = 0
+    for c in candidates:
+        mid = str(c.get("id"))
+        rec = attempts.get(mid)
+        if rec:
+            if int(rec.get("n", 0)) >= max_attempts:
+                capped += 1
+                continue  # poison message — give up until it ages out of the window
+            last = _parse_iso(rec.get("last"))
+            if last and (now - last) < cooldown:
+                cooling += 1
+                continue  # still cooling down from the last failed attempt
+        try:
+            ok = create_fn(c)
+        except Exception as exc:
+            logger.error("[mailhq-collab] proposal failed for msg=%s: %s", c.get("id"), exc)
+            ok = False
+        if ok:
+            created += 1
+            attempts.pop(mid, None)
+        else:
+            attempts[mid] = {"n": int((rec or {}).get("n", 0)) + 1, "last": now.isoformat()}
+
+    # Prune entries past the recency window so the attempts map can't grow unbounded.
+    horizon = now - timedelta(hours=_RECENCY_HOURS)
+    attempts = {k: v for k, v in attempts.items() if (_parse_iso(v.get("last")) or now) >= horizon}
+    _save_attempts(attempts, attempts_key)
+    return {"created": created, "capped": capped, "cooling": cooling}
+
+
+def run_mailhq_collaborator_drafts() -> dict:
+    """Scheduled job: persona-voiced approve-to-send drafts for collaborator mail.
+
+    Extends the draft path to ``mailbox_type='human_agent'`` mailboxes. Each
+    action-priority inbound is drafted in ITS OWN collaborator's voice (their
+    ``agents.system_prompt``) on the shared small model ``llama3.2:3b``, then queued
+    into the SAME ``autonomy_approval_queue`` (`action_type='email_reply'`) gate the
+    owner already approves. Independently gated (default OFF); a no-op until enabled.
+    """
+    if not _collaborators_enabled():
+        return {"skipped": True, "reason": f"{COLLAB_FLAG_KEY} is off"}
+
+    from database import get_db_cursor
+    from services.time_utils import now_utc
+
+    cutoff = now_utc() - timedelta(hours=_RECENCY_HOURS)
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT m.id, m.subject, m.from_address, m.body_text, m.body_preview,
+                      m.mailbox_id, m.thread_id, m.message_id AS rfc_message_id,
+                      mb.address AS mailbox_address, mb.mailbox_type,
+                      mb.display_name AS mailbox_name,
+                      mb.owner_agent_id AS collaborator_agent_id,
+                      COALESCE(a.display_name, a.name) AS collaborator_name,
+                      a.system_prompt AS collaborator_system_prompt
+                 FROM email_messages m
+                 JOIN email_mailboxes mb ON mb.id = m.mailbox_id
+                 JOIN agents a ON a.id = mb.owner_agent_id
+                WHERE m.ai_priority = 'action'
+                  AND mb.mailbox_type = %s
+                  AND m.received_at >= %s
+                  AND NOT EXISTS (
+                      SELECT 1 FROM autonomy_approval_queue q
+                       WHERE q.action_type = 'email_reply'
+                         AND q.action_data->>'message_id' = m.id::text
+                  )
+                  -- Never auto-draft a reply to one of OUR OWN mailboxes (reply loop).
+                  AND lower(m.from_address) NOT IN (
+                      SELECT lower(address) FROM email_mailboxes WHERE provisioned = TRUE
+                  )
+                  -- Skip no-reply / automated senders — a drafted reply is pointless.
+                  AND lower(coalesce(m.from_address, '')) !~ '(no-?reply|do-?not-?reply|mailer-daemon|postmaster)@'
+                ORDER BY m.received_at DESC
+                LIMIT %s""",
+            (_COLLAB_MAILBOX_TYPE, cutoff, _MAX_PER_RUN),
+        )
+        candidates = [dict(r) for r in cur.fetchall()]
+
+    summary = _process_candidates(candidates, _create_collaborator_proposal, _COLLAB_ATTEMPTS_KEY)
+    if candidates or summary["capped"] or summary["cooling"]:
+        logger.info(
+            "[mailhq-collab] %d candidate(s) -> %d created, %d capped, %d cooling",
+            len(candidates),
+            summary["created"],
+            summary["capped"],
+            summary["cooling"],
+        )
+    return {"candidates": len(candidates), **summary}
+
+
+def _create_collaborator_proposal(c: dict) -> bool:
+    """Draft a reply for one collaborator-mailbox message and enqueue the proposal.
+
+    The collaborator's ``system_prompt`` IS the drafting system prompt (persona/voice);
+    ``model_override='llama3.2:3b'`` + ``local_only=True`` force the shared small model
+    on the local fleet regardless of which agent the ``support`` capability routes to.
+    The proposal is ATTRIBUTED to the collaborator (name + agent id + mailbox), so the
+    owner's approval card shows whose reply it is — not R.E.S.O.L.V.E.
+    """
+    from psycopg2.extras import Json
+
+    from database import get_db_cursor
+
+    # Cluster-wide, cold-load-tolerant dispatch (supports model_override). NEVER
+    # dispatch_json — that masks cold-load queueing and drops the work (KB #276153).
+    from services.cluster_dispatch import queued_dispatch_text
+
+    name = (c.get("collaborator_name") or c.get("mailbox_name") or "the mailbox owner").strip()
+    system_prompt = (c.get("collaborator_system_prompt") or "").strip() or None
+    body_snippet = (c.get("body_text") or c.get("body_preview") or "")[:1000]
+    prompt = (
+        f"Draft a concise, professional email reply in {name}'s voice to the message below.\n\n"
+        f"Mailbox: {c.get('mailbox_name')} <{c.get('mailbox_address')}>\n"
+        f"From: {c.get('from_address')}\n"
+        f"Subject: {c.get('subject')}\n"
+        f"Message:\n{body_snippet}\n\n"
+        "Write only the reply body text — no subject line, no greeting header, "
+        "no 'Here is a draft' preamble. Start directly with the reply content."
+    )
+
+    draft = queued_dispatch_text(
+        capability="support",
+        prompt=prompt,
+        system_prompt=system_prompt,
+        model_override=_COLLAB_MODEL,
+        local_only=True,
+    )
+    if not draft:
+        logger.warning("[mailhq-collab] draft dispatch failed/empty for msg=%s", c.get("id"))
+        return False
+    draft = draft.strip()
+    agent = name  # attribute the draft to the collaborator, NOT R.E.S.O.L.V.E.
+
+    subject = (c.get("subject") or "").strip() or "(no subject)"
+    reply_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+
+    action_data = {
+        "message_id": c["id"],
+        "mailbox_id": c["mailbox_id"],
+        "from_address": c["mailbox_address"],  # reply FROM the collaborator's mailbox
+        "to_address": c["from_address"],  # TO the original sender
+        "subject": reply_subject,
+        "in_reply_to": c.get("rfc_message_id"),
+        "thread_id": c.get("thread_id"),
+        "draft_reply": draft,
+        "agent": agent,  # collaborator name -> shown on the approval card
+        "collaborator_agent_id": c.get("collaborator_agent_id"),
+        "mailbox_type": "human_agent",
+        "original_subject": subject,
+    }
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """INSERT INTO autonomy_approval_queue
+                   (action_type, action_data, tier, status, priority, requested_by, reason)
+               VALUES ('email_reply', %s, 2, 'pending', 5, 'mailhq', %s)
+               RETURNING id""",
+            (
+                Json(action_data),
+                f"Draft reply as {agent} ({c['mailbox_address']}) to {c['from_address']} re: {subject[:80]}",
+            ),
         )
         qrow = cur.fetchone()
     queue_id = qrow["id"] if isinstance(qrow, dict) else qrow[0]

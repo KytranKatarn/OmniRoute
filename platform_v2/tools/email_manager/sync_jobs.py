@@ -393,6 +393,25 @@ def register_email_sync_jobs(job_service) -> None:
     except Exception as exc:
         logger.error("[mailhq_draft_proposals] Failed to register: %s", exc)
 
+    # Collaborator Persona Email Assistant — Slice 1: per-collaborator persona drafts
+    # for action-priority human_agent mail (llama3.2:3b). INDEPENDENTLY gated OFF by
+    # default (platform_settings mailhq:draft:collaborators) — a no-op until enabled,
+    # so registering it is safe and does not touch the owner/business draft job above.
+    # Isolated try/except so a failure here cannot affect the jobs above.
+    try:
+        from .draft_proposal_service import run_mailhq_collaborator_drafts
+
+        job_service.register_job(
+            name="mailhq_collaborator_drafts",
+            func=run_mailhq_collaborator_drafts,
+            interval_hours=1 / 6,  # every 10 minutes
+            department="Customer Success & Support",
+            description="Draft persona-voiced replies for action-priority collaborator (human_agent) mail (gated)",
+        )
+        logger.info("[mailhq_collaborator_drafts] Registered")
+    except Exception as exc:
+        logger.error("[mailhq_collaborator_drafts] Failed to register: %s", exc)
+
     # Mail HQ triage-health alert (task #4518) — flags the silent-failure class where
     # triage stops populating ai_priority (the whole Smart Inbox depends on it).
     try:

@@ -9,6 +9,7 @@ Keys:
   mailhq:notify:mailbox_types  csv    which mailbox types get the advisory (owner,business)
   mailhq:notify:quiet_hours    H-H    suppress the advisory in this local window ('' = none)
   mailhq:draft:enabled         bool   the Slice-3 draft-proposal job on/off (also read by draft_proposal_service)
+  mailhq:draft:collaborators   bool   the collaborator persona-draft job on/off (human_agent mailboxes; default OFF)
   mailhq:digest:enabled        bool   the daily digest on/off
   mailhq:digest:time           HH:MM  local (ET) time the digest is sent
   mailhq:digest:include_drafts bool   include the "drafts awaiting approval" section
@@ -29,6 +30,7 @@ SETTINGS_SPEC: dict[str, tuple[str, str]] = {
     "mailhq:notify:mailbox_types": ("owner,business", "csv"),
     "mailhq:notify:quiet_hours": ("22-7", "quiet"),
     "mailhq:draft:enabled": ("false", "bool"),
+    "mailhq:draft:collaborators": ("false", "bool"),
     "mailhq:digest:enabled": ("true", "bool"),
     "mailhq:digest:time": ("08:00", "time"),
     "mailhq:digest:include_drafts": ("true", "bool"),

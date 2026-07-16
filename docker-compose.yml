@@ -153,6 +153,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       # Mount sandbox compose file
       - ./docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
+      # staging compose + sandbox worktree — self-heal deploy gate (#4930)
+      - ./docker-compose.staging.yml:/mnt/archie_brain/docker-compose.staging.yml:ro
+      - /mnt/archie_sandbox:/mnt/archie_sandbox:rw
       # Additional mounts for full backup support (rw for self-improvement)
       - ./database/migrations:/mnt/archie_brain/database/migrations:rw
       # Host monitor data file (from host_monitor.py running on host)
@@ -342,6 +345,9 @@ services:
       - ./conversation_logs:/mnt/archie_brain/conversation_logs:rw
       - /var/run/docker.sock:/var/run/docker.sock
       - ./docker-compose.sandbox.yml:/mnt/archie_brain/docker-compose.sandbox.yml:ro
+      # staging compose + sandbox worktree — self-heal deploy gate (#4930)
+      - ./docker-compose.staging.yml:/mnt/archie_brain/docker-compose.staging.yml:ro
+      - /mnt/archie_sandbox:/mnt/archie_sandbox:rw
       - ./database/migrations:/mnt/archie_brain/database/migrations:rw
       - ./host_monitor_data.json:/mnt/archie_brain/host_monitor_data.json:ro
       - ./fleet/catalog:/mnt/archie_brain/fleet/catalog:ro

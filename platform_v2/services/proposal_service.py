@@ -1313,36 +1313,93 @@ def _get_approver(proposal):
     }
 
 
+def _apply_fix_to_sandbox(sandbox_path, code_changes):
+    """Write a proposal's code_changes into the staging worktree at sandbox_path.
+
+    Returns {"applied": [rel_path, ...], "expected": int, "error": str|None}.
+    ``error`` is set (with ``applied`` left partial) on ANY failure. The caller
+    MUST treat a non-None error as a hard gate failure and NOT validate — writing
+    to a missing/read-only worktree, or a partial apply, would leave stale staging
+    code that a QA pass would false-approve for deploy.
+    """
+    import json as _json
+    import os
+
+    result = {"applied": [], "expected": 0, "error": None}
+
+    # The worktree must actually be present/writable in THIS container. When
+    # archie_platform lacks the /mnt/archie_sandbox mount the write silently goes
+    # nowhere (or to a stale path) -> we'd validate unchanged code. Fail closed.
+    if not os.path.isdir(sandbox_path):
+        result["error"] = (
+            f"sandbox worktree {sandbox_path} is not mounted/present in this "
+            f"container — cannot apply fix; gate fails closed"
+        )
+        return result
+
+    try:
+        changes = _json.loads(code_changes) if isinstance(code_changes, str) else code_changes
+    except Exception as parse_err:
+        result["error"] = f"code_changes is not parseable JSON: {parse_err}"
+        return result
+
+    if not isinstance(changes, list) or not changes:
+        result["error"] = "code_changes is empty or not a list — nothing to validate"
+        return result
+
+    for change in changes:
+        rel_path = (change or {}).get("file_path", "")
+        content = (change or {}).get("content")
+        if not rel_path or content is None:
+            continue
+        result["expected"] += 1
+        full_path = os.path.join(sandbox_path, rel_path.lstrip("/"))
+        try:
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
+            with open(full_path, "w") as f:
+                f.write(content)
+            result["applied"].append(rel_path)
+        except Exception as apply_err:
+            result["error"] = f"failed to write {rel_path} to sandbox: {apply_err}"
+            return result
+
+    if result["expected"] == 0:
+        result["error"] = "code_changes had no applicable file/content entries"
+
+    return result
+
+
 def _sandbox_gate(proposal_id, proposal):
     """Apply fix to sandbox branch, restart archie_staging, run P.R.O.B.E. suite #79.
 
-    Returns {"passed": bool, "passed": int, "total": int, "run_id": int, "error": str|None}
+    Returns {"passed": bool, "passed_count": int, "total": int, "run_id": int, "error": str|None}
+
+    FAIL-CLOSED: if the fix cannot be fully applied to the staging worktree
+    (worktree not mounted, unparseable/empty changes, or any write error) the
+    gate returns passed=False WITHOUT running the QA suite — validating stale
+    staging code could false-pass a production deploy.
     """
     import subprocess
-    import json as _json
 
     sandbox_path = "/mnt/archie_sandbox/platform_v2"
     code_changes = proposal.get("code_changes")
 
-    # Apply code changes to sandbox worktree if present
+    # Apply code changes to the staging worktree. If we cannot FULLY apply the
+    # fix, do NOT proceed to validate — QA against stale code could false-pass.
     applied_files = []
     if code_changes:
-        try:
-            changes = _json.loads(code_changes) if isinstance(code_changes, str) else code_changes
-            if isinstance(changes, list):
-                for change in changes:
-                    rel_path = change.get("file_path", "")
-                    content = change.get("content", "")
-                    if rel_path and content:
-                        full_path = f"{sandbox_path}/{rel_path.lstrip('/')}"
-                        import os
-
-                        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-                        with open(full_path, "w") as f:
-                            f.write(content)
-                        applied_files.append(rel_path)
-        except Exception as apply_err:
-            logger.warning("sandbox_gate: code apply failed: %s", apply_err)
+        apply_res = _apply_fix_to_sandbox(sandbox_path, code_changes)
+        if apply_res["error"]:
+            logger.warning("sandbox_gate: apply failed for #%s — %s", proposal_id, apply_res["error"])
+            return {
+                "passed": False,
+                "passed_count": 0,
+                "total": 0,
+                "run_id": None,
+                "applied_files": apply_res["applied"],
+                "error": f"code apply failed: {apply_res['error']}",
+            }
+        applied_files = apply_res["applied"]
 
     # Restart archie_staging so changes take effect
     try:

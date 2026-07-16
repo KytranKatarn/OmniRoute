@@ -30,7 +30,7 @@ if "$ARCHIE_AI_BRIDGE_PATH" not in sys.path:
 # ---------------------------------------------------------------------------
 
 
-def _make_gateway(bot_token=os.environ.get('TELEGRAM_BOT_TOKEN')):
+def _make_gateway(bot_token=os.getenv('ARCHIE_TELEGRAM_BOT_TOKEN')):
     """Instantiate TelegramGateway without starting the async bot."""
     from ai_bridge.telegram_gateway import TelegramGateway
 

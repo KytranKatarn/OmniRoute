@@ -235,3 +235,58 @@ def build_identity(
         if letters and not existing_name:
             avoid.add(letters)
     return _fallback_identity(capability, department, floor, existing_name, avoid)
+
+
+def enrich_identity(current: dict[str, Any], capability: str, department: str) -> dict[str, Any]:
+    """Complete an EXISTING agent's identity WITHOUT changing what's already good
+    (Phase 2 backfill). Keep every non-empty field in `current`, fill only the
+    gaps from a freshly built candidate, and ALWAYS rebuild the system prompt
+    from the merged fields (>=400 chars, preserving the established
+    expansion/title/personality — this "deepens" a thin/empty prompt without
+    altering a live agent's meaning or voice).
+
+    `current` keys: name, expansion, title, bio, personality, portrait_prompt,
+    has_portrait (bool). Pure except for the single `build_identity` dispatch.
+    Returns {name, after{...}, changed[list], portrait_needed bool}.
+    """
+    name = current["name"]
+    role = (capability or "general").replace("_", " ")
+    floor = _floor_for_department(department)
+    cand = build_identity(capability, department=department, existing_name=name)
+
+    def keep(field: str) -> str:
+        cur = str(current.get(field) or "").strip()
+        return cur if cur else str(cand.get(field) or "").strip()
+
+    expansion = keep("expansion")
+    title = keep("title") or f"{role.title()} Specialist"
+    bio = keep("bio")
+    personality = keep("personality")
+    portrait_prompt = keep("portrait_prompt")
+    system_prompt = _assemble_system_prompt(
+        name=name,
+        expansion=expansion,
+        title=title,
+        role=role,
+        department=department,
+        floor=floor,
+        personality=personality,
+        voice="",
+    )
+
+    after = {
+        "expansion": expansion,
+        "title": title,
+        "bio": bio,
+        "personality": personality,
+        "system_prompt": system_prompt,
+        "portrait_prompt": portrait_prompt,
+        "source": cand.get("source", "llm"),
+    }
+    changed = [
+        f
+        for f in ("expansion", "title", "bio", "personality", "system_prompt", "portrait_prompt")
+        if str(current.get(f) or "").strip() != str(after.get(f) or "").strip()
+    ]
+    portrait_needed = bool(portrait_prompt) and not current.get("has_portrait")
+    return {"name": name, "after": after, "changed": changed, "portrait_needed": portrait_needed}

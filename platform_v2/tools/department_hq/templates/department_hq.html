@@ -1453,7 +1453,10 @@ function _renderApprovalCard(a) {
                             hireState.newAgent.display_name = gd.name;
                             hireState.newAgent.expansion = gd.expansion || '';
                             hireState.newAgent.title = gd.title || '';
-                            hint.textContent = ((gd.expansion || '') + (gd.title ? ' \u00b7 ' + gd.title : '')) || 'Generated.';
+                            var _meta = ((gd.expansion || '') + (gd.title ? ' \u00b7 ' + gd.title : '')) || 'Generated.';
+                            hint.textContent = gd.source === 'fallback'
+                                ? _meta + ' \u00b7 \u26a0 fleet warming \u2014 deterministic name; click Generate again for an AI name.'
+                                : _meta;
                         } else {
                             hint.textContent = 'Could not generate \u2014 type a name or try again.';
                         }

@@ -771,6 +771,35 @@ MODULES: List[ModuleDefinition] = [
         tags=["brainstorm", "ideas", "creativity", "productivity", "planning"],
     ),
     # market_watch removed — duplicate of kytran_market_watch in APPLICATIONS (line 896)
+    # site_builder — Creative Studios launch tile → the Kytran Business Suite
+    # Website Builder (kbs_website_builder plugin). No in-platform blueprint; opens
+    # KBS in a new tab. Creative Studios modularization (#387 / #4932): Site
+    # Builder lives in KBS, not the platform.
+    ModuleDefinition(
+        id="site_builder",
+        name="Site Builder",
+        description="Drag-and-drop website builder with AI generation<br>Launches the Business Suite Website Builder",
+        icon="globe",
+        category=ModuleCategory.CREATIVE_STUDIOS,
+        route="/tools/site-builder",
+        external_url="https://business.kytranempowerment.com/plugins/website-builder/",
+        required_permissions=[],
+        minimum_role="USER",
+        minimum_tier="staff",
+        enabled=True,
+        coming_soon=False,
+        health_check=lambda: default_health_check("site_builder"),
+        priority=3,
+        tags=[
+            "website",
+            "site-builder",
+            "kbs",
+            "standalone",
+            "product",
+            "ai",
+            "creative-studios",
+        ],
+    ),
     ModuleDefinition(
         id="game_studio",
         name="Game Studio",

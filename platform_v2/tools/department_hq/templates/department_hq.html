@@ -1404,6 +1404,7 @@ function _renderApprovalCard(a) {
 
                 var nameInput = document.createElement('input');
                 nameInput.type = 'text';
+                nameInput.className = 'dhq-hire-name';
                 nameInput.placeholder = 'New agent name (e.g. V.E.R.I.F.Y.)';
                 nameInput.style.cssText = 'background:#0a0f1a;border:1px solid rgba(192,132,252,0.3);color:#e2e8f0;font-size:0.8rem;padding:6px 8px;border-radius:3px';
                 nameInput.oninput = function() { hireState.newAgent.name = nameInput.value.trim(); };
@@ -1436,6 +1437,11 @@ function _renderApprovalCard(a) {
                 genBtn.onclick = async function() {
                     var hid = String(a.id).split(':')[1] || '';
                     if (!hid) { hint.textContent = 'Cannot generate (missing id).'; return; }
+                    // Suspend the 15s approvals auto-refresh while the fleet generates a
+                    // name — otherwise loadDhqApprovals() rebuilds this card mid-fetch and
+                    // the result lands in an orphaned, detached input (looks like a refresh
+                    // that ate the name). Cleared in finally so refresh always resumes.
+                    window._dhqApprovalsBusy = true;
                     genBtn.disabled = true;
                     var _prev = genBtn.textContent;
                     genBtn.textContent = 'Generating\u2026';
@@ -1463,6 +1469,7 @@ function _renderApprovalCard(a) {
                     } catch (e) {
                         hint.textContent = 'Could not generate \u2014 type a name or try again.';
                     } finally {
+                        window._dhqApprovalsBusy = false;
                         genBtn.disabled = false;
                         genBtn.textContent = _prev;
                     }
@@ -1888,10 +1895,28 @@ async function _dhqRejectHire(approvalId, btn) {
         }).catch(function() {});
     }
 
-    // 15s auto-refresh for the list (only if panel active + tab visible)
+    // True while the user is mid-interaction on an approval card — a hire-name
+    // generation is in flight, OR an input/select inside the panel is focused.
+    // Auto-refresh must skip these ticks: loadDhqApprovals() rebuilds the card DOM
+    // and would orphan the in-flight name input / wipe a name being typed.
+    function _dhqApprovalsBusyNow() {
+        if (window._dhqApprovalsBusy) return true;   // a name generation is in flight
+        var p = document.getElementById('panel-approvals');
+        if (!p) return false;
+        var ae = document.activeElement;
+        if (ae && p.contains(ae) && (ae.tagName === 'INPUT' || ae.tagName === 'SELECT' || ae.tagName === 'TEXTAREA')) return true;
+        // Any net-new hire card whose name box is already filled (generated or typed)
+        // — don't let the 15s rebuild wipe it before the user submits the hire.
+        // Fresh cards render empty, so this self-clears after a real rebuild.
+        var names = p.querySelectorAll('.dhq-hire-name');
+        for (var i = 0; i < names.length; i++) { if (names[i].value && names[i].value.trim()) return true; }
+        return false;
+    }
+
+    // 15s auto-refresh for the list (only if panel active + tab visible + idle)
     setInterval(function() {
         var panel = document.getElementById('panel-approvals');
-        if (panel && panel.classList.contains('active') && !document.hidden) {
+        if (panel && panel.classList.contains('active') && !document.hidden && !_dhqApprovalsBusyNow()) {
             if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
         }
     }, 15000);
@@ -1910,7 +1935,7 @@ async function _dhqRejectHire(approvalId, btn) {
     document.addEventListener('visibilitychange', function() {
         if (!document.hidden) {
             var panel = document.getElementById('panel-approvals');
-            if (panel && panel.classList.contains('active')) {
+            if (panel && panel.classList.contains('active') && !_dhqApprovalsBusyNow()) {
                 if (typeof loadDhqApprovals === 'function') loadDhqApprovals();
             }
             _updateApprovalsBadge();

@@ -741,6 +741,21 @@ def _parse_fix_json(text):
     return obj if isinstance(obj, dict) else None
 
 
+def _fix_match_candidates(find, replace):
+    """Yield (find, replace) candidates from strictest to most whitespace-tolerant.
+
+    The caller applies the unique-match + no-gut guards to EACH candidate, so this
+    tolerance never bypasses fail-closed safety — it only recovers a `find` that is
+    verbatim except for surrounding whitespace the model added or dropped. Internal
+    indentation is deliberately NOT normalized (re-splicing that safely is a
+    separate, data-driven change).
+    """
+    yield find, replace
+    trimmed = find.strip()
+    if trimmed != find and len(trimmed) >= 4:
+        yield trimmed, replace.strip()
+
+
 def _apply_targeted_fix(source_content, model_response):
     """Apply an LLM search/replace fix to ``source_content``.
 
@@ -758,13 +773,22 @@ def _apply_targeted_fix(source_content, model_response):
         return None, "unparseable"
     find = data.get("find") or ""
     replace = data.get("replace")
-    if not find or replace is None:
+    if not find or not isinstance(replace, str):
         return None, "missing_find_or_replace"
-    occurrences = source_content.count(find)
-    if occurrences == 0:
+    # Locate the find: exact first, then a whitespace-trimmed fallback for when the
+    # model wrapped an otherwise-verbatim snippet in surrounding whitespace. Every
+    # candidate must still occur EXACTLY ONCE — tolerance never bypasses fail-closed.
+    matched = None
+    for cand_find, cand_replace in _fix_match_candidates(find, replace):
+        occ = source_content.count(cand_find)
+        if occ == 1:
+            matched = (cand_find, cand_replace)
+            break
+        if occ > 1:
+            return None, "find_ambiguous"
+    if matched is None:
         return None, "find_not_located"
-    if occurrences > 1:
-        return None, "find_ambiguous"
+    find, replace = matched
     fixed = source_content.replace(find, replace, 1)
     if fixed == source_content:
         return None, "no_change"

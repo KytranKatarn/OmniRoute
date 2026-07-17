@@ -27,6 +27,8 @@ import pytest
 
 import tools.email_manager.draft_proposal_service as dps
 import tools.email_manager.fleet_dispatch as fd
+import tools.email_manager.mailhq_settings as ms
+import tools.email_manager.rules_service as rs
 import tools.email_manager.triage_service as ts
 
 _OK_RESPONSE = '{"priority": "action", "suggestion": "Reply today."}'
@@ -202,3 +204,210 @@ def test_ai_agent_always_skipped(monkeypatch, gate):
     assert out == {"skipped": True, "reason": "mailbox_type=ai_agent not triaged"}
     assert seen == {}
     assert not _updates(cap)
+
+
+# --------------------------------------------------------------------------- #
+# #4957 Item 3 — centralized gate helper (mailhq_settings.is_enabled)
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("raw", ["true", "TRUE", " True ", "on", "ON", "1", "yes", " YES "])
+def test_is_enabled_true_values(monkeypatch, raw):
+    monkeypatch.setattr(ms, "_get", lambda key: raw)
+    assert ms.is_enabled("mailhq:draft:collaborators") is True
+
+
+@pytest.mark.parametrize("raw", ["false", "", None, "0", "nope", "  "])
+def test_is_enabled_false_values(monkeypatch, raw):
+    monkeypatch.setattr(ms, "_get", lambda key: raw)
+    assert ms.is_enabled("mailhq:draft:collaborators") is False
+
+
+def test_collaborators_enabled_delegates_to_mailhq_settings_is_enabled(monkeypatch):
+    # _collaborators_enabled() must be a thin delegate — not a re-implementation —
+    # so mailhq_settings.is_enabled is the single source of truth for every gate.
+    calls = []
+    monkeypatch.setattr(ms, "is_enabled", lambda key: calls.append(key) or True)
+    assert dps._collaborators_enabled() is True
+    assert calls == [dps.COLLAB_FLAG_KEY]
+
+    calls.clear()
+    monkeypatch.setattr(ms, "is_enabled", lambda key: calls.append(key) or False)
+    assert dps._collaborators_enabled() is False
+    assert calls == [dps.COLLAB_FLAG_KEY]
+
+
+# --------------------------------------------------------------------------- #
+# #4957 Item 2 — triage-health covers collaborators only when the gate is on
+# --------------------------------------------------------------------------- #
+def test_health_mailbox_types_excludes_human_agent_when_gate_off(monkeypatch):
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: False)
+    assert ts._health_mailbox_types() == ["owner", "business"]
+
+
+def test_health_mailbox_types_includes_human_agent_when_gate_on(monkeypatch):
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: True)
+    assert ts._health_mailbox_types() == ["owner", "business", "human_agent"]
+
+
+def _health_cursor(row, cap=None):
+    class _Cur:
+        def execute(self, q, params=None):
+            if cap is not None:
+                cap.setdefault("qs", []).append(q)
+                cap.setdefault("params", []).append(params)
+
+        def fetchone(self):
+            return row
+
+    @contextlib.contextmanager
+    def _cm(commit=False):
+        yield (None, _Cur())
+
+    return _cm
+
+
+def test_triage_health_query_parameterized_and_unchanged_when_gate_off(monkeypatch):
+    # Gate off: mailbox-type set must be exactly ('owner','business') and passed
+    # as a bound parameter (= ANY(%s)) — never string-interpolated into the SQL.
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: False)
+    import database
+
+    cap = {}
+    monkeypatch.setattr(database, "get_db_cursor", _health_cursor({"total": 0, "untriaged": 0}, cap=cap))
+
+    out = ts.run_triage_health_check()
+    assert out["ok"] is True
+
+    sel = [q for q in cap["qs"] if "FROM email_messages" in q][0]
+    assert "mb.mailbox_type = ANY(%s)" in sel
+    assert "IN ('owner', 'business')" not in sel  # no longer a literal IN-list
+    idx = cap["qs"].index(sel)
+    assert cap["params"][idx][0] == ["owner", "business"]
+
+
+def test_triage_health_query_includes_human_agent_when_gate_on(monkeypatch):
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: True)
+    import database
+
+    cap = {}
+    monkeypatch.setattr(database, "get_db_cursor", _health_cursor({"total": 0, "untriaged": 0}, cap=cap))
+
+    ts.run_triage_health_check()
+
+    sel = [q for q in cap["qs"] if "FROM email_messages" in q][0]
+    idx = cap["qs"].index(sel)
+    assert cap["params"][idx][0] == ["owner", "business", "human_agent"]
+
+
+# --------------------------------------------------------------------------- #
+# #4957 Item 1 — retroactive collaborator-triage backfill
+# --------------------------------------------------------------------------- #
+def _backfill_row(msg_id=777):
+    return {
+        "id": msg_id,
+        "mailbox_id": 42,
+        "from_address": "client@example.com",
+        "subject": "Following up",
+        "to_address": "amina@kytranempowerment.com",
+        "body_preview": "Any update?",
+    }
+
+
+def _backfill_select_cursor(rows, cap=None):
+    class _Cur:
+        def execute(self, q, params=None):
+            if cap is not None:
+                cap.setdefault("qs", []).append(q)
+                cap.setdefault("params", []).append(params)
+
+        def fetchall(self):
+            return rows
+
+        def fetchone(self):
+            return None
+
+    @contextlib.contextmanager
+    def _cm(commit=False):
+        yield (None, _Cur())
+
+    return _cm
+
+
+def test_backfill_is_noop_when_gate_off(monkeypatch):
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: False)
+    import database
+
+    # gate off => the DB must never be touched.
+    monkeypatch.setattr(database, "get_db_cursor", lambda *a, **k: (_ for _ in ()).throw(AssertionError("DB touched")))
+    assert ts.backfill_collaborator_triage(limit=25) == 0
+
+
+def test_backfill_selects_untriaged_human_agent_inbox_and_queues_triage(monkeypatch):
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: True)
+
+    import database
+
+    cap = {}
+    monkeypatch.setattr(database, "get_db_cursor", _backfill_select_cursor([_backfill_row(777)], cap=cap))
+    monkeypatch.setattr(rs, "apply_rules", lambda *a, **k: {})
+
+    queued_ids = []
+    monkeypatch.setattr(ts, "triage_message_async", lambda mid: queued_ids.append(mid))
+
+    n = ts.backfill_collaborator_triage(limit=25)
+    assert n == 1
+    assert queued_ids == [777]
+
+    sel = [q for q in cap["qs"] if "FROM email_messages" in q][0]
+    assert "mb.mailbox_type = %s" in sel
+    assert "m.ai_priority IS NULL" in sel
+    assert "m.folder = 'INBOX'" in sel
+    assert "m.received_at >= %s" in sel
+    idx = cap["qs"].index(sel)
+    assert cap["params"][idx][0] == "human_agent"
+    assert cap["params"][idx][2] == 25  # LIMIT bound through to the SQL
+
+
+def test_backfill_bounded_by_limit_param(monkeypatch):
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: True)
+
+    import database
+
+    cap = {}
+    rows = [_backfill_row(i) for i in range(5)]
+    monkeypatch.setattr(database, "get_db_cursor", _backfill_select_cursor(rows, cap=cap))
+    monkeypatch.setattr(rs, "apply_rules", lambda *a, **k: {})
+
+    queued_ids = []
+    monkeypatch.setattr(ts, "triage_message_async", lambda mid: queued_ids.append(mid))
+
+    ts.backfill_collaborator_triage(limit=3)
+
+    sel = [q for q in cap["qs"] if "FROM email_messages" in q][0]
+    idx = cap["qs"].index(sel)
+    assert cap["params"][idx][-1] == 3  # limit passed straight through as the SQL LIMIT
+
+
+def test_backfill_respects_skip_triage_rule(monkeypatch):
+    # A message that matches an active skip_triage rule must not be triaged,
+    # mirroring the live sync path's own check (sync_jobs.py:230).
+    monkeypatch.setattr(ts, "_collaborator_triage_enabled", lambda: True)
+
+    import database
+
+    monkeypatch.setattr(database, "get_db_cursor", _backfill_select_cursor([_backfill_row(777)]))
+    monkeypatch.setattr(rs, "apply_rules", lambda *a, **k: {"action_type": "skip_triage"})
+
+    queued_ids = []
+    monkeypatch.setattr(ts, "triage_message_async", lambda mid: queued_ids.append(mid))
+
+    n = ts.backfill_collaborator_triage(limit=25)
+    assert n == 0
+    assert queued_ids == []
+
+
+def test_backfill_never_triages_synchronously():
+    # Must only ENQUEUE via triage_message_async — never call triage_message()
+    # (synchronous) directly (module-work-pattern: no sync inference on the worker).
+    src = inspect.getsource(ts.backfill_collaborator_triage)
+    assert "triage_message_async(" in src
+    assert "triage_message(" not in src

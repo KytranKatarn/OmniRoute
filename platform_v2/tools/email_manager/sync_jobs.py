@@ -412,6 +412,28 @@ def register_email_sync_jobs(job_service) -> None:
     except Exception as exc:
         logger.error("[mailhq_collaborator_drafts] Failed to register: %s", exc)
 
+    # Collaborator triage backfill (#4957) — retroactively triages pre-flip
+    # human_agent inbox mail so it can become a collaborator-draft candidate the
+    # moment the gate flips on. `ai_priority` is only ever set on NEW mail during
+    # IMAP sync, so mail that arrived before the flip would otherwise stay
+    # untriaged forever. INDEPENDENTLY gated (same flag as the draft job above) +
+    # bounded (limit=25/run) — the function itself is a no-op while
+    # `mailhq:draft:collaborators` is off, so registering it is safe. Isolated
+    # try/except so a failure here cannot affect the jobs above.
+    try:
+        from .triage_service import backfill_collaborator_triage
+
+        job_service.register_job(
+            name="mailhq_collaborator_triage_backfill",
+            func=lambda: backfill_collaborator_triage(limit=25),
+            interval_hours=1 / 2,  # every 30 minutes
+            department="Documentation & Knowledge",
+            description="Backfill triage for pre-flip collaborator (human_agent) inbox mail (gated, bounded)",
+        )
+        logger.info("[mailhq_collaborator_triage_backfill] Registered")
+    except Exception as exc:
+        logger.error("[mailhq_collaborator_triage_backfill] Failed to register: %s", exc)
+
     # Mail HQ triage-health alert (task #4518) — flags the silent-failure class where
     # triage stops populating ai_priority (the whole Smart Inbox depends on it).
     try:

@@ -60,6 +60,11 @@ def _get(key: str) -> str:
     return val if val is not None else default
 
 
+def is_enabled(key: str) -> bool:
+    """True iff the platform_setting `key` holds a truthy flag value."""
+    return str(_get(key) or "").strip().lower() in ("1", "true", "on", "yes")
+
+
 def get_all() -> dict:
     """Return every setting's current (typed) value — drives the Settings modal."""
     out: dict = {}

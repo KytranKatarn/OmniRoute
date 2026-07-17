@@ -17,7 +17,7 @@ import json
 import logging
 import re
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -175,23 +175,38 @@ _HEALTH_BAD_FRAC = 0.5  # alert when >= this fraction are untriaged
 _HEALTH_GRACE_MIN = 30  # ignore mail newer than this (triage runs async, give it time)
 
 
+def _health_mailbox_types() -> list:
+    """Mailbox types the triage-health check covers.
+
+    Always owner + business. `human_agent` is added ONLY while the collaborator
+    gate (`mailhq:draft:collaborators`, same flag as the draft job) is on — so the
+    21 collaborator mailboxes are counted the moment they start being triaged, and
+    the check stays byte-identical to pre-#4957 behavior while the gate is off.
+    Extracted so this is unit-testable without a DB (#4957).
+    """
+    return ["owner", "business"] + (["human_agent"] if _collaborator_triage_enabled() else [])
+
+
 def run_triage_health_check() -> dict:
-    """Alert (at most once/day) if recent owner/business mail is largely untriaged.
+    """Alert (at most once/day) if recent owner/business (+ collaborator, when the
+    gate is on) mail is largely untriaged.
 
     Returns a small summary for the job log. Best-effort — never raises.
     """
     try:
         from database import get_db_cursor
 
+        mailbox_types = _health_mailbox_types()
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 f"""SELECT count(*) AS total,
                            count(*) FILTER (WHERE m.ai_priority IS NULL) AS untriaged
                       FROM email_messages m
                       JOIN email_mailboxes mb ON mb.id = m.mailbox_id
-                     WHERE mb.mailbox_type IN ('owner', 'business')
+                     WHERE mb.mailbox_type = ANY(%s)
                        AND m.received_at >= NOW() - INTERVAL '24 hours'
-                       AND m.received_at <= NOW() - INTERVAL '{_HEALTH_GRACE_MIN} minutes'"""
+                       AND m.received_at <= NOW() - INTERVAL '{_HEALTH_GRACE_MIN} minutes'""",
+                (mailbox_types,),
             )
             row = cur.fetchone() or {}
         total = int(row.get("total", 0))
@@ -254,3 +269,77 @@ def run_triage_health_check() -> dict:
     except Exception as exc:
         logger.error("[triage-health] check failed: %s", exc)
         return {"ok": True, "error": str(exc)}
+
+
+# --------------------------------------------------------------------------- #
+# Retroactive collaborator-triage backfill (#4957)
+# --------------------------------------------------------------------------- #
+# `ai_priority` is only ever set on NEW mail during IMAP sync (triage_message_async
+# in sync_jobs.py). human_agent mail that arrived BEFORE the collaborator gate is
+# flipped on stays `ai_priority IS NULL` forever and can never become a draft
+# candidate (run_mailhq_collaborator_drafts selects `ai_priority = 'action'`). This
+# bounded, gate-gated backfill drains that backlog so pre-flip mail still gets a
+# chance to become a draft candidate once the feature is enabled.
+def backfill_collaborator_triage(limit: int = 25) -> int:
+    """Queue triage for untriaged human_agent inbox mail so pre-flip mail can
+    become draft candidates. No-op unless the collaborator gate is on. Bounded
+    by `limit`; safe to run repeatedly (drains over time). Returns count queued.
+    """
+    if not _collaborator_triage_enabled():
+        return 0
+
+    from database import get_db_cursor
+    from services.time_utils import now_utc
+
+    # Match the collaborator draft job's own recency window exactly (single source
+    # of truth — draft_proposal_service._RECENCY_HOURS) so backfill never triages
+    # mail the draft job would immediately consider too old to draft for.
+    from .draft_proposal_service import _RECENCY_HOURS
+
+    cutoff = now_utc() - timedelta(hours=_RECENCY_HOURS)
+
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT m.id, m.mailbox_id, m.from_address, m.subject, m.to_address, m.body_preview
+                 FROM email_messages m
+                 JOIN email_mailboxes mb ON mb.id = m.mailbox_id
+                WHERE mb.mailbox_type = %s
+                  AND m.ai_priority IS NULL
+                  AND m.folder = 'INBOX'
+                  AND m.received_at >= %s
+                ORDER BY m.received_at DESC
+                LIMIT %s""",
+            (_COLLAB_MAILBOX_TYPE, cutoff, limit),
+        )
+        candidates = [dict(r) for r in cur.fetchall()]
+
+    if not candidates:
+        return 0
+
+    # Respect the SAME skip_triage rule the live sync path honors (sync_jobs.py:230)
+    # — a rule that says "never triage this" must not be overridden retroactively.
+    from .rules_service import apply_rules
+
+    queued = 0
+    for c in candidates:
+        try:
+            rule_result = apply_rules(
+                c["id"],
+                c["mailbox_id"],
+                {
+                    "from_address": c.get("from_address") or "",
+                    "subject": c.get("subject") or "",
+                    "to_address": c.get("to_address") or "",
+                    "body_preview": c.get("body_preview") or "",
+                },
+            )
+        except Exception as exc:
+            logger.error("[mailhq-collab-backfill] rules check failed for msg=%s: %s", c["id"], exc)
+            rule_result = {}
+        if rule_result.get("action_type") == "skip_triage":
+            continue
+        triage_message_async(c["id"])
+        queued += 1
+
+    logger.info("[mailhq-collab-backfill] %d candidate(s) -> %d queued for triage", len(candidates), queued)
+    return queued

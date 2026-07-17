@@ -181,7 +181,9 @@ def validate_draft_no_fabrication(draft: str, inbound_text: str, allowed_facts_t
 
 
 def _collaborators_enabled() -> bool:
-    return str(_setting(COLLAB_FLAG_KEY, "false") or "false").strip().lower() in ("1", "true", "on", "yes")
+    from .mailhq_settings import is_enabled
+
+    return is_enabled(COLLAB_FLAG_KEY)
 
 
 def _setting(key: str, default: str | None = None) -> str | None:

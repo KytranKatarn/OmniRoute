@@ -1,9 +1,11 @@
 """Email HQ — AI triage service.
 
 Dispatches email messages to DHQ agents for priority classification.
-  business mailboxes → classify capability (action / review / info)
-  owner inbox        → summarize capability (summary + priority)
-  ai_agent mailboxes → skipped (agents handle their own)
+  business mailboxes    → classify capability (action / review / info)
+  owner inbox           → summarize capability (summary + priority)
+  human_agent mailboxes → classify capability, but ONLY while the collaborator
+                          feature is enabled (see _collaborator_triage_enabled)
+  ai_agent mailboxes    → skipped (agents handle their own)
 
 Non-blocking: triage_message_async() runs in a background thread so the
 IMAP sync job does not stall on LLM inference.
@@ -20,6 +22,30 @@ from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
 
 _VALID_PRIORITIES = {"action", "review", "info"}
+
+# The COLLABORATOR marker — mirrors draft_proposal_service._COLLAB_MAILBOX_TYPE
+# (kept local so triage does not import the draft module at module scope).
+_COLLAB_MAILBOX_TYPE = "human_agent"
+
+
+def _collaborator_triage_enabled() -> bool:
+    """Is collaborator (`human_agent`) mail triaged?
+
+    Gated on the SAME `platform_settings` flag as the collaborator draft job
+    (`mailhq:draft:collaborators`, default OFF) — reused, not re-implemented, so
+    one switch turns the whole collaborator feature on. Triaging the 21
+    collaborator mailboxes only earns its LLM cost once those drafts can fire;
+    while the flag is off they are skipped exactly as before.
+
+    Fail-safe: any lookup error keeps the pre-existing skip behaviour.
+    """
+    try:
+        from .draft_proposal_service import _collaborators_enabled
+
+        return _collaborators_enabled()
+    except Exception as exc:
+        logger.debug("[email_triage] collaborator gate lookup failed: %s", exc)
+        return False
 
 
 def triage_message(message_id: int) -> dict:
@@ -61,6 +87,19 @@ def triage_message(message_id: int) -> dict:
         capability = "classify"
         prompt = (
             "Classify the priority of this business email.\n\n"
+            f"From: {row['from_address']}\n"
+            f"Subject: {row['subject']}\n"
+            f"Preview: {row['body_preview']}\n\n"
+            'Respond as JSON: {"priority": "action|review|info", "suggestion": "<one sentence>"}'
+        )
+    elif mailbox_type == _COLLAB_MAILBOX_TYPE and _collaborator_triage_enabled():
+        # Collaborator mail (task #4956). Without an ai_priority the collaborator
+        # persona draft job can never fire — it selects on ai_priority='action'.
+        # Same classify path/priorities as business mail; gated OFF by default so
+        # the 21 collaborator boxes cost nothing until the feature is enabled.
+        capability = "classify"
+        prompt = (
+            "Classify the priority of this email sent to a team member.\n\n"
             f"From: {row['from_address']}\n"
             f"Subject: {row['subject']}\n"
             f"Preview: {row['body_preview']}\n\n"

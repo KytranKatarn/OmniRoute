@@ -282,6 +282,124 @@
     return frag;
   }
 
+  // ── Curated Facts (persona grounding — #4959) ──────────────────────────
+  // Owner-curated facts this persona may cite in email drafts. Reads/writes the
+  // live /api/agent/<id>/facts endpoints. Self-contained; XSS-safe via el()/textContent.
+  async function loadFacts(agentId, listEl) {
+    clear(listEl);
+    listEl.appendChild(el('em', null, 'Loading facts…'));
+    let facts = [];
+    try {
+      const r = await fetch(
+        '/tools/department-hq/api/agent/' + agentId + '/facts',
+        { credentials: 'same-origin' }
+      );
+      const j = await r.json();
+      facts = (j && j.facts) || [];
+    } catch (e) {
+      clear(listEl);
+      const em = el('em', null, 'Failed to load facts');
+      em.style.color = '#f87171';
+      listEl.appendChild(em);
+      return;
+    }
+    clear(listEl);
+    if (!facts.length) {
+      const em = el('em', null,
+        'No curated facts yet. Add facts this persona may cite in email drafts.');
+      em.style.cssText = 'opacity:.6;font-size:.78rem';
+      listEl.appendChild(em);
+      return;
+    }
+    facts.forEach(function (f) {
+      const row = el('div', 'apm-fact-row');
+      row.style.cssText = 'display:flex;align-items:center;gap:.5rem;' +
+        'padding:.3rem 0;border-bottom:1px solid rgba(255,255,255,.06)';
+      if (!f.is_active) row.style.opacity = '0.5';
+      const txt = el('span');
+      txt.style.cssText = 'flex:1;font-size:.8rem;color:#e2e8f0';
+      txt.textContent = f.fact_text + (f.category ? ' [' + f.category + ']' : '');
+      row.appendChild(txt);
+
+      const toggle = el('button', 'apm-btn', f.is_active ? 'Deactivate' : 'Activate');
+      toggle.onclick = async function () {
+        toggle.disabled = true;
+        try {
+          await fetch('/tools/department-hq/api/agent/facts/' + f.id + '/toggle', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({ is_active: !f.is_active }),
+          });
+        } catch (e) { /* fall through to reload */ }
+        loadFacts(agentId, listEl);
+      };
+      row.appendChild(toggle);
+
+      const del = el('button', 'apm-btn', 'Delete');
+      del.onclick = async function () {
+        del.disabled = true;
+        try {
+          await fetch('/tools/department-hq/api/agent/facts/' + f.id + '/delete', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin', body: JSON.stringify({}),
+          });
+        } catch (e) { /* fall through to reload */ }
+        loadFacts(agentId, listEl);
+      };
+      row.appendChild(del);
+      listEl.appendChild(row);
+    });
+  }
+
+  function buildFactsSection(agentId) {
+    const sec = el('div', 'apm-section');
+    const title = el('div', 'apm-section-title');
+    title.appendChild(document.createTextNode('Curated Facts '));
+    const hint = el('span', 'apm-deeplink', 'persona may cite these in email drafts');
+    hint.style.cssText = 'font-size:.68rem;color:#64748b;text-decoration:none';
+    title.appendChild(hint);
+    sec.appendChild(title);
+
+    const list = el('div', 'apm-facts-list');
+    sec.appendChild(list);
+
+    const addRow = el('div', 'apm-facts-add');
+    addRow.style.cssText = 'display:flex;gap:.4rem;margin-top:.5rem;flex-wrap:wrap';
+    const factInput = document.createElement('input');
+    factInput.type = 'text';
+    factInput.className = 'apm-input';
+    factInput.placeholder = 'e.g. Standard onboarding SLA is 3 business days.';
+    factInput.style.cssText = 'flex:2;min-width:180px';
+    const catInput = document.createElement('input');
+    catInput.type = 'text';
+    catInput.className = 'apm-input';
+    catInput.placeholder = 'category (optional)';
+    catInput.style.cssText = 'flex:1;min-width:120px';
+    const addBtn = el('button', 'apm-btn apm-btn-primary', 'Add');
+    addBtn.onclick = async function () {
+      const text = factInput.value.trim();
+      if (!text) return;
+      addBtn.disabled = true;
+      try {
+        await fetch('/tools/department-hq/api/agent/' + agentId + '/facts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ fact_text: text, category: catInput.value.trim() || null }),
+        });
+        factInput.value = '';
+        catInput.value = '';
+        loadFacts(agentId, list);
+      } catch (e) { /* ignore */ }
+      addBtn.disabled = false;
+    };
+    addRow.appendChild(factInput);
+    addRow.appendChild(catInput);
+    addRow.appendChild(addBtn);
+    sec.appendChild(addRow);
+
+    loadFacts(agentId, list);
+    return sec;
+  }
+
   function buildFooter() {
     const f = el('div', 'apm-footer-actions');
     const viewCol = el('div', 'apm-view-only');
@@ -419,6 +537,7 @@
     root.appendChild(buildReadOnlySections(
       state.snapshot.skills, state.snapshot.welfare, state.snapshot.performance
     ));
+    root.appendChild(buildFactsSection(agent.id));
     root.appendChild(buildFooter());
     body.appendChild(root);
   }

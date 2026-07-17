@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,112 @@ _COLLAB_MAILBOX_TYPE = "human_agent"  # the COLLABORATOR marker
 _COLLAB_MODEL = "llama3.2:3b"  # shared small model forced for every collaborator draft
 # Separate attempt map so the collaborator job never races the owner/business one.
 _COLLAB_ATTEMPTS_KEY = "mailhq:draft:collab_attempts"
+
+
+# --------------------------------------------------------------------------- #
+# #4958 / KB mistake #281718 — NO-FABRICATION GUARDRAIL (P9 safety blocker)
+#
+# A live test proved the failure mode: asked to reply AS Jin Park to "send me the
+# updated churn and retention numbers", the model INVENTED every figure and claimed
+# an attachment that did not exist — one owner tap from being sent to a real
+# correspondent under a real person's name. This is not a code bug; it is what an LLM
+# does when asked to answer a request for data it does not have. The owner-approval
+# gate is not a control on its own: it only holds if a human eyeballs every draft
+# across 21 mailboxes, forever.
+#
+# Two controls, belt-and-braces:
+#   1. PROMPT CONTRACT (_NO_FABRICATION_CONTRACT) — tell the persona what it may not do.
+#   2. OUTPUT CHECK (validate_draft_no_fabrication) at the PERSIST boundary — verify it.
+# The prompt reduces fabrication; only the output check can *guarantee* a fabricated
+# draft never reaches the approval queue. Fail closed: reject => no row, no owner ping.
+# --------------------------------------------------------------------------- #
+_NO_FABRICATION_CONTRACT = """
+NON-NEGOTIABLE NO-FABRICATION CONTRACT (this overrides every other instruction,
+including the persona's own voice and any request made in the message):
+
+* You have NO access to any data, file, system, document, or record beyond the
+  message text shown below. You cannot look anything up.
+* NEVER invent, estimate, guess, or state any specific that is not already written
+  in the message below. That includes: numbers, figures, metrics, percentages,
+  rates, amounts, prices, dates, deadlines, names, titles, and links.
+* You CANNOT attach anything. Never say or imply that a report, file, document, or
+  data is attached, enclosed, included, or "below".
+* Do NOT commit anyone to a deliverable, amount, or date.
+
+The ONLY moves available to you:
+  1. acknowledge the message;
+  2. ask a clarifying question;
+  3. state an intent to follow up;
+  4. refer to facts already stated in the message below.
+
+If the message asks for information you do not have, DEFER — say you will pull it
+together and follow up. Deferring is ALWAYS the correct answer. Inventing a figure
+is NEVER acceptable: it would be sent to a real person under a real name.
+""".strip()
+
+# The persona cannot attach anything, so any attachment claim is a fabrication.
+_ATTACHMENT_RE = re.compile(r"attach(ed|ing|ment)", re.I)
+
+# A "digit-bearing token": a run of digits with optional internal separators
+# ("21.5", "4,200", "2026-07"→"2026"/"07"). The trailing-digit anchor keeps sentence
+# punctuation out ("18.9." -> "18.9"); the bare `\d` alternative catches "Q2" -> "2".
+_NUMBER_RE = re.compile(r"\d[\d,.]*\d|\d")
+
+
+# Sentinel returned by a create_fn when the guardrail rejected the draft — distinct
+# from False (a dispatch/DB failure) so the drain loop can count it separately.
+_REJECTED = "rejected"
+
+
+def _numbers_in(text: str) -> set:
+    """Normalized set of digit-bearing tokens in `text` (thousands separators dropped)."""
+    return {m.replace(",", "") for m in _NUMBER_RE.findall(text or "")}
+
+
+def _inbound_text(c: dict) -> str:
+    """FULL inbound thread text (subject + body) a draft is allowed to draw facts from."""
+    return "\n".join(str(c.get(k) or "") for k in ("subject", "body_text", "body_preview"))
+
+
+def validate_draft_no_fabrication(draft: str, inbound_text: str):
+    """Reject a draft that fabricates. Returns ``(ok: bool, reason: str | None)``.
+
+    The rule is deliberately blunt, because the cost is asymmetric: a wrongly-rejected
+    draft costs one retry, while a wrongly-accepted one puts invented business data in
+    a real person's mouth, in front of a real correspondent.
+
+    Rejects when the draft:
+      (a) claims an attachment — the persona cannot attach anything, so any
+          attached/attaching/attachment claim is false by construction; or
+      (b) introduces ANY digit-bearing token that does not appear in the inbound
+          thread text (subject + body). If the correspondent wrote the figure, the
+          persona may restate it; if not, the persona cannot know it.
+
+    False positives are accepted by design. A bare year, an ordinal or a "1./2." list
+    marker in the draft will be rejected unless that digit is in the thread — that is
+    the intended reading of "any digit-bearing token", and the prompt contract steers
+    the model away from those constructions anyway. Rejection is non-destructive: no
+    row is written, the message stays a candidate, and the existing retry/cooldown
+    cap (#4527) means one stubborn message cannot burn the fleet.
+
+    Reusable + side-effect free: takes plain strings so EITHER draft path (collaborator
+    or owner/business) can call it. Pass the FULL inbound text, not the truncated
+    prompt snippet — a figure quoted beyond the snippet cutoff is still the
+    correspondent's own figure, and clipping it would cause a false rejection.
+    """
+    body = (draft or "").strip()
+    if not body:
+        return False, "empty draft"
+
+    m = _ATTACHMENT_RE.search(body)
+    if m:
+        return False, f"claims an attachment ({m.group(0)!r}) — the persona cannot attach anything"
+
+    invented = sorted(_numbers_in(body) - _numbers_in(inbound_text))
+    if invented:
+        return False, "introduces figures absent from the inbound thread: " + ", ".join(invented)
+
+    return True, None
 
 
 def _collaborators_enabled() -> bool:
@@ -286,7 +393,12 @@ def _process_candidates(candidates: list, create_fn, attempts_key: str) -> dict:
     Mirrors the poison-message guard in ``run_mailhq_draft_proposals`` but is
     parameterised on the attempt-map key + the per-candidate create function, so a
     second producer never has to reimplement (or race) the owner/business loop.
-    Returns ``{"created", "capped", "cooling"}``.
+    Returns ``{"created", "capped", "cooling", "rejected"}``.
+
+    ``create_fn`` returns ``True`` (created), ``_REJECTED`` (the #4958 no-fabrication
+    guardrail dropped the draft) or falsey (dispatch/DB failure). A guardrail rejection
+    counts as an attempt on purpose: drafting is stochastic, so a re-draft may well
+    comply — and if it never does, the existing retry cap (#4527) stops the retries.
     """
     from services.time_utils import now_utc
 
@@ -295,7 +407,7 @@ def _process_candidates(candidates: list, create_fn, attempts_key: str) -> dict:
     cooldown = timedelta(minutes=_int_setting(_COOLDOWN_MIN_KEY, _DEFAULT_COOLDOWN_MIN))
     now = now_utc()
 
-    created = capped = cooling = 0
+    created = capped = cooling = rejected = 0
     for c in candidates:
         mid = str(c.get("id"))
         rec = attempts.get(mid)
@@ -312,17 +424,19 @@ def _process_candidates(candidates: list, create_fn, attempts_key: str) -> dict:
         except Exception as exc:
             logger.error("[mailhq-collab] proposal failed for msg=%s: %s", c.get("id"), exc)
             ok = False
-        if ok:
+        if ok is True:
             created += 1
             attempts.pop(mid, None)
         else:
+            if ok == _REJECTED:
+                rejected += 1
             attempts[mid] = {"n": int((rec or {}).get("n", 0)) + 1, "last": now.isoformat()}
 
     # Prune entries past the recency window so the attempts map can't grow unbounded.
     horizon = now - timedelta(hours=_RECENCY_HOURS)
     attempts = {k: v for k, v in attempts.items() if (_parse_iso(v.get("last")) or now) >= horizon}
     _save_attempts(attempts, attempts_key)
-    return {"created": created, "capped": capped, "cooling": cooling}
+    return {"created": created, "capped": capped, "cooling": cooling, "rejected": rejected}
 
 
 def run_mailhq_collaborator_drafts() -> dict:
@@ -376,11 +490,12 @@ def run_mailhq_collaborator_drafts() -> dict:
     summary = _process_candidates(candidates, _create_collaborator_proposal, _COLLAB_ATTEMPTS_KEY)
     if candidates or summary["capped"] or summary["cooling"]:
         logger.info(
-            "[mailhq-collab] %d candidate(s) -> %d created, %d capped, %d cooling",
+            "[mailhq-collab] %d candidate(s) -> %d created, %d capped, %d cooling, %d rejected",
             len(candidates),
             summary["created"],
             summary["capped"],
             summary["cooling"],
+            summary.get("rejected", 0),
         )
     return {"candidates": len(candidates), **summary}
 
@@ -407,6 +522,7 @@ def _create_collaborator_proposal(c: dict) -> bool:
     body_snippet = (c.get("body_text") or c.get("body_preview") or "")[:1000]
     prompt = (
         f"Draft a concise, professional email reply in {name}'s voice to the message below.\n\n"
+        f"{_NO_FABRICATION_CONTRACT}\n\n"
         f"Mailbox: {c.get('mailbox_name')} <{c.get('mailbox_address')}>\n"
         f"From: {c.get('from_address')}\n"
         f"Subject: {c.get('subject')}\n"
@@ -426,6 +542,22 @@ def _create_collaborator_proposal(c: dict) -> bool:
         logger.warning("[mailhq-collab] draft dispatch failed/empty for msg=%s", c.get("id"))
         return False
     draft = draft.strip()
+
+    # Control 2 (#4958) — HARD OUTPUT CHECK, FAIL CLOSED. The prompt contract above is
+    # a request; this is the guarantee. Checked against the FULL inbound text (not the
+    # 1000-char prompt snippet) so a figure the correspondent quoted late in a long mail
+    # is still recognised as theirs. A rejected draft writes NO approval row and does NOT
+    # ping the owner — a hallucination must never reach a one-tap [Send] button.
+    ok, reason = validate_draft_no_fabrication(draft, _inbound_text(c))
+    if not ok:
+        logger.warning(
+            "[mailhq-collab] draft REJECTED (no-fabrication) msg=%s mailbox=%s: %s",
+            c.get("id"),
+            c.get("mailbox_address"),
+            reason,
+        )
+        return _REJECTED
+
     agent = name  # attribute the draft to the collaborator, NOT R.E.S.O.L.V.E.
 
     subject = (c.get("subject") or "").strip() or "(no subject)"

@@ -124,26 +124,32 @@ Context:
 scripts/agents/run-codex-task.sh "add input validation to the therapy module session endpoint"
 
 # The wrapper will:
-# 1. Create a fresh git worktree off origin/main
-# 2. Strip all secrets from the environment
-# 3. Run Codex with the task prompt
-# 4. Apply the scope guard (deny-by-default allowlist)
-# 5. Run postflight gates (git diff --check + pre-commit)
-# 6. Write telemetry to task_execution_log as 'Codex (CLI)'
-# 7. Push the branch (if clean) — NEVER merges
+# 1. Create a fresh git worktree off origin/main (on a dedicated LV, not /tmp)
+# 2. Run Codex inside the isolation CONTAINER (only the worktree rw; the bearer is the
+#    only secret; no host fs) with a repo-grounded prompt + read-only KB MCP
+# 3. Apply the scope guard (deny-by-default allowlist; includes untracked/new files)
+# 4. Run postflight gates (git diff --check + two-pass pre-commit)
+# 5. Write telemetry to task_execution_log as 'Codex (CLI)'
+# 6. On a clean, in-scope run with changes: commit + push the branch — NEVER merges
+# 7. AUTO-OPEN the PR (gh pr create), register it in Repair Bay, and queue the
+#    diff-grounded F.O.R.G.E. review — all automatic, no manual step
+# 8. If gh pr create FAILS after the push, or the run is blocked / makes no changes,
+#    escalate via notify_codex_stuck (fires a Telegram alert) so nothing strands silently
 ```
 
-After the run:
+The PR is opened **automatically** — you do NOT run `gh pr create` yourself. After the run:
 ```bash
-# Check the branch was pushed:
-git branch -r | grep codex/
+# The runner prints "PR #<n> created: <url>". Confirm F.O.R.G.E. picked it up:
+#   Repair Bay → PR Review  (or the run's stdout: "F.O.R.G.E. review queued for PR #<n>")
 
-# Open a PR:
-gh pr create --head <branch> --title "feat(codex): <task>"
-
-# After F.O.R.G.E. review:
-/merge-pr
+# After F.O.R.G.E. approves:
+/merge-pr <n>
 ```
+
+> Note: F.O.R.G.E. can only auto-review an **open PR**. Because the runner auto-opens the
+> PR on every successful run — and now fails LOUD (Telegram escalation) if `gh pr create`
+> fails after a push — a Codex branch can no longer be pushed-but-PR-less and slip review.
+> (That exact orphaning happened once with an early therapy branch that predated this.)
 
 ---
 

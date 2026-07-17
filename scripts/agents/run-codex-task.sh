@@ -183,17 +183,20 @@ record_codex_run(task_label='''$TASK''', branch='$BRANCH', prompt_tokens=0, comp
 if [ "$SUCCESS" = true ] && [ "$NFILES" -gt 0 ]; then
   git -C "$WT" commit -q -m "feat(codex): $TASK"
   git -C "$WT" push --no-verify -u origin "$BRANCH"
-  # Auto-open PR; gh pr create prints the URL as the last line of output.
-  PR_URL="$(gh pr create \
+  # Auto-open PR. Capture the FULL output AND gh's own exit status — a `| tail -1` pipe
+  # would mask a `gh pr create` failure (the pipe returns tail's status, not gh's), so a
+  # failed create would look successful and the pushed branch would strand silently.
+  PR_CREATE_OUT="$(gh pr create \
     --head "$BRANCH" \
     --title "feat(codex): $TASK" \
     --body "$(printf '## Codex\n\n- **Task**: %s\n- **Branch**: %s\n\n## Test Plan\n- [ ] F.O.R.G.E. review passes\n- [ ] Deploy via `/merge-pr` after approval\n\n🤖 Codex CLI — auto-generated, review via Repair Bay → PR Review' "$TASK" "$BRANCH")" \
-    2>&1 | tail -1)"
+    2>&1)" && PR_RC=0 || PR_RC=$?
+  PR_URL="$(printf '%s\n' "$PR_CREATE_OUT" | tail -1)"
   PR_NUM="$(echo "$PR_URL" | grep -oE '[0-9]+$')"
-  echo "PR #${PR_NUM} created: $PR_URL"
-  # Register in Repair Bay + trigger diff-grounded F.O.R.G.E. analysis (background — non-blocking).
-  # PR_NUM is digits-only (grep -oE '[0-9]+$') so embedding it as a Python int literal is safe.
-  if [ -n "$PR_NUM" ]; then
+  if [ "${PR_RC:-1}" -eq 0 ] && [ -n "$PR_NUM" ]; then
+    echo "PR #${PR_NUM} created: $PR_URL"
+    # Register in Repair Bay + trigger diff-grounded F.O.R.G.E. analysis (background — non-blocking).
+    # PR_NUM is digits-only (grep -oE '[0-9]+$') so embedding it as a Python int literal is safe.
     (docker exec archie_platform python3 -c "
 import sys; sys.path.insert(0,'/app')
 from tools.repair_bay.services.pr_review_service import poll_open_prs, get_review
@@ -206,6 +209,21 @@ review_pr(pr)
 print('F.O.R.G.E. review queued for PR #' + str(pr))
 " 2>/dev/null || echo "WARN: Repair Bay/F.O.R.G.E. registration failed (non-fatal)") &
     echo "F.O.R.G.E. analysis queued (background) — check Repair Bay → PR Review."
+  else
+    # The branch is PUSHED but got NO PR (gh pr create failed, or no PR number parsed).
+    # Without this branch it strands silently — no F.O.R.G.E. review, no alert — which is
+    # exactly how a Codex branch was orphaned before. Fail LOUD: escalate via the same
+    # notify_codex_stuck path (fires Telegram to Kytran) so a pushed-but-PR-less branch is
+    # always surfaced. Non-fatal — errors here must never crash the run.
+    echo "ERROR: auto-PR creation FAILED for pushed branch $BRANCH (gh rc=${PR_RC:-?}): $PR_CREATE_OUT"
+    (cd "$REPO/platform_v2" && python3 - "$TASK" "$BRANCH" "pr_create_failed" "branch pushed but gh pr create failed (rc=${PR_RC:-?}): $PR_CREATE_OUT" <<'PY'
+import sys
+from services.agents.codex_telemetry import notify_codex_stuck
+task, branch, reason, detail = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+r = notify_codex_stuck(task_label=task, branch=branch, failure_reason=reason, error_detail=detail)
+print('F.O.R.G.E. escalation:', r.get('success'), '| task_id:', r.get('task_id', 'n/a'))
+PY
+    ) || echo "WARN: F.O.R.G.E. escalation call failed (non-fatal)"
   fi
 else
   echo "Run blocked or no changes — branch $BRANCH left for inspection, no push."

@@ -184,3 +184,235 @@ def test_owner_business_path_unchanged():
     assert "R.E.S.O.L.V.E." in owner_src
     assert "from .fleet_dispatch import queued_dispatch_text" in owner_src
     assert "model_override" not in owner_src  # owner/business path never forces a model
+
+
+# --------------------------------------------------------------------------- #
+# Task 2: collaborator_facts_service — CRUD + retrieval + render helpers (#4959)
+# --------------------------------------------------------------------------- #
+import pytest
+from database import get_db_cursor
+from services import collaborator_facts_service as cfs
+
+# Marker name for the throwaway agent created by `sample_agent_id` below. Used
+# both as the unique `name`/`display_name` and as the teardown lookup key so a
+# crashed prior run can never leave stale rows behind (KB: fixture hermeticity).
+_TEST_AGENT_MARKER = "__cfacts_test_agent__"
+
+
+@pytest.fixture(scope="module")
+def sample_agent_id():
+    """Create a throwaway `agents` row for the collaborator_facts FK tests.
+
+    MUST be hermetic: `archie_test`'s `agents` table is empty in a clean run,
+    so `SELECT ... FROM agents LIMIT 1` (the old approach) returns no row and
+    every CRUD test ERRORs. Instead, create our own minimal-but-valid agent —
+    satisfying every NOT NULL/no-default column and CHECK constraint on
+    `agents` (name, model, department [chk_agents_department], floor
+    [chk_agents_floor], worker_type [chk_agents_worker_type]) — yield its id
+    for the whole module, then delete it (and any prior-run leftover with the
+    same marker) in teardown. `collaborator_facts` rows cascade via
+    `collaborator_facts_agent_id_fkey ... ON DELETE CASCADE`.
+    """
+    with get_db_cursor(commit=True) as (conn, cur):
+        # Belt-and-suspenders: wipe any leftover from a previous crashed run
+        # before creating a fresh one, so rows can never accumulate.
+        cur.execute("DELETE FROM agents WHERE display_name=%s", (_TEST_AGENT_MARKER,))
+        cur.execute(
+            """
+            INSERT INTO agents (name, display_name, model, department, floor, worker_type)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                _TEST_AGENT_MARKER,
+                _TEST_AGENT_MARKER,
+                "qwen2.5:1.5b",
+                "Engineering & Technology",
+                "ENGINEERING",
+                "internal",
+            ),
+        )
+        agent_id = cur.fetchone()["id"]
+
+    yield agent_id
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute("DELETE FROM agents WHERE display_name=%s", (_TEST_AGENT_MARKER,))
+
+
+@pytest.fixture
+def fact_cleanup():
+    created = []
+    yield created
+    with get_db_cursor(commit=True) as (conn, cur):
+        for fid in created:
+            cur.execute("DELETE FROM collaborator_facts WHERE id=%s", (fid,))
+
+
+def test_add_and_get_active(sample_agent_id, fact_cleanup):
+    f = cfs.add_fact(sample_agent_id, "Manages the KBS account.", category="account", importance=7)
+    fact_cleanup.append(f["id"])
+    assert f["fact_text"] == "Manages the KBS account."
+    assert f["is_active"] is True and f["importance"] == 7
+    active = cfs.get_active_facts(sample_agent_id)
+    assert any(a["id"] == f["id"] for a in active)
+
+
+def test_set_active_filters_out(sample_agent_id, fact_cleanup):
+    f = cfs.add_fact(sample_agent_id, "Inactive fact.", importance=1)
+    fact_cleanup.append(f["id"])
+    cfs.set_active(f["id"], False)
+    assert all(a["id"] != f["id"] for a in cfs.get_active_facts(sample_agent_id))
+    assert any(a["id"] == f["id"] for a in cfs.list_for_agent(sample_agent_id))
+
+
+def test_active_ordered_by_importance_desc(sample_agent_id, fact_cleanup):
+    lo = cfs.add_fact(sample_agent_id, "low priority", importance=1)
+    fact_cleanup.append(lo["id"])
+    hi = cfs.add_fact(sample_agent_id, "high priority", importance=9)
+    fact_cleanup.append(hi["id"])
+    ids = [a["id"] for a in cfs.get_active_facts(sample_agent_id)]
+    assert ids.index(hi["id"]) < ids.index(lo["id"])
+
+
+def test_delete_fact(sample_agent_id):
+    f = cfs.add_fact(sample_agent_id, "to delete")
+    assert cfs.delete_fact(f["id"]) is True
+    assert cfs.get_fact(f["id"]) is None
+
+
+def test_add_requires_text(sample_agent_id):
+    with pytest.raises(ValueError):
+        cfs.add_fact(sample_agent_id, "   ")
+
+
+def test_render_helpers():
+    facts = [{"fact_text": "SLA is 3 business days."}, {"fact_text": "Owner is Terry."}]
+    block = cfs.facts_as_prompt_block(facts)
+    assert "ALLOWED FACTS" in block
+    assert "SLA is 3 business days." in block and "Owner is Terry." in block
+    assert cfs.facts_allowed_text(facts) == "SLA is 3 business days.\nOwner is Terry."
+    assert cfs.facts_as_prompt_block([]) == ""
+    assert cfs.facts_allowed_text([]) == ""
+
+
+# --------------------------------------------------------------------------- #
+# Task 3: validate_draft_no_fabrication learns an allowed_facts_text source (#4959)
+# --------------------------------------------------------------------------- #
+from tools.email_manager.draft_proposal_service import validate_draft_no_fabrication
+
+
+def test_number_in_allowed_facts_passes():
+    ok, reason = validate_draft_no_fabrication(
+        "Our standard onboarding SLA is 3 business days.",
+        inbound_text="When can you onboard us?",
+        allowed_facts_text="Standard onboarding SLA is 3 business days.",
+    )
+    assert ok, reason
+
+
+def test_number_absent_from_thread_and_facts_rejected():
+    ok, reason = validate_draft_no_fabrication(
+        "Churn was 4.1% last quarter.",
+        inbound_text="How did we do last quarter?",
+        allowed_facts_text="",
+    )
+    assert not ok
+    assert "4.1" in reason
+
+
+def test_empty_allowed_facts_is_backward_compatible():
+    # figure in the thread passes; invented figure still fails — owner-path behavior unchanged
+    ok, _ = validate_draft_no_fabrication("You asked about 5 seats.", "We need 5 seats.")
+    assert ok
+    ok2, _ = validate_draft_no_fabrication("The total is 500.", "No numbers in here.")
+    assert not ok2
+
+
+def test_attachment_claim_rejected_even_with_facts():
+    ok, reason = validate_draft_no_fabrication(
+        "Please see the attached summary.",
+        inbound_text="Can you summarize?",
+        allowed_facts_text="A summary exists.",
+    )
+    assert not ok
+    assert "attach" in reason.lower()
+
+
+# --------------------------------------------------------------------------- #
+# Task 4: facts injected into the collaborator draft prompt + validator call (#4959)
+# --------------------------------------------------------------------------- #
+import tools.email_manager.draft_proposal_service as dps
+
+
+def _min_candidate():
+    return {
+        "id": 1,
+        "mailbox_id": 1,
+        "mailbox_name": "Jin Park",
+        "mailbox_address": "jin@kytranempowerment.com",
+        "from_address": "sofia@example.com",
+        "subject": "Onboarding timing",
+        "body_text": "When can you onboard us?",
+        "body_preview": "When can you onboard us?",
+        "collaborator_name": "Jin Park",
+        "collaborator_system_prompt": "You are Jin Park.",
+        "collaborator_agent_id": 999999,
+        "rfc_message_id": None,
+        "thread_id": None,
+    }
+
+
+def test_facts_injected_into_prompt(monkeypatch):
+    captured = {}
+
+    def fake_dispatch(*a, **k):
+        captured["prompt"] = k.get("prompt")
+        return "We invent 424242 here."  # not in thread or facts => rejected, returns before DB
+
+    monkeypatch.setattr(
+        dps, "get_active_facts", lambda aid: [{"fact_text": "Standard onboarding SLA is 3 business days."}]
+    )
+    monkeypatch.setattr(dps, "queued_dispatch_text", fake_dispatch, raising=False)
+    # queued_dispatch_text is imported inside the function; patch the source module too:
+    import services.cluster_dispatch as cd
+
+    monkeypatch.setattr(cd, "queued_dispatch_text", fake_dispatch, raising=False)
+
+    result = dps._create_collaborator_proposal(_min_candidate())
+    assert result == dps._REJECTED
+    assert "ALLOWED FACTS" in captured["prompt"]
+    assert "Standard onboarding SLA is 3 business days." in captured["prompt"]
+
+
+def test_no_facts_omits_block(monkeypatch):
+    captured = {}
+
+    def fake_dispatch(*a, **k):
+        captured["prompt"] = k.get("prompt")
+        return "We invent 424242 here."
+
+    monkeypatch.setattr(dps, "get_active_facts", lambda aid: [])
+    import services.cluster_dispatch as cd
+
+    monkeypatch.setattr(cd, "queued_dispatch_text", fake_dispatch, raising=False)
+
+    dps._create_collaborator_proposal(_min_candidate())
+    assert "ALLOWED FACTS" not in captured["prompt"]
+
+
+def test_validator_receives_facts_corpus(monkeypatch):
+    seen = {}
+
+    def fake_validate(draft, inbound_text, allowed_facts_text=""):
+        seen["allowed"] = allowed_facts_text
+        return False, "stop before DB"
+
+    monkeypatch.setattr(dps, "get_active_facts", lambda aid: [{"fact_text": "SLA is 3 business days."}])
+    import services.cluster_dispatch as cd
+
+    monkeypatch.setattr(cd, "queued_dispatch_text", lambda *a, **k: "Our SLA is 3 business days.", raising=False)
+    monkeypatch.setattr(dps, "validate_draft_no_fabrication", fake_validate)
+
+    dps._create_collaborator_proposal(_min_candidate())
+    assert "SLA is 3 business days." in seen["allowed"]

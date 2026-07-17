@@ -1970,6 +1970,18 @@ async function openAgentDetail(agentId) {
             + '</div></div></div>'
             + '</div>';
 
+        // ── Curated Facts (persona grounding — #4959) ──
+        html += '<div class="dhq-ad-section" id="factsSection" data-agent-id="' + a.id + '">'
+            + '<div class="dhq-ad-section-title">Curated Facts '
+            + '<span style="font-weight:normal;font-size:0.7rem;color:var(--dhq-text-dim)">(persona may cite these in email drafts)</span>'
+            + '</div>'
+            + '<div id="agentFactsList"><div class="dhq-loading" style="padding:0.3rem">Loading facts...</div></div>'
+            + '<div class="dhq-fact-add" style="display:flex;gap:0.4rem;margin-top:0.5rem;flex-wrap:wrap">'
+            + '<input id="agentFactInput" class="dhq-input" type="text" placeholder="e.g. Standard onboarding SLA is 3 business days." style="flex:2;min-width:180px">'
+            + '<input id="agentFactCategory" class="dhq-input" type="text" placeholder="category (optional)" style="flex:1;min-width:120px">'
+            + '<button class="dhq-btn-sm" onclick="addAgentFact(' + a.id + ')">Add</button>'
+            + '</div></div>';
+
         // ── Actions ──
         html += '<div class="dhq-ad-section dhq-ad-actions">'
             + '<div class="dhq-ad-section-title">Actions</div>'
@@ -1984,6 +1996,8 @@ async function openAgentDetail(agentId) {
         loadAgentIdentity(a.id);
         // Load social data
         loadAgentSocial(a.id);
+        // Load curated facts (persona grounding — #4959)
+        loadAgentFacts(a.id);
     } catch (err) {
         setHtml(body, '<div class="dhq-empty">Error loading agent profile: ' + esc(err.message) + '</div>');
     }
@@ -2364,6 +2378,65 @@ async function publishPost(postId, agentId) {
     } catch (err) {
         alert('Error: ' + err.message);
     }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Curated Facts (persona grounding — #4959)
+// ───────────────────────────────────────────────────────────────
+
+async function loadAgentFacts(agentId) {
+    var host = document.getElementById('agentFactsList');
+    if (!host) return;
+    host.textContent = 'Loading…';
+    var resp = await api('/api/agent/' + agentId + '/facts');
+    var facts = (resp && resp.facts) || [];
+    host.textContent = '';
+    if (!facts.length) {
+        var empty = document.createElement('div');
+        empty.className = 'dhq-muted';
+        empty.textContent = 'No curated facts yet. Add facts this persona may cite in email drafts.';
+        host.appendChild(empty);
+        return;
+    }
+    facts.forEach(function (f) {
+        var row = document.createElement('div');
+        row.className = 'dhq-fact-row' + (f.is_active ? '' : ' dhq-fact-inactive');
+        var txt = document.createElement('span');
+        txt.className = 'dhq-fact-text';
+        txt.textContent = f.fact_text + (f.category ? ' [' + f.category + ']' : '');
+        var toggle = document.createElement('button');
+        toggle.className = 'dhq-btn-sm';
+        toggle.textContent = f.is_active ? 'Deactivate' : 'Activate';
+        toggle.onclick = async function () {
+            await apiPost('/api/agent/facts/' + f.id + '/toggle', { is_active: !f.is_active });
+            loadAgentFacts(agentId);
+        };
+        var del = document.createElement('button');
+        del.className = 'dhq-btn-sm dhq-btn-danger';
+        del.textContent = 'Delete';
+        del.onclick = async function () {
+            await apiPost('/api/agent/facts/' + f.id + '/delete', {});
+            loadAgentFacts(agentId);
+        };
+        row.appendChild(txt);
+        row.appendChild(toggle);
+        row.appendChild(del);
+        host.appendChild(row);
+    });
+}
+
+async function addAgentFact(agentId) {
+    var input = document.getElementById('agentFactInput');
+    var cat = document.getElementById('agentFactCategory');
+    var text = (input && input.value || '').trim();
+    if (!text) return;
+    await apiPost('/api/agent/' + agentId + '/facts', {
+        fact_text: text,
+        category: (cat && cat.value || '').trim() || null,
+    });
+    if (input) input.value = '';
+    if (cat) cat.value = '';
+    loadAgentFacts(agentId);
 }
 
 // ───────────────────────────────────────────────────────────────

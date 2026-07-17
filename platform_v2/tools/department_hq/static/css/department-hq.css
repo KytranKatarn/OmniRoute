@@ -790,6 +790,55 @@
     border-bottom: 1px solid rgba(0,229,255,0.15);
 }
 
+/* Curated Facts (persona grounding — #4959) */
+.dhq-fact-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--dhq-border);
+}
+.dhq-fact-row:last-child { border-bottom: none; }
+
+.dhq-fact-inactive { opacity: 0.5; }
+
+.dhq-fact-text {
+    flex: 1;
+    min-width: 0;
+    color: var(--dhq-text);
+    font-size: 0.78rem;
+    line-height: 1.4;
+    white-space: normal;
+    word-break: break-word;
+}
+
+.dhq-fact-add {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Generic muted helper (also used by Curated Facts empty state) */
+.dhq-muted {
+    color: var(--dhq-text-dim);
+    font-size: 0.75rem;
+}
+
+/* Small danger-styled button (Delete on fact rows) */
+.dhq-btn-danger {
+    padding: 0.25rem 0.6rem;
+    border: 1px solid #ef4444;
+    border-radius: 4px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.dhq-btn-danger:hover { background: rgba(239, 68, 68, 0.3); }
+
 /* System prompt */
 .dhq-ad-prompt {
     font-size: 0.72rem;

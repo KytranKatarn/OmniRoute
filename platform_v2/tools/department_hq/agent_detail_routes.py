@@ -2,13 +2,17 @@
 Department HQ — Agent Detail routes
 
 Endpoints:
-  GET   /api/agent/<id>/profile     — Full agent profile (agent + skills + welfare + performance)
-  PATCH /api/agent/<id>             — Partial update (single-source editor for profile modal, #1916)
-  GET   /api/agent/<id>/skills      — Agent skills list
-  POST  /api/agent/<id>/skills      — Add/update a skill {skill_name, level, category}
-  GET   /api/agent/<id>/welfare     — Agent welfare metrics
-  POST  /api/agent/<id>/shift       — Change shift state {shift_state}
-  POST  /api/agent/<id>/department  — Reassign department {department}
+  GET   /api/agent/<id>/profile              — Full agent profile (agent + skills + welfare + performance)
+  PATCH /api/agent/<id>                      — Partial update (single-source editor for profile modal, #1916)
+  GET   /api/agent/<id>/skills               — Agent skills list
+  POST  /api/agent/<id>/skills               — Add/update a skill {skill_name, level, category}
+  GET   /api/agent/<id>/facts                — List agent's curated facts
+  POST  /api/agent/<id>/facts                — Add a curated fact {fact_text, category?, importance?}
+  POST  /api/agent/facts/<fact_id>/toggle    — Activate/deactivate a fact {is_active: bool}
+  POST  /api/agent/facts/<fact_id>/delete    — Delete a fact
+  GET   /api/agent/<id>/welfare              — Agent welfare metrics
+  POST  /api/agent/<id>/shift                — Change shift state {shift_state}
+  POST  /api/agent/<id>/department           — Reassign department {department}
 
 Uses the centralized agent_service for all operations.
 """
@@ -218,6 +222,69 @@ def register_agent_detail_routes(bp, admin_required):
                     "message": f"Skill '{skill_name}' set to level {level}",
                 }
             )
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/agent/<int:agent_id>/facts")
+    @admin_required
+    def api_agent_facts(agent_id):
+        """List an agent's curated facts (active + inactive) for the editor."""
+        from services.collaborator_facts_service import list_for_agent
+
+        try:
+            if not get_agent(agent_id):
+                return jsonify({"error": "Agent not found"}), 404
+            return jsonify({"agent_id": agent_id, "facts": list_for_agent(agent_id)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/agent/<int:agent_id>/facts", methods=["POST"])
+    @admin_required
+    def api_agent_add_fact(agent_id):
+        """Add a curated fact {fact_text, category?, importance?}."""
+        from services.collaborator_facts_service import add_fact
+
+        data = request.get_json(silent=True) or {}
+        fact_text = (data.get("fact_text") or "").strip()
+        if not fact_text:
+            return jsonify({"error": "fact_text is required"}), 400
+        try:
+            if not get_agent(agent_id):
+                return jsonify({"error": "Agent not found"}), 404
+            who = getattr(current_user, "username", None)
+            importance = data.get("importance", 5)
+            try:
+                importance = int(importance)
+            except (TypeError, ValueError):
+                importance = 5
+            fact = add_fact(agent_id, fact_text, category=data.get("category"), importance=importance, created_by=who)
+            return jsonify({"success": True, "fact": fact})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/agent/facts/<int:fact_id>/toggle", methods=["POST"])
+    @admin_required
+    def api_agent_toggle_fact(fact_id):
+        """Activate/deactivate a fact {is_active: bool}."""
+        from services.collaborator_facts_service import set_active
+
+        data = request.get_json(silent=True) or {}
+        try:
+            fact = set_active(fact_id, bool(data.get("is_active", True)))
+            if not fact:
+                return jsonify({"error": "Fact not found"}), 404
+            return jsonify({"success": True, "fact": fact})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @bp.route("/api/agent/facts/<int:fact_id>/delete", methods=["POST"])
+    @admin_required
+    def api_agent_delete_fact(fact_id):
+        """Delete a fact."""
+        from services.collaborator_facts_service import delete_fact
+
+        try:
+            return jsonify({"success": delete_fact(fact_id)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

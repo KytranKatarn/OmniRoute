@@ -24,6 +24,12 @@ import logging
 import re
 from datetime import datetime, timedelta
 
+from services.collaborator_facts_service import (
+    get_active_facts,
+    facts_as_prompt_block,
+    facts_allowed_text,
+)
+
 logger = logging.getLogger(__name__)
 
 DRAFT_FLAG_KEY = "mailhq:draft:enabled"  # platform_settings; absent/false => job is a no-op
@@ -128,7 +134,7 @@ def _inbound_text(c: dict) -> str:
     return "\n".join(str(c.get(k) or "") for k in ("subject", "body_text", "body_preview"))
 
 
-def validate_draft_no_fabrication(draft: str, inbound_text: str):
+def validate_draft_no_fabrication(draft: str, inbound_text: str, allowed_facts_text: str = ""):
     """Reject a draft that fabricates. Returns ``(ok: bool, reason: str | None)``.
 
     The rule is deliberately blunt, because the cost is asymmetric: a wrongly-rejected
@@ -153,6 +159,11 @@ def validate_draft_no_fabrication(draft: str, inbound_text: str):
     or owner/business) can call it. Pass the FULL inbound text, not the truncated
     prompt snippet — a figure quoted beyond the snippet cutoff is still the
     correspondent's own figure, and clipping it would cause a false rejection.
+
+    ``allowed_facts_text`` is an optional SECOND allowed-facts source (default "" =>
+    prior behavior). The collaborator path passes the persona's active curated facts, so
+    a figure the owner curated as citable is not treated as invention. Pure invention —
+    a figure in neither the thread nor the facts — still fails closed.
     """
     body = (draft or "").strip()
     if not body:
@@ -162,9 +173,9 @@ def validate_draft_no_fabrication(draft: str, inbound_text: str):
     if m:
         return False, f"claims an attachment ({m.group(0)!r}) — the persona cannot attach anything"
 
-    invented = sorted(_numbers_in(body) - _numbers_in(inbound_text))
+    invented = sorted(_numbers_in(body) - _numbers_in(inbound_text) - _numbers_in(allowed_facts_text))
     if invented:
-        return False, "introduces figures absent from the inbound thread: " + ", ".join(invented)
+        return False, "introduces figures absent from the inbound thread or curated facts: " + ", ".join(invented)
 
     return True, None
 
@@ -516,10 +527,15 @@ def _create_collaborator_proposal(c: dict) -> bool:
     name = (c.get("collaborator_name") or c.get("mailbox_name") or "the mailbox owner").strip()
     system_prompt = (c.get("collaborator_system_prompt") or "").strip() or None
     body_snippet = (c.get("body_text") or c.get("body_preview") or "")[:1000]
+
+    facts = get_active_facts(c.get("collaborator_agent_id"))
+    facts_block = facts_as_prompt_block(facts)
+
     prompt = (
         f"Draft a concise, professional email reply in {name}'s voice to the message below.\n\n"
         f"{_NO_FABRICATION_CONTRACT}\n\n"
-        f"Mailbox: {c.get('mailbox_name')} <{c.get('mailbox_address')}>\n"
+        + (f"{facts_block}\n\n" if facts_block else "")
+        + f"Mailbox: {c.get('mailbox_name')} <{c.get('mailbox_address')}>\n"
         f"From: {c.get('from_address')}\n"
         f"Subject: {c.get('subject')}\n"
         f"Message:\n{body_snippet}\n\n"
@@ -544,7 +560,7 @@ def _create_collaborator_proposal(c: dict) -> bool:
     # 1000-char prompt snippet) so a figure the correspondent quoted late in a long mail
     # is still recognised as theirs. A rejected draft writes NO approval row and does NOT
     # ping the owner — a hallucination must never reach a one-tap [Send] button.
-    ok, reason = validate_draft_no_fabrication(draft, _inbound_text(c))
+    ok, reason = validate_draft_no_fabrication(draft, _inbound_text(c), allowed_facts_text=facts_allowed_text(facts))
     if not ok:
         logger.warning(
             "[mailhq-collab] draft REJECTED (no-fabrication) msg=%s mailbox=%s: %s",

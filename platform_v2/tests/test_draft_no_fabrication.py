@@ -264,9 +264,18 @@ def test_validator_is_reusable_by_both_paths():
 
 
 # --------------------------------------------------------------------------- #
-# scope: owner/business behaviour is NOT changed in this PR
+# scope: the owner/business path is NOW wired too (follow-up to this PR)
 # --------------------------------------------------------------------------- #
-def test_owner_business_path_not_wired_in_this_pr():
-    """Reported separately for an owner decision — deliberately untouched here."""
+def test_owner_business_path_is_wired():
+    """Both draft paths are guarded by the SAME two controls.
+
+    This assertion is the inverse of the original scope marker
+    (`test_owner_business_path_not_wired_in_this_pr`), which recorded that PR #2311
+    deliberately left the LIVE owner/business path unguarded pending an owner decision.
+    That decision was taken; the follow-up wired the same contract + validator into
+    `_create_proposal`. Full owner/business cover lives in
+    `test_owner_draft_no_fabrication.py`.
+    """
     owner_src = inspect.getsource(dps._create_proposal)
-    assert "validate_draft_no_fabrication" not in owner_src
+    assert "_NO_FABRICATION_CONTRACT" in owner_src
+    assert "validate_draft_no_fabrication" in owner_src

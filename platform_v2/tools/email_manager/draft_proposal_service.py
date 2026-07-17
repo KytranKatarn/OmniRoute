@@ -73,6 +73,12 @@ _COLLAB_ATTEMPTS_KEY = "mailhq:draft:collab_attempts"
 #   2. OUTPUT CHECK (validate_draft_no_fabrication) at the PERSIST boundary — verify it.
 # The prompt reduces fabrication; only the output check can *guarantee* a fabricated
 # draft never reaches the approval queue. Fail closed: reject => no row, no owner ping.
+#
+# BOTH draft paths apply BOTH controls, via these same two shared helpers:
+#   * _create_collaborator_proposal — human_agent mailboxes (gated OFF).
+#   * _create_proposal             — owner/business mailboxes (LIVE). Higher stakes:
+#     the draft is queued for one-tap [Send] under the OWNER's or the BUSINESS's name.
+# Keep them shared, never forked — a divergent copy would silently rot.
 # --------------------------------------------------------------------------- #
 _NO_FABRICATION_CONTRACT = """
 NON-NEGOTIABLE NO-FABRICATION CONTRACT (this overrides every other instruction,
@@ -275,54 +281,23 @@ def run_mailhq_draft_proposals() -> dict:
         )
         candidates = [dict(r) for r in cur.fetchall()]
 
-    # #4527 — retry cap / cooldown: skip messages that have already failed too many
-    # times (poison) or that failed recently (cooldown), so one bad message can't burn
-    # fleet dispatch on every run.
-    attempts = _load_attempts()
-    max_attempts = _int_setting(_MAX_ATTEMPTS_KEY, _DEFAULT_MAX_ATTEMPTS)
-    cooldown = timedelta(minutes=_int_setting(_COOLDOWN_MIN_KEY, _DEFAULT_COOLDOWN_MIN))
-    now = now_utc()
+    # #4527 — retry cap / cooldown (poison-message guard), plus the #4958 rejected tally:
+    # both live in the shared drain loop, so this path and the collaborator path can
+    # never drift apart. NOTE `_process_candidates` tests `ok is True` — required, since
+    # a `_REJECTED` return is a truthy string and a plain truth-test would miscount a
+    # rejected (hallucinated) draft as created.
+    summary = _process_candidates(candidates, _create_proposal, _ATTEMPTS_KEY, log_prefix="[mailhq-draft]")
 
-    created = 0
-    capped = 0
-    cooling = 0
-    for c in candidates:
-        mid = str(c.get("id"))
-        rec = attempts.get(mid)
-        if rec:
-            if int(rec.get("n", 0)) >= max_attempts:
-                capped += 1
-                continue  # given up on this poison message until it ages out of the window
-            last = _parse_iso(rec.get("last"))
-            if last and (now - last) < cooldown:
-                cooling += 1
-                continue  # still cooling down from the last failed attempt
-        try:
-            ok = _create_proposal(c)
-        except Exception as exc:
-            logger.error("[mailhq-draft] proposal failed for msg=%s: %s", c.get("id"), exc)
-            ok = False
-        if ok:
-            created += 1
-            attempts.pop(mid, None)  # clear attempt history on success
-        else:
-            attempts[mid] = {"n": int((rec or {}).get("n", 0)) + 1, "last": now.isoformat()}
-
-    # Prune entries past the recency window — those messages are no longer candidates,
-    # so the attempts map can never grow unbounded.
-    horizon = now - timedelta(hours=_RECENCY_HOURS)
-    attempts = {k: v for k, v in attempts.items() if (_parse_iso(v.get("last")) or now) >= horizon}
-    _save_attempts(attempts)
-
-    if candidates or capped or cooling:
+    if candidates or summary["capped"] or summary["cooling"]:
         logger.info(
-            "[mailhq-draft] %d candidate(s) -> %d created, %d capped, %d cooling",
+            "[mailhq-draft] %d candidate(s) -> %d created, %d capped, %d cooling, %d rejected",
             len(candidates),
-            created,
-            capped,
-            cooling,
+            summary["created"],
+            summary["capped"],
+            summary["cooling"],
+            summary.get("rejected", 0),
         )
-    return {"candidates": len(candidates), "created": created, "capped": capped, "cooling": cooling}
+    return {"candidates": len(candidates), **summary}
 
 
 def _create_proposal(c: dict) -> bool:
@@ -336,6 +311,7 @@ def _create_proposal(c: dict) -> bool:
     body_snippet = (c.get("body_text") or c.get("body_preview") or "")[:1000]
     prompt = (
         "Draft a concise, professional email reply to the following message.\n\n"
+        f"{_NO_FABRICATION_CONTRACT}\n\n"
         f"Mailbox: {c.get('mailbox_name')}\n"
         f"From: {c.get('from_address')}\n"
         f"Subject: {c.get('subject')}\n"
@@ -345,12 +321,31 @@ def _create_proposal(c: dict) -> bool:
     )
 
     # Queue-aware dispatch: waits for a free R.E.S.O.L.V.E. agent (cold-load queue)
-    # rather than failing synchronously on a busy/small cluster.
+    # rather than failing synchronously on a busy/small cluster. (`local_only` defaults
+    # True in fleet_dispatch — drafting never leaves the local fleet.)
     draft = queued_dispatch_text(capability="support", prompt=prompt)
     if not draft:
         logger.warning("[mailhq-draft] draft dispatch failed/empty for msg=%s", c.get("id"))
         return False
     draft = draft.strip()
+
+    # Control 2 (#4958) — HARD OUTPUT CHECK, FAIL CLOSED. The prompt contract above is a
+    # request; this is the guarantee. Stakes are HIGHER here than on the collaborator
+    # path: this one is LIVE (`mailhq:draft:enabled`) and queues one-tap [Send] drafts
+    # under the OWNER's or the BUSINESS's name. Checked against the FULL inbound text
+    # (not the 1000-char prompt snippet) so a figure the correspondent quoted late in a
+    # long mail is still recognised as theirs. A rejected draft writes NO approval row
+    # and does NOT ping the owner.
+    ok, reason = validate_draft_no_fabrication(draft, _inbound_text(c))
+    if not ok:
+        logger.warning(
+            "[mailhq-draft] draft REJECTED (no-fabrication) msg=%s mailbox=%s: %s",
+            c.get("id"),
+            c.get("mailbox_address"),
+            reason,
+        )
+        return _REJECTED
+
     agent = "R.E.S.O.L.V.E."  # capability='support' routes to R.E.S.O.L.V.E.
 
     subject = (c.get("subject") or "").strip() or "(no subject)"
@@ -387,12 +382,13 @@ def _create_proposal(c: dict) -> bool:
 # --------------------------------------------------------------------------- #
 # Slice 1 — collaborator persona draft job (human_agent mailboxes)
 # --------------------------------------------------------------------------- #
-def _process_candidates(candidates: list, create_fn, attempts_key: str) -> dict:
-    """Shared retry-cap/cooldown drain loop (used by the collaborator job).
+def _process_candidates(candidates: list, create_fn, attempts_key: str, *, log_prefix: str = "[mailhq-collab]") -> dict:
+    """Shared retry-cap/cooldown drain loop — used by BOTH draft jobs.
 
-    Mirrors the poison-message guard in ``run_mailhq_draft_proposals`` but is
-    parameterised on the attempt-map key + the per-candidate create function, so a
-    second producer never has to reimplement (or race) the owner/business loop.
+    Parameterised on the attempt-map key + the per-candidate create function, so the two
+    producers (owner/business and collaborator) share one poison-message guard and one
+    counter shape instead of reimplementing (or racing) each other. Each job passes its
+    own ``attempts_key``, so they never share attempt state.
     Returns ``{"created", "capped", "cooling", "rejected"}``.
 
     ``create_fn`` returns ``True`` (created), ``_REJECTED`` (the #4958 no-fabrication
@@ -422,7 +418,7 @@ def _process_candidates(candidates: list, create_fn, attempts_key: str) -> dict:
         try:
             ok = create_fn(c)
         except Exception as exc:
-            logger.error("[mailhq-collab] proposal failed for msg=%s: %s", c.get("id"), exc)
+            logger.error("%s proposal failed for msg=%s: %s", log_prefix, c.get("id"), exc)
             ok = False
         if ok is True:
             created += 1

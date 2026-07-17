@@ -68,6 +68,22 @@ _PAID_CLOUD_PROVIDERS = (
     "openai-compatible",
 )
 
+# Admission-control sheds are NOT agent failures. When the hub's 7B
+# in-flight cap is reached the dispatcher refuses the dispatch and writes
+# a success=false row (it raises {"backpressure": True}); the work was
+# never handed to the agent. Counting those as failures reports a healthy
+# agent caught in a saturation burst as broken — and, worse, lets shed
+# volume dilute a genuine failure rate below the alert threshold.
+# ``agent_jobs._check_cluster_saturation`` matches the same patterns and
+# raises the cluster_saturation advisory that is the correct home for
+# this signal. Keep the two lists in step.
+_BACKPRESSURE_ERROR_PATTERNS = (
+    "%hub saturated%",
+    "%admission cap%",
+    "%shed to relieve%",
+    "%backpressure%",
+)
+
 
 def _get_db_password() -> str:
     """Read DB password from Docker secret file, fall back to env var.
@@ -183,13 +199,23 @@ def _high_failure_agents(cur, window_hours: int) -> List[Dict[str, Any]]:
         LEFT JOIN agents a ON a.id = tel.agent_id
         WHERE tel.created_at > now() - (%s || ' hours')::interval
           AND (tel.agent_name IS NOT NULL OR tel.agent_id IS NOT NULL)
+          -- Admission-control sheds never reached the agent, so they are
+          -- neither a failure nor a call: drop them from the numerator AND
+          -- the denominator. Leaving them in the denominator would let a
+          -- saturation burst dilute a real failure rate under the threshold.
+          AND NOT (NOT tel.success AND tel.error_message ILIKE ANY(%s))
         GROUP BY COALESCE(a.name, tel.agent_name), tel.agent_id, tel.capability
         HAVING count(*) >= %s
            AND sum(CASE WHEN NOT tel.success THEN 1 ELSE 0 END)::float / count(*)::float > %s
         ORDER BY failure_pct DESC, total_calls DESC
         LIMIT 50
         """,
-        (str(window_hours), MIN_CALLS_FOR_FAILURE_CHECK, FAILURE_RATE_THRESHOLD),
+        (
+            str(window_hours),
+            list(_BACKPRESSURE_ERROR_PATTERNS),
+            MIN_CALLS_FOR_FAILURE_CHECK,
+            FAILURE_RATE_THRESHOLD,
+        ),
     )
     return [dict(row) for row in cur.fetchall()]
 

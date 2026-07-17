@@ -109,3 +109,47 @@ def test_parse_json_garbage_returns_none():
     assert ang._parse_json("no json here") is None
     assert ang._parse_json("") is None
     assert ang._parse_json("[1, 2, 3]") is None  # not an object
+
+
+# --- Task #4960: pronounceability + curated fallback pool -------------------
+
+
+def test_valid_letters_rejects_unpronounceable_blobs():
+    assert not ang._valid_letters("BCDFG")  # no vowel + 5-consonant run
+    assert not ang._valid_letters("AB")  # too short
+    assert ang._valid_letters("FORGE")
+    assert ang._valid_letters("BEACON")
+
+
+def test_fallback_name_uses_curated_pool_not_padding():
+    # "image_ai" -> initials "IA" (too short) used to pad to "IAAG" via the old
+    # AGENTCOREUNIT blob (task #4960). It must now fall to the curated pool.
+    out = ang._fallback_name("image_ai", set())
+    assert out["source"] == "fallback"
+    letters = ang._normalize(out["name"])
+    assert letters != "IAAG"
+    assert "AGENTCOREUNIT" not in letters
+    assert letters in {acronym for acronym, _ in ang._FALLBACK_POOL}
+    # the expansion's word-initials must spell the returned acronym exactly
+    initials = "".join(word[0] for word in out["expansion"].split())
+    assert initials == letters
+
+
+def test_fallback_name_respects_avoid_skips_to_next_pool_entry():
+    first_acronym = ang._FALLBACK_POOL[0][0]
+    second_acronym = ang._FALLBACK_POOL[1][0]
+    out = ang._fallback_name("image_ai", {first_acronym})
+    assert ang._normalize(out["name"]) == second_acronym
+
+
+def test_fallback_pool_expansions_spell_their_acronyms():
+    # Every curated pool entry must be internally consistent + pronounceable +
+    # unique, or the fallback could silently regress to gibberish again.
+    seen = set()
+    for acronym, expansion in ang._FALLBACK_POOL:
+        assert ang._valid_letters(acronym), f"{acronym} fails _valid_letters"
+        initials = "".join(word[0] for word in expansion.split())
+        assert initials == acronym, f"{acronym}: {expansion!r} spells {initials!r}"
+        assert acronym.isascii(), f"{acronym} is not all-ASCII"
+        assert acronym not in seen, f"{acronym} duplicated in _FALLBACK_POOL"
+        seen.add(acronym)

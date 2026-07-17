@@ -44,9 +44,23 @@ def _dotify(letters: str) -> str:
     return ".".join(up) + "." if up else ""
 
 
+_VOWELS = "AEIOUY"
+_CONSONANT_RUN_RE = re.compile(r"[^AEIOUY]{4,}")
+
+
 def _valid_letters(name: str) -> bool:
-    """House style is 4-7 letters (FORGE=5, VIGIL=5, MAVEN=5, CODEX=5)."""
-    return 4 <= len(_normalize(name)) <= 7
+    """House style is 4-7 letters (FORGE=5, VIGIL=5, MAVEN=5, CODEX=5), and must
+    be pronounceable: alpha-only, at least one vowel (A E I O U Y), and no run
+    of 4+ consecutive consonants. The extra checks are defense in depth against
+    gibberish blobs like "BCDFG" (task #4960 — the old "AGENTCOREUNIT"-padding
+    fallback only checked length and produced exactly this kind of blob)."""
+    letters = _normalize(name)
+    return (
+        4 <= len(letters) <= 7
+        and letters.isalpha()
+        and any(ch in _VOWELS for ch in letters)
+        and not _CONSONANT_RUN_RE.search(letters)
+    )
 
 
 def _department_for_capability(capability: str) -> str:
@@ -195,29 +209,89 @@ def suggest_name(
     return _fallback_name(capability, avoid)
 
 
-def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
-    """Deterministic, guaranteed-unique acronym derived from the capability."""
-    words = re.sub(r"[^a-z ]", " ", capability.lower().replace("_", " ")).split()
-    letters = "".join(w[0] for w in words if w).upper()
-    for ch in "AGENTCOREUNIT":  # pad short capabilities up to 4 letters
-        if len(letters) >= 4:
-            break
-        letters += ch
-    letters = _normalize(letters)[:7]
+# Curated, on-theme, pronounceable acronym+expansion pairs used when neither
+# the LLM nor the capability's own word-initials yield a valid name (task
+# #4960 — replaces the old "AGENTCOREUNIT" character padding that produced
+# gibberish like "I.A.A.G."). Every expansion's word-initials spell its
+# acronym exactly (verified by test_fallback_pool_expansions_spell_their_acronyms);
+# every acronym passes _valid_letters and was checked against a live
+# `SELECT name FROM agents` at authoring time to confirm it is NOT already in
+# use (see task #4960 report for the exclusion list used).
+_FALLBACK_POOL: list[tuple[str, str]] = [
+    ("PORTAL", "Process Operations Router Task Automation Logic"),
+    ("HELM", "Hub Engine Logistics Management"),
+    ("LUMEN", "Logic Unit Monitoring Event Notification"),
+    ("VECTOR", "Verified Event Coordination Task Operations Router"),
+    ("FUSION", "Federated Utility Synthesis Integration Operations Network"),
+    ("PILOT", "Process Intelligence Logistics Operations Terminal"),
+    ("RANGER", "Resource Automation Network Guidance Engine Response"),
+    ("MARSHAL", "Monitoring Analysis Router Systems Health Access Logging"),
+    ("ENGINE", "Enhanced Network Guidance Intelligence Nexus Engine"),
+    ("HARBOR", "Hub Access Routing Backup Operations Recovery"),
+    ("SIGMA", "Systems Intelligence Guidance Monitoring Automation"),
+    ("TALON", "Task Automation Logistics Operations Nexus"),
+    ("GRANITE", "Guidance Resource Automation Network Intelligence Task Engine"),
+    ("ORBIT", "Operations Router Backup Intelligence Tracking"),
+    ("QUORUM", "Quality Unit Operations Review Utility Monitoring"),
+    ("SPIRE", "Systems Process Intelligence Router Engine"),
+    ("NIMBUS", "Network Intelligence Monitoring Backup Utility Systems"),
+    ("VESSEL", "Verified Event Systems Synchronization Engine Ledger"),
+    ("CASCADE", "Coordinated Analysis Service Continuity Automation Dispatch Engine"),
+    ("TRIBUNE", "Task Review Intelligence Briefing Utility Network Engine"),
+    ("PIVOT", "Process Intelligence Verification Operations Terminal"),
+    ("MODULE", "Managed Operations Data Utility Logic Engine"),
+    ("CIRCUIT", "Coordinated Intelligence Routing Control Utility Integration Terminal"),
+    ("BRACKET", "Backup Router Automation Coordination Knowledge Engine Terminal"),
+    ("FATHOM", "Field Analysis Tracking Health Operations Monitor"),
+    ("TETHER", "Task Escalation Tracking Handling Engine Router"),
+    ("GATEWAY", "Guided Access Task Engine Workflow Automation Yield"),
+    ("GAMBIT", "Guided Analysis Mission Briefing Intelligence Terminal"),
+    ("CONDUIT", "Coordinated Operations Network Data Utility Integration Terminal"),
+    ("KESTREL", "Knowledge Event Scanning Tracking Router Engine Logic"),
+]
 
-    cand = letters if (_valid_letters(letters) and letters not in avoid) else ""
-    if not cand:
-        base = letters[:6]  # leave room for a distinguishing final letter
-        for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+
+def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
+    """Deterministic, guaranteed-valid, guaranteed-unique acronym for a net-new
+    hire. Tries the capability's own word-initials ONLY if that already yields
+    a pronounceable, unused name; otherwise picks the first unused entry from
+    the curated on-theme pool (_FALLBACK_POOL) — so the UI never again shows a
+    gibberish blob like "I.A.A.G." (the old AGENTCOREUNIT-padding bug fixed in
+    task #4960)."""
+    words = re.sub(r"[^a-z ]", " ", capability.lower().replace("_", " ")).split()
+    initials = _normalize("".join(w[0] for w in words if w))
+    title = f"{capability.replace('_', ' ').title()} Specialist"
+
+    if initials and _valid_letters(initials) and initials not in avoid:
+        return {
+            "name": _dotify(initials),
+            "expansion": " ".join(w.capitalize() for w in words),
+            "title": title,
+            "source": "fallback",
+        }
+
+    for acronym, expansion in _FALLBACK_POOL:
+        letters = _normalize(acronym)
+        if _valid_letters(letters) and letters not in avoid:
+            return {"name": _dotify(letters), "expansion": expansion, "title": title, "source": "fallback"}
+
+    # Implausible corner: every curated pool entry collided with `avoid`.
+    # Disambiguate with one extra pronounceable letter — NEVER reintroduce the
+    # old "AGENTCOREUNIT" padding blob.
+    for acronym, expansion in _FALLBACK_POOL:
+        base = _normalize(acronym)[:6]
+        for ch in "AEIOUYBCDFGHJKLMNPQRSTVWXZ":
             trial = base + ch
             if _valid_letters(trial) and trial not in avoid:
-                cand = trial
-                break
-    if not cand:  # absurd corner — accept a possibly-dup but valid name
-        cand = letters[:6] + "X"
-    return {
-        "name": _dotify(cand),
-        "expansion": " ".join(w.capitalize() for w in words) or "Agent Core Unit",
-        "title": f"{capability.replace('_', ' ').title()} Specialist",
-        "source": "fallback",
-    }
+                return {
+                    "name": _dotify(trial),
+                    "expansion": f"{expansion} Extended",
+                    "title": title,
+                    "source": "fallback",
+                }
+
+    # Truly absurd corner (every pool entry AND every extension collided):
+    # accept a possibly-duplicate but still valid, pronounceable name rather
+    # than ever emit gibberish.
+    acronym, expansion = _FALLBACK_POOL[0]
+    return {"name": _dotify(acronym), "expansion": expansion, "title": title, "source": "fallback"}

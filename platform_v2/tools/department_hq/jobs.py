@@ -531,6 +531,61 @@ def code_health_autoheal_job():
         )
 
 
+def _drain_int_setting(key, default):
+    """Read an int tunable from platform_settings (no-deploy retunable). Floors at 1."""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (key,))
+            row = cur.fetchone()
+        if row and row["value"] not in (None, ""):
+            return max(1, int(row["value"]))
+    except Exception:
+        logger.warning("code_health drain: bad/missing setting %s, using default %s", key, default)
+    return default
+
+
+def code_health_backlog_drain_job():
+    """Frequent, welfare-gated drain of the STANDING Code Health fix backlog.
+
+    Complements the daily autoheal (which scans + dispatches fixes ONLY when its
+    scan finds NEW issues): this works down the standing undispatched
+    code_health proposal backlog every few hours, regardless of new-issue
+    discovery. Fix GENERATION only — deploy stays HUMAN-GATED (results land in
+    ready_for_review); every dispatch is welfare-gated (resting agents defer).
+    DEFAULT OFF — work-control key 'code_health_backlog_drain'. Batch size
+    tunable via platform_settings 'work:code_health_backlog_drain:max_fixes'
+    (default 15)."""
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("code_health_backlog_drain", default=False):
+        return
+    start = time.time()
+    try:
+        from services.audit_pipeline import dispatch_audit_proposals
+
+        max_fixes = _drain_int_setting("work:code_health_backlog_drain:max_fixes", 15)
+        result = dispatch_audit_proposals(limit=max_fixes) or {}
+        logger.info("[CodeHealthBacklogDrain] %s (max_fixes=%s)", result, max_fixes)
+        _log_cycle(
+            "code_health_backlog_drain",
+            int(result.get("dispatched", 0)),
+            int(result.get("failed", 0)),
+            int((time.time() - start) * 1000),
+            details=result,
+        )
+    except Exception as e:
+        logger.warning("Code health backlog drain failed: %s", e)
+        _log_cycle(
+            "code_health_backlog_drain",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+
+
 def daily_recompute_perf_baselines():
     """Job #59: Nightly recompute of P.R.O.B.E. perf baselines (03:45 EDT).
 
@@ -876,6 +931,24 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=2, minute=45, timezone="America/Toronto"),
         id="agent_code_health_autoheal",
         name="Code Health: Autonomous Heal Cycle (static tier)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Code Health BACKLOG DRAIN — frequent, welfare-gated drain of the STANDING
+    # fix backlog (decoupled from new-issue discovery — the daily autoheal above
+    # only drains when its scan finds NEW issues, so a large existing backlog
+    # otherwise barely moves). Fix generation only; deploy stays HUMAN-GATED.
+    # DEFAULT OFF via work-control 'code_health_backlog_drain'. Interval tunable
+    # via platform_settings 'work:code_health_backlog_drain:interval_hours'
+    # (default 3h; read at registration — a change needs a platform restart).
+    _ch_drain_interval = _drain_int_setting("work:code_health_backlog_drain:interval_hours", 3)
+    scheduler.add_job(
+        with_ctx(code_health_backlog_drain_job),
+        trigger=IntervalTrigger(hours=_ch_drain_interval),
+        id="code_health_backlog_drain",
+        name="Code Health: Backlog Drain (fix-gen, welfare-gated)",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

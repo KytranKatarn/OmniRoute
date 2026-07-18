@@ -720,6 +720,35 @@ _PLACEHOLDER_MAP = {
 _SKIP_PREFIXES = ("[dispatch_routing]/",)
 
 
+def resolve_proposal_source(file_path):
+    """Resolve a code-health proposal's file_path to a real on-disk source.
+
+    Single source of truth for the resolution ``dispatch_proposal_fix`` performs, so the
+    archive sweep classifies "fixable" identically to what dispatch actually does.
+
+    Returns (abs_path, display_path, status):
+      status 'skip'    -> synthetic non-file label (_SKIP_PREFIXES); abs_path None; display == input
+      status 'ok'      -> abs_path is an existing, readable file; display is the substituted path
+      status 'missing' -> resolved (or unresolved) but no on-disk file; abs_path None
+    """
+    if not file_path:
+        return (None, file_path, "missing")
+    if any(file_path.startswith(p) for p in _SKIP_PREFIXES):
+        return (None, file_path, "skip")
+    resolved = file_path
+    for placeholder, real_root in _PLACEHOLDER_MAP.items():
+        if resolved.startswith(placeholder):
+            resolved = real_root + resolved[len(placeholder) :]
+            break
+    # Try /mnt/archie_brain first (host + container mount), fall back to /app/ (Docker)
+    abs_path = os.path.join("/mnt/archie_brain", resolved)
+    if not os.path.isfile(abs_path) and resolved.startswith("platform_v2/"):
+        abs_path = os.path.join("/app", resolved[len("platform_v2/") :])
+    if os.path.isfile(abs_path):
+        return (abs_path, resolved, "ok")
+    return (None, resolved, "missing")
+
+
 def _parse_fix_json(text):
     """Extract a {"find","replace"} JSON object from an LLM reply (fence/prose tolerant)."""
     if not text:
@@ -857,24 +886,13 @@ def dispatch_proposal_fix(proposal_id):
     except Exception as ws_err:
         logger.warning("Work session creation failed (non-blocking): %s", ws_err)
 
-    # Read source file
-    # Resolve module placeholders ([APP_CORE]/, standalone_*/, website_*/, etc.) to real paths.
-    # Synthetic placeholders (routing rules, not files) short-circuit early.
-    if any(file_path.startswith(p) for p in _SKIP_PREFIXES):
+    # Read source file — resolve module placeholders to a real on-disk path.
+    abs_path, file_path, _resolve_status = resolve_proposal_source(file_path)
+    if _resolve_status == "skip":
         if session_id:
             fail_work_session(session_id, error_msg=f"Synthetic placeholder, no file to fix: {file_path}")
         return {"success": False, "error": f"Synthetic placeholder, no file to fix: {file_path}"}
-
-    for placeholder, real_root in _PLACEHOLDER_MAP.items():
-        if file_path.startswith(placeholder):
-            file_path = real_root + file_path[len(placeholder) :]
-            break
-
-    # Try /mnt/archie_brain first (host), fall back to /app/ (Docker) with platform_v2/ stripped
-    abs_path = os.path.join("/mnt/archie_brain", file_path)
-    if not os.path.isfile(abs_path) and file_path.startswith("platform_v2/"):
-        abs_path = os.path.join("/app", file_path[len("platform_v2/") :])
-    if not os.path.isfile(abs_path):
+    if _resolve_status != "ok":
         if session_id:
             fail_work_session(session_id, error_msg=f"Source file not found: {file_path}")
         return {"success": False, "error": f"Source file not found: {file_path}"}
@@ -1257,6 +1275,64 @@ def _mark_dispatch_attempted(proposal_id, error_msg):
                WHERE id = %s""",
             (json.dumps({"dispatch_attempted": True, "dispatch_error": error_msg[:200]}), proposal_id),
         )
+
+
+def _archive_reason_for(file_path, status):
+    """Map an unresolvable proposal to a stable archive_reason."""
+    if status == "skip":
+        return "not_a_file:routing_label"
+    if file_path.startswith("standalone_"):
+        return "out_of_scope:standalone"
+    return "source_missing:relocated"
+
+
+def archive_unfixable_audit_proposals(dry_run=False):
+    """One-time, idempotent, reversible sweep: archive undispatched code-health proposals
+    whose file_path does not resolve to a real on-disk file, so the drain never spends a
+    slot on them. Only touches status='approved' (idempotent). Every archived row is tagged
+    archived_by='scope_filter_4940' for one-statement rollback.
+    """
+    from services.time_utils import now_utc
+
+    by_reason = {}
+    scanned = archived = kept = 0
+    with get_db_cursor(commit=not dry_run) as (conn, cur):
+        cur.execute(
+            """SELECT id, metadata->>'file_path' AS file_path
+               FROM improvement_proposals
+               WHERE metadata->>'source' = 'code_health_audit'
+                 AND status = 'approved'
+                 AND (metadata->>'dispatch_attempted') IS NULL"""
+        )
+        rows = cur.fetchall()
+        for row in rows:
+            scanned += 1
+            fp = row["file_path"] or ""
+            _abs, _display, status = resolve_proposal_source(fp)
+            if status == "ok":
+                kept += 1
+                continue
+            reason = _archive_reason_for(fp, status)
+            by_reason[reason] = by_reason.get(reason, 0) + 1
+            archived += 1
+            if not dry_run:
+                cur.execute(
+                    """UPDATE improvement_proposals
+                       SET status = 'archived',
+                           metadata = metadata || %s::jsonb
+                       WHERE id = %s""",
+                    (
+                        json.dumps(
+                            {
+                                "archive_reason": reason,
+                                "archived_at": now_utc().isoformat(),
+                                "archived_by": "scope_filter_4940",
+                            }
+                        ),
+                        row["id"],
+                    ),
+                )
+    return {"scanned": scanned, "archived": archived, "kept": kept, "by_reason": by_reason}
 
 
 # Transient dispatch failures resolve on their own — the assigned agent was resting

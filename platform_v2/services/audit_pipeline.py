@@ -777,6 +777,51 @@ def _parse_fix_json(text):
     return obj if isinstance(obj, dict) else None
 
 
+def _parse_fix_delimited(text):
+    """Extract {"find","replace"} from the quote-safe delimiter format:
+
+        <<<FIND>>>
+        <code copied verbatim>
+        <<<REPLACE>>>
+        <corrected code>
+        <<<END>>>
+
+    Preferred over JSON because a small model cannot reliably escape code — and
+    especially triple-quoted SQL (``\"\"\"SELECT ...\"\"\"``) — inside a JSON string,
+    which was the dominant ``unparseable`` failure (KB fix_debug evidence, 2026-07-18).
+    Only the format's surrounding newlines are stripped; code indentation is preserved
+    (the unique-match + strip fallback in ``_fix_match_candidates`` handles the rest).
+    ``<<<END>>>`` is optional. Returns a dict or ``None``.
+    """
+    if not text or "<<<FIND>>>" not in text or "<<<REPLACE>>>" not in text:
+        return None
+    s = text
+    # Tolerate a stray markdown fence wrapper around the whole block.
+    if "```" in s:
+        for part in s.split("```"):
+            if "<<<FIND>>>" in part and "<<<REPLACE>>>" in part:
+                s = part
+                break
+    try:
+        after_find = s.split("<<<FIND>>>", 1)[1]
+        find_part, rest = after_find.split("<<<REPLACE>>>", 1)
+        replace_part = rest.split("<<<END>>>", 1)[0]
+    except (IndexError, ValueError):
+        return None
+    find = find_part.strip("\r\n")
+    replace = replace_part.strip("\r\n")
+    if not find:
+        return None
+    return {"find": find, "replace": replace}
+
+
+def _parse_fix_response(text):
+    """Parse an LLM fix reply. Prefers the quote-safe delimiter format; falls back to
+    the legacy JSON format for backward compatibility (and robustness if a model still
+    emits JSON)."""
+    return _parse_fix_delimited(text) or _parse_fix_json(text)
+
+
 def _fix_match_candidates(find, replace):
     """Yield (find, replace) candidates from strictest to most whitespace-tolerant.
 
@@ -834,7 +879,7 @@ def _apply_targeted_fix(source_content, model_response):
     all (fail-closed). ``find`` must be an exact, unique substring, and the result
     may never gut the file.
     """
-    data = _parse_fix_json(model_response)
+    data = _parse_fix_response(model_response)
     if not data:
         return None, "unparseable"
     find = data.get("find") or ""
@@ -975,12 +1020,18 @@ def dispatch_proposal_fix(proposal_id):
         f"**Module:** {module_name}\n"
         f"**Detail:** {meta.get('detail', '')}\n\n"
         f"**Instructions:** {fix_instruction}\n\n"
-        "Return ONLY a JSON object describing the SMALLEST change that fixes the issue:\n"
-        '{"find": "<code copied VERBATIM from the source below>", "replace": "<corrected code>"}\n'
-        "Rules: `find` must be an EXACT, UNIQUE substring of the source (copy it "
-        "character-for-character including indentation; include a few surrounding lines so "
-        "it appears exactly once). Change as little as possible. No line numbers. Never "
-        "rewrite the whole file.\n\n"
+        "Return ONLY the SMALLEST change that fixes the issue, in EXACTLY this format "
+        "(no JSON, no code fences, no commentary):\n"
+        "<<<FIND>>>\n"
+        "<paste the exact code to replace, copied VERBATIM from the source below>\n"
+        "<<<REPLACE>>>\n"
+        "<the corrected code>\n"
+        "<<<END>>>\n\n"
+        "Rules: the FIND block must be an EXACT, UNIQUE substring of the source — copy it "
+        "character-for-character INCLUDING indentation, and include a few surrounding lines "
+        "so it appears exactly once. Change as little as possible. No line numbers. Do NOT "
+        "escape quotes and do NOT wrap anything in JSON — paste the raw code between the "
+        "markers (triple-quoted strings and quotes are fine as-is). Never rewrite the whole file.\n\n"
         f"--- SOURCE ---\n{source_excerpt}"
     )
 

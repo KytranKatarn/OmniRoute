@@ -867,6 +867,32 @@ def _capture_fix_failure(proposal_id, raw_response, reason):
         logger.warning("fix-failure capture failed for #%s: %s", proposal_id, e)
 
 
+def _archive_stale_proposal(proposal_id):
+    """Archive a proposal the model reported as needing NO change (`<<<NOFIX>>>` — the
+    finding is already resolved / a stale false-positive). Reversible via the
+    ``archived_by='stale_filter_nofix'`` tag; keeps the drain from re-dispatching it.
+    A wrong NOFIX is self-correcting: a future scan re-creates the finding."""
+    try:
+        from services.time_utils import now_utc
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE improvement_proposals SET status='archived', " "metadata = metadata || %s::jsonb WHERE id = %s",
+                (
+                    json.dumps(
+                        {
+                            "archive_reason": "stale:model_nofix",
+                            "archived_by": "stale_filter_nofix",
+                            "archived_at": now_utc().isoformat(),
+                        }
+                    ),
+                    proposal_id,
+                ),
+            )
+    except Exception as e:
+        logger.warning("stale-archive failed for #%s: %s", proposal_id, e)
+
+
 def _apply_targeted_fix(source_content, model_response):
     """Apply an LLM search/replace fix to ``source_content``.
 
@@ -879,6 +905,8 @@ def _apply_targeted_fix(source_content, model_response):
     all (fail-closed). ``find`` must be an exact, unique substring, and the result
     may never gut the file.
     """
+    if "<<<NOFIX>>>" in (model_response or ""):
+        return None, "nofix"
     data = _parse_fix_response(model_response)
     if not data:
         return None, "unparseable"
@@ -1027,11 +1055,15 @@ def dispatch_proposal_fix(proposal_id):
         "<<<REPLACE>>>\n"
         "<the corrected code>\n"
         "<<<END>>>\n\n"
-        "Rules: the FIND block must be an EXACT, UNIQUE substring of the source — copy it "
-        "character-for-character INCLUDING indentation, and include a few surrounding lines "
-        "so it appears exactly once. Change as little as possible. No line numbers. Do NOT "
-        "escape quotes and do NOT wrap anything in JSON — paste the raw code between the "
-        "markers (triple-quoted strings and quotes are fine as-is). Never rewrite the whole file.\n\n"
+        "Rules: the FIND block is the code AS IT CURRENTLY EXISTS in the source (the "
+        "problem code) — copy it character-for-character INCLUDING indentation, and include "
+        "a few surrounding lines so it appears exactly once. Do NOT correct, reformat, or "
+        "re-indent the code inside the FIND block — put the fix ONLY in the REPLACE block. "
+        "No line numbers. Do NOT escape quotes and do NOT use JSON — paste the raw code "
+        "between the markers (triple-quoted strings and quotes are fine as-is). Change as "
+        "little as possible; never rewrite the whole file.\n"
+        "If the source code is ALREADY correct and needs no change to fix this issue, "
+        "return EXACTLY this and nothing else:\n<<<NOFIX>>>\n\n"
         f"--- SOURCE ---\n{source_excerpt}"
     )
 
@@ -1124,6 +1156,14 @@ def dispatch_proposal_fix(proposal_id):
     # Never store a diff computed against a short/plan reply — that was the
     # whole-file-deletion bug. On any apply failure the proposal stays eligible.
     fixed_content, apply_reason = _apply_targeted_fix(source_content, raw_response)
+    if apply_reason == "nofix":
+        # The model judged the source already correct for this finding — archive it as
+        # stale (reversible) rather than burn future drain slots on a non-fixable finding.
+        _archive_stale_proposal(proposal_id)
+        logger.info("Proposal #%d archived — model reports NOFIX (already resolved)", proposal_id)
+        if session_id:
+            complete_work_session(session_id, jobs_completed=0)
+        return {"success": False, "error": "nofix:archived_stale", "stale": True}
     if fixed_content is None:
         logger.warning("Proposal #%d fix not applied (%s)", proposal_id, apply_reason)
         _capture_fix_failure(proposal_id, raw_response, apply_reason)

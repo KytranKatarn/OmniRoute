@@ -66,3 +66,11 @@ def test_apply_unparseable_when_no_recognizable_format():
     fixed, reason = _apply_targeted_fix("x=1", "I think you should fix the query somehow")
     assert fixed is None
     assert reason == "unparseable"
+
+
+def test_apply_returns_nofix_when_model_reports_no_change():
+    # The model judges the source already correct → distinct 'nofix' reason (NOT
+    # unparseable), so dispatch can archive it as stale instead of retrying forever.
+    fixed, reason = _apply_targeted_fix("cur.execute(q, params)", "<<<NOFIX>>>")
+    assert fixed is None
+    assert reason == "nofix"

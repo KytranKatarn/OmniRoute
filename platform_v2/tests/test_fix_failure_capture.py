@@ -50,3 +50,20 @@ def test_capture_tolerates_unparseable_raw():
     finally:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute("DELETE FROM improvement_proposals WHERE id=%s", (pid,))
+
+
+def test_archive_stale_proposal_marks_archived_reversibly():
+    from services.audit_pipeline import _archive_stale_proposal
+
+    pid = _insert()
+    try:
+        _archive_stale_proposal(pid)
+        with get_db_cursor(commit=False) as (conn, cur):
+            cur.execute("SELECT status, metadata FROM improvement_proposals WHERE id=%s", (pid,))
+            row = cur.fetchone()
+        assert row["status"] == "archived"
+        assert row["metadata"]["archive_reason"] == "stale:model_nofix"
+        assert row["metadata"]["archived_by"] == "stale_filter_nofix"  # reversible tag
+    finally:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("DELETE FROM improvement_proposals WHERE id=%s", (pid,))

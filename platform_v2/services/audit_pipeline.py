@@ -792,6 +792,36 @@ def _fix_match_candidates(find, replace):
         yield trimmed, replace.strip()
 
 
+def _capture_fix_failure(proposal_id, raw_response, reason):
+    """Persist the model's raw reply + attempted ``find`` on a fix-apply failure.
+
+    The real yield fix (more tolerant matching / parsing) is deliberately
+    data-driven — but nothing captured WHAT the model returned when it failed, so
+    the find_not_located / unparseable patterns were invisible. This records a
+    truncated snapshot under ``metadata.fix_debug`` (failure path only, best-effort;
+    never blocks dispatch). Changes no matching behavior.
+    """
+    try:
+        from services.time_utils import now_utc
+
+        parsed = _parse_fix_json(raw_response) or {}
+        debug = {
+            "reason": reason,
+            "raw_response": (raw_response or "")[:1500],
+            "attempted_find": (parsed.get("find") or "")[:600],
+            "captured_at": now_utc().isoformat(),
+        }
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "UPDATE improvement_proposals "
+                "SET metadata = metadata || jsonb_build_object('fix_debug', %s::jsonb) "
+                "WHERE id = %s",
+                (json.dumps(debug), proposal_id),
+            )
+    except Exception as e:  # diagnostics must never break the pipeline
+        logger.warning("fix-failure capture failed for #%s: %s", proposal_id, e)
+
+
 def _apply_targeted_fix(source_content, model_response):
     """Apply an LLM search/replace fix to ``source_content``.
 
@@ -1045,6 +1075,7 @@ def dispatch_proposal_fix(proposal_id):
     fixed_content, apply_reason = _apply_targeted_fix(source_content, raw_response)
     if fixed_content is None:
         logger.warning("Proposal #%d fix not applied (%s)", proposal_id, apply_reason)
+        _capture_fix_failure(proposal_id, raw_response, apply_reason)
         if session_id:
             fail_work_session(session_id, error_msg=f"fix_apply:{apply_reason}")
         return {"success": False, "error": f"fix_apply:{apply_reason}"}

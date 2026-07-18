@@ -594,8 +594,15 @@ def _create_audit_proposal(issue, module_name, file_path):
 
 # Map issue codes to Bridge dispatch capabilities
 _ISSUE_CAPABILITY_MAP = {
-    "HARDCODED_SECRET": "vulnerability_scan",
-    "SQL_INJECTION_RISK": "vulnerability_scan",
+    # HARDCODED_SECRET / SQL_INJECTION_RISK are security findings whose FIX is
+    # mechanical code work (os.getenv() / parameterized queries). Route them to
+    # `code_review` (F.O.R.G.E. + P.R.O.B.E., active Engineering) rather than
+    # `vulnerability_scan` (only V.I.G.I.L. + S.H.I.E.L.D.) so the self-heal drain
+    # doesn't stall when both security agents are busy/resting — the pool of
+    # active candidates is wider. Deploy stays human-gated; SECURITY_STATIC
+    # (real bandit-confirmed findings) keeps routing to vulnerability_scan below.
+    "HARDCODED_SECRET": "code_review",
+    "SQL_INJECTION_RISK": "code_review",
     "DIRECT_OLLAMA": "code_review",
     "DIRECT_CLOUD": "code_review",
     "BARE_EXCEPT": "code_review",

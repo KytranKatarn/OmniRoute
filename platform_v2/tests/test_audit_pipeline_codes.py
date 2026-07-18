@@ -33,6 +33,17 @@ def test_new_static_codes_are_capability_mapped():
     assert _ISSUE_CAPABILITY_MAP["SECURITY_STATIC"] == "vulnerability_scan"
 
 
+def test_code_fixable_security_codes_route_to_engineering():
+    # SQL-injection / hardcoded-secret FIXES are mechanical code work (parameterize /
+    # os.getenv), so they route to `code_review` (F.O.R.G.E. + P.R.O.B.E., active
+    # Engineering) instead of `vulnerability_scan` (only the 2 security agents) — this
+    # keeps the self-heal drain from stalling when both security agents are busy/resting.
+    # SECURITY_STATIC (bandit-confirmed) deliberately stays with the security capability.
+    assert _ISSUE_CAPABILITY_MAP["HARDCODED_SECRET"] == "code_review"
+    assert _ISSUE_CAPABILITY_MAP["SQL_INJECTION_RISK"] == "code_review"
+    assert _ISSUE_CAPABILITY_MAP["SECURITY_STATIC"] == "vulnerability_scan"
+
+
 def test_new_static_codes_have_fix_prompts():
     for code in (*_CODE_FIX_CODES, "SECURITY_STATIC"):
         assert _FIX_PROMPTS.get(code), f"missing fix prompt for {code}"

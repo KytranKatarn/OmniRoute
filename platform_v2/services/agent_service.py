@@ -286,8 +286,8 @@ def update_agent(agent_id, **fields):
                     cur.execute("SELECT name, model FROM agents WHERE id = %s", (agent_id,))
                     row = cur.fetchone()
                 if row:
-                    agent_name = row[0]
-                    model = fields.get("model") or row[1] or ""
+                    agent_name = row["name"]
+                    model = fields.get("model") or row["model"] or ""
                     if model:
                         export_modelfile(agent_name, model, fields["system_prompt"])
             except Exception as e:
@@ -2532,7 +2532,7 @@ def log_creation_event(
             ),
         )
         row = cur.fetchone()
-        event_id = row[0] if row else None
+        event_id = row["id"] if row else None
     logger.info(
         "Agent #%d creation event logged (source=%s, id=%s)",
         child_agent_id,

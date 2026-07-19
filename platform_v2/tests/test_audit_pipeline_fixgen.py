@@ -127,3 +127,107 @@ def test_build_fix_diff_is_well_formed_git_appliable_diff():
 
     assert any(ln.startswith("@@ ") for ln in lines)
     assert stats.get("added", 0) >= 1 and stats.get("removed", 0) >= 1
+
+
+# --- #4978: no-trailing-newline diffs must carry git's marker + apply cleanly ---
+
+
+def test_finalize_diff_lines_inserts_marker_for_unterminated_body_line():
+    r"""A hunk body line without a trailing newline must be terminated AND
+    followed by the ``\ No newline at end of file`` marker — otherwise the
+    un-terminated line runs into the next and git rejects a 'corrupt patch'."""
+    raw = [
+        "--- a/x.py\n",
+        "+++ b/x.py\n",
+        "@@ -1,2 +1,2 @@\n",
+        " line1\n",
+        "-last = eval(x)",  # difflib emits the last line WITHOUT a newline
+        "+last = int(x)",
+    ]
+    out = ap._finalize_diff_lines(raw)
+    text = "".join(out)
+    # Both un-terminated body lines are now newline-terminated and each is
+    # followed by its own marker line.
+    assert "-last = eval(x)\n\\ No newline at end of file\n" in text
+    assert "+last = int(x)\n\\ No newline at end of file\n" in text
+    # No two body lines are merged onto one physical line.
+    assert "-last = eval(x)+last = int(x)" not in text
+
+
+def test_finalize_diff_lines_control_leaves_terminated_diff_untouched():
+    """When every body line already ends in a newline, output is byte-identical
+    (no spurious markers) — the common case must be unchanged."""
+    raw = [
+        "--- a/x.py\n",
+        "+++ b/x.py\n",
+        "@@ -1,2 +1,2 @@\n",
+        " line1\n",
+        "-last = eval(x)\n",
+        "+last = int(x)\n",
+    ]
+    assert ap._finalize_diff_lines(raw) == raw
+
+
+def test_finalize_diff_lines_does_not_mistake_dash_content_for_header():
+    """A removed/added CONTENT line whose text begins with '--'/'++' must be
+    treated as a hunk body line (marker-eligible), never as a '--- a/' header —
+    markers are only inserted after the first @@."""
+    raw = [
+        "--- a/x.py\n",
+        "+++ b/x.py\n",
+        "@@ -1,2 +1,2 @@\n",
+        " a\n",
+        "--- SQL comment tail",  # removed line, content is "-- SQL comment tail", no \n
+        "+-- SQL comment FIXED",
+    ]
+    out = ap._finalize_diff_lines(raw)
+    text = "".join(out)
+    # File headers untouched (still exactly one each, newline-terminated).
+    assert text.count("--- a/x.py\n") == 1
+    assert text.count("+++ b/x.py\n") == 1
+    # The dash-content body lines got terminated + marked.
+    assert "--- SQL comment tail\n\\ No newline at end of file\n" in text
+
+
+def test_build_fix_diff_no_trailing_newline_applies_via_git():
+    """End-to-end proof of #4978: a fix that touches a last line lacking a
+    trailing newline produces a patch that `git apply` accepts and applies to
+    exactly the intended content. Before the fix this failed 'corrupt patch'."""
+    import os
+    import shutil
+    import subprocess
+    import tempfile
+
+    import pytest
+
+    if not shutil.which("git"):
+        pytest.skip("git not available")
+
+    rel = "x.py"
+    cases = {
+        "old_no_nl__new_no_nl": ("line1\nlast = eval(x)", "line1\nlast = int(x)"),
+        "old_nl__new_no_nl": ("line1\nlast = eval(x)\n", "line1\nlast = int(x)"),
+        "old_no_nl__new_nl": ("line1\nlast = eval(x)", "line1\nlast = int(x)\n"),
+    }
+    for name, (old, new) in cases.items():
+        diff_text, _stats = ap._build_fix_diff(old, new, rel)
+        d = tempfile.mkdtemp()
+        cwd = os.getcwd()
+        try:
+            os.chdir(d)
+            subprocess.run(["git", "init", "-q"], check=True)
+            subprocess.run(["git", "config", "user.email", "t@t"], check=True)
+            subprocess.run(["git", "config", "user.name", "t"], check=True)
+            with open(rel, "w") as f:
+                f.write(old)
+            subprocess.run(["git", "add", rel], check=True)
+            subprocess.run(["git", "commit", "-qm", "base"], check=True)
+            with open("p.diff", "w") as f:
+                f.write(diff_text)
+            chk = subprocess.run(["git", "apply", "--check", "p.diff"], capture_output=True, text=True)
+            assert chk.returncode == 0, f"{name}: git apply --check failed: {chk.stderr}"
+            subprocess.run(["git", "apply", "p.diff"], check=True)
+            assert open(rel).read() == new, f"{name}: applied content mismatch"
+        finally:
+            os.chdir(cwd)
+            shutil.rmtree(d, ignore_errors=True)

@@ -941,6 +941,32 @@ def _apply_targeted_fix(source_content, model_response):
     return fixed, "ok"
 
 
+def _finalize_diff_lines(diff_lines):
+    r"""Insert git's ``\ No newline at end of file`` markers, which difflib omits.
+
+    ``difflib.unified_diff`` never emits the no-newline indicator, so a hunk that
+    touches a last line lacking a trailing newline yields a patch git rejects as a
+    "corrupt patch" — the un-terminated ``-``/``+`` line runs into the next one.
+    This walks hunk bodies and, for any ``' '``/``'-'``/``'+'`` line without a
+    trailing newline, terminates the line and appends the marker. Scoped to lines
+    AFTER the first ``@@`` so the ``--- a/`` / ``+++ b/`` file headers are never
+    mis-touched, even when a content line itself begins with ``--`` / ``++``. (#4978)
+    """
+    out = []
+    in_hunk = False
+    for ln in diff_lines:
+        if ln.startswith("@@"):
+            in_hunk = True
+            out.append(ln)
+            continue
+        if in_hunk and ln[:1] in (" ", "-", "+") and not ln.endswith("\n"):
+            out.append(ln + "\n")
+            out.append("\\ No newline at end of file\n")
+        else:
+            out.append(ln)
+    return out
+
+
 def _build_fix_diff(old_content, new_content, repo_rel_path):
     """Unified diff whose headers carry the REPO-RELATIVE path (a/<rel>, b/<rel>).
 
@@ -964,6 +990,9 @@ def _build_fix_diff(old_content, new_content, repo_rel_path):
             lineterm="\n",
         )
     )
+    # difflib omits git's "\ No newline at end of file" markers → git apply rejects
+    # patches touching a last line without a trailing newline. Re-insert them. (#4978)
+    diff_lines = _finalize_diff_lines(diff_lines)
     diff_text = "".join(diff_lines)
     added = sum(1 for ln in diff_lines if ln.startswith("+") and not ln.startswith("+++"))
     removed = sum(1 for ln in diff_lines if ln.startswith("-") and not ln.startswith("---"))

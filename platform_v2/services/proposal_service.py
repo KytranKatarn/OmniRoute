@@ -1313,60 +1313,112 @@ def _get_approver(proposal):
     }
 
 
-def _apply_fix_to_sandbox(sandbox_path, code_changes):
-    """Write a proposal's code_changes into the staging worktree at sandbox_path.
-
-    Returns {"applied": [rel_path, ...], "expected": int, "error": str|None}.
-    ``error`` is set (with ``applied`` left partial) on ANY failure. The caller
-    MUST treat a non-None error as a hard gate failure and NOT validate — writing
-    to a missing/read-only worktree, or a partial apply, would leave stale staging
-    code that a QA pass would false-approve for deploy.
+def _basesync_touched(worktree_root, touched):
+    """Copy each touched file's CURRENT prod source into the staging worktree so
+    `git apply --check` measures drift against what the fix was cut from. Reuses
+    the audit resolver (single source of truth for in-container prod paths:
+    platform_v2/* -> /app, ai_bridge/* -> real path). Raises on any miss (fail-closed).
     """
-    import json as _json
     import os
+    import shutil
+
+    from services.audit_pipeline import resolve_proposal_source
+
+    for rel in touched:
+        prod_abs, _display, status = resolve_proposal_source(rel)
+        if status != "ok" or not prod_abs:
+            raise RuntimeError(f"cannot resolve prod source for {rel} (status={status})")
+        dest = os.path.join(worktree_root, rel)
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        shutil.copyfile(prod_abs, dest)
+
+
+def _apply_fix_to_sandbox(sandbox_path, code_changes):
+    """Apply a proposal's unified-diff ``code_changes`` into the staging worktree.
+
+    NEW CONTRACT (2026-07-18, HoloDeck-P0): ``code_changes`` is a unified DIFF
+    string with repo-relative headers (``a/platform_v2/...``, ``b/ai_bridge/...``);
+    ``sandbox_path`` is the worktree ROOT ``/mnt/archie_sandbox``. Base-syncs each
+    touched file from live prod, then ``git apply --check`` (FAIL CLOSED on drift)
+    then ``git apply``. Returns {"applied":[rel,...], "expected":int, "error":str|None}.
+    The caller MUST revert ``applied`` afterward.
+    """
+    import os
+    import subprocess
+    import tempfile
+
+    def _git(*args):
+        # -c safe.directory=* : the sandbox worktree is root-owned but git in
+        # this container runs as a different uid — without this flag EVERY
+        # git invocation aborts with "detected dubious ownership" (rc=128).
+        return ["git", "-c", "safe.directory=*", "-C", sandbox_path, *args]
 
     result = {"applied": [], "expected": 0, "error": None}
 
-    # The worktree must actually be present/writable in THIS container. When
-    # archie_platform lacks the /mnt/archie_sandbox mount the write silently goes
-    # nowhere (or to a stale path) -> we'd validate unchanged code. Fail closed.
     if not os.path.isdir(sandbox_path):
         result["error"] = (
             f"sandbox worktree {sandbox_path} is not mounted/present in this "
             f"container — cannot apply fix; gate fails closed"
         )
         return result
-
-    try:
-        changes = _json.loads(code_changes) if isinstance(code_changes, str) else code_changes
-    except Exception as parse_err:
-        result["error"] = f"code_changes is not parseable JSON: {parse_err}"
+    if not isinstance(code_changes, str) or not code_changes.strip():
+        result["error"] = "code_changes is not a unified-diff string — nothing to validate"
         return result
 
-    if not isinstance(changes, list) or not changes:
-        result["error"] = "code_changes is empty or not a list — nothing to validate"
+    touched = [ln[len("+++ b/") :].strip() for ln in code_changes.splitlines() if ln.startswith("+++ b/")]
+    if not touched:
+        result["error"] = "diff has no target files (+++ b/...) — nothing to validate"
         return result
+    result["expected"] = len(touched)
 
-    for change in changes:
-        rel_path = (change or {}).get("file_path", "")
-        content = (change or {}).get("content")
-        if not rel_path or content is None:
-            continue
-        result["expected"] += 1
-        full_path = os.path.join(sandbox_path, rel_path.lstrip("/"))
-        try:
-            os.makedirs(os.path.dirname(full_path), exist_ok=True)
-            with open(full_path, "w") as f:
-                f.write(content)
-            result["applied"].append(rel_path)
-        except Exception as apply_err:
-            result["error"] = f"failed to write {rel_path} to sandbox: {apply_err}"
+    for rel in touched:
+        if not (rel.startswith("platform_v2/") or rel.startswith("ai_bridge/")):
+            result["error"] = f"{rel} is not in the staging worktree (platform_v2/ or ai_bridge/) — cannot gate"
             return result
 
-    if result["expected"] == 0:
-        result["error"] = "code_changes had no applicable file/content entries"
+    # Base-sync so --check measures drift against current prod.
+    try:
+        _basesync_touched(sandbox_path, touched)
+    except Exception as sync_err:
+        # A partial base-sync can leave earlier-copied files dirty in the
+        # worktree. Revert the full touched set (no-op for files never
+        # copied) so the worktree stays clean on failure.
+        subprocess.run(_git("checkout", "--", *touched), capture_output=True, timeout=30)
+        result["error"] = f"base-sync failed: {sync_err}"
+        return result
 
-    return result
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=".diff", delete=False) as fh:
+            fh.write(code_changes)
+            tmp = fh.name
+        check = subprocess.run(
+            _git("apply", "--check", tmp),
+            capture_output=True,
+            timeout=30,
+        )
+        if check.returncode != 0:
+            # Revert the base-synced files so the worktree is left clean.
+            subprocess.run(_git("checkout", "--", *touched), capture_output=True, timeout=30)
+            result["error"] = f"git apply --check failed (drift/unapplicable): {check.stderr.decode()[:300]}"
+            return result
+        applied = subprocess.run(
+            _git("apply", tmp),
+            capture_output=True,
+            timeout=30,
+        )
+        if applied.returncode != 0:
+            subprocess.run(_git("checkout", "--", *touched), capture_output=True, timeout=30)
+            result["error"] = f"git apply failed: {applied.stderr.decode()[:300]}"
+            return result
+        result["applied"] = touched
+        return result
+    finally:
+        if tmp and os.path.exists(tmp):
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
 
 
 def _sandbox_gate(proposal_id, proposal):
@@ -1381,7 +1433,7 @@ def _sandbox_gate(proposal_id, proposal):
     """
     import subprocess
 
-    sandbox_path = "/mnt/archie_sandbox/platform_v2"
+    sandbox_path = "/mnt/archie_sandbox"  # worktree root; .git resolves here
     code_changes = proposal.get("code_changes")
 
     # Apply code changes to the staging worktree. If we cannot FULLY apply the
@@ -1401,8 +1453,42 @@ def _sandbox_gate(proposal_id, proposal):
             }
         applied_files = apply_res["applied"]
 
-    # Restart archie_staging so changes take effect
+    def _revert_and_restart():
+        import subprocess
+
+        def _git(*args):
+            # -c safe.directory=* : sandbox worktree is root-owned, git here
+            # runs as a different uid — without this every git call aborts
+            # with "detected dubious ownership" (rc=128). Previously ignored
+            # because the return code was never checked (silent worktree-dirty bug).
+            return ["git", "-c", "safe.directory=*", "-C", sandbox_path, *args]
+
+        if applied_files:
+            r = subprocess.run(_git("checkout", "--", *applied_files), capture_output=True, timeout=30)
+            if r.returncode != 0:
+                logger.warning(
+                    "sandbox_gate: revert checkout rc=%s stderr=%s",
+                    r.returncode,
+                    r.stderr.decode()[:200],
+                )
+        subprocess.run(
+            [
+                "docker",
+                "compose",
+                "--file",
+                "/mnt/archie_brain/docker-compose.staging.yml",
+                "restart",
+                "archie_staging",
+            ],
+            capture_output=True,
+            timeout=30,
+        )
+
     try:
+        import subprocess
+        import time
+
+        # Restart archie_staging so the applied change takes effect.
         subprocess.run(
             [
                 "docker",
@@ -1415,14 +1501,8 @@ def _sandbox_gate(proposal_id, proposal):
             timeout=30,
             capture_output=True,
         )
-        import time
+        time.sleep(5)
 
-        time.sleep(5)  # let it come up
-    except Exception as restart_err:
-        logger.warning("sandbox_gate: staging restart failed: %s", restart_err)
-
-    # Run P.R.O.B.E. suite #79 against sandbox
-    try:
         from services.qa_service import run_suite
 
         result = run_suite(79, triggered_by=f"tiered_approval_gate_proposal_{proposal_id}")
@@ -1448,6 +1528,11 @@ def _sandbox_gate(proposal_id, proposal):
             "applied_files": applied_files,
             "error": str(qa_err),
         }
+    finally:
+        try:
+            _revert_and_restart()
+        except Exception as rev_err:
+            logger.error("sandbox_gate: revert failed for #%s — staging may be dirty: %s", proposal_id, rev_err)
 
 
 def request_tiered_deploy_approval(proposal_id):

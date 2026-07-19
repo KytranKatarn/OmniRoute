@@ -1254,11 +1254,38 @@ def dispatch_proposal_fix(proposal_id):
     }
 
 
+# Issue classes the auto-fix drain must NOT attempt. SQL_INJECTION_RISK over-flags
+# already-parameterized queries (`cur.execute(q, params)` is the SAFE pattern) — the
+# 7B fix-gen then produces no-op comma tweaks, semantically-identical f-string→.format
+# rewrites, or BREAKING f-string-prefix removals (verified 2026-07-19). LARGE_FILE is a
+# refactor task, not a find/replace fix. Both stay in the backlog as status='approved'
+# (visible in Repair Bay for human/planned review) instead of burning drain slots on
+# garbage/impossible fixes. See cont-182 self-heal class-scoping.
+_AUTO_FIX_EXCLUDED_ISSUE_CODES = ("SQL_INJECTION_RISK", "LARGE_FILE")
+
+# Mechanical, high-yield, safe-to-auto-fix classes — drained FIRST so the loop ships
+# real fixes fast (unused imports/vars, useless f-strings, wrong import paths, missing
+# symbols, bare excepts). find/replace matching is reliable on these.
+_AUTO_FIX_PRIORITY_ISSUE_CODES = (
+    "F401",
+    "F841",
+    "F541",
+    "PYFLAKES",
+    "WRONG_SUBMODULE_IMPORT",
+    "WRONG_ROOT_IMPORT",
+    "MISSING_SYMBOL",
+    "F821",
+    "BARE_EXCEPT",
+)
+
+
 def dispatch_audit_proposals(limit=20):
     """Batch-dispatch pending audit proposals to Bridge agents for fix generation.
 
     Finds pending proposals sourced from code_health_audit and dispatches each one.
-    Red (security) proposals are processed first.
+    Critical proposals are processed first, then the mechanical high-yield classes
+    (_AUTO_FIX_PRIORITY_ISSUE_CODES). Classes in _AUTO_FIX_EXCLUDED_ISSUE_CODES are
+    never auto-fixed (left approved for human review).
 
     Args:
         limit: Max proposals to process in one batch
@@ -1274,11 +1301,13 @@ def dispatch_audit_proposals(limit=20):
                  AND (COALESCE(metadata->>'severity_tier', 'yellow') <> 'red'
                       OR status IN ('approved', 'fix_requested'))
                  AND (metadata->>'dispatch_attempted') IS NULL
+                 AND COALESCE(metadata->>'issue_code', '') <> ALL(%s)
                ORDER BY
                  CASE WHEN priority = 'critical' THEN 0 ELSE 1 END,
+                 CASE WHEN COALESCE(metadata->>'issue_code', '') = ANY(%s) THEN 0 ELSE 1 END,
                  proposed_at ASC
                LIMIT %s""",
-            (limit,),
+            (list(_AUTO_FIX_EXCLUDED_ISSUE_CODES), list(_AUTO_FIX_PRIORITY_ISSUE_CODES), limit),
         )
         proposals = cur.fetchall()
 

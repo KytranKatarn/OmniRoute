@@ -429,3 +429,17 @@ def test_create_new_hire_rebuilds_identity_when_prompt_names_stale_agent(monkeyp
     assert calls["update"]["personality_prompt"] == _BUILT_IDENTITY["personality"]
     assert calls["update"]["acronym_expansion"] == _BUILT_IDENTITY["expansion"]
     assert calls["update"]["portrait_prompt"] == _BUILT_IDENTITY["portrait_prompt"]
+
+
+def test_department_for_capability_resolves_real_department_not_engineering_default():
+    """Bug #4982: the create path defaulted EVERY net-new hire to
+    'Engineering & Technology' because the local resolver imported
+    CAPABILITY_DEPARTMENT_MAP from a non-existent module. The canonical resolver
+    maps 'analyze' -> Analytics & Intelligence; only genuinely-unmapped
+    capabilities keep the documented Engineering fallback.
+    """
+    from services import hiring_service
+
+    assert hiring_service._department_for_capability("analyze") == "Analytics & Intelligence"
+    # a genuinely-unknown capability keeps the documented Engineering fallback
+    assert hiring_service._department_for_capability("totally_unknown_capability_xyz") == "Engineering & Technology"

@@ -172,17 +172,24 @@ def _audit(
 
 
 def _department_for_capability(capability: str) -> str:
-    """Resolve a capability to its home department (CAPABILITY_DEPARTMENT_MAP,
-    the authoritative map). Defaults to Engineering & Technology, matching the
-    dispatcher's own fallback. Lazy import avoids a boot-time cycle."""
-    try:
-        from tools.department_hq.services.department_coordinator import (
-            CAPABILITY_DEPARTMENT_MAP,
-        )
+    """Resolve a capability to its home department via the ONE canonical resolver
+    in ``services.agent_name_generator`` (the same one ``agent_identity_builder``
+    imports). Defaults to Engineering & Technology. Lazy import avoids a
+    boot-time cycle.
 
-        return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
-    except Exception:
-        return "Engineering & Technology"
+    Bug #4982: this used to import ``CAPABILITY_DEPARTMENT_MAP`` from the
+    NON-EXISTENT module ``tools.department_hq.services.department_coordinator``,
+    so the import always raised and every net-new hire fell back to Engineering
+    regardless of capability (the map actually lives in
+    ``services.department_coordinator``). The suggest-name/display path already
+    used the canonical resolver, so it showed the right department while the
+    create path silently miscategorised the agent. Delegating to the shared
+    resolver keeps the two copies from drifting apart again."""
+    from services.agent_name_generator import (
+        _department_for_capability as _canonical_department_for_capability,
+    )
+
+    return _canonical_department_for_capability(capability)
 
 
 def _create_new_hire(

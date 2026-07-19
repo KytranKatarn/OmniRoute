@@ -778,6 +778,21 @@ def _parse_fix_json(text):
     return obj if isinstance(obj, dict) else None
 
 
+def _strip_wrapping_fence(block):
+    """Strip a markdown code fence that wraps a whole block, e.g. a model that put
+    ```python … ``` INSIDE the <<<FIND>>> block (real fix_debug sample #1654). Only
+    strips when the block literally starts with ``` (a leading-backtick line is a
+    fence, never Python source); a wrong strip only makes the match fail-closed."""
+    b = block.strip("\r\n")
+    if not b.startswith("```"):
+        return block
+    lines = b.split("\n")
+    lines = lines[1:]  # drop the opening ```lang line
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]  # drop the closing fence line
+    return "\n".join(lines)
+
+
 def _parse_fix_delimited(text):
     """Extract {"find","replace"} from the quote-safe delimiter format:
 
@@ -809,8 +824,8 @@ def _parse_fix_delimited(text):
         replace_part = rest.split("<<<END>>>", 1)[0]
     except (IndexError, ValueError):
         return None
-    find = find_part.strip("\r\n")
-    replace = replace_part.strip("\r\n")
+    find = _strip_wrapping_fence(find_part).strip("\r\n")
+    replace = _strip_wrapping_fence(replace_part).strip("\r\n")
     if not find:
         return None
     return {"find": find, "replace": replace}
@@ -850,7 +865,11 @@ def _capture_fix_failure(proposal_id, raw_response, reason):
     try:
         from services.time_utils import now_utc
 
-        parsed = _parse_fix_json(raw_response) or {}
+        # Parse with the SAME parser the fix path uses (delimiter-first), so
+        # attempted_find populates for delimiter replies too — not just legacy
+        # JSON. Was _parse_fix_json → blank attempted_find for every <<<FIND>>>
+        # reply, which is now the dominant format (#4989 measure fidelity).
+        parsed = _parse_fix_response(raw_response) or {}
         debug = {
             "reason": reason,
             "raw_response": (raw_response or "")[:1500],
@@ -897,6 +916,62 @@ def _archive_stale_proposal(proposal_id, *, archived_by="stale_filter_nofix", ar
         logger.warning("stale-archive failed for #%s: %s", proposal_id, e)
 
 
+def _indent_tolerant_match(source, find, replace):
+    """Last-resort locator for a multi-line ``find`` whose per-line indentation the
+    model reproduced imperfectly (the dominant live ``find_not_located`` cause —
+    fix_debug samples #1655/#1805, multi-line SQL/blocks).
+
+    Matches on a UNIQUE run of source lines compared by ``.strip()`` (ignoring only
+    per-line leading/trailing whitespace, NOT line content or order), reconstructs
+    the EXACT source block (source's real indentation), and reindents ``replace`` by
+    the single source-vs-model indent delta measured at the first non-blank line.
+
+    Fail-closed — returns ``(orig_block, new_block)`` or ``None``. Bails on: <2 lines,
+    0 or >1 line-run matches, a reconstructed block that isn't uniquely present as
+    text, tab indentation (won't guess width), or a dedent deeper than a replace
+    line's own leading whitespace. A wrong reindent can't ship: the sandbox gate
+    re-runs QA and rejects a broken patch.
+    """
+    find_lines = find.split("\n")
+    if len(find_lines) < 2:
+        return None  # single lines are handled by _fix_match_candidates
+    keys = [ln.strip() for ln in find_lines]
+    src_lines = source.split("\n")
+    n = len(find_lines)
+    hits = [i for i in range(len(src_lines) - n + 1) if [s.strip() for s in src_lines[i : i + n]] == keys]
+    if len(hits) != 1:
+        return None
+    i = hits[0]
+    orig_block = "\n".join(src_lines[i : i + n])
+    if source.count(orig_block) != 1:
+        return None  # reconstructed block must map to exactly one place in the text
+
+    def _lead(s):
+        return s[: len(s) - len(s.lstrip())]
+
+    fi = next((k for k in range(n) if find_lines[k].strip()), None)
+    if fi is None:
+        return None
+    src_indent = _lead(src_lines[i + fi])
+    find_indent = _lead(find_lines[fi])
+    if "\t" in src_indent or "\t" in find_indent:
+        return None  # tab widths are ambiguous — don't guess
+    delta = len(src_indent) - len(find_indent)
+    new_lines = []
+    for rl in replace.split("\n"):
+        if not rl.strip():
+            new_lines.append(rl)  # preserve blank lines verbatim
+            continue
+        if delta >= 0:
+            new_lines.append(" " * delta + rl)
+        else:
+            lead = _lead(rl)
+            if "\t" in lead or len(lead) < -delta:
+                return None  # can't safely dedent this line
+            new_lines.append(rl[-delta:])
+    return orig_block, "\n".join(new_lines)
+
+
 def _apply_targeted_fix(source_content, model_response):
     """Apply an LLM search/replace fix to ``source_content``.
 
@@ -929,6 +1004,11 @@ def _apply_targeted_fix(source_content, model_response):
             break
         if occ > 1:
             return None, "find_ambiguous"
+    if matched is None:
+        # Last resort: the model reproduced the snippet with imperfect internal
+        # indentation — locate it by a unique strip-compared line-run and reindent
+        # the replacement (fail-closed; #387 yield lever).
+        matched = _indent_tolerant_match(source_content, find, replace)
     if matched is None:
         return None, "find_not_located"
     find, replace = matched

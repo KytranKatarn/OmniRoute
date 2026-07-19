@@ -264,3 +264,119 @@ def test_mark_dispatch_attempted_stamps_utc_timestamp(monkeypatch):
     parsed = dt.datetime.fromisoformat(payload["dispatch_attempted_at"])
     assert parsed.tzinfo is not None  # aware UTC per the timezone rule
     assert captured["params"][1] == 123  # proposal_id passed through
+
+
+# --- fix-yield: fence-inside-FIND, debug-capture parser, indent-tolerant match ---
+
+
+def test_strip_wrapping_fence():
+    assert ap._strip_wrapping_fence("```python\ncode\n```") == "code"
+    assert ap._strip_wrapping_fence("```\ncode\n```") == "code"
+    # non-fenced content is returned untouched
+    assert ap._strip_wrapping_fence("just code\nline2") == "just code\nline2"
+
+
+def test_parse_fix_delimited_strips_fence_inside_find_block():
+    """Real fix_debug sample #1654: the model wrapped code in ```python … ``` INSIDE
+    the <<<FIND>>> block; the find must come back without the fence markers."""
+    reply = (
+        "<<<FIND>>>\n"
+        "```python\n"
+        "def f():\n"
+        "    return 1\n"
+        "```\n"
+        "<<<REPLACE>>>\n"
+        "def f():\n"
+        "    return 2\n"
+        "<<<END>>>\n"
+    )
+    d = ap._parse_fix_delimited(reply)
+    assert d["find"] == "def f():\n    return 1"
+    assert d["replace"] == "def f():\n    return 2"
+    assert "```" not in d["find"]
+
+
+def test_capture_fix_failure_populates_attempted_find_for_delimiter(monkeypatch):
+    """Fix B: _capture_fix_failure must parse with _parse_fix_response (delimiter-
+    first), else attempted_find is blank for every <<<FIND>>> reply (now dominant)."""
+    import contextlib
+    import json as _json
+
+    captured = {}
+
+    class _Cur:
+        def execute(self, sql, params):
+            captured["params"] = params
+
+    @contextlib.contextmanager
+    def _fake(commit=False):
+        yield (None, _Cur())
+
+    monkeypatch.setattr(ap, "get_db_cursor", _fake)
+    reply = "<<<FIND>>>\nx = eval(y)\n<<<REPLACE>>>\nx = int(y)\n<<<END>>>"
+    ap._capture_fix_failure(999, reply, "find_not_located")
+    debug = _json.loads(captured["params"][0])
+    assert debug["attempted_find"] == "x = eval(y)"
+    assert debug["reason"] == "find_not_located"
+
+
+# --- #387: indent-tolerant match (the dominant live find_not_located cause) ---
+
+_INDENT_SOURCE = (
+    "class X:\n"
+    "    def run(self):\n"
+    "        value = compute(\n"
+    "            first,\n"
+    "            second,\n"
+    "        )\n"
+    "        return value\n"
+)
+
+
+def test_indent_tolerant_match_reindents_to_source():
+    # model reproduced the block flattened to 0-indent (imperfect indentation)
+    find = "value = compute(\nfirst,\nsecond,\n)"
+    replace = "value = compute(first, second)"
+    orig, new = ap._indent_tolerant_match(_INDENT_SOURCE, find, replace)
+    assert orig == "        value = compute(\n            first,\n            second,\n        )"
+    assert new == "        value = compute(first, second)"  # reindented +8 to source
+
+
+def test_apply_targeted_fix_indent_tolerant_end_to_end():
+    """The whole point: a delimiter reply whose FIND has wrong internal indentation
+    now applies (was find_not_located) — to the exactly-correct content."""
+    resp = "<<<FIND>>>\nvalue = compute(\nfirst,\nsecond,\n)\n<<<REPLACE>>>\nvalue = compute(first, second)\n<<<END>>>"
+    fixed, reason = ap._apply_targeted_fix(_INDENT_SOURCE, resp)
+    assert reason == "ok"
+    assert fixed == (
+        "class X:\n" "    def run(self):\n" "        value = compute(first, second)\n" "        return value\n"
+    )
+
+
+def test_indent_tolerant_match_single_line_returns_none():
+    # single lines are the strip-fallback's job, not this
+    assert ap._indent_tolerant_match("    x = 1\n", "x = 1", "x = 2") is None
+
+
+def test_indent_tolerant_match_ambiguous_returns_none():
+    # the same block twice → not unique → fail closed
+    source = "    a = f(\n        x,\n    )\n    a = f(\n        x,\n    )\n"
+    assert ap._indent_tolerant_match(source, "a = f(\nx,\n)", "a = f(x)") is None
+
+
+def test_indent_tolerant_match_no_match_returns_none():
+    assert ap._indent_tolerant_match("a\nb\nc\n", "x\ny\nz", "q") is None
+
+
+def test_indent_tolerant_match_tabs_return_none():
+    # tab widths are ambiguous — never guess
+    source = "\tvalue = compute(\n\t\tfirst,\n\t)\n"
+    assert ap._indent_tolerant_match(source, "value = compute(\nfirst,\n)", "value = compute(first)") is None
+
+
+def test_indent_tolerant_match_unsafe_dedent_returns_none():
+    # source is LESS indented than the model's find, and a replace line can't dedent
+    source = "value = compute(\nfirst,\n)\n"  # 0-indent
+    find = "        value = compute(\n        first,\n        )"  # model over-indented to 8
+    replace = "x = 1"  # only 0 leading spaces, cannot dedent by 8
+    assert ap._indent_tolerant_match(source, find, replace) is None

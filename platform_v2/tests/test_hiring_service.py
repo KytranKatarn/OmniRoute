@@ -425,6 +425,8 @@ def test_create_new_hire_rebuilds_identity_when_prompt_names_stale_agent(monkeyp
     # Q.U.A.R.T.Z. prompt/bio must never leak into the created agent.
     assert calls["create"]["system_prompt"] == _BUILT_IDENTITY["system_prompt"]
     assert "Q.U.A.R.T.Z." not in calls["create"]["system_prompt"]
+    # #4951: a net-new pool hire is an AI acronym specialist, not an 'internal' worker
+    assert calls["create"]["worker_type"] == "ai"
     assert calls["update"]["bio"] == _BUILT_IDENTITY["bio"]
     assert calls["update"]["personality_prompt"] == _BUILT_IDENTITY["personality"]
     assert calls["update"]["acronym_expansion"] == _BUILT_IDENTITY["expansion"]

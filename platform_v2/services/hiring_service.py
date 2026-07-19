@@ -293,7 +293,12 @@ def _create_new_hire(
             department=department,
             model=model,
             shift_state="active",
-            worker_type="internal",
+            # #4951: a net-new pool-saturation hire is an AI acronym specialist
+            # joining an AI capability pool (its peers are all worker_type='ai'),
+            # and the directory + dispatch AI-agent queries filter on
+            # worker_type='ai' — so it must be 'ai', not create_agent's 'internal'
+            # default (which would hide the agent from the AI roster/dispatch).
+            worker_type="ai",
             tier=3,
             system_prompt=ident["system_prompt"]
             or f"You are {name}, a specialist in {capability} in the {department} department.",

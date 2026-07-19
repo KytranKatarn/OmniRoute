@@ -273,7 +273,7 @@ class TestSendEscalationNotification:
 
     def test_no_inline_insert_in_gateway(self):
         """Regression: the old inline INSERT INTO telegram_message_log must not exist in gateway."""
-        with open(os.getenv("TELEGRAM_GATEWAY_PATH", "/mnt/archie_brain/ai_bridge/telegram_gateway.py")) as f:
+        with open(os.getenv("TELEGRAM_GATEWAY_PATH", os.getenv('TELEGRAM_GATEWAY_PATH', "/mnt/archie_brain/ai_bridge/telegram_gateway.py"))) as f:
             source = f.read()
 
         # The old block opened a log_conn = get_db() and committed manually.

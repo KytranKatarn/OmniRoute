@@ -641,6 +641,57 @@ def register_approvals_routes(bp, admin_required_decorator):
             logger.warning("suggest_hire_name(%s) failed: %s", hire_id, exc)
             return jsonify({"ok": False, "error": "generation_failed"}), 200
 
+    @bp.route("/api/approvals/hire/<int:hire_id>/generate-name", methods=["POST"])
+    @admin_required_decorator
+    def generate_hire_name_async(hire_id: int):
+        """Kick off async name generation and return a job_id immediately.
+
+        The sync suggest-name endpoint above can spin 6-23s (up to ~60s) holding a
+        gunicorn worker; this returns instantly and the frontend polls
+        ``generate-name/<job_id>``. Fail-soft: any error → 200 {ok:false} so the UI
+        can fall back to the sync path / manual typing (#4969).
+        """
+        from database import get_db_cursor
+        from services import hire_name_job_service
+
+        try:
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute("SELECT capability FROM hiring_candidates WHERE id = %s", (hire_id,))
+                row = cur.fetchone()
+            if not row:
+                return jsonify({"ok": False, "error": "hire_not_found"}), 404
+            capability = row["capability"] if isinstance(row, dict) else row[0]
+            job_id = hire_name_job_service.create_job(hire_id, capability)
+            return jsonify({"ok": True, "job_id": job_id, "status": "generating"}), 200
+        except Exception as exc:
+            logger.warning("generate_hire_name_async(%s) failed: %s", hire_id, exc)
+            return jsonify({"ok": False, "error": "generation_failed"}), 200
+
+    @bp.route("/api/approvals/hire/<int:hire_id>/generate-name/<job_id>", methods=["GET"])
+    @admin_required_decorator
+    def poll_hire_name_async(hire_id: int, job_id: str):
+        """Poll an async name job. Returns {ok, status, ...identity}; status is
+        generating|done|error. On ``done`` the identity fields are flattened into
+        the response (name/expansion/title/bio/... — the SAME shape the sync
+        suggest-name endpoint returns) so the frontend renders identically (#4969).
+        """
+        from services import hire_name_job_service
+
+        try:
+            job = hire_name_job_service.get_job(job_id)
+            if not job:
+                return jsonify({"ok": False, "error": "job_not_found"}), 404
+            status = job.get("status")
+            if status == "done":
+                result = job.get("result") or {}
+                return jsonify({"ok": True, "status": "done", **result}), 200
+            if status == "error":
+                return jsonify({"ok": True, "status": "error"}), 200
+            return jsonify({"ok": True, "status": "generating"}), 200
+        except Exception as exc:
+            logger.warning("poll_hire_name_async(%s) failed: %s", job_id, exc)
+            return jsonify({"ok": False, "error": "poll_failed"}), 200
+
     @bp.route("/api/approvals/hire/<int:hire_id>/reject", methods=["POST"])
     @admin_required_decorator
     def reject_hire(hire_id: int):

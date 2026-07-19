@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import re
 from typing import Any, Optional
 
@@ -20,16 +21,24 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 3
 # Hard wall-clock bound on the (creative) dispatch so the interactive button can
 # never hang on a cold/slow fleet — on timeout the generator falls back to a
-# deterministic name. Naming is a creative task, so it routes to the creative
-# agent (M.U.S.E.); a tiny model would ignore the single-word format even more.
+# randomized deterministic name. Naming dispatches the `creative` capability but
+# pins a WARM small model (llama3.2:3b, see _dispatch_name's model_override)
+# instead of the cold default 7B creative model, so the interactive button
+# returns fast; strict-JSON + format/uniqueness validation + the randomized
+# fallback below catch any output-format misses from the smaller model.
 _DISPATCH_TIMEOUT_S = 20
 
 _SYSTEM_PROMPT = (
     "You name AI agents for the A.R.C.H.I.E. platform. A name is ONE single real or "
     "pronounceable English word of 4-7 letters, UPPERCASE with a dot after EACH "
-    "LETTER — e.g. F.O.R.G.E. (5 letters), V.I.G.I.L. (5), M.A.V.E.N. (5), C.O.D.E.X. "
-    "(5), V.E.R.I.F.Y. (6). It is ALWAYS a single word, NEVER two words. Each letter "
-    "is the first letter of a word describing the role. Reply with STRICT JSON only."
+    "LETTER — e.g. F.O.R.G.E. (Engineering & Technology, 5 letters), D.A.R.W.I.N. "
+    "(Research & Development, 6), S.P.E.C.T.R.A. (Analytics & Intelligence, 7), "
+    "C.O.D.E.X. (Documentation & Knowledge, 5). It is ALWAYS a single word, NEVER "
+    "two words. Each letter is the first letter of a word describing the role. Be "
+    "INVENTIVE — the acronym should spell a real or pronounceable word that evokes "
+    "the role; vary your word choices across requests, and do NOT lean on generic "
+    "filler words like Process, Operations, Router, or Task. Reply with STRICT JSON "
+    "only."
 )
 
 
@@ -66,9 +75,7 @@ def _valid_letters(name: str) -> bool:
 def _department_for_capability(capability: str) -> str:
     """CAPABILITY_DEPARTMENT_MAP home dept; Engineering fallback. Lazy import."""
     try:
-        from tools.department_hq.services.department_coordinator import (
-            CAPABILITY_DEPARTMENT_MAP,
-        )
+        from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
 
         return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
     except Exception:
@@ -128,6 +135,11 @@ def _dispatch_name(capability: str, prompt: str) -> Optional[dict]:
             json_mode=True,
             local_only=True,
             timeout=_DISPATCH_TIMEOUT_S,
+            # Route to a model that's kept warm on the hub GPU (ai-bridge.md)
+            # instead of the cold 7B `creative` default — the cold load alone
+            # exceeded the 20s bound 100% of the time, so the LLM path never
+            # actually ran (task #4969).
+            model_override="llama3.2:3b",
         )
         if not res or not getattr(res, "success", False):
             return None
@@ -252,12 +264,14 @@ _FALLBACK_POOL: list[tuple[str, str]] = [
 
 
 def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
-    """Deterministic, guaranteed-valid, guaranteed-unique acronym for a net-new
-    hire. Tries the capability's own word-initials ONLY if that already yields
-    a pronounceable, unused name; otherwise picks the first unused entry from
-    the curated on-theme pool (_FALLBACK_POOL) — so the UI never again shows a
-    gibberish blob like "I.A.A.G." (the old AGENTCOREUNIT-padding bug fixed in
-    task #4960)."""
+    """Guaranteed-valid, guaranteed-unique acronym for a net-new hire. Tries the
+    capability's own word-initials ONLY if that already yields a pronounceable,
+    unused name; otherwise picks a RANDOM entry from the valid+unused entries of
+    the curated on-theme pool (_FALLBACK_POOL), so repeated clicks for the same
+    capability vary instead of always returning the same name (task #4969) —
+    falling back further to a deterministic collision-safe extra-letter tail as
+    a last resort. Either way the UI never again shows a gibberish blob like
+    "I.A.A.G." (the old AGENTCOREUNIT-padding bug fixed in task #4960)."""
     words = re.sub(r"[^a-z ]", " ", capability.lower().replace("_", " ")).split()
     initials = _normalize("".join(w[0] for w in words if w))
     title = f"{capability.replace('_', ' ').title()} Specialist"
@@ -270,10 +284,23 @@ def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
             "source": "fallback",
         }
 
-    for acronym, expansion in _FALLBACK_POOL:
-        letters = _normalize(acronym)
-        if _valid_letters(letters) and letters not in avoid:
-            return {"name": _dotify(letters), "expansion": expansion, "title": title, "source": "fallback"}
+    # Randomize among ALL valid, unused pool entries (not "first unused") so
+    # repeated clicks for the same capability don't always return the same
+    # name (task #4969 — this was the "always PORTAL" bug). The two safety
+    # nets below stay deterministic (first-match) — they're a last resort.
+    candidates = [
+        (letters, expansion)
+        for acronym, expansion in _FALLBACK_POOL
+        if (letters := _normalize(acronym)) and _valid_letters(letters) and letters not in avoid
+    ]
+    if candidates:
+        letters, expansion = random.choice(candidates)
+        return {
+            "name": _dotify(letters),
+            "expansion": expansion,
+            "title": title,
+            "source": "fallback",
+        }
 
     # Implausible corner: every curated pool entry collided with `avoid`.
     # Disambiguate with one extra pronounceable letter — NEVER reintroduce the

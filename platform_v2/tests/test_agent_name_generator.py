@@ -6,6 +6,7 @@ _dispatch_name) which we patch — no real DB or dispatcher needed.
 
 from __future__ import annotations
 
+import random
 import sys
 from unittest.mock import patch
 
@@ -135,11 +136,62 @@ def test_fallback_name_uses_curated_pool_not_padding():
     assert initials == letters
 
 
-def test_fallback_name_respects_avoid_skips_to_next_pool_entry():
+def test_fallback_name_respects_avoid_never_returns_avoided_entries():
+    # Task #4969: the pool pick is now RANDOMIZED (no longer "first unused"),
+    # so we can't assert a specific next entry — but every avoided acronym
+    # must never come back, across many draws.
     first_acronym = ang._FALLBACK_POOL[0][0]
     second_acronym = ang._FALLBACK_POOL[1][0]
-    out = ang._fallback_name("image_ai", {first_acronym})
-    assert ang._normalize(out["name"]) == second_acronym
+    avoided = {first_acronym, second_acronym}
+    random.seed(4242)
+    for _ in range(15):
+        out = ang._fallback_name("image_ai", set(avoided))
+        assert ang._normalize(out["name"]) not in avoided
+
+
+def test_fallback_name_randomizes_across_repeated_calls():
+    # Task #4969: same capability + empty avoid must no longer always return
+    # the same pool entry (the old bug: always "PORTAL"). Initials for
+    # "security_audit" ("SA") are too short -> always falls to the pool.
+    random.seed(1234)
+    names = {ang._normalize(ang._fallback_name("security_audit", set())["name"]) for _ in range(15)}
+    assert len(names) >= 3
+    for letters in names:
+        assert ang._valid_letters(letters)
+
+
+def test_fallback_name_randomization_respects_avoid_set():
+    avoid = {ang._FALLBACK_POOL[0][0], ang._FALLBACK_POOL[1][0]}
+    random.seed(2026)
+    names = set()
+    for _ in range(15):
+        out = ang._fallback_name("security_audit", set(avoid))
+        letters = ang._normalize(out["name"])
+        assert ang._valid_letters(letters)
+        assert letters not in avoid
+        names.add(letters)
+    assert len(names) >= 3
+
+
+def test_fallback_name_initials_branch_still_wins_when_valid():
+    # The capability's own word-initials branch must still take priority over
+    # the (now randomized) curated pool whenever it yields a valid acronym.
+    out = ang._fallback_name("vivid_echo_matrix_engine", set())
+    assert out["source"] == "fallback"
+    assert ang._normalize(out["name"]) == "VEME"
+    assert out["expansion"] == "Vivid Echo Matrix Engine"
+
+
+def test_department_for_capability_analyze_maps_to_analytics():
+    # Task #4969 root cause: the old import path
+    # (tools.department_hq.services.department_coordinator) does not exist,
+    # so every hire silently defaulted to Engineering & Technology. The
+    # correct module is services.department_coordinator.
+    assert ang._department_for_capability("analyze") == "Analytics & Intelligence"
+
+
+def test_department_for_capability_unknown_falls_back_to_engineering():
+    assert ang._department_for_capability("__not_a_real_capability__") == "Engineering & Technology"
 
 
 def test_fallback_pool_expansions_spell_their_acronyms():

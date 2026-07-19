@@ -868,11 +868,14 @@ def _capture_fix_failure(proposal_id, raw_response, reason):
         logger.warning("fix-failure capture failed for #%s: %s", proposal_id, e)
 
 
-def _archive_stale_proposal(proposal_id):
-    """Archive a proposal the model reported as needing NO change (`<<<NOFIX>>>` — the
-    finding is already resolved / a stale false-positive). Reversible via the
-    ``archived_by='stale_filter_nofix'`` tag; keeps the drain from re-dispatching it.
-    A wrong NOFIX is self-correcting: a future scan re-creates the finding."""
+def _archive_stale_proposal(proposal_id, *, archived_by="stale_filter_nofix", archive_reason="stale:model_nofix"):
+    """Archive an unfixable/stale proposal reversibly so the drain stops re-spending
+    slots on it. Two callers:
+      - NOFIX (default tags): the model judged the source already correct (`<<<NOFIX>>>`).
+      - unresolvable source at dispatch (archived_by='scope_filter_unresolvable'):
+        the proposal's file_path no longer resolves to a real on-disk file.
+    Reversible via the ``archived_by`` tag; a wrong archive self-corrects — a future
+    scan re-creates the finding (at the current path)."""
     try:
         from services.time_utils import now_utc
 
@@ -882,8 +885,8 @@ def _archive_stale_proposal(proposal_id):
                 (
                     json.dumps(
                         {
-                            "archive_reason": "stale:model_nofix",
-                            "archived_by": "stale_filter_nofix",
+                            "archive_reason": archive_reason,
+                            "archived_by": archived_by,
                             "archived_at": now_utc().isoformat(),
                         }
                     ),
@@ -1030,13 +1033,23 @@ def dispatch_proposal_fix(proposal_id):
     # Read source file — resolve module placeholders to a real on-disk path.
     abs_path, file_path, _resolve_status = resolve_proposal_source(file_path)
     if _resolve_status == "skip":
+        # Synthetic/placeholder target (routing rule, etc.) — no real file to fix.
+        # Self-clean: archive rather than leave it approved+attempted forever (autonomy).
+        _archive_stale_proposal(
+            proposal_id, archived_by="scope_filter_unresolvable", archive_reason="not_a_file:routing_label"
+        )
         if session_id:
             fail_work_session(session_id, error_msg=f"Synthetic placeholder, no file to fix: {file_path}")
-        return {"success": False, "error": f"Synthetic placeholder, no file to fix: {file_path}"}
+        return {"success": False, "error": f"Synthetic placeholder, no file to fix: {file_path}", "archived": True}
     if _resolve_status != "ok":
+        # File path no longer resolves (relocated/deleted). Self-clean: archive it — a
+        # future scan re-creates the finding at the current path if still real.
+        _archive_stale_proposal(
+            proposal_id, archived_by="scope_filter_unresolvable", archive_reason="source_missing:at_dispatch"
+        )
         if session_id:
             fail_work_session(session_id, error_msg=f"Source file not found: {file_path}")
-        return {"success": False, "error": f"Source file not found: {file_path}"}
+        return {"success": False, "error": f"Source file not found: {file_path}", "archived": True}
 
     try:
         with open(abs_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -1439,10 +1452,13 @@ def _archive_reason_for(file_path, status):
 
 
 def archive_unfixable_audit_proposals(dry_run=False):
-    """One-time, idempotent, reversible sweep: archive undispatched code-health proposals
-    whose file_path does not resolve to a real on-disk file, so the drain never spends a
-    slot on them. Only touches status='approved' (idempotent). Every archived row is tagged
-    archived_by='scope_filter_4940' for one-statement rollback.
+    """Idempotent, reversible sweep: archive any approved code-health proposal whose
+    file_path does not resolve to a real on-disk file, so the drain never spends a slot
+    on an unfixable target. Covers BOTH undispatched proposals AND ones already attempted
+    that failed with 'Source file not found' / 'Synthetic placeholder' (those linger as
+    approved+dispatch_attempted otherwise — the drain won't re-attempt them but they clog
+    the backlog + yield stats). Only touches status='approved' (idempotent). Every archived
+    row is tagged archived_by='scope_filter_4940' for one-statement rollback.
     """
     from services.time_utils import now_utc
 
@@ -1453,8 +1469,7 @@ def archive_unfixable_audit_proposals(dry_run=False):
             """SELECT id, metadata->>'file_path' AS file_path
                FROM improvement_proposals
                WHERE metadata->>'source' = 'code_health_audit'
-                 AND status = 'approved'
-                 AND (metadata->>'dispatch_attempted') IS NULL"""
+                 AND status = 'approved'"""
         )
         rows = cur.fetchall()
         for row in rows:

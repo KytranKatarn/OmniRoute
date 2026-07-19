@@ -563,7 +563,18 @@ def code_health_backlog_drain_job():
         return
     start = time.time()
     try:
-        from services.audit_pipeline import dispatch_audit_proposals
+        from services.audit_pipeline import dispatch_audit_proposals, archive_unfixable_audit_proposals
+
+        # Autonomy: self-prune unfixable-path proposals BEFORE draining so the batch
+        # never spends a slot on a target whose file no longer resolves. This is the
+        # ONLY scheduled caller of the #4940 sweep (it previously ran only by hand).
+        # Idempotent + reversible (archived_by='scope_filter_4940'); non-blocking.
+        try:
+            pruned = archive_unfixable_audit_proposals() or {}
+            if pruned.get("archived"):
+                logger.info("[CodeHealthBacklogDrain] pre-drain scope prune: %s", pruned)
+        except Exception as _pe:
+            logger.warning("pre-drain scope prune failed (non-blocking): %s", _pe)
 
         max_fixes = _drain_int_setting("work:code_health_backlog_drain:max_fixes", 15)
         result = dispatch_audit_proposals(limit=max_fixes) or {}

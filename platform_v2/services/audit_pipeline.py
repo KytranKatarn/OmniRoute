@@ -963,6 +963,8 @@ def _indent_tolerant_match(source, find, replace):
             new_lines.append(rl)  # preserve blank lines verbatim
             continue
         if delta >= 0:
+            if delta > 0 and "\t" in _lead(rl):
+                return None  # prepending spaces before a tab = mixed indentation; don't guess
             new_lines.append(" " * delta + rl)
         else:
             lead = _lead(rl)

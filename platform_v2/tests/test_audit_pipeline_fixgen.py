@@ -380,3 +380,12 @@ def test_indent_tolerant_match_unsafe_dedent_returns_none():
     find = "        value = compute(\n        first,\n        )"  # model over-indented to 8
     replace = "x = 1"  # only 0 leading spaces, cannot dedent by 8
     assert ap._indent_tolerant_match(source, find, replace) is None
+
+
+def test_indent_tolerant_match_tab_in_replace_indent_returns_none():
+    # source is space-indented deeper than the model's find (delta>0); a replace
+    # line starts with a TAB → prepending spaces would mix indentation → fail closed
+    # (mirrors the dedent branch's tab guard).
+    find = "value = compute(\nfirst,\nsecond,\n)"
+    replace = "\tvalue = compute(first, second)"
+    assert ap._indent_tolerant_match(_INDENT_SOURCE, find, replace) is None

@@ -1457,29 +1457,45 @@ function _renderApprovalCard(a) {
                     var _prev = genBtn.textContent;
                     genBtn.textContent = 'Generating\u2026';
                     hint.textContent = 'Asking the fleet for a name\u2026';
+                    var _genBase = '/tools/department-hq/api/approvals/hire/' + hid + '/generate-name';
+                    function _applyIdentity(gd) {
+                        nameInput.value = gd.name;
+                        hireState.newAgent.name = gd.name;
+                        hireState.newAgent.display_name = gd.name;
+                        hireState.newAgent.expansion = gd.expansion || '';
+                        hireState.newAgent.title = gd.title || '';
+                        hireState.newAgent.bio = gd.bio || '';
+                        hireState.newAgent.personality = gd.personality || '';
+                        hireState.newAgent.system_prompt = gd.system_prompt || '';
+                        hireState.newAgent.portrait_prompt = gd.portrait_prompt || '';
+                        var _meta = ((gd.expansion || '') + (gd.title ? ' \u00b7 ' + gd.title : '')) || 'Generated.';
+                        if (gd.bio) { _meta += ' \u2014 ' + gd.bio; }
+                        hint.textContent = gd.source === 'fallback'
+                            ? _meta + ' \u00b7 \u26a0 fleet warming \u2014 deterministic name; click Generate again for an AI name.'
+                            : _meta;
+                    }
                     try {
-                        var gr = await fetch('/tools/department-hq/api/approvals/hire/' + hid + '/suggest-name', {
+                        // ASYNC (#4969): the POST returns a job_id immediately \u2014 the slow
+                        // generation (6-23s, up to ~60s on a cold fleet) now runs in a
+                        // server-side background thread instead of holding this request AND
+                        // a gunicorn worker open. We then poll until it lands.
+                        var sr = await fetch(_genBase, {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: '{}'
                         });
-                        var gd = await gr.json();
-                        if (gd && gd.ok && gd.name) {
-                            nameInput.value = gd.name;
-                            hireState.newAgent.name = gd.name;
-                            hireState.newAgent.display_name = gd.name;
-                            hireState.newAgent.expansion = gd.expansion || '';
-                            hireState.newAgent.title = gd.title || '';
-                            hireState.newAgent.bio = gd.bio || '';
-                            hireState.newAgent.personality = gd.personality || '';
-                            hireState.newAgent.system_prompt = gd.system_prompt || '';
-                            hireState.newAgent.portrait_prompt = gd.portrait_prompt || '';
-                            var _meta = ((gd.expansion || '') + (gd.title ? ' \u00b7 ' + gd.title : '')) || 'Generated.';
-                            if (gd.bio) { _meta += ' \u2014 ' + gd.bio; }
-                            hint.textContent = gd.source === 'fallback'
-                                ? _meta + ' \u00b7 \u26a0 fleet warming \u2014 deterministic name; click Generate again for an AI name.'
-                                : _meta;
-                        } else {
+                        var sd = await sr.json();
+                        if (!sd || !sd.ok || !sd.job_id) { throw new Error('no job'); }
+                        var _done = false;
+                        for (var _i = 0; _i < 40 && !_done; _i++) {   // 40 x 1.5s = ~60s ceiling
+                            await new Promise(function(r) { setTimeout(r, 1500); });
+                            var pr = await fetch(_genBase + '/' + encodeURIComponent(sd.job_id));
+                            var pd = await pr.json();
+                            if (!pd || !pd.ok) { continue; }
+                            if (pd.status === 'done' && pd.name) { _applyIdentity(pd); _done = true; }
+                            else if (pd.status === 'error') { break; }
+                        }
+                        if (!_done) {
                             hint.textContent = 'Could not generate \u2014 type a name or try again.';
                         }
                     } catch (e) {

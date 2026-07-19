@@ -231,3 +231,36 @@ def test_build_fix_diff_no_trailing_newline_applies_via_git():
         finally:
             os.chdir(cwd)
             shutil.rmtree(d, ignore_errors=True)
+
+
+# --- #4989: attempt choke-point stamps a UTC timestamp for the drain measure ---
+
+
+def test_mark_dispatch_attempted_stamps_utc_timestamp(monkeypatch):
+    """Every attempt outcome routes through _mark_dispatch_attempted; it must
+    stamp dispatch_attempted_at (parseable, tz-aware UTC ISO) alongside
+    dispatch_attempted/dispatch_error so the #4989 measure can compute a clean
+    attempts/day + yield/day. DB is monkeypatched — no side effects."""
+    import contextlib
+    import datetime as dt
+    import json as _json
+
+    captured = {}
+
+    class _Cur:
+        def execute(self, sql, params):
+            captured["params"] = params
+
+    @contextlib.contextmanager
+    def _fake_cursor(commit=False):
+        yield (None, _Cur())
+
+    monkeypatch.setattr(ap, "get_db_cursor", _fake_cursor)
+    ap._mark_dispatch_attempted(123, "find_not_located: no match")
+
+    payload = _json.loads(captured["params"][0])
+    assert payload["dispatch_attempted"] is True
+    assert payload["dispatch_error"].startswith("find_not_located")
+    parsed = dt.datetime.fromisoformat(payload["dispatch_attempted_at"])
+    assert parsed.tzinfo is not None  # aware UTC per the timezone rule
+    assert captured["params"][1] == 123  # proposal_id passed through

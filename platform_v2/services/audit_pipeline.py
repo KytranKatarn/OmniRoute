@@ -1490,13 +1490,31 @@ def verify_fix_deployment(module_name, proposal_id, pre_issue_count):
 
 
 def _mark_dispatch_attempted(proposal_id, error_msg):
-    """Mark a proposal as dispatch-attempted to prevent retry loops."""
+    """Mark a proposal as dispatch-attempted to prevent retry loops.
+
+    Also stamps ``dispatch_attempted_at`` (UTC ISO) — this is the single
+    choke-point every attempt outcome routes through, so the self-heal drain
+    measure (#4989) gets a clean attempts/day + yield/day instead of coarse
+    count-deltas. Storage is UTC per the timezone rule; display converts at the
+    edge.
+    """
+    from services.time_utils import now_utc
+
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """UPDATE improvement_proposals
                SET metadata = metadata || %s::jsonb
                WHERE id = %s""",
-            (json.dumps({"dispatch_attempted": True, "dispatch_error": error_msg[:200]}), proposal_id),
+            (
+                json.dumps(
+                    {
+                        "dispatch_attempted": True,
+                        "dispatch_attempted_at": now_utc().isoformat(),
+                        "dispatch_error": error_msg[:200],
+                    }
+                ),
+                proposal_id,
+            ),
         )
 
 

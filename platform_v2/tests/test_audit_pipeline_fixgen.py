@@ -389,3 +389,18 @@ def test_indent_tolerant_match_tab_in_replace_indent_returns_none():
     find = "value = compute(\nfirst,\nsecond,\n)"
     replace = "\tvalue = compute(first, second)"
     assert ap._indent_tolerant_match(_INDENT_SOURCE, find, replace) is None
+
+
+# --- #4979: path-containment — a corrupt file_path must not escape the tree ---
+
+
+def test_resolve_proposal_source_rejects_path_traversal():
+    for bad in (
+        "platform_v2/../../etc/passwd",  # startswith a real prefix but escapes
+        "../../etc/passwd",
+        "/etc/passwd",
+        "ai_bridge/../../root/.ssh/authorized_keys",
+    ):
+        abs_path, _disp, status = ap.resolve_proposal_source(bad)
+        assert abs_path is None, f"{bad} resolved to {abs_path}"
+        assert status in ("missing", "skip"), f"{bad} → {status}"

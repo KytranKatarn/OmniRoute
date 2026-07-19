@@ -164,3 +164,36 @@ def test_sandbox_gate_bails_before_qa_when_apply_fails(monkeypatch):
     assert out["passed"] is False
     assert qa_called["v"] is False, "gate ran QA against stale code — not fail-closed"
     assert out.get("error")
+
+
+# --- #4979: path-containment — traversal targets must fail closed before base-sync ---
+
+
+def test_diff_target_contained_accepts_gateable_rejects_traversal():
+    assert ps._diff_target_contained("platform_v2/x.py")
+    assert ps._diff_target_contained("ai_bridge/y.py")
+    for bad in (
+        "platform_v2/../../etc/cron.d/x",  # startswith('platform_v2/') but escapes
+        "ai_bridge/../../../root/x",
+        "/etc/passwd",
+        "../x",
+        "tools/x.py",  # not a gateable root
+        "",
+        None,
+    ):
+        assert not ps._diff_target_contained(bad), bad
+
+
+def test_apply_rejects_path_traversal_target(monkeypatch):
+    """A diff header that startswith 'platform_v2/' but traverses out via '..'
+    must fail closed BEFORE base-sync — the raw shutil.copyfile runs before git
+    apply's own path protection."""
+    monkeypatch.setattr(os.path, "isdir", lambda p: True)
+    called = {"basesync": False}
+    monkeypatch.setattr(ps, "_basesync_touched", lambda root, touched: called.__setitem__("basesync", True))
+    diff = "--- a/platform_v2/../../etc/cron.d/x\n+++ b/platform_v2/../../etc/cron.d/x\n@@ -1 +1 @@\n-a\n+b\n"
+    res = ps._apply_fix_to_sandbox("/mnt/archie_sandbox", diff)
+    assert res["error"] is not None
+    assert ("traversal" in res["error"].lower()) or ("contained" in res["error"].lower())
+    assert res["applied"] == []
+    assert called["basesync"] is False, "must reject BEFORE base-sync"

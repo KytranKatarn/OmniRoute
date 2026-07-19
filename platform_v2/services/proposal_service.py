@@ -1313,6 +1313,28 @@ def _get_approver(proposal):
     }
 
 
+def _diff_target_contained(rel):
+    """True iff ``rel`` is a traversal-free path inside a gateable root
+    (``platform_v2/`` or ``ai_bridge/``).
+
+    A naive ``rel.startswith("platform_v2/")`` accepts
+    ``platform_v2/../../etc/cron.d/x``, which then escapes the worktree via the
+    ``_basesync_touched`` ``shutil.copyfile`` that runs BEFORE ``git apply``'s own
+    path protection. Rejects absolute paths and any ``..`` component. (#4979)
+    """
+    import os
+
+    if not isinstance(rel, str) or not rel.strip():
+        return False
+    p = rel.strip().replace("\\", "/")
+    if p.startswith("/") or ".." in p.split("/"):
+        return False
+    norm = os.path.normpath(p).replace("\\", "/")
+    if norm.startswith("/") or norm == ".." or norm.startswith("../"):
+        return False
+    return norm.startswith("platform_v2/") or norm.startswith("ai_bridge/")
+
+
 def _basesync_touched(worktree_root, touched):
     """Copy each touched file's CURRENT prod source into the staging worktree so
     `git apply --check` measures drift against what the fix was cut from. Reuses
@@ -1324,11 +1346,16 @@ def _basesync_touched(worktree_root, touched):
 
     from services.audit_pipeline import resolve_proposal_source
 
+    root_real = os.path.realpath(worktree_root)
     for rel in touched:
         prod_abs, _display, status = resolve_proposal_source(rel)
         if status != "ok" or not prod_abs:
             raise RuntimeError(f"cannot resolve prod source for {rel} (status={status})")
         dest = os.path.join(worktree_root, rel)
+        # Containment (#4979): a symlink in the worktree could still redirect the
+        # write outside it — realpath the dest and refuse anything beyond root.
+        if os.path.realpath(dest) != root_real and not os.path.realpath(dest).startswith(root_real + os.sep):
+            raise RuntimeError(f"refusing to base-sync outside worktree: {rel}")
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         shutil.copyfile(prod_abs, dest)
 
@@ -1372,8 +1399,11 @@ def _apply_fix_to_sandbox(sandbox_path, code_changes):
     result["expected"] = len(touched)
 
     for rel in touched:
-        if not (rel.startswith("platform_v2/") or rel.startswith("ai_bridge/")):
-            result["error"] = f"{rel} is not in the staging worktree (platform_v2/ or ai_bridge/) — cannot gate"
+        if not _diff_target_contained(rel):
+            result["error"] = (
+                f"{rel} is not a contained gateable path in the staging worktree "
+                f"(platform_v2/ or ai_bridge/, no traversal) — cannot gate"
+            )
             return result
 
     # Base-sync so --check measures drift against current prod.

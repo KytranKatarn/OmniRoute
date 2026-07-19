@@ -748,6 +748,12 @@ def resolve_proposal_source(file_path):
         if resolved.startswith(placeholder):
             resolved = real_root + resolved[len(placeholder) :]
             break
+    # Path-containment (#4979): a corrupt/adversarial file_path must not traverse
+    # out of the tree. 'platform_v2/../../etc/x' would otherwise os.path.join into
+    # a real file outside the repo → returned 'ok' → base-synced + patched. Reject
+    # absolute paths and any '..' component (fail-closed → 'missing').
+    if os.path.isabs(resolved) or ".." in resolved.replace("\\", "/").split("/"):
+        return (None, resolved, "missing")
     # Try /mnt/archie_brain first (host + container mount), fall back to /app/ (Docker)
     abs_path = os.path.join("/mnt/archie_brain", resolved)
     if not os.path.isfile(abs_path) and resolved.startswith("platform_v2/"):

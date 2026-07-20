@@ -700,6 +700,11 @@ EXTERNAL_BACKUP_DIR = "/mnt/external-backup"
 LOCK_FILE = os.path.join(BACKUP_DIR, ".backup_lock")
 LOCK_TIMEOUT = 7200  # 2 hours
 
+# Rows fetched per batch when streaming a table to the SQL dump (#5014). Bounds peak
+# memory to roughly this many rows instead of the whole database. Small enough that even
+# wide rows (knowledge_base carries embeddings) stay well inside the container's cap.
+_DUMP_BATCH = 500
+
 # Hook directories
 HOOKS_DIR = os.path.join(BACKUP_DIR, ".hooks")
 PRE_HOOKS_DIR = os.path.join(HOOKS_DIR, "pre")
@@ -2371,13 +2376,23 @@ def backup_database_python(output_file, compress=True):
         str: Actual output file path (with .gz if compressed)
     """
     try:
-        sql_lines = []
+        # STREAM to the output file — never build the dump in memory (#5014).
+        # This previously accumulated every row of every table into `sql_lines`, then did
+        # `"".join(sql_lines)`, materialising a SECOND full copy. Against a 6.3 GB database
+        # (and Python str overhead on top) that cannot fit in the container's 8 GiB cap, so
+        # the worker was OOM-killed every time — the nightly included. Peak memory is now
+        # O(_DUMP_BATCH rows), not O(database).
+        if compress and not output_file.endswith(".gz"):
+            output_path = output_file + ".gz"
+        else:
+            output_path = output_file
+        out = gzip.open(output_path, "wt", encoding="utf-8") if compress else open(output_path, "w")
 
-        with get_backup_db_cursor(commit=False) as (conn, cursor):
+        with out as f, get_backup_db_cursor(commit=False) as (conn, cursor):
             # Generate SQL content
-            sql_lines.append("-- A.R.C.H.I.E. Platform Database Backup\n")
-            sql_lines.append(f"-- Generated: {datetime.now().isoformat()}\n")
-            sql_lines.append(f"-- Compression: {'gzip' if compress else 'none'}\n\n")
+            f.write("-- A.R.C.H.I.E. Platform Database Backup\n")
+            f.write(f"-- Generated: {datetime.now().isoformat()}\n")
+            f.write(f"-- Compression: {'gzip' if compress else 'none'}\n\n")
 
             # Get all tables
             cursor.execute(
@@ -2390,8 +2405,8 @@ def backup_database_python(output_file, compress=True):
             tables = cursor.fetchall()
 
             for (table_name,) in tables:
-                sql_lines.append(f"\n-- Table: {table_name}\n")
-                sql_lines.append(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
+                f.write(f"\n-- Table: {table_name}\n")
+                f.write(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
 
                 # Get CREATE TABLE statement
                 cursor.execute(
@@ -2422,7 +2437,7 @@ def backup_database_python(output_file, compress=True):
 
                 create_stmt = cursor.fetchone()
                 if create_stmt:
-                    sql_lines.append(create_stmt[0] + "\n\n")
+                    f.write(create_stmt[0] + "\n\n")
 
                 # Get data - cast timestamp columns to TEXT so psycopg2 never
                 # raises ValueError on out-of-range years (e.g. year 58317).
@@ -2458,49 +2473,49 @@ def backup_database_python(output_file, compress=True):
                     )
                 else:
                     select_query = sql.SQL("SELECT * FROM {}").format(sql.Identifier(table_name))
-                cursor.execute(select_query)
-                rows = cursor.fetchall()
+                # Column names first — needed before we start streaming rows, and cheap.
+                cursor.execute(
+                    """
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    ORDER BY ordinal_position;
+                """,
+                    (table_name,),
+                )
+                columns = [col[0] for col in cursor.fetchall()]
 
-                if rows:
-                    # Get column names
-                    cursor.execute(
-                        """
-                        SELECT column_name
-                        FROM information_schema.columns
-                        WHERE table_schema = 'public' AND table_name = %s
-                        ORDER BY ordinal_position;
-                    """,
-                        (table_name,),
-                    )
-                    columns = [col[0] for col in cursor.fetchall()]
+                # A NAMED (server-side) cursor is what actually bounds memory here. A normal
+                # psycopg2 cursor buffers the ENTIRE result set client-side on execute(), so
+                # fetchmany() alone would still load the whole table — the bug we are fixing.
+                safe = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in table_name)
+                row_cur = conn.cursor(name=f"bkdump_{safe}_{os.getpid()}")
+                row_cur.itersize = _DUMP_BATCH
+                wrote_any = False
+                try:
+                    row_cur.execute(select_query)
+                    while True:
+                        batch = row_cur.fetchmany(_DUMP_BATCH)
+                        if not batch:
+                            break
+                        for row in batch:
+                            values = ", ".join(_safe_serialize_val(val) for val in row)
+                            if wrote_any:
+                                # separator goes BEFORE the row, so the last row needs no
+                                # lookahead — that is what makes single-pass streaming work.
+                                f.write(f",\n  ({values})")
+                            else:
+                                f.write(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
+                                f.write(f"  ({values})")
+                                wrote_any = True
+                finally:
+                    row_cur.close()
 
-                    sql_lines.append(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
+                if wrote_any:
+                    f.write(";\n")
+                    f.write("\n")
 
-                    for i, row in enumerate(rows):
-                        # Format values
-                        values = []
-                        for val in row:
-                            values.append(_safe_serialize_val(val))
-
-                        if i < len(rows) - 1:
-                            sql_lines.append(f"  ({', '.join(values)}),\n")
-                        else:
-                            sql_lines.append(f"  ({', '.join(values)});\n")
-
-                    sql_lines.append("\n")
-
-        # Write to file (compressed or uncompressed)
-        sql_content = "".join(sql_lines)
-
-        if compress:
-            output_path = output_file + ".gz" if not output_file.endswith(".gz") else output_file
-            with gzip.open(output_path, "wt", encoding="utf-8") as f:
-                f.write(sql_content)
-            return output_path
-        else:
-            with open(output_file, "w") as f:
-                f.write(sql_content)
-            return output_file
+        return output_path
 
     except Exception as e:
         current_app.logger.error(f"Database backup failed: {str(e)}")

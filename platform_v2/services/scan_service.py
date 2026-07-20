@@ -873,8 +873,42 @@ def get_file_report(file_path):
         conn.close()
 
 
-def get_issues(status="all", limit=50):
-    """Get code issues with optional status filter."""
+# ---------------------------------------------------------------------------
+# Auto-fix scope for `code_issues` (#5000)
+# ---------------------------------------------------------------------------
+# The platform owns the definition of "safe to hand to an automated fixer" —
+# this is the `code_issues` counterpart to audit_pipeline's
+# _AUTO_FIX_EXCLUDED_ISSUE_CODES (which covers audit PROPOSALS; the two tables
+# use different taxonomies, so the lists cannot be shared literally).
+#
+# Why each entry is here (measured 2026-07-19 against 2,230 open issues):
+#
+#  * SQL injection — 275 of the 286 open `security/high` findings (96%). The
+#    A.R.C.H.I.E. Engine selects the HIGHEST-SEVERITY in-scope issue, so without
+#    this filter ~96% of its 6-hourly build cycles draw this one class. It is
+#    the same class audit_pipeline already refuses to auto-fix: generated fixes
+#    were 100% garbage (KB mistake #282665). Detector also over-flags.
+#  * Hardcoded secret in a TEST file — verified false-positive class. Issue
+#    #7257 flagged `gw.bot_token = "$TELEGRAM_BOT_TOKEN"`, a literal placeholder
+#    in a fixture. There is nothing to fix, and the "suggested" fix (use env
+#    vars) would BREAK the test. Confirmed live: the engine burned a build slot
+#    and returned "nothing to commit, working tree clean".
+#
+# These stay visible in the Repair Bay UI and every existing caller — the filter
+# is OPT-IN (auto_fixable=True) and only automated fixers should pass it.
+# Excluding here does NOT mean "ignore": it means "a human reads this one".
+_AUTO_FIX_EXCLUDED_MESSAGE_LIKE = ("%SQL injection%",)  # over-flagging + fix-gen produces garbage (KB #282665)
+# (message LIKE, file_path LIKE) — excluded only in that file context.
+_AUTO_FIX_EXCLUDED_IN_PATH = (("%hardcoded secret%", "%test%"),)
+
+
+def get_issues(status="all", limit=50, auto_fixable=False):
+    """Get code issues with optional status filter.
+
+    auto_fixable=True additionally drops classes that are unsafe or pointless to
+    hand to an automated fixer (see _AUTO_FIX_EXCLUDED_* above). Default False —
+    every existing caller is unaffected.
+    """
     conn = _get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
@@ -894,10 +928,21 @@ def get_issues(status="all", limit=50):
                 i.created_at DESC
             LIMIT %s
         """
-        if status == "all":
-            cur.execute(base + order, (limit,))
-        else:
-            cur.execute(base + " WHERE i.status = %s " + order, (status, limit))
+        where = []
+        params = []
+        if status != "all":
+            where.append("i.status = %s")
+            params.append(status)
+        if auto_fixable:
+            for pat in _AUTO_FIX_EXCLUDED_MESSAGE_LIKE:
+                where.append("COALESCE(i.message, '') NOT LIKE %s")
+                params.append(pat)
+            for msg_pat, path_pat in _AUTO_FIX_EXCLUDED_IN_PATH:
+                where.append("NOT (COALESCE(i.message, '') LIKE %s AND COALESCE(i.file_path, '') LIKE %s)")
+                params.extend([msg_pat, path_pat])
+
+        clause = (" WHERE " + " AND ".join(where) + " ") if where else " "
+        cur.execute(base + clause + order, tuple(params) + (limit,))
 
         issues = cur.fetchall()
         return {

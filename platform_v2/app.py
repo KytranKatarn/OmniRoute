@@ -5367,13 +5367,19 @@ def api_internal_repair_scan():
 @_require_internal_key
 def api_internal_repair_issues():
     """The open-issue work queue (wraps scan_service.get_issues).
-    Query: ?status=open&limit=50. Bearer INTERNAL_API_KEY."""
+    Query: ?status=open&limit=50[&auto_fixable=true]. Bearer INTERNAL_API_KEY.
+
+    auto_fixable=true drops classes that are unsafe/pointless to hand to an
+    automated fixer (see scan_service._AUTO_FIX_EXCLUDED_*). Automated consumers
+    (the A.R.C.H.I.E. Engine build loop) should pass it; humans/UI should not.
+    Default false — existing callers are unaffected (#5000)."""
     from services import scan_service
 
     status = request.args.get("status", "all")
     limit = request.args.get("limit", 50, type=int)
+    auto_fixable = (request.args.get("auto_fixable", "") or "").strip().lower() in ("1", "true", "yes")
     try:
-        return jsonify(scan_service.get_issues(status=status, limit=limit))
+        return jsonify(scan_service.get_issues(status=status, limit=limit, auto_fixable=auto_fixable))
     except Exception as e:
         logger.error(f"internal repair issues failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

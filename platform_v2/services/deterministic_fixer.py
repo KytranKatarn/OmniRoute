@@ -242,6 +242,50 @@ def _advise_backup_needed(reason: str, held: int) -> bool:
         return False
 
 
+def select_unqueued_fix_ids(limit: int) -> list:
+    """Verified fixes sitting in `ready_for_review` that have NOT yet been offered for approval.
+
+    Why this exists: `queue_for_approval` was originally called with only the fixes accepted in
+    the SAME drain run. That silently stranded the backlog — 108 verified fixes created outside
+    a drain cycle sat in `ready_for_review` forever, because nothing swept them. The gate opened
+    onto an empty pipe and 0 approvals were queued, which was CORRECT for the code and wrong for
+    the operator.
+
+    `approval_queued_at` is the marker that makes this idempotent. Without it every cycle would
+    re-offer the same first N proposals and the backlog would never advance.
+    """
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """SELECT id FROM improvement_proposals
+               WHERE status = 'ready_for_review'
+                 AND metadata->>'fixed_by' = 'deterministic_fixer'
+                 AND metadata->>'approval_queued_at' IS NULL
+               ORDER BY id
+               LIMIT %s""",
+            (max(0, int(limit)),),
+        )
+        return [r["id"] for r in cur.fetchall()]
+
+
+def _mark_queued(proposal_id) -> None:
+    """Stamp a proposal as offered so the next cycle moves on to the next one."""
+    import json as _json
+    from datetime import datetime, timezone
+
+    try:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE improvement_proposals
+                   SET metadata = COALESCE(metadata,'{}'::jsonb) || %s::jsonb
+                   WHERE id = %s""",
+                (_json.dumps({"approval_queued_at": datetime.now(timezone.utc).isoformat()}), proposal_id),
+            )
+    except Exception as exc:
+        # Better to risk re-offering than to lose the fix entirely — a duplicate Telegram is
+        # an annoyance, a stranded backlog is the bug being fixed.
+        logger.warning("[deterministic-fixer] could not mark proposal %s queued: %s", proposal_id, exc)
+
+
 def queue_for_approval(proposal_ids, max_queue: int = 5) -> dict:
     """Queue verified fixes into the tiered approval pipeline (Approvals tab + Telegram).
 
@@ -294,6 +338,7 @@ def queue_for_approval(proposal_ids, max_queue: int = 5) -> dict:
             ref = r.get("approval_id") or r.get("queue_id")
             if ref:
                 stats["queued"] += 1
+                _mark_queued(pid)  # so the next cycle advances instead of re-offering this one
                 logger.info(
                     "[deterministic-fixer] proposal %s -> tier %s approval %s (%s)",
                     pid,
@@ -398,18 +443,26 @@ def run_deterministic_fixes(limit: int = 200, dry_run: bool = True, approval_max
                 stats["offered"] += cur.rowcount
         logger.info("[deterministic-fixer] offered %d verified fix(es) for review", stats["offered"])
 
-        if approval_max > 0:
-            q = queue_for_approval([pid for pid, _d, _k, _x in accepted], max_queue=approval_max)
-            stats["approval"] = q
-            logger.info(
-                "[deterministic-fixer] queued %d for approval (%d failed, %d left for a later cycle)",
-                q["queued"],
-                q["failed"],
-                q["skipped"],
-            )
-    else:
+    # The approval sweep runs on EVERY live cycle — deliberately OUTSIDE `if accepted`.
+    # It was nested inside, so a cycle that accepted nothing new never offered anything, and
+    # the existing ready_for_review backlog could never drain. That is precisely what happened:
+    # 0 verified this cycle, 108 fixes waiting, 0 approvals sent — correct code, useless result.
+    if approval_max > 0 and not dry_run:
+        q = queue_for_approval(select_unqueued_fix_ids(approval_max), max_queue=approval_max)
+        stats["approval"] = q
         logger.info(
-            "[deterministic-fixer] dry-run: %d planned, %d verified, %d rejected of %d examined",
+            "[deterministic-fixer] queued %d for approval (%d failed, %d left for a later cycle)",
+            q["queued"],
+            q["failed"],
+            q["skipped"],
+        )
+
+    if not accepted:
+        # NOT "dry-run" — that wording claimed a live cycle was a test and sent anyone reading
+        # the log hunting for a flag that was never set.
+        logger.info(
+            "[deterministic-fixer] %s: no new fixes accepted — %d planned, %d verified, %d rejected of %d examined",
+            "dry-run" if dry_run else "live",
             stats["planned"],
             stats["verified"],
             stats["rejected"],

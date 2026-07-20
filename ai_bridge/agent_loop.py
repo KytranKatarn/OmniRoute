@@ -254,6 +254,30 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
             )
             return cur.fetchone() is not None
 
+    if action_type == "deploy_approve":
+        # Dedup on (action_type, proposal_id) — the same trap #3944 fixed for linkedin_post
+        # and Phase 7 fixed for contractor_dispatch. Under the coarse check only ONE deploy
+        # approval could be pending at a time, so the self-heal backlog drained at 1 per
+        # 3h cycle: 108 verified fixes would have taken ~13.5 days, and approval_max was
+        # silently meaningless (2 of every 3 were deduped away and counted as failures).
+        # Distinct proposals are independent decisions and must be able to await approval
+        # together; the SAME proposal still can never queue twice. Each one remains
+        # human-tapped and still runs the sandbox gate + W.A.R.D.E.N. clearance before
+        # anything deploys, so concurrency here costs no safety.
+        pid = (action_data or {}).get("proposal_id")
+        if pid:
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = %s
+                  AND status = 'pending'
+                  AND action_data->>'proposal_id' = %s
+                LIMIT 1
+                """,
+                (action_type, str(pid)),
+            )
+            return cur.fetchone() is not None
+
     if action_type == "contractor_dispatch":
         agent = (action_data or {}).get("agent")
         capability = (action_data or {}).get("capability")

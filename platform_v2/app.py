@@ -5378,8 +5378,17 @@ def api_internal_repair_issues():
     status = request.args.get("status", "all")
     limit = request.args.get("limit", 50, type=int)
     auto_fixable = (request.args.get("auto_fixable", "") or "").strip().lower() in ("1", "true", "yes")
+    # Server-side scope filter (#5002): comma-separated path prefixes. Only NARROWS
+    # the result set — it cannot grant access; writes stay gated by the caller's own
+    # scope_guard. Lets a scoped consumer (the Engine build loop) get in-scope rows
+    # directly instead of paging the whole severity-ordered queue: its first in-scope
+    # issue ranked 744 against a fetch limit of 200, so it never reached its own work.
+    raw_prefixes = (request.args.get("path_prefixes", "") or "").strip()
+    path_prefixes = [p.strip() for p in raw_prefixes.split(",") if p.strip()] if raw_prefixes else None
     try:
-        return jsonify(scan_service.get_issues(status=status, limit=limit, auto_fixable=auto_fixable))
+        return jsonify(
+            scan_service.get_issues(status=status, limit=limit, auto_fixable=auto_fixable, path_prefixes=path_prefixes)
+        )
     except Exception as e:
         logger.error(f"internal repair issues failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500

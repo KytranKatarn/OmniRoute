@@ -902,12 +902,40 @@ _AUTO_FIX_EXCLUDED_MESSAGE_LIKE = ("%SQL injection%",)  # over-flagging + fix-ge
 _AUTO_FIX_EXCLUDED_IN_PATH = (("%hardcoded secret%", "%test%"),)
 
 
-def get_issues(status="all", limit=50, auto_fixable=False):
+def _like_prefix(prefix: str) -> str:
+    """Turn a path prefix into a LIKE pattern, escaping LIKE metacharacters.
+
+    Critical: platform paths contain UNDERSCORES ("platform_v2", "media_studio")
+    and `_` is a single-character LIKE wildcard. Unescaped, "platform_v2/" would
+    also match "platformXv2/". Escape \\, % and _ and pair with ESCAPE '\\'.
+    """
+    return prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+
+
+def get_issues(status="all", limit=50, auto_fixable=False, path_prefixes=None):
     """Get code issues with optional status filter.
 
     auto_fixable=True additionally drops classes that are unsafe or pointless to
     hand to an automated fixer (see _AUTO_FIX_EXCLUDED_* above). Default False —
     every existing caller is unaffected.
+
+    path_prefixes: optional iterable of path prefixes; only issues whose
+    file_path starts with one of them are returned (#5002). This is a SERVER-SIDE
+    scope filter for automated consumers that can only act on part of the tree.
+
+    Why it exists: the A.R.C.H.I.E. Engine may only touch the Applications/Concepts
+    modules (archie_engine/scope_guard.py PLATFORM_SCOPE). It previously fetched a
+    severity-ordered window and filtered by path client-side — but measured
+    2026-07-19, its first in-scope issue ranked **744** while the fetch limit was
+    200, so it could never reach its own work and every cycle no-opped. Filtering
+    here means the caller gets in-scope rows directly instead of paging the whole
+    queue to find a dozen.
+
+    SECURITY NOTE: this only ever NARROWS the result set — it cannot grant access.
+    Write access remains gated by scope_guard on the engine side. The caller passes
+    its own allowlist so there is ONE source of truth (duplicating the list here
+    would drift, exactly as .claude/rules/codex-agent.md drifted from
+    config/agents/codex.yaml).
     """
     conn = _get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -940,6 +968,15 @@ def get_issues(status="all", limit=50, auto_fixable=False):
             for msg_pat, path_pat in _AUTO_FIX_EXCLUDED_IN_PATH:
                 where.append("NOT (COALESCE(i.message, '') LIKE %s AND COALESCE(i.file_path, '') LIKE %s)")
                 params.extend([msg_pat, path_pat])
+        if path_prefixes:
+            # Cap the list so a caller cannot build an unbounded OR-chain.
+            prefixes = [p for p in list(path_prefixes)[:100] if p and str(p).strip()]
+            if prefixes:
+                ors = []
+                for p in prefixes:
+                    ors.append("COALESCE(i.file_path, '') LIKE %s ESCAPE '\\'")
+                    params.append(_like_prefix(str(p).strip()))
+                where.append("(" + " OR ".join(ors) + ")")
 
         clause = (" WHERE " + " AND ".join(where) + " ") if where else " "
         cur.execute(base + clause + order, tuple(params) + (limit,))

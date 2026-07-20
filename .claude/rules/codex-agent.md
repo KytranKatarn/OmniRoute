@@ -44,16 +44,31 @@ It NEVER touches infra, dispatch, agents table, or secrets.
 
 ### Allowed paths (deny-by-default — anything not listed is blocked)
 
+**Authoritative source is `config/agents/codex.yaml` — this list mirrors it. If they
+disagree, the YAML wins.** (Corrected 2026-07-19: this file previously listed
+`media_studio/`, `game_studio/` and `media_hub/` as allowed. They are **NOT** —
+they were never in codex.yaml. Acting on the stale list would have widened an
+automated agent's write access to modules holding real production data. Same
+exclusion is mirrored in `archie_engine/scope_guard.py` PLATFORM_SCOPE.)
+
 ```
 platform_v2/tools/fitness/
-platform_v2/tools/therapy/
-platform_v2/tools/doc/
 platform_v2/tools/family_tree/
-platform_v2/tools/media_studio/
-platform_v2/tools/game_studio/
-platform_v2/tools/media_hub/
+platform_v2/tools/therapy/
+platform_v2/tools/faith/
+platform_v2/tools/brainstorm/
+platform_v2/tools/doc/
+platform_v2/templates/tools/{fitness,therapy,faith,brainstorm,doc}.html
+platform_v2/static/js/{fitness,therapy,faith,family-tree,doc}-chat.js
+platform_v2/static/css/{fitness,therapy}.css
 platform_v2/tests/
 ```
+
+**Deliberately EXCLUDED — do not add without an explicit owner decision:**
+`media_studio/`, `game_studio/`, `media_hub/` — they hold **real production data
+and need DB isolation first**. This is a standing safety decision, not an
+oversight. (`media_hub/` no longer exists in-platform anyway — consolidated to the
+standalone 2026-07-08, PRs #2100/#2101.)
 
 ### Always blocked (even if under an allowed path)
 

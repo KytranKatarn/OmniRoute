@@ -98,5 +98,53 @@ class TestAutoFixableFilter:
         assert "COALESCE(i.file_path, '')" in sql
 
 
+class TestPathPrefixScopeFilter:
+    """Server-side scope filter (#5002).
+
+    The engine's first in-scope issue ranked 744 while its fetch limit was 200, so
+    client-side path filtering could never reach its own work. Filtering server-side
+    returns all 12 in-scope rows within the default limit.
+    """
+
+    def test_default_adds_no_path_clause(self):
+        sql, params = _run(status="open", limit=50)
+        assert "file_path" not in sql
+        assert params == ("open", 50)
+
+    def test_prefixes_build_an_or_group(self):
+        sql, params = _run(status="open", limit=50, path_prefixes=["a/", "b/"])
+        assert sql.count("LIKE %s ESCAPE") == 2
+        assert "(COALESCE(i.file_path, '') LIKE %s ESCAPE '\\' OR" in sql
+        assert "a/%" in params and "b/%" in params
+
+    def test_underscores_are_escaped(self):
+        """`_` is a LIKE wildcard — unescaped, platform_v2/ also matches platformXv2/."""
+        _sql, params = _run(status="open", limit=50, path_prefixes=["platform_v2/tools/media_studio/"])
+        assert "platform\\_v2/tools/media\\_studio/%" in params
+
+    def test_percent_and_backslash_escaped(self):
+        _sql, params = _run(status="open", limit=50, path_prefixes=["a%b\\c"])
+        assert "a\\%b\\\\c%" in params
+
+    def test_combines_with_status_and_auto_fixable(self):
+        sql, params = _run(status="open", limit=50, auto_fixable=True, path_prefixes=["x/"])
+        assert "i.status = %s" in sql
+        assert "NOT LIKE" in sql
+        assert "file_path" in sql
+        assert params[0] == "open"
+        assert params[-1] == 50
+
+    def test_empty_and_blank_prefixes_ignored(self):
+        """An empty list, or a list of blanks, must not emit an empty OR-group."""
+        for pref in ([], ["", "   "], None):
+            sql, _params = _run(status="open", limit=50, path_prefixes=pref)
+            assert "ESCAPE" not in sql
+
+    def test_prefix_count_is_capped(self):
+        """A caller cannot build an unbounded OR-chain."""
+        sql, _params = _run(status="open", limit=50, path_prefixes=[f"p{i}/" for i in range(250)])
+        assert sql.count("LIKE %s ESCAPE") == 100
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

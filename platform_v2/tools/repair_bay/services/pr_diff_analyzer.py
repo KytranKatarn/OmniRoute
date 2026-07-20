@@ -661,15 +661,49 @@ def _is_spurious_injection(issue: dict) -> bool:
 
 def _verify_evidence(issues: list, diff: str):
     """Split issues into (kept, dropped): drop issues whose evidence isn't a changed diff line
-    (fabricated citation) OR that are a spurious 'SQL injection' flag on a parameterized query."""
+    (fabricated citation) OR that are a spurious 'SQL injection' flag on a parameterized query.
+
+    Each dropped issue is tagged with ``_drop_reason`` because the two reasons mean OPPOSITE
+    things about the reviewer (#5009):
+      ``evidence_not_in_diff``  the model cited something that is not in its own input — a
+                                GROUNDING failure, i.e. evidence it was not reading the diff.
+      ``spurious_injection``    a TRUSTED deterministic correction of a real-but-wrong flag;
+                                the model WAS reading, it just misjudged. Says nothing bad
+                                about grounding.
+    Only the former may influence the verdict floor.
+    """
     kept, dropped = [], []
     for it in issues or []:
         ev = (it or {}).get("evidence") or ""
-        if not _evidence_in_diff(ev, diff) or _is_spurious_injection(it):
+        grounded = _evidence_in_diff(ev, diff)
+        if not grounded or _is_spurious_injection(it):
+            if isinstance(it, dict):
+                it["_drop_reason"] = "evidence_not_in_diff" if not grounded else "spurious_injection"
             dropped.append(it)
         else:
             kept.append(it)
     return kept, dropped
+
+
+def _count_ungrounded(dropped: list) -> int:
+    """How many issues were dropped specifically because their evidence was NOT in the diff."""
+    return sum(1 for d in dropped or [] if isinstance(d, dict) and d.get("_drop_reason") == "evidence_not_in_diff")
+
+
+def _should_floor_ungrounded(verdict: str, n_ungrounded: int, surviving_issues: list) -> bool:
+    """#5009 — pure predicate shared by the structured and freeform paths.
+
+    True when an APPROVE rests on NOTHING the reviewer grounded in the diff: it raised issues, every
+    one cited evidence absent from its own input, and none survived. Such an APPROVE is an artifact
+    of the anti-hallucination filter emptying the issue list, not a judgement about the change.
+
+    Narrow on purpose:
+      * ``surviving_issues`` non-empty -> the model grounded something -> NOT floored.
+      * ``n_ungrounded == 0``          -> nothing was fabricated (e.g. only a trusted
+                                          spurious_injection drop) -> NOT floored.
+      * verdict already REQUEST CHANGES/NEEDS REVIEW -> leave it alone; never RELAX a verdict.
+    """
+    return bool(verdict == "APPROVE" and n_ungrounded > 0 and not surviving_issues)
 
 
 def _evidence_verification_enabled() -> bool:
@@ -683,6 +717,16 @@ def _evidence_verification_enabled() -> bool:
 
 def _self_refute_enabled() -> bool:
     return str(_get_setting("forge:self_refute_enabled", "true")).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _ungrounded_review_floor_enabled() -> bool:
+    """#5009 kill switch (platform_settings, no deploy needed)."""
+    return str(_get_setting("forge:ungrounded_review_floor_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 def _review_num_ctx():
@@ -973,11 +1017,13 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
         return None
     issues = parsed.get("issues") or []
     note = ""
+    n_ungrounded = 0
     # PR-C: deterministic evidence-verification — drop issues whose evidence isn't a changed line.
     if _evidence_verification_enabled():
         kept, dropped = _verify_evidence(issues, diff)
         if dropped:
             note = f"dropped {len(dropped)} issue(s) with evidence not in the diff"
+            n_ungrounded = _count_ungrounded(dropped)
             logger.info("[PR Review] PR #%s — %s", pr_number, note)
             if _writeback_enabled():
                 _writeback_false_positives(dropped, pr_number, repo)
@@ -1026,6 +1072,26 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     verdict = _recompute_verdict(verdict_issues, parsed.get("confidence"), _review_confidence_min())
     if unverified_criticals and verdict != "REQUEST CHANGES":
         verdict = "NEEDS REVIEW"
+    # #5009: an APPROVE is only meaningful if the reviewer demonstrably READ the diff. When the model
+    # raised issues and EVERY one was dropped as ungrounded (evidence absent from its own input),
+    # nothing it said was anchored to the change — yet the old code reached APPROVE precisely BECAUSE
+    # the anti-hallucination filter had emptied the issue list. That is how PR #2351 (+147/-23) was
+    # auto-approved by a review whose summary said the diff "does not contain any actual code
+    # changes". Floor to NEEDS REVIEW so a human adjudicates; NEEDS REVIEW does not auto-merge.
+    # Deliberately narrow: only when NOTHING survived. A model that grounded even one issue was
+    # reading the diff, and spurious_injection drops (a trusted correction) never count.
+    if _should_floor_ungrounded(verdict, n_ungrounded, verdict_issues) and _ungrounded_review_floor_enabled():
+        verdict = "NEEDS REVIEW"
+        note = (note + "; " if note else "") + (
+            f"ungrounded review: all {n_ungrounded} issue(s) cited evidence absent from the diff "
+            "— floored to NEEDS REVIEW (#5009)"
+        )
+        logger.warning(
+            "[PR Review] PR #%s — APPROVE floored to NEEDS REVIEW: %d/%d issues ungrounded",
+            pr_number,
+            n_ungrounded,
+            n_ungrounded,
+        )
     parsed["verdict"] = verdict
     return _render_review_text(parsed, model=model_label, note=note)
 
@@ -1108,10 +1174,12 @@ def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str
         if (not issues and not dockerfile_findings) or not diff:
             return _apply_severity_gate(text)
         notes = []
+        n_ungrounded = 0
         if issues and _evidence_verification_enabled():
             kept, dropped = _verify_evidence(issues, diff)
             if dropped:
                 notes.append(f"dropped {len(dropped)} issue(s) with evidence not in the diff")
+                n_ungrounded = _count_ungrounded(dropped)
                 if _writeback_enabled():
                     _writeback_false_positives(dropped, pr_number, repo)
             issues = kept
@@ -1125,6 +1193,14 @@ def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str
             issues.extend(dockerfile_findings)
             notes.append(f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)")
         verdict = _recompute_verdict(issues, None, _review_confidence_min())
+        # #5009: same ungrounded-review floor as the structured path — the freeform fallback handles
+        # the majority of reviews, so guarding only the structured path would leave the hole open.
+        if _should_floor_ungrounded(verdict, n_ungrounded, issues) and _ungrounded_review_floor_enabled():
+            verdict = "NEEDS REVIEW"
+            notes.append(
+                f"ungrounded review: all {n_ungrounded} issue(s) cited evidence absent from the diff "
+                "— floored to NEEDS REVIEW (#5009)"
+            )
         return _render_freeform_gated(_extract_summary_block(text), issues, verdict, "; ".join(notes))
     except Exception as exc:
         logger.info("[PR Review] freeform gate fell back to severity-gate: %s", exc)

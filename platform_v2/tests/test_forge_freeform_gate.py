@@ -64,13 +64,27 @@ def test_parse_handles_info_and_multiple():
     assert [i["severity"] for i in issues] == ["CRITICAL", "INFO"]
 
 
-def test_fabricated_critical_dropped_to_approve():
-    # Evidence is NOT in the diff -> dropped by evidence-verification -> nothing blocks -> APPROVE.
+def test_fabricated_critical_does_not_block_but_no_longer_auto_approves():
+    # Evidence is NOT in the diff -> dropped by evidence-verification -> nothing BLOCKS.
     # (The cited line is a fabricated test fixture, not real code — it does not appear in DIFF.)
+    #
+    # CHANGED 2026-07-20 (#5009): this used to assert APPROVE. The original intent — stated in the
+    # old comment as "nothing blocks" — is PRESERVED: a hallucination still never produces
+    # REQUEST CHANGES. What changed is that it no longer produces APPROVE either.
+    #
+    # Why: the model's ONLY output here was a fabrication, so the run yields zero grounded
+    # judgement about the change — and APPROVE is what fires AUTO-MERGE. That combination let
+    # PR #2351 (+147/-23) auto-merge on a review whose summary said the diff "does not contain any
+    # actual code changes" (truncation ruled out — it received all 9,782 chars). The approval was
+    # an artifact of the anti-hallucination filter emptying the issue list, not a judgement.
+    #
+    # NEEDS REVIEW is the honest middle: it withholds auto-merge without blocking, so a human
+    # merges it. See _should_floor_ungrounded + tests/test_forge_ungrounded_floor.py.
     out = pda._gate_freeform_review(
         _review([_line("CRITICAL", "Command injection", "danger", "+    danger_call(user_input)")]), DIFF
     )
-    assert "VERDICT: APPROVE" in out
+    assert "VERDICT: NEEDS REVIEW" in out
+    assert "REQUEST CHANGES" not in out, "a fabricated CRITICAL must still never BLOCK (original PR-C intent)"
 
 
 def test_real_critical_survives_request_changes():

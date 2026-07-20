@@ -230,6 +230,35 @@ def check_ai_status():
     return {"available": False, "host": None, "models": [], "model_count": 0}
 
 
+# Paths where a print() is CORRECT usage rather than a defect. Kept deliberately narrow —
+# a directory named "tests"/"test", a "scripts" directory, or a test_*.py / *_test.py module.
+# Substring matching would be wrong here: "scripts" appears inside "transcripts", and a
+# module called "latest_run.py" is not a test.
+_NON_PRODUCTION_DIRS = ("tests", "test", "scripts")
+
+
+def _is_non_production_path(file_path: str) -> bool:
+    """True for files under a tests/ or scripts/ DIRECTORY, where printing is intended.
+
+    DIRECTORY ONLY, deliberately. Two richer rules were tried and both misfire on this
+    codebase:
+
+      * filename ``test_*.py`` — platform_v2/tools/app_builder/agents/test_generator.py is
+        ordinary production code that GENERATES tests. Excusing it hides 10 real findings.
+      * filename + "does the file contain pytest/def test_ markers" — a test GENERATOR
+        contains exactly those markers, as TEMPLATE STRINGS (30 hits in that same file), so
+        the evidence check is fooled by the one case it was added to catch.
+
+    A directory is unambiguous and cannot produce a FALSE SUPPRESSION, which is the failure
+    that matters: a wrongly-kept finding is visible noise, a wrongly-suppressed one is a real
+    defect that silently disappears. Cost of the simple rule: a genuine test living outside a
+    tests/ directory (app_builder/test_end_to_end.py) keeps its findings. That is the correct
+    trade — move the file or add an explicit allowlist if it should be excused.
+    """
+    parts = (file_path or "").replace("\\", "/").split("/")
+    return any(p in _NON_PRODUCTION_DIRS for p in parts[:-1])
+
+
 def static_analysis(code_content, file_path):
     """Regex-based static analysis (Python, JS, HTML). No AI required.
 
@@ -307,8 +336,20 @@ def static_analysis(code_content, file_path):
                     }
                 )
 
-            # Performance: Print statements in production code
-            if re.search(r"^\s*print\s*\(", line) and "debug" not in file_path.lower():
+            # Performance: Print statements in production code.
+            #
+            # "production code" is this rule's OWN stated intent, but the only guard was
+            # `"debug" not in file_path` — so every print in a test or a CLI script was filed
+            # as a defect. Measured 2026-07-20: 228 of 1101 open print findings sat in
+            # tests/scripts, where printing is correct usage, not a bug. That is ~21% of the
+            # rule's output being noise the queue could never legitimately action, and it
+            # regenerated on every scan. This completes the existing intent rather than
+            # changing policy.
+            if (
+                re.search(r"^\s*print\s*\(", line)
+                and "debug" not in file_path.lower()
+                and not _is_non_production_path(file_path)
+            ):
                 issues.append(
                     {
                         "line": i,

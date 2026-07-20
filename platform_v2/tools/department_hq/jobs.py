@@ -627,6 +627,30 @@ def code_health_backlog_drain_job():
         except Exception as _pe:
             logger.warning("pre-drain scope prune failed (non-blocking): %s", _pe)
 
+        # DETERMINISTIC PASS FIRST (#4989 yield). Mechanical findings — an unused import on a
+        # single-name line, an f-string with no placeholders — are single-line edits with
+        # nothing for a model to decide. Sending them to the 7B is what produced a 0% drain:
+        # every 2026-07-20 attempt died on find_not_located / find_ambiguous, i.e. the model's
+        # FIND text not matching the file. Doing the edit directly and verifying with pyflakes
+        # turned the same pool into 109 verified fixes.
+        #
+        # Runs BEFORE dispatch_audit_proposals so those proposals are already ready_for_review
+        # and the LLM batch spends its slots on findings that actually need judgement.
+        # Non-blocking: a failure here must not stop the existing drain.
+        try:
+            from services.deterministic_fixer import run_deterministic_fixes
+
+            det_limit = _drain_int_setting("work:code_health_backlog_drain:deterministic_max", 100)
+            det = run_deterministic_fixes(limit=det_limit, dry_run=False) or {}
+            if det.get("offered"):
+                logger.info(
+                    "[CodeHealthBacklogDrain] deterministic pass: %s offered, %s rejected by verification",
+                    det.get("offered"),
+                    det.get("rejected"),
+                )
+        except Exception as _de:
+            logger.warning("deterministic fix pass failed (non-blocking): %s", _de)
+
         max_fixes = _drain_int_setting("work:code_health_backlog_drain:max_fixes", 15)
         result = dispatch_audit_proposals(limit=max_fixes) or {}
         logger.info("[CodeHealthBacklogDrain] %s (max_fixes=%s)", result, max_fixes)

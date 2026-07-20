@@ -222,6 +222,65 @@ echo $deleted
         return 0
 
 
+# How many pre-deploy snapshots to retain. Small on purpose: each is ~1.6 GB and exists
+# to roll back ONE deploy. Tune here — they are NOT in RETENTION (see the docstring below
+# for why a RETENTION entry would silently match nothing).
+PREDEPLOY_KEEP = 3
+
+
+def prune_predeploy_snapshots(keep: int = PREDEPLOY_KEEP) -> int:
+    """Keep only the newest `keep` pre-deploy snapshots; delete the rest WHOLE.
+
+    These CANNOT go through prune_dir/RETENTION. That path requires a
+    <run_dir>/<component>/ SUBDIRECTORY to exist and prunes that subdir — pre-deploy
+    snapshots have no such shape: their payload is `database.sql.gz` (a FILE), and the
+    run dir is nested under path fragments taken from the proposal title, e.g.
+        20260720_184117_..._PYFLAKES:_repair_bay/services/nl_code_generator.py_/database.sql.gz
+    (the title contains '/', which create_backup_programmatic does not sanitise — see
+    task #5030). A RETENTION entry would therefore match NOTHING and silently prune 0.
+
+    Until 2026-07-20 nothing pruned these at all: 18 had accumulated in a single evening
+    totalling ~17.4 GB, because Repair Bay takes a full ~1.6 GB snapshot per approved
+    deploy (ADR-009 replaces that with a module-scoped one; this is the interim bound).
+
+    A pre-deploy snapshot exists to roll back ONE deploy. Once later deploys have
+    succeeded on top of it, it is not a restore point anyone will use — the nightly
+    tiers are. Hence a small count rather than a GFS ladder.
+    """
+    if not PRIMARY_ROOT.is_dir():
+        return 0
+    runs = []
+    for child in PRIMARY_ROOT.iterdir():
+        if not child.is_dir() or "Pre-deploy" not in child.name:
+            continue
+        # Sort on the full YYYYMMDD_HHMMSS prefix, NOT parse_ts(). parse_ts returns
+        # DATE-ONLY (correct for the GFS daily/weekly/monthly ladder, useless here):
+        # every snapshot taken on the same day parses to an identical timestamp, so
+        # "keep the newest 3" would keep 3 ARBITRARY ones — potentially deleting the
+        # most recent rollback point and retaining the oldest. These are taken minutes
+        # apart, so intra-day precision is the whole point. The prefix is zero-padded
+        # fixed-width, so lexicographic order IS chronological order.
+        m = re.match(r"^(\d{8}_\d{6})", child.name)
+        if not m:
+            continue
+        runs.append((m.group(1), child))
+    runs.sort(key=lambda r: r[0], reverse=True)
+
+    deleted = 0
+    for _ts, run_dir in runs[keep:]:
+        if DRY_RUN:
+            print(f"[dry-run] would remove pre-deploy snapshot {run_dir}")
+            deleted += 1
+            continue
+        print(f"prune: removing pre-deploy snapshot {run_dir}")
+        try:
+            shutil.rmtree(run_dir)
+            deleted += 1
+        except OSError as exc:
+            print(f"prune: FAILED to remove {run_dir}: {exc}")
+    return deleted
+
+
 def main() -> None:
     total_deleted = 0
     usb_deleted = 0
@@ -231,6 +290,8 @@ def main() -> None:
     # Whole-dir age sweep for one-off / non-standard USB backups the per-component prune misses.
     usb_deleted += prune_usb_stale_dirs(DRY_RUN)
     total_deleted += usb_deleted
+    # Pre-deploy snapshots: whole-dir, count-based — they do not fit the component model.
+    total_deleted += prune_predeploy_snapshots()
 
     if DRY_RUN:
         print(

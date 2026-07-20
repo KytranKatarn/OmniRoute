@@ -116,11 +116,14 @@ def _needle_from_message(message: str) -> str:
     return text.strip(" -:")
 
 
-def finding_still_reproduces(message: str, file_text: str):
+def finding_still_reproduces(message: str, file_text: str, line_number=None):
     """Does the finding described by ``message`` still hold for ``file_text``?
 
     Returns True (still present), False (provably gone), or None (no deterministic checker).
     None must never be treated as "gone" — this function decides whether a row gets CLOSED.
+
+    ``line_number`` (optional) makes the line-length check precise instead of whole-file.
+    Omitting it preserves the original whole-file behaviour.
 
     Mirrors archie_engine/fix_efficacy.py (#5003). The platform cannot import from the
     archie-code repo, so the rules are restated. KEEP THE TWO IN STEP.
@@ -131,10 +134,24 @@ def finding_still_reproduces(message: str, file_text: str):
             limit = int(m.group(1))
         except ValueError:
             return None
-        # The stored line NUMBER is ignored: unrelated edits shift lines, so the honest
-        # question is whether the file still violates the limit anywhere. Biases toward
-        # KEEPING the finding open, which is the safe direction for a closer.
-        return any(len(ln) > limit for ln in (file_text or "").splitlines())
+        lines = (file_text or "").splitlines()
+
+        # LINE-PRECISE when we have a usable line number.
+        #
+        # The whole-file rule ("does this file violate the limit ANYWHERE?") is safe but
+        # wildly imprecise on clustered findings: ai_bridge/agent_loop.py carries 422
+        # line-length findings while the file actually has FIFTEEN long lines. One survivor
+        # kept all 422 open, so the backlog reported 28x its real debt and its size meant
+        # nothing — which defeats the point of reconciling at all.
+        #
+        # TRADE-OFF, stated plainly: if a file was reformatted and the long line MOVED, the
+        # cited line is now short and this closes the finding while the problem persists
+        # elsewhere. That is acceptable because the scanner re-files it at its new line on the
+        # next run, whereas the inflation is permanent and silent. Falls back to the whole-file
+        # rule whenever the line number is missing or out of range.
+        if line_number and 1 <= int(line_number) <= len(lines):
+            return len(lines[int(line_number) - 1]) > limit
+        return any(len(ln) > limit for ln in lines)
 
     msg = message or ""
 
@@ -236,7 +253,7 @@ def reconcile_open_issues(limit: int = 500, dry_run: bool = True) -> dict:
         if text is None:
             stats["unreadable"] += 1
             continue
-        verdict = finding_still_reproduces(row["message"] or "", text)
+        verdict = finding_still_reproduces(row["message"] or "", text, row.get("line_number"))
         if verdict is None:
             stats["unverifiable"] += 1
         elif verdict:

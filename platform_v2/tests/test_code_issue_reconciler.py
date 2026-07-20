@@ -153,3 +153,40 @@ def test_status_constant_is_distinct_from_the_existing_ones():
     proposal pipeline closed it — provenance matters when auditing what closed a finding."""
     assert RESOLVED_STALE == "resolved_stale"
     assert RESOLVED_STALE not in ("resolved", "fixed", "open", "batch_eligible")
+
+
+# --- line-precise line-length checking (#5004 follow-up) ----------------------------------
+# The whole-file rule was safe but wildly imprecise on clustered findings: agent_loop.py
+# carried 422 line-length findings while the file had FIFTEEN long lines. One survivor kept
+# all 422 open, so the backlog reported 28x its real debt and its size meant nothing.
+
+LONG = "x" * 124
+SHORT = "y" * 40
+MIXED = "\n".join([LONG, SHORT, "z" * 130])  # long at 1 and 3, short at 2
+
+
+def test_line_precise_uses_the_cited_line():
+    assert finding_still_reproduces(LINELEN, MIXED, 1) is True
+    assert finding_still_reproduces(LINELEN, MIXED, 3) is True
+
+
+def test_line_precise_closes_a_finding_whose_own_line_is_now_short():
+    """THE POINT: the file still violates elsewhere, but THIS finding's line does not."""
+    assert finding_still_reproduces(LINELEN, MIXED, 2) is False
+
+
+def test_out_of_range_line_falls_back_to_whole_file():
+    """A shrunken file must not silently close findings — fall back, don't guess."""
+    assert finding_still_reproduces(LINELEN, MIXED, 999) is True
+
+
+def test_omitting_the_line_number_preserves_whole_file_behaviour():
+    """Back-compat: every existing caller and test passes two args."""
+    assert finding_still_reproduces(LINELEN, MIXED) is True
+    assert finding_still_reproduces(LINELEN, SHORT) is False
+
+
+def test_line_precise_does_not_leak_into_other_checkers():
+    """line_number is only meaningful for line-length; other detectors ignore it."""
+    assert finding_still_reproduces(PRINT, 'print("hi")\n', 1) is True
+    assert finding_still_reproduces(SQLI, "x = 1\n", 1) is None

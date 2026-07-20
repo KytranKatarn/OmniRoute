@@ -377,10 +377,58 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                 500,
             )
 
+    @bp.route("/quick-stats", methods=["GET"])
+    @admin_required
+    def api_quick_backup_stats():
+        """Last SUCCESSFUL run per Quick Backup type — size, duration, age.
+
+        The three button captions used to hard-code size ranges ("~850-900 MB"). Those
+        drifted badly: BRAIN BACKUP advertised ~440-460 MB while a database dump had
+        grown to 1,543 MB, and COMPLETE ARCHIVE claimed a figure smaller than what
+        FULL RESTORE actually produced. Serving the measured last run instead means the
+        caption cannot go stale again.
+
+        Reports the newest status='success' row only — a failed attempt must never be
+        presented as "last run", for the same reason backup freshness gates on
+        last_success rather than the newest attempt (#5013).
+        """
+        stats = {}
+        try:
+            with get_db_cursor(commit=False) as (_c, _cur):
+                _cur.execute(
+                    """
+                    SELECT DISTINCT ON (backup_type)
+                           backup_type, size_bytes, duration_ms, created_at
+                    FROM backup_log
+                    WHERE backup_type IN ('full', 'critical', 'database')
+                      AND status = 'success'
+                    ORDER BY backup_type, created_at DESC
+                    """
+                )
+                for row in _cur.fetchall() or []:
+                    dur = row.get("duration_ms") or 0
+                    stats[row["backup_type"]] = {
+                        "size_mb": round((row.get("size_bytes") or 0) / 1048576.0),
+                        # 0 = pre-instrumentation row (duration_ms was never written
+                        # before 2026-07-20); surface null so the UI shows "—" rather
+                        # than claiming a backup finished instantly.
+                        "duration_s": round(dur / 1000.0) if dur else None,
+                        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+                    }
+        except Exception as e:
+            current_app.logger.warning("quick-stats failed (non-fatal): %s", e)
+            return jsonify({"success": True, "stats": {}, "error": str(e)})
+        return jsonify({"success": True, "stats": stats})
+
     @bp.route("/create", methods=["POST"])
     @admin_required
     def api_create_backup():
         """Create a new backup (API route - use create_backup_programmatic for code)"""
+        # Wall-clock for backup_log.duration_ms. The column has existed all along but
+        # this INSERT never populated it, so every UI-triggered backup recorded 0 and
+        # the Backups tab had no timing to show. Started before any work so the number
+        # covers the whole request, including the DB dump.
+        _t0 = time.time()
         try:
             data = request.get_json() or {}
             description = data.get("description", "Manual backup")
@@ -415,8 +463,6 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                 "documentation",
                 "ai_bridge",
                 "migrations",
-                "n8n_workflows",
-                "n8n_persistence",
                 "scripts",
                 "nginx",
                 "environment",
@@ -539,26 +585,15 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                 backed_up["migrations"] = True
                 current_app.logger.info("Database migrations backup complete")
 
-            # 6. Backup n8n workflows
-            n8n_workflows_src = "/mnt/archie_brain/n8n_workflows"
-            if "n8n_workflows" in components_to_backup and os.path.exists(n8n_workflows_src):
-                current_app.logger.info("Backing up n8n workflows...")
-                n8n_workflows_dst = os.path.join(backup_path, "n8n_workflows")
-                shutil.copytree(n8n_workflows_src, n8n_workflows_dst, dirs_exist_ok=True)
-                backed_up["n8n_workflows"] = True
-                current_app.logger.info(f"n8n workflows backup complete - {len(os.listdir(n8n_workflows_dst))} files")
+            # (n8n workflow + persistence backup removed 2026-07-20. n8n was
+            # decommissioned platform-wide on 2026-06-26, PRs #1931/#1932 — the module,
+            # the compose services and the volumes are all gone, and
+            # /mnt/archie_brain/n8n_workflows no longer exists. The blocks survived only
+            # because their os.path.exists() guard made them skip silently, so a
+            # COMPLETE ARCHIVE kept advertising n8n while backing up nothing.
+            # Automation is now DHQ APScheduler jobs + native kbs_automations.)
 
-            # 7. Backup n8n persistence data
-            n8n_persistence_src = "/mnt/archie_brain/persistence/n8n"
-            if "n8n_persistence" in components_to_backup and os.path.exists(n8n_persistence_src):
-                current_app.logger.info("Backing up n8n persistence data...")
-                n8n_persistence_dst = os.path.join(backup_path, "persistence/n8n")
-                os.makedirs(os.path.dirname(n8n_persistence_dst), exist_ok=True)
-                shutil.copytree(n8n_persistence_src, n8n_persistence_dst, dirs_exist_ok=True)
-                backed_up["n8n_persistence"] = True
-                current_app.logger.info("n8n persistence backup complete")
-
-            # 8. Backup deployment scripts — skip large binaries, caches, logs
+            # 6. Backup deployment scripts — skip large binaries, caches, logs
             scripts_src = "/mnt/archie_brain/scripts"
             if "scripts" in components_to_backup and os.path.exists(scripts_src):
                 current_app.logger.info("Backing up deployment scripts...")
@@ -733,8 +768,8 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                                (backup_type, file_path, size_bytes, status, tier,
                                 component, notes, git_commit, git_branch,
                                 triggered_by, proposal_id, pr_number, build_number,
-                                platform_version, created_at)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                                platform_version, duration_ms, created_at)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
                         (
                             backup_type,
                             backup_path,
@@ -754,6 +789,7 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                             _pr_number,
                             new_build_number,
                             _platform_version,
+                            int((time.time() - _t0) * 1000),
                         ),
                     )
             except Exception as _log_err:

@@ -127,20 +127,23 @@
                                 <div class="quick-backup">
                                     <h3><span data-i18n="backup_manager.quick_backup">Quick Backup</span></h3>
                                     <div class="backup-buttons">
-                                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')" title="Complete Archive — full snapshot: DB + code + n8n + nginx + scripts + conversation logs. Use for full system recovery or server migration.">
+                                        <button class="backup-type-btn btn-full" onclick="createQuickBackup('full')" title="Complete Archive — every component: database, platform code, docs, ai_bridge, migrations, scripts, nginx config, docker-compose, conversation logs. Use for a full rebuild or server migration.">
                                             <div class="icon" style="font-size: 1.8rem; line-height: 1;">📦</div>
                                             <span>COMPLETE ARCHIVE</span>
-                                            <div class="size">Everything incl. n8n, logs, scripts (~850–900 MB)</div>
+                                            <div class="size">All 9 components — DB, code, scripts, nginx, logs</div>
+                                            <div class="size qb-last" id="qbLast-full">Last run: —</div>
                                         </button>
-                                        <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')" title="Full Restore Backup — DB + platform code + .env secrets. Everything needed to restore on a new server. Use for DRP.">
+                                        <button class="backup-type-btn btn-critical" onclick="createQuickBackup('critical')" title="Full Restore — database + platform code + documentation + docker-compose/.env. The minimum needed to rebuild on a new server. Use for DRP.">
                                             <div class="icon" style="font-size: 1.8rem; line-height: 1;">🛡️</div>
                                             <span>FULL RESTORE</span>
-                                            <div class="size">DB + code + env — minimal DRP (~800–850 MB)</div>
+                                            <div class="size">DB + code + docs + env — minimal DRP set</div>
+                                            <div class="size qb-last" id="qbLast-critical">Last run: —</div>
                                         </button>
-                                        <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')" title="Brain Backup — A.R.C.H.I.E.'s consciousness: all KB entries, agents, tasks, decisions. Fastest. Schedule daily.">
+                                        <button class="backup-type-btn btn-database" onclick="createQuickBackup('database')" title="Brain Backup — the database only: knowledge base, agents, tasks, decisions. Fastest of the three. Safe to run often.">
                                             <div class="icon" style="font-size: 1.8rem; line-height: 1;">🧠</div>
                                             <span>BRAIN BACKUP</span>
-                                            <div class="size">Consciousness only (~440–460 MB)</div>
+                                            <div class="size">Database only — KB, agents, tasks, decisions</div>
+                                            <div class="size qb-last" id="qbLast-database">Last run: —</div>
                                         </button>
                                     </div>
                                     <div class="input-row">
@@ -993,7 +996,42 @@
     // BACKUPS TAB
     // =====================================================================
 
+    // Populate the "Last run:" line under each Quick Backup button from measured
+    // backup_log data. Replaces hard-coded size ranges that had drifted badly (BRAIN
+    // BACKUP said ~440-460 MB while a real database dump was 1,543 MB). All values go
+    // in via textContent — never innerHTML.
+    async function loadQuickStats() {
+        try {
+            const res = await fetch('/tools/backup-manager/quick-stats', { credentials: 'same-origin' });
+            const data = await res.json();
+            const stats = (data && data.stats) || {};
+            ['full', 'critical', 'database'].forEach(function (t) {
+                const el = document.getElementById('qbLast-' + t);
+                if (!el) return;
+                const s = stats[t];
+                if (!s) { el.textContent = 'Last run: never'; return; }
+                const parts = [];
+                if (s.size_mb) parts.push(s.size_mb.toLocaleString() + ' MB');
+                // duration_ms was not recorded before 2026-07-20 — show nothing rather
+                // than "0s", which would read as an instant backup.
+                if (s.duration_s) {
+                    parts.push(s.duration_s >= 60
+                        ? Math.floor(s.duration_s / 60) + 'm' + String(s.duration_s % 60).padStart(2, '0') + 's'
+                        : s.duration_s + 's');
+                }
+                let when = '';
+                if (s.created_at && window.ArchieTime && ArchieTime.age) {
+                    try { when = ' · ' + ArchieTime.age(s.created_at); } catch (e) { when = ''; }
+                }
+                el.textContent = 'Last run: ' + (parts.join(' in ') || 'unknown') + when;
+            });
+        } catch (e) {
+            /* non-fatal — the button still works without its stats line */
+        }
+    }
+
     async function loadBackups() {
+        loadQuickStats();
         try {
             const response = await fetch('/tools/backup-manager/list', { credentials: 'same-origin' });
             const data = await response.json();

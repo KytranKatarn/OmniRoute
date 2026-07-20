@@ -35,6 +35,8 @@ NOTE ON DUPLICATION: the equivalent checker in the engine is archie_engine/fix_e
 restated here. Keep the two in step — both are deliberately tiny and dependency-free.
 """
 
+import ast
+import io
 import logging
 import re
 
@@ -47,12 +49,81 @@ RESOLVED_STALE = "resolved_stale"
 # "Line exceeds 120 characters (124)" / "line exceeds 120 chars"
 _LINE_LEN_RE = re.compile(r"line\s+exceeds\s+(\d+)\s+char", re.IGNORECASE)
 
+# The three detectors that dominate this table after line-length.
+_PRINT_RE = re.compile(r"print statement found", re.IGNORECASE)
+_TODO_RE = re.compile(r"todo\s*/\s*fixme", re.IGNORECASE)
+_BARE_EXCEPT_RE = re.compile(r"bare except", re.IGNORECASE)
+
+# flake8-style code Repair Bay stores on a pyflakes finding ("F401 'os' imported but unused").
+_PYFLAKES_CODE_RE = re.compile(r"\b(?:F\d{3}|PYFLAKES)\b", re.IGNORECASE)
+
+
+def _parse(file_text: str):
+    """AST for the source, or None when it does not parse.
+
+    None means "cannot verify" — never "the finding is gone". A file that fails to parse
+    must leave its findings open rather than have them silently closed.
+    """
+    try:
+        return ast.parse(file_text or "")
+    except (SyntaxError, ValueError):
+        return None
+
+
+# Findings sometimes arrive without a code — recognise pyflakes' own wording too.
+_PYFLAKES_PHRASES = (
+    "imported but unused",
+    "assigned to but never used",
+    "undefined name",
+    "redefinition of unused",
+    "f-string is missing placeholders",
+    "unable to detect undefined names",
+)
+
+
+def _pyflakes_findings(file_text: str):
+    """(messages, ok) — pyflakes' own text for this source.
+
+    ok is False when the source could not be analysed at all (pyflakes missing, or the file
+    does not parse). A syntax error must NEVER read as "the finding is gone": pyflakes emits
+    nothing but the syntax error itself, which would otherwise look like a clean file and
+    close a finding that is still very much there.
+    """
+    try:
+        from pyflakes.api import check as pyflakes_check
+        from pyflakes.reporter import Reporter
+    except ImportError:
+        return [], False
+
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        pyflakes_check(file_text or "", "target", Reporter(out, err))
+    except Exception:
+        return [], False
+    if err.getvalue().strip():  # syntax error / unparseable
+        return [], False
+    return out.getvalue().splitlines(), True
+
+
+def _needle_from_message(message: str) -> str:
+    """Strip the flake8 code prefix, leaving pyflakes' own wording.
+
+    Repair Bay stores "F401 'os' imported but unused"; pyflakes itself emits
+    "target:1:1 'os' imported but unused" — no code. Comparing the descriptive tail is what
+    makes the two comparable.
+    """
+    text = _PYFLAKES_CODE_RE.sub("", (message or "").strip(), count=1).strip()
+    return text.strip(" -:")
+
 
 def finding_still_reproduces(message: str, file_text: str):
     """Does the finding described by ``message`` still hold for ``file_text``?
 
     Returns True (still present), False (provably gone), or None (no deterministic checker).
-    None is the common case and must never be treated as "gone".
+    None must never be treated as "gone" — this function decides whether a row gets CLOSED.
+
+    Mirrors archie_engine/fix_efficacy.py (#5003). The platform cannot import from the
+    archie-code repo, so the rules are restated. KEEP THE TWO IN STEP.
     """
     m = _LINE_LEN_RE.search(message or "")
     if m:
@@ -64,6 +135,45 @@ def finding_still_reproduces(message: str, file_text: str):
         # question is whether the file still violates the limit anywhere. Biases toward
         # KEEPING the finding open, which is the safe direction for a closer.
         return any(len(ln) > limit for ln in (file_text or "").splitlines())
+
+    msg = message or ""
+
+    # --- the detectors that actually dominate this table (measured 2026-07-20) -------------
+    # print 1129 · line-length 725 · SQL injection 275 · TODO/FIXME 31 · secret 10 · bare-except 6
+    # Each ignores the stored line NUMBER for the same reason line-length does: unrelated edits
+    # shift lines, so the honest question is whether the FILE still exhibits the problem. That
+    # biases toward KEEPING findings open, the safe direction for something that closes rows.
+    if _PRINT_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(
+            isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == "print" for n in ast.walk(tree)
+        )
+
+    if _BARE_EXCEPT_RE.search(msg):
+        tree = _parse(file_text)
+        if tree is None:
+            return None
+        return any(isinstance(n, ast.ExceptHandler) and n.type is None for n in ast.walk(tree))
+
+    if _TODO_RE.search(msg):
+        # Deliberately a plain substring scan, not a comment-aware parse: a TODO inside a
+        # string still reads as "the marker is present", which keeps the finding open.
+        text = file_text or ""
+        return ("TODO" in text) or ("FIXME" in text)
+
+    if _PYFLAKES_CODE_RE.search(msg) or any(p in msg.lower() for p in _PYFLAKES_PHRASES):
+        needle = _needle_from_message(msg)
+        if len(needle) < 8:  # nothing distinctive left to compare
+            return None
+        findings, ok = _pyflakes_findings(file_text)
+        if not ok:
+            return None
+        # Per-finding match: an unrelated warning elsewhere in the file must not mask a
+        # genuine fix, and must not keep a dead finding alive.
+        return any(needle in line for line in findings)
+
     return None
 
 

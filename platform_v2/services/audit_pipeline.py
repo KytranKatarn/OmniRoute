@@ -22,6 +22,30 @@ from database import get_db_cursor
 logger = logging.getLogger(__name__)
 
 
+def _ensure_import_paths() -> None:
+    """Make the DHQ dispatcher importable from ANY process, not just the app boot path.
+
+    The dispatcher chain does `from db import ...`, resolved from the ai_bridge package
+    dir, which only lands on sys.path via app.py at boot. The scheduler sidecar and any
+    bare exec import this module directly, so `from tools.department_hq.services.
+    department_dispatcher import ...` raises ModuleNotFoundError('db') instantly there.
+
+    That is an ENVIRONMENT failure, but dispatch_proposal_fix reported it as a dispatch
+    error, and the drain marked those proposals permanently attempted — 18 unrelated
+    proposals parked in 0.8s on 2026-07-20, never retried again. Mirrors the identical
+    guard in services/cluster_dispatch.py and signal_calendar_service.py. KB #272154.
+    """
+    import importlib.util
+
+    if "/app" not in sys.path:
+        sys.path.insert(0, "/app")
+    spec = importlib.util.find_spec("ai_bridge")
+    if spec and spec.submodule_search_locations:
+        pkg_dir = list(spec.submodule_search_locations)[0]
+        if pkg_dir not in sys.path:
+            sys.path.insert(0, pkg_dir)
+
+
 # ---------------------------------------------------------------------------
 # C.R.E.E.D. Governance Gates
 # ---------------------------------------------------------------------------
@@ -1260,6 +1284,7 @@ def dispatch_proposal_fix(proposal_id):
 
     # Dispatch via DHQ — canonical dispatcher (ADR-013 compliant, routes to cluster)
     try:
+        _ensure_import_paths()
         from tools.department_hq.services.department_dispatcher import get_dispatcher
 
         dispatcher = get_dispatcher()
@@ -1698,6 +1723,15 @@ _TRANSIENT_DISPATCH_MARKERS = (
     "timeout",
     "did not respond",
     "reaped",
+    # Environment, not verdict: the dispatcher chain does `from db import ...`
+    # (resolved from the ai_bridge package dir), so a process that never ran the
+    # app boot path raises ModuleNotFoundError instantly. On 2026-07-20 that
+    # parked 18 unrelated proposals in 0.8s — an import failure recorded as a
+    # permanent judgement on the proposal. Retry; the guard in
+    # dispatch_proposal_fix now prevents it, this is the belt to that suspenders.
+    "no module named",
+    "modulenotfounderror",
+    "importerror",
 )
 
 # Cap retries so a proposal whose agent is chronically resting cannot block the

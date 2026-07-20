@@ -585,7 +585,7 @@ def _recompute_verdict(issues: list, confidence, threshold: float) -> str:
     return "APPROVE"
 
 
-def _render_review_text(parsed: dict, model: str = "", note: str = "") -> str:
+def _render_review_text(parsed: dict, model: str = "", note: str = "", n_ungrounded: int = 0) -> str:
     """Render parsed JSON back into the canonical SUMMARY/ISSUES/VERDICT text so every downstream
     consumer (parse_verdict, merge gate, notify, UI) is unchanged."""
     issues = parsed.get("issues") or []
@@ -603,6 +603,7 @@ def _render_review_text(parsed: dict, model: str = "", note: str = "") -> str:
     meta = f"\n[review-meta] structured=json model={model or 'default'} confidence={conf}"
     if note:
         meta += f" {note}"
+    meta += _quality_suffix("json", n_ungrounded, issues)  # #5018 provenance, never a verdict change
     return "\n".join(lines) + f"\n\nVERDICT: {parsed.get('verdict', 'NEEDS REVIEW')}" + meta
 
 
@@ -704,6 +705,39 @@ def _should_floor_ungrounded(verdict: str, n_ungrounded: int, surviving_issues: 
       * verdict already REQUEST CHANGES/NEEDS REVIEW -> leave it alone; never RELAX a verdict.
     """
     return bool(verdict == "APPROVE" and n_ungrounded > 0 and not surviving_issues)
+
+
+def review_quality_flags(structured: str, n_ungrounded: int, surviving_issues: list) -> list:
+    """#5018 — provenance for a verdict. Returns flag strings; NEVER alters the verdict.
+
+    #5009 floors an ungrounded APPROVE so it cannot auto-merge, and deliberately leaves
+    REQUEST CHANGES alone ("never RELAX a verdict") — relaxing one would let real findings
+    through, far worse than a false positive. The cost of that correct asymmetry: a degraded
+    model can fabricate a CRITICAL, block a correct change, and read exactly like a clean
+    review. On PR #2366 the 7B timed out 3x (warm_boot_ms 600094), fell back to freeform,
+    and returned a CRITICAL with an EMPTY evidence field that was simply wrong.
+
+    So: annotate instead of adjudicate. A human seeing `blocking_issue_without_evidence`
+    + `freeform_fallback` knows to read the diff themselves before acting on the verdict.
+
+      freeform_fallback              structured parse failed; the weaker path produced this
+      no_grounded_evidence           issues were raised and NONE survived verification
+      blocking_issue_without_evidence a surviving issue cites nothing — the #2366 signature
+    """
+    flags = []
+    if (structured or "").strip().lower() != "json":
+        flags.append("freeform_fallback")
+    if n_ungrounded > 0 and not surviving_issues:
+        flags.append("no_grounded_evidence")
+    if any(not str((i or {}).get("evidence", "")).strip() for i in (surviving_issues or [])):
+        flags.append("blocking_issue_without_evidence")
+    return flags
+
+
+def _quality_suffix(structured: str, n_ungrounded: int, surviving_issues: list) -> str:
+    """Render flags for the [review-meta] line. Empty string when the review is clean."""
+    flags = review_quality_flags(structured, n_ungrounded, surviving_issues)
+    return (" quality=" + ",".join(flags)) if flags else ""
 
 
 def _evidence_verification_enabled() -> bool:
@@ -1145,7 +1179,7 @@ def _extract_summary_block(text: str) -> str:
     return (m.group(1).strip() if m else "").strip()
 
 
-def _render_freeform_gated(summary: str, issues: list, verdict: str, note: str) -> str:
+def _render_freeform_gated(summary: str, issues: list, verdict: str, note: str, n_ungrounded: int = 0) -> str:
     """Re-render the gated freeform review into canonical SUMMARY/ISSUES/VERDICT text so the merge
     gate + parse_verdict see the recomputed verdict. Marked structured=freeform-gated (not =json)."""
     lines = [f"SUMMARY\n{summary}\n", "ISSUES"]
@@ -1158,7 +1192,11 @@ def _render_freeform_gated(summary: str, issues: list, verdict: str, note: str) 
             lines.append(f"- [{sev}] {title} — {why} — Evidence: {ev}")
     else:
         lines.append("No issues found.")
-    meta = "\n[review-meta] structured=freeform-gated" + (f" {note}" if note else "")
+    meta = (
+        "\n[review-meta] structured=freeform-gated"
+        + (f" {note}" if note else "")
+        + _quality_suffix("freeform-gated", n_ungrounded, issues)  # #5018 provenance, never a verdict change
+    )
     return "\n".join(lines) + f"\n\nVERDICT: {verdict}" + meta
 
 

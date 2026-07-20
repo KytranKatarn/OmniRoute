@@ -165,7 +165,14 @@ def _backup_gate_blocked(severity: str = "medium"):
         from services.backup_governance_service import _check_backup_freshness
         from services.backup_service import get_health_summary
 
-        age = (get_health_summary()["tier_health"].get("primary") or {}).get("age_hours")
+        primary = get_health_summary()["tier_health"].get("primary") or {}
+        # Must read the SAME field the real gate reads (#5013) — the last SUCCESSFUL
+        # backup, not the last attempt. If this pre-flight used `age_hours` it would
+        # disagree with the gate it exists to predict, and release fixes that then die
+        # at W.A.R.D.E.N. — exactly the wasted-approval problem this pre-flight prevents.
+        age = primary.get("last_success_age_hours")
+        if age is None and "last_success_age_hours" not in primary:
+            age = primary.get("age_hours")
         if age is None:
             return None
         verdict = _check_backup_freshness(age_hours=age, severity=severity)

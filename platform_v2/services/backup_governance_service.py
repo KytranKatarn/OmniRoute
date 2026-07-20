@@ -32,6 +32,28 @@ def _load_gate_config() -> dict:
     return defaults
 
 
+def gate_age_hours(primary: dict) -> float | None:
+    """Age (hours) of the last SUCCESSFUL primary backup — what a deploy gate must use.
+
+    Pure: takes a `tier_health['primary']` dict, touches nothing. Returns None when no
+    successful backup is known, which callers must treat as fail-CLOSED.
+
+    WHY NOT `age_hours` (#5013): that is the newest row whatever its status, and
+    `backup_log.status` carries 'failed' / 'partial' / 'skipped' / 'prune' as well as
+    'success' — 171 tier-carrying rows were 'failed' as of 2026-07-20. Gating on it
+    certifies a restore point that may not exist. That day the newest primary row WAS a
+    failed 2.8 GB run; only a 6-minute gap to the preceding success made the gate
+    accidentally right. A 'partial' backup is the worst case — plausible and unusable.
+
+    The `age_hours` fallback fires ONLY when the key is absent (a payload predating this
+    field). An explicit None means "no successful backup" and must NOT fall back, or the
+    bug returns exactly when it matters most.
+    """
+    if "last_success_age_hours" in primary:
+        return primary.get("last_success_age_hours")
+    return primary.get("age_hours")
+
+
 def _check_backup_freshness(age_hours: float, severity: str) -> dict[str, Any]:
     config = _load_gate_config()
     gate = config.get(severity, config["medium"])
@@ -59,7 +81,7 @@ def request_deploy_clearance(
     if severity not in ("critical", "high", "medium", "low"):
         severity = "medium"
     health = get_health_summary()
-    age_hours = (health["tier_health"].get("primary") or {}).get("age_hours")
+    age_hours = gate_age_hours(health["tier_health"].get("primary") or {})
     freshness = _check_backup_freshness(age_hours=age_hours if age_hours is not None else 9999.0, severity=severity)
 
     snapshot_id = None

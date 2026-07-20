@@ -49,15 +49,34 @@ def get_health_summary() -> dict:
         "status": "healthy" | "degraded",
         "last_backup": "<ISO string>" | None,
         "tier_health": {
-            "primary": {"last_run": ..., "status": ..., "age_hours": ...},
+            "primary": {"last_run": ..., "status": ..., "age_hours": ...,
+                        "last_success": ..., "last_success_age_hours": ...},
             "gdrive":  {...},
             "vps":     {...},
             "usb":     {...},
         }
     }
+
+    ``age_hours`` is the age of the LATEST row whatever its status — that is the honest
+    dashboard answer ("your last backup attempt failed 9.7h ago" is what an operator needs
+    to see, so it is deliberately NOT filtered).
+
+    ``last_success_age_hours`` is the age of the latest row with ``status='success'`` — i.e.
+    the age of an actual restore point. **Anything gating on backup freshness MUST use this
+    one.** `backup_log.status` carries 'success', 'failed', 'partial', 'skipped' and 'prune'
+    (prune is not even a backup), and 171 tier-carrying rows were 'failed' as of 2026-07-20 —
+    so the latest row is frequently not a restore point at all. Using ``age_hours`` to gate a
+    deploy certifies a backup that may not exist. See task #5013 / KB #282925.
     """
     now_utc = datetime.now(timezone.utc)
     tier_health: dict[str, dict] = {}
+
+    def _age_h(ts):
+        if ts is None:
+            return None, None
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)  # created_at is naive UTC
+        return ts, round((now_utc - ts).total_seconds() / 3600, 1)
 
     try:
         with get_db_cursor(commit=False) as (conn, cur):
@@ -75,23 +94,41 @@ def get_health_summary() -> dict:
             )
             rows = cur.fetchall()
 
+            # Latest SUCCESSFUL row per tier — the real restore point.
+            cur.execute(
+                """
+                SELECT DISTINCT ON (tier)
+                    tier,
+                    created_at
+                FROM backup_log
+                WHERE tier IS NOT NULL AND status = 'success'
+                ORDER BY tier, created_at DESC
+                """
+            )
+            success_rows = {r["tier"]: r["created_at"] for r in cur.fetchall()}
+
         for row in rows:
             tier = row["tier"]
-            raw_ts = row["created_at"]
-            # created_at is timestamp without time zone (naive UTC) — make it aware
-            if raw_ts is not None and raw_ts.tzinfo is None:
-                raw_ts = raw_ts.replace(tzinfo=timezone.utc)
-            age_hours = round((now_utc - raw_ts).total_seconds() / 3600, 1) if raw_ts else None
+            raw_ts, age_hours = _age_h(row["created_at"])
+            ok_ts, ok_age = _age_h(success_rows.get(tier))
             tier_health[tier] = {
                 "last_run": raw_ts.isoformat() if raw_ts else None,
                 "status": row["status"],
                 "age_hours": age_hours,
+                "last_success": ok_ts.isoformat() if ok_ts else None,
+                "last_success_age_hours": ok_age,
             }
 
         # Fill in any known tiers with no rows
         for t in _KNOWN_TIERS:
             if t not in tier_health:
-                tier_health[t] = {"last_run": None, "status": None, "age_hours": None}
+                tier_health[t] = {
+                    "last_run": None,
+                    "status": None,
+                    "age_hours": None,
+                    "last_success": None,
+                    "last_success_age_hours": None,
+                }
 
         # Determine overall last_backup (most recent success across all tiers)
         try:

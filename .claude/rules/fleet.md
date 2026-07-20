@@ -32,7 +32,11 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 
 ### Hub has THREE tailscale presences (don't confuse — KB #270520)
 - `.4 archie-starbase` = host headscale tailscaled (`/var/lib/tailscale-hs`, `--tun=tailscale1`) — THE platform/dispatch hub (`BRIDGE_URL`, :3000, direct via public IP).
-- `.1 archie-starbase-subnet` = the `archie_tailscale` Docker container (docker-compose.yml ~L714) — hub-LAN subnet router (`--advertise-routes=192.168.1.0/24 --ssh`). Route currently **Enabled=false** (dormant; platform reaches hub via `.4`). Do NOT delete — re-registers via authkey.
+- `.1 archie-starbase-subnet` = the `archie_tailscale` Docker container (docker-compose.yml ~L760-800) — hub-LAN subnet router (`--advertise-routes=192.168.1.0/24 --ssh`). Route currently **Enabled=false** (dormant; platform reaches hub via `.4`). Do NOT delete — re-registers via authkey.
+  - ⚠️ **Control-plane pin (PR #2344, task #4998).** Docker DNS forwards to the host's Tailscale resolver, which **SERVFAILs** for this zone, so `mesh.kytranempowerment.com` MUST be pinned in `extra_hosts` → currently **Beacon `2.25.170.252`**. It previously pinned the hub `192.168.1.200` to reach NPM on :443; **NPM was decommissioned 2026-06-27 and the hub has no :443 listener**, which silently killed this node for 23 days (RestartCount 219, `last seen` frozen at the decommission timestamp).
+  - **Keep `--login-server=https://mesh.kytranempowerment.com` byte-identical** to headscale's `config.yaml` `server_url`. Do NOT "simplify" it to the hub's `:8095` — headscale hands clients back its configured `server_url`, so a mismatch is a latent break. Only the DNS pin may move.
+  - **`docker compose restart` does NOT apply `extra_hosts`** — use `docker compose up -d --no-deps archie_tailscale`. Identity survives (state in named volume `tailscale_hub_data`), so no re-registration → the identity invariants below stay intact.
+  - Verify: `docker exec archie_headscale headscale nodes list` → node 15 `connected=online`. KB #282680 (user) / #282681 (coder) / #282676 (mistake).
 - `100.79.11.3` = host's Tailscale.com client — a SEPARATE tailnet, not the mesh.
 - `.9 shuttle-kytran` = Kytran personal device (not a fleet node).
 

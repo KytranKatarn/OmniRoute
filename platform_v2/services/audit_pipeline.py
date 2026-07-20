@@ -150,11 +150,28 @@ def creed_gate_pre_fix(proposal_id, agent_id):
                     )
                     return {"approved": approved, "reason": reason}
 
-            # --- 2. Capability check (agent exists and active) ---
+            # --- 2. Capability check (agent exists and is dispatchable) ---
+            # `winding_down` is a SOFT state, and this gate must agree with the component
+            # that does the selecting. department_coordinator.score_agent admits
+            # ("active", "winding_down") and merely applies a -0.3 preference penalty
+            # (line ~606); the HARD blocks there are an open rest cycle and task-queue
+            # saturation. Rejecting winding_down here contradicted that contract — and
+            # because this gate runs AFTER dispatch_proposal_fix has already read
+            # result.response, the denial landed post-inference: one measured drain
+            # produced 30 completed fixes / 62,661 tokens / 301 GPU-seconds and reported
+            # dispatched=0, discarding every one. Worse, those tokens still bill the
+            # agent and still raise its stress, causing more rests and more denials.
+            #
+            # Welfare is NOT weakened by admitting winding_down:
+            #   - stress >= 0.8 / energy <= 0.2 still denies, above (the real guard)
+            #   - an agent with an OPEN rest cycle is hard-blocked at SELECTION, so it
+            #     never reaches this gate
+            #   - cooldown / barracked / off_duty are still denied here
+            # Task #5028.
             shift = (agent.get("shift_state") or "").strip()
-            if shift not in ("active", "deployed"):
+            if shift not in ("active", "deployed", "winding_down"):
                 approved = False
-                reason = f"agent shift_state is '{shift}', expected active or deployed"
+                reason = f"agent shift_state is '{shift}', expected active, deployed or winding_down"
                 _log_creed_gate(
                     "repair_fix_generation",
                     "denied",

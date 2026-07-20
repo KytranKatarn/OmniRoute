@@ -71,6 +71,39 @@ def test_barracked_agent_still_denied(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# #5028 — this gate must agree with the component that does the SELECTING.
+# department_coordinator.score_agent admits ("active", "winding_down") with a
+# -0.3 preference penalty; the hard blocks there are an open rest cycle and
+# task-queue saturation. Because this gate runs AFTER the LLM has produced
+# result.response, denying winding_down here discarded completed work: one
+# measured drain = 30 fixes generated, 62,661 tokens, 301 GPU-seconds,
+# dispatched=0.
+# ---------------------------------------------------------------------------
+
+
+def test_winding_down_agent_passes_gate(monkeypatch):
+    """A soft-state agent is dispatchable — selection already penalised it."""
+    monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False: _FakeCtx("winding_down"))
+    out = ap.creed_gate_pre_fix(123, 42)
+    assert out["approved"] is True, f"gate denied a winding_down agent: {out['reason']}"
+
+
+def test_deployed_agent_passes_gate(monkeypatch):
+    monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False: _FakeCtx("deployed"))
+    out = ap.creed_gate_pre_fix(123, 42)
+    assert out["approved"] is True, f"gate denied a deployed agent: {out['reason']}"
+
+
+def test_hard_rest_states_still_denied(monkeypatch):
+    """Admitting winding_down must NOT admit the genuinely-resting states."""
+    for state in ("cooldown", "off_duty", "barracked", "decommissioned", ""):
+        monkeypatch.setattr(ap, "get_db_cursor", lambda commit=False, s=state: _FakeCtx(s))
+        out = ap.creed_gate_pre_fix(123, 42)
+        assert out["approved"] is False, f"gate wrongly admitted shift_state={state!r}"
+        assert "shift_state" in out["reason"]
+
+
+# ---------------------------------------------------------------------------
 # C.R.E.E.D. Gate 1a — pre-dispatch self-governance check (#4934)
 #
 # The old self-modification rule was DEPARTMENT-based: it blocked an agent from

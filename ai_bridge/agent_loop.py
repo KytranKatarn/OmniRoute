@@ -1034,6 +1034,28 @@ class AgentLoop:
         except Exception as _drp_err:
             logger.warning("DR posture monitor not scheduled: %s", _drp_err)
 
+        # PRIMARY backup posture (#5014). Sibling of the DR monitor above — DR freshness
+        # was watched, but the tier we actually restore from was NOT. Full backups had been
+        # OOM-killed for an unknown period and the restore point aged past 12h in silence.
+        # The job meant to catch it queried a non-existent table and swallowed the error.
+        # Same 15-min cadence as DR: alert LATENCY is what matters here, not volume — the
+        # send_system cooldowns (12h stale / 6h failures) bound how often it can speak.
+        # Alert-only, never mutates. KB #282926.
+        try:
+            from services.backup_posture_monitor import check_backup_posture
+
+            self.scheduler.add_job(
+                with_app_context(check_backup_posture),
+                trigger=IntervalTrigger(minutes=15),
+                id="backup_posture_monitor",
+                name="Agent Loop: Backup Posture Monitor (#5014)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _bpm_err:
+            logger.warning("Backup posture monitor not scheduled: %s", _bpm_err)
+
         self.scheduler.add_job(
             with_app_context(self._generate_reports),
             trigger=IntervalTrigger(minutes=15),
@@ -10332,15 +10354,35 @@ class AgentLoop:
             from database import get_db_cursor
 
             start = time.time()
+
+            # DETERMINISTIC CHECK + ALERT FIRST — this must not depend on the LLM below.
+            # This job used to query `FROM backups`, a table that DOES NOT EXIST (it is
+            # `backup_log`), so every run threw and the except swallowed it; and even on
+            # success it had no alert path — the model's "flag anything" answer went into a
+            # log row nobody reads. Backups were therefore unmonitored while appearing
+            # monitored. See services/backup_posture_monitor.py and task #5014.
+            try:
+                from services.backup_posture_monitor import check_backup_posture
+
+                posture = check_backup_posture()
+                if posture.get("alerted"):
+                    logger.warning("warden_backup_verify: posture alerts %s", posture["alerted"])
+            except Exception as _pe:
+                logger.error("warden_backup_verify: posture check failed: %s", _pe)
+
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    """SELECT type, status, created_at, size_bytes
-                       FROM backups ORDER BY created_at DESC LIMIT 10"""
+                    """SELECT backup_type, status, created_at, size_bytes, tier
+                       FROM backup_log ORDER BY created_at DESC LIMIT 10"""
                 )
                 recent = cur.fetchall()
 
             summary = (
-                ", ".join(f"{r['type']}({r['status']}, {r['created_at'].strftime('%Y-%m-%d')})" for r in (recent or []))
+                ", ".join(
+                    f"{r['backup_type'] or r['tier'] or 'backup'}"
+                    f"({r['status']}, {r['created_at'].strftime('%Y-%m-%d')})"
+                    for r in (recent or [])
+                )
                 or "no backups found"
             )
 

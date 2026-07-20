@@ -32,11 +32,19 @@
 
 | Table | Key columns |
 |-------|-------------|
-| `backups` | `id, backup_type, status, file_path, size_bytes, created_at` |
-| `backup_locks` | `id, lock_type, locked_at, expires_at` |
+| **`backup_log`** ⭐ | `backup_type, file_path, size_bytes, status, tier, component, notes, git_commit, git_branch, triggered_by, build_number, platform_version, created_at` — **THE source of truth for backups.** `status` ∈ success / failed / partial / skipped / prune. `tier` ∈ primary / dr / usb / gdrive / vps (NULL on standalone rows) |
 | `webhook_subscriptions` | `id, event_type, target_url, secret` |
-| `backup_log` | `id, backup_id, message, level, created_at` |
 | `deployment_package_jobs` | `id, status, manifest, created_at` |
+
+### ⚠️ Two tables in this file were WRONG and cost a real outage (corrected 2026-07-20)
+
+- **There is NO `backups` table.** `to_regclass('public.backups')` → NULL. W.A.R.D.E.N.'s "Daily Backup Integrity Check" queried it, threw `UndefinedTable` on every run, and its `except` swallowed the error — so backups were **unmonitored while appearing monitored**, and a 12h-stale restore point went unnoticed. Use `backup_log`.
+- **There is NO `backup_locks` table.** Locking is a **FILE**: `/backups/.backup_lock`, JSON `{backup_name, created_by, timestamp, pid}`, `LOCK_TIMEOUT = 7200`. See `acquire_backup_lock` / `lock_owner_is_dead` in `_shared.py`.
+- **`get_backup_db_cursor()` returns TUPLES, not dicts** (unlike the main `get_db_cursor()`, which is RealDictCursor). `row['col']` raises `TypeError: tuple indices must be integers`.
+
+### Backup health — read `status`, never just recency
+`backup_service.get_health_summary()` returns per tier: `age_hours`/`status` (newest row, **any** status — for the dashboard) **and** `last_success_age_hours` (newest `status='success'` — **the real restore point**). Anything gating on freshness MUST use `last_success_age_hours` via `backup_governance_service.gate_age_hours()`; a failed run also writes a `primary` row, so measuring recency alone certifies a backup that does not exist (#5013).
+Alerting: `services/backup_posture_monitor.check_backup_posture()` — deterministic, no LLM, `send_system` with cooldowns.
 
 ## Standalone Schema Map
 

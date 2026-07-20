@@ -1537,6 +1537,77 @@ def copy_to_external_storage(backup_name, backup_path):
 # =============================================================================
 
 
+def _proc_start_time(pid):
+    """Epoch seconds at which `pid` started, or None if it cannot be determined.
+
+    /proc/<pid> directory ctime/mtime are NOT process start time (procfs reports "now"), so
+    this reads /proc/<pid>/stat field 22 — starttime in clock ticks since system boot — and
+    adds `btime` from /proc/stat. Both are host-relative inside a container and therefore
+    mutually consistent. Verified 2026-07-20: pid 1 computed 15:37:09.83 against the
+    container's actual StartedAt of 15:37:10Z.
+    """
+    try:
+        btime = None
+        with open("/proc/stat") as f:
+            for line in f:
+                if line.startswith("btime "):
+                    btime = float(line.split()[1])
+                    break
+        if btime is None:
+            return None
+        with open("/proc/%d/stat" % int(pid)) as f:
+            data = f.read()
+        # comm (field 2) may contain spaces and parens — split after the LAST ')'
+        fields = data[data.rindex(")") + 2 :].split()
+        return btime + float(fields[19]) / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def lock_owner_is_dead(lock_data, _exists=None, _start_time=None):
+    """(is_dead, reason) — True ONLY when the lock's owner provably no longer exists.
+
+    Asymmetric on purpose. Declaring a LIVE backup dead would run two backups concurrently
+    over the same paths, which is far worse than waiting out LOCK_TIMEOUT. So every uncertain
+    path returns False (keep the lock); only positive proof releases it.
+
+    Two proofs, both observed for real on 2026-07-20 (#5012):
+      1. the pid is simply gone — a `docker exec` wrapper was killed mid-backup (pid 1550).
+      2. the pid exists but STARTED AFTER the lock was written — so it cannot be the owner.
+         This is the container-restart case: a backup began at 15:35:57 as pid 1, the
+         container restarted at 15:37:10, and pid 1 existed again. A bare "is pid 1 alive?"
+         check says yes forever, which is why proof #1 alone is not enough.
+    """
+    exists = _exists or (lambda p: os.path.exists("/proc/%d" % int(p)))
+    start_time = _start_time or _proc_start_time
+
+    pid = lock_data.get("pid")
+    if not pid:
+        return False, "no pid recorded in lock"
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False, "unreadable pid in lock"
+
+    if not exists(pid):
+        return True, f"owner pid {pid} no longer exists"
+
+    started = start_time(pid)
+    if started is None:
+        return False, f"pid {pid} exists; start time unavailable"
+
+    lock_ts = lock_data.get("timestamp")
+    if not lock_ts:
+        return False, f"pid {pid} exists; lock has no timestamp"
+
+    # The owner necessarily started BEFORE it wrote the lock. A later start means this pid
+    # belongs to a different process (restart or pid reuse). 2s tolerance for clock coarseness.
+    if started > lock_ts + 2:
+        return True, f"pid {pid} started after the lock was written — original owner is gone"
+
+    return False, f"pid {pid} is alive and owns the lock"
+
+
 def acquire_backup_lock(backup_name, created_by):
     """Acquire exclusive backup lock, returns (success, error_msg)"""
     if os.path.exists(LOCK_FILE):
@@ -1545,11 +1616,27 @@ def acquire_backup_lock(backup_name, created_by):
                 lock_data = json.load(f)
             lock_age = time.time() - lock_data.get("timestamp", 0)
             if lock_age < LOCK_TIMEOUT:
-                backup_name = lock_data.get("backup_name", "unknown")
-                created_by = lock_data.get("created_by", "unknown")
-                msg = f"Backup '{backup_name}' in progress by {created_by} (started {int(lock_age)}s ago)"
-                return (False, msg)
-            # Stale lock, remove it
+                # Before honouring it, check the owner is actually alive (#5012). Without
+                # this, a backup killed mid-run (container restart, killed wrapper) leaves
+                # an orphan that blocks EVERY backup — and therefore every medium-risk
+                # deploy, since the W.A.R.D.E.N. gate needs a fresh one — for the full 2h
+                # LOCK_TIMEOUT. That happened twice on 2026-07-20.
+                dead, why = lock_owner_is_dead(lock_data)
+                if not dead:
+                    backup_name = lock_data.get("backup_name", "unknown")
+                    created_by = lock_data.get("created_by", "unknown")
+                    msg = f"Backup '{backup_name}' in progress by {created_by} (started {int(lock_age)}s ago)"
+                    return (False, msg)
+                try:
+                    current_app.logger.warning(
+                        "Releasing orphaned backup lock for '%s' (%s): %s",
+                        lock_data.get("backup_name", "unknown"),
+                        lock_data.get("created_by", "unknown"),
+                        why,
+                    )
+                except Exception:
+                    pass  # no app context (CLI/worker) — never block on logging
+            # Stale or orphaned lock, remove it
             os.remove(LOCK_FILE)
         except (json.JSONDecodeError, IOError):
             # Corrupted lock file, remove it

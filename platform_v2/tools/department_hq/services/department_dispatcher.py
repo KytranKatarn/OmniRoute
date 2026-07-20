@@ -1715,18 +1715,38 @@ class DepartmentDispatcher:
         Called during welfare cache refresh.  Uses the caller's cursor —
         does NOT commit or close it.
         """
+        # `ab.tokens_used_today` is the ENFORCED input (unchanged). `real_tokens_24h` is
+        # ADVISORY ONLY (task #5025): kin_workload_monitor documents tokens_used_today as
+        # "not reliably populated" (jobs.py) and it measures ~30x low, so the token half of
+        # budget_pct below has effectively never fired. Switching the source outright would
+        # wind down 14 and cooldown 13 of 51 active AI agents on the first refresh, so this
+        # only LOGS the delta until the real rate is known. Ship the observer before the fixer.
+        # One indexed aggregate over the 24h window, not a per-agent correlated subquery.
         cur.execute(
             """
+            WITH tok24 AS (
+                SELECT agent_id, COALESCE(SUM(tokens_used), 0) AS tokens_24h
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '24 hours'
+                  AND agent_id IS NOT NULL
+                GROUP BY agent_id
+            )
             SELECT a.id, a.name, a.shift_state,
                    ab.current_task_count, ab.task_queue_limit,
-                   ab.tokens_used_today, ab.token_limit_per_day
+                   ab.tokens_used_today, ab.token_limit_per_day,
+                   COALESCE(t.tokens_24h, 0) AS real_tokens_24h
             FROM agents a
             LEFT JOIN agent_budgets ab ON a.id = ab.agent_id
+            LEFT JOIN tok24 t ON t.agent_id = a.id
             WHERE a.status = 'active'
               AND a.shift_state IN ('active', 'winding_down')
         """
         )
         rows = cur.fetchall()
+
+        advisory_wind = 0
+        advisory_cool = 0
+        enforced_transitions = 0
 
         for row in rows:
             agent_id = row["id"]
@@ -1743,6 +1763,19 @@ class DepartmentDispatcher:
             token_pct = tokens_used / token_limit if token_limit > 0 else 0.0
             budget_pct = max(task_pct, token_pct)
 
+            # ADVISORY (#5025) — what budget_pct WOULD be on the real 24h token total.
+            # Never feeds a transition; counted for the summary line below. Wrapped so a
+            # bad row can never break the enforced path.
+            try:
+                real_token_pct = (row["real_tokens_24h"] or 0) / token_limit if token_limit > 0 else 0.0
+                advisory_pct = max(task_pct, real_token_pct)
+                if advisory_pct >= COOLDOWN_BUDGET_PCT:
+                    advisory_cool += 1
+                elif advisory_pct >= WINDING_DOWN_BUDGET_PCT:
+                    advisory_wind += 1
+            except Exception:  # pragma: no cover — advisory must never break enforcement
+                pass
+
             # Get stress from welfare cache
             welfare = self._welfare_cache.get(agent_id, {})
             stress = welfare.get("stress", 0.0)
@@ -1752,6 +1785,7 @@ class DepartmentDispatcher:
                 if current_state != "cooldown":
                     reason = f"budget={budget_pct:.0%}" if budget_pct >= COOLDOWN_BUDGET_PCT else f"stress={stress:.2f}"
                     self._transition_shift_state(cur, agent_id, agent_name, "cooldown", reason)
+                    enforced_transitions += 1
             # Then winding_down thresholds
             elif budget_pct >= WINDING_DOWN_BUDGET_PCT or stress >= WINDING_DOWN_STRESS:
                 if current_state == "active":
@@ -1759,6 +1793,20 @@ class DepartmentDispatcher:
                         f"budget={budget_pct:.0%}" if budget_pct >= WINDING_DOWN_BUDGET_PCT else f"stress={stress:.2f}"
                     )
                     self._transition_shift_state(cur, agent_id, agent_name, "winding_down", reason)
+                    enforced_transitions += 1
+
+        # ONE summary line per refresh (not per agent — this is a hot path). Grep
+        # 'token-throttle advisory' to size the blast radius before enforcing #5025.
+        if advisory_wind or advisory_cool:
+            logger.info(
+                "[ShiftLifecycle] token-throttle advisory: on REAL 24h tokens %d agent(s) "
+                "would wind_down and %d would cooldown, of %d checked "
+                "(enforced this pass: %d). ADVISORY ONLY — nothing was transitioned on this basis. #5025",
+                advisory_wind,
+                advisory_cool,
+                len(rows),
+                enforced_transitions,
+            )
 
     def _transition_shift_state(self, cur, agent_id, agent_name, new_state, reason):
         """Transition an agent to a new shift state, logging the rotation.

@@ -1565,14 +1565,25 @@ def _sandbox_gate(proposal_id, proposal):
             logger.error("sandbox_gate: revert failed for #%s — staging may be dirty: %s", proposal_id, rev_err)
 
 
-def request_tiered_deploy_approval(proposal_id):
+def request_tiered_deploy_approval(proposal_id, force_tier=None):
     """Route deployment through org-chart approvers with mandatory sandbox gate.
 
-    Flow per risk level:
+    Flow per risk level (from _RISK_TIER):
       low    → F.O.R.G.E. code_review dispatch (auto) → sandbox gate → deploy
-      medium → Department director Telegram approval → sandbox gate → deploy
+      medium → F.O.R.G.E. code_review dispatch (auto) → sandbox gate → deploy
       high   → A.R.C.H.I.E. Telegram to Kytran → sandbox gate → deploy
       critical → same as high + priority=critical
+
+    ``force_tier=2`` overrides the risk→tier mapping and sends the proposal to
+    Telegram approval regardless of risk. Callers use this when a class of change
+    must have a human in the loop even though its computed risk is low/medium —
+    e.g. the deterministic fixer's bulk mechanical fixes, where the volume (100+)
+    is itself the risk and unattended auto-approve is not acceptable. Owner
+    decision 2026-07-20: mechanical fixes go to Telegram, not F.O.R.G.E. auto.
+
+    NOTE the docstring previously claimed medium → director Telegram; _RISK_TIER
+    actually maps medium → 1 (auto). Corrected above rather than silently changing
+    the mapping, which would re-route every medium-risk deploy on the platform.
 
     Returns:
       {success, deployed, pending, approver, tier, sandbox, message}
@@ -1608,6 +1619,15 @@ def request_tiered_deploy_approval(proposal_id):
 
     routing = _get_approver(proposal)
     tier = routing["tier"]
+    if force_tier in (1, 2) and force_tier != tier:
+        logger.info(
+            "deploy_approval: proposal #%s tier %s -> %s (caller override; risk=%s)",
+            proposal_id,
+            tier,
+            force_tier,
+            routing["risk"],
+        )
+        tier = force_tier
     director = routing["director"]
     cap = routing["capability"]
     risk = routing["risk"]

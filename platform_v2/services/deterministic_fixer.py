@@ -147,10 +147,173 @@ def verify_fix(detail: str, old_text: str, new_text: str):
     return True, "finding removed, nothing introduced"
 
 
-def run_deterministic_fixes(limit: int = 200, dry_run: bool = True) -> dict:
+_ADVISORY_THROTTLE_KEY = "work:code_health_backlog_drain:backup_advisory_at"
+_ADVISORY_THROTTLE_HOURS = 6
+
+
+def _backup_gate_blocked(severity: str = "medium"):
+    """Return W.A.R.D.E.N.'s refusal reason, or None if the deploy would clear.
+
+    Calls the SAME predicate the real gate uses (`_check_backup_freshness`) rather than
+    re-implementing the age threshold — a second copy would drift from the operator-tunable
+    `system_config.backup_governance_gates` and start lying.
+
+    FAIL-OPEN by contract: if backup health cannot be read, return None. A monitoring outage
+    must not halt the drain; the real gate still runs downstream and remains authoritative.
+    """
+    try:
+        from services.backup_governance_service import _check_backup_freshness
+        from services.backup_service import get_health_summary
+
+        age = (get_health_summary()["tier_health"].get("primary") or {}).get("age_hours")
+        if age is None:
+            return None
+        verdict = _check_backup_freshness(age_hours=age, severity=severity)
+        return None if verdict.get("approved") else verdict.get("reason") or "backup gate refused"
+    except Exception as exc:
+        logger.warning("[deterministic-fixer] backup pre-flight unavailable (proceeding): %s", exc)
+        return None
+
+
+def _advise_backup_needed(reason: str, held: int) -> bool:
+    """Tell the owner a backup is what's blocking, at most once per _ADVISORY_THROTTLE_HOURS.
+
+    Throttled because the drain runs hourly and a stale backup stays stale — without this it
+    would send the same message every cycle until someone acted, training the owner to ignore it.
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from database import get_db_cursor
+
+        now = datetime.now(timezone.utc)
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", (_ADVISORY_THROTTLE_KEY,))
+            row = cur.fetchone()
+            if row and row["value"]:
+                try:
+                    last = datetime.fromisoformat(row["value"])
+                    if last.tzinfo is None:
+                        last = last.replace(tzinfo=timezone.utc)
+                    if now - last < timedelta(hours=_ADVISORY_THROTTLE_HOURS):
+                        return False  # already advised recently
+                except ValueError:
+                    pass
+            cur.execute(
+                """INSERT INTO platform_settings (key, value) VALUES (%s, %s)
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+                (_ADVISORY_THROTTLE_KEY, now.isoformat()),
+            )
+
+        # Ask, don't just tell: a tier-2 approval renders Approve / Cancel buttons, so the
+        # blockage is one tap from resolved instead of a notification the owner must act on
+        # manually. Approve -> backup_before_deploy executor runs create_backup_programmatic;
+        # the held fixes then clear the gate on the next drain cycle. Cancel -> stays held.
+        # ai_bridge is imported lazily and needs the path shim first (KB #272154).
+        from services.signal_calendar_service import _ensure_import_paths
+
+        _ensure_import_paths()
+        from ai_bridge.agent_loop import request_approval
+
+        approval_id = request_approval(
+            action_type="backup_before_deploy",
+            action_data={"reason": reason, "held": held},
+            reason=(
+                f"Self-heal is paused — W.A.R.D.E.N. would refuse the deploy: {reason}. "
+                f"{held} verified fix(es) are held (not lost; they stay in Repair Bay). "
+                f"Approve to run a backup now and let them through, or Cancel to keep holding."
+            ),
+            requested_by="system",
+            tier=2,
+            priority=5,
+        )
+        logger.info("[deterministic-fixer] asked owner (approval %s): %s", approval_id, reason)
+        return bool(approval_id)
+    except Exception as exc:
+        # Never let a comms failure block or crash the drain.
+        logger.warning("[deterministic-fixer] backup advisory failed to send: %s", exc)
+        return False
+
+
+def queue_for_approval(proposal_ids, max_queue: int = 5) -> dict:
+    """Queue verified fixes into the tiered approval pipeline (Approvals tab + Telegram).
+
+    WHY THIS IS HERE AND WHY IT IS CAPPED
+    A fix that reaches `ready_for_review` and stops there is invisible: it sits in Repair Bay
+    until a human clicks the Ship-tab batch button. Every OTHER human request on this platform
+    reaches the owner through `autonomy_approval_queue` -> Telegram, and these should too.
+
+    But 109 verified fixes queued at once is 109 Telegram prompts. So this is capped per call
+    (default 5) and runs once per drain cycle — the backlog drains at a reviewable rate instead
+    of arriving as a wall. Raise `work:code_health_backlog_drain:approval_max` to go faster.
+
+    Returns {'queued': n, 'failed': n, 'skipped': n} — never raises; a queueing failure must
+    not undo a verified fix that is already safely recorded as ready_for_review.
+    """
+    from services import proposal_service
+
+    stats = {"queued": 0, "failed": 0, "skipped": 0}
+
+    # ── Pre-flight: would W.A.R.D.E.N. refuse this deploy anyway? ────────────────────────
+    # Measured 2026-07-20 (queue row 3200): a fix passed verification, Telegram approval and
+    # the sandbox gate 3/3, then died at W.A.R.D.E.N. — "backup age 9.0h exceeds medium limit
+    # of 6h". The owner had already spent a tap on something that could never deploy, and the
+    # denial was visible ONLY by reading execution_result out of the DB.
+    #
+    # So: check the SAME gate first. If it would refuse, advise once ("run a backup") and hold
+    # the batch instead of burning approvals. The fixes are not lost — they stay
+    # ready_for_review and the next drain cycle re-offers them once a backup lands.
+    #
+    # Fail-OPEN: a monitoring error must never stop the drain. Unknown -> proceed as before.
+    blocked_reason = _backup_gate_blocked()
+    if blocked_reason:
+        _advise_backup_needed(blocked_reason, held=len(list(proposal_ids)))
+        stats["skipped"] = len(list(proposal_ids))
+        stats["held_for_backup"] = blocked_reason
+        logger.warning("[deterministic-fixer] holding %d fix(es): %s", stats["skipped"], blocked_reason)
+        return stats
+
+    for pid in list(proposal_ids)[:max_queue]:
+        try:
+            # force_tier=2 -> Telegram approval, NOT F.O.R.G.E. auto-review.
+            # These proposals compute as risk=medium, which _RISK_TIER maps to tier 1
+            # (unattended auto-approve -> sandbox -> deploy). For a bulk mechanical run
+            # the VOLUME is the risk: 100+ auto-approved diffs with no human glance is
+            # not acceptable, and F.O.R.G.E.'s ungrounded-APPROVE bug was only fixed
+            # 2026-07-20 (#5009). Owner decision same day: force these to Telegram.
+            r = proposal_service.request_tiered_deploy_approval(pid, force_tier=2) or {}
+            # Tier 2 (Telegram) returns approval_id; tier 1 (DHQ queue) returns queue_id.
+            # Checking only queue_id would score every real Telegram send as a failure.
+            ref = r.get("approval_id") or r.get("queue_id")
+            if ref:
+                stats["queued"] += 1
+                logger.info(
+                    "[deterministic-fixer] proposal %s -> tier %s approval %s (%s)",
+                    pid,
+                    r.get("tier"),
+                    ref,
+                    r.get("approver"),
+                )
+            else:
+                stats["failed"] += 1
+                logger.warning(
+                    "[deterministic-fixer] proposal %s not queued: %s",
+                    pid,
+                    (r.get("error") or r.get("message") or "no approval_id/queue_id")[:120],
+                )
+        except Exception as exc:
+            stats["failed"] += 1
+            logger.warning("[deterministic-fixer] queue failed for proposal %s: %s", pid, exc)
+    stats["skipped"] = max(0, len(list(proposal_ids)) - max_queue)
+    return stats
+
+
+def run_deterministic_fixes(limit: int = 200, dry_run: bool = True, approval_max: int = 0) -> dict:
     """Generate + verify mechanical fixes and offer them as ready_for_review proposals.
 
     dry_run=True (default) computes and verifies everything but writes nothing.
+    approval_max > 0 additionally queues that many of the fixes into the tiered approval
+    pipeline so they reach the Approvals tab + Telegram instead of waiting on a manual click.
     """
     from services.audit_pipeline import _build_fix_diff, resolve_proposal_source
 
@@ -227,6 +390,16 @@ def run_deterministic_fixes(limit: int = 200, dry_run: bool = True) -> dict:
                 )
                 stats["offered"] += cur.rowcount
         logger.info("[deterministic-fixer] offered %d verified fix(es) for review", stats["offered"])
+
+        if approval_max > 0:
+            q = queue_for_approval([pid for pid, _d, _k, _x in accepted], max_queue=approval_max)
+            stats["approval"] = q
+            logger.info(
+                "[deterministic-fixer] queued %d for approval (%d failed, %d left for a later cycle)",
+                q["queued"],
+                q["failed"],
+                q["skipped"],
+            )
     else:
         logger.info(
             "[deterministic-fixer] dry-run: %d planned, %d verified, %d rejected of %d examined",

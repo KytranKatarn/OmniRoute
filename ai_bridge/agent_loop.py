@@ -5739,6 +5739,52 @@ class AgentLoop:
                 logger.error(f"Improvement approval execution failed: {imp_err}")
                 return {"executed": False, "error": str(imp_err)}
 
+        elif action_type == "backup_before_deploy":
+            # Owner tapped Approve on "self-heal is paused, a backup is needed" (#4989).
+            # W.A.R.D.E.N. refuses a medium-risk deploy when the primary backup is older than
+            # its limit. Rather than dead-ending the held fixes, run the backup the gate is
+            # asking for; they clear on the next drain cycle with the guard still fully intact.
+            # NOTE this deliberately does NOT override the gate — it satisfies it.
+            try:
+                # Import without mutating global import order when we don't have to.
+                # The previous form did an unconditional sys.path.insert(0, ...), which puts
+                # this tree AHEAD of stdlib and first-party packages on every invocation —
+                # with a package as generically named as `tools`, that is a real shadowing
+                # risk, and it grew sys.path a little each time. (F.O.R.G.E. flagged it on
+                # PR #2362.) Try the normal import first; only fall back to extending the
+                # path, and APPEND so nothing can be shadowed.
+                try:
+                    from tools.backup_manager.backup_manager_routes import create_backup_programmatic
+                except ImportError:
+                    import sys
+
+                    _pv2 = "/mnt/archie_brain/platform_v2"
+                    if _pv2 not in sys.path:
+                        sys.path.append(_pv2)
+                    from tools.backup_manager.backup_manager_routes import create_backup_programmatic
+
+                res = (
+                    create_backup_programmatic(
+                        description="Pre-deploy backup (self-heal gate)",
+                        created_by_username="warden_gate",
+                    )
+                    or {}
+                )
+                if not res.get("success"):
+                    return {
+                        "executed": False,
+                        "error": f"Backup failed: {str(res.get('error') or res)[:200]}",
+                    }
+                logger.info("backup_before_deploy: backup created, self-heal fixes unblocked")
+                return {
+                    "executed": True,
+                    "result": "Backup complete — held fixes will be offered on the next drain cycle.",
+                    "backup": {k: res.get(k) for k in ("backup_id", "file_path", "size_bytes") if k in res},
+                }
+            except Exception as _bk_err:
+                logger.error("backup_before_deploy failed: %s", _bk_err)
+                return {"executed": False, "error": f"Backup failed: {_bk_err}"}
+
         elif action_type == "deploy_approve":
             # Telegram-approved tiered deployment — run sandbox gate then deploy
             proposal_id = data.get("proposal_id")

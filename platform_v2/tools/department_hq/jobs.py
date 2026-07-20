@@ -641,7 +641,16 @@ def code_health_backlog_drain_job():
             from services.deterministic_fixer import run_deterministic_fixes
 
             det_limit = _drain_int_setting("work:code_health_backlog_drain:deterministic_max", 100)
-            det = run_deterministic_fixes(limit=det_limit, dry_run=False) or {}
+            # Queue a BOUNDED number of the verified fixes into the tiered approval pipeline so
+            # they reach the Approvals tab + Telegram like every other human request, instead of
+            # waiting on a manual Ship-tab click. Bounded because the backlog is ~109 deep and a
+            # wall of prompts is worse than none. Tunable without a deploy.
+            # Fixes are forced to TIER 2 (Telegram approval), never F.O.R.G.E. auto-approve —
+            # owner decision 2026-07-20. Nothing deploys without a human tap, so a low positive
+            # default is safe. Kept small because each one is a Telegram prompt: the 100+ backlog
+            # drains at a reviewable rate instead of arriving as a wall. Tune without a deploy.
+            det_approve = _drain_int_setting("work:code_health_backlog_drain:approval_max", 3)
+            det = run_deterministic_fixes(limit=det_limit, dry_run=False, approval_max=det_approve) or {}
             if det.get("offered"):
                 logger.info(
                     "[CodeHealthBacklogDrain] deterministic pass: %s offered, %s rejected by verification",

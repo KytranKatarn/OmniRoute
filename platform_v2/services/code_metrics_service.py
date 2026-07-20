@@ -35,6 +35,11 @@ else:
         "/mnt/standalone/websites" if os.path.isdir("/mnt/standalone/websites") else "/mnt/archie_brain/website"
     )
 
+# Repo root — same path inside the container and on the host (AI_BRIDGE_ROOT and
+# MIGRATIONS_ROOT above already rely on it being mounted). Holds the ROOT
+# docker-compose.yml that builds several standalones as services of the main stack.
+BRAIN_ROOT = "/mnt/archie_brain"
+
 SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".venv", "venv", "static/vendor"}
 
 EXT_MAP = {
@@ -229,6 +234,16 @@ _STATIC_FILE_MAP = {
     "scene-editor": "game_studio",
     # Media Hub service worker
     "media-hub-sw": "media_hub",
+    # Department HQ assets whose filenames don't start with the module name.
+    # All five are loaded by tools/department_hq/templates/department_hq.html —
+    # verified by reference, not by naming convention. They were being counted as
+    # orphans at -5 each, i.e. the platform's headline health grade was penalising a
+    # gap in THIS map rather than anything wrong with the code. (One key covers both
+    # extensions: _match_module_name strips the suffix before lookup.)
+    "agent_profile_modal": "department_hq",  # .js + .css — the SHARED agent profile modal
+    "alerts-history": "department_hq",
+    "dispatch-history": "department_hq",
+    "scout": "department_hq",  # S.C.O.U.T. tab
 }
 
 
@@ -816,6 +831,11 @@ def _find_orphan_files(module_names):
         "content-studio.js",
         "website-studio.js",
         "security-network-app.js",
+        # APP_CORE page assets — loaded by root templates, not by any module.
+        # Verified by reference: platform-chat.js <- templates/dashboard_dynamic.html,
+        # subscribe.css <- templates/subscribe.html.
+        "platform-chat.js",
+        "subscribe.css",
         # Core HTML
         "base.html",
     }
@@ -997,11 +1017,16 @@ def _audit_standalone_products():
             checks = {
                 "readme": os.path.isfile(os.path.join(path, "README.md")),
             }
-            # Docker checks — skip for CLI tools
+            # Docker checks — skip for CLI tools. Both accept the shapes a real
+            # product actually takes: per-service Dockerfile.<name> variants for a
+            # multi-container build, and being a service of the ROOT compose instead
+            # of carrying a private one.
             if subtype != "cli":
-                checks["dockerfile"] = os.path.isfile(os.path.join(path, "Dockerfile"))
-                checks["docker_compose"] = os.path.isfile(os.path.join(path, "docker-compose.yml")) or os.path.isfile(
-                    os.path.join(path, "docker-compose.yaml")
+                checks["dockerfile"] = _has_dockerfile(path)
+                checks["docker_compose"] = (
+                    os.path.isfile(os.path.join(path, "docker-compose.yml"))
+                    or os.path.isfile(os.path.join(path, "docker-compose.yaml"))
+                    or _built_by_root_compose(path)
                 )
             # Health endpoint — skip for CLI tools
             if subtype != "cli":
@@ -1050,7 +1075,15 @@ def _audit_standalone_products():
 
 
 def _has_health_endpoint(product_path):
-    """Check if a product has a health endpoint defined in any routes file."""
+    """Check if a product has a health endpoint defined in any routes file.
+
+    Reads each file in full. It previously read only the first 50,000 bytes, which
+    made the check a function of file SIZE rather than of whether the endpoint exists:
+    What The Fact defines @bp.route("/api/health") at consumer/routes.py:2952 in a
+    190,600-byte file, so the route was invisible and the product was reported as
+    "Tier 1: missing Health Endpoint" (-5) while serving /api/health in production.
+    Scanned line-by-line so a large file costs no more memory than its longest line.
+    """
     for root, dirs, files in os.walk(product_path):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
         for fname in files:
@@ -1059,12 +1092,47 @@ def _has_health_endpoint(product_path):
             filepath = os.path.join(root, fname)
             try:
                 with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read(50000)
-                    if "/health" in content or "/api/health" in content:
-                        return True
+                    for line in f:
+                        if "/health" in line:
+                            return True
             except Exception:
                 pass
     return False
+
+
+def _has_dockerfile(product_path):
+    """True when the product ships ANY Dockerfile, including per-service variants.
+
+    A multi-container product names them by service — What The Fact has
+    Dockerfile.consumer / .ingest / .tech and no bare `Dockerfile`, because a single
+    root Dockerfile would be meaningless for a 3-container build. Matching only the
+    exact name reported it as "Tier 1: missing Dockerfile" (-5) while it built and
+    deployed three images.
+    """
+    try:
+        return any(f == "Dockerfile" or f.startswith("Dockerfile.") for f in os.listdir(product_path))
+    except Exception:
+        return False
+
+
+def _built_by_root_compose(product_path):
+    """True when the ROOT docker-compose.yml builds this product as a service.
+
+    A standalone that is part of the main stack legitimately has no compose file of
+    its own — archie-comms is built by /mnt/archie_brain/docker-compose.yml via
+    `context: ./archie-comms`. Requiring a private compose would push us to add a
+    duplicate, conflicting one purely to satisfy the check.
+    """
+    root_compose = os.path.join(BRAIN_ROOT, "docker-compose.yml")
+    dir_name = os.path.basename(os.path.normpath(product_path))
+    if not dir_name or not os.path.isfile(root_compose):
+        return False
+    try:
+        with open(root_compose, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        return f"./{dir_name}" in content or f": {dir_name}\n" in content
+    except Exception:
+        return False
 
 
 def _detect_retired_modules():

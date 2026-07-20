@@ -84,16 +84,41 @@ if docker ps --filter name=creed_postgres --filter status=running -q 2>/dev/null
 fi
 
 # ----- [2/4] Code tar -----
+# Judge this step by the ARTIFACT, not tar's exit code (#5020).
+#
+# tar exits non-zero for UNREADABLE FILES even when the archive it produced is complete and
+# valid. Nine consecutive nightlies were marked 'failed' by the old `if tar; then` because a
+# handful of root-owned .ruff_cache entries returned "Cannot open: Permission denied" —
+# lint-cache junk that has no business in a backup. Every one of those runs had in fact
+# written a good 875 MB archive (verified: 5,682 entries, gzip -t OK).
+#
+# The cost of that false failure was NOT cosmetic: one failed component marks the whole run
+# failed, which skips tier sync + retention (USB/gdrive/DR never received a perfectly good
+# backup) and makes backup_log report NO restore point — which in turn blocks every
+# medium-risk deploy via the W.A.R.D.E.N. freshness gate.
+#
+# So: exclude the cache dirs that caused it, and then VERIFY the tarball. A genuinely broken
+# archive still fails — gzip -t is the check, not a blind ignore of the exit code.
 log "[2/4] Code tar..."
-if tar -czf "$RUN/code/archie_code_${TS}.tar.gz" \
+TAR_RC=0
+tar -czf "$RUN/code/archie_code_${TS}.tar.gz" \
     --exclude=".git" --exclude="__pycache__" --exclude="node_modules" \
     --exclude=".venv" --exclude="*.pyc" \
-    -C /mnt/archie_brain platform_v2 ai_bridge scripts database/migrations 2>>"$LOG"; then
+    --exclude=".ruff_cache" --exclude=".pytest_cache" --exclude=".mypy_cache" \
+    -C /mnt/archie_brain platform_v2 ai_bridge scripts database/migrations 2>>"$LOG" || TAR_RC=$?
+
+if [ -s "$RUN/code/archie_code_${TS}.tar.gz" ] && gzip -t "$RUN/code/archie_code_${TS}.tar.gz" 2>>"$LOG"; then
     SZ=$(stat -c %s "$RUN/code/archie_code_${TS}.tar.gz")
-    log "  code tar OK ($SZ bytes)"
+    if [ "$TAR_RC" -ne 0 ]; then
+        # Archive is good; tar merely complained. Say so loudly enough to be fixed, but do
+        # NOT condemn the run — see the nine false failures above.
+        log "  code tar OK WITH WARNINGS ($SZ bytes, tar rc=$TAR_RC — see $LOG for unreadable paths)"
+    else
+        log "  code tar OK ($SZ bytes)"
+    fi
 else
     STATUS=failed; FAIL_REASON="${FAIL_REASON}; code tar failed"
-    log "  code tar FAILED"
+    log "  code tar FAILED (rc=$TAR_RC, archive missing or failed gzip -t)"
 fi
 
 # ----- [3/4] Git bundles -----

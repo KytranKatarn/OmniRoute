@@ -614,11 +614,47 @@ def backup_module(module_name, proposal_id=None, created_by_username="system"):
         with open(os.path.join(backup_path, "metadata.json"), "w") as f:
             json.dump(metadata, f, indent=2)
 
+        # Record it. Module backups wrote NOTHING to backup_log until 2026-07-20, which
+        # made them invisible to retention_prune, backup_posture_monitor, the Backups tab,
+        # and to initiate_sandbox_restore (which selects by backup_log.id — so a module
+        # backup could not be sandbox-tested at all). 79 existed on disk, all dated
+        # 2026-05-07, and nothing anywhere knew. Non-fatal: a logging failure must not
+        # discard a good backup. Mirrors the 'standalone' INSERT below.
+        total_size = 0
+        try:
+            for root, _dirs, files in os.walk(backup_path):
+                for fname in files:
+                    try:
+                        total_size += os.path.getsize(os.path.join(root, fname))
+                    except OSError:
+                        pass
+            with get_backup_db_cursor(commit=True) as (conn, cur):
+                # NOTE: backup_log.created_by is an INTEGER user id, NOT a username —
+                # passing the name there raises InvalidTextRepresentation. The human/job
+                # label goes in triggered_by (text).
+                cur.execute(
+                    "INSERT INTO backup_log "
+                    "(file_path, backup_type, component, tier, size_bytes, status, "
+                    " triggered_by, proposal_id, notes, created_at) "
+                    "VALUES (%s, 'module', %s, 'module', %s, 'success', %s, %s, %s, NOW())",
+                    (
+                        backup_path,
+                        module_name,
+                        total_size,
+                        created_by_username,
+                        proposal_id,
+                        f"module backup: {', '.join(files_backed_up)[:200]}",
+                    ),
+                )
+        except Exception as log_err:  # noqa: BLE001 — never fail a good backup on bookkeeping
+            logger.warning("module backup_log INSERT failed (non-fatal) for %s: %s", module_name, log_err)
+
         return {
             "success": True,
             "backup_name": backup_name,
             "backup_path": backup_path,
             "files_backed_up": files_backed_up,
+            "size_bytes": total_size,
             "metadata": metadata,
         }
 

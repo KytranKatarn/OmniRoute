@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import threading
 from typing import Any
@@ -25,6 +26,23 @@ STAGING_DB_CONTAINER = "archie_staging_db"
 STAGING_APP_CONTAINER = "archie_staging"
 SANDBOX_URL = "http://192.168.1.200:3003"
 HOST_BACKUP_ROOT = "/mnt/data2/backups"  # mounted read-only inside archie_staging_db
+
+# Tables a restore MUST repopulate for the result to count as usable. Deliberately spans
+# the different owners — knowledge, agents, projects/tasks, repair, telemetry, auth — so a
+# per-table COPY failure cannot hide behind one healthy table. `unified_tasks` is here
+# because it is precisely what a 2026-07-20 restore silently lost (0 rows vs 4,273) while
+# reporting qa_passed, when knowledge_base alone was the check.
+# Names are interpolated into SQL: keep this list a hard-coded literal, never user input.
+_VERIFY_TABLES = (
+    "knowledge_base",
+    "agents",
+    "unified_projects",
+    "unified_tasks",
+    "improvement_proposals",
+    "users",
+    "backup_log",
+    "task_execution_log",
+)
 
 
 def get_restore_status(backup_id: int) -> dict[str, Any]:
@@ -247,8 +265,13 @@ def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -
                 ],
                 timeout=120,
             )
-            # pg_restore exits nonzero on benign warnings (roles/HNSW) — judge by the verify query.
-            _docker(
+            # pg_restore exits nonzero on benign warnings (roles/HNSW) — judge by the verify
+            # query, not the exit code. That instinct is right, but the STDERR still has to be
+            # read: on a COPY failure pg_restore leaves that table EMPTY, prints
+            # "errors ignored on restore: N", and carries on. A 2026-07-20 restore lost the
+            # whole of public.unified_tasks (0 rows vs 4,273) that way and still reported
+            # qa_passed, because the only check was knowledge_base > 0 — one table out of 720.
+            restore_proc = _docker(
                 [
                     "exec",
                     STAGING_DB_CONTAINER,
@@ -263,6 +286,18 @@ def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -
                 ],
                 timeout=1800,
             )
+            restore_err = (restore_proc.stderr or "") + (restore_proc.stdout or "")
+            ignored = 0
+            m = re.search(r"errors ignored on restore:\s*(\d+)", restore_err)
+            if m:
+                ignored = int(m.group(1))
+            # Keep the actual COPY/constraint lines — "N errors" alone does not say WHICH table
+            # was lost, and that is the only detail anyone needs at 3am.
+            err_lines = [ln for ln in restore_err.splitlines() if "error" in ln.lower()][:20]
+
+            # Verify a SET of tables, not one. A restore that drops a table is exactly the
+            # failure this rehearsal exists to catch, so an empty critical table is a FAILURE
+            # even when pg_restore reported nothing.
             verify = _docker(
                 [
                     "exec",
@@ -273,11 +308,37 @@ def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -
                     "-d",
                     "archie",
                     "-tAc",
-                    "SELECT count(*) FROM knowledge_base;",
+                    "SELECT string_agg(t || '=' || c, ',') FROM ("
+                    + " UNION ALL ".join(f"SELECT '{t}' AS t, count(*)::text AS c FROM {t}" for t in _VERIFY_TABLES)
+                    + ") v;",
                 ],
-                timeout=60,
+                timeout=120,
             )
-            rows = (verify.stdout or "").strip()
+            counts_raw = (verify.stdout or "").strip()
+            counts = dict(p.split("=", 1) for p in counts_raw.split(",") if "=" in p)
+            empty = sorted(t for t, c in counts.items() if not c.isdigit() or int(c) <= 0)
+            rows = counts.get("knowledge_base", "")
+
+            if empty or ignored:
+                _set_session(
+                    session_id,
+                    status="failed",
+                    qa_failures=[
+                        {
+                            "empty_tables": empty,
+                            "pg_restore_errors_ignored": ignored,
+                            "error_lines": err_lines,
+                            "counts": counts_raw[:500],
+                        }
+                    ],
+                )
+                logger.error(
+                    "sandbox restore INCOMPLETE — session=%s empty=%s pg_restore_errors=%s",
+                    session_id,
+                    empty,
+                    ignored,
+                )
+                return
         finally:
             # Always bring the staging app back (reconnects to the fresh DB).
             _docker(["start", STAGING_APP_CONTAINER], timeout=90)

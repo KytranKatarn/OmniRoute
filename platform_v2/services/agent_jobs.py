@@ -3803,6 +3803,68 @@ def email_oversight(flask_app):
         _log_cycle("email_oversight", 0, 1, 0, error_message=str(exc))
 
 
+def module_backup_sweep():
+    """Take a fresh backup of every platform module — nightly 01:30 ET.
+
+    WHY THIS EXISTS. Module backups were never scheduled. On 2026-07-20 there were 79 of
+    them on disk and ALL were dated 2026-05-07 — one manual run, 2.5 months earlier. The
+    restore endpoint (/restore-module/<name>) worked the whole time, so the UI offered a
+    rollback that would have silently reverted 2.5 months of work, and the Modules tab
+    "🧪 Sandbox" button deployed May-7 code while reporting success.
+
+    They are ~2-4 MB each (tools/<mod>/ + templates/tools/<mod>* + static/js/<mod>/), so
+    a full sweep is a few hundred MB at most — against the ~1,674 MB that Repair Bay
+    currently snapshots for a SINGLE code-only fix. This is the cheap tier that ADR-009
+    wants the deploy gate to use instead.
+
+    Each backup now writes a backup_log row (backup_type='module', tier='module'), which
+    is what makes it visible to retention_prune, backup_posture_monitor, the Backups tab
+    and initiate_sandbox_restore (that one selects by backup_log.id, so an unlogged
+    backup literally cannot be sandbox-tested).
+    """
+    import time as _time
+
+    start = _time.time()
+    ok = 0
+    failed = 0
+    failures = []
+    try:
+        from module_registry import MODULES
+        from tools.backup_manager._shared import backup_module
+
+        # Only modules with an on-disk tools/<name>/ dir — external_url launch tiles
+        # (media_hub, kbs, kso) have no platform code to back up.
+        names = sorted({getattr(m, "id", None) or m.get("id") for m in MODULES if m})
+        for name in [n for n in names if n]:
+            if not os.path.isdir(os.path.join("/app", "tools", name)):
+                continue
+            try:
+                res = backup_module(name, created_by_username="module_backup_sweep") or {}
+                if res.get("success"):
+                    ok += 1
+                else:
+                    failed += 1
+                    failures.append({"module": name, "error": str(res.get("error"))[:120]})
+            except Exception as mod_err:  # noqa: BLE001 — one bad module must not stop the sweep
+                failed += 1
+                failures.append({"module": name, "error": str(mod_err)[:120]})
+
+        duration_ms = int((_time.time() - start) * 1000)
+        _log_cycle(
+            "module_backup_sweep",
+            ok,
+            failed,
+            duration_ms,
+            details={"backed_up": ok, "failed": failed, "failures": failures[:10]},
+        )
+        logger.info("[ModuleBackupSweep] %d backed up, %d failed", ok, failed)
+    except Exception as exc:
+        _log_cycle(
+            "module_backup_sweep", ok, failed or 1, int((_time.time() - start) * 1000), error_message=str(exc)[:200]
+        )
+        logger.warning("module_backup_sweep failed: %s", exc)
+
+
 def backup_retention_prune():
     """Enforce GFS backup retention policy — weekly Sunday 04:00.
 
@@ -4164,6 +4226,19 @@ def register_agent_welfare_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=5),
         id="agent_hr_tracker",
         name="Agent Loop: HR Tracker",
+        replace_existing=True,
+    )
+
+    # Nightly module backups (#5036 / ADR-009). Until 2026-07-20 nothing scheduled these:
+    # 79 existed on disk, all dated 2026-05-07, so the module restore + sandbox buttons
+    # offered a 2.5-month-old rollback while reporting success. ~2-4 MB each, so the whole
+    # sweep costs a fraction of ONE 1,674 MB pre-deploy snapshot. 01:30 ET keeps it clear
+    # of the 02:00 backup_triage cron and the 04:15 dispatch_retention_prune.
+    scheduler.add_job(
+        with_ctx(module_backup_sweep),
+        trigger=CronTrigger(hour=1, minute=30, timezone="America/Toronto"),
+        id="module_backup_sweep",
+        name="Backup: Nightly Module Sweep",
         replace_existing=True,
     )
 

@@ -753,14 +753,25 @@ class AgentLoop:
         )
 
         # A.R.C.H.I.E. Building Machine autonomous scheduler (#380, ADR-008).
-        # Every 6h, asks archie_engine to pull ONE in-scope platform issue from the
-        # Repair Bay queue and build a GATED PR vs archie-platform (engine never
-        # merges; engine PRs are auto-merge-gated). Conservative 1-issue/cycle —
-        # F.O.R.G.E. 7B fixes still need human triage. Live kill switch via
-        # work_control ("engine_autopull_cycle"); the handler no-ops when disabled.
+        # HOURLY, asks archie_engine to pull in-scope platform issues from the Repair Bay
+        # queue and build GATED PRs vs archie-platform (engine never merges; engine PRs are
+        # auto-merge-gated). Live kill switch via work_control ("engine_autopull_cycle").
+        #
+        # WAS: IntervalTrigger(hours=6) + 1 issue/cycle. That was calibrated for a pipeline
+        # with NO verification — "F.O.R.G.E. 7B fixes still need human triage". Lifetime
+        # output under it: 8 PRs. The 2026-07-20 guards changed the premise: #5003 re-asserts
+        # the finding before a PR is opened, #5009 blocks ungrounded approvals, #5004 skips
+        # findings that no longer reproduce. Verification is what makes throughput safe, so
+        # keeping the old rate paid the safety cost twice.
+        #
+        # CronTrigger, NOT IntervalTrigger, is deliberate: an interval job counts from
+        # REGISTRATION, so every archie_scheduler restart silently pushed the next run a full
+        # 6h out (it restarted 16x on 2026-07-20 alone — only 2 cycles fired in 24h instead
+        # of 4). Cron fires on wall-clock and is restart-proof. timezone= is mandatory per
+        # .claude/rules/timezone.md.
         self.scheduler.add_job(
             with_app_context(self._engine_autopull_cycle),
-            trigger=IntervalTrigger(hours=6),
+            trigger=CronTrigger(minute=17, timezone="America/Toronto"),
             id="engine_autopull_cycle",
             name="A.R.C.H.I.E. Building Machine: Auto-Pull Repair Work",
             replace_existing=True,
@@ -5047,11 +5058,43 @@ class AgentLoop:
                 raw = await asyncio.wait_for(ws.recv(), timeout=900)
                 return _json.loads(raw) if raw else {}
 
+        # Build SEVERAL issues per cycle, not one. Each call to the engine records its pick in
+        # the engine-side DedupTracker, so successive calls naturally rotate to the next
+        # un-attempted issue — no engine-side restructure needed, and pull_and_build keeps its
+        # single-build contract (and its tests) intact.
+        #
+        # Tunable live, no deploy: platform_settings "engine:autopull:builds_per_cycle".
+        # Default 3 — at ~47s per build (measured on PR #2348) that is ~2.5 min of an hourly
+        # cycle. Raise it once the backlog justifies it; the GPU-headroom check above already
+        # skips the whole cycle when the subcluster is busy.
+        per_cycle = 3
         try:
-            result = asyncio.run(_ask_engine())
-            logger.info(f"[engine-autopull] cycle result: {result}")
-        except Exception as e:
-            logger.warning(f"[engine-autopull] cycle failed (no-op): {e}")
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_conn, cur):
+                cur.execute(
+                    "SELECT value FROM platform_settings WHERE key = %s",
+                    ("engine:autopull:builds_per_cycle",),
+                )
+                _row = cur.fetchone()
+            per_cycle = int(str((_row or {}).get("value") or "3").strip() or "3")
+        except Exception:
+            pass  # unset/unreadable -> default 3
+        per_cycle = max(1, min(per_cycle, 10))  # hard bound: never let a bad setting run away
+
+        for i in range(per_cycle):
+            try:
+                result = asyncio.run(_ask_engine())
+            except Exception as e:
+                logger.warning(f"[engine-autopull] build {i + 1}/{per_cycle} failed (no-op): {e}")
+                break
+            logger.info(f"[engine-autopull] build {i + 1}/{per_cycle} result: {result}")
+            # Stop early when there is nothing left to do — a no-op means the queue held no
+            # in-scope, un-attempted, non-stale issue, so further calls this cycle would only
+            # repeat that answer.
+            if result.get("skipped") or not result.get("issue_id"):
+                logger.info("[engine-autopull] no further work this cycle — stopping after %d", i + 1)
+                break
 
     def _approval_queue_watchdog(self):
         """Observer-first wedge detector: alert when owner-approved actions sit

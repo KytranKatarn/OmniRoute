@@ -53,7 +53,8 @@ EMERGENCY_APPENDIX = (
 EMERGENCY_KEYWORDS = ("chest pain", "stroke", "heart attack")
 
 # System prompt for medical AI
-MEDICAL_SYSTEM_PROMPT = """You are DOC, a helpful medical AI assistant. You provide general health information and guidance.
+MEDICAL_SYSTEM_PROMPT = """\
+You are DOC, a helpful medical AI assistant. You provide general health information and guidance.
 
 IMPORTANT RULES:
 1. Always remind users that you provide information only, not medical advice

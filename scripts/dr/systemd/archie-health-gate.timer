@@ -1,0 +1,24 @@
+[Unit]
+# Runs the hub health gate shortly after boot, then periodically.
+#
+# The boot run is the important one: the 2026-07-19 outage produced a hub that
+# was up-but-broken from the moment it booted, and stayed that way unnoticed
+# because hub_heartbeat.sh's `docker exec ... pg_isready` passes even when the
+# container has no networks at all.
+#
+# The periodic run catches the same condition arising later (e.g. after a
+# `docker start`, which does NOT reattach compose networks).
+Description=Run the A.R.C.H.I.E. hub health gate after boot and periodically
+Requires=archie-health-gate.service
+
+[Timer]
+# 90s after boot: long enough for compose to bring containers up, short enough
+# that a broken boot is caught in minutes rather than the 76 minutes it took a
+# human to notice.
+OnBootSec=90s
+OnUnitActiveSec=15min
+AccuracySec=30s
+Unit=archie-health-gate.service
+
+[Install]
+WantedBy=timers.target

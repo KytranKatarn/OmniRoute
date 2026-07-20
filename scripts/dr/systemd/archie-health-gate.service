@@ -1,0 +1,30 @@
+[Unit]
+# Hub post-boot health gate (#4996) — catches "hub is UP but BROKEN".
+# See scripts/dr/hub_health_gate.sh for the full rationale.
+#
+# DEPLOYMENT NOTE (ADR-008): this is a systemd unit, deliberately NOT a
+# `@reboot` crontab line. On 2026-07-20 archie_engine was found deployed TWICE
+# (compose service + @reboot cron) racing for the same port, where the crippled
+# cron copy won at boot and still answered, so everything "looked up". One
+# service, one deployment mechanism. This gate is legitimately host-level — it
+# must run when the containers themselves are broken — but it must never
+# duplicate something compose already owns.
+Description=A.R.C.H.I.E. hub health gate (post-boot UP-but-BROKEN check)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# --heal only performs the one provably-safe repair: reattaching a container
+# that has ZERO docker networks. Everything else is reported, never mutated.
+ExecStart=/opt/archie-dr/hub_health_gate.sh --heal --quiet
+# Telegram credentials, if present, make failures visible off-box. The gate
+# deliberately does NOT route alerts through the platform API — the platform
+# may be the broken component.
+EnvironmentFile=-/opt/archie-dr/.gate_env
+# A failing gate must not mask itself: the unit records the failure, and the
+# script has already logged + alerted.
+SuccessExitStatus=0
+
+[Install]
+WantedBy=multi-user.target

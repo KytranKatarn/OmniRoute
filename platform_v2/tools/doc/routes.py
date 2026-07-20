@@ -157,6 +157,7 @@ def chat():
         ai_response = result.get("response", "") if isinstance(result, dict) else str(result or "")
         ai_response = ai_response.strip()
 
+
         if not ai_response:
             logger.error("DOC dispatch_json returned empty response")
             return jsonify({"success": False, "error": "AI service temporarily unavailable"}), 503

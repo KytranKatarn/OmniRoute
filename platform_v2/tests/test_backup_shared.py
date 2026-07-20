@@ -75,4 +75,4 @@ def test_backup_database_python_row_serialization_no_crash():
     good_result = _safe_serialize_val(good)
     assert good_result == "'2026-05-07T12:00:00'", f"Normal datetime broken: {good_result!r}"
 
-    print("PASS: out-of-range datetime -> NULL, normal datetime -> ISO string")
+    logger.info('PASS: out-of-range datetime -> NULL, normal datetime -> ISO string')

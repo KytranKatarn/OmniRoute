@@ -780,12 +780,23 @@ services:
       TS_STATE_DIR: /var/lib/tailscale
       TS_EXTRA_ARGS: "--login-server=https://mesh.kytranempowerment.com --ssh --accept-dns=false --advertise-routes=192.168.1.0/24"
       TS_USERSPACE: "false"
-    # Split-horizon DNS for DERP endpoint (#2087): the client resolves
-    # mesh.kytranempowerment.com via Docker DNS which forwards to the
-    # host's Tailscale resolver — that returns SERVFAIL for this zone.
-    # Pin it to the hub LAN IP so DERP traffic reaches NPM on 443.
+    # Split-horizon DNS for the Headscale control plane (#2087; repointed #4998).
+    # The client resolves mesh.kytranempowerment.com via Docker DNS, which forwards
+    # to the host's Tailscale resolver — that returns SERVFAIL for this zone, so the
+    # name MUST be pinned here.
+    #
+    # It used to pin to the hub LAN IP (192.168.1.200) to reach NPM on :443. NPM was
+    # decommissioned 2026-06-27 (ADR-853, PR #1953/#1954) and the hub no longer listens
+    # on 443, so every control-plane fetch died with "connect: connection refused".
+    # This container restart-looped ever since (RestartCount 219; headscale node 15
+    # archie-starbase-subnet last seen 2026-06-27 20:36).
+    #
+    # Beacon (2.25.170.252) is now the sole front door for mesh.* — verified serving
+    # GET /key?v=113 -> HTTP 200. The URL must stay byte-identical to headscale's
+    # config.yaml `server_url: https://mesh.kytranempowerment.com`, so we repoint the
+    # pin rather than bypassing to the hub's :8095.
     extra_hosts:
-      - "mesh.kytranempowerment.com:192.168.1.200"
+      - "mesh.kytranempowerment.com:2.25.170.252"
     volumes:
       - tailscale_hub_data:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun

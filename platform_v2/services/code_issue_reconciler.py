@@ -194,6 +194,139 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
     return None
 
 
+# --- proposal-side reconciliation (#5004) --------------------------------------------------
+# The Consciousness > Code Health tab's Department Orchestration panel reads
+# improvement_proposals (source='code_health_audit'), NOT code_issues. Reconciling only
+# code_issues therefore never moved the number anyone actually looks at.
+
+# Proposal `detail` carries the finding text WITH a trailing "(line 1008)" that the tool
+# itself never emits. Leaving it on makes every pyflakes needle fail to match, so every such
+# proposal reads as "gone". Measured: stripping it moved the tally from 385-gone/0-present
+# (impossible) to 331-gone/281-present. A 0-present result is the tell that a matcher is
+# broken, not that a queue is clean.
+_TRAILING_LINE_RE = re.compile(r"\s*\(line \d+\)\s*$")
+
+PROPOSAL_STALE_REASON = "stale:finding_resolved"
+
+
+def proposal_message(issue_code: str, detail: str) -> str:
+    """Finding text for a proposal, normalised for the checkers."""
+    joined = " ".join(x for x in (issue_code or "", detail or "") if x).strip()
+    return _TRAILING_LINE_RE.sub("", joined).strip()
+
+
+def _read_proposal_file(runtime_file: str, file_path: str):
+    """Source for a proposal. ``runtime_file`` is the absolute path the scanner already
+    resolved, so it is tried first; ``file_path`` falls back through the pipeline's shared
+    resolver. Returns None when neither can be read — which never closes anything."""
+    import os
+
+    if runtime_file and os.path.isfile(runtime_file):
+        try:
+            with open(runtime_file, "r", encoding="utf-8", errors="replace") as fh:
+                return fh.read()
+        except OSError:
+            pass
+    text, _reason = _read_source(file_path)
+    return text
+
+
+def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=("approved",)) -> dict:
+    """Archive code-health proposals whose finding provably no longer reproduces.
+
+    Same conservative contract as reconcile_open_issues: a proposal is archived ONLY when the
+    file can be read AND the finding disproved. Unreadable, unparseable, or no-checker all
+    leave the row untouched. dry_run=True by default.
+
+    Archives rather than inventing a status — it matches the existing sweep convention
+    (metadata archived_by / archive_reason / archived_at), so provenance stays uniform with
+    the #2333 unfixable-path archiver.
+    """
+    stats = {
+        "examined": 0,
+        "stale": 0,
+        "still_present": 0,
+        "unverifiable": 0,
+        "unreadable": 0,
+        "archived": 0,
+        "dry_run": dry_run,
+        "samples": [],
+    }
+
+    with get_db_cursor(commit=False) as (conn, cur):
+        cur.execute(
+            """SELECT id,
+                      metadata->>'issue_code'   AS issue_code,
+                      metadata->>'detail'       AS detail,
+                      metadata->>'runtime_file' AS runtime_file,
+                      metadata->>'file_path'    AS file_path,
+                      metadata->>'line'         AS line
+               FROM improvement_proposals
+               WHERE status = ANY(%s)
+                 AND metadata->>'source' = 'code_health_audit'
+               ORDER BY id
+               LIMIT %s""",
+            (list(statuses), limit),
+        )
+        rows = cur.fetchall()
+
+    cache: dict = {}
+    to_archive: list = []
+
+    for row in rows:
+        stats["examined"] += 1
+        key = row["runtime_file"] or row["file_path"]
+        if key not in cache:
+            cache[key] = _read_proposal_file(row["runtime_file"], row["file_path"])
+        text = cache[key]
+        if text is None:
+            stats["unreadable"] += 1
+            continue
+
+        line_no = None
+        raw_line = (row["line"] or "").strip()
+        if raw_line.isdigit():
+            line_no = int(raw_line)
+
+        verdict = finding_still_reproduces(proposal_message(row["issue_code"], row["detail"]), text, line_no)
+        if verdict is None:
+            stats["unverifiable"] += 1
+        elif verdict:
+            stats["still_present"] += 1
+        else:
+            stats["stale"] += 1
+            to_archive.append(row["id"])
+            if len(stats["samples"]) < 5:
+                stats["samples"].append(
+                    {"id": row["id"], "code": row["issue_code"], "detail": (row["detail"] or "")[:70]}
+                )
+
+    if to_archive and not dry_run:
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """UPDATE improvement_proposals
+                   SET status = 'archived',
+                       metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+                           'archived_by',   'reconciler_5004',
+                           'archive_reason', %s,
+                           'archived_at',    NOW()::text)
+                   WHERE id = ANY(%s) AND status = ANY(%s)""",
+                (PROPOSAL_STALE_REASON, to_archive, list(statuses)),
+            )
+            stats["archived"] = cur.rowcount
+        logger.info("[proposal-reconciler] archived %d stale proposal(s) of %d", stats["archived"], stats["examined"])
+    else:
+        logger.info(
+            "[proposal-reconciler] dry-run: %d stale / %d examined (%d present, %d unverifiable, %d unreadable)",
+            stats["stale"],
+            stats["examined"],
+            stats["still_present"],
+            stats["unverifiable"],
+            stats["unreadable"],
+        )
+    return stats
+
+
 def _read_source(file_path: str):
     """(text, reason) — text is None when the file can't be read. Reuses the pipeline's
     single source of truth for path resolution + #4979 path containment."""

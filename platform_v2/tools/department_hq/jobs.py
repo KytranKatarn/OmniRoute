@@ -546,6 +546,57 @@ def _drain_int_setting(key, default):
     return default
 
 
+def code_health_reconcile_job():
+    """Close Code-Health findings whose problem provably no longer exists (#5004).
+
+    Runs BOTH reconcilers, because the two tables feed different consumers and BOTH were
+    drifting:
+      * code_issues            — what the engine pulls work from
+      * improvement_proposals  — what the Consciousness > Code Health "Department
+                                 Orchestration" panel and the Repair Bay drain read
+
+    Without this, a finding fixed by ANY route (engine PR, human PR, unrelated refactor)
+    stays open forever: nothing writes back. code_issues had not been reconciled in over two
+    months, and 331 of 1307 approved proposals described problems that no longer existed —
+    so the drain kept generating fixes for dead findings and the panel kept showing them.
+
+    SAFE BY CONSTRUCTION — it only closes what it can DISPROVE against the file on disk.
+    Unreadable, unparseable, or no-deterministic-checker all leave the row untouched, and a
+    second run finds nothing (idempotent). Archived proposals drop out of the drain's
+    WHERE status IN ('pending','approved','fix_requested') automatically, so this REDUCES
+    wasted fix-generation rather than interfering with it.
+
+    Work-control key 'code_health_reconcile' (default ON — it is read-mostly and reversible:
+    every row it touches is stamped archived_by='reconciler_5004' / fixed_by='reconciler').
+    """
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("code_health_reconcile", default=True):
+        logger.info("code_health_reconcile: disabled via work-control — skipping")
+        return {"skipped": True}
+
+    from services.code_issue_reconciler import reconcile_open_issues, reconcile_open_proposals
+
+    out = {}
+    try:
+        out["issues"] = reconcile_open_issues(limit=3000, dry_run=False)
+    except Exception as exc:
+        logger.warning("code_health_reconcile: issue pass failed: %s", exc)
+        out["issues"] = {"error": str(exc)}
+    try:
+        out["proposals"] = reconcile_open_proposals(limit=3000, dry_run=False)
+    except Exception as exc:
+        logger.warning("code_health_reconcile: proposal pass failed: %s", exc)
+        out["proposals"] = {"error": str(exc)}
+
+    logger.info(
+        "code_health_reconcile: closed %s issue(s), archived %s proposal(s)",
+        (out.get("issues") or {}).get("closed", "?"),
+        (out.get("proposals") or {}).get("archived", "?"),
+    )
+    return out
+
+
 def code_health_backlog_drain_job():
     """Frequent, welfare-gated drain of the STANDING Code Health fix backlog.
 
@@ -960,6 +1011,29 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=_ch_drain_interval),
         id="code_health_backlog_drain",
         name="Code Health: Backlog Drain (fix-gen, welfare-gated)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Code Health: stale-finding reconciler (#5004). Re-validates OPEN code_issues against
+    # the source on disk and closes the ones that provably no longer reproduce.
+    #
+    # Why scheduled: without it, a finding fixed by ANY route — an engine PR, a human PR,
+    # unrelated refactoring — stays 'open' forever, because nothing writes back. code_issues
+    # had not been reconciled in over two months (newest 'resolved' row: 2026-04-21). Run by
+    # hand on 2026-07-20 it closed 633 of 2230. Hourly keeps that current instead of
+    # depending on someone remembering.
+    #
+    # Safe to run often: it only CLOSES a finding it can disprove against the file (see
+    # code_issue_reconciler — unreadable/unparseable/no-checker all leave the row alone),
+    # it is idempotent (a second run finds 0), and it is read-mostly — the UPDATE only fires
+    # when something is provably gone. Work-control key 'code_health_reconcile'.
+    scheduler.add_job(
+        with_ctx(code_health_reconcile_job),
+        trigger=IntervalTrigger(hours=1),
+        id="code_health_reconcile",
+        name="Code Health: Stale-Finding Reconciler",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

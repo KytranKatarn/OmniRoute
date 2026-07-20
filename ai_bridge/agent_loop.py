@@ -6510,8 +6510,32 @@ class AgentLoop:
                 return {"executed": False, "error": str(clike_err)}
 
         else:
-            logger.warning(f"Unknown approved action type: {action_type}")
-            return {"skipped": True, "reason": f"Unknown action type: {action_type}"}
+            # #5011 — an unhandled action type is a FAILURE, not a success.
+            #
+            # This returned {"skipped": True} with no 'executed' key, so it inherited the
+            # `_ok = result.get("executed", True)` back-compat default (#4327) and the row was
+            # written status='executed'. Consequence: an approval the OWNER PHYSICALLY TAPPED
+            # silently did nothing while reporting success, and the row went terminal so it
+            # could never be retried. Observed 2026-07-20 on queue #3201 (backup_before_deploy):
+            # the handler existed on disk but the long-lived process had not reloaded it, the
+            # tap was swallowed, and the only trace was a string buried in a JSONB column.
+            #
+            # The approval queue is the most trust-sensitive surface we have — it is where a
+            # human is told their decision took effect. It must never claim success it did not
+            # achieve. Returning executed=False records it as 'failed': visible in the Approvals
+            # tab, and honest.
+            logger.error(
+                "[approval_queue] UNHANDLED action_type '%s' — approval recorded as FAILED. "
+                "If a handler for this type was added recently, the running process may still "
+                "be holding pre-deploy code; a restart is needed before it can execute.",
+                action_type,
+            )
+            return {
+                "executed": False,
+                "skipped": True,
+                "error": f"Unknown action type: {action_type} (no handler in the running process)",
+                "reason": f"Unknown action type: {action_type}",
+            }
 
     # ------------------------------------------------------------------
     # Dependabot Vulnerability Scan

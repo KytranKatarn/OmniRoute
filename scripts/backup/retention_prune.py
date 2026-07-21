@@ -227,6 +227,56 @@ echo $deleted
 # for why a RETENTION entry would silently match nothing).
 PREDEPLOY_KEEP = 3
 
+# Pre-deploy dirs that could NOT be deleted this run. main() turns a non-zero count into a
+# non-zero exit so backup_triage.sh cannot log "retention prune OK" over a prune that removed
+# nothing (#5030 — the fix shipped in #2378 did exactly that for a full day).
+_PREDEPLOY_FAILURES = 0
+
+# The container's view of PRIMARY_ROOT. Only meaningful when PRIMARY_ROOT is the real backup
+# root; a BACKUP_ROOT override (tests, DR drills) must NEVER cause an rm inside the container.
+CONTAINER_BACKUP_ROOT = "/backups"
+DEFAULT_PRIMARY_ROOT = Path("/mnt/data2/backups")
+
+
+def _remove_predeploy_dir(run_dir: Path) -> bool:
+    """Remove one pre-deploy snapshot, falling back to the container when the host can't.
+
+    Repair Bay writes these from INSIDE archie_platform, so every file lands root:root 0755.
+    This script runs from cron as the unprivileged backup user, which CAN unlink the run dir's
+    entry (the parent `backups/` is user-owned) but CANNOT delete anything inside it —
+    shutil.rmtree dies on the first `metadata.json` with EACCES. The dir survives, the loop
+    swallows the OSError, and the run still reports success. Delegating the unlink to the
+    process that owns the bytes is the fix; chown-ing at write time would only fix new ones.
+
+    Returns True only when the directory is verifiably gone.
+    """
+    try:
+        shutil.rmtree(run_dir)
+        return True
+    except OSError as exc:
+        print(f"prune: host rmtree failed ({exc}) — retrying inside archie_platform")
+
+    if PRIMARY_ROOT.resolve() != DEFAULT_PRIMARY_ROOT:
+        print(
+            f"prune: FAILED to remove {run_dir}: BACKUP_ROOT is overridden "
+            f"({PRIMARY_ROOT}), refusing to rm inside the container"
+        )
+        return False
+
+    # No shell: these names embed '#', ':' and '[]' taken from the proposal title.
+    r = subprocess.run(
+        ["docker", "exec", "archie_platform", "rm", "-rf", "--", f"{CONTAINER_BACKUP_ROOT}/{run_dir.name}"],
+        capture_output=True,
+        text=True,
+    )
+    if run_dir.exists():
+        print(
+            f"prune: FAILED to remove {run_dir}: still present after container rm "
+            f"(rc={r.returncode} {(r.stderr or '').strip()[:160]})"
+        )
+        return False
+    return True
+
 
 def prune_predeploy_snapshots(keep: int = PREDEPLOY_KEEP) -> int:
     """Keep only the newest `keep` pre-deploy snapshots; delete the rest WHOLE.
@@ -273,11 +323,11 @@ def prune_predeploy_snapshots(keep: int = PREDEPLOY_KEEP) -> int:
             deleted += 1
             continue
         print(f"prune: removing pre-deploy snapshot {run_dir}")
-        try:
-            shutil.rmtree(run_dir)
+        if _remove_predeploy_dir(run_dir):
             deleted += 1
-        except OSError as exc:
-            print(f"prune: FAILED to remove {run_dir}: {exc}")
+        else:
+            global _PREDEPLOY_FAILURES
+            _PREDEPLOY_FAILURES += 1
     return deleted
 
 
@@ -302,7 +352,11 @@ def main() -> None:
 
     # Record the run: backup_log row + system_config retention_last_run/deleted_count so the
     # Backup Manager UI reflects THIS canonical engine (it was stale because the old module job
-    # was the only writer — #4051).
+    # was the only writer — #4051). Undeletable pre-deploy snapshots go in the note too, so the
+    # UI shows the shortfall instead of a clean "N deleted" that hides a stuck prune.
+    note = f"{total_deleted} deleted"
+    if _PREDEPLOY_FAILURES:
+        note += f", {_PREDEPLOY_FAILURES} pre-deploy FAILED"
     subprocess.run(
         [
             "docker",
@@ -316,7 +370,7 @@ def main() -> None:
             "archie",
             "-c",
             f"INSERT INTO backup_log (component, tier, status, notes, created_at) "
-            f"VALUES ('retention', 'primary', 'prune', '{total_deleted} deleted', NOW());"
+            f"VALUES ('retention', 'primary', 'prune', '{note}', NOW());"
             f"UPDATE system_config SET value = NOW()::text WHERE key = 'retention_last_run';"
             f"UPDATE system_config SET value = '{total_deleted}' WHERE key = 'retention_last_deleted_count';",
         ],
@@ -324,6 +378,16 @@ def main() -> None:
         capture_output=True,
     )
     print(f"retention prune: {total_deleted} items removed")
+
+    # Exit non-zero so backup_triage.sh logs "WARN: retention prune had errors" instead of
+    # "retention prune OK". A prune that cannot delete is a disk-fill risk, not a clean run —
+    # #2378 reported OK for a full day while removing nothing (#5030).
+    if _PREDEPLOY_FAILURES:
+        print(
+            f"retention prune: {_PREDEPLOY_FAILURES} pre-deploy snapshot(s) could NOT be "
+            f"removed — primary tier will keep growing"
+        )
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

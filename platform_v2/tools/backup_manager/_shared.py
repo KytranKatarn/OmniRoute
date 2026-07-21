@@ -126,6 +126,7 @@ from functools import wraps
 from flask_login import current_user
 import logging
 import os
+import re
 
 logger = logging.getLogger(__name__)
 from database import _get_db_password
@@ -200,6 +201,23 @@ def rate_limit(max_requests, window_seconds, key_func=None):
 # =============================================================================
 
 
+def _safe_name_fragment(text, max_len=80):
+    """Reduce caller-supplied text to ONE safe path component.
+
+    Backup names embed a description that is often a raw proposal title containing
+    '/', ':', '[', ']', '#', quotes and parentheses. Anything path-significant must not
+    survive: '/' and '\\' would create nested directories, '..' would traverse upward.
+    Everything outside [A-Za-z0-9._-] collapses to '_', leading dots are stripped so the
+    result can never be '.', '..' or a hidden file, and the whole thing is truncated so
+    a long title cannot blow the filesystem's name limit. Returns 'backup' if nothing
+    usable remains. (#5030)
+    """
+    text = str(text or "").strip()
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text)  # kills / \ .. : [ ] # ' ( ) space
+    text = re.sub(r"_{2,}", "_", text).strip("._-")
+    return text[:max_len] or "backup"
+
+
 def create_backup_programmatic(
     description="Auto-backup",
     created_by_username="system",
@@ -230,10 +248,24 @@ def create_backup_programmatic(
     lock_acquired = False
 
     try:
-        # Generate backup name
+        # Generate backup name. The description is CALLER-SUPPLIED and reaches here as a
+        # raw proposal title, e.g. "[MEDIUM] PYFLAKES: repair_bay/services/foo.py (...)".
+        # Previously only spaces were replaced, so every '/' in the title became a real
+        # DIRECTORY SEPARATOR: the payload ended up at
+        #   <backups>/<ts>_..._repair_bay/services/foo.py_/database.sql.gz
+        # which broke every consumer expecting <backup>/database.sql.gz (the sandbox
+        # restore among them) — and a title containing '..' could have written OUTSIDE
+        # BACKUP_DIR entirely. Sanitised to a single flat path component. (#5030)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"{timestamp}_{description.replace(' ', '_')}"
+        backup_name = f"{timestamp}_{_safe_name_fragment(description)}"
         backup_path = os.path.join(BACKUP_DIR, backup_name)
+
+        # Defence in depth: never operate outside BACKUP_DIR even if the sanitiser is
+        # ever weakened. commonpath raises ValueError on unrelated paths.
+        _root = os.path.realpath(BACKUP_DIR)
+        _target = os.path.realpath(backup_path)
+        if _target != _root and os.path.commonpath([_root, _target]) != _root:
+            return {"success": False, "error": "refusing to write outside BACKUP_DIR"}
 
         # Acquire backup lock
         lock_acquired, lock_error = acquire_backup_lock(backup_name, created_by_username)

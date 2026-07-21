@@ -551,30 +551,47 @@ echo "Platform should be available at http://192.168.1.200:3000"
         # self-heal pre-deploy snapshots are the worst case: 12 GB accumulated on disk
         # with ZERO rows, i.e. unmonitored while the system appeared monitored (the same
         # shape as #2366). Non-fatal: a logging failure must never fail a good backup.
+        _components = ",".join(k for k, v in metadata.get("components", {}).items() if v)
+        _log_sql = """INSERT INTO backup_log
+                          (backup_type, file_path, size_bytes, status, tier,
+                           component, notes, triggered_by, proposal_id,
+                           build_number, platform_version, duration_ms, created_at)
+                      VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())"""
+
+        def _log_values(_pid):
+            return (
+                "full",
+                backup_path,
+                total_size,
+                "success",
+                "primary",
+                _components,
+                description or "",
+                created_by_username,
+                _pid,
+                new_build_number,
+                metadata.get("platform_version"),
+                int((time.time() - _t0) * 1000),
+            )
+
         try:
-            _components = ",".join(k for k, v in metadata.get("components", {}).items() if v)
             with get_backup_db_cursor(commit=True) as (_c, _cur):
-                _cur.execute(
-                    """INSERT INTO backup_log
-                           (backup_type, file_path, size_bytes, status, tier,
-                            component, notes, triggered_by, proposal_id,
-                            build_number, platform_version, duration_ms, created_at)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
-                    (
-                        "full",
-                        backup_path,
-                        total_size,
-                        "success",
-                        "primary",
-                        _components,
-                        description or "",
-                        created_by_username,
-                        proposal_id,
-                        new_build_number,
-                        metadata.get("platform_version"),
-                        int((time.time() - _t0) * 1000),
-                    ),
-                )
+                _cur.execute(_log_sql, _log_values(proposal_id))
+        except psycopg2.errors.ForeignKeyViolation:
+            # backup_log.proposal_id is FK-constrained to improvement_proposals. A caller
+            # passing an id that is not (or no longer) there would otherwise lose the row
+            # entirely to the except below — a backup that exists on disk but is invisible
+            # to monitoring, which is the very failure #5053 set out to fix. Keep the row,
+            # drop only the link.
+            logger.warning(
+                "backup_log: proposal_id=%s not in improvement_proposals — logging without the link",
+                proposal_id,
+            )
+            try:
+                with get_backup_db_cursor(commit=True) as (_c, _cur):
+                    _cur.execute(_log_sql, _log_values(None))
+            except Exception as _retry_err:
+                logger.warning("backup_log INSERT retry failed (non-fatal): %s", _retry_err)
         except Exception as _log_err:
             logger.warning("backup_log INSERT failed (non-fatal): %s", _log_err)
 

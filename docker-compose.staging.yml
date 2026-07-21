@@ -17,6 +17,15 @@ services:
     image: pgvector/pgvector:pg16
     container_name: archie_staging_db
     restart: unless-stopped
+    # Docker defaults /dev/shm to 64MB. Postgres allocates dynamic shared memory there for
+    # parallel workers, so a full-database pg_restore fails part-way with
+    #   "could not resize shared memory segment"
+    # and, because index creation is what dies, the restore reports failure AFTER loading the
+    # data — which reads as "the backup is bad" when the backup is fine (#5081). Verified: a
+    # nightly -Fc restore loaded every table correctly and still failed on this.
+    # NOTE: archie_database (production) also runs on the 64MB default. It has not hit this
+    # because normal OLTP traffic never needs DSM at this scale, but the same ceiling is there.
+    shm_size: 1gb
     environment:
       POSTGRES_DB: archie
       POSTGRES_USER: archie

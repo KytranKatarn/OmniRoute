@@ -137,7 +137,6 @@ import shutil
 import tarfile
 import tempfile
 import psycopg2
-from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 import gzip
 import time
@@ -821,18 +820,31 @@ EXTERNAL_BACKUP_DIR = "/mnt/external-backup"
 LOCK_FILE = os.path.join(BACKUP_DIR, ".backup_lock")
 LOCK_TIMEOUT = 7200  # 2 hours
 
-# Rows fetched per batch when streaming a table to the SQL dump (#5014). Bounds peak
-# memory to roughly this many rows instead of the whole database. Small enough that even
-# wide rows (knowledge_base carries embeddings) stay well inside the container's cap.
-_DUMP_BATCH = 500
+# Bytes read from the pg_dump pipe per iteration. This is what bounds peak memory now that
+# the dump is produced by pg_dump rather than assembled in Python (#5080). The original OOM
+# (#5014/#2365) came from holding dump CONTENT in the process; nothing here does.
+_DUMP_CHUNK_BYTES = 1024 * 1024  # 1 MiB
+
+# Floor below which a "successful" dump is not believable. A real pg_dump of this database
+# is hundreds of MB; anything near-empty means pg_dump exited 0 having written nothing, and
+# recording that as a restore point is the exact failure this module keeps hitting.
+_MIN_DUMP_BYTES = 1024
 
 # Hook directories
 HOOKS_DIR = os.path.join(BACKUP_DIR, ".hooks")
 PRE_HOOKS_DIR = os.path.join(HOOKS_DIR, "pre")
 POST_HOOKS_DIR = os.path.join(HOOKS_DIR, "post")
 
-# Ensure backup directory exists
-os.makedirs(BACKUP_DIR, exist_ok=True)
+# Ensure backup directory exists.
+# Tolerate failure at IMPORT time: outside the container (tests, tooling, a dev shell)
+# /backups is not writable, and an unimportable module cannot be unit-tested at all —
+# which is part of why the dump defects in #5080 were only ever found in production.
+# Anything that actually writes a backup creates its own directories and will still fail
+# loudly there, where the error is meaningful.
+try:
+    os.makedirs(BACKUP_DIR, exist_ok=True)
+except OSError:
+    pass
 
 # =============================================================================
 # STANDALONE PRODUCTS REGISTRY
@@ -1175,9 +1187,13 @@ def backup_standalone(standalone_name):
     }
 
 
-# Ensure hook directories exist
+# Ensure hook directories exist. Same import-time tolerance as BACKUP_DIR above: outside the
+# container these are not creatable, and refusing to import makes the module untestable.
 for d in [HOOKS_DIR, PRE_HOOKS_DIR, POST_HOOKS_DIR]:
-    os.makedirs(d, exist_ok=True)
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
 
 # =============================================================================
 # RETENTION POLICY - Grandfather-Father-Son (7 daily + 4 weekly + 6 monthly)
@@ -2472,180 +2488,125 @@ def compare_backups(backup1_name, backup2_name):
     return comparison
 
 
-def _safe_serialize_val(val):
-    """Serialize a DB value to a SQL literal, guarding against out-of-range datetimes."""
-    import datetime as _dt
-
-    if val is None:
-        return "NULL"
-    if isinstance(val, bool):
-        return "TRUE" if val else "FALSE"
-    if isinstance(val, (_dt.datetime, _dt.date)):
+def _discard_partial_dump(path):
+    """Remove a half-written dump. Never leave a plausible-looking unrestorable artifact."""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError as exc:  # pragma: no cover - defensive
         try:
-            return f"'{val.isoformat()}'"
-        except (ValueError, OverflowError):
-            return "NULL  -- original value had out-of-range year"
-    if isinstance(val, (int, float)):
-        return str(val)
-    escaped = str(val).replace("'", "''")
-    return f"'{escaped}'"
+            current_app.logger.error(f"could not remove partial dump {path}: {exc}")
+        except Exception:
+            pass
+
+
+def _pg_dump_env():
+    """Environment for pg_dump, resolving the password from env or Docker secret."""
+    env = os.environ.copy()
+    pw = os.getenv("DB_PASSWORD") or ""
+    if not pw:
+        secret_file = os.getenv("DB_PASSWORD_FILE", "")
+        if secret_file and os.path.exists(secret_file):
+            try:
+                with open(secret_file) as _sf:
+                    pw = _sf.read().strip()
+            except OSError:
+                pass
+    if pw:
+        env["PGPASSWORD"] = pw
+    return env
 
 
 def backup_database_python(output_file, compress=True):
-    """Backup database using psycopg2 (Python-based, no pg_dump needed)
+    """Dump the database to a gzipped plain-SQL file using pg_dump.
+
+    Despite the legacy name this no longer hand-rolls SQL. It used to, and the SQL it
+    produced WAS NOT RESTORABLE (#5080):
+
+      * Values went through a serializer whose fallback was `str(val).replace("'", "''")`.
+        psycopg2 hands back a Python dict/list for json/jsonb, so a JSON column was written
+        as a PYTHON REPR — single-quoted — and psql rejected it with
+        `invalid input syntax for type json`. bytea became `<memory at 0x...>`, i.e. silent
+        data loss rather than an error.
+      * The CREATE TABLE text was built from `information_schema.columns.data_type`, which
+        returns the literal string `ARRAY` for any array column, emitting `col ARRAY` and
+        `syntax error at or near "ARRAY"`.
+
+    Every UI/programmatic backup was therefore recorded `status='success'`, had a plausible
+    size, was counted by the posture monitor — and could not be restored. Discovered only
+    once #5036 made the sandbox restore path reach these files at all.
+
+    pg_dump already solves this correctly (json, arrays, bytea, enums, sequences,
+    constraints, encoding) and is present in the image, so the hand-rolled generator is gone.
+    Output stays `<...>.sql.gz` = gzipped PLAIN SQL, which is exactly what the name always
+    claimed and what the restore path (`gunzip | psql`) already expects — so callers and the
+    restore ladder are unchanged.
+
+    Memory stays bounded by streaming the pipe in fixed chunks; the OOM that motivated the
+    previous rewrite (#5014/#2365) cannot recur because no dump content is held in Python.
 
     Args:
-        output_file: Base output file path (without .gz extension if compress=True)
-        compress: If True, compress with gzip (adds .gz extension)
+        output_file: Base output path (".gz" appended when compress=True)
+        compress: gzip the output (default True)
 
     Returns:
-        str: Actual output file path (with .gz if compressed)
+        str: the path actually written
     """
+    if compress and not output_file.endswith(".gz"):
+        output_path = output_file + ".gz"
+    else:
+        output_path = output_file
+
+    cmd = [
+        "pg_dump",
+        "-h", os.getenv("DB_HOST", "192.168.1.200"),
+        "-p", str(os.getenv("DB_PORT", "5432")),
+        "-U", os.getenv("DB_USER", "archie"),
+        "-d", os.getenv("DB_NAME", "archie"),
+        "--no-owner",
+        "--no-privileges",
+        "--format=plain",
+    ]
+
+    proc = None
     try:
-        # STREAM to the output file — never build the dump in memory (#5014).
-        # This previously accumulated every row of every table into `sql_lines`, then did
-        # `"".join(sql_lines)`, materialising a SECOND full copy. Against a 6.3 GB database
-        # (and Python str overhead on top) that cannot fit in the container's 8 GiB cap, so
-        # the worker was OOM-killed every time — the nightly included. Peak memory is now
-        # O(_DUMP_BATCH rows), not O(database).
-        if compress and not output_file.endswith(".gz"):
-            output_path = output_file + ".gz"
-        else:
-            output_path = output_file
-        out = gzip.open(output_path, "wt", encoding="utf-8") if compress else open(output_path, "w")
-
-        with out as f, get_backup_db_cursor(commit=False) as (conn, cursor):
-            # Generate SQL content
-            f.write("-- A.R.C.H.I.E. Platform Database Backup\n")
-            f.write(f"-- Generated: {datetime.now().isoformat()}\n")
-            f.write(f"-- Compression: {'gzip' if compress else 'none'}\n\n")
-
-            # Get all tables
-            cursor.execute(
-                """
-                SELECT tablename FROM pg_tables
-                WHERE schemaname = 'public'
-                ORDER BY tablename;
-            """
-            )
-            tables = cursor.fetchall()
-
-            for (table_name,) in tables:
-                f.write(f"\n-- Table: {table_name}\n")
-                f.write(f"DROP TABLE IF EXISTS {table_name} CASCADE;\n")
-
-                # Get CREATE TABLE statement
-                cursor.execute(
-                    """
-                    SELECT
-                        'CREATE TABLE ' || quote_ident(table_name) || ' (' ||
-                        string_agg(
-                            quote_ident(column_name) || ' ' ||
-                            data_type ||
-                            CASE
-                                WHEN character_maximum_length IS NOT NULL
-                                THEN '(' || character_maximum_length || ')'
-                                ELSE ''
-                            END ||
-                            CASE
-                                WHEN is_nullable = 'NO' THEN ' NOT NULL'
-                                ELSE ''
-                            END,
-                            ', '
-                        ) || ');'
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public'
-                    AND table_name = %s
-                    GROUP BY table_name;
-                """,
-                    (table_name,),
-                )
-
-                create_stmt = cursor.fetchone()
-                if create_stmt:
-                    f.write(create_stmt[0] + "\n\n")
-
-                # Get data - cast timestamp columns to TEXT so psycopg2 never
-                # raises ValueError on out-of-range years (e.g. year 58317).
-                cursor.execute(
-                    """
-                    SELECT column_name, data_type
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = %s
-                    ORDER BY ordinal_position;
-                    """,
-                    (table_name,),
-                )
-                col_meta = cursor.fetchall()
-                _ts_types = {
-                    "timestamp with time zone",
-                    "timestamp without time zone",
-                    "date",
-                    "time with time zone",
-                    "time without time zone",
-                }
-                select_parts = []
-                for col_name, data_type in col_meta:
-                    ident = sql.Identifier(col_name)
-                    if data_type in _ts_types:
-                        select_parts.append(sql.SQL("{col}::text AS {alias}").format(col=ident, alias=ident))
-                    else:
-                        select_parts.append(ident)
-
-                if select_parts:
-                    select_query = sql.SQL("SELECT {cols} FROM {tbl}").format(
-                        cols=sql.SQL(", ").join(select_parts),
-                        tbl=sql.Identifier(table_name),
-                    )
-                else:
-                    select_query = sql.SQL("SELECT * FROM {}").format(sql.Identifier(table_name))
-                # Column names first — needed before we start streaming rows, and cheap.
-                cursor.execute(
-                    """
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = %s
-                    ORDER BY ordinal_position;
-                """,
-                    (table_name,),
-                )
-                columns = [col[0] for col in cursor.fetchall()]
-
-                # A NAMED (server-side) cursor is what actually bounds memory here. A normal
-                # psycopg2 cursor buffers the ENTIRE result set client-side on execute(), so
-                # fetchmany() alone would still load the whole table — the bug we are fixing.
-                safe = "".join(ch if (ch.isalnum() or ch == "_") else "_" for ch in table_name)
-                row_cur = conn.cursor(name=f"bkdump_{safe}_{os.getpid()}")
-                row_cur.itersize = _DUMP_BATCH
-                wrote_any = False
-                try:
-                    row_cur.execute(select_query)
-                    while True:
-                        batch = row_cur.fetchmany(_DUMP_BATCH)
-                        if not batch:
-                            break
-                        for row in batch:
-                            values = ", ".join(_safe_serialize_val(val) for val in row)
-                            if wrote_any:
-                                # separator goes BEFORE the row, so the last row needs no
-                                # lookahead — that is what makes single-pass streaming work.
-                                f.write(f",\n  ({values})")
-                            else:
-                                f.write(f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES\n")
-                                f.write(f"  ({values})")
-                                wrote_any = True
-                finally:
-                    row_cur.close()
-
-                if wrote_any:
-                    f.write(";\n")
-                    f.write("\n")
-
-        return output_path
-
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=_pg_dump_env())
+        opener = gzip.open(output_path, "wb") if compress else open(output_path, "wb")
+        with opener as fh:
+            while True:
+                chunk = proc.stdout.read(_DUMP_CHUNK_BYTES)
+                if not chunk:
+                    break
+                fh.write(chunk)
+        stderr = (proc.stderr.read() or b"").decode("utf-8", "replace")
+        rc = proc.wait()
     except Exception as e:
         current_app.logger.error(f"Database backup failed: {str(e)}")
+        _discard_partial_dump(output_path)
         raise
+    finally:
+        if proc is not None:
+            for stream in (proc.stdout, proc.stderr):
+                try:
+                    if stream:
+                        stream.close()
+                except OSError:
+                    pass
+
+    if rc != 0:
+        # Delete the partial artifact. Leaving a truncated file behind is the precise
+        # failure this whole class of bug is made of: something that looks like a backup,
+        # is logged as one, and cannot be restored.
+        _discard_partial_dump(output_path)
+        raise RuntimeError(f"pg_dump exited {rc}: {stderr.strip()[-500:]}")
+
+    # An empty/near-empty artifact means pg_dump "succeeded" while writing nothing.
+    size = os.path.getsize(output_path) if os.path.exists(output_path) else 0
+    if size < _MIN_DUMP_BYTES:
+        _discard_partial_dump(output_path)
+        raise RuntimeError(f"pg_dump produced an implausibly small dump ({size} bytes); refusing to record it")
+
+    return output_path
 
 
 # =============================================================================

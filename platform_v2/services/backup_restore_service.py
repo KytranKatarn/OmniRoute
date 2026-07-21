@@ -195,6 +195,21 @@ def _docker(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     return subprocess.run(["docker", *args], capture_output=True, text=True, timeout=timeout)
 
 
+# psql ERRORs that must NOT fail an otherwise-good restore. If the gate cries wolf it gets
+# ignored, which is exactly how this class of defect survives.
+#   * `unrecognized configuration parameter` — the image ships pg_dump 17 while the server is
+#     16, so every plain dump carries SETs (transaction_timeout) that a 16 server rejects.
+#   * `already exists` — restoring into a sandbox that was not dropped first.
+# Deliberately a SMALL allowlist: syntax errors, `invalid input syntax for type`, and
+# constraint failures are REAL and must still fail the restore (they are what #5080 was).
+_BENIGN_RESTORE_ERROR = re.compile(r"unrecognized configuration parameter|already exists", re.I)
+
+
+def count_real_restore_errors(stderr: str) -> int:
+    """Count psql ERROR lines that indicate an actually-broken restore."""
+    return len([ln for ln in re.findall(r"^ERROR:.*$", stderr or "", re.M) if not _BENIGN_RESTORE_ERROR.search(ln)])
+
+
 def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -> None:
     """Restore the archie dump into the disposable staging DB; drive the session state machine."""
     import glob
@@ -334,7 +349,16 @@ def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -
                 # so — exactly like pg_restore — it can leave a table EMPTY and still look clean.
                 # Count the ERROR: lines so the same "errors OR empty table => failure" gate below
                 # applies to both formats.
-                ignored = len(re.findall(r"^ERROR:", restore_err, re.M))
+                #
+                # Two families of ERROR are expected and must NOT fail an otherwise-good restore,
+                # or the gate cries wolf and gets ignored — which is how these defects survive:
+                #   * `unrecognized configuration parameter` — the image ships pg_dump 17 while
+                #     the server is 16, so the dump carries SETs (transaction_timeout) that a 16
+                #     server rejects. Emitted on EVERY dump; nothing is lost.
+                #   * `already exists` — restoring into a sandbox that was not dropped first.
+                # Anything else (syntax errors, invalid input for type, constraint failures) is a
+                # real defect and still counts. This is deliberately a SMALL allowlist.
+                ignored = count_real_restore_errors(restore_err)
             # Keep the actual COPY/constraint lines — "N errors" alone does not say WHICH table
             # was lost, and that is the only detail anyone needs at 3am.
             err_lines = [ln for ln in restore_err.splitlines() if "error" in ln.lower()][:20]

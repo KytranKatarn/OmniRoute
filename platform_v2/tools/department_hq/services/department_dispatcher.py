@@ -2206,6 +2206,56 @@ class DepartmentDispatcher:
             self._fleet_health_cache.clear()
         logger.info("[BridgeDispatcher] Fleet cache refreshed")
 
+    def _rank_fleet_candidates(self, candidates: List[Dict], department: str, capability: str) -> List[Dict]:
+        """Drop hard-blocked fleet candidates; order the rest by coordinator score (#5028b).
+
+        The fleet tier is the only selector that did not consult score_agent, so K.I.N.'s
+        hard blocks (open rest cycle, task-queue saturation, non-active shift) and the
+        skill-first match were unreachable here. This routes the same candidates through
+        the same predicate every other tier uses — it does NOT invent new policy.
+
+        Ties keep the original node ordering (bridge_priority DESC), so node preference
+        still decides between two equally-healthy agents.
+
+        Fail-open on infrastructure trouble: if the agent cache or coordinator is
+        unavailable, keep the unranked list rather than starve the tier — an environment
+        failure is not a verdict (ADR-016). A candidate the cache does not know, or that
+        score_agent hard-blocks, IS dropped.
+        """
+        try:
+            from services.agent_service import get_agent_cache as _svc_agent_cache
+
+            coord = get_dept_coordinator()
+            cache = _svc_agent_cache() or {}
+        except Exception as exc:
+            logger.warning("[BridgeDispatcher] fleet welfare gate unavailable (%s) — using unranked order", exc)
+            return candidates
+
+        if not cache:
+            logger.warning("[BridgeDispatcher] agent cache empty — fleet welfare gate skipped")
+            return candidates
+
+        ranked = []
+        for idx, candidate in enumerate(candidates):
+            name = candidate.get("agent_name")
+            info = cache.get(name)
+            if not info:
+                logger.debug("[BridgeDispatcher] fleet candidate %s absent from agent cache — skipped", name)
+                continue
+            try:
+                score, block_reason = coord.score_agent(name, info, capability, department)
+            except Exception as exc:
+                logger.warning("[BridgeDispatcher] score_agent failed for %s (%s) — skipped", name, exc)
+                continue
+            if score <= 0:
+                logger.info("[BridgeDispatcher] fleet candidate blocked: %s", block_reason or name)
+                continue
+            ranked.append((-score, idx, candidate))
+
+        # score DESC, then original node ordering as the tiebreak.
+        ranked.sort(key=lambda r: (r[0], r[1]))
+        return [r[2] for r in ranked]
+
     def _find_fleet_agent(
         self,
         department: str,
@@ -2259,6 +2309,26 @@ class DepartmentDispatcher:
 
             if not candidates:
                 logger.debug(f"[BridgeDispatcher] No fleet agents for department={department}")
+                return None
+
+            # K.I.N. welfare + skill gate (#5028b). Until this landed, the fleet tier
+            # selected on department + node health ALONE — the SQL above has no welfare
+            # join, and `capability` was accepted as a parameter but never referenced.
+            # That bypassed every hard block score_agent already enforces: an agent with
+            # an OPEN REST CYCLE stayed selectable, and because the ORDER BY is node
+            # bridge_priority, a department's first-listed agent won every time — so a
+            # rested, skilled peer (P.R.O.B.E. behind F.O.R.G.E.) was structurally
+            # unreachable no matter its state. Reuse score_agent instead of
+            # re-implementing policy: same predicate as every other tier
+            # (ADR-004 welfare, #2217 skill-first).
+            candidates = self._rank_fleet_candidates(candidates, department, capability)
+            if not candidates:
+                logger.info(
+                    "[BridgeDispatcher] All fleet agents for department=%s blocked by "
+                    "welfare/skill gate for '%s' — no fleet dispatch",
+                    department,
+                    capability,
+                )
                 return None
 
             # Check each candidate — resolve address, verify model is reachable

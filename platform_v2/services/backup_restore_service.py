@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shlex
 import subprocess
 import threading
 from typing import Any
@@ -199,16 +200,38 @@ def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -
     import glob
 
     name = os.path.basename(run_dir.rstrip("/"))
+    # TWO backup formats exist and this path used to accept only one (#5036):
+    #   nightly host cron -> <backup>/database/archie_<ts>.dump  (pg_dump -Fc  -> pg_restore)
+    #   UI / programmatic -> <backup>/database.sql.gz            (plain SQL gz -> psql)
+    # It globbed ONLY the .dump and, on a miss, reported "(primary copy pruned?)". So every
+    # backup a user created from the Backups tab failed the "🧪 Test in Sandbox" button with an
+    # error naming the WRONG CAUSE — nothing had been pruned, the format simply was not handled.
+    # That is very likely why module_restore_sessions sat empty: the button could only ever work
+    # on a nightly-cron backup. Accept both formats, and when neither is present say so plainly.
     # The worker sees backups at /backups (BACKUP_DIR mount); the staging DB sees them at run_dir.
     worker_dumps = sorted(glob.glob(f"/backups/{name}/database/archie_*.dump"))
-    if not worker_dumps:
+    if worker_dumps:
+        dump_kind = "custom"
+        staging_dump = f"{run_dir}/database/{os.path.basename(worker_dumps[-1])}"
+    elif os.path.exists(f"/backups/{name}/database.sql.gz"):
+        dump_kind = "sqlgz"
+        staging_dump = f"{run_dir}/database.sql.gz"
+    else:
         _set_session(
             session_id,
             status="failed",
-            qa_failures=[{"error": f"archie dump not found for backup '{name}' (primary copy pruned?)"}],
+            qa_failures=[
+                {
+                    "error": (
+                        f"backup '{name}' contains no restorable database artifact. Expected "
+                        f"either database/archie_<ts>.dump (nightly cron format) or "
+                        f"database.sql.gz (UI/programmatic format); neither is present. "
+                        f"This is a missing/incomplete artifact, not a pruning problem."
+                    )
+                }
+            ],
         )
         return
-    staging_dump = f"{run_dir}/database/{os.path.basename(worker_dumps[-1])}"
 
     try:
         _set_session(session_id, status="qa_running")
@@ -271,26 +294,47 @@ def _run_sandbox_restore_thread(backup_id: int, session_id: int, run_dir: str) -
             # "errors ignored on restore: N", and carries on. A 2026-07-20 restore lost the
             # whole of public.unified_tasks (0 rows vs 4,273) that way and still reported
             # qa_passed, because the only check was knowledge_base > 0 — one table out of 720.
-            restore_proc = _docker(
-                [
-                    "exec",
-                    STAGING_DB_CONTAINER,
-                    "pg_restore",
-                    "-U",
-                    "archie",
-                    "-d",
-                    "archie",
-                    "--no-owner",
-                    "--no-privileges",
-                    staging_dump,
-                ],
-                timeout=1800,
-            )
+            if dump_kind == "custom":
+                restore_proc = _docker(
+                    [
+                        "exec",
+                        STAGING_DB_CONTAINER,
+                        "pg_restore",
+                        "-U",
+                        "archie",
+                        "-d",
+                        "archie",
+                        "--no-owner",
+                        "--no-privileges",
+                        staging_dump,
+                    ],
+                    timeout=1800,
+                )
+            else:
+                # Plain SQL stream. shlex.quote because run-dir names embed '#', ':' and '[]'
+                # taken from proposal titles (and, pre-#2379, '/').
+                restore_proc = _docker(
+                    [
+                        "exec",
+                        STAGING_DB_CONTAINER,
+                        "sh",
+                        "-c",
+                        f"gunzip -c {shlex.quote(staging_dump)} | psql -U archie -d archie -v ON_ERROR_STOP=0",
+                    ],
+                    timeout=1800,
+                )
             restore_err = (restore_proc.stderr or "") + (restore_proc.stdout or "")
             ignored = 0
-            m = re.search(r"errors ignored on restore:\s*(\d+)", restore_err)
-            if m:
-                ignored = int(m.group(1))
+            if dump_kind == "custom":
+                m = re.search(r"errors ignored on restore:\s*(\d+)", restore_err)
+                if m:
+                    ignored = int(m.group(1))
+            else:
+                # psql prints no summary line. With ON_ERROR_STOP=0 it keeps going and exits 0,
+                # so — exactly like pg_restore — it can leave a table EMPTY and still look clean.
+                # Count the ERROR: lines so the same "errors OR empty table => failure" gate below
+                # applies to both formats.
+                ignored = len(re.findall(r"^ERROR:", restore_err, re.M))
             # Keep the actual COPY/constraint lines — "N errors" alone does not say WHICH table
             # was lost, and that is the only detail anyone needs at 3am.
             err_lines = [ln for ln in restore_err.splitlines() if "error" in ln.lower()][:20]

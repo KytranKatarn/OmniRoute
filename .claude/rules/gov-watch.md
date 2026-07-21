@@ -33,11 +33,93 @@ docker inspect kytran_gov_watch --format "{{json .Mounts}}"
 
 ## APScheduler Jobs
 
-| Job ID | Schedule | What it does |
-|--------|----------|-------------|
-| `daily_award_ingest` | CronTrigger(hour=4, minute=0) — 04:00 UTC | PSPC contract awards |
-| `proactive_disclosure_ingest` | CronTrigger(hour=5, minute=0) — 05:00 UTC | TBS federal contracts >$10k |
-| `gic_appointments_ingest` | CronTrigger(day_of_week="wed", hour=6, minute=0) — Wed 06:00 UTC | GIC appointments |
+**All times are `America/Toronto` (Eastern), NOT UTC** — every CronTrigger carries an explicit
+`timezone="America/Toronto"`, and the `BackgroundScheduler` itself is constructed with it
+(PR #42, 2026-07-21). Previously a mix of both, which made "why did it run then?" unanswerable.
+Per `.claude/rules/timezone.md`, do not add a CronTrigger without the tz kwarg.
+
+| Job ID | Schedule (Eastern) | What it does |
+|--------|--------------------|-------------|
+| `partner_scrape` | 23:30 daily | Partner source scrape |
+| `daily_award_ingest` | 00:00 daily | CanadaBuys award notices (streamed) |
+| `proactive_disclosure_ingest` | 01:00 daily | TBS federal contracts >$10k (streamed) |
+| `contract_history_ingest` | 01:30 daily | CanadaBuys contract history |
+| `gic_appointments_ingest` | Wed 02:00 | GIC appointments |
+| `entity_graph_push` | 02:30 daily | Shared entity-graph adapter |
+| `ag_reports` | Wed 03:00 | Auditor-General reports |
+| `ingest_freshness_monitor` | 03:00 daily | Alarms on a stale last-SUCCESS (see below) |
+| `weekly_digest` | Mon 04:00 | Subscriber digest |
+
+`canadabuys_tender_sync` is NOT an APScheduler job — it is a **6h daemon thread**
+(`_background_sync` in app.py). That is exactly why it was missed when heartbeats were added.
+
+## Ingest health — monitor RUNS, not ROWS (#5062 / #5070)
+
+On 2026-07-21 four ingest paths were found broken, 2 days to 2.5 months stale, and **not one was
+visible in the logs**: an OOM SIGKILL is uncatchable so the job's own try/except logged nothing;
+a 16MB cap silently truncated proactive to ~4% of its rows; contract_history had no job at all.
+
+**Row counts are not a health signal.** A job that runs and inserts 0 is healthy when upstream
+had nothing new (TBS updates ~quarterly). A job that never RUNS is the failure — and that is
+invisible if you only watch the table.
+
+- `procure/ingest_health.py` — `gov_watch.ingest_runs` heartbeat table + `record_ingest_run()`
+  (called on BOTH success and failure paths of all four ingests) + `check_ingest_freshness()`,
+  which alarms via the hub `POST /api/internal/notify` (Bearer, mesh IP `100.64.0.4`).
+- Alarms on a stale last-**SUCCESS** (48h thresholds), never on recency of the newest attempt.
+  A job with no heartbeat ever is reported `unknown` — deliberately not alarmed, so a fresh
+  deploy does not page.
+- ⚠️ A job listed in `INGEST_JOBS` with no `record_ingest_run` writer stays `unknown` FOREVER and
+  can never alarm — unmonitored while APPEARING monitored. `tests/test_date_guard.py::
+  test_every_monitored_job_has_a_heartbeat_writer` diffs INGEST_JOBS against every call site to
+  make that a red test.
+
+## Date guard — impossible dates cannot re-enter (#5067 / #5069 / #5072)
+
+`procure/date_guard.sane_date(value, field, *, event=False)` is wired into ALL FOUR parsers:
+`feeds.CanadaBuysFeed._parse_date`, `procure.proactive._parse_date`,
+`procure.contract_history._to_date`, and `procure.awards._to_date`.
+
+⚠️ **`procure/awards.py` has its OWN `_to_date`** — it is NOT the feeds.py parser. It was
+unguarded until #44, which is why `award_notices` held `award_date = 2030-12-31` while every
+other table was clean. Guard both when touching date parsing.
+
+Two families rejected: **epoch artifacts** (an empty cell via the Excel/Lotus 1900 serial system
+lands on `1899-12-30` — every pre-1990 value found was exactly that date) and **sentinels**
+(`9999-12-31` for "no end date").
+
+**Bounds are deliberately loose, and the distinction matters:**
+
+| `event=True` (retrospective — cannot be in the future) | default (forward-looking — future is LEGITIMATE) |
+|---|---|
+| `awards.award_date` | `feeds.deadline` (open solicitation) |
+| `proactive.contract_date` | `proactive.delivery_date`, `proactive.period_start` |
+| `feeds.posted_at` | `contract_history.contract_date` ← a contract **START** date |
+| | `contract_history.contract_period_end` |
+
+`contract_history.contract_date` comes from `contractStartDate-contratDateDebut` — a contract
+signed today can take effect next quarter (30 such rows measured, all with `period_end > start`).
+Marking it `event=True` silently drops long-lead contracts; a negative test now guards that.
+Over-eager filtering is a WORSE bug than the one being fixed — it damages the long-horizon
+government-vs-government spending view the backfill exists to support.
+
+`drain_rejects()` returns and resets a per-COLUMN tally — a silent discard is how the bad data
+got in; a jump in the count means upstream changed.
+
+## Coverage floors (measured 2026-07-21, after backfill)
+
+| Table | Date column | Oldest | Rows |
+|---|---|---|---|
+| `proactive_disclosures` | `contract_date` | 1999-01-11 (**usable from Dec 2003**) | 1,289,127 |
+| `award_notices` | `award_date` | 1996-02-15 (**usable from 2010**) | 120,666 |
+| `contract_history` | `contract_date` | 2005-10-24 | 221,149 |
+| `tenders` | `posted_at` | 2010-03-16 | 86,760 |
+
+Common floor where all four overlap: **2010-03-16** (`tenders` is the constraint). The 1996/1999
+floors are thin tails, not usable eras — `award_notices` has only 10 rows pre-2000 and 114 in
+2000-2009 vs 120,542 from 2010. For multi-government comparison use `proactive_disclosures` from
+**Dec 2003** (Martin 40,599 / Harper 398,729 / Trudeau 768,784 / Carney 80,858). Chrétien has 157
+rows — do NOT chart it.
 
 ## Proactive Disclosures
 

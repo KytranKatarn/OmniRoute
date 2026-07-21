@@ -4,6 +4,13 @@ services:
     image: pgvector/pgvector:pg16
     container_name: archie_database
     restart: unless-stopped
+    # Docker defaults /dev/shm to 64MB. Postgres allocates dynamic shared memory there for
+    # parallel query workers and parallel index builds, so at the default a REINDEX or a large
+    # parallel scan fails with "could not resize shared memory segment". The sandbox hit exactly
+    # that during a full pg_restore (#5081) — production runs the same 64MB default and has only
+    # avoided it because normal OLTP traffic never needs DSM at that scale. Raised so the
+    # REINDEX DATABASE that #5082 requires can actually run.
+    shm_size: 1gb
     read_only: true
     tmpfs:
       - /tmp:size=256m

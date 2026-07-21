@@ -22,7 +22,9 @@ import psycopg2
 from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
-from database import _get_db_password
+# get_db_cursor (RealDictCursor) — NOT _shared's get_backup_db_cursor, which yields
+# TUPLES and would break the row["backup_type"] access in api_quick_backup_stats.
+from database import _get_db_password, get_db_cursor
 
 # Pull every shared helper / constant / programmatic function into module scope
 from ._shared import (

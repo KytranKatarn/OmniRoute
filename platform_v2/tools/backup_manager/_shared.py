@@ -246,6 +246,9 @@ def create_backup_programmatic(
     """
     backup_path = None
     lock_acquired = False
+    # Wall-clock for backup_log.duration_ms — started before any work so the number covers
+    # the whole backup, matching what the UI /create route records.
+    _t0 = time.time()
 
     try:
         # Generate backup name. The description is CALLER-SUPPLIED and reaches here as a
@@ -541,6 +544,39 @@ echo "Platform should be available at http://192.168.1.200:3000"
         lock_acquired = False
 
         print(f"✓ Backup created successfully: {backup_name} (Build #{new_build_number})")
+
+        # Record in backup_log. Until #5053 this path wrote NO row at all — only the UI
+        # /create route did — so every programmatic backup was invisible to the Backups
+        # tab, to backup_posture_monitor, and to any size/freshness accounting. The
+        # self-heal pre-deploy snapshots are the worst case: 12 GB accumulated on disk
+        # with ZERO rows, i.e. unmonitored while the system appeared monitored (the same
+        # shape as #2366). Non-fatal: a logging failure must never fail a good backup.
+        try:
+            _components = ",".join(k for k, v in metadata.get("components", {}).items() if v)
+            with get_backup_db_cursor(commit=True) as (_c, _cur):
+                _cur.execute(
+                    """INSERT INTO backup_log
+                           (backup_type, file_path, size_bytes, status, tier,
+                            component, notes, triggered_by, proposal_id,
+                            build_number, platform_version, duration_ms, created_at)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())""",
+                    (
+                        "full",
+                        backup_path,
+                        total_size,
+                        "success",
+                        "primary",
+                        _components,
+                        description or "",
+                        created_by_username,
+                        proposal_id,
+                        new_build_number,
+                        metadata.get("platform_version"),
+                        int((time.time() - _t0) * 1000),
+                    ),
+                )
+        except Exception as _log_err:
+            logger.warning("backup_log INSERT failed (non-fatal): %s", _log_err)
 
         return {
             "success": True,

@@ -621,8 +621,14 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
         SANDBOX_TEMPLATES = "/mnt/archie_sandbox/platform_v2/templates/tools"
 
         module_backup_path = os.path.join(BACKUP_DIR, "modules")
+        # EXACT suffix, not `module_name in d`. Backup dirs are
+        # '<YYYYmmdd>_<HHMMSS>_module_<name>', so the old substring test resolved
+        # module_name='therap' to a *therapy* backup (measured live 2026-07-20). No two
+        # current module names collide, but the moment one is a substring of another this
+        # silently deploys the wrong module's code into the sandbox.
+        suffix = f"_module_{module_name}"
         candidates = (
-            sorted([d for d in os.listdir(module_backup_path) if module_name in d], reverse=True)
+            sorted([d for d in os.listdir(module_backup_path) if d.endswith(suffix)], reverse=True)
             if os.path.exists(module_backup_path)
             else []
         )
@@ -633,13 +639,32 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
         latest = os.path.join(module_backup_path, candidates[0])
         log = []
 
+        # The module's code IS the deliverable here. Previously a missing tools/<module>/
+        # merely skipped the copy and still returned success:true with the "✓ tools/..."
+        # line absent from the log — so "deployed nothing" was indistinguishable from a
+        # real deploy to any caller checking `success`, including an ADR-009 sandbox
+        # rehearsal gating a Repair Bay fix. Fail loudly instead.
         src_tools = os.path.join(latest, "tools", module_name)
+        if not os.path.isdir(src_tools):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "module": module_name,
+                        "backup": candidates[0],
+                        "error": (
+                            f"backup '{candidates[0]}' contains no tools/{module_name}/ — " "nothing was deployed"
+                        ),
+                    }
+                ),
+                500,
+            )
+
         dst_tools = os.path.join(SANDBOX_TOOLS, module_name)
-        if os.path.exists(src_tools):
-            if os.path.exists(dst_tools):
-                shutil.rmtree(dst_tools)
-            shutil.copytree(src_tools, dst_tools)
-            log.append(f"✓ tools/{module_name}/ deployed to sandbox")
+        if os.path.exists(dst_tools):
+            shutil.rmtree(dst_tools)
+        shutil.copytree(src_tools, dst_tools)
+        log.append(f"✓ tools/{module_name}/ deployed to sandbox")
 
         src_tpl = os.path.join(latest, "templates", "tools")
         dst_tpl = SANDBOX_TEMPLATES
@@ -648,11 +673,65 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
                 shutil.copy2(os.path.join(src_tpl, f), os.path.join(dst_tpl, f))
             log.append(f"✓ templates/tools/ deployed to sandbox")
 
+        # A restart that did not happen leaves the sandbox serving the OLD code, so the
+        # rehearsal proves nothing. That was previously a "⚠ restart warning" attached to
+        # a success:true response.
         result = subprocess.run(["docker", "restart", "archie_staging"], capture_output=True, text=True, timeout=30)
-        if result.returncode == 0:
-            log.append("✓ archie_staging restarted")
-        else:
-            log.append(f"⚠ restart warning: {result.stderr[:100]}")
+        if result.returncode != 0:
+            log.append(f"✗ archie_staging restart FAILED: {result.stderr[:200]}")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "module": module_name,
+                        "backup": candidates[0],
+                        "log": log,
+                        "error": "files deployed but archie_staging did not restart — sandbox serves stale code",
+                    }
+                ),
+                500,
+            )
+        log.append("✓ archie_staging restarted")
+
+        # `docker restart` returns as soon as the process is signalled, so it is not
+        # evidence the container came back. Wait for it, bounded. NOTE: this confirms the
+        # container is UP — it does not verify it is serving this specific code. Real
+        # content verification is still open (task #5043).
+        came_back = False
+        for _ in range(15):  # ~30s
+            probe = subprocess.run(
+                [
+                    "docker",
+                    "inspect",
+                    "-f",
+                    "{{.State.Running}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}",
+                    "archie_staging",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            running, _, health = (probe.stdout or "").strip().partition("|")
+            if running == "true" and health in ("healthy", "none"):
+                came_back = True
+                break
+            time.sleep(2)
+
+        if not came_back:
+            log.append("✗ archie_staging did not report healthy within 30s")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "module": module_name,
+                        "backup": candidates[0],
+                        "log": log,
+                        "error": "archie_staging did not come back up — sandbox state is unverified",
+                    }
+                ),
+                500,
+            )
+        log.append("✓ archie_staging back up")
 
         return jsonify({"success": True, "module": module_name, "backup": candidates[0], "log": log})
 

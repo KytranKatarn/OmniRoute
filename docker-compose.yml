@@ -200,6 +200,14 @@ services:
       # /mnt/archie_brain/<dir> needs the matching bind to find them.
       - ./archie-comms:/mnt/archie_brain/archie-comms:ro
       - ./what-the-fact:/mnt/archie_brain/what-the-fact:ro
+      # kbs was missing from this list, so backup_standalone tarred a path that does not
+      # exist in-container: all 16 kbs backups were 0 files / 0 bytes (measured 2026-07-20).
+      # Must be THIS path — /mnt/standalone/kytran-business-suite is a DIFFERENT directory
+      # (different inode) stuck at the v1.0.0 initial release from Apr 14 (754 files) vs
+      # the live 1730. Binding that one would archive stale code and report success.
+      # Mirrored in archie_scheduler on purpose — volume drift there silently degrades
+      # scheduled work (KB #263303).
+      - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
       - ./standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
       # Host command queue (shared with host_monitor.py for storage operations)
       - ./host_commands:/mnt/archie_brain/host_commands:rw
@@ -410,6 +418,14 @@ services:
       # fallback candidates in code_metrics_service._resolve_standalone_path.
       - ./archie-comms:/mnt/archie_brain/archie-comms:ro
       - ./what-the-fact:/mnt/archie_brain/what-the-fact:ro
+      # kbs was missing from this list, so backup_standalone tarred a path that does not
+      # exist in-container: all 16 kbs backups were 0 files / 0 bytes (measured 2026-07-20).
+      # Must be THIS path — /mnt/standalone/kytran-business-suite is a DIFFERENT directory
+      # (different inode) stuck at the v1.0.0 initial release from Apr 14 (754 files) vs
+      # the live 1730. Binding that one would archive stale code and report success.
+      # Mirrored in archie_scheduler on purpose — volume drift there silently degrades
+      # scheduled work (KB #263303).
+      - ./kytran-business-suite:/mnt/archie_brain/kytran-business-suite:ro
       - ./standalone/media_hub:/mnt/archie_brain/standalone/media_hub:ro
       # ── Standalone Products + Websites (read-only for Code Health scanner) ──
       # Mirrors archie_platform line 220. Without this parent mount, scheduled

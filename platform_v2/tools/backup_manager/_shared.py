@@ -805,7 +805,12 @@ STANDALONE_PRODUCTS = [
     {
         "name": "creed",
         "display_name": "C.R.E.E.D. Governance",
-        "code_path": "/mnt/archie_brain/kytran-creed",
+        # /mnt/archie_brain/kytran-creed is a SYMLINK to this path and is not bound into
+        # archie_platform, so it does not resolve in-container: every creed backup since
+        # the beginning produced 0 files / 0 bytes (13 runs, measured 2026-07-20).
+        # /mnt/standalone IS bound, and stat confirms both spellings are the same inode —
+        # this is the same directory, just the reachable name for it.
+        "code_path": "/mnt/standalone/kytran-creed",
         "db_schema": None,  # own SQLite DB
         "backup_type": "full",
     },

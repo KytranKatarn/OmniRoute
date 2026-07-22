@@ -3531,9 +3531,27 @@
                     document.getElementById('cloudQuotaFill').style.width = data.storage.percent_used + '%';
                 }
 
+                // NEVER hide the list silently. Previously the whole section was
+                // display:none whenever no passphrase was configured, so an operator
+                // saw a blank Cloud tab and could not tell "no off-site backups" from
+                // "37 backups exist but are gated" — which was the actual state (#5124).
+                document.getElementById('cloudBackupsSection').style.display = 'block';
                 if (data.has_passphrase) {
-                    document.getElementById('cloudBackupsSection').style.display = 'block';
                     loadCloudBackups();
+                } else {
+                    const cbl = document.getElementById('cloudBackupsList');
+                    cbl.textContent = '';
+                    const es = document.createElement('div');
+                    es.className = 'empty-state';
+                    const h = document.createElement('h3');
+                    h.textContent = 'Encryption passphrase not configured';
+                    es.appendChild(h);
+                    const p = document.createElement('p');
+                    p.textContent = 'Off-site backups may still exist in Google Drive — they cannot be listed or '
+                        + 'restored until a passphrase is available to decrypt them. Set one above, or set '
+                        + 'BACKUP_GDRIVE_PASSPHRASE on the server.';
+                    es.appendChild(p);
+                    cbl.appendChild(es);
                 }
             } else {
                 document.getElementById('cloudPassphraseSection').style.display = 'none';

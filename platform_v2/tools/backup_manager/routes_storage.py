@@ -1061,7 +1061,15 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
             "has_oauth": False,
             "oauth_valid": False,
             "has_folder_id": bool(config["folder_id"]),
-            "has_passphrase": bool(config["passphrase_hash"]),
+            # True when EITHER an operator-set passphrase hash exists OR the
+            # server holds the nightly passphrase that actually decrypts what is
+            # in Drive. Gating on the hash alone hid the whole Cloud section
+            # (display:none, no explanation) while 37 real backups sat there.
+            "has_passphrase": bool(config["passphrase_hash"] or config["server_passphrase"]),
+            # Lets the UI say WHICH credential is in play instead of guessing.
+            "passphrase_source": (
+                "user" if config["passphrase_hash"] else ("server" if config["server_passphrase"] else "none")
+            ),
             "connected": False,
             "storage": None,
             "email": None,
@@ -1337,13 +1345,32 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
 
         if not config["enabled"]:
             return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
-        if not config["passphrase_hash"]:
-            return jsonify({"success": False, "error": "No passphrase configured"}), 400
 
         from tools.backup_manager.gdrive_crypto import verify_passphrase
 
-        if not verify_passphrase(passphrase, config["passphrase_hash"]):
-            return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+        if config["passphrase_hash"]:
+            # An operator-set passphrase exists — keep proving the caller knows it.
+            if not verify_passphrase(passphrase, config["passphrase_hash"]):
+                return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+        elif config["server_passphrase"]:
+            # No operator passphrase, but the server holds the nightly one — the
+            # secret every object in Drive is already encrypted under. Use it
+            # rather than refusing, otherwise the ONLY off-site restore path is
+            # blocked outright and new uploads would use a second, divergent key.
+            # Trade-off accepted deliberately: these routes are @admin_required
+            # and the plaintext is handled server-side either way, so making the
+            # admin retype a 64-char generated secret buys nothing.
+            passphrase = config["server_passphrase"]
+        else:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "No passphrase available — set one in the Cloud tab, or set BACKUP_GDRIVE_PASSPHRASE.",
+                    }
+                ),
+                400,
+            )
 
         # Find the local backup
         backup_path = os.path.join(BACKUP_DIR, backup_name)
@@ -1468,13 +1495,32 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
 
         if not config["enabled"]:
             return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
-        if not config["passphrase_hash"]:
-            return jsonify({"success": False, "error": "No passphrase configured"}), 400
 
         from tools.backup_manager.gdrive_crypto import verify_passphrase
 
-        if not verify_passphrase(passphrase, config["passphrase_hash"]):
-            return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+        if config["passphrase_hash"]:
+            # An operator-set passphrase exists — keep proving the caller knows it.
+            if not verify_passphrase(passphrase, config["passphrase_hash"]):
+                return jsonify({"success": False, "error": "Incorrect passphrase"}), 401
+        elif config["server_passphrase"]:
+            # No operator passphrase, but the server holds the nightly one — the
+            # secret every object in Drive is already encrypted under. Use it
+            # rather than refusing, otherwise the ONLY off-site restore path is
+            # blocked outright and new uploads would use a second, divergent key.
+            # Trade-off accepted deliberately: these routes are @admin_required
+            # and the plaintext is handled server-side either way, so making the
+            # admin retype a 64-char generated secret buys nothing.
+            passphrase = config["server_passphrase"]
+        else:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "No passphrase available — set one in the Cloud tab, or set BACKUP_GDRIVE_PASSPHRASE.",
+                    }
+                ),
+                400,
+            )
 
         import threading
 
@@ -1494,7 +1540,7 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                     get_drive_service,
                     download_file as gdrive_download,
                 )
-                from tools.backup_manager.gdrive_crypto import decrypt_file
+                from tools.backup_manager.gdrive_crypto import decrypt_with_candidates
 
                 _cloud_progress[op_id]["stage"] = "downloading"
                 _cloud_progress[op_id]["percent"] = 5
@@ -1525,7 +1571,16 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                     pct = 50 + int((done / total) * 30) if total else 50
                     _cloud_progress[op_id]["percent"] = pct
 
-                decrypt_file(temp_enc, temp_tar, passphrase, on_progress=dec_progress)
+                # Try the passphrase most likely to fit this object FIRST — the
+                # Drive tier is not single-key (config/* is encrypted upstream
+                # under BACKUP_CONFIG_PASSPHRASE). Verified against live objects.
+                _is_config_obj = "/config/" in (orig_name or "")
+                _candidates = [("user/explicit", passphrase)] if passphrase else []
+                _cfg_pair = ("config", config.get("config_passphrase", ""))
+                _gd_pair = ("gdrive", config.get("server_passphrase", ""))
+                _candidates += [_cfg_pair, _gd_pair] if _is_config_obj else [_gd_pair, _cfg_pair]
+                _used = decrypt_with_candidates(temp_enc, temp_tar, _candidates)
+                _cloud_progress[op_id]["passphrase_used"] = _used
                 os.remove(temp_enc)
                 temp_enc = None
 

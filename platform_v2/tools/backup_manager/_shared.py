@@ -2977,6 +2977,19 @@ def _get_cloud_config():
         ),
         "folder_id": os.environ.get("GDRIVE_BACKUP_FOLDER_ID", ""),
         "passphrase_hash": os.environ.get("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ""),
+        # The secret that ACTUALLY protects every object currently in Drive.
+        # scripts/backup/tier_sync_gdrive.py (host cron) encrypts with this;
+        # GDRIVE_ENCRYPTION_PASSPHRASE_HASH is a hash of a DIFFERENT, older
+        # passphrase and is not even present in the container (it lives only in
+        # platform_v2/.env, which archie_platform does not load — it uses root
+        # .env). Gating recovery on the hash alone made the Cloud tab hide
+        # itself while 37 perfectly good off-site backups sat there (#5124).
+        "server_passphrase": os.environ.get("BACKUP_GDRIVE_PASSPHRASE", ""),
+        # The config tier is encrypted UPSTREAM by scripts/backup/component_config.sh
+        # under its own secret, and tier_sync_gdrive.py uploads an already-.enc file
+        # without re-encrypting it — so `<run>/config/*.enc` in Drive needs THIS key,
+        # not the gdrive one. Verified against live objects 2026-07-22.
+        "config_passphrase": os.environ.get("BACKUP_CONFIG_PASSPHRASE", ""),
     }
 
 

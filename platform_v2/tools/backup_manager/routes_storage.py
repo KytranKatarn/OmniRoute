@@ -1356,16 +1356,17 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
         # account that filled once and silently killed off-site DB backups for
         # ~3 weeks; a 2.4 GB pre-deploy snapshot is the fastest way to refill it.
         # Cloud is currently clean (0 such objects) — this keeps it that way (#5126).
-        from tools.backup_manager._shared import _is_ephemeral_backup
+        from tools.backup_manager._shared import _is_drill_backup, _is_ephemeral_backup
 
-        if _is_ephemeral_backup("", backup_name):
+        if _is_ephemeral_backup("", backup_name) or _is_drill_backup("", backup_name):
             return (
                 jsonify(
                     {
                         "success": False,
                         "error": (
-                            "Pre-deploy / repair-bay snapshots are not uploaded to cloud storage — "
-                            "they are short-lived rollback points, not restore points."
+                            "Pre-deploy / repair-bay snapshots and restorability drills are not "
+                            "uploaded to cloud storage — they are short-lived rollback points and "
+                            "local rehearsal evidence, not off-site restore points."
                         ),
                     }
                 ),

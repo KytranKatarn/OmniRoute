@@ -434,6 +434,12 @@ def create_backup_programmatic(
             external_result = copy_to_external_storage(backup_name, backup_path)
             if external_result["success"]:
                 print(f"  ✓ External copy complete ({external_result.get('size_mb', 0)} MB)")
+                # Cap drills AFTER a confirmed copy — pruning first could leave a
+                # kind at zero if the copy then failed (#5127).
+                if _is_drill_backup(description, backup_name):
+                    _dpruned = _prune_drills_external(keep_per_kind=1)
+                    if _dpruned:
+                        print(f"  Reclaimed {_dpruned} superseded drill copy/copies from external")
             else:
                 print(f"  ⚠ External copy failed: {external_result.get('error', 'unknown')}")
 
@@ -1689,6 +1695,57 @@ def _is_ephemeral_backup(description: str, backup_name: str) -> bool:
     """
     haystack = f"{description or ''} {backup_name or ''}".lower().replace("_", " ").replace("-", "-")
     return any(marker in haystack for marker in _EPHEMERAL_MARKERS)
+
+
+_DRILL_MARKER = "restorability drill"
+# Drill dirs are named `<ts>_restorability_drill_<kind>`; kind mirrors the three
+# Quick Backup types. Each kind is SEPARATE rehearsal evidence, so the cap is
+# per-kind — collapsing them to one would silently destroy proof that the
+# database (or critical, or full) restore path was exercised at all.
+_DRILL_KINDS = ("database", "critical", "full")
+
+
+def _is_drill_backup(description: str, backup_name: str) -> bool:
+    """True for restorability-drill snapshots (DR rehearsals)."""
+    haystack = f"{description or ''} {backup_name or ''}".lower().replace("_", " ")
+    return _DRILL_MARKER in haystack
+
+
+def _drill_kind(backup_name: str) -> str:
+    """Which drill kind a directory represents ('database'/'critical'/'full'/'other')."""
+    low = (backup_name or "").lower()
+    for kind in _DRILL_KINDS:
+        if low.endswith(kind) or f"drill_{kind}" in low or f"drill {kind}" in low:
+            return kind
+    return "other"
+
+
+def _prune_drills_external(keep_per_kind: int = 1) -> int:
+    """Cap restorability drills on external storage at `keep_per_kind` PER KIND.
+
+    Called AFTER the new copy lands, so a failed copy can never leave a kind at
+    zero. Same narrow guarantees as _prune_ephemeral_external: external tier
+    only, name must match, newest-first, realpath containment re-asserted before
+    an irreversible delete, failures swallowed (#5127).
+    """
+    removed = 0
+    try:
+        if not os.path.isdir(EXTERNAL_BACKUP_DIR):
+            return 0
+        by_kind: dict = {}
+        for d in os.listdir(EXTERNAL_BACKUP_DIR):
+            if os.path.isdir(os.path.join(EXTERNAL_BACKUP_DIR, d)) and _is_drill_backup("", d):
+                by_kind.setdefault(_drill_kind(d), []).append(d)
+        for _kind, dirs in by_kind.items():
+            dirs.sort(reverse=True)  # YYYYMMDD_HHMMSS prefix → newest first
+            for stale in dirs[max(keep_per_kind, 0) :]:
+                target = os.path.join(EXTERNAL_BACKUP_DIR, stale)
+                if os.path.realpath(target).startswith(os.path.realpath(EXTERNAL_BACKUP_DIR) + os.sep):
+                    shutil.rmtree(target, ignore_errors=True)
+                    removed += 1
+    except Exception as exc:
+        print(f"  ⚠ Drill external prune skipped: {exc}")
+    return removed
 
 
 def _prune_ephemeral_external(keep: int = 1) -> int:

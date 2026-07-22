@@ -59,33 +59,77 @@ class E2ERunner:
         ARCHIE_QA_TOKEN — same mechanism the HTTP runner uses, and the only way to auth
         SSO-only accounts like media_hub); fall back to the login form if that endpoint
         is absent/errors. The APIRequestContext shares the browser context's cookie jar,
-        so a successful token POST leaves the session cookie in place for page.goto."""
+        so a successful token POST leaves the session cookie in place for page.goto.
+
+        Returns True when a session was established (or none was required) and False when
+        authentication demonstrably failed. Callers MUST honour the return value — the
+        absence of an exception is not evidence of a session (#5112)."""
         if not auth or not auth.get("username"):
-            return
+            return True
+
+        # ${ENV_VAR} placeholders are resolved HERE. They used to be resolved only for
+        # `fill` ACTIONS, never for the auth block — so every spec written with the
+        # documented `username: "${ARCHIE_TEST_USERNAME}"` convention posted the literal
+        # string '${ARCHIE_TEST_USERNAME}', got 404 "User not found or inactive", fell
+        # back to a form login that typed the same literal, and stayed on /login. The old
+        # code logged "auth complete" anyway, so every assertion then ran against the
+        # LOGIN PAGE and failed as though the feature under test were broken (#5112).
+        username = self._resolve_env(auth.get("username") or "")
+        password = self._resolve_env(auth.get("password") or "")
+        if username.startswith("${") or password.startswith("${"):
+            # Unresolved => the env var is not set in this process. Fail LOUD: posting a
+            # placeholder is indistinguishable from a wrong password downstream.
+            logger.warning(
+                "E2E auth: unresolved placeholder in auth block (username=%r) — "
+                "is the env var set in the container?",
+                username,
+            )
+            return False
+
         qa_token = os.getenv("ARCHIE_QA_TOKEN", "")
         if qa_token:
             try:
                 resp = await self.context.request.post(
                     f"{base_url}/api/qa/auth",
-                    data=json.dumps({"token": qa_token, "username": auth["username"]}),
+                    data=json.dumps({"token": qa_token, "username": username}),
                     headers={"Content-Type": "application/json"},
                     timeout=10000,
                 )
                 if resp.ok:
-                    logger.info("E2E auth via /api/qa/auth ok")
-                    return
-                logger.debug("E2E /api/qa/auth -> %s; falling back to form login", resp.status)
+                    logger.info("E2E auth via /api/qa/auth ok (user=%s)", username)
+                    return True
+                # Log the BODY, not just the status — "404" alone cost a long
+                # investigation; '{"error":"User not found or inactive"}' names the cause.
+                body = ""
+                try:
+                    body = (await resp.text())[:200]
+                except Exception:
+                    pass
+                logger.warning("E2E /api/qa/auth -> %s %s; falling back to form login", resp.status, body)
             except Exception as e:
-                logger.debug("E2E token auth failed (%s); falling back to form login", e)
+                logger.warning("E2E token auth errored (%s); falling back to form login", e)
+
         try:
             await self.page.goto(f"{base_url}/login", wait_until="networkidle", timeout=10000)
-            await self.page.fill('input[name="username"], #username, input[type="text"]', auth["username"])
-            await self.page.fill('input[name="password"], #password, input[type="password"]', auth["password"])
+            await self.page.fill('input[name="username"], #username, input[type="text"]', username)
+            await self.page.fill('input[name="password"], #password, input[type="password"]', password)
             await self.page.click('button[type="submit"], input[type="submit"], .btn-primary')
             await self.page.wait_for_load_state("networkidle", timeout=10000)
-            logger.info("E2E auth complete, URL: %s", self.page.url)
         except Exception as e:
-            logger.warning("E2E auth failed: %s", e)
+            logger.warning("E2E form auth errored: %s", e)
+            return False
+
+        # POST-CONDITION. Nothing throwing is NOT evidence of a session — a rejected
+        # login re-renders /login with a 200. Verify we actually left the login page.
+        if "/login" in self.page.url:
+            logger.warning(
+                "E2E auth FAILED: still on the login page after submit (url=%s). "
+                "Assertions would have run against /login.",
+                self.page.url,
+            )
+            return False
+        logger.info("E2E auth complete (form), URL: %s", self.page.url)
+        return True
 
     async def execute_batch(self, tests, base_url, auth, run_id=None):
         """Execute multiple E2E tests reusing the same browser session.
@@ -98,7 +142,26 @@ class E2ERunner:
             await self.start_browser()
             # Auth once for the batch — skip if first test has skip_auth
             if tests and not tests[0].get("skip_auth", False):
-                await self.authenticate(base_url, auth)
+                if not await self.authenticate(base_url, auth):
+                    # Do NOT run the batch against an unauthenticated session: every
+                    # assertion would fail against /login and read as a product defect
+                    # rather than an auth failure (#5112). Fail loud, once, per test.
+                    msg = (
+                        "authentication failed — batch not run (assertions would have "
+                        "been evaluated against the login page)"
+                    )
+                    logger.error("E2E batch aborted: %s", msg)
+                    return [
+                        {
+                            "test_name": t.get("name", "unnamed_e2e"),
+                            "test_type": t.get("type", "e2e"),
+                            "url": f"{base_url}{t.get('path', '')}",
+                            "status": "error",
+                            "error_message": msg,
+                            "assertions": {},
+                        }
+                        for t in tests
+                    ]
 
             for test in tests:
                 result = await self._execute_single(test, base_url, auth, run_id)

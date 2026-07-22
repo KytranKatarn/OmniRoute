@@ -1,0 +1,114 @@
+# P.R.O.B.E. — Backup Manager / Backups tab, DOM-level E2E
+#
+# WHY THIS EXISTS (2026-07-22): the three "Last run:" captions under the Quick Backup
+# buttons rendered blank for an unknown length of time. Nothing caught it because every
+# existing Backup Manager suite (#19, #35, #69, #71) is HTTP-only `page_load`/`api` —
+# qa_spec_runner cannot assert DOM. The endpoint returned correct JSON the whole time;
+# only the rendered page was wrong. That is precisely the shape of mistake #281727 (a DHQ
+# card passed page-load AND API QA while rendering nowhere, because a shared JS file
+# shadowed its handler at load).
+#
+# So: an HTTP 200 is NOT evidence a UI renders. These tests assert the DOM.
+#
+# ⚠️ SAFETY — THIS SUITE MUST NEVER CLICK A QUICK BACKUP BUTTON.
+# `createQuickBackup('full'|'critical'|'database')` starts a REAL backup: measured
+# 2,470 MB / 1,040s, 2,358 MB / 875s and 1,596 MB / 835s respectively. A suite that
+# clicked them would fire ~6.4 GB of disk writes and ~45 min of CPU on every scheduled
+# run, and would take the /backups/.backup_lock out from under the nightly cron.
+# Wiring is therefore asserted by `typeof` + presence, never by invocation. Any future
+# test that actually exercises a backup belongs in a manual/on-demand suite, not here.
+
+suite:
+  name: "backup-manager-backups-tab-e2e"
+  description: "DOM-level E2E for the Backup Manager Backups tab. Proves the three Quick Backup 'Last run:' captions actually RENDER measured values (the failure HTTP-only suites cannot see), and that the button handlers are wired — without ever triggering a real multi-GB backup."
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    # P.R.O.B.E.'s own platform credentials, resolved from env by the runner.
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ---------------------------------------------------------------------------
+  - name: "Quick Backup captions render measured values (not the placeholder)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      # loadQuickStats() is async (fetch -> textContent). Give the natural on-load
+      # path time to complete before judging it.
+      - wait: 2500
+      - screenshot: "backups-tab-quick-backup-captions"
+    expect:
+      selector_visible:
+        "#qbLast-full": true
+        "#qbLast-critical": true
+        "#qbLast-database": true
+      js_eval:
+        # 1) The render function exists and is not shadowed by a later definition.
+        #    (#281727 was exactly a shadowed handler — the symbol existed but the
+        #    live binding pointed at dead code.)
+        - name: render_fn_present
+          expr: "typeof loadQuickStats === 'function' && typeof loadBackups === 'function'"
+          equals: true
+
+        # 2) THE REGRESSION. Each caption must contain a digit and must NOT still read
+        #    the hard-coded placeholder "Last run: -" or the empty-state "never".
+        #    Template default is an em dash (backup_manager.html ~L134/140/146), so a
+        #    dead render path leaves it in place — which is what the owner saw.
+        - name: captions_not_placeholder
+          expr: "['full','critical','database'].every(function(t){var e=document.getElementById('qbLast-'+t);if(!e)return false;var s=e.textContent||'';return /[0-9]/.test(s) && !/never|unknown/.test(s) && s.indexOf('—')===-1;})"
+          equals: true
+
+        # 3) A size is present on every caption. Guards the case where duration_ms is
+        #    populated but size_bytes silently isn't (or vice-versa) — the caption would
+        #    look "filled" while carrying half the information.
+        - name: captions_have_size
+          expr: "['full','critical','database'].every(function(t){var e=document.getElementById('qbLast-'+t);return !!e && / MB/.test(e.textContent||'');})"
+          equals: true
+
+        # 4) Deterministic re-render: calling loadQuickStats() directly must repopulate.
+        #    Isolates "the data/endpoint/DOM-write path works" from "something upstream
+        #    forgot to call it", so a failure tells you WHICH half broke.
+        - name: captions_repopulate_on_demand
+          expr: "(async function(){['full','critical','database'].forEach(function(t){var e=document.getElementById('qbLast-'+t);if(e)e.textContent='CLEARED';});await loadQuickStats();await new Promise(function(r){setTimeout(r,1200);});return ['full','critical','database'].every(function(t){var e=document.getElementById('qbLast-'+t);var s=e?(e.textContent||''):'';return s!=='CLEARED' && /[0-9]/.test(s);});})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  - name: "Quick Backup buttons present and wired (NOT clicked — see safety note)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 1200
+    expect:
+      js_eval:
+        # The handler exists. Presence-only: invoking it would start a real backup.
+        - name: handler_wired
+          expr: "typeof createQuickBackup === 'function'"
+          equals: true
+
+        # Exactly three caption slots — catches a button being added or dropped
+        # without its caption, which is how the set silently drifts.
+        - name: three_caption_slots
+          expr: "document.querySelectorAll('[id^=\"qbLast-\"]').length"
+          equals: 3
+
+        # Each mode has a control routing to createQuickBackup. Asserted structurally
+        # (the inline onclick names the mode) rather than by firing it.
+        - name: each_mode_has_a_control
+          expr: "['full','critical','database'].every(function(t){return document.body.innerHTML.indexOf(\"createQuickBackup('\"+t+\"'\")!==-1;})"
+          equals: true
+
+# ---------------------------------------------------------------------------
+# NOT COVERED YET — deliberately omitted rather than guessed.
+#
+# The per-backup-row action buttons (and the 9 non-Backups tabs: Cloud, External,
+# Deployment, Modules, Standalones, Hooks, Retention, Packages) have no DOM coverage.
+# Their controls are built dynamically inside renderBackupsList(), so their selectors
+# must be read from the live rendered DOM before assertions can be written. Writing
+# guessed selectors here would produce a permanently-red suite, which is worse than no
+# suite — people learn to ignore it.
+#
+# Tracked as a follow-up task. When adding them, keep the same safety rule: assert
+# wiring for anything destructive (delete/prune/restore-to-prod), and only actually
+# click read-only controls.

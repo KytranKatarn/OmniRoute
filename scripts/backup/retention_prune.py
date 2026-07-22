@@ -185,28 +185,36 @@ echo $deleted
 
 
 def prune_usb_stale_dirs(dry_run: bool) -> int:
-    """Sweep WHOLE dated USB dirs older than USB_MAX_AGE_DAYS. The per-component prune only
-    touches <datedir>/<component> subdirs matching RETENTION keys, so one-off / manual / test /
-    Daily_Scheduled backups (a different internal layout) are never matched and pile up forever —
-    that is what filled the USB. USB keeps <=4 weekly (~28d) + 0 monthly, so a 45d cap never
-    removes anything the recurring retention would keep. Root-owned -> via archie_platform."""
-    cap = USB_MAX_AGE_DAYS
+    """Keep ONLY the single newest scheduled Daily_Triage backup on USB; sweep every other
+    dated dir.
+
+    The USB drive is the LAST-RESORT recovery copy — the one you reach for when both the DR
+    server and Google Drive are unavailable — so by owner policy it holds exactly ONE copy: the
+    latest full daily backup. This used to sweep only whole dirs older than 45 days, which let
+    one-off / manual / test / pre-deploy snapshot dirs (a layout the per-component prune never
+    matches) pile up forever — that is what filled the USB to 61 GB / 36 dirs. Now we keep the
+    newest *_Daily_Triage and remove the rest, which also cleans out anything non-daily that
+    landed here. If (edge case) no Daily_Triage is present, keep the newest dated dir so the USB
+    is never left empty. Root-owned -> via archie_platform."""
     dry = "1" if dry_run else "0"
     script = f"""
 set -e
 cd /mnt/external-backup 2>/dev/null || exit 0
 DRY={dry}
-cutoff=$(date -d "-{cap} days" +%Y%m%d)
+# newest scheduled daily is the one to KEEP; fall back to newest dated dir so USB is never empty
+keep=$(ls -1d *_Daily_Triage 2>/dev/null | sort -r | head -1 || true)
+if [ -z "$keep" ]; then keep=$(ls -1 2>/dev/null | grep -E '^[0-9]{{8}}_' | sort -r | head -1 || true); fi
 deleted=0
-for d in $(ls -1 | grep -E '^[0-9]{{8}}_'); do
-    dp=${{d:0:8}}
-    if [ "$dp" -lt "$cutoff" ]; then
+for d in $(ls -1 2>/dev/null | grep -E '^[0-9]{{8}}_' || true); do
+    if [ "$d" != "$keep" ]; then
         if [ "$DRY" = "1" ]; then echo "WOULD-SWEEP $d"; else rm -rf "$d"; fi
         deleted=$((deleted+1))
     fi
 done
 echo $deleted
 """
+    cap = USB_MAX_AGE_DAYS  # retained for back-compat / env override; no longer used for the sweep
+    _ = cap
     r = subprocess.run(
         ["docker", "exec", "archie_platform", "bash", "-c", script],
         capture_output=True,
@@ -215,7 +223,7 @@ echo $deleted
     if dry_run:
         for line in r.stdout.splitlines():
             if line.startswith("WOULD-SWEEP "):
-                print(f"[dry-run] usb sweep (>{cap}d): {line[len('WOULD-SWEEP '):]}")
+                print(f"[dry-run] usb sweep (keep newest Daily_Triage only): {line[len('WOULD-SWEEP '):]}")
     try:
         return int(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):

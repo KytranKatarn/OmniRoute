@@ -2517,6 +2517,33 @@ def _pg_dump_env():
     return env
 
 
+def get_cloud_backup_passphrase():
+    """Owner-set passphrase used to encrypt the single Google Drive (cloud) backup zip.
+
+    The cloud recovery copy is one zip, AES-encrypted with THIS passphrase, so a restore needs
+    only the passphrase. It is an OWNER SECRET — set once, never handled by an assistant.
+
+    IMPORTANT: the platform login password CANNOT be used as this key. Logins are stored one-way
+    HASHED (werkzeug generate_password_hash); the plaintext is never available — not to a person,
+    not to the nightly backup (which runs with no session). This is therefore a DEDICATED
+    passphrase the owner sets once; they may choose it to be the same string as their password.
+
+    Resolution order: BACKUP_CLOUD_PASSPHRASE env, then a Docker-secret file at
+    BACKUP_CLOUD_PASSPHRASE_FILE. Returns None if unset — the cloud-encryption step MUST fail
+    closed (refuse to upload an unencrypted backup) when this is None.
+    """
+    pw = os.getenv("BACKUP_CLOUD_PASSPHRASE") or ""
+    if not pw:
+        secret_file = os.getenv("BACKUP_CLOUD_PASSPHRASE_FILE", "")
+        if secret_file and os.path.exists(secret_file):
+            try:
+                with open(secret_file) as _sf:
+                    pw = _sf.read().strip()
+            except OSError:
+                pass
+    return pw or None
+
+
 def backup_database_python(output_file, compress=True):
     """Dump the database to a gzipped plain-SQL file using pg_dump.
 

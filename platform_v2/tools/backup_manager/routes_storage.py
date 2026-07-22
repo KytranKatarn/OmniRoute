@@ -896,6 +896,13 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                                 )
                             metadata["size"] = total_size
                             metadata["size_mb"] = round(total_size / (1024 * 1024), 2)
+                            # The External tab showed a blank title: daily_triage metadata.json has
+                            # no name field and stores its time as `ts`, not `timestamp` (so the
+                            # sort below also missed). Derive the name from the folder and normalise
+                            # the timestamp so the tab shows a real name/date.
+                            metadata["backup_name"] = item
+                            metadata.setdefault("name", item)
+                            metadata.setdefault("timestamp", metadata.get("ts", ""))
                             backups.append(metadata)
                         except Exception:
                             # Backup without valid metadata

@@ -1,0 +1,153 @@
+# ⚠️ MANUAL-ONLY SUITE — DESTRUCTIVE. NEVER REGISTER THIS FILE.
+# ============================================================================
+# This exercises the Backup Manager controls that the scheduled suite (#106)
+# deliberately only asserts as WIRED, because invoking them has real-world cost:
+#   Download    — pulls up to 2.4 GB
+#   Sync USB    — real copy to removable media
+#   Cloud       — real upload against a 15 GB free-tier quota that already filled
+#                 once and killed off-site backups for ~3 weeks
+#   Delete      — DESTROYS A RESTORE POINT
+#   Quick Backup— starts a real multi-GB run (14–17 min) and takes
+#                 /backups/.backup_lock from the nightly cron
+#
+# HOW "MANUAL-ONLY" IS ENFORCED — two independent mechanisms:
+#
+# 1. NOT REGISTERED. A YAML on disk is NOT runnable until
+#    qa_service.create_suite_from_yaml() inserts it into qa_test_suites (KB #283148).
+#    Leaving it unregistered means the 6h qa_scheduled_run job cannot see it and
+#    /archie-probe will not list it. ⚠️ DO NOT "helpfully" register this file.
+#    NOTE: is_active=false does NOT work as a manual-only mechanism — measured
+#    2026-07-22, run_suite() on an inactive suite returns success=False with no
+#    run_id, i.e. deactivating makes a suite unrunnable rather than manual.
+#
+# 2. PER-ACTION ENV GATES. Every destructive step is additionally gated on an
+#    env var and SKIPS (passing) when unset, so even a mis-registration is inert.
+#    Nothing here fires by accident:
+#        BACKUP_QA_ALLOW_DOWNLOAD=1
+#        BACKUP_QA_ALLOW_USB=1
+#        BACKUP_QA_ALLOW_CLOUD=1
+#        BACKUP_QA_ALLOW_DELETE=1      # see the hard constraint below
+#
+# HOW TO RUN (explicit, one action at a time — never all at once):
+#   docker exec -e BACKUP_QA_ALLOW_DOWNLOAD=1 archie_platform python3 -c "
+#   import sys, asyncio, yaml; sys.path.insert(0,'/app')
+#   from services.qa_e2e_runner import E2ERunner
+#   from services.qa_spec_runner import _resolve_env_vars
+#   s=_resolve_env_vars(yaml.safe_load(open('/app/qa_suites/manual/backup-manager-destructive-MANUAL.yaml')))
+#   out=asyncio.run(E2ERunner().execute_batch(s['tests'], s['suite']['base_url'], s['suite'].get('auth'), run_id='MANUAL'))
+#   [print(t.get('status'), t.get('test_name')) for t in out]"
+#
+# ⚠️ BEFORE RUNNING ANYTHING HERE:
+#   docker exec archie_platform test -f /backups/.backup_lock && echo "BACKUP IN FLIGHT — DO NOT RUN"
+#   A host-side `ls` certifies nothing; the lock is a FILE inside the container
+#   (KB #282939). Never run this suite while a backup is in progress.
+#
+# HARD CONSTRAINT ON DELETE: it may only ever target a backup THIS SUITE CREATED.
+#   Deleting an operator's restore point to satisfy a test is never acceptable.
+#   That is why the delete test is last, is gated separately, and refuses to run
+#   unless a suite-created backup is present. Creating one costs a real multi-GB
+#   backup run, so it is opt-in on top of the gate.
+#
+# STATUS: ⚠️ AUTHORED BUT NOT EXECUTED. Claude cannot run these without
+#   destroying or transferring real data. Structure, selectors and endpoints are
+#   taken from the live DOM/API verified 2026-07-22, but no assertion here has
+#   ever gone green. TREAT EVERY RESULT AS UNVALIDATED UNTIL AN OPERATOR RUNS IT.
+# ============================================================================
+
+suite:
+  name: "backup-manager-destructive-MANUAL"
+  description: "MANUAL-ONLY. Exercises the destructive/expensive Backup Manager controls that suite #106 only asserts as wired. NOT REGISTERED BY DESIGN — do not add to qa_test_suites. Every step is env-gated and skips when unset."
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ---------------------------------------------------------------------------
+  # DOWNLOAD — lowest risk of the four (reads, never destroys). Targets the
+  # SMALLEST backup on purpose, and uses a Range request on retrieve so the
+  # assertion does not pull gigabytes to prove the stream works.
+  #
+  # Specifically probes the `_delete_after()` race in routes_download.py: the
+  # temp archive is scheduled for deletion after send_file, so a slow client can
+  # in principle race it and truncate near the end of a 2.4 GB stream.
+  - name: "MANUAL: Download prepare -> status -> retrieve (smallest backup, ranged)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2000
+    expect:
+      js_eval:
+        - name: download_flow_completes
+          expr: "(async function(){ if('${BACKUP_QA_ALLOW_DOWNLOAD}'!=='1') return true; var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json(); var bs=(l.backups||[]).filter(function(b){return b.size_bytes;}); if(!bs.length) return false; bs.sort(function(a,b){return a.size_bytes-b.size_bytes;}); var n=bs[0].name||bs[0].timestamp; var pr=await (await fetch('/tools/backup-manager/api/download/prepare/'+encodeURIComponent(n),{method:'POST',credentials:'same-origin'})).json(); var job=pr.job_id||pr.id; if(!job) return false; for(var i=0;i<120;i++){ await new Promise(function(r){setTimeout(r,2000);}); var st=await (await fetch('/tools/backup-manager/api/download/status/'+job,{credentials:'same-origin'})).json(); if((st.status||'')==='ready'||(st.status||'')==='completed') break; if((st.status||'')==='failed') return false; } var rr=await fetch('/tools/backup-manager/api/download/retrieve/'+job,{credentials:'same-origin',headers:{'Range':'bytes=0-1023'}}); return rr.status===200||rr.status===206; })()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # SYNC USB — copies to removable media. The MECHANISM is known-good (258
+  # successful tier='usb' rows, latest 2026-07-22 06:14, written by the nightly
+  # backup_triage.sh). What is UNPROVEN is whether the per-row BUTTON reaches it.
+  # Asserts a new usb-tier backup_log row appears for this backup after the call.
+  - name: "MANUAL: Sync USB writes a new usb-tier backup_log row"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2000
+    expect:
+      js_eval:
+        - name: usb_sync_records_a_row
+          expr: "(async function(){ if('${BACKUP_QA_ALLOW_USB}'!=='1') return true; var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json(); var b=(l.backups||[])[0]; if(!b) return false; var n=b.name||b.timestamp; var before=await (await fetch('/tools/backup-manager/health',{credentials:'same-origin'})).json(); var r=await fetch('/tools/backup-manager/api/sync-usb/'+encodeURIComponent(n),{method:'POST',credentials:'same-origin'}); if(!r.ok) return false; for(var i=0;i<90;i++){ await new Promise(function(x){setTimeout(x,2000);}); var after=await (await fetch('/tools/backup-manager/health',{credentials:'same-origin'})).json(); if(JSON.stringify(after)!==JSON.stringify(before)) return true; } return false; })()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # CLOUD — real Google Drive upload against a 15 GB FREE-TIER quota. This tier
+  # filled once (100 files / 14.67 GB) and silently killed off-site DB backups for
+  # ~3 weeks, because resumable uploads pre-declare size and get rejected outright.
+  # ⚠️ Check headroom BEFORE enabling this gate; a full quota is the failure mode
+  # being tested, but filling it for real is not an acceptable way to test it.
+  - name: "MANUAL: Cloud upload succeeds or fails LOUDLY (never silently)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2000
+    expect:
+      js_eval:
+        # The property under test is HONESTY, not success: a quota rejection must
+        # surface as a non-ok status or an explicit error, never as a silent no-op.
+        # That silence is exactly what hid the 3-week outage.
+        - name: cloud_upload_reports_truthfully
+          expr: "(async function(){ if('${BACKUP_QA_ALLOW_CLOUD}'!=='1') return true; var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json(); var b=(l.backups||[])[0]; if(!b) return false; var n=b.name||b.timestamp; var r=await fetch('/tools/backup-manager/api/cloud/upload/'+encodeURIComponent(n),{method:'POST',credentials:'same-origin'}); var j=null; try{ j=await r.json(); }catch(e){ return false; } if(r.ok) return j.success===true; return !!(j && (j.error||j.message)); })()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # DELETE — DESTROYS A RESTORE POINT. Last, separately gated, and constrained:
+  # it will only delete a backup whose description carries the QA marker, i.e.
+  # one this suite created. If no such backup exists it SKIPS rather than
+  # deleting something real. Never relax that guard.
+  - name: "MANUAL: Delete removes ONLY a suite-created backup (never a real one)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2000
+    expect:
+      js_eval:
+        - name: delete_only_touches_qa_marked_backup
+          expr: "(async function(){ if('${BACKUP_QA_ALLOW_DELETE}'!=='1') return true; var MARK='QA-DESTRUCTIVE-SUITE-SAFE-TO-DELETE'; var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json(); var all=l.backups||[]; var mine=all.filter(function(b){return ((b.description||'')+'').indexOf(MARK)!==-1;}); if(!mine.length) return true; var n=mine[0].name||mine[0].timestamp; var before=all.length; var r=await fetch('/tools/backup-manager/api/backup/'+encodeURIComponent(n),{method:'DELETE',credentials:'same-origin'}); if(!r.ok) return false; var l2=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json(); var after=(l2.backups||[]); var stillThere=after.some(function(b){return (b.name||b.timestamp)===n;}); return !stillThere && after.length===before-1; })()"
+          equals: true
+
+# ============================================================================
+# NOT COVERED HERE, DELIBERATELY:
+#   The three Quick Backup buttons. Each starts a real 14–17 min multi-GB run and
+#   takes /backups/.backup_lock. Their CREATE path was already proven manually on
+#   2026-07-22 (full 2,471 MB/17m20s · critical 2,358 MB/14m35s · database
+#   1,596 MB/13m55s, all producing real artifacts), so the marginal value of
+#   automating them is low and the cost of a stray scheduled run is high.
+#
+# ENDPOINT PATHS above are inferred from routes_download.py (prepare/status/
+# retrieve are confirmed) and the row action labels; the USB/CLOUD/DELETE routes
+# were NOT read line-by-line and may need correcting on first run. Fix the path,
+# not the assertion, if one 404s.
+# ============================================================================

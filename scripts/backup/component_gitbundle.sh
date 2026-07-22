@@ -38,6 +38,7 @@ TOTAL_SIZE=0
 CRITICAL_FAILED=0   # only the platform repo (archie_brain) failing blocks the run
 SOFT_FAILED=0       # a standalone repo failing must NOT skip tier-sync+retention (#4045)
 OK_COUNT=0
+SKIPPED_COUNT=0     # repos with NOTHING to bundle this window — a no-op, not a failure
 START=$(date +%s)
 
 # archie_brain is the critical platform repo; a single standalone repo failing
@@ -57,6 +58,19 @@ for entry in "${REPOS[@]}"; do
     path="${entry#*:}"
     if [[ ! -d "$path/.git" ]]; then
         log_warn "skip $name — $path is not a git repo"
+        continue
+    fi
+    # A repo with NO commits in this window has nothing to bundle: git exits 128 with
+    # "fatal: Refusing to create empty bundle." That is a correct no-op for an unchanged
+    # repo, NOT a backup failure — the full history is already captured by the 1st-of-month
+    # --all bundle. Treating it as a failure marked the component 'partial' every single
+    # night (kytran-creed: 0 commits in a month), which kept the primary_backup_failures
+    # alert permanently warm and trained everyone to ignore a real alarm channel (#5095).
+    # Same family as #2369/#5052: judge the actual condition, not an exit code that means
+    # something else. Checked with the SAME range args, so full vs incremental agree.
+    if [[ -z "$(git -C "$path" log "${RANGE_ARGS[@]}" -1 --format=%H 2>/dev/null)" ]]; then
+        log_info "skip $name — no commits in $BUNDLE_KIND range (nothing to bundle)"
+        SKIPPED_COUNT=$(( SKIPPED_COUNT + 1 ))
         continue
     fi
     OUT_FILE="$OUT_DIR/${name}_${BUNDLE_KIND}_$(backup_ts).bundle"
@@ -79,15 +93,18 @@ for entry in "${REPOS[@]}"; do
 done
 
 DUR=$(( ( $(date +%s) - START ) * 1000 ))
-# Fail (rc=1 -> run_backup skips retention) only if the platform repo failed or
-# nothing bundled. A partial (some standalone repos failed) exits 0 so the
-# nightly tier-sync + retention still run.
-if [[ $CRITICAL_FAILED -ne 0 || $OK_COUNT -eq 0 ]]; then
+# Fail (rc=1 -> run_backup skips retention) only if the platform repo failed, or if
+# nothing bundled AND nothing was legitimately skipped. The SKIPPED_COUNT term matters:
+# in a genuinely quiet window every repo can have zero new commits, and "there was
+# nothing to back up" must not be reported as "the backup failed". A partial (some
+# standalone repo actually errored) still exits 0 so tier-sync + retention run.
+if (( CRITICAL_FAILED != 0 )) || (( OK_COUNT == 0 && SKIPPED_COUNT == 0 )); then
     STATUS=failed; RC=1
-elif [[ $SOFT_FAILED -ne 0 ]]; then
+elif (( SOFT_FAILED != 0 )); then
     STATUS=partial; RC=0
 else
     STATUS=success; RC=0
 fi
+log_info "gitbundle: $OK_COUNT bundled, $SKIPPED_COUNT skipped (no commits), $SOFT_FAILED soft-failed"
 log_to_db "gitbundle" "primary" "$STATUS" "$OUT_DIR" "$TOTAL_SIZE" "$DUR"
 exit "$RC"

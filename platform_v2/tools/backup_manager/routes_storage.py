@@ -880,38 +880,66 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                 item_path = os.path.join(EXTERNAL_BACKUP_DIR, item)
                 if os.path.isdir(item_path):
                     metadata_file = os.path.join(item_path, "metadata.json")
+                    metadata = {}
                     if os.path.exists(metadata_file):
                         try:
                             with open(metadata_file, "r") as f:
                                 metadata = json.load(f)
-                            # Prefer cached size — os.walk on a 727 MB USB dir is slow.
-                            cached = metadata.get("total_size_bytes") or metadata.get("size")
-                            if cached:
-                                total_size = cached
-                            else:
-                                total_size = sum(
-                                    os.path.getsize(os.path.join(root, f))
-                                    for root, _, files in os.walk(item_path)
-                                    for f in files
-                                )
-                            metadata["size"] = total_size
-                            metadata["size_mb"] = round(total_size / (1024 * 1024), 2)
-                            # The External tab showed a blank title: daily_triage metadata.json has
-                            # no name field and stores its time as `ts`, not `timestamp` (so the
-                            # sort below also missed). Derive the name from the folder and normalise
-                            # the timestamp so the tab shows a real name/date.
-                            metadata["backup_name"] = item
-                            metadata.setdefault("name", item)
-                            metadata.setdefault("timestamp", metadata.get("ts", ""))
-                            backups.append(metadata)
+                            if not isinstance(metadata, dict):
+                                metadata = {}
                         except Exception:
-                            # Backup without valid metadata
-                            backups.append(
-                                {
-                                    "name": item,
-                                    "error": "Invalid metadata",
-                                }
+                            metadata = {}
+
+                    # ⚠️ A MISSING metadata.json USED TO SKIP THE ROW ENTIRELY (no else
+                    # branch), so the External tab listed 1 of 14 USB backups and hid
+                    # 30.9 GB of real restore points — measured 2026-07-22 (#5122).
+                    # `sync-to-external` copies a run dir verbatim and only the nightly
+                    # triage writes a metadata.json, so ABSENT metadata is the NORMAL
+                    # case on this tier, not corruption. Always emit a row and derive
+                    # what the folder name already tells us.
+                    total_size = metadata.get("total_size_bytes") or metadata.get("size")
+                    if not total_size:
+                        # Stat-only walk (no file reads) — 14 dirs / 33 GB measured fast.
+                        try:
+                            total_size = sum(
+                                os.path.getsize(os.path.join(root, f))
+                                for root, _, files in os.walk(item_path)
+                                for f in files
                             )
+                        except OSError:
+                            total_size = 0
+
+                    # Folder names are `YYYYMMDD_HHMMSS_<description>`.
+                    ts_part, rest = "", item
+                    if len(item) >= 15 and item[8] == "_" and item[:8].isdigit() and item[9:15].isdigit():
+                        ts_part, rest = item[:15], item[16:]
+
+                    low = rest.lower()
+                    if "daily_triage" in low:
+                        derived_type = "daily_triage"
+                    elif low.startswith("pre-deploy") or "pre-deploy" in low:
+                        derived_type = "predeploy"
+                    elif "drill" in low:
+                        derived_type = "drill"
+                    else:
+                        derived_type = "backup"
+
+                    metadata["size"] = total_size
+                    metadata["size_mb"] = round(total_size / (1024 * 1024), 2)
+                    metadata["backup_name"] = item
+                    metadata.setdefault("name", item)
+                    metadata.setdefault("timestamp", metadata.get("ts", "") or ts_part)
+                    metadata.setdefault("display_type", metadata.get("backup_type") or derived_type)
+                    if not metadata.get("description") and rest:
+                        metadata["description"] = rest.replace("_", " ")
+                    # ISO form so the UI can render a real local time (ArchieTime).
+                    if not metadata.get("created_at") and ts_part:
+                        metadata["created_at"] = (
+                            f"{ts_part[0:4]}-{ts_part[4:6]}-{ts_part[6:8]}"
+                            f"T{ts_part[9:11]}:{ts_part[11:13]}:{ts_part[13:15]}"
+                        )
+                    metadata["tier"] = "usb"
+                    backups.append(metadata)
 
             backups.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
             return jsonify({"success": True, "backups": backups})

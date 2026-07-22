@@ -1038,6 +1038,7 @@
 
             if (data.success) {
                 currentBuildNum = data.current_build;
+                _primaryBackupNames = new Set((data.backups || []).map(function(b) { return b.name; }));
                 renderBackupsList(data.backups);
                 updateStats(data.backups, data.current_build, data.total_count, data.total_size_bytes);
             } else {
@@ -1061,8 +1062,33 @@
         }
 
         container.textContent = '';
-        backups.forEach(backup => {
-            const sizeMB = backup.total_size_mb || (backup.size / 1024 / 1024).toFixed(2);
+        backups.forEach(backup => container.appendChild(buildBackupCard(backup, 'primary')));
+    }
+
+    // ------------------------------------------------------------------
+    // Shared backup card — ONE renderer for the Backups / External / Cloud
+    // tabs (#5122/#5123). All three previously had their own fork writing
+    // into the same `.backup-list` container: External rendered a stripped
+    // name+size card, Cloud rendered an HTML <table>. Divergence meant a fix
+    // to one tab never reached the others.
+    //
+    // `source` selects the accent, the tier badge and WHICH ACTIONS ARE
+    // HONEST for that tier — never render a control the backend can't serve:
+    //   • external → Inspect only when the backup ALSO exists in the primary
+    //     dir, because preview_restore() hardcodes BACKUP_DIR="/backups" and
+    //     404s on a USB-only copy.
+    //   • cloud → no Inspect at all; a Drive object is an encrypted blob and
+    //     cloud/list returns only id/name/size/created_time.
+    // ------------------------------------------------------------------
+    const BM_SOURCES = {
+        primary:  { accent: null,      tier: null,    actions: ['inspect', 'download', 'setcurrent', 'usb', 'cloud', 'delete'] },
+        external: { accent: '#22d3ee', tier: 'USB',   actions: ['inspect', 'delete_external'] },
+        cloud:    { accent: '#60a5fa', tier: 'CLOUD', actions: ['download_cloud', 'delete_cloud'] },
+    };
+
+    function buildBackupCard(backup, source) {
+        const SRC = BM_SOURCES[source] || BM_SOURCES.primary;
+            const sizeMB = backup.total_size_mb || (backup.size_mb != null ? backup.size_mb : (backup.size / 1024 / 1024).toFixed(2));
             const buildNum = backup.build_number || '-';
             const isCurrent = currentBuildNum && backup.build_number === currentBuildNum;
             const backupType = backup.backup_type || 'legacy';
@@ -1071,6 +1097,7 @@
 
             const item = document.createElement('div');
             item.className = 'backup-item' + (isCurrent ? ' current' : '');
+            if (SRC.accent) item.style.borderLeftColor = SRC.accent;
 
             // Build the header section
             const header = document.createElement('div');
@@ -1141,6 +1168,11 @@
                 verify:       ['🔎', 'VERIFY',    '', AUTO_S],
                 dr_drill:     ['🛟', 'DR',         '', AUTO_S],
                 kb_export:    ['🧾', 'KB',        '', AUTO_S],
+                // Derived server-side from the folder name for USB copies that carry
+                // no metadata.json (the normal case on that tier — see #5122).
+                predeploy:    ['🚧', 'PRE-DEPLOY', '', AUTO_S],
+                drill:        ['🛟', 'DRILL',     '', AUTO_S],
+                cloud:        ['☁️', 'CLOUD',     '', DATE_S],
             };
             const dtype = String(backup.display_type || backup.backup_type || 'backup').toLowerCase();
             const typeBadgeSpan = document.createElement('span');
@@ -1159,6 +1191,17 @@
                 typeBadgeSpan.title = dtype.toUpperCase();
             }
             titleDiv.appendChild(typeBadgeSpan);
+
+            // Tier badge — states plainly WHERE this copy lives, so a USB or Drive
+            // row can never be mistaken for a primary-disk restore point.
+            if (SRC.tier) {
+                const tierBadge = document.createElement('span');
+                tierBadge.className = 'badge';
+                tierBadge.style.cssText = `background:${SRC.accent}22; color:${SRC.accent}; border:1px solid ${SRC.accent};`;
+                tierBadge.textContent = SRC.tier;
+                tierBadge.title = SRC.tier === 'USB' ? 'Stored on external USB storage' : 'Stored in Google Drive (encrypted)';
+                titleDiv.appendChild(tierBadge);
+            }
 
             // Compression badge
             if (isCompressed) {
@@ -1212,15 +1255,21 @@
                 forge: 'F.O.R.G.E.', codex: 'C.O.D.E.X.', vigil: 'V.I.G.I.L.',
                 base: 'B.A.S.E.', repair_bay: 'Repair Bay', automation: 'Automation',
             };
-            const _rawAuthor = (backup.triggered_by || backup.created_by || 'system').toLowerCase();
-            const _displayAuthor = _bkAgentNames[_rawAuthor] || (backup.triggered_by || backup.created_by || 'system');
-            const authorSpan = document.createElement('span');
-            authorSpan.className = 'author';
-            authorSpan.textContent = _displayAuthor;
-            metaDiv.appendChild(authorSpan);
+            // Only name an author we actually know. A Drive listing carries no
+            // attribution, so defaulting to "system" there would invent one.
+            const _knownAuthor = backup.triggered_by || backup.created_by || null;
             var backupTime = backup.created_at || backup.name;
             if (typeof ArchieTime !== 'undefined' && backupTime) backupTime = ArchieTime.format(backupTime, 'datetime');
-            metaDiv.appendChild(document.createTextNode(' on ' + backupTime));
+            if (_knownAuthor) {
+                const _displayAuthor = _bkAgentNames[String(_knownAuthor).toLowerCase()] || _knownAuthor;
+                const authorSpan = document.createElement('span');
+                authorSpan.className = 'author';
+                authorSpan.textContent = _displayAuthor;
+                metaDiv.appendChild(authorSpan);
+                metaDiv.appendChild(document.createTextNode(' on ' + backupTime));
+            } else {
+                metaDiv.textContent = (source === 'cloud' ? 'Uploaded ' : 'Created ') + backupTime;
+            }
             infoDiv.appendChild(metaDiv);
 
             // Version identity line — unified professional version string
@@ -1259,16 +1308,31 @@
             const actionsDiv = document.createElement('div');
             actionsDiv.className = 'backup-actions';
 
-            // Inspect button (formerly Preview)
-            const previewBtn = document.createElement('button');
-            previewBtn.className = 'btn btn-purple';
-            previewBtn.setAttribute('data-restore-btn', '1');
-            previewBtn.textContent = 'Inspect';
-            previewBtn.title = 'View backup contents and component details';
-            previewBtn.onclick = function() { if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; } previewRestore(backup.name); };
-            actionsDiv.appendChild(previewBtn);
+            // Inspect button (formerly Preview).
+            // On the External tab this is only honest when the same backup still
+            // exists in the primary dir — preview_restore() reads BACKUP_DIR and
+            // 404s on a USB-only copy, so a button there would always fail.
+            const _canInspect = SRC.actions.includes('inspect')
+                && (source !== 'external' || (_primaryBackupNames && _primaryBackupNames.has(backup.name)));
+            if (_canInspect) {
+                const previewBtn = document.createElement('button');
+                previewBtn.className = 'btn btn-purple';
+                previewBtn.setAttribute('data-restore-btn', '1');
+                previewBtn.textContent = 'Inspect';
+                previewBtn.title = 'View backup contents and component details';
+                previewBtn.onclick = function() { if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; } previewRestore(backup.name); };
+                actionsDiv.appendChild(previewBtn);
+            } else if (source === 'external') {
+                // Say WHY rather than silently omitting the control.
+                const note = document.createElement('span');
+                note.style.cssText = 'font-size:10px; color:var(--archie-text-tertiary); align-self:center;';
+                note.textContent = 'USB-only copy — inspect unavailable';
+                note.title = 'This backup no longer exists on the primary disk, so its contents cannot be previewed from here.';
+                actionsDiv.appendChild(note);
+            }
 
             // Download button — async state machine
+            if (SRC.actions.includes('download')) {
             const downloadBtn = document.createElement('button');
             downloadBtn.dataset.backupName = backup.name;
             downloadBtn.dataset.downloadState = 'idle';
@@ -1357,9 +1421,10 @@
                 _setDlState(downloadBtn, 'idle', '');
             }
             actionsDiv.appendChild(downloadBtn);
+            }
 
             // Set Current button (only for non-current builds with a build number)
-            if (!isCurrent && backup.build_number) {
+            if (SRC.actions.includes('setcurrent') && !isCurrent && backup.build_number) {
                 const setCurrentBtn = document.createElement('button');
                 setCurrentBtn.className = 'btn';
                 setCurrentBtn.textContent = 'Set Current';
@@ -1368,7 +1433,7 @@
             }
 
             // Sync USB — only when external storage is mounted and not already copied
-            if (_externalEnabled && !hasExternalCopy) {
+            if (SRC.actions.includes('usb') && _externalEnabled && !hasExternalCopy) {
                 const syncBtn = document.createElement('button');
                 syncBtn.className = 'btn btn-cyan';
                 syncBtn.textContent = 'Sync USB';
@@ -1378,7 +1443,7 @@
             }
 
             // Cloud — only when Google Drive is configured
-            if (_cloudEnabled && (!_cloudBackupNames || !_cloudBackupNames.has(backup.name + '.tar.gz.enc'))) {
+            if (SRC.actions.includes('cloud') && _cloudEnabled && (!_cloudBackupNames || !_cloudBackupNames.has(backup.name + '.tar.gz.enc'))) {
                 const cloudBtn = document.createElement('button');
                 cloudBtn.className = 'btn btn-blue';
                 cloudBtn.textContent = 'Cloud';
@@ -1387,16 +1452,34 @@
                 actionsDiv.appendChild(cloudBtn);
             }
 
-            // Delete button
+            // Cloud download — Drive objects are fetched by file_id, not by name.
+            if (SRC.actions.includes('download_cloud')) {
+                const cdlBtn = document.createElement('button');
+                cdlBtn.className = 'btn btn-cyan';
+                cdlBtn.textContent = 'Download';
+                cdlBtn.title = 'Download and decrypt from Google Drive';
+                cdlBtn.onclick = function() { downloadFromCloud(backup.cloud_id); };
+                actionsDiv.appendChild(cdlBtn);
+            }
+
+            // Delete — routed to the endpoint that owns THIS tier. Deleting a USB or
+            // Drive copy must never fall through to the primary-disk delete.
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn btn-red';
             deleteBtn.textContent = 'Delete';
-            deleteBtn.onclick = function() { deleteBackup(backup.name); };
+            if (SRC.actions.includes('delete_external')) {
+                deleteBtn.title = 'Delete this copy from external USB storage';
+                deleteBtn.onclick = function() { deleteExternalBackup(backup.name); };
+            } else if (SRC.actions.includes('delete_cloud')) {
+                deleteBtn.title = 'Delete this copy from Google Drive';
+                deleteBtn.onclick = function() { deleteFromCloud(backup.cloud_id, backup.name); };
+            } else {
+                deleteBtn.onclick = function() { deleteBackup(backup.name); };
+            }
             actionsDiv.appendChild(deleteBtn);
 
             item.appendChild(actionsDiv);
-            container.appendChild(item);
-        });
+            return item;
     }
 
     function updateStats(backups, currentBuild, totalCount, totalSizeBytes) {
@@ -2630,58 +2713,17 @@
                 return;
             }
 
-            data.backups.forEach(backup => {
-                const item = document.createElement('div');
-                item.className = 'backup-item';
-                item.style.borderLeftColor = '#22d3ee';
-
-                const header = document.createElement('div');
-                header.className = 'backup-header';
-
-                const infoDiv = document.createElement('div');
-                infoDiv.style.flex = '1';
-
-                const titleDiv = document.createElement('div');
-                titleDiv.className = 'backup-title';
-                const buildSpan = document.createElement('span');
-                buildSpan.className = 'build';
-                buildSpan.style.color = '#22d3ee';
-                buildSpan.textContent = backup.name || 'Unknown';
-                titleDiv.appendChild(buildSpan);
-                infoDiv.appendChild(titleDiv);
-
-                const descDiv = document.createElement('div');
-                descDiv.className = 'backup-description';
-                descDiv.textContent = backup.description || '';
-                infoDiv.appendChild(descDiv);
-
-                header.appendChild(infoDiv);
-
-                const sizeDiv = document.createElement('div');
-                sizeDiv.className = 'backup-size';
-                const sizeValue = document.createElement('div');
-                sizeValue.className = 'value';
-                sizeValue.style.color = '#22d3ee';
-                sizeValue.textContent = (backup.size_mb || 0) + ' MB';
-                sizeDiv.appendChild(sizeValue);
-                header.appendChild(sizeDiv);
-
-                item.appendChild(header);
-
-                // Action buttons row
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'backup-actions';
-                actionsDiv.style.cssText = 'display:flex;gap:8px;padding:8px 0 4px;justify-content:flex-end;';
-                const delBtn = document.createElement('button');
-                delBtn.className = 'btn btn-red';
-                delBtn.textContent = 'DELETE';
-                delBtn.style.fontSize = '0.75rem';
-                delBtn.addEventListener('click', function() { deleteExternalBackup(backup.name); });
-                actionsDiv.appendChild(delBtn);
-                item.appendChild(actionsDiv);
-
-                container.appendChild(item);
-            });
+            // Same card as the Backups tab (#5122) — one renderer, one look.
+            // Ensure the primary-name set is loaded so the Inspect gate is accurate
+            // even when External is opened before the Backups tab has rendered.
+            if (!_primaryBackupNames || _primaryBackupNames.size === 0) {
+                try {
+                    const pr = await fetch('/tools/backup-manager/list', { credentials: 'same-origin' });
+                    const pd = await pr.json();
+                    if (pd.success) _primaryBackupNames = new Set((pd.backups || []).map(function(b) { return b.name; }));
+                } catch (e) { /* non-fatal — Inspect just stays hidden */ }
+            }
+            data.backups.forEach(backup => container.appendChild(buildBackupCard(backup, 'external')));
         } catch (error) {
             container.textContent = 'Error: ' + error.message;
         }
@@ -3360,6 +3402,9 @@
     let _cloudEnabled = false;
     let _externalEnabled = false;
     let _cloudBackupNames = new Set();
+    // Names present on the PRIMARY disk. The External tab gates its Inspect button
+    // on this, because preview_restore() only reads BACKUP_DIR (#5122).
+    let _primaryBackupNames = new Set();
     let _cloudPassphraseCache = '';
     let _cloudPollingTimer = null;
 
@@ -3648,55 +3693,23 @@
                 return;
             }
 
+            // Same card as the Backups tab (#5123) — was an HTML <table>, which is why
+            // the Cloud tab looked and behaved like a different product.
+            // A Drive object is an ENCRYPTED BLOB: cloud/list returns only
+            // id/name/size/created_time, so the card deliberately carries no build,
+            // author or git chips. Absent fields are honest here — do NOT invent them.
             container.textContent = '';
-            const table = document.createElement('table');
-            table.className = 'cloud-backup-table';
-            const thead = document.createElement('thead');
-            const headRow = document.createElement('tr');
-            ['Name', 'Size', 'Uploaded', 'Actions'].forEach(function(t) {
-                const th = document.createElement('th');
-                th.textContent = t;
-                headRow.appendChild(th);
-            });
-            thead.appendChild(headRow);
-            table.appendChild(thead);
-
-            const tbody = document.createElement('tbody');
             backups.forEach(function(b) {
-                const tr = document.createElement('tr');
-                const tdName = document.createElement('td');
-                tdName.style.color = 'var(--archie-text-primary)';
-                tdName.textContent = b.name.replace('.tar.gz.enc', '');
-                tr.appendChild(tdName);
-
-                const tdSize = document.createElement('td');
-                tdSize.textContent = (b.size / 1024 / 1024).toFixed(1) + ' MB';
-                tr.appendChild(tdSize);
-
-                const tdDate = document.createElement('td');
-                tdDate.textContent = b.created_time ? new Date(b.created_time).toLocaleDateString() : '-';
-                tr.appendChild(tdDate);
-
-                const tdActions = document.createElement('td');
-                const dlBtn = document.createElement('button');
-                dlBtn.className = 'btn btn-blue';
-                dlBtn.style.cssText = 'padding: 2px 8px; font-size: 0.7rem;';
-                dlBtn.textContent = 'Download';
-                dlBtn.onclick = function() { downloadFromCloud(b.id); };
-                tdActions.appendChild(dlBtn);
-                tdActions.appendChild(document.createTextNode(' '));
-                const delBtn = document.createElement('button');
-                delBtn.className = 'btn';
-                delBtn.style.cssText = 'padding: 2px 8px; font-size: 0.7rem; border-color: #ef4444; color: #ef4444;';
-                delBtn.textContent = 'Delete';
-                delBtn.onclick = function() { deleteFromCloud(b.id, b.name.replace('.tar.gz.enc', '')); };
-                tdActions.appendChild(delBtn);
-                tr.appendChild(tdActions);
-
-                tbody.appendChild(tr);
+                const card = {
+                    name: (b.name || '').replace('.tar.gz.enc', ''),
+                    cloud_id: b.id,
+                    size_mb: b.size != null ? (b.size / 1024 / 1024).toFixed(2) : 0,
+                    created_at: b.created_time || '',
+                    display_type: 'cloud',
+                    description: 'Encrypted off-site copy in Google Drive',
+                };
+                container.appendChild(buildBackupCard(card, 'cloud'));
             });
-            table.appendChild(tbody);
-            container.appendChild(table);
 
         } catch (error) {
             container.textContent = '';

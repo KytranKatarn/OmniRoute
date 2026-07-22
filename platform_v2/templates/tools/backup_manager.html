@@ -1084,25 +1084,80 @@
 
             const buildSpan = document.createElement('span');
             buildSpan.className = 'build';
-            // Full version: v5.33.0.59 when platform_version available, else Build #59
-            buildSpan.textContent = backup.platform_version && buildNum !== '-'
-                ? 'v' + backup.platform_version + '.' + buildNum
-                : 'Build #' + buildNum;
+            // Full version (v5.33.0.59) when available; plain Build #59 otherwise. Automated /
+            // component rows (nightly triage, retention, git bundles, per-component backups)
+            // never stamp a build number, so instead of a bare "Build #-" fall back to the
+            // backup's DATE — every row then carries a real identity.
+            if (backup.platform_version && buildNum !== '-') {
+                buildSpan.textContent = 'v' + backup.platform_version + '.' + buildNum;
+            } else if (buildNum !== '-') {
+                buildSpan.textContent = 'Build #' + buildNum;
+            } else {
+                let when = '';
+                const raw = backup.created_at || backup.timestamp || '';
+                // created_at is ISO; timestamp is YYYYMMDD_HHMMSS — normalise both.
+                const iso = /^\d{8}_\d{6}$/.test(raw)
+                    ? raw.replace(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')
+                    : raw;
+                const d = iso ? new Date(iso) : null;
+                if (d && !isNaN(d)) when = d.toISOString().slice(0, 10);
+                buildSpan.textContent = when || '—';
+            }
             titleDiv.appendChild(buildSpan);
 
-            // Type badge
+            // Type badge. Every row gets a distinctive emoji + label. Button backups carry a
+            // backup_type; automated/component rows (nightly triage, retention, git bundles,
+            // per-component db/config/code/vps/volumes backups) do NOT, so the /list API falls
+            // back to `display_type` (= component). Map the common ones; anything unmapped still
+            // gets a generic archive emoji + its own name — never a blank/"LEGACY" badge.
+            // [emoji, label, cssClass|'', extraStyle|''] — emoji-only for the 3 button types +
+            // custom (to match their existing clean look); emoji + label for everything else.
+            const AUTO_S = 'background:rgba(107,114,128,0.2);color:#9ca3af;border:1px solid #6b7280;';
+            const DATE_S = 'background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid #3b82f6;';
+            const WEEK_S = 'background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid #a855f7;';
+            const MON_S  = 'background:rgba(234,179,8,0.2);color:#fde047;border:1px solid #eab308;';
+            const TYPE_BADGES = {
+                full:         ['📦', '',          'badge-full', ''],
+                critical:     ['🛡️', '',          'badge-critical', ''],
+                database:     ['🧠', '',          'badge-database', ''],
+                custom:       ['🧩', 'CUSTOM',    'badge-custom', ''],
+                module:       ['🧩', 'MODULE',    '', AUTO_S],
+                standalone:   ['🌐', 'STANDALONE','', AUTO_S],
+                backup:       ['🔄', 'AUTO',      '', AUTO_S],
+                run_backup:   ['🔄', 'RUN',       '', AUTO_S],
+                daily:        ['📅', 'DAILY',     '', DATE_S],
+                daily_triage: ['📅', 'DAILY',     '', DATE_S],
+                weekly:       ['📅', 'WEEKLY',    '', WEEK_S],
+                monthly:      ['📅', 'MONTHLY',   '', MON_S],
+                monthly_full: ['📅', 'MONTHLY',   '', MON_S],
+                retention:    ['🧹', 'RETENTION', '', AUTO_S],
+                gitbundle:    ['📚', 'GIT',       '', AUTO_S],
+                gitbundles:   ['📚', 'GIT',       '', AUTO_S],
+                config:       ['⚙️', 'CONFIG',    '', AUTO_S],
+                code:         ['💻', 'CODE',      '', AUTO_S],
+                vps:          ['🛰️', 'VPS',       '', AUTO_S],
+                vps_pull:     ['🛰️', 'VPS',       '', AUTO_S],
+                volumes:      ['💽', 'VOLUMES',   '', AUTO_S],
+                verify:       ['🔎', 'VERIFY',    '', AUTO_S],
+                dr_drill:     ['🛟', 'DR',         '', AUTO_S],
+                kb_export:    ['🧾', 'KB',        '', AUTO_S],
+            };
+            const dtype = String(backup.display_type || backup.backup_type || 'backup').toLowerCase();
             const typeBadgeSpan = document.createElement('span');
             typeBadgeSpan.className = 'badge';
             typeBadgeSpan.style.cssText = 'font-size: 1rem; line-height: 1; padding: 2px 6px;';
-            if (backupType === 'full') { typeBadgeSpan.classList.add('badge-full'); typeBadgeSpan.textContent = '📦'; typeBadgeSpan.title = 'FULL'; }
-            else if (backupType === 'critical') { typeBadgeSpan.classList.add('badge-critical'); typeBadgeSpan.textContent = '🛡️'; typeBadgeSpan.title = 'CRITICAL'; }
-            else if (backupType === 'database') { typeBadgeSpan.classList.add('badge-database'); typeBadgeSpan.textContent = '🧠'; typeBadgeSpan.title = 'DATABASE'; }
-            else if (backupType === 'custom') { typeBadgeSpan.classList.add('badge-custom'); typeBadgeSpan.textContent = 'CUSTOM'; }
-            else if (backupType === 'backup') { typeBadgeSpan.style.cssText += 'background:rgba(107,114,128,0.2);color:#9ca3af;border:1px solid #6b7280;'; typeBadgeSpan.textContent = '🔄 AUTO'; typeBadgeSpan.title = 'AUTOMATED'; }
-            else if (backupType === 'daily') { typeBadgeSpan.style.cssText += 'background:rgba(59,130,246,0.2);color:#93c5fd;border:1px solid #3b82f6;'; typeBadgeSpan.textContent = '📅 DAILY'; typeBadgeSpan.title = 'DAILY'; }
-            else if (backupType === 'weekly') { typeBadgeSpan.style.cssText += 'background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid #a855f7;'; typeBadgeSpan.textContent = '📅 WEEKLY'; typeBadgeSpan.title = 'WEEKLY'; }
-            else if (backupType === 'monthly') { typeBadgeSpan.style.cssText += 'background:rgba(234,179,8,0.2);color:#fde047;border:1px solid #eab308;'; typeBadgeSpan.textContent = '📅 MONTHLY'; typeBadgeSpan.title = 'MONTHLY'; }
-            else { typeBadgeSpan.classList.add('badge-legacy'); typeBadgeSpan.textContent = 'LEGACY'; }
+            const bd = TYPE_BADGES[dtype];
+            if (bd) {
+                if (bd[2]) typeBadgeSpan.classList.add(bd[2]);
+                if (bd[3]) typeBadgeSpan.style.cssText += bd[3];
+                typeBadgeSpan.textContent = bd[1] ? (bd[0] + ' ' + bd[1]) : bd[0];
+                typeBadgeSpan.title = bd[1] || dtype.toUpperCase();
+            } else {
+                // Unknown type: still show an emoji + its own name so no row is ever blank.
+                typeBadgeSpan.style.cssText += AUTO_S;
+                typeBadgeSpan.textContent = '🗄️ ' + dtype.toUpperCase();
+                typeBadgeSpan.title = dtype.toUpperCase();
+            }
             titleDiv.appendChild(typeBadgeSpan);
 
             // Compression badge

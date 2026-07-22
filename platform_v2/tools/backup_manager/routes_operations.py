@@ -121,6 +121,11 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                         "timestamp": timestamp,
                         # Type & status
                         "backup_type": row.get("backup_type") or "backup",
+                        # Display-only: automated/component rows (nightly triage, retention, git
+                        # bundles, per-component db/config/code/vps backups) carry no backup_type,
+                        # so the list badge falls back to the component name to render a meaningful
+                        # emoji + label instead of a generic "AUTO". Never used for restore/logic.
+                        "display_type": (row.get("backup_type") or row.get("component") or "backup"),
                         "component": row.get("component"),
                         "tier": row.get("tier"),
                         "status": row.get("status"),

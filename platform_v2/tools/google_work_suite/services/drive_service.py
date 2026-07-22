@@ -609,13 +609,16 @@ def backup_list_backup_files(service, folder_id: str) -> list[dict]:
     return out
 
 
-def backup_trash_file(service, file_id: str) -> None:
-    """Move a Drive file to Trash — recoverable ~30 days. NOT a permanent delete.
+def backup_delete_file(service, file_id: str) -> None:
+    """Permanently delete a Drive file (bypasses Trash) to reclaim quota.
 
-    Retention uses trash (not files().delete(), which bypasses Trash and is
-    irreversible) so a mis-scoped prune can always be undone from Drive.
+    The gdrive tier is a quota-bound account (15 GB free tier): trashing does NOT
+    free quota — Google counts trashed files for ~30 days — so retention must
+    hard-delete to keep the tier bounded, matching how the primary/usb tiers prune
+    with rmtree. prune_gdrive only ever passes ids of recognised backup artifacts
+    (component in RETENTION, parseable run-dir timestamp), never arbitrary files.
     """
-    service.files().update(fileId=file_id, body={"trashed": True}).execute()
+    service.files().delete(fileId=file_id).execute()
 
 
 def backup_download_file(service, file_id: str, output_path: str, on_progress=None) -> str:

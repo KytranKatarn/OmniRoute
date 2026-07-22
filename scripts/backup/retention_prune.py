@@ -381,27 +381,29 @@ def _gdrive_list_files():
     return None
 
 
-def _gdrive_trash_files(ids: list) -> int:
-    """Trash the given Drive file ids via the container. Returns the count trashed.
+def _gdrive_delete_files(ids: list) -> int:
+    """Permanently delete the given Drive file ids via the container. Returns count.
 
-    Uses Drive Trash (recoverable ~30 days), never a permanent delete, so a
-    mis-scoped prune is always reversible from the owner's Drive.
+    Hard-delete (not trash): the 15 GB gdrive tier is quota-bound and Google counts
+    TRASHED files against quota for ~30 days, so trashing would never actually free
+    space or bound the tier. This matches the primary/usb tiers pruning with rmtree.
+    Callers pass only recognised backup artifacts (see prune_gdrive).
     """
     if not ids:
         return 0
     code = (
         "import json, sys; sys.path.insert(0, '/app')\n"
         "from tools.google_work_suite.services.drive_service import ("
-        " backup_get_drive_service, backup_trash_file)\n"
+        " backup_get_drive_service, backup_delete_file)\n"
         "ids = json.loads(sys.stdin.read())\n"
         "svc = backup_get_drive_service()\n"
         "n = 0\n"
         "for i in ids:\n"
         "    try:\n"
-        "        backup_trash_file(svc, i); n += 1\n"
+        "        backup_delete_file(svc, i); n += 1\n"
         "    except Exception as e:\n"
-        "        print(f'trash-fail {i}: {e}', file=sys.stderr)\n"
-        "print('TRASHED:' + str(n))\n"
+        "        print(f'delete-fail {i}: {e}', file=sys.stderr)\n"
+        "print('DELETED:' + str(n))\n"
     )
     r = subprocess.run(
         ["docker", "exec", "-i", "archie_platform", "python3", "-c", code],
@@ -410,9 +412,9 @@ def _gdrive_trash_files(ids: list) -> int:
         text=True,
     )
     for line in r.stdout.splitlines():
-        if line.startswith("TRASHED:"):
-            return int(line[len("TRASHED:") :])
-    print(f"gdrive trash failed: {r.stderr.strip()[:300]}", file=sys.stderr)
+        if line.startswith("DELETED:"):
+            return int(line[len("DELETED:") :])
+    print(f"gdrive delete failed: {r.stderr.strip()[:300]}", file=sys.stderr)
     return 0
 
 
@@ -423,8 +425,9 @@ def prune_gdrive(dry_run: bool) -> int:
     the free-tier quota filled and the DB dump stopped uploading (#5092). Files are
     named '<TS>_<mode>/<component>/<file>.enc'; we parse that, group by (component,
     run-dir), keep per RETENTION[component]['gdrive'] with the SAME ladder as the
-    disk tiers, and trash the rest. Unknown components and unparseable names are
-    left alone — we never auto-trash something we can't classify.
+    disk tiers, and PERMANENTLY DELETE the rest (trash does not free a quota-bound
+    tier — see _gdrive_delete_files). Unknown components and unparseable names are
+    left alone — we never auto-delete something we can't classify.
     """
     files = _gdrive_list_files()
     if files is None:
@@ -436,13 +439,13 @@ def prune_gdrive(dry_run: bool) -> int:
     for f in files:
         parts = f.get("name", "").split("/")
         if len(parts) < 2:
-            continue  # flat/unrecognised file — never auto-trash
+            continue  # flat/unrecognised file — never auto-delete
         run_name, component = parts[0], parts[1]
         if component not in RETENTION or parse_ts(run_name) is None:
             continue
         comp_runs.setdefault(component, {}).setdefault(run_name, []).append(f["id"])
 
-    trash_ids: list = []
+    delete_ids: list = []
     for component, runs in comp_runs.items():
         keep_d, keep_w, keep_m = RETENTION[component].get("gdrive", (0, 0, 0))
         kept_d = kept_w = kept_m = 0
@@ -459,15 +462,15 @@ def prune_gdrive(dry_run: bool) -> int:
                 kept_d += 1
                 keep = True
             if not keep:
-                trash_ids.extend(runs[run_name])
+                delete_ids.extend(runs[run_name])
 
-    if not trash_ids:
+    if not delete_ids:
         return 0
     if dry_run:
-        print(f"[dry-run] gdrive: would trash {len(trash_ids)} file(s)")
-        return len(trash_ids)
-    n = _gdrive_trash_files(trash_ids)
-    print(f"gdrive: trashed {n} file(s)")
+        print(f"[dry-run] gdrive: would delete {len(delete_ids)} file(s)")
+        return len(delete_ids)
+    n = _gdrive_delete_files(delete_ids)
+    print(f"gdrive: deleted {n} file(s)")
     return n
 
 

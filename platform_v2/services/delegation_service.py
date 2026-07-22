@@ -497,16 +497,27 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                 sid = s.get("id")
                 sname = s.get("name") or f"#{sid}"
                 try:
-                    results = _run_suite(int(sid), triggered_by="delegate_task")
+                    # qa_service.run_suite returns a SUMMARY DICT —
+                    # {success, run_id, status, total, passed, failed, errors} — NOT a
+                    # list of per-test dicts. The previous code did
+                    # `sum(1 for r in results if r.get("status") == "pass")`, which
+                    # iterates the dict's STRING KEYS and raises
+                    # AttributeError: 'str' object has no attribute 'get'.
+                    # It also sat OUTSIDE this try, so the very first suite killed the
+                    # whole scan. And because delegate_task supplies no suite_id, this
+                    # all-scan branch is ALWAYS taken — so delegated QA never once ran
+                    # to completion (task #5116 reproduced it: status 'blocked').
+                    res = _run_suite(int(sid), triggered_by="delegate_task") or {}
+                    p = int(res.get("passed") or 0)
+                    f = int(res.get("failed") or 0) + int(res.get("errors") or 0)
+                    t = int(res.get("total") or (p + f))
                 except Exception as exc:
                     per_suite.append(f"{sname}#{sid}: ERROR {type(exc).__name__}")
                     logger.warning("run_qa_suite all-scan: suite %s failed: %s", sid, exc)
                     continue
-                p = sum(1 for r in results if r.get("status") == "pass")
-                f = sum(1 for r in results if r.get("status") in ("fail", "error"))
                 total_passed += p
                 total_failed += f
-                total_tests += len(results)
+                total_tests += t
                 ran += 1
                 if f:
                     per_suite.append(f"{sname}#{sid}: {p}/{p + f}")
@@ -527,13 +538,21 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
                     "suites_with_failures": per_suite,
                 },
             }
-        results = _run_suite(int(suite_id), triggered_by="delegate_task")
-        passed = sum(1 for r in results if r.get("status") == "pass")
-        failed = sum(1 for r in results if r.get("status") in ("fail", "error"))
+        # Same summary-dict contract as the all-scan branch above — see that comment.
+        # This path had the identical defect AND no try/except, so a targeted delegated
+        # run raised straight out and blocked the task even though the suite had RUN
+        # SUCCESSFULLY. Measured: task #5118 -> 'blocked' while qa_test_runs row 3401
+        # recorded suite 103 completed 5 passed / 0 failed. The work happened; only the
+        # bookkeeping exploded — which is the worst shape, because the DB says the probe
+        # ran and the task queue says it failed.
+        res = _run_suite(int(suite_id), triggered_by="delegate_task") or {}
+        passed = int(res.get("passed") or 0)
+        failed = int(res.get("failed") or 0) + int(res.get("errors") or 0)
+        total = int(res.get("total") or (passed + failed))
         return {
             "success": failed == 0,
             "summary": f"QA suite {suite_name} (#{suite_id}): passed={passed} failed={failed}",
-            "result": {"passed": passed, "failed": failed, "total": len(results)},
+            "result": {"passed": passed, "failed": failed, "total": total, "run_id": res.get("run_id")},
         }
 
     if capability in ("health_check", "check_platform_health"):

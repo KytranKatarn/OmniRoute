@@ -108,3 +108,28 @@ Show only the MODULE_SUITE_MAP coverage table.
 - `is_regression: true` = test was passing before, now failing
 - `is_regression: false/null` = first-time failure or known issue
 - Suites run automatically every 6h via `qa_scheduled_run` job (P.R.O.B.E.)
+
+## Reading these numbers honestly
+
+- **A green suite does not mean the UI works.** Most suites are HTTP-only
+  (`page_load`/`api`) and CANNOT assert DOM — a page returns 200 with correct JSON while the
+  screen shows nothing (mistake **#281727**). Only `type: e2e` tests prove what renders.
+  When judging coverage, ask *which kind* of test is green.
+- **A suite whose run never authenticated proves nothing.** Look for
+  `E2E auth via /api/qa/auth ok (user=probe)` in the run log.
+- **A YAML in `platform_v2/qa_suites/` that was never registered is invisible here** — it will
+  not appear in this dashboard and nothing will ever run it. Register with
+  `qa_service.create_suite_from_yaml('/app/qa_suites/<name>.yaml')`. See `/archie-qa`.
+
+## A.R.C.H.I.E. can run suites herself — prefer that over a Claude turn
+
+`run_qa_suite` is a **known-tool capability**, so it executes deterministically with no LLM
+and no Claude in the execution path:
+
+```python
+mcp__archie__delegate_task(capability='run_qa_suite',
+                           reason='Run QA suite <N> (<name>) — <what it proves>')
+```
+
+Hub-local compute, works when Claude is absent. Claude authors specs and judges results;
+triggering is the hub's job. (ADR-002 / decision #948, task #5114.)

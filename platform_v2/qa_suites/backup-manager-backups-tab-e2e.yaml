@@ -245,6 +245,42 @@ tests:
           expr: "['createQuickBackup','cleanupBackups','createModuleBackup','backupSelectedStandalones','saveRetentionPolicy','saveGovernanceGates','checkRetention','verifyCloudPassphrase','createDeploymentPackage','showAddWebhookModal'].every(function(n){return typeof window[n]==='function';})"
           equals: true
 
+  # ---------------------------------------------------------------------------
+  # REGRESSION PIN for #5121 (fixed in PR #2413).
+  #
+  # The row and the Inspect modal read from DIFFERENT SOURCES: the row from
+  # /list (backup_log, naive UTC), the modal from /preview-restore, which used to
+  # serve metadata.json on disk — written in naive LOCAL. The client then converted
+  # that already-local value a SECOND time, so a 16:00 UTC backup rendered as
+  # "8:00 AM" in the modal while the row correctly showed "12:00 PM".
+  #
+  # A wrong timestamp here is a RESTORE-path hazard, not cosmetic: "restore the 8 AM
+  # backup" and "restore the noon backup" can select different artifacts.
+  #
+  # Asserted at the DATA level, deliberately — NOT by comparing rendered strings.
+  # Two formatted strings can agree by formatting coincidence while the underlying
+  # sources have diverged again, which is precisely how this hid. Comparing the
+  # payloads pins the actual contract.
+  - name: "Row and Inspect modal agree on the same backup (#5121 regression pin)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2000
+    expect:
+      js_eval:
+        # Same INSTANT from both endpoints for the same backup.
+        - name: row_and_modal_times_agree
+          expr: "(async function(){var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json();var b=(l.backups||[])[0];if(!b)return false;var n=b.name||b.timestamp;var p=await (await fetch('/tools/backup-manager/preview-restore/'+encodeURIComponent(n),{credentials:'same-origin'})).json();var m=p.backup_metadata||{};return !!b.created_at && !!m.created_at && b.created_at===m.created_at;})()"
+          equals: true
+
+        # Same RECORD, not merely the same time. Before #2413 the modal had no id at
+        # all, so there was no way to prove the two views described one backup —
+        # which is what let a 4-hour disagreement look like a formatting bug.
+        - name: row_and_modal_same_record_id
+          expr: "(async function(){var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json();var b=(l.backups||[])[0];if(!b)return false;var n=b.name||b.timestamp;var p=await (await fetch('/tools/backup-manager/preview-restore/'+encodeURIComponent(n),{credentials:'same-origin'})).json();var m=p.backup_metadata||{};return m.id!=null && b.id!=null && m.id===b.id;})()"
+          equals: true
+
 # ---------------------------------------------------------------------------
 # STILL NOT COVERED (deliberate): the CONTENTS of the 9 non-Backups tabs, and any
 # actual invocation of a destructive control anywhere. Adding those means one spec per

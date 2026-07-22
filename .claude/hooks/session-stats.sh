@@ -94,9 +94,22 @@ assistant_turns = 0
 # and let the estimation formula below provide a rough context estimate.
 # Do NOT fall back to most-recent-JSONL — that reports the PRIOR session's
 # totals against the new session_id and produces false CONTEXT CRITICAL alarms.
-jsonl_dir = Path(home) / ".claude" / "projects" / "-mnt-archie-brain"
-jsonl_files = [p for p in jsonl_dir.glob(f"{session_id}*.jsonl")
-               if p.stem.startswith(session_id)]
+#
+# Search EVERY project dir, not just "-mnt-archie-brain". A session running in a
+# git worktree writes its transcript to a DIFFERENT project dir — e.g.
+# "-mnt-archie-brain--claude-worktrees-<name>" — so the old hardcoded path found
+# nothing, silently skipped the real-usage branch, and fell through to the crude
+# estimate below. Measured 2026-07-22: an 18h worktree session reported 108,600
+# tokens / 10.9% (exactly 15000 + 6*800 + 111*500 + 111*300, i.e. PURE ESTIMATE)
+# with assistant_turns=0, tool_uses=0, output_tokens=0 after 111 messages and 8
+# commits. Those three zeros are the tell that the estimate is in play.
+# session_id is a UUID, so a cross-project glob cannot collide.
+projects_dir = Path(home) / ".claude" / "projects"
+jsonl_files = sorted(
+    (p for p in projects_dir.glob(f"*/{session_id}*.jsonl") if p.stem.startswith(session_id)),
+    key=lambda p: p.stat().st_mtime,
+    reverse=True,
+)
 
 if jsonl_files:
     try:
@@ -123,8 +136,13 @@ if jsonl_files:
     except Exception:
         est_total = 0
 
-# Fallback to estimate if JSONL parsing failed
+# Fallback to estimate if JSONL parsing failed.
+# The estimate is linear in MESSAGE COUNT and blind to tool I/O, so it badly
+# under-reports a tool-heavy session. It must never be mistaken for a measurement:
+# `context_source` says which one the caller is looking at.
+context_source = "measured"
 if est_total == 0:
+    context_source = "estimated"
     est_total = 15000 + (active_plugins * 800) + (msg_count * 500) + (msg_count * 300)
 
 est_pct = round((est_total / context_max) * 100, 1)
@@ -173,6 +191,7 @@ print(json.dumps({
     "active_plugins": active_plugins,
     "rules_files": rules_count,
     "context_tokens": est_total,
+    "context_source": context_source,
     "context_k": round(est_total / 1000),
     "context_max_k": context_max // 1000,
     "context_pct": est_pct,

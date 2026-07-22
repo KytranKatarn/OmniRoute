@@ -706,6 +706,58 @@ def _is_spurious_injection(issue: dict) -> bool:
     return not has_stringbuild
 
 
+# A claim that something "is not executed" is an assertion about RUNTIME. The reviewer cannot run
+# anything, so for an auto-collected pytest construct it is unfalsifiable from the diff alone.
+_NON_EXECUTION_RE = re.compile(
+    r"not\s+(?:be\s+|being\s+)?(?:executed|run|running|invoked|called|collected)"
+    r"|never\s+(?:executed|run|invoked|called|collected)"
+    r"|(?:isn'?t|aren'?t|won'?t|doesn'?t|do(?:es)?\s+not|will\s+not)\s+(?:be\s+)?"
+    r"(?:executed|run|invoked|called|collected)"
+    r"|not\s+wired\s+up",
+    re.I,
+)
+# pytest auto-collects test_*.py / class Test* / def test_*, so ADDING one of these IS wiring it up.
+_PYTEST_CONSTRUCT_RE = re.compile(
+    r"^\+\+\+ b/.*\btest_[^/]*\.py|^\+\s*(?:async\s+)?def\s+test_|^\+\s*class\s+Test",
+    re.M,
+)
+# ...unless the diff SHOWS the test disabled, in which case "does not run" is a REAL finding.
+_SKIP_MARKER_RE = re.compile(r"@pytest\.mark\.(?:skip|xfail)|pytest\.skip\(|unittest\.skip", re.I)
+
+
+def _is_unverifiable_test_execution_claim(issue: dict, diff: str) -> bool:
+    """True for a blocking claim that a TEST "is not executed" — unfalsifiable from a diff (#5098).
+
+    Caught live on PR #2401 (the #5075 fix), where F.O.R.G.E. blocked on:
+        [WARNING] "The test case for the regression is added but not executed"
+        Evidence: the test file's own DOCSTRING line.
+    Disproved by running the node ID; the test passed. Neither existing gate can catch this: the
+    cited line genuinely IS an added line, so the evidence-grounding gate (#5009) considers it
+    grounded and the polarity gate (#5075) correctly leaves it alone. The CITATION is real — the
+    CLAIM is not. Only a deterministic guard or the rubric can remove it.
+
+    Narrow ON PURPOSE — all four must hold, because the neighbouring findings are valuable:
+      1. the prose actually asserts non-execution,
+      2. the claim is about a TEST (so a genuine "this production helper is never called"
+         dead-code finding is untouched — that one IS verifiable from the diff and worth keeping),
+      3. the diff really does add a pytest-discoverable construct (adding it IS wiring it up), and
+      4. the diff shows NO skip/xfail marker — if a test is VISIBLY disabled, "it does not run" is
+         a legitimate finding and must survive.
+    """
+    text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).strip()
+    if not _NON_EXECUTION_RE.search(text):
+        return False
+    evidence = str((issue or {}).get("evidence", "") or "")
+    about_a_test = bool(re.search(r"\btest", text, re.I)) or bool(
+        re.search(r"def\s+test_|class\s+Test|test_\w*\.py", evidence, re.I)
+    )
+    if not about_a_test:
+        return False
+    if not _PYTEST_CONSTRUCT_RE.search(diff or ""):
+        return False
+    return not _SKIP_MARKER_RE.search(diff or "")
+
+
 def _critiques_the_removal(issue: dict) -> bool:
     """True when a finding is ABOUT the deletion itself rather than an inverted reading of it.
 
@@ -745,6 +797,10 @@ def _verify_evidence(issues: list, diff: str):
       ``spurious_injection``    a TRUSTED deterministic correction of a real-but-wrong flag;
                                 the model WAS reading, it just misjudged. Says nothing bad
                                 about grounding.
+      ``unverifiable_runtime_claim``
+                                the finding asserts a TEST "is not executed" — an assertion about
+                                RUNTIME the reviewer cannot observe from a diff (#5098). Like
+                                spurious_injection: the citation is real, the claim is not.
     Only the first may influence the verdict floor.
     """
     kept, dropped = [], []
@@ -757,6 +813,8 @@ def _verify_evidence(issues: list, diff: str):
             reason = "evidence_only_removed"
         elif _is_spurious_injection(it):
             reason = "spurious_injection"
+        elif _is_unverifiable_test_execution_claim(it, diff):
+            reason = "unverifiable_runtime_claim"
         else:
             reason = None
         if reason:

@@ -364,6 +364,47 @@ _NONBLOCKING_CATEGORY_RE = re.compile(
 _BLOCKING_SEVERITIES = ("CRITICAL", "WARNING")
 
 
+# A finding that asserts NO DEFECT is praise wearing a severity label. Measured live on
+# PR #2403: "[CRITICAL] Content Verification Check Added — Ensures that the deployed code
+# matches what is running in the sandbox, preventing potential discrepancies." That text
+# describes the change working AS INTENDED, yet the CRITICAL tag alone flipped the verdict to
+# REQUEST CHANGES. It slips every other gate by construction: the citation is a real ADDED
+# line, so grounding (#5009) and polarity (#5075) both correctly pass it, and it makes no
+# runtime claim (#5098). Nothing is wrong with the finding except that its severity does not
+# match its content — which only the severity layer can judge.
+_APPROVAL_RE = re.compile(
+    r"\b(ensur\w+|prevent\w+|improv\w+|enhanc\w+|safeguard\w*|correctly|properly|"
+    r"align\w*\s+with|(good|best)\s+practice|is\s+a\s+\w*\s*(safety|sanity)\s+check|"
+    r"add(s|ed|ing)?\s+(a|an)?\s*\w*\s*(check|validation|guard|safeguard|verification))\b",
+    re.I,
+)
+# Any PREDICATIVE fault claim wins over approval wording — "prevents X but is still
+# vulnerable" must keep blocking. Deliberately about asserting a fault IN the code, not the
+# mere presence of a scary noun (a "prevents potential discrepancies" clause names the thing
+# avoided, not a defect present).
+_DEFECT_ASSERTION_RE = re.compile(
+    r"\b(is|are|was|were)\s+(missing|incorrect|wrong|unsafe|invalid|broken|vulnerable)\b"
+    r"|\blacks?\b|\bfail(s|ing|ed)?\s+to\b|\bdoes\s*n[o']t\s+handle\b|\bdo\s+not\s+handle\b"
+    r"|\bshould\s+(be|use|have|not)\b|\bvulnerab\w+|\bunhandled\b|\bno\s+error\s+handling\b"
+    r"|\bwill\s+(crash|fail|break)\b|\bcan\s+(crash|fail|break)\b|\bbreaks\b|\btypos?\b"
+    r"|\brace\s+condition\b|\bmemory\s+leak\b|\bnot\s+thread[\s-]?safe\b",
+    re.I,
+)
+
+
+def _asserts_no_defect(blob: str) -> bool:
+    """True when a finding reads as APPROVAL and asserts no fault — i.e. it is not a finding.
+
+    Requires BOTH: approval wording present, and no predicative fault claim anywhere. That
+    asymmetry is the safety property — any real defect language keeps the original severity,
+    so "the new guard prevents injection but the old path is still vulnerable" still blocks.
+    Demote-only; the text is never dropped, so a human still reads it.
+    """
+    if not blob:
+        return False
+    return bool(_APPROVAL_RE.search(blob)) and not _DEFECT_ASSERTION_RE.search(blob)
+
+
 def _normalize_severity(issues: list) -> list:
     """Demote non-blocking nit CATEGORIES (see _NONBLOCKING_CATEGORY_RE) to INFO regardless of the
     model's self-assigned severity — structured (dict) path. Mutates + returns the same list; stamps
@@ -374,7 +415,7 @@ def _normalize_severity(issues: list) -> list:
         if str(i.get("severity", "")).upper() not in _BLOCKING_SEVERITIES:
             continue
         blob = f"{i.get('title', '')} {i.get('why', '')}"
-        if _NONBLOCKING_CATEGORY_RE.search(blob):
+        if _NONBLOCKING_CATEGORY_RE.search(blob) or _asserts_no_defect(blob):
             i["_demoted_from"] = str(i.get("severity", "")).upper()
             i["severity"] = "INFO"
     return issues
@@ -390,7 +431,7 @@ def _demote_nonblocking_lines(review_text: str) -> str:
     out = []
     for line in review_text.splitlines():
         m = re.match(r"(\s*[-*]?\s*)\[\s*(?:CRITICAL|WARNING)\s*\](.*)", line, re.IGNORECASE)
-        if m and _NONBLOCKING_CATEGORY_RE.search(m.group(2)):
+        if m and (_NONBLOCKING_CATEGORY_RE.search(m.group(2)) or _asserts_no_defect(m.group(2))):
             line = f"{m.group(1)}[INFO]{m.group(2)}"
         out.append(line)
     return "\n".join(out)

@@ -733,6 +733,55 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
             )
         log.append("✓ archie_staging back up")
 
+        # CONTENT verification (#5043, the last open point). Everything above proves the
+        # container is UP — not that it is serving THIS code, and a rehearsal that cannot
+        # show the sandbox running the deployed bytes proves nothing. ADR-009 gates Repair
+        # Bay fixes on this rehearsal, so "deployed" has to mean verified, not assumed.
+        # /mnt/archie_sandbox/platform_v2 is bind-mounted to /app, so hashing the SAME file
+        # read from inside the container and comparing it to the backup's copy is direct
+        # evidence the container sees what we deployed. md5 here is a content-equality
+        # check, NOT a security primitive.
+        import hashlib
+
+        probe = next((c for c in ("routes.py", "__init__.py") if os.path.isfile(os.path.join(src_tools, c))), None)
+        if probe is None:
+            _pys = sorted(f for f in os.listdir(src_tools) if f.endswith(".py"))
+            probe = _pys[0] if _pys else None
+
+        if probe is None:
+            # Nothing importable to compare against. Say so plainly rather than letting
+            # silence imply the deploy was verified.
+            log.append("⚠ backup contains no .py file — content could NOT be verified")
+        else:
+            with open(os.path.join(src_tools, probe), "rb") as _f:
+                expected = hashlib.md5(_f.read()).hexdigest()
+            chk = subprocess.run(
+                ["docker", "exec", "archie_staging", "md5sum", f"/app/tools/{module_name}/{probe}"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            actual = (chk.stdout or "").split()[0] if chk.returncode == 0 and (chk.stdout or "").strip() else ""
+            if actual != expected:
+                log.append(f"✗ sandbox is NOT serving the deployed {probe}")
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "module": module_name,
+                            "backup": candidates[0],
+                            "log": log,
+                            "error": (
+                                f"content verification FAILED for tools/{module_name}/{probe}: "
+                                f"sandbox has {actual or 'unreadable'}, backup has {expected} — "
+                                "the rehearsal is not trustworthy"
+                            ),
+                        }
+                    ),
+                    500,
+                )
+            log.append(f"✓ verified: sandbox serves the deployed tools/{module_name}/{probe}")
+
         return jsonify({"success": True, "module": module_name, "backup": candidates[0], "log": log})
 
     @bp.route("/api/packages/<int:package_id>/test-in-sandbox", methods=["POST"])

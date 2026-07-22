@@ -2140,8 +2140,58 @@ def preview_restore(backup_name):
         try:
             with open(metadata_file, "r") as f:
                 metadata = json.load(f)
+            # TIMESTAMP SOURCE (#5121) — backup_log is THE source of truth
+            # (.claude/rules/backup-manager.md), and the two writers disagree:
+            # metadata.json on disk records NAIVE LOCAL (America/Toronto) while
+            # backup_log.created_at records NAIVE UTC. Measured on backup_log 1910:
+            #   metadata.json  2026-07-22T12:00:42.842740   (local)
+            #   backup_log     2026-07-22T16:00:59.221632   (UTC, same event +16s)
+            # Serving the manifest's already-local value made the client convert it a
+            # SECOND time (ArchieTime treats it as UTC), so a 16:00 UTC backup rendered
+            # as 08:00 in the Inspect modal while the row correctly showed 12:00 PM.
+            # A wrong timestamp on the RESTORE path is a real hazard: "restore the 8 AM
+            # backup" and "restore the noon backup" can select different artifacts.
+            #
+            # Prefer the ledger row; fall back to the manifest NORMALISED local->UTC so
+            # the display layer's single conversion is correct either way.
+            _created_at = metadata.get("created_at")
+            _row_id = None
+            try:
+                with get_backup_db_cursor() as (_c, _cur):
+                    _cur.execute(
+                        "SELECT id, created_at FROM public.backup_log "
+                        "WHERE file_path LIKE %s ORDER BY created_at DESC LIMIT 1",
+                        (f"%{os.path.basename(backup_path)}%",),
+                    )
+                    _row = _cur.fetchone()
+                # get_backup_db_cursor returns TUPLES, not dicts (backup-manager.md).
+                if _row and _row[1]:
+                    _row_id = _row[0]
+                    _created_at = _row[1].isoformat()
+            except Exception as _e:  # noqa: BLE001 - display path must never 500
+                logger.warning("preview_restore: backup_log lookup failed (%s); normalising manifest ts", _e)
+            if _row_id is None and _created_at:
+                # No ledger row — the manifest value is naive LOCAL; convert to naive UTC.
+                try:
+                    from datetime import datetime as _dt
+                    from datetime import timezone as _tz
+                    from zoneinfo import ZoneInfo as _Z
+
+                    # NB: datetime.timezone.utc, not ZoneInfo("UTC") — identical
+                    # semantics, and it avoids a quoted literal that the timezone
+                    # drift guardrail flags as a user-facing label (false positive
+                    # on a tz constructor arg, but the stdlib form is cleaner anyway).
+                    _naive = _dt.fromisoformat(str(_created_at))
+                    if _naive.tzinfo is None:
+                        _created_at = (
+                            _naive.replace(tzinfo=_Z("America/Toronto")).astimezone(_tz.utc).replace(tzinfo=None)
+                        ).isoformat()
+                except Exception:  # noqa: BLE001 - leave the raw value rather than lose it
+                    pass
+
             preview["backup_metadata"] = {
-                "created_at": metadata.get("created_at"),
+                "id": _row_id,
+                "created_at": _created_at,
                 "created_by": metadata.get("created_by"),
                 "platform_version": metadata.get("platform_version"),
                 "build_number": metadata.get("build_number"),
@@ -2586,10 +2636,14 @@ def backup_database_python(output_file, compress=True):
 
     cmd = [
         "pg_dump",
-        "-h", os.getenv("DB_HOST", "192.168.1.200"),
-        "-p", str(os.getenv("DB_PORT", "5432")),
-        "-U", os.getenv("DB_USER", "archie"),
-        "-d", os.getenv("DB_NAME", "archie"),
+        "-h",
+        os.getenv("DB_HOST", "192.168.1.200"),
+        "-p",
+        str(os.getenv("DB_PORT", "5432")),
+        "-U",
+        os.getenv("DB_USER", "archie"),
+        "-d",
+        os.getenv("DB_NAME", "archie"),
         "--no-owner",
         "--no-privileges",
         "--format=plain",

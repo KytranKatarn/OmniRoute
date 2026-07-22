@@ -51,16 +51,25 @@ _FALSE_POSITIVE_RUBRIC = (
     "string-concatenated or f-string SQL built from user input is.\n"
     "2. A file that COMPILES and PASSES TESTS has no syntax error, missing semicolon, or unclosed "
     "loop/bracket. Python statements need no semicolons.\n"
-    "3. A test file added IN THIS SAME DIFF means tests WERE added — never claim 'no tests'.\n"
+    "3. A test file added IN THIS SAME DIFF means tests WERE added — never claim 'no tests'. You "
+    "CANNOT run anything, so never claim a test is 'not executed', 'not run', 'never called' or "
+    "'not wired up': a pytest-named file/class/function is collected automatically and you have no "
+    "way to observe otherwise. Only say a test does not run if the diff SHOWS an explicit skip "
+    "(@pytest.mark.skip / xfail / a return before the asserts).\n"
     "4. Importing one shared function from multiple call sites is REUSE (DRY), not duplication.\n"
     "5. A platform_settings/env read with a code default fallback is intentional, not a missing value.\n"
     "6. A bare hash/string built for an md5/dedup key is NOT SQL and has no injection surface.\n"
     "7. Do NOT call an import or variable 'unused' or 'removed' unless you can SEE it is never "
     "referenced anywhere in the changes shown. If the diff is truncated, NEVER raise "
     "unused/missing/removed-symbol issues — you cannot see all usages.\n"
-    "EVIDENCE RULE: for EVERY issue, quote the '+' or '-' diff line VERBATIM as it appears below. "
-    "NEVER invent a line number or a line that is not present in the diff. A fabricated citation is "
-    "worse than no issue — if you cannot find the exact line below, DO NOT raise the issue.\n"
+    "8. POLARITY: a '-' line is code this PR DELETES — it will NOT exist after the merge. A '+' line "
+    "is the PROPOSED state. Judge ONLY the '+' lines. If the thing you object to is on a '-' line, "
+    "this PR has already removed it — that is the FIX, not the defect. The one exception is objecting "
+    "to the removal ITSELF ('this PR removes a needed guard'); say so in those words or not at all.\n"
+    "EVIDENCE RULE: for EVERY issue, quote the diff line VERBATIM as it appears below — normally the "
+    "'+' line (see POLARITY). NEVER invent a line number or a line that is not present in the diff. "
+    "A fabricated citation is worse than no issue — if you cannot find the exact line below, DO NOT "
+    "raise the issue.\n"
     "VERDICT RULE: only [CRITICAL] or [WARNING] issues justify REQUEST CHANGES. If the only issues "
     "are [INFO] (or there are none), the VERDICT MUST be APPROVE — INFO notes never block a merge.\n"
 )
@@ -77,7 +86,9 @@ _TAIL_REMINDER = (
     "the diff above, DROP the issue (a fabricated citation is worse than no issue). "
     "(2) Only [CRITICAL]/[WARNING] block; [INFO] never blocks. "
     "(3) Parameterized %s SQL is NOT injection; a file that compiles and adds a test has no "
-    "syntax / 'unclosed-loop' / 'no-tests' issue.\n"
+    "syntax / 'unclosed-loop' / 'no-tests' issue. "
+    "(4) POLARITY: '-' lines are DELETED by this PR and will not exist after the merge — judge only "
+    "'+' lines. Never report something the PR removes as the change's defect.\n"
 )
 
 
@@ -616,27 +627,62 @@ def _normalize_match(s: str) -> str:
     return _re.sub(r"\s+", " ", (s or "").lower()).strip()
 
 
-def _evidence_in_diff(evidence: str, diff: str) -> bool:
-    """True if the issue's cited evidence ties to a line this PR actually CHANGED. Catches
-    fabricated citations (PR-C): a line the model invented, or an unchanged/context line cited as
-    if changed (the #1869 'unused import time' fabrication — import time is context, not a + line).
-    Conservative: only returns False when a substantial evidence string is genuinely absent from
-    the +/- lines (short or lightly-paraphrased evidence is kept)."""
+def _side_text(diff: str, sign: str) -> str:
+    """Normalized text of every diff line on ONE side ('+' added / '-' removed)."""
+    skip = "+++" if sign == "+" else "---"
+    return _normalize_match(" ".join(ln[1:] for ln in (diff or "").splitlines() if ln[:1] == sign and ln[:3] != skip))
+
+
+def _cites(core: str, haystack_n: str) -> bool:
+    """Does this evidence string tie to the given side of the diff? Substring match, or an
+    85% token overlap so a lightly-paraphrased real line still counts."""
+    import re as _re
+
+    if not core or not haystack_n:
+        return False
+    if core in haystack_n:
+        return True
+    toks = _re.findall(r"[a-z_][a-z0-9_]{2,}", core)
+    return bool(toks) and sum(1 for t in toks if t in haystack_n) / len(toks) >= 0.85
+
+
+def _evidence_polarity(evidence: str, diff: str) -> str:
+    """Which SIDE of the diff does the cited evidence come from: 'added' | 'removed_only' | 'absent'.
+
+    Polarity is the whole point (#5075). A defect can only exist in code that SURVIVES the merge,
+    so a finding may only be raised against an ADDED line. Judging '+' and '-' as one undifferentiated
+    "changed" blob let the reviewer quote the line the PR DELETED and report it as the proposed
+    state — the exact inverse of the change. Observed on gov-watch PR #45: the diff removed
+    ``event=True`` from contract_date, and the review flagged "contract_date is being marked as
+    retrospective", citing the removed line, and returned REQUEST CHANGES. A second run on the same
+    diff (no dispatch timeout) APPROVED it. Most likely when the dispatch degrades and the model
+    sees a partial diff and loses +/- polarity.
+
+    'added' is checked FIRST so an ordinary MODIFIED line (present on both sides) stays grounded.
+    Returns 'added' when there is nothing to verify — this gate only ever removes confident noise.
+    """
     import re as _re
 
     if not evidence or not diff:
-        return True  # nothing to verify -> don't drop
-    changed = " ".join(ln[1:] for ln in diff.splitlines() if ln[:1] in "+-" and ln[:3] not in ("+++", "---"))
-    changed_n = _normalize_match(changed)
+        return "added"  # nothing to verify -> don't drop
     core = _normalize_match(_re.sub(r"^[+\-\s]+", "", evidence))
     if len(core) < 6:
-        return True  # trivially short (<6 chars) -> ambiguous, don't drop
-    if core in changed_n:
-        return True
-    toks = _re.findall(r"[a-z_][a-z0-9_]{2,}", core)  # tolerate light paraphrase of a real line
-    if toks and sum(1 for t in toks if t in changed_n) / len(toks) >= 0.85:
-        return True
-    return False
+        return "added"  # trivially short (<6 chars) -> ambiguous, don't drop
+    if _cites(core, _side_text(diff, "+")):
+        return "added"
+    if _cites(core, _side_text(diff, "-")):
+        return "removed_only"
+    return "absent"
+
+
+def _evidence_in_diff(evidence: str, diff: str) -> bool:
+    """True if the evidence ties to a line this PR actually CHANGED, EITHER side.
+
+    Kept as the grounding (did the model read its input?) predicate — deliberately polarity-blind.
+    Use ``_evidence_polarity`` when the question is whether a DEFECT can be raised, which only an
+    added line can support. Catches fabricated citations (PR-C): a line the model invented, or an
+    unchanged/context line cited as if changed (the #1869 'unused import time' fabrication)."""
+    return _evidence_polarity(evidence, diff) != "absent"
 
 
 def _is_spurious_injection(issue: dict) -> bool:
@@ -660,26 +706,62 @@ def _is_spurious_injection(issue: dict) -> bool:
     return not has_stringbuild
 
 
+def _critiques_the_removal(issue: dict) -> bool:
+    """True when a finding is ABOUT the deletion itself rather than an inverted reading of it.
+
+    Necessary carve-out for the polarity gate (#5075). "This PR removes a guard that was needed"
+    is a LEGITIMATE finding whose evidence can only ever be a removed line — dropping it wholesale
+    would delete a real review capability (catching a dangerous deletion) while fixing the
+    inversion. The two read almost identically in evidence and are opposite in meaning:
+
+      inversion  -> "contract_date IS BEING MARKED retrospective"   (removed line described as
+                                                                     the proposed state)
+      legitimate -> "this PR REMOVES the event=True guard"          (a critique OF the deletion)
+
+    so they are separated by whether the finding's own prose acknowledges a removal. Deliberately
+    generous: anything that sounds like it is critiquing a deletion is kept, because a false
+    [INFO]/[WARNING] a human can dismiss costs far less than silently losing a real one.
+    """
+    import re as _re
+
+    text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).lower()
+    return bool(_re.search(r"\bremov|\bdelet|\bdrop(?:s|ped|ping)?\b|no longer|used to|previously", text))
+
+
 def _verify_evidence(issues: list, diff: str):
     """Split issues into (kept, dropped): drop issues whose evidence isn't a changed diff line
     (fabricated citation) OR that are a spurious 'SQL injection' flag on a parameterized query.
 
-    Each dropped issue is tagged with ``_drop_reason`` because the two reasons mean OPPOSITE
-    things about the reviewer (#5009):
+    Each dropped issue is tagged with ``_drop_reason`` because the reasons mean DIFFERENT
+    things about the reviewer (#5009, #5075):
       ``evidence_not_in_diff``  the model cited something that is not in its own input — a
                                 GROUNDING failure, i.e. evidence it was not reading the diff.
+      ``evidence_only_removed`` the cited line is real but was DELETED by this PR, so the
+                                "defect" describes code that will not exist after the merge —
+                                a POLARITY inversion (#5075). The model WAS reading; it read
+                                the wrong side. Never a grounding failure. A finding whose own
+                                prose critiques the DELETION ("this PR removes the guard") is
+                                kept — see _critiques_the_removal.
       ``spurious_injection``    a TRUSTED deterministic correction of a real-but-wrong flag;
                                 the model WAS reading, it just misjudged. Says nothing bad
                                 about grounding.
-    Only the former may influence the verdict floor.
+    Only the first may influence the verdict floor.
     """
     kept, dropped = [], []
     for it in issues or []:
         ev = (it or {}).get("evidence") or ""
-        grounded = _evidence_in_diff(ev, diff)
-        if not grounded or _is_spurious_injection(it):
+        polarity = _evidence_polarity(ev, diff)
+        if polarity == "absent":
+            reason = "evidence_not_in_diff"
+        elif polarity == "removed_only" and not _critiques_the_removal(it):
+            reason = "evidence_only_removed"
+        elif _is_spurious_injection(it):
+            reason = "spurious_injection"
+        else:
+            reason = None
+        if reason:
             if isinstance(it, dict):
-                it["_drop_reason"] = "evidence_not_in_diff" if not grounded else "spurious_injection"
+                it["_drop_reason"] = reason
             dropped.append(it)
         else:
             kept.append(it)

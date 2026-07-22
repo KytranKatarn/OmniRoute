@@ -149,6 +149,32 @@ tests:
           expr: "(()=>{var m=document.querySelectorAll('.bm-overlay,[class*=modal],[id*=Modal]');return Array.prototype.some.call(m,function(e){var s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&e.offsetHeight>0;});})()"
           equals: true
 
+        # The modal's two ACTION buttons are wired. They are the highest-consequence
+        # controls in the module — "Test in Sandbox" starts a ~25 min restore into
+        # archie_staging_db, "Proceed to Restore" targets PRODUCTION — so a dead one is
+        # discovered at the worst possible moment, mid-incident.
+        #
+        # They are assigned via `.onclick = function(){}` inside previewRestore()
+        # (backup_manager.html ~L3144/L3148), NOT via addEventListener, which is what makes
+        # them checkable at all: the .onclick PROPERTY is introspectable from JS, whereas
+        # addEventListener bindings are not (getEventListeners is DevTools-only). The other
+        # consequence of that assignment site is that they are null at page load and only
+        # become functions once the preview modal opens — so this assertion is only valid
+        # HERE, after the Inspect click, and would fail on the page-load tests above.
+        #
+        # Measured 2026-07-22: before Inspect both are null (typeof 'object'); after, both
+        # are 'function'. STILL NEVER CLICKED — wiring only, per the suite's safety rule.
+        - name: modal_action_buttons_wired
+          expr: "['restore-sandbox-btn','restore-preview-proceed'].every(function(id){var e=document.getElementById(id);return !!e && typeof e.onclick === 'function';})"
+          equals: true
+
+        # confirm-restore-btn is deliberately NOT asserted as wired here: it belongs to a
+        # LATER stage (the confirm dialog) and is legitimately still null at this point.
+        # Asserting it would be a false failure. It must exist in the DOM, though.
+        - name: confirm_button_exists_but_not_yet_bound
+          expr: "!!document.getElementById('confirm-restore-btn')"
+          equals: true
+
   # ---------------------------------------------------------------------------
   # The other 9 tabs. Navigation only — no tab's controls are exercised here, because
   # several are destructive (cleanupBackups, saveRetentionPolicy, backupSelectedStandalones,

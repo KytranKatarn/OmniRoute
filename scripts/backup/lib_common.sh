@@ -59,16 +59,27 @@ psql_archie() {
 log_to_db() {
     local component="$1" tier="$2" status="$3" path="$4" size="${5:-0}" duration_ms="${6:-0}" err="${7:-}"
     local esc_err; esc_err=$(printf '%s' "$err" | sed "s/'/''/g")
+    # Stamp the CURRENT platform build (#5087) so automated/component rows show "Build #N"
+    # instead of "Build #-" in the Backups list. Read-only: the button/programmatic path OWNS
+    # the counter via set_build_number(); a nightly must record the build it ran under, never
+    # bump it. Guard with [[ -r ]] + a direct read (NOT `cat file | tr`): under this script's
+    # `set -euo pipefail`, a cat of a MISSING file fails the pipeline and would abort the run.
+    # tr -dc keeps digits only, so an empty/garbled file yields '' -> SQL NULL.
+    local build=""
+    if [[ -r "${BACKUP_ROOT}/.current_build" ]]; then
+        build=$(tr -dc '0-9' < "${BACKUP_ROOT}/.current_build")
+    fi
+    local build_sql="NULL"; [[ -n "$build" ]] && build_sql="$build"
     psql_archie <<SQL 2>>"$BACKUP_LOG_FILE" >/dev/null || log_warn "Failed to write backup_log row for $component/$tier"
 DO \$\$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns
                 WHERE table_name='backup_log' AND column_name='component') THEN
         INSERT INTO backup_log
-            (component, tier, status, file_path, size_bytes, duration_ms, error_message, created_at)
+            (component, tier, status, file_path, size_bytes, duration_ms, error_message, build_number, created_at)
         VALUES
             ('$component', '$tier', '$status', '$path', $size, $duration_ms,
-             NULLIF('$esc_err', ''), NOW());
+             NULLIF('$esc_err', ''), $build_sql, NOW());
     ELSE
         INSERT INTO backup_log
             (backup_type, file_path, file_size_bytes, status, error_message, completed_at, created_at)

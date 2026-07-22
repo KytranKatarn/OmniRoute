@@ -24,6 +24,21 @@ RETENTION_DAILY = 30
 RETENTION_WEEKLY = 12
 
 
+def _current_build():
+    """Current platform build number (read-only) to stamp pre-change snapshots (#5087).
+
+    Read straight from the counter file the button/programmatic path owns
+    (set_build_number) — a snapshot records the build it ran under, never bumps it.
+    Returns None (→ SQL NULL) if the file is missing or unreadable; a build stamp must
+    never be able to fail a backup.
+    """
+    try:
+        with open(os.path.join(PRIMARY_DIR, ".current_build")) as fh:
+            return int(fh.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
 def create_prechange_snapshot(description=""):
     """Create a lightweight snapshot before code changes.
 
@@ -83,11 +98,11 @@ def create_prechange_snapshot(description=""):
                         """INSERT INTO backup_log
                             (component, tier, status, file_path, size_bytes,
                              backup_type, file_size_bytes, notes, error_message,
-                             completed_at, created_at)
+                             build_number, completed_at, created_at)
                            VALUES
                             ('pre-change', 'primary', 'failed', %s, 0,
-                             'pre_change', 0, %s, %s, NOW(), NOW())""",
-                        (snapshot_dir, description, f"pg_dump rc={result.returncode}: {err}"),
+                             'pre_change', 0, %s, %s, %s, NOW(), NOW())""",
+                        (snapshot_dir, description, f"pg_dump rc={result.returncode}: {err}", _current_build()),
                     )
                 return {"error": f"pg_dump failed (rc={result.returncode})"}
         except subprocess.TimeoutExpired:
@@ -128,12 +143,12 @@ def create_prechange_snapshot(description=""):
                 """
                 INSERT INTO backup_log
                     (component, tier, status, file_path, size_bytes,
-                     backup_type, file_size_bytes, notes, completed_at, created_at)
+                     backup_type, file_size_bytes, notes, build_number, completed_at, created_at)
                 VALUES
                     ('pre-change', 'primary', 'success', %s, %s,
-                     'pre_change', %s, %s, NOW(), NOW())
+                     'pre_change', %s, %s, %s, NOW(), NOW())
                 """,
-                (snapshot_dir, snap_size, snap_size, description),
+                (snapshot_dir, snap_size, snap_size, description, _current_build()),
             )
 
         # Cleanup old snapshots

@@ -273,18 +273,28 @@ fi
 # ----- Record to backup_log (new canonical schema from Phase 1 Task 2) -----
 # If the schema migration hasn't run yet, fall back to the legacy schema.
 SZ_TOTAL=$(du -sb "$RUN" 2>/dev/null | awk '{print $1}')
+# Stamp the CURRENT platform build (#5087) so the nightly rows show "Build #N" in the Backups
+# list instead of "Build #-". Read-only — the button/programmatic path owns the counter; a
+# nightly records the build it ran under, never bumps it. Guard with [[ -r ]] + a direct read
+# (NOT `cat file | tr`): this script runs `set -euo pipefail`, so a cat of a MISSING file fails
+# the pipeline and would abort the nightly. Digits-only, so an empty file yields '' -> SQL NULL.
+BUILD=""
+if [[ -r /mnt/data2/backups/.current_build ]]; then
+    BUILD=$(tr -dc '0-9' < /mnt/data2/backups/.current_build)
+fi
+BUILD_SQL="NULL"; [[ -n "$BUILD" ]] && BUILD_SQL="$BUILD"
 docker exec -i archie_database psql -U archie -d archie <<SQL >>"$LOG" 2>&1 || true
 DO \$\$
 BEGIN
     IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='backup_log' AND column_name='component') THEN
-        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
-        VALUES ('daily_triage', 'primary', '${STATUS}', '${RUN}', ${SZ_TOTAL}, 'backup_triage.sh', NOW());
+        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, build_number, created_at)
+        VALUES ('daily_triage', 'primary', '${STATUS}', '${RUN}', ${SZ_TOTAL}, 'backup_triage.sh', ${BUILD_SQL}, NOW());
         -- USB tier: lets backup_service.get_health_summary() track USB staleness
-        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
-        VALUES ('daily_triage', 'usb', '${USB_STATUS}', '/mnt/external-backup/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh USB copy', NOW());
+        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, build_number, created_at)
+        VALUES ('daily_triage', 'usb', '${USB_STATUS}', '/mnt/external-backup/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh USB copy', ${BUILD_SQL}, NOW());
         -- DR tier: off-hub cold copy on boston-2 (mesh); lets get_health_summary() track DR staleness
-        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, created_at)
-        VALUES ('daily_triage', 'dr', '${DR_STATUS}', 'boston-2:${DR_DIR}/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh DR ship (boston-2 mesh 100.64.0.10)', NOW());
+        INSERT INTO backup_log (component, tier, status, file_path, size_bytes, notes, build_number, created_at)
+        VALUES ('daily_triage', 'dr', '${DR_STATUS}', 'boston-2:${DR_DIR}/$(basename "${RUN}")', ${SZ_TOTAL}, 'backup_triage.sh DR ship (boston-2 mesh 100.64.0.10)', ${BUILD_SQL}, NOW());
     ELSE
         INSERT INTO backup_log (backup_type, file_path, file_size_bytes, status, error_message, completed_at, created_at)
         VALUES ('daily_triage', '${RUN}', ${SZ_TOTAL}, '${STATUS}', NULLIF('${FAIL_REASON}', ''), NOW(), NOW());

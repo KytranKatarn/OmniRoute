@@ -301,6 +301,59 @@ def mark_review_started(pr_number: int, repo: str = None) -> None:
         )
 
 
+# ---------------------------------------------------------------------------
+# AUTO-MERGE PATH ALLOWLIST — deny-by-default (owner directive 2026-07-22:
+# "stop forge from auto merging service code").
+#
+# The pre-existing gates are SIZE-based (Tier 1), author-based (engine/*) and
+# repo-based. None of them look at WHAT changed, so a small diff touching code
+# that runs the platform auto-merged: PR #2409 shipped
+# platform_v2/services/delegation_service.py to main with no human in the loop
+# purely because it was small enough to classify Tier 1.
+#
+# Deliberately an ALLOWLIST, not a denylist — mirroring the codex scope-guard
+# rule (config/agents/codex.yaml, .claude/rules/codex-agent.md). A denylist is
+# wrong by default for anything it forgot to name; an allowlist is safe by
+# default and fails toward a human. Docs/tests/QA-specs auto-merge; everything
+# else — services, ai_bridge, routes, migrations, compose, deploy + DR scripts —
+# needs /merge-pr.
+#
+# Tunable without a deploy via FORGE_AUTOMERGE_SAFE_PATHS (comma-separated
+# regexes, REPLACES the defaults). Set it to something unmatchable to disable
+# auto-merge entirely.
+_SAFE_AUTOMERGE_PATTERNS = (
+    r"\.md$",  # documentation anywhere
+    r"^\.claude/",  # rules, commands, skills, plans
+    r"^docs/",
+    r"^platform_v2/qa_suites/",  # P.R.O.B.E. test specs
+    r"^platform_v2/qa/",  # P.R.O.B.E. harness tests
+    r"^platform_v2/tests/",  # unit tests
+)
+
+
+def _automerge_paths_allowed(pr_number: int, repo: str):
+    """Return (allowed, blocking_files) for the auto-merge path allowlist.
+
+    FAILS CLOSED: if the changed-file list cannot be determined, auto-merge is
+    refused. Not knowing what a PR touches is not evidence that it is safe —
+    that inversion is the exact failure mode this whole gate exists to stop.
+    """
+    raw = os.getenv("FORGE_AUTOMERGE_SAFE_PATHS", "").strip()
+    patterns = tuple(p.strip() for p in raw.split(",") if p.strip()) if raw else _SAFE_AUTOMERGE_PATTERNS
+    try:
+        from .github_service import _api_get
+
+        ok, files = _api_get(f"/repos/{repo}/pulls/{pr_number}/files", {"per_page": 100})
+    except Exception as exc:  # noqa: BLE001 - fail closed on any transport error
+        logger.warning("[F.O.R.G.E.] PR #%s: could not list changed files (%s) — gating auto-merge", pr_number, exc)
+        return False, ["<changed-file list unavailable>"]
+    if not ok or not isinstance(files, list) or not files:
+        logger.warning("[F.O.R.G.E.] PR #%s: changed-file list empty/unavailable — gating auto-merge", pr_number)
+        return False, ["<changed-file list unavailable>"]
+    blocking = [f.get("filename", "") for f in files if not any(re.search(p, f.get("filename", "")) for p in patterns)]
+    return (not blocking), blocking
+
+
 def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge: bool = True) -> None:
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
@@ -464,6 +517,32 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
             "[F.O.R.G.E.] PR #%s approved on %s — review-only (non-default repo), not auto-merged (#4494)",
             pr_number,
             _merge_repo,
+        )
+        return
+
+    # SENSITIVE-PATH GATE — code that RUNS the platform is never auto-merged.
+    # The gates above judge SIZE, AUTHOR and REPO; none of them judge WHAT changed.
+    # PR #2409 reached main with platform_v2/services/delegation_service.py in it
+    # purely because the diff was small enough for Tier 1. Deny-by-default allowlist,
+    # fails closed. Owner directive 2026-07-22.
+    _paths_ok, _blocking = _automerge_paths_allowed(pr_number, _merge_repo)
+    if not _paths_ok:
+        _shown = ", ".join(_blocking[:5]) + (f" (+{len(_blocking) - 5} more)" if len(_blocking) > 5 else "")
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "INSERT INTO system_notifications (title, message, type, source, visibility) "
+                "VALUES (%s, %s, 'warning', 'forge', 'all')",
+                (
+                    f"PR #{pr_number} needs human merge (touches service code)",
+                    f"F.O.R.G.E. APPROVED PR #{pr_number}, but it changes files outside the "
+                    f"auto-merge allowlist (docs / .claude / tests / qa_suites): {_shown}. "
+                    f"Run /merge-pr to merge it deliberately.",
+                ),
+            )
+        logger.info(
+            "[F.O.R.G.E.] PR #%s approved but touches non-allowlisted paths (%s) — GATED for human /merge-pr",
+            pr_number,
+            _shown,
         )
         return
 

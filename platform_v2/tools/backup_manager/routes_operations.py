@@ -78,8 +78,19 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                            git_commit, git_branch, triggered_by, proposal_id, pr_number,
                            build_number, platform_version
                     FROM backup_log
+                    -- Pre-filter in SQL to non-empty, non-standalone, top-level rows (the
+                    -- Python pass below still applies the same rules + the on-disk check).
+                    -- Without this, LIMIT truncated the fetch and UNDERCOUNTED: an existing
+                    -- backup can be old (retention keeps ~48) while thousands of noise rows
+                    -- (verify, retention, per-component, per-tier) pile above it, pushing it
+                    -- past the row window. The cap is a safety ceiling, not a display limit —
+                    -- the on-disk filter is what bounds the output to what exists.
+                    WHERE COALESCE(size_bytes, file_size_bytes, 0) > 0
+                      AND COALESCE(backup_type, '') <> 'standalone'
+                      AND (file_path IS NULL
+                           OR file_path !~ '^/(backups|mnt/data2/backups|mnt/archie_brain/backups)/[^/]+/.+')
                     ORDER BY created_at DESC
-                    LIMIT 500
+                    LIMIT 5000
                     """,
                 )
                 rows = cur.fetchall()
@@ -97,7 +108,40 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                         return "/" not in p[len(root) :]
                 return True
 
-            rows = [r for r in rows if _is_top_level(r.get("file_path") or "", r.get("backup_type"))]
+            def _backup_present(file_path):
+                """True only if the backup dir still exists on disk.
+
+                backup_log is APPEND-ONLY: retention deletes the DIRECTORY but leaves the
+                row. Without this check the list shows backups you can no longer restore,
+                and the overview COUNT/SUM reflect the entire HISTORY (e.g. 1017 rows /
+                550 GB) instead of what exists (~56 rows / ~90 GB). Normalise the equivalent
+                host roots (/mnt/data2/backups, /mnt/archie_brain/backups) to the container
+                mount before stat-ing; a non-local path (e.g. a boston-2: DR ref) simply
+                fails the check, which is correct — it is not on this host.
+                """
+                if not file_path:
+                    return False
+                p = file_path.rstrip("/")
+                for root in ("/mnt/data2/backups/", "/mnt/archie_brain/backups/"):
+                    if p.startswith(root):
+                        p = "/backups/" + p[len(root):]
+                        break
+                try:
+                    return os.path.exists(p)
+                except OSError:
+                    return False
+
+            # Show only genuine, restorable backups: top-level (not a sub-component),
+            # still on disk, and non-empty. The 0-byte rows are not backups — they are
+            # failed weekly `verify`-job records mis-logged against the /backups root, and
+            # they never gain a size. Dropping them here also drops them from the totals.
+            rows = [
+                r
+                for r in rows
+                if _is_top_level(r.get("file_path") or "", r.get("backup_type"))
+                and _backup_present(r.get("file_path") or "")
+                and (r.get("size_bytes") or r.get("file_size_bytes") or 0) > 0
+            ]
 
             for row in rows:
                 # Derive a human-readable name from file_path (last path component)
@@ -157,12 +201,14 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                     }
                 )
 
-            # Get true totals — list is capped at 200 so these must come from DB
-            with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (conn, cur):
-                cur.execute("SELECT COUNT(*) AS cnt, COALESCE(SUM(size_bytes),0) AS total_bytes FROM backup_log")
-                row = cur.fetchone() or {}
-                total_count = row.get("cnt", len(backups))
-                total_size_bytes = int(row.get("total_bytes", 0))
+            # Totals describe EXACTLY the backups shown above (existing, non-empty, top-level)
+            # so the overview cards and the list always agree. The old code ran
+            # COUNT(*)/SUM(size_bytes) over the whole append-only backup_log, which counted
+            # every backup ever made — including ~721 that retention had already deleted from
+            # disk plus 0-byte verify rows — and reported 1017 backups / 550 GB when only
+            # ~46 backups / ~96 GB actually exist.
+            total_count = len(backups)
+            total_size_bytes = sum(int(b.get("size") or 0) for b in backups)
 
             return jsonify(
                 {

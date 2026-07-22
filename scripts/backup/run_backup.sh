@@ -28,6 +28,14 @@ mkdir -p "$RUN_DIR"
 
 START_EPOCH=$(date +%s)
 FAILED=0
+FAILED_COMPONENTS=""
+CRITICAL_FAILED=0
+# The database dump is the only restore-CRITICAL component: code lives in git/GitHub,
+# config regenerates, volumes are caches/media. If db succeeds we MUST get it off-site
+# even when a non-critical component failed — a flaky code/config/volume tar must never
+# again silently kill the Drive/DR copy of a perfectly good database (#5092). The
+# surrounding spaces make " db " a whole-word match inside the padded list.
+CRITICAL_COMPONENTS=" db "
 
 run_component() {
     local name="$1"
@@ -40,6 +48,8 @@ run_component() {
     if ! "$script" "$RUN_DIR"; then
         log_error "Component FAILED: $name"
         FAILED=1
+        FAILED_COMPONENTS+="$name "
+        if [[ "$CRITICAL_COMPONENTS" == *" $name "* ]]; then CRITICAL_FAILED=1; fi
     fi
 }
 
@@ -81,7 +91,29 @@ case "$MODE" in
         ;;
 esac
 
+# ── Tier-sync gate (#5092) ────────────────────────────────────────────────
+# Old behaviour: ANY component failure skipped ALL off-site tier sync + retention,
+# so one flaky non-critical tar silently stalled the Google Drive / DR copy of a
+# healthy database for days (Drive stalled 2026-07-11 → 07-21). New: the database
+# (restore-critical) reaching off-site is DECOUPLED from non-critical components.
+# Retention still requires a fully clean run — never prune old restore points when
+# the new set is incomplete.
+DO_TIER_SYNC=0
+DO_RETENTION=0
 if (( FAILED == 0 )); then
+    DO_TIER_SYNC=1
+    DO_RETENTION=1
+    log_info "All components OK — starting tier sync + retention"
+elif (( CRITICAL_FAILED == 0 )); then
+    DO_TIER_SYNC=1
+    log_warn "Non-critical component(s) failed: ${FAILED_COMPONENTS}— DB OK, tier sync WITHOUT retention (#5092)"
+    notify_telegram warn "Partial backup mode=$MODE ts=$TS: non-critical failed (${FAILED_COMPONENTS}); DB synced off-site; retention skipped"
+else
+    log_error "CRITICAL component failed (${FAILED_COMPONENTS}) — skipping tier sync + retention"
+    notify_telegram error "Primary backup failed: mode=$MODE ts=$TS run=$RUN_DIR (critical: ${FAILED_COMPONENTS})"
+fi
+
+if (( DO_TIER_SYNC == 1 )); then
     # Write metadata.json BEFORE tier sync so USB/GDrive/VPS copies include it
     # (the UI scanner on each tier filters on metadata.json existence).
     PRE_SYNC_SIZE=$(dir_size_bytes "$RUN_DIR")
@@ -142,21 +174,28 @@ with open(os.path.join(run_dir, "metadata.json"), "w") as f:
 PYEOF_PRESYNC
     log_info "wrote metadata.json pre-sync"
 
-    log_info "All components OK — starting tier sync"
     "$SCRIPT_DIR/tier_sync_usb.py"    "$RUN_DIR"        || log_warn "USB tier sync had errors"
     "$SCRIPT_DIR/tier_sync_gdrive.py" "$RUN_DIR" "$MODE" || log_warn "GDrive tier sync had errors"
     "$SCRIPT_DIR/tier_sync_vps.sh"    "$RUN_DIR"        || log_warn "VPS tier sync had errors"
+fi
+
+if (( DO_RETENTION == 1 )); then
     "$SCRIPT_DIR/retention_prune.py"                    || log_warn "Retention prune had errors"
-else
-    log_error "Component failures — skipping tier sync + retention"
-    notify_telegram error "Primary backup failed: mode=$MODE ts=$TS run=$RUN_DIR"
 fi
 
 DUR_MS=$(( ( $(date +%s) - START_EPOCH ) * 1000 ))
 SIZE=$(dir_size_bytes "$RUN_DIR")
-log_to_db "run_backup" "primary" \
-    "$([[ $FAILED -eq 0 ]] && echo success || echo failed)" \
-    "$RUN_DIR" "$SIZE" "$DUR_MS"
+# Honest status so the freshness gate (which keys on last SUCCESS) can't be fooled:
+# clean=success; DB reached off-site but a non-critical component failed=partial;
+# nothing synced=failed (#5092).
+if (( FAILED == 0 )); then
+    RUN_STATUS=success
+elif (( DO_TIER_SYNC == 1 )); then
+    RUN_STATUS=partial
+else
+    RUN_STATUS=failed
+fi
+log_to_db "run_backup" "primary" "$RUN_STATUS" "$RUN_DIR" "$SIZE" "$DUR_MS"
 
 # Refresh metadata.json with final size/duration AFTER tier sync. We MERGE
 # onto the pre-sync write rather than overwriting, so build_number,

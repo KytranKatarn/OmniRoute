@@ -582,6 +582,42 @@ def backup_upload_file(service, file_path: str, folder_id: str, filename: str = 
     }
 
 
+def backup_list_backup_files(service, folder_id: str) -> list[dict]:
+    """List every non-trashed file in the backup folder: [{id, name, size}].
+
+    Used by the Drive-tier retention pruner (scripts/backup/retention_prune.py),
+    which needs the full inventory to apply the GFS ladder. Paginated so it does
+    not truncate at the default page size.
+    """
+    out: list[dict] = []
+    token = None
+    while True:
+        resp = (
+            service.files()
+            .list(
+                q=f"'{folder_id}' in parents and trashed=false",
+                fields="nextPageToken, files(id, name, size)",
+                pageSize=1000,
+                pageToken=token,
+            )
+            .execute()
+        )
+        out.extend(resp.get("files", []))
+        token = resp.get("nextPageToken")
+        if not token:
+            break
+    return out
+
+
+def backup_trash_file(service, file_id: str) -> None:
+    """Move a Drive file to Trash — recoverable ~30 days. NOT a permanent delete.
+
+    Retention uses trash (not files().delete(), which bypasses Trash and is
+    irreversible) so a mis-scoped prune can always be undone from Drive.
+    """
+    service.files().update(fileId=file_id, body={"trashed": True}).execute()
+
+
 def backup_download_file(service, file_id: str, output_path: str, on_progress=None) -> str:
     """
     Download a backup file from Google Drive.

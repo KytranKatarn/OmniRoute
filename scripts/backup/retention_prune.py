@@ -14,6 +14,7 @@ Spec: docs/superpowers/specs/2026-04-16-backup-system-design.md §6
 Plan: docs/superpowers/plans/2026-04-16-backup-system-redesign.md Task 17
 """
 
+import json
 import os
 import re
 import shutil
@@ -25,8 +26,16 @@ from pathlib import Path
 # (daily, weekly, monthly) keep counts per (component, tier).
 # Keys are folder names under a run_dir (which tier_sync scripts mirror to tiers).
 RETENTION = {
-    "database": {"primary": (30, 12, 6), "usb": (14, 4, 0), "gdrive": (0, 4, 6), "vps": (7, 0, 0)},
-    "code": {"primary": (14, 8, 0), "usb": (7, 4, 0), "gdrive": (0, 4, 0), "vps": (0, 0, 0)},
+    # gdrive is a 15 GB FREE-TIER account — a 1.5 GB DB dump + a 0.9 GB code tar per
+    # run means the old (0,4,6)=10 DB dumps alone would exceed the whole quota. Keep the
+    # off-site Drive copy deliberately shallow (USB + boston-2 DR hold the deep history),
+    # but the daily_keep>=1 is CRITICAL: off-site is a disaster-recovery tier, so the
+    # NEWEST dump must always survive the nightly prune (keep_d=0 would trash tonight's
+    # upload same night, leaving Drive only as fresh as the last Sunday). database keeps
+    # the last 2 dailies + 1 weekly + 1 monthly (~4 dumps, ~6 GB); code lives in git so
+    # off-site keeps just the last 2 (~1.6 GB). #5092.
+    "database": {"primary": (30, 12, 6), "usb": (14, 4, 0), "gdrive": (2, 1, 1), "vps": (7, 0, 0)},
+    "code": {"primary": (14, 8, 0), "usb": (7, 4, 0), "gdrive": (2, 0, 0), "vps": (0, 0, 0)},
     "gitbundles": {"primary": (14, 0, 12), "usb": (7, 4, 0), "gdrive": (0, 4, 6), "vps": (7, 0, 0)},
     "config": {"primary": (14, 0, 12), "usb": (7, 0, 0), "gdrive": (0, 0, 12), "vps": (7, 0, 0)},
     "volumes": {"primary": (14, 4, 0), "usb": (0, 4, 0), "gdrive": (0, 0, 0), "vps": (0, 0, 0)},
@@ -339,6 +348,129 @@ def prune_predeploy_snapshots(keep: int = PREDEPLOY_KEEP) -> int:
     return deleted
 
 
+def _gdrive_list_files():
+    """Inventory the Drive backup folder via the archie_platform container.
+
+    Drive credentials live in the platform container (this script runs on the
+    host), so we delegate the API call the same way prune_usb_via_container does.
+    Returns a list of {id, name, size} dicts, or None if Drive is unreachable /
+    not configured (retention then leaves the gdrive tier untouched — fail-open).
+    """
+    code = (
+        "import json, sys; sys.path.insert(0, '/app')\n"
+        "from tools.google_work_suite.services.drive_service import ("
+        " backup_get_drive_service, backup_ensure_folder, backup_list_backup_files)\n"
+        "svc = backup_get_drive_service()\n"
+        "fid = backup_ensure_folder(svc)\n"
+        "print('JSON:' + json.dumps(backup_list_backup_files(svc, fid)))\n"
+    )
+    r = subprocess.run(
+        ["docker", "exec", "archie_platform", "python3", "-c", code],
+        capture_output=True,
+        text=True,
+    )
+    if r.returncode != 0:
+        print(f"gdrive list failed: {r.stderr.strip()[:300]}", file=sys.stderr)
+        return None
+    for line in r.stdout.splitlines():
+        if line.startswith("JSON:"):
+            try:
+                return json.loads(line[len("JSON:") :])
+            except json.JSONDecodeError:
+                return None
+    return None
+
+
+def _gdrive_trash_files(ids: list) -> int:
+    """Trash the given Drive file ids via the container. Returns the count trashed.
+
+    Uses Drive Trash (recoverable ~30 days), never a permanent delete, so a
+    mis-scoped prune is always reversible from the owner's Drive.
+    """
+    if not ids:
+        return 0
+    code = (
+        "import json, sys; sys.path.insert(0, '/app')\n"
+        "from tools.google_work_suite.services.drive_service import ("
+        " backup_get_drive_service, backup_trash_file)\n"
+        "ids = json.loads(sys.stdin.read())\n"
+        "svc = backup_get_drive_service()\n"
+        "n = 0\n"
+        "for i in ids:\n"
+        "    try:\n"
+        "        backup_trash_file(svc, i); n += 1\n"
+        "    except Exception as e:\n"
+        "        print(f'trash-fail {i}: {e}', file=sys.stderr)\n"
+        "print('TRASHED:' + str(n))\n"
+    )
+    r = subprocess.run(
+        ["docker", "exec", "-i", "archie_platform", "python3", "-c", code],
+        input=json.dumps(ids),
+        capture_output=True,
+        text=True,
+    )
+    for line in r.stdout.splitlines():
+        if line.startswith("TRASHED:"):
+            return int(line[len("TRASHED:") :])
+    print(f"gdrive trash failed: {r.stderr.strip()[:300]}", file=sys.stderr)
+    return 0
+
+
+def prune_gdrive(dry_run: bool) -> int:
+    """Apply the GFS ladder to the Google Drive tier by trashing old backup files.
+
+    The gdrive tier never had a pruner, so the 'ARCHIE Backups' folder grew until
+    the free-tier quota filled and the DB dump stopped uploading (#5092). Files are
+    named '<TS>_<mode>/<component>/<file>.enc'; we parse that, group by (component,
+    run-dir), keep per RETENTION[component]['gdrive'] with the SAME ladder as the
+    disk tiers, and trash the rest. Unknown components and unparseable names are
+    left alone — we never auto-trash something we can't classify.
+    """
+    files = _gdrive_list_files()
+    if files is None:
+        print("gdrive prune skipped — Drive unreachable/not configured", file=sys.stderr)
+        return 0
+
+    # component -> { run_dir_name -> [file_id, ...] }  (one entry per run dir, like prune_dir)
+    comp_runs: dict = {}
+    for f in files:
+        parts = f.get("name", "").split("/")
+        if len(parts) < 2:
+            continue  # flat/unrecognised file — never auto-trash
+        run_name, component = parts[0], parts[1]
+        if component not in RETENTION or parse_ts(run_name) is None:
+            continue
+        comp_runs.setdefault(component, {}).setdefault(run_name, []).append(f["id"])
+
+    trash_ids: list = []
+    for component, runs in comp_runs.items():
+        keep_d, keep_w, keep_m = RETENTION[component].get("gdrive", (0, 0, 0))
+        kept_d = kept_w = kept_m = 0
+        for run_name in sorted(runs.keys(), reverse=True):  # newest first
+            tags = classify(parse_ts(run_name))
+            keep = False
+            if "monthly" in tags and kept_m < keep_m:
+                kept_m += 1
+                keep = True
+            elif "weekly" in tags and kept_w < keep_w:
+                kept_w += 1
+                keep = True
+            elif kept_d < keep_d:
+                kept_d += 1
+                keep = True
+            if not keep:
+                trash_ids.extend(runs[run_name])
+
+    if not trash_ids:
+        return 0
+    if dry_run:
+        print(f"[dry-run] gdrive: would trash {len(trash_ids)} file(s)")
+        return len(trash_ids)
+    n = _gdrive_trash_files(trash_ids)
+    print(f"gdrive: trashed {n} file(s)")
+    return n
+
+
 def main() -> None:
     total_deleted = 0
     usb_deleted = 0
@@ -348,13 +480,17 @@ def main() -> None:
     # Whole-dir age sweep for one-off / non-standard USB backups the per-component prune misses.
     usb_deleted += prune_usb_stale_dirs(DRY_RUN)
     total_deleted += usb_deleted
+    # gdrive tier (off-site cloud): trash old Drive files per the GFS ladder. This tier had
+    # no pruner, so the 15 GB free-tier quota filled and the DB dump stopped uploading (#5092).
+    gdrive_deleted = prune_gdrive(DRY_RUN)
+    total_deleted += gdrive_deleted
     # Pre-deploy snapshots: whole-dir, count-based — they do not fit the component model.
     total_deleted += prune_predeploy_snapshots()
 
     if DRY_RUN:
         print(
             f"[dry-run] retention prune: {total_deleted} items WOULD be removed "
-            f"(primary + usb; {usb_deleted} on usb)"
+            f"(primary + usb {usb_deleted}; gdrive {gdrive_deleted})"
         )
         return
 
@@ -362,7 +498,7 @@ def main() -> None:
     # Backup Manager UI reflects THIS canonical engine (it was stale because the old module job
     # was the only writer — #4051). Undeletable pre-deploy snapshots go in the note too, so the
     # UI shows the shortfall instead of a clean "N deleted" that hides a stuck prune.
-    note = f"{total_deleted} deleted"
+    note = f"{total_deleted} deleted ({usb_deleted} usb, {gdrive_deleted} gdrive)"
     if _PREDEPLOY_FAILURES:
         note += f", {_PREDEPLOY_FAILURES} pre-deploy FAILED"
     subprocess.run(

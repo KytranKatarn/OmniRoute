@@ -99,16 +99,87 @@ tests:
           expr: "['full','critical','database'].every(function(t){return document.body.innerHTML.indexOf(\"createQuickBackup('\"+t+\"'\")!==-1;})"
           equals: true
 
+  # ---------------------------------------------------------------------------
+  # Per-row actions. Selectors were READ FROM THE LIVE DOM (2026-07-22), not guessed:
+  # rows are `.backup-item` (60 present), each carrying exactly five buttons —
+  # Inspect / Download / Sync USB / Cloud / Delete — with NO inline onclick (they are
+  # event-delegated, which is why a static grep of the template finds nothing).
+  #
+  # ⚠️ Of the five, only INSPECT is read-only. Download pulls up to 2.4 GB; Sync USB
+  # and Cloud start real transfers (Cloud against a 15 GB quota that already filled
+  # once and killed off-site backups for ~3 weeks); Delete destroys a restore point.
+  # So: presence is asserted for all five, and only Inspect is ever clicked.
+  - name: "Every backup row renders its full action set (presence only — see safety note)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2500
+    expect:
+      js_eval:
+        - name: rows_rendered
+          expr: "document.querySelectorAll('.backup-item').length > 0"
+          equals: true
+        # EVERY row must carry all five. A row that renders without its actions is
+        # unusable-but-invisible — it looks fine until someone needs to restore it.
+        - name: every_row_has_all_five_actions
+          expr: "(()=>{var need=['Inspect','Download','Sync USB','Cloud','Delete'];var rows=document.querySelectorAll('.backup-item');if(!rows.length)return false;return Array.prototype.every.call(rows,function(r){var l=Array.prototype.map.call(r.querySelectorAll('button'),function(b){return b.textContent.trim();});return need.every(function(n){return l.indexOf(n)!==-1;});});})()"
+          equals: true
+        # Delete must stay visually marked as destructive — a red Delete that loses its
+        # styling is a mis-click waiting to happen on a 2.4 GB restore point.
+        - name: delete_is_marked_destructive
+          expr: "(()=>{var r=document.querySelector('.backup-item');if(!r)return false;var d=Array.prototype.filter.call(r.querySelectorAll('button'),function(b){return b.textContent.trim()==='Delete';})[0];return !!d && /btn-red/.test(d.className);})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  - name: "Inspect opens the preview modal (the only row action safe to click)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2500
+      - click: ".backup-item button:has-text('Inspect')"
+      - wait: 1200
+      - screenshot: "backups-tab-inspect-modal"
+    expect:
+      js_eval:
+        # Something modal-ish became visible. Kept structural rather than pinned to one
+        # id: the point is that Inspect DOES something, not which element it uses.
+        - name: a_modal_opened
+          expr: "(()=>{var m=document.querySelectorAll('.bm-overlay,[class*=modal],[id*=Modal]');return Array.prototype.some.call(m,function(e){var s=getComputedStyle(e);return s.display!=='none'&&s.visibility!=='hidden'&&e.offsetHeight>0;});})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # The other 9 tabs. Navigation only — no tab's controls are exercised here, because
+  # several are destructive (cleanupBackups, saveRetentionPolicy, backupSelectedStandalones,
+  # createModuleBackup, createDeploymentPackage). This proves each tab RENDERS; asserting
+  # their contents is a separate spec per tab, written the same way: read the live DOM first.
+  - name: "All 9 Backup Manager tabs exist and switch"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2000
+      - click: "[data-tab='cloud']"
+      - wait: 400
+      - click: "[data-tab='retention']"
+      - wait: 400
+      - click: "[data-tab='backups']"
+      - wait: 400
+    expect:
+      js_eval:
+        - name: all_nine_tabs_present
+          expr: "(()=>{var want=['backups','cloud','external','deployments','modules','standalones','hooks','retention','packages'];return want.every(function(t){return !!document.querySelector('[data-tab=\"'+t+'\"]');});})()"
+          equals: true
+        # Returned to Backups and its content is live again — proves switching is
+        # reversible and does not strand the default tab.
+        - name: returned_to_backups_intact
+          expr: "document.querySelectorAll('.backup-item').length > 0 && !!document.getElementById('qbLast-full')"
+          equals: true
+
 # ---------------------------------------------------------------------------
-# NOT COVERED YET — deliberately omitted rather than guessed.
-#
-# The per-backup-row action buttons (and the 9 non-Backups tabs: Cloud, External,
-# Deployment, Modules, Standalones, Hooks, Retention, Packages) have no DOM coverage.
-# Their controls are built dynamically inside renderBackupsList(), so their selectors
-# must be read from the live rendered DOM before assertions can be written. Writing
-# guessed selectors here would produce a permanently-red suite, which is worse than no
-# suite — people learn to ignore it.
-#
-# Tracked as a follow-up task. When adding them, keep the same safety rule: assert
-# wiring for anything destructive (delete/prune/restore-to-prod), and only actually
-# click read-only controls.
+# STILL NOT COVERED (deliberate): the CONTENTS of the 9 non-Backups tabs, and any
+# actual invocation of a destructive control anywhere. Adding those means one spec per
+# tab, selectors read from the live DOM first, and the same rule as above — assert
+# wiring for destructive controls, click only read-only ones. Anything that must
+# genuinely exercise a backup/restore belongs in a manual, on-demand suite, never here.

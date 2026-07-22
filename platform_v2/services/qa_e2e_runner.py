@@ -208,7 +208,11 @@ class E2ERunner:
 
             # Execute actions
             for action in actions:
-                await self._execute_action(action)
+                _shot = await self._execute_action(action, run_id)
+                # First screenshot action wins; an explicit `expect.screenshot` later
+                # overwrites it deliberately (that one is the test's own final frame).
+                if _shot and not result.get("screenshot_path"):
+                    result["screenshot_path"] = _shot
 
             # Run assertions
             result["assertions"] = await self._check_assertions(expect)
@@ -280,7 +284,11 @@ class E2ERunner:
 
             # Execute actions
             for action in actions:
-                await self._execute_action(action)
+                _shot = await self._execute_action(action, run_id)
+                # First screenshot action wins; an explicit `expect.screenshot` later
+                # overwrites it deliberately (that one is the test's own final frame).
+                if _shot and not result.get("screenshot_path"):
+                    result["screenshot_path"] = _shot
 
             # Run assertions
             result["assertions"] = await self._check_assertions(expect)
@@ -318,8 +326,19 @@ class E2ERunner:
 
         return result
 
-    async def _execute_action(self, action):
-        """Execute a single action from the spec."""
+    async def _execute_action(self, action, run_id=None):
+        """Execute a single action from the spec.
+
+        Returns the screenshot path for a `screenshot:` action, else None, so the
+        caller can record it on the result. It previously DISCARDED that return and
+        passed run_id=None, which caused two separate losses of evidence:
+          * `screenshot_path` stayed None on the result even though a PNG existed, so
+            nothing in the QA UI or the run row ever pointed at it — the file had to be
+            found by hand in the container;
+          * run_id=None made every filename `manual_<name>.png`, so each run
+            OVERWROTE the previous run's screenshot. Comparing a failing run against
+            the last good one was impossible.
+        """
         timeout = action.get("timeout", 10000)
 
         if "click" in action:
@@ -357,9 +376,10 @@ class E2ERunner:
         elif "scroll_to" in action:
             await self.page.evaluate(f"document.querySelector('{action['scroll_to']}')?.scrollIntoView()")
         elif "screenshot" in action:
-            await self._take_screenshot(action.get("screenshot", "action"), None)
+            return await self._take_screenshot(action.get("screenshot", "action"), run_id)
         elif "wait" in action:
             await asyncio.sleep(action["wait"] / 1000)
+        return None
 
     async def _check_assertions(self, expect):
         """Run all assertions against the current page state."""

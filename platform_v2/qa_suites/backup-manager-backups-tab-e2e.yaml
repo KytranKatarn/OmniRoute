@@ -177,6 +177,48 @@ tests:
           expr: "document.querySelectorAll('.backup-item').length > 0 && !!document.getElementById('qbLast-full')"
           equals: true
 
+  # ---------------------------------------------------------------------------
+  # "Do all the buttons work, in theory?" — across ALL 9 tabs, without invoking any.
+  #
+  # Every tab's markup is present in the DOM at load (tabs are shown/hidden, not lazily
+  # built), so a single scan reaches every control: Backups, Cloud, External, Deployment,
+  # Modules, Standalones, Hooks, Retention, Packages, plus the modal sub-buttons.
+  #
+  # The check is structural: for every element with an inline `onclick`, extract the
+  # function names it CALLS and assert each one actually exists on `window`. That catches
+  # the failure this cannot otherwise see — a button wired to a renamed or deleted
+  # handler, which looks perfectly fine on screen and does nothing when pressed.
+  # NOTHING IS INVOKED; this only proves the wiring resolves.
+  - name: "Every wired control on every tab points at a function that exists (nothing invoked)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2500
+    expect:
+      js_eval:
+        # Identifiers NOT preceded by a dot (so `document.getElementById(` and `.then(`
+        # are correctly ignored as method calls). Skipped: language keywords/builtins, and
+        # `_bmConfirmResolve` / `_passphraseResolve`, which are assigned only while a modal
+        # is open and are null-guarded at the call site (`x && x(...)`) by design.
+        - name: all_onclick_handlers_resolve
+          expr: "(function(){var SKIP={'if':1,'for':1,'while':1,'return':1,'fetch':1,'alert':1,'confirm':1,'event':1,'this':1,'function':1,'typeof':1,'new':1,'setTimeout':1,'Boolean':1,'String':1,'Number':1,'_bmConfirmResolve':1,'_passphraseResolve':1};var bad=[],seen={};Array.prototype.forEach.call(document.querySelectorAll('[onclick]'),function(el){var oc=el.getAttribute('onclick')||'';var re=/(^|[^.\\w$])([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\(/g,m;while((m=re.exec(oc))!==null){var n=m[2];if(SKIP[n]||seen[n])continue;seen[n]=1;if(typeof window[n]!=='function')bad.push(n);}});return bad.length===0;})()"
+          equals: true
+
+        # FLOOR. Without this the scan passes trivially when it finds nothing — e.g. if the
+        # page fails to render its controls, `bad` is empty and the assertion above goes
+        # green while the tab is blank. Measured 26 distinct handlers on 2026-07-22; 20 is
+        # a deliberately loose floor that still catches "the page rendered no controls".
+        - name: scan_actually_found_controls
+          expr: "(function(){var SKIP={'if':1,'for':1,'while':1,'return':1,'fetch':1,'alert':1,'confirm':1,'event':1,'this':1,'function':1,'typeof':1,'new':1,'setTimeout':1,'Boolean':1,'String':1,'Number':1,'_bmConfirmResolve':1,'_passphraseResolve':1};var seen={};Array.prototype.forEach.call(document.querySelectorAll('[onclick]'),function(el){var oc=el.getAttribute('onclick')||'';var re=/(^|[^.\\w$])([A-Za-z_$][A-Za-z0-9_$]*)\\s*\\(/g,m;while((m=re.exec(oc))!==null){var n=m[2];if(!SKIP[n])seen[n]=1;}});return Object.keys(seen).length >= 20;})()"
+          equals: true
+
+        # The destructive/expensive controls specifically must be wired — these are the
+        # ones a human reaches for in an incident, when discovering a dead button is worst.
+        - name: critical_handlers_wired
+          expr: "['createQuickBackup','cleanupBackups','createModuleBackup','backupSelectedStandalones','saveRetentionPolicy','saveGovernanceGates','checkRetention','verifyCloudPassphrase','createDeploymentPackage','showAddWebhookModal'].every(function(n){return typeof window[n]==='function';})"
+          equals: true
+
 # ---------------------------------------------------------------------------
 # STILL NOT COVERED (deliberate): the CONTENTS of the 9 non-Backups tabs, and any
 # actual invocation of a destructive control anywhere. Adding those means one spec per

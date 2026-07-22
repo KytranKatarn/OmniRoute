@@ -416,9 +416,20 @@ def create_backup_programmatic(
             for f in files:
                 total_size += os.path.getsize(os.path.join(root, f))
 
-        # Copy to external storage if available
+        # Copy to external storage if available.
+        # ⚠️ EPHEMERAL (pre-deploy / repair-bay / drill) snapshots get ONE rolling
+        # slot, not one copy each. Measured 2026-07-22 before this rule: the USB
+        # tier held 10 pre-deploy dirs (24.6 GB) + 3 drills (6.3 GB) against a
+        # single 2.7 GB daily — i.e. 92% of an off-site DR drive was pre-fix
+        # scratch. These exist to roll back a self-heal seconds later; they are
+        # not disaster-recovery material and must not crowd out the daily (#5126).
         external_result = {"success": False, "error": "External storage not mounted"}
         if is_external_storage_available():
+            if _is_ephemeral_backup(description, backup_name):
+                # Drop older ephemeral copies FIRST so only this one survives.
+                _pruned = _prune_ephemeral_external(keep=0)
+                if _pruned:
+                    print(f"  Reclaimed {_pruned} stale pre-fix copy/copies from external")
             print("  Copying to external storage...")
             external_result = copy_to_external_storage(backup_name, backup_path)
             if external_result["success"]:
@@ -1653,6 +1664,61 @@ def get_external_storage_stats():
         }
     except Exception as e:
         return {"available": False, "error": str(e)}
+
+
+# Markers identifying a PRE-FIX / scratch snapshot rather than a DR restore point.
+# `proposal_service.create_backup(description=f"Pre-deploy snapshot for proposal #...")`
+# and the restorability drills are the two producers.
+_EPHEMERAL_MARKERS = ("pre-deploy", "repair bay")
+
+
+def _is_ephemeral_backup(description: str, backup_name: str) -> bool:
+    """True for PRE-DEPLOY / REPAIR-BAY snapshots only.
+
+    These are taken seconds before a self-heal purely so it can be rolled back.
+    They are not disaster-recovery artifacts and must not accumulate off-site.
+
+    Scope is deliberately narrow:
+      • Restorability DRILLS are NOT matched. They are DR rehearsal evidence,
+        a different thing from pre-fix scratch, and were not in scope. (3 dirs /
+        6.3 GB on USB as of 2026-07-22 — raise separately if they should go too.)
+      • Directory names use underscores (`Pre-deploy_snapshot_for_proposal_…`)
+        while descriptions use spaces, so separators are normalised before
+        matching — otherwise a marker written with a space silently never fires,
+        which is exactly the bug this comment used to describe inaccurately.
+    """
+    haystack = f"{description or ''} {backup_name or ''}".lower().replace("_", " ").replace("-", "-")
+    return any(marker in haystack for marker in _EPHEMERAL_MARKERS)
+
+
+def _prune_ephemeral_external(keep: int = 1) -> int:
+    """Keep at most `keep` ephemeral snapshots on external storage; delete the rest.
+
+    Returns the number of directories removed. Deliberately narrow:
+      • only ever touches EXTERNAL_BACKUP_DIR (never the primary /backups),
+      • only directories whose NAME matches an ephemeral marker — a daily,
+        monthly, weekly or any unrecognised run dir is never a candidate,
+      • newest-first, so the most recent rollback point is the one retained.
+    """
+    removed = 0
+    try:
+        if not os.path.isdir(EXTERNAL_BACKUP_DIR):
+            return 0
+        candidates = [
+            d
+            for d in os.listdir(EXTERNAL_BACKUP_DIR)
+            if os.path.isdir(os.path.join(EXTERNAL_BACKUP_DIR, d)) and _is_ephemeral_backup("", d)
+        ]
+        candidates.sort(reverse=True)  # names are YYYYMMDD_HHMMSS_… → newest first
+        for stale in candidates[max(keep, 0) :]:
+            target = os.path.join(EXTERNAL_BACKUP_DIR, stale)
+            # Re-assert containment before an irreversible delete.
+            if os.path.realpath(target).startswith(os.path.realpath(EXTERNAL_BACKUP_DIR) + os.sep):
+                shutil.rmtree(target, ignore_errors=True)
+                removed += 1
+    except Exception as exc:  # never let housekeeping break a backup run
+        print(f"  ⚠ Ephemeral external prune skipped: {exc}")
+    return removed
 
 
 def copy_to_external_storage(backup_name, backup_path):
@@ -2967,6 +3033,56 @@ def _cloud_tar_filter(tarinfo):
     return tarinfo
 
 
+GDRIVE_PASSPHRASE_HASH_KEY = "backup:gdrive:passphrase_hash"
+
+
+def _get_gdrive_passphrase_hash() -> str:
+    """Read the operator passphrase hash — DB FIRST, env only as a fallback.
+
+    ⚠️ This MUST NOT be stored in os.environ / .env (#5125). Two independent
+    reasons, both observed live:
+
+      1. archie_platform runs gunicorn with --workers 4. `_update_env_var` does
+         `os.environ[key] = value`, which reaches only the ONE worker that
+         handled the POST — the other three keep answering "incorrect
+         passphrase", so setting a passphrase appears to fail at random.
+      2. `_update_env_var` writes to /app/.env, and /app is the bind-mount of
+         platform_v2/ — so it lands in platform_v2/.env, a file the container
+         NEVER loads (docker-compose uses `env_file: .env`, the ROOT one, where
+         this key exists with an EMPTY value). So it also does not survive a
+         restart.
+
+    platform_settings is shared by every worker and is durable, which is what a
+    credential verifier needs. Only the SHA-256 hash is stored here, never the
+    passphrase itself.
+    """
+    try:
+        with get_backup_db_cursor() as (_conn, _cur):
+            _cur.execute(
+                "SELECT value FROM platform_settings WHERE key = %s",
+                (GDRIVE_PASSPHRASE_HASH_KEY,),
+            )
+            row = _cur.fetchone()  # NOTE: this cursor yields TUPLES, not dicts
+            if row and row[0]:
+                return str(row[0]).strip()
+    except Exception:
+        # Never let a settings-table hiccup take down the whole Cloud tab.
+        pass
+    return os.environ.get("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", "")
+
+
+def _set_gdrive_passphrase_hash(passphrase_hash: str) -> None:
+    """Persist the passphrase hash so ALL gunicorn workers see it, durably."""
+    with get_backup_db_cursor(commit=True) as (_conn, _cur):
+        _cur.execute(
+            "INSERT INTO platform_settings (key, value) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+            (GDRIVE_PASSPHRASE_HASH_KEY, passphrase_hash),
+        )
+    # Keep the current process consistent too; the DB row is the source of truth.
+    os.environ["GDRIVE_ENCRYPTION_PASSPHRASE_HASH"] = passphrase_hash
+
+
 def _get_cloud_config():
     """Read Google Drive configuration from environment."""
     return {
@@ -2976,7 +3092,7 @@ def _get_cloud_config():
             "/app/credentials/gdrive-service-account.json",
         ),
         "folder_id": os.environ.get("GDRIVE_BACKUP_FOLDER_ID", ""),
-        "passphrase_hash": os.environ.get("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ""),
+        "passphrase_hash": _get_gdrive_passphrase_hash(),
         # The secret that ACTUALLY protects every object currently in Drive.
         # scripts/backup/tier_sync_gdrive.py (host cron) encrypts with this;
         # GDRIVE_ENCRYPTION_PASSPHRASE_HASH is a hash of a DIFFERENT, older

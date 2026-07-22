@@ -1311,7 +1311,13 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                 )
 
         ph = hash_passphrase(passphrase)
-        _update_env_var("GDRIVE_ENCRYPTION_PASSPHRASE_HASH", ph)
+        # Persist to platform_settings, NOT the env: _update_env_var only reaches
+        # one of four gunicorn workers and writes to platform_v2/.env, which the
+        # container never loads — so a set passphrase failed on ~3 of 4 requests
+        # and vanished on restart (#5125).
+        from tools.backup_manager._shared import _set_gdrive_passphrase_hash
+
+        _set_gdrive_passphrase_hash(ph)
 
         return jsonify({"success": True, "message": "Encryption passphrase set"})
 
@@ -1345,6 +1351,26 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
 
         if not config["enabled"]:
             return jsonify({"success": False, "error": "Google Drive not enabled"}), 400
+
+        # Pre-fix scratch never belongs off-site. Drive is a 15 GB FREE-TIER
+        # account that filled once and silently killed off-site DB backups for
+        # ~3 weeks; a 2.4 GB pre-deploy snapshot is the fastest way to refill it.
+        # Cloud is currently clean (0 such objects) — this keeps it that way (#5126).
+        from tools.backup_manager._shared import _is_ephemeral_backup
+
+        if _is_ephemeral_backup("", backup_name):
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": (
+                            "Pre-deploy / repair-bay snapshots are not uploaded to cloud storage — "
+                            "they are short-lived rollback points, not restore points."
+                        ),
+                    }
+                ),
+                400,
+            )
 
         from tools.backup_manager.gdrive_crypto import verify_passphrase
 

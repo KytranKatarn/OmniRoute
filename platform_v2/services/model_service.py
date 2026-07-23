@@ -8,6 +8,7 @@ Uses urllib.request (no requests lib) to match platform patterns.
 import json
 import logging
 import os
+import socket  # for socket.timeout — distinguishing "we stopped waiting" from a real failure
 import time
 import urllib.request
 from enum import IntEnum
@@ -335,6 +336,43 @@ class ModelService:
             logger.info("model_service: loaded %s on %s", model, base)
             return True
         except Exception as exc:
+            # A TIMEOUT MEANS WE STOPPED WAITING — NOT THAT THE LOAD FAILED.
+            #
+            # Ollama serialises per model (NUM_PARALLEL=1), so a warm request issued
+            # while the host is mid-dispatch queues behind it. On a node averaging
+            # ~116s per dispatch that wait can exceed our bound and expire client-side
+            # while the load goes on to succeed moments later.
+            #
+            # Reporting that as "failed" makes a HEALTHY node look broken: it is exactly
+            # what produced the (wrong) "node 246 cannot load qwen2.5:7b" conclusion,
+            # when the model was in fact resident on its GPU and the node had served
+            # 33/33 dispatches on it (#5133). Same status-misreports-a-healthy-system
+            # shape this module keeps hitting.
+            #
+            # So on timeout, ask the host what is ACTUALLY resident before judging —
+            # via the existing _fetch_ps helper, no new call path.
+            if isinstance(exc, socket.timeout) or "timed out" in str(exc).lower():
+                try:
+                    loaded = self._fetch_ps(base) or []
+                    if any(m.get("name") == model for m in loaded):
+                        self._last_used[model] = time.time()
+                        self._cache_time = 0.0
+                        logger.info(
+                            "model_service: %s on %s exceeded the load wait but IS resident — "
+                            "reporting success (client timeout, not a load failure)",
+                            model,
+                            base,
+                        )
+                        return True
+                except Exception:
+                    pass  # cannot confirm -> fall through to the honest 'not ready'
+                logger.warning(
+                    "model_service: load %s on %s exceeded the wait and is NOT yet resident — "
+                    "it may still be loading; treating as not-ready (NOT a node failure)",
+                    model,
+                    base,
+                )
+                return False
             logger.error("model_service: load %s on %s failed — %s", model, base, exc)
             return False
 

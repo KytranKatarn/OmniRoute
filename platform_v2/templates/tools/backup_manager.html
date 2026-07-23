@@ -195,9 +195,21 @@
                                     <div class="retention-info" style="border-color: #fca5a5;">
                                         <h4 style="color: #fca5a5; margin-bottom: var(--archie-space-3);"><span data-i18n="backup_manager.encryption_passphrase">Encryption Passphrase</span></h4>
                                         <p style="font-size: var(--archie-text-sm); color: var(--archie-text-tertiary); margin-bottom: var(--archie-space-2);">
-                                            <span data-i18n="backup_manager.encryption_passphrase_description">Required for uploading and downloading cloud backups. AES-256-GCM encryption.</span>
+                                            <!-- The tier holds TWO cipher formats and the label used to name only one.
+                                                 The nightly host job (scripts/backup/tier_sync_gdrive.py) writes openssl
+                                                 AES-256-CBC — that is what EVERY object currently in Drive is. Only the
+                                                 in-app upload path writes AES-256-GCM. Claiming GCM alone described a
+                                                 format none of the stored backups actually use (#5131). -->
+                                            <span data-i18n="backup_manager.encryption_passphrase_description">Required for uploading and downloading cloud backups. Nightly off-site copies use AES-256-CBC (openssl); backups uploaded from this page use AES-256-GCM. Both are read automatically on restore.</span>
                                         </p>
-                                        <div class="cloud-passphrase-input">
+                                        <!-- Shown when the SERVER already holds the passphrase (passphrase_source
+                                             === 'server'): restore/upload use it directly, so demanding the operator
+                                             retype a 64-char generated secret asks for something already configured
+                                             and buys nothing (#5131). -->
+                                        <div id="cloudPassphraseServerNote" style="display:none; font-size: var(--archie-text-sm); color: #4ade80;">
+                                            ✅ Configured on the server — no passphrase needed here. Restores and uploads use it automatically.
+                                        </div>
+                                        <div id="cloudPassphraseInputRow" class="cloud-passphrase-input">
                                             <input type="password" id="cloudPassphrase" placeholder="Enter encryption passphrase" autocomplete="off" data-i18n-placeholder="backup_manager.enter_encryption_passphrase">
                                             <button class="btn btn-blue" onclick="verifyCloudPassphrase()"><span data-i18n="backup_manager.verify">Verify</span></button>
                                         </div>
@@ -3523,6 +3535,20 @@
             // Show/hide dependent sections
             if (data.connected) {
                 document.getElementById('cloudPassphraseSection').style.display = data.has_passphrase ? 'block' : 'none';
+
+                // Report which credential is in play instead of prompting for one that is
+                // already configured. 'server' = the host holds BACKUP_GDRIVE_PASSPHRASE and
+                // the restore/upload paths use it directly, so the Verify box is redundant.
+                // Anything other than an explicit 'server' keeps the input (#5131) — if the
+                // field is missing or unexpected we fail toward asking, never toward implying
+                // a passphrase exists when it might not.
+                var _ppServer = data.passphrase_source === 'server';
+                var _ppNote = document.getElementById('cloudPassphraseServerNote');
+                var _ppRow = document.getElementById('cloudPassphraseInputRow');
+                if (_ppNote) _ppNote.style.display = _ppServer ? 'block' : 'none';
+                // '' (not a hardcoded value) so the .cloud-passphrase-input stylesheet rule
+                // stays authoritative for the visible case.
+                if (_ppRow) _ppRow.style.display = _ppServer ? 'none' : '';
 
                 if (data.storage) {
                     const quotaSection = document.getElementById('cloudQuotaSection');

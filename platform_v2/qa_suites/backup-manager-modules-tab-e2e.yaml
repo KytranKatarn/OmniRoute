@@ -1,0 +1,252 @@
+# P.R.O.B.E. — Backup Manager / Modules tab, DOM-level E2E
+#
+# WHY THIS EXISTS (2026-07-23): the Modules tab had NO E2E suite at all. #106 covers the
+# Backups tab only, and the HTTP-only suites (#19/#35/#69/#71) cannot assert DOM. Under
+# that gap the "🧪 Sandbox" button on every module row had NEVER worked: it called
+# deployModuleToSandbox(mod.id), but /modules/available returns
+# {name, has_routes, file_count, template_count, size_bytes, size_kb} and NO `id`, so every
+# row POSTed to /api/modules/undefined/deploy-to-sandbox → 404. The endpoint behind it was
+# fine the whole time — measured working in 11.9s when given a real name. That is exactly
+# mistake #281727 again: the API is healthy, the UI is wired to nothing, and only a DOM
+# test can tell the difference.
+#
+# ⚠️ SAFETY — THIS SUITE MUST NEVER CLICK Restore, 🧪 Sandbox, OR Backup Selected.
+#   • Restore overwrites the module's files in the LIVE platform.
+#   • 🧪 Sandbox restarts archie_staging (~12s measured) on every invocation.
+#   • Backup Selected writes real backups to disk.
+# Wiring is asserted structurally (presence + typeof + source introspection); only
+# read-only controls (tab switch, filter, select-all) are ever exercised.
+
+suite:
+  name: "backup-manager-modules-tab-e2e"
+  description: "DOM-level E2E for the Backup Manager Modules tab. Pins the #5136 fixes: the 🧪 Sandbox button passing a real module name, select-all scoped to #moduleGrid, backup failures no longer swallowed, and the freshness colour agreeing with the age text — none of which HTTP-only suites can see."
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ---------------------------------------------------------------------------
+  - name: "Modules tab renders one row per available module"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 2500
+      - screenshot: "modules-tab-list"
+    expect:
+      selector_visible:
+        "#moduleGrid": true
+      js_eval:
+        - name: renderer_present
+          expr: "typeof loadAvailableModules === 'function' && typeof renderModuleList === 'function'"
+          equals: true
+
+        # FLOOR + exact agreement with the API. A count of 0 passes any "no bad rows"
+        # check trivially, which is how a blank tab goes green.
+        - name: rows_match_api_count
+          expr: "(async function(){var r=await (await fetch('/tools/backup-manager/modules/available',{credentials:'same-origin'})).json();var n=(r.modules||[]).length;var d=document.querySelectorAll('#moduleGrid .module-row').length;return n>10 && d===n;})()"
+          equals: true
+
+        # Every row must carry a usable module key. dataset.module is what BOTH the
+        # backup POST and the sandbox call are built from — a blank one is a dead row.
+        - name: every_row_has_a_module_key
+          expr: "(function(){var rows=document.querySelectorAll('#moduleGrid .module-row');if(!rows.length)return false;return Array.prototype.every.call(rows,function(r){return !!(r.dataset.module||'').trim();});})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # REGRESSION PIN for the 🧪 Sandbox button (#5136).
+  #
+  # Asserted by source introspection rather than by clicking, because clicking restarts
+  # archie_staging. renderModuleList is a plain function, so .toString() exposes which
+  # field it hands to deployModuleToSandbox — enough to catch a revert to `mod.id`.
+  - name: "Sandbox button is built from mod.name, never mod.id (#5136 regression pin)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 2000
+    expect:
+      js_eval:
+        - name: handler_exists
+          expr: "typeof deployModuleToSandbox === 'function'"
+          equals: true
+
+        # The bug, pinned exactly: the renderer must not reach for a field the API
+        # does not return.
+        - name: renderer_does_not_use_mod_id
+          expr: "renderModuleList.toString().indexOf('deployModuleToSandbox(mod.id') === -1"
+          equals: true
+        - name: renderer_uses_mod_name
+          expr: "renderModuleList.toString().indexOf('deployModuleToSandbox(mod.name') !== -1"
+          equals: true
+
+        # And the contract it depends on: /modules/available still has no `id`, so if a
+        # future change adds one, this test tells you the pin above can be relaxed.
+        - name: api_still_returns_no_id_field
+          expr: "(async function(){var r=await (await fetch('/tools/backup-manager/modules/available',{credentials:'same-origin'})).json();var m=(r.modules||[])[0];return !!m && !('id' in m) && typeof m.name === 'string';})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # REGRESSION PIN for the shared `.module-row` class (#5136).
+  #
+  # renderStandaloneList() reuses `.module-row` for #standaloneGrid. The Modules-tab
+  # helpers queried it unscoped, so "All" selected standalones too — inflating the count
+  # and then POSTing module_name=undefined for each (standalone rows carry dataset.name).
+  - name: "Select-all is scoped to #moduleGrid and never touches standalones (#5136)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 2000
+    expect:
+      js_eval:
+        # Precondition: BOTH grids must hold rows, otherwise the scoping assertions below
+        # are vacuous — with an empty #standaloneGrid, "no standalones got selected"
+        # passes for the wrong reason.
+        #
+        # The standalone rows are SYNTHESISED here rather than loaded. Measured
+        # 2026-07-23: GET /tools/backup-manager/api/standalones/list returns HTTP 500
+        # (KeyError 'db_schema'), and loadStandaloneSystems() swallows it with
+        # `if (!data.success) return;` — so that grid is empty on the live page and no
+        # amount of waiting fills it. That is a REAL defect in the Standalones tab,
+        # tracked separately; it is deliberately NOT this suite's subject.
+        #
+        # What is being tested here is a DOM-scoping contract: `.module-row` is shared
+        # between #moduleGrid and #standaloneGrid, and the Modules helpers must not reach
+        # across. Injecting the rows makes that contract testable today AND keeps this
+        # test honest once the standalone endpoint is fixed and real rows appear.
+        - name: both_grids_populated
+          expr: "(function(){var g=document.getElementById('standaloneGrid');if(!g)return false;if(!g.querySelector('.module-row')){['probe_a','probe_b'].forEach(function(n){var r=document.createElement('div');r.className='module-row';r.dataset.name=n;g.appendChild(r);});}return document.querySelectorAll('#moduleGrid .module-row').length>0 && document.querySelectorAll('#standaloneGrid .module-row').length>0;})()"
+          equals: true
+
+        - name: select_all_leaves_standalones_untouched
+          expr: "(function(){deselectAllModules();selectAllModules();var mods=document.querySelectorAll('#moduleGrid .module-row.selected').length;var all=document.querySelectorAll('#moduleGrid .module-row').length;var stray=document.querySelectorAll('#standaloneGrid .module-row.selected').length;deselectAllModules();return mods===all && stray===0;})()"
+          equals: true
+
+        # The count the operator reads before pressing Backup Selected must equal the
+        # number of modules actually selected — that readout is how they decide.
+        - name: selected_count_matches_module_rows_only
+          expr: "(function(){deselectAllModules();selectAllModules();var shown=parseInt(document.getElementById('selectedModuleCount').textContent,10);var actual=document.querySelectorAll('#moduleGrid .module-row').length;deselectAllModules();return shown===actual;})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # REGRESSION PIN: backup failures must not be swallowed (#5136).
+  # createModuleBackup() discarded every fetch result and always toasted
+  # "Backed up N module(s)" — a 400 or 500 was invisible. Structural, because actually
+  # invoking it would write real backups.
+  - name: "createModuleBackup checks each response (#5136 regression pin)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 1500
+    expect:
+      js_eval:
+        - name: handler_exists
+          expr: "typeof createModuleBackup === 'function'"
+          equals: true
+        # It must inspect the response, not just await it.
+        - name: response_status_is_checked
+          expr: "(function(){var s=createModuleBackup.toString();return s.indexOf('res.ok')!==-1 || s.indexOf('response.ok')!==-1;})()"
+          equals: true
+        # And it must be capable of reporting a failure, not only a success.
+        - name: failures_are_reported
+          expr: "createModuleBackup.toString().indexOf('FAILED') !== -1"
+          equals: true
+        # Never POST an undefined module_name (the standalone-leak symptom).
+        - name: undefined_names_filtered
+          expr: "createModuleBackup.toString().indexOf('.filter(Boolean)') !== -1"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # REGRESSION PIN: freshness colour vs age text (#5136).
+  #
+  # Backup dir names are written in LOCAL time (verified 2026-07-23: dir 20260723_091900
+  # == backup_log created_at 13:19 UTC, i.e. EDT). timeAgo() parsed that as local while
+  # the colour branch appended 'Z' and parsed it as UTC, so every row was coloured one
+  # UTC-offset staler than its own text said — 4h on EDT. A dashboard whose colour
+  # disagrees with its number is one people stop trusting.
+  - name: "Freshness colour agrees with the age text (#5136 regression pin)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 2500
+    expect:
+      js_eval:
+        - name: no_Z_suffix_in_colour_parse
+          expr: "renderModuleList.toString().indexOf(\"$4:$5:$6Z\") === -1"
+          equals: true
+
+        # Functional check: any row whose text reads minutes/hours ago must be classed
+        # 'recent', never 'stale'. This is the user-visible contradiction itself.
+        - name: recent_text_implies_recent_class
+          expr: "(function(){var rows=document.querySelectorAll('#moduleGrid .module-row');var checked=0;var ok=Array.prototype.every.call(rows,function(r){var a=r.querySelector('.backup-age');if(!a)return true;var t=(a.textContent||'').trim();if(!/^\\d+[mh] ago$/.test(t))return true;checked++;return !a.classList.contains('stale');});return ok && checked>0;})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # The two destructive per-row controls. Presence + wiring only — see safety note.
+  - name: "Restore and Sandbox render on backed-up rows and are wired (NOT clicked)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 2500
+      - screenshot: "modules-tab-row-actions"
+    expect:
+      js_eval:
+        - name: both_handlers_wired
+          expr: "typeof restoreModuleBackup === 'function' && typeof deployModuleToSandbox === 'function'"
+          equals: true
+
+        # A row that HAS a backup must offer both actions; a row with none must offer
+        # neither (offering Restore with nothing to restore from is a dead control).
+        - name: actions_gated_on_backup_existence
+          expr: "(function(){var rows=document.querySelectorAll('#moduleGrid .module-row');if(!rows.length)return false;var withBk=0;var ok=Array.prototype.every.call(rows,function(r){var age=r.querySelector('.backup-age');var never=!age||age.classList.contains('none');var btns=Array.prototype.map.call(r.querySelectorAll('button'),function(b){return b.textContent.trim();});var hasR=btns.indexOf('Restore')!==-1;var hasS=btns.some(function(x){return x.indexOf('Sandbox')!==-1;});if(never)return !hasR && !hasS;withBk++;return hasR && hasS;});return ok && withBk>0;})()"
+          equals: true
+
+        # Restore stays visually marked destructive — it overwrites live module code.
+        - name: restore_marked_destructive
+          expr: "(function(){var b=Array.prototype.filter.call(document.querySelectorAll('#moduleGrid .module-row button'),function(x){return x.textContent.trim()==='Restore';})[0];return !!b && /btn-red/.test(b.className);})()"
+          equals: true
+
+        # The confirm copy must not promise a restart that does not happen; the endpoint
+        # returns restart_required:true precisely BECAUSE nothing restarts.
+        #
+        # Asserted positively only. The first version of this test also required the old
+        # wording to be absent from the source — and failed, because the fix quotes that
+        # old wording in an explanatory comment and Function.prototype.toString() returns
+        # comments too. A "this string is gone" assertion over source text is unsound
+        # whenever the change is documented in place.
+        - name: confirm_copy_is_honest_about_restart
+          expr: "(function(){var s=restoreModuleBackup.toString();return s.indexOf('restart_required')!==-1 && s.indexOf('NOT live until archie_platform restarts')!==-1;})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  - name: "Module filter narrows the list without destroying it"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='modules']"
+      - wait: 2000
+    expect:
+      js_eval:
+        - name: filter_hides_non_matches_and_is_reversible
+          expr: "(function(){if(typeof filterModules!=='function')return false;var total=document.querySelectorAll('#moduleGrid .module-row').length;if(!total)return false;filterModules('backup');var vis=Array.prototype.filter.call(document.querySelectorAll('#moduleGrid .module-row'),function(r){return r.style.display!=='none';});var narrowed=vis.length>0 && vis.length<total && vis.every(function(r){return r.dataset.module.indexOf('backup')!==-1;});filterModules('');var back=Array.prototype.filter.call(document.querySelectorAll('#moduleGrid .module-row'),function(r){return r.style.display!=='none';}).length;return narrowed && back===total;})()"
+          equals: true
+
+# ---------------------------------------------------------------------------
+# STILL NOT COVERED (deliberate): actually invoking Restore, 🧪 Sandbox or Backup
+# Selected. Those belong in a manual/on-demand suite — one restarts archie_staging, one
+# overwrites live module code, one writes to disk. The backend behaviour of all three was
+# verified by direct call on 2026-07-23 (#5136): backup → artifact + backup_log row;
+# sandbox → deployed, restarted, md5-verified in 11.9s; restore → lock taken, pre-restore
+# snapshot written, content verified, backup_log row, restart_required:true.

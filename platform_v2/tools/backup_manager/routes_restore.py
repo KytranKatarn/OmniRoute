@@ -28,12 +28,14 @@ from database import _get_db_password
 from ._shared import (
     BACKUP_DIR,
     PLATFORM_DIR,
+    acquire_backup_lock,
     admin_required,
     backup_module,
     compare_backups,
     get_backup_db_cursor,
     get_module_dependencies,
     preview_restore,
+    release_backup_lock,
     restore_components,
     _host_restore_command,
 )
@@ -397,7 +399,21 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
     @bp.route("/restore-module/<backup_name>", methods=["POST"])
     @admin_required
     def restore_module_backup(backup_name):
-        """Restore a module backup to the platform"""
+        """Restore a module backup over the LIVE platform.
+
+        Hardened 2026-07-23 (#5136). Measured beforehand: this returned HTTP 200 in
+        0.1s having taken NO lock, made NO reversible copy, verified NOTHING, and
+        written NO backup_log row — while the sandbox sibling
+        (deploy-to-sandbox, #2381/#2403) does all four.
+
+        The part that actually misleads: the platform runs gunicorn --workers 4, and
+        Python caches imported modules. Restoring routes.py changes the file on disk
+        while every worker keeps serving the OLD code until archie_platform restarts.
+        So "restored successfully" described a rollback that had not taken effect —
+        discovered at the worst possible moment, mid-incident. The response now says
+        so explicitly (`restart_required`) instead of implying the work is done.
+        """
+        lock_held = False
         try:
             backup_path = os.path.join(BACKUP_DIR, "modules", backup_name)
 
@@ -422,6 +438,40 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
 
             with open(metadata_file, "r") as f:
                 metadata = json.load(f)
+
+            module_name = metadata.get("module_name") or ""
+
+            # Serialise against every other backup/restore. Without this a full code
+            # backup running concurrently captures a half-restored tree and is silently
+            # unrestorable — the failure would surface only at the NEXT restore.
+            ok, lock_err = acquire_backup_lock(f"restore_module_{module_name}", "restore-module")
+            if not ok:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": f"a backup/restore is already in progress — {lock_err}",
+                        }
+                    ),
+                    409,
+                )
+            lock_held = True
+
+            # Pre-restore snapshot, so restoring the WRONG backup is undoable. This is
+            # the cheap half of the module story: ~1 MB and ~1s, versus the 2,470 MB
+            # pre-deploy snapshot it replaces. A restore with no way back is not a
+            # rollback path, it is a second outage.
+            safety_backup = None
+            if module_name:
+                try:
+                    pre = backup_module(
+                        module_name=module_name,
+                        created_by_username=f"pre-restore:{getattr(current_user, 'username', 'system')}",
+                    )
+                    if pre.get("success"):
+                        safety_backup = pre.get("backup_name")
+                except Exception as pre_err:  # noqa: BLE001
+                    current_app.logger.warning("pre-restore snapshot failed for %s: %s", module_name, pre_err)
 
             files_restored = []
 
@@ -463,16 +513,91 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
                         shutil.copytree(src, dst)
                         files_restored.append(f"static/js/{item}/")
 
+            # CONTENT verification. Everything above proves shutil did not raise — not
+            # that live now matches the backup. The sandbox path already hashes what it
+            # deployed (#5043); the production path had no equivalent, so a partial copy
+            # reported success. md5 here is content-equality, NOT a security primitive.
+            mismatched = []
+            src_tools_root = os.path.join(backup_path, "tools")
+            if os.path.isdir(src_tools_root):
+                for item in os.listdir(src_tools_root):
+                    s_root = os.path.join(src_tools_root, item)
+                    d_root = os.path.join(PLATFORM_DIR, "tools", item)
+                    for dp, _, fns in os.walk(s_root):
+                        for fn in fns:
+                            if "__pycache__" in dp:
+                                continue
+                            s_file = os.path.join(dp, fn)
+                            d_file = os.path.join(d_root, os.path.relpath(s_file, s_root))
+                            try:
+                                with open(s_file, "rb") as a, open(d_file, "rb") as b:
+                                    if hashlib.md5(a.read()).hexdigest() != hashlib.md5(b.read()).hexdigest():
+                                        mismatched.append(os.path.relpath(s_file, src_tools_root))
+                            except OSError:
+                                mismatched.append(os.path.relpath(s_file, src_tools_root))
+
+            status = "failed" if mismatched else "success"
+            try:
+                with get_backup_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "INSERT INTO backup_log "
+                        "(file_path, backup_type, component, tier, size_bytes, status, "
+                        " triggered_by, notes, created_at) "
+                        "VALUES (%s, 'module_restore', %s, 'module', 0, %s, %s, %s, NOW())",
+                        (
+                            backup_path,
+                            module_name or "unknown",
+                            status,
+                            getattr(current_user, "username", "system"),
+                            (
+                                f"restored from {backup_name}; safety={safety_backup or 'none'}; "
+                                f"files={', '.join(files_restored)}"
+                                + (f"; MISMATCHED={', '.join(mismatched[:5])}" if mismatched else "")
+                            )[:400],
+                        ),
+                    )
+            except Exception as log_err:  # noqa: BLE001 — bookkeeping must not mask the result
+                current_app.logger.warning("module_restore backup_log INSERT failed: %s", log_err)
+
+            if mismatched:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "module": module_name,
+                            "error": (
+                                f"{len(mismatched)} file(s) do not match the backup after copy — "
+                                "the module is in an UNKNOWN state, do not restart"
+                            ),
+                            "mismatched": mismatched[:20],
+                            "safety_backup": safety_backup,
+                        }
+                    ),
+                    500,
+                )
+
             return jsonify(
                 {
                     "success": True,
-                    "message": f'Module {metadata.get("module_name", "unknown")} restored successfully',
+                    "message": (
+                        f'Module {module_name or "unknown"} restored to disk and verified. '
+                        "NOT YET LIVE — archie_platform must restart before the running "
+                        "workers serve this code."
+                    ),
                     "files_restored": files_restored,
+                    "verified": True,
+                    # The caller has to know the job is half-done. Omitting this is what
+                    # made the old response a lie by silence.
+                    "restart_required": True,
+                    "safety_backup": safety_backup,
                 }
             )
 
         except Exception as e:
             return jsonify({"success": False, "error": str(e)}), 500
+        finally:
+            if lock_held:
+                release_backup_lock()
 
     @bp.route("/verify-modules")
     @admin_required

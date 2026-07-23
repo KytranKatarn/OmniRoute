@@ -1826,7 +1826,13 @@
             if (backup) {
                 const ago = timeAgo(backup.timestamp);
                 ageSpan.textContent = ago || 'backed up';
-                const parsedTs = backup.timestamp.replace(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3T$4:$5:$6Z');
+                // The directory timestamp is written in LOCAL time (verified 2026-07-23:
+                // dir 20260723_091900 == backup_log created_at 13:19 UTC, i.e. EDT). This
+                // line used to append 'Z', parsing it as UTC while timeAgo() above parsed
+                // the SAME string as local — so the text and the colour disagreed by the
+                // UTC offset (4h on EDT) and every backup was coloured 4h staler than it
+                // was. Parse it identically to timeAgo. (#5136)
+                const parsedTs = backup.timestamp.replace(/^(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3T$4:$5:$6');
                 const d = Date.now() - new Date(parsedTs).getTime();
                 if (d < 86400000) { ageSpan.style.color = '#4ade80'; }          // <1d green
                 else if (d < 7 * 86400000) { ageSpan.style.color = '#f59e0b'; } // 1-7d amber
@@ -1858,7 +1864,15 @@
                 sandboxModBtn.title = 'Deploy this module backup to the sandbox worktree and restart archie_staging';
                 sandboxModBtn.onclick = function(e) {
                     e.stopPropagation();
-                    deployModuleToSandbox(mod.id, sandboxModBtn);
+                    // `mod` comes from /modules/available, which returns
+                    // {name, has_routes, file_count, template_count, size_bytes, size_kb}
+                    // and NO `id` (verified live 2026-07-23). `mod.id` was therefore
+                    // undefined on every row, so this button POSTed to
+                    // /api/modules/undefined/deploy-to-sandbox → 404 "No module backup
+                    // found for 'undefined'" — i.e. it had never worked, while the
+                    // endpoint behind it is fine. Every other line in this renderer
+                    // already uses mod.name. (#5136)
+                    deployModuleToSandbox(mod.name, sandboxModBtn);
                 };
                 row.appendChild(sandboxModBtn);
             }
@@ -1879,18 +1893,24 @@
         updateModuleEstimate();
     }
 
+    // NOTE: `.module-row` is NOT unique to this tab — renderStandaloneGrid() reuses the
+    // same class for #standaloneGrid rows (~L2541). These four functions queried it
+    // UNSCOPED, so "All" on the Modules tab also selected every standalone, inflating the
+    // selected count, and Backup Selected then POSTed module_name=undefined for each
+    // (standalone rows carry dataset.name, not dataset.module). The standalone helpers
+    // were already scoped to #standaloneGrid; these were the asymmetric half. (#5136)
     function selectAllModules() {
-        document.querySelectorAll('.module-row').forEach(c => c.classList.add('selected'));
+        document.querySelectorAll('#moduleGrid .module-row').forEach(c => c.classList.add('selected'));
         updateModuleEstimate();
     }
 
     function deselectAllModules() {
-        document.querySelectorAll('.module-row').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('#moduleGrid .module-row').forEach(c => c.classList.remove('selected'));
         updateModuleEstimate();
     }
 
     function updateModuleEstimate() {
-        const selected = document.querySelectorAll('.module-row.selected');
+        const selected = document.querySelectorAll('#moduleGrid .module-row.selected');
         let totalSize = 0;
         selected.forEach(c => totalSize += parseInt(c.dataset.size) || 0);
 
@@ -1900,8 +1920,9 @@
     }
 
     async function createModuleBackup() {
-        const selectedModules = Array.from(document.querySelectorAll('.module-row.selected'))
-            .map(c => c.dataset.module);
+        const selectedModules = Array.from(document.querySelectorAll('#moduleGrid .module-row.selected'))
+            .map(c => c.dataset.module)
+            .filter(Boolean);   // belt-and-braces: never POST module_name=undefined
 
         if (selectedModules.length === 0) {
             showToast('Please select at least one module', 'error');
@@ -1924,16 +1945,34 @@
         showToast('Creating module backup...', 'info');
 
         try {
+            // The result of each POST was previously DISCARDED — every failure (a 400 for a
+            // bad module_name, a 500 mid-copy) was invisible and the toast still claimed
+            // "Backed up N module(s)". Count what actually succeeded and say so. (#5136)
+            const failed = [];
             for (const moduleName of selectedModules) {
-                await fetch('/tools/backup-manager/backup-module', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    credentials: 'same-origin',
-                    body: JSON.stringify({ module_name: moduleName })
-                });
+                try {
+                    const res = await fetch('/tools/backup-manager/backup-module', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'same-origin',
+                        body: JSON.stringify({ module_name: moduleName })
+                    });
+                    const body = await res.json().catch(() => ({}));
+                    if (!res.ok || body.success === false) {
+                        failed.push(moduleName + ' (' + (body.error || res.status) + ')');
+                    }
+                } catch (e) {
+                    failed.push(moduleName + ' (' + e.message + ')');
+                }
             }
 
-            showToast('Backed up ' + selectedModules.length + ' module(s)', 'success');
+            const okCount = selectedModules.length - failed.length;
+            if (failed.length) {
+                showToast('Backed up ' + okCount + '/' + selectedModules.length +
+                          ' — FAILED: ' + failed.join(', '), 'error');
+            } else {
+                showToast('Backed up ' + okCount + ' module(s)', 'success');
+            }
             deselectAllModules();
             loadAvailableModules();
         } catch (error) {
@@ -1951,7 +1990,12 @@
             'RESTORE MODULE BACKUP',
             [
                 { text: 'Backup: ' + backupName, style: 'font-family: monospace; color: var(--archie-accent);' },
-                { text: 'This will overwrite the current module files. The platform will be temporarily disrupted.' }
+                // Was: "The platform will be temporarily disrupted." That is not what
+                // happens — nothing restarts, so the running workers keep serving the OLD
+                // module and the operator is left believing a rollback took effect that
+                // did not. Say what actually occurs. (#5136)
+                { text: 'Overwrites this module\'s files on disk. A pre-restore snapshot is taken first, so this is reversible.' },
+                { text: 'NOT live until archie_platform restarts — the running workers keep serving the current code.' }
             ],
             'RESTORE',
             true
@@ -1965,9 +2009,20 @@
             const data = await response.json();
 
             if (data.success) {
-                showToast('Module restored successfully', 'success');
+                // Carry the half-done state to the operator rather than "successfully".
+                showToast(
+                    data.restart_required
+                        ? 'Restored to disk + verified — restart archie_platform to go live'
+                        : 'Module restored successfully',
+                    data.restart_required ? 'info' : 'success'
+                );
+                if (data.safety_backup) {
+                    showToast('Pre-restore snapshot: ' + data.safety_backup, 'info');
+                }
+            } else if (response.status === 409) {
+                showToast('Busy: ' + data.error, 'error');
             } else {
-                showToast('Error: ' + data.error, 'error');
+                showToast('Error: ' + (data.error || response.status), 'error');
             }
         } catch (error) {
             showToast('Error: ' + error.message, 'error');

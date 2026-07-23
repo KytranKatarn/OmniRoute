@@ -23,6 +23,12 @@ _CACHE_TTL_SECONDS = 30
 _DEFAULT_RAM_BUDGET_GB = 102.4  # 80% of 128 GB
 _DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB
 
+# Multiplier applied to a model's weight size before deciding it fits in free VRAM.
+# Covers KV cache + runtime overhead, which the raw weight figure excludes. Deliberately
+# generous: over-estimating costs a CPU load (slow but correct), while under-estimating
+# means a partial offload or an eviction of the warm set (#5130).
+_GPU_FIT_HEADROOM = 1.4
+
 # Models required by the Consciousness / embedding pipeline — never evict first
 CONSCIOUSNESS_MODELS = {"arctic-embed-cpu:latest", "mistral:7b"}
 
@@ -283,7 +289,38 @@ class ModelService:
             url = f"{base}/api/" + "generate"
             body = {"model": model, "keep_alive": "10m", "prompt": ""}
             if ollama_url is None and model in self._HUB_CPU_TIER:
-                body["options"] = {"num_gpu": 0}
+                # Pin to CPU ONLY when the GPU genuinely cannot fit the model right now.
+                #
+                # This pin used to be UNCONDITIONAL, which meant a 4.7 GB model was forced
+                # onto the CPU even with all 8 GB of VRAM free — measured 2026-07-22:
+                # nvidia-smi showed the Quadro M4000 at 4 MiB used / 0% utilisation while
+                # host load was 14.2/20 cores with a qwen2.5:7b CPU runner pegged at 728%
+                # for 3.4h. A second 7B CPU runner could not get traction, so every
+                # qwen2.5-coder:7b load hit the 600s timeout and EVERY F.O.R.G.E. code
+                # review failed with a bare "timed out" (#5130). RAM was 98 GB free, so
+                # the failure looked like a resource problem it was not — the exhausted
+                # resource was CPU, which nothing here measures.
+                #
+                # The pin's original intent stands (do not blow the 8 GB card or evict the
+                # small warm set), so it still applies whenever VRAM is actually tight.
+                # HEADROOM covers KV cache + runtime overhead on top of the weights.
+                pin_to_cpu = True
+                try:
+                    free_vram = self.get_available_vram()
+                    needed = self.estimate_model_size(model) * _GPU_FIT_HEADROOM
+                    if free_vram >= needed:
+                        pin_to_cpu = False
+                        logger.info(
+                            "model_service: %s GPU-eligible (%.1f GB free >= %.1f GB needed) — not pinning to CPU",
+                            model,
+                            free_vram,
+                            needed,
+                        )
+                except Exception:
+                    # Any doubt about VRAM state -> keep the historical CPU behaviour.
+                    pin_to_cpu = True
+                if pin_to_cpu:
+                    body["options"] = {"num_gpu": 0}
             payload = json.dumps(body).encode()
             req = urllib.request.Request(
                 url,

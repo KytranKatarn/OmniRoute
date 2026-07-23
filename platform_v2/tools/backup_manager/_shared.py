@@ -424,12 +424,20 @@ def create_backup_programmatic(
         # scratch. These exist to roll back a self-heal seconds later; they are
         # not disaster-recovery material and must not crowd out the daily (#5126).
         external_result = {"success": False, "error": "External storage not mounted"}
-        if is_external_storage_available():
-            if _is_ephemeral_backup(description, backup_name):
-                # Drop older ephemeral copies FIRST so only this one survives.
-                _pruned = _prune_ephemeral_external(keep=0)
-                if _pruned:
-                    print(f"  Reclaimed {_pruned} stale pre-fix copy/copies from external")
+        if _is_ephemeral_backup(description, backup_name):
+            # Pre-deploy / repair-bay snapshots NEVER go off-site (#5128, owner call).
+            # They exist ONLY to roll a self-heal back seconds later, and that rollback
+            # reads the PRIMARY copy under /backups — which is still written. So the
+            # off-site copy bought nothing while consuming ~2.4 GB per Repair Bay
+            # proposal (10 had accumulated = 24.6 GB, 92% of the DR drive).
+            # Previous rule kept ONE rolling copy; that still refilled after every
+            # cleanup, so the copy is now skipped outright.
+            _pruned = _prune_ephemeral_external(keep=0)  # sweep strays from older runs
+            if _pruned:
+                print(f"  Reclaimed {_pruned} stale pre-fix copy/copies from external")
+            external_result = {"success": False, "error": "skipped — pre-fix snapshot is local-only"}
+            print("  Skipping external copy (pre-fix snapshot — primary copy is the rollback point)")
+        elif is_external_storage_available():
             print("  Copying to external storage...")
             external_result = copy_to_external_storage(backup_name, backup_path)
             if external_result["success"]:

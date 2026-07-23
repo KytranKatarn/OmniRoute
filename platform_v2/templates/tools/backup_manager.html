@@ -1229,6 +1229,7 @@
                 database:     ['🧠', 'DATABASE', 'badge-database', ''],
                 custom:       ['🧩', 'CUSTOM',    'badge-custom', ''],
                 module:       ['🧩', 'MODULE',    '', AUTO_S],
+                module_restore:['♻️', 'RESTORE',  '', AUTO_S],
                 standalone:   ['🌐', 'STANDALONE','', AUTO_S],
                 backup:       ['🔄', 'AUTO',      '', AUTO_S],
                 run_backup:   ['🔄', 'RUN',       '', AUTO_S],
@@ -1373,9 +1374,15 @@
             }
             infoDiv.appendChild(metaDiv);
 
-            // Version identity line — unified professional version string
-            const _hasVersionData = backup.git_commit || backup.git_branch || backup.platform_version;
-            if (_hasVersionData) {
+            // Git-provenance line — branch + commit ONLY. The version NUMBER already
+            // leads the title as v5.33.0.<build>, so this line's job is the code
+            // identity, not the version. Previously it also fired on platform_version
+            // alone AND appended "· platform.kytranempowerment.com", so the ~35
+            // version-stamped rows with no git data rendered a lone domain string under
+            // the metadata — a URL saying nothing. Show provenance only when we actually
+            // have it; never a bare domain (#5140).
+            const _hasGitProvenance = backup.git_commit || backup.git_branch;
+            if (_hasGitProvenance) {
                 const versionDiv = document.createElement('div');
                 versionDiv.style.cssText = 'display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:4px;';
                 const _chip = (text, color) => {
@@ -1385,11 +1392,7 @@
                     return s;
                 };
                 if (backup.git_branch)       versionDiv.appendChild(_chip('⎇ ' + backup.git_branch, '#38bdf8'));
-                if (backup.git_commit)       versionDiv.appendChild(_chip(backup.git_commit.substring(0,8), '#6ee7b7'));
-                const _domain = document.createElement('span');
-                _domain.style.cssText = 'font-size:10px; color:#555; margin-left:2px;';
-                _domain.textContent = '· platform.kytranempowerment.com';
-                versionDiv.appendChild(_domain);
+                if (backup.git_commit)       versionDiv.appendChild(_chip('◆ ' + backup.git_commit.substring(0,8), '#6ee7b7'));
                 infoDiv.appendChild(versionDiv);
             }
 

@@ -83,6 +83,63 @@ NEWS_PROJECT_KEYWORDS = (
 )
 
 
+# Module ids that produce NEWS / watch-product work in dispatch_pending_queue.
+#
+# ⚠️ Why module_id and not capability alone: the capability→department map is
+# authoritative for ROUTING but does NOT describe which PRODUCT the work serves.
+# Measured 2026-07-23, the live queue was 80 rows of which ~61 were WTF work, yet
+# `classify` (38 rows, the single largest block) maps to "Analytics & Intelligence",
+# and `translate` (13) to "Documentation & Knowledge" — neither is News & Media.
+# Classifying by capability alone would therefore have marked the bulk of the news
+# backlog as PLATFORM work and boosted it under platform mode, i.e. the exact
+# opposite of the operator's intent. `source_product` is no help either — every row
+# carries 'archie_platform'.
+NEWS_MODULE_KEYWORDS = (
+    "wtf",
+    "quality_scorer",
+    "coverage_scan",
+    "bias",
+    "factcheck",
+    "fact_check",
+    "news",
+    "article",
+    "beat",
+)
+
+
+def is_news_queue_row(capability: Optional[str], module_id: Optional[str]) -> bool:
+    """Best-effort: is this dispatch_pending_queue row NEWS/watch-product work?
+
+    Two signals, OR'd — a row is news if EITHER its capability routes to News & Media
+    OR its module_id looks like a watch-product producer. Deliberately generous: a
+    false positive only reorders a queue, it never drops or duplicates work.
+    """
+    from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+    cap = (capability or "").strip()
+    if cap and CAPABILITY_DEPARTMENT_MAP.get(cap) == NEWS_DEPARTMENT:
+        return True
+    mod = (module_id or "").strip().lower()
+    return bool(mod) and any(k in mod for k in NEWS_MODULE_KEYWORDS)
+
+
+def queue_row_gets_priority(capability: Optional[str], module_id: Optional[str], mode: str) -> bool:
+    """Does this queued dispatch row get drained first under ``mode``?
+
+    auto      → always False (no bias; drain order byte-identical to pre-profile).
+    news      → news rows first.
+    platform  → everything that is NOT news first.
+    """
+    if not mode or mode == "auto":
+        return False
+    is_news = is_news_queue_row(capability, module_id)
+    if mode == "news":
+        return is_news
+    if mode == "platform":
+        return not is_news
+    return False
+
+
 def is_priority_project(project_name: Optional[str], mode: str) -> bool:
     """Best-effort: does this project's backlog get priority under ``mode``?
 

@@ -2053,18 +2053,70 @@ def _register_own_jobs(scheduler, flask_app):
             from database import get_db_cursor
             from tools.department_hq.services.department_dispatcher import dispatch
 
+            # AGENT MOBILITY PROFILE — "Yellow Alert, all forces redirected" (#5132).
+            #
+            # The profile already biased warmth, node routing, model tier and backlog
+            # promotion, but NOT this queue — so pressing PLATFORM changed where work
+            # could run without changing what ran first. Measured 2026-07-23: with
+            # PLATFORM active, platform `code_review` sat at priority 5 behind 64 news
+            # rows at 8-9 and never drained in ~60 minutes.
+            #
+            # The boost is applied HERE, at drain time, rather than by UPDATE-ing rows
+            # when the mode is switched. That choice matters:
+            #   * it re-ranks the EXISTING queue retroactively (the operator's ask —
+            #     "if there is queues in that button, all queues of that button get
+            #     affected too"), with no migration and no backfill;
+            #   * it is idempotent and self-reversing — flip the mode and the very next
+            #     cycle reorders. Mutating priorities would ratchet them upward on every
+            #     press and need a stored base priority to ever undo.
+            #
+            # It is a TIE-BREAK ABOVE priority, not a replacement for it: within the
+            # favoured domain the existing priority/age ordering is untouched, and
+            # nothing is filtered out — deprioritised work still drains, just after.
+            # On 'auto' the term is omitted entirely, so ordering stays byte-identical
+            # to pre-profile behaviour.
+            boost_sql = ""
+            boost_params: list = []
+            try:
+                from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+                from services.fleet_dispatch_profile import (
+                    NEWS_DEPARTMENT,
+                    NEWS_MODULE_KEYWORDS,
+                    get_dispatch_mode,
+                )
+
+                _mode = get_dispatch_mode()
+                if _mode in ("news", "platform"):
+                    _news_caps = [c for c, d in CAPABILITY_DEPARTMENT_MAP.items() if d == NEWS_DEPARTMENT]
+                    _news_like = ["%%%s%%" % k for k in NEWS_MODULE_KEYWORDS]
+                    # Mirrors fleet_dispatch_profile.is_news_queue_row() in SQL: capability
+                    # routes to News & Media OR module_id looks like a watch-product
+                    # producer. Both signals are needed — `classify` (the largest news
+                    # block) maps to Analytics & Intelligence, so capability alone would
+                    # mark WTF work as platform work and boost exactly the wrong rows.
+                    boost_sql = (
+                        "(CASE WHEN (capability = ANY(%s) "
+                        "OR lower(coalesce(module_id,'')) LIKE ANY(%s)) = %s "
+                        "THEN 1 ELSE 0 END) DESC, "
+                    )
+                    boost_params = [_news_caps, _news_like, _mode == "news"]
+            except Exception:  # noqa: BLE001 — a routing preference must never stop the drain
+                boost_sql = ""
+                boost_params = []
+
             with get_db_cursor(commit=False) as (_, cur):
                 cur.execute(
-                    """
+                    f"""
                     SELECT id, capability, prompt, system_prompt, json_mode,
                            module_id, source_product, priority
                     FROM dispatch_pending_queue
                     WHERE status = 'queued'
                       AND queued_at < NOW() - INTERVAL '10 minutes'
                       AND queued_at > NOW() - INTERVAL '2 hours'
-                    ORDER BY priority DESC, queued_at ASC
+                    ORDER BY {boost_sql}priority DESC, queued_at ASC
                     LIMIT 5
-                    """
+                    """,
+                    boost_params,
                 )
                 stuck_items = cur.fetchall() or []
 

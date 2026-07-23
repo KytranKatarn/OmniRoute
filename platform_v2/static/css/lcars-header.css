@@ -145,6 +145,48 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   animation: lcarsElbowPulse 1s ease-in-out infinite;
 }
 
+/* YELLOW ALERT — AGENT MOBILITY PROFILE is diverting the fleet (platform / news).
+   A standing CONDITION, not an incident: true yellow (distinct from warning's amber
+   #ff9f43 so a genuine warning stays readable) and a SLOWER pulse than either alert,
+   so it reads as advisory rather than urgent. Precedence is critical > warning >
+   diverted — a real incident always wins the light; the diversion stays legible in
+   the text label beside it. (#5133) */
+[data-alert-state="diverted"] .lcars-header-elbow-bottom {
+  background: #ffcc00;
+  animation: lcarsElbowPulse 2.5s ease-in-out infinite;
+}
+
+/* Compact on-theme label so the condition is not carried by colour alone —
+   colour-blind users and anyone glancing past the elbow still get the message. */
+.lcars-divert-tag {
+  display: none;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  margin-left: 8px;
+  border-radius: 10px;
+  background: rgba(255, 204, 0, 0.14);
+  border: 1px solid #ffcc00;
+  color: #ffcc00;
+  font-family: "Antonio", sans-serif;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.lcars-divert-tag.is-active {
+  display: inline-flex;
+}
+
+@media (max-width: 768px) {
+  /* Keep the glyph + mode, drop the detail clause — the elbow still pulses. */
+  .lcars-divert-tag .lcars-divert-detail {
+    display: none;
+  }
+}
+
 @keyframes lcarsElbowPulse {
   0%   { opacity: 1; }
   50%  { opacity: 0.6; }

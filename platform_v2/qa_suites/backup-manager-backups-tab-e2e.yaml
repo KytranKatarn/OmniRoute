@@ -338,6 +338,50 @@ tests:
           expr: "typeof _bmElapsed==='function' && _bmElapsed(704)==='11m 44s' && _bmElapsed(45)==='45s' && _bmElapsed(3900)==='1h 5m'"
           equals: true
 
+  # ---------------------------------------------------------------------------
+  # YELLOW ALERT — the AGENT MOBILITY PROFILE diversion indicator on the shared LCARS
+  # header (#5133). It lives in includes/lcars-header.html, so it renders on all 21
+  # templates that include the header; asserted here because this page already loads it.
+  #
+  # Asserted by DRIVING the render function against both states rather than trusting the
+  # markup to exist — the markup existing is exactly what mistake #281727 proved is not
+  # evidence of anything. The state is DERIVED from /api/alerts/unified so the test holds
+  # whichever mode is live.
+  - name: "Yellow Alert diversion indicator reflects the live dispatch mode (#5133)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2500
+      - screenshot: "lcars-yellow-alert-diverted"
+    expect:
+      js_eval:
+        - name: indicator_markup_present
+          expr: "!!document.getElementById('lcarsDivertTag') && !!document.getElementById('lcarsDivertMode') && !!document.getElementById('lcarsHeader')"
+          equals: true
+
+        # The endpoint must actually carry the field — without it the tag can never light.
+        - name: alerts_endpoint_carries_dispatch_mode
+          expr: "(async function(){var d=await (await fetch('/api/alerts/unified',{credentials:'same-origin'})).json();return typeof d.dispatch_mode === 'string';})()"
+          equals: true
+
+        # Visibility AGREES with the live mode: diverted modes light it, auto hides it.
+        - name: tag_visibility_matches_mode
+          expr: "(async function(){var d=await (await fetch('/api/alerts/unified',{credentials:'same-origin'})).json();var m=d.dispatch_mode||'auto';var want=(m==='platform'||m==='news');await _pollNotifications();await new Promise(function(r){setTimeout(r,600);});var t=document.getElementById('lcarsDivertTag');return t.classList.contains('is-active')===want;})()"
+          equals: true
+
+        # When lit it must NAME the mode — a nameless badge tells you something changed
+        # without telling you to what, which is how the diversion went unnoticed for hours.
+        - name: tag_names_the_active_mode
+          expr: "(async function(){var d=await (await fetch('/api/alerts/unified',{credentials:'same-origin'})).json();var m=(d.dispatch_mode||'auto');if(m!=='platform'&&m!=='news')return true;await _pollNotifications();await new Promise(function(r){setTimeout(r,600);});var s=(document.getElementById('lcarsDivertMode').textContent||'');return s.indexOf(m.toUpperCase())!==-1;})()"
+          equals: true
+
+        # A REAL incident must still win the elbow — the diversion is advisory and must
+        # never mask a critical alert. Drive the state machine directly.
+        - name: critical_outranks_diverted_on_the_elbow
+          expr: "(function(){var h=document.getElementById('lcarsHeader');lcarsSetAlertState('diverted');var a=h.dataset.alertState;lcarsSetAlertState('critical');var b=h.dataset.alertState;return a==='diverted' && b==='critical';})()"
+          equals: true
+
 # ---------------------------------------------------------------------------
 # STILL NOT COVERED (deliberate): the CONTENTS of the 9 non-Backups tabs, and any
 # actual invocation of a destructive control anywhere. Adding those means one spec per

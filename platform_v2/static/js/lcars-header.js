@@ -140,6 +140,31 @@
 
   var _notifPollInterval = null;
 
+  /* -- AGENT MOBILITY PROFILE tag (Yellow Alert) --
+     Wording states what is ACTUALLY in effect rather than claiming a full redirect:
+     the profile currently biases warmth / routing / backlog, but NOT the
+     dispatch_pending_queue drain order (task #5132). Overstating here would make this
+     badge the same class of defect it exists to prevent. Drop the caveat once #5132
+     lands. All text via textContent — never innerHTML. */
+  function _renderDivertTag(mode, diverted) {
+    var tag = document.getElementById("lcarsDivertTag");
+    if (!tag) return;
+    var modeEl = document.getElementById("lcarsDivertMode");
+    var detailEl = document.getElementById("lcarsDivertDetail");
+    if (!diverted) {
+      tag.classList.remove("is-active");
+      return;
+    }
+    if (modeEl) modeEl.textContent = "DIVERTED · " + String(mode).toUpperCase();
+    if (detailEl) detailEl.textContent = "warmth · routing · backlog";
+    tag.title =
+      "Yellow Alert — agent mobility profile is " +
+      String(mode).toUpperCase() +
+      ". Warmth, node routing and backlog promotion favour this domain. " +
+      "Queue drain order is not yet diverted (#5132). Click to change in A.R.M.A.D.A.";
+    tag.classList.add("is-active");
+  }
+
   function _pollNotifications() {
     fetch("/api/alerts/unified")
       .then(function (r) { return r.json(); })
@@ -152,12 +177,20 @@
         var unread = counts.unread || 0;
         var critical = counts.critical || 0;
 
-        // Update elbow alert state — red flash only for critical
+        // Elbow state. Precedence: critical > diverted > normal. A real incident ALWAYS
+        // wins the light — the diversion is a standing condition, not an emergency, and
+        // must never mask one. When critical takes the elbow the diversion is still
+        // readable from the tag beside it, so no information is lost. (#5133)
+        var mode = data.dispatch_mode || "auto";
+        var diverted = mode === "platform" || mode === "news";
         if (critical > 0) {
           lcarsSetAlertState("critical");
+        } else if (diverted) {
+          lcarsSetAlertState("diverted");
         } else {
           lcarsSetAlertState("normal");
         }
+        _renderDivertTag(mode, diverted);
 
         // Update badge counts (strip + elbow)
         var badges = ["lcarsStripBadge", "lcarsNotifBadge"];

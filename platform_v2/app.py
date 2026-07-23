@@ -3749,6 +3749,18 @@ def api_alerts_unified():
             user_id=current_user.id,
             is_admin=getattr(current_user, "is_admin", False),
         )
+        # AGENT MOBILITY PROFILE rides this poll rather than getting its own request.
+        # The LCARS elbow needs to show a standing "forces diverted" condition on every
+        # page; this endpoint already reaches all of them every 30s ("one endpoint for
+        # bell, dashboard, elbow"), so adding a field here costs nothing, updates live
+        # when the mode is flipped in A.R.M.A.D.A., and avoids a per-render DB read in a
+        # context processor. Fail-safe → 'auto' (no diversion shown). (#5133)
+        try:
+            from services.fleet_dispatch_profile import get_dispatch_mode
+
+            result["dispatch_mode"] = get_dispatch_mode()
+        except Exception:  # noqa: BLE001 — an advisory must never break the alert bell
+            result["dispatch_mode"] = "auto"
         return jsonify({"success": True, **result})
     except Exception as e:
         logger.error(f"Unified alerts error: {e}")
@@ -3758,6 +3770,7 @@ def api_alerts_unified():
                 "critical": [],
                 "categories": {},
                 "counts": {"total": 0, "unread": 0, "critical": 0},
+                "dispatch_mode": "auto",
             }
         )
 

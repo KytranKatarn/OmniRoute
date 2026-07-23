@@ -632,7 +632,24 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                 )
                 deployments = cur.fetchall()
 
-            return jsonify({"success": True, "deployments": [dict(d) for d in deployments]})
+                # The overview tile renders `deployments.length`, which is CAPPED by the
+                # LIMIT above — at 58 rows today it happens to be right, but it would
+                # freeze at 100 and under-report silently from then on. Serve a real
+                # unbounded count so the tile never depends on the page size. (#5138)
+                cur.execute(
+                    """SELECT COUNT(*) AS total
+                       FROM improvement_deployments
+                       WHERE backup_name IS NOT NULL"""
+                )
+                total = (cur.fetchone() or {}).get("total") or 0
+
+            return jsonify(
+                {
+                    "success": True,
+                    "deployments": [dict(d) for d in deployments],
+                    "total": total,
+                }
+            )
 
         except Exception as e:
             current_app.logger.error(f"Failed to load deployment backups: {e}")

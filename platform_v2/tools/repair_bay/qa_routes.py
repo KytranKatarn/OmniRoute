@@ -164,7 +164,31 @@ def register_qa_routes(bp, admin_required):
         limit = request.args.get("limit", 20, type=int)
         try:
             runs = qa_service.get_recent_runs(limit)
-            return jsonify({"success": True, "runs": runs})
+            # ADDITIVE counts. `runs` is capped by `limit` (default 20), so len(runs) is a
+            # PAGE SIZE, not a total — the Repair Bay "Test Runs" tile counted a list like
+            # this and could never report more than its cap. Anything displaying a total
+            # must read these, never len(runs). (#5138)
+            counts = {}
+            try:
+                from database import get_db_cursor
+
+                with get_db_cursor() as (_conn, cur):
+                    cur.execute(
+                        """SELECT COUNT(*) AS total,
+                                  COUNT(*) FILTER (
+                                      WHERE started_at > NOW() - INTERVAL '24 hours'
+                                  ) AS last_24h
+                           FROM qa_test_runs"""
+                    )
+                    row = cur.fetchone() or {}
+                    counts = {
+                        "total_runs": row["total"] or 0,
+                        "runs_24h": row["last_24h"] or 0,
+                    }
+            except Exception:  # noqa: BLE001 — counts are a bonus, never break the list
+                logger.exception("qa_runs_list: count query failed")
+
+            return jsonify({"success": True, "runs": runs, **counts})
         except Exception as e:
             logger.exception("Failed to list QA runs")
             return jsonify({"success": False, "error": str(e)}), 500

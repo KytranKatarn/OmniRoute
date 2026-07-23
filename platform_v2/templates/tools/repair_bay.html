@@ -43,7 +43,7 @@
         </div>
         <div class="lcars-main" style="flex:1 !important;min-width:0 !important;">
             <div style="height:44px;background:var(--cat-accent,#00ffff);border-radius:0 20px 20px 0;display:flex;align-items:center;gap:12px;padding:0 16px;flex-shrink:0;margin-left:8px;">
-                <span style="font-family:'Antonio',sans-serif;font-size:0.85rem;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:#010409;">REPAIR BAY</span>
+                <span style="font-family:'Antonio',sans-serif;font-size:0.85rem;font-weight:500;letter-spacing:2px;text-transform:uppercase;color:#010409;">REPAIR BAY OVERVIEW</span>
                 <div style="flex:1"></div>
                 <div style="display:flex;align-items:center;gap:4px;">
                     <span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span>
@@ -2333,7 +2333,10 @@ function loadStats() {
         if (!d.success) return;
         var ss = d.scan_stats || {};
         var is = d.issue_stats || {};
-        document.getElementById('statScans').textContent = ss.total_scans || 0;
+        // The tile is labelled "Diagnoses (24h)". It rendered ss.total_scans, which is
+        // ALL-TIME and unfiltered — 723 scans spanning six months displayed as a 24-hour
+        // number, against a true 24h count of 1. Use the real window. (#5138)
+        document.getElementById('statScans').textContent = ss.scans_24h || 0;
         var badge = document.getElementById('issuesBadge');
         if (is.open > 0) { badge.textContent = is.open; badge.style.display = 'inline'; }
         else { badge.style.display = 'none'; }
@@ -2343,9 +2346,14 @@ function loadStats() {
         var arr = d.proposals || d || [];
         if (Array.isArray(arr)) document.getElementById('statProposals').textContent = arr.length;
     }).catch(function() {});
-    fetch(API + '/sandbox/list').then(function(r) { return r.json(); }).then(function(d) {
-        var arr = d.sandboxes || d || [];
-        if (Array.isArray(arr)) document.getElementById('statSandboxes').textContent = arr.length;
+    // "Test Runs" counted /sandbox/list — SANDBOX INSTANCES, not test runs (measured: 10
+    // instances, 1 alive, tile showed 6) while qa_test_runs held 3,316 rows / 31 in 24h.
+    // Read the real table, and read the COUNT rather than len(runs): /api/qa/runs is
+    // limit-capped (default 20), so a list length there can never exceed its page size.
+    fetch(API + '/qa/runs?limit=1').then(function(r) { return r.json(); }).then(function(d) {
+        if (typeof d.total_runs === 'number') {
+            document.getElementById('statSandboxes').textContent = d.total_runs;
+        }
     }).catch(function() {});
     fetch(API + '/proposals?status=deployed').then(function(r) { return r.json(); }).then(function(d) {
         var all = d.proposals || d || [];
@@ -2819,7 +2827,9 @@ function loadSandboxes() {
             el.appendChild(empty);
             return;
         }
-        document.getElementById('statSandboxes').textContent = sandboxes.length;
+        // REMOVED: this overwrote the global "Test Runs" tile with the number of sandbox
+        // rows on THIS tab, so the tile's meaning changed depending on which tab you had
+        // visited. loadStats() owns that tile and reads qa_test_runs. (#5138)
         var statusColors = { active: '#00ff41', ready: '#00d4ff', creating: '#f59e0b', testing: '#8b5cf6', destroyed: '#6b7280' };
         sandboxes.forEach(function(s) {
             var card = document.createElement('div');
@@ -3156,7 +3166,11 @@ function loadDeployHistory() {
         var stats = d.stats || {};
         document.getElementById('deployTotalCount').textContent = stats.total_deployed || 0;
         document.getElementById('deployFailedCount').textContent = stats.failed || 0;
-        document.getElementById('statDeployed').textContent = stats.total_deployed || 0;
+        // REMOVED: this overwrote the global "Shipped (24h)" tile with an ALL-TIME
+        // total_deployed the moment you opened the Deploy tab — so the same tile read
+        // "last 24h" on one tab and "ever" on another, with no way to tell which you
+        // were looking at. The tab's own total is #deployTotalCount directly above;
+        // loadStats() owns the 24h tile. (#5138)
 
         var el = document.getElementById('deployHistoryList');
         el.textContent = '';

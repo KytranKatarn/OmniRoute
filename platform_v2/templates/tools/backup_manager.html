@@ -1699,7 +1699,11 @@
 
             if (data.success) {
                 renderDeploymentBackups(data.deployments);
-                document.getElementById('stat-deployments').textContent = data.deployments.length;
+                // Prefer the server's real COUNT — deployments[] is LIMIT-capped at 100,
+                // so its length is a page size, not a total. Falls back to the length
+                // only if an older backend hasn't got the field. (#5138)
+                document.getElementById('stat-deployments').textContent =
+                    (typeof data.total === 'number') ? data.total : data.deployments.length;
             } else {
                 const container = document.getElementById('deploymentBackupsList');
                 container.textContent = '';

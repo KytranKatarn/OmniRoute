@@ -780,6 +780,13 @@ def get_stats():
         cur.execute(
             """
             SELECT COUNT(*) as total_scans,
+                   -- ADDITIVE. total_scans is unfiltered ALL-TIME, but the Repair Bay
+                   -- overview tile is labelled "Diagnoses (24h)" and rendered it verbatim:
+                   -- 723 scans spanning 2026-01-24 → 2026-07-23 shown as a 24-hour figure,
+                   -- when the true 24h count was 1. total_scans is deliberately left
+                   -- unchanged so existing consumers keep their meaning. (#5138)
+                   COUNT(*) FILTER (WHERE scanned_at > NOW() - INTERVAL '24 hours')
+                       as scans_24h,
                    COUNT(DISTINCT file_path) as files_scanned,
                    SUM(issues_found) as total_issues,
                    SUM(security_issues) as security_issues,
@@ -819,6 +826,7 @@ def get_stats():
             "success": True,
             "scan_stats": {
                 "total_scans": scan_stats["total_scans"] or 0,
+                "scans_24h": scan_stats["scans_24h"] or 0,
                 "files_scanned": scan_stats["files_scanned"] or 0,
                 "total_issues": scan_stats["total_issues"] or 0,
                 "security_issues": scan_stats["security_issues"] or 0,

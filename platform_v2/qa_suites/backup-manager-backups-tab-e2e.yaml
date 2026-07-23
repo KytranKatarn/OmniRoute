@@ -323,6 +323,16 @@ tests:
           expr: "(async function(){var d=await (await fetch('/tools/backup-manager/lock-status',{credentials:'same-origin'})).json();await checkLockStatus();await new Promise(function(r){setTimeout(r,400);});var t=(document.getElementById('stat-lock-detail').textContent||'').trim();return d.locked ? (/[0-9]/.test(t) && t.indexOf('·')!==-1) : t==='No backup running';})()"
           equals: true
 
+        # The tile must align like its siblings. A flex row here ignored the card's
+        # text-align and pinned the content left while every other card stayed centred
+        # (reported by the owner). Asserted by COMPARING to the card's own computed
+        # alignment rather than to the literal 'center', because .stat-card flips to
+        # text-align:left at the mobile breakpoint — pinning 'center' would pass on
+        # desktop and silently mis-assert on mobile.
+        - name: tile_alignment_tracks_the_card
+          expr: "(function(){var card=document.getElementById('stat-lock-card');var val=document.getElementById('stat-lock-state');var sub=document.getElementById('stat-lock-detail');if(!card||!val||!sub)return false;var want=getComputedStyle(card).textAlign;return getComputedStyle(val).display!=='flex' && getComputedStyle(val).textAlign===want && getComputedStyle(sub).textAlign===want;})()"
+          equals: true
+
         # Seconds are formatted, never raw. "439s ago" is what the tile replaced.
         - name: elapsed_is_humanised
           expr: "typeof _bmElapsed==='function' && _bmElapsed(704)==='11m 44s' && _bmElapsed(45)==='45s' && _bmElapsed(3900)==='1h 5m'"

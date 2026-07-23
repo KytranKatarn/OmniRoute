@@ -88,9 +88,15 @@
                                      read where the other backup facts are read. -->
                                 <div class="stat-card" id="stat-lock-card">
                                     <h3><span data-i18n="backup_manager.backup_status">Backup Status</span></h3>
-                                    <div class="value" id="stat-lock-state" style="font-size: 0.95rem; display:flex; align-items:center; gap:8px;">
-                                        <span id="stat-lock-dot" style="width:9px;height:9px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span>
-                                        <span id="stat-lock-label">IDLE</span>
+                                    <!-- inline-block, NOT flex. `.stat-card` is text-align:center
+                                         (backup-manager.css L124) and switches to text-align:left at
+                                         the mobile breakpoint (L640) — a flex row ignores both and
+                                         pinned this tile left while every sibling card stayed
+                                         centred. Inline children inherit the card's alignment, so
+                                         this tracks it automatically at BOTH breakpoints instead of
+                                         hard-coding justify-content and breaking the other one. -->
+                                    <div class="value" id="stat-lock-state" style="font-size: 0.95rem;">
+                                        <span id="stat-lock-dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#4ade80;margin-right:6px;vertical-align:middle;"></span><span id="stat-lock-label" style="vertical-align:middle;">IDLE</span>
                                     </div>
                                     <div class="sub" id="stat-lock-detail">No backup running</div>
                                 </div>

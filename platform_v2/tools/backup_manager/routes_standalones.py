@@ -42,7 +42,19 @@ def register_standalone_routes(bp, admin_required):
                         "name": p["name"],
                         "display_name": p["display_name"],
                         "code_path": p["code_path"],
-                        "db_schema": p["db_schema"],
+                        # .get(), not [] — gov_watch / civic_watch / legal_watch /
+                        # market_watch dropped this key when they moved to the `db_kind`
+                        # dispatcher, and ONE KeyError 500s the WHOLE list, so the tab
+                        # rendered blank for all 9 products. `_shared.py` already reads it
+                        # defensively (`product.get("db_schema")`, ~L1104); this call site
+                        # was the one that didn't. Absent == None == "own DB" in the UI,
+                        # which is what these four actually have — they hold no schema
+                        # inside the hub database. (#5124)
+                        "db_schema": p.get("db_schema"),
+                        # Additive: the field that REPLACED db_schema for those four, so a
+                        # caller can tell "own Postgres container" from "sqlite over mesh"
+                        # instead of flattening both to "own DB".
+                        "db_kind": p.get("db_kind"),
                         "backup_type": p["backup_type"],
                         "code_path_exists": os.path.exists(p["code_path"]),
                         "last_backup_name": last_name,

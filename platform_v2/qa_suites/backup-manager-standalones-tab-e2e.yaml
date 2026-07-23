@@ -1,0 +1,167 @@
+# P.R.O.B.E. — Backup Manager / Standalones tab, DOM-level E2E
+#
+# WHY THIS EXISTS (2026-07-23): the Standalones tab was rendering BLANK, with no error, and
+# nothing caught it. GET /api/standalones/list returned HTTP 500 (KeyError 'db_schema')
+# because 4 of the 9 products — gov_watch, civic_watch, legal_watch, market_watch — dropped
+# that key when they moved to the `db_kind` dispatcher, and the list endpoint hard-subscripted
+# it. ONE missing key on ONE product 500s the response for ALL NINE.
+#
+# The silent half: loadStandaloneSystems() does `if (!data.success) return;` — on a 500 it
+# returns without touching the DOM, so the grid stays empty and the tab looks like "there are
+# no standalones" rather than "the request failed".
+#
+# ⚠️ What was NOT broken, and must not be misread: the nightly standalone backups were
+# running fine throughout (measured 2026-07-22 06:03–06:10, all 9 products, gov_watch 354 MB
+# / wtf 428 MB / creed 509 MB). This was a READ/RENDER defect in the tab, never a backup
+# outage. A test here must therefore assert the TAB, and must not imply anything about
+# whether backups ran.
+#
+# ⚠️ SAFETY — NEVER CLICK "Backup Selected" on this tab. backupSelectedStandalones() starts
+# real backups of all selected products; a full sweep is ~1.4 GB (creed 509 + wtf 428 +
+# gov 354 + kso 101 + civic 54 + kbs 6 + legal 4 + market 2 + media_hub 0.17). Wiring is
+# asserted by typeof + presence, never by invocation. Selection helpers ARE exercised —
+# they only toggle a CSS class.
+
+suite:
+  name: "backup-manager-standalones-tab-e2e"
+  description: "DOM-level E2E for the Backup Manager Standalones tab. Pins #5124: one product missing a key must never blank the whole tab, and the grid must actually render all 9 products — the failure an HTTP-only suite cannot see because it only checks that a page returns 200."
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  # ---------------------------------------------------------------------------
+  # THE #5124 REGRESSION PIN. Data-shape first: assert the endpoint serves every product
+  # WITH the keys the renderer reads, so a future field rename fails HERE with a precise
+  # message rather than as a mysteriously empty tab.
+  - name: "standalones/list serves all 9 products with every field the renderer reads (#5124)"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='standalones']"
+      - wait: 2500
+    expect:
+      js_eval:
+        - name: endpoint_is_not_500
+          expr: "(async function(){var r=await fetch('/tools/backup-manager/api/standalones/list',{credentials:'same-origin'});return r.status===200;})()"
+          equals: true
+
+        # The exact failure mode: ONE product missing ONE key 500s the whole list. Assert
+        # EVERY product carries EVERY field renderStandaloneGrid()/the list endpoint touch.
+        - name: every_product_has_every_required_field
+          expr: "(async function(){var d=await (await fetch('/tools/backup-manager/api/standalones/list',{credentials:'same-origin'})).json();var need=['name','display_name','code_path','db_schema','db_kind','backup_type','code_path_exists','last_backup_name','last_backup_at','last_backup_size_bytes','last_backup_status'];var ps=d.standalones||[];if(ps.length!==9)return false;return ps.every(function(p){return need.every(function(k){return k in p;});});})()"
+          equals: true
+
+        # db_kind is what REPLACED db_schema for the four watch products. If it ever goes
+        # missing again the tab breaks the same way, so pin that those four carry it.
+        - name: watch_products_carry_db_kind
+          expr: "(async function(){var d=await (await fetch('/tools/backup-manager/api/standalones/list',{credentials:'same-origin'})).json();var by={};(d.standalones||[]).forEach(function(p){by[p.name]=p;});return ['gov_watch','civic_watch','legal_watch','market_watch'].every(function(n){return by[n] && !!by[n].db_kind;});})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  - name: "Standalones grid renders one row per product"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='standalones']"
+      - wait: 2500
+      - screenshot: "standalones-tab-grid"
+    expect:
+      selector_visible:
+        "#standaloneGrid": true
+      js_eval:
+        - name: loader_and_renderer_present
+          expr: "typeof loadStandaloneSystems === 'function' && typeof renderStandaloneGrid === 'function'"
+          equals: true
+
+        # DOM must match the API exactly. The old failure rendered 0 rows while the page
+        # itself returned 200 — which is precisely why page_load QA could not see it.
+        - name: rows_match_api_count
+          expr: "(async function(){var d=await (await fetch('/tools/backup-manager/api/standalones/list',{credentials:'same-origin'})).json();var n=(d.standalones||[]).length;var rows=document.querySelectorAll('#standaloneGrid .module-row').length;return n===9 && rows===n;})()"
+          equals: true
+
+        # Every row must carry the key the backup POST is built from. A row with a blank
+        # dataset.name is selectable but unbackupable.
+        - name: every_row_has_a_product_key
+          expr: "(function(){var rows=document.querySelectorAll('#standaloneGrid .module-row');if(rows.length!==9)return false;return Array.prototype.every.call(rows,function(r){return !!(r.dataset.name||'').trim();});})()"
+          equals: true
+
+        # The W.A.R.D.E.N. status strip is fed from the same payload — if it renders empty
+        # while rows exist, the two consumers have diverged.
+        - name: warden_strip_populated
+          expr: "(function(){var el=document.getElementById('wardenStandaloneStatus');return !!el && (el.textContent||'').trim().length>0;})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  # Selection is scoped. Mirror of the Modules-tab test: `.module-row` is shared between
+  # #moduleGrid and #standaloneGrid, so a helper that forgets to scope reaches across.
+  # These helpers were ALREADY correctly scoped (verified 2026-07-23) — this pins them
+  # that way, because the Modules-tab siblings were not.
+  - name: "Standalone select-all is scoped and never touches module rows"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      # BOTH tabs must be visited: each grid is populated by its own on-click loader
+      # (switchTab → loadAvailableModules / loadStandaloneSystems), so visiting only one
+      # leaves the other empty and the cross-grid assertion below becomes vacuous.
+      - click: "[data-tab='modules']"
+      - wait: 2500
+      - click: "[data-tab='standalones']"
+      - wait: 2500
+    expect:
+      js_eval:
+        # Both loaders are AWAITED rather than inferred from the tab clicks above.
+        # switchTab() fires loadAvailableModules()/loadStandaloneSystems() without
+        # awaiting them, so a fixed sleep after a click is a guess about network timing —
+        # and it measured empty here twice. Awaiting removes the race outright.
+        - name: both_grids_populated
+          expr: "(async function(){await loadAvailableModules();await loadStandaloneSystems();await new Promise(function(r){setTimeout(r,800);});return document.querySelectorAll('#standaloneGrid .module-row').length>0 && document.querySelectorAll('#moduleGrid .module-row').length>0;})()"
+          equals: true
+
+        - name: select_all_leaves_modules_untouched
+          expr: "(function(){deselectAllStandalones();selectAllStandalones();var sel=document.querySelectorAll('#standaloneGrid .module-row.selected').length;var all=document.querySelectorAll('#standaloneGrid .module-row').length;var stray=document.querySelectorAll('#moduleGrid .module-row.selected').length;deselectAllStandalones();return sel===all && stray===0;})()"
+          equals: true
+
+        # The count the operator reads before pressing Backup Selected must be the real one.
+        - name: selected_count_is_accurate
+          expr: "(function(){deselectAllStandalones();selectAllStandalones();var shown=parseInt(document.getElementById('selectedStandaloneCount').textContent,10);var actual=document.querySelectorAll('#standaloneGrid .module-row').length;deselectAllStandalones();return shown===actual;})()"
+          equals: true
+
+  # ---------------------------------------------------------------------------
+  - name: "Backup Selected is wired (NOT clicked — see safety note) and history is reachable"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - click: "[data-tab='standalones']"
+      - wait: 2000
+    expect:
+      js_eval:
+        - name: backup_handler_wired
+          expr: "typeof backupSelectedStandalones === 'function' && typeof selectAllStandalones === 'function' && typeof deselectAllStandalones === 'function'"
+          equals: true
+
+        # Read-only, so safe to actually call: per-product history must resolve for a
+        # hub-schema product AND a db_kind product, since those took different code paths.
+        - name: history_resolves_for_both_db_shapes
+          expr: "(async function(){var a=await fetch('/tools/backup-manager/api/standalones/history/wtf',{credentials:'same-origin'});var b=await fetch('/tools/backup-manager/api/standalones/history/gov_watch',{credentials:'same-origin'});return a.status===200 && b.status===200;})()"
+          equals: true
+
+        # Every row surfaces a last-backup state. Deliberately NOT asserting 'success':
+        # kso/kbs/creed/media_hub report 'partial' on EVERY run (measured 9-10/10 over 60
+        # days) and the rows carry NO notes, so the log cannot distinguish "DB deliberately
+        # out of scope" from "the DB step failed". Asserting success here would either fail
+        # permanently or paper over that. Tracked separately.
+        - name: every_row_shows_a_backup_state
+          expr: "(async function(){var d=await (await fetch('/tools/backup-manager/api/standalones/list',{credentials:'same-origin'})).json();return (d.standalones||[]).every(function(p){return p.last_backup_status!==undefined;});})()"
+          equals: true
+
+# ---------------------------------------------------------------------------
+# STILL NOT COVERED (deliberate): invoking backupSelectedStandalones (real multi-hundred-MB
+# backups), and any restore path — there is NO standalone restore endpoint at all, which is
+# a genuine gap tracked separately (#5036). Also not covered: whether a 'partial' standalone
+# backup is expected or a silent failure — unanswerable until the writer records a reason.

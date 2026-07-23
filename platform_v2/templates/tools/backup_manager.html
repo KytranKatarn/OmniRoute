@@ -1098,6 +1098,19 @@
         cloud:    { accent: '#60a5fa', tier: 'CLOUD', actions: ['download_cloud', 'delete_cloud'] },
     };
 
+    // Sizes were rendered as raw MB everywhere: rows read "2841.24 MB" and the
+    // overview read "98091.8 MB" instead of 95.8 GB. Nobody reads a backup size in
+    // five-digit megabytes with two decimals. Switch to the largest sensible unit
+    // and drop the false precision (#5134).
+    function bmSize(mb) {
+        var n = parseFloat(mb);
+        if (!isFinite(n) || n < 0) return '—';
+        if (n >= 1024) return (n / 1024).toFixed(2) + ' GB';
+        if (n >= 1) return n.toFixed(0) + ' MB';
+        if (n > 0) return '<1 MB';
+        return '0 MB';
+    }
+
     function buildBackupCard(backup, source) {
         const SRC = BM_SOURCES[source] || BM_SOURCES.primary;
             const sizeMB = backup.total_size_mb || (backup.size_mb != null ? backup.size_mb : (backup.size / 1024 / 1024).toFixed(2));
@@ -1156,9 +1169,14 @@
             const WEEK_S = 'background:rgba(168,85,247,0.2);color:#d8b4fe;border:1px solid #a855f7;';
             const MON_S  = 'background:rgba(234,179,8,0.2);color:#fde047;border:1px solid #eab308;';
             const TYPE_BADGES = {
-                full:         ['📦', '',          'badge-full', ''],
-                critical:     ['🛡️', '',          'badge-critical', ''],
-                database:     ['🧠', '',          'badge-database', ''],
+                // These three carried an EMPTY label, so they rendered as a bare
+                // pictogram — a row just showed 📦 with nothing saying what it was,
+                // while 🔄 RUN and 📅 DAILY beside it were labelled. Unreadable and
+                // inconsistent. Labels match the Quick Backup buttons above the list
+                // so the badge and the button that produced it read the same (#5134).
+                full:         ['📦', 'ARCHIVE',  'badge-full', ''],
+                critical:     ['🛡️', 'CRITICAL', 'badge-critical', ''],
+                database:     ['🧠', 'DATABASE', 'badge-database', ''],
                 custom:       ['🧩', 'CUSTOM',    'badge-custom', ''],
                 module:       ['🧩', 'MODULE',    '', AUTO_S],
                 standalone:   ['🌐', 'STANDALONE','', AUTO_S],
@@ -1265,7 +1283,18 @@
 
             const descDiv = document.createElement('div');
             descDiv.className = 'backup-description';
-            descDiv.textContent = backup.description || 'Platform backup';
+            // Descriptions leaked raw internals straight to the operator: rows read
+            // "backup_triage.sh" (a SCRIPT NAME, not a description) and the fallback
+            // was the meaningless "Platform backup". Translate the known automated
+            // producers into plain English; anything else passes through untouched
+            // so real operator-written descriptions are never rewritten (#5134).
+            var _rawDesc = (backup.description || '').trim();
+            var _DESC_MAP = {
+                'backup_triage.sh': 'Nightly automated backup',
+                'backup_triage.sh USB copy': 'Nightly automated backup — copy on USB',
+                'Platform backup': 'Scheduled platform backup',
+            };
+            descDiv.textContent = _DESC_MAP[_rawDesc] || _rawDesc || 'Scheduled platform backup';
             infoDiv.appendChild(descDiv);
 
             const metaDiv = document.createElement('div');
@@ -1320,7 +1349,7 @@
             sizeDiv.className = 'backup-size';
             const sizeValue = document.createElement('div');
             sizeValue.className = 'value';
-            sizeValue.textContent = sizeMB + ' MB';
+            sizeValue.textContent = bmSize(sizeMB);
             sizeDiv.appendChild(sizeValue);
             header.appendChild(sizeDiv);
 
@@ -1514,7 +1543,7 @@
 
             // Use server-computed total_size_bytes when available
             const sizeBytes = totalSizeBytes || backups.reduce((sum, b) => sum + (b.size || 0), 0);
-            document.getElementById('stat-size').textContent = (sizeBytes / 1024 / 1024).toFixed(1) + ' MB';
+            document.getElementById('stat-size').textContent = bmSize(sizeBytes / 1024 / 1024);
         }
 
         if (currentBuild) {
@@ -1980,7 +2009,7 @@
         const statItems = [
             { num: stats.keep_count || 0, color: '#22c55e', label: 'Keep' },
             { num: stats.delete_count || 0, color: '#ef4444', label: 'To Delete' },
-            { num: (stats.total_size_mb || 0) + ' MB', color: null, label: 'Total Size' },
+            { num: bmSize(stats.total_size_mb || 0), color: null, label: 'Total Size' },
             { num: (stats.space_to_free_mb || 0) + ' MB', color: '#fb923c', label: 'Space to Free' }
         ];
 

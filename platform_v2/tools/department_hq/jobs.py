@@ -1123,7 +1123,6 @@ def _register_own_jobs(scheduler, flask_app):
         # Reference pattern for job governance: audit_log + Telegram notification
         import time as _brc_t
         from database import get_db_cursor
-        from services.telegram_service import send_info
 
         _brc_start = _brc_t.time()
         job_name = "backup_retention_cleanup"
@@ -1142,15 +1141,21 @@ def _register_own_jobs(scheduler, flask_app):
 
         _audit(f"{job_name}.started", "Daily backup retention cleanup initiated")
         try:
-            from tools.backup_manager._shared import cleanup_old_backups
-
-            result = cleanup_old_backups(dry_run=False)
-            deleted = (result or {}).get("deleted_count", 0)
-            detail = f"Auto-cleanup: {deleted} backup(s) pruned"
+            # RETIRED (2026-07-23, #5141). This called cleanup_old_backups(dry_run=False):
+            # a SECOND pruner applying a single global 7/4/6 GFS triple to /backups (a symlink
+            # to /mnt/data2/backups) — the exact directory the canonical per-(component, tier)
+            # engine scripts/backup/retention_prune.py already prunes nightly via
+            # backup_triage.sh. Two pruners, different policies, one directory = the
+            # competing-pruner anti-pattern the platform retired (#4051). It also read
+            # result['deleted_count'] — but the function returns 'deleted' (a list) — so it
+            # always reported 0 while silently deleting real restore points. Neutralised to a
+            # no-op; retention is handled solely by the nightly canonical engine.
+            detail = (
+                "Retired — retention handled solely by the nightly canonical engine "
+                "(scripts/backup/retention_prune.py). No action taken."
+            )
             logger.info("[BackupRetention] %s", detail)
-            _audit(f"{job_name}.completed", detail)
-            if deleted > 0:
-                send_info(f"🗑️ Backup retention: {deleted} old backup(s) removed by GFS policy.")
+            _audit(f"{job_name}.skipped", detail)
         except Exception as e:
             logger.error("[BackupRetention] Auto-cleanup failed: %s", e)
             _audit(f"{job_name}.failed", str(e)[:500])

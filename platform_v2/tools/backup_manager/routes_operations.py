@@ -34,13 +34,11 @@ from ._shared import (
     admin_required,
     backup_database_python,
     check_backup_in_progress,
-    cleanup_old_backups,
     copy_to_external_storage,
     create_backup_programmatic,
     execute_post_hooks,
     execute_pre_hooks,
     get_backup_db_cursor,
-    get_backup_retention_status,
     get_current_build,
     get_next_build_number,
     get_platform_version,
@@ -124,7 +122,7 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                 p = file_path.rstrip("/")
                 for root in ("/mnt/data2/backups/", "/mnt/archie_brain/backups/"):
                     if p.startswith(root):
-                        p = "/backups/" + p[len(root):]
+                        p = "/backups/" + p[len(root) :]
                         break
                 try:
                     return os.path.exists(p)
@@ -907,13 +905,15 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                 }
             }
         """
+        # Honest, read-only status (#5141). The ACTUAL pruning is done nightly by the
+        # canonical per-(component, tier) engine scripts/backup/retention_prune.py (run by
+        # backup_triage.sh) — which does NOT read a single global daily/weekly/monthly triple.
+        # This endpoint used to synthesise a "7 daily + 4 weekly + 6 monthly" policy string
+        # (from system_config values nothing enforces) plus a keep/delete split computed by
+        # that same retired single-triple logic. Both were fiction. Report only what is real:
+        # the last canonical prune + a truthful description of the policy model. The editable
+        # triple and manual cleanup were retired the same day.
         try:
-            from tools.backup_manager._shared import get_retention_config
-
-            cfg = get_retention_config()
-            status = get_backup_retention_status()
-
-            # Read last-run info
             last_run = "Never"
             last_count = "0"
             with get_backup_db_cursor(commit=False) as (conn, cur):
@@ -930,13 +930,17 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
             return jsonify(
                 {
                     "success": True,
-                    "retention_policy": f"{cfg['daily']} daily + {cfg['weekly']} weekly + {cfg['monthly']} monthly",
-                    "retention_daily": cfg["daily"],
-                    "retention_weekly": cfg["weekly"],
-                    "retention_monthly": cfg["monthly"],
+                    "managed": "automatic",
+                    "engine": "scripts/backup/retention_prune.py",
+                    "schedule": "Nightly ~02:00 EDT (backup_triage.sh)",
+                    "policy_summary": (
+                        "Grandfather-Father-Son — a different daily / weekly / monthly keep "
+                        "count for every component and storage tier (e.g. the database keeps "
+                        "30 daily + 12 weekly + 6 monthly on the primary disk, but only 2 daily "
+                        "on Google Drive)."
+                    ),
                     "last_run": last_run,
                     "last_deleted_count": last_count,
-                    **status,
                 }
             )
         except Exception as e:
@@ -945,64 +949,59 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
     @bp.route("/retention-policy", methods=["PUT"])
     @admin_required
     def update_retention_policy():
-        """Update GFS retention values in system_config."""
-        data = request.get_json() or {}
-        updates = {}
-        for key in ("daily", "weekly", "monthly"):
-            val = data.get(key)
-            if val is not None:
-                try:
-                    updates[f"retention_{key}"] = max(1, int(val))
-                except (TypeError, ValueError):
-                    return jsonify({"success": False, "error": f"Invalid value for {key}"}), 400
-        if not updates:
-            return jsonify({"success": False, "error": "No valid fields provided"}), 400
+        """RETIRED (2026-07-23, #5141). There is no single editable daily/weekly/monthly policy.
 
-        with get_backup_db_cursor(commit=True) as (conn, cur):
-            for k, v in updates.items():
-                cur.execute(
-                    "INSERT INTO system_config (key, value, updated_at) VALUES (%s, %s, NOW()) "
-                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
-                    (k, str(v)),
-                )
-        return jsonify({"success": True, "updated": updates})
+        Retention is defined in code, per-(component, tier), in
+        scripts/backup/retention_prune.py (run nightly by backup_triage.sh). The canonical
+        engine NEVER read the system_config retention_daily/weekly/monthly values this
+        endpoint wrote, so "saving" a policy here changed nothing about what actually got
+        pruned — a silent no-op that reported success. It now refuses honestly instead of
+        pretending to save.
+        """
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "retired": True,
+                    "error": (
+                        "Retention is managed in code, per-component and per-tier "
+                        "(scripts/backup/retention_prune.py, run nightly). There is no single "
+                        "global policy to edit here."
+                    ),
+                }
+            ),
+            410,
+        )
 
     @bp.route("/cleanup", methods=["POST"])
     @admin_required
     def cleanup_backups():
+        """RETIRED (2026-07-23, #5141). Manual cleanup no longer deletes anything.
+
+        This ran cleanup_old_backups(), a SECOND pruner that applied a single global
+        7/4/6 GFS triple to /backups — which is a symlink to /mnt/data2/backups, the
+        exact directory the canonical per-(component, tier) engine
+        scripts/backup/retention_prune.py already prunes nightly. Two pruners with
+        different policies over one directory is the competing-pruner anti-pattern the
+        platform retired (#4051); on a live run this one would have deleted restore
+        points the real policy keeps. Retention is fully automatic now — there is
+        nothing to run by hand.
         """
-        Delete old backups based on retention policy.
-
-        Request body (optional):
-            {
-                'dry_run': true/false (default: true)
-            }
-
-        Returns:
-            {
-                'success': True,
-                'dry_run': True/False,
-                'deleted': [list of deleted backup names],
-                'kept': [list of kept backup names],
-                'space_freed_mb': float
-            }
-        """
-        try:
-            data = request.get_json() or {}
-            dry_run = data.get("dry_run", True)  # Default to dry run for safety
-
-            result = cleanup_old_backups(dry_run=dry_run)
-
-            if not dry_run:
-                current_app.logger.info(
-                    f"Retention cleanup: deleted {len(result['deleted'])} backups, freed {result['space_freed_mb']} MB"
-                )
-
-            return jsonify(result)
-
-        except Exception as e:
-            current_app.logger.error(f"Cleanup failed: {str(e)}")
-            return jsonify({"success": False, "error": str(e)}), 500
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "retired": True,
+                    "error": (
+                        "Manual cleanup is retired. Backups are pruned automatically every "
+                        "night by the canonical per-component / per-tier engine "
+                        "(scripts/backup/retention_prune.py). This endpoint no longer deletes "
+                        "anything."
+                    ),
+                }
+            ),
+            410,
+        )
 
     @bp.route("/set-current/<int:build_number>", methods=["POST"])
     @admin_required

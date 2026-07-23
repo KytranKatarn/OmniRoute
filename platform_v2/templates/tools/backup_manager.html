@@ -557,31 +557,18 @@
                             </div>
                             <div style="flex: 1 !important; padding: 16px !important;">
                                 <div class="retention-info">
-                                    <h4><span data-i18n="backup_manager.retention_policy_gfs_grandfather_father_son">Retention Policy (GFS - Grandfather-Father-Son)</span></h4>
-                                    <div class="retention-grid" id="retentionPolicyGrid">
-                                        <div class="retention-card">
-                                            <input type="number" id="retentionDaily" min="1" max="30" value="7"
-                                                   style="width:60px;font-size:2rem;font-weight:700;background:transparent;
-                                                          border:none;border-bottom:2px solid #ef4444;color:#fca5a5;text-align:center;">
-                                            <div class="label"><span data-i18n="backup_manager.daily_backups">Daily Backups</span></div>
-                                        </div>
-                                        <div class="retention-card">
-                                            <input type="number" id="retentionWeekly" min="1" max="12" value="4"
-                                                   style="width:60px;font-size:2rem;font-weight:700;background:transparent;
-                                                          border:none;border-bottom:2px solid #ef4444;color:#fca5a5;text-align:center;">
-                                            <div class="label"><span data-i18n="backup_manager.weekly_backups">Weekly Backups</span></div>
-                                        </div>
-                                        <div class="retention-card">
-                                            <input type="number" id="retentionMonthly" min="1" max="24" value="6"
-                                                   style="width:60px;font-size:2rem;font-weight:700;background:transparent;
-                                                          border:none;border-bottom:2px solid #ef4444;color:#fca5a5;text-align:center;">
-                                            <div class="label"><span data-i18n="backup_manager.monthly_backups">Monthly Backups</span></div>
-                                        </div>
-                                    </div>
-                                    <div style="margin-top: var(--archie-space-3);">
-                                        <button class="btn" onclick="saveRetentionPolicy()"
-                                                style="border-color:#ef4444;color:#fca5a5;">Save Policy</button>
-                                    </div>
+                                    <h4>Retention Policy — automatic, per-component &amp; per-tier</h4>
+                                    <p style="font-size:13px;color:var(--archie-text-secondary);line-height:1.7;margin-top:6px;">
+                                        Backups are pruned <strong>automatically every night</strong> by the platform's
+                                        single retention engine
+                                        (<code style="color:#fca5a5;">scripts/backup/retention_prune.py</code>, run by
+                                        <code style="color:#fca5a5;">backup_triage.sh</code>). It keeps a
+                                        <strong>Grandfather-Father-Son</strong> set with a <strong>different daily /
+                                        weekly / monthly count for every component and storage tier</strong> — for
+                                        example the database keeps 30 daily + 12 weekly + 6 monthly on the primary disk,
+                                        but only 2 daily on Google Drive. There is no single global number to set, and
+                                        nothing to prune by hand: the nightly engine is the only retention path.
+                                    </p>
                                 </div>
 
                                 <!-- W.A.R.D.E.N. Pre-Deploy Governance Gates (#2708) -->
@@ -618,9 +605,7 @@
                                 </div>
 
                                 <div style="display: flex; gap: var(--archie-space-2);">
-                                    <button class="btn" onclick="checkRetention()"><span data-i18n="backup_manager.check_retention">Check Retention</span></button>
-                                    <button class="btn btn-orange" onclick="cleanupBackups(true)"><span data-i18n="backup_manager.preview_cleanup">Preview Cleanup</span></button>
-                                    <button class="btn btn-red" onclick="cleanupBackups(false)"><span data-i18n="backup_manager.run_cleanup">Run Cleanup</span></button>
+                                    <button class="btn" onclick="checkRetention()">Refresh Status</button>
                                 </div>
 
                                 <div style="margin-top: var(--archie-space-5); padding: var(--archie-space-4);
@@ -2110,90 +2095,35 @@
     }
 
     function renderRetentionStatus(data) {
+        // Honest, read-only status (#5141). The old version showed a Keep / To-Delete /
+        // Space-to-Free split computed by the RETIRED single-triple pruner — a delete plan
+        // for a policy the system does not use. Retention is automatic + per-(component,tier);
+        // there is nothing here to preview deleting. Show only what is real.
         const container = document.getElementById('retentionStatus');
         container.textContent = '';
-        const stats = data.stats || {};
-
-        // Stats grid
-        const statsGrid = document.createElement('div');
-        statsGrid.style.cssText = 'display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--archie-space-4); margin-bottom: var(--archie-space-5);';
-
-        const statItems = [
-            { num: stats.keep_count || 0, color: '#22c55e', label: 'Keep' },
-            { num: stats.delete_count || 0, color: '#ef4444', label: 'To Delete' },
-            { num: bmSize(stats.total_size_mb || 0), color: null, label: 'Total Size' },
-            { num: (stats.space_to_free_mb || 0) + ' MB', color: '#fb923c', label: 'Space to Free' }
+        const box = document.createElement('div');
+        box.style.cssText = 'font-size:13px;line-height:1.8;';
+        const rows = [
+            ['Managed by', data.engine || 'scripts/backup/retention_prune.py'],
+            ['Schedule', data.schedule || 'Nightly'],
+            ['Policy', data.policy_summary || 'Per-component & per-tier GFS'],
+            ['Last prune', String(data.last_run || 'Never (first run pending)')],
+            ['Deleted last run', String(data.last_deleted_count || '0')],
         ];
-
-        statItems.forEach(item => {
-            const card = document.createElement('div');
-            card.className = 'retention-card';
-
-            const num = document.createElement('div');
-            num.className = 'number';
-            if (item.color) num.style.color = item.color;
-            num.textContent = item.num;
-            card.appendChild(num);
-
-            const label = document.createElement('div');
-            label.className = 'label';
-            label.textContent = item.label;
-            card.appendChild(label);
-
-            statsGrid.appendChild(card);
+        rows.forEach(([label, value]) => {
+            const line = document.createElement('div');
+            line.style.cssText = 'display:flex; gap:10px; padding:3px 0; align-items:baseline;';
+            const l = document.createElement('span');
+            l.style.cssText = 'min-width:130px; flex-shrink:0; color:var(--archie-text-tertiary);';
+            l.textContent = label;
+            const v = document.createElement('span');
+            v.style.color = '#e2e8f0';
+            v.textContent = value;
+            line.appendChild(l);
+            line.appendChild(v);
+            box.appendChild(line);
         });
-
-        container.appendChild(statsGrid);
-
-        // Delete list or success message
-        if (data.delete && data.delete.length > 0) {
-            const deleteBox = document.createElement('div');
-            deleteBox.style.cssText = 'background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: var(--archie-radius-lg); padding: var(--archie-space-4);';
-
-            const h4 = document.createElement('h4');
-            h4.style.cssText = 'color: #ef4444; margin-bottom: var(--archie-space-2);';
-            h4.textContent = 'Backups to Delete:';
-            deleteBox.appendChild(h4);
-
-            const listDiv = document.createElement('div');
-            listDiv.style.cssText = 'max-height: 200px; overflow-y: auto; color: var(--archie-text-secondary); font-size: var(--archie-text-sm);';
-
-            data.delete.forEach(b => {
-                const itemDiv = document.createElement('div');
-                itemDiv.style.padding = '3px 0';
-                itemDiv.textContent = b;
-                listDiv.appendChild(itemDiv);
-            });
-
-            deleteBox.appendChild(listDiv);
-            container.appendChild(deleteBox);
-        } else {
-            const successDiv = document.createElement('div');
-            successDiv.style.color = '#22c55e';
-            successDiv.textContent = 'All backups within retention policy';
-            container.appendChild(successDiv);
-        }
-    }
-
-    async function saveRetentionPolicy() {
-        const daily = parseInt(document.getElementById('retentionDaily').value);
-        const weekly = parseInt(document.getElementById('retentionWeekly').value);
-        const monthly = parseInt(document.getElementById('retentionMonthly').value);
-        if ([daily, weekly, monthly].some(v => isNaN(v) || v < 1)) {
-            showToast('Invalid retention values', 'error');
-            return;
-        }
-        try {
-            const resp = await fetch('/tools/backup-manager/retention-policy', {
-                method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
-                credentials: 'same-origin',
-                body: JSON.stringify({daily, weekly, monthly})
-            });
-            const data = await resp.json();
-            if (data.success) showToast('Retention policy saved', 'success');
-            else showToast('Failed: ' + escapeHtml(data.error || 'unknown'), 'error');
-        } catch (e) { showToast('Network error', 'error'); }
+        container.appendChild(box);
     }
 
     // ── W.A.R.D.E.N. pre-deploy governance gates (#2708) ──────────────────────
@@ -2271,16 +2201,13 @@
             const data = await resp.json();
             const el = document.getElementById('wardenRetentionStatus');
             if (!el) return;
-            if (data.retention_daily) document.getElementById('retentionDaily').value = data.retention_daily;
-            if (data.retention_weekly) document.getElementById('retentionWeekly').value = data.retention_weekly;
-            if (data.retention_monthly) document.getElementById('retentionMonthly').value = data.retention_monthly;
 
             // Build status text safely using DOM methods (no innerHTML with user data)
             el.textContent = '';
             const parts = [
                 ['Last prune: ', String(data.last_run || 'Never (first run pending)')],
                 ['Deleted: ', String(data.last_deleted_count || '0')],
-                ['Next: ', 'Sunday 04:00 EDT'],
+                ['Next: ', 'Nightly ~02:00 EDT'],
             ];
             parts.forEach(([label, value], i) => {
                 const lSpan = document.createElement('span');
@@ -2292,43 +2219,6 @@
                 el.appendChild(vSpan);
             });
         } catch (e) { /* non-fatal */ }
-    }
-
-    async function cleanupBackups(dryRun) {
-        const action = dryRun ? 'preview' : 'run';
-        if (!dryRun) {
-            const ok = await showBmConfirm(
-                'RUN CLEANUP',
-                [{ text: 'This will permanently delete old backups that fall outside the retention policy. This cannot be undone.' }],
-                'DELETE BACKUPS',
-                true
-            );
-            if (!ok) return;
-        }
-
-        try {
-            const response = await fetch('/tools/backup-manager/cleanup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'same-origin',
-                body: JSON.stringify({ dry_run: dryRun })
-            });
-            const data = await response.json();
-
-            if (data.success) {
-                if (dryRun) {
-                    showToast(`Would delete ${data.deleted.length} backups, free ${data.space_freed_mb} MB`, 'info');
-                } else {
-                    showToast(`Deleted ${data.deleted.length} backups, freed ${data.space_freed_mb} MB`, 'success');
-                    loadBackups();
-                }
-                checkRetention();
-            } else {
-                showToast('Error: ' + data.error, 'error');
-            }
-        } catch (error) {
-            showToast('Error: ' + error.message, 'error');
-        }
     }
 
     // =====================================================================

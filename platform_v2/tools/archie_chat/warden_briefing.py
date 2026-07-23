@@ -16,7 +16,6 @@ def _build_warden_briefing() -> str:
     from tools.backup_manager._shared import (
         LOCK_FILE,
         get_backup_db_cursor,
-        get_backup_retention_status,
     )
 
     now_str = now_local_str()
@@ -48,7 +47,7 @@ def _build_warden_briefing() -> str:
             row_cnt = cur.fetchone() or {}
             cnt = row_cnt.get("cnt", 0)
             total_gb = round((row_cnt.get("total_bytes") or 0) / 1024 / 1024 / 1024, 1)
-            storage_note = " ⚠️ OVER 100 GB — cleanup recommended" if total_gb > 100 else ""
+            storage_note = " ⚠️ OVER 100 GB — verify the nightly retention prune is running" if total_gb > 100 else ""
             lines.append(f"Total backups: {cnt} ({total_gb} GB used){storage_note}")
 
             # Standalones — latest status per product
@@ -85,13 +84,23 @@ def _build_warden_briefing() -> str:
     # Lock
     lines.append(f"Backup lock: {'ACTIVE ⚠️' if os.path.exists(LOCK_FILE) else 'none'}")
 
-    # Retention
+    # Retention — report the canonical nightly engine's LAST RUN, not a delete plan.
+    # The old code called get_backup_retention_status() and surfaced its delete_count: a
+    # RETIRED single-triple pruner's projection for a policy the system does not enforce
+    # (the real engine is scripts/backup/retention_prune.py, per-component/tier, and it
+    # writes retention_last_run / retention_last_deleted_count to system_config). #5141.
     try:
-        ret = get_backup_retention_status()
-        delete_count = ret.get("delete_count", 0)
-        lines.append(f"Retention: {delete_count} backup(s) eligible for pruning")
+        with get_backup_db_cursor(commit=False, cursor_factory=RealDictCursor) as (_, cur):
+            cur.execute(
+                "SELECT key, value FROM system_config "
+                "WHERE key IN ('retention_last_run', 'retention_last_deleted_count')"
+            )
+            rr = {r["key"]: r["value"] for r in cur.fetchall()}
+        last_run = rr.get("retention_last_run") or "never"
+        last_del = rr.get("retention_last_deleted_count") or "0"
+        lines.append(f"Retention: automatic (nightly, per-component/tier). Last prune {last_run}, {last_del} removed.")
     except Exception:
-        lines.append("Retention: unavailable")
+        lines.append("Retention: automatic (nightly) — last-run data unavailable")
 
     # Path health advisory — flag DB entries using non-canonical host paths
     try:
@@ -105,7 +114,7 @@ def _build_warden_briefing() -> str:
             if non_canonical > 10:
                 lines.append(
                     f"⚠️ Path advisory: {non_canonical} DB entries use non-standard paths "
-                    f"(host-path vs container-path mismatch). Suggest running cleanup to normalise."
+                    f"(host-path vs container-path mismatch)."
                 )
     except Exception:
         pass

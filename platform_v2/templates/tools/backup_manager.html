@@ -1202,7 +1202,13 @@
                 typeBadgeSpan.textContent = '🗄️ ' + dtype.toUpperCase();
                 typeBadgeSpan.title = dtype.toUpperCase();
             }
-            titleDiv.appendChild(typeBadgeSpan);
+            // Skip the TYPE badge when it would just restate the TIER badge below.
+            // On the Cloud tab display_type is 'cloud' AND SRC.tier is 'CLOUD', so the
+            // card rendered "☁️ CLOUD" immediately followed by "CLOUD" (#5132).
+            // The tier badge is the canonical location marker, so it wins.
+            if (!(bd && bd[1] && SRC.tier && bd[1] === SRC.tier)) {
+                titleDiv.appendChild(typeBadgeSpan);
+            }
 
             // Tier badge — states plainly WHERE this copy lives, so a USB or Drive
             // row can never be mistaken for a primary-disk restore point.
@@ -1224,8 +1230,10 @@
                 titleDiv.appendChild(gzipBadge);
             }
 
-            // External copy badge
-            if (hasExternalCopy) {
+            // External copy badge — "this ALSO exists on USB". Meaningful on the Backups
+            // tab; tautological on the External tab, where every row is a USB copy by
+            // definition and the tier badge already says so (#5132).
+            if (hasExternalCopy && source !== 'external') {
                 const usbBadge = document.createElement('span');
                 usbBadge.className = 'badge';
                 usbBadge.style.cssText = 'background: rgba(34, 211, 238, 0.2); color: #ef4444; border: 1px solid #22d3ee;';
@@ -1234,8 +1242,10 @@
                 titleDiv.appendChild(usbBadge);
             }
 
-            // Cloud copy badge
-            if (_cloudBackupNames && _cloudBackupNames.has(backup.name + '.tar.gz.enc')) {
+            // Cloud copy badge — "this ALSO exists in Drive". Same reasoning: on the
+            // Cloud tab every row IS a Drive object, so this was the third redundant
+            // CLOUD label on one card (#5132).
+            if (source !== 'cloud' && _cloudBackupNames && _cloudBackupNames.has(backup.name + '.tar.gz.enc')) {
                 const cloudBadge = document.createElement('span');
                 cloudBadge.className = 'badge badge-cloud';
                 cloudBadge.title = 'Uploaded to Google Drive';

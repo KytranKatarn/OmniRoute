@@ -82,6 +82,18 @@
                                     <h3><span data-i18n="backup_manager.latest_backup">Latest Backup</span></h3>
                                     <div class="value" id="stat-latest" style="font-size: 0.9rem;">-</div>
                                 </div>
+                                <!-- Running status. Replaces the full-width "⚠ Backup in Progress"
+                                     strip that used to sit BELOW this frame and render on EVERY tab,
+                                     shifting the page down whenever a backup ran. Same information,
+                                     read where the other backup facts are read. -->
+                                <div class="stat-card" id="stat-lock-card">
+                                    <h3><span data-i18n="backup_manager.backup_status">Backup Status</span></h3>
+                                    <div class="value" id="stat-lock-state" style="font-size: 0.95rem; display:flex; align-items:center; gap:8px;">
+                                        <span id="stat-lock-dot" style="width:9px;height:9px;border-radius:50%;background:#4ade80;flex-shrink:0;"></span>
+                                        <span id="stat-lock-label">IDLE</span>
+                                    </div>
+                                    <div class="sub" id="stat-lock-detail">No backup running</div>
+                                </div>
                             </div>
                         </div>
                         <div style="height: 6px !important; background: #ef4444 !important; border-radius: 0 0 20px 0 !important; flex-shrink: 0 !important;"></div>
@@ -89,10 +101,9 @@
                 </div>
             </div>
 
-            <!-- Lock Status Warning -->
-            <div id="lockWarning" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: var(--archie-radius-lg); padding: var(--archie-space-3) var(--archie-space-4); margin-bottom: var(--archie-space-4); color: #ef4444;">
-                <span style="font-weight: bold;"><span data-i18n="backup_manager.backup_in_progress">⚠ Backup in Progress:</span></span> <span id="lockDetails"></span>
-            </div>
+            <!-- The "⚠ Backup in Progress" strip that lived here was replaced by the
+                 "Backup Status" stat-card in the overview frame above (it rendered on every
+                 tab and pushed the page down for the whole duration of a backup). -->
 
 
             <!-- BACKUPS TAB -->
@@ -965,12 +976,28 @@
     // LOCK STATUS
     // =====================================================================
 
+    // Seconds → a duration a human can judge at a glance. The lock endpoint reports
+    // age_seconds, and "439s" reads as noise where "7m 19s" reads as "still fine" —
+    // the whole point of the tile is deciding whether a run is progressing or stuck.
+    function _bmElapsed(sec) {
+        const s = parseInt(sec, 10);
+        if (!isFinite(s) || s < 0) return '—';
+        if (s < 60) return s + 's';
+        const m = Math.floor(s / 60);
+        if (m < 60) return m + 'm ' + (s % 60) + 's';
+        const h = Math.floor(m / 60);
+        return h + 'h ' + (m % 60) + 'm';
+    }
+
     async function checkLockStatus() {
         try {
             const response = await fetch('/tools/backup-manager/lock-status', { credentials: 'same-origin' });
             const data = await response.json();
 
-            const warning = document.getElementById('lockWarning');
+            const card   = document.getElementById('stat-lock-card');
+            const dot    = document.getElementById('stat-lock-dot');
+            const label  = document.getElementById('stat-lock-label');
+            const detail = document.getElementById('stat-lock-detail');
             const backupBtns = document.querySelectorAll('.backup-type-btn');
             if (data.locked && data.lock_info) {
                 const info = data.lock_info;
@@ -980,10 +1007,22 @@
                     base: 'B.A.S.E.', darwin: 'D.A.R.W.I.N.', muse: 'M.U.S.E.',
                     signal: 'S.I.G.N.A.L.', spectra: 'S.P.E.C.T.R.A.',
                 };
-                const displayName = _agentNames[info.created_by?.toLowerCase()] || info.created_by;
-                document.getElementById('lockDetails').textContent =
-                    `"${info.backup_name}" by ${displayName} (${info.age_seconds}s ago)`;
-                warning.style.display = 'block';
+                // Owners arrive suffixed by the caller that took the lock — the live value
+                // is `warden_gate`, not `warden`, so an exact-key lookup fell through and
+                // the tile showed the raw token. Match the agent prefix before the first
+                // underscore, then fall back to the raw value.
+                const _owner = (info.created_by || '').toLowerCase();
+                const displayName = _agentNames[_owner] || _agentNames[_owner.split('_')[0]] || info.created_by;
+                // Raw seconds are hard to read at a glance — "439s ago" is 7 minutes, which
+                // matters when you are deciding whether a backup is progressing or wedged.
+                label.textContent = 'RUNNING';
+                label.style.color = '#f59e0b';
+                dot.style.background = '#f59e0b';
+                dot.style.animation = 'pulse 1.4s infinite';
+                detail.textContent = _bmElapsed(info.age_seconds) + ' · ' + displayName;
+                // The backup NAME can be long (a pre-deploy name runs to ~50 chars) and would
+                // blow out the card, so it lives in the tooltip rather than the tile.
+                card.title = `${info.backup_name} — started ${_bmElapsed(info.age_seconds)} ago by ${displayName}`;
                 backupBtns.forEach(btn => {
                     btn.disabled = true;
                     btn.style.opacity = '0.35';
@@ -991,7 +1030,12 @@
                     btn.title = `Backup in progress by ${displayName}: ${info.backup_name}`;
                 });
             } else {
-                warning.style.display = 'none';
+                label.textContent = 'IDLE';
+                label.style.color = '#4ade80';
+                dot.style.background = '#4ade80';
+                dot.style.animation = '';
+                detail.textContent = 'No backup running';
+                card.title = '';
                 backupBtns.forEach(btn => {
                     btn.disabled = false;
                     btn.style.opacity = '';

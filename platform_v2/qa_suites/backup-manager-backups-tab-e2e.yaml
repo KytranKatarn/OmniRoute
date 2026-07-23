@@ -281,6 +281,53 @@ tests:
           expr: "(async function(){var l=await (await fetch('/tools/backup-manager/list',{credentials:'same-origin'})).json();var b=(l.backups||[])[0];if(!b)return false;var n=b.name||b.timestamp;var p=await (await fetch('/tools/backup-manager/preview-restore/'+encodeURIComponent(n),{credentials:'same-origin'})).json();var m=p.backup_metadata||{};return m.id!=null && b.id!=null && m.id===b.id;})()"
           equals: true
 
+  # ---------------------------------------------------------------------------
+  # Backup Status tile. Replaced the full-width "⚠ Backup in Progress" strip, which
+  # rendered on EVERY tab and pushed the page down for the whole duration of a run.
+  #
+  # Asserted by DERIVING the expected state from /lock-status rather than pinning a
+  # literal — a test that hard-coded "RUNNING" would pass only while a backup happened
+  # to be in flight and fail the rest of the time (and vice-versa for "IDLE"). This
+  # holds in both states and actually checks the tile AGREES with the lock.
+  - name: "Backup Status tile agrees with /lock-status, in either state"
+    type: e2e
+    path: /tools/backup-manager
+    wait_until: load
+    actions:
+      - wait: 2500
+      - screenshot: "overview-backup-status-tile"
+    expect:
+      selector_visible:
+        "#stat-lock-card": true
+      js_eval:
+        # The old strip must be gone — not merely hidden. Leaving it in the DOM would
+        # let a future change re-show it and reintroduce the layout shift.
+        - name: old_progress_strip_removed
+          expr: "!document.getElementById('lockWarning') && !document.getElementById('lockDetails')"
+          equals: true
+
+        # The tile lives INSIDE the overview stats frame, beside the other cards —
+        # that placement is the entire point of the change.
+        - name: tile_is_inside_the_stats_frame
+          expr: "!!document.querySelector('.stats-grid #stat-lock-card')"
+          equals: true
+
+        - name: label_matches_lock_state
+          expr: "(async function(){var d=await (await fetch('/tools/backup-manager/lock-status',{credentials:'same-origin'})).json();await checkLockStatus();await new Promise(function(r){setTimeout(r,400);});var lbl=(document.getElementById('stat-lock-label').textContent||'').trim();return d.locked ? lbl==='RUNNING' : lbl==='IDLE';})()"
+          equals: true
+
+        # Running ⇒ an elapsed time and the owner; idle ⇒ the explicit idle line. A blank
+        # sub-line was the failure mode the Quick Backup captions already suffered (#106
+        # test 1), so it is pinned here from the start.
+        - name: detail_line_is_populated_for_the_state
+          expr: "(async function(){var d=await (await fetch('/tools/backup-manager/lock-status',{credentials:'same-origin'})).json();await checkLockStatus();await new Promise(function(r){setTimeout(r,400);});var t=(document.getElementById('stat-lock-detail').textContent||'').trim();return d.locked ? (/[0-9]/.test(t) && t.indexOf('·')!==-1) : t==='No backup running';})()"
+          equals: true
+
+        # Seconds are formatted, never raw. "439s ago" is what the tile replaced.
+        - name: elapsed_is_humanised
+          expr: "typeof _bmElapsed==='function' && _bmElapsed(704)==='11m 44s' && _bmElapsed(45)==='45s' && _bmElapsed(3900)==='1h 5m'"
+          equals: true
+
 # ---------------------------------------------------------------------------
 # STILL NOT COVERED (deliberate): the CONTENTS of the 9 non-Backups tabs, and any
 # actual invocation of a destructive control anywhere. Adding those means one spec per

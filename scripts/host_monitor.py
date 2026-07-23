@@ -6616,6 +6616,140 @@ def cleanup_old_metrics():
         print(f"Error cleaning up old metrics: {e}")
 
 
+def _pwr_run(cmd, timeout=8):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout).stdout or ""
+    except Exception:
+        return ""
+
+
+def _power_gpu():
+    """MEASURED GPU watts via nvidia-smi (summed across cards)."""
+    out = _pwr_run(["nvidia-smi", "--query-gpu=name,power.draw,power.limit", "--format=csv,noheader,nounits"])
+    cards, draw, limit = [], 0.0, 0.0
+    for line in out.strip().splitlines():
+        p = [x.strip() for x in line.split(",")]
+        if len(p) >= 3:
+            try:
+                draw += float(p[1])
+                limit += float(p[2])
+                cards.append(p[0])
+            except ValueError:
+                pass
+    return cards, round(draw, 1), round(limit, 1)
+
+
+def _power_cpu_rapl():
+    """MEASURED CPU package watts via Intel RAPL energy deltas (root-only file)."""
+    pkgs = [p for p in sorted(glob.glob("/sys/class/powercap/intel-rapl:*")) if re.search(r"intel-rapl:\d+$", p)]
+
+    def _read():
+        tot, ok = 0, False
+        for p in pkgs:
+            try:
+                with open(os.path.join(p, "energy_uj")) as f:
+                    tot += int(f.read().strip())
+                    ok = True
+            except OSError:
+                pass
+        return tot, ok
+
+    e1, ok1 = _read()
+    if not ok1:
+        return None, False
+    t1 = time.time()
+    time.sleep(0.5)
+    e2, _ = _read()
+    dt = time.time() - t1
+    de = e2 - e1
+    if dt <= 0 or de < 0:  # non-positive interval or counter wraparound — skip this sample
+        return None, False
+    return round((de / 1e6) / dt, 1), True
+
+
+def _power_ram():
+    """ESTIMATED RAM watts — populated DIMM count x ~4W (DDR3 ECC RDIMM; no sensor exists)."""
+    out = _pwr_run(["dmidecode", "-t", "memory"])
+    dimms = sum(
+        1
+        for m in re.finditer(r"^\s*Size:\s*(.+)$", out, re.M)
+        if m.group(1).strip() and "No Module" not in m.group(1) and "Unknown" not in m.group(1)
+    )
+    return dimms, round(dimms * 4.0, 1)
+
+
+def _power_disks():
+    """ESTIMATED disk watts — per physical disk by type (HDD ~7W, SSD/NVMe ~3W)."""
+    out = _pwr_run(["lsblk", "-dno", "NAME,TYPE,ROTA"])
+    watts, n = 0.0, 0
+    for line in out.strip().splitlines():
+        p = line.split()
+        if len(p) >= 3 and p[1] == "disk":
+            n += 1
+            watts += 7.0 if p[2] == "1" else 3.0
+    return n, round(watts, 1)
+
+
+def get_power(psu_watts=600, baseline_watts=50):
+    """Server power draw for the KSO watts counter (#5140). MEASURED GPU (nvidia-smi) + CPU
+    (RAPL, works because this daemon runs as root); ESTIMATED RAM/disks/baseline (no hardware
+    sensor). Every figure carries its class (measured|estimated). FAIL-SAFE: any error returns
+    {'error': ...} so it can never break the rest of collect_all_data."""
+    try:
+        comps = []
+        cards, gpu_draw, gpu_max = _power_gpu()
+        if cards:
+            comps.append(
+                {
+                    "name": "GPU",
+                    "watts": gpu_draw,
+                    "max_watts": gpu_max,
+                    "class": "measured",
+                    "detail": ", ".join(cards),
+                }
+            )
+        cpu_w, cpu_ok = _power_cpu_rapl()
+        comps.append(
+            {
+                "name": "CPU",
+                "watts": cpu_w if cpu_ok else 0.0,
+                "max_watts": None,
+                "class": "measured" if cpu_ok else "unavailable",
+                "detail": "RAPL package" if cpu_ok else "RAPL needs root",
+            }
+        )
+        dimms, ram_w = _power_ram()
+        comps.append(
+            {"name": "RAM", "watts": ram_w, "max_watts": None, "class": "estimated", "detail": "%d DIMMs x ~4W" % dimms}
+        )
+        ndisks, disk_w = _power_disks()
+        comps.append(
+            {"name": "Disks", "watts": disk_w, "max_watts": None, "class": "estimated", "detail": "%d disks" % ndisks}
+        )
+        comps.append(
+            {
+                "name": "Board+fans",
+                "watts": round(baseline_watts, 1),
+                "max_watts": None,
+                "class": "estimated",
+                "detail": "fixed baseline",
+            }
+        )
+        total = round(sum(c["watts"] for c in comps), 1)
+        measured = any(c["class"] == "measured" for c in comps)
+        return {
+            "components": comps,
+            "total_watts": total,
+            "total_class": "measured+estimated" if measured else "estimated",
+            "psu_watts": psu_watts,
+            "headroom_watts": round(psu_watts - total, 1),
+            "load_pct": round(total / psu_watts * 100, 1) if psu_watts else None,
+            "redline_pct": 80,
+        }
+    except Exception as e:
+        return {"error": str(e)[:200], "total_watts": None}
+
+
 def collect_all_data():
     """Collect all host system data"""
     network = get_network_info()
@@ -6635,6 +6769,7 @@ def collect_all_data():
         "cpu": get_cpu_info(),
         "cpu_hardware": get_cpu_hardware(),
         "gpu": get_gpu_info(),
+        "power": get_power(),
         "memory_hardware": get_memory_hardware(),
         "motherboard": get_motherboard_info(),
         "pci_slots": get_pci_slots(),

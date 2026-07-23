@@ -1180,6 +1180,59 @@ def _register_own_jobs(scheduler, flask_app):
         coalesce=True,
     )
 
+    # Daily module backup (#5143) — back up EVERY module once a day so a focused,
+    # module-scoped restore is always available without a full-platform snapshot (owner
+    # ask 2026-07-23). Per-deploy backup_module() only covers modules that were deployed
+    # that day (measured 4/7 days); this guarantees a fresh daily backup for all of them.
+    # Runs 03:30 — after the 02:00 triage/run_backup and the 03:00 code-metrics scan.
+    # Retention: retention_prune.prune_modules keeps the newest 7 per module (nightly).
+    def _run_daily_module_backup():
+        import os as _os
+
+        from tools.backup_manager._shared import PLATFORM_DIR, backup_module
+
+        tools_dir = _os.path.join(PLATFORM_DIR, "tools")
+        exclude = {"__pycache__", "admin", "_deprecated"}
+        try:
+            names = sorted(
+                d
+                for d in _os.listdir(tools_dir)
+                if d not in exclude
+                and not d.startswith(".")
+                and not d.startswith("_")
+                and _os.path.isdir(_os.path.join(tools_dir, d))
+                and (
+                    _os.path.exists(_os.path.join(tools_dir, d, "routes.py"))
+                    or _os.path.exists(_os.path.join(tools_dir, d, "__init__.py"))
+                )
+            )
+        except OSError as e:
+            logger.error("[DailyModuleBackup] cannot list modules: %s", e)
+            return
+        ok = fail = 0
+        for name in names:
+            try:
+                res = backup_module(name)
+                if res and res.get("success"):
+                    ok += 1
+                else:
+                    fail += 1
+                    logger.warning("[DailyModuleBackup] %s failed: %s", name, (res or {}).get("error"))
+            except Exception as e:
+                fail += 1
+                logger.warning("[DailyModuleBackup] %s raised: %s", name, e)
+        logger.info("[DailyModuleBackup] done — %d ok, %d failed of %d modules", ok, fail, len(names))
+
+    scheduler.add_job(
+        with_ctx(_run_daily_module_backup),
+        trigger=CronTrigger(hour=3, minute=30, timezone="America/Toronto"),
+        id="daily_module_backup",
+        name="Agent Loop: Daily Module Backup (all modules)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     # Job #61 — F.O.R.G.E. PR Poll (every 4h) — sync open PRs from GitHub into pr_reviews
     def _run_forge_pr_poll():
         import time as _fpp_t

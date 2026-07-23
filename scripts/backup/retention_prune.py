@@ -244,10 +244,17 @@ echo $deleted
 # for why a RETENTION entry would silently match nothing).
 PREDEPLOY_KEEP = 3
 
+# Newest N module backups kept PER module in PRIMARY_ROOT/modules/ (owner ask 2026-07-23:
+# every module backed up daily via the new daily_module_backup job → ~34/day; without a bound
+# they accumulate unbounded). The per-module flat layout cannot be expressed as a RETENTION
+# component (no run_dir/component shape) — see prune_modules(). (#5143)
+MODULE_KEEP = 7
+
 # Pre-deploy dirs that could NOT be deleted this run. main() turns a non-zero count into a
 # non-zero exit so backup_triage.sh cannot log "retention prune OK" over a prune that removed
 # nothing (#5030 — the fix shipped in #2378 did exactly that for a full day).
 _PREDEPLOY_FAILURES = 0
+_MODULE_FAILURES = 0
 
 # The container's view of PRIMARY_ROOT. Only meaningful when PRIMARY_ROOT is the real backup
 # root; a BACKUP_ROOT override (tests, DR drills) must NEVER cause an rm inside the container.
@@ -345,6 +352,85 @@ def prune_predeploy_snapshots(keep: int = PREDEPLOY_KEEP) -> int:
         else:
             global _PREDEPLOY_FAILURES
             _PREDEPLOY_FAILURES += 1
+    return deleted
+
+
+def _remove_module_dir(mod_dir: Path) -> bool:
+    """Remove one module backup dir (host rmtree, container fallback for root-owned files).
+
+    Module backups are written from INSIDE archie_platform (backup_module()), so their files
+    land root:root and the unprivileged cron user cannot rmtree them — same problem and same
+    fix as _remove_predeploy_dir. mod_dir lives at PRIMARY_ROOT/modules/<name>, so the
+    container path is /backups/modules/<name>.
+    """
+    try:
+        shutil.rmtree(mod_dir)
+        return True
+    except OSError as exc:
+        print(f"prune: host rmtree failed ({exc}) — retrying inside archie_platform")
+
+    if PRIMARY_ROOT.resolve() != DEFAULT_PRIMARY_ROOT:
+        print(
+            f"prune: FAILED to remove {mod_dir}: BACKUP_ROOT is overridden "
+            f"({PRIMARY_ROOT}), refusing to rm inside the container"
+        )
+        return False
+
+    r = subprocess.run(
+        ["docker", "exec", "archie_platform", "rm", "-rf", "--", f"{CONTAINER_BACKUP_ROOT}/modules/{mod_dir.name}"],
+        capture_output=True,
+        text=True,
+    )
+    if mod_dir.exists():
+        print(
+            f"prune: FAILED to remove {mod_dir}: still present after container rm "
+            f"(rc={r.returncode} {(r.stderr or '').strip()[:160]})"
+        )
+        return False
+    return True
+
+
+def prune_modules(keep_per_module: int = MODULE_KEEP) -> int:
+    """Keep only the newest `keep_per_module` backups PER module in PRIMARY_ROOT/modules/.
+
+    backup_module() writes PRIMARY_ROOT/modules/<YYYYMMDD_HHMMSS>_module_<name>/ — a flat,
+    per-module layout with no run_dir/component shape, so prune_dir/RETENTION cannot express it
+    (a RETENTION entry would match nothing, exactly like pre-deploy snapshots). The new
+    daily_module_backup job backs up every module daily (~34/day), so without this they grow
+    unbounded. Group by module name; keep the newest N each; delete the rest WHOLE.
+
+    Orphan backup_log rows are left for the Backups tab's on-disk filter to hide — the same
+    convention every other pruner here follows (none of them touch backup_log).
+    """
+    mroot = PRIMARY_ROOT / "modules"
+    if not mroot.is_dir():
+        return 0
+    by_module: dict = {}
+    for child in mroot.iterdir():
+        if not child.is_dir():
+            continue
+        # <YYYYMMDD_HHMMSS>_module_<name> — fixed-width zero-padded prefix, so lexicographic
+        # order IS chronological (intra-day precision matters: the daily job + a same-day
+        # per-deploy backup land on the same date).
+        m = re.match(r"^(\d{8}_\d{6})_module_(.+)$", child.name)
+        if not m:
+            continue
+        by_module.setdefault(m.group(2), []).append((m.group(1), child))
+
+    global _MODULE_FAILURES
+    deleted = 0
+    for _name, runs in by_module.items():
+        runs.sort(key=lambda r: r[0], reverse=True)
+        for _ts, mod_dir in runs[keep_per_module:]:
+            if DRY_RUN:
+                print(f"[dry-run] would remove module backup {mod_dir}")
+                deleted += 1
+                continue
+            print(f"prune: removing module backup {mod_dir}")
+            if _remove_module_dir(mod_dir):
+                deleted += 1
+            else:
+                _MODULE_FAILURES += 1
     return deleted
 
 
@@ -561,11 +647,15 @@ def main() -> None:
     total_deleted += gdrive_deleted
     # Pre-deploy snapshots: whole-dir, count-based — they do not fit the component model.
     total_deleted += prune_predeploy_snapshots()
+    # Module backups: newest N PER module (flat per-module layout, see prune_modules). The daily
+    # all-modules job (#5143) makes bounding this a requirement, not optional.
+    module_deleted = prune_modules()
+    total_deleted += module_deleted
 
     if DRY_RUN:
         print(
             f"[dry-run] retention prune: {total_deleted} items WOULD be removed "
-            f"(primary + usb {usb_deleted}; gdrive {gdrive_deleted})"
+            f"(primary + usb {usb_deleted}; gdrive {gdrive_deleted}; modules {module_deleted})"
         )
         return
 
@@ -573,9 +663,11 @@ def main() -> None:
     # Backup Manager UI reflects THIS canonical engine (it was stale because the old module job
     # was the only writer — #4051). Undeletable pre-deploy snapshots go in the note too, so the
     # UI shows the shortfall instead of a clean "N deleted" that hides a stuck prune.
-    note = f"{total_deleted} deleted ({usb_deleted} usb, {gdrive_deleted} gdrive)"
+    note = f"{total_deleted} deleted ({usb_deleted} usb, {gdrive_deleted} gdrive, {module_deleted} modules)"
     if _PREDEPLOY_FAILURES:
         note += f", {_PREDEPLOY_FAILURES} pre-deploy FAILED"
+    if _MODULE_FAILURES:
+        note += f", {_MODULE_FAILURES} module FAILED"
     subprocess.run(
         [
             "docker",

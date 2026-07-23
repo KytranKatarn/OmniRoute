@@ -1754,12 +1754,24 @@
                 const actDiv = document.createElement('div');
                 actDiv.style.cssText = 'display:flex;justify-content:flex-end;padding:8px 0 4px;';
                 const restBtn = document.createElement('button');
-                restBtn.className = 'btn btn-orange';
-                restBtn.setAttribute('data-restore-btn', '1');
-                restBtn.textContent = 'Restore Pre-Deploy Snapshot';
-                restBtn.title = 'Restore the backup taken before this proposal was deployed';
-                const bname = d.backup_name;
-                restBtn.addEventListener('click', function() { if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; } previewRestore(bname); });
+                if (d.snapshot_exists) {
+                    restBtn.className = 'btn btn-orange';
+                    restBtn.setAttribute('data-restore-btn', '1');
+                    restBtn.textContent = 'Restore Pre-Deploy Snapshot';
+                    restBtn.title = 'Restore the backup taken before this proposal was deployed';
+                    const bname = d.backup_name;
+                    restBtn.addEventListener('click', function() { if (_bmRestoreActive) { showToast('A restore is in progress — please wait.', 'error'); return; } previewRestore(bname); });
+                } else {
+                    // Snapshot pruned by retention — the deploy row remains but the backup dir
+                    // is gone, so Restore would 404. Show it disabled instead of a dead button
+                    // (86% of rows were in this state; see #5142 follow-up).
+                    restBtn.className = 'btn';
+                    restBtn.disabled = true;
+                    restBtn.style.opacity = '0.5';
+                    restBtn.style.cursor = 'not-allowed';
+                    restBtn.textContent = 'Snapshot pruned by retention';
+                    restBtn.title = 'The pre-deploy snapshot for this deploy was removed by retention and can no longer be restored.';
+                }
                 actDiv.appendChild(restBtn);
                 item.appendChild(actDiv);
             }

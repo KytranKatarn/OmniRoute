@@ -643,10 +643,22 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                 )
                 total = (cur.fetchone() or {}).get("total") or 0
 
+            # Flag whether each pre-deploy snapshot still EXISTS on disk. Retention prunes the
+            # snapshot directory but leaves the improvement_deployments row, so most historical
+            # rows point at a backup that is gone (measured 55 of 64 / 86% pruned). The Deployment
+            # tab used to render a Restore button on ALL of them → those 404'd. The UI now disables
+            # Restore when this is False. This is the SOLE pre-deploy-snapshot UI since #2439 (#5142 f/u).
+            result = []
+            for d in deployments:
+                row = dict(d)
+                bn = row.get("backup_name")
+                row["snapshot_exists"] = bool(bn) and os.path.exists(os.path.join(BACKUP_DIR, bn))
+                result.append(row)
+
             return jsonify(
                 {
                     "success": True,
-                    "deployments": [dict(d) for d in deployments],
+                    "deployments": result,
                     "total": total,
                 }
             )

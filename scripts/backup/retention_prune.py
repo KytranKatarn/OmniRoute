@@ -418,6 +418,72 @@ def _gdrive_delete_files(ids: list) -> int:
     return 0
 
 
+_BUNDLE_RE = re.compile(r"^(?P<repo>.+?)_(?P<kind>incremental|full)_(?P<ts>\d{8}_\d{6})\.bundle(\.enc)?$")
+
+
+def _parse_bundle(name: str):
+    """('repo', 'full'|'incremental', 'YYYYMMDD_HHMMSS') for a gitbundle path, else None."""
+    parts = name.split("/")
+    if len(parts) < 3 or parts[1] != "gitbundles":
+        return None
+    m = _BUNDLE_RE.match(parts[-1])
+    if not m:
+        return None
+    return m.group("repo"), m.group("kind"), m.group("ts")
+
+
+def _pin_gitbundle_bases(files: list, delete_ids: list) -> int:
+    """Never delete a FULL git bundle that a RETAINED incremental still needs.
+
+    `component_gitbundle.sh` cuts INCREMENTAL bundles (`git bundle create --since=...`).
+    An incremental bundle CANNOT restore on its own — it needs the full bundle it was
+    cut against. But the GFS ladder keeps whole RUN DIRS by date, with no idea that a
+    bundle in one run dir depends on a bundle in an older one. So the ladder could
+    delete the run dir holding a repo's base full while keeping newer run dirs packed
+    with incrementals, leaving that repo UNRESTORABLE off-site — and silently, because
+    every individual file still lists fine and the tier looks healthy (#5129).
+
+    For each repo with retained incrementals, pin the newest full at-or-before the
+    OLDEST retained incremental (that is the base the chain actually needs). If no
+    full is old enough, pin the newest full available rather than deleting every base.
+
+    Mutates `delete_ids` in place; returns how many ids were rescued. Bounded: at most
+    one full per repo.
+    """
+    by_id = {}
+    for f in files:
+        parsed = _parse_bundle(f.get("name", ""))
+        if parsed:
+            by_id[f["id"]] = parsed
+
+    if not by_id:
+        return 0
+
+    doomed = set(delete_ids)
+    repos: dict = {}
+    for fid, (repo, kind, ts) in by_id.items():
+        repos.setdefault(repo, []).append((ts, kind, fid))
+
+    pinned = set()
+    for repo, entries in repos.items():
+        retained_incr = [ts for ts, kind, fid in entries if kind == "incremental" and fid not in doomed]
+        if not retained_incr:
+            continue  # nothing depends on a base for this repo
+        oldest_needed = min(retained_incr)
+        fulls = sorted([(ts, fid) for ts, kind, fid in entries if kind == "full"])
+        if not fulls:
+            continue  # no base exists at all — a pre-existing gap, not ours to invent
+        eligible = [(ts, fid) for ts, fid in fulls if ts <= oldest_needed]
+        base_ts, base_id = eligible[-1] if eligible else fulls[-1]
+        if base_id in doomed:
+            pinned.add(base_id)
+            print(f"gdrive: pinning base bundle for {repo} ({base_ts}) — retained incrementals need it")
+
+    if pinned:
+        delete_ids[:] = [i for i in delete_ids if i not in pinned]
+    return len(pinned)
+
+
 def prune_gdrive(dry_run: bool) -> int:
     """Apply the GFS ladder to the Google Drive tier by trashing old backup files.
 
@@ -463,6 +529,12 @@ def prune_gdrive(dry_run: bool) -> int:
                 keep = True
             if not keep:
                 delete_ids.extend(runs[run_name])
+
+    # Chain integrity: rescue any FULL bundle a retained incremental still needs.
+    # MUST run after the ladder has decided, and before anything is deleted (#5129).
+    rescued = _pin_gitbundle_bases(files, delete_ids)
+    if rescued:
+        print(f"gdrive: kept {rescued} base bundle(s) the ladder would have orphaned")
 
     if not delete_ids:
         return 0

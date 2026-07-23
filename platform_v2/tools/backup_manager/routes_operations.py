@@ -85,6 +85,12 @@ def register_operations_routes(bp, admin_required):  # noqa: F811
                     -- the on-disk filter is what bounds the output to what exists.
                     WHERE COALESCE(size_bytes, file_size_bytes, 0) > 0
                       AND COALESCE(backup_type, '') <> 'standalone'
+                      -- Pre-deploy snapshots (Repair Bay safety copies taken before a proposal
+                      -- deploy) are owned by the DEPLOYMENT tab (improvement_deployments). They
+                      -- were also flooding the TOP of this list (newest build numbers), burying
+                      -- the real nightly/weekly/manual restore points. Exclude them here so each
+                      -- tab owns its own content — nothing is lost, they remain in Deployment (#5142).
+                      AND COALESCE(notes, '') NOT LIKE 'Pre-deploy snapshot%'
                       AND (file_path IS NULL
                            OR file_path !~ '^/(backups|mnt/data2/backups|mnt/archie_brain/backups)/[^/]+/.+')
                     ORDER BY created_at DESC

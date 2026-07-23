@@ -4000,7 +4000,12 @@ class DepartmentDispatcher:
         try:
             from services.welfare_governance_service import hub_lane_over_cap
 
-            if _model_is_gpu_class(model) and hub_lane_over_cap():
+            # Pass capability + module_id so the gate applies the SLOT RESERVATION
+            # (#5132 f/u): while a mobility diversion is active, NON-prioritised 7B work
+            # is shed at cap-reserve, holding slots open for the favoured domain to run.
+            # Blanket callers (no args, e.g. the GPU-overflow escalation above) keep the
+            # full cap, so this is the only reservation-aware call.
+            if _model_is_gpu_class(model) and hub_lane_over_cap(capability=capability, module_id=module_id):
                 return {
                     "success": False,
                     "error": "hub saturated — 7B in-flight admission cap reached; shed to relieve the hub (retry shortly)",

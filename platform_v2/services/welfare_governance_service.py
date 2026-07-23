@@ -311,10 +311,40 @@ def effective_hub_lanes(extra_csv=None):
     return list(dict.fromkeys(list(HUB_CONTENDED_LANES) + extra))
 
 
+def reserved_cap_for(cap: int, reserve: int, mode: str, is_prioritised: bool) -> int:
+    """Pure: the effective in-flight cap for an INCOMING 7B job under a mobility profile.
+
+    Reserves ``reserve`` slots of the contended lane for the PRIORITISED domain by lowering
+    the admission cap for NON-prioritised work while a diversion (``news``/``platform``) is
+    active. This is what makes the A.R.M.A.D.A. buttons cause the favoured domain to actually
+    RUN, not merely queue first (#5132 follow-up): the drain reorder put platform work at the
+    HEAD of the queue, but a lane already saturated by news work had no free slot for it to
+    EXECUTE in. Holding R slots open fixes that.
+
+    - ``auto`` mode, OR a prioritised job → FULL ``cap`` (no change).
+    - a non-prioritised job under a diversion → ``cap - reserve``.
+
+    ``reserve`` is clamped to ``[0, cap-1]`` so a non-prioritised job ALWAYS keeps at least
+    one slot — a diversion favours a domain, it never totally locks the other one out.
+    """
+    if mode not in ("news", "platform") or is_prioritised:
+        return cap
+    try:
+        r = int(reserve)
+    except (TypeError, ValueError):
+        r = 0
+    r = max(0, min(r, cap - 1))
+    return cap - r
+
+
 def hub_lane_over_cap(
     cap_key: str = "dispatch:hub_inflight_max",
     default_cap: int = 8,
     window_minutes: int = 10,
+    capability: "Optional[str]" = None,
+    module_id: "Optional[str]" = None,
+    reserve_key: str = "dispatch:hub_reserve_slots",
+    default_reserve: int = 3,
 ) -> bool:
     """True when the hub-contended 7B lanes ALREADY have >= cap in-flight ``bridge_jobs`` — an
     AGGREGATE admission gate for the shared hub CPU (complements per-job_type
@@ -365,13 +395,51 @@ def hub_lane_over_cap(
             )
             r = cur.fetchone()
             in_flight = int(r["n"]) if r and r.get("n") is not None else 0
-            over = in_flight >= cap
+
+            # SLOT RESERVATION (#5132 f/u). Blanket callers (no capability/module_id — e.g.
+            # the GPU-overflow escalation at department_dispatcher ~L964) keep the FULL cap,
+            # so their behaviour is byte-identical. A classified caller (the hub shed-gate at
+            # ~L4003) computes an EFFECTIVE cap: while a diversion is active, NON-prioritised
+            # 7B work is admitted only up to cap-reserve, holding `reserve` slots open for the
+            # favoured domain to actually execute in. See reserved_cap_for().
+            eff_cap = cap
+            classified = capability is not None or module_id is not None
+            _mode = "auto"
+            if classified:
+                try:
+                    from services.fleet_dispatch_profile import (
+                        get_dispatch_mode,
+                        queue_row_gets_priority,
+                    )
+
+                    _mode = get_dispatch_mode()
+                    if _mode in ("news", "platform"):
+                        cur.execute("SELECT value FROM platform_settings WHERE key = %s", (reserve_key,))
+                        _rrow = cur.fetchone()
+                        try:
+                            reserve = (
+                                int(float(_rrow["value"]))
+                                if _rrow and _rrow.get("value") not in (None, "")
+                                else default_reserve
+                            )
+                        except (TypeError, ValueError):
+                            reserve = default_reserve
+                        _prioritised = queue_row_gets_priority(capability, module_id, _mode)
+                        eff_cap = reserved_cap_for(cap, reserve, _mode, _prioritised)
+                except Exception:
+                    eff_cap = cap  # fail-open to blanket cap on any classification error
+
+            over = in_flight >= eff_cap
             if over:
                 logger.info(
-                    "[HubAdmission] gating hub 7B lane: aggregate in-flight %d >= cap %d (key=%s, window=%dm)",
+                    "[HubAdmission] gating hub 7B lane: in-flight %d >= eff_cap %d "
+                    "(base=%d mode=%s cap_key=%s cap=%s window=%dm)",
                     in_flight,
+                    eff_cap,
                     cap,
+                    _mode,
                     cap_key,
+                    capability,
                     window_minutes,
                 )
             return over

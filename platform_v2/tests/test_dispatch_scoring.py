@@ -410,6 +410,58 @@ class TestHubAdmissionGeneralized:
         assert '"backpressure": True' in block
         assert '"success": False' in block
 
+    def test_gate_passes_classification_for_reservation(self):
+        # The shed-gate must hand capability+module_id to hub_lane_over_cap so the slot
+        # reservation (#5132 f/u) can favour the diverted domain. A revert to the no-arg
+        # blanket call silently disables the reservation while still "gating".
+        block = self._admission_block()
+        assert (
+            "hub_lane_over_cap(capability=capability, module_id=module_id)" in block
+        ), "shed-gate must pass classification so the reservation applies"
+
+
+class TestLaneReservation:
+    """Slot reservation (#5132 follow-up): while a mobility diversion is active, NON-prioritised
+    7B work is admitted only up to cap-reserve, holding `reserve` slots for the favoured domain
+    to actually EXECUTE in — not merely queue first. Pure math is fully unit-testable via
+    reserved_cap_for(); the DB path is exercised live in the PR."""
+
+    def _rc(self):
+        from services.welfare_governance_service import reserved_cap_for
+
+        return reserved_cap_for
+
+    def test_auto_never_reserves(self):
+        rc = self._rc()
+        assert rc(8, 3, "auto", False) == 8
+        assert rc(8, 3, "auto", True) == 8
+
+    def test_prioritised_job_gets_full_cap(self):
+        rc = self._rc()
+        assert rc(8, 3, "platform", True) == 8
+        assert rc(8, 3, "news", True) == 8
+
+    def test_non_prioritised_job_is_reserved_down(self):
+        rc = self._rc()
+        assert rc(8, 3, "platform", False) == 5  # news under platform mode
+        assert rc(8, 3, "news", False) == 5  # platform under news mode
+
+    def test_reserve_never_locks_the_lane(self):
+        # A diversion favours a domain; it must never totally starve the other.
+        rc = self._rc()
+        for reserve in (7, 8, 20, 999):
+            assert rc(8, reserve, "platform", False) >= 1
+
+    def test_bad_reserve_value_is_safe(self):
+        rc = self._rc()
+        assert rc(8, None, "platform", False) == 8  # unparseable → reserve 0 → full cap
+        assert rc(8, "x", "platform", False) == 8
+
+    def test_unknown_mode_is_full_cap(self):
+        rc = self._rc()
+        assert rc(8, 3, "", False) == 8
+        assert rc(8, 3, "bogus", False) == 8
+
 
 class TestAgentNameConsistency:
     """Regression guard for task #2164 Phase 1.

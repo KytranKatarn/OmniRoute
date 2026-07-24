@@ -377,16 +377,22 @@ async def list_agents_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
         return {"success": False, "error": "Database connection failed"}
 
     try:
+        # station_assignments was DROPPED (see the notes at the top of this module);
+        # this query still joined it and so raised UndefinedTable on EVERY call —
+        # list_agents was entirely broken. Agents belong to departments, and the
+        # surviving station link is bridge_stations.station_name = agents.department.
+        # assignment_type / shift_preference lived only on the dropped table and have
+        # no replacement, so they are gone rather than faked.
         query = """
             SELECT
                 a.id, a.name, a.first_name, a.last_name, a.title,
                 a.department, a.status, a.model, a.tier,
-                a.worker_type, a.cost_tier,
+                a.worker_type, a.cost_tier, a.shift_state,
                 bs.station_code, bs.station_name,
-                sa.assignment_type, sa.shift_preference
+                a.is_department_ai
             FROM agents a
-            LEFT JOIN station_assignments sa ON a.id = sa.agent_id AND sa.is_active = TRUE
-            LEFT JOIN bridge_stations bs ON sa.station_id = bs.id
+            LEFT JOIN bridge_stations bs
+                   ON bs.station_name = a.department AND bs.is_active = TRUE
             WHERE 1=1
         """
         params = []
@@ -1073,15 +1079,23 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
             # Get specific station
             cur.execute(
                 """
+                -- station_assignments was DROPPED; a station's crew is now derived from
+                -- bridge_stations.station_name = agents.department, and the station's
+                -- primary is the department AI. assignment_type/shift_preference/
+                -- is_fixed/role_type lived only on the dropped table, so they are
+                -- reported from the surviving model rather than invented.
                 SELECT
                     bs.id, bs.station_code, bs.station_name, bs.color, bs.icon,
                     a.id as agent_id, a.name as agent_name, a.title as agent_title,
                     a.department, a.status as agent_status,
-                    sa.assignment_type, sa.shift_preference, sa.is_fixed, sa.role_type
+                    a.is_department_ai, a.shift_state
                 FROM bridge_stations bs
-                LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
-                LEFT JOIN agents a ON sa.agent_id = a.id
+                LEFT JOIN agents a
+                       ON a.department = bs.station_name
+                      AND a.worker_type = 'ai'
+                      AND a.status = 'active'
                 WHERE bs.station_code = %s AND bs.is_active = TRUE
+                ORDER BY a.is_department_ai DESC NULLS LAST, a.name
             """,
                 (station_code.upper(),),
             )
@@ -1111,10 +1125,12 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
                             "title": r["agent_title"],
                             "department": r["department"],
                             "status": r["agent_status"],
-                            "assignment_type": r["assignment_type"],
-                            "shift_preference": r["shift_preference"],
-                            "is_fixed": r["is_fixed"],
-                            "role_type": r["role_type"],
+                            # The department AI is the station's primary; every other
+                            # agent in the department is auxiliary. This replaces the
+                            # dropped station_assignments.assignment_type.
+                            "assignment_type": ("primary" if r["is_department_ai"] else "auxiliary"),
+                            "is_department_ai": bool(r["is_department_ai"]),
+                            "shift_state": r["shift_state"],
                         }
                     )
 
@@ -1124,11 +1140,15 @@ async def get_station_assignments_handler(arguments: Dict[str, Any]) -> Dict[str
             # Get all stations
             cur.execute(
                 """
+                -- agent_count now counts the station's department crew (see above).
                 SELECT
                     bs.id, bs.station_code, bs.station_name, bs.color, bs.icon,
-                    COUNT(sa.id) as agent_count
+                    COUNT(a.id) as agent_count
                 FROM bridge_stations bs
-                LEFT JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
+                LEFT JOIN agents a
+                       ON a.department = bs.station_name
+                      AND a.worker_type = 'ai'
+                      AND a.status = 'active'
                 WHERE bs.is_active = TRUE
                 GROUP BY bs.id
                 ORDER BY bs.id

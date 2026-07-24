@@ -1521,12 +1521,21 @@ def api_module_agents():
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
             """
+            -- station_assignments was DROPPED; the surviving station->agent link is
+            -- bridge_stations.station_name = agents.department (verified: 16/16 active
+            -- stations match a department, each with exactly one is_department_ai).
+            -- Joining the dead table threw UndefinedTable, which the except below
+            -- swallowed into {"agent_name": None} — every module silently reported
+            -- "no agent" instead of its director. The department AI is the station's
+            -- primary, so it is ordered first.
             SELECT a.name AS agent_name, a.model, bs.station_code, a.status
             FROM bridge_stations bs
-            JOIN station_assignments sa ON bs.id = sa.station_id AND sa.is_active = TRUE
-            JOIN agents a ON sa.agent_id = a.id AND a.status = 'active'
+            JOIN agents a
+              ON a.department = bs.station_name
+             AND a.status = 'active'
+             AND a.worker_type = 'ai'
             WHERE bs.is_active = TRUE AND %s = ANY(bs.modules)
-            ORDER BY sa.priority
+            ORDER BY a.is_department_ai DESC NULLS LAST, a.tier ASC, a.id ASC
             LIMIT 1
         """,
             (module_id,),

@@ -6667,6 +6667,44 @@ def _power_cpu_rapl():
     return round((de / 1e6) / dt, 1), True
 
 
+def _power_ram_rapl():
+    """MEASURED DRAM watts via Intel RAPL dram-domain energy deltas (root-only file).
+    Returns (watts, ok); ok=False when no dram domain exists -> caller falls back to the estimate."""
+    dram = []
+    for sub in sorted(glob.glob("/sys/class/powercap/intel-rapl:*:*")):
+        try:
+            with open(os.path.join(sub, "name")) as f:
+                if f.read().strip() == "dram":
+                    dram.append(sub)
+        except OSError:
+            pass
+    if not dram:
+        return None, False
+
+    def _read():
+        tot, ok = 0, False
+        for p in dram:
+            try:
+                with open(os.path.join(p, "energy_uj")) as f:
+                    tot += int(f.read().strip())
+                    ok = True
+            except OSError:
+                pass
+        return tot, ok
+
+    e1, ok1 = _read()
+    if not ok1:
+        return None, False
+    t1 = time.time()
+    time.sleep(0.5)
+    e2, _ = _read()
+    dt = time.time() - t1
+    de = e2 - e1
+    if dt <= 0 or de < 0:  # non-positive interval or counter wraparound — skip this sample
+        return None, False
+    return round((de / 1e6) / dt, 1), True
+
+
 def _power_ram():
     """ESTIMATED RAM watts — populated DIMM count x ~4W (DDR3 ECC RDIMM; no sensor exists)."""
     out = _pwr_run(["dmidecode", "-t", "memory"])
@@ -6718,10 +6756,22 @@ def get_power(psu_watts=600, baseline_watts=50):
                 "detail": "RAPL package" if cpu_ok else "RAPL needs root",
             }
         )
-        dimms, ram_w = _power_ram()
-        comps.append(
-            {"name": "RAM", "watts": ram_w, "max_watts": None, "class": "estimated", "detail": "%d DIMMs x ~4W" % dimms}
-        )
+        ram_meas, ram_ok = _power_ram_rapl()
+        if ram_ok:
+            comps.append(
+                {"name": "RAM", "watts": ram_meas, "max_watts": None, "class": "measured", "detail": "RAPL dram domain"}
+            )
+        else:
+            dimms, ram_w = _power_ram()
+            comps.append(
+                {
+                    "name": "RAM",
+                    "watts": ram_w,
+                    "max_watts": None,
+                    "class": "estimated",
+                    "detail": "%d DIMMs x ~4W" % dimms,
+                }
+            )
         ndisks, disk_w = _power_disks()
         comps.append(
             {"name": "Disks", "watts": disk_w, "max_watts": None, "class": "estimated", "detail": "%d disks" % ndisks}

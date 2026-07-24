@@ -6717,18 +6717,30 @@ def _power_ram():
 
 
 def _power_disks():
-    """ESTIMATED disk watts — per physical disk by type (HDD ~7W, SSD/NVMe ~3W)."""
-    out = _pwr_run(["lsblk", "-dno", "NAME,TYPE,ROTA"])
+    """ESTIMATED disk watts by device class (no per-drive watt sensor exists):
+    USB/removable ~1W, NVMe ~6W, SATA/SAS HDD ~7W, SSD ~2.5W."""
+    out = _pwr_run(["lsblk", "-dno", "NAME,TYPE,ROTA,RM,TRAN"])
     watts, n = 0.0, 0
     for line in out.strip().splitlines():
         p = line.split()
-        if len(p) >= 3 and p[1] == "disk":
-            n += 1
-            watts += 7.0 if p[2] == "1" else 3.0
+        if len(p) < 2 or p[1] != "disk":
+            continue
+        n += 1
+        rota = p[2] if len(p) > 2 else "0"
+        rm = p[3] if len(p) > 3 else "0"
+        tran = p[4] if len(p) > 4 else ""
+        if tran == "usb" or rm == "1":
+            watts += 1.0  # USB flash / removable
+        elif tran == "nvme":
+            watts += 6.0  # NVMe SSD
+        elif rota == "1":
+            watts += 7.0  # spinning HDD
+        else:
+            watts += 2.5  # SATA/SAS SSD
     return n, round(watts, 1)
 
 
-def get_power(psu_watts=600, baseline_watts=50):
+def get_power(psu_watts=600, baseline_watts=35):
     """Server power draw for the KSO watts counter (#5140). MEASURED GPU (nvidia-smi) + CPU
     (RAPL, works because this daemon runs as root); ESTIMATED RAM/disks/baseline (no hardware
     sensor). Every figure carries its class (measured|estimated). FAIL-SAFE: any error returns
@@ -6776,13 +6788,21 @@ def get_power(psu_watts=600, baseline_watts=50):
         comps.append(
             {"name": "Disks", "watts": disk_w, "max_watts": None, "class": "estimated", "detail": "%d disks" % ndisks}
         )
+        # No sensor exists for board/chipset/fans on this box (hwmon exposes no
+        # power/current/fan readings, no RAPL psys, no IPMI), so this stays a
+        # load-aware ESTIMATE: a fixed board/chipset/fan base + the CPU VRM
+        # conversion loss (~15% of the measured CPU package; the board VRMs step
+        # 12V->Vcore at ~87% efficiency and that loss is otherwise uncounted --
+        # the GPU's own VRM loss is already inside nvidia-smi's card power).
+        cpu_vrm_loss = round((cpu_w or 0.0) * 0.15, 1) if cpu_ok else 0.0
+        board_w = round(baseline_watts + cpu_vrm_loss, 1)
         comps.append(
             {
                 "name": "Board+fans",
-                "watts": round(baseline_watts, 1),
+                "watts": board_w,
                 "max_watts": None,
                 "class": "estimated",
-                "detail": "fixed baseline",
+                "detail": "base %gW + CPU VRM loss %gW" % (baseline_watts, cpu_vrm_loss),
             }
         )
         total = round(sum(c["watts"] for c in comps), 1)

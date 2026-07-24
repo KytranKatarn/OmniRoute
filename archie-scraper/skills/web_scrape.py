@@ -2,6 +2,8 @@
 """Skill: web_scrape — General selector-based page extraction."""
 import logging
 
+from browser_pool import wait_for_render
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +22,9 @@ def run(page, url: str, params: dict, job_id: int) -> dict:
     # network-idle within 30s, so networkidle always timed out → every job failed.
     # DOM-parsed is enough for selector extraction; pass `wait_for` for JS-rendered bodies.
     page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    # Let JS-rendered SPAs (Canada Computers, Amazon) settle before extracting —
+    # bounded + non-fatal, so ad-heavy sites still proceed (#5152 slice 1b).
+    wait_for_render(page)
     logger.info("[web_scrape] job #%d: landed on %s", job_id, page.url[:120])
 
     # Google News RSS URLs use a JS redirect. If Playwright settles on the

@@ -2,6 +2,8 @@
 import logging
 import re
 
+from browser_pool import wait_for_render
+
 logger = logging.getLogger(__name__)
 
 _CURRENCY_RE = re.compile(r"[\$£€¥₹CAD\s]*[\d,]+\.?\d*")
@@ -19,7 +21,11 @@ def run(page, url: str, params: dict, job_id: int) -> dict:
     stock_sel = params.get("stock_selector") or "[class*='stock'],[class*='availability']"
     max_items = int(params.get("max_items") or 10)
 
-    page.goto(url, wait_until="networkidle", timeout=30000)
+    # domcontentloaded + bounded settle: networkidle NEVER settles on ad-heavy
+    # retail pages (30s timeout → job fails). The settle still gives JS-rendered
+    # prices a render window, without the hard failure (#5152 slice 1b).
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    wait_for_render(page)
     price_els = page.query_selector_all(price_sel)[:max_items]
     title_els = page.query_selector_all(title_sel)[:max_items]
     stock_els = page.query_selector_all(stock_sel)[:max_items]

@@ -15,6 +15,49 @@ SLOT_PROXIES: dict[int, str | None] = {
     2: os.getenv("SCOUT_PROXY_URL") or None,
 }
 
+# Anti-bot render foundation (#5152 slice 1): pages were loading with Playwright's
+# default "HeadlessChrome" UA + navigator.webdriver=true, which Amazon / Cloudflare
+# flag instantly (empty results). Give every context a realistic desktop-Chrome
+# fingerprint plus a small stealth init script so scraped pages render like a real
+# browser. UA is overridable via SCOUT_USER_AGENT.
+_DEFAULT_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+)
+_REALISTIC_UA = os.getenv("SCOUT_USER_AGENT") or _DEFAULT_UA
+_STEALTH_INIT_JS = (
+    "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+    "Object.defineProperty(navigator,'languages',{get:()=>['en-US','en']});"
+    "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3,4,5]});"
+    "window.chrome=window.chrome||{runtime:{}};"
+)
+
+
+def wait_for_render(page, timeout_ms: int | None = None) -> None:
+    """Best-effort settle for JS-rendered pages after a domcontentloaded goto (#5152 slice 1b).
+
+    Scrape skills navigate with wait_until='domcontentloaded' because networkidle
+    NEVER settles on ad/tracker-heavy sites and would fail the job. But a heavy SPA
+    (Canada Computers, Amazon) renders its content AFTER domcontentloaded, so
+    extraction finds nothing. This waits for the network to go quiet — BOUNDED and
+    NON-FATAL: it returns as soon as the page is idle, or after timeout_ms, and never
+    raises. So a SPA gets a render window without reintroducing the networkidle-forever
+    failure. Tunable via SCOUT_SETTLE_MS (default 3500ms); set 0 to disable.
+    """
+    if timeout_ms is None:
+        try:
+            timeout_ms = int(os.getenv("SCOUT_SETTLE_MS", "3500"))
+        except (TypeError, ValueError):
+            timeout_ms = 3500
+    if timeout_ms <= 0:
+        return
+    try:
+        page.wait_for_load_state("networkidle", timeout=timeout_ms)
+    except Exception:
+        # networkidle never reached within the window — expected on ad-heavy sites;
+        # proceed with whatever has rendered so far.
+        pass
+
 
 class BrowserPool:
     """
@@ -56,17 +99,36 @@ class BrowserPool:
             self._tls.pw = sync_playwright().start()
             self._tls.browser = self._tls.pw.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                args=[
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    # Anti-bot (#5152): drop the CDP "navigator.webdriver=true" tell.
+                    "--disable-blink-features=AutomationControlled",
+                ],
             )
             self._tls.context = None
             self._tls.page = None
 
     def _tls_open_page(self, proxy: str | None):
         """Open a fresh context+page in the current thread."""
-        ctx_opts: dict = {"viewport": {"width": 1280, "height": 800}}
+        # Realistic desktop-Chrome fingerprint (#5152): real UA / locale / timezone +
+        # Accept-Language so bot walls don't reject on the headless defaults.
+        ctx_opts: dict = {
+            "viewport": {"width": 1280, "height": 800},
+            "user_agent": _REALISTIC_UA,
+            "locale": "en-US",
+            "timezone_id": "America/Toronto",
+            "extra_http_headers": {"Accept-Language": "en-US,en;q=0.9"},
+        }
         if proxy:
             ctx_opts["proxy"] = {"server": proxy}
         self._tls.context = self._tls.browser.new_context(**ctx_opts)
+        # Hide the remaining automation tells (webdriver/plugins/languages/chrome)
+        # before any page script runs.
+        try:
+            self._tls.context.add_init_script(_STEALTH_INIT_JS)
+        except Exception:
+            pass
         self._tls.page = self._tls.context.new_page()
         return self._tls.page
 

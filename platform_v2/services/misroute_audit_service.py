@@ -76,12 +76,14 @@ _PAID_CLOUD_PROVIDERS = (
 # volume dilute a genuine failure rate below the alert threshold.
 # ``agent_jobs._check_cluster_saturation`` matches the same patterns and
 # raises the cluster_saturation advisory that is the correct home for
-# this signal. Keep the two lists in step.
-_BACKPRESSURE_ERROR_PATTERNS = (
-    "%hub saturated%",
-    "%admission cap%",
-    "%shed to relieve%",
-    "%backpressure%",
+# this signal.
+#
+# The list now lives in services.infra_failure_filter — the single source of
+# truth. It used to be duplicated here, and "keep the lists in step" was left to
+# discipline; the third consumer (kin_failure_standby) was never brought in step
+# and benched healthy agents as a result (#5165). Import, do not re-type.
+from services.infra_failure_filter import (  # noqa: E402
+    BACKPRESSURE_ERROR_PATTERNS as _BACKPRESSURE_ERROR_PATTERNS,
 )
 
 

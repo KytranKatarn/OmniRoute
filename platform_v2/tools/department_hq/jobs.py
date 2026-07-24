@@ -2055,26 +2055,19 @@ def _register_own_jobs(scheduler, flask_app):
     # it won't re-match next cycle (natural dedup). Runs every 15 min.
     def _run_kin_failure_standby():
         import json as _fj
+
         from database import get_db_cursor as _fdb
+        from services.kin_failure_standby import failing_agents as _failing_agents
 
         try:
             standby = []
             with _fdb(commit=True) as (_c, cur):
-                cur.execute(
-                    """
-                    SELECT a.id, a.name, COUNT(*) AS total,
-                           COUNT(*) FILTER (WHERE NOT tel.success) AS fails
-                    FROM agents a
-                    JOIN task_execution_log tel ON tel.agent_name = a.name
-                    WHERE a.worker_type='ai' AND a.shift_state='active'
-                      AND tel.created_at > NOW() - INTERVAL '1 hour'
-                      AND COALESCE(tel.model_used,'') <> 'internal'
-                    GROUP BY a.id, a.name
-                    HAVING COUNT(*) >= 5
-                       AND COUNT(*) FILTER (WHERE NOT tel.success)::float / COUNT(*) >= 0.5
-                    """
-                )
-                for o in cur.fetchall() or []:
+                # Candidate selection lives in services/kin_failure_standby.py so it can
+                # be tested (tests/test_kin_failure_standby_backpressure.py). It excludes
+                # hub admission-control sheds from BOTH the failure count and the
+                # dispatch count — those rows are capacity control, not agent defects
+                # (#5165). See services/infra_failure_filter.py for why.
+                for o in _failing_agents(cur):
                     aid, aname = o["id"], o["name"]
                     total, fails = int(o["total"]), int(o["fails"])
                     pct = round(100.0 * fails / total)

@@ -1990,13 +1990,48 @@ def _register_own_jobs(scheduler, flask_app):
                     """
                 )
                 freed_wind = [r["name"] for r in _ksr_cur.fetchall() or []]
-                total = len(freed_deployed) + len(freed_wind)
+                # BARRACKED-RESCUE (bug #5155): 'barracked' is the failure-standby
+                # bench and does NOT auto-recover — but agents also land there for
+                # NON-failure reasons (a fresh hire benched seconds after creation;
+                # a fleet-health/node-offline flap), then strand FOREVER. Hired
+                # capacity never reaches the dispatchable pool, so the staffing
+                # recommender re-proposes the same skill every cycle (News fact_check/
+                # bias_analysis re-proposed daily despite approvals). Recover a
+                # barracked agent ONLY when it is genuinely stuck (>10 min), carries
+                # NO recent failure-standby marker (agent_learning_records within 6h —
+                # the ONE thing that means it was benched for real failures, not
+                # stranded), has low stress, and has no active rest cycle. A truly-
+                # failing agent keeps its Academy/verification window and re-benches
+                # itself if it fails again after recovery — so this can't defeat the
+                # failure-standby, only the accidental strandings.
+                _ksr_cur.execute(
+                    """
+                    UPDATE agents a SET shift_state='active', updated_at=NOW()
+                     WHERE a.worker_type='ai' AND a.shift_state='barracked'
+                       AND a.status='active'
+                       AND a.updated_at < NOW() - INTERVAL '10 minutes'
+                       AND COALESCE((SELECT stress_level FROM agent_emotional_state
+                                       WHERE agent_id=a.id ORDER BY timestamp DESC LIMIT 1),0) < 0.70
+                       AND NOT EXISTS (SELECT 1 FROM agent_rest_cycles rc
+                                        WHERE rc.agent_id=a.id
+                                          AND (rc.ended_at IS NULL OR rc.ended_at > NOW()))
+                       AND NOT EXISTS (SELECT 1 FROM agent_learning_records lr
+                                        WHERE lr.agent_id=a.id
+                                          AND lr.learning_type='failure_standby'
+                                          AND lr.learned_at > NOW() - INTERVAL '6 hours')
+                    RETURNING name
+                    """
+                )
+                freed_barracked = [r["name"] for r in _ksr_cur.fetchall() or []]
+                total = len(freed_deployed) + len(freed_wind) + len(freed_barracked)
                 if total:
                     logger.info(
-                        "[DeptHQ] K.I.N. stuck-agent reaper: restored %d → active " "(deployed=%s, winding_down=%s)",
+                        "[DeptHQ] K.I.N. stuck-agent reaper: restored %d → active "
+                        "(deployed=%s, winding_down=%s, barracked=%s)",
                         total,
                         freed_deployed,
                         freed_wind,
+                        freed_barracked,
                     )
         except Exception as exc:
             logger.error("[DeptHQ] K.I.N. stuck-agent reaper failed: %s", exc)
@@ -2005,7 +2040,7 @@ def _register_own_jobs(scheduler, flask_app):
         with_ctx(_run_kin_stuck_agent_reaper),
         trigger=CronTrigger(minute="*/5", timezone="America/Toronto"),
         id="kin_stuck_agent_reaper",
-        name="K.I.N.: Reap stuck deployed/winding_down agents → active",
+        name="K.I.N.: Reap stuck deployed/winding_down/barracked agents → active",
         replace_existing=True,
     )
     logger.info("[DeptHQ] Registered kin_stuck_agent_reaper job (every 5 min)")

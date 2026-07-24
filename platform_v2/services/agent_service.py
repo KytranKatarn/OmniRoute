@@ -1431,9 +1431,13 @@ def transition_shift_state(agent_id, new_state, reason="manual", changed_by="sys
                 (agent_id, new_state, reason),
             )
 
-        # Update the agent's shift_state
+        # Update the agent's shift_state. Bump updated_at too (bug #5155): without
+        # it the single-writer left the row's timestamp stale, so a woken/transitioned
+        # agent showed a frozen "last updated" in the K.I.N. tab (V.I.S.A.G.E. read
+        # 8 days old right after being woken to active). The reaper's raw SQL already
+        # sets updated_at=NOW(); this makes the canonical writer consistent.
         cur.execute(
-            "UPDATE agents SET shift_state = %s WHERE id = %s",
+            "UPDATE agents SET shift_state = %s, updated_at = NOW() WHERE id = %s",
             (new_state, agent_id),
         )
 

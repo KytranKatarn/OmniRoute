@@ -371,6 +371,15 @@ def register_work_routes(bp, admin_required):
                     or (r["stress"] or 0) > 0.7
                     or overwork_level != "normal"
                     or agent_data["rest_approval_id"]
+                    # #5157: a BENCHED agent matches none of the above — it is not
+                    # resting (barracked has no rest cycle), not at-limit, and its
+                    # tokens/stress/overwork all read LOW precisely because it stopped
+                    # working. So it was filtered OUT of the payload entirely and never
+                    # reached the card renderer. Colouring the card (#2454) only helps
+                    # once the agent is in the list. An agent pulled off the floor that
+                    # does NOT self-recover is the single most important thing this tab
+                    # can show; it must never be filtered out for looking calm.
+                    or _benched
                 ):
                     agents.append(agent_data)
 
@@ -381,7 +390,15 @@ def register_work_routes(bp, admin_required):
             # Task #3799: rank by TOKEN load, not dispatch count. Welfare cards:
             # resting agents first, then heaviest token-budget consumers. Workload
             # table: heaviest 24h token consumers first.
-            agents.sort(key=lambda x: (not x["resting"], -x.get("token_ratio", 0.0)))
+            # THIS sort is authoritative — it runs after the query and overrides the
+            # SQL ORDER BY completely. #2454 added `(a.shift_state='barracked') DESC`
+            # to that ORDER BY and it could never take effect: a benched agent is
+            # `not resting` => True => sorted LAST, then -token_ratio pushed it last
+            # again (a benched agent has ~0 tokens because it stopped working). It
+            # rendered at position 13 of 14. Benched leads here for the same reason it
+            # leads in SQL: an agent off the floor that does NOT self-recover is the
+            # most urgent thing on this tab. Keep the two orderings in step.
+            agents.sort(key=lambda x: (not x.get("benched"), not x["resting"], -x.get("token_ratio", 0.0)))
             workload.sort(key=lambda x: x.get("tokens_24h", 0), reverse=True)
 
             last_reset = None

@@ -512,8 +512,27 @@ def get_pr_status(pr_number: int) -> Dict:
     }
 
 
-def _automerge_governance_ok(pr_number: int, repo: str = None) -> tuple:
+# Per-authority auto-merge ceilings. classify_pr_tier's own docstring reads
+# "tier 1 (F.O.R.G.E.), 2 (A.R.C.H.I.E.), 3 (Kytran)" — the tier ladder is an AUTHORITY
+# ladder, so the ceiling must be scoped to the ACTOR doing the merging. The first cut of
+# the #5194 gate read FORGE_AUTO_MERGE_MAX_TIER for every caller, which applied a
+# F.O.R.G.E.-scoped limit to A.R.C.H.I.E.'s Tier-2 COO path and silently removed the COO
+# from her own loop — flattening a three-actor model into "only F.O.R.G.E.-sized changes
+# ever merge". Safety properties (an approved verdict) are UNIVERSAL; authority limits
+# are PER-ACTOR.
+_AUTHORITY_CEILING = {
+    "forge": ("FORGE_AUTO_MERGE_MAX_TIER", 1),  # Engineering director — small changes
+    "coo": ("ARCHIE_COO_AUTO_MERGE_MAX_TIER", 2),  # A.R.C.H.I.E. — COO authority
+}
+_DEFAULT_AUTHORITY = "forge"  # most restrictive; an unknown caller never inherits COO powers
+
+
+def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = _DEFAULT_AUTHORITY) -> tuple:
     """Is an UNATTENDED merge of ``pr_number`` permitted? Returns ``(ok, reason)``.
+
+    ``authority`` names the ACTOR merging — ``'forge'`` (default, Tier 1) or ``'coo'``
+    (A.R.C.H.I.E., Tier 2). Tier 3 always escalates to Kytran and is never auto-merged.
+    An unrecognised authority falls back to the most restrictive ceiling.
 
     THE choke point for merge governance (#5194). Two independent conditions, both
     required:
@@ -553,23 +572,32 @@ def _automerge_governance_ok(pr_number: int, repo: str = None) -> tuple:
             )
 
         tier = classify_pr_tier(review)
+        env_key, default_ceiling = _AUTHORITY_CEILING.get(
+            (authority or "").lower(), _AUTHORITY_CEILING[_DEFAULT_AUTHORITY]
+        )
         try:
-            max_auto = int(os.getenv("FORGE_AUTO_MERGE_MAX_TIER", "1"))
+            max_auto = int(os.getenv(env_key, str(default_ceiling)))
         except (TypeError, ValueError):
-            max_auto = 1
+            max_auto = default_ceiling
         if tier > max_auto:
             return (
                 False,
-                f"PR #{pr_number} is Tier {tier} > FORGE_AUTO_MERGE_MAX_TIER={max_auto} "
-                f"— gated for human approval, refusing unattended merge",
+                f"PR #{pr_number} is Tier {tier} > {env_key}={max_auto} for authority "
+                f"{authority!r} — gated for the next level up, refusing unattended merge",
             )
-        return (True, f"approved, Tier {tier} <= {max_auto}")
+        return (True, f"approved, Tier {tier} <= {max_auto} under authority {authority!r}")
     except Exception as exc:  # fail CLOSED
         logger.warning("merge governance check failed for PR #%s (denying): %s", pr_number, exc)
         return (False, f"governance check errored for PR #{pr_number} — refusing unattended merge")
 
 
-def merge_pr(pr_number: int, method: str = "squash", repo: str = None, human_override: bool = False) -> Dict:
+def merge_pr(
+    pr_number: int,
+    method: str = "squash",
+    repo: str = None,
+    human_override: bool = False,
+    authority: str = _DEFAULT_AUTHORITY,
+) -> Dict:
     """Merge a pull request via PUT (GitHub requires PUT for merges).
 
     ``human_override=True`` skips the unattended-merge governance gate (#5194) and is
@@ -597,7 +625,7 @@ def merge_pr(pr_number: int, method: str = "squash", repo: str = None, human_ove
     # GOVERNANCE GATE (#5194) — checked BEFORE any GitHub call so a refusal costs
     # nothing and cannot race. Fails closed; see _automerge_governance_ok.
     if not human_override:
-        _gov_ok, _gov_why = _automerge_governance_ok(pr_number, repo)
+        _gov_ok, _gov_why = _automerge_governance_ok(pr_number, repo, authority=authority)
         if not _gov_ok:
             logger.warning("[MergeGate] refusing PR #%s: %s", pr_number, _gov_why)
             return {

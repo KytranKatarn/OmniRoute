@@ -112,3 +112,65 @@ class TestFailsClosed:
             with patch(f"{mod}.classify_pr_tier", return_value=1):
                 ok, why = github_service._automerge_governance_ok(1)
         assert ok is False
+
+
+class TestPerAuthorityCeiling:
+    """The tier ladder is an AUTHORITY ladder: tier 1 F.O.R.G.E., 2 A.R.C.H.I.E., 3 Kytran.
+
+    The first cut of this gate read FORGE_AUTO_MERGE_MAX_TIER for every caller, so
+    A.R.C.H.I.E.'s Tier-2 COO path inherited F.O.R.G.E.'s Tier-1 ceiling and was always
+    refused — silently removing the COO from her own loop. Safety (an approved verdict) is
+    UNIVERSAL; the ceiling is PER-ACTOR.
+    """
+
+    def _run(self, tier, authority, env=None):
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=_review(_APPROVED)):
+            with patch(f"{mod}.classify_pr_tier", return_value=tier):
+                with patch.dict("os.environ", env or {}, clear=False):
+                    return github_service._automerge_governance_ok(1, authority=authority)
+
+    def test_coo_may_merge_tier_2(self):
+        ok, why = self._run(2, "coo")
+        assert ok is True, why
+
+    def test_forge_may_not_merge_tier_2(self):
+        ok, why = self._run(2, "forge")
+        assert ok is False
+        assert "FORGE_AUTO_MERGE_MAX_TIER" in why
+
+    def test_forge_may_still_merge_tier_1(self):
+        ok, why = self._run(1, "forge")
+        assert ok is True, why
+
+    def test_tier_3_is_refused_even_for_the_coo(self):
+        # Tier 3 is Kytran's. No delegated authority reaches it.
+        ok, why = self._run(3, "coo")
+        assert ok is False
+        assert "Tier 3" in why
+
+    def test_unknown_authority_falls_back_to_most_restrictive(self):
+        # An unrecognised caller must never inherit COO powers.
+        ok, _ = self._run(2, "some_new_agent")
+        assert ok is False
+
+    def test_default_authority_is_forge(self):
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=_review(_APPROVED)):
+            with patch(f"{mod}.classify_pr_tier", return_value=2):
+                ok, _ = github_service._automerge_governance_ok(1)  # no authority passed
+        assert ok is False
+
+    def test_coo_ceiling_is_independently_tunable(self):
+        # Her ceiling is HERS — not a FORGE_-scoped setting.
+        ok, _ = self._run(3, "coo", env={"ARCHIE_COO_AUTO_MERGE_MAX_TIER": "3"})
+        assert ok is True
+
+    def test_verdict_gate_is_universal_across_authorities(self):
+        """COO authority buys tier headroom, never a pass on a non-approval."""
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=_review(_NEEDS_CHANGES)):
+            with patch(f"{mod}.classify_pr_tier", return_value=2):
+                ok, why = github_service._automerge_governance_ok(1, authority="coo")
+        assert ok is False
+        assert "not an approval" in why

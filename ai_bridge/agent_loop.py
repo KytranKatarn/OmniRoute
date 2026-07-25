@@ -8684,7 +8684,11 @@ class AgentLoop:
                         )
 
                 elif tier == 2:
-                    result = merge_pr(pr_num, "squash")
+                    # Tier 2 is A.R.C.H.I.E. exercising COO authority — declare it so the
+                    # governance gate applies HER ceiling (ARCHIE_COO_AUTO_MERGE_MAX_TIER)
+                    # and not F.O.R.G.E.'s. Passing no authority here silently clamped the
+                    # COO out of her own loop.
+                    result = merge_pr(pr_num, "squash", authority="coo")
                     if result.get("merged"):
                         _mark_tier_processed(pr_num, tier=2)
                         send_info(

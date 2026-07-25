@@ -136,18 +136,90 @@ git commit -m "feat(db): migration 463 — pr_domain_approvals table"
 - [ ] **Step 1: Write the failing test**
 
 ```python
-"""Path -> owning department resolution (department approval authority, Phase 1)."""
+"""Path -> owning department resolution (department approval authority, Phase 1).
+
+This decides WHICH DIRECTOR IS ASKED TO APPROVE A PR, so a wrong rule does not fail
+loudly — it quietly routes a decision to someone with no standing to make it. The
+owner-redlined calls and the ordering traps therefore get their own pinning tests.
+"""
 
 from tools.repair_bay.services.pr_domain_ownership import (
     DEFAULT_DEPARTMENT,
+    OWNERSHIP_RULES,
     resolve_owning_departments,
 )
+
+# The 17 canonical values of agents.department, read from the live table 2026-07-25.
+# agents.department is constrained to exactly these, so a rule naming anything else
+# resolves to a department that cannot be looked up — a silent no-approver.
+CANONICAL_DEPARTMENTS = frozenset({
+    "Analytics & Intelligence", "Creative & Design", "Customer Success & Support",
+    "Diplomatic & External Relations", "Documentation & Knowledge",
+    "Engineering & Technology", "Executive Office", "Finance & Accounting",
+    "Human Resources & Culture", "Legal & Regulatory", "Logistics & Supply Chain",
+    "Marketing & Communications", "Medical & Wellness", "News & Media",
+    "Operations & Infrastructure", "Research & Development", "Security & Compliance",
+})
+
+
+class TestOwnerRedlines:
+    """Calls Kytran made explicitly. Changing these needs another owner decision."""
+
+    def test_agent_academy_is_hr_not_rnd(self):
+        out = resolve_owning_departments(["platform_v2/tools/agent_academy/routes.py"])
+        assert "Human Resources & Culture" in out
+        assert "Research & Development" not in out
+
+    def test_account_center_is_security_not_support(self):
+        out = resolve_owning_departments(["platform_v2/tools/account_center/routes.py"])
+        assert "Security & Compliance" in out
+        assert "Customer Success & Support" not in out
+
+    def test_migrations_fall_to_the_default_owner(self):
+        # A migration cannot be regexed to the department owning the table; guessing
+        # would be worse than Engineering. Deliberate, not an oversight.
+        out = resolve_owning_departments(["database/migrations/463_whatever.sql"])
+        assert list(out) == [DEFAULT_DEPARTMENT]
+
+
+class TestOrderingTraps:
+    """Rules are first-match-wins, so these pairs are order-dependent by construction."""
+
+    def test_welfare_governance_beats_the_broad_welfare_rule(self):
+        # C.R.E.E.D. grades the ORG on workforce treatment; K.I.N. runs the breaks.
+        # Different accountability ⇒ different approver.
+        out = resolve_owning_departments(
+            ["platform_v2/services/welfare_governance_service.py"]
+        )
+        assert "Legal & Regulatory" in out
+        assert "Human Resources & Culture" not in out
+
+    def test_department_hq_splits_three_ways(self):
+        # DHQ is not one domain: it holds fleet ops, the K.I.N. tab, and the dispatcher.
+        out = resolve_owning_departments([
+            "platform_v2/tools/department_hq/fleet_node_routes.py",
+            "platform_v2/tools/department_hq/work_routes.py",
+            "platform_v2/tools/department_hq/services/department_dispatcher.py",
+        ])
+        assert out["Operations & Infrastructure"] == [
+            "platform_v2/tools/department_hq/fleet_node_routes.py"
+        ]
+        assert out["Human Resources & Culture"] == [
+            "platform_v2/tools/department_hq/work_routes.py"
+        ]
+        assert out["Engineering & Technology"] == [
+            "platform_v2/tools/department_hq/services/department_dispatcher.py"
+        ]
+
+    def test_first_matching_rule_wins(self):
+        # rbac.py is security even though it also lives under platform_v2/.
+        out = resolve_owning_departments(["platform_v2/rbac.py"])
+        assert "Engineering & Technology" not in out
 
 
 class TestResolution:
     def test_security_paths_route_to_vigil(self):
         out = resolve_owning_departments(["platform_v2/rbac.py"])
-        assert "Security & Compliance" in out
         assert out["Security & Compliance"] == ["platform_v2/rbac.py"]
 
     def test_welfare_paths_route_to_kin(self):
@@ -172,10 +244,16 @@ class TestResolution:
         # The CALLER decides what an empty change list means; the resolver does not guess.
         assert resolve_owning_departments([]) == {}
 
-    def test_first_matching_rule_wins(self):
-        # rbac.py is security even though it also lives under platform_v2/.
-        out = resolve_owning_departments(["platform_v2/rbac.py"])
-        assert "Engineering & Technology" not in out
+
+class TestDepartmentNameIntegrity:
+    """A typo here yields a department nobody can be looked up for — fail it at test time."""
+
+    def test_every_rule_names_a_canonical_department(self):
+        named = {dept for _, dept in OWNERSHIP_RULES}
+        assert named <= CANONICAL_DEPARTMENTS, named - CANONICAL_DEPARTMENTS
+
+    def test_default_department_is_canonical(self):
+        assert DEFAULT_DEPARTMENT in CANONICAL_DEPARTMENTS
 ```
 
 - [ ] **Step 2: Run it to verify it fails**
@@ -202,22 +280,74 @@ from typing import Dict, List
 
 DEFAULT_DEPARTMENT = "Engineering & Technology"
 
-# (regex, department). Ordered: first match wins. Department strings MUST match
-# agents.department exactly — it is constrained to the 17 canonical names.
+# (regex, department). Ordered: FIRST MATCH WINS. Department strings MUST match
+# agents.department exactly — it is constrained to the 17 canonical names, verified
+# against the live table 2026-07-25.
+#
+# OWNER-REDLINED 2026-07-25. Three calls made explicitly by Kytran:
+#   • Agent Academy is HR, not R&D — training is a people function.
+#   • Account Center is Security, not Support — it is permissions, keys and sessions.
+#   • database/migrations/ stays on the DEFAULT owner; a migration cannot be regexed
+#     to the department that owns the table, and guessing would be worse than Engineering.
+# Executive Office, Logistics & Supply Chain and Diplomatic & External Relations own
+# NO paths by design: A.R.C.H.I.E. is the ESCALATION target, not a path owner, and the
+# other two have no in-repo surface. R&D likewise owns nothing once Academy moved to HR.
 OWNERSHIP_RULES = (
+    # --- Security & Compliance (V.I.G.I.L., S.H.I.E.L.D.) ---
     (r"^platform_v2/rbac\.py$", "Security & Compliance"),
     (r"^platform_v2/services/auth_", "Security & Compliance"),
     (r"^platform_v2/tools/security_network/", "Security & Compliance"),
-    (r"^platform_v2/services/welfare", "Human Resources & Culture"),
-    (r"^platform_v2/tools/department_hq/", "Human Resources & Culture"),
-    (r"^platform_v2/tools/consciousness/", "Documentation & Knowledge"),
+    (r"^platform_v2/tools/account_center/", "Security & Compliance"),
+    (r"^secrets/", "Security & Compliance"),
+    # --- Finance & Accounting (L.E.D.G.E.R., C.H.A.I.N.) ---
+    (r"^platform_v2/services/stripe_service\.py$", "Finance & Accounting"),
+    (r"^platform_v2/services/billing_", "Finance & Accounting"),
+    (r"^platform_v2/services/subscription_service\.py$", "Finance & Accounting"),
+    # --- Operations & Infrastructure (B.A.S.E., W.A.R.D.E.N., A.R.M.A.D.A.) ---
+    (r"^platform_v2/tools/backup_manager/", "Operations & Infrastructure"),
+    (r"^platform_v2/services/backup_", "Operations & Infrastructure"),
+    (r"^scripts/backup/", "Operations & Infrastructure"),
+    (r"^scripts/dr/", "Operations & Infrastructure"),
+    (r"^docker-compose", "Operations & Infrastructure"),
+    (r"^node_client/", "Operations & Infrastructure"),
+    (r"^platform_v2/tools/department_hq/fleet_", "Operations & Infrastructure"),
+    (r"^standalone/media_hub/", "Operations & Infrastructure"),  # M.A.V.E.N. is Ops
+    # --- Marketing & Communications (S.I.G.N.A.L.) ---
+    (r"^platform_v2/services/signal_", "Marketing & Communications"),
+    (r"^website/", "Marketing & Communications"),  # 1,714 files — the public sites
+    # --- Analytics & Intelligence (S.P.E.C.T.R.A., W.A.T.C.H., S.C.O.U.T.) ---
+    (r"^platform_v2/services/browser_", "Analytics & Intelligence"),
+    (r"^platform_v2/services/egress_", "Analytics & Intelligence"),
+    (r"^archie-scraper/", "Analytics & Intelligence"),  # S.C.O.U.T.'s scraper + proxy_selector
+    # --- Legal & Regulatory (G.A.V.E.L., E.T.H.O.S.) ---
+    # ORDERING TRAP: welfare_governance* MUST stay above the broad welfare* rule below.
+    # C.R.E.E.D. grades the ORG on how it treats the workforce; K.I.N. runs the breaks.
+    # Different accountability, so different approver — and the broad rule would swallow it.
+    (r"^platform_v2/services/welfare_governance", "Legal & Regulatory"),
     (r"^platform_v2/tools/creed_command/", "Legal & Regulatory"),
-    (r"^platform_v2/tools/agent_academy/", "Research & Development"),
+    # --- Human Resources & Culture (K.I.N.) ---
+    (r"^platform_v2/services/welfare", "Human Resources & Culture"),
+    (r"^platform_v2/services/agent_service\.py$", "Human Resources & Culture"),
+    (r"^platform_v2/tools/agent_academy/", "Human Resources & Culture"),
+    (r"^platform_v2/tools/department_hq/work_routes\.py$", "Human Resources & Culture"),
+    # --- Medical & Wellness (V.I.T.A.L., F.A.I.T.H.) ---
+    (r"^platform_v2/tools/(fitness|therapy|doc|faith)/", "Medical & Wellness"),
+    # --- Creative & Design (M.U.S.E.) ---
     (r"^platform_v2/tools/media_studio/", "Creative & Design"),
+    # --- News & Media (F.A.C.T.) ---
     (r"^platform_v2/tools/wtf_hub/", "News & Media"),
+    (r"^what-the-fact/", "News & Media"),
+    # --- Customer Success & Support (R.E.S.O.L.V.E.) ---
     (r"^platform_v2/tools/email_manager/", "Customer Success & Support"),
+    # --- Documentation & Knowledge (C.O.D.E.X.) ---
+    (r"^platform_v2/tools/consciousness/", "Documentation & Knowledge"),
+    (r"^docs/", "Documentation & Knowledge"),
+    (r"^\.claude/rules/", "Documentation & Knowledge"),
+    # --- Engineering & Technology (F.O.R.G.E., P.R.O.B.E.) — also the DEFAULT ---
     (r"^ai_bridge/", "Engineering & Technology"),
     (r"^platform_v2/tools/repair_bay/", "Engineering & Technology"),
+    (r"^platform_v2/tools/department_hq/services/", "Engineering & Technology"),
+    (r"^platform_v2/tests/", "Engineering & Technology"),
 )
 
 _COMPILED = tuple((re.compile(pattern), dept) for pattern, dept in OWNERSHIP_RULES)
@@ -247,7 +377,41 @@ def resolve_owning_departments(paths: List[str]) -> Dict[str, List[str]]:
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `docker exec -w /app archie_platform python3 -m pytest tests/test_pr_domain_ownership.py -q`
-Expected: 7 passed
+Expected: 14 passed
+
+(The rules table and this test file were extracted from THIS document and executed
+together on 2026-07-25 — 14 passed — so the ordering traps are known-good before
+implementation starts. Re-run here anyway; a plan that has been read is not a test
+that has been run.)
+
+**Measured against all 5,610 tracked files** the same day, which is how three rules got
+fixed before anyone wrote code: `website/` (1,714 files) was falling to Engineering
+instead of Marketing, `what-the-fact/` to Engineering instead of News & Media, and the
+`proxy_selector` rule pointed at `platform_v2/services/` when the file actually lives in
+`archie-scraper/` — a rule that could never have matched anything. Resulting split:
+
+| Files | Department |
+|---:|---|
+| 2,515 | Engineering & Technology (incl. the default) |
+| 1,810 | Marketing & Communications |
+| 509 | Documentation & Knowledge |
+| 297 | News & Media |
+| 229 | Operations & Infrastructure |
+| 79 | Security & Compliance |
+| 48 | Analytics & Intelligence |
+| 38 | Creative & Design |
+| 31 | Customer Success & Support |
+| 24 | Medical & Wellness |
+| 16 | Human Resources & Culture |
+| 11 | Legal & Regulatory |
+| 3 | Finance & Accounting |
+
+Engineering still carries 45% of files, down from 85% before those fixes. That is the
+honest ceiling of a path map: most of the repo IS engineering code, and F.O.R.G.E. is
+the engineering director. Only `^secrets/` matches zero tracked files — deliberately, as
+secrets are gitignored; the rule stands as defence-in-depth if one is ever committed.
+Re-run this measurement whenever rules change — a rule matching nothing is either a typo
+or a path that moved, and both are invisible without it.
 
 - [ ] **Step 5: Commit**
 

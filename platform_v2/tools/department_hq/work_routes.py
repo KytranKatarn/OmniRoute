@@ -40,11 +40,20 @@ def register_work_routes(bp, admin_required):
                         -- keeps showing its bench-time snapshot. Without the timestamp
                         -- the UI cannot tell a live reading from a frozen one.
                         ae.timestamp        AS stats_updated_at,
+                        -- Age computed HERE, not in Python: agent_emotional_state.timestamp
+                        -- and agent_learning_records.learned_at are 'timestamp WITHOUT time
+                        -- zone' (they deviate from the platform's TIMESTAMPTZ convention),
+                        -- so `now_utc() - value` raises
+                        -- "can't subtract offset-naive and offset-aware datetimes" and 500s
+                        -- the whole tab. Postgres compares them in the session's UTC frame
+                        -- without that split. Do NOT move this back into Python.
+                        EXTRACT(EPOCH FROM (NOW() - ae.timestamp)) / 3600.0 AS stats_age_hours_sql,
                         -- #5157(3): a failure-benched agent (kin_failure_standby wrote an
                         -- Academy record) is a DIFFERENT situation from one that merely
                         -- stranded in 'barracked'. The operator needs to tell them apart:
                         -- one is under verification, the other is an accident.
                         lb.learned_at       AS benched_at,
+                        EXTRACT(EPOCH FROM (NOW() - lb.learned_at)) / 3600.0 AS bench_age_hours_sql,
                         ab.current_task_count AS task_count,
                         ab.task_queue_limit   AS task_limit,
                         ab.token_limit_per_day AS token_limit_per_day,
@@ -57,7 +66,11 @@ def register_work_routes(bp, admin_required):
                         ap.canonical_image_path AS avatar_path
                     FROM agents a
                     LEFT JOIN LATERAL (
-                        SELECT stress_level, energy_level, current_mood
+                        -- `timestamp` must be SELECTed, not merely ORDERed BY: the outer
+                        -- query reads ae.timestamp for stat-freshness (#5157) and a
+                        -- LATERAL only exposes its select list. Omitting it raises
+                        -- "column ae.timestamp does not exist" and 500s the whole tab.
+                        SELECT stress_level, energy_level, current_mood, timestamp
                         FROM agent_emotional_state
                         WHERE agent_id = a.id
                         ORDER BY timestamp DESC LIMIT 1
@@ -286,20 +299,18 @@ def register_work_routes(bp, admin_required):
                 # act: a failure-standby record within the Academy window means "under
                 # verification"; its absence means the agent stranded there (#5155) and
                 # is simply lost. The UI must never render either as a healthy agent.
-                from services.time_utils import now_utc as _now_utc
-
                 _benched = r["shift_state"] == "barracked"
                 _benched_at = r.get("benched_at")
                 _bench_age_h = None
-                if _benched_at:
-                    _bench_age_h = round((_now_utc() - _benched_at).total_seconds() / 3600.0, 1)
+                if r.get("bench_age_hours_sql") is not None:
+                    _bench_age_h = round(float(r["bench_age_hours_sql"]), 1)
                 # #5157(2): the welfare loop advances ACTIVE agents only, so a benched
                 # agent's stress/energy/mood freeze at the bench-time snapshot. Surface
                 # the age so a frozen reading is never mistaken for a live one.
                 _stats_at = r.get("stats_updated_at")
                 _stats_age_h = None
-                if _stats_at:
-                    _stats_age_h = round((_now_utc() - _stats_at).total_seconds() / 3600.0, 1)
+                if r.get("stats_age_hours_sql") is not None:
+                    _stats_age_h = round(float(r["stats_age_hours_sql"]), 1)
 
                 agent_data = {
                     "id": r["id"],

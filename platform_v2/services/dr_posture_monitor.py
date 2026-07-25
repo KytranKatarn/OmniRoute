@@ -32,6 +32,7 @@ hub-was-down pipeline). Full recipe: KB #272172 / ADR-006 (#726).
 """
 
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,29 @@ RETAINED_WAL_ALERT_BYTES = 5 * 1024**3  # 5 GiB ≈ under a day of incident-rate
 WAL_DIR_ALERT_BYTES = 10 * 1024**3  # normal is ~200MB-1GB; the incident hit 48GB
 REPLAY_LAG_ALERT_SECONDS = 600
 DR_BACKUP_STALE_HOURS = 48
+
+# Truthy spellings accepted for ARCHIE_DR_MODE. Compose sets "1"; the rest are here
+# so a hand-edited .env during an outage cannot silently fail to raise the alarm.
+_DR_ACTIVE_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def is_dr_active():
+    """True when THIS process is the boston-2 DR standby rather than the hub.
+
+    ``ARCHIE_DR_MODE=1`` is already set on both standby services in
+    ``scripts/dr/docker-compose.standby.yml`` (#3728, where it tags dispatches as
+    DRP-mode work in ``task_execution_log``), so ``failover.sh`` establishes this
+    signal for free — there is no new switch for anyone to remember to flip while
+    the hub is down, which is exactly when a manual step would get missed.
+
+    Read at call time and deliberately NOT cached. The value is fixed for a
+    container's lifetime, so caching would buy nothing measurable while making the
+    flag untestable and letting a stale value outlive a compose change.
+
+    Fail-safe **False**: an unset, empty or unrecognised value must never paint a
+    red alert across a healthy hub.
+    """
+    return os.getenv("ARCHIE_DR_MODE", "").strip().lower() in _DR_ACTIVE_VALUES
 
 
 def _fmt_gb(num_bytes):

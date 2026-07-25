@@ -156,6 +156,15 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   animation: lcarsElbowPulse 2.5s ease-in-out infinite;
 }
 
+/* RED ALERT — this process is the boston-2 DR standby: the hub is unreachable.
+   Outranks every other state (precedence note lives in lcars-header.js). Same red as
+   critical because it IS critical, but the fastest pulse in the set so a site
+   failover is distinguishable at a glance from an ordinary critical alert. */
+[data-alert-state="dr"] .lcars-header-elbow-bottom {
+  background: #ef4444;
+  animation: lcarsElbowPulse 0.7s ease-in-out infinite;
+}
+
 /* Compact on-theme label so the condition is not carried by colour alone —
    colour-blind users and anyone glancing past the elbow still get the message. */
 .lcars-divert-tag {
@@ -180,10 +189,29 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   display: inline-flex;
 }
 
+/* DR skin for the same tag. The condition is never carried by colour alone — the
+   label itself reads RED ALERT · STARBASE LOST COMMUNICATION — but the red and the
+   heavier weight stop it being mistaken for the yellow diversion at a glance. */
+.lcars-divert-tag.is-dr {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: #ef4444;
+  color: #ef4444;
+  font-weight: 700;
+}
+
 @media (max-width: 768px) {
   /* Keep the glyph + mode, drop the detail clause — the elbow still pulses. */
   .lcars-divert-tag .lcars-divert-detail {
     display: none;
+  }
+
+  /* The DR label is a full sentence and the tag is nowrap, so shrink it on narrow
+     screens rather than let it push the strip sideways. Losing the detail clause
+     above costs nothing here: the mode text already states the whole condition. */
+  .lcars-divert-tag.is-dr {
+    font-size: 0.58rem;
+    letter-spacing: 0.4px;
+    padding: 2px 6px;
   }
 }
 

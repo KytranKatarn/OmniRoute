@@ -140,17 +140,43 @@
 
   var _notifPollInterval = null;
 
-  /* -- AGENT MOBILITY PROFILE tag (Yellow Alert) --
-     Wording states what is ACTUALLY in effect rather than claiming a full redirect:
-     the profile currently biases warmth / routing / backlog, but NOT the
-     dispatch_pending_queue drain order (task #5132). Overstating here would make this
-     badge the same class of defect it exists to prevent. Drop the caveat once #5132
-     lands. All text via textContent — never innerHTML. */
-  function _renderDivertTag(mode, diverted) {
+  /* -- HEADER CONDITION TAG --
+     TWO different conditions share this one slot, and conflating them is the trap:
+
+       DR (red)       — this process is the boston-2 Citadel standby, i.e. the hub is
+                        UNREACHABLE. An OUTAGE. Comes from ARCHIE_DR_MODE, which
+                        failover.sh already sets on the standby containers (#3728).
+       DIVERTED (yel) — AGENT MOBILITY PROFILE biases warmth / routing / backlog toward
+                        a domain. A deliberate STANDING CONDITION chosen in A.R.M.A.D.A.
+
+     They are kept separate on purpose: simply recolouring the diversion red would fire
+     a false red alert every time the profile is set to 'platform' during perfectly
+     normal operation — the exact overstatement this tag was built to avoid.
+
+     Diversion wording states what is ACTUALLY in effect rather than claiming a full
+     redirect: the profile biases warmth / routing / backlog, but NOT the
+     dispatch_pending_queue drain order (task #5132). Drop that caveat once #5132 lands.
+     All text via textContent — never innerHTML. */
+  function _renderConditionTag(mode, diverted, drActive) {
     var tag = document.getElementById("lcarsDivertTag");
     if (!tag) return;
     var modeEl = document.getElementById("lcarsDivertMode");
     var detailEl = document.getElementById("lcarsDivertDetail");
+
+    if (drActive) {
+      if (modeEl) modeEl.textContent = "RED ALERT · STARBASE LOST COMMUNICATION";
+      if (detailEl) detailEl.textContent = "running on Citadel standby";
+      tag.title =
+        "RED ALERT — the hub (Starbase, 100.64.0.4) is unreachable and the platform " +
+        "is being served by the boston-2 Citadel warm standby. No GPU there: " +
+        "inference is CPU/cloud and degraded. Fail back once the hub returns.";
+      tag.classList.add("is-dr");
+      tag.classList.add("is-active");
+      return;
+    }
+
+    // Clear the DR skin unconditionally — a failback must not leave the tag red.
+    tag.classList.remove("is-dr");
     if (!diverted) {
       tag.classList.remove("is-active");
       return;
@@ -177,20 +203,29 @@
         var unread = counts.unread || 0;
         var critical = counts.critical || 0;
 
-        // Elbow state. Precedence: critical > diverted > normal. A real incident ALWAYS
-        // wins the light — the diversion is a standing condition, not an emergency, and
-        // must never mask one. When critical takes the elbow the diversion is still
-        // readable from the tag beside it, so no information is lost. (#5133)
+        // Elbow state. Precedence: dr > critical > diverted > normal.
+        //
+        // DR outranks even a critical alert because it is a SUPERSET condition: the
+        // primary site is gone, which is the context every other alert on the page
+        // should be read in. Nothing is lost by yielding the elbow — the critical
+        // count stays on the bell badge, and the tag beside the elbow names the
+        // condition in words.
+        //
+        // Below DR the original rule is unchanged: a real incident always beats the
+        // standing diversion, which is a preference and not an emergency. (#5133)
         var mode = data.dispatch_mode || "auto";
         var diverted = mode === "platform" || mode === "news";
-        if (critical > 0) {
+        var drActive = data.dr_mode === true; // strict — absent/undefined ⇒ hub-normal
+        if (drActive) {
+          lcarsSetAlertState("dr");
+        } else if (critical > 0) {
           lcarsSetAlertState("critical");
         } else if (diverted) {
           lcarsSetAlertState("diverted");
         } else {
           lcarsSetAlertState("normal");
         }
-        _renderDivertTag(mode, diverted);
+        _renderConditionTag(mode, diverted, drActive);
 
         // Update badge counts (strip + elbow)
         var badges = ["lcarsStripBadge", "lcarsNotifBadge"];

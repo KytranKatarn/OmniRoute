@@ -3747,6 +3747,22 @@ def clear_all_notifications():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _dr_mode_flag():
+    """``is_dr_active()`` that can never raise into the alert bell.
+
+    Its own try/except exists because this is called from BOTH the success and the
+    failure path of the alerts endpoint — including the path that already knows
+    something upstream is broken. A red-alert signal that can itself throw is worse
+    than no signal, so any error degrades to False (hub-normal) rather than 500.
+    """
+    try:
+        from services.dr_posture_monitor import is_dr_active
+
+        return is_dr_active()
+    except Exception:  # noqa: BLE001 — advisory only; never break the alert bell
+        return False
+
+
 @app.route("/api/alerts/unified", methods=["GET"])
 @login_required
 def api_alerts_unified():
@@ -3770,6 +3786,12 @@ def api_alerts_unified():
             result["dispatch_mode"] = get_dispatch_mode()
         except Exception:  # noqa: BLE001 — an advisory must never break the alert bell
             result["dispatch_mode"] = "auto"
+        # DR STANDBY rides the same poll, for the same reason. This is a DIFFERENT
+        # condition from dispatch_mode: 'diverted' is a deliberate routing preference,
+        # while dr_mode means the hub is GONE and this process is the boston-2 standby.
+        # Conflating them would make a normal 'platform' mobility profile scream red.
+        # Fail-safe → False. (#3728 sets ARCHIE_DR_MODE in the standby compose.)
+        result["dr_mode"] = _dr_mode_flag()
         return jsonify({"success": True, **result})
     except Exception as e:
         logger.error(f"Unified alerts error: {e}")
@@ -3780,6 +3802,10 @@ def api_alerts_unified():
                 "categories": {},
                 "counts": {"total": 0, "unread": 0, "critical": 0},
                 "dispatch_mode": "auto",
+                # Deliberately NOT hardcoded False: if the alert pipeline is broken
+                # DURING a failover, the red alert is the one thing that must still
+                # reach the header. _dr_mode_flag swallows its own errors.
+                "dr_mode": _dr_mode_flag(),
             }
         )
 

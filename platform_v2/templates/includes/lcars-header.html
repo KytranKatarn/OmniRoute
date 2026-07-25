@@ -64,13 +64,21 @@
         <span>ALERTS</span>
         <span class="lcars-strip-badge" id="lcarsStripBadge" style="display:none;">0</span>
       </button>
-      {# YELLOW ALERT — AGENT MOBILITY PROFILE diversion. Hidden until the alerts poll
-         reports a non-auto mode (lcars-header.js), so the normal shared state shows
-         nothing: a badge that is always present stops being read. Clicking goes to the
-         A.R.M.A.D.A. control that set it, so seeing the condition tells you where to
-         clear it. Text is written by JS via textContent — never innerHTML. (#5133) #}
+      {# HEADER CONDITION TAG — one slot, two DIFFERENT conditions, written by
+         lcars-header.js (_renderConditionTag):
+           • RED ALERT (.is-dr) — the hub is unreachable and this page is served by the
+             boston-2 Citadel standby (ARCHIE_DR_MODE, set by failover.sh).
+           • YELLOW (default)   — AGENT MOBILITY PROFILE diversion, a deliberate
+             routing preference chosen in A.R.M.A.D.A.
+         Do NOT collapse these into one styling: a diversion is normal operation, and
+         painting it red would make a red alert mean nothing.
+         Hidden until the alerts poll reports one of them, so the healthy state shows
+         nothing — a badge that is always present stops being read. Clicking goes to
+         the fleet view where both conditions are visible and the diversion is cleared.
+         Text is written by JS via textContent — never innerHTML. (#5133) #}
       <a class="lcars-divert-tag" id="lcarsDivertTag"
          href="/tools/department-hq#fleet"
+         role="status"
          title="Agent mobility profile is diverting the fleet — click to change in A.R.M.A.D.A."
          style="text-decoration:none;">
         <span aria-hidden="true">⟐</span>

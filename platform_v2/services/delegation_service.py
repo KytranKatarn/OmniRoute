@@ -1095,11 +1095,14 @@ def reclaim_stale_delegations(exclude_ids, idle_secs: int = 600, limit: int = 10
             row = cur.fetchone()
             prior = row["c"] if isinstance(row, dict) else row[0]
             if prior >= 2:
-                cur.execute(
-                    "UPDATE unified_tasks SET status = 'blocked', updated_at = now() WHERE id = %s",
-                    (tid,),
-                )
+                # Compute the reason BEFORE the write so it can be stamped onto the row.
+                # It was already being built here — it just never left work_notes, so the
+                # DHQ Dispatch panel showed "blocked" with nothing to explain it.
                 note = f"Gave up reclaiming stale in_progress task after {prior} attempts"
+                cur.execute(
+                    "UPDATE unified_tasks SET status = 'blocked', blockers = %s, " "updated_at = now() WHERE id = %s",
+                    (note, tid),
+                )
                 gave_up += 1
             else:
                 cur.execute(
@@ -1286,6 +1289,25 @@ def _capability_is_routable(capability: str) -> bool:
         return True  # fail-open
 
 
+def _blocker_reason(error: str, attempts: int, cap: int) -> str:
+    """One-line reason stamped onto ``unified_tasks.blockers`` when a task is blocked.
+
+    Deliberately never returns an empty string. An empty ``blockers`` is what made the
+    DHQ Dispatch panel unreadable: 17 tasks sat there marked blocked with no reason, so
+    a false block (work succeeded, status lied) looked exactly like a real failure. If a
+    caller hands us no error text, say THAT rather than write nothing — "no error text"
+    is itself a finding about the caller.
+
+    Truncated so a stack-trace-sized error cannot bloat every row it touches; the full
+    text is still written to ``work_notes`` by the caller.
+    """
+    detail = (error or "").strip() or "delegation failed with no error text reported"
+    if len(detail) > 400:
+        detail = detail[:397] + "..."
+    scope = f"attempt {attempts} of {cap}" if cap > 0 else f"attempt {attempts}"
+    return f"{detail} ({scope})"
+
+
 def mark_task_failed(task_id: int, error: str) -> None:
     """Record a delegate failure. After ``delegation:max_attempts`` failures the task is
     auto-dismissed (cancelled) rather than left 'blocked' — which the daily triage would
@@ -1309,7 +1331,17 @@ def mark_task_failed(task_id: int, error: str) -> None:
                 (attempts, task_id),
             )
         else:
-            cur.execute("UPDATE unified_tasks SET status = 'blocked' WHERE id = %s", (task_id,))
+            # Stamp the reason onto the row, not just work_notes. The DHQ Dispatch panel
+            # reads unified_tasks directly, so without this it renders "blocked" with no
+            # explanation and the owner has to go digging (or, in practice, cannot tell
+            # a real failure from a false one — see #5116/#5118, blocked while their QA
+            # work had actually succeeded).
+            # updated_at is bumped here too: the 'cancelled' branch above already does it,
+            # and the reclaim sweep orders by updated_at, so leaving it stale skewed that.
+            cur.execute(
+                "UPDATE unified_tasks SET status = 'blocked', blockers = %s, " "updated_at = now() WHERE id = %s",
+                (_blocker_reason(error, attempts, cap), task_id),
+            )
         cur.execute(
             """
             INSERT INTO work_notes (task_id, note_type, content, metadata)

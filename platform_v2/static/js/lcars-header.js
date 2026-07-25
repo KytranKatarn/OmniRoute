@@ -27,6 +27,38 @@
     }
   };
 
+  /* -- Elbow state arbitration --
+     TWO independent pollers drive one elbow: _pollNotifications (/api/alerts/unified —
+     DR, diversion, critical alerts) and _pollOpsSummary (/api/dispatch/ops-summary —
+     job errors, pending approvals). They ran on separate intervals and each called
+     lcarsSetAlertState() unconditionally, so whichever fired LAST won.
+
+     That silently broke the standing conditions: ops-summary knows nothing about DR or
+     diversion, so with no job errors and no approvals it set "normal" and CLEARED a red
+     DR elbow — while the tag beside it still read RED ALERT · STARBASE LOST
+     COMMUNICATION. Observed live 2026-07-25: the DR probe rendered the correct red DR
+     tag while the elbow sat on "critical" (ops), never reaching "dr".
+
+     Fix: neither poller sets the elbow directly. Each records ITS OWN inputs, then calls
+     _applyElbowState(), which resolves one precedence over all of them. Latest-writer no
+     longer wins; the ranking does. */
+  var _standingCondition = null; // 'dr' | 'diverted' | null  (from /api/alerts/unified)
+  var _alertsCritical = false; //   critical alert count > 0  (from /api/alerts/unified)
+  var _opsSeverity = "normal"; //   'critical'|'warning'|'normal' (from ops-summary)
+
+  function _resolveElbowState() {
+    // dr > critical (from EITHER source) > diverted > warning > normal.
+    if (_standingCondition === "dr") return "dr";
+    if (_alertsCritical || _opsSeverity === "critical") return "critical";
+    if (_standingCondition === "diverted") return "diverted";
+    if (_opsSeverity === "warning") return "warning";
+    return "normal";
+  }
+
+  function _applyElbowState() {
+    lcarsSetAlertState(_resolveElbowState());
+  }
+
   /* -- Toast Notifications -- */
 
   var _toastId = 0;
@@ -216,15 +248,9 @@
         var mode = data.dispatch_mode || "auto";
         var diverted = mode === "platform" || mode === "news";
         var drActive = data.dr_mode === true; // strict — absent/undefined ⇒ hub-normal
-        if (drActive) {
-          lcarsSetAlertState("dr");
-        } else if (critical > 0) {
-          lcarsSetAlertState("critical");
-        } else if (diverted) {
-          lcarsSetAlertState("diverted");
-        } else {
-          lcarsSetAlertState("normal");
-        }
+        _standingCondition = drActive ? "dr" : diverted ? "diverted" : null;
+        _alertsCritical = critical > 0;
+        _applyElbowState();
         _renderConditionTag(mode, diverted, drActive);
 
         // Update badge counts (strip + elbow)
@@ -510,14 +536,11 @@
         _opsLastSig = sig;
         sessionStorage.setItem(_SS_SIG, sig);
 
-        // Update elbow alert state based on ops severity (always update, no toasts needed)
-        if (errors > 0) {
-          lcarsSetAlertState("critical");
-        } else if (approvals > 0) {
-          lcarsSetAlertState("warning");
-        } else {
-          lcarsSetAlertState("normal");
-        }
+        // Record THIS poller's severity, then let the shared resolver decide. It must
+        // not write the elbow directly: "no job errors" is not evidence that the site
+        // is up, so clearing a DR or diversion condition from here was never correct.
+        _opsSeverity = errors > 0 ? "critical" : approvals > 0 ? "warning" : "normal";
+        _applyElbowState();
 
         // On first poll (page load), just record state — don't toast
         if (_opsFirstPoll) {

@@ -35,6 +35,16 @@ def register_work_routes(bp, admin_required):
                         ae.stress_level     AS stress,
                         ae.energy_level     AS energy,
                         ae.current_mood     AS mood,
+                        -- #5157(2): the welfare loop only advances ACTIVE agents, so a
+                        -- benched agent's emotional state stops updating and the card
+                        -- keeps showing its bench-time snapshot. Without the timestamp
+                        -- the UI cannot tell a live reading from a frozen one.
+                        ae.timestamp        AS stats_updated_at,
+                        -- #5157(3): a failure-benched agent (kin_failure_standby wrote an
+                        -- Academy record) is a DIFFERENT situation from one that merely
+                        -- stranded in 'barracked'. The operator needs to tell them apart:
+                        -- one is under verification, the other is an accident.
+                        lb.learned_at       AS benched_at,
                         ab.current_task_count AS task_count,
                         ab.task_queue_limit   AS task_limit,
                         ab.token_limit_per_day AS token_limit_per_day,
@@ -63,6 +73,14 @@ def register_work_routes(bp, admin_required):
                         WHERE agent_id = a.id AND (ended_at IS NULL OR ended_at > NOW())
                         ORDER BY started_at DESC LIMIT 1
                     ) rc ON TRUE
+                    LEFT JOIN LATERAL (
+                        -- Most recent failure-standby Academy record (kin_failure_standby).
+                        -- Present => benched for reliability; absent on a 'barracked' agent
+                        -- => it stranded there some other way (#5155).
+                        SELECT learned_at FROM agent_learning_records
+                        WHERE agent_id = a.id AND learning_type = 'failure_standby'
+                        ORDER BY learned_at DESC LIMIT 1
+                    ) lb ON TRUE
                     LEFT JOIN agent_portraits ap ON ap.agent_id = a.id
                     WHERE (a.worker_type = 'ai'
                            -- K.I.N. manages any agent with a budget row: external
@@ -70,6 +88,11 @@ def register_work_routes(bp, admin_required):
                            OR (a.worker_type = 'contractor' AND ab.agent_id IS NOT NULL))
                       AND a.shift_state != 'decommissioned'
                     ORDER BY
+                        -- #5157(3): a benched agent has NO active rest cycle, so under the
+                        -- old ordering it sorted BELOW every resting agent and blended into
+                        -- the tail of the list. Benched means "off the floor and not coming
+                        -- back on its own" — it outranks every other welfare condition.
+                        (a.shift_state = 'barracked') DESC,
                         (rc.rest_type IS NOT NULL) DESC,
                         (ab.current_task_count >= ab.task_queue_limit) DESC,
                         ae.stress_level DESC NULLS LAST
@@ -258,11 +281,40 @@ def register_work_routes(bp, admin_required):
                             token_recovery_eta_min = (_i + 1) * 60
                             break
 
+                # #5157(3): 'barracked' is the bench — off the floor and, unlike
+                # cooldown, NOT self-recovering. Split it by cause so the operator can
+                # act: a failure-standby record within the Academy window means "under
+                # verification"; its absence means the agent stranded there (#5155) and
+                # is simply lost. The UI must never render either as a healthy agent.
+                from services.time_utils import now_utc as _now_utc
+
+                _benched = r["shift_state"] == "barracked"
+                _benched_at = r.get("benched_at")
+                _bench_age_h = None
+                if _benched_at:
+                    _bench_age_h = round((_now_utc() - _benched_at).total_seconds() / 3600.0, 1)
+                # #5157(2): the welfare loop advances ACTIVE agents only, so a benched
+                # agent's stress/energy/mood freeze at the bench-time snapshot. Surface
+                # the age so a frozen reading is never mistaken for a live one.
+                _stats_at = r.get("stats_updated_at")
+                _stats_age_h = None
+                if _stats_at:
+                    _stats_age_h = round((_now_utc() - _stats_at).total_seconds() / 3600.0, 1)
+
                 agent_data = {
                     "id": r["id"],
                     "name": r["name"],
                     "department": r["department"],
                     "shift_state": r["shift_state"],
+                    "benched": _benched,
+                    # 'failure' => kin_failure_standby benched it; 'stranded' => it is
+                    # barracked with no failure record, i.e. an accident.
+                    "bench_reason": (("failure" if _benched_at else "stranded") if _benched else None),
+                    "bench_age_hours": _bench_age_h if _benched else None,
+                    "stats_updated_at": (_stats_at.isoformat() + "Z" if _stats_at else None),
+                    "stats_age_hours": _stats_age_h,
+                    # Frozen once the reading outlives a couple of welfare cycles.
+                    "stats_stale": bool(_stats_age_h is not None and _stats_age_h >= 2.0),
                     "resting": is_resting,
                     "rest_type": r["rest_type"],
                     "rest_since": (r["rest_since"].isoformat() + "Z" if r["rest_since"] else None),

@@ -979,6 +979,16 @@ function _kinRecoverySpark(a) {
         + '</div></div>';
 }
 
+/* #5157: compact age for bench/stat-freshness labels. Hours in, "3h"/"2.1d" out. */
+function _kinAge(hours) {
+    if (hours === null || hours === undefined) return '';
+    var h = Number(hours);
+    if (!isFinite(h) || h < 0) return '';
+    if (h < 1) return Math.max(1, Math.round(h * 60)) + 'm';
+    if (h < 48) return (h < 10 ? h.toFixed(1) : Math.round(h)) + 'h';
+    return (h / 24).toFixed(1) + 'd';
+}
+
 async function loadKinWelfare() {
     var el = document.getElementById('kinWelfareContent');
     if (el) el.textContent = 'Loading…';
@@ -1026,17 +1036,28 @@ async function loadKinWelfare() {
         var gridCols = window.innerWidth <= 900 ? 'repeat(2,1fr)' : 'repeat(auto-fill,minmax(240px,1fr))';
         grid.style.cssText = 'display:grid;grid-template-columns:' + gridCols + ';gap:10px;';
         agents.forEach(function(a) {
-            var statusColor = a.resting ? '#f59e0b'
+            /* #5157(3): BENCHED must be tested FIRST. A barracked agent has no active
+               rest cycle, is not at-limit and is not overworked, so it fell through
+               every branch to the final else and rendered '✓ active' in GREEN —
+               pixel-identical to a healthy agent. That is how F.A.C.T. and four others
+               sat benched unnoticed. 'barracked' does NOT self-recover (unlike
+               cooldown), so it is the most urgent state on this tab, not the least. */
+            var statusColor = a.benched ? '#ef4444'
+                : (a.resting ? '#f59e0b'
                 : (a.at_limit ? '#ef4444'
                 : (a.overwork_level === 'critical' ? '#ef4444'
-                : (a.overwork_level === 'warning' ? '#f59e0b' : '#10b981')));
-            var statusLabel = a.resting ? '😴 ' + (a.rest_type || 'resting')
+                : (a.overwork_level === 'warning' ? '#f59e0b' : '#10b981'))));
+            var statusLabel = a.benched
+                    ? (a.bench_reason === 'failure'
+                        ? '⛔ BENCHED ' + _kinAge(a.bench_age_hours)
+                        : '⛔ STRANDED')
+                : (a.resting ? '😴 ' + (a.rest_type || 'resting')
                 : (a.at_limit ? (a.limit_dimension === 'task'
                         ? '⚠ QUEUE ' + (a.task_count || 0) + '/' + (a.task_limit || 0)
                         : '⚠ TOKEN ' + Math.round((a.token_ratio || 0) * 100) + '% throttled')
                 : (a.overwork_level === 'critical' ? '🔥 ' + (a.hours_worked_today || 0).toFixed(1) + 'h OVERWORKED'
                 : (a.overwork_level === 'warning' ? '⏱ ' + (a.hours_worked_today || 0).toFixed(1) + 'h today'
-                : '✓ active')));
+                : '✓ active'))));
             var card = document.createElement('div');
             card.style.cssText = 'background:rgba(0,0,0,0.3);border:1px solid ' + statusColor + '44;border-radius:6px;padding:10px 12px;min-width:0;overflow:hidden;';
             card.innerHTML = '<div class="kinw-hdr" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">'
@@ -1054,6 +1075,11 @@ async function loadKinWelfare() {
                 + (a.dispatches_1h ? ' · <span style="color:#00bcd4;">' + a.dispatches_1h + ' disp/h</span>' : '')
                 + ' · ' + (a.dispatches_24h || 0) + ' disp/24h'
                 + (a.stress ? ' · stress: ' + Math.round(a.stress * 100) + '%' : '')
+                /* #5157(2): the welfare loop only advances ACTIVE agents, so a benched
+                   or idle agent's stress/energy/mood freeze at their last snapshot.
+                   Without this the frozen number reads as a live one — which is how a
+                   stranded agent looked "fine" indefinitely. */
+                + (a.stats_stale ? ' <span style="color:#f59e0b;" title="Welfare stats stop advancing while an agent is off the floor — this reading is a snapshot, not current.">⧖ stats ' + _kinAge(a.stats_age_hours) + ' old</span>' : '')
                 + '</div>'
                 + _kinRecoverySpark(a)
                 + (a.rest_since

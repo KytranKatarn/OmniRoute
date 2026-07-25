@@ -2164,6 +2164,43 @@ def _write_welfare_snapshots(per_agent_flags: list) -> None:
         logger.warning("_write_welfare_snapshots failed: %s", e)
 
 
+def _get_digest_severity_thresholds():
+    """Return ``(error_over_budget, error_at_risk)`` for the K.I.N. digest (#5177).
+
+    Tunable live via ``platform_settings`` ``welfare:digest:error_over_budget`` /
+    ``welfare:digest:error_at_risk`` — no deploy needed. The over-budget default is
+    deliberately ABOVE the observed baseline (6-16 agents/day over the 13 days to
+    2026-07-25) so ``error`` means "worse than any day in the last two weeks"
+    rather than "it is Tuesday". Sub-threshold counts still raise ``warning``, so
+    nothing is hidden. Never raises — falls back to the defaults on any error.
+
+    FOLLOW-UP: the better signal is SUSTAINED per-agent overage (the same agent over
+    budget N days running), which ``agent_welfare_snapshots`` can already support.
+    That distinguishes "busy fleet" from "one agent is being ground down"; this
+    function only stops the daily false alarm.
+    """
+    defaults = (20, 5)
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT key, value FROM platform_settings
+                 WHERE key IN ('welfare:digest:error_over_budget',
+                               'welfare:digest:error_at_risk')
+                """
+            )
+            rows = {r["key"]: r["value"] for r in cur.fetchall()}
+        over = int(rows.get("welfare:digest:error_over_budget") or defaults[0])
+        risk = int(rows.get("welfare:digest:error_at_risk") or defaults[1])
+        return (over, risk)
+    except (TypeError, ValueError, KeyError) as exc:
+        logger.warning("digest severity thresholds unreadable (%s); using defaults", exc)
+        return defaults
+    except Exception:
+        logger.warning("digest severity thresholds query failed; using defaults", exc_info=True)
+        return defaults
+
+
 def get_kin_welfare_digest(
     stress_threshold: float = 0.7,
     over_budget_threshold: float = 0.90,
@@ -2206,12 +2243,23 @@ def get_kin_welfare_digest(
 
     stress_rising = [f for f in per_agent_flags if f.get("stress_trend") == "rising"]
 
+    # Severity thresholds are tunable via platform_settings (#5177). The previous
+    # hardcoded "error at >= 3 over budget" fired EVERY day for 13 consecutive days
+    # (2026-07-12 .. 07-25, 6-16 over budget, never once below 6) because a busy
+    # agent is over 90% of its budget BY CONSTRUCTION: token_limit_per_day is
+    # p90(30d) x 1.3 clamped to base x 2 (clamp_budget_to_band), so the ceiling
+    # cannot grow past real demand. An alarm that never clears monitors nothing —
+    # a genuine welfare emergency was indistinguishable from baseline.
+    # NOTE: winding_down agents are deliberately still counted. They may have
+    # genuinely overworked today; excluding them would hide real overwork.
+    _err_over_budget, _err_at_risk = _get_digest_severity_thresholds()
+
     severity = "info"
     reasons = []
-    if total_over_budget >= 3:
+    if total_over_budget >= _err_over_budget:
         severity = "error"
         reasons.append(f"{total_over_budget} agents over budget")
-    if total_at_risk >= 5:
+    if total_at_risk >= _err_at_risk:
         severity = "error"
         reasons.append(f"{total_at_risk} agents at welfare risk (stress>0.7)")
     if severity != "error":

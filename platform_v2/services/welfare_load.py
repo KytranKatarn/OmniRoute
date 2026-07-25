@@ -286,6 +286,37 @@ def merge_break_config(rows, base=None):
     return cfg
 
 
+# ── K.I.N. autonomous-action policy (#5176) ───────────────────────────────────
+# Phase 3 of kin_welfare_digest executes actions returned as free-form JSON by
+# K.I.N. (a 7B model). Nothing validated the action against the FLAG that raised
+# it, so `welfare_recovery` — which is recover_idle(), i.e. a WRITE of
+# stress -0.15 / energy +0.2 — was being applied to `over_budget` agents: the
+# idle cure given to the most overworked agents on the fleet, suppressing the
+# very signal that raised the flag. Measured 12 such actions in 30 days.
+# A prompt instruction is not an enforcement mechanism when the producer is an
+# LLM, so the check lives at the execution boundary and this table is the policy.
+KIN_FORBIDDEN_ACTIONS_BY_FLAG = {
+    # over_budget = OVERWORKED. Per ADR-004 (#4090) token overage is handled by
+    # the dispatch THROTTLE, not by welfare actions; healing the agent's stress
+    # is actively wrong. Capping or cooling it down remains legitimate.
+    "over_budget": frozenset({"welfare_recovery"}),
+    # starving_no_llm = an LLM-free scheduled worker. _get_agent_welfare_outliers
+    # documents this flag as "expected, no action needed" — any action is churn.
+    "starving_no_llm": frozenset({"welfare_recovery", "cooldown", "barracks", "workload_cap"}),
+}
+
+
+def kin_action_allowed(flag, action_type):
+    """True if ``action_type`` is a permitted response to welfare ``flag``. PURE.
+
+    Fail-OPEN: an unknown flag, or ``None`` (an agent K.I.N. raised that produced
+    no outlier flag — e.g. an at_risk agent), is unconstrained. Only the pairings
+    in ``KIN_FORBIDDEN_ACTIONS_BY_FLAG`` are refused, so this narrows behaviour
+    exactly where it is known-wrong and changes nothing else.
+    """
+    return action_type not in KIN_FORBIDDEN_ACTIONS_BY_FLAG.get(flag or "", frozenset())
+
+
 def decide_break(hours=None, token_ratio=None, action_ratio=None, stress=None, cfg=None):
     """Decide whether an agent has earned a rest, and which kind. PURE — no DB.
 

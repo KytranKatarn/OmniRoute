@@ -7823,8 +7823,12 @@ class AgentLoop:
             if assessment:
                 conn = get_db()
                 try:
-                    # Phase 3: Autonomous actions
-                    actions_taken = self._kin_execute_actions(assessment.get("actions", []), conn)
+                    # Phase 3: Autonomous actions — validated against the flag that
+                    # raised each agent, so the remedy has to match the diagnosis (#5176)
+                    _flag_by_agent = {
+                        f.get("agent_id"): f.get("flag") for f in digest.get("per_agent_flags", []) if f.get("agent_id")
+                    }
+                    actions_taken = self._kin_execute_actions(assessment.get("actions", []), conn, _flag_by_agent)
                     # Phase 4a: C.R.E.E.D. ethics filing
                     flags_filed = self._kin_file_creed(assessment.get("creed_flags", []), conn)
                 finally:
@@ -7955,8 +7959,15 @@ class AgentLoop:
             logger.warning("K.I.N. welfare: failed to parse JSON from K.I.N. response")
             return None
 
-    def _kin_execute_actions(self, actions: list, conn) -> int:
-        """Phase 3: Execute K.I.N.'s autonomous welfare decisions. Returns count of applied actions."""
+    def _kin_execute_actions(self, actions: list, conn, flag_by_agent: dict = None) -> int:
+        """Phase 3: Execute K.I.N.'s autonomous welfare decisions. Returns count of applied actions.
+
+        ``flag_by_agent`` maps agent_id -> the welfare flag that raised it (from the
+        digest's ``per_agent_flags``). Actions are validated against that flag before
+        execution (#5176): K.I.N. is a 7B model returning free-form JSON, so a prompt
+        instruction cannot enforce that the remedy matches the diagnosis. Refused
+        actions are audited as ``skipped``, never silently dropped.
+        """
         import sys as _sys
         import os as _os
         import psycopg2.extras as _extras
@@ -7965,6 +7976,7 @@ class AgentLoop:
         _platform_v2 = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "platform_v2")
         _sys.path.insert(0, _platform_v2)
         from services.agent_service import transition_shift_state
+        from services.welfare_load import kin_action_allowed
         from database import get_db_cursor
 
         applied = 0
@@ -8001,6 +8013,50 @@ class AgentLoop:
                         cur.close()
                 except Exception:
                     pass
+                continue
+
+            # Refuse a remedy that contradicts the diagnosis (#5176). recover_idle()
+            # WRITES stress -0.15 / energy +0.2, so applying it to an over_budget agent
+            # suppresses the overload signal that raised the flag.
+            _flag = (flag_by_agent or {}).get(agent_id)
+            if not kin_action_allowed(_flag, action_type):
+                try:
+                    cur = conn.cursor()
+                    try:
+                        cur.execute(
+                            """INSERT INTO governance_audit_log
+                               (event_type, event_category, agent_id, action, reason, outcome, details)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                            (
+                                "kin_welfare_action",
+                                "welfare_ethics",
+                                agent_id,
+                                action_type,
+                                reason,
+                                "skipped",
+                                _extras.Json(
+                                    {
+                                        "filed_by": "K.I.N.",
+                                        "digest_date": str(_date.today()),
+                                        "welfare_flag": _flag,
+                                        "skip_reason": (
+                                            f"action '{action_type}' is not a permitted " f"response to flag '{_flag}'"
+                                        ),
+                                    }
+                                ),
+                            ),
+                        )
+                        conn.commit()
+                    finally:
+                        cur.close()
+                except Exception:
+                    pass
+                logger.info(
+                    "K.I.N.: refused %s on agent %s (flag=%s) — remedy does not match diagnosis",
+                    action_type,
+                    agent_id,
+                    _flag,
+                )
                 continue
 
             outcome = "applied"

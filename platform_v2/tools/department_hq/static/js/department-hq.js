@@ -1243,7 +1243,7 @@ async function loadKinWorkload() {
             + '<th style="text-align:right;padding:4px 8px;">TOK/H</th>'
             + '<th style="text-align:right;padding:4px 8px;">TOKENS 24H</th>'
             + '<th style="text-align:right;padding:4px 8px;">TOKEN BUDGET</th>'
-            + '<th style="text-align:right;padding:4px 8px;">COMPUTE HRS</th>'
+            + '<th style="text-align:right;padding:4px 8px;" title="Wall-clock busy hours since the last COMPLETED rest today — not hours worked today. The window deliberately restarts after each rest (KB #270628) so a just-rested agent cannot re-trip the hours_cap break on stale hours. An agent resting every ~30min therefore reads near zero while still working hard: read DISPATCH 24H / TOKENS 24H for actual load.">HRS SINCE REST</th>'
             + '<th style="text-align:right;padding:4px 8px;">DISPATCH 24H</th>'
             + '</tr></thead>';
         var tbody = document.createElement('tbody');

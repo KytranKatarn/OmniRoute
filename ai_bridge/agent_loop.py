@@ -8627,6 +8627,7 @@ class AgentLoop:
             from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
                 list_reviews,
                 classify_pr_tier,
+                verdict_is_approved,
                 _mark_tier_processed,
                 _mark_kytran_approval_sent,
             )
@@ -8645,6 +8646,21 @@ class AgentLoop:
                 pr_num = review["pr_number"]
                 title = review.get("title") or f"PR #{pr_num}"
                 summary = review.get("ai_summary") or ""
+
+                # #5194: review_status='reviewed' only means a review FINISHED — it does
+                # NOT mean F.O.R.G.E. approved. This loop used `summary` purely for
+                # notification text and never checked the verdict, so PR #2458 was merged
+                # on a needs_changes verdict (2026-07-25); it was blocked twice
+                # beforehand only by an accidental HTTP 405 "still a draft".
+                # github_service.merge_pr now refuses these at the choke point, but skip
+                # them here too so the worker stops re-attempting every cycle.
+                if not verdict_is_approved(summary):
+                    logger.info(
+                        "[PRTiers] PR #%s reviewed but NOT approved — skipping (no merge attempt)",
+                        pr_num,
+                    )
+                    continue
+
                 tier = classify_pr_tier(review)
 
                 if tier == 1:

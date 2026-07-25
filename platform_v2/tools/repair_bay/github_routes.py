@@ -80,9 +80,12 @@ def register_github_routes(bp, admin_required):
         if method not in ("squash", "merge", "rebase"):
             return jsonify({"success": False, "error": "Invalid merge method"}), 400
 
-        result = merge_pr(pr_number, method)
+        # human_override: this endpoint is @login_required @admin_required — an operator
+        # clicking merge is an attended decision, so it bypasses the unattended-merge
+        # governance gate (#5194). Automated callers must never pass this.
+        result = merge_pr(pr_number, method, human_override=True)
         if result.get("success"):
-            logger.info(f"[FORGE] PR #{pr_number} merged via {method}")
+            logger.info(f"[FORGE] PR #{pr_number} merged via {method} (human override)")
         return jsonify(result)
 
     @bp.route("/api/forge/prs/<int:pr_number>/comment", methods=["POST"])
@@ -886,7 +889,9 @@ def register_github_routes(bp, admin_required):
             return jsonify({"error": f"PR #{pr_number} not found"}), 404
 
         # #4494: merge against the PR's OWN repo (watch-product PRs live in separate repos).
-        result = merge_pr(pr_number, method="squash", repo=review.get("repo"))
+        # human_override: @login_required @admin_required — an attended operator merge,
+        # so it bypasses the unattended-merge governance gate (#5194).
+        result = merge_pr(pr_number, method="squash", repo=review.get("repo"), human_override=True)
 
         if result.get("merged"):
             return jsonify({"success": True, "merged": True, "message": result.get("message", "Merged")})

@@ -13,6 +13,27 @@ import pytest
 if "/app" not in sys.path:
     sys.path.insert(0, "/app")
 
+# ── ai_bridge on sys.path (#5192) ─────────────────────────────────────────────
+# tools/department_hq/services/department_dispatcher.py does `from db import
+# _get_db_password` at module scope, and ``db`` lives in ai_bridge/ — so ANY test that
+# imports the dispatcher (directly or transitively, e.g. tools.therapy.routes) died at
+# COLLECTION with "No module named 'db'". That took out test_therapy_crisis,
+# test_dispatch_cloud_attribution and test_route_legacy_loops_ai_owner, and because a
+# collection error aborts the whole run, `pytest tests/` never completed at all.
+# Several tests worked around it by stubbing the dispatcher in sys.modules; this fixes
+# the cause once instead. Purely additive — a sys.modules stub still takes precedence
+# over path resolution, so tests that deliberately stub are unaffected.
+# Same import-path issue the runtime solves via signal_calendar_service
+# ._ensure_import_paths() (KB #272154).
+_PLATFORM_V2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+for _ai_bridge in (
+    os.path.join(os.path.dirname(_PLATFORM_V2), "ai_bridge"),  # repo-relative (host + worktrees)
+    "/mnt/archie_brain/ai_bridge",  # container mount (docker-compose mounts this path verbatim)
+):
+    if os.path.isdir(_ai_bridge) and _ai_bridge not in sys.path:
+        sys.path.append(_ai_bridge)
+        break
+
 # ── Test DB isolation (CRITICAL — see KB #274942) ─────────────────────────────
 # Tests hit the SAME postgres server as production but a SEPARATE database.
 # DB_NAME is a HARD override, NOT setdefault: inside the archie_platform

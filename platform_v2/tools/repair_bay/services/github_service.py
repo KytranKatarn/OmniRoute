@@ -512,8 +512,69 @@ def get_pr_status(pr_number: int) -> Dict:
     }
 
 
-def merge_pr(pr_number: int, method: str = "squash", repo: str = None) -> Dict:
+def _automerge_governance_ok(pr_number: int, repo: str = None) -> tuple:
+    """Is an UNATTENDED merge of ``pr_number`` permitted? Returns ``(ok, reason)``.
+
+    THE choke point for merge governance (#5194). Two independent conditions, both
+    required:
+      1. the stored F.O.R.G.E. review VERDICT is an approval, and
+      2. the PR's tier is <= ``FORGE_AUTO_MERGE_MAX_TIER`` (default 1).
+
+    FAILS CLOSED — a missing review row, an unparseable verdict, or any error denies
+    the merge. A dead review is not an approval (feedback_forge-no-silent-override).
+
+    Why this lives here and not in the callers: ``merge_pr`` has FIVE call sites
+    (github_routes x2, forge_pipeline, and agent_loop's archie_pr_review_worker Tier 1
+    + Tier 2). ``pr_review_service.mark_review_done`` carefully gates on verdict, tier,
+    engine-authorship, repo and sensitive paths — but ``_run_archie_pr_review_worker``
+    is a SECOND, parallel merge path that reproduced none of it: it selects reviews by
+    ``review_status='reviewed'`` (which only means a review FINISHED, not that it
+    approved), reads the summary purely for notification text, and merges Tier 2
+    unconditionally. That is how PR #2458 reached main on a ``needs_changes`` verdict
+    on 2026-07-25 — blocked twice beforehand only by an accidental HTTP 405
+    "still a draft". Gating each caller would leave the next new caller unprotected.
+    """
+    try:
+        from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+            classify_pr_tier,
+            get_review,
+            verdict_is_approved,
+        )
+
+        review = get_review(pr_number, repo=repo)
+        if not review:
+            return (False, f"no stored F.O.R.G.E. review for PR #{pr_number} — refusing unattended merge")
+
+        summary = review.get("ai_summary") or ""
+        if not verdict_is_approved(summary):
+            return (
+                False,
+                f"F.O.R.G.E. verdict for PR #{pr_number} is not an approval — refusing unattended merge",
+            )
+
+        tier = classify_pr_tier(review)
+        try:
+            max_auto = int(os.getenv("FORGE_AUTO_MERGE_MAX_TIER", "1"))
+        except (TypeError, ValueError):
+            max_auto = 1
+        if tier > max_auto:
+            return (
+                False,
+                f"PR #{pr_number} is Tier {tier} > FORGE_AUTO_MERGE_MAX_TIER={max_auto} "
+                f"— gated for human approval, refusing unattended merge",
+            )
+        return (True, f"approved, Tier {tier} <= {max_auto}")
+    except Exception as exc:  # fail CLOSED
+        logger.warning("merge governance check failed for PR #%s (denying): %s", pr_number, exc)
+        return (False, f"governance check errored for PR #{pr_number} — refusing unattended merge")
+
+
+def merge_pr(pr_number: int, method: str = "squash", repo: str = None, human_override: bool = False) -> Dict:
     """Merge a pull request via PUT (GitHub requires PUT for merges).
+
+    ``human_override=True`` skips the unattended-merge governance gate (#5194) and is
+    for INTERACTIVE, authenticated callers only (the Repair Bay merge button, an
+    operator running /merge-pr). Every automated path must leave it False.
 
     ``repo`` (owner/name) selects the target repo; defaults to REPO_FULL
     (archie-platform). Threaded everywhere so a watch-product PR merges against
@@ -532,6 +593,21 @@ def merge_pr(pr_number: int, method: str = "squash", repo: str = None) -> Dict:
     those with a clear error, so we let the merge attempt surface it.
     """
     _repo = repo or REPO_FULL
+
+    # GOVERNANCE GATE (#5194) — checked BEFORE any GitHub call so a refusal costs
+    # nothing and cannot race. Fails closed; see _automerge_governance_ok.
+    if not human_override:
+        _gov_ok, _gov_why = _automerge_governance_ok(pr_number, repo)
+        if not _gov_ok:
+            logger.warning("[MergeGate] refusing PR #%s: %s", pr_number, _gov_why)
+            return {
+                "success": False,
+                "merged": False,
+                "governance_blocked": True,
+                "error": f"Refusing to merge PR #{pr_number}: {_gov_why}",
+            }
+        logger.info("[MergeGate] PR #%s cleared for unattended merge (%s)", pr_number, _gov_why)
+
     pre_ok, pre = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
     if pre_ok:
         state = (pre.get("mergeable_state") or "").lower()

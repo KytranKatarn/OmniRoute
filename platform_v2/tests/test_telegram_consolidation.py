@@ -12,6 +12,7 @@ Strategy: patch the real DB writes and the outbound Telegram calls so tests
 run without a live bot token or Telegram network access.
 """
 
+import os
 import sys
 import asyncio
 import pytest
@@ -19,8 +20,8 @@ from unittest.mock import MagicMock, patch, AsyncMock
 
 # Ensure platform_v2 is importable (mirrors agent_loop bootstrap)
 # os.environ.get() is used to avoid hardcoding secrets
-ARCHIE_PLATFORM_PATH = os.getenv('ARCHIE_PLATFORM_PATH')
-if ARCHIE_PLATFORM_PATH != '':
+ARCHIE_PLATFORM_PATH = os.getenv("ARCHIE_PLATFORM_PATH")
+if ARCHIE_PLATFORM_PATH != "":
     sys.path.insert(0, ARCHIE_PLATFORM_PATH)
 if "$ARCHIE_AI_BRIDGE_PATH" not in sys.path:
     sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
@@ -30,7 +31,7 @@ if "$ARCHIE_AI_BRIDGE_PATH" not in sys.path:
 # ---------------------------------------------------------------------------
 
 
-def _make_gateway(bot_token=os.getenv('ARCHIE_TELEGRAM_BOT_TOKEN')):
+def _make_gateway(bot_token=os.getenv("ARCHIE_TELEGRAM_BOT_TOKEN")):
     """Instantiate TelegramGateway without starting the async bot."""
     from ai_bridge.telegram_gateway import TelegramGateway
 
@@ -273,7 +274,12 @@ class TestSendEscalationNotification:
 
     def test_no_inline_insert_in_gateway(self):
         """Regression: the old inline INSERT INTO telegram_message_log must not exist in gateway."""
-        with open(os.getenv("TELEGRAM_GATEWAY_PATH", os.getenv('TELEGRAM_GATEWAY_PATH', "/mnt/archie_brain/ai_bridge/telegram_gateway.py"))) as f:
+        with open(
+            os.getenv(
+                "TELEGRAM_GATEWAY_PATH",
+                os.getenv("TELEGRAM_GATEWAY_PATH", "/mnt/archie_brain/ai_bridge/telegram_gateway.py"),
+            )
+        ) as f:
             source = f.read()
 
         # The old block opened a log_conn = get_db() and committed manually.

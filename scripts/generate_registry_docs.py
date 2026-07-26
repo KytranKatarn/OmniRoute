@@ -33,12 +33,15 @@ sys.path.insert(0, "/app")
 
 from services.platform_registry_service import (  # noqa: E402
     get_modules,
+    get_services,
     reconcile,
+    reconcile_services,
     registry_summary,
 )
 from services.time_utils import format_local  # noqa: E402
 
 OUT = Path("/mnt/archie_brain/.claude/rules/module-capability-index.md")
+OUT_SERVICES = Path("/mnt/archie_brain/.claude/rules/service-registry.md")
 
 _CATEGORY_TITLES = {
     "admin_operations": "Admin Operations",
@@ -157,12 +160,126 @@ def render() -> str:
     return "\n".join(L) + "\n"
 
 
+def render_services() -> str:
+    """Render the SERVICES half (phase 2).
+
+    Separate file from the module index because they answer different questions
+    and refresh on different cadences — a container restarts hourly, a module
+    changes on merge. Folding them together would make the whole document look
+    stale every time a container blinked.
+    """
+    rows = get_services(include_absent=True)
+    present = [r for r in rows if r["status"] == "present"]
+    absent = [r for r in rows if r["status"] == "absent"]
+    containers = [r for r in present if r["kind"] == "container"]
+    products = [r for r in present if r["kind"] == "product"]
+    running = [r for r in containers if r["container_state"] == "running"]
+    stamp = max((r["collected_at"] for r in rows), default=None)
+    prov_at = max((r["provenance_at"] for r in products if r["provenance_at"]), default=None)
+
+    L = []
+    L.append("<!-- GENERATED FILE — DO NOT EDIT BY HAND.")
+    L.append("     Regenerate:  docker exec archie_platform python3 \\")
+    L.append("                    /mnt/archie_brain/scripts/generate_registry_docs.py --services")
+    L.append("     Sources: the docker daemon + scripts/deploy_drift_check.py check_products().")
+    L.append("     Curated context belongs in the `notes` column. Task #5230 phase 2. -->")
+    L.append("")
+    L.append("# Service Registry")
+    L.append("")
+    L.append(
+        f"**Collected**: {format_local(stamp) if stamp else 'never'} · "
+        f"**Provenance measured**: {format_local(prov_at) if prov_at else 'never'}"
+    )
+    L.append("")
+    L.append(
+        f"{len(running)}/{len(containers)} hub containers running · "
+        f"{len(products)} image-baked products · {len(absent)} absent."
+    )
+    L.append("")
+    L.append("> Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —")
+    L.append("> the product is unreachable or has no resolvable expected SHA. Do not read it")
+    L.append("> as drift. Provenance and collection are timestamped separately because a cheap")
+    L.append("> container-only run does not re-measure drift.")
+    L.append("")
+
+    if absent:
+        L.append("## 🚨 Absent — seen before, not in the latest collection")
+        L.append("")
+        L.append("| Service | Kind | Last seen |")
+        L.append("|---------|------|-----------|")
+        for r in absent:
+            L.append(f"| `{r['service_key']}` | {r['kind']} | {format_local(r['last_seen_at'])} |")
+        L.append("")
+
+    L.append("## Image-baked products — deploy provenance")
+    L.append("")
+    L.append("| Product | Drift | Baked | Expected | Endpoint |")
+    L.append("|---------|-------|-------|----------|----------|")
+    _badge = {"in_sync": "✅ in_sync", "drift": "🔴 DRIFT", "fail_open": "⚪ fail_open"}
+    for r in sorted(products, key=lambda x: x["service_key"]):
+        L.append(
+            f"| `{r['service_key']}` | {_badge.get(r['drift_status'], '— not measured')} | "
+            f"`{(r['baked_sha'] or '-')[:9]}` | `{(r['expected_sha'] or '-')[:9]}` | {r['version_url'] or '—'} |"
+        )
+    L.append("")
+
+    L.append("## Hub containers")
+    L.append("")
+    L.append("| Container | State | Compose project | Ports | Image |")
+    L.append("|-----------|-------|-----------------|-------|-------|")
+    for r in sorted(containers, key=lambda x: (x["compose_project"] or "~", x["service_key"])):
+        mark = "" if r["container_state"] == "running" else " ⚠"
+        ports = ", ".join(r["ports"] or []) or "—"
+        L.append(
+            f"| `{r['service_key']}`{mark} | {r['container_state']} | {r['compose_project'] or '(bare docker run)'} "
+            f"| {ports} | `{(r['image'] or '-')[:44]}` |"
+        )
+    L.append("")
+    for r in rows:
+        if r.get("notes"):
+            L.append(f"- **`{r['service_key']}`** — {r['notes']}")
+    L.append("")
+    L.append("---")
+    L.append("")
+    L.append(
+        "*Phase 2 of the Living Platform Registry (#5230). Add curated context with "
+        "`platform_registry_service.set_service_notes(key, text)` — never by editing this file.*"
+    )
+    return "\n".join(L) + "\n"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="exit 1 if on-disk differs (no write)")
     ap.add_argument("--stdout", action="store_true")
     ap.add_argument("--no-collect", action="store_true", help="render from the table without re-collecting")
+    ap.add_argument("--services", action="store_true", help="render the SERVICE registry instead of modules")
+    ap.add_argument("--provenance", action="store_true", help="with --services: re-measure deploy drift (slow)")
     a = ap.parse_args()
+
+    if a.services:
+        if not a.no_collect:
+            s2 = reconcile_services(with_provenance=a.provenance)
+            print(
+                f"[registry] services collected={s2['collected']} inserted={s2['inserted']} "
+                f"updated={s2['updated']} absent={s2['absent']} scopes={s2['scopes']}",
+                file=sys.stderr,
+            )
+        text = render_services()
+        if a.stdout:
+            print(text)
+            return 0
+        if a.check:
+            cur = OUT_SERVICES.read_text() if OUT_SERVICES.exists() else ""
+            if cur == text:
+                print("[registry] service registry is current")
+                return 0
+            print(f"[registry] DRIFT: {OUT_SERVICES} is out of date", file=sys.stderr)
+            return 1
+        OUT_SERVICES.parent.mkdir(parents=True, exist_ok=True)
+        OUT_SERVICES.write_text(text)
+        print(f"[registry] wrote {OUT_SERVICES} ({len(text.splitlines())} lines)")
+        return 0
 
     if not a.no_collect:
         summary = reconcile()

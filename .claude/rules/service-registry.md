@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-07-26 12:56:41 EDT · **Provenance measured**: 2026-07-26 12:56:41 EDT
+**Collected**: 2026-07-26 13:56:58 EDT · **Provenance measured**: 2026-07-26 13:55:55 EDT
 
-43/48 hub containers running · 9 image-baked products · 0 absent.
+42/48 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -36,7 +36,7 @@
 | `archie_browser` | running | archie_brain | — | `archie_brain-archie_browser:latest` |
 | `archie_browser_login` | running | archie_brain | 4280->4280/tcp | `archie_brain-archie_browser_login:latest` |
 | `archie_codex_terminal` | running | archie_brain | 17682->7681/tcp | `archie_brain-archie_codex_terminal:latest` |
-| `archie_comfyui` | running | archie_brain | 8188->8188/tcp | `sha256:3268b8c8da09` |
+| `archie_comfyui` ⚠ | exited | archie_brain | — | `sha256:3268b8c8da09` |
 | `archie_comms` | running | archie_brain | 3002->3002/tcp | `archie_brain-archie_comms:latest` |
 | `archie_database` | running | archie_brain | 5432->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_engine` | running | archie_brain | 9090->9090/tcp | `archie_brain-archie_engine:latest` |

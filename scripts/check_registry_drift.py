@@ -81,11 +81,17 @@ def main(argv: list[str]) -> int:
     problems: list[str] = []
     if touched_module_src and _MODULE_DOC not in files:
         problems.append(f"  • a MODULE source changed but {_MODULE_DOC} was not regenerated\n" f"      {_CMD}")
-    if (touched_service_src or touched_skill_src) and _SERVICE_DOC not in files:
-        # Skills currently render into the service doc's sibling section; until
-        # they have their own file, the service doc is the artifact to refresh.
+    # NOTE: touched_skill_src is deliberately NOT part of this condition.
+    # Skills/commands/capabilities are collected into platform_registry_skill but
+    # have NO document renderer yet — service-registry.md renders containers and
+    # products only. Gating a skill change on regenerating a doc that would not
+    # change is a gate that can NEVER be satisfied, so every author would have to
+    # pass SKIP_REGISTRY_DRIFT=1 and the habit of skipping would be learned. A
+    # gate that is routinely skipped is worse than no gate. The nightly collector
+    # still picks skill changes up; re-add this when a skills doc exists.
+    if touched_service_src and _SERVICE_DOC not in files:
         problems.append(
-            f"  • a SERVICE/SKILL source changed but {_SERVICE_DOC} was not regenerated\n" f"      {_CMD} --services"
+            f"  • a SERVICE source changed but {_SERVICE_DOC} was not regenerated\n" f"      {_CMD} --services"
         )
 
     if not problems:

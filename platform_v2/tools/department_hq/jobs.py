@@ -819,6 +819,102 @@ def platform_registry_collect(flask_app=None, scheduler=None):
         return {"ok": False, "error": str(exc)}
 
 
+def maintenance_window_driver(flask_app=None, scheduler=None):
+    """Drive scheduled maintenance windows: announce -> open -> close (#5217/#5235).
+
+    The services existed and were tested but NOTHING CALLED THEM — the same
+    "built but not wired" gap that #5226 closed for the maintenance splash. A
+    window that no job advances is a window that never happens.
+
+    ORDER IS DELIBERATE AND SAFETY-DRIVEN.
+
+    CLOSE RUNS FIRST. An OPEN window suppresses the DR watchdog. A window that
+    never closes leaves DR disarmed indefinitely — strictly worse than never
+    having opened one, because the operator believes DR is armed. So expiry is
+    swept before anything else, and a failure in the announce/open steps below
+    can never prevent it.
+
+    NEVER AUTO-OPENS AN UNANNOUNCED WINDOW. The owner's directive was to
+    "advise and coordinate before, and let me know before the maintenance the fix
+    list". open_scheduled() enforces that via force_unannounced, and this job
+    NEVER passes it. A window that reaches its start time still un-announced is
+    announced and left for the next tick rather than opened silently — one tick
+    late beats an unannounced production change.
+
+    Every step is independently guarded: one bad window must not stop the others,
+    and the job never raises into the scheduler.
+    """
+    import os
+    from datetime import timedelta
+
+    from services.time_utils import now_utc
+
+    result = {"closed": [], "announced": [], "opened": [], "errors": []}
+    try:
+        from services import maintenance_schedule_service as mss
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[maintenance] schedule service unavailable: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    now = now_utc()
+    lead_min = int(os.environ.get("MAINTENANCE_ANNOUNCE_LEAD_MIN", "60"))
+
+    # ---- 1. CLOSE expired windows FIRST (releases DR suppression) ----
+    try:
+        for w in mss.list_windows(status="open", limit=50):
+            start = w.get("scheduled_start")
+            dur = int(w.get("duration_minutes") or 0)
+            if not start or not dur:
+                continue
+            if now >= start + timedelta(minutes=dur):
+                try:
+                    mss.close_scheduled(w["id"])
+                    result["closed"].append(w["id"])
+                    logger.info("[maintenance] window %s expired -> closed (DR suppression released)", w["id"])
+                except Exception as exc:  # noqa: BLE001
+                    result["errors"].append(f"close {w['id']}: {exc}")
+                    logger.exception(
+                        "[maintenance] FAILED to close expired window %s — DR may stay suppressed", w["id"]
+                    )
+    except Exception as exc:  # noqa: BLE001
+        result["errors"].append(f"close sweep: {exc}")
+
+    # ---- 2. ANNOUNCE windows starting soon (planned -> announced) ----
+    try:
+        for w in mss.list_windows(status="planned", limit=50):
+            start = w.get("scheduled_start")
+            if start and now >= start - timedelta(minutes=lead_min):
+                try:
+                    r = mss.announce_plan(w["id"])
+                    if r.get("ok"):
+                        result["announced"].append(w["id"])
+                except Exception as exc:  # noqa: BLE001
+                    result["errors"].append(f"announce {w['id']}: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        result["errors"].append(f"announce sweep: {exc}")
+
+    # ---- 3. OPEN announced windows whose start has arrived ----
+    try:
+        for w in mss.list_windows(status="announced", limit=50):
+            start = w.get("scheduled_start")
+            if start and now >= start:
+                try:
+                    # force_unannounced is NEVER passed — see docstring.
+                    r = mss.open_scheduled(w["id"])
+                    if r.get("ok"):
+                        result["opened"].append(w["id"])
+                    else:
+                        result["errors"].append(f"open {w['id']}: {r.get('error')}")
+                except Exception as exc:  # noqa: BLE001
+                    result["errors"].append(f"open {w['id']}: {exc}")
+    except Exception as exc:  # noqa: BLE001
+        result["errors"].append(f"open sweep: {exc}")
+
+    if any(result[k] for k in ("closed", "announced", "opened")) or result["errors"]:
+        logger.info("[maintenance] driver: %s", result)
+    return result
+
+
 def register_department_hq_jobs(scheduler, flask_app):
     """Central job registration — ALL department jobs go through here.
 
@@ -1017,6 +1113,21 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=3, minute=40, timezone="America/Toronto"),
         id="platform_registry_collect",
         name="Registry: collect modules/services/skills + change feed",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # #5217/#5235 — drive scheduled maintenance windows every 5 min.
+    # CLOSE runs first inside the job: an open window suppresses the DR watchdog,
+    # so a window that never closes leaves DR disarmed while the operator believes
+    # it is armed. Never auto-opens an UNANNOUNCED window — the owner asked to be
+    # told the fix list beforehand, and one tick late beats a silent prod change.
+    scheduler.add_job(
+        with_ctx(maintenance_window_driver),
+        trigger=IntervalTrigger(minutes=5),
+        id="maintenance_window_driver",
+        name="Maintenance: announce/open/close scheduled windows",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

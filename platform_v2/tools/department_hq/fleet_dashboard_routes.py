@@ -36,6 +36,7 @@ from .fleet_helpers import (
     check_ollama_status,
     get_ollama_models,
     _get_user_nodes,
+    _compute_node_health,
     _compute_node_status,
     push_agent_event,
     normalize_node_label,
@@ -1298,6 +1299,16 @@ def register_dashboard_routes(bp, auth_decorator):
                         "deployment_mode": n["deployment_mode"],
                         "hostname": n["hostname"],
                         "status": _compute_node_status(n),
+                        # #5218 — status alone conflates two different questions.
+                        # 'health' distinguishes a node that heartbeats over the LAN
+                        # but is unreachable on the MESH (dispatch cannot land) from a
+                        # genuinely healthy one, and reports ingress nodes by
+                        # reachability instead of a heartbeat they never send.
+                        "health": _compute_node_health(n),
+                        "node_role": n.get("node_role") or "agent",
+                        "mesh_status": n.get("mesh_status"),
+                        "mesh_latency_ms": n.get("mesh_latency_ms"),
+                        "reachable_port": n.get("reachable_port"),
                         "is_active": n["is_active"],
                         "bridge_enabled": n["bridge_enabled"],
                         "bridge_priority": n["bridge_priority"],

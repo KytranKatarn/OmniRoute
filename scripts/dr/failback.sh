@@ -33,6 +33,22 @@ PW="$(cat "$DR/.replpw" 2>/dev/null || true)"
 log(){ echo "[failback $(date -u +%H:%M:%S)] $*"; }
 die(){ log "ABORT: $*"; exit 1; }
 
+# ---- Beacon SELECTIVE upstream flipping (task #5214, ADR-009) ----
+# Shared with failover/auto_failback/force_reset so the DR-capable port map
+# cannot drift. Fail-safe: loud no-op rather than a blanket sed if not staged.
+BEACON_BAK_SUFFIX=".bak-fb"
+if [ -f "$DR/beacon_flip.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/beacon_flip.sh"
+else
+  log "(WARN: $DR/beacon_flip.sh missing — Beacon upstreams will NOT be reverted)"
+  beacon_flip_ports(){
+    log "  WARN: beacon_flip.sh not staged — skipping Beacon revert for '${3:-?}' (ports ${*:4})."
+    return 1
+  }
+  BEACON_DR_PORTS_ALL=(3000 8086 8095)
+fi
+
 # helpers
 b2(){ docker exec "$B2_CONTAINER" psql -U archie -p "$B2_PG" -tAc "$1" 2>/dev/null; }
 b2_primary(){ [ "$(b2 'SELECT pg_is_in_recovery();')" = "f" ]; }
@@ -137,14 +153,21 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
   # Auto-discover the hub's CURRENT public IP (it changes if the hub moved) by
   # asking the hub itself over the mesh — so the flip-back needs NO manual input.
   # Beacon front-door: flip Caddy upstream boston-2 -> hub (reverse of failover 4c).
-  BEACON_HOST="${BEACON_HOST:-root@100.64.0.11}"
+  # Beacon is addressed by PUBLIC IP, matching failover.sh. The previous default
+  # here was the MESH IP (100.64.0.11) with an inline public-IP override on this
+  # one call — so steps 4c/4d below silently used the mesh path and would fail
+  # during exactly the degraded-mesh conditions a failback runs in.
+  BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"
   DR_MESH="${DR_MESH:-100.64.0.10}"
-  if [ -f "$FLEET_KEY" ]; then
-    log "repoint Beacon front-door Caddy upstream back to the hub ($HUB_MESH)..."
-    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "${BEACON_HOST:-root@2.25.170.252}" \
-      "sed -i.bak-fb 's|$DR_MESH|$HUB_MESH|g' /etc/caddy/Caddyfile && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 && systemctl reload caddy" >/dev/null 2>&1 \
-      && log "   Beacon front-door back on the hub." || log "   WARN: Beacon reverse-repoint failed (manual: sed Caddyfile $DR_MESH->$HUB_MESH + reload caddy)."
-  fi
+
+  # Revert EVERY port a failover is allowed to move, in one idempotent pass:
+  # platform :3000 + creed :8086 + headscale :8095. Reverting a port that was
+  # never flipped is a no-op, so this is complete regardless of how far the
+  # failover got — and it replaces the old blanket `sed 's|DR|HUB|g'`, which
+  # rewrote the Caddyfile's COMMENTS too (that is why Beacon's header currently
+  # claims "DR (boston-2) mesh IP: 100.64.0.4"). Task #5214.
+  log "repoint Beacon DR-capable upstreams back to the hub ($HUB_MESH)..."
+  beacon_flip_ports "$DR_MESH" "$HUB_MESH" "failback (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
   log "4b) repoint watch-series agent hub URLs back to the hub ($HUB_MESH)..."
   for product_dir in gov-watch legal-watch what-the-fact; do
     env_file="/opt/archie-products/$product_dir/.env"
@@ -162,28 +185,16 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
     && ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml down >/dev/null 2>&1 ) \
     && log "   Headscale DR stopped." \
     || log "   (Headscale DR was not running — nothing to stop)"
-  if [ -f "$FLEET_KEY" ]; then
-    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
-      "sed -i.bak-fb 's|http://$DR_MESH:8095|http://$HUB_MESH:8095|' /etc/caddy/Caddyfile \
-       && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
-       && systemctl reload caddy" >/dev/null 2>&1 \
-      && log "   Beacon mesh entry back to hub ($HUB_MESH:8095)." \
-      || log "   WARN: Beacon mesh reverse-repoint failed (manual: sed Caddyfile $DR_MESH:8095->$HUB_MESH:8095 + reload)"
-  fi
+  # (Beacon's mesh. :8095 entry was already reverted in step 4 above, together
+  #  with every other DR-capable port, so there is nothing to flip here.)
   log "4d) stop C.R.E.E.D. on boston-2 + revert Beacon :8086 back to hub..."
   CREED_DIR=/opt/archie-products/creed
   [ -f "$CREED_DIR/docker-compose.yml" ] \
     && ( cd "$CREED_DIR" && docker compose down >/dev/null 2>&1 ) \
     && log "   CREED stopped on boston-2." \
     || log "   (CREED was not running on boston-2 — nothing to stop)"
-  if [ -f "$FLEET_KEY" ]; then
-    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
-      "sed -i.bak-fb 's|http://$DR_MESH:8086|http://$HUB_MESH:8086|' /etc/caddy/Caddyfile \
-       && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
-       && systemctl reload caddy" >/dev/null 2>&1 \
-      && log "   Beacon creed entry back to hub ($HUB_MESH:8086)." \
-      || log "   WARN: Beacon creed reverse-repoint failed (manual: sed Caddyfile $DR_MESH:8086->$HUB_MESH:8086 + reload)"
-  fi
+  # (Beacon's creed. / api.creed-ai.org :8086 entries were already reverted in
+  #  step 4 above, together with every other DR-capable port.)
 
   # NOTE (task #3787): platform.kytranempowerment.com DNS STAYS on the Beacon
   # front-door (2.25.170.252) — it was never flipped off Beacon (see failover.sh),

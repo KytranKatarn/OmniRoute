@@ -10251,10 +10251,21 @@ class DepartmentDispatcher:
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            # Get all active, non-starbase nodes that have sent at least one heartbeat.
-            # Nodes with last_heartbeat IS NULL have no running agent stack (registered-only
-            # product hosts like outpost-asia/eu) — exclude them from heartbeat health
-            # checking so they are not flipped offline by the health monitor.
+            # Get all active, non-starbase AGENT nodes that have sent at least one
+            # heartbeat.
+            #
+            # Nodes with last_heartbeat IS NULL have no running agent stack
+            # (registered-only product hosts) — excluded so the monitor does not flip
+            # them offline.
+            #
+            # node_role='ingress' is excluded for the SAME reason, one step further on
+            # (#5218): Beacon is a front door that runs no node agent BY DESIGN, so it
+            # can never send the signal this job judges. It HAD a last_heartbeat (frozen
+            # at a power-down months of uptime ago), so the IS NOT NULL guard did not
+            # save it and it sat permanently 'offline' while answering ping, showing
+            # online in headscale, and serving live public traffic. Its reachability is
+            # measured by check_mesh_health() instead, which is the honest signal for a
+            # node whose job is to serve traffic rather than run agents.
             cur.execute(
                 """
                 SELECT id, node_name, deployment_mode, last_heartbeat,
@@ -10262,6 +10273,7 @@ class DepartmentDispatcher:
                 FROM remote_nodes
                 WHERE is_active = true
                   AND deployment_mode != 'starbase'
+                  AND COALESCE(node_role, 'agent') <> 'ingress'
                   AND last_heartbeat IS NOT NULL
                 ORDER BY id
                 """

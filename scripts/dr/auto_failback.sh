@@ -29,6 +29,21 @@ LOG="$DR/auto_failback.log"
 
 log(){ echo "[$(date -u +%H:%M:%S)] [auto-failback] $*" | tee -a "$LOG"; }
 
+# ---- Beacon SELECTIVE upstream flipping (task #5214, ADR-009) ----
+# Sourced AFTER log() so the helper logs through this script's prefix.
+BEACON_BAK_SUFFIX=".bak-recover"
+if [ -f "$DR/beacon_flip.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/beacon_flip.sh"
+else
+  log "(WARN: $DR/beacon_flip.sh missing — Beacon upstreams will NOT be reverted)"
+  beacon_flip_ports(){
+    log "  WARN: beacon_flip.sh not staged — skipping Beacon revert for '${3:-?}' (ports ${*:4})."
+    return 1
+  }
+  BEACON_DR_PORTS_ALL=(3000 8086 8095)
+fi
+
 REBUILD_KEYBOARD='[[{"text":"✅ Rebuild DB (complete failback)","callback_data":"dr_rebuild"}],[{"text":"🔵 Skip for now (cold standby)","callback_data":"dr_skip_rebuild"}]]'
 
 log "=== Phase 1 auto-repoint START ==="
@@ -91,16 +106,13 @@ HS_DIR="$DR/headscale"
 [ -f "$HS_DIR/docker-compose.headscale-dr.yml" ] \
   && ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml down >/dev/null 2>&1 ) && log "  Headscale DR stopped" || true
 
-# ---- 6. Revert all Beacon entries → hub ----
-log "6) Reverting Beacon entries -> hub..."
-if [ -f "$FLEET_KEY" ]; then
-  ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" "
-    sed -i.bak-recover 's|$DR_MESH|$HUB_MESH|g' /etc/caddy/Caddyfile \
-    && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
-    && systemctl reload caddy" >/dev/null 2>&1 \
-    && log "  Beacon: all entries -> hub" \
-    || log "  WARN: Beacon revert failed (manual: sed Caddyfile $DR_MESH -> $HUB_MESH + reload)"
-fi
+# ---- 6. Revert the DR-capable Beacon entries → hub ----
+# Reverts exactly the ports a failover is allowed to move (platform :3000,
+# creed :8086, headscale :8095); reverting one that was never flipped is a
+# no-op, so this is complete however far the failover got. Replaces a blanket
+# `sed 's|DR|HUB|g'` that also rewrote the Caddyfile's comments. Task #5214.
+log "6) Reverting Beacon DR-capable entries -> hub..."
+beacon_flip_ports "$DR_MESH" "$HUB_MESH" "auto-failback (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
 
 log "=== Phase 1 auto-repoint COMPLETE ==="
 

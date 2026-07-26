@@ -5,9 +5,94 @@ Comprehensive client for AdGuard Home REST API.
 Covers: status, stats, query log, filtering, DNS rewrites, clients.
 """
 
+import logging
 import os
 import requests
 from typing import Optional, Dict, Any, List
+
+logger = logging.getLogger(__name__)
+
+
+class ProtectedRewriteError(Exception):
+    """Refused to repoint a control-plane hostname at a host that cannot serve it."""
+
+    def __init__(self, domain: str, answer: str, reason: str):
+        self.domain = domain
+        self.answer = answer
+        self.reason = reason
+        super().__init__(reason)
+
+
+# ---------------------------------------------------------------------------
+# PROTECTED REWRITES (task #5219)
+#
+# INCIDENT 2026-07-26. During hub recovery all 15 AdGuard rewrites were repointed
+# to 192.168.1.200 as a batch. One of them was mesh.kytranempowerment.com — the
+# Headscale CONTROL PLANE, which is TLS-only: clients are handed back headscale's
+# configured server_url (https://mesh...) and must reach it over 443. The hub Caddy
+# standing up during recovery was HTTP-only (auto_https off). Pointing mesh. at it
+# made the control plane unreachable and BOTH LAN Starships dropped off the mesh.
+# Reverting that single rewrite to Beacon brought them back in ~2 minutes.
+#
+# The owner had flagged it in advance — "wasnt this on beacon ?" — and the question
+# was answered in general terms without checking it against that specific hostname.
+# A categorical answer cannot discharge a specific warning; hence a machine-checked
+# rule rather than a remembered one.
+#
+# NOTE the sibling trap already documented in .claude/rules/fleet.md: the
+# archie_tailscale container pins mesh. via extra_hosts, and that pin silently
+# killed the node for 23 days when NPM was decommissioned and the hub lost its :443
+# listener. Same hostname, same class of failure — a DNS/pin change made against a
+# host that cannot serve the scheme.
+#
+# A hostname belongs here when pointing it somewhere wrong breaks the CONTROL PLANE
+# rather than one service.
+# ---------------------------------------------------------------------------
+PROTECTED_REWRITES: Dict[str, Dict[str, Any]] = {
+    "mesh.kytranempowerment.com": {
+        "required_ports": (443,),
+        "reason": (
+            "mesh.kytranempowerment.com is the Headscale CONTROL PLANE and is TLS-only "
+            "(clients are handed back https://mesh... as server_url and must reach it on "
+            "443). Pointing it at a host with no TLS listener severs node enrollment and "
+            "drops LAN nodes off the mesh — this exact change cost both Starships on "
+            "2026-07-26. Target must be listening on 443."
+        ),
+    },
+}
+
+
+def _normalize_domain(domain: str) -> str:
+    return (domain or "").strip().rstrip(".").lower()
+
+
+def check_rewrite_allowed(domain: str, answer: str, probe_timeout: float = 3.0):
+    """Return (allowed, reason). Verifies a PROTECTED hostname's new target can serve it.
+
+    Fail-CLOSED for protected hostnames: if the target does not answer on a required
+    port we refuse, because the failure mode being prevented (a severed control plane)
+    is far worse than a refused DNS edit. Unprotected hostnames always pass.
+    """
+    rule = PROTECTED_REWRITES.get(_normalize_domain(domain))
+    if not rule:
+        return True, None
+
+    target = (answer or "").strip()
+    if not target:
+        return False, rule["reason"]
+
+    try:
+        from services.node_reachability import probe_node
+    except Exception:  # pragma: no cover - import guard only
+        logger.warning("node_reachability unavailable — allowing protected rewrite unverified")
+        return True, None
+
+    result = probe_node(target, rule["required_ports"], timeout=probe_timeout)
+    if result.reachable:
+        return True, None
+
+    ports = "/".join(str(p) for p in rule["required_ports"])
+    return False, f"{rule['reason']} {target} is not listening on {ports}."
 
 
 class AdGuardService:
@@ -118,7 +203,17 @@ class AdGuardService:
     def get_rewrites(self) -> Optional[List]:
         return self._request("GET", "rewrite/list")
 
-    def add_rewrite(self, domain: str, answer: str) -> Optional[Dict]:
+    def add_rewrite(self, domain: str, answer: str, force: bool = False) -> Optional[Dict]:
+        """Add/repoint a DNS rewrite.
+
+        Refuses to point a PROTECTED control-plane hostname at a target that is not
+        serving the scheme it requires (#5219). `force=True` is the deliberate
+        override for an operator who knows the target is about to start listening.
+        """
+        allowed, reason = (True, None) if force else check_rewrite_allowed(domain, answer)
+        if not allowed:
+            logger.error("REFUSED protected DNS rewrite %s -> %s: %s", domain, answer, reason)
+            raise ProtectedRewriteError(domain, answer, reason)
         return self._request("POST", "rewrite/add", {"domain": domain, "answer": answer})
 
     def delete_rewrite(self, domain: str, answer: str) -> Optional[Dict]:

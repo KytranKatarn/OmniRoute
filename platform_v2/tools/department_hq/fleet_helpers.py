@@ -422,17 +422,71 @@ def get_starship_node_for_user(user_id):
 # ============================================================================
 
 
-def _compute_node_status(node):
-    """Compute real status based on heartbeat freshness."""
-    if not node.get("last_heartbeat"):
-        return "offline"
-    hb = node["last_heartbeat"]
+def _heartbeat_fresh(node):
+    """True/False if a heartbeat exists, None when the caller did not select it."""
+    hb = node.get("last_heartbeat")
+    if hb is None:
+        return None
     if hb.tzinfo is None:
         hb = hb.replace(tzinfo=timezone.utc)
-    age = (datetime.now(timezone.utc) - hb).total_seconds()
-    if age > HEARTBEAT_TIMEOUT_SECONDS:
+    return (datetime.now(timezone.utc) - hb).total_seconds() <= HEARTBEAT_TIMEOUT_SECONDS
+
+
+def _mesh_reachable(node):
+    """Tri-state mesh reachability; None when mesh_status was not selected."""
+    ms = node.get("mesh_status")
+    if ms is None:
+        return None
+    return ms == "connected"
+
+
+def _compute_node_status(node):
+    """Compute node status. BACKWARD-COMPATIBLE: only ever 'online' or 'offline'.
+
+    Callers (and the Fleet tab JS) treat this as a two-state field, so it stays
+    two-state. The richer picture is in _compute_node_health().
+
+    The one BEHAVIOUR change is for ingress nodes (#5218): they run no node agent,
+    so heartbeat freshness is meaningless for them and this function used to return
+    'offline' unconditionally — Beacon rendered offline in the Fleet tab while it
+    was serving every public request the platform receives. For those nodes,
+    reachability is the answer.
+    """
+    role = node.get("node_role") or "agent"
+    if role == "ingress":
+        reachable = _mesh_reachable(node)
+        if reachable is None:
+            # No mesh signal selected — fall back to the stored status rather than
+            # asserting 'offline' from a signal this node cannot produce.
+            return node.get("status") or "unknown"
+        return "online" if reachable else "offline"
+
+    if not node.get("last_heartbeat"):
+        return "offline"
+    if not _heartbeat_fresh(node):
         return "offline"
     return node.get("status", "online")
+
+
+def _compute_node_health(node):
+    """Honest combined health label — 'the path the traffic actually uses'.
+
+    Distinguishes the two ways a node lies about itself (#5218):
+      unreachable  agent heartbeats (often over the LAN) but the MESH path is dead,
+                   so dispatch cannot land. Both Starships looked green like this
+                   on 2026-07-26 while unable to receive any work.
+      agent_down   host reachable, node agent not reporting.
+
+    Requires the caller to have selected mesh_status + node_role; degrades to the
+    plain heartbeat verdict when they are absent.
+    """
+    from services.node_reachability import describe_status
+
+    return describe_status(
+        node.get("node_role"),
+        _heartbeat_fresh(node),
+        _mesh_reachable(node),
+    )
 
 
 def _get_user_nodes(user_id, is_admin=False):
@@ -446,6 +500,12 @@ def _get_user_nodes(user_id, is_admin=False):
                        status, is_active, bridge_enabled, bridge_priority,
                        gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
                        approval_status, last_heartbeat, client_version,
+                       -- #5218: node_role + mesh_status are what let the caller tell
+                       -- "an agent phoned home" apart from "this node is reachable".
+                       -- Without them _compute_node_health() degrades to the old
+                       -- heartbeat-only verdict.
+                       COALESCE(node_role, 'agent') AS node_role,
+                       mesh_status, mesh_last_seen, mesh_latency_ms, reachable_port,
                        COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
                 FROM remote_nodes
                 ORDER BY bridge_priority DESC, node_name
@@ -458,6 +518,12 @@ def _get_user_nodes(user_id, is_admin=False):
                        status, is_active, bridge_enabled, bridge_priority,
                        gpu_model, gpu_vram_gb, cpu_model, cpu_cores, ram_gb, disk_gb,
                        approval_status, last_heartbeat, client_version,
+                       -- #5218: node_role + mesh_status are what let the caller tell
+                       -- "an agent phoned home" apart from "this node is reachable".
+                       -- Without them _compute_node_health() degrades to the old
+                       -- heartbeat-only verdict.
+                       COALESCE(node_role, 'agent') AS node_role,
+                       mesh_status, mesh_last_seen, mesh_latency_ms, reachable_port,
                        COALESCE(privacy_settings, '{}'::jsonb) as privacy_settings
                 FROM remote_nodes
                 WHERE registered_by = %s OR registered_by IS NULL

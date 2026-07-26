@@ -24,18 +24,51 @@ BEACON_PUBLIC="${BEACON_PUBLIC:-root@2.25.170.252}"  # public IP, works without 
 
 log(){ echo "[$(date -u +%H:%M:%S)] [force-reset] $*" | tee -a "$DR/force_reset.log"; }
 
+# ---- Beacon SELECTIVE upstream flipping (task #5214, ADR-009) ----
+BEACON_HOST="${BEACON_HOST:-$BEACON_PUBLIC}"
+BEACON_BAK_SUFFIX=".bak-reset"
+if [ -f "$DR/beacon_flip.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/beacon_flip.sh"
+else
+  log "(WARN: $DR/beacon_flip.sh missing — Beacon upstreams will NOT be reverted)"
+  beacon_flip_ports(){ log "  WARN: beacon_flip.sh not staged — skipping Beacon revert."; return 1; }
+  beacon_upstream_count(){ echo "?"; }
+  BEACON_DR_PORTS_ALL=(3000 8086 8095)
+fi
+
 log "=== force_reset_to_hub START ==="
 
-# ---- 1. Beacon Caddyfile — replace ALL occurrences of DR mesh IP ----
-log "1) Reverting Beacon Caddyfile $DR_MESH -> $HUB_MESH ..."
-if [ -f "$FLEET_KEY" ]; then
-  ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_PUBLIC" "
-    sed -i.bak-reset 's|$DR_MESH|$HUB_MESH|g' /etc/caddy/Caddyfile &&
-    caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 &&
-    systemctl reload caddy && echo '  Beacon: reverted + reloaded'" 2>/dev/null \
-    && log "  Beacon OK" || log "  WARN: Beacon SSH failed (manual: sed Caddyfile $DR_MESH->$HUB_MESH + reload)"
-else
-  log "  WARN: no fleet key — cannot reach Beacon"
+# ---- 1. Beacon Caddyfile — revert the DR-capable upstreams to the hub ----
+# Break-glass recovery, so it reverts every port a failover is allowed to move
+# (platform :3000, creed :8086, headscale :8095) — reverting one that was never
+# flipped is a no-op.
+#
+# It is deliberately NOT a blanket `sed 's|100.64.0.10|100.64.0.4|g'` any more.
+# The blanket version rewrote COMMENTS as well as upstreams: Beacon's Caddyfile
+# header still reads "DR (boston-2) mesh IP: 100.64.0.4" because a previous
+# force-reset rewrote its own documentation. It would also clobber any upstream
+# that legitimately points at boston-2. Anything left on the DR IP after this is
+# REPORTED rather than silently rewritten — set DR_RESET_ALL=1 to force the old
+# blanket behaviour when you truly want it. Task #5214.
+log "1) Reverting Beacon DR-capable upstreams $DR_MESH -> $HUB_MESH ..."
+beacon_flip_ports "$DR_MESH" "$HUB_MESH" "force-reset (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
+
+leftover="$(beacon_upstream_count "$DR_MESH")"
+if [ "$leftover" != "?" ] && [ "$leftover" -gt 0 ]; then
+  if [ "${DR_RESET_ALL:-0}" = "1" ]; then
+    log "  DR_RESET_ALL=1 — force-reverting $leftover remaining $DR_MESH upstream(s)..."
+    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" "
+      sed -i.bak-reset-all 's|reverse_proxy http://$DR_MESH:|reverse_proxy http://$HUB_MESH:|g' /etc/caddy/Caddyfile &&
+      caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 &&
+      systemctl reload caddy" >/dev/null 2>&1 \
+      && log "  Beacon: all remaining upstreams reverted." \
+      || log "  WARN: blanket revert failed — Beacon unchanged."
+  else
+    log "  NOTE: $leftover Beacon upstream(s) still point at $DR_MESH and are NOT in the"
+    log "        DR-capable map. That is either an intentional boston-2 service or drift."
+    log "        Inspect first; to force: DR_RESET_ALL=1 $0"
+  fi
 fi
 
 # ---- 2. Watch product .envs — replace ALL occurrences of DR mesh IP ----

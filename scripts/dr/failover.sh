@@ -43,6 +43,65 @@ else
   tg_notify(){ :; }
 fi
 
+# ---- Beacon SELECTIVE upstream flipping (task #5214, ADR-009) ----
+# One shared implementation for failover/failback/auto_failback/force_reset, so
+# the DR-capable service map cannot drift between them. See beacon_flip.sh for
+# why a blanket sed over Beacon's Caddyfile is an outage generator.
+# Fail-safe: if the helper is not staged, DEFINE LOUD NO-OPS rather than falling
+# back to the old blanket sed — skipping the flip costs one service, blanket-
+# flipping costs twenty.
+if [ -f "$DR/beacon_flip.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/beacon_flip.sh"
+else
+  log "  (WARN: $DR/beacon_flip.sh missing — Beacon upstreams will NOT be flipped)"
+  log "         deploy it: scp scripts/dr/beacon_flip.sh root@100.64.0.10:$DR/"
+  beacon_flip_ports(){
+    log "  WARN: beacon_flip.sh not staged — skipping Beacon flip for '${3:-?}' (ports ${*:4})."
+    log "        manual: on Beacon sed 'reverse_proxy http://${1}:<port>' -> '${2}:<port>' + reload caddy"
+    return 1
+  }
+  beacon_verify_selective(){ log "  Beacon verify: SKIPPED (helper not staged)."; return 0; }
+  BEACON_DR_PORT_PLATFORM=3000
+  BEACON_DR_PORT_CREED=8086
+  BEACON_DR_PORT_HEADSCALE=8095
+fi
+
+# ---- "Is it really serving?" probe, measured on the path BEACON uses ----
+# Beacon reaches these services at $DR_MESH:<port> over the mesh, NOT at
+# loopback. A loopback-only bind therefore passes a 127.0.0.1 check while
+# Beacon still gets `Connection refused` — and the flip proceeds anyway,
+# pointing a hostname at a host that cannot serve it (the exact thing ADR-009
+# / decision #955 forbids). This is not hypothetical: DR_RUNBOOK.md already
+# documents it for the standby platform — "failover.sh's /login check only
+# hits 127.0.0.1, so it passes while nodes still can't reach it."
+#
+# Same principle as task #5218 in this branch: measure on the path the traffic
+# actually uses, not the one that is convenient to measure.
+#
+# Residual gap (deliberate, documented): probing $DR_MESH from boston-2 itself
+# proves the service is bound beyond loopback, but it does NOT prove Beacon can
+# traverse UFW to get here. The complete check is to probe FROM Beacon over the
+# established ssh path (beacon_flip.sh:_beacon_ssh) — follow-up, not this fix.
+dr_service_listening() {
+    local port="$1" label="$2" mesh="${DR_MESH:-100.64.0.10}" i
+    local attempts="${DR_PROBE_ATTEMPTS:-10}" interval="${DR_PROBE_INTERVAL:-3}"
+    for i in $(seq 1 "$attempts"); do
+        if timeout 3 bash -c "echo > /dev/tcp/${mesh}/${port}" 2>/dev/null; then
+            return 0
+        fi
+        sleep "$interval"
+    done
+    # Name the documented loopback-bind trap explicitly rather than reporting a
+    # generic "not listening" — the operator fix differs completely.
+    if timeout 3 bash -c "echo > /dev/tcp/127.0.0.1/${port}" 2>/dev/null; then
+        log "  *** $label IS listening on 127.0.0.1:${port} but NOT on ${mesh}:${port}."
+        log "  *** Loopback-only bind — Beacon cannot reach it. Bind 0.0.0.0 (or"
+        log "  *** ${mesh}) and allow 100.64.0.0/10 to port ${port}. See DR_RUNBOOK.md."
+    fi
+    return 1
+}
+
 # ---- SAFETY: confirm the hub is really down (split-brain guard) ----
 log "Split-brain guard: checking the hub is actually down ($HUB_MESH:5432)..."
 if timeout 5 bash -c "echo > /dev/tcp/$HUB_MESH/5432" 2>/dev/null; then
@@ -200,19 +259,34 @@ if [ -f "$FLEET_KEY" ]; then
   fi
 fi
 
-# ---- 4c. BEACON front-door: flip its Caddy upstream hub -> boston-2 so the public
-# DNS that points at Beacon keeps reaching the platform (now the DR standby). Non-fatal. ----
+# ---- 4c. BEACON front-door: flip ONLY the PLATFORM upstream hub -> boston-2 ----
+# The public DNS that points at Beacon must keep reaching the platform (now the
+# DR standby) — but Beacon fronts ~20 upstreams and only the platform has a
+# boston-2 counterpart (archie_platform_standby, docker-compose.standby.yml).
+#
+# This used to be a blanket `sed 's|100.64.0.4|100.64.0.10|g'` over the whole
+# Caddyfile, which took every hub-only service (KSO, Media Hub, KBS, Plex,
+# Jellyfin, Nagios, AdGuard, sandbox, terminal, codex, Tdarr, archie_comms) down
+# on EVERY failover — and pre-flipped creed./mesh. before steps 4e/4f had even
+# tried to stage their counterparts. Task #5214, ADR-009 (decision #955):
+# pointing a hostname at a host that cannot serve it is worse than leaving it
+# pointed at one that is merely down.
+#
+# One :3000 substitution covers platform./api./bridge./consciousness./mediahub.
+# because they all `import platform_backend` in Beacon's Caddyfile. That is the
+# contract the Caddyfile's own header documents. Non-fatal.
 BEACON_HOST="${BEACON_HOST:-root@2.25.170.252}"  # public IP — mesh may be down during failover
 DR_MESH="${DR_MESH:-100.64.0.10}"
-if [ -f "$FLEET_KEY" ]; then
-  log "Repointing Beacon front-door Caddy upstream -> boston-2 ($DR_MESH)..."
-  if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
-       "sed -i.bak-dr 's|$HUB_MESH|$DR_MESH|g' /etc/caddy/Caddyfile && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 && systemctl reload caddy" >/dev/null 2>&1; then
-    log "  Beacon front-door now points at the boston-2 standby."
-  else
-    log "  WARN: Beacon repoint failed (manual: on Beacon sed Caddyfile $HUB_MESH->$DR_MESH + systemctl reload caddy)."
-  fi
-fi
+BEACON_BAK_SUFFIX=".bak-dr"
+log "Repointing Beacon PLATFORM upstream (:$BEACON_DR_PORT_PLATFORM) -> boston-2 ($DR_MESH)..."
+beacon_flip_ports "$HUB_MESH" "$DR_MESH" "platform" "$BEACON_DR_PORT_PLATFORM" \
+  && log "  Beacon platform aliases now point at the boston-2 standby; hub-only services untouched."
+
+# Assert the selective flip actually stayed selective (#5214 VERIFY). A count of
+# 0 means something blanket-flipped Beacon and ~20 healthy services just went
+# dark — surface it here rather than letting the owner find it as "KSO is down".
+beacon_verify_selective "$HUB_MESH" 10 || \
+  tg_notify "DR: Beacon flip was NOT selective — hub-only services may be offline. Run force_reset_to_hub.sh."
 
 # ---- 4d. Watch-series agents: repoint *_HUB_URL / BRIDGE_URL hub -> boston-2 DRP ----
 # gov-watch / legal-watch / what-the-fact each dispatch AI work (bias scoring,
@@ -263,14 +337,18 @@ if [ -f "$CREED_DIR/docker-compose.yml" ]; then
     ( cd "$CREED_DIR" && docker compose up -d >/dev/null 2>&1 ) \
         && log "  CREED started on boston-2 (:8086)" \
         || log "  WARN: CREED docker compose up failed on boston-2"
-    # Flip Beacon creed entry hub:8086 -> boston-2:8086
-    if [ -f "$FLEET_KEY" ]; then
-        ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
-            "sed -i.bak-dr 's|http://$HUB_MESH:8086|http://$DR_MESH:8086|' /etc/caddy/Caddyfile \
-             && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
-             && systemctl reload caddy" >/dev/null 2>&1 \
-            && log "  Beacon creed.kytranempowerment.com -> boston-2 ($DR_MESH:8086)" \
-            || log "  WARN: Beacon creed flip failed (manual: sed Caddyfile $HUB_MESH:8086->$DR_MESH:8086 + reload)"
+    # Flip Beacon creed entry hub:8086 -> boston-2:8086. This is now the ONLY
+    # thing that moves :8086 — 4c no longer pre-flips it — so creed. and
+    # api.creed-ai.org stay pointed at the hub whenever CREED could not be
+    # staged here, instead of at a boston-2 with nothing on that port.
+    # Gated on CREED actually ANSWERING: `compose up -d` exiting 0 means the
+    # container was created, not that it serves. Same rule as mesh. below.
+    creed_listening=0
+    dr_service_listening "$BEACON_DR_PORT_CREED" "CREED" && creed_listening=1
+    if [ "$creed_listening" -eq 1 ]; then
+        beacon_flip_ports "$HUB_MESH" "$DR_MESH" "creed" "$BEACON_DR_PORT_CREED"
+    else
+        log "  CREED is NOT listening on :8086 — LEAVING creed./api.creed-ai.org on the hub (ADR-009)."
     fi
 else
     log "  WARN: CREED not staged at $CREED_DIR (run backup_triage.sh to pre-stage) — skipping"
@@ -297,14 +375,23 @@ if [ -d "$HS_DIR" ] && [ -f "$HS_DIR/docker-compose.headscale-dr.yml" ]; then
     ( cd "$HS_DIR" && docker compose -f docker-compose.headscale-dr.yml up -d >/dev/null 2>&1 ) \
         && log "  Headscale DR started on boston-2 (:8095)" \
         || log "  WARN: Headscale DR failed to start — mesh DATA PLANE still works from node cache"
-    # Flip Beacon mesh entry hub:8095 -> boston-2:8095
-    if [ -f "$FLEET_KEY" ]; then
-        ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$BEACON_HOST" \
-            "sed -i.bak-dr 's|http://$HUB_MESH:8095|http://$DR_MESH:8095|' /etc/caddy/Caddyfile \
-             && caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1 \
-             && systemctl reload caddy" >/dev/null 2>&1 \
-            && log "  Beacon mesh.kytranempowerment.com -> boston-2 ($DR_MESH:8095)" \
-            || log "  WARN: Beacon mesh flip failed (manual: sed Caddyfile $HUB_MESH:8095->$DR_MESH:8095 + reload)"
+
+    # ---- Flip Beacon mesh entry hub:8095 -> boston-2:8095, but ONLY if Headscale
+    # is genuinely ANSWERING here. mesh.kytranempowerment.com is the Headscale
+    # CONTROL PLANE; moving it to a host that is not serving :8095 severs node
+    # enrollment and key rotation at the exact moment mesh health matters most,
+    # and it is the failure that dropped both LAN Starships on 2026-07-26.
+    # `docker compose up -d` exiting 0 only means the container was CREATED —
+    # it is not evidence that anything is listening. Probe before pointing.
+    # (Tasks #5214 + #5219.)
+    hs_listening=0
+    dr_service_listening "$BEACON_DR_PORT_HEADSCALE" "Headscale DR" && hs_listening=1
+    if [ "$hs_listening" -eq 1 ]; then
+        beacon_flip_ports "$HUB_MESH" "$DR_MESH" "headscale/mesh." "$BEACON_DR_PORT_HEADSCALE"
+    else
+        log "  Headscale DR is NOT listening on :8095 — LEAVING mesh.kytranempowerment.com on the hub."
+        log "  (Pointing the control plane at a host that cannot serve it is worse than leaving it"
+        log "   pointed at one that is merely down — ADR-009. The mesh DATA plane is unaffected.)"
     fi
 else
     log "  WARN: Headscale DR not staged at $HS_DIR (run: rsync scripts/dr/headscale/ boston-2:/opt/archie-dr/headscale/) — skipping"

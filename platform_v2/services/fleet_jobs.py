@@ -95,20 +95,24 @@ def check_fleet_health():
 
 
 def check_mesh_health():
-    """Job #53: Monitor mesh VPN connectivity for all fleet nodes.
+    """Job #53: Monitor mesh REACHABILITY for all fleet nodes.
 
-    Pings each node's mesh_ip, updates mesh_status/mesh_latency_ms
-    in remote_nodes, and logs to mesh_health_log. Triggers fleet cache
-    refresh on status transitions (disconnected->connected or vice versa).
+    Probes each node's mesh_ip, updates mesh_status/mesh_latency_ms/reachable_port
+    in remote_nodes, and logs to mesh_health_log. Triggers fleet cache refresh on
+    status transitions (disconnected->connected or vice versa).
+
+    This is the "is the host answering?" signal. It is deliberately INDEPENDENT of
+    remote_nodes.status, which only says whether a node AGENT phoned home — a node
+    can heartbeat over the LAN while the mesh path dispatch uses is dead. #5218.
     """
     try:
-        import socket
-        import time as _time
         from database import get_db_cursor
+
+        from services.node_reachability import probe_node, probe_ports_for_role
 
         with get_db_cursor() as (conn, cur):
             cur.execute(
-                """SELECT id, node_name, mesh_ip, mesh_status
+                """SELECT id, node_name, mesh_ip, mesh_status, node_role
                    FROM remote_nodes
                    WHERE mesh_ip IS NOT NULL
                      AND is_active = true
@@ -125,22 +129,18 @@ def check_mesh_health():
             old_status = node["mesh_status"]
             node_id = node["id"]
 
-            # TCP connect to Ollama port on mesh IP (fast reachability check)
-            latency_ms = None
-            new_status = "disconnected"
-            conn_type = None
-            try:
-                start = _time.monotonic()
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(3)
-                s.connect((mesh_ip, 11434))
-                s.close()
-                elapsed = (_time.monotonic() - start) * 1000
-                latency_ms = int(elapsed)
-                new_status = "connected"
-                conn_type = "direct"
-            except Exception:
-                new_status = "disconnected"
+            # Measure REACHABILITY, not Ollama. This probe used to TCP-connect to
+            # mesh_ip:11434 and call the result "mesh_status" — but :11434 is the
+            # INFERENCE port. Beacon runs no Ollama by design, so it could never
+            # pass, and the mesh signal was as structurally broken as the heartbeat
+            # one: on 2026-07-26 Beacon read mesh_status='disconnected' while
+            # answering ping, registered in headscale, and serving live public
+            # traffic. Probe an ordered port set and record WHICH port answered, so
+            # "the host is up" and "Ollama is up" stay distinguishable. Task #5218.
+            result = probe_node(mesh_ip, probe_ports_for_role(node.get("node_role")))
+            latency_ms = result.latency_ms
+            new_status = "connected" if result.reachable else "disconnected"
+            conn_type = "direct" if result.reachable else None
 
             # Update remote_nodes
             with get_db_cursor() as (conn, cur):
@@ -149,10 +149,23 @@ def check_mesh_health():
                        SET mesh_status = %s,
                            mesh_latency_ms = %s,
                            mesh_connection_type = %s,
+                           reachable_port = %s,
                            mesh_last_seen = CASE WHEN %s = 'connected' THEN NOW() ELSE mesh_last_seen END
                        WHERE id = %s""",
-                    (new_status, latency_ms, conn_type, new_status, node_id),
+                    (new_status, latency_ms, conn_type, result.port, new_status, node_id),
                 )
+
+                # An INGRESS node has no agent to phone home, so nothing else will
+                # ever move its remote_nodes.status — Beacon sat 'offline' with a
+                # heartbeat frozen at a power-down while serving live traffic, and
+                # would have stayed that way forever. For these nodes reachability IS
+                # the health signal, so derive status from the probe. Agent nodes are
+                # left alone: check_fleet_health owns their status. #5218.
+                if (node.get("node_role") or "agent") == "ingress":
+                    cur.execute(
+                        "UPDATE remote_nodes SET status = %s WHERE id = %s",
+                        ("online" if result.reachable else "offline", node_id),
+                    )
 
                 # Log to mesh_health_log
                 cur.execute(

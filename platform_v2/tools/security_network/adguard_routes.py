@@ -14,13 +14,19 @@ logger = logging.getLogger(__name__)
 
 # Import AdGuard full service
 try:
-    from .adguard_service import AdGuardService
+    from .adguard_service import AdGuardService, ProtectedRewriteError
 
     adguard_service = AdGuardService()
     ADGUARD_SERVICE_AVAILABLE = True
 except ImportError:
     adguard_service = None
     ADGUARD_SERVICE_AVAILABLE = False
+
+    # Keep the name bound so the `except ProtectedRewriteError` handler below is
+    # never a NameError when the service is unavailable. Unreachable in practice
+    # (the routes 503 first), but a broken handler is not an acceptable fallback.
+    class ProtectedRewriteError(Exception):  # type: ignore[no-redef]
+        domain = answer = reason = ""
 
 
 def register_adguard_routes(bp, admin_required_decorator):
@@ -207,11 +213,32 @@ def register_adguard_routes(bp, admin_required_decorator):
         if not domain or not answer:
             return jsonify({"success": False, "error": "Domain and answer are required"}), 400
 
+        # Deliberate operator override for a protected hostname (#5219) — e.g. the
+        # target is about to start listening. Must be explicit, never a default.
+        force = bool(data.get("force"))
+
         try:
-            result = adguard_service.add_rewrite(domain, answer)
+            result = adguard_service.add_rewrite(domain, answer, force=force)
             if result is None:
                 return jsonify({"success": False, "error": "Failed to add rewrite"}), 500
             return jsonify({"success": True, "data": result})
+        except ProtectedRewriteError as e:
+            # 409, not 500: the request was understood and deliberately refused.
+            # The reason MUST reach the caller — a generic "Internal server error"
+            # here is how a bulk repoint silently severs the mesh control plane.
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e.reason),
+                        "protected": True,
+                        "domain": e.domain,
+                        "answer": e.answer,
+                        "override": "resend with {\"force\": true} if the target will serve it",
+                    }
+                ),
+                409,
+            )
         except Exception as e:
             logger.exception("Route error: %s", e)
             return jsonify({"success": False, "error": "Internal server error"}), 500

@@ -42,6 +42,36 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 - `100.79.11.3` = host's Tailscale.com client — a SEPARATE tailnet, not the mesh.
 - `.9 shuttle-kytran` = Kytran personal device (not a fleet node).
 
+### 🔴 `mesh.kytranempowerment.com` is PROTECTED — never repoint it in bulk (task #5219)
+
+`mesh.` is the Headscale **control plane** and is **TLS-only**: clients are handed back
+headscale's configured `server_url` (`https://mesh…`) and must reach it on **443**. Point it
+at a host with no TLS listener and node enrollment/key rotation die.
+
+**2026-07-26:** a bulk AdGuard repoint of all 15 rewrites → `192.168.1.200` swept `mesh.` in.
+The recovery hub Caddy was HTTP-only (`auto_https off`), so **both LAN Starships dropped off
+the mesh**. Reverting that ONE rewrite to Beacon (`2.25.170.252`) brought them back in ~2 min.
+Kytran had flagged it in advance — *"wasnt this on beacon ?"* — and the general Caddy question
+was answered without checking that specific hostname. **A categorical answer cannot discharge
+a specific warning** (see `feedback_bulk-ops-are-n-decisions`).
+
+This is the SAME failure class as the `archie_tailscale` `extra_hosts` pin above, which
+silently killed that node for 23 days when NPM was decommissioned and the hub lost its `:443`
+listener. Same hostname, same shape: a DNS/pin change made against a host that cannot serve
+the scheme.
+
+Now machine-enforced in three places — a remembered rule was not enough:
+1. **`adguard_service.PROTECTED_REWRITES`** — `add_rewrite()` probes the new target for a
+   443 listener and raises `ProtectedRewriteError` (route → **409** with the reason) unless
+   the caller passes an explicit `force=True`. Fail-closed.
+2. **`failover.sh` step 4f** — flips `mesh.` to boston-2 ONLY after Headscale DR actually
+   ANSWERS on `:8095`; `docker compose up -d` exiting 0 means the container was *created*,
+   not that anything is listening.
+3. **`beacon_flip.sh`** — `:8095` is never part of the blanket/platform flip.
+
+**Rule: `mesh.` must never resolve to a host with no TLS listener.** Adding a hostname to
+`PROTECTED_REWRITES` is the way to extend this to any other control-plane name.
+
 ## Fleet Route Files (`tools/department_hq/`)
 
 | File | Purpose |

@@ -20,6 +20,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from tests.dbguard import db_or_skip, import_or_skip  # noqa: E402
 
 sys.path.insert(0, "/app")
 
@@ -61,13 +62,13 @@ def schema_and_stubs(monkeypatch):
     """Ensure tables exist, silence Telegram, stub the DR side."""
     try:
         from database import get_db_cursor
-    except Exception:
-        pytest.skip("database module unavailable")
+    except Exception as exc:
+        import_or_skip(exc, "database module")
     try:
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(DDL)
     except Exception as e:
-        pytest.skip(f"cannot prepare schema: {type(e).__name__}: {e}")
+        db_or_skip(e)
 
     monkeypatch.setattr(mss, "_announce", lambda *a, **k: True)
     yield

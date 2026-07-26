@@ -53,6 +53,28 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key")
 
 
+_SCHEMA_FINGERPRINT_SQL = """
+    SELECT table_name, column_name, data_type
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+    ORDER BY table_name, column_name
+"""
+
+
+def _schema_fingerprint(cur):
+    """Stable hash of the public schema's (table, column, type) triples.
+
+    Deliberately ignores row DATA, indexes, constraints and defaults: the thing
+    that breaks a test when archie_test goes stale is a column the code writes
+    that the clone does not have. Hashing more would make the fingerprint
+    churn on harmless prod activity and train everyone to ignore a reclone.
+    """
+    import hashlib
+
+    cur.execute(_SCHEMA_FINGERPRINT_SQL)
+    return hashlib.sha256(repr(cur.fetchall()).encode()).hexdigest()
+
+
 def _ensure_test_db():
     """Create the isolated test database + clone the prod schema if missing.
 
@@ -104,7 +126,19 @@ def _ensure_test_db():
     finally:
         admin.close()
 
-    # 2. ensure schema present (idempotent clone)
+    # 2. ensure schema present AND CURRENT (idempotent clone)
+    #
+    # The old check was `to_regclass('public.translations') IS NOT NULL` — i.e.
+    # schema currency inferred from ONE table existing. That table exists forever
+    # after the first clone, so the check could never fire again and archie_test
+    # drifted from archie indefinitely. On 2026-07-26 it was a clone predating
+    # migration 463: seeding `node_role` raised UndefinedColumn, a fixture
+    # downgraded that to a skip, and three fleet tests reported "3 skipped" —
+    # which reads as passing (task #5231).
+    #
+    # A fingerprint over (table, column, type) is the property we actually care
+    # about and costs ~0.6s for 823 tables / 9,645 columns — cheap enough to pay
+    # every session. Presence of a sentinel is a proxy; this is the real thing.
     test = _connect(TEST_DB_NAME)
     test.autocommit = True
     try:
@@ -112,11 +146,62 @@ def _ensure_test_db():
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
             cur.execute("SELECT to_regclass('public.translations')")
             has_schema = cur.fetchone()[0] is not None
+            test_fp = _schema_fingerprint(cur) if has_schema else None
     finally:
         test.close()
 
-    if has_schema and not os.environ.get("TEST_DB_REBUILD"):
+    prod_fp = None
+    if has_schema:
+        prod = _connect(PROD_DB_NAME)
+        try:
+            with prod.cursor() as cur:
+                prod_fp = _schema_fingerprint(cur)
+        finally:
+            prod.close()
+
+    if has_schema and prod_fp == test_fp and not os.environ.get("TEST_DB_REBUILD"):
         return
+
+    if has_schema and prod_fp != test_fp:
+        # DROP, don't overlay. Re-applying a schema dump on top of an existing
+        # schema is a no-op for drift: every CREATE TABLE fails "already exists"
+        # (ON_ERROR_STOP=0 swallows it) so a newly-added COLUMN is never created.
+        # Overlaying would leave the drift in place while looking like a repair.
+        sys.stderr.write(
+            f"\n[conftest] SCHEMA DRIFT: {TEST_DB_NAME} ({test_fp[:12]}) != "
+            f"{PROD_DB_NAME} ({prod_fp[:12]}) — recloning.\n"
+        )
+        admin = _connect(PROD_DB_NAME)
+        admin.autocommit = True
+        try:
+            with admin.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    "WHERE datname=%s AND pid<>pg_backend_pid()",
+                    (TEST_DB_NAME,),
+                )
+                cur.execute(f'DROP DATABASE IF EXISTS "{TEST_DB_NAME}"')
+                cur.execute(f'CREATE DATABASE "{TEST_DB_NAME}"')
+        finally:
+            admin.close()
+        fresh = _connect(TEST_DB_NAME)
+        fresh.autocommit = True
+        try:
+            with fresh.cursor() as cur:
+                cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+        finally:
+            fresh.close()
+
+    # Timeouts are ASYMMETRIC because the two halves are wildly different, and
+    # measuring only the cheap half is how the wrong conclusion got drawn.
+    # Measured 2026-07-26 against 823 tables / 109k lines of DDL:
+    #     pg_dump --schema-only :   2s
+    #     psql restore          : 344s     <- 170x the dump
+    # The old flat 300s therefore aborted mid-restore EVERY time, leaving a
+    # half-built archie_test. Default 1200s gives ~3.5x headroom for a busy
+    # server; tune with TEST_DB_RESTORE_TIMEOUT if the schema keeps growing.
+    dump_timeout = int(os.environ.get("TEST_DB_DUMP_TIMEOUT", "300"))
+    restore_timeout = int(os.environ.get("TEST_DB_RESTORE_TIMEOUT", "1200"))
 
     env = {**os.environ, "PGPASSWORD": pw}
     dump = subprocess.run(
@@ -137,7 +222,7 @@ def _ensure_test_db():
         env=env,
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=dump_timeout,
     )
     if dump.returncode != 0:
         raise RuntimeError(f"test-db schema dump failed: {dump.stderr[:400]}")
@@ -147,7 +232,7 @@ def _ensure_test_db():
         env=env,
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=restore_timeout,
     )
 
 

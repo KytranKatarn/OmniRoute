@@ -26,6 +26,7 @@ from __future__ import annotations
 import os
 
 import pytest
+from tests.dbguard import db_or_skip, import_or_skip  # noqa: E402
 
 _JOBS_PATH = os.path.join(os.path.dirname(__file__), "..", "tools", "department_hq", "jobs.py")
 
@@ -52,7 +53,7 @@ def _db_or_skip():
 
         return get_db_cursor
     except Exception as exc:  # pragma: no cover - import/env dependent
-        pytest.skip(f"database module unavailable: {exc}")
+        import_or_skip(exc, "database module")
 
 
 def test_failure_bench_marker_excludes_agent_from_rescue():
@@ -92,7 +93,7 @@ def test_failure_bench_marker_excludes_agent_from_rescue():
     except pytest.skip.Exception:
         raise
     except Exception as exc:  # pragma: no cover - DB connectivity dependent
-        pytest.skip(f"DB predicate check unavailable: {exc}")
+        db_or_skip(exc)
 
 
 def test_transition_shift_state_bumps_updated_at():

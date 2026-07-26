@@ -22,6 +22,7 @@ inside a transaction that is always rolled back, so the live table is untouched.
 import sys
 
 import pytest
+from tests.dbguard import db_or_skip, import_or_skip  # noqa: E402
 
 sys.path.insert(0, "/app")
 
@@ -65,8 +66,8 @@ def cur():
     pytest.importorskip("psycopg2")
     try:
         from database import get_db_connection
-    except Exception:  # pragma: no cover
-        pytest.skip("database module unavailable")
+    except Exception as exc:  # pragma: no cover
+        import_or_skip(exc, "database module")
 
     try:
         with get_db_connection() as conn:
@@ -81,7 +82,7 @@ def cur():
     except pytest.skip.Exception:
         raise
     except Exception as exc:  # pragma: no cover - no reachable DB
-        pytest.skip(f"no database connection: {type(exc).__name__}")
+        db_or_skip(exc)
 
 
 def _count(c, sql):

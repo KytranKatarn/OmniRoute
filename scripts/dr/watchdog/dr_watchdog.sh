@@ -171,8 +171,70 @@ probe_outpost(){
 #   proceed  : /dr_proceed  · button "dr_proceed"
 #   abort    : /dr_abort /dr_cancel abort cancel · button "dr_abort"
 #   standby  : /dr_standby standby · button "dr_standby"
+# ---------------------------------------------------------------------------
+# Is boston-2 GENUINELY a streaming replica of the hub? (#4997)
+#
+# Asked LOCALLY on boston-2, from live connection state rather than config:
+#   * pg_is_in_recovery() = t     -> it is a replica at all. A PROMOTED FORK
+#                                    returns f, which is exactly the state that
+#                                    went unnoticed for days.
+#   * pg_stat_wal_receiver        -> a walreceiver is actually CONNECTED, and to
+#     status='streaming', sender     the RIGHT primary.
+#     = the hub
+#
+# Both are observed state. "The script exited 0" is NOT evidence that replication
+# exists — assuming it was is what let DR report healthy while boston-2 was a fork.
+# Returns 2 (unknown) if it cannot look; an unknown must never read as a pass.
+# ---------------------------------------------------------------------------
+B2_CONTAINER="${B2_CONTAINER:-archie_dr_replica}"
+B2_PG="${B2_PG:-5433}"
+HUB_MESH="${HUB_MESH:-100.64.0.4}"
+
+dr_replica_streaming(){
+  local out
+  out="$(docker exec "$B2_CONTAINER" psql -U archie -p "$B2_PG" -tAc \
+        "SELECT pg_is_in_recovery()::text || ':' || coalesce((SELECT status || '@' || coalesce(sender_host,'?') FROM pg_stat_wal_receiver LIMIT 1),'no_receiver');" 2>/dev/null | tr -d '[:space:]')"
+  if [ -z "$out" ]; then
+    log "  replica check: could not query $B2_CONTAINER — treating as NOT verified"
+    return 2
+  fi
+  case "$out" in
+    # NB: pg_is_in_recovery()::text renders "true"/"false", NOT "t"/"f" — verified
+    # against the live replica, which returns exactly `true:streaming@100.64.0.4`.
+    # Matching t:/f: here would make a genuinely streaming replica report NOT
+    # streaming, i.e. a verify that can never pass.
+    "true:streaming@$HUB_MESH") log "  replica check: OK — streaming from the hub ($out)"; return 0 ;;
+    false:*) log "  replica check: pg_is_in_recovery()=false — boston-2 is a PROMOTED FORK, not a replica ($out)"; return 1 ;;
+    *)   log "  replica check: NOT streaming from $HUB_MESH ($out)"; return 1 ;;
+  esac
+}
+
+# A decision can be given WITHOUT Telegram (#4997 problem 2). Approval used to be
+# reachable only via an inline-keyboard callback, so a broken bot — or an operator
+# on a terminal, or an agent doing incident response — could not answer at all, and
+# DR would sit blocked indefinitely. Worse, per #4995 the logs could not even prove
+# the alert had been delivered.
+#
+#   echo rebuild      > /opt/archie-dr/.dr_decision
+#   echo skip_rebuild > /opt/archie-dr/.dr_decision
+#   echo verify       > /opt/archie-dr/.dr_decision
+#
+# Checked BEFORE Telegram, so it works when Telegram is entirely dead — which is
+# exactly when you need it. SINGLE-USE: the file is removed as soon as it is read,
+# because a decision left on disk would re-fire every cycle and re-run a failback.
 poll_action(){
   local since="$1"
+  local dfile="$DR/.dr_decision"
+  if [ -f "$dfile" ]; then
+    local d
+    d="$(tr -d '[:space:]' < "$dfile" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+    rm -f "$dfile"
+    case "$d" in
+      proceed|abort|standby|rebuild|skip_rebuild|verify) log "  decision '$d' read from $dfile"; echo "$d"; return ;;
+      "") : ;;
+      *) log "  WARN: ignoring unrecognised decision '$d' in $dfile" ;;
+    esac
+  fi
   [ -f "$DR/.telegram_env" ] || { echo ""; return; }
   # shellcheck disable=SC1091
   . "$DR/.telegram_env"
@@ -191,6 +253,7 @@ def classify(t):
     if t in ("dr_standby","standby"): return "standby"
     if t in ("dr_rebuild","rebuild"): return "rebuild"
     if t in ("dr_skip_rebuild","skip_rebuild","skip"): return "skip_rebuild"
+    if t in ("dr_verify","verify"): return "verify"
     return ""
 try:
     raw=urllib.request.urlopen("https://api.telegram.org/bot%s/getUpdates?timeout=0"%tok, timeout=12).read()
@@ -198,7 +261,7 @@ try:
 except Exception:
     print(""); raise SystemExit
 # Priority: an explicit Proceed beats Abort beats Standby within the window.
-found={"proceed":False,"abort":False,"standby":False,"rebuild":False,"skip_rebuild":False}
+found={"proceed":False,"abort":False,"standby":False,"rebuild":False,"skip_rebuild":False,"verify":False}
 for u in upd:
     cq=u.get("callback_query")
     if cq:
@@ -214,7 +277,7 @@ for u in upd:
     if int(m.get("date",0))<since: continue
     a=classify(m.get("text"))
     if a: found[a]=True
-print("proceed" if found["proceed"] else "abort" if found["abort"] else "standby" if found["standby"] else "rebuild" if found["rebuild"] else "skip_rebuild" if found["skip_rebuild"] else "")
+print("proceed" if found["proceed"] else "abort" if found["abort"] else "standby" if found["standby"] else "rebuild" if found["rebuild"] else "skip_rebuild" if found["skip_rebuild"] else "verify" if found["verify"] else "")
 PY
 }
 
@@ -258,16 +321,46 @@ main(){
       action="$(poll_action "$since")"
       case "$action" in
         rebuild)
-          log "Operator approved DB rebuild — running failback.sh restore-normal..."
-          tg_notify "🔄 <b>DR Failback — DB rebuild starting...</b>"
+          # failback.sh restore-normal is SAFE: it never touches the hub DB. The
+          # wipe lives ONLY in `rebuild-hub`, which is CONFIRM=REBUILD-HUB gated.
+          # (KB #272172's blanket "DO NOT run failback.sh" is over-broad and names
+          # the wrong thing — `rebuild-hub` is the dangerous subcommand.)
+          #
+          # BUT restore-normal's step 5 only PRINTS "ON BOSTON-2: setup_replica.sh".
+          # The old code ran it, deleted BOTH flags, and announced "boston-2 is a
+          # streaming replica" while nothing had re-cloned anything — which is how
+          # boston-2 became a promoted fork with DR believed healthy and the
+          # evidence erased.
+          log "Operator approved DB rebuild — restore-normal, then re-establish the replica..."
+          tg_notify "🔄 <b>DR Failback — restoring services, then rebuilding the replica...</b>"
           bash "$DR/failback.sh" restore-normal 2>&1 | tee -a "$DR/failback.log"
-          rm -f "$AWAITING_REBUILD" "$FAILED_OVER_FLAG"
-          tg_notify "✅ <b>DR Failback complete.</b> boston-2 is a streaming replica. Normal DR posture restored." ;;
+          log "running setup_replica.sh (restore-normal only PRINTS this step)..."
+          bash "$DR/setup_replica.sh" 2>&1 | tee -a "$DR/failback.log"
+          if dr_replica_streaming; then
+            rm -f "$AWAITING_REBUILD" "$FAILED_OVER_FLAG"
+            tg_notify "✅ <b>DR Failback complete.</b> VERIFIED: boston-2 is streaming from the hub. Normal DR posture restored."
+          else
+            log "replica NOT verified — keeping .awaiting_rebuild/.failed_over."
+            tg_notify "🔴 <b>DR Failback INCOMPLETE.</b> Services are back on the hub, but boston-2 is <b>NOT streaming</b> — DR is NOT protected. Flags kept so this stays visible. Fix replication, then answer <code>verify</code>."
+          fi ;;
         skip_rebuild)
-          log "Operator skipped DB rebuild."
-          rm -f "$AWAITING_REBUILD" "$FAILED_OVER_FLAG"
-          tg_notify "🔵 <b>DB rebuild skipped.</b> boston-2 is a cold standby. Run <code>failback.sh restore-normal</code> manually when ready." ;;
-        *) log "awaiting rebuild approval (rebuild/skip_rebuild) — exit." ;;
+          # Deliberately no longer clears .failed_over: skipping leaves DR truly
+          # degraded, and erasing the evidence made that indistinguishable from a
+          # healthy system.
+          log "Operator skipped DB rebuild — DR remains degraded (.failed_over kept)."
+          rm -f "$AWAITING_REBUILD"
+          tg_notify "🔵 <b>DB rebuild skipped.</b> boston-2 is a cold standby and <b>DR is NOT protected</b>. .failed_over is kept so the degraded state stays visible. Run <code>setup_replica.sh</code> on boston-2, then answer <code>verify</code>." ;;
+        verify)
+          # The third state the old code could not express: "already rebuilt
+          # out-of-band". Clears flags ONLY on proof of live streaming.
+          log "Operator requested verify — checking real replication state..."
+          if dr_replica_streaming; then
+            rm -f "$AWAITING_REBUILD" "$FAILED_OVER_FLAG"
+            tg_notify "✅ <b>DR verified.</b> boston-2 is streaming from the hub. Flags cleared; normal DR posture restored."
+          else
+            tg_notify "🔴 <b>Verify FAILED.</b> boston-2 is not streaming from the hub — flags kept. DR is NOT protected."
+          fi ;;
+        *) log "awaiting decision (rebuild/skip_rebuild/verify) — exit." ;;
       esac
       exit 0
     fi

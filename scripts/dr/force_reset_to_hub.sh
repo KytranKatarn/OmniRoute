@@ -122,6 +122,16 @@ rm -f "$DR/.awaiting_rebuild" && log "  .awaiting_rebuild: cleared"
 # it measures what a LAN CLIENT actually gets — the path that matters. Measuring
 # the convenient thing instead of the real path is the recurring bug this whole
 # session has been about.
+# Shared per-host AdGuard helper (#5224). Sourced so a break-glass reset can
+# actually RESTORE LAN DNS instead of only describing what is wrong.
+if [ -f "$DR/adguard_flip.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/adguard_flip.sh"
+else
+  adguard_lan_check(){ log "  (adguard_flip.sh not staged — LAN DNS not checked)"; return 2; }
+  adguard_lan_restore(){ log "  (adguard_flip.sh not staged — cannot restore LAN DNS)"; return 2; }
+fi
+
 ADGUARD_DNS="${ADGUARD_DNS:-100.64.0.4}"
 BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.170.252}"
 # Hostnames Beacon fronts. mail. is deliberately ABSENT: Stalwart runs on the hub
@@ -155,8 +165,14 @@ else
         log "  *** $_drift hostname(s) NOT pointing at Beacon — LAN clients will fail even"
         log "  *** though every service is healthy. This is the 2026-07-26 signature."
         if [ "${1:-}" = "--fix-dns" ] || [ "${FIX_DNS:-0}" = "1" ]; then
-            log "  --fix-dns given: repoint them ONE AT A TIME from the hub, verifying each."
-            log "  (Not automated here on purpose — a bulk AdGuard repoint caused #5219.)"
+            # PER-HOST, TLS-gated, mesh. never touched — adguard_flip.sh enforces
+            # all three. Still opt-in: a recovery script that rewrites DNS on its
+            # own initiative is how #5219 happened.
+            log "  --fix-dns given: repointing per-host via adguard_flip.sh ..."
+            adguard_lan_restore
+            adguard_lan_check
+        else
+            log "  (re-run with --fix-dns to repoint per-host, TLS-gated, mesh. untouched)"
         fi
         log "  Remediate on the hub, per host, re-reading the list first:"
         log "    POST http://127.0.0.1:5354/control/rewrite/delete {domain,answer:<old>}"

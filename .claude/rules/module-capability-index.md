@@ -1,23 +1,44 @@
----
-globs: ["platform_v2/tools/**", "platform_v2/module_registry.py"]
----
+<!-- GENERATED FILE — DO NOT EDIT BY HAND.
+     Regenerate:  docker exec archie_platform python3 \
+                    /mnt/archie_brain/scripts/generate_registry_docs.py
+     Source of truth: platform_v2/module_registry.py -> platform_registry_module table.
+     Hand-written rationale belongs in the `notes` column, NOT in this file —
+     anything typed here is lost on the next run. Task #5230. -->
 
 # Master Module Capability Index
 
-From `module_registry.py` (36 modules). Full detail: `search_knowledge(category="module_capability")`.
+**Generated**: 2026-07-26 11:46:59 EDT · **Source**: `module_registry.MODULES` (live import, not prose)
+
+**41 modules registered** — 36 enabled, 5 disabled/coming-soon, 0 absent. 35 carry curated notes.
+
+> This file is REGENERATED. If it disagrees with the platform, the platform is right and this file is stale — check the Generated stamp above before trusting it. It exists because the hand-maintained predecessor documented two tables that do not exist (`backups`, `backup_locks`), which left backups unmonitored while appearing monitored, and listed three modules as writable by an automated agent that never were.
 
 ## Legend
-- **Status**: ✅ enabled · 🅱 beta · ⏳ coming_soon · ⛔ disabled
-- **Maturity**: 🟢 Mature · 🟡 Partial · 🔴 Stub
 
----
+✅ enabled · 🅱 beta · ⏳ coming_soon · ⛔ disabled · 🚨 absent
 
-## admin_operations (4)
+## Admin Operations (5)
 
-**W.A.R.D.E.N. agent #363** (Operations & Infrastructure, qwen2.5:7b, Lv4) — autonomous guardian. Dispatch: `user_audit`, `backup_verify`, `compliance_check`, `account_management`, `access_review`. KB #263995. Decision #575.
+### Account Center — `account_center`
 
-### Backup Manager — `backup_manager` · `/tools/backup-manager` · ✅ · 🟢
-- **Capability**: 10 tabs — Backups (Brain/Full/Archive), Cloud (GDrive AES-256-GCM), External (USB), Deployment, Modules (36), Standalones (9), Hooks, Retention (GFS), Packages. W.A.R.D.E.N. (#363) chat overlay.
+- **Status**: ✅ enabled · **Route**: `/tools/account-center` · **Version**: 1.0
+- **Description**: User and subscription management · Roles • Permissions • Activity tracking • Billing tiers
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:users`
+- **Blueprint**: `tools.account_center.routes:account_center_bp`
+- **Tags**: accounts, users, permissions, subscriptions, admin-operations
+- **Notes** (curated, survives regeneration): - **Capability**: 10 tabs — Overview, Users, Permissions, Subscriptions, Security, Sessions, API Keys, Bulk Ops, Activity, Orgs. Role hierarchy (GUEST 5→SUPER_ADMIN 100). Invite system (`user_invites`, Stalwart SMTP). API key scopes: chat/read/admin.
+- **Critical**: `cat_accent` must be `'#ef4444'` (literal hex) NOT `'var(--archie-palette-red-500)'` in Jinja2 inline styles.
+- **Chat overlay**: **R.E.S.O.L.V.E.** id=142 → `account-center-chat.js`, red `#ef4444`.
+- **KB Docs**: #263991 · #264474 (audit 2026-05-09) · **Rules**: `admin-ops.md`, `app-core.md`
+
+### Backup Manager — `backup_manager`
+
+- **Status**: ✅ enabled · **Route**: `/tools/backup-manager` · **Version**: 1.0
+- **Description**: Automated backup and restore · Scheduled snapshots • Version history • One-click recovery
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:backups`
+- **Blueprint**: `tools.backup_manager:backup_manager_bp`
+- **Tags**: backup, restore, safety, admin-operations
+- **Notes** (curated, survives regeneration): - **Capability**: 10 tabs — Backups (Brain/Full/Archive), Cloud (GDrive AES-256-GCM), External (USB), Deployment, Modules (36), Standalones (9), Hooks, Retention (GFS), Packages. W.A.R.D.E.N. (#363) chat overlay.
 - **Tables**: `backup_log` (THE source of truth), `webhook_subscriptions`, `deployment_package_jobs`. All `@admin_required`. ⚠️ **`backups` and `backup_locks` do NOT exist** — this line listed both until 2026-07-20. `to_regclass('public.backups')` → NULL; W.A.R.D.E.N.'s integrity check queried `FROM backups`, threw every run, and swallowed it, leaving backups *unmonitored while appearing monitored* (#2366). Locking is a **FILE**: `/backups/.backup_lock` (container path — a host-side `ls /backups/...` ALWAYS reports "no lock" and certifies nothing; use `docker exec archie_platform test -f /backups/.backup_lock`. KB #282939).
 - **Quick Backup buttons (PR #2375, 2026-07-20)**: `full` = all **9** components (database, platform, documentation, ai_bridge, migrations, scripts, nginx, environment, conversation_logs) · `critical` = database+platform+documentation+environment (measured 1,543 MB) · `database` = DB only. **`n8n_workflows`/`n8n_persistence` REMOVED** — n8n was decommissioned 2026-06-26 (PRs #1931/#1932) but an `os.path.exists()` guard let the blocks skip silently, so COMPLETE ARCHIVE advertised n8n while backing up nothing for ~2 months. `backup_log.duration_ms` is now populated by the create path (it never was). NEW **`GET /quick-stats`** → last **successful** run per type `{size_mb, duration_s|null, created_at}` — success-only so a failed attempt can't render as "last run" (#5013); feeds the buttons' "Last run:" line so captions can't go stale. KB #282940.
 - **Retention**: per-(component, tier) GFS — **source of truth is the `RETENTION` dict in `scripts/backup/retention_prune.py`**, NOT a single 7/4/3 triple. Nightly via `backup_triage.sh`. Path normalization: `/backups/` and `/mnt/data2/backups/` variants.
@@ -41,27 +62,118 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
   - **Off-site tiers were 92% pre-fix scratch (#5126/#5127).** `create_backup` copied EVERY backup to external unconditionally with no type filter and nothing pruned them: measured **pre-deploy 10 dirs/24.6 GB + drills 3/6.3 GB vs ONE 2.7 GB daily**. Now `_is_ephemeral_backup` (pre-deploy/repair-bay) → **NEVER copied off-site at all** (#5128): a rolling 1-copy rule still refilled ~2.4 GB after every cleanup, and the rollback reads the **PRIMARY** copy under `/backups` (still written), so the off-site copy bought nothing. `_prune_ephemeral_external(keep=0)` still runs on each ephemeral backup to sweep strays. `_is_drill_backup` → `_prune_drills_external(keep_per_kind=1)` — **per KIND** (`database`/`critical`/`full`), because the three drills are one rehearsal per backup type, not three copies; drills DO still copy off-site, pruned **AFTER** a confirmed copy (a missing drill is missing DR evidence — never prune one to zero on a failed copy). `cloud_upload` refuses both classes outright — Drive is a 15 GB free tier that filled once. Cleanups 2026-07-22 freed **21.58 GB + 2.41 GB = 24.0 GB** (USB 32.80 → **8.81 GB**; remaining = 1 daily + 3 drills); every target verified still present on primary first.
 - **KB Docs**: #264022 · #264472 (audit 2026-05-09) · **Rules**: `admin-ops.md`, `backup-manager.md` (corrected 2026-07-20 — it documented two PHANTOM tables, `backups` and `backup_locks`; locking is a FILE at `/backups/.backup_lock`, and `get_backup_db_cursor()` returns TUPLES not dicts)
 
-### Security & Network — `security_network` · `/tools/security-network` · ✅ · 🟢
-- **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, AdGuard DNS-rewrite CRUD (`adguard_service.{get,add,delete}_rewrite`), 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, supervision schedules. *(NPM proxy-host lifecycle REMOVED 2026-06-27 — NPM decommissioned, PR #1956; domain/DNS CRUD in domain_npm_routes.py kept.)*
+### Kytran System Operations — `kytran_system_ops`
+
+- **Status**: ✅ enabled · **Route**: `/external/kso` · **Version**: 1.0
+- **Description**: Server management dashboard · CPU • RAM • Docker • Network • Firewall • Compliance badges
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://server.kytranempowerment.com
+- **Tags**: standalone, product, admin-operations
+- **Notes** (curated, survives regeneration): - **Deployment**: Hub port 8085, server.kytranempowerment.com. Container: `kytran-system-operations`.
+- **Source**: `/mnt/archie_brain/kytran-server-manager/` (gitignored, no separate git repo).
+- **Capability**: Compliance engine (STIG/HIPAA/CIS), host_monitor.py bridge, 1-click remediation. 9 tabs.
+- **Chat overlay**: **B.A.S.E.** #139 → `kso-chat.js`, red `#ef4444`. Proxy: `chat_proxy_routes.py` → hub (http://192.168.1.200:3000). Env: `KSO_CHAT_API_KEY`, `KSO_ARCHIE_HUB_URL`.
+- **Pip-install gotcha**: Source loads from site-packages NOT /app/ — hot-patches need BOTH paths. Rebuild: `docker compose build + up -d --no-deps`.
+- **KB Docs**: #264475 (audit 2026-05-09)
+
+### Security & Network — `security_network`
+
+- **Status**: ✅ enabled · **Route**: `/tools/security-network` · **Version**: 1.0
+- **Description**: Security operations center · DNS • Surveillance • Recon • Threat scanning • Compliance
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:access`
+- **Blueprint**: `tools.security_network.routes:security_network_bp`
+- **Tags**: security, network, dns, surveillance, recon, scanning, agent, admin-operations
+- **Notes** (curated, survives regeneration): - **Capability**: SSL/TLS cert watch, Hostinger DNS CRUD, AdGuard DNS-rewrite CRUD (`adguard_service.{get,add,delete}_rewrite`), 5 compliance rule packs (Ubuntu STIG/Docker STIG/HIPAA/Network STIG/CIS Ubuntu), device discovery (AdGuard+ARP 5min), Home Assistant cameras, supervision schedules. *(NPM proxy-host lifecycle REMOVED 2026-06-27 — NPM decommissioned, PR #1956; domain/DNS CRUD in domain_npm_routes.py kept.)*
 - **Chat overlay**: **V.I.G.I.L.** #3 → `security-network-chat.js`, red `#ef4444`. 5 action types. Briefing: `tools/archie_chat/security_network_briefing.py`.
 - **LCARS gotcha**: Template uses BOTH `--frame-color` CSS vars AND direct `background: #HEX !important` — two-pass replacement required for color changes (64+ sites).
 - **KB Docs**: #263992 · #264473 (audit 2026-05-09) · **Rules**: `admin-ops.md`, `compliance-standards.md`
 
-### Account Center — `account_center` · `/tools/account-center` · ✅ · 🟢
-- **Capability**: 10 tabs — Overview, Users, Permissions, Subscriptions, Security, Sessions, API Keys, Bulk Ops, Activity, Orgs. Role hierarchy (GUEST 5→SUPER_ADMIN 100). Invite system (`user_invites`, Stalwart SMTP). API key scopes: chat/read/admin.
-- **Critical**: `cat_accent` must be `'#ef4444'` (literal hex) NOT `'var(--archie-palette-red-500)'` in Jinja2 inline styles.
-- **Chat overlay**: **R.E.S.O.L.V.E.** id=142 → `account-center-chat.js`, red `#ef4444`.
-- **KB Docs**: #263991 · #264474 (audit 2026-05-09) · **Rules**: `admin-ops.md`, `app-core.md`
+### System Operations — `system_operations`
 
-### System Operations — `system_operations` · `/tools/system-operations` · ⛔
-- **Status**: Disabled — replaced by KSO standalone at port 8085, server.kytranempowerment.com
+- **Status**: ⛔ disabled · **Route**: `/tools/system-operations` · **Version**: 1.0
+- **Description**: Migrated to Kytran System Operations standalone
+- **Access**: role `ADMIN` · tier `explorer` · perms `admin:system`
+- **Blueprint**: `tools.system_operations.routes:system_operations_bp`
+- **Tags**: retired
+- **Notes** (curated, survives regeneration): - **Status**: Disabled — replaced by KSO standalone at port 8085, server.kytranempowerment.com
 
 ---
 
-## ai_command (7)
+## AI Command (9)
 
-### Department HQ — `department_hq` · `/tools/department-hq` · ✅ · 🟡
-- **Capability**: 12 tabs — Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., S.I.G.N.A.L. (Social), Devices, Dispatch, Fleet, Contractors, COMs. Owns `department_dispatcher.py` (Decision #441), orchestration engine (8-step pipeline), smart_router (11-tier GPU-aware), 118 jobs across 13 depts.
+### Agent Academy — `agent_academy`
+
+- **Status**: ✅ enabled · **Route**: `/tools/agent-academy` · **Version**: 1.0
+- **Description**: Agent training and evaluation · Benchmarks • A/B testing • Skills • Competency reports
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:access`
+- **Blueprint**: `tools.agent_academy:agent_academy_bp`
+- **Tags**: training, benchmarks, testing, models, ai-command
+- **Notes** (curated, survives regeneration): - **Capability**: 5 tabs — Benchmarks, Training, A/B Testing, Skills, Reports. Lv1–5 proficiency (Lv4 unlocks cloud).
+- **A/B Cloud Comparison Lane (#4661, PR #2058, 2026-07-05, ADR-018)**: the A/B Testing tab pits a LOCAL vs a CLOUD model on the same prompt — LOCAL qwen2.5:7b judge (score/rank + rationale) + word-diff + cost. Cloud gated by per-run ask-first approval + `_cloud_budget_ok`; async `ab_compare_worker` (**archie_scheduler sidecar**) drains approved runs; works even when the master Cloud toggle is OFF. Endpoints: `GET /api/ab-test/models` (local+cloud w/ budget headroom) · `POST /api/ab-test/run` (async on any cloud side → `pending_approval`) · `GET /api/ab-test/run/<id>`. Reuses `action_benchmark_runs`/`_results` (migration 448 adds `pending_approval`). `tools/agent_academy/ab_compare.py` = pure logic.
+- **Tables**: `agent_benchmark_results`, `agent_competency_scores`, `agent_learning_records`, `v_department_readiness`
+- **Gaps**: Reports endpoints missing; training automation disabled; Lv4 cloud-unlock not C.R.E.E.D. gated.
+- **Audit**: KB 256839
+
+### A.R.C.H.I.E. — `archie_chat`
+
+- **Status**: ✅ enabled · **Route**: `/tools/archie-chat` · **Version**: 1.0
+- **Description**: Private comms channel · Chat • Voice • Vision • Collaboration • Watchdog
+- **Access**: role `COLLABORATOR` · tier `staff` · perms `archie:chat`
+- **Blueprint**: `tools.archie_chat:archie_chat_bp`
+- **Tags**: ai, assistant, chat, voice, vision, ai-command
+- **Notes** (curated, survives regeneration): - **Capability**: Text messaging (Claude-routed or Telegram-bridged), conversation CRUD, agent roster, bridge stations, API key mgmt, Home Assistant voice synth.
+- **Tables**: `conversations`, `messages` (source=ha_voice/telegram/web), `api_keys`, `agent_assignments`
+- **API key scopes**: `chat` / `read` / `admin` — enforced by `require_scope()` in `auth_middleware.py`. Session users bypass.
+- **Gaps**: Telegram via external `archie_comms` (:3002); STT missing; team convo scoping partial.
+- **Audit**: KB 256846 · **Rules**: `autonomy.md`
+
+### Consciousness — `consciousness`
+
+- **Status**: ✅ enabled · **Route**: `/tools/consciousness` · **Version**: 1.0
+- **Description**: Knowledge analytics and AI processing · Embeddings • Dev HQ • GitHub • Languages • Memory insights
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:access`
+- **Blueprint**: `tools.consciousness.routes:consciousness_bp`
+- **Tags**: consciousness, memory, analytics, ai-command
+- **Notes** (curated, survives regeneration): - **Capability**: 5 tabs + Dev HQ subtabs + Code Health + **Token Economy** tab. Owns `knowledge_base` (31k+ entries, 99%+ embedded). Embedding/Analysis/Translate/GitHub-ingest loops. 129 routes, 62+ async jobs.
+- **Token Economy tab** (PR #1394, panel-tokens): local-vs-external token split, per-agent+per-model token counts (cloud=orange, agent-name color=local/cloud blend), tokens-over-time (1H/24H/7/30/90/ALL — sub-day = epoch-floor buckets w/ server-rendered Toronto-local labels), Cloud Impact + capacity/authorship timeline. Endpoint `GET /api/code-health/token-usage?range=1h|24h|7|30|90|365` (`?days=` back-compat) (`code_health_routes.py`, source=task_execution_log, 600s TTL cache). Claude CLI tokens via host cron `scripts/ingest_claude_cli_tokens.py`; historical estimate `scripts/estimate_historical_claude_tokens.py` (capacity-ceiling, ADR-685). Docs KB #270263/#270264/#270265. ✅ **Token Buckets panel (PRs #2188/#2189, 2026-07-11)**: a "Where Every Token Goes" accounting-integrity view in the SAME Token Economy tab (NOT a new page) — a proportional flow bar + legend + a stacked-area "Buckets Over Time" chart of the accounting buckets: **agent-local / cloud-CLI / infrastructure-warmup / 0-token-markers / stray**. Endpoint `GET /api/code-health/token-buckets?range=1h|24h|7|30|90|365` (`@login_required @admin_required`, 600s TTL cache) → `{range, total_tokens, cloud_tokens, local_tokens, pct_local, buckets:[{key,label,desc,rows,tokens}], series:[{day,label,agent,cloud,infra,other}]}` (markers omitted from series — 0-token). Frontend `#teBuckets` (flow+legend) + `#chBucketChart` (Chart.js stacked-area) via `loadTokenBuckets`/`_renderTokenBuckets` in consciousness.js, wired inside `loadTokenEconomy` (same 1H..ALL range buttons). Surfaces the accounting chain (agent-work→agent, cloud/CLI→contract agentless, warm-up→infrastructure unattributed, 0-token→markers) — the payoff of the #2175–#2189 accounting-integrity work.
+- **Code Health self-healing loop** (PRs #1401/1402/1403, KB #270273): scans async via `bridge_jobs` (`POST scan|backfill-git|audit` [no module=audit-all, scans tree once] → poll `GET /api/code-health/job-status/<id>`; advisory-lock dedup). `reverify_deployed_findings()` (`audit_pipeline.py`) re-audits deployed proposals → flips metadata.reverified fixed/still_open (auto after audit-all; manual `POST /api/code-health/reverify`). `GET /api/code-health/orchestration` = per-department ownership (issue→capability→dept; vulnerability_scan→V.I.G.I.L.) + open/deployed/fixed/still_open. UI: Department Orchestration panel (`#chOrchestration`). **Drain self-maintenance (cont-182, PRs #2333/#2334, ADR-015):** the 3h `code_health_backlog_drain_job` (`dispatch_audit_proposals`) now (a) **auto-cleans unfixable-path proposals** — `dispatch_proposal_fix` archives on unresolvable/synthetic source, and the `archive_unfixable_audit_proposals` sweep (`archived_by='scope_filter_4940'`, reversible) runs at the top of every drain cycle (it had NO scheduled caller before — ran only by hand); and (b) **class-scopes**: `_AUTO_FIX_EXCLUDED_ISSUE_CODES=(SQL_INJECTION_RISK, LARGE_FILE)` are excluded (detectors over-flag / not find/replace-able → left `approved` for human review, tuning task #4990) while `_AUTO_FIX_PRIORITY_ISSUE_CODES` (mechanical F-codes/imports/missing-symbols) drain FIRST. Deploy stays human-gated. ⚠️ NEVER bulk-ship `ready_for_review` self-heal fixes without reading each diff — SQL/DIRECT_OLLAMA fix-gen produced 100% garbage (KB mistake #282665). Coder ref KB #282666; Lever 2 (find_not_located) = measure-then-decide #4989.
+- **Integrations**: MCP `store_memory`/`search_knowledge`/`recall_context`/`create_task`/`log_decision`. Repair Bay Code Health: findings → proposals → deploy → re-verify (loop closed, PR #1402).
+- **Audit**: KB 256840 · **Rules**: `consciousness.md`, `project-knowledge.md`
+
+### C.R.E.E.D. Command — `creed_command`
+
+- **Status**: ✅ enabled · **Route**: `/tools/creed-command` · **Version**: 1.0
+- **Description**: E.T.H.O.S. governance command center · Mail • Grants • Marketing • Files • Governance
+- **Access**: role `ADMIN` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.creed_command:creed_command_bp`
+- **Tags**: creed, ethics, governance, ethos, email, grants, marketing
+- **Notes** (curated, survives regeneration): - **Capability**: E.T.H.O.S. (agent #336) governance work dashboard. 7 tabs — Dashboard (live CREED governance KPIs + weekly ethics brief), **Inbox** (5 Hostinger creed-ai.org boxes over IMAP → E.T.H.O.S. triage → draft → **send-as** via SMTP), **Grants** (pipeline + E.T.H.O.S. drafting), **Marketing** (channel-specific promo gen, grounded, no auto-publish; **'Send to S.I.G.N.A.L. →'** on LinkedIn assets → linkedin_post approval queue post_type=creed, PR #1563), **Tenants** (#3945, PR #1565 — multi-tenant ops: org applications approve+mint-key/reject, active-tenant directory w/ grade/freshness/tier, per-tenant key mgmt; thin hub-local proxies in `tenants_routes.py` → standalone `/api/internal/tenants|applications` + approve/reject/keys, authed w/ shared `CREED_INTERNAL_KEY`), **Files** (in-DB bytea document library + grant linking), Governance (live CREED surface links).
+- **Multi-tenant (kytran_creed standalone)**: `internal_or_admin` decorator (X-Internal-Key OR admin session) gates tenant-admin; 10 tenants provisioned (per-product self-transparency #3958, spec KB #272125): creed-institute(public)/kytran-empowerment/what-the-fact/gov-watch/civic-watch/legal-watch/market-watch/media-hub/kso/kbs. **Routing LIVE (#3958 DONE, PR #1569, 2026-06-10)**: every governance event routes to the EMITTING agent's product tenant — `agents.creed_tenant` (migration 428; NULL→kytran-empowerment default; 15 seeded incl. dept-traps M.A.V.E.N.→media-hub, G.A.V.E.L.→platform) + `services/creed_emit.py` shared emitter (`emit_event()`/`auth_header_for_agent()`, TTL-cached resolve, per-product `CREED_INGEST_KEY_<X>` in BOTH .env files, fallback product→default→legacy, `module` tag for core-platform drill-down, `routed_tenant` audit field, DB password via Docker secret file). All 4 hub push sites migrated: agent_loop governance reporter, bias_sampling, carbon_footprint (module=Infrastructure), incident_service (first affected agent). Flip each tenant preview→public when it passes the provisional gate. NEW agent→product assignment = data update on `agents.creed_tenant`, no code.
+- **Scoring pillar gate (kytran-creed PR #21, 2026-06-10)**: pillars with <`CREED_PILLAR_MIN_EVENTS` (default 100) events are `provisional` (raw score still shown + note) and EXCLUDED from overall; if NO pillar qualifies → legacy averaging flagged `overall_provisional` (low-volume tenants get no fake confident grade). `/api/v1/scores` adds `overall_provisional`/`pillar_min_events`/`overall_categories`. Fixed live institute 89.6/B+ (2-event env pillar artifact) → 99.6/A+. Real env fix = carbon estimator #3254 (now feeds kytran-empowerment tenant). KB #272128.
+- **Mail (self-contained, NOT Email Manager — Stalwart-only, ADR-003/#675)**: `mail_routes.py` → imap.hostinger.com:993 + smtp.hostinger.com:465, per-box `CREED_MAIL_*_PASSWORD` in root `.env`. Read-only IMAP (BODY.PEEK); send gated on explicit human click. Routes: `/api/mail/{status,inbox,message,triage,draft,ai,send}`.
+- **Routes**: `grants_routes.py`, `mail_routes.py`, `marketing_routes.py`, `files_routes.py` — all `register_*_routes(bp, admin_required)`. Admin-only.
+- **E.T.H.O.S. dispatch**: `capability='policy_assessment'`, `prefer_agent='E.T.H.O.S.'`, **`preferred_node=['Starship-246','Starship-245']`** (GPU cluster, ~1-3s). Async+poll+DB for all AI ops.
+- **Tables**: `creed_grants`, `creed_mail_ai`, `creed_marketing_assets`, `creed_files` (migrations 412–416).
+- **KB Docs**: #269978–269992 (coder+user per PR) · **PRs**: #1354–1358 (+#1353 GPU routing). Project #367 (feature-complete 2026-06-01).
+
+---
+
+### Cross-Watch Alerts — `cross_watch`
+
+- **Status**: ✅ enabled · **Route**: `/api/cross-watch` · **Version**: 1.0
+- **Description**: Unified alert system — entity follows + cross-product signals
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:access`
+- **Blueprint**: `tools.cross_watch:cross_watch_bp`
+- **Tags**: cross-watch, alerts, signals, entities, api
+
+### Department HQ — `department_hq`
+
+- **Status**: ✅ enabled · **Route**: `/tools/department-hq` · **Version**: 1.0
+- **Description**: Command center for 17 departments · Org chart • Roster • Dispatch • Fleet • Performance • C.R.E.E.D.
+- **Access**: role `ADMIN` · tier `staff` · perms `admin:access`
+- **Blueprint**: `tools.department_hq:department_hq_bp`
+- **Tags**: departments, org-chart, roster, performance, creed, ai-command
+- **Notes** (curated, survives regeneration): - **Capability**: 12 tabs — Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., S.I.G.N.A.L. (Social), Devices, Dispatch, Fleet, Contractors, COMs. Owns `department_dispatcher.py` (Decision #441), orchestration engine (8-step pipeline), smart_router (11-tier GPU-aware), 118 jobs across 13 depts.
 - **S.I.G.N.A.L. tab (epic #378 COMPLETE 2026-06-10, PRs #1583–#1592, ADR #724)**: LinkedIn management, **4 accounts** — Kytran / **Terry Caetano** / KE Inc. / Creed-AI. Terry = post_type `terry`, a SEPARATE LinkedIn login on browser profile **377** (dedicated agents row, mirrors Kytran 342; 343 was Lucia — never reuse); the other 3 actor-switch inside the 342 session. Skills: `linkedin_post` (personal+terry), `linkedin_company_post` (`LINKEDIN_COMPANY_SLUG=106863155`), `linkedin_creed_post` (`LINKEDIN_CREED_SLUG=115977300`); page skills capture post_url from PUBLIC `/company/<slug>/posts/` (never /admin/). **Content calendar** (`services/signal_calendar_service.py`, store=agent_content_posts, account=post_type): backfill (`POST /api/signal/calendar/backfill`, content-hash dedup) → daily release job 09:05 ET (`signal_calendar_release`, 1/account/run → Telegram approval; **#1831: SKIPS an account whose on-disk posting profile `/profiles/<agent>-linkedin` is logged-out (via the in-profile `browser_sessions` probe) + deduped re-auth Telegram alert — posts stay `scheduled` to drain after re-auth, no failed pile-up. ⚠️ POSTING auth = the on-disk PROFILE, NOT the `browser_sessions` cookie; a Cookie-Editor import only fixes the READ path — re-auth via 🔐 Session noVNC headed login. KB #274241**) → generation top-up job 10:00 ET (`signal_calendar_topup`, backlog<3 → S.I.G.N.A.L. draft via `social_post_draft`; terry gated on profile-established). **Comment pipeline** (#3992, `services/linkedin_comment_monitor.py`, **deep-link rewrite PRs #1805/#1806/#1807**): 6h job `signal_comment_pipeline` → `ingest_comment_notifications()` sources comments + their `comment_url` deep-link from the NOTIFICATION bell (a plain post-permalink renders **0** comments to automation — KB #274178/#274179; `linkedin_notifications` now returns `comment_url`+`full_text`) → `draft_comment_replies()` (passes `comment_url`+`comment_author`) → Tier-2 `linkedin_comment_reply` approval → posts a **THREADED** reply via the `linkedin_comment_reply` skill (navigates the `?commentUrn=` deep-link → renders the thread → replies under the target comment; only the deep-link renders the thread). `linkedin_comments.comment_url` = migration 438. Comment skills (`linkedin_comment`/`linkedin_first_comment`/`linkedin_comment_reply`) **verify-before-success in-session** (#1805 — can't phantom-succeed). FR via translate/R.O.S.E.T.T.A.; 💬 Comments sub-tab. **DM track**: `linkedin_message` (send to a 1st-degree connection — the Message affordance is an `<a>` top-card link; returns `not_connected` cleanly for non-connections — no hang, #1808 + link-selector fix) + `linkedin_reply` (reply in an existing thread); both **honesty-gated** (success only when the composer clears — round-trip Kytran↔Terry verified). Auto-connect to a 3rd-degree is platform-gated (Follow-primary + anti-spam wall) — connect manually; people-search + home-feed are withheld from automation; `linkedin_inbox` reads threads. `linkedin_conversation_delete` (delete a thread by participant name) uses the **Manage-conversations bulk UI** (See more messaging options → Manage conversations → checkbox + bulk Delete + confirm) — the per-conversation/message hover-overflow menus do NOT interact under headless Playwright; force-click the checkbox + scope confirm to the dialog + scroll the card into view for busy inboxes. KB #274181/#274183. 🔐 Session sub-tab = multi-identity (account-aware card order, per-profile noVNC login + encrypted creds). GOTCHA: services lazily importing ai_bridge/dispatcher need `signal_calendar_service._ensure_import_paths()` (KB #272154). Telegram approval = the ONLY publish path everywhere. **SCALE + RELIABILITY (cont-68, 2026-06-22, PRs #1852–#1862, ADR-003, KB #275071/#275072/#275073): the account model is now DATA, not hardcoded** — registry table `agent_platform_accounts` (migration 440: account_key/role/post_type/browser_agent_id/company_slug/can_post/can_engage/profile_established/`egress_pref`) + resolver `services/signal_accounts.py` (TTL cache + hardcoded fallback==legacy literals; `account_keys(can_post=True)` replaced the fixed ACCOUNTS tuple). **ARCHIE = 3rd major** (agent 2, can_post=false until its noVNC login); `egress_pref` = per-account regional SOCKS5 IP footprint (global outreach, majors share hub). New `GET /api/signal/accounts[/health]` drive the data-driven account bar + per-account health dots (`refreshSignalAccountBar`/`refreshSignalCalendarStrip` in department-hq.js — real week, no fake themes; event-delegated, XSS-safe). The 2-day "Timeout after 180s" was a RELIABILITY CASCADE, NOT auth (342/377 authed, li_at→2027): fixed by the archie_browser sidecar per-task watchdog (`BROWSER_TASK_DEADLINE_S=150`) + default nav timeout (`BROWSER_NAV_TIMEOUT_MS=20s`) + mutating-skills fail-fast (no unauthed storage_state fallback) + a trustworthy probe (flips 'stale' only on a POSITIVE logout) + content sanitizer `services/signal_content_sanitizer.py` (all draft sites + the publish boundary). `linkedin_register` skill (archie_browser) onboards new accounts semi-auto (email-code via Stalwart; phone/CAPTCHA = noVNC handoff) — NOT yet wired to run.
 - **S.I.G.N.A.L. engagement + group + profile-branding (cont-109→114, PRs #2005–#2036)**: 5th account **`wtf_group`** in agent_platform_accounts — posts/comments in the "What The Fact" LinkedIn GROUP via `linkedin_group_post`/`linkedin_group_comment`/`linkedin_group_join` (Terry-authored until the dedicated WTF login exists, #4610). **Auto-engagement LIVE**: 8h `signal_engagement_monitor` job (agent_loop) + `run_cross_boost()` — registry-driven targets (terry/377 + personal/342 via `engagement_targets`), persona-pack drafting in `services/signal_engagement_service.py` (voice_key terry|kytran_marketing; qwen2.5:7b via `queued_dispatch_text`+`model_override` — bare dispatch() masks cold-load queueing, KB #276153), Telegram approval on EVERY action, ledger dedup + daily budgets, comment-URN capture → cross comment-likes (`linkedin_comment_like`, migration 446). `linkedin_following` harvests followed people/Pages — network-manager lists are SHADOW DOM: locators pierce, page.content() sees 0 (KB #277237). Profile/company branding skills honesty-gated after #4611/#4612: `profile_edit` (About = `/add-edit/SUMMARY/` — `/edit/about/` 404s; city typeahead retry+commit-verify), `add_skill` (locator verify + `verify_only` read-only mode), `profile_view` (honest read, no phantom success), `company_edit`/`company_logo` (Edit-Page modal placeholder targeting), `company_banner` (commit tracking). `linkedin_conversation_delete` gated: participant match + dry_run (#2014).
 - **Curated Facts on the agent-profile modal (#4959, PRs #2316/#2317, migration 460)**: owner-curated per-agent grounding facts (`collaborator_facts`, `services/collaborator_facts_service.py`) editable as a **Curated Facts card in the SHARED `static/js/agent_profile_modal.js`** (`apm-*` modal). 4 admin endpoints in `agent_detail_routes.py`: `GET`+`POST /api/agent/<id>/facts`, `POST /api/agent/facts/<id>/toggle`, `POST /api/agent/facts/<id>/delete` (POST-only — JS has only `api`/`apiPost`). Feeds the Email Manager collaborator-draft grounding + the #4958 no-fab validator (see Email Manager). ⚠️ first added to `department-hq.js` `openAgentDetail` which is **DEAD CODE** (shadowed at load by `agent_profile_modal.js`'s `window.openAgentDetail=`) → rendered nowhere; caught only by a live DOM drive (mistake #281727). RULE: the DHQ agent profile is owned by the SHARED `agent_profile_modal.js` — any new interactive profile UI needs a real browser drive, not just page-load/API QA.
@@ -85,22 +197,31 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Gaps**: agent_skills/budgets/creation_events not agent_service-owned (#2057); 18 legacy ai_bridge.* imports (#2058); CAPABILITY_TAXONOMY hardcoded in smart_router.
 - **Audits**: KB 256837/256843/256844 · **Rules**: `department-hq-dispatch.md`, `starbase.md`
 
-### Consciousness — `consciousness` · `/tools/consciousness` · ✅ · 🟢
-- **Capability**: 5 tabs + Dev HQ subtabs + Code Health + **Token Economy** tab. Owns `knowledge_base` (31k+ entries, 99%+ embedded). Embedding/Analysis/Translate/GitHub-ingest loops. 129 routes, 62+ async jobs.
-- **Token Economy tab** (PR #1394, panel-tokens): local-vs-external token split, per-agent+per-model token counts (cloud=orange, agent-name color=local/cloud blend), tokens-over-time (1H/24H/7/30/90/ALL — sub-day = epoch-floor buckets w/ server-rendered Toronto-local labels), Cloud Impact + capacity/authorship timeline. Endpoint `GET /api/code-health/token-usage?range=1h|24h|7|30|90|365` (`?days=` back-compat) (`code_health_routes.py`, source=task_execution_log, 600s TTL cache). Claude CLI tokens via host cron `scripts/ingest_claude_cli_tokens.py`; historical estimate `scripts/estimate_historical_claude_tokens.py` (capacity-ceiling, ADR-685). Docs KB #270263/#270264/#270265. ✅ **Token Buckets panel (PRs #2188/#2189, 2026-07-11)**: a "Where Every Token Goes" accounting-integrity view in the SAME Token Economy tab (NOT a new page) — a proportional flow bar + legend + a stacked-area "Buckets Over Time" chart of the accounting buckets: **agent-local / cloud-CLI / infrastructure-warmup / 0-token-markers / stray**. Endpoint `GET /api/code-health/token-buckets?range=1h|24h|7|30|90|365` (`@login_required @admin_required`, 600s TTL cache) → `{range, total_tokens, cloud_tokens, local_tokens, pct_local, buckets:[{key,label,desc,rows,tokens}], series:[{day,label,agent,cloud,infra,other}]}` (markers omitted from series — 0-token). Frontend `#teBuckets` (flow+legend) + `#chBucketChart` (Chart.js stacked-area) via `loadTokenBuckets`/`_renderTokenBuckets` in consciousness.js, wired inside `loadTokenEconomy` (same 1H..ALL range buttons). Surfaces the accounting chain (agent-work→agent, cloud/CLI→contract agentless, warm-up→infrastructure unattributed, 0-token→markers) — the payoff of the #2175–#2189 accounting-integrity work.
-- **Code Health self-healing loop** (PRs #1401/1402/1403, KB #270273): scans async via `bridge_jobs` (`POST scan|backfill-git|audit` [no module=audit-all, scans tree once] → poll `GET /api/code-health/job-status/<id>`; advisory-lock dedup). `reverify_deployed_findings()` (`audit_pipeline.py`) re-audits deployed proposals → flips metadata.reverified fixed/still_open (auto after audit-all; manual `POST /api/code-health/reverify`). `GET /api/code-health/orchestration` = per-department ownership (issue→capability→dept; vulnerability_scan→V.I.G.I.L.) + open/deployed/fixed/still_open. UI: Department Orchestration panel (`#chOrchestration`). **Drain self-maintenance (cont-182, PRs #2333/#2334, ADR-015):** the 3h `code_health_backlog_drain_job` (`dispatch_audit_proposals`) now (a) **auto-cleans unfixable-path proposals** — `dispatch_proposal_fix` archives on unresolvable/synthetic source, and the `archive_unfixable_audit_proposals` sweep (`archived_by='scope_filter_4940'`, reversible) runs at the top of every drain cycle (it had NO scheduled caller before — ran only by hand); and (b) **class-scopes**: `_AUTO_FIX_EXCLUDED_ISSUE_CODES=(SQL_INJECTION_RISK, LARGE_FILE)` are excluded (detectors over-flag / not find/replace-able → left `approved` for human review, tuning task #4990) while `_AUTO_FIX_PRIORITY_ISSUE_CODES` (mechanical F-codes/imports/missing-symbols) drain FIRST. Deploy stays human-gated. ⚠️ NEVER bulk-ship `ready_for_review` self-heal fixes without reading each diff — SQL/DIRECT_OLLAMA fix-gen produced 100% garbage (KB mistake #282665). Coder ref KB #282666; Lever 2 (find_not_located) = measure-then-decide #4989.
-- **Integrations**: MCP `store_memory`/`search_knowledge`/`recall_context`/`create_task`/`log_decision`. Repair Bay Code Health: findings → proposals → deploy → re-verify (loop closed, PR #1402).
-- **Audit**: KB 256840 · **Rules**: `consciousness.md`, `project-knowledge.md`
+### Email HQ — `email_manager`
 
-### A.R.C.H.I.E. Chat — `archie_chat` · `/tools/archie-chat` · ✅ · 🟡
-- **Capability**: Text messaging (Claude-routed or Telegram-bridged), conversation CRUD, agent roster, bridge stations, API key mgmt, Home Assistant voice synth.
-- **Tables**: `conversations`, `messages` (source=ha_voice/telegram/web), `api_keys`, `agent_assignments`
-- **API key scopes**: `chat` / `read` / `admin` — enforced by `require_scope()` in `auth_middleware.py`. Session users bypass.
-- **Gaps**: Telegram via external `archie_comms` (:3002); STT missing; team convo scoping partial.
-- **Audit**: KB 256846 · **Rules**: `autonomy.md`
+- **Status**: ✅ enabled · **Route**: `/tools/email-manager` · **Version**: 1.0
+- **Description**: Unified email oversight — all agent & business mailboxes · Inbox • Sent • Provisioning • Stalwart integration
+- **Access**: role `ADMIN` · tier `explorer` · perms `admin:access`
+- **Blueprint**: `tools.email_manager.routes:email_manager_bp`
+- **Tags**: email, mailbox, agents, stalwart, ai-command
+- **Notes** (curated, survives regeneration): - **Capability**: Three-panel command center (Sidebar/Message List/Read Pane). 79 mailboxes (40 AI + 17 business + 1 owner + 21 `human_agent` COLLABORATOR). IMAP sync 5min, AI triage, rules engine, threading, R.E.S.O.L.V.E. auto-reply drafts, chat overlay.
+- **Tables**: `email_mailboxes`, `email_messages` (use `imap_uid` NOT `uid`; has `attachment_count`, `ai_priority`, `thread_id`, `in_reply_to`), `email_threads`, `email_rules`, `email_activity_log`.
+- **CRITICAL — Stalwart**: Use `http://stalwart_mail:8080` (plain HTTP, Docker internal). NEVER `https://192.168.1.200:8443` — hairpin NAT blocks TLS from containers.
+- **Chat overlay**: **R.E.S.O.L.V.E.** → `email-manager-chat.js`, `email_hq_briefing.py`.
+- **Smart Inbox (Slices 1–5, PRs #1946–#1952, project #359, 2026-06-27)**: real-time IMAP IDLE sync + instant body-fetch → A.R.C.H.I.E. Telegram new-mail advisory (owner/business, quiet-hours-gated, `notify_service.py`) → AI triage sets `email_messages.ai_priority` (action/review/info) → action-priority owner/business mail → R.E.S.O.L.V.E. draft (welfare-gated job `mailhq_draft_proposals` 10m) persisted to `autonomy_approval_queue` (`action_type='email_reply'`) → A.R.C.H.I.E. Telegram **[Send/Cancel]** approve-to-send (single-token callbacks `email_replysend_<id>`/`email_replycancel_<id>`; idempotent `execute_email_reply` shared by Telegram tap + DHQ Approvals; SMTP via `send_service.send_email_via_stalwart`). **GOTCHA: triage/draft dispatch uses `fleet_dispatch.queued_dispatch_text` (request_work + poll `dispatch_pending_queue`), NOT `dispatch_json` — `dispatch_json` MASKS cold-load `queued=True` as "dispatch failed" and silently drops the work** (KB mistake #276153). Settings (gear) + GET/POST `/api/email/settings` via `mailhq_settings.py` — tunables in `platform_settings mailhq:*` (notify/digest/quiet-hours/draft); draft OFF unless `mailhq:draft:enabled='true'`; self-send/no-reply guard prevents reply loops. Jobs: `mailhq_draft_proposals` (10m), `mailhq_triage_health` (6h), digest Job #76 (self-gates on `mailhq:digest:time`).
+- **Per-human-agent reply SLA (#3282, PR #2061, 2026-07-05)**: reply-time (inbound `received_at` → reply `sent_at`) per human agent — the send path was instrumented (it persisted nothing usable before), so it's **FORWARD-ONLY** (no backfill). Migration 449 `email_reply_events`; `human_sla_service.record_human_reply()` (best-effort, ONLY `human_agent` mailboxes, keyed by `owner_agent_id`) + `per_agent_stats()`; capture lives in `compose_routes` (send_service stays Flask-independent). `GET /api/email/human-sla/stats?days=7|30|90` → per-agent avg response / within-SLA% / open threads / reply rate; panel in the SLA tab. Target `platform_settings mailhq:human_sla:target_hours` (default 4). Distinct from `sla_routes.py` (per-MAILBOX read-latency). Follow-up #4673 (unify AI/R.E.S.O.L.V.E. reply SLA).
+- **Collaborator Persona Email Assistant — LIVE (project #390, PRs #2309/#2310/#2318, gate `mailhq:draft:collaborators=true` since 2026-07-17)**: the 21 `human_agent` COLLABORATOR mailboxes get persona-voiced reply drafts. Mirrors Smart Inbox: triage now covers `human_agent` (gated) → action-priority mail → per-collaborator persona draft (their `system_prompt` + `model_override=llama3.2:3b` via `services.cluster_dispatch.queued_dispatch_text`, NEVER `dispatch_json` — #276153) in `draft_proposal_service.py` (`run_mailhq_collaborator_drafts`/`_create_collaborator_proposal`) → `autonomy_approval_queue` (`action_type='email_reply'`, attributed to the collaborator) → **owner Telegram [Send/Cancel]** (the ONLY publish path). #4957 hardening: gate helper `mailhq_settings.is_enabled(key)` (ONE flag arms triage+drafting), `mailhq_triage_health` covers `human_agent` when on, 30-min `mailhq_collaborator_triage_backfill` job (`sync_jobs.py`, retroactively triages existing INBOX mail in the draft window). Jobs: `mailhq_collaborator_drafts` (10m) + the backfill (30m).
+- **Draft safety — no-fabrication guard + curated-facts grounding (BOTH draft paths; #4958/#4959, PRs #2311/#2312/#2316/#2317, ADR #935, KB mistake #281718)**: an LLM asked to "send the numbers" invents numbers. `_NO_FABRICATION_CONTRACT` + `validate_draft_no_fabrication(draft, inbound_text, allowed_facts_text="")` at each persist boundary → **FAILS CLOSED** (rejects any digit/%/currency absent from the inbound thread; no approval row, counted `rejected`). Guards the collaborator path AND the previously-unguarded LIVE owner/business path (`mailhq:draft:enabled=true`). **Grounding (#4959):** owner curates per-agent facts in the DHQ agent-profile **Curated Facts card** (`collaborator_facts` migration 460, `services/collaborator_facts_service.py`, endpoints in `agent_detail_routes.py`) → `_create_collaborator_proposal` injects an "ALLOWED FACTS" block (`facts_as_prompt_block`) AND passes `facts_allowed_text` as the validator's `allowed_facts_text` → a curated figure passes while invention still fails closed. **Grounding source == validator's allowed-facts source** (default ""). Validator is deliberately blunt → watch the `rejected` counter (false rejections non-destructive; #4527 retry cap bounds it).
+- **KB Docs**: #265260/#265261 (Email HQ user/coder) · Smart Inbox: #276159 (user) · #276160 (coder, PRs #1946–#1952) · #276147/#276148 (slice coder) · mistake #276153 (queued dispatch) · Collaborator assistant: mistakes #281718/#281550, ADR #935, PRs #2309–#2319 (C.O.D.E.X. docs #4965–4968 queued) · Migrations 375–378, 449, 460
 
-### Repair Bay — `repair_bay` · `/tools/repair-bay` · ✅ · 🟡
-- **Capability**: Scan→Proposal→Sandbox→Deploy pipeline. 8 tabs: Reviews, PR Review, Repairs, Diagnose, Test Bay, Ship, QA, Pushes + ENGINEERING station. 10 route files.
+### Repair Bay — `repair_bay`
+
+- **Status**: ✅ enabled · **Route**: `/tools/repair-bay` · **Version**: 1.0
+- **Description**: Self-healing code pipeline · Scan • Propose • Sandbox • Test • PR review • Deploy
+- **Access**: role `ADMIN` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.repair_bay:repair_bay_bp`
+- **Tags**: development, pipeline, scanning, testing, deployment, development-tools
+- **Notes** (curated, survives regeneration): - **Capability**: Scan→Proposal→Sandbox→Deploy pipeline. 8 tabs: Reviews, PR Review, Repairs, Diagnose, Test Bay, Ship, QA, Pushes + ENGINEERING station. 10 route files.
 - **F.O.R.G.E. cross-repo PR review (2026-06-26, PRs #1927/#1928)**: reviews PRs across archie-platform + the 4 watch-product repos. READ paths (`pr_diff_analyzer._fetch_diff` + `github_service._api_get`) use a read-only `FORGE_REVIEW_TOKEN` (all repos); WRITES/auto-merge use `GITHUB_TOKEN` (archie-platform-only). `GITHUB_REPOS` = auto-poll list. `merge_pr(pr,method,repo=None)` is repo-aware; **non-default repos are REVIEW-ONLY** (human merge — no write token granted there). Coder doc KB #275972; KB mistake #275968.
 - **Review integrity — FOUR independent gates (2026-07-22, PRs #2401/#2402/#2403, ADR-001 #947, KB #283134)**: a false finding can fail at four structurally different points, and a gate at one layer **cannot** catch a failure at another (each new gate only revealed the next, because the citation was ALWAYS real). In `pr_diff_analyzer.py`: **(1) GROUNDING** — is the cited line real? (`_verify_evidence`, drop `evidence_not_in_diff`, #5009). **(2) POLARITY** — is it an ADDED line? A defect can only exist in code that survives the merge; the old gate built ONE haystack from `+` and `-` so quoting DELETED code counted as grounded (gov-watch PR #45: the diff removed `event=True`, the review flagged it as the proposed state → REQUEST CHANGES; a rerun APPROVED). `_evidence_polarity()` → `added|removed_only|absent` ('added' checked FIRST so a MODIFIED line stays grounded), drop `evidence_only_removed`. **CARVE-OUT** `_critiques_the_removal()` — "this PR removes a needed guard" is LEGITIMATE and its evidence can only be a removed line. **(3) CLAIM** — is the assertion checkable from a diff? "test added but not executed" citing a DOCSTRING; grounding+polarity both correctly pass it. `_is_unverifiable_test_execution_claim()`, drop `unverifiable_runtime_claim` (#5098). **(4) SEVERITY** — does the label match the content? "[CRITICAL] Content Verification Check Added — Ensures…" is PRAISE tagged CRITICAL. `_asserts_no_defect()` demotes to INFO in BOTH `_normalize_severity` (structured) and `_demote_nonblocking_lines` (freeform). ⚠️ Only `evidence_not_in_diff` counts toward `_count_ungrounded` / the #5009 ungrounded-APPROVE floor — a polarity error or unverifiable claim means the model WAS reading, so counting it would re-block correct PRs. Guards **demote, never drop**, where the observation still helps a human. 224 forge tests pin this. **Per `feedback_forge-no-silent-override` a REQUEST CHANGES is not a clear — disprove it IN WRITING, and NEVER merge on a MISSING verdict** (a dead review is not an approval).
 - **Merge governance — THE choke point (2026-07-25, PRs #2459/#2460, tasks #5194, KB #283905/#283906)**: `github_service.merge_pr(pr_number, method='squash', repo=None, human_override=False, authority='forge')`. Every UNATTENDED merge must clear `_automerge_governance_ok()`, which requires BOTH an approved stored F.O.R.G.E. verdict AND `classify_pr_tier() <= ceiling`, and **fails CLOSED** on a missing review row / unparseable verdict / any exception. Checked **before any GitHub call**, so a refusal costs no API call and cannot race; returns `governance_blocked: True`. ⚠️ **Ceilings are PER-ACTOR** — `_AUTHORITY_CEILING = {forge: (FORGE_AUTO_MERGE_MAX_TIER, 1), coo: (ARCHIE_COO_AUTO_MERGE_MAX_TIER, 2)}`; an unknown authority falls back to the most restrictive. **Tier 3 is Kytran's and is auto-merged by nobody.** `human_override=True` is for INTERACTIVE authenticated callers ONLY (the two `@admin_required` routes; the /merge-pr skill still needs updating to pass it). **THE PRINCIPLE: safety properties are UNIVERSAL, authority limits are PER-ACTOR** — "nothing merges on a non-approval" binds every actor; "max tier 1" binds only F.O.R.G.E. ⚠️ Root cause was NOT `mark_review_done` (well defended) but a SECOND parallel path — `ai_bridge.agent_loop._run_archie_pr_review_worker` selects on `review_status='reviewed'`, which means a review FINISHED not that it APPROVED; it never called `verdict_is_approved()` and merged Tier 2 unconditionally. PR #2458 reached main on a `needs_changes` verdict that way, blocked twice beforehand ONLY by an accidental HTTP 405 "still a draft" — and since `/commit-push-pr` opens PRs NON-draft, the normal case merged on the first attempt with no failure line at all. Gate the CHOKE POINT, never per-caller: `merge_pr` has 5 call sites and per-caller gating is how the hole existed. Tests: `tests/test_merge_governance_gate.py` (20).
@@ -112,109 +233,157 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Gaps**: `_has_open_proposal()` dedup not visible; one-way Consciousness flow.
 - **Audit**: KB 256838 · **Rules**: `repair-bay.md`
 
-### Agent Academy — `agent_academy` · `/tools/agent-academy` · ✅ · 🟡
-- **Capability**: 5 tabs — Benchmarks, Training, A/B Testing, Skills, Reports. Lv1–5 proficiency (Lv4 unlocks cloud).
-- **A/B Cloud Comparison Lane (#4661, PR #2058, 2026-07-05, ADR-018)**: the A/B Testing tab pits a LOCAL vs a CLOUD model on the same prompt — LOCAL qwen2.5:7b judge (score/rank + rationale) + word-diff + cost. Cloud gated by per-run ask-first approval + `_cloud_budget_ok`; async `ab_compare_worker` (**archie_scheduler sidecar**) drains approved runs; works even when the master Cloud toggle is OFF. Endpoints: `GET /api/ab-test/models` (local+cloud w/ budget headroom) · `POST /api/ab-test/run` (async on any cloud side → `pending_approval`) · `GET /api/ab-test/run/<id>`. Reuses `action_benchmark_runs`/`_results` (migration 448 adds `pending_approval`). `tools/agent_academy/ab_compare.py` = pure logic.
-- **Tables**: `agent_benchmark_results`, `agent_competency_scores`, `agent_learning_records`, `v_department_readiness`
-- **Gaps**: Reports endpoints missing; training automation disabled; Lv4 cloud-unlock not C.R.E.E.D. gated.
-- **Audit**: KB 256839
+### WTF Hub — `wtf_hub`
 
-### Automations — `automations` · ~~`/tools/automations`~~ · ❌ REMOVED (2026-06-26, PRs #1931/#1932)
-- **Status**: DELETED. n8n was abandoned platform-wide — module folder, `module_registry.py` entry, docker-compose `archie_n8n`/`archie_nginx_n8n` services + dead volume mounts, and orphaned `rbac.py` `AUTOMATION_*` permissions all removed. **Automation = DHQ APScheduler jobs (platform) + native `kbs_automations` / `kbs_automations_ui` (KBS).** Decision #847 / ADR-002.
+- **Status**: ✅ enabled · **Route**: `/tools/wtf-hub` · **Version**: 1.0
+- **Description**: Orchestration hub for what-the-fact.com — Bridge dispatch, ingest pipeline, story clustering
+- **Access**: role `ADMIN` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.wtf_hub:wtf_hub_bp`
+- **Tags**: wtf, news, orchestration, ai-command
 
-### C.R.E.E.D. Command — `creed_command` · `/tools/creed-command` · ✅ · 🟢
-- **Capability**: E.T.H.O.S. (agent #336) governance work dashboard. 7 tabs — Dashboard (live CREED governance KPIs + weekly ethics brief), **Inbox** (5 Hostinger creed-ai.org boxes over IMAP → E.T.H.O.S. triage → draft → **send-as** via SMTP), **Grants** (pipeline + E.T.H.O.S. drafting), **Marketing** (channel-specific promo gen, grounded, no auto-publish; **'Send to S.I.G.N.A.L. →'** on LinkedIn assets → linkedin_post approval queue post_type=creed, PR #1563), **Tenants** (#3945, PR #1565 — multi-tenant ops: org applications approve+mint-key/reject, active-tenant directory w/ grade/freshness/tier, per-tenant key mgmt; thin hub-local proxies in `tenants_routes.py` → standalone `/api/internal/tenants|applications` + approve/reject/keys, authed w/ shared `CREED_INTERNAL_KEY`), **Files** (in-DB bytea document library + grant linking), Governance (live CREED surface links).
-- **Multi-tenant (kytran_creed standalone)**: `internal_or_admin` decorator (X-Internal-Key OR admin session) gates tenant-admin; 10 tenants provisioned (per-product self-transparency #3958, spec KB #272125): creed-institute(public)/kytran-empowerment/what-the-fact/gov-watch/civic-watch/legal-watch/market-watch/media-hub/kso/kbs. **Routing LIVE (#3958 DONE, PR #1569, 2026-06-10)**: every governance event routes to the EMITTING agent's product tenant — `agents.creed_tenant` (migration 428; NULL→kytran-empowerment default; 15 seeded incl. dept-traps M.A.V.E.N.→media-hub, G.A.V.E.L.→platform) + `services/creed_emit.py` shared emitter (`emit_event()`/`auth_header_for_agent()`, TTL-cached resolve, per-product `CREED_INGEST_KEY_<X>` in BOTH .env files, fallback product→default→legacy, `module` tag for core-platform drill-down, `routed_tenant` audit field, DB password via Docker secret file). All 4 hub push sites migrated: agent_loop governance reporter, bias_sampling, carbon_footprint (module=Infrastructure), incident_service (first affected agent). Flip each tenant preview→public when it passes the provisional gate. NEW agent→product assignment = data update on `agents.creed_tenant`, no code.
-- **Scoring pillar gate (kytran-creed PR #21, 2026-06-10)**: pillars with <`CREED_PILLAR_MIN_EVENTS` (default 100) events are `provisional` (raw score still shown + note) and EXCLUDED from overall; if NO pillar qualifies → legacy averaging flagged `overall_provisional` (low-volume tenants get no fake confident grade). `/api/v1/scores` adds `overall_provisional`/`pillar_min_events`/`overall_categories`. Fixed live institute 89.6/B+ (2-event env pillar artifact) → 99.6/A+. Real env fix = carbon estimator #3254 (now feeds kytran-empowerment tenant). KB #272128.
-- **Mail (self-contained, NOT Email Manager — Stalwart-only, ADR-003/#675)**: `mail_routes.py` → imap.hostinger.com:993 + smtp.hostinger.com:465, per-box `CREED_MAIL_*_PASSWORD` in root `.env`. Read-only IMAP (BODY.PEEK); send gated on explicit human click. Routes: `/api/mail/{status,inbox,message,triage,draft,ai,send}`.
-- **Routes**: `grants_routes.py`, `mail_routes.py`, `marketing_routes.py`, `files_routes.py` — all `register_*_routes(bp, admin_required)`. Admin-only.
-- **E.T.H.O.S. dispatch**: `capability='policy_assessment'`, `prefer_agent='E.T.H.O.S.'`, **`preferred_node=['Starship-246','Starship-245']`** (GPU cluster, ~1-3s). Async+poll+DB for all AI ops.
-- **Tables**: `creed_grants`, `creed_mail_ai`, `creed_marketing_assets`, `creed_files` (migrations 412–416).
-- **KB Docs**: #269978–269992 (coder+user per PR) · **PRs**: #1354–1358 (+#1353 GPU routing). Project #367 (feature-complete 2026-06-01).
+## SaaS Services (7)
 
----
+### Google Work Suite — `google_work_suite`
 
-## saas_services (9)
-
-### Email Manager — `email_manager` · `/tools/email-manager` · ✅ · 🟢
-- **Capability**: Three-panel command center (Sidebar/Message List/Read Pane). 79 mailboxes (40 AI + 17 business + 1 owner + 21 `human_agent` COLLABORATOR). IMAP sync 5min, AI triage, rules engine, threading, R.E.S.O.L.V.E. auto-reply drafts, chat overlay.
-- **Tables**: `email_mailboxes`, `email_messages` (use `imap_uid` NOT `uid`; has `attachment_count`, `ai_priority`, `thread_id`, `in_reply_to`), `email_threads`, `email_rules`, `email_activity_log`.
-- **CRITICAL — Stalwart**: Use `http://stalwart_mail:8080` (plain HTTP, Docker internal). NEVER `https://192.168.1.200:8443` — hairpin NAT blocks TLS from containers.
-- **Chat overlay**: **R.E.S.O.L.V.E.** → `email-manager-chat.js`, `email_hq_briefing.py`.
-- **Smart Inbox (Slices 1–5, PRs #1946–#1952, project #359, 2026-06-27)**: real-time IMAP IDLE sync + instant body-fetch → A.R.C.H.I.E. Telegram new-mail advisory (owner/business, quiet-hours-gated, `notify_service.py`) → AI triage sets `email_messages.ai_priority` (action/review/info) → action-priority owner/business mail → R.E.S.O.L.V.E. draft (welfare-gated job `mailhq_draft_proposals` 10m) persisted to `autonomy_approval_queue` (`action_type='email_reply'`) → A.R.C.H.I.E. Telegram **[Send/Cancel]** approve-to-send (single-token callbacks `email_replysend_<id>`/`email_replycancel_<id>`; idempotent `execute_email_reply` shared by Telegram tap + DHQ Approvals; SMTP via `send_service.send_email_via_stalwart`). **GOTCHA: triage/draft dispatch uses `fleet_dispatch.queued_dispatch_text` (request_work + poll `dispatch_pending_queue`), NOT `dispatch_json` — `dispatch_json` MASKS cold-load `queued=True` as "dispatch failed" and silently drops the work** (KB mistake #276153). Settings (gear) + GET/POST `/api/email/settings` via `mailhq_settings.py` — tunables in `platform_settings mailhq:*` (notify/digest/quiet-hours/draft); draft OFF unless `mailhq:draft:enabled='true'`; self-send/no-reply guard prevents reply loops. Jobs: `mailhq_draft_proposals` (10m), `mailhq_triage_health` (6h), digest Job #76 (self-gates on `mailhq:digest:time`).
-- **Per-human-agent reply SLA (#3282, PR #2061, 2026-07-05)**: reply-time (inbound `received_at` → reply `sent_at`) per human agent — the send path was instrumented (it persisted nothing usable before), so it's **FORWARD-ONLY** (no backfill). Migration 449 `email_reply_events`; `human_sla_service.record_human_reply()` (best-effort, ONLY `human_agent` mailboxes, keyed by `owner_agent_id`) + `per_agent_stats()`; capture lives in `compose_routes` (send_service stays Flask-independent). `GET /api/email/human-sla/stats?days=7|30|90` → per-agent avg response / within-SLA% / open threads / reply rate; panel in the SLA tab. Target `platform_settings mailhq:human_sla:target_hours` (default 4). Distinct from `sla_routes.py` (per-MAILBOX read-latency). Follow-up #4673 (unify AI/R.E.S.O.L.V.E. reply SLA).
-- **Collaborator Persona Email Assistant — LIVE (project #390, PRs #2309/#2310/#2318, gate `mailhq:draft:collaborators=true` since 2026-07-17)**: the 21 `human_agent` COLLABORATOR mailboxes get persona-voiced reply drafts. Mirrors Smart Inbox: triage now covers `human_agent` (gated) → action-priority mail → per-collaborator persona draft (their `system_prompt` + `model_override=llama3.2:3b` via `services.cluster_dispatch.queued_dispatch_text`, NEVER `dispatch_json` — #276153) in `draft_proposal_service.py` (`run_mailhq_collaborator_drafts`/`_create_collaborator_proposal`) → `autonomy_approval_queue` (`action_type='email_reply'`, attributed to the collaborator) → **owner Telegram [Send/Cancel]** (the ONLY publish path). #4957 hardening: gate helper `mailhq_settings.is_enabled(key)` (ONE flag arms triage+drafting), `mailhq_triage_health` covers `human_agent` when on, 30-min `mailhq_collaborator_triage_backfill` job (`sync_jobs.py`, retroactively triages existing INBOX mail in the draft window). Jobs: `mailhq_collaborator_drafts` (10m) + the backfill (30m).
-- **Draft safety — no-fabrication guard + curated-facts grounding (BOTH draft paths; #4958/#4959, PRs #2311/#2312/#2316/#2317, ADR #935, KB mistake #281718)**: an LLM asked to "send the numbers" invents numbers. `_NO_FABRICATION_CONTRACT` + `validate_draft_no_fabrication(draft, inbound_text, allowed_facts_text="")` at each persist boundary → **FAILS CLOSED** (rejects any digit/%/currency absent from the inbound thread; no approval row, counted `rejected`). Guards the collaborator path AND the previously-unguarded LIVE owner/business path (`mailhq:draft:enabled=true`). **Grounding (#4959):** owner curates per-agent facts in the DHQ agent-profile **Curated Facts card** (`collaborator_facts` migration 460, `services/collaborator_facts_service.py`, endpoints in `agent_detail_routes.py`) → `_create_collaborator_proposal` injects an "ALLOWED FACTS" block (`facts_as_prompt_block`) AND passes `facts_allowed_text` as the validator's `allowed_facts_text` → a curated figure passes while invention still fails closed. **Grounding source == validator's allowed-facts source** (default ""). Validator is deliberately blunt → watch the `rejected` counter (false rejections non-destructive; #4527 retry cap bounds it).
-- **KB Docs**: #265260/#265261 (Email HQ user/coder) · Smart Inbox: #276159 (user) · #276160 (coder, PRs #1946–#1952) · #276147/#276148 (slice coder) · mistake #276153 (queued dispatch) · Collaborator assistant: mistakes #281718/#281550, ADR #935, PRs #2309–#2319 (C.O.D.E.X. docs #4965–4968 queued) · Migrations 375–378, 449, 460
-
-### Scheduler — `scheduler` · `/tools/scheduler` · ⛔
-
-### Social Media — `social_media` · `/tools/social-media` · ⛔
-- **Status**: Disabled. Tables: `social_accounts`, `social_posts`. **Rules**: `saas-services.md`
-
-### Task Planner — `task_planner` · `/tools/task-planner` · ⛔
-- **Status**: Disabled. #1984 proposes integration into Dev HQ.
-
-### My Profile — `user_profile` · `/tools/my-profile` · ✅
-- **Capability**: User self-service settings, profile, preferences. Audit: pending.
-
-### Google Work Suite — `google_work_suite` · `/tools/google-work-suite` · ✅ · 🟡
-- **Capability**: Google OAuth PKCE, Gmail (inbox/fetch/send/sync/LLM-analyze/KB-index), email intelligence (sentiment/intent/urgency/threading).
+- **Status**: ✅ enabled · **Route**: `/tools/google-work-suite` · **Version**: 1.0
+- **Description**: Gmail, Calendar and Drive integration · OAuth accounts • Agent email • Smart rules • AI replies
+- **Access**: role `USER` · tier `professional` · perms `google:email`
+- **Blueprint**: `tools.google_work_suite:google_work_suite_bp`
+- **Tags**: google, gmail, email, calendar, agents, ai
+- **Notes** (curated, survives regeneration): - **Capability**: Google OAuth PKCE, Gmail (inbox/fetch/send/sync/LLM-analyze/KB-index), email intelligence (sentiment/intent/urgency/threading).
 - **Tables**: `google_accounts` (encrypted tokens), `oauth_tokens`, `email_labels`, `calendar_events`, `drive_files`
 - **Gaps**: Calendar + Drive wired in services but NOT exposed in routes.py. No quota/rate-limit awareness.
 - **Audit**: KB 256846 · **Rules**: `saas-services.md`
 
-### SaaS Manager — `saas_manager` · `/tools/saas-manager` · ✅ · 🟡
-- **Capability**: Org CRUD, per-org module enable/disable, custom domain verify (DNS TXT), node assignment. `show_on_dashboard=False` — folded into Account Center ORGS tab.
-- **Tables**: `organizations`, `org_users`, `org_modules`, `org_domains`, `org_nodes`
-- **Gaps**: No subscription_level binding on org_modules — blocks #2018 KBS plugin tier gating.
-- **Audit**: KB 256846 · **Rules**: `saas-services.md`
+### Kytran Business Suite — `kytran_business_suite`
 
-### Employee Directory — `directory` · ⛔
-- **Status**: DECOMMISSIONED 2026-04-20. Canonical replacement: `/api/public/directory` in `public_api.py` backed by `public_roster_service.py` + `public_agent_directory` view. Redirects: `/tools/directory` → `/tools/department-hq#roster` (308).
-
-### Kytran Business Suite — `kytran_business_suite` · `/external/kbs` · ✅
-- **Type**: Standalone — port 8091, business.kytranempowerment.com. 24 plugins. Paywall gates access.
+- **Status**: ✅ enabled · **Route**: `/external/kbs` · **Version**: 1.0
+- **Description**: Modular SaaS platform · CRM • Invoicing • Store • Website builder • 26 industry plugins
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://business.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Type**: Standalone — port 8091, business.kytranempowerment.com. 24 plugins. Paywall gates access.
 - **Rules**: `saas-services.md`, `standalone-extraction.md`. Active: Project #269 KBS Overhaul.
 
 ---
 
-## project_knowledge (1)
+### SaaS Manager — `saas_manager`
 
-### Project Manager — `project_manager` · `/tools/project-manager` · ⛔
-- **Status**: Disabled. Dev HQ (Consciousness subtab) is source of truth for unified_projects/tasks/decisions.
+- **Status**: ✅ enabled · **Route**: `/tools/saas-manager` · **Version**: 1.0
+- **Description**: Multi-tenant platform management · Organizations • Domains • Modules
+- **Access**: role `ADMIN` · tier `explorer` · perms `admin:saas`
+- **Blueprint**: `tools.saas_manager.saas_manager_routes:saas_manager_bp`
+- **Tags**: saas, organizations, domains, multi-tenant
+- **Notes** (curated, survives regeneration): - **Capability**: Org CRUD, per-org module enable/disable, custom domain verify (DNS TXT), node assignment. `show_on_dashboard=False` — folded into Account Center ORGS tab.
+- **Tables**: `organizations`, `org_users`, `org_modules`, `org_domains`, `org_nodes`
+- **Gaps**: No subscription_level binding on org_modules — blocks #2018 KBS plugin tier gating.
+- **Audit**: KB 256846 · **Rules**: `saas-services.md`
+
+### My Profile — `user_profile`
+
+- **Status**: ✅ enabled · **Route**: `/tools/my-profile` · **Version**: 1.0
+- **Description**: View your profile, accessible modules, and notifications
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Blueprint**: `tools.user_profile:user_profile_bp`
+- **Tags**: profile, user, settings, notifications
+- **Notes** (curated, survives regeneration): - **Capability**: User self-service settings, profile, preferences. Audit: pending.
+
+### Scheduler — `scheduler`
+
+- **Status**: ⛔ disabled · **Route**: `/tools/scheduler` · **Version**: 1.0
+- **Description**: Book appointments & manage time · Client booking page • Calendar sync • SMS reminders
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Blueprint**: `tools.scheduler.routes:scheduler_bp`
+- **Tags**: calendar, tasks, scheduling, business, saas-services
+
+### Social Media — `social_media`
+
+- **Status**: ⛔ disabled · **Route**: `/tools/social-media` · **Version**: 1.0
+- **Description**: Manage all social accounts · Schedule posts • Auto-publish • Engagement analytics
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Blueprint**: `tools.social_media.routes:social_media_bp`
+- **Tags**: social, marketing, scheduling, business, saas-services
+- **Notes** (curated, survives regeneration): - **Status**: Disabled. Tables: `social_accounts`, `social_posts`. **Rules**: `saas-services.md`
+
+### Task Planner — `task_planner`
+
+- **Status**: ⛔ disabled · **Route**: `/tools/task-planner` · **Version**: 1.0
+- **Description**: Project task management · Kanban boards • Timelines • Team assignments
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Blueprint**: `tools.task_planner.routes:task_planner_bp`
+- **Tags**: tasks, planning, projects, business
+- **Notes** (curated, survives regeneration): - **Status**: Disabled. #1984 proposes integration into Dev HQ.
+
+## Project & Knowledge (1)
+
+### Project Manager — `project_manager`
+
+- **Status**: ⛔ disabled · **Route**: `/tools/project-manager` · **Version**: 1.0
+- **Description**: Unified project & documentation system · Tasks • Teams • Decisions • A.R.C.H.I.E. awareness
+- **Access**: role `ADMIN` · tier `explorer` · perms `admin:projects`
+- **Blueprint**: `tools.project_manager.routes:project_manager_bp`
+- **Tags**: projects, tasks, teams, documentation, decisions, admin, consciousness, project-knowledge
+- **Notes** (curated, survives regeneration): - **Status**: Disabled. Dev HQ (Consciousness subtab) is source of truth for unified_projects/tasks/decisions.
 
 ---
 
-## applications_concepts (6)
+## Applications & Concepts (8)
 
-### Media Hub — `media_hub` · standalone-only (platform = launch tile) · ✅ · 🟢
-- **CONSOLIDATED 2026-07-08 (Project #384, PRs #2100/#2101)**: whole module now lives ONLY in `standalone/media_hub/tools/media_hub/` (container `mediahub_app` :8105, own postgres `mediahub_db`, media.kytranempowerment.com). In-platform `/tools/media-hub` blueprint RETIRED — `module_registry` media_hub is a pure `external_url` launch tile (no `blueprint_import`), like KSO/KBS/Watch. Deploy: image-baked + read_only → `cd standalone/media_hub && docker compose up -d --build mediahub_app` (a merge does NOT deploy without rebuild). KB #279308.
-- **Capability**: Plex + Jellyfin browse/stream (in-browser HTML5 player + Chromecast), Overseerr requests, SABnzbd, Prowlarr, Sonarr/Radarr, TMDB enrichment. **Streaming = browse+stream from the SAME server: `media_hub_services.is_primary` = Jellyfin** (Plex/Jellyfin are identical mirrors; the Plex-ID→Jellyfin title bridge was too fragile → "could not stream url"). is_primary read ONLY in routes.py (NOT M.A.V.E.N.) → flipping is downloads-safe. KB mistake #279310.
-- **Tables** (mediahub_db): `media_hub_services` + Phase-2 (#2100): `media_library_cache`, `media_requests`, `media_upcoming_episodes`, `media_download_queue` (+3 views).
-- **Standalone** M.A.V.E.N. probes: grab_notify (5m), download_pipeline (30m, auto-resumes paused SABnzbd #2097), download_client_health (30m), library_coverage (2h, aired-missing auto-search #2099), arr_database (30m), stale_queue (30m). Host cron `scripts/media/streaming_watchdog.py` (5m) restarts Jellyfin/Plex if endpoint dead. KSO Docker tab already shows+manages `media_hub` stack (Phase 7, no change needed). Chat: "request X" / "delete X".
-- **Gotchas**: SABnzbd `set_config` unreliable — edit sabnzbd.ini directly (KB 261306). Stale Sonarr queue loop requires purging SABnzbd history too (KB 261307).
-- **Audit**: KB 256846 · KB 261305 · **Rules**: `media-home.md`
+### Brainstorm — `brainstorm`
 
-### Family Tree — `family_tree` · `/tools/family-tree` · ✅ · 🟢
-- **Capability**: 4,971 LOC · 44 routes. Person/relationship CRUD, GEDCOM import/export, face detection/clustering/colorization, OCR, DNA matching, AI research hints (Bridge dispatch), dedup/merge, timeline narrative.
+- **Status**: ✅ enabled · **Route**: `/tools/brainstorm` · **Version**: 1.0
+- **Description**: Structured ideation workspace · Sessions • Clusters • Votes • KB export • AI expansion
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.brainstorm:brainstorm_bp`
+- **Tags**: brainstorm, ideas, creativity, productivity, planning
+
+### DOC — `doc`
+
+- **Status**: ✅ enabled · **Route**: `/tools/doc` · **Version**: 1.0
+- **Description**: AI-powered health companion · Symptom analysis • Photo assessment • Health records
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.doc.routes:doc_bp`
+- **Tags**: health, medical, ai, records, standalone, android, placeholder
+- **Notes** (curated, survives regeneration): - **Capability**: 597 LOC · 10 routes · Dr. Amara (Medical Advisor). Symptom logging, medication tracking, appointment scheduling, evidence-based guidance w/ disclaimers.
+- **Audit**: KB 256846
+
+### Faith — `faith`
+
+- **Status**: ✅ enabled · **Route**: `/tools/faith` · **Version**: 1.0
+- **Description**: Spiritual care companion — F.A.I.T.H. AI + Emmanuel Adeyemi chaplain
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.faith.routes:faith_bp`
+- **Tags**: faith, spiritual, wellness, ai, chaplain
+
+### Family Tree — `family_tree`
+
+- **Status**: ✅ enabled · **Route**: `/tools/family-tree` · **Version**: 1.0
+- **Description**: AI-powered genealogy research · Record search • Document OCR • Face matching • Restoration
+- **Access**: role `USER` · tier `enterprise` · no explicit perms
+- **Blueprint**: `tools.family_tree:family_tree_bp`
+- **Tags**: genealogy, family, tree, ancestry, ai, photos, ocr
+- **Notes** (curated, survives regeneration): - **Capability**: 4,971 LOC · 44 routes. Person/relationship CRUD, GEDCOM import/export, face detection/clustering/colorization, OCR, DNA matching, AI research hints (Bridge dispatch), dedup/merge, timeline narrative.
 - **Tables**: `persons`, `relationships`, `photos`, `documents`, `dna_profiles`, `research_hints`, `sources`, `dedup_candidates`
 - **Audit**: KB 256846
 
-### Fitness — `fitness` · `/tools/fitness` · ✅ · 🟢
-- **Capability**: 803 LOC · 13 routes · FLEX agent (Wellness Coach). Workout gen, form guidance, logging, goal tracking, macro calc (Mifflin-St Jeor BMR/TDEE).
+### Fitness — `fitness`
+
+- **Status**: ✅ enabled · **Route**: `/tools/fitness` · **Version**: 1.0
+- **Description**: AI-powered personal trainer · Custom workouts • Exercise library • Progress tracking
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.fitness.routes:fitness_bp`
+- **Tags**: fitness, workout, health, ai, standalone, android, placeholder
+- **Notes** (curated, survives regeneration): - **Capability**: 803 LOC · 13 routes · FLEX agent (Wellness Coach). Workout gen, form guidance, logging, goal tracking, macro calc (Mifflin-St Jeor BMR/TDEE).
 - **Audit**: KB 256846
 
-### Therapy — `therapy` · `/tools/therapy` · ✅ · 🟢
-- **Capability**: 691 LOC · 12 routes · River agent (Wellness Therapist). Crisis detection → 988/Crisis Text Line, mood companion SERENE, grounding exercises (4-7-8, body scan, 5-4-3-2-1).
-- **Audit**: KB 256846
+### Chronicle — `mailbox_story`
 
-### DOC — `doc` · `/tools/doc` · ✅ · 🟢
-- **Capability**: 597 LOC · 10 routes · Dr. Amara (Medical Advisor). Symptom logging, medication tracking, appointment scheduling, evidence-based guidance w/ disclaimers.
-- **Audit**: KB 256846
-
-### Chronicle — `mailbox_story` · `/tools/chronicle` · ✅ · 🟡 · @admin_required
-*(formerly Mailbox Story Extractor; renamed 2026-07-10 → central multi-source entity hub, slice 01/09 — old `/tools/mailbox-story` path 307-redirects)*
+- **Status**: ✅ enabled · **Route**: `/tools/chronicle` · **Version**: 1.0
+- **Description**: Upload a .pst → a LOCAL AI reconstructs the account's story · Local-sovereign · admin-gated · nothing leaves the infra
+- **Access**: role `ADMIN` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.mailbox_story:mailbox_story_bp`
+- **Tags**: mailbox, pst, email, local-ai, intelligence, privacy, sovereign
+- **Notes** (curated, survives regeneration): *(formerly Mailbox Story Extractor; renamed 2026-07-10 → central multi-source entity hub, slice 01/09 — old `/tools/mailbox-story` path 307-redirects)*
 - **Capability**: Central **multi-source person hub** (spec `docs/superpowers/specs/2026-07-10-chronicle-multi-source-entity-hub-design.md`; 9-slice plan, PRs #2155–#2169). Ingests a person's full comms from **Gmail (full bodies + attachments), LinkedIn (authored corpus), + PST/OneNote/chat uploads** → resolves cross-source **entities → per-entity timeline/story → (planned) voice model → (planned) draft-assist**. ALL inference **local-only** (sovereign); files on `/mnt/data2/mailbox_story/<import_id>/`. Reader view (folders + read pane) **+ People hub** (cross-source person list + detail). Live-verified on Terry (Gmail import 16, LinkedIn import 17, OneNote import 15; 174 resolved entities; 13 stories).
 - **Ingestion (per-source → seam)**: extraction `services/chronicle_attachment_service.py` (attachment file → text: PDF/docx/plain + tesseract OCR, reuses family_tree `ocr_service`); **seam** `services/chronicle_ingest.py` — `ingest_source(source_kind, source_account_id, items, owner_id, is_live)` (find-or-create the ONE live import per source, **in-code idempotent** email upsert by (import_id,message_id), sets import `status='extracted'` → auto-triggers the enrich worker) + `upsert_attachment(email_id,…,sha256,path)`; **Gmail** `services/chronicle_gmail_source.py` `run_gmail_ingest(account_id, limit)` (format=full bodies, resumable) + `services/chronicle_gmail_attachments.py` `run_attachment_download(import_id, limit)` (Gmail attachments API → disk → upsert_attachment → Slice-03 extraction); **LinkedIn** `services/chronicle_linkedin_source.py` `run_linkedin_ingest('terry', account_id=2, agent_id=377, owner_id=4)` (reads agent_content_posts/linkedin_post_log/autonomy_approval_queue-drafts/linkedin_comments/linkedin_engagement_ledger; authored→`from_addr='Terry Caetano'`, inbound→external author; content-dedup posts). Legacy engines: `mailbox_extract_service` (PST), `onenote_extract_service` (.one), `mailbox_chat_service`/`mailbox_scout_capture` (chat/share).
 - **Cross-source layer** (migration **453**: `chronicle_entity`/`_link`/`_story`/`_voice_profile` + `mailbox_attachments` + `body_html`/`embedding`; all owner-scoped): **resolver** `services/chronicle_entity_resolver.py` `resolve_entities(owner_id=4)` — deterministic (groups `mailbox_entities` by normalized name+type across ALL the owner's imports → `chronicle_entity` + link; idempotent, no LLM); **story** `services/chronicle_story_service.py` `run_entity_stories(owner_id=4, limit)` — LOCAL `summarize` dispatch (`local_only=True`), resumable, defer-on-cold → `chronicle_entity_story` (UNIQUE per entity); **scheduled** `chronicle_story_worker` (dept_hq/jobs.py, every 10 min :7/:17/…, work-control `platform_settings work:chronicle_story:enabled` default ON, drains via the DHQ cold-load queue). Planned: Slice 10 voice → `chronicle_voice_profile`; Slice 11 draft-assist (RAG in-voice, **send path hard-gated**).
@@ -224,10 +393,53 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 
 ---
 
-## creative_studios (2)
+### Media Hub — `media_hub`
 
-### Media Studio — `media_studio` · `/tools/media-studio` · ✅ · 🟢
-- **Capability**: 9,385 LOC · 98+ routes · 19 service modules. GPU-aware ComfyUI fleet + 6 cloud contractors (OpenAI DALL-E 3, Gemini Imagen 3, HuggingFace, Cloudflare AI, Together, Pollinations). Gallery, portrait gen, batch gen, multi-provider TTS/video. Blueprint: `template_folder="templates"`.
+- **Status**: ✅ enabled · **Route**: `/tools/media-hub` · **Version**: 1.0
+- **Description**: Unified media server dashboard · Now standalone — launches media.kytranempowerment.com
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://media.kytranempowerment.com
+- **Tags**: media, standalone, product, plex, jellyfin, sonarr, radarr, streaming, applications-concepts
+- **Notes** (curated, survives regeneration): - **CONSOLIDATED 2026-07-08 (Project #384, PRs #2100/#2101)**: whole module now lives ONLY in `standalone/media_hub/tools/media_hub/` (container `mediahub_app` :8105, own postgres `mediahub_db`, media.kytranempowerment.com). In-platform `/tools/media-hub` blueprint RETIRED — `module_registry` media_hub is a pure `external_url` launch tile (no `blueprint_import`), like KSO/KBS/Watch. Deploy: image-baked + read_only → `cd standalone/media_hub && docker compose up -d --build mediahub_app` (a merge does NOT deploy without rebuild). KB #279308.
+- **Capability**: Plex + Jellyfin browse/stream (in-browser HTML5 player + Chromecast), Overseerr requests, SABnzbd, Prowlarr, Sonarr/Radarr, TMDB enrichment. **Streaming = browse+stream from the SAME server: `media_hub_services.is_primary` = Jellyfin** (Plex/Jellyfin are identical mirrors; the Plex-ID→Jellyfin title bridge was too fragile → "could not stream url"). is_primary read ONLY in routes.py (NOT M.A.V.E.N.) → flipping is downloads-safe. KB mistake #279310.
+- **Tables** (mediahub_db): `media_hub_services` + Phase-2 (#2100): `media_library_cache`, `media_requests`, `media_upcoming_episodes`, `media_download_queue` (+3 views).
+- **Standalone** M.A.V.E.N. probes: grab_notify (5m), download_pipeline (30m, auto-resumes paused SABnzbd #2097), download_client_health (30m), library_coverage (2h, aired-missing auto-search #2099), arr_database (30m), stale_queue (30m). Host cron `scripts/media/streaming_watchdog.py` (5m) restarts Jellyfin/Plex if endpoint dead. KSO Docker tab already shows+manages `media_hub` stack (Phase 7, no change needed). Chat: "request X" / "delete X".
+- **Gotchas**: SABnzbd `set_config` unreliable — edit sabnzbd.ini directly (KB 261306). Stale Sonarr queue loop requires purging SABnzbd history too (KB 261307).
+- **Audit**: KB 256846 · KB 261305 · **Rules**: `media-home.md`
+
+### Therapy — `therapy`
+
+- **Status**: ✅ enabled · **Route**: `/tools/therapy` · **Version**: 1.0
+- **Description**: AI-guided mental wellness · Structured conversations • Mood journaling • CBT exercises
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Blueprint**: `tools.therapy.routes:therapy_bp`
+- **Tags**: mental, therapy, wellness, ai, standalone, android, placeholder
+- **Notes** (curated, survives regeneration): - **Capability**: 691 LOC · 12 routes · River agent (Wellness Therapist). Crisis detection → 988/Crisis Text Line, mood companion SERENE, grounding exercises (4-7-8, body scan, 5-4-3-2-1).
+- **Audit**: KB 256846
+
+## Creative Studios (3)
+
+### Game Studio — `game_studio`
+
+- **Status**: ✅ enabled · **Route**: `/tools/game-studio` · **Version**: 1.0
+- **Description**: AI-assisted game development · Mission editor • Asset library • Export to web and mobile
+- **Access**: role `USER` · tier `enterprise` · no explicit perms
+- **Blueprint**: `tools.game_studio.routes:game_studio_bp`
+- **Tags**: ai, games, 3d, 2d, creation
+- **Notes** (curated, survives regeneration): - **Capability**: 2,989 LOC · 30 routes · 6 service files. Game project creation (2D/3D), scene mgmt, asset library, world state, market/trading.
+- **Gaps**: WebSocket multiplayer skeletal, market_service partial — not production-ready for live MMO.
+- **Audit**: KB 256846
+
+---
+
+### Media Studio — `media_studio`
+
+- **Status**: ✅ enabled · **Route**: `/tools/media-studio` · **Version**: 1.0
+- **Description**: AI image, video and audio generation · GPU-routed models • Gallery • Queue tracking • ComfyUI
+- **Access**: role `USER` · tier `enterprise` · no explicit perms
+- **Blueprint**: `tools.media_studio.routes:media_studio_bp`
+- **Tags**: ai, images, video, audio, creative, generation, media
+- **Notes** (curated, survives regeneration): - **Capability**: 9,385 LOC · 98+ routes · 19 service modules. GPU-aware ComfyUI fleet + 6 cloud contractors (OpenAI DALL-E 3, Gemini Imagen 3, HuggingFace, Cloudflare AI, Together, Pollinations). Gallery, portrait gen, batch gen, multi-provider TTS/video. Blueprint: `template_folder="templates"`.
 - **Image routing** (ADR-005): ALL image gen → worker queue → `media_generation_worker` (30s) → `generate_via_comfyui` → branches to `_generate_via_contractor` if `params.provider` set. NEVER sync dispatch for image gen — blocks web thread.
 - **Provider selector**: `GET /tools/media-studio/api/image-providers` → `{auto, local[], cloud_free[], cloud_paid[]}`. Value format: bare filename for local, `provider:<key>` for cloud. `needs_key=true` options disabled. Free: Pollinations/Cloudflare/Together always selectable.
 - **Portrait pipeline**: `describe_portrait()` via moondream (~7s). Upload: JPEG/PNG/WebP ≤10MB → 1024px longest edge → PNG. `agent_portraits.agent_id` UNIQUE (migration 331). Primary upload UI: Agent Profile modal in DHQ Roster.
@@ -237,48 +449,103 @@ From `module_registry.py` (36 modules). Full detail: `search_knowledge(category=
 - **Open tasks**: #2940 Replicate/Fal.ai/Stability adapters (needs API keys).
 - **Audit**: KB 256846 · #266418–#266420 · **Rules**: `creative-studios.md`
 
-### Game Studio — `game_studio` · `/tools/game-studio` · ✅ · 🟡
-- **Capability**: 2,989 LOC · 30 routes · 6 service files. Game project creation (2D/3D), scene mgmt, asset library, world state, market/trading.
-- **Gaps**: WebSocket multiplayer skeletal, market_service partial — not production-ready for live MMO.
+### Site Builder — `site_builder`
+
+- **Status**: ✅ enabled · **Route**: `/tools/site-builder` · **Version**: 1.0
+- **Description**: Drag-and-drop website builder with AI generation · Launches the Business Suite Website Builder
+- **Access**: role `USER` · tier `staff` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://business.kytranempowerment.com/plugins/website-builder/
+- **Tags**: website, site-builder, kbs, standalone, product, ai, creative-studios
+
+## Crypto (2)
+
+### Archie Pool — `archie_pool`
+
+- **Status**: ✅ enabled · **Route**: `/tools/archie-pool` · **Version**: 1.0
+- **Description**: Ravencoin mining pool dashboard · Real-time hashrate • Earnings tracker • Auto payouts
+- **Access**: role `USER` · tier `enterprise` · no explicit perms
+- **Blueprint**: `tools.archie_pool.routes:archie_pool_bp`
+- **Tags**: mining, crypto, ravencoin, standalone, android
+- **Notes** (curated, survives regeneration): - **Capability**: 398 LOC · 11 routes. Pool stats display (Ravencoin hardcoded). **No auth, no persistence, sample data fallback. Demo only.**
+- **Audit**: KB 256846
+
+### Pool Management — `pool_management`
+
+- **Status**: ✅ enabled · **Route**: `/tools/pool-management` · **Version**: 1.0
+- **Description**: Mining pool administration · Miner management • Payout config • Conversions • Analytics
+- **Access**: role `ADMIN` · tier `enterprise` · perms `admin:access`
+- **Blueprint**: `tools.pool_management.routes:pool_management_bp`
+- **Tags**: mining, admin, management, payouts, conversions
+- **Notes** (curated, survives regeneration): - **Capability**: 777 LOC · 18 routes. Pool admin dashboard — proxies external pool API, no DB owned, sample-data fallback.
 - **Audit**: KB 256846
 
 ---
 
-## crypto (2)
+## Media & Outreach (standalones) (6)
 
-### Archie Pool — `archie_pool` · `/tools/archie-pool` · ✅ · 🔴
-- **Capability**: 398 LOC · 11 routes. Pool stats display (Ravencoin hardcoded). **No auth, no persistence, sample data fallback. Demo only.**
-- **Audit**: KB 256846
+### C.R.E.E.D. Institute — `creed_institute`
 
-### Pool Management — `pool_management` · `/tools/pool-management` · ✅ · 🟡
-- **Capability**: 777 LOC · 18 routes. Pool admin dashboard — proxies external pool API, no DB owned, sample-data fallback.
-- **Audit**: KB 256846
+- **Status**: ✅ enabled · **Route**: `/external/creed` · **Version**: 1.0
+- **Description**: AI ethics and governance institute · Compliance frameworks • Agent welfare • Public transparency
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://creed.kytranempowerment.com
+- **Tags**: standalone, product, ethics, governance, creed
+- **Notes** (curated, survives regeneration): - **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).
+- **Capability**: Governance/ethics enforcement, public transparency, grant-target nonprofit.
+- **Public APIs (all no-auth, CORS-open `*`, 60s cache)**: `GET /api/public/score` → `{score, grade, events_today, active_categories, last_checked}` (#3362, `routes/public_routes.py`); `GET /api/v1/scores` → `{overall, grade, event_count, by_category{accountability|fairness|privacy|safety|transparency}}` (`api_routes.py`, CORS added kytran-creed PR #3 — powers creed-ai.org governance widget); `GET /api/v1/badge/overall` → SVG badge (`badge_routes.py`). Consumed by creed-ai.org + WTF. Live (99.5/A+). **Verify cross-origin from EXTERNAL vantage** — hub-LAN browser hits Chrome PNA (split-horizon DNS → private IP), KB #269948/#269951.
+- **Rules**: `standalone-extraction.md`
 
 ---
 
-## media_outreach (6 external standalones)
+### Kytran Civic Watch — `kytran_civic_watch`
 
-All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
+- **Status**: ✅ enabled · **Route**: `/external/civic` · **Version**: 1.0
+- **Description**: Civic engagement intelligence · Local government • Community alerts • Transparency tracking
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://civic.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8099 (`root@100.64.0.10:/opt/archie-products/civic-watch/`, container kytran_watch_api), civic.kytranempowerment.com
 
-### Kytran System Operations — `kytran_system_ops` · `/external/kso` · ✅
-- **Deployment**: Hub port 8085, server.kytranempowerment.com. Container: `kytran-system-operations`.
-- **Source**: `/mnt/archie_brain/kytran-server-manager/` (gitignored, no separate git repo).
-- **Capability**: Compliance engine (STIG/HIPAA/CIS), host_monitor.py bridge, 1-click remediation. 9 tabs.
-- **Chat overlay**: **B.A.S.E.** #139 → `kso-chat.js`, red `#ef4444`. Proxy: `chat_proxy_routes.py` → hub (http://192.168.1.200:3000). Env: `KSO_CHAT_API_KEY`, `KSO_ARCHIE_HUB_URL`.
-- **Pip-install gotcha**: Source loads from site-packages NOT /app/ — hot-patches need BOTH paths. Rebuild: `docker compose build + up -d --no-deps`.
-- **KB Docs**: #264475 (audit 2026-05-09)
+### Kytran Gov Watch — `kytran_gov_watch`
 
-### Kytran Gov Watch — `kytran_gov_watch` · `/external/gov` · ✅
-- **Deployment**: Citadel/boston-2 port 8102 (`root@100.64.0.10:/opt/archie-products/gov-watch/`, local `gov_watch_db` postgres), gov.kytranempowerment.com.
+- **Status**: ✅ enabled · **Route**: `/external/gov` · **Version**: 1.0
+- **Description**: Government tender intelligence · P.R.O.C.U.R.E. agent (Analytics &amp; Intelligence) • Live tenders • RFP analysis • Personalized bids
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://gov.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8102 (`root@100.64.0.10:/opt/archie-products/gov-watch/`, local `gov_watch_db` postgres), gov.kytranempowerment.com.
 - **Source**: `/mnt/standalone/kytran-gov-watch/` (**NOT** `/mnt/archie_brain/kytran-gov-watch/` — that path is empty).
 - **Capability**: CanadaBuys + PSPC/CRA tender intelligence. P.R.O.C.U.R.E. agent (#349, qwen2.5:7b). 21 endpoints, Kytran SSO. Hub dispatch: `POST /api/procure/dispatch` (JWT bearer).
 - **_sync_user_tier gotcha**: CASE clause only protects `('agency','team','solo')` — `'kytran'` tier gets reset to free on every login. Fix: numeric hierarchy lookup, never downgrade higher→lower.
 
-### Kytran Market Watch — `kytran_market_watch` · `/external/market` · ✅
-- **Deployment**: Citadel/boston-2 port 8101 (`root@100.64.0.10:/opt/archie-products/market-watch/`), market.kytranempowerment.com. StockBot migrated here.
+### Kytran Legal Watch — `kytran_legal_watch`
 
-### What The Fact — `what_the_fact` · `/external/wtf` · ✅
-- **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
+- **Status**: ✅ enabled · **Route**: `/external/legal` · **Version**: 1.0
+- **Description**: Legal intelligence platform · Case monitoring • Regulatory alerts • Compliance tracking
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://legal.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8100 (`root@100.64.0.10:/opt/archie-products/legal-watch/`), legal.kytranempowerment.com
+- **Capability (repaired 2026-06-24, PRs #7/#8/#9, KB #275548–275554)**: G.A.V.E.L. dashboard + APIs (regulations / ethics / events / digest / canlii / scc). **SCC case law** via the official Lexum RSS `decisions.scc-csc.ca/scc-csc/scc-csc/en/rss.do` (the old CanLII RSS is DataDome-walled → 404; `scc_decisions` 0→100). **Live CanLII search** `/api/canlii/*` — key in the **platform root `.env`**; `caseBrowse` needs a databaseId (e.g. `csc-scc`), no full-text search. Regulations (Canada Gazette) + legal news refresh **daily** via a leader-gated ingest cron in `digest/scheduler.py`.
+- **ARCH GOTCHA**: the gunicorn target MUST invoke `create_app()` (module-level `app = create_app()`); `__main__`-only gating silently drops ALL blueprints + the scheduler (was 7 routes; now 35). Keep hub git == live deploy (rsync excludes `.env`). See `reference_watch-products-deploy-drift` / KB mistake #275549.
+
+### Kytran Market Watch — `kytran_market_watch`
+
+- **Status**: ✅ enabled · **Route**: `/external/market` · **Version**: 1.0
+- **Description**: Market intelligence platform · Autonomous trading • Real-time feeds • Portfolio analytics
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://market.kytranempowerment.com
+- **Tags**: standalone, product
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 port 8101 (`root@100.64.0.10:/opt/archie-products/market-watch/`), market.kytranempowerment.com. StockBot migrated here.
+
+### What The Fact — `what_the_fact`
+
+- **Status**: ✅ enabled · **Route**: `/external/wtf` · **Version**: 1.0
+- **Description**: AI-powered transparent news · Bias detection • Fact-check summaries • Audit trails
+- **Access**: role `USER` · tier `explorer` · no explicit perms
+- **Standalone** (launch tile only — no in-platform blueprint): https://what-the-fact.com
+- **Tags**: standalone, product, watch-series
+- **Notes** (curated, survives regeneration): - **Deployment**: Citadel/boston-2 (2.25.133.122, `root@100.64.0.10`) — wtf-consumer port 8103 (what-the-fact.com), wtf-tech port 8104 (what-the-fact.tech), wtf-ingest (internal). DB = hub `wtf` database. Outpost-us zombie stack removed 2026-06-11 (#4032).
 - **Capability**: 10 Canadian sources, RSS 30min, story clustering (Jaccard), extractive summarization, bias scoring, fact-checking. OAuth SSO paywall (bias free, rationale/Deep Dive gated).
 - **Schema**: `wtf.sources`, `wtf.articles`, `wtf.story_clusters`, `wtf.summaries`, `wtf.bias_scores`, `wtf.outlet_bias_scores`, `wtf.fact_checks`. Plus the **shared entity graph** `wtf.shared.*` (Project #373: `entities` 452k, `entity_mentions`, `entity_relationships`, `chain_link_types`) + `parliament.*`.
 - **Cross-Watch surface (2026-06-24, #3331 Phase 1, PRs #1919-#1921, ADR-009)**: `/entity/<id>` cross-product accountability footprint (free=products+coverage, premium=chain links), article-page Cross-Watch teaser, `/cross-watch` explorer. API `GET /api/entities/<id>/footprint`. Reads the live graph, no new ingest. **Municipal** `/municipal` (#3330, PR #1918) = `beat='municipal'` (NOT geo_scope). ⚠️ `shared.entities` is IMMUTABLE — `entities_guard()` forbids DELETE; retire via `status='suppressed'`. Product→graph adapters POST `wtf-ingest-api:8106/api/internal/entity-graph/ingest` + read the TMX company set via `GET /api/internal/entity-graph/companies` (#3059, PR #1926). **Legal #3059 competition→company linking LIVE** (legal-watch `--source competition` → `competition_enforcement` mentions via slug POINTERS; surfaced as the free "Named in Competition Bureau items" section on `/entity/<id>`). Market #4471 entity build-up still pending (upstream data). Coder docs KB #275529; user KB #275528.
@@ -287,28 +554,6 @@ All VPS (76.13.107.109) except KSO/KBS/CREED on hub.
 - **WTF Hub Inbox** (cont-110): Inbox tab in `/tools/wtf-hub` + `/api/mail/*` routes — per-mailbox News-dept agent mail over Stalwart IMAP (read + AI triage + drafts per box), mirrors the CREED Command mail pattern; send gated on explicit human click.
 - **Refinement program (2026-07-14, PRs #2270-#2285 — ALL LIVE)**: canonical paid-tier set `consumer/tiers.py`; `/score` GET public; province map polygons+circles lean-coloured (Canadian party ramp on continuous `avg_bias`, ADR-011; world rendering owned solely by `loadArticlesGeo`); own-tenant CREED (`/api/v1/orgs/what-the-fact/scores`) + public `/governance` + live footer badge; **newsletter capture** (`wtf.newsletter_subscribers` migr 047 w/ **wtfuser GRANTs**, tokenized unsubscribe, Monday digest via the outpost-us SMTP relay 100.64.0.2:25 ADR-014, KBS CRM sync via X-Internal-Key ADR-015); **verdict chips** homepage informative-only (ADR-013: ✓ Established/⚡ Developing/⚠ Contested, grey suppressed; /news keeps grey; `descriptive_reporting` = no chip); **fact-check rubric** enum-constrained w/ `mostly_true`=attributed+consistent (#2283) + fence-tolerant `_parse_llm_json` (#2285); analyze callers MUST honor `retry_after` (#2276); **sitemap sources** `rss_feed='sitemap:<url>'` revive RSS-less publishers (#2282, Postmedia ×3); `wtf_beat_coverage` watchdog armed.
 
-### Kytran Legal Watch — `kytran_legal_watch` · `/external/legal` · ✅
-- **Deployment**: Citadel/boston-2 port 8100 (`root@100.64.0.10:/opt/archie-products/legal-watch/`), legal.kytranempowerment.com
-- **Capability (repaired 2026-06-24, PRs #7/#8/#9, KB #275548–275554)**: G.A.V.E.L. dashboard + APIs (regulations / ethics / events / digest / canlii / scc). **SCC case law** via the official Lexum RSS `decisions.scc-csc.ca/scc-csc/scc-csc/en/rss.do` (the old CanLII RSS is DataDome-walled → 404; `scc_decisions` 0→100). **Live CanLII search** `/api/canlii/*` — key in the **platform root `.env`**; `caseBrowse` needs a databaseId (e.g. `csc-scc`), no full-text search. Regulations (Canada Gazette) + legal news refresh **daily** via a leader-gated ingest cron in `digest/scheduler.py`.
-- **ARCH GOTCHA**: the gunicorn target MUST invoke `create_app()` (module-level `app = create_app()`); `__main__`-only gating silently drops ALL blueprints + the scheduler (was 7 routes; now 35). Keep hub git == live deploy (rsync excludes `.env`). See `reference_watch-products-deploy-drift` / KB mistake #275549.
-
-### Kytran Civic Watch — `kytran_civic_watch` · `/external/civic` · ✅
-- **Deployment**: Citadel/boston-2 port 8099 (`root@100.64.0.10:/opt/archie-products/civic-watch/`, container kytran_watch_api), civic.kytranempowerment.com
-
-### C.R.E.E.D. Institute — `creed_institute` · `/external/creed` · ✅
-- **Deployment**: Hub port 8086, creed.kytranempowerment.com (standalone per Decision #438).
-- **Capability**: Governance/ethics enforcement, public transparency, grant-target nonprofit.
-- **Public APIs (all no-auth, CORS-open `*`, 60s cache)**: `GET /api/public/score` → `{score, grade, events_today, active_categories, last_checked}` (#3362, `routes/public_routes.py`); `GET /api/v1/scores` → `{overall, grade, event_count, by_category{accountability|fairness|privacy|safety|transparency}}` (`api_routes.py`, CORS added kytran-creed PR #3 — powers creed-ai.org governance widget); `GET /api/v1/badge/overall` → SVG badge (`badge_routes.py`). Consumed by creed-ai.org + WTF. Live (99.5/A+). **Verify cross-origin from EXTERNAL vantage** — hub-LAN browser hits Chrome PNA (split-horizon DNS → private IP), KB #269948/#269951.
-- **Rules**: `standalone-extraction.md`
-
 ---
 
-## Audit Status
-
-All 36 modules audited. Core KB refs: 256837–256847. Open consolidation tasks: #1984, #1985, #1986, #1989.
-
-**Add an audit**: `mcp store_memory(type='vault_note', category='module_capability', tags=[module_id,'audit'])` then update the relevant section above with the KB ID.
-
----
-
-*Full detail in KB. This file = operational index only — keep it lean.*
+*Phase 1 of the Living Platform Registry (#5230): modules only. Services, skills, and the change feed follow in phases 2–4. Add curated context with `platform_registry_service.set_notes(module_id, text)` — never by editing this file.*

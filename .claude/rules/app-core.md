@@ -25,6 +25,32 @@ globs: ["platform_v2/app.py", "platform_v2/services/**", "platform_v2/database.p
 - `signup.html`: 1,654→246 lines (signup.css + signup.js)
 - Shared static files (archie-time.js, station-ops.js/css) counted under APP_CORE
 
+## LCARS header alert state — ONE resolver, fixed precedence (PRs #2463/#2465, 2026-07-25)
+
+`static/js/lcars-header.js` paints `data-alert-state` on `#lcarsHeader`. **Two independent pollers**
+feed it (`/api/alerts/unified` and the ops summary), so the state MUST NOT be written directly by
+either — #2463 shipped exactly that bug and the elbow sat on `critical`, never reaching `dr`.
+
+Each poller writes only its own module-level input (`_standingCondition` / `_alertsCritical` /
+`_opsSeverity`); `_resolveElbowState()` is the sole writer, with fixed precedence:
+
+```
+dr  >  critical  >  diverted  >  warning  >  normal
+```
+
+- **Signal**: `services/dr_posture_monitor.is_dr_active()` — pure `ARCHIE_DR_MODE` env read, fail-safe
+  `False`. `app.py:_dr_mode_flag()` wraps it so it can never raise into the alert bell, and stamps
+  `dr_mode` onto `/api/alerts/unified` on **both** the success and exception paths.
+- **Render**: `data-alert-state="dr"` → `#ef4444`, **0.7s** pulse (distinct from critical's 1s) +
+  `.lcars-divert-tag.is-dr` reading `RED ALERT · STARBASE LOST COMMUNICATION` / `running on Citadel standby`.
+- ⚠️ **`ARCHIE_DR_MODE=1` is NOT display-only** — `model_dispatch_service.py:132` **sheds inference** on it
+  and tags every dispatch as DRP work. **Never set it on the prod hub to test the UI**; run an isolated
+  probe container instead.
+- Known cosmetic gaps (not fixed): the banner does **not** render on `/dashboard` (the header include is on
+  tool pages only, not `base.html`), and the trailing tag text clips at desktop width (`white-space: nowrap`).
+- ⚠️ 23 unit tests **and** a F.O.R.G.E. APPROVE both passed on the broken #2463 build. Only a live browser
+  drive caught it. Header-state changes need a real DOM check, not source assertions (KB #283579).
+
 ## Module Categories (9 total)
 - Admin Ops, AI Command, SaaS Services, Project & Knowledge, Media & Home
 - Crypto, Applications, Creative Studios, Coming Soon

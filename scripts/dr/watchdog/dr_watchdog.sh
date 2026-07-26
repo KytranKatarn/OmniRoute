@@ -58,6 +58,13 @@ ARMED_POLL_INTERVAL="${ARMED_POLL_INTERVAL:-5}"   # while armed, read taps this 
 SNOOZE_STANDBY_SECONDS="${SNOOZE_STANDBY_SECONDS:-900}"   # ⏸ Standby: hold 15 min, then re-check
 SNOOZE_CANCEL_SECONDS="${SNOOZE_CANCEL_SECONDS:-3600}"    # 🛑 Cancel: snooze 1 h, then resume scanning
 SNOOZE_FILE="${SNOOZE_FILE:-$DR/.snooze_until}"
+# Early close (owner request 2026-07-26): end a snooze as soon as the hub is
+# demonstrably back, instead of idling disarmed for the rest of the window.
+# K_UP mirrors K — a CONSECUTIVE-healthy streak, so a hub bouncing through a
+# deploy cannot be mistaken for a recovery. Set SNOOZE_EARLY_CLOSE=0 to disable.
+SNOOZE_EARLY_CLOSE="${SNOOZE_EARLY_CLOSE:-1}"
+K_UP="${K_UP:-3}"                                          # consecutive hub-UP cycles to close early
+SNOOZE_UP_STREAK="${SNOOZE_UP_STREAK:-$DR/.snooze_up_streak}"
 DRY_RUN="${DRY_RUN:-0}"
 # Hub liveness heartbeat (cont-102, KB #276817). The hub posts $HEARTBEAT_FILE
 # over a PUBLIC, mesh-INDEPENDENT path when its local DB is healthy. A FRESH
@@ -268,9 +275,45 @@ main(){
     exit 0
   fi
 
-  # 2.5 Snoozed by a Cancel/Standby button? Stay silent until it auto-expires.
+  # 2.5 Snoozed by a Cancel/Standby button, or by a planned maintenance window?
+  #     Stay silent until it auto-expires — OR until the hub is demonstrably back.
+  #
+  # EARLY CLOSE (owner request 2026-07-26). A snooze must be sized for the WORST
+  # case (a 90-minute PSU/GPU job), which leaves DR disarmed for the full 90 even
+  # when the hub came back in 20. Every unused minute is a minute with no cover.
+  # So once the hub is confirmed healthy for K_UP CONSECUTIVE cycles, drop the
+  # snooze and resume scanning immediately.
+  #
+  # Deliberately a STREAK, mirroring the confirmed-down quorum (K): a hub that
+  # bounces mid-maintenance — deploys restart it repeatedly — must NOT read as
+  # recovered. One healthy probe is a blip; K_UP in a row is a trend.
+  #
+  # SAFE BY CONSTRUCTION: clearing a snooze resumes SCANNING, it does not fail
+  # over. If the hub really is healthy, step 3 immediately logs "all clear" and
+  # resets. The only thing early close spends is the remaining silence.
+  #
+  # NOT applied to .watchdog_disabled — that exits at step 1 above. An indefinite
+  # kill switch is a human decision and only a human retracts it.
   rem="$(snooze_remaining)"
-  if [ -n "${rem:-}" ]; then log "snoozed — ${rem}s until scanning resumes."; exit 0; fi
+  if [ -n "${rem:-}" ]; then
+    if [ "${SNOOZE_EARLY_CLOSE:-1}" = "1" ] && probe_local; then
+      _up=$(( $(cat "$SNOOZE_UP_STREAK" 2>/dev/null || echo 0) + 1 ))
+      echo "$_up" > "$SNOOZE_UP_STREAK"
+      if [ "$_up" -ge "${K_UP:-3}" ]; then
+        rm -f "$SNOOZE_FILE" "$SNOOZE_UP_STREAK"
+        log "snooze CLOSED EARLY — hub healthy ${_up}/${K_UP:-3} consecutive cycles (${rem}s were left). Resuming scanning."
+        tg_notify "✅ <b>Maintenance snooze ended early</b> — hub back and healthy for ${_up} consecutive checks. DR watchdog is scanning again; ${rem}s of the window went unused."
+      else
+        log "snoozed — ${rem}s left; hub UP ${_up}/${K_UP:-3} consecutive (early close at ${K_UP:-3})."
+        exit 0
+      fi
+    else
+      # Hub still down, or early close switched off — a blip must not accumulate.
+      rm -f "$SNOOZE_UP_STREAK"
+      log "snoozed — ${rem}s until scanning resumes."
+      exit 0
+    fi
+  fi
 
   load_state
 

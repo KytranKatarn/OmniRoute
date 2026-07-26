@@ -130,6 +130,7 @@ if [ -f "$DR/adguard_flip.sh" ]; then
 else
   adguard_lan_check(){ log "  (adguard_flip.sh not staged — LAN DNS not checked)"; return 2; }
   adguard_lan_restore(){ log "  (adguard_flip.sh not staged — cannot restore LAN DNS)"; return 2; }
+  adguard_lan_serves(){ log "  (adguard_flip.sh not staged — serve-check skipped)"; return 2; }
 fi
 
 ADGUARD_DNS="${ADGUARD_DNS:-100.64.0.4}"
@@ -180,6 +181,21 @@ else
         log "  ⚠️ mesh. is TLS-only control plane and adguard./mail. have their own"
         log "     correct targets — never sweep the whole zone."
     fi
+fi
+
+# ---- 6. Does each name RESOLVE **and** SERVE? (#5246) --------------------
+# Matching the map is not proof a name works. On 2026-07-26 platform./creed./
+# server./media. resolved to a host that was UP and the answer was defensible —
+# but the recovery hub Caddy had `auto_https off` and REFUSED :443. Every layer
+# anyone checked read healthy; the layer nobody checked was whether the name
+# actually served. Detection only — this never writes.
+log "6) end-to-end resolve-AND-serve check ..."
+if adguard_lan_serves; then
+  log "  every checked hostname resolves AND completes a TLS handshake."
+else
+  log "  *** at least one hostname does not serve (or could not be measured)."
+  log "  *** This is the 2026-07-26 signature: healthy services, correct-looking"
+  log "  *** DNS, and the name still unusable from the LAN."
 fi
 
 log "=== force_reset_to_hub COMPLETE — watchdog re-armed, all products on hub ==="

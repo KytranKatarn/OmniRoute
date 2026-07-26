@@ -32,6 +32,7 @@
 # silently rewrites DNS is how #5219 happened.
 #
 #   adguard_flip.sh                # report drift, exit 1 if any (SAFE)
+#   adguard_flip.sh --serves       # per-host: resolves AND serves TLS? (SAFE)
 #   adguard_flip.sh --apply        # repoint drifted hosts, one at a time
 #
 # AdGuard API is http://127.0.0.1:5354 on the HUB (AdGuardHome `http.address`) —
@@ -153,6 +154,61 @@ adguard_lan_check(){
   [ "$drift" -eq 0 ] && return 0 || return 1
 }
 
+# ---------------------------------------------------------------------------
+# Does each name RESOLVE **and** SERVE? (#5246)
+#
+# adguard_lan_check proves the DNS answer matches the declared map. That is NOT
+# proof the name works, and the difference is the whole 2026-07-26 incident:
+# platform./creed./server./media. resolved to a host that was UP, the answer was
+# defensible, and every layer anyone checked read healthy — but the recovery hub
+# Caddy had `auto_https off` and REFUSED :443. What nobody checked was whether
+# the name actually SERVED. That gap lasted ~13 hours.
+#
+# So this resolves through AdGuard (the resolver a LAN client uses) and then
+# completes a real TLS handshake to the answer, with SNI, per hostname.
+#
+# THREE RULES:
+#   * PER HOST. An aggregate "LAN DNS OK" is exactly what hid this for 13 hours.
+#   * UNKNOWN IS NOT OK. A name we cannot measure reports ?, never a pass — same
+#     rule as the backup-freshness and gov-watch ingest monitors.
+#   * DETECTION ONLY. This never writes. A verify phase that repoints things is
+#     how a blanket repoint sneaks back in (#5219).
+#
+# Probed FROM BOSTON-2 deliberately, not from the hub: with
+# `userland-proxy: false` the hub cannot reach its OWN published ports via its
+# public IP (the documented hairpin), so hub-fronted names would report false
+# failures if probed there.
+#
+# Exit: 0 = every measured name served, 1 = at least one did not, 2 = nothing measurable.
+# ---------------------------------------------------------------------------
+ADGUARD_DNS_IP="${ADGUARD_DNS_IP:-$HUB_MESH}"
+
+adguard_lan_serves(){
+  local names="${1:-$ADGUARD_BEACON_HOSTS}" bad=0 ok=0 unknown=0
+  command -v dig >/dev/null 2>&1 || { _ag_log "SKIP: dig not installed — cannot verify LAN DNS"; return 2; }
+  for h in $names; do
+    local fqdn="$h.kytranempowerment.com" ip tls
+    ip="$(dig +short +time=3 +tries=1 "@$ADGUARD_DNS_IP" "$fqdn" A 2>/dev/null | grep -E '^[0-9.]+$' | head -1)"
+    if [ -z "$ip" ]; then
+      _ag_log "  ? $fqdn — no answer from AdGuard (UNKNOWN, not a pass)"
+      unknown=$((unknown+1)); continue
+    fi
+    # A TLS handshake, not a port knock: :443 open but not terminating TLS is
+    # still broken for the user.
+    if echo | timeout 8 openssl s_client -connect "$ip:443" -servername "$fqdn" >/dev/null 2>&1; then
+      _ag_log "  OK $fqdn -> $ip (resolves AND serves TLS)"
+      ok=$((ok+1))
+    else
+      _ag_log "  *** $fqdn -> $ip RESOLVES BUT DOES NOT SERVE TLS on 443"
+      bad=$((bad+1))
+    fi
+  done
+  _ag_log "serve-check: $ok serving, $bad broken, $unknown unknown"
+  [ "$bad" -gt 0 ] && return 1
+  [ "$ok" -eq 0 ] && return 2
+  return 0
+}
+
 # Repoint drifted hosts, ONE AT A TIME, each gated on a TLS probe of the target.
 adguard_lan_restore(){
   local raw fixed=0 skipped=0
@@ -195,7 +251,10 @@ except Exception as e:
 
 # Standalone use; also source-able by force_reset_to_hub.sh / failback.sh.
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-  if [ "${1:-}" = "--apply" ]; then
+  if [ "${1:-}" = "--serves" ]; then
+    _ag_log "resolve-AND-serve check (detection only, never writes)"
+    adguard_lan_serves
+  elif [ "${1:-}" = "--apply" ]; then
     adguard_lan_restore
     _ag_log "re-checking after apply..."
     adguard_lan_check

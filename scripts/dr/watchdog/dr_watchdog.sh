@@ -302,7 +302,7 @@ main(){
       if [ "$_up" -ge "${K_UP:-3}" ]; then
         rm -f "$SNOOZE_FILE" "$SNOOZE_UP_STREAK"
         log "snooze CLOSED EARLY — hub healthy ${_up}/${K_UP:-3} consecutive cycles (${rem}s were left). Resuming scanning."
-        tg_notify "✅ <b>Maintenance snooze ended early</b> — hub back and healthy for ${_up} consecutive checks. DR watchdog is scanning again; ${rem}s of the window went unused."
+        tg_notify "✅ <b>Maintenance snooze ended early</b> — Starbase back and healthy for ${_up} consecutive checks. DR watchdog is scanning again; ${rem}s of the window went unused."
       else
         log "snoozed — ${rem}s left; hub UP ${_up}/${K_UP:-3} consecutive (early close at ${K_UP:-3})."
         exit 0
@@ -322,10 +322,10 @@ main(){
   #    comes back, stand down and tell the owner.
   if probe_local; then
     if [ "$armed_at" -ne 0 ]; then
-      log "hub reachable from boston-2 → was ARMED, standing down."
-      tg_notify $'✅ <b>DR WATCHDOG — hub recovered</b>\nThe hub is reachable again. Auto-failover CANCELLED. Still on warm standby.'
+      log "Starbase reachable from boston-2 → was ARMED, standing down."
+      tg_notify $'✅ <b>DR WATCHDOG — Starbase recovered</b>\nThe Starbase is reachable again. Auto-failover CANCELLED. Still on warm standby.'
     elif [ "$consec_down" -ne 0 ]; then
-      log "hub reachable from boston-2 → clearing down-counter."
+      log "Starbase reachable from boston-2 → clearing down-counter."
     fi
     reset_state
     exit 0
@@ -363,7 +363,7 @@ main(){
   consec_down=$((consec_down+1))
   save_state
   _arm_at=$K; [ "$_blackout" -eq 1 ] && _arm_at=$K_BLACKOUT
-  log "$([ "$_blackout" -eq 1 ] && echo "BLACKOUT" || echo "QUORUM") hub-down ($down_count down, $unreachable_count unreachable). consecutive=$consec_down (arm at $_arm_at)."
+  log "$([ "$_blackout" -eq 1 ] && echo "BLACKOUT" || echo "QUORUM") Starbase-down ($down_count down, $unreachable_count unreachable). consecutive=$consec_down (arm at $_arm_at)."
 
   # 6. Arm — alert the owner with tappable Proceed / Cancel / Standby buttons.
   if [ "$consec_down" -ge "$_arm_at" ] && [ "$armed_at" -eq 0 ]; then
@@ -427,8 +427,8 @@ Holding for <b>$((SNOOZE_STANDBY_SECONDS/60)) min</b>, then I'll re-check and al
       # Fire when the abort window elapses (re-confirm hub still down first).
       if [ "$now" -gt $((armed_at + ABORT_WINDOW)) ]; then
         if probe_local; then
-          log "hub recovered at window expiry — standing down."
-          tg_notify $'✅ <b>DR WATCHDOG — hub recovered</b>\nThe hub is reachable again. Auto-failover CANCELLED. Still on warm standby.'
+          log "Starbase recovered at window expiry — standing down."
+          tg_notify $'✅ <b>DR WATCHDOG — Starbase recovered</b>\nThe Starbase is reachable again. Auto-failover CANCELLED. Still on warm standby.'
           reset_state; exit 0
         fi
         # cont-102 heartbeat VETO: the hub may be mesh-isolated but ALIVE. A fresh,
@@ -446,8 +446,8 @@ The hub is still unreachable over the mesh but is posting a LIVE heartbeat (DB h
       # Periodic hub-recovery check (~every 30s; the probe is slow when down).
       _i=$((_i+1))
       if [ $((_i % 6)) -eq 0 ] && probe_local; then
-        log "hub recovered mid-window — standing down."
-        tg_notify $'✅ <b>DR WATCHDOG — hub recovered</b>\nThe hub is reachable again. Auto-failover CANCELLED. Still on warm standby.'
+        log "Starbase recovered mid-window — standing down."
+        tg_notify $'✅ <b>DR WATCHDOG — Starbase recovered</b>\nThe Starbase is reachable again. Auto-failover CANCELLED. Still on warm standby.'
         reset_state; exit 0
       fi
       sleep "$ARMED_POLL_INTERVAL"

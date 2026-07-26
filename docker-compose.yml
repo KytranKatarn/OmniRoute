@@ -182,6 +182,14 @@ services:
       - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
       - ./.claude/rules:/mnt/archie_brain/.claude/rules:rw
       - ./.claude/skills:/mnt/archie_brain/.claude/skills:rw
+      # commands: read by the Living Platform Registry collector (#5230/#5242).
+      # Without it the nightly job sees 257 of 275 skills and can NEVER detect a
+      # slash-command being added or removed — a deleted one would sit 'present'
+      # forever with the disappearance alarm silent. READ-ONLY on purpose: rules/
+      # is :rw because Skill Sync writes learned-skills.md into it, but nothing on
+      # the platform authors slash-commands, so this stays least-privilege.
+      # MUST stay in step with the archie_scheduler block below (KB #263303).
+      - ./.claude/commands:/mnt/archie_brain/.claude/commands:ro
       # Mount .git for git operations (CodeRabbit Local Git management)
       - ./.git:/mnt/archie_brain/.git:rw
       # GitHub repo clones — ARCHIE's local copies for reading/modifying/sharing
@@ -376,6 +384,12 @@ services:
       - ./CLAUDE.md:/mnt/archie_brain/CLAUDE.md:ro
       - ./.claude/rules:/mnt/archie_brain/.claude/rules:rw
       - ./.claude/skills:/mnt/archie_brain/.claude/skills:rw
+      # MUST mirror archie_platform above — the scheduler is where the nightly
+      # platform_registry_collect job actually runs, so this is the mount that
+      # matters most (#5242). A scheduler whose volumes drift from the platform's
+      # degrades silently: a missing /mnt/standalone:ro once cut Code Health by
+      # 35% with no error at all (KB #263303).
+      - ./.claude/commands:/mnt/archie_brain/.claude/commands:ro
       - ./.git:/mnt/archie_brain/.git:rw
       - ./repos:/mnt/archie_brain/repos:rw
       - ./secrets:/mnt/archie_brain/secrets:ro

@@ -1,0 +1,19 @@
+# ADDITIVE second DERP region — task #5220, ADR-013 (sovereign relays only).
+# The hub's embedded region 900 is UNCHANGED and remains available; this simply
+# gives the fleet a relay OUTSIDE the hub failure domain. Remove this file and
+# the `derp.paths` entry to roll back completely.
+regions:
+  901:
+    regionid: 901
+    regioncode: beacon
+    regionname: ARCHIE Beacon
+    nodes:
+      - name: 901a
+        regionid: 901
+        hostname: derp.kytranempowerment.com
+        ipv4: 2.25.170.252
+        # Caddy owns :443 on Beacon for the 20 front-door hostnames, so derper
+        # listens on :8443 (Option A). STUN is on the standard 3478/udp.
+        derpport: 8443
+        stunport: 3478
+        stunonly: false

@@ -114,6 +114,91 @@ _beacon_ssh() {
     ssh -i "$FLEET_KEY" $BEACON_SSH_OPTS "$BEACON_HOST" "$@"
 }
 
+# beacon_can_reach <host> <port> — probe FROM BEACON (task #5222).
+#
+# The completion of the #5219/#5225 probe work. dr_service_listening() runs on
+# boston-2 and proves a service is bound beyond loopback — but it CANNOT prove
+# Beacon can traverse UFW to get there, and Beacon is the machine that actually
+# has to reach it. That gap is not hypothetical: on 2026-07-26 derper listened
+# happily on *:8443 while Beacon's own UFW (policy DROP, only 22/80/443 allowed)
+# dropped every external client. A local probe would have said "fine".
+#
+# Exit 0 = Beacon reached it. Exit 1 = Beacon could NOT.
+# Exit 2 = INDETERMINATE (Beacon itself unreachable / no fleet key) — callers
+# MUST NOT read 2 as failure and strand a service; fall back to the local probe.
+beacon_can_reach() {
+    local host="$1" port="$2" out
+    if [ ! -f "$FLEET_KEY" ]; then
+        log "  Beacon reach-check: SKIPPED (no fleet key) — cannot measure."
+        return 2
+    fi
+    out="$(_beacon_ssh "timeout 5 bash -c 'echo > /dev/tcp/${host}/${port}' 2>/dev/null && echo REACH_OK || echo REACH_NO" 2>/dev/null)" || {
+        log "  Beacon reach-check: SKIPPED (Beacon unreachable) — cannot measure."
+        return 2
+    }
+    case "$out" in
+        *REACH_OK*) return 0 ;;
+        *REACH_NO*) log "  *** Beacon CANNOT reach ${host}:${port} — a client-side firewall or route is blocking it."
+                    return 1 ;;
+        *)          log "  Beacon reach-check: unparseable reply — treating as indeterminate."
+                    return 2 ;;
+    esac
+}
+
+# beacon_maintenance_mode <on|off> <hostname> [hostname...] — ADR-012 (#5226).
+#
+# Owner directive 2026-07-26: DRP scope is platform. + mesh/cluster orchestration
+# ONLY. "the rest should be here or a redirect html that says 'Services are down
+# or under maintenance' splash page".
+#
+# Before this there were only two outcomes for an out-of-scope hostname during a
+# failover, and both are bad: leave it pointed at a dead hub (opaque browser
+# error) or flip it to a host that cannot serve it (worse — ADR-009/#955). This
+# adds the third: an honest maintenance page.
+#
+# 503 + Retry-After, deliberately NOT 200: a maintenance page that returns 200
+# tells every monitor and search crawler the service is healthy.
+# Self-contained: the splash embeds its own HTML because the hub — the thing that
+# would normally serve assets — is by definition down when this runs.
+BEACON_MAINT_MARK="# >>> ARCHIE-MAINTENANCE"
+beacon_maintenance_mode() {
+    local mode="$1"; shift
+    local hosts=("$@")
+    [ "${#hosts[@]}" -gt 0 ] || { log "  maintenance: no hostnames given."; return 0; }
+    if [ ! -f "$FLEET_KEY" ]; then
+        log "  WARN: fleet key missing — cannot set maintenance mode on Beacon."
+        return 1
+    fi
+
+    local remote
+    if [ "$mode" = "on" ]; then
+        # Append a guarded block. Caddy uses the LAST matching site block for a
+        # host, so appending overrides the real one without editing it — which
+        # means "off" is a pure delete and the original is never touched.
+        remote="cp -f '${BEACON_CADDYFILE}' '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maint'
+printf '\n%s\n' '${BEACON_MAINT_MARK}' >> '${BEACON_CADDYFILE}'
+for h in ${hosts[*]}; do
+  printf '%s {\n  handle {\n    header Retry-After 3600\n    respond \"<!doctype html><html><head><title>Maintenance</title></head><body style=\\\"font-family:system-ui;text-align:center;padding:4em\\\"><h1>Services are down or under maintenance</h1><p>This service is temporarily unavailable while planned work completes.</p></body></html>\" 503\n  }\n}\n' \"\$h\" >> '${BEACON_CADDYFILE}'
+done
+printf '%s\n' '${BEACON_MAINT_MARK}-END' >> '${BEACON_CADDYFILE}'
+caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}' >/dev/null 2>&1 && systemctl reload caddy && echo MAINT_ON_OK || { mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maint' '${BEACON_CADDYFILE}'; echo MAINT_ON_FAIL; }"
+    else
+        # Delete everything between the markers, inclusive.
+        remote="cp -f '${BEACON_CADDYFILE}' '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maintoff'
+sed -i '/${BEACON_MAINT_MARK}\$/,/${BEACON_MAINT_MARK}-END\$/d' '${BEACON_CADDYFILE}'
+caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}' >/dev/null 2>&1 && systemctl reload caddy && echo MAINT_OFF_OK || { mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}-maintoff' '${BEACON_CADDYFILE}'; echo MAINT_OFF_FAIL; }"
+    fi
+
+    local out
+    out="$(_beacon_ssh "$remote" 2>&1)" || true
+    case "$out" in
+        *MAINT_ON_OK*)  log "  Beacon: maintenance splash ON for ${#hosts[@]} hostname(s) (503 + Retry-After)."; return 0 ;;
+        *MAINT_OFF_OK*) log "  Beacon: maintenance splash cleared; original site blocks restored."; return 0 ;;
+        *FAIL*)         log "  *** Beacon maintenance '${mode}' FAILED validation — Caddyfile rolled back, front door untouched."; return 1 ;;
+        *)              log "  WARN: Beacon maintenance '${mode}' gave no confirmation: $(printf '%s' "$out" | tail -1)"; return 1 ;;
+    esac
+}
+
 # beacon_flip_ports <from_ip> <to_ip> <label> <port> [port...]
 #
 # Repoints ONLY the named ports from <from_ip> to <to_ip>, then validates and
@@ -237,6 +322,16 @@ beacon_verify_selective() {
 # The complete check probes FROM Beacon via _beacon_ssh — task #5222.
 dr_service_listening() {
     local host="$1" port="$2" label="${3:-service}" i
+    # #5222: Beacon is the machine that must actually reach this, so ASK BEACON
+    # first. Our local probe only proves the service is bound beyond loopback.
+    # rc 2 = indeterminate (Beacon unreachable) -> fall through to the local
+    # probe rather than stranding a healthy service on an unmeasurable check.
+    if beacon_can_reach "$host" "$port"; then
+        return 0
+    elif [ $? -eq 1 ]; then
+        log "  $label: Beacon cannot reach ${host}:${port} — refusing to point a hostname there."
+        return 1
+    fi
     local attempts="${DR_PROBE_ATTEMPTS:-10}" interval="${DR_PROBE_INTERVAL:-3}"
     for i in $(seq 1 "$attempts"); do
         if timeout 3 bash -c "echo > /dev/tcp/${host}/${port}" 2>/dev/null; then

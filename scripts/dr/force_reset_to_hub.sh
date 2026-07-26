@@ -101,6 +101,63 @@ log "4) Clearing DR state flags ..."
 rm -f "$DR/.failed_over"    && log "  .failed_over: cleared"
 rm -f "$DR/.awaiting_rebuild" && log "  .awaiting_rebuild: cleared"
 
+# ---- 5. LAN split-horizon (AdGuard) — DETECT and REPORT (task #5224) ----
+#
+# WHY THIS STEP EXISTS. On 2026-07-26 Beacon, the watch products, the hub and the
+# DR flags were ALL correctly restored — and the owner still could not reach
+# platform./creed./server./media. for ~13 hours. AdGuard's LAN rewrites were still
+# pointed at 192.168.1.200 (the recovery Caddy, HTTP-only, :443 refused) from a
+# bulk repoint during the incident. Every layer this script checks read healthy;
+# the layer nobody checked was the one that was broken.
+#
+# DETECT ONLY, BY DESIGN. A recovery script that bulk-rewrites DNS is exactly how
+# #5219 happened — a blanket AdGuard repoint swept in mesh., the TLS-only control
+# plane, and dropped both Starships. A batch over N hostnames is N decisions
+# (feedback_bulk-ops-are-n-decisions), so this reports and hands the operator the
+# precise per-host command. Pass --fix-dns only if you have read the report.
+#
+# Resolves against AdGuard rather than reading its API: no credentials needed, and
+# it measures what a LAN CLIENT actually gets — the path that matters. Measuring
+# the convenient thing instead of the real path is the recurring bug this whole
+# session has been about.
+ADGUARD_DNS="${ADGUARD_DNS:-100.64.0.4}"
+BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.170.252}"
+# Hostnames Beacon fronts. mail. is deliberately ABSENT: Stalwart runs on the hub
+# and mail. must NOT be pointed at Beacon (verified 2026-07-26 — :25/:465/:587/:993
+# are open on the hub and closed on Citadel).
+BEACON_HOSTS="${BEACON_HOSTS:-platform consciousness business server media creed mesh adguard nagios plex jellyfin store shop terminal codex sandbox archie claude tdarr}"
+
+log "5) LAN split-horizon check (AdGuard @ $ADGUARD_DNS) ..."
+if ! command -v dig >/dev/null 2>&1; then
+    log "  SKIP: dig not installed — cannot verify LAN DNS. Install dnsutils."
+else
+    _drift=0
+    for _h in $BEACON_HOSTS; do
+        _got="$(dig +short +time=3 +tries=1 "@$ADGUARD_DNS" "${_h}.kytranempowerment.com" A 2>/dev/null | grep -E '^[0-9.]+$' | head -1)"
+        if [ -z "$_got" ]; then
+            log "  ? ${_h}. — no answer from AdGuard (is the hub up?)"
+        elif [ "$_got" != "$BEACON_PUBLIC" ]; then
+            log "  *** ${_h}.kytranempowerment.com -> $_got  (expected $BEACON_PUBLIC)"
+            _drift=$((_drift+1))
+        fi
+    done
+    if [ "$_drift" -eq 0 ]; then
+        log "  LAN DNS OK: all checked hostnames resolve to Beacon."
+    else
+        log "  *** $_drift hostname(s) NOT pointing at Beacon — LAN clients will fail even"
+        log "  *** though every service is healthy. This is the 2026-07-26 signature."
+        if [ "${1:-}" = "--fix-dns" ] || [ "${FIX_DNS:-0}" = "1" ]; then
+            log "  --fix-dns given: repoint them ONE AT A TIME from the hub, verifying each."
+            log "  (Not automated here on purpose — a bulk AdGuard repoint caused #5219.)"
+        fi
+        log "  Remediate on the hub, per host, re-reading the list first:"
+        log "    POST http://127.0.0.1:5354/control/rewrite/delete {domain,answer:<old>}"
+        log "    POST http://127.0.0.1:5354/control/rewrite/add    {domain,answer:$BEACON_PUBLIC}"
+        log "  ⚠️ mesh. is TLS-only control plane and adguard./mail. have their own"
+        log "     correct targets — never sweep the whole zone."
+    fi
+fi
+
 log "=== force_reset_to_hub COMPLETE — watchdog re-armed, all products on hub ==="
 log ""
 log "NOTE: if the Headscale mesh is still down (nodes offline), run FROM THE HUB:"

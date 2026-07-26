@@ -42,7 +42,11 @@ derp:
     automatically_add_embedded_derp_region: true
 
   urls: []
-  paths: []
+  # Region 901 on Beacon — ADDITIVE, outside the hub failure domain (#5220).
+  # Lives in the headscale data VOLUME because config.yaml is mounted as a
+  # single file; this avoids a docker-compose change to add another mount.
+  paths:
+    - /var/lib/headscale/derp-beacon.yaml
   update_frequency: 24h
 
 # Database — local SQLite (no external dependency)

@@ -1102,13 +1102,48 @@ def check_capacity_alerts(disks):
 
 
 def get_gpu_info():
-    """Get GPU information from the host"""
+    """Get GPU information from the host.
+
+    MULTI-GPU CORRECTNESS (fixed 2026-07-26):
+    ``nvidia-smi`` without ``--id`` prints ONE LINE PER GPU. This function used
+    to call it *inside* the per-device loop and then split the whole blob on
+    ',', so with two cards installed:
+
+      * every card was assigned GPU 0's memory/utilization/temperature,
+      * the 12 GB TITAN X was reported as 8192 MB (the Quadro's total), and
+      * ``driver`` came out as '535.309.01\\n12288' -- GPU 0's driver string
+        glued to GPU 1's VRAM by the row separator.
+
+    nvidia-smi is now called ONCE, up front, and joined to each lspci device by
+    PCI address. That also removes a redundant subprocess per GPU per cycle.
+    """
     gpus = []
 
     # Detect GPUs via lspci
     output = run_command('lspci 2>/dev/null | grep -i -E "VGA|3D|Display"')
     if not output:
         return None
+
+    # One nvidia-smi call for ALL cards, keyed by PCI address. Guarded so that
+    # a missing/failed helper degrades to lspci-only data instead of taking
+    # down the whole monitor cycle.
+    smi_by_pci = {}
+    try:
+        import hardware_inventory as _hw
+
+        smi_raw = run_command(
+            "nvidia-smi --query-gpu=index,pci.bus_id,name,memory.total,"
+            "memory.used,utilization.gpu,temperature.gpu,driver_version,gpu_uuid "
+            "--format=csv,noheader,nounits 2>/dev/null"
+        )
+        smi_by_pci = _hw.parse_nvidia_smi(smi_raw)
+        _norm_pci = _hw.normalize_pci
+    except Exception as e:  # noqa: BLE001 - monitoring must never hard-fail
+        print(f"[gpu] nvidia-smi enumeration unavailable: {e}")
+
+        def _norm_pci(addr):
+            a = (addr or "").strip().lower()
+            return a.split(":", 1)[1] if a.count(":") >= 2 else a
 
     for line in output.split("\n"):
         line = line.strip()
@@ -1151,22 +1186,28 @@ def get_gpu_info():
             "vram_used_mb": None,
             "utilization_percent": None,
             "driver": None,
+            # UUID is what lets hardware-change detection tell "this card moved
+            # to another slot" apart from "a card vanished and a different one
+            # appeared". It survives a PCI address change; the address does not.
+            "uuid": None,
         }
 
-        # Try nvidia-smi for NVIDIA GPUs
+        # Join this lspci device to its own nvidia-smi row BY PCI ADDRESS.
+        # Never index into the blob positionally -- that is the bug this fixes.
         if vendor == "nvidia":
-            smi_output = run_command(
-                "nvidia-smi --query-gpu=memory.total,memory.used,utilization.gpu,temperature.gpu,driver_version "
-                "--format=csv,noheader,nounits 2>/dev/null"
-            )
-            if smi_output:
-                parts = [p.strip() for p in smi_output.split(",")]
-                if len(parts) >= 5:
-                    gpu["vram_total_mb"] = int(parts[0]) if parts[0].isdigit() else None
-                    gpu["vram_used_mb"] = int(parts[1]) if parts[1].isdigit() else None
-                    gpu["utilization_percent"] = int(parts[2]) if parts[2].isdigit() else None
-                    gpu["temperature"] = int(parts[3]) if parts[3].isdigit() else None
-                    gpu["driver"] = parts[4] if parts[4] != "[N/A]" else None
+            smi = smi_by_pci.get(_norm_pci(pci_addr))
+            if smi:
+                gpu["vram_total_mb"] = smi.get("vram_total_mb")
+                gpu["vram_used_mb"] = smi.get("vram_used_mb")
+                gpu["utilization_percent"] = smi.get("utilization_percent")
+                gpu["temperature"] = smi.get("temperature")
+                gpu["driver"] = smi.get("driver")
+                gpu["uuid"] = smi.get("uuid")
+                gpu["index"] = smi.get("index")
+                # nvidia-smi's marketing name ("NVIDIA TITAN X (Pascal)") is
+                # more precise than lspci's bracketed codename ("TITAN X").
+                if smi.get("name"):
+                    gpu["model"] = smi["name"]
 
         # Fall back to hwmon for temperature (nouveau driver, etc.)
         if gpu["temperature"] is None:
@@ -6740,12 +6781,58 @@ def _power_disks():
     return n, round(watts, 1)
 
 
-def get_power(psu_watts=600, baseline_watts=35):
+# Physical PSU topology. Since 2026-07-25 the hub runs TWO supplies joined by
+# an Add2PSU sync card: the original 600 W feeds the board and drives, and a
+# 1050 W feeds the GPUs.
+#
+# CAVEAT, deliberately recorded rather than hidden: summing the two capacities
+# OVERSTATES usable headroom, because a rail can only power what is physically
+# wired to it -- the GPUs cannot draw from the 600 W supply. The combined
+# figure is what the operator asked to see, so `psu_watts` remains the sum, but
+# `psu_rails` is published alongside it so the real topology stays visible and
+# a per-rail budget can be computed later without changing this contract.
+#
+# Override without a deploy: ARCHIE_PSU_RAILS="600:board+drives,1050:gpu"
+DEFAULT_PSU_RAILS = [
+    {"watts": 600, "role": "board+drives"},
+    {"watts": 1050, "role": "gpu"},
+]
+
+
+def _psu_rails():
+    """Configured PSU rails, from env if set, else the documented default."""
+    raw = os.environ.get("ARCHIE_PSU_RAILS", "").strip()
+    if not raw:
+        return [dict(r) for r in DEFAULT_PSU_RAILS]
+
+    rails = []
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        watts, _, role = chunk.partition(":")
+        try:
+            rails.append({"watts": float(watts), "role": role.strip() or "unspecified"})
+        except ValueError:
+            # A malformed override must not silently zero the PSU budget --
+            # that would turn every load figure into a divide-by-zero or a
+            # fake 100% redline.
+            print(f"[power] ignoring malformed PSU rail spec: {chunk!r}")
+    return rails or [dict(r) for r in DEFAULT_PSU_RAILS]
+
+
+def get_power(psu_watts=None, baseline_watts=35):
     """Server power draw for the KSO watts counter (#5140). MEASURED GPU (nvidia-smi) + CPU
     (RAPL, works because this daemon runs as root); ESTIMATED RAM/disks/baseline (no hardware
     sensor). Every figure carries its class (measured|estimated). FAIL-SAFE: any error returns
-    {'error': ...} so it can never break the rest of collect_all_data."""
+    {'error': ...} so it can never break the rest of collect_all_data.
+
+    psu_watts defaults to the SUM of the configured rails (see DEFAULT_PSU_RAILS).
+    Pass an explicit value to model a single rail."""
     try:
+        rails = _psu_rails()
+        if psu_watts is None:
+            psu_watts = sum(r["watts"] for r in rails)
         comps = []
         cards, gpu_draw, gpu_max = _power_gpu()
         if cards:
@@ -6812,12 +6899,284 @@ def get_power(psu_watts=600, baseline_watts=35):
             "total_watts": total,
             "total_class": "measured+estimated" if measured else "estimated",
             "psu_watts": psu_watts,
+            # Per-rail topology. psu_watts is their SUM, which overstates real
+            # headroom (a rail only powers what is wired to it) -- publishing
+            # the rails keeps that visible instead of burying it in one number.
+            "psu_rails": rails,
+            "psu_count": len(rails),
             "headroom_watts": round(psu_watts - total, 1),
             "load_pct": round(total / psu_watts * 100, 1) if psu_watts else None,
             "redline_pct": 80,
         }
     except Exception as e:
         return {"error": str(e)[:200], "total_watts": None}
+
+
+# ---------------------------------------------------------------------------
+# Hardware inventory + change detection
+#
+# Capacity monitoring cannot see a device that LEFT -- a disconnected drive has
+# no capacity to be low on. On 2026-07-25 a drive was unplugged during a GPU
+# install; fstab carried 'nofail', the host booted clean, and ten containers ran
+# 20 hours against an empty directory with nothing reported anywhere. These
+# functions remember what was attached and compare.
+# ---------------------------------------------------------------------------
+
+HARDWARE_BASELINE_FILE = os.path.join(os.path.dirname(OUTPUT_FILE), "hardware_baseline.json")
+
+# A hardware change never resolves itself, so re-assert it every 6h instead of
+# every cycle: loud enough that it cannot be missed, quiet enough to not be muted.
+HARDWARE_ALERT_COOLDOWN_MIN = 360
+
+# fstab lines that describe no physical device.
+_PSEUDO_FS = {
+    "tmpfs",
+    "proc",
+    "sysfs",
+    "devpts",
+    "devtmpfs",
+    "swap",
+    "cgroup",
+    "cgroup2",
+    "overlay",
+    "squashfs",
+    "efivarfs",
+    "none",
+}
+
+
+def _disk_slot_map():
+    """Map kernel device name -> physical port, from /dev/disk/by-path.
+
+    by-path encodes the actual controller and port (``pci-0000:00:1f.2-ata-2``,
+    ``pci-0000:02:00.0-sas-phy3-lun-0``). Same serial at a different by-path
+    means the drive was physically moved to another port -- which is the
+    "moved from one slot to another" signal that sd* letters cannot give,
+    because those reshuffle on their own between boots.
+    """
+    slots = {}
+    by_path = "/dev/disk/by-path"
+    if not os.path.isdir(by_path):
+        return slots
+    try:
+        entries = sorted(os.listdir(by_path))
+    except OSError:
+        return slots
+
+    for entry in entries:
+        if "-part" in entry:
+            continue
+        try:
+            dev = os.path.basename(os.readlink(os.path.join(by_path, entry)))
+        except OSError:
+            continue
+        # One disk often has several aliases (ata-2 AND ata-2.0; usb AND usbv2).
+        # sorted() + first-wins keeps one canonical spelling, so an alias
+        # appearing or disappearing is not misread as the disk having moved.
+        slots.setdefault(dev, entry)
+    return slots
+
+
+def _mounted_targets():
+    """Mount targets currently active, straight from the kernel."""
+    targets = set()
+    try:
+        with open("/proc/mounts", "r") as fh:
+            for line in fh:
+                parts = line.split()
+                if len(parts) >= 2:
+                    targets.add(parts[1])
+    except OSError:
+        pass
+    return targets
+
+
+def _resolve_fstab_spec(spec):
+    """Resolve an fstab device spec to a path, or None if it is not a device."""
+    spec = (spec or "").strip()
+    if not spec:
+        return None
+    for prefix, directory in (
+        ("UUID=", "/dev/disk/by-uuid"),
+        ("PARTUUID=", "/dev/disk/by-partuuid"),
+        ("LABEL=", "/dev/disk/by-label"),
+        ("PARTLABEL=", "/dev/disk/by-partlabel"),
+    ):
+        if spec.upper().startswith(prefix):
+            return os.path.join(directory, spec[len(prefix) :])
+    if spec.startswith("/dev/"):
+        return spec
+    return None
+
+
+def _read_fstab_declared_mounts():
+    """Every real fstab entry plus whether its device and mount actually exist.
+
+    This is the check that would have caught the lost drive on the FIRST boot
+    after it was unplugged, at 18:40:47, instead of never: the block device is
+    gone, so there is nothing left to inspect except the fact that fstab still
+    expects it.
+    """
+    declared = {}
+    mounted = _mounted_targets()
+    try:
+        with open("/etc/fstab", "r") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return declared
+
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        spec, target, fstype = parts[0], parts[1], parts[2]
+        options = parts[3] if len(parts) > 3 else ""
+
+        if fstype.lower() in _PSEUDO_FS or target in ("none", "swap"):
+            continue
+        resolved = _resolve_fstab_spec(spec)
+        if not resolved:
+            continue
+
+        declared[target] = {
+            "spec": spec,
+            "target": target,
+            "fstype": fstype,
+            "options": options,
+            "device_present": os.path.exists(resolved),
+            "mounted": target in mounted,
+        }
+    return declared
+
+
+def collect_hardware_snapshot(disks=None, gpus=None):
+    """Assemble the comparable hardware snapshot for this cycle."""
+    import hardware_inventory as _hw
+
+    slots = _disk_slot_map()
+    sizes = {}
+    for d in disks or []:
+        if d.get("name"):
+            sizes[d["name"]] = d.get("size_bytes")
+
+    disk_map = {}
+    for dev_name, ident in (get_disk_stable_identifiers() or {}).items():
+        stable_id = ident.get("stable_id")
+        if not stable_id:
+            continue
+        disk_map[stable_id] = {
+            "model": ident.get("model"),
+            "serial": ident.get("serial"),
+            "kernel_name": dev_name,
+            "slot": slots.get(dev_name),
+            "size_bytes": sizes.get(dev_name),
+        }
+
+    mem_total = None
+    try:
+        with open("/proc/meminfo", "r") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    mem_total = int(line.split()[1]) * 1024
+                    break
+    except (OSError, ValueError, IndexError):
+        pass
+
+    return _hw.build_snapshot(
+        disks=disk_map,
+        gpus=gpus or [],
+        declared_mounts=_read_fstab_declared_mounts(),
+        memory_total_bytes=mem_total,
+        captured_at=datetime.now().isoformat(),
+    )
+
+
+def _load_hardware_baseline():
+    try:
+        with open(HARDWARE_BASELINE_FILE, "r") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def _save_hardware_baseline(snapshot, reason):
+    try:
+        with open(HARDWARE_BASELINE_FILE, "w") as fh:
+            json.dump(
+                {"snapshot": snapshot, "accepted_at": datetime.now().isoformat(), "reason": reason},
+                fh,
+                indent=2,
+            )
+        return True
+    except OSError as e:
+        print(f"[hardware] could not write baseline: {e}")
+        return False
+
+
+def check_hardware_changes(snapshot):
+    """Diff against the accepted baseline and alert on anything that changed.
+
+    The baseline is NOT auto-advanced when a change is found. A change stays
+    reported until a human accepts it, so a drive that vanished yesterday is
+    still red today -- the failure being fixed here is precisely that nobody
+    was told once, let alone kept being told.
+    """
+    import hardware_inventory as _hw
+
+    stored = _load_hardware_baseline()
+    baseline = (stored or {}).get("snapshot")
+
+    if not stored:
+        # First run establishes the reference point. Emitting everything as
+        # "new" here would page on every fresh deploy and train people to
+        # ignore this alert, so we record and stay silent.
+        _save_hardware_baseline(snapshot, "initial baseline")
+        return {
+            "baseline_accepted_at": None,
+            "events": [],
+            "summary": _hw.summarize([]),
+            "note": "baseline established this cycle",
+        }
+
+    events = _hw.diff_snapshots(baseline, snapshot)
+
+    for ev in events:
+        # Cooldown is keyed per (device, event type) so a moved disk cannot
+        # mute an unrelated removed disk.
+        if not should_alert(ev["key"], ev["type"], HARDWARE_ALERT_COOLDOWN_MIN):
+            continue
+        try:
+            create_alert(
+                "hardware",
+                ev["key"],
+                ev["type"],
+                ev["severity"],
+                ev["message"],
+                ev.get("details"),
+            )
+        except Exception as e:  # noqa: BLE001 - never break the monitor cycle
+            print(f"[hardware] alert failed for {ev['type']}/{ev['key']}: {e}")
+
+    return {
+        "baseline_accepted_at": stored.get("accepted_at"),
+        "events": events,
+        "summary": _hw.summarize(events),
+    }
+
+
+def accept_hardware_baseline():
+    """Adopt current hardware as the new reference point.
+
+    Called when a human confirms "yes, I did that." Until then the change keeps
+    being reported, which is the entire point.
+    """
+    disks = get_disk_layout()
+    snapshot = collect_hardware_snapshot(disks=disks, gpus=get_gpu_info() or [])
+    ok = _save_hardware_baseline(snapshot, "accepted by operator")
+    return {"accepted": ok, "snapshot": snapshot}
 
 
 def collect_all_data():
@@ -6834,11 +7193,24 @@ def collect_all_data():
     # Get disk layout first so we can check capacity alerts
     disks = get_disk_layout()
 
+    # Collected once and reused: the hardware snapshot must describe the SAME
+    # devices this cycle reports, and get_gpu_info() shells out to nvidia-smi.
+    gpu = get_gpu_info()
+
+    # Hardware change detection is fully guarded -- a fault in the detector
+    # must never cost us the rest of the monitoring payload.
+    try:
+        hardware = check_hardware_changes(collect_hardware_snapshot(disks=disks, gpus=gpu or []))
+    except Exception as e:  # noqa: BLE001
+        print(f"[hardware] change detection failed: {e}")
+        hardware = {"error": str(e)[:200], "events": [], "summary": None}
+
     return {
         "system": get_system_info(),
         "cpu": get_cpu_info(),
         "cpu_hardware": get_cpu_hardware(),
-        "gpu": get_gpu_info(),
+        "gpu": gpu,
+        "hardware": hardware,
         "power": get_power(),
         "memory_hardware": get_memory_hardware(),
         "motherboard": get_motherboard_info(),

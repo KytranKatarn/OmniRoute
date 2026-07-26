@@ -6305,8 +6305,79 @@ def should_alert(container_name, alert_type, cooldown_minutes):
     return True
 
 
+# ---------------------------------------------------------------------------
+# Alerting self-health.
+#
+# WHY THIS EXISTS: from ~2026-01-30 to 2026-07-26 EVERY create_alert() call on
+# this host failed. psycopg2 was installed in the invoking user's site-packages
+# but the service runs as root, so `import psycopg2` raised ModuleNotFoundError
+# on all 9 call sites. The bare `except: print(...)` swallowed it, and because
+# Python BLOCK-BUFFERS stdout when it is a pipe (which it is under systemd),
+# the message never even reached the journal. stack_health_alerts sat at 13
+# rows for six months while the monitor appeared to be running fine.
+#
+# The lesson is not "install the dependency". It is that a monitor which cannot
+# DELIVER its alerts must report that as a first-class condition, because in
+# that state it is indistinguishable from a monitor with nothing to report.
+# ---------------------------------------------------------------------------
+
+_ALERT_HEALTH = {
+    "ok": None,  # None = never attempted yet
+    "last_error": None,
+    "last_success_at": None,
+    "consecutive_failures": 0,
+    "total_failures": 0,
+}
+
+
+def _loud(msg):
+    """Print and FLUSH. Unflushed diagnostics under systemd are invisible."""
+    print(msg, flush=True)
+
+
+def alerting_health():
+    """Snapshot of whether alert delivery is actually working.
+
+    Published in the monitoring payload so a broken alert path is visible on
+    the dashboard instead of only in a log nobody reads.
+    """
+    h = dict(_ALERT_HEALTH)
+    h["degraded"] = h["ok"] is False
+    return h
+
+
+def check_alert_backend():
+    """Probe alert delivery once at startup and say so LOUDLY if it is broken.
+
+    Called from main() before the first collection cycle: if alerts cannot be
+    written, that is knowable at boot and should not wait for the first real
+    incident to be discovered.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM stack_health_alerts LIMIT 1")
+        cur.close()
+        conn.close()
+        _ALERT_HEALTH.update({"ok": True, "last_error": None, "consecutive_failures": 0})
+        _loud("[alerting] backend reachable — alerts will be delivered")
+        return True
+    except Exception as e:
+        _ALERT_HEALTH.update({"ok": False, "last_error": f"{type(e).__name__}: {e}"})
+        _loud(
+            "[alerting] *** ALERT DELIVERY IS BROKEN *** "
+            f"{type(e).__name__}: {e} — this host is NOT able to raise alerts. "
+            "Every create_alert() call will fail silently until this is fixed."
+        )
+        return False
+
+
 def create_alert(stack_name, container_name, alert_type, severity, message, details=None):
-    """Create a health alert in the database"""
+    """Create a health alert in the database.
+
+    Returns the alert id, or None if delivery failed. A failure is recorded in
+    _ALERT_HEALTH and surfaced in the payload -- it is never silently dropped.
+    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -6331,11 +6402,23 @@ def create_alert(stack_name, container_name, alert_type, severity, message, deta
         cur.close()
         conn.close()
 
-        # Update last alert time
+        # Cooldown is stamped ONLY on a confirmed write. A failed delivery must
+        # be retried next cycle, not silently cooled down for the full window.
         key = (container_name, alert_type)
         _last_alert_times[key] = time.time()
 
-        print(f"[ALERT] {severity.upper()}: {message}")
+        if _ALERT_HEALTH["ok"] is False:
+            _loud("[alerting] recovered — alert delivery is working again")
+        _ALERT_HEALTH.update(
+            {
+                "ok": True,
+                "last_error": None,
+                "last_success_at": datetime.now().isoformat(),
+                "consecutive_failures": 0,
+            }
+        )
+
+        _loud(f"[ALERT] {severity.upper()}: {message}")
 
         # Fire webhooks
         fire_health_webhooks(
@@ -6354,7 +6437,18 @@ def create_alert(stack_name, container_name, alert_type, severity, message, deta
 
         return alert_id
     except Exception as e:
-        print(f"Error creating alert: {e}")
+        _ALERT_HEALTH["ok"] = False
+        _ALERT_HEALTH["last_error"] = f"{type(e).__name__}: {e}"
+        _ALERT_HEALTH["consecutive_failures"] += 1
+        _ALERT_HEALTH["total_failures"] += 1
+        # Loud on the first failure and then every 20th, so a persistent
+        # outage stays visible in the journal without flooding it.
+        n = _ALERT_HEALTH["consecutive_failures"]
+        if n == 1 or n % 20 == 0:
+            _loud(
+                f"[alerting] *** FAILED TO DELIVER ALERT *** ({n} consecutive) "
+                f"{type(e).__name__}: {e} | dropped: [{severity}] {message[:120]}"
+            )
         return None
 
 
@@ -7211,6 +7305,9 @@ def collect_all_data():
         "cpu_hardware": get_cpu_hardware(),
         "gpu": gpu,
         "hardware": hardware,
+        # Whether this host can actually DELIVER alerts. Published so a broken
+        # alert path shows on the dashboard instead of looking like silence.
+        "alerting": alerting_health(),
         "power": get_power(),
         "memory_hardware": get_memory_hardware(),
         "motherboard": get_motherboard_info(),
@@ -7270,6 +7367,19 @@ def main():
     args = parser.parse_args()
 
     OUTPUT_FILE = args.output
+
+    # Line-buffer stdout. Under systemd stdout is a PIPE, so Python block-buffers
+    # it by default and diagnostics can sit unflushed indefinitely -- which is
+    # how six months of alert-delivery failures stayed invisible in the journal.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+        sys.stderr.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass  # older interpreter / already-wrapped stream
+
+    # Probe alert delivery at boot rather than discovering it is broken during
+    # the first real incident.
+    check_alert_backend()
 
     # Ensure command queue directories exist
     ensure_command_dirs()

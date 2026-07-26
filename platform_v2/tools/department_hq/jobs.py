@@ -796,6 +796,29 @@ def dispatch_retention_prune():
         logger.exception("dispatch_retention_prune failed")
 
 
+def platform_registry_collect(flask_app=None, scheduler=None):
+    """Nightly Living Platform Registry collection (#5230).
+
+    Deliberately thin: all logic lives in platform_registry_service so it is
+    testable without a scheduler. Never raises — an unattended job that dies
+    takes the whole scheduler tick with it.
+    """
+    try:
+        from services.platform_registry_service import run_registry_collection
+
+        res = run_registry_collection(with_provenance=True)
+        logger.info(
+            "[registry] collection done ok=%s vanished=%s errors=%s",
+            res.get("ok"),
+            res.get("vanished"),
+            list(res.get("errors") or {}),
+        )
+        return res
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[registry] collection job failed: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
 def register_department_hq_jobs(scheduler, flask_app):
     """Central job registration — ALL department jobs go through here.
 
@@ -977,6 +1000,23 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(day_of_week="mon", hour=7, minute=30, timezone="America/Toronto"),
         id="signal_group_image_retry",
         name="S.I.G.N.A.L.: Weekly WTF group image retry",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # #5230 — Living Platform Registry collection (nightly 03:40 ET).
+    # Derives modules / services / skills from LIVE sources and appends a change
+    # feed, so the docs an agent reads at boot cannot quietly rot. Alarms only on
+    # a DISAPPEARANCE — appearances and field edits are normal churn; a vanished
+    # entry is the thing nobody notices (the `backups` phantom-table class).
+    # Provenance is measured on this nightly pass only (a GitHub call + HTTP fetch
+    # per product), never on an ad-hoc run. Toggle: work_control 'platform_registry'.
+    scheduler.add_job(
+        with_ctx(platform_registry_collect),
+        trigger=CronTrigger(hour=3, minute=40, timezone="America/Toronto"),
+        id="platform_registry_collect",
+        name="Registry: collect modules/services/skills + change feed",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

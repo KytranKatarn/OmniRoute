@@ -79,3 +79,10 @@ repos:
         language: system
         types: [python]
         pass_filenames: true
+      - id: registry-drift
+        name: Registry — generated docs must not fall behind their source (#5230)
+        entry: python3 scripts/check_registry_drift.py
+        language: system
+        pass_filenames: true
+        always_run: false
+        files: '^(platform_v2/(module_registry|rbac)\.py|docker-compose|scripts/deploy_drift_check\.py|\.claude/(skills|commands)/)'

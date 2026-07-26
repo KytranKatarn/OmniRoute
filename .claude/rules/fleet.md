@@ -14,7 +14,7 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 
 | Display name | mesh given_name | LAN/Public IP | Mesh IP | DB id | GPU / VRAM | RAM | Role |
 |------|------|--------|---------|-----|-----|-----|------|
-| Archie Starbase (hub) | archie-starbase | 192.168.1.200 | 100.64.0.4 | 68 | Quadro M4000 8GB | 128GB | Platform core / dispatch hub. `BRIDGE_URL=100.64.0.4:3000` |
+| Archie Starbase (hub) | archie-starbase | 192.168.1.200 | 100.64.0.4 | 68 | **TITAN X (Pascal) 12GB + Quadro M4000 8GB** (20GB total) | 128GB | Platform core / dispatch hub. `BRIDGE_URL=100.64.0.4:3000` |
 | Outpost - United States | outpost-us | 76.13.107.109 | 100.64.0.2 | 93 | None | 8GB | CPU outpost (Ashburn). **SSH `kytran@`** |
 | Starship - Defiant - USS-246 | starship-246 | 192.168.1.246 | 100.64.0.3 | 115 | RTX 3070 8GB (**Defiant**) | 32GB | LAN GPU, 7B. SSH `Famil@` |
 | Starship - Runabout - USS-245 | starship-245 | 192.168.1.245 | 100.64.0.6 | 120 | RTX 3050 4GB (**Runabout**) | 12GB | LAN GPU, small. SSH `Famil@` |
@@ -28,7 +28,9 @@ Names below are the 2026-06-04 canonical set (display `node_name` + headscale `g
 
 ### Naming tiers & ship-class
 - Tiers by role/scale: **Starbase** (hub) > **Citadel** (DR warm-standby base) > **Outpost** (CPU VPS, regional) > **Starship - `<class>` - USS-`<lan-octet>`** (LAN GPU) > **Beacon** (ingress satellite).
-- GPU nodes auto-class from live `remote_nodes.gpu_vram_gb` via `ship_classes` table + `v_fleet_ship_class` view (migration 398). Ladder by VRAM: Runabout ≤4 / Nova 6 / Defiant 8 / Intrepid 12 / Constitution 16 / Galaxy 24 / Sovereign 48 / Dreadnought 80 / Armada (multi-GPU). Re-tune via `UPDATE ship_classes` (no deploy). Hub + CPU outposts = NULL class.
+- GPU nodes auto-class from live `remote_nodes.gpu_vram_gb` via `ship_classes` table + `v_fleet_ship_class` view (migration 398). Ladder by VRAM: Runabout ≤4 / Nova 6 / Defiant 8 / Intrepid 12 / Constitution 16 / Galaxy 24 / Sovereign 48 / Dreadnought 80 / **Armada ≥81**. Re-tune via `UPDATE ship_classes` (no deploy). Hub + CPU outposts = NULL class.
+  - ⚠️ **Armada is a VRAM tier (`min_vram_gb = 81`), NOT a "multi-GPU" class** — this file claimed the latter until 2026-07-25. A dual-GPU node classes on its LARGEST SINGLE card, not the sum.
+  - ⚠️ **`remote_nodes.gpu_vram_gb` means LARGEST SINGLE GPU, not total.** `node_provisioning._fits()` (`gpu_vram_gb >= model.vram_gb + GPU_HEADROOM_GB`) and `agent_service.get_agents_for_hardware()` (`vram_need <= gpu_vram_gb`) both size ONE model against it. Writing the sum there tells the router a model fits in a card that cannot hold it. On a mixed-architecture host a model generally cannot span cards anyway — the hub's are compute capability 6.1 and 5.2. Total VRAM lives in `extra_capabilities.gpu_vram_total_gb` for reporting only.
 
 ### Hub has THREE tailscale presences (don't confuse — KB #270520)
 - `.4 archie-starbase` = host headscale tailscaled (`/var/lib/tailscale-hs`, `--tun=tailscale1`) — THE platform/dispatch hub (`BRIDGE_URL`, :3000, direct via public IP).

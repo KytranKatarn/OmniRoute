@@ -16,9 +16,13 @@ globs: ["ai_bridge/**"]
 
 ## Ollama Config
 
-### Hub (192.168.1.200 / Quadro M4000)
+### Hub (192.168.1.200 / TITAN X 12GB + Quadro M4000 8GB)
 - Host: 192.168.1.200:11434 | Docker: `host.docker.internal:11434`
-- GPU: Quadro M4000 (8GB VRAM) | RAM: 128GB
+- GPU: **2 cards since 2026-07-25** — `Device 0` NVIDIA TITAN X (Pascal) 12GB (CC 6.1) + `Device 1` Quadro M4000 8GB (CC 5.2). **20GB total.** | RAM: 128GB
+  - Ollama enumerates BOTH and schedules per-GPU (verified in `journalctl -u ollama`: independent `gpu memory` lines per device UUID). No `CUDA_VISIBLE_DEVICES` is set — do not add one.
+  - **TITAN X is Device 0**, so it is preferred for the larger model. With ~11.5GB free there, a **7B now fits entirely on GPU** — the old "7B on CPU" split below predates the second card and is a retune candidate, not a rule.
+  - ⚠️ **Mixed compute capability (6.1 vs 5.2)** — do not assume a single model can span both cards. `remote_nodes.gpu_vram_gb` is therefore set to **12** (largest single GPU), not 20; see the note in `fleet.md`.
+  - ⚠️ **The inference Ollama is the HOST systemd service** (`systemctl status ollama`, owns :11434), NOT the `archie_ollama` container — that container exists but is not in the dispatch path. Probing it reports the wrong GPU inventory.
 - **MAX_LOADED_MODELS=10 | KEEP_ALIVE=60m | NUM_PARALLEL=1** (updated 2026-06-19 — raised from 6/30m to use idle RAM: more models stay warm longer → fewer cold-loads. NUM_PARALLEL kept at 1 + no global num_ctx bump — those inflate the 8GB GPU KV-cache, the real ceiling. Config: `/etc/systemd/system/ollama.service.d/override.conf`; rollback backup `override.conf.bak.20260619-093056-ram-tweak`.)
 - Warm model set (GPU+CPU simultaneously):
   - GPU: `qwen2.5:1.5b` (1.3GB) + `llama3.2:3b` (2.6GB) = 3.9GB VRAM

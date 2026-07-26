@@ -1415,11 +1415,26 @@ def register_dashboard_routes(bp, auth_decorator):
                 cur.execute("SELECT COUNT(*) as cnt FROM remote_nodes WHERE is_active = true")
                 node_count = cur.fetchone()["cnt"]
 
+                # Read the STATUS COLUMN — do not re-derive liveness here (#5218).
+                #
+                # This used to count a node online only if last_heartbeat was within
+                # 30 SECONDS. Nodes beat every ~45-60s, so at any given sample most of
+                # them fell outside the window and the figure oscillated (measured live:
+                # 4 -> 6 -> 4 -> 6 of 9). It also disagreed with the platform's own
+                # staleness rule, which is 2 MINUTES (services/fleet_jobs.py).
+                #
+                # Worse, it judged EVERY node by heartbeat. An ingress node (Beacon) runs
+                # no node agent by design, so it can never send one and was permanently
+                # uncounted — the exact category error #5218 fixed. That fix landed in
+                # remote_nodes.status; this endpoint bypassed it by rolling its own signal.
+                #
+                # check_fleet_health() owns status for agent nodes (heartbeat) and
+                # check_mesh_health() owns it for ingress nodes (TCP reachability), so
+                # the column already encodes the right signal PER ROLE. Five other call
+                # sites in this package read status='online' — this is now the sixth.
                 cur.execute(
                     """SELECT COUNT(*) as cnt FROM remote_nodes
-                       WHERE is_active = true
-                       AND (last_heartbeat > NOW() - INTERVAL '30 seconds'
-                            OR deployment_mode = 'starbase')"""
+                       WHERE is_active = true AND status = 'online'"""
                 )
                 online_count = cur.fetchone()["cnt"]
 

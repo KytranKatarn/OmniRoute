@@ -34,7 +34,9 @@ else
   log "(WARN: $DR/beacon_flip.sh missing — Beacon upstreams will NOT be reverted)"
   beacon_flip_ports(){ log "  WARN: beacon_flip.sh not staged — skipping Beacon revert."; return 1; }
   beacon_upstream_count(){ echo "?"; }
+  beacon_maintenance_mode(){ log "  WARN: maintenance splash unavailable (helper not staged)."; return 1; }
   BEACON_DR_PORTS_ALL=(3000 8086 8095)
+  BEACON_MAINTENANCE_HOSTS=()
 fi
 
 log "=== force_reset_to_hub START ==="
@@ -126,6 +128,12 @@ BEACON_PUBLIC="${BEACON_PUBLIC:-2.25.170.252}"
 # and mail. must NOT be pointed at Beacon (verified 2026-07-26 — :25/:465/:587/:993
 # are open on the hub and closed on Citadel).
 BEACON_HOSTS="${BEACON_HOSTS:-platform consciousness business server media creed mesh adguard nagios plex jellyfin store shop terminal codex sandbox archie claude tdarr}"
+
+# Break-glass must also clear the ADR-012 splash, or hub-only hostnames stay on
+# 503 after everything else is restored (#5226).
+log "4b) Clearing any maintenance splash on Beacon ..."
+beacon_maintenance_mode off "${BEACON_MAINTENANCE_HOSTS[@]}" \
+  || log "  WARN: could not clear the maintenance splash."
 
 log "5) LAN split-horizon check (AdGuard @ $ADGUARD_DNS) ..."
 if ! command -v dig >/dev/null 2>&1; then

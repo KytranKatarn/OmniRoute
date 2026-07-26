@@ -109,6 +109,46 @@ BEACON_DR_PORT_HEADSCALE=8095
 # to revert exactly the set that could have been flipped, and by the verifier.
 BEACON_DR_PORTS_ALL=("$BEACON_DR_PORT_PLATFORM" "$BEACON_DR_PORT_CREED" "$BEACON_DR_PORT_HEADSCALE")
 
+# ---------------------------------------------------------------------------
+# OUT-OF-SCOPE HOSTNAMES — ADR-012 (decision #958), task #5226.
+#
+# Owner: "the flip drp should only be platform. the rest should be here or a
+# redirect html that says 'Services are down or under maintenance' splash page."
+#
+# These are the HUB-ONLY services listed above. They have no boston-2 counterpart,
+# so a failover must never point them at it — but leaving them aimed at a dead hub
+# only yields an opaque browser error. During a failover they get an honest 503
+# maintenance page instead (beacon_maintenance_mode).
+#
+# DERIVED FROM THE PORT MAP ABOVE, deliberately kept in the SAME file: a hostname
+# added to Beacon without being classified here silently gets neither treatment.
+#
+# NOT listed, on purpose:
+#   platform. api. bridge. consciousness. mediahub.  -> DR-capable via :3000
+#   creed.                                           -> DR-capable via :8086
+#   mesh.                                            -> DR-capable via :8095
+#   mail.                                            -> Citadel, not Beacon-fronted
+#   derp.                                            -> region 901 relay (#5220); it
+#       must keep serving DURING a hub outage, which is the entire point of moving
+#       the relay out of the hub failure domain. Never put derp. in maintenance.
+BEACON_MAINTENANCE_HOSTS=(
+    server.kytranempowerment.com      # 8085 KSO
+    media.kytranempowerment.com       # 8105 Media Hub standalone
+    business.kytranempowerment.com    # 8091 KBS
+    shop.kytranempowerment.com        # 8091 KBS
+    store.kytranempowerment.com       # 8091 KBS
+    archie.kytranempowerment.com      # 3002 archie_comms
+    nagios.kytranempowerment.com      # 8082
+    plex.kytranempowerment.com        # 32400
+    jellyfin.kytranempowerment.com    # 8096
+    sandbox.kytranempowerment.com     # 3003
+    terminal.kytranempowerment.com    # 7681
+    codex.kytranempowerment.com       # 7683
+    adguard.kytranempowerment.com     # 5354
+    tdarr.kytranempowerment.com       # 8265
+    claude.kytranempowerment.com
+)
+
 _beacon_ssh() {
     # shellcheck disable=SC2086
     ssh -i "$FLEET_KEY" $BEACON_SSH_OPTS "$BEACON_HOST" "$@"

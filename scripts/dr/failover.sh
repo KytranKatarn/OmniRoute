@@ -64,6 +64,8 @@ else
   beacon_verify_selective(){ log "  Beacon verify: SKIPPED (helper not staged)."; return 0; }
   dr_service_listening(){ log "  WARN: readiness probe unavailable (helper not staged) for ${3:-?}."; return 1; }
   beacon_flip_ports_when_ready(){ log "  WARN: readiness-gated flip unavailable (helper not staged)."; return 1; }
+  beacon_maintenance_mode(){ log "  WARN: maintenance splash unavailable (helper not staged)."; return 1; }
+  BEACON_MAINTENANCE_HOSTS=()
   BEACON_DR_PORT_PLATFORM=3000
   BEACON_DR_PORT_CREED=8086
   BEACON_DR_PORT_HEADSCALE=8095
@@ -261,6 +263,14 @@ beacon_flip_ports "$HUB_MESH" "$DR_MESH" "platform" "$BEACON_DR_PORT_PLATFORM" \
 # dark — surface it here rather than letting the owner find it as "KSO is down".
 beacon_verify_selective "$HUB_MESH" 10 || \
   tg_notify "DR: Beacon flip was NOT selective — hub-only services may be offline. Run force_reset_to_hub.sh."
+
+# ---- 4c-bis. OUT-OF-SCOPE hostnames -> maintenance splash (ADR-012, #5226) ----
+# These have no boston-2 counterpart, so they are deliberately NOT flipped. But
+# leaving them aimed at a dead hub only yields an opaque browser error. Serve an
+# honest 503 "Services are down or under maintenance" instead. Non-fatal: a failed
+# splash must never block a failover — the services are down either way.
+beacon_maintenance_mode on "${BEACON_MAINTENANCE_HOSTS[@]}" \
+  || log "  WARN: maintenance splash not applied — hub-only hostnames will show a connection error."
 
 # ---- 4d. Watch-series agents: repoint *_HUB_URL / BRIDGE_URL hub -> boston-2 DRP ----
 # gov-watch / legal-watch / what-the-fact each dispatch AI work (bias scoring,

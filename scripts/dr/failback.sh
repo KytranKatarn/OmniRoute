@@ -176,6 +176,11 @@ beacon_flip_ports_when_ready "$DR_MESH" "$HUB_MESH" "failback (all DR ports)" "$
 # Assert the revert stayed selective, same as failover does.
 beacon_verify_selective "$HUB_MESH" 10 || \
   log "  WARN: Beacon does not look selective after failback — check force_reset_to_hub.sh."
+
+# Clear the ADR-012 maintenance splash — the hub is serving these again (#5226).
+# Idempotent: a no-op when no splash is in place.
+beacon_maintenance_mode off "${BEACON_MAINTENANCE_HOSTS[@]}" \
+  || log "  WARN: could not clear the maintenance splash — hub-only hostnames may still show 503."
   log "4b) repoint watch-series agent hub URLs back to the hub ($HUB_MESH)..."
   for product_dir in gov-watch legal-watch what-the-fact; do
     env_file="/opt/archie-products/$product_dir/.env"

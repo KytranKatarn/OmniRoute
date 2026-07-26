@@ -122,6 +122,11 @@ beacon_flip_ports_when_ready "$DR_MESH" "$HUB_MESH" "auto-failback (all DR ports
 beacon_verify_selective "$HUB_MESH" 10 || \
   log "  WARN: Beacon does not look selective after failback — check force_reset_to_hub.sh."
 
+# Clear the ADR-012 maintenance splash — the hub is serving these again (#5226).
+# Idempotent: a no-op when no splash is in place.
+beacon_maintenance_mode off "${BEACON_MAINTENANCE_HOSTS[@]}" \
+  || log "  WARN: could not clear the maintenance splash — hub-only hostnames may still show 503."
+
 log "=== Phase 1 auto-repoint COMPLETE ==="
 
 # ---- 7. B.A.S.E. agent assessment via hub dispatch ----

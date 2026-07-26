@@ -80,6 +80,62 @@ def proposal_to_pr_body(proposal: Dict, sandbox_results: Dict = None) -> str:
     return "\n".join(lines)
 
 
+def _record_on_next_window(proposal: Dict, pr_result: Dict) -> None:
+    """Append a freshly-opened PR to the next maintenance window's manifest (#5247a).
+
+    ADVISORY ONLY. This changes nothing about who merges or when. Repair Bay's
+    pipeline ENDS AT PR CREATION — there is no automated deploy step to batch —
+    so the manifest is a list of fixes AWAITING A HUMAN MERGE, shown to the owner
+    ahead of the window. That is the coordination that was actually asked for:
+    "advise and coordinate before, and let me know before the maintenance the fix list."
+
+    ⚠️ create_if_missing=False IS LOAD-BEARING. next_window(create_if_missing=True)
+    would schedule a window whenever a self-heal PR appears, and the
+    maintenance_window_driver eventually OPENS scheduled windows — and opening one
+    ARMS DR SUPPRESSION. Suppressing DR because a code fix got a PR would be a
+    real safety regression introduced by a reporting feature. So this only ever
+    appends to a window a human already scheduled; with none scheduled it logs and
+    does nothing.
+
+    BEST-EFFORT BY CONSTRUCTION. A manifest failure must never turn a successful
+    PR creation into a failure — the PR is the real work and it already exists.
+    add_item() also refuses once a window has OPENED, deliberately: the owner
+    approved a specific list, and silently extending it afterwards would make that
+    approval meaningless. That refusal is logged, not treated as an error.
+    """
+    try:
+        from services.maintenance_schedule_service import add_item, next_window
+
+        window = next_window(create_if_missing=False)
+        if not window:
+            logger.info(
+                "[FORGE] PR #%s: no maintenance window scheduled — not queued "
+                "(a window is never auto-created; opening one arms DR suppression).",
+                pr_result.get("pr_number"),
+            )
+            return
+        title = (proposal.get("title") or proposal.get("issue_type") or "self-heal fix")[:140]
+        res = add_item(
+            window["id"],
+            title=f"PR #{pr_result.get('pr_number')}: {title}",
+            item_type="repair_bay_pr",
+            ref=str(pr_result.get("pr_number")),
+            added_by="repair_bay",
+        )
+        if res.get("ok") is False:
+            logger.info(
+                "[FORGE] PR #%s not queued on window %s: %s", pr_result.get("pr_number"), window["id"], res.get("error")
+            )
+        else:
+            logger.info(
+                "[FORGE] PR #%s queued on maintenance window %s (advisory — merge stays human)",
+                pr_result.get("pr_number"),
+                window["id"],
+            )
+    except Exception as exc:  # noqa: BLE001 - never fail a created PR over bookkeeping
+        logger.warning("[FORGE] could not record PR on a maintenance window: %s", exc)
+
+
 def deploy_via_forge(
     proposal: Dict,
     deployment_id: int,
@@ -211,6 +267,10 @@ def deploy_via_forge(
     logger.info(
         f"[FORGE] PR #{pr_result['pr_number']} created for proposal " f"#{proposal.get('id')}: {pr_result['pr_url']}"
     )
+
+    # #5247a — tell the owner this fix is waiting, BEFORE the window. Advisory:
+    # it never merges, never schedules a window, and never fails the PR.
+    _record_on_next_window(proposal, pr_result)
 
     return {
         "success": True,

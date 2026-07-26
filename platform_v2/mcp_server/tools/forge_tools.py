@@ -441,13 +441,30 @@ async def repair_bay_scan_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             results = run_suite_for_module(module, triggered_by="mcp_repair_bay_scan")
             passed = sum(r.get("passed", 0) for r in results)
             total = sum(r.get("total", 0) for r in results)
+            suites_run = len(results)
+            # A module with no registered suite executed NOTHING. `passed == total`
+            # is 0 == 0 there, so the old code answered all_green=True and the
+            # caller read "this module is verified" when nothing had been checked.
+            # Found 2026-07-26 scanning KSO, which has no suite: the scan returned
+            # {suites_run: 0, total: 0, all_green: true}.
+            # None means UNKNOWN. Only False/True are claims about the code.
+            no_suites = suites_run == 0
             return {
                 "success": True,
                 "module": module,
-                "suites_run": len(results),
+                "suites_run": suites_run,
                 "passed": passed,
                 "total": total,
-                "all_green": passed == total,
+                "all_green": None if no_suites else passed == total,
+                "no_suites_registered": no_suites,
+                "warning": (
+                    (
+                        f"No P.R.O.B.E. suite is registered for '{module}' — nothing was "
+                        f"executed, so this is NOT a pass. Add it to MODULE_SUITE_MAP."
+                    )
+                    if no_suites
+                    else None
+                ),
                 "results": [
                     {
                         "run_id": r.get("run_id"),

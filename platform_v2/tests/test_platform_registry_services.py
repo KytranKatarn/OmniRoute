@@ -134,20 +134,38 @@ def test_failed_docker_scope_does_not_mark_containers_absent(registry, monkeypat
     """THE ONE THAT MATTERS. 'I could not look' is not 'it is gone'."""
     prs.reconcile_services(with_provenance=False)  # seed a real baseline
 
+    def _absent_containers():
+        with get_db_cursor() as (_c, cur):
+            cur.execute(
+                "SELECT count(*) AS n FROM platform_registry_service WHERE kind='container' AND status='absent'"
+            )
+            r = cur.fetchone()
+            return r["n"] if isinstance(r, dict) else r[0]
+
+    before_absent = _absent_containers()
+
     def boom():
         raise RuntimeError("docker socket unavailable (simulated)")
 
     monkeypatch.setattr(prs, "collect_containers", boom)
     summary = prs.reconcile_services(with_provenance=False)
+    after_absent = _absent_containers()
 
     assert summary["scopes"]["container"] is False
     assert summary["scopes"]["product"] is True
     assert summary["absent"] == 0, "a failed scope marked its rows absent — manufactures a fake outage"
 
-    with get_db_cursor() as (_c, cur):
-        cur.execute("SELECT count(*) AS n FROM platform_registry_service WHERE kind='container' AND status='absent'")
-        r = cur.fetchone()
-        assert (r["n"] if isinstance(r, dict) else r[0]) == 0
+    # DELTA, not an absolute count. platform_registry_service is a SHARED table:
+    # a container that genuinely vanished in an earlier run leaves a legitimate
+    # absent row behind, and asserting a global count==0 makes this test fail on
+    # unrelated history. (It did exactly that on merged main: `assert 4 == 0`,
+    # with the log naming `wonderful_hamilton` — a throwaway container that had
+    # come and gone between two collections.) The property under test is that
+    # THIS failed scope marked nothing absent, so compare before with after.
+    assert after_absent == before_absent, (
+        f"a failed docker scope newly marked {after_absent - before_absent} container(s) absent — "
+        "'I could not look' is not 'it is gone'"
+    )
 
 
 def test_all_scopes_failing_raises(registry, monkeypatch):

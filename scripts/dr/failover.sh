@@ -62,45 +62,19 @@ else
     return 1
   }
   beacon_verify_selective(){ log "  Beacon verify: SKIPPED (helper not staged)."; return 0; }
+  dr_service_listening(){ log "  WARN: readiness probe unavailable (helper not staged) for ${3:-?}."; return 1; }
+  beacon_flip_ports_when_ready(){ log "  WARN: readiness-gated flip unavailable (helper not staged)."; return 1; }
   BEACON_DR_PORT_PLATFORM=3000
   BEACON_DR_PORT_CREED=8086
   BEACON_DR_PORT_HEADSCALE=8095
 fi
-
-# ---- "Is it really serving?" probe, measured on the path BEACON uses ----
-# Beacon reaches these services at $DR_MESH:<port> over the mesh, NOT at
-# loopback. A loopback-only bind therefore passes a 127.0.0.1 check while
-# Beacon still gets `Connection refused` — and the flip proceeds anyway,
-# pointing a hostname at a host that cannot serve it (the exact thing ADR-009
-# / decision #955 forbids). This is not hypothetical: DR_RUNBOOK.md already
-# documents it for the standby platform — "failover.sh's /login check only
-# hits 127.0.0.1, so it passes while nodes still can't reach it."
-#
-# Same principle as task #5218 in this branch: measure on the path the traffic
-# actually uses, not the one that is convenient to measure.
-#
-# Residual gap (deliberate, documented): probing $DR_MESH from boston-2 itself
-# proves the service is bound beyond loopback, but it does NOT prove Beacon can
-# traverse UFW to get here. The complete check is to probe FROM Beacon over the
-# established ssh path (beacon_flip.sh:_beacon_ssh) — follow-up, not this fix.
-dr_service_listening() {
-    local port="$1" label="$2" mesh="${DR_MESH:-100.64.0.10}" i
-    local attempts="${DR_PROBE_ATTEMPTS:-10}" interval="${DR_PROBE_INTERVAL:-3}"
-    for i in $(seq 1 "$attempts"); do
-        if timeout 3 bash -c "echo > /dev/tcp/${mesh}/${port}" 2>/dev/null; then
-            return 0
-        fi
-        sleep "$interval"
-    done
-    # Name the documented loopback-bind trap explicitly rather than reporting a
-    # generic "not listening" — the operator fix differs completely.
-    if timeout 3 bash -c "echo > /dev/tcp/127.0.0.1/${port}" 2>/dev/null; then
-        log "  *** $label IS listening on 127.0.0.1:${port} but NOT on ${mesh}:${port}."
-        log "  *** Loopback-only bind — Beacon cannot reach it. Bind 0.0.0.0 (or"
-        log "  *** ${mesh}) and allow 100.64.0.0/10 to port ${port}. See DR_RUNBOOK.md."
-    fi
-    return 1
-}
+# The "is it really serving?" probe (dr_service_listening) now lives in
+# beacon_flip.sh so failover / failback / auto_failback / force_reset share ONE
+# rule that cannot drift between them (task #5225). HOST IS A PARAMETER:
+# failover asks about $DR_MESH, failback asks about $HUB_MESH.
+# Defining a second copy here would SHADOW the shared one with a different
+# signature — beacon_flip_ports_when_ready() passes three args and would
+# silently treat the host as a port.
 
 # ---- SAFETY: confirm the hub is really down (split-brain guard) ----
 log "Split-brain guard: checking the hub is actually down ($HUB_MESH:5432)..."
@@ -344,7 +318,7 @@ if [ -f "$CREED_DIR/docker-compose.yml" ]; then
     # Gated on CREED actually ANSWERING: `compose up -d` exiting 0 means the
     # container was created, not that it serves. Same rule as mesh. below.
     creed_listening=0
-    dr_service_listening "$BEACON_DR_PORT_CREED" "CREED" && creed_listening=1
+    dr_service_listening "$DR_MESH" "$BEACON_DR_PORT_CREED" "CREED" && creed_listening=1
     if [ "$creed_listening" -eq 1 ]; then
         beacon_flip_ports "$HUB_MESH" "$DR_MESH" "creed" "$BEACON_DR_PORT_CREED"
     else
@@ -385,7 +359,7 @@ if [ -d "$HS_DIR" ] && [ -f "$HS_DIR/docker-compose.headscale-dr.yml" ]; then
     # it is not evidence that anything is listening. Probe before pointing.
     # (Tasks #5214 + #5219.)
     hs_listening=0
-    dr_service_listening "$BEACON_DR_PORT_HEADSCALE" "Headscale DR" && hs_listening=1
+    dr_service_listening "$DR_MESH" "$BEACON_DR_PORT_HEADSCALE" "Headscale DR" && hs_listening=1
     if [ "$hs_listening" -eq 1 ]; then
         beacon_flip_ports "$HUB_MESH" "$DR_MESH" "headscale/mesh." "$BEACON_DR_PORT_HEADSCALE"
     else

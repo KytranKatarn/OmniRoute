@@ -29,7 +29,8 @@ from pathlib import Path
 
 import pytest
 
-_MARKER = Path("scripts") / "dr" / "failover.sh"
+# The probe moved to beacon_flip.sh so all four DR scripts share ONE rule (#5225).
+_MARKER = Path("scripts") / "dr" / "beacon_flip.sh"
 
 
 def _find_repo():
@@ -46,12 +47,12 @@ def _find_repo():
 
 
 REPO = _find_repo()
-FAILOVER = REPO / "scripts" / "dr" / "failover.sh"
+HELPER = REPO / _MARKER
 
 MESH = "127.0.0.2"  # stands in for $DR_MESH (100.64.0.10)
 LOOPBACK = "127.0.0.1"
 
-pytestmark = pytest.mark.skipif(not FAILOVER.exists(), reason="failover.sh not present in this checkout")
+pytestmark = pytest.mark.skipif(not HELPER.exists(), reason="beacon_flip.sh not present in this checkout")
 
 
 def _free_port():
@@ -84,9 +85,9 @@ class _Listener:
 
 def _run_probe(port, attempts=2):
     """Run the SHIPPED dr_service_listening() against `port`. -> (rc, output)."""
-    src = FAILOVER.read_text()
+    src = HELPER.read_text()
     fn = re.search(r"^dr_service_listening\(\) \{.*?^\}", src, re.S | re.M)
-    assert fn, "dr_service_listening() not found in failover.sh — did it get renamed?"
+    assert fn, "dr_service_listening() not found in beacon_flip.sh — did it move again?"
 
     driver = textwrap.dedent(
         f"""
@@ -96,7 +97,7 @@ def _run_probe(port, attempts=2):
         export DR_PROBE_ATTEMPTS={attempts}
         export DR_PROBE_INTERVAL=0
         {fn.group(0)}
-        dr_service_listening {port} "TestSvc"
+        dr_service_listening "{MESH}" {port} "TestSvc"
         echo "RC=$?"
         """
     ).strip()

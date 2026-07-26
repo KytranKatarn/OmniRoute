@@ -167,7 +167,15 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
   # rewrote the Caddyfile's COMMENTS too (that is why Beacon's header currently
   # claims "DR (boston-2) mesh IP: 100.64.0.4"). Task #5214.
   log "repoint Beacon DR-capable upstreams back to the hub ($HUB_MESH)..."
-  beacon_flip_ports "$DR_MESH" "$HUB_MESH" "failback (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
+  # Gated on the HUB actually serving each port (#5225). The only previous
+# check was hub POSTGRES :5432, so all three hostnames went back to a hub
+# that might not be serving HTTP yet — ADR-009 in reverse. A port the hub
+# is not serving is LEFT on DR rather than pointed at a host that cannot
+# serve it.
+beacon_flip_ports_when_ready "$DR_MESH" "$HUB_MESH" "failback (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
+# Assert the revert stayed selective, same as failover does.
+beacon_verify_selective "$HUB_MESH" 10 || \
+  log "  WARN: Beacon does not look selective after failback — check force_reset_to_hub.sh."
   log "4b) repoint watch-series agent hub URLs back to the hub ($HUB_MESH)..."
   for product_dir in gov-watch legal-watch what-the-fact; do
     env_file="/opt/archie-products/$product_dir/.env"

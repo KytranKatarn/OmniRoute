@@ -112,7 +112,15 @@ HS_DIR="$DR/headscale"
 # no-op, so this is complete however far the failover got. Replaces a blanket
 # `sed 's|DR|HUB|g'` that also rewrote the Caddyfile's comments. Task #5214.
 log "6) Reverting Beacon DR-capable entries -> hub..."
-beacon_flip_ports "$DR_MESH" "$HUB_MESH" "auto-failback (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
+# Gated on the HUB actually serving each port (#5225). The only previous
+# check was hub POSTGRES :5432, so all three hostnames went back to a hub
+# that might not be serving HTTP yet — ADR-009 in reverse. A port the hub
+# is not serving is LEFT on DR rather than pointed at a host that cannot
+# serve it.
+beacon_flip_ports_when_ready "$DR_MESH" "$HUB_MESH" "auto-failback (all DR ports)" "${BEACON_DR_PORTS_ALL[@]}"
+# Assert the revert stayed selective, same as failover does.
+beacon_verify_selective "$HUB_MESH" 10 || \
+  log "  WARN: Beacon does not look selective after failback — check force_reset_to_hub.sh."
 
 log "=== Phase 1 auto-repoint COMPLETE ==="
 

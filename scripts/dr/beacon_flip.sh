@@ -214,3 +214,69 @@ beacon_verify_selective() {
     log "  Beacon verify OK: $n hub-only upstreams still point at the hub (selective flip confirmed)."
     return 0
 }
+
+# dr_service_listening <host> <port> <label>
+#
+# "Is this service really serving, on the path BEACON uses?"  Shared by
+# failover / failback / auto_failback / force_reset so the rule cannot drift
+# between them (task #5225).
+#
+# HOST IS A PARAMETER ON PURPOSE. Failover asks "is boston-2 ready to receive
+# these hostnames?" ($DR_MESH); failback asks "is the hub ready to take them
+# back?" ($HUB_MESH). Both directions are the SAME question about a different
+# host, and both were previously wrong:
+#   • failover probed 127.0.0.1 — a loopback-only bind passed while Beacon still
+#     got connection refused (fixed in e574508b5).
+#   • failback probed nothing at all. Its only check was hub POSTGRES :5432, so
+#     all three hostnames went back to a hub that might not be serving HTTP yet
+#     — the same ADR-009 / decision #955 violation, in reverse.
+#
+# Beacon reaches these at <host>:<port> over the mesh, so that is what we probe.
+# Residual gap (documented, not fixed here): probing from this host proves the
+# service is bound beyond loopback, not that Beacon can traverse UFW to reach it.
+# The complete check probes FROM Beacon via _beacon_ssh — task #5222.
+dr_service_listening() {
+    local host="$1" port="$2" label="${3:-service}" i
+    local attempts="${DR_PROBE_ATTEMPTS:-10}" interval="${DR_PROBE_INTERVAL:-3}"
+    for i in $(seq 1 "$attempts"); do
+        if timeout 3 bash -c "echo > /dev/tcp/${host}/${port}" 2>/dev/null; then
+            return 0
+        fi
+        sleep "$interval"
+    done
+    # Name the documented loopback-bind trap explicitly rather than reporting a
+    # generic "not listening" — the operator fix differs completely.
+    if timeout 3 bash -c "echo > /dev/tcp/127.0.0.1/${port}" 2>/dev/null; then
+        log "  *** $label IS listening on 127.0.0.1:${port} but NOT on ${host}:${port}."
+        log "  *** Loopback-only bind — Beacon cannot reach it. Bind 0.0.0.0 (or"
+        log "  *** ${host}) and allow 100.64.0.0/10 to port ${port}. See DR_RUNBOOK.md."
+    fi
+    return 1
+}
+
+# beacon_flip_ports_when_ready <from_ip> <to_ip> <label> <port...>
+#
+# Flip ONLY the ports the destination is actually serving. A port the target
+# cannot serve is LEFT WHERE IT IS — pointing a hostname at a host that cannot
+# serve it is worse than leaving it pointed at one that is merely down
+# (ADR-009 / decision #955). Reports each skip rather than failing silently.
+beacon_flip_ports_when_ready() {
+    local from_ip="$1" to_ip="$2" label="$3"; shift 3
+    local ready=() skipped=() p
+    for p in "$@"; do
+        if dr_service_listening "$to_ip" "$p" "$label :$p"; then
+            ready+=("$p")
+        else
+            skipped+=("$p")
+            log "  SKIP :$p — ${to_ip} is not serving it; leaving that hostname where it is."
+        fi
+    done
+    if [ "${#skipped[@]}" -gt 0 ]; then
+        log "  $label: ${#skipped[@]} port(s) NOT flipped (${skipped[*]}) — destination not ready."
+    fi
+    if [ "${#ready[@]}" -eq 0 ]; then
+        log "  $label: nothing to flip — ${to_ip} is serving none of the requested ports."
+        return 1
+    fi
+    beacon_flip_ports "$from_ip" "$to_ip" "$label" "${ready[@]}"
+}

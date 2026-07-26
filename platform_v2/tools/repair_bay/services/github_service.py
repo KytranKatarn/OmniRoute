@@ -523,8 +523,49 @@ def get_pr_status(pr_number: int) -> Dict:
 _AUTHORITY_CEILING = {
     "forge": ("FORGE_AUTO_MERGE_MAX_TIER", 1),  # Engineering director — small changes
     "coo": ("ARCHIE_COO_AUTO_MERGE_MAX_TIER", 2),  # A.R.C.H.I.E. — COO authority
+    # STRICTLY NARROWER THAN 'coo', never wider (#5247b). Same Tier-2 ceiling, plus a
+    # THIRD condition: an announced maintenance window must be OPEN and the PR must be
+    # on that window's approved manifest. Added as a separate authority rather than by
+    # relaxing 'coo', so nothing that merges today gains any new power.
+    "coo_window": ("ARCHIE_COO_AUTO_MERGE_MAX_TIER", 2),
 }
 _DEFAULT_AUTHORITY = "forge"  # most restrictive; an unknown caller never inherits COO powers
+
+
+def _pr_on_open_window(pr_number: int) -> tuple:
+    """Is there an OPEN maintenance window whose manifest contains this PR? (#5247b)
+
+    The extra condition that makes 'coo_window' narrower than 'coo'. Three things
+    must hold, and each exists for a reason:
+
+      * a window is OPEN — not merely planned or announced. An announced window is
+        a proposal; an open one is the period the owner agreed to.
+      * the PR is ON that window's manifest — the owner was shown a SPECIFIC list
+        beforehand. add_item() already refuses to extend a manifest once the window
+        opens, so the list cannot grow after approval; honouring it here is what
+        makes that refusal meaningful.
+      * the item is still 'planned' — an item already marked deployed/failed must
+        not be merged twice.
+
+    FAILS CLOSED. No window, no manifest hit, a lookup error, or the schedule
+    service being unavailable all return False. An unattended merge must never
+    happen because a check could not be performed.
+    """
+    try:
+        from services.maintenance_schedule_service import get_manifest, list_windows
+
+        open_windows = list_windows(status="open", limit=5) or []
+        if not open_windows:
+            return False, "no maintenance window is open"
+        for w in open_windows:
+            for item in get_manifest(w["id"]) or []:
+                if str(item.get("ref") or "") == str(pr_number):
+                    if (item.get("status") or "planned") != "planned":
+                        return False, f"PR #{pr_number} already '{item.get('status')}' on window {w['id']}"
+                    return True, f"on the manifest of open window {w['id']}"
+        return False, f"PR #{pr_number} is not on any open window's approved manifest"
+    except Exception as exc:  # noqa: BLE001 - fail closed, always
+        return False, f"window check failed ({type(exc).__name__}) — refusing"
 
 
 def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = _DEFAULT_AUTHORITY) -> tuple:
@@ -585,6 +626,16 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
                 f"PR #{pr_number} is Tier {tier} > {env_key}={max_auto} for authority "
                 f"{authority!r} — gated for the next level up, refusing unattended merge",
             )
+        # CONDITION 3 — 'coo_window' ONLY (#5247b). Everything above is unchanged for
+        # every existing authority; this narrows the new one further. An unattended
+        # merge under COO authority is permitted only INSIDE the window the owner
+        # agreed to, for a PR that was on the list they were shown.
+        if (authority or "").lower() == "coo_window":
+            on_window, why = _pr_on_open_window(pr_number)
+            if not on_window:
+                return (False, f"PR #{pr_number}: {why} — refusing window-scoped merge")
+            return (True, f"approved, Tier {tier} <= {max_auto}, {why}")
+
         return (True, f"approved, Tier {tier} <= {max_auto} under authority {authority!r}")
     except Exception as exc:  # fail CLOSED
         logger.warning("merge governance check failed for PR #%s (denying): %s", pr_number, exc)

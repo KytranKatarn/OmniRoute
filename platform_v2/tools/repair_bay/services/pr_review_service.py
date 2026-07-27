@@ -216,6 +216,13 @@ def poll_open_prs(repo: str = None) -> dict:
         updated,
         errors,
     )
+    # #5297: review-path health rides the existing poll cadence — no new scheduler
+    # wiring, and send_system's (title, source) dedup + cooldown own the spam control.
+    # Best-effort: the health check must never break polling.
+    try:
+        check_review_path_health()
+    except Exception as _health_err:  # noqa: BLE001
+        logger.debug("review-path health check skipped: %s", _health_err)
     return {"polled": len(prs), "inserted": inserted, "updated": updated, "errors": errors}
 
 
@@ -966,3 +973,104 @@ def get_forge_review_metrics(days: int = 7) -> dict:
         "structured_ratio": (counts["json"] / total) if total else None,
         "days": days,
     }
+
+
+# --- #5297: review-path health — the fallback-rate metric WITH its consumer -----------
+#
+# #5287 proved the freeform fallback is where the false verdicts come from, and that a
+# signal nobody consumes is worthless: quality=blocking_issue_without_evidence sat on
+# review rows for weeks, consumed by nothing, while the pipeline degraded. This metric
+# therefore ships ONLY together with its consumer (check_review_path_health → send_system).
+
+_REVIEW_PATH_JSON_MARKER = "structured=json"
+_REVIEW_PATH_GATED_MARKER = "structured=freeform-gated"
+
+
+def _classify_review_path(ai_summary: str | None) -> str:
+    """'structured_json' | 'freeform_gated' | 'legacy' from the [review-meta] marker.
+    Anything without a structured marker — including pre-QW-1 reviews with no meta line
+    at all — counts as legacy freeform: the degraded path."""
+    text = ai_summary or ""
+    if _REVIEW_PATH_JSON_MARKER in text:
+        return "structured_json"
+    if _REVIEW_PATH_GATED_MARKER in text:
+        return "freeform_gated"
+    return "legacy"
+
+
+def review_path_stats(days: int = 7) -> dict:
+    """Path split of recent completed reviews + the fallback rate (#5297).
+
+    MEASUREMENT CAVEAT (deliberate): pr_reviews stores the LATEST review per PR — a
+    re-review overwrites ai_summary — so this is a current-verdict INVENTORY, not
+    per-run telemetry. Good enough for the health question ("is the pipeline mostly
+    degraded right now?"); per-run history would need its own log table.
+    """
+    counts = {"structured_json": 0, "freeform_gated": 0, "legacy": 0}
+    with get_db_cursor(commit=False) as (_conn, cur):
+        cur.execute(
+            """SELECT ai_summary FROM pr_reviews
+               WHERE review_status = 'reviewed' AND ai_summary IS NOT NULL
+                 AND updated_at >= NOW() - (%s * INTERVAL '1 day')""",
+            (int(days),),
+        )
+        rows = cur.fetchall() or []
+    for r in rows:
+        summary = r["ai_summary"] if isinstance(r, dict) else r[0]
+        counts[_classify_review_path(summary)] += 1
+    total = sum(counts.values())
+    rate = None if total == 0 else round((total - counts["structured_json"]) / total, 3)
+    return {"window_days": days, "total": total, "fallback_rate": rate, **counts}
+
+
+def _fallback_rate_warn_threshold() -> float:
+    """platform_settings 'forge:fallback_rate_warn' — tunable live, defaults 0.5."""
+    try:
+        with get_db_cursor(commit=False) as (_conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'forge:fallback_rate_warn'")
+            row = cur.fetchone()
+            if row:
+                return float(row["value"] if isinstance(row, dict) else row[0])
+    except Exception as exc:  # noqa: BLE001 — a settings hiccup must not break the check
+        logger.debug("fallback_rate_warn threshold read failed (using default): %s", exc)
+    return 0.5
+
+
+def _send_system_alert(title: str, message: str) -> None:
+    """Isolated so tests can capture the alert without a Telegram round-trip."""
+    from services.telegram_service import send_system
+
+    send_system(title, message)
+
+
+def check_review_path_health(days: int = 7, min_total: int = 5) -> dict:
+    """#5297 consumer: WARN when the trailing fallback rate crosses the threshold.
+
+    A mostly-degraded review pipeline means every verdict in the system is worth less
+    than it appears (#5287: the same diff drew a false blocking CRITICAL on the
+    freeform path and a clean APPROVE on the structured path). Guards:
+      * min_total — a handful of reviews all-freeform is noise, not a trend;
+      * FIXED alert title — send_system dedups on (title, source) with a cooldown,
+        so a persistent condition reports once per window instead of flooding.
+    """
+    stats = review_path_stats(days)
+    stats["alerted"] = False
+    rate = stats.get("fallback_rate")
+    total = stats.get("total", 0)
+    if rate is None or total < min_total:
+        return stats
+    threshold = _fallback_rate_warn_threshold()
+    stats["threshold"] = threshold
+    if rate > threshold:
+        _send_system_alert(
+            "F.O.R.G.E. reviews degrading to freeform fallback",
+            (
+                f"{rate:.0%} of the last {total} stored reviews ({days}d window) came from the "
+                f"degraded freeform path (warn threshold {threshold:.0%}) — verdicts are worth "
+                "less than they appear. Check 7B node health / dispatch timeouts "
+                "(#5287/#5297; the 2026-07-27 storm was the ComfyUI livelock pinning models to CPU). "
+                "Note: latest-review-per-PR inventory, not per-run telemetry."
+            ),
+        )
+        stats["alerted"] = True
+    return stats

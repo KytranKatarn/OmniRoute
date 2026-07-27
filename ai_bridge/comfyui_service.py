@@ -220,6 +220,37 @@ class ComfyUIService:
                 logger.warning("[ComfyUI] docker start unavailable: %s", e)
                 return False
 
+        # STAMP THE IDLE CLOCK — both branches above have just started or restarted
+        # the container on demand, and STARTING IT IS USE (#5277).
+        #
+        # ⚠️ THERE ARE TWO ComfyUI LIFECYCLE MODULES AND THEY SHARE ONE CLOCK:
+        #   * THIS module (ai_bridge/comfyui_service.py) WAKES the container — the
+        #     "[ComfyUI] ..." log lines.
+        #   * services/comfyui_lifecycle.py REAPS it on idle — the
+        #     "ComfyUI idle for <n>s > 1800s — stopping" line — reading the SAME
+        #     `system_config['comfyui_last_used_at']`.
+        # The waker never wrote that key, so the reaper kept reading a timestamp
+        # from 2026-06-22 and stopping the container ~28s after this function
+        # started it, forever, ~2min period. Each cycle fired the ComfyUI VRAM
+        # swap and evicted the Ollama GPU models to CPU for an SDXL load that
+        # never arrived.
+        #
+        # PR #2501 stamped the equivalent path in comfyui_lifecycle.ensure_running()
+        # — which is CORRECT but UNREACHABLE from here: the production wake path is
+        # this function, and it does not call ensure_running(). Deployed and
+        # measured: the clock stayed stale and the livelock continued. Fixing the
+        # reaper's module did not fix the waker.
+        #
+        # Stamped BEFORE the health wait deliberately: ComfyUI is currently
+        # unhealthy and never answers, so a stamp that only happened on success
+        # would never happen at all.
+        try:
+            from services.comfyui_lifecycle import record_last_used  # noqa: PLC0415
+
+            record_last_used()
+        except Exception as e:  # never let bookkeeping break the wake
+            logger.warning("[ComfyUI] could not stamp last_used: %s", e)
+
         logger.info("[ComfyUI] Waiting up to %ds for health", self.COMFYUI_WAKE_TIMEOUT)
         deadline = time.time() + self.COMFYUI_WAKE_TIMEOUT
         while time.time() < deadline:

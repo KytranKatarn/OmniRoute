@@ -124,8 +124,17 @@ If the service path is unavailable, fall back to the `gh` CLI:
 ### Step 7: Sync local main
 
 ```bash
-git fetch origin && git reset --hard origin/main
+git fetch origin && git merge --ff-only origin/main
 ```
+
+⚠️ **NEVER `git reset --hard` here.** `/mnt/archie_brain` is Kytran's working checkout and
+routinely holds uncommitted work (8 modified/untracked files on 2026-07-27 — website data,
+portraits, rules). `reset --hard` **destroys all of it, unrecoverably**, to achieve something a
+fast-forward already does.
+
+`--ff-only` is also the safer failure mode: if the local branch has diverged it **refuses and
+tells you**, instead of silently discarding the divergence. If it refuses, stop and look — do
+NOT escalate to `--hard`.
 
 ---
 

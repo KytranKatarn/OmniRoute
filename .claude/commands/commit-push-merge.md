@@ -93,8 +93,13 @@ print('MERGE:', resp.status_code, resp.json().get('message',''))
 ### Step 6: Sync local main
 
 ```bash
-git fetch origin && git checkout main && git reset --hard origin/main
+git fetch origin && git checkout main && git merge --ff-only origin/main
 ```
+
+⚠️ **NEVER `git reset --hard` here.** `/mnt/archie_brain` is Kytran's working checkout and
+routinely holds uncommitted work. `reset --hard` **destroys it unrecoverably** to achieve what a
+fast-forward already does. `--ff-only` refuses loudly on divergence instead of discarding it —
+if it refuses, stop and look rather than escalating to `--hard`.
 
 ---
 

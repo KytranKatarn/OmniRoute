@@ -7159,12 +7159,28 @@ def collect_hardware_snapshot(disks=None, gpus=None):
 
     disk_map = {}
     for dev_name, ident in (get_disk_stable_identifiers() or {}).items():
-        stable_id = ident.get("stable_id")
-        if not stable_id:
+        # KEY ON THE SERIAL ALONE.
+        #
+        # get_disk_stable_identifiers() returns stable_id = "<model>_<serial>",
+        # but the MODEL half is parsed out of whichever /dev/disk/by-id alias
+        # happened to be encountered first -- and a single disk has several:
+        #   ata-Samsung_SSD_840_EVO_120GB_S1D5NSAF371213F
+        #   scsi-0ATA_Samsung_SSD_840_S1D5NSAF371213F
+        #   scsi-1ATA_Samsung_SSD_840_EVO_120GB_S1D5NSAF371213F
+        # Which one wins can change across a reboot. On 2026-07-26 it did, and
+        # THREE untouched disks each reported as disk_removed + disk_added with
+        # IDENTICAL serials on both sides. False criticals are how an alert
+        # channel gets ignored, so this must key on the part that cannot drift.
+        #
+        # The serial is that part. Model is still carried for display, and
+        # diffing only compares slot and size, so model drift is now inert.
+        serial = (ident.get("serial") or "").strip()
+        key = serial or ident.get("stable_id")
+        if not key:
             continue
-        disk_map[stable_id] = {
+        disk_map[key] = {
             "model": ident.get("model"),
-            "serial": ident.get("serial"),
+            "serial": serial or None,
             "kernel_name": dev_name,
             "slot": slots.get(dev_name),
             "size_bytes": sizes.get(dev_name),
@@ -7223,6 +7239,25 @@ def check_hardware_changes(snapshot):
 
     stored = _load_hardware_baseline()
     baseline = (stored or {}).get("snapshot")
+
+    # A baseline written under an older snapshot schema uses a DIFFERENT
+    # identity key, so every entry in it looks removed and every current entry
+    # looks new. Diffing across that boundary would emit precisely the false
+    # storm the schema change was made to stop. Re-baseline silently instead.
+    if stored and (baseline or {}).get("version") != _hw.SNAPSHOT_VERSION:
+        old_v = (baseline or {}).get("version")
+        _save_hardware_baseline(snapshot, f"schema migration v{old_v} -> v{_hw.SNAPSHOT_VERSION}")
+        print(
+            f"[hardware] baseline schema v{old_v} -> v{_hw.SNAPSHOT_VERSION}: "
+            "identity keys changed, re-baselined without diffing",
+            flush=True,
+        )
+        return {
+            "baseline_accepted_at": None,
+            "events": [],
+            "summary": _hw.summarize([]),
+            "note": f"re-baselined for schema v{_hw.SNAPSHOT_VERSION}",
+        }
 
     if not stored:
         # First run establishes the reference point. Emitting everything as

@@ -50,7 +50,15 @@ would have kept the lost drive silent.
 
 from __future__ import annotations
 
-SNAPSHOT_VERSION = 1
+# v2 (2026-07-26): disks are keyed by SERIAL alone. v1 keyed on
+# "<model>_<serial>", where the model half came from whichever /dev/disk/by-id
+# alias sorted first — that changed across a reboot and made three untouched
+# disks each report as disk_removed + disk_added with identical serials.
+# A version bump is REQUIRED whenever the identity key changes: every v1 key is
+# unrecognisable to v2, so diffing across the boundary would emit exactly the
+# false storm this fixes. Callers must re-baseline instead (see
+# host_monitor.check_hardware_changes).
+SNAPSHOT_VERSION = 2
 
 # Severity vocabulary matches host_monitor's existing alert levels so these
 # events flow through create_alert() and the health webhooks unchanged.

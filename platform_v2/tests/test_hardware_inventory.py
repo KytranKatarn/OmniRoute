@@ -173,6 +173,119 @@ class TestDiskRemoval:
         assert hw.diff_snapshots(base, current) == []
 
 
+class TestModelStringDriftIsNotHardwareChange:
+    """The 2026-07-26 reboot false-alarm, reproduced with the real strings.
+
+    A single disk has several /dev/disk/by-id aliases:
+        ata-Samsung_SSD_840_EVO_120GB_S1D5NSAF371213F
+        scsi-0ATA_Samsung_SSD_840_S1D5NSAF371213F
+        scsi-1ATA_Samsung_SSD_840_EVO_120GB_S1D5NSAF371213F
+    Which one is encountered first can change across a reboot. v1 keyed on
+    "<model>_<serial>", so the key moved and THREE untouched disks each fired
+    disk_removed (CRITICAL) + disk_added. Keying on the serial alone fixes it;
+    these tests pin that the model is display-only and never diffed.
+    """
+
+    def test_same_serial_different_model_string_is_silent(self):
+        base = _snap(
+            disks={
+                "S1D5NSAF371213F": {
+                    "model": "1ATA Samsung SSD 840 EVO 120GB",
+                    "serial": "S1D5NSAF371213F",
+                    "kernel_name": "sda",
+                    "slot": "pci-0000:02:00.0-sas-phy1-lun-0",
+                    "size_bytes": 120034123776,
+                }
+            }
+        )
+        current = _snap(
+            disks={
+                "S1D5NSAF371213F": {
+                    "model": "0ATA Samsung SSD 840",  # <- different alias won this boot
+                    "serial": "S1D5NSAF371213F",
+                    "kernel_name": "sda",
+                    "slot": "pci-0000:02:00.0-sas-phy1-lun-0",
+                    "size_bytes": 120034123776,
+                }
+            }
+        )
+        assert hw.diff_snapshots(base, current) == []
+
+    def test_all_three_real_disks_stay_silent_across_the_reboot(self):
+        # Exactly the three that false-alarmed, with their real serials.
+        before = {
+            "S1D5NSAF371213F": {
+                "model": "1ATA Samsung SSD 840 EVO 120GB",
+                "serial": "S1D5NSAF371213F",
+                "kernel_name": "sda",
+                "slot": "pci-0000:02:00.0-sas-phy1-lun-0",
+                "size_bytes": 1,
+            },
+            "W1E592H7": {
+                "model": "1ATA ST2000DM001-9YN164",
+                "serial": "W1E592H7",
+                "kernel_name": "sde",
+                "slot": "pci-0000:00:1f.2-ata-2",
+                "size_bytes": 2,
+            },
+            "64IS104JTFZY": {
+                "model": "1ATA TOSHIBA THNSNH512GCST",
+                "serial": "64IS104JTFZY",
+                "kernel_name": "sdd",
+                "slot": "pci-0000:00:1f.2-ata-1",
+                "size_bytes": 3,
+            },
+        }
+        after = {
+            "S1D5NSAF371213F": {
+                "model": "0ATA Samsung SSD 840",
+                "serial": "S1D5NSAF371213F",
+                "kernel_name": "sda",
+                "slot": "pci-0000:02:00.0-sas-phy1-lun-0",
+                "size_bytes": 1,
+            },
+            "W1E592H7": {
+                "model": "0ATA ST2000DM001-9YN1",
+                "serial": "W1E592H7",
+                "kernel_name": "sdf",
+                "slot": "pci-0000:00:1f.2-ata-2",
+                "size_bytes": 2,
+            },
+            "64IS104JTFZY": {
+                "model": "SATA TOSHIBA THNSNH51",
+                "serial": "64IS104JTFZY",
+                "kernel_name": "sde",
+                "slot": "pci-0000:00:1f.2-ata-1",
+                "size_bytes": 3,
+            },
+        }
+        # Model strings AND kernel names both drifted. Neither is hardware change.
+        assert hw.diff_snapshots(_snap(disks=before), _snap(disks=after)) == []
+
+    def test_a_genuinely_new_disk_still_fires(self):
+        # The one REAL event that night must survive the fix.
+        before = {
+            "W1E592H7": {
+                "model": "ST2000DM001",
+                "serial": "W1E592H7",
+                "kernel_name": "sde",
+                "slot": "pci-0000:00:1f.2-ata-2",
+                "size_bytes": 2,
+            }
+        }
+        after = dict(before)
+        after["Z504K0DJ"] = {
+            "model": "SATA ST3000DM008-2DM1",
+            "serial": "Z504K0DJ",
+            "kernel_name": "sdb",
+            "slot": "pci-0000:02:00.0-sas-phy2-lun-0",
+            "size_bytes": 3000592982016,
+        }
+        events = hw.diff_snapshots(_snap(disks=before), _snap(disks=after))
+        assert [e["type"] for e in events] == ["disk_added"]
+        assert "Z504K0DJ" in events[0]["message"]
+
+
 class TestSlotMove:
     def test_same_serial_different_port_is_a_move(self):
         base = _snap(disks=_disk("ST2000_W1E592H7", "pci-0000:00:1f.2-ata-2"))

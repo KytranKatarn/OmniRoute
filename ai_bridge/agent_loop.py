@@ -5462,6 +5462,16 @@ class AgentLoop:
             conn.commit()
             return {"notified": True}
 
+        elif action_type == "agent_password_reset":
+            # #5303 (owner direction 2026-07-27): agent logins are managed by Account
+            # Center; a rotation is an ADMIN action that executes ONLY here — after the
+            # Tier-2 Telegram approval that routed this item to us. The service is
+            # HARD-scoped to the claude/archie agent accounts and its result carries
+            # NO secret (the new password lands only in the gitignored .env stores).
+            from services.agent_credential_service import reset_agent_password
+
+            return reset_agent_password(data.get("username", ""))
+
         elif action_type == "external_webhook":
             import requests
 

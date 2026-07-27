@@ -20,7 +20,7 @@ from services.welfare_governance import (
     score_welfare,
     smooth_score,
 )
-from services.welfare_load import merge_break_config
+from services.welfare_load import merge_break_config, welfare_token_filter_sql
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +71,9 @@ def pool_over_budget_by_skill(skill_name: str, settings_key: str = "welfare:back
                     SELECT agent_id, SUM(tokens_used) AS tok
                     FROM task_execution_log
                     WHERE created_at > NOW() - INTERVAL '24 hours'
+                """
+                + welfare_token_filter_sql()  # #5319: warmups never bill a welfare ledger
+                + """
                     GROUP BY agent_id
                 ) t ON t.agent_id = a.id
                 WHERE s.skill_name = %s
@@ -491,6 +494,9 @@ def gather_snapshots(cur):
                   FROM task_execution_log tel
                   WHERE tel.agent_id = a.id
                     AND tel.created_at > NOW() - INTERVAL '24 hours'
+        """
+        + welfare_token_filter_sql("tel")  # #5319: warmups never bill a welfare ledger
+        + """
                ) AS tokens_24h,
                (SELECT COUNT(*) FROM agent_rest_cycles arc
                   WHERE arc.agent_id = a.id

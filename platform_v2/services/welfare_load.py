@@ -377,6 +377,36 @@ def recovery_after_break(stress_at_start, energy_at_start, duration_min):
     return stress, energy
 
 
+# ── #5319: infrastructure capabilities never bill an agent's welfare ledger ──
+# K.I.N. read 122% of budget with 98% of the spend being capability='warmup'
+# keep-warm pings — the welfare token throttle then penalised the welfare
+# coordinator herself for infrastructure noise. Same principle as "welfare must
+# not attribute infrastructure failures to agents", token flavour. ONE source
+# (the carbon _is_llm_model pattern) consumed by ALL welfare token sums:
+# get_welfare_cache, pool_over_budget_by_skill, recalibrate_token_budgets, and
+# the K.I.N.-tab velocity query (KB #272470: tab and governance must match).
+WELFARE_INFRA_CAPABILITIES = ("warmup",)
+# Mirrors model_dispatch_service._WARMUP_MODULES — welfare_load stays pure
+# (no imports from service modules), so the list is MIRRORED, not imported;
+# the recalibration query established this convention. Filtering on BOTH
+# capability and module_source is deliberate defense-in-depth: the
+# agent_id-NULL-only exclusion already broke once (KB mistake #279534).
+WELFARE_INFRA_MODULES = ("fleet_warmup", "kin_warmth")
+
+
+def welfare_token_filter_sql(alias: str = "") -> str:
+    """SQL fragment (leading `` AND``) excluding infrastructure rows from a
+    welfare token/dispatch sum over ``task_execution_log``. Values are the
+    hardcoded literals above — nothing dynamic ever reaches the SQL string."""
+    prefix = f"{alias}." if alias else ""
+    caps = ", ".join("'" + c + "'" for c in WELFARE_INFRA_CAPABILITIES)
+    mods = ", ".join("'" + m + "'" for m in WELFARE_INFRA_MODULES)
+    return (
+        f" AND COALESCE({prefix}capability, '') NOT IN ({caps})"
+        f" AND COALESCE({prefix}module_source, '') NOT IN ({mods})"
+    )
+
+
 if __name__ == "__main__":  # pragma: no cover - self-test
     # 200 tiny 50-token classify calls (10k tokens) over the hour @150k/day budget:
     cheap = compute_token_load(200 * 50, 200 * 400, 150_000)

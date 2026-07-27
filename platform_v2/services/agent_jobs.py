@@ -4113,6 +4113,8 @@ def recalibrate_token_budgets():
     try:
         conn = get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        from services.welfare_load import welfare_token_filter_sql
+
         cur.execute(
             """
             WITH daily AS (
@@ -4122,13 +4124,17 @@ def recalibrate_token_budgets():
                 FROM task_execution_log
                 WHERE created_at >= NOW() - INTERVAL '30 days'
                   AND agent_id IS NOT NULL
-                  -- Warm-up keep-alive is INFRASTRUCTURE overhead, not agent work, so it must
-                  -- never inflate an agent's budget (decision: warm-up pseudo-agent = NO —
-                  -- warm-up is infra, stays unattributed). Today it's already agent_id IS NULL,
-                  -- but exclude by module_source EXPLICITLY so the invariant survives any future
-                  -- warm-up attribution (mirrors model_dispatch_service._WARMUP_MODULES; the
-                  -- fragile agent_id-NULL-only exclusion was KB mistake #279534).
-                  AND COALESCE(module_source, '') NOT IN ('fleet_warmup', 'kin_warmth')
+            """
+            # Warm-up keep-alive is INFRASTRUCTURE overhead, not agent work, so it must
+            # never inflate an agent's budget (decision: warm-up pseudo-agent = NO).
+            # The exclusion moved to the shared welfare_load.welfare_token_filter_sql()
+            # SSOT (#5319) — the same filter every welfare token sum applies, covering
+            # BOTH capability='warmup' AND the _WARMUP_MODULES module markers (the
+            # fragile agent_id-NULL-only exclusion was KB mistake #279534, and the
+            # 'stays unattributed' assumption broke again with kin_warmth rows
+            # carrying agent_id — 672 rows/81k tok billed to K.I.N. in one day).
+            + welfare_token_filter_sql()
+            + """
                 GROUP BY agent_id, d
             )
             SELECT da.agent_id, a.name, a.model,

@@ -114,6 +114,8 @@ def register_work_routes(bp, admin_required):
                 rows = cur.fetchall() or []
 
                 # Dispatch velocity + dispatches since last budget reset
+                from services.welfare_load import welfare_token_filter_sql
+
                 cur.execute(
                     """
                     SELECT tel.agent_name,
@@ -131,6 +133,13 @@ def register_work_routes(bp, admin_required):
                     LEFT JOIN agents a ON a.name = tel.agent_name
                     LEFT JOIN agent_budgets ab ON ab.agent_id = a.id
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    """
+                    # #5319: warmups never bill a welfare ledger — excluding them here
+                    # keeps this tab equal to governance (KB #272470). Deliberately also
+                    # removes warmups from the dispatch COUNTS: keep-warm pings are not
+                    # work, and 663/day of them drowned K.I.N.'s real activity signal.
+                    + welfare_token_filter_sql("tel")
+                    + """
                     GROUP BY tel.agent_name
                     """
                 )
@@ -150,6 +159,11 @@ def register_work_routes(bp, admin_required):
                            COALESCE(SUM(tel.tokens_used), 0) AS tokens
                     FROM task_execution_log tel
                     WHERE tel.created_at > NOW() - INTERVAL '24 hours'
+                    """
+                    # #5319: the aging-out chart must agree with the velocity headline
+                    # above — both exclude infrastructure warm-ups.
+                    + welfare_token_filter_sql("tel")
+                    + """
                     GROUP BY tel.agent_name, bucket
                     """
                 )

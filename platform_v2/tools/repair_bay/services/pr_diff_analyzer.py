@@ -121,9 +121,7 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
     try:
         mark_review_started(pr_number, _repo)
         diff = _fetch_diff(diff_url)
-        summary = _structured_review(review, diff, pr_number, _repo) or _run_forge_review(
-            _build_prompt(review, diff), pr_number, _repo, diff=diff
-        )
+        summary = _obtain_review_summary(review, diff, pr_number, _repo)
         if not summary:
             mark_review_pending(pr_number, _repo)
             return {
@@ -172,10 +170,7 @@ def analyze_pending_prs(max_prs: int = 3) -> dict:
                 continue
 
             diff = _fetch_diff(diff_url)
-            prompt = _build_prompt(review, diff)
-            summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(
-                prompt, pr_number, repo, diff=diff
-            )
+            summary = _obtain_review_summary(review, diff, pr_number, repo)
 
             if summary:
                 mark_review_done(pr_number, summary, repo)
@@ -967,6 +962,50 @@ def _quality_suffix(structured: str, n_ungrounded: int, surviving_issues: list) 
     return (" quality=" + ",".join(flags)) if flags else ""
 
 
+def _freeform_rc_retry_enabled() -> bool:
+    return str(_get_setting("forge:freeform_rc_retry_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _unevidenced_demotion_enabled() -> bool:
+    return str(_get_setting("forge:unevidenced_blocking_demotion_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _demote_unevidenced_blocking(verdict: str, issues: list) -> bool:
+    """#5287 — CONSUME the blocking_issue_without_evidence signal instead of decorating with it.
+
+    On PR #2501 the meta line self-reported ``quality=freeform_fallback,blocking_issue_without_
+    evidence`` and the REQUEST CHANGES stood anyway — the pipeline detected its own problem and
+    stored it as a label nobody consumed. A blocking verdict resting SOLELY on CRITICAL/WARNING
+    issues that cite NOTHING has no adjudicable content: there is no line a human (or the
+    self-refute auditor) can even check. Demote it to NEEDS REVIEW — never APPROVE — so a human
+    adjudicates and auto-merge stays impossible.
+
+    Narrow on purpose:
+      * verdict not REQUEST CHANGES        -> untouched (never relax an evidenced block,
+                                              never touch an APPROVE).
+      * ANY blocking issue cites evidence  -> the RC stands in full; a partially-evidenced
+                                              review earned its block.
+      * no blocking issues at all          -> nothing to demote (the verdict came from
+                                              elsewhere, e.g. low confidence).
+    """
+    if verdict != "REQUEST CHANGES" or not issues:
+        return False
+    blocking = [i for i in issues if isinstance(i, dict) and str(i.get("severity", "")).upper() in _BLOCKING_SEVERITIES]
+    if not blocking:
+        return False
+    return all(not str((i or {}).get("evidence", "")).strip() for i in blocking)
+
+
 def _evidence_verification_enabled() -> bool:
     return str(_get_setting("forge:evidence_verification_enabled", "true")).strip().lower() in (
         "1",
@@ -1353,6 +1392,15 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
             n_ungrounded,
             n_ungrounded,
         )
+    # #5287: an RC resting SOLELY on blocking issues that cite no evidence has no adjudicable
+    # content — demote to NEEDS REVIEW (never APPROVE) so a human decides and auto-merge can't.
+    if _unevidenced_demotion_enabled() and _demote_unevidenced_blocking(verdict, verdict_issues):
+        verdict = "NEEDS REVIEW"
+        note = (note + "; " if note else "") + "blocking issue(s) cite no evidence — demoted to NEEDS REVIEW (#5287)"
+        logger.warning(
+            "[PR Review] PR #%s — blocking verdict demoted to NEEDS REVIEW: every blocking issue cites no evidence",
+            pr_number,
+        )
     parsed["verdict"] = verdict
     return _render_review_text(parsed, model=model_label, note=note)
 
@@ -1466,10 +1514,64 @@ def _gate_freeform_review(text: str, diff: str, pr_number: int = None, repo: str
                 f"ungrounded review: all {n_ungrounded} issue(s) cited evidence absent from the diff "
                 "— floored to NEEDS REVIEW (#5009)"
             )
-        return _render_freeform_gated(_extract_summary_block(text), issues, verdict, "; ".join(notes))
+        # #5287: same unevidenced-blocking demotion as the structured path — the freeform fallback
+        # is precisely where the evidence-less blocking CRITICALs come from (#2366, #2501).
+        if _unevidenced_demotion_enabled() and _demote_unevidenced_blocking(verdict, issues):
+            verdict = "NEEDS REVIEW"
+            notes.append("blocking issue(s) cite no evidence — demoted to NEEDS REVIEW (#5287)")
+        # n_ungrounded passthrough (#5287): was omitted, so `no_grounded_evidence` could never
+        # appear on a freeform-gated meta line even when every issue was dropped as ungrounded.
+        return _render_freeform_gated(
+            _extract_summary_block(text), issues, verdict, "; ".join(notes), n_ungrounded=n_ungrounded
+        )
     except Exception as exc:
         logger.info("[PR Review] freeform gate fell back to severity-gate: %s", exc)
         return _apply_severity_gate(text)
+
+
+def _is_degraded_blocking(summary: str) -> bool:
+    """True for a blocking verdict produced OFF the structured path (#5287).
+
+    ``structured=json`` in the meta marks the authoritative path. Anything else — the gated
+    freeform fallback (``structured=freeform-gated``) or legacy severity-gate text with no meta
+    line at all — is the degraded path, whose REQUEST CHANGES warrants one structured retry
+    before it is stored as the verdict."""
+    if not summary or "structured=json" in summary:
+        return False
+    return parse_verdict(summary) == "REQUEST CHANGES"
+
+
+def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo: str = None) -> str | None:
+    """Structured first, freeform fallback — with ONE bounded structured retry when the fallback
+    produced a blocking verdict (#5287). Shared by review_pr and analyze_pending_prs.
+
+    Measured 2026-07-27: the SAME diff (PR #2503, commit unchanged between runs) drew a false
+    blocking CRITICAL on the freeform path and a clean APPROVE on the structured path — and the
+    merge gate (verdict_is_approved + #5194) weighs both verdicts equally. So a degraded-path
+    REQUEST CHANGES earns exactly ONE structured re-attempt:
+
+      * a PARSED structured verdict supersedes it WHATEVER it says — a persistent REQUEST
+        CHANGES stands, so this is a path upgrade, never retry-until-APPROVE;
+      * an unavailable structured path (cold model / parse failure) leaves the degraded verdict
+        standing, annotated so a human knows which path produced it.
+
+    Bounded by construction: the retry is a single _structured_review call and its output is
+    never re-examined by this guard. A degraded APPROVE is deliberately NOT retried — the
+    existing #5009 floor + the approved-verdict + tier requirements of the merge gate already
+    bound that direction, and re-rolling approvals would add dispatch load for no safety gain."""
+    summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(
+        _build_prompt(review, diff), pr_number, repo, diff=diff
+    )
+    if not summary or not _freeform_rc_retry_enabled() or not _is_degraded_blocking(summary):
+        return summary
+    logger.info(
+        "[PR Review] PR #%s — degraded-path blocking verdict; attempting one structured retry (#5287)",
+        pr_number,
+    )
+    retry = _structured_review(review, diff, pr_number, repo)
+    if retry:
+        return retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
+    return summary + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
 
 
 def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff: str = None) -> str | None:

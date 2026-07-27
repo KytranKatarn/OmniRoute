@@ -113,6 +113,79 @@ def test_model_larger_than_any_single_card_is_not_gpu_eligible(svc):
     assert s.get_gpu_fit_budget() < 13.0 * 1.0
 
 
+# ---- hub placement decision (#5276) ----------------------------------------
+#
+# The fit budget (#5271) was correct, yet both 7Bs still ran 100% CPU with both
+# GPUs empty: the 4-minute cluster keep-warm hardcoded num_gpu=0 and overrode
+# every placement with a fresh 30m CPU keep-alive. gpu_placement_options is now
+# the ONE decision point shared by load_model and the keep-warm jobs.
+
+
+def test_placement_gpu_when_budget_allows(svc, monkeypatch):
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    assert s.gpu_placement_options("qwen2.5:7b") == {}
+
+
+def test_placement_pins_cpu_when_budget_tight(svc, monkeypatch):
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    s._loaded_cache = [_load(11.0)]  # worst-case largest-card free = 1 GB
+    assert s.gpu_placement_options("qwen2.5:7b") == {"num_gpu": 0}
+
+
+def test_placement_never_demotes_a_gpu_resident_model(svc, monkeypatch):
+    """
+    Two GPU-resident 7Bs each shrink the OTHER's worst-case budget below the
+    threshold (12 - 5.9 = 6.1, then 12 - 11.8 = 0.2). Without the residency
+    early-return the keep-warm would demote whichever it checks while both are
+    resident — a permanent GPU/CPU oscillation. Resident-with-VRAM must always
+    be left in place.
+    """
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    s._loaded_cache = [
+        {"name": "qwen2.5:7b", "size_vram": int(5.9 * (1024**3))},
+        {"name": "mistral:7b", "size_vram": int(5.9 * (1024**3))},
+    ]
+    assert s.gpu_placement_options("qwen2.5:7b") == {}
+    assert s.gpu_placement_options("mistral:7b") == {}
+
+
+def test_placement_defers_to_comfyui(svc, monkeypatch):
+    """
+    ComfyUI's SDXL VRAM is a separate process /api/ps cannot see, so the fit
+    budget over-reports the whole time the container is up. The old
+    unconditional CPU pin protected this by accident; the conditional one must
+    protect it deliberately: while ComfyUI runs, no new LLM goes to GPU.
+    """
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: True)
+    assert s.gpu_placement_options("qwen2.5:7b") == {"num_gpu": 0}
+
+
+def test_placement_matches_latest_tag_variant(svc, monkeypatch):
+    """Ollama reports names WITH tags ("dolphin3:latest"); callers may pass the
+    bare name. A miss here would misread a GPU resident as absent and demote it."""
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+    s._loaded_cache = [{"name": "dolphin3:latest", "size_vram": int(6.0 * (1024**3))}]
+    assert s.gpu_placement_options("dolphin3") == {}
+
+
+def test_placement_pins_cpu_on_error(svc, monkeypatch):
+    """Any doubt about VRAM state must fall back to the historical CPU pin —
+    a broken probe may never overfill a card."""
+    s, ms = svc
+    monkeypatch.setattr(ms, "_comfyui_container_running", lambda: False)
+
+    def _boom():
+        raise RuntimeError("ps unreachable")
+
+    monkeypatch.setattr(s, "get_gpu_fit_budget", _boom)
+    assert s.gpu_placement_options("qwen2.5:7b") == {"num_gpu": 0}
+
+
 def test_capacity_numbers_are_env_overridable(monkeypatch):
     """A hardware change must be a config edit, not a code edit — a bare constant
     is what went stale for two days."""

@@ -3667,12 +3667,19 @@ class AgentLoop:
             logger.warning("[Agent Loop] Citadel async keep-warm failed: %s", e)
 
     def _keep_cluster_models_warm(self):
-        """Win 1 (2026-06-23): keep the hot, cold-loading HUB 7Bs resident (CPU-pinned) so their
-        dispatches hit them warm instead of paying the cold-load tax (task_execution_log 7d: 30-56s
-        averages, 10-18min max tails). Generalizes the cockpit (#4270) + Defiant-review (#1905)
-        keep-warm to the data-identified hot models.
+        """Win 1 (2026-06-23): keep the hot, cold-loading HUB 7Bs resident so their dispatches hit
+        them warm instead of paying the cold-load tax (task_execution_log 7d: 30-56s averages,
+        10-18min max tails). Generalizes the cockpit (#4270) + Defiant-review (#1905) keep-warm to
+        the data-identified hot models.
 
-        CPU-only (num_gpu=0) = ZERO VRAM on the 128GB hub (OLLAMA_MAX_LOADED_MODELS=13 fits them).
+        Placement is decided per cycle by model_service.hub_gpu_placement (#5276): GPU when the
+        dual-card fit budget allows (TITAN X 12GB + Quadro M4000 8GB since 2026-07-25), CPU-pinned
+        when VRAM is tight or ComfyUI is awake — warmth is preserved either way. Because an option
+        change makes Ollama reload the runner, this cycle is also what MIGRATES a CPU-stranded 7B
+        back onto an idle GPU. The registry used to hardcode num_gpu=0 (written for the 8GB-only
+        hub); firing every 4 min with a 30m keep-alive, that pin overrode every correct placement
+        and kept both 7Bs on CPU while 20GB of VRAM sat empty — the #5276 defect.
+
         Runs every 4 min — shorter than the ~5m keep_alive a dispatch resets the model to — with a 30m
         keep_alive, so the model never unloads between sporadic dispatches. The Defiant GPU review-7B
         is handled by forge_review_model_keepwarm; here we cover the hub 7Bs (incl. qwen2.5:7b, whose
@@ -3683,28 +3690,44 @@ class AgentLoop:
 
         import requests as req
 
-        # (model, num_gpu) — all on the hub CPU. 7d volume: qwen2.5:7b 14k @33s, mistral:7b 7.9k @43s,
-        # qwen25-classify 2.4k @24s. All confirmed present on the hub Ollama. Coordinator slot is
-        # config-driven (services.coordinator_lane) so a Phase 3 model swap keeps keep-warm in sync
-        # without a code change — fail-open to the "qwen25-classify" default on any DB/read error.
+        # 7d volume: qwen2.5:7b 14k @33s, mistral:7b 7.9k @43s, qwen25-classify 2.4k @24s. All
+        # confirmed present on the hub Ollama. Coordinator slot is config-driven
+        # (services.coordinator_lane) so a Phase 3 model swap keeps keep-warm in sync without a
+        # code change — fail-open to the "qwen25-classify" default on any DB/read error. (The
+        # classify model carries num_gpu=0 in its MODELFILE, so an empty placement fragment still
+        # leaves it on CPU — intended.)
         from services.coordinator_lane import get_coordinator_model
 
         registry = [
-            ("qwen2.5:7b", 0),
-            ("mistral:7b", 0),
-            (get_coordinator_model(), 0),
+            "qwen2.5:7b",
+            "mistral:7b",
+            get_coordinator_model(),
         ]
         ollama_host = os.getenv("OLLAMA_HOST", "http://archie_ollama:11434")
         if not ollama_host.startswith("http"):
             ollama_host = f"http://{ollama_host}"
-        for model, num_gpu in registry:
+        for model in registry:
             start = time.time()
             try:
+                options = {"num_predict": 1}
+                try:
+                    from services.model_service import hub_gpu_placement
+
+                    options.update(hub_gpu_placement(model))
+                except Exception as pe:
+                    # Placement unknowable — keep the historical CPU pin so the warm
+                    # request can never evict or overfill a card it cannot measure.
+                    options["num_gpu"] = 0
+                    logger.warning(
+                        "[Agent Loop] Cluster keep-warm: placement check failed for %s (%s) — CPU pin",
+                        model,
+                        pe,
+                    )
                 data = {
                     "model": model,
                     "prompt": "warm",
                     "stream": False,
-                    "options": {"num_predict": 1, "num_gpu": num_gpu},
+                    "options": options,
                     "keep_alive": "30m",
                 }
                 resp = req.post(f"{ollama_host}/api/generate", json=data, timeout=600)

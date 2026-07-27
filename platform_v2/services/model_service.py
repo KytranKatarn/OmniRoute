@@ -229,6 +229,76 @@ class ModelService:
         largest_card_free = max(0.0, _VRAM_LARGEST_GPU_GB - used)
         return min(self.get_available_vram(), largest_card_free)
 
+    def gpu_placement_options(self, model: str) -> Dict:
+        """Ollama ``options`` fragment placing *model* on the HUB: ``{}`` lets
+        Ollama use the GPUs, ``{"num_gpu": 0}`` pins it to CPU.
+
+        THE single placement decision point, with one log line per call
+        (#5276). load_model and the agent-loop keep-warm each hardcoded their
+        own answer before this; the 4-minute cluster keep-warm's unconditional
+        ``num_gpu=0`` overrode every correct placement with a fresh 30m CPU
+        keep-alive — measured 2026-07-27 18:40: both GPUs at ~0 MiB while
+        qwen2.5:7b AND mistral:7b sat 100% CPU with fresh keep-alives.
+
+        Rules, in order:
+          1. Already resident holding VRAM → ``{}`` (refresh in place). Without
+             this, two GPU-resident 7Bs would each shrink the OTHER's fit
+             budget below threshold and the pin would demote them in
+             oscillation. Evictions stay owned by the ComfyUI VRAM swap.
+          2. ComfyUI container running → CPU. Its SDXL VRAM is a separate
+             process that /api/ps cannot see, so the fit budget over-reports
+             the whole time image gen is awake. (The old unconditional pin
+             protected this by accident; this keeps it deliberate.)
+          3. Fits the dual-card budget (``get_gpu_fit_budget``) → GPU.
+          4. Otherwise, or on ANY error → CPU. Warmth is preserved either way.
+
+        A CPU-resident model that now gets ``{}`` is RELOADED onto GPU by
+        Ollama on the next warm request (an option change restarts the
+        runner), so the 4-minute keep-warm doubles as the recovery path for a
+        CPU-stranded model once VRAM frees up.
+        """
+        try:
+            if not self._is_cache_fresh():
+                self._refresh_cache()
+            resident_vram_gb = 0.0
+            for m in self._loaded_cache:
+                if m.get("name") in (model, f"{model}:latest"):
+                    resident_vram_gb = m.get("size_vram", 0) / (1024**3)
+                    break
+            if resident_vram_gb > 0:
+                logger.info(
+                    "model_service: placement %s -> gpu (already resident, %.1f GB VRAM)",
+                    model,
+                    resident_vram_gb,
+                )
+                return {}
+            if _comfyui_container_running():
+                logger.info(
+                    "model_service: placement %s -> cpu (ComfyUI awake — GPUs reserved for image gen)",
+                    model,
+                )
+                return {"num_gpu": 0}
+            needed = self.estimate_model_size(model) * _GPU_FIT_HEADROOM
+            budget = self.get_gpu_fit_budget()
+            if budget >= needed:
+                logger.info(
+                    "model_service: placement %s -> gpu (budget %.1f GB >= needed %.1f GB)",
+                    model,
+                    budget,
+                    needed,
+                )
+                return {}
+            logger.info(
+                "model_service: placement %s -> cpu (budget %.1f GB < needed %.1f GB)",
+                model,
+                budget,
+                needed,
+            )
+            return {"num_gpu": 0}
+        except Exception as exc:
+            logger.warning("model_service: placement %s -> cpu (VRAM state unknown: %s)", model, exc)
+            return {"num_gpu": 0}
+
     def is_model_loaded(self, model: str) -> bool:
         """Return True if *model* is currently loaded."""
         if not self._is_cache_fresh():
@@ -349,43 +419,15 @@ class ModelService:
             url = f"{base}/api/" + "generate"
             body = {"model": model, "keep_alive": "10m", "prompt": ""}
             if ollama_url is None and model in self._HUB_CPU_TIER:
-                # Pin to CPU ONLY when the GPU genuinely cannot fit the model right now.
-                #
-                # This pin used to be UNCONDITIONAL, which meant a 4.7 GB model was forced
-                # onto the CPU even with all 8 GB of VRAM free — measured 2026-07-22:
-                # nvidia-smi showed the Quadro M4000 at 4 MiB used / 0% utilisation while
-                # host load was 14.2/20 cores with a qwen2.5:7b CPU runner pegged at 728%
-                # for 3.4h. A second 7B CPU runner could not get traction, so every
-                # qwen2.5-coder:7b load hit the 600s timeout and EVERY F.O.R.G.E. code
-                # review failed with a bare "timed out" (#5130). RAM was 98 GB free, so
-                # the failure looked like a resource problem it was not — the exhausted
-                # resource was CPU, which nothing here measures.
-                #
-                # The pin's original intent stands (do not blow the 8 GB card or evict the
-                # small warm set), so it still applies whenever VRAM is actually tight.
-                # HEADROOM covers KV cache + runtime overhead on top of the weights.
-                pin_to_cpu = True
-                try:
-                    # #5271: budget for ONE model = min(aggregate free, largest single
-                    # card). Previously this asked get_available_vram(), which measured
-                    # against a hardcoded 8 GB (the Quadro) and so under-reported by the
-                    # entire TITAN. qwen2.5:7b needed 4.2 * 1.4 = 5.88 GB and was told
-                    # 5.44 GB was free, so it pinned to CPU while 12 GB sat idle.
-                    free_vram = self.get_gpu_fit_budget()
-                    needed = self.estimate_model_size(model) * _GPU_FIT_HEADROOM
-                    if free_vram >= needed:
-                        pin_to_cpu = False
-                        logger.info(
-                            "model_service: %s GPU-eligible (%.1f GB budget >= %.1f GB needed) — not pinning to CPU",
-                            model,
-                            free_vram,
-                            needed,
-                        )
-                except Exception:
-                    # Any doubt about VRAM state -> keep the historical CPU behaviour.
-                    pin_to_cpu = True
-                if pin_to_cpu:
-                    body["options"] = {"num_gpu": 0}
+                # Conditional CPU pin: big models yield the GPUs when VRAM is
+                # tight (the unconditional pin starved code_review on a busy
+                # CPU beside an idle GPU, #5130) but are no longer forced off
+                # an idle card. Decision + telemetry are centralised in
+                # gpu_placement_options (#5276), shared with the agent-loop
+                # keep-warm so no caller can override another's placement.
+                placement = self.gpu_placement_options(model)
+                if placement:
+                    body["options"] = placement
             payload = json.dumps(body).encode()
             req = urllib.request.Request(
                 url,
@@ -688,3 +730,31 @@ def get_model_service() -> ModelService:
     if _model_service_instance is None:
         _model_service_instance = ModelService()
     return _model_service_instance
+
+
+def _comfyui_container_running() -> bool:
+    """True when the archie_comfyui container is up.
+
+    Used by gpu_placement_options: ComfyUI's SDXL VRAM lives in a separate
+    process /api/ps cannot see, so while the container is running the GPUs are
+    treated as claimed by image generation and no new LLM is admitted onto
+    them. False on ANY doubt — a docker hiccup must not permanently pin the
+    hot models to CPU (the idle-stop observer reaps ComfyUI within its idle
+    window, bounding the contention the other way).
+    """
+    try:
+        from services.comfyui_lifecycle import _get_container
+
+        container = _get_container()
+        if container is None:
+            return False
+        container.reload()
+        return getattr(container, "status", "") == "running"
+    except Exception:
+        return False
+
+
+def hub_gpu_placement(model: str) -> Dict:
+    """Module-level convenience for out-of-process callers (the agent-loop
+    keep-warm jobs): the singleton's placement decision for *model* on the hub."""
+    return get_model_service().gpu_placement_options(model)

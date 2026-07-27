@@ -106,6 +106,41 @@ if type beacon_verify_selective >/dev/null 2>&1; then
     || bad "Beacon does not look selective — check force_reset_to_hub.sh"
 else unk "beacon_verify_selective unavailable"; fi
 
+# ---- 5b. Is the mesh. UPSTREAM still the tunnel? (task #5261) ----
+# Checks 1-5 all answer "what does mesh. RESOLVE to". NONE of them asked what Beacon
+# PROXIES to, and that is the half that stranded the fleet on 2026-07-26: the vhost
+# pointed at 100.64.0.4:8095 (a MESH IP), so a hub reboot deadlocked — nodes needed the
+# control plane to rejoin the mesh, and the control plane was only reachable over the
+# mesh. This harness reported a clean 14/14 throughout. A green board that cannot see
+# the failure mode is worse than no board.
+#
+# Correct upstream is the reverse tunnel (archie-mesh-tunnel.service on the hub):
+#   reverse_proxy http://127.0.0.1:8095
+# The hub's PUBLIC IP is also wrong — a dynamic residential lease that collides with
+# the DDNS updater (#5260) and needs an inbound forward a router reset silently drops.
+# MEASURED FROM HERE (boston-2), which is an OFF-HUB vantage. That matters: the hub can
+# always reach its own Headscale regardless of whether Beacon or DNS work, so a check run
+# on the hub proves nothing about the path real nodes use.
+#
+# This asserts BEHAVIOUR (does the control plane actually answer through Beacon?) rather
+# than CONFIG. boston-2 has no SSH trust to Beacon, so the Caddyfile cannot be read from
+# here -- see the caveat below. Behaviour is the better assertion anyway: it exercises
+# DNS -> Beacon TLS -> upstream -> headscale in one shot, and it is the check that would
+# have gone RED during the 2026-07-26 outage while every other check stayed green.
+if curl -sf -o /dev/null --max-time 12 "https://mesh.kytranempowerment.com/key?v=118" 2>/dev/null; then
+  ok "mesh. control plane ANSWERS end-to-end from off-hub (DNS -> Beacon -> upstream -> headscale)"
+else
+  bad "mesh. control plane does NOT answer from boston-2 — nodes cannot enroll or rotate keys; check archie-mesh-tunnel.service on the hub and the Beacon mesh. vhost"
+fi
+
+# CAVEAT (task #5261, still open): the above proves the chain WORKS, not that the upstream
+# is the durable one. A mesh. vhost pointed at the hub's dynamic public IP would pass this
+# check today and break on the next DHCP lease (#5260); one pointed at 100.64.0.4 would
+# pass while the hub is up and deadlock on the next reboot. Asserting the upstream VALUE
+# needs boston-2 -> Beacon SSH trust, which does not exist and is a deliberate decision to
+# make consciously rather than as a side effect of a monitoring change.
+unk "mesh. upstream VALUE unverified (no boston-2->Beacon SSH trust) — behaviour passed, config unasserted"
+
 # ---- 6. LAN split-horizon: resolves AND serves ----
 if type adguard_lan_check >/dev/null 2>&1; then
   adguard_lan_check >/dev/null 2>&1

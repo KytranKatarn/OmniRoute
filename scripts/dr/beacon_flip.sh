@@ -105,6 +105,37 @@ BEACON_DR_PORT_PLATFORM=3000
 BEACON_DR_PORT_CREED=8086
 BEACON_DR_PORT_HEADSCALE=8095
 
+# ---------------------------------------------------------------------------
+# HUB-SIDE UPSTREAM IS NOT ALWAYS THE HUB MESH IP (task #5264, drill 2026-07-27)
+#
+# :3000 and :8086 point at the hub as `http://<HUB_MESH>:<port>`. **:8095 does
+# NOT.** mesh. is the Headscale CONTROL PLANE and is fed by a persistent
+# hub-initiated reverse tunnel (archie-mesh-tunnel.service, ssh -R), so on
+# Beacon its hub-side upstream is `http://127.0.0.1:8095` — see the mesh. vhost
+# comment in Beacon's Caddyfile and .claude/rules/fleet.md.
+#
+# This bit us for real in the 2026-07-27 drill: beacon_flip_ports substituted
+# `100.64.0.4:8095`, that string no longer existed, sed changed NOTHING, and the
+# flip still logged "validated + reloaded" (true — caddy validated and reloaded
+# an UNCHANGED file). mesh. appeared to survive only because the hub was alive
+# carrying the tunnel. In a real outage the tunnel dies WITH the hub, so the one
+# host that must keep answering would have been left pointing at a dead
+# 127.0.0.1:8095 while the failover reported success.
+#
+# Resolved PER PORT and in BOTH directions, so failback returns mesh. to the
+# tunnel rather than stranding it on the hub mesh IP (which is itself only
+# reachable OVER the mesh — the bootstrap deadlock #2497 exists to prevent).
+BEACON_HUB_TUNNEL_HOST=127.0.0.1
+
+# beacon_hub_host_for_port <port> — the host Beacon uses to reach this port ON
+# THE HUB. Everything except the control plane is the hub's mesh IP.
+beacon_hub_host_for_port() {
+    case "$1" in
+        "$BEACON_DR_PORT_HEADSCALE") echo "$BEACON_HUB_TUNNEL_HOST" ;;
+        *)                           echo "${HUB_MESH:-100.64.0.4}" ;;
+    esac
+}
+
 # All ports a failover is ever ALLOWED to move. Used by the failback/reset paths
 # to revert exactly the set that could have been flipped, and by the verifier.
 BEACON_DR_PORTS_ALL=("$BEACON_DR_PORT_PLATFORM" "$BEACON_DR_PORT_CREED" "$BEACON_DR_PORT_HEADSCALE")
@@ -266,17 +297,44 @@ beacon_flip_ports() {
     # line to document this very flip. Substring-anchoring is not enough: it
     # rewrites that comment, which is how Beacon's header came to claim
     # "DR (boston-2) mesh IP: 100.64.0.4".
-    local sed_args="" p
+    # Resolve the effective upstream host PER PORT and per direction (#5264).
+    # :8095's hub-side upstream is the reverse tunnel, not the hub mesh IP — see
+    # beacon_hub_host_for_port above. :3000/:8086 resolve to from_ip/to_ip
+    # unchanged, so this is a no-op for every pre-existing caller.
+    local hub_ref="${HUB_MESH:-100.64.0.4}"
+    local sed_args="" from_alt="" p efrom eto
     for p in "${ports[@]}"; do
-        sed_args+=" -e 's|^\\([[:space:]]*\\)reverse_proxy http://${from_ip}:${p}|\\1reverse_proxy http://${to_ip}:${p}|'"
+        efrom="$from_ip"; eto="$to_ip"
+        [ "$efrom" = "$hub_ref" ] && efrom="$(beacon_hub_host_for_port "$p")"
+        [ "$eto"   = "$hub_ref" ] && eto="$(beacon_hub_host_for_port "$p")"
+        sed_args+=" -e 's|^\\([[:space:]]*\\)reverse_proxy http://${efrom}:${p}|\\1reverse_proxy http://${eto}:${p}|'"
+        from_alt+="${from_alt:+|}$(printf '%s' "${efrom}:${p}" | sed 's/\./\\./g')"
     done
 
+    # A flip that substitutes NOTHING must not report success (#5264). The old
+    # version ran sed, validated, reloaded and logged "validated + reloaded" —
+    # all true of an UNCHANGED file. beacon_verify_selective catches TOO MANY
+    # substitutions; nothing caught ZERO. Assert the count on both sides:
+    #   exit 8  = no upstream matched at all (the mesh. tunnel regression)
+    #   exit 10 = some matched but survived the sed (partial flip) -> roll back
     local remote="
         set -e
+        _match(){ grep -cE '^[[:space:]]*reverse_proxy http://(${from_alt})([^0-9]|\$)' '${BEACON_CADDYFILE}' 2>/dev/null || true; }
+        before=\$(_match)
+        if [ \"\$before\" -eq 0 ]; then
+            echo 'NO_MATCHING_UPSTREAM' >&2
+            exit 8
+        fi
         cp -f '${BEACON_CADDYFILE}' '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}'
         sed -i${sed_args} '${BEACON_CADDYFILE}'
+        if [ \"\$(_match)\" -ne 0 ]; then
+            mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}' '${BEACON_CADDYFILE}'
+            echo 'PARTIAL_SUBSTITUTION_ROLLED_BACK' >&2
+            exit 10
+        fi
         if caddy validate --adapter caddyfile --config '${BEACON_CADDYFILE}' >/dev/null 2>&1; then
             systemctl reload caddy
+            echo \"FLIPPED=\$before\"
         else
             mv -f '${BEACON_CADDYFILE}${BEACON_BAK_SUFFIX}' '${BEACON_CADDYFILE}'
             echo 'CADDY_VALIDATE_FAILED_ROLLED_BACK' >&2
@@ -293,6 +351,26 @@ beacon_flip_ports() {
     if [ "$rc" -eq 0 ]; then
         log "  Beacon: $label — ports ${ports[*]} now $from_ip -> $to_ip (validated + reloaded)."
         return 0
+    fi
+
+    if [ "$rc" -eq 8 ]; then
+        # #5264: the flip matched NOTHING. Previously this looked like success.
+        # Almost always means the upstream moved and this helper was not updated
+        # (the mesh./tunnel case). Loud, because the hostname is now pointing at
+        # whatever it pointed at before — which in a failover is a dead hub.
+        log "  *** Beacon $label flip matched NO upstream on ports ${ports[*]} — NOTHING WAS FLIPPED."
+        log "      $label is STILL pointing wherever it was. Beacon's Caddyfile does not"
+        log "      contain a 'reverse_proxy http://<expected>:<port>' line for this flip."
+        log "      Expected one of: ${from_alt//|/ or }"
+        log "      Fix the upstream map in beacon_flip.sh (beacon_hub_host_for_port) — do NOT"
+        log "      assume the flip happened because caddy validated and reloaded."
+        return 1
+    fi
+
+    if [ "$rc" -eq 10 ]; then
+        log "  *** Beacon $label flip was PARTIAL (some upstreams survived the substitution)"
+        log "      — ROLLED BACK, Beacon unchanged. Ports: ${ports[*]}"
+        return 1
     fi
 
     if [ "$rc" -eq 9 ]; then

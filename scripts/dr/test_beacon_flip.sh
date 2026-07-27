@@ -1,0 +1,118 @@
+#!/bin/bash
+# ============================================================================
+# Regression tests for beacon_flip.sh — task #5264, found by the 2026-07-27
+# live DR drill.
+#
+#   bash scripts/dr/test_beacon_flip.sh
+#
+# Self-contained: builds its own Caddyfile fixture, stubs the ssh seam to run
+# locally, and stubs caddy/systemctl as exported shell FUNCTIONS (not files on
+# disk — /tmp is noexec on the hub, which makes stub binaries fail rc=126 and
+# every `caddy validate` look like a validation failure).
+#
+# WHAT THIS PINS
+#   The drill found beacon_flip_ports reporting "validated + reloaded" while
+#   substituting NOTHING: PR #2497 moved mesh.'s upstream to the reverse tunnel
+#   (127.0.0.1:8095), so the hardcoded 100.64.0.4:8095 pattern stopped matching.
+#   sed changed zero lines, caddy validated an unchanged file, and the flip
+#   claimed success. In a real outage the tunnel dies WITH the hub, so the one
+#   hostname that must keep answering would have been silently abandoned.
+# ============================================================================
+set -uo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+T="$(mktemp -d)"
+trap 'rm -rf "$T"' EXIT
+
+# Minimal fixture mirroring the REAL Beacon Caddyfile's shape.
+cat > "$T/base" <<'CADDY'
+# Beacon front door.
+# The platform upstream is flipped during DR with:
+#   sed 's#reverse_proxy http://100.64.0.4:3000#reverse_proxy http://100.64.0.10:3000#'
+# ^ that COMMENT must never be rewritten by the flip.
+(platform_backend) {
+	reverse_proxy http://100.64.0.4:3000
+}
+platform.kytranempowerment.com {
+	import platform_backend
+}
+creed.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8086
+}
+mesh.kytranempowerment.com {
+	# Upstream is a PERSISTENT REVERSE TUNNEL from the hub (ssh -R), NOT the
+	# hub mesh IP — pointing it at 100.64.0.4 deadlocks a hub reboot.
+	reverse_proxy http://127.0.0.1:8095
+}
+server.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8085
+}
+plex.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:32400
+}
+CADDY
+
+log(){ echo "$*"; }
+caddy(){ return 0; }
+systemctl(){ return 0; }
+export -f caddy systemctl
+
+export HUB_MESH=100.64.0.4
+# shellcheck disable=SC1091
+source "$REPO/scripts/dr/beacon_flip.sh"
+
+touch "$T/fakekey"
+FLEET_KEY="$T/fakekey"
+BEACON_BAK_SUFFIX=".bak-test"
+_beacon_ssh(){ bash -c "$1"; }
+
+pass=0; fail=0
+check(){ if [ "$2" = "$3" ]; then echo "  PASS  $1"; pass=$((pass+1));
+         else echo "  FAIL  $1 (expected '$2', got '$3')"; fail=$((fail+1)); fi; }
+# ANCHORED like the sed is — an unanchored match reads the documenting comment
+# above instead of the live directive and reports a good flip as failed.
+upstream_for(){ grep -oE "^[[:space:]]*reverse_proxy http://[0-9.]+:$1" "$BEACON_CADDYFILE" \
+                | head -1 | sed 's|.*http://||'; }
+
+echo "=== T1: platform :3000 hub -> DR ==="
+BEACON_CADDYFILE="$T/c1"; cp "$T/base" "$BEACON_CADDYFILE"
+beacon_flip_ports 100.64.0.4 100.64.0.10 platform 3000 >/dev/null; rc=$?
+check "returns 0" 0 "$rc"
+check ":3000 now on boston-2" "100.64.0.10:3000" "$(upstream_for 3000)"
+check "exactly 1 line changed" "1" "$(diff "$T/base" "$BEACON_CADDYFILE" | grep -c '^>')"
+check "documenting COMMENT untouched" "1" "$(grep -c '^#.*100\.64\.0\.4:3000' "$BEACON_CADDYFILE")"
+check "hub-only :8085 untouched" "100.64.0.4:8085" "$(upstream_for 8085)"
+check "hub-only :32400 untouched" "100.64.0.4:32400" "$(upstream_for 32400)"
+
+echo "=== T2: mesh :8095 hub -> DR  (THE #5264 REGRESSION) ==="
+BEACON_CADDYFILE="$T/c2"; cp "$T/base" "$BEACON_CADDYFILE"
+beacon_flip_ports 100.64.0.4 100.64.0.10 headscale 8095 >/dev/null; rc=$?
+check "returns 0" 0 "$rc"
+check "mesh. actually moved to boston-2 (was a silent no-op)" "100.64.0.10:8095" "$(upstream_for 8095)"
+
+echo "=== T3: mesh :8095 DR -> hub — failback must restore the TUNNEL ==="
+beacon_flip_ports 100.64.0.10 100.64.0.4 headscale 8095 >/dev/null; rc=$?
+check "returns 0" 0 "$rc"
+check "back on the reverse tunnel, NOT the hub mesh IP" "127.0.0.1:8095" "$(upstream_for 8095)"
+check "round-trip is byte-identical to baseline" "" "$(diff "$T/base" "$BEACON_CADDYFILE")"
+
+echo "=== T4: no matching upstream must FAIL LOUD, never report success ==="
+BEACON_CADDYFILE="$T/c4"; cp "$T/base" "$BEACON_CADDYFILE"
+out="$(beacon_flip_ports 100.64.0.4 100.64.0.10 bogus 9999 2>&1)"; rc=$?
+check "returns 1" 1 "$rc"
+check "says NOTHING WAS FLIPPED" "yes" "$(echo "$out" | grep -q 'NOTHING WAS FLIPPED' && echo yes || echo no)"
+check "Caddyfile untouched" "" "$(diff "$T/base" "$BEACON_CADDYFILE")"
+
+echo "=== T5: creed :8086 unaffected by the :8095 special case ==="
+BEACON_CADDYFILE="$T/c5"; cp "$T/base" "$BEACON_CADDYFILE"
+beacon_flip_ports 100.64.0.4 100.64.0.10 creed 8086 >/dev/null; rc=$?
+check "returns 0" 0 "$rc"
+check ":8086 moved to boston-2" "100.64.0.10:8086" "$(upstream_for 8086)"
+
+echo "=== T6: hub-side host map resolves per port ==="
+check ":3000 -> hub mesh IP" "100.64.0.4" "$(beacon_hub_host_for_port 3000)"
+check ":8086 -> hub mesh IP" "100.64.0.4" "$(beacon_hub_host_for_port 8086)"
+check ":8095 -> reverse tunnel" "127.0.0.1" "$(beacon_hub_host_for_port 8095)"
+
+echo
+echo "=== RESULT: $pass pass · $fail fail ==="
+[ "$fail" -eq 0 ]

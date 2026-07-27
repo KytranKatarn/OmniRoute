@@ -1,0 +1,60 @@
+[Unit]
+# Persistent hub -> Beacon reverse tunnel for the Headscale CONTROL PLANE.
+#
+# WHY THIS EXISTS (task #5260, KB #284829):
+#   mesh.kytranempowerment.com is the Headscale control plane and is TLS-only.
+#   Beacon fronts it. Beacon must NOT reach the hub via:
+#     - 100.64.0.4  (the mesh IP) -> bootstrap DEADLOCK: the mesh needs the
+#       control plane, and the control plane would only be reachable over the mesh.
+#       This is exactly what stranded the fleet after the 2026-07-26 reboot.
+#     - the hub's PUBLIC IP -> it is a DYNAMIC residential address. Hardcoding it
+#       works until the lease changes, and it collides with the DDNS updater (#5260).
+#
+#   This tunnel gives Beacon a STABLE loopback upstream (127.0.0.1:8095) that is
+#   independent of both the mesh and the hub's public IP. The hub dials OUT, so no
+#   inbound port-forward is required either.
+#
+#   An ad-hoc `ssh -L` left running by hand is NOT sufficient -- that is precisely
+#   how Beacon and Citadel sat off the control plane for a month (KB #284829).
+#   Restart=always + boot enablement is the whole point of this unit.
+Description=A.R.C.H.I.E. mesh control-plane tunnel (hub Headscale :8095 -> Beacon loopback)
+Documentation=file:///mnt/archie_brain/.claude/rules/fleet.md
+After=network-online.target docker.service
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=kytran
+
+# -N  no remote command   -T  no pty
+# ExitOnForwardFailure=yes is LOAD-BEARING: without it ssh happily stays connected
+# with no forward bound, and the tunnel looks up while serving nothing.
+# Beacon's sshd runs ClientAliveInterval=30/CountMax=3 so a dead peer is reaped in
+# ~90s, freeing the remote bind for the retry below.
+ExecStart=/usr/bin/ssh -NT \
+    -i /home/kytran/.ssh/id_ed25519 \
+    -o ExitOnForwardFailure=yes \
+    -o ServerAliveInterval=20 \
+    -o ServerAliveCountMax=3 \
+    -o TCPKeepAlive=yes \
+    -o BatchMode=yes \
+    -o StrictHostKeyChecking=accept-new \
+    -o UserKnownHostsFile=/home/kytran/.ssh/known_hosts \
+    -R 127.0.0.1:8095:127.0.0.1:8095 \
+    root@2.25.170.252
+
+Restart=always
+RestartSec=5
+
+# Hardening -- this process only needs a network socket and one private key.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target

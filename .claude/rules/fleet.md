@@ -72,6 +72,37 @@ Now machine-enforced in three places — a remembered rule was not enough:
 **Rule: `mesh.` must never resolve to a host with no TLS listener.** Adding a hostname to
 `PROTECTED_REWRITES` is the way to extend this to any other control-plane name.
 
+#### The Beacon UPSTREAM is a persistent reverse tunnel (2026-07-26, task #5260)
+
+DNS protection above answers *what `mesh.` resolves to*. It says nothing about *what Beacon
+proxies to* — and that second half is what stranded the whole fleet after the 07-26 reboot.
+Both must be right.
+
+Beacon's `mesh.` vhost upstream is **`http://127.0.0.1:8095`**, fed by
+**`archie-mesh-tunnel.service`** on the hub (`scripts/archie-mesh-tunnel.service`,
+`ssh -NT -R 127.0.0.1:8095:127.0.0.1:8095 root@2.25.170.252`, `Restart=always`, boot-enabled).
+
+Two upstreams look plausible and are both WRONG:
+
+| ❌ Upstream | Why it fails |
+|---|---|
+| `100.64.0.4:8095` (mesh IP) | **Bootstrap deadlock** — the mesh needs the control plane, and the control plane is only reachable over the mesh. A hub reboot takes the fleet down and it cannot self-recover. This is the 07-26 outage. |
+| the hub's public IP | It is a **DYNAMIC residential lease**. Works until it changes, and collides head-on with the DDNS updater (#5260). Also needs an inbound router forward that can vanish on a router reset. |
+
+The tunnel avoids both: the hub dials **OUT**, so the control-plane path needs no inbound
+forward and no stable public IP.
+
+- **`ExitOnForwardFailure=yes` is load-bearing.** Without it `ssh` stays happily connected with
+  no forward bound — the unit reports `active` while serving nothing.
+- Beacon runs `ClientAliveInterval 30` / `ClientAliveCountMax 3` so a dead peer is reaped in ~90s,
+  freeing the remote bind for the retry. Without this the stale bind survives on the default TCP
+  keepalive (~2h) and the tunnel cannot rebind after an unclean hub drop.
+- **`systemctl is-active` is NOT proof.** Verify by serving:
+  `curl -s -o /dev/null -w '%{http_code}' https://mesh.kytranempowerment.com/key?v=118` → `200`,
+  ideally from an off-hub vantage (Citadel/Beacon), never from the hub itself.
+- An ad-hoc `ssh -L` left running by hand is how Beacon and Citadel sat off the control plane for
+  a month (KB #284829). Persistence is the entire point — never "just start a tunnel".
+
 ## Fleet Route Files (`tools/department_hq/`)
 
 | File | Purpose |

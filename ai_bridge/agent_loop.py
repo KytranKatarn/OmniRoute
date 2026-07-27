@@ -8630,6 +8630,7 @@ class AgentLoop:
                 verdict_is_approved,
                 _mark_tier_processed,
                 _mark_kytran_approval_sent,
+                open_pr_merge_approval,
             )
             from tools.repair_bay.services.github_service import merge_pr  # noqa: PLC0415
             from services.director_report_service import submit_via_inbox as _forge_inbox  # noqa: PLC0415
@@ -8709,6 +8710,13 @@ class AgentLoop:
                         )
 
                 elif tier == 3:
+                    # DUAL SURFACE (#5283). The durable Approvals-tab row is opened
+                    # FIRST and independently of the Telegram send: Telegram was the
+                    # only channel and is send-once, so a missed / dismissed /
+                    # undelivered message stranded the PR with nothing pending
+                    # anywhere. Opening the row first means a Telegram failure still
+                    # leaves the owner something to act on.
+                    open_pr_merge_approval(pr_num, title, summary, repo=review.get("repo"))
                     self._request_kytran_pr_approval(pr_num, title, summary)
                     _mark_kytran_approval_sent(pr_num)
                     processed += 1

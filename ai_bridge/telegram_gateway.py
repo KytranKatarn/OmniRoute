@@ -1508,6 +1508,18 @@ class TelegramGateway:
         """Handle pr_merge_approve_N and pr_merge_deny_N inline button callbacks."""
         query = update.callback_query
         await self._safe_answer(query)
+
+        # AUTHORIZATION — MUST run before any merge (#5283). This handler passes
+        # human_override=True below, which SKIPS the #5194 unattended-merge
+        # governance gate. Without this check, anyone able to deliver the callback
+        # data could force-merge ANY PR past governance entirely. Every sibling
+        # callback (_node_callback, the generic approve_/reject_ handler) already
+        # does this; this one did not.
+        user_info = self._get_authorized_user(query.from_user.id)
+        if not user_info:
+            await query.edit_message_text("Unauthorized.")
+            return
+
         data = query.data  # e.g. "pr_merge_approve_692"
 
         try:
@@ -1523,14 +1535,28 @@ class TelegramGateway:
             from tools.repair_bay.services.github_service import merge_pr  # noqa: PLC0415
             from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
                 _mark_tier_processed,
+                resolve_pr_merge_approval,
             )
             from database import get_db_cursor as _gdc  # noqa: PLC0415
             from psycopg2.extras import Json as _Json  # noqa: PLC0415
 
             if action == "approve":
-                result = merge_pr(pr_number, "squash")
+                # human_override=True — REQUIRED, and safe only because of the
+                # authorization check at the top of this handler (#5283).
+                #
+                # This button exists SOLELY for Tier 3, which is Kytran's alone and
+                # is auto-merged by nobody. Without the override this call runs the
+                # unattended-merge gate under the default authority 'forge'
+                # (FORGE_AUTO_MERGE_MAX_TIER=1), so `tier 3 > 1` refused EVERY tap:
+                # the one escalation path for Tier 3 could never actually merge.
+                # An authenticated owner tapping their own approve button is exactly
+                # the "INTERACTIVE, authenticated caller" case human_override is for.
+                result = merge_pr(pr_number, "squash", human_override=True)
                 if result.get("merged"):
                     _mark_tier_processed(pr_number, tier=3)
+                    # Close the Approvals-tab row too, so the other surface stops
+                    # showing this as pending (#5283).
+                    resolve_pr_merge_approval(pr_number, approved=True, user_id=user_info.get("user_id"))
                     await query.edit_message_text(f"✅ Kytran approved — PR #{pr_number} merged successfully.")
                 else:
                     await query.edit_message_text(
@@ -1544,6 +1570,9 @@ class TelegramGateway:
                         "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
                         (payload, pr_number),
                     )
+                # A denial must clear the Approvals tab too, or the PR keeps
+                # showing as pending on the other surface forever (#5283).
+                resolve_pr_merge_approval(pr_number, approved=False, user_id=user_info.get("user_id"))
                 await query.edit_message_text(
                     f"❌ PR #{pr_number} denied. Please close it manually on GitHub if needed."
                 )

@@ -815,7 +815,13 @@ def _mark_tier_processed(pr_number: int, tier: int) -> None:
 
 
 def _mark_kytran_approval_sent(pr_number: int) -> None:
-    """Prevent duplicate Tier 3 Telegram messages for this PR."""
+    """Prevent duplicate Tier 3 TELEGRAM messages for this PR.
+
+    NOTE (#5283): this flag gates the Telegram send ONLY. It must never be used to
+    skip creating the ``autonomy_approval_queue`` row — the two surfaces are
+    independent, and suppressing the durable row is exactly how a missed Telegram
+    used to strand a PR with nothing visibly pending anywhere.
+    """
     from psycopg2.extras import Json as _Json  # noqa: PLC0415
 
     payload = _Json({"kytran_approval_sent": True})
@@ -824,6 +830,75 @@ def _mark_kytran_approval_sent(pr_number: int) -> None:
             "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
             (payload, pr_number),
         )
+
+
+def open_pr_merge_approval(pr_number: int, title: str, summary: str, repo: str = None) -> "int | None":
+    """Create the durable Approvals-tab row for a Tier-3 PR (#5283).
+
+    The second surface beside the Telegram message. Tier 3 previously notified via
+    Telegram ONLY, send-once — so a missed, dismissed or undelivered message left
+    the PR stranded with nothing pending in the Approvals tab.
+
+    ⚠️ Two DIFFERENT meanings of "tier" meet here, and conflating them auto-merges
+    the one thing that must never auto-merge:
+      * PR merge-authority tier — 1 F.O.R.G.E. / 2 A.R.C.H.I.E. / 3 Kytran.
+      * approval-queue tier     — 1 = AUTO-APPROVE, 2 = wait for a human.
+    A PR-authority Tier 3 must therefore be filed as queue ``tier=2`` (wait for a
+    human). Passing tier=1 here would auto-approve it instantly.
+
+    Returns the approval id, or None if it could not be created (never raises —
+    failing to open the row must not break the Telegram path that follows).
+    """
+    try:
+        from ai_bridge.agent_loop import request_approval  # noqa: PLC0415
+
+        return request_approval(
+            action_type="pr_merge",
+            action_data={
+                "pr_number": pr_number,
+                "title": title,
+                "summary": (summary or "")[:1000],
+                "repo": repo,
+            },
+            reason=f"PR #{pr_number} is Tier 3 — requires Kytran's approval before merge: {title}",
+            requested_by="archie_pr_review_worker",
+            priority=7,
+            tier=2,  # queue tier 2 = WAIT FOR HUMAN. Never 1. See docstring.
+        )
+    except Exception as exc:
+        logger.warning("open_pr_merge_approval failed for PR #%s: %s", pr_number, exc)
+        return None
+
+
+def resolve_pr_merge_approval(pr_number: int, approved: bool, user_id: int = None) -> None:
+    """Close the Approvals-tab row for a PR decided on EITHER surface (#5283).
+
+    Shared by the Telegram callback and the Approvals-tab action so the two can
+    never disagree: whichever one the owner uses, the other stops showing a
+    pending item. Idempotent — resolving an already-resolved row is a no-op, so a
+    double-tap across both surfaces cannot merge twice.
+
+    Best-effort: never raises. A bookkeeping failure must not turn a SUCCESSFUL
+    merge into a reported failure.
+    """
+    try:
+        status = "approved" if approved else "rejected"
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """
+                UPDATE autonomy_approval_queue
+                   SET status = %s,
+                       approved_by = COALESCE(%s, approved_by),
+                       approved_at = NOW(),
+                       updated_at = NOW()
+                 WHERE action_type = 'pr_merge'
+                   AND status = 'pending'
+                   AND (action_data->>'pr_number')::int = %s
+                """,
+                (status, user_id, pr_number),
+            )
+    except Exception as exc:
+        logger.warning("resolve_pr_merge_approval failed for PR #%s: %s", pr_number, exc)
 
 
 def _extract_review_path(summary: str) -> str:

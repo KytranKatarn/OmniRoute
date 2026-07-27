@@ -1242,6 +1242,51 @@ def mark_task_completed(task_id: int, summary: str, response: str = None, capabi
             )
 
 
+def salvage_late_result(task_id: int, summary: str, response: str = None, capability: str = None) -> bool:
+    """#5313: persist a delegate result whose thread finished AFTER the worker
+    deadline already marked the task blocked. Queue wait (not generation time)
+    can consume the whole per-capability ceiling — task #5310's survey sat
+    ~12.5 min in the dispatch queue, then SUCCEEDED in ~2m46s, and the finished
+    5,695-char artifact was discarded. Guarded: flips ONLY a row still in
+    status='blocked', so a task an operator already re-queued or another slot
+    is re-running is never stomped. Returns True when the salvage landed.
+    """
+    deleg_meta = build_delegation_metadata(capability, response, outcome="completed")
+    deleg_meta["salvaged_late"] = True
+    note = f"⚠️ {deleg_meta['advisory']}\n\n{summary}" if deleg_meta.get("advisory") else summary
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE unified_tasks "
+            "SET status = 'completed', completed_at = now(), blockers = NULL, "
+            "    metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('delegation', %s::jsonb) "
+            "WHERE id = %s AND status = 'blocked'",
+            (json.dumps(deleg_meta), task_id),
+        )
+        if cur.rowcount != 1:
+            return False
+        cur.execute(
+            """
+            INSERT INTO work_notes (task_id, note_type, content, metadata)
+            VALUES (%s, 'delegation_result', %s, %s::jsonb)
+            """,
+            (task_id, note, json.dumps({"outcome": "completed", "salvaged_late": True})),
+        )
+        resp = (response or "").strip()
+        if resp:
+            cur.execute(
+                """
+                INSERT INTO work_notes (task_id, note_type, content, metadata)
+                VALUES (%s, 'delegation_output', %s, %s::jsonb)
+                """,
+                (
+                    task_id,
+                    resp[:20000],
+                    json.dumps({"outcome": "completed", "salvaged_late": True, "chars": len(resp)}),
+                ),
+            )
+    return True
+
+
 def _delegation_max_attempts() -> int:
     """Owner-tunable cap: after this many failed delegate attempts a task is
     auto-dismissed (status='cancelled') instead of looping in 'blocked' forever while
@@ -1613,7 +1658,7 @@ def run_delegation_cycle(
     from concurrent.futures import FIRST_COMPLETED
     from concurrent.futures import wait as _futures_wait
 
-    stats = {"claimed": 0, "completed": 0, "failed": 0, "queued": 0, "carried": 0}
+    stats = {"claimed": 0, "completed": 0, "failed": 0, "queued": 0, "carried": 0, "salvaged": 0}
 
     def _handle_done(entry: Dict[str, Any]) -> None:
         """Apply the real result of a finished future (completed/failed/queued)."""
@@ -1647,6 +1692,35 @@ def run_delegation_cycle(
             _safe(mark_task_failed, task_id, fail_summary)
             _safe_emit(task_id, "fail", capability, fail_summary, source, channel)
             stats["failed"] += 1
+
+    def _salvage_late(entry: Dict[str, Any]) -> None:
+        """#5313: the thread outlived its deadline (row already marked blocked)
+        but FINISHED. A late SUCCESS is a real artifact — persist it instead of
+        discarding (task #5310 lost a completed 5,695-char survey to queue wait
+        eating the whole ceiling). Late failures stay honestly blocked; a late
+        cold-load 'queued' result is left to the pending-queue callback."""
+        task_id = entry["task_id"]
+        capability = entry["capability"]
+        try:
+            result = entry["future"].result()
+        except Exception:
+            logger.info("Delegate task #%s late thread raised after timeout-block; leaving blocked", task_id)
+            return
+        if result.get("queued") or not result.get("success"):
+            return
+        summary = "Late result salvaged after worker timeout: " + (result.get("summary") or "")
+        resp = (result.get("result") or {}).get("response")
+        salvaged = False
+        try:
+            salvaged = salvage_late_result(task_id, summary, response=resp, capability=capability)
+        except Exception:
+            logger.exception("delegation cycle: salvage_late_result failed for #%s", task_id)
+        if salvaged:
+            stats["salvaged"] += 1
+            logger.info("Delegate task #%s late result SALVAGED (capability=%s)", task_id, capability)
+            _safe_emit(task_id, "complete", capability, summary, entry["source"], entry["channel"])
+        else:
+            logger.info("Delegate task #%s late result NOT salvaged (row no longer blocked)", task_id)
 
     def _safe(fn, *a, **kw) -> None:
         try:
@@ -1685,7 +1759,10 @@ def run_delegation_cycle(
         if fut.done():
             if not entry.get("marked_blocked"):
                 _handle_done(entry)
-            # else: already blocked on a prior cycle — discard the late result.
+            else:
+                # #5313: was "discard the late result" — which threw away a
+                # COMPLETED artifact whenever queue wait ate the deadline.
+                _salvage_late(entry)
             continue
         if _now() > entry["deadline"] and not entry.get("marked_blocked"):
             summary = f"Delegate worker timed out after {entry['timeout']}s " f"(capability={entry['capability']})"

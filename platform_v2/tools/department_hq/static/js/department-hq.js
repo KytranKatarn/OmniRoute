@@ -4931,6 +4931,48 @@ function loadQueueStatus() {
                 }
             }
 
+            // #5321: hardware-rest schedule strip — the window lived only in a
+            // system_config blob, which produced two real wrong beliefs in one
+            // day (a UTC/ET mix-up + treating a DISABLED schedule as armed).
+            // textContent-only; hidden when the API sends no rest object.
+            var restStrip = document.getElementById('fleetRestStrip');
+            var qpAnchor = document.getElementById('queueItemsPanel');
+            if (!restStrip && qpAnchor && qpAnchor.parentNode) {
+                restStrip = document.createElement('div');
+                restStrip.id = 'fleetRestStrip';
+                restStrip.style.cssText = 'margin:4px 0 8px;padding:5px 10px;border-radius:6px;' +
+                    'font-size:0.78rem;letter-spacing:0.03em;display:none;';
+                qpAnchor.parentNode.insertBefore(restStrip, qpAnchor);
+            }
+            if (restStrip) {
+                var rest = data.rest;
+                if (!rest) {
+                    restStrip.style.display = 'none';
+                } else {
+                    var mins = (rest.next_transition && rest.next_transition.in_minutes) || 0;
+                    var inLbl = Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+                    var nextAt = (rest.next_transition && rest.next_transition.at) || '?';
+                    var text, color, bg;
+                    if (rest.enabled && rest.active) {
+                        text = '🌙 HARDWARE REST · ' + rest.window_label + ' · now ' + rest.now_et +
+                               ' · Starships resting — heavy work runs on hub · wake at ' + nextAt;
+                        color = '#c4b5fd'; bg = 'rgba(139,92,246,0.14)';
+                    } else if (rest.enabled) {
+                        text = '🛌 Hardware rest ARMED · ' + rest.window_label + ' · now ' + rest.now_et +
+                               ' · rest starts ' + nextAt + ' (in ' + inLbl + ')';
+                        color = 'var(--dhq-text-dim)'; bg = 'rgba(0,188,212,0.08)';
+                    } else {
+                        text = '⚠ Hardware rest DISABLED · window ' + rest.window_label +
+                               ' is NOT armed · now ' + rest.now_et;
+                        color = '#f59e0b'; bg = 'rgba(245,158,11,0.10)';
+                    }
+                    restStrip.textContent = text;
+                    restStrip.style.color = color;
+                    restStrip.style.background = bg;
+                    restStrip.style.display = '';
+                }
+            }
+
             // Unified platform queue — Dispatch + Media Studio + F.O.R.G.E. + Bridge
             var qp = document.getElementById('queueItemsPanel');
             if (qp) {

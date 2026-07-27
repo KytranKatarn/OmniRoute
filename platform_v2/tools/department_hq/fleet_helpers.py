@@ -12,7 +12,7 @@ import sys
 import time
 import logging
 from collections import deque
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from flask import jsonify, request
 from flask_login import current_user
 import psycopg2
@@ -670,3 +670,63 @@ def is_fleet_rest_active() -> bool:
     if start > end:  # crosses midnight
         return hour >= start or hour < end
     return start <= hour < end
+
+
+def rest_status_snapshot(cfg: dict = None, now=None) -> dict:
+    """#5321: ONE dict with everything the A.R.M.A.D.A. cluster strip needs
+    about the hardware-rest schedule. The schedule lived only in a
+    system_config JSON blob — invisible, which produced two real wrong
+    beliefs in one day (a UTC/ET mix-up at 16:00 ET, and treating the
+    20:00-06:00 window as armed while the toggle was actually OFF).
+
+    Pure given (cfg, now) so it is testable; both default to live values.
+    ``in_window`` is computed from the WINDOW alone — the strip must be able
+    to say "window now, but rest is DISABLED" instead of lying either way.
+    ``next_transition`` is likewise window-based (what WOULD happen / when).
+    """
+    import pytz
+
+    if cfg is None:
+        cfg = get_fleet_rest_config()
+    tz = pytz.timezone("America/Toronto")
+    if now is None:
+        now = datetime.now(tz)
+    start, end = int(cfg.get("start_hour", 20)), int(cfg.get("end_hour", 6))
+    hour = now.hour
+    if start > end:  # crosses midnight
+        in_window = hour >= start or hour < end
+    else:
+        in_window = start <= hour < end
+    enabled = bool(cfg.get("enabled"))
+
+    # Nearest future window boundary: today's/tomorrow's start and end at :00.
+    boundaries = []
+    for base_hour, kind in ((start, "rest_start"), (end, "rest_end")):
+        for day_offset in (0, 1):
+            candidate = now.replace(hour=base_hour, minute=0, second=0, microsecond=0) + timedelta(days=day_offset)
+            if candidate > now:
+                boundaries.append((candidate, kind))
+    boundaries.sort(key=lambda pair: pair[0])
+    next_at, next_kind = boundaries[0]
+    # In-window means the next boundary is the window END, and vice versa —
+    # pick the first boundary of the expected kind to survive equal-hour edge cases.
+    expected_kind = "rest_end" if in_window else "rest_start"
+    for candidate, kind in boundaries:
+        if kind == expected_kind:
+            next_at, next_kind = candidate, kind
+            break
+
+    return {
+        "enabled": enabled,
+        "in_window": in_window,
+        "active": enabled and in_window,
+        "start_hour": start,
+        "end_hour": end,
+        "window_label": f"{start:02d}:00–{end:02d}:00 ET",
+        "now_et": now.strftime("%H:%M ET"),
+        "next_transition": {
+            "kind": next_kind,
+            "at": next_at.strftime("%H:%M ET"),
+            "in_minutes": int((next_at - now).total_seconds() // 60),
+        },
+    }

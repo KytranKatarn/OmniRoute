@@ -1700,6 +1700,16 @@ def register_dashboard_routes(bp, auth_decorator):
 
             loaded.extend(fleet_loaded)
 
+            # #5321: hardware-rest schedule visibility on the cluster view —
+            # advisory strip data; a snapshot error must never break the panel.
+            rest = None
+            try:
+                from .fleet_helpers import rest_status_snapshot
+
+                rest = rest_status_snapshot()
+            except Exception:
+                pass
+
             return jsonify(
                 success=True,
                 queued=totals.get("queued", 0),
@@ -1707,6 +1717,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 items=items,
                 loaded=loaded,
                 platform_queues=platform_queues,
+                rest=rest,
             )
         except Exception as exc:
             logger.error("api_fleet_queue_status: %s", exc)

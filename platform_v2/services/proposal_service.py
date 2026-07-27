@@ -956,6 +956,58 @@ def archive_proposal(proposal_id):
 # ===================================================================
 
 
+def _module_backup_ref(backup_result):
+    """improvement_deployments.backup_name for a module-scoped snapshot: 'modules/<dir>'.
+
+    Every consumer joins BACKUP_DIR + backup_name — the Deployment tab's
+    snapshot_exists check and auto_rollback's backup_path resolution both — so the
+    stored name must carry the modules/ subdirectory (#5279)."""
+    return "modules/" + str((backup_result or {}).get("backup_name") or "")
+
+
+def _predeploy_module_scope(proposal):
+    """#5279 / ADR-009: the module name when this proposal's change is fully CONTAINED
+    in platform_v2/tools/<module>/ — else None, meaning take a FULL snapshot.
+
+    A backup only protects what it contains, so scoping is allowed ONLY when the
+    touched file provably lives inside what backup_module() captures. Everything
+    else stays on the full-snapshot safety net (task item 4):
+      * services / ai_bridge — wide blast radius (the primitive now covers them,
+        item 1, but policy keeps them full until the scoped rung is proven there)
+      * database/migrations, templates, static, anything outside tools/<module>/
+      * containment mismatch (module_name says X, file lives under Y)
+      * missing/nonexistent runtime_file, traversal or odd characters
+    """
+    import json as _json
+    import os as _os
+    import re as _re
+
+    meta = (proposal or {}).get("metadata") or {}
+    if isinstance(meta, str):
+        try:
+            meta = _json.loads(meta)
+        except Exception:
+            return None
+    if not isinstance(meta, dict):
+        return None
+    module_name = str(meta.get("module_name") or "")
+    file_path = str(meta.get("file_path") or "")
+    runtime_file = str(meta.get("runtime_file") or "")
+    if not module_name or not file_path or not runtime_file:
+        return None
+    if not _re.fullmatch(r"[A-Za-z0-9_-]+", module_name):
+        return None
+    if module_name in ("services", "ai_bridge"):
+        return None
+    if ".." in file_path or ".." in runtime_file:
+        return None
+    if not file_path.lstrip("/").startswith(f"platform_v2/tools/{module_name}/"):
+        return None
+    if not _os.path.isabs(runtime_file) or not _os.path.isfile(runtime_file):
+        return None
+    return module_name
+
+
 def deploy_to_production(proposal_id):
     """Deploy an approved proposal with backup.
 
@@ -987,6 +1039,10 @@ def deploy_to_production(proposal_id):
         _pri = (proposal.get("priority") or "").lower()
         if _pri in ("critical", "high", "medium", "low"):
             _severity = _pri
+        # #5279 / ADR-009: decide the pre-deploy backup scope ONCE, before clearance,
+        # so the gate can judge the scope that matters (a fresh module copy vs the
+        # stale full snapshot that was starving its own drain).
+        scoped_module = _predeploy_module_scope(proposal)
         try:
             from services.backup_governance_service import request_deploy_clearance
             from database import get_db_cursor
@@ -996,6 +1052,7 @@ def deploy_to_production(proposal_id):
                 severity=_severity,
                 triggered_by="deploy_to_production",
                 proposal_id=proposal_id,
+                deploy_scope="scoped" if scoped_module else "full",
             )
             try:
                 with get_db_cursor(commit=True) as (_cc, _clr_cur):
@@ -1021,15 +1078,42 @@ def deploy_to_production(proposal_id):
         except Exception as _gov_err:
             logger.warning("Governance check failed (fail-open): %s", _gov_err)
 
-        # --- Create pre-deploy backup via Backup Manager ---
+        # --- Create pre-deploy backup via Backup Manager (#5279 / ADR-009) ---
+        # Scoped-by-default: a change contained in tools/<module>/ gets a FRESH module
+        # backup (0-2 MB, instant, ships rollback.sh) instead of the 2.3 GB / 16-min
+        # full snapshot — measured 77 runs = 179 GB + 20.5 h in one week, protecting
+        # single-line lint fixes and starving the freshness gate. FULL remains the
+        # safety net for migrations, services/, ai_bridge/, multi-module and anything
+        # unresolvable — and a scoped-backup FAILURE falls UP to full, never down to
+        # nothing.
+        from tools.backup_manager._shared import backup_module as _backup_module
         from tools.backup_manager._shared import create_backup_programmatic
         from database import get_db_cursor as _get_db_cursor
 
-        backup_result = create_backup_programmatic(
-            description=f"Pre-deploy snapshot for proposal #{proposal_id}: {proposal['title'][:60]}",
-            created_by_username="system",
-            proposal_id=proposal_id,
-        )
+        backup_result = None
+        if scoped_module:
+            backup_result = _backup_module(
+                scoped_module,
+                proposal_id=proposal_id,
+                created_by_username="system",
+                predeploy=True,
+            )
+            if backup_result.get("success"):
+                backup_result = dict(backup_result)
+                backup_result["backup_name"] = _module_backup_ref(backup_result)
+            else:
+                logger.warning(
+                    "Scoped pre-deploy backup failed for proposal %s (%s) — falling back to FULL",
+                    proposal_id,
+                    backup_result.get("error"),
+                )
+                backup_result = None
+        if backup_result is None:
+            backup_result = create_backup_programmatic(
+                description=f"Pre-deploy snapshot for proposal #{proposal_id}: {proposal['title'][:60]}",
+                created_by_username="system",
+                proposal_id=proposal_id,
+            )
         backup_name = backup_result.get("backup_name", "") if backup_result.get("success") else ""
 
         # Record in improvement_deployments so Deployment Backups tab shows it

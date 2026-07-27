@@ -76,13 +76,37 @@ def request_deploy_clearance(
     severity: str,
     triggered_by: str = "probe",
     proposal_id: int | None = None,
+    deploy_scope: str = "full",
 ) -> dict[str, Any]:
-    """W.A.R.D.E.N. pre-deploy clearance. Returns approved + snapshot_id + reason."""
+    """W.A.R.D.E.N. pre-deploy clearance. Returns approved + snapshot_id + reason.
+
+    deploy_scope: 'full' (default — today's behavior) or 'scoped', meaning the deploy
+    will take a FRESH module backup of the touched module seconds before applying.
+    """
     if severity not in ("critical", "high", "medium", "low"):
         severity = "medium"
     health = get_health_summary()
     age_hours = gate_age_hours(health["tier_health"].get("primary") or {})
     freshness = _check_backup_freshness(age_hours=age_hours if age_hours is not None else 9999.0, severity=severity)
+
+    # #5279 / ADR-009: a SCOPED deploy takes a fresh module backup seconds before the
+    # change — THAT is the restore point for what is being modified, so a stale FULL
+    # snapshot becomes advisory instead of blocking. This ended the self-starvation
+    # loop where keeping the full snapshot fresh cost 16 minutes a time and the drain
+    # could never pass its own gate (approvals 5472-5474). The age LIMITS are untouched;
+    # full-scope deploys keep the hard gate; and age_hours=None (NO successful full
+    # backup at all) still denies even scoped — a module file-copy can roll back the
+    # change but is not a platform restore point.
+    if deploy_scope == "scoped" and not freshness["approved"] and age_hours is not None:
+        logger.warning("W.A.R.D.E.N. scoped-deploy advisory (was a hard denial): %s", freshness["reason"])
+        freshness = {
+            "approved": True,
+            "reason": (
+                "scoped deploy — fresh module backup is the restore point for this change; "
+                f"{freshness['reason']} (advisory; full-backup freshness is posture-monitored)"
+            ),
+            "gate_level": "soft",
+        }
 
     snapshot_id = None
     try:

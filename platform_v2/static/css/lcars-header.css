@@ -183,6 +183,18 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   letter-spacing: 1.2px;
   text-transform: uppercase;
   white-space: nowrap;
+  /* #5299: the tag is the ONLY shrinkable item in the strip — every button/divider is
+     flex-shrink:0 — so a long detail clause compresses to ellipsis instead of pushing
+     the module shortcuts past the frame (AI Command = 9 shortcuts; Fold 5 unfolded). */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lcars-divert-tag .lcars-divert-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .lcars-divert-tag.is-active {
@@ -199,7 +211,11 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   font-weight: 700;
 }
 
-@media (max-width: 768px) {
+/* #5299: cutoff raised 768 → 1024. Fold 5 unfolded (~884px CSS) sat ABOVE the old
+   cutoff, so it got the FULL nowrap detail clause + a 9-shortcut category strip and
+   the shortcuts left the frame. Under 1024px the mode text alone states the whole
+   condition; ≥1024px the ellipsis rule above bounds the tag instead. */
+@media (max-width: 1024px) {
   /* Keep the glyph + mode, drop the detail clause — the elbow still pulses. */
   .lcars-divert-tag .lcars-divert-detail {
     display: none;
@@ -285,6 +301,16 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   background: rgba(var(--cat-accent-rgb), 0.06);
   border-bottom: 1px solid rgba(var(--cat-accent-rgb), 0.1);
   flex-shrink: 0;
+  /* #5299: last-resort valve — if content still exceeds the frame (many shortcuts +
+     an active condition tag), the strip scrolls inside itself instead of painting
+     past the screen edge. Scrollbar hidden; the frame never breaks. */
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.lcars-header-strip::-webkit-scrollbar {
+  display: none;
 }
 
 .lcars-strip-divider {
@@ -314,6 +340,8 @@ body:has(.lcars-header) .admin-notification-bar { display: none !important; }
   border-radius: 0;
   transition: color 0.2s ease, border-color 0.2s ease;
   white-space: nowrap;
+  /* #5299: buttons and shortcuts never crush — the divert tag is the shrink target. */
+  flex-shrink: 0;
 }
 
 .lcars-strip-btn:hover {

@@ -1833,3 +1833,62 @@ function startShutdownSequence() {
         }, 1000);
     }, totalDelay);
 }
+
+/* ============================================================
+   Standing-condition row (#5300) — dr / critical / diverted on the dashboard HUD.
+   The LCARS header banner only renders on tool pages (the include is not in
+   base.html), so during a divert or DR event /dashboard showed NOTHING. This row
+   sits under AI CORE / A.R.C.H.I.E. in System Status.
+   ONE data source (/api/alerts/unified) → ONE resolver → ONE writer — the #2463
+   lesson: two pollers racing on one element is how the header bug shipped.
+   Field contract mirrors lcars-header.js _pollNotifications:
+     dispatch_mode 'platform'|'news' ⇒ diverted · dr_mode === true ⇒ DR (strict)
+     counts.critical > 0 ⇒ critical.  Precedence: dr > critical > diverted > hidden.
+   textContent only — never innerHTML.
+   ============================================================ */
+(function () {
+    var row = document.getElementById('hudConditionRow');
+    if (!row) return;
+
+    function render(data) {
+        var dot = document.getElementById('hudConditionDot');
+        var val = document.getElementById('hudValCondition');
+        if (!dot || !val) return;
+        var mode = (data && data.dispatch_mode) || 'auto';
+        var diverted = mode === 'platform' || mode === 'news';
+        var drActive = !!(data && data.dr_mode === true);
+        var critical = (((data && data.counts) || {}).critical || 0) > 0;
+        var state = drActive ? 'dr' : critical ? 'critical' : diverted ? 'diverted' : null;
+        if (!state) { row.style.display = 'none'; return; }
+        var text, color;
+        if (state === 'dr') {
+            text = 'RED ALERT · STARBASE LOST COMMUNICATION — running on Citadel standby';
+            color = '#ef4444';
+        } else if (state === 'critical') {
+            text = 'CRITICAL ALERTS ACTIVE — check notifications';
+            color = '#ef4444';
+        } else {
+            text = 'DIVERTED · agent mobility profile: ' + String(mode).toUpperCase() + ' priority';
+            color = '#ffcc00';
+        }
+        val.textContent = text;
+        val.style.color = color;
+        dot.style.background = color;
+        dot.style.boxShadow = '0 0 8px ' + color;
+        row.style.display = '';
+    }
+
+    // Exposed so a live browser drive can exercise the renderer with a synthetic
+    // payload without touching prod flags (ARCHIE_DR_MODE sheds inference — never
+    // set it to test UI).
+    window._dashRenderCondition = render;
+
+    function poll() {
+        fetch('/api/alerts/unified')
+            .then(function (r) { return r.json(); })
+            .then(function (d) { if (d && d.success) render(d); })
+            .catch(function () { /* network blip — keep last rendered state */ });
+    }
+    poll();
+    setInterval(poll, 60000);
+})();

@@ -210,6 +210,16 @@
                         <span class="hud-status-value" id="hudValArchie" data-i18n="status.online">ONLINE</span>
                         <span class="hud-status-extra"><span data-i18n="hud.uptime">UPTIME</span>: <span id="hudValUptime">--h --m</span></span>
                     </div>
+                    <!-- Standing-condition row (#5300): /dashboard has no LCARS header banner
+                         (the include is tool-pages-only), so the divert/DR condition renders
+                         HERE, under AI CORE / A.R.C.H.I.E. Hidden when normal — an always-
+                         present badge stops being read. Written by dashboard.js, textContent
+                         only, single poller + single writer (the #2463 two-writers lesson). -->
+                    <div class="hud-status-row" id="hudConditionRow" style="display:none;">
+                        <span class="hud-status-label" data-i18n="hud.condition">CONDITION</span>
+                        <div class="hud-status-dot" id="hudConditionDot"></div>
+                        <span class="hud-status-value" id="hudValCondition"></span>
+                    </div>
                 </div>
                 <div class="lcars-footer-bar dash-footer-bar">
                     <span class="lcars-footer-stardate" id="hudStardate" data-i18n="dashboard_hud_stardate">SD 79145.7</span>

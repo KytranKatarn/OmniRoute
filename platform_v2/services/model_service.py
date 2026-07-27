@@ -22,7 +22,26 @@ logger = logging.getLogger(__name__)
 _DEFAULT_OLLAMA_HOST = "host.docker.internal:11434"
 _CACHE_TTL_SECONDS = 30
 _DEFAULT_RAM_BUDGET_GB = 102.4  # 80% of 128 GB
-_DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB
+# VRAM capacity. TWO numbers, because they answer two DIFFERENT questions (#5271).
+#
+#   _VRAM_TOTAL_GB        — how much VRAM the box has in AGGREGATE. Different models
+#                           legitimately live on different cards, so residency budgets
+#                           against the SUM.
+#   _VRAM_LARGEST_GPU_GB  — the biggest SINGLE card. A model cannot span cards (the hub's
+#                           are compute capability 6.1 and 5.2), so ANY ONE model must fit
+#                           inside this, no matter how much aggregate VRAM is free.
+#
+# This replaced a single `_DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB`, written
+# before the TITAN X 12 GB was installed 2026-07-25. For two days the platform believed it
+# had 8 GB while sitting on 20 GB: get_available_vram() under-reported, the per-model fit
+# below failed, and load_model() sent `options.num_gpu = 0` — actively FORCING CPU. Measured
+# 2026-07-27: both GPUs completely idle while qwen2.5:7b ran 100% CPU with 12 GB free.
+#
+# Env-overridable so a hardware change is a config edit, not a code edit — a bare constant
+# is exactly what went stale. Keep these in step with `remote_nodes.gpu_vram_gb` (largest
+# single) and `extra_capabilities.gpu_vram_total_gb` for the hub row. See .claude/rules/fleet.md.
+_VRAM_TOTAL_GB = float(os.getenv("ARCHIE_VRAM_TOTAL_GB", "20.0"))  # TITAN 12 + M4000 8
+_VRAM_LARGEST_GPU_GB = float(os.getenv("ARCHIE_VRAM_LARGEST_GPU_GB", "12.0"))  # TITAN X
 
 # Multiplier applied to a model's weight size before deciding it fits in free VRAM.
 # Covers KV cache + runtime overhead, which the raw weight figure excludes. Deliberately
@@ -168,11 +187,47 @@ class ModelService:
         return self.ram_budget_gb - used
 
     def get_available_vram(self) -> float:
-        """Return GB of GPU VRAM still free."""
+        """Return GB of GPU VRAM still free, AGGREGATED across every card."""
         if not self._is_cache_fresh():
             self._refresh_cache()
         used = sum(m.get("size_vram", 0) / (1024**3) for m in self._loaded_cache)
-        return max(0.0, _DEFAULT_VRAM_BUDGET_GB - used)
+        return max(0.0, _VRAM_TOTAL_GB - used)
+
+    def get_gpu_fit_budget(self) -> float:
+        """
+        GB of VRAM a SINGLE model may occupy right now (#5271).
+
+        Two independent ceilings, so take the lower:
+          * aggregate free  — cannot use VRAM that other models already hold
+          * largest card    — a model cannot SPAN cards (mixed compute capability
+                              6.1 / 5.2 on the hub), so no single model fits in
+                              more than the biggest device, however much
+                              aggregate VRAM happens to be free.
+
+        Using aggregate alone would claim a 16 GB model fits on a 12 GB card.
+        Using the largest card alone would ignore VRAM already consumed.
+
+        WORST-CASE PLACEMENT (F.O.R.G.E. review of PR #2500). Ollama's /api/ps
+        reports size_vram per MODEL but never says WHICH card holds it, so the
+        residents' distribution is unknowable here. Naively subtracting only
+        from the aggregate over-reports whenever they are concentrated on the
+        big card: TITAN 12 + Quadro 8 with 8 GB resident ON THE TITAN gives
+        aggregate free 12 and would hand out a 12 GB budget, while the TITAN
+        actually has 4 GB free and the Quadro 8 — so a 10 GB model would be told
+        it fits when NEITHER card can hold it.
+
+        So assume the pessimal distribution: every resident byte sits on the
+        largest card. This deliberately UNDER-reports when they are really on
+        the smaller card, and that is the correct direction to be wrong in —
+        per _GPU_FIT_HEADROOM above, over-estimating costs a CPU load (slow but
+        correct) whereas under-estimating means a partial offload or an eviction
+        of the warm set.
+
+        Removing the guesswork needs real per-card telemetry — task #5273.
+        """
+        used = max(0.0, _VRAM_TOTAL_GB - self.get_available_vram())
+        largest_card_free = max(0.0, _VRAM_LARGEST_GPU_GB - used)
+        return min(self.get_available_vram(), largest_card_free)
 
     def is_model_loaded(self, model: str) -> bool:
         """Return True if *model* is currently loaded."""
@@ -218,8 +273,12 @@ class ModelService:
             # We use budget threshold rather than needed_gb because needed_gb is a RAM
             # estimate — actual VRAM footprint for quantized models is different.
             # Small models (<= 4 GB) typically run on CPU; skip the VRAM check.
-            vram_threshold = _DEFAULT_VRAM_BUDGET_GB * 0.9
-            vram_ok = needed_gb <= 4.0 or self.get_available_vram() >= vram_threshold
+            # #5271: ask whether THIS model fits, not whether the GPU is nearly empty.
+            # The old rule was `available >= budget * 0.9`, which scales with the budget:
+            # correcting 8 -> 20 GB would have raised the bar to 18 GB free and pinned
+            # even MORE work to CPU. A proportional threshold can never express "a 4.2 GB
+            # model fits in 12 GB while a 3 GB model is already resident".
+            vram_ok = needed_gb <= 4.0 or self.get_gpu_fit_budget() >= needed_gb * _GPU_FIT_HEADROOM
             return ram_ok and vram_ok
 
         if _capacity_ok():
@@ -307,12 +366,17 @@ class ModelService:
                 # HEADROOM covers KV cache + runtime overhead on top of the weights.
                 pin_to_cpu = True
                 try:
-                    free_vram = self.get_available_vram()
+                    # #5271: budget for ONE model = min(aggregate free, largest single
+                    # card). Previously this asked get_available_vram(), which measured
+                    # against a hardcoded 8 GB (the Quadro) and so under-reported by the
+                    # entire TITAN. qwen2.5:7b needed 4.2 * 1.4 = 5.88 GB and was told
+                    # 5.44 GB was free, so it pinned to CPU while 12 GB sat idle.
+                    free_vram = self.get_gpu_fit_budget()
                     needed = self.estimate_model_size(model) * _GPU_FIT_HEADROOM
                     if free_vram >= needed:
                         pin_to_cpu = False
                         logger.info(
-                            "model_service: %s GPU-eligible (%.1f GB free >= %.1f GB needed) — not pinning to CPU",
+                            "model_service: %s GPU-eligible (%.1f GB budget >= %.1f GB needed) — not pinning to CPU",
                             model,
                             free_vram,
                             needed,

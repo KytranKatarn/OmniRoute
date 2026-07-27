@@ -4912,6 +4912,80 @@ function startFleetRefresh() {
    DISPATCH QUEUE & MODEL LOAD STATUS — task #2522
    All values are escaped with escHtml() before DOM insertion.
    ============================================================ */
+// #5321b: click-to-edit for the hardware-rest strip. The GET/POST
+// /api/fleet/rest-mode endpoint existed with NO UI caller — which is exactly
+// how the schedule went invisible. Inline editor, textContent-only labels;
+// Save POSTs then re-renders the strip from fresh server state.
+function _openRestEditor() {
+    var strip = document.getElementById('fleetRestStrip');
+    if (!strip || strip.dataset.editing === '1') return;
+    fetch('/tools/department-hq/api/fleet/rest-mode')
+        .then(function(r) { return r.json(); })
+        .then(function(cfg) {
+            if (!cfg.success) return;
+            strip.dataset.editing = '1';
+            strip.textContent = '';
+            strip.style.cursor = 'default';
+            var mk = function(tag, txt) {
+                var e = document.createElement(tag);
+                if (txt) e.textContent = txt;
+                return e;
+            };
+            var enabled = document.createElement('input');
+            enabled.type = 'checkbox';
+            enabled.checked = !!cfg.enabled;
+            enabled.id = 'restEditEnabled';
+            var lab = mk('label', ' rest enabled ');
+            lab.htmlFor = 'restEditEnabled';
+            var mkHourSel = function(selected) {
+                var sel = document.createElement('select');
+                sel.style.cssText = 'font-size:0.75rem;background:rgba(0,0,0,0.3);color:inherit;border:1px solid rgba(255,255,255,0.2);border-radius:4px;';
+                for (var h = 0; h < 24; h++) {
+                    var o = mk('option', (h < 10 ? '0' : '') + h + ':00');
+                    o.value = h;
+                    if (h === selected) o.selected = true;
+                    sel.appendChild(o);
+                }
+                return sel;
+            };
+            var selStart = mkHourSel(cfg.start_hour), selEnd = mkHourSel(cfg.end_hour);
+            var save = mk('button', 'Save'), cancel = mk('button', 'Cancel');
+            [save, cancel].forEach(function(b) {
+                b.style.cssText = 'margin-left:8px;padding:1px 10px;font-size:0.72rem;border-radius:4px;cursor:pointer;';
+            });
+            save.addEventListener('click', function(ev) {
+                ev.stopPropagation();
+                fetch('/tools/department-hq/api/fleet/rest-mode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        enabled: enabled.checked,
+                        start_hour: parseInt(selStart.value, 10),
+                        end_hour: parseInt(selEnd.value, 10),
+                    }),
+                }).then(function(r) { return r.json(); }).then(function() {
+                    delete strip.dataset.editing;
+                    loadQueueStatus();
+                }).catch(function() { delete strip.dataset.editing; loadQueueStatus(); });
+            });
+            cancel.addEventListener('click', function(ev) {
+                ev.stopPropagation();
+                delete strip.dataset.editing;
+                loadQueueStatus();
+            });
+            strip.appendChild(mk('span', '🛠 Rest schedule: '));
+            strip.appendChild(enabled);
+            strip.appendChild(lab);
+            strip.appendChild(mk('span', 'window '));
+            strip.appendChild(selStart);
+            strip.appendChild(mk('span', ' → '));
+            strip.appendChild(selEnd);
+            strip.appendChild(mk('span', ' ET'));
+            strip.appendChild(save);
+            strip.appendChild(cancel);
+        });
+}
+
 function loadQueueStatus() {
     fetch('/tools/department-hq/api/fleet/queue-status')
         .then(function(r) { return r.json(); })
@@ -4944,7 +5018,9 @@ function loadQueueStatus() {
                     'font-size:0.78rem;letter-spacing:0.03em;display:none;';
                 qpAnchor.parentNode.insertBefore(restStrip, qpAnchor);
             }
-            if (restStrip) {
+            if (restStrip && restStrip.dataset.editing === '1') {
+                // #5321b: an inline edit is open — the 10s poll must not clobber it.
+            } else if (restStrip) {
                 var rest = data.rest;
                 if (!rest) {
                     restStrip.style.display = 'none';
@@ -4966,10 +5042,16 @@ function loadQueueStatus() {
                                ' is NOT armed · now ' + rest.now_et;
                         color = '#f59e0b'; bg = 'rgba(245,158,11,0.10)';
                     }
-                    restStrip.textContent = text;
+                    restStrip.textContent = text + '  ✎';
                     restStrip.style.color = color;
                     restStrip.style.background = bg;
                     restStrip.style.display = '';
+                    restStrip.style.cursor = 'pointer';
+                    restStrip.title = 'Click to edit the rest schedule';
+                    if (!restStrip.dataset.wired) {
+                        restStrip.dataset.wired = '1';
+                        restStrip.addEventListener('click', _openRestEditor);
+                    }
                 }
             }
 

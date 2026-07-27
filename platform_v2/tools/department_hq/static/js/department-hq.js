@@ -5528,12 +5528,13 @@ function updateRestModeUI(data) {
     var status = document.getElementById('restModeStatus');
     if (!btn) return;
     btn.dataset.enabled = data.enabled ? 'true' : 'false';
-    // #5321c: dock terminology (owner: "ships connected to cluster") + the REAL
-    // configured window from the API instead of a hardcoded '8PM–6AM ET'.
+    // #5321d: dock semantics per the owner — DOCKED = connected to the cluster
+    // and serving; UNDOCKED = Starships detached (resting). The lit state is
+    // UNDOCKED ("light up when agents are on rest"). Real window from the API.
     var windowLabel = data.rest_window || '';
     if (data.enabled && data.active_now) {
-        // DOCKED — ships resting at the starbase; blue glow
-        btn.textContent = '⚓ DOCKED';
+        // UNDOCKED — Starships detached from the cluster, resting; blue glow
+        btn.textContent = '⚓ UNDOCKED';
         btn.style.color = '#60a5fa';
         btn.style.borderColor = '#60a5fa';
         btn.style.boxShadow = '0 0 6px #60a5fa66';
@@ -5542,11 +5543,11 @@ function updateRestModeUI(data) {
             status.style.whiteSpace = 'pre-line';
             status.style.lineHeight = '1.3';
             status.style.color = '#60a5fa';
-            status.textContent = '● FLEET DOCKED' + (windowLabel ? '\n' + windowLabel : '');
+            status.textContent = '● STARSHIPS UNDOCKED' + (windowLabel ? '\n' + windowLabel : '');
         }
     } else if (data.enabled) {
-        // DOCK ARMED — schedule on, ships still out; amber
-        btn.textContent = '⚓ DOCK ARMED';
+        // DOCKED, undock scheduled — ships serving, will detach in the window; amber
+        btn.textContent = '⚓ DOCKED';
         btn.style.color = '#f59e0b';
         btn.style.borderColor = '#f59e0b';
         btn.style.boxShadow = 'none';
@@ -5555,11 +5556,11 @@ function updateRestModeUI(data) {
             status.style.whiteSpace = 'pre-line';
             status.style.lineHeight = '1.3';
             status.style.color = '#f59e0b';
-            status.textContent = '🕐 ' + (windowLabel || 'scheduled');
+            status.textContent = '🕐 undock ' + (windowLabel || 'scheduled');
         }
     } else {
-        // UNDOCKED — schedule off, ships work around the clock; dim
-        btn.textContent = '⚓ UNDOCKED';
+        // DOCKED — schedule off, ships connected around the clock; dim
+        btn.textContent = '⚓ DOCKED';
         btn.style.color = '#94a3b8';
         btn.style.borderColor = '#334155';
         btn.style.boxShadow = 'none';

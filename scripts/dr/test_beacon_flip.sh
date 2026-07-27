@@ -19,7 +19,14 @@
 #   hostname that must keep answering would have been silently abandoned.
 # ============================================================================
 set -uo pipefail
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Resolve beacon_flip.sh RELATIVE TO THIS FILE, because this test runs from two
+# different layouts: the repo (scripts/dr/) and the flat deployed DR directory
+# on boston-2 (/opt/archie-dr/). It is a sibling in BOTH, whereas the old
+# "$(dirname $0)/../.." resolved to /opt on boston-2, so `source` silently
+# failed, every helper was undefined, and 6 assertions "passed" vacuously.
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FLIP="$HERE/beacon_flip.sh"
+[ -f "$FLIP" ] || { echo "FATAL: beacon_flip.sh not found beside $0"; exit 2; }
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 
@@ -58,7 +65,12 @@ export -f caddy systemctl
 
 export HUB_MESH=100.64.0.4
 # shellcheck disable=SC1091
-source "$REPO/scripts/dr/beacon_flip.sh"
+source "$FLIP"
+# Fail LOUD if the source did not actually define the helpers. Without this the
+# suite reports "6 pass" against undefined functions — a false partial success.
+for fn in beacon_flip_ports beacon_hub_host_for_port; do
+    type "$fn" >/dev/null 2>&1 || { echo "FATAL: $fn undefined after sourcing $FLIP"; exit 2; }
+done
 
 touch "$T/fakekey"
 FLEET_KEY="$T/fakekey"

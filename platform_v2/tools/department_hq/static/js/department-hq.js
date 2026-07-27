@@ -5424,7 +5424,7 @@ function loadClusterActivity() {
 
             // Sync rest mode button state from cluster-activity response
             if (typeof data.rest_enabled !== 'undefined') {
-                updateRestModeUI({enabled: data.rest_enabled, active_now: data.rest_active});
+                updateRestModeUI({enabled: data.rest_enabled, active_now: data.rest_active, rest_window: data.rest_window});
             }
         })
         .catch(function() {});
@@ -5528,8 +5528,12 @@ function updateRestModeUI(data) {
     var status = document.getElementById('restModeStatus');
     if (!btn) return;
     btn.dataset.enabled = data.enabled ? 'true' : 'false';
+    // #5321c: dock terminology (owner: "ships connected to cluster") + the REAL
+    // configured window from the API instead of a hardcoded '8PM–6AM ET'.
+    var windowLabel = data.rest_window || '';
     if (data.enabled && data.active_now) {
-        // RESTING — blue glow, pulsing dot
+        // DOCKED — ships resting at the starbase; blue glow
+        btn.textContent = '⚓ DOCKED';
         btn.style.color = '#60a5fa';
         btn.style.borderColor = '#60a5fa';
         btn.style.boxShadow = '0 0 6px #60a5fa66';
@@ -5538,10 +5542,11 @@ function updateRestModeUI(data) {
             status.style.whiteSpace = 'pre-line';
             status.style.lineHeight = '1.3';
             status.style.color = '#60a5fa';
-            status.textContent = '● RESTING';
+            status.textContent = '● FLEET DOCKED' + (windowLabel ? '\n' + windowLabel : '');
         }
     } else if (data.enabled) {
-        // SCHEDULED — amber, armed but waiting
+        // DOCK ARMED — schedule on, ships still out; amber
+        btn.textContent = '⚓ DOCK ARMED';
         btn.style.color = '#f59e0b';
         btn.style.borderColor = '#f59e0b';
         btn.style.boxShadow = 'none';
@@ -5550,10 +5555,11 @@ function updateRestModeUI(data) {
             status.style.whiteSpace = 'pre-line';
             status.style.lineHeight = '1.3';
             status.style.color = '#f59e0b';
-            status.textContent = '🕐 SCHEDULED\n8PM–6AM ET';
+            status.textContent = '🕐 ' + (windowLabel || 'scheduled');
         }
     } else {
-        // OFF — dim, no indicator
+        // UNDOCKED — schedule off, ships work around the clock; dim
+        btn.textContent = '⚓ UNDOCKED';
         btn.style.color = '#94a3b8';
         btn.style.borderColor = '#334155';
         btn.style.boxShadow = 'none';

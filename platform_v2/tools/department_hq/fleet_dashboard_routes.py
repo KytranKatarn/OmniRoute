@@ -1805,15 +1805,20 @@ def register_dashboard_routes(bp, auth_decorator):
                     start_hour=cfg.get("start_hour", 20),
                     end_hour=cfg.get("end_hour", 6),
                     active_now=is_fleet_rest_active(),
+                    # #5321c: the real window, so no UI ever hardcodes '8PM–6AM' again
+                    rest_window=f"{int(cfg.get('start_hour', 20)):02d}:00–{int(cfg.get('end_hour', 6)):02d}:00 ET",
                 )
             data = request.get_json(silent=True) or {}
             enabled = bool(data.get("enabled", False))
-            set_fleet_rest_config(
+            start_hour = int(data.get("start_hour", 20))
+            end_hour = int(data.get("end_hour", 6))
+            set_fleet_rest_config(enabled=enabled, start_hour=start_hour, end_hour=end_hour)
+            return jsonify(
+                success=True,
                 enabled=enabled,
-                start_hour=int(data.get("start_hour", 20)),
-                end_hour=int(data.get("end_hour", 6)),
+                active_now=is_fleet_rest_active(),
+                rest_window=f"{start_hour:02d}:00–{end_hour:02d}:00 ET",
             )
-            return jsonify(success=True, enabled=enabled, active_now=is_fleet_rest_active())
         except Exception as exc:
             logger.error("api_fleet_rest_mode: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
@@ -2146,6 +2151,7 @@ def register_dashboard_routes(bp, auth_decorator):
                 throughput_total=throughput_total,
                 rest_enabled=rest_cfg.get("enabled", False),
                 rest_active=is_fleet_rest_active(),
+                rest_window=f"{int(rest_cfg.get('start_hour', 20)):02d}:00–{int(rest_cfg.get('end_hour', 6)):02d}:00 ET",
             )
             _cache["payload"] = payload
             _cache["ts"] = time.monotonic()

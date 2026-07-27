@@ -35,11 +35,24 @@ _ENV_KEYS = {
     "archie": "ARCHIE_ARCHIE_PASSWORD",
 }
 
-# Both credential stores: the HOST root .env (the login skill greps it; the scheduler
-# container reaches it via its /mnt/archie_brain mount) and the container-visible
-# /app/.env (= platform_v2/.env — the two-env-files rule). Missing paths are skipped,
-# never fatal: the DB hash is the source of truth, env files are the skill's cache.
+# Legacy env stores, best-effort only. #5311 CORRECTION: NEITHER container can
+# actually see /mnt/archie_brain/.env (verified 2026-07-27 — the earlier claim
+# that the scheduler reaches it was wrong; that is exactly why #5303's rotation
+# reported env_written=['/app/.env'] and the root .env needed a hand-sync).
+# Missing paths are skipped, never fatal: the DB hash is the source of truth.
 _DEFAULT_ENV_PATHS = ("/mnt/archie_brain/.env", "/app/.env")
+
+# #5311: the CANONICAL store. A single-FILE rw bind mount of the root .env
+# would break the atomic tmp+rename writer (a file mount pins the inode), so
+# rotation writes agent_passwords.env inside the scheduler's EXISTING rw
+# directory mount /mnt/archie_brain/credentials -> /app/credentials (0600,
+# atomic rename — directory mounts survive renames; host-visible, so the
+# login skill reads it first). Container path first; host path covers
+# host-run invocations and tests.
+_CREDENTIALS_FILE_CANDIDATES = (
+    "/app/credentials/agent_passwords.env",
+    "/mnt/archie_brain/credentials/agent_passwords.env",
+)
 
 
 def generate_agent_password() -> str:
@@ -49,16 +62,22 @@ def generate_agent_password() -> str:
     return secrets.token_urlsafe(18) + "!A9x"
 
 
-def _rewrite_env_line(path: str, key: str, value: str) -> bool:
+def _rewrite_env_line(path: str, key: str, value: str, create: bool = False) -> bool:
     """Replace (or append) ``KEY=value`` in an env file, atomically, preserving mode.
 
     Atomic tmp+rename in the SAME directory so a crash mid-write can never leave a
     truncated .env — these files hold every platform secret, not just ours.
+    ``create=True`` (#5311) starts a missing file at mode 0600 — used only for the
+    canonical credentials store, never for the shared .env files.
     """
-    if not os.path.isfile(path):
+    exists = os.path.isfile(path)
+    if not exists and not create:
         return False
-    with open(path, "r") as fh:
-        lines = fh.readlines()
+    if exists:
+        with open(path, "r") as fh:
+            lines = fh.readlines()
+    else:
+        lines = []
     prefix = key + "="
     replaced = False
     for i, line in enumerate(lines):
@@ -70,12 +89,12 @@ def _rewrite_env_line(path: str, key: str, value: str) -> bool:
         if lines and not lines[-1].endswith("\n"):
             lines[-1] += "\n"
         lines.append(f"{key}={value}\n")
-    st = os.stat(path)
+    mode = (os.stat(path).st_mode & 0o777) if exists else 0o600
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".env-rotate-")
     try:
         with os.fdopen(fd, "w") as fh:
             fh.writelines(lines)
-        os.chmod(tmp, st.st_mode & 0o777)
+        os.chmod(tmp, mode)
         os.replace(tmp, path)
     except Exception:
         try:
@@ -84,6 +103,26 @@ def _rewrite_env_line(path: str, key: str, value: str) -> bool:
             pass
         raise
     return True
+
+
+def _write_credentials_file(key: str, value: str) -> str | None:
+    """#5311: persist the rotated secret to the canonical credentials store.
+
+    Picks the first candidate whose PARENT directory exists (container path in
+    the scheduler, host path for host-run invocations) and creates/updates
+    ``agent_passwords.env`` at mode 0600 via the same atomic writer. Returns
+    the path written, or None when no candidate directory is reachable — the
+    caller treats that like any other missing env store (DB stays canonical
+    for AUTH; this file is canonical for the agents' own login lookup).
+    """
+    for candidate in _CREDENTIALS_FILE_CANDIDATES:
+        try:
+            if os.path.isdir(os.path.dirname(candidate)):
+                if _rewrite_env_line(candidate, key, value, create=True):
+                    return candidate
+        except Exception as exc:  # noqa: BLE001 — try the next candidate, never abort rotation
+            logger.warning("agent password rotation: credentials store %s failed: %s", candidate, exc)
+    return None
 
 
 def reset_agent_password(username: str, env_paths: tuple = _DEFAULT_ENV_PATHS) -> dict:
@@ -117,6 +156,11 @@ def reset_agent_password(username: str, env_paths: tuple = _DEFAULT_ENV_PATHS) -
 
     key = _ENV_KEYS[username]
     env_written = []
+    # #5311: canonical store FIRST — the credentials-dir file is the one place
+    # both the executing container and the host (login skill) can see.
+    credentials_file = _write_credentials_file(key, new_password)
+    if credentials_file:
+        env_written.append(credentials_file)
     for path in env_paths:
         try:
             if _rewrite_env_line(path, key, new_password):
@@ -135,5 +179,6 @@ def reset_agent_password(username: str, env_paths: tuple = _DEFAULT_ENV_PATHS) -
         "username": username,
         "user_id": row["id"] if isinstance(row, dict) else row[0],
         "env_written": env_written,
-        "note": "password stored only in the env files; never logged or returned",
+        "credentials_file": credentials_file,
+        "note": "password stored only in the credential/env files; never logged or returned",
     }

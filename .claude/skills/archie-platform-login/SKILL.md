@@ -11,17 +11,22 @@ description: Log in to the A.R.C.H.I.E. platform using Claude's agent account. N
 
 Never use `kytran`, never use `admin`, never guess a password. If `claude@` fails, stop and tell the user — do not try other accounts.
 
-| Who | Username | Password env var | File |
-|-----|----------|-----------------|------|
-| **Claude Code** | `claude` | `ARCHIE_CLAUDE_PASSWORD` | `/mnt/archie_brain/.env` |
-| **A.R.C.H.I.E.** | `archie` | `ARCHIE_ARCHIE_PASSWORD` | `/mnt/archie_brain/.env` |
+| Who | Username | Password env var | Canonical file (#5311) |
+|-----|----------|-----------------|------------------------|
+| **Claude Code** | `claude` | `ARCHIE_CLAUDE_PASSWORD` | `/mnt/archie_brain/credentials/agent_passwords.env` (fallback: root `.env`) |
+| **A.R.C.H.I.E.** | `archie` | `ARCHIE_ARCHIE_PASSWORD` | `/mnt/archie_brain/credentials/agent_passwords.env` (fallback: root `.env`) |
 | **Kytran (human)** | `kytran` | **NEVER TOUCH** | — |
 
 ## Step 1: Read credentials
 
+The Tier-2-approved rotation (#5303/#5311) writes `agent_passwords.env` in the
+credentials dir — the ONE store both the executing container and the host can
+see. Read it FIRST; the root `.env` is a legacy fallback that may lag a rotation.
+
 ```bash
+CRED_FILE=/mnt/archie_brain/credentials/agent_passwords.env
 CLAUDE_USER=$(grep '^ARCHIE_CLAUDE_USERNAME=' /mnt/archie_brain/.env | cut -d= -f2)
-CLAUDE_PASS=$(grep '^ARCHIE_CLAUDE_PASSWORD=' /mnt/archie_brain/.env | cut -d= -f2)
+CLAUDE_PASS=$(grep -s '^ARCHIE_CLAUDE_PASSWORD=' "$CRED_FILE" /mnt/archie_brain/.env | head -1 | cut -d= -f2)
 ```
 
 ## Step 2: Navigate to platform

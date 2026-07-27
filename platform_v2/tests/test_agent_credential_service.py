@@ -13,7 +13,19 @@ import os
 import re
 from contextlib import contextmanager
 
+import pytest
+
 import services.agent_credential_service as acs
+
+
+@pytest.fixture(autouse=True)
+def _isolate_credentials_store(monkeypatch):
+    """#5311: reset_agent_password now writes the REAL host credentials dir
+    whenever it is reachable — an unisolated run of this suite once wrote a
+    bogus agent_passwords.env onto the live hub (removed by hand). Default
+    every test to NO reachable candidates; tests that exercise the store
+    monkeypatch their own tmp-path candidates on top of this."""
+    monkeypatch.setattr(acs, "_CREDENTIALS_FILE_CANDIDATES", ())
 
 
 class _RecordingDB:
@@ -129,3 +141,60 @@ class TestDbSemantics:
         res = acs.reset_agent_password("claude", env_paths=())
         assert res["success"] is False
         assert "not found or inactive" in res["error"]
+
+
+class TestCredentialsFileStore:
+    """#5311: neither archie_platform nor archie_scheduler can see the root
+    .env at all, and a single-FILE rw bind mount would break the atomic
+    tmp+rename writer (a file mount pins the inode). The scheduler's EXISTING
+    rw directory mount /mnt/archie_brain/credentials -> /app/credentials
+    becomes the canonical store (agent_passwords.env, 0600, atomic rename —
+    directory mounts survive renames); the .env writes stay best-effort."""
+
+    def test_create_missing_file_with_0600(self, tmp_path):
+        target = tmp_path / "agent_passwords.env"
+        wrote = acs._rewrite_env_line(str(target), "ARCHIE_CLAUDE_PASSWORD", "s3cret!A9x", create=True)
+        assert wrote is True
+        assert target.read_text() == "ARCHIE_CLAUDE_PASSWORD=s3cret!A9x\n"
+        assert (os.stat(target).st_mode & 0o777) == 0o600
+
+    def test_without_create_missing_file_still_skipped(self, tmp_path):
+        target = tmp_path / "nope.env"
+        assert acs._rewrite_env_line(str(target), "K", "v") is False
+        assert not target.exists()
+
+    def test_write_credentials_file_picks_first_existing_parent(self, tmp_path, monkeypatch):
+        good = tmp_path / "credentials"
+        good.mkdir()
+        monkeypatch.setattr(
+            acs,
+            "_CREDENTIALS_FILE_CANDIDATES",
+            (str(tmp_path / "missing" / "agent_passwords.env"), str(good / "agent_passwords.env")),
+        )
+        path = acs._write_credentials_file("ARCHIE_ARCHIE_PASSWORD", "pw!A9x")
+        assert path == str(good / "agent_passwords.env")
+        assert "ARCHIE_ARCHIE_PASSWORD=pw!A9x" in (good / "agent_passwords.env").read_text()
+
+    def test_write_credentials_file_none_when_no_parent(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            acs,
+            "_CREDENTIALS_FILE_CANDIDATES",
+            (str(tmp_path / "a" / "x.env"), str(tmp_path / "b" / "x.env")),
+        )
+        assert acs._write_credentials_file("K", "v") is None
+
+    def test_reset_writes_credentials_file_first_and_reports_it(self, tmp_path, monkeypatch):
+        db = _RecordingDB()
+        monkeypatch.setattr(acs, "get_db_cursor", db)
+        cred_dir = tmp_path / "credentials"
+        cred_dir.mkdir()
+        cred_file = cred_dir / "agent_passwords.env"
+        monkeypatch.setattr(acs, "_CREDENTIALS_FILE_CANDIDATES", (str(cred_file),))
+        res = acs.reset_agent_password("claude", env_paths=())
+        assert res["success"] is True
+        assert res["credentials_file"] == str(cred_file)
+        assert str(cred_file) in res["env_written"]
+        content = cred_file.read_text()
+        assert content.startswith("ARCHIE_CLAUDE_PASSWORD=")
+        secret = content.split("=", 1)[1].strip()
+        assert secret and secret not in str(res)  # result stays secret-free

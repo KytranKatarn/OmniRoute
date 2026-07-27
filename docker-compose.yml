@@ -756,6 +756,39 @@ services:
       timeout: 10s
       retries: 5
 
+  # llama.cpp server — second LOCAL inference runtime (#5317 / ADR-019 pilot).
+  # Serves qwen2.5:1.5b read-only STRAIGHT from Ollama's blob store (Ollama
+  # blobs ARE GGUF files — zero duplication). Docker-internal only: reached by
+  # the dispatcher at http://archie_llamacpp:8080, no host port. CPU-only by
+  # design (never competes for the 8GB GPUs); --parallel 4 is the strategic
+  # win over Ollama NUM_PARALLEL=1 (spike: x3.73 concurrency scaling, 24.2
+  # tok/s single-stream, ~2s cold start, 330MB RSS). Routing is kill-switched
+  # OFF in platform_settings (llamacpp:enabled) — with this container down or
+  # unhealthy the dispatcher just falls through to Ollama. No healthcheck: the
+  # image ships no python3/curl to probe with, and health here is advisory
+  # anyway (failure = fallback, never an outage).
+  archie_llamacpp:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: archie_llamacpp
+    restart: unless-stopped
+    command: >
+      -m /models/sha256-183715c435899236895da3869489cc30ac241476b4971a20285b1a462818a5b4
+      --alias qwen2.5:1.5b
+      --host 0.0.0.0 --port 8080 --parallel 4 -c 8192 --threads 8
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    volumes:
+      - /mnt/llm_drive/ollama/models/blobs:/models:ro
+    mem_limit: 4g
+    cpus: 8.0
+    cap_drop:
+      - ALL
+    environment:
+      - TZ=America/Toronto
+    networks:
+      - archie_internal
+
   # Headscale — Self-hosted Tailscale coordination server (Fleet Mesh VPN)
   archie_headscale:
     image: headscale/headscale:0.25

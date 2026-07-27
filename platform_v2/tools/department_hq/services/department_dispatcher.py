@@ -4215,6 +4215,40 @@ class DepartmentDispatcher:
                     "provider": "ollama",
                 }
 
+            # ── #5317 / ADR-019 pilot: kill-switched llama.cpp local provider ──
+            # OFF unless platform_settings llamacpp:enabled='true' AND this
+            # (capability, model) is allowlisted. ANY failure falls straight
+            # through to the normal Ollama call below — the pilot can never be
+            # a new failure mode for callers. provider='llamacpp' in the result
+            # is the telemetry split for the side-by-side comparison week.
+            try:
+                from ai_bridge import llamacpp_client
+
+                if llamacpp_client.should_route(capability, model, json_mode=json_mode):
+                    try:
+                        _llama_result = llamacpp_client.chat(
+                            prompt,
+                            model=model,
+                            system_prompt=system_prompt,
+                            temperature=temperature,
+                            timeout=min(timeout, 180),
+                            options=_llm_options,
+                        )
+                        if _llama_result.get("success"):
+                            logger.info(
+                                "[BridgeDispatcher] llamacpp pilot served model=%s capability=%s",
+                                model,
+                                capability,
+                            )
+                            return _llama_result
+                    except Exception as _llama_exc:
+                        logger.warning(
+                            "[BridgeDispatcher] llamacpp pilot failed (%s) — falling back to Ollama",
+                            _llama_exc,
+                        )
+            except Exception:
+                pass  # pilot plumbing must never block the standard path
+
             # Standard call (routes through node_router for starship nodes)
             result = call_ollama(
                 prompt,

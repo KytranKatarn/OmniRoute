@@ -100,9 +100,12 @@ def ensure_running(timeout: int = _COLD_START_TIMEOUT) -> bool:
     Returns True if container is running (or was already running).
     Called by the dispatcher before every generate_image.
 
-    Always refreshes `last_used_at` on success so the idle-stop observer
-    cannot kill the container during a multi-minute generation that follows
-    immediately after this call.
+    Refreshes `last_used_at` on EVERY path that leaves a container running —
+    already-running, started-and-healthy, and started-but-health-timed-out —
+    so the idle-stop observer cannot kill the container during a multi-minute
+    generation that follows, NOR immediately after a wake that is still warming
+    up. The only path that does not stamp is the one where the container could
+    not be started at all (nothing was used). See #5277.
     """
     container = _get_container()
     if not container:
@@ -121,6 +124,21 @@ def ensure_running(timeout: int = _COLD_START_TIMEOUT) -> bool:
     except Exception as e:
         logger.error(f"ComfyUI cold-start failed: {e}")
         return False
+
+    # STARTING IT *IS* USE — stamp before the health wait, not only after it (#5277).
+    #
+    # We only reach here because a caller wanted ComfyUI. If we stamp only on a
+    # successful health check, a container that starts but never answers keeps a
+    # stale `last_used`, and `idle_stop_if_needed` then stops the container we
+    # just started — measured on the hub as `idle for 2995874s` (34.7 days) about
+    # 28 seconds after start. The warmer restarts it and the cycle repeats every
+    # ~2 minutes forever, firing the ComfyUI VRAM swap each time and evicting the
+    # Ollama GPU models to CPU for an SDXL load that never arrives.
+    #
+    # Stamping here bounds that: a broken ComfyUI is now reaped once per idle
+    # window instead of once per ~2 minutes. The failure path below still returns
+    # False, so callers are told the truth about readiness.
+    record_last_used()
 
     # Wait for the HTTP endpoint to answer.
     import os

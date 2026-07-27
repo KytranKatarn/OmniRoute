@@ -444,9 +444,19 @@ def _get_hub_ips() -> set:
     with many subdomains, and odd_hours_dns on nightly scheduled jobs
     (GitHub ingest, embeddings, backup cleanup) that run 0-5 AM.
 
-    Applied to dns_tunneling + odd_hours_dns ONLY. The hub is NOT
-    exempted from exfiltration or bandwidth_spikes — actual exfil from
-    the platform host would still be a real concern.
+    Applied to dns_tunneling + odd_hours_dns + (since #5308) exfiltration.
+    This REVERSES the earlier "hub stays exfil-monitored" stance, on evidence:
+    'Possible exfiltration: 192.168.1.200' fired 4x on 2026-07-27 (876 GB
+    'upload', ratio 5.6x) and both an independent triage and S.H.I.E.L.D.'s
+    delegated analysis reached the same verdict — the upload IS the hub's job:
+    Plex/Jellyfin streaming to LAN devices (the Fire TV), DR WAL streaming to
+    boston-2, nightly backup tier-sync, and mesh dispatch. Upload >> download
+    is this host's DESIGNED profile, so the ratio heuristic can only ever
+    false-positive on it. network_traffic_stats has NO destination column, so
+    a LAN-vs-WAN flow split (the correct long-term fix) needs an ingest change
+    first — until then, per-host exemption is the available lever. Residual
+    hub-egress assurance: V.I.G.I.L. compliance scans, firewall posture, and
+    ntopng's own alerting; the LAN-IP heuristics no longer watch these hosts.
 
     Source: comma-separated ANOMALY_HUB_IPS env var (hub LAN IPs) plus
     ANOMALY_FLEET_IPS (Starship/fleet node LAN IPs). Defaults cover the
@@ -456,6 +466,14 @@ def _get_hub_ips() -> set:
     raw_fleet = os.getenv("ANOMALY_FLEET_IPS", "192.168.1.245,192.168.1.246")
     combined = raw_hub + "," + raw_fleet
     return {ip.strip() for ip in combined.split(",") if ip.strip()}
+
+
+def _exfil_exempt_ip_set(iot_ips: set, upload_heavy_ips: set, hub_ips: set) -> set:
+    """#5308: the exfiltration exempt set — IoT zone + upload-heavy device types +
+    the hub/fleet hosts. The hub half is the change (see _get_hub_ips docstring for
+    the full reversal rationale). Pure and pinned by test: dropping hub_ips from
+    this union re-opens the 4-alerts-a-day media-server false positive."""
+    return set(iot_ips) | set(upload_heavy_ips) | set(hub_ips)
 
 
 def _is_trusted(ip: str, trusted: set) -> bool:
@@ -548,7 +566,10 @@ def run_all_anomaly_checks():
     suppressed_total += len(suppressed)
     # Exempt IoT zone + upload-heavy device types (streaming sticks, vacuums,
     # phones, cameras…) — all upload-only by design; the ratio fires every run.
-    exfil_exempt_ips = iot_ips | _get_upload_heavy_ips()
+    # #5308 adds the hub/fleet hosts: the hub SERVES media to the LAN (Plex/
+    # Jellyfin → Fire TV was the measured false positive) + DR/backup/mesh
+    # egress — upload >> download is its designed profile.
+    exfil_exempt_ips = _exfil_exempt_ip_set(iot_ips, _get_upload_heavy_ips(), hub_ips)
     iot_filtered = [e for e in exfil if e.get("device_ip", "") in exfil_exempt_ips]
     suppressed_iot_exfil = len(iot_filtered)
     suppressed_total += suppressed_iot_exfil

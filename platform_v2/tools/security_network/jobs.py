@@ -88,9 +88,11 @@ def discover_network_devices():
         # Save each to DB (dashboard tracking) but skip individual Telegram
         digest_lines = []
         for device in new_devices:
-            ip = device.get("ip_address", "?")
-            mac = device.get("mac_address", "?")
-            mfr = device.get("manufacturer", "Unknown")
+            # `or` (not .get default) — the keys are often PRESENT with value None,
+            # which rendered the alert title as "New device detected: None" (#5308).
+            ip = device.get("ip_address") or "?"
+            mac = device.get("mac_address") or "?"
+            mfr = device.get("manufacturer") or "Unknown"
             create_security_alert(
                 "new_device",
                 f"New device detected: {mfr}",

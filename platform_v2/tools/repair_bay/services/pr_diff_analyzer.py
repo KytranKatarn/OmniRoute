@@ -821,6 +821,45 @@ def _critiques_the_removal(issue: dict) -> bool:
     return bool(_re.search(r"\bremov|\bdelet|\bdrop(?:s|ped|ping)?\b|no longer|used to|previously", text))
 
 
+# A finding that asserts THE CHANGE ITSELF removes/deletes/drops something. Deliberately
+# NARROWER than _critiques_the_removal (which errs generous because it only ever KEEPS
+# findings): this pattern earns a DROP, and over-eager filtering is a worse bug than the one
+# being fixed. Two shapes only: a pr/patch/commit/change/diff subject before the verb
+# ("this PR removes ..."), or the verb aimed at something qualified as needed/existing
+# ("removes a needed guard"). Behavioral wording about the code's own runtime ("the handler
+# drops the connection") matches neither and keeps its severity.
+_REMOVAL_CLAIM_RE = re.compile(
+    r"\b(?:pr|patch|commit|change(?:set)?|diff)\b[^.!?]{0,60}?"
+    r"\b(?:remov(?:es|ed|ing|al)?|delet(?:es|ed|ing|ion)?|drop(?:s|ped|ping)?)\b"
+    r"|\b(?:remov(?:es|ed|ing)?|delet(?:es|ed|ing)?|drop(?:s|ped|ping)?)\s+(?:a|an|the)\s+"
+    r"(?:needed|necessary|required|important|critical|existing|original|previous)\b",
+    re.I,
+)
+
+
+def _is_removal_claim_without_removal(issue: dict, diff: str) -> bool:
+    """True for a finding asserting this PR REMOVES something when the diff deletes NOTHING (#5286).
+
+    Measured live on PR #2503: the freeform path returned "[CRITICAL] PR removes a needed
+    guard" citing ``except Exception as e:`` against a PURE-ADDITION diff — the "removed"
+    guard was the very guard the PR ADDS. Every other gate correctly passes it: the citation
+    is a real ADDED line, so grounding (#5009) and polarity (#5075) hold, and the
+    _critiques_the_removal carve-out is never consulted (it only applies to removed_only
+    evidence). The CLAIM is what is false, and it is deterministically checkable: no diff
+    with zero removed lines can support any "this PR removes X" finding.
+
+    The carve-out itself is untouched — a genuine dangerous-deletion critique (gov-watch
+    PR #45) has removed lines in its diff by definition, so this guard stands down there.
+    Fail-open: no diff -> nothing to verify -> never fires (mirrors _evidence_polarity).
+    """
+    if not diff:
+        return False
+    text = (str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", ""))).lower()
+    if not _REMOVAL_CLAIM_RE.search(text):
+        return False
+    return not _side_text(diff, "-")
+
+
 def _verify_evidence(issues: list, diff: str):
     """Split issues into (kept, dropped): drop issues whose evidence isn't a changed diff line
     (fabricated citation) OR that are a spurious 'SQL injection' flag on a parameterized query.
@@ -842,6 +881,11 @@ def _verify_evidence(issues: list, diff: str):
                                 the finding asserts a TEST "is not executed" — an assertion about
                                 RUNTIME the reviewer cannot observe from a diff (#5098). Like
                                 spurious_injection: the citation is real, the claim is not.
+      ``removal_claim_without_removal``
+                                the finding asserts this PR REMOVES something, but the diff
+                                contains ZERO removed lines — the claim is provably false
+                                (#5286). Like spurious_injection: deterministic, trusted, and
+                                says nothing bad about grounding (the citation is real).
     Only the first may influence the verdict floor.
     """
     kept, dropped = [], []
@@ -856,6 +900,8 @@ def _verify_evidence(issues: list, diff: str):
             reason = "spurious_injection"
         elif _is_unverifiable_test_execution_claim(it, diff):
             reason = "unverifiable_runtime_claim"
+        elif _is_removal_claim_without_removal(it, diff):
+            reason = "removal_claim_without_removal"
         else:
             reason = None
         if reason:

@@ -2569,40 +2569,58 @@ class AgentLoop:
         except Exception as dhq_err:
             logger.warning("media_generation_worker: DHQ agent lookup failed (non-blocking): %s", dhq_err)
 
-        # Step 2: Prefer fleet ComfyUI (RTX Starship) over hub Quadro M4000.
-        # Peek at next pending job's model to check fleet model availability.
-        # Only skip hub warmboot when fleet can actually handle that model.
-        _fleet_available = False
+        # Step 2: does the queue actually hold ComfyUI-bound work? The hub wake
+        # below is gated on this (#5277): with an EMPTY queue the worker used to
+        # wake the hub container anyway whenever fleet ComfyUI was unreachable —
+        # e.g. the whole 8PM–6AM hardware-rest window — and the container claims
+        # GPU VRAM the moment it starts (compose reserves an nvidia device), so
+        # agent inference lost the card to an SDXL load that never arrives.
+        # Cloud-contractor jobs (params.provider set to a non-comfyui value)
+        # never need a local ComfyUI, so they are excluded from this peek; a
+        # peek failure means no wake this tick, which is safe — the generate
+        # path cold-starts via comfyui_lifecycle.ensure_running itself.
+        _next_model = None
+        _comfyui_pending = False
         try:
-            from tools.media_studio.services.comfyui_manager import get_best_comfyui_url
             from database import get_db_cursor as _gdc
 
-            _next_model = None
-            try:
-                with _gdc() as (_, _cur):
-                    _cur.execute(
-                        "SELECT params->>'model' AS model FROM media_generation_queue "
-                        "WHERE status='pending' AND (params->>'provider'='comfyui' OR params->>'provider' IS NULL) "
-                        "ORDER BY created_at ASC LIMIT 1"
-                    )
-                    _row = _cur.fetchone()
-                    if _row:
-                        _next_model = _row["model"]
-            except Exception:
-                pass
-
-            _fleet_url, _fleet_node = get_best_comfyui_url(model_name=_next_model)
-            if _fleet_node:
-                logger.info(
-                    "media_generation_worker: fleet ComfyUI on %s — skipping hub warmboot",
-                    _fleet_node,
+            with _gdc() as (_, _cur):
+                _cur.execute(
+                    "SELECT params->>'model' AS model FROM media_generation_queue "
+                    "WHERE status='pending' AND (params->>'provider'='comfyui' OR params->>'provider' IS NULL) "
+                    "ORDER BY created_at ASC LIMIT 1"
                 )
-                _fleet_available = True
-        except Exception as _fe:
-            logger.debug("media_generation_worker: fleet ComfyUI check failed: %s", _fe)
+                _row = _cur.fetchone()
+                if _row:
+                    _comfyui_pending = True
+                    _next_model = _row["model"]
+        except Exception:
+            pass
 
-        if not _fleet_available:
-            # Fall back to hub ComfyUI — warm up container if stopped.
+        # Step 3: Prefer fleet ComfyUI (RTX Starship) over hub Quadro M4000 —
+        # only consulted when there is ComfyUI-bound work to place.
+        _fleet_available = False
+        if _comfyui_pending:
+            try:
+                from tools.media_studio.services.comfyui_manager import get_best_comfyui_url
+
+                _fleet_url, _fleet_node = get_best_comfyui_url(model_name=_next_model)
+                if _fleet_node:
+                    logger.info(
+                        "media_generation_worker: fleet ComfyUI on %s — skipping hub warmboot",
+                        _fleet_node,
+                    )
+                    _fleet_available = True
+            except Exception as _fe:
+                logger.debug("media_generation_worker: fleet ComfyUI check failed: %s", _fe)
+
+        if _comfyui_pending and not _fleet_available:
+            # Fall back to hub ComfyUI — warm up container if stopped. This is
+            # THE arbitration point between image gen and agent inference on the
+            # hub GPUs: the wake fires only when a real ComfyUI job is pending
+            # and no fleet node can take it, and while the container is up
+            # model_service.gpu_placement_options bars new LLM GPU admissions
+            # (#5276). The idle-stop paths return the card to inference.
             try:
                 from ai_bridge.comfyui_service import get_comfyui_service
 

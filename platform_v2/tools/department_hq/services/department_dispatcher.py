@@ -6014,7 +6014,12 @@ class DepartmentDispatcher:
                     system_prompt=system_prompt,
                     temperature=0.5,
                     max_tokens=4096,
-                    worker_type="internal",
+                    # An approved hire from propose_hire is an LLM agent — it
+                    # carries a model + capability. 'internal' (the old hardcode)
+                    # hid the new agent from every AI-roster/welfare surface
+                    # keyed on worker_type='ai' (H.A.V.E.N. #431, 2026-07-28;
+                    # P.R.O.O.F./Q.U.I.L.L. are 'ai').
+                    worker_type="ai",
                     tier=3,
                 )
             except ValueError as ve:
@@ -6051,35 +6056,51 @@ class DepartmentDispatcher:
                 department=department,
             )
 
-            # 6. INSERT into governance_audit_log
-            cur.execute(
-                """
-                INSERT INTO governance_audit_log (
-                    event_type, event_category, agent_id, action,
-                    new_value, reason, outcome
-                ) VALUES (
-                    'agent_created', 'autonomy', %s, 'create',
-                    %s, %s, 'success'
-                )
-                """,
-                (
-                    new_agent_id,
-                    json.dumps(
-                        {
-                            "name": suggested_name,
-                            "model": suggested_model,
-                            "department": department,
-                            "capability": capability,
-                            "skills": suggested_skills,
-                        }
+            # 6. Governance audit log — BEST-EFFORT bookkeeping. The agent, its
+            # skills, budget and creation event already landed via agent_service
+            # (single-writer); a bookkeeping hiccup must never convert a REAL
+            # creation into "Creation returned None". That exact inversion hit
+            # H.A.V.E.N. #431 on 2026-07-28: a refactor moved all writes to
+            # agent_service but left this raw cur.execute behind with NO cursor
+            # in scope, so EVERY approved hire NameError'd here, the approval
+            # row read 'failed', and the live agent looked like it didn't exist.
+            try:
+                conn = self._get_db()
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    INSERT INTO governance_audit_log (
+                        event_type, event_category, agent_id, action,
+                        new_value, reason, outcome
+                    ) VALUES (
+                        'agent_created', 'autonomy', %s, 'create',
+                        %s, %s, 'success'
+                    )
+                    """,
+                    (
+                        new_agent_id,
+                        json.dumps(
+                            {
+                                "name": suggested_name,
+                                "model": suggested_model,
+                                "department": department,
+                                "capability": capability,
+                                "skills": suggested_skills,
+                            }
+                        ),
+                        reason,
                     ),
-                    reason,
-                ),
-            )
-
-            conn.commit()
-            cur.close()
-            conn.close()
+                )
+                conn.commit()
+                cur.close()
+                conn.close()
+            except Exception as audit_exc:
+                logger.warning(
+                    "[BridgeDispatcher] governance audit for agent #%s failed "
+                    "(agent IS created — bookkeeping only): %s",
+                    new_agent_id,
+                    audit_exc,
+                )
 
             # Invalidate cache so the new agent gets picked up
             self._cache_time = 0
@@ -6092,13 +6113,11 @@ class DepartmentDispatcher:
             return new_agent_id
 
         except Exception as e:
+            # No function-scoped connection remains (all writes go through
+            # agent_service; the audit block manages its own) — the old
+            # conn.rollback()/cur.close() here referenced names that no longer
+            # exist and masked the real error path.
             logger.error(f"[BridgeDispatcher] _create_agent_from_approval failed: {e}")
-            try:
-                conn.rollback()
-                cur.close()
-                conn.close()
-            except Exception as _exc:
-                pass
             return None
 
     # ========================================================================

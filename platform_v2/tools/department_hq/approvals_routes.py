@@ -371,6 +371,15 @@ def list_pending_approvals():
                 category, display = "linkedin_like", f"LinkedIn {str(_rx).title()}"
             elif at == "linkedin_comment":
                 category, display = "linkedin_comment", "LinkedIn Comment"
+            elif at == "pr_merge":
+                # Tier-3 / sensitive-path PR awaiting Kytran's merge (#5283).
+                # Without this it rendered as category 'other' with the raw
+                # action_type as its label — present in the tab, but not
+                # recognisable as the merge decision it is.
+                _ad = r.get("action_data") or {}
+                _pr = _ad.get("pr_number") if isinstance(_ad, dict) else None
+                _ptitle = (_ad.get("title") or "") if isinstance(_ad, dict) else ""
+                category, display = "pr_merge", f"🔀 Merge PR #{_pr} — {_ptitle[:60]}"
             elif at == "contractor_dispatch":
                 category, display = "contractor_dispatch", "Contractor Dispatch"
             elif at == "restart_container":

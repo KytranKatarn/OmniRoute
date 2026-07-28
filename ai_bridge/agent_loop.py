@@ -225,6 +225,7 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
                 SELECT id FROM autonomy_approval_queue
                 WHERE action_type = %s
                   AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
                   AND action_data->>'content' = %s
                 LIMIT 1
                 """,
@@ -246,6 +247,7 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
                 SELECT id FROM autonomy_approval_queue
                 WHERE action_type = %s
                   AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
                   AND action_data->>'post_urn' = %s
                   AND COALESCE(action_data->>'browser_agent_id','') = %s
                 LIMIT 1
@@ -271,6 +273,7 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
                 SELECT id FROM autonomy_approval_queue
                 WHERE action_type = %s
                   AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
                   AND action_data->>'proposal_id' = %s
                 LIMIT 1
                 """,
@@ -287,6 +290,7 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
                 SELECT id FROM autonomy_approval_queue
                 WHERE action_type = %s
                   AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
                   AND action_data->>'agent' = %s
                   AND (action_data->>'capability') IS NOT DISTINCT FROM %s
                 LIMIT 1
@@ -302,6 +306,7 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
         if domain:
             cur.execute(
                 "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+                "AND (expires_at IS NULL OR expires_at > NOW()) "
                 "AND action_data->>'domain' = %s LIMIT 1",
                 (action_type, domain),
             )
@@ -314,6 +319,7 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
         if rs_agent is not None:
             cur.execute(
                 "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+                "AND (expires_at IS NULL OR expires_at > NOW()) "
                 "AND action_data->>'agent_id' = %s LIMIT 1",
                 (action_type, str(rs_agent)),
             )
@@ -328,13 +334,15 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
         if pid is not None:
             cur.execute(
                 "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+                "AND (expires_at IS NULL OR expires_at > NOW()) "
                 "AND action_data->>'proposal_id' = %s LIMIT 1",
                 (action_type, str(pid)),
             )
             return cur.fetchone() is not None
 
     cur.execute(
-        "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' LIMIT 1",
+        "SELECT id FROM autonomy_approval_queue WHERE action_type = %s AND status = 'pending' "
+        "AND (expires_at IS NULL OR expires_at > NOW()) LIMIT 1",
         (action_type,),
     )
     return cur.fetchone() is not None
@@ -348,6 +356,19 @@ def _get_effective_tier(action_type: str, tier: int, cur) -> int:
     return 1 if action_type in tier1_types else tier
 
 
+# A RECURRING producer must never be blocked by its own previous, unactioned
+# request. The default 24h window exactly matches a daily job's period, so the
+# new run races the old row's expiry: on 2026-07-28 the 03:00 website deploy
+# filed 11 SECONDS before the 07-27 pair expired, dedup swallowed both domains,
+# the old pair then expired, and the site went a full day with no approval and
+# no deploy — silently (task #5359). Give recurring producers a window SHORTER
+# than their period so yesterday's request is always expired by the time the
+# next one is filed. Everything unlisted keeps the 24h default.
+_APPROVAL_EXPIRY_HOURS = {
+    "website_deploy": 20,  # daily 03:00 producer → 20h < 24h period
+}
+
+
 def _create_approval_record(
     action_type: str,
     action_data: dict,
@@ -359,6 +380,7 @@ def _create_approval_record(
 ) -> int:
     """Insert approval record into the DB. Returns the new approval_queue ID."""
     status = "approved" if effective_tier == 1 else "pending"
+    expiry_hours = int(_APPROVAL_EXPIRY_HOURS.get(action_type, 24))
 
     cur.execute(
         f"""
@@ -367,7 +389,7 @@ def _create_approval_record(
          approved_at, expires_at)
         VALUES (%s, %s, %s, %s, %s, %s, %s,
                 {'NOW()' if effective_tier == 1 else 'NULL'},
-                NOW() + INTERVAL '24 hours')
+                NOW() + INTERVAL '{expiry_hours} hours')
         RETURNING id
         """,
         (
@@ -1457,10 +1479,18 @@ class AgentLoop:
             coalesce=True,
         )
 
-        # F.O.R.G.E. AI diff analysis — processes up to 3 pending PR reviews every 10 min.
+        # F.O.R.G.E. AI diff analysis — processes up to 3 pending PR reviews every 3 min.
+        # Was 10 min. The PR pipeline is three POLL-DRIVEN stages in series —
+        # poll (5) → review (10) → tier/merge (10) — so an approved Tier-2 PR
+        # could wait ~28 min on timers alone and the owner reliably beat the
+        # machinery to it by hand (measured 2026-07-28: every PR that day was
+        # Tier 2, i.e. A.R.C.H.I.E.'s to merge, and every one was merged
+        # manually first). This job only calls GitHub when a PR is actually
+        # pending review, so a shorter tick is near-free: idle ticks are one DB
+        # query. Rate headroom at the time of the change: 4994/5000.
         self.scheduler.add_job(
             with_app_context(self._run_pr_diff_analysis),
-            trigger=IntervalTrigger(minutes=10),
+            trigger=IntervalTrigger(minutes=3),
             id="forge_pr_diff_analysis",
             name="Agent Loop: F.O.R.G.E. PR Diff Analysis",
             max_instances=1,
@@ -1515,10 +1545,18 @@ class AgentLoop:
         )
 
         # Tiered PR Merge Authority — F.O.R.G.E./A.R.C.H.I.E./Kytran governance.
-        # Every 10 min: picks up reviewed PRs, auto-merges T1/T2, Telegrams T3.
+        # Every 2 min: picks up reviewed PRs, auto-merges T1/T2, Telegrams T3.
+        # Was 10 min — the last and longest wait in the chain, and the one that
+        # made A.R.C.H.I.E. look absent from her own loop: a PR she had the
+        # authority to merge sat up to 10 min after F.O.R.G.E. approved it, so
+        # the owner merged it himself and she never got the chance. The tick is
+        # cheap by construction — it hits GitHub only for reviews not yet
+        # tier-processed (the `tier_processed`/`kytran_approval_sent` guard), so
+        # a quiet queue costs one DB query. Authority, gates and ceilings are
+        # untouched; only the latency changes.
         self.scheduler.add_job(
             with_app_context(self._run_archie_pr_review_worker),
-            trigger=IntervalTrigger(minutes=10, timezone="America/Toronto"),
+            trigger=IntervalTrigger(minutes=2, timezone="America/Toronto"),
             id="forge_archie_pr_review",
             name="Agent Loop: Tiered PR Merge Authority (F.O.R.G.E./A.R.C.H.I.E./Kytran)",
             max_instances=1,
@@ -2797,12 +2835,17 @@ class AgentLoop:
         """Daily full-site deploy to Hostinger for all public websites.
 
         Operations & Infrastructure — B.A.S.E. Director. Runs daily at 03:00.
-        Deploys kytranempowerment.com and creed-ai.org in sequence.
-        Records last_run + last_status in system_config per domain.
+        QUEUES kytranempowerment.com and creed-ai.org for the Hostinger push in
+        sequence — it does NOT push bytes itself. The only working push is the
+        hosting_deployStaticWebsite MCP tool via the /deploy-website skill, so
+        this worker's success means "queued", never "deployed"; only
+        deploy_service.mark_deploy_pushed() may write 'deployed' (2026-07-28
+        audit: this worker used to overwrite the status with a bare 'success',
+        which read as a completed deploy for a push that had not happened).
         Also triggerable manually via Repair Bay → Ship → Website tab.
         """
         from database import get_db_cursor
-        from services.deploy_service import run_deploy_pipeline
+        from services.deploy_service import changed_files_since, last_push_iso, run_deploy_pipeline
         import datetime
 
         SITES = [
@@ -2822,27 +2865,62 @@ class AgentLoop:
             domain = site["domain"]
             key_ts = f"website_deploy_last_run_{domain}"
             key_st = f"website_deploy_last_status_{domain}"
+            failed = False
             try:
-                result = run_deploy_pipeline(
-                    "deploy_static",
-                    {
-                        "domain": domain,
-                        "source_path": site["source"],
-                        "verify_url": site["verify_url"],
-                        "changed_files": ["assets/portraits/", "data/"],
-                    },
-                )
-                status = "success" if result.success else "failed"
-                if not result.success:
-                    logger.error("[WebsiteDeploy] %s failed: %s", domain, result.error)
+                # REAL changed files since the last confirmed push — classify_risk
+                # needs file paths to classify anything. This used to pass the
+                # constants ["assets/portraits/", "data/"], which have no suffix
+                # and so ALWAYS returned approval_required: the daily deploy asked
+                # for approval whatever had (or had not) changed, while the
+                # translation scanner auto-deployed the same files by passing real
+                # .json paths. Falls back to the directory list when there is no
+                # recorded push yet — unknown contents must still ask.
+                since = last_push_iso(domain)
+                changed = changed_files_since(site["source"], since) if since else []
+                nothing_to_do = False
+                if not since:
+                    changed_files = ["assets/portraits/", "data/"]
+                    logger.info("[WebsiteDeploy] %s has no recorded push — treating as unknown", domain)
+                elif not changed:
+                    # Nothing changed — do NOT queue a deploy, but this run still
+                    # HAPPENED and must stamp key_ts below. An early `continue`
+                    # here would freeze website_deploy_last_run_* on a perfectly
+                    # healthy no-op, so "when did the deploy worker last run?"
+                    # would answer with a stale timestamp — the same
+                    # status-that-cannot-tell-the-truth bug this whole change
+                    # set out to remove. (F.O.R.G.E. flagged it on PR #2533.)
+                    nothing_to_do = True
+                    logger.info("[WebsiteDeploy] %s unchanged since %s — nothing to queue", domain, since)
+                else:
+                    changed_files = changed
+                    logger.info("[WebsiteDeploy] %s: %d file(s) changed since %s", domain, len(changed), since)
+
+                if not nothing_to_do:
+                    result = run_deploy_pipeline(
+                        "deploy_static",
+                        {
+                            "domain": domain,
+                            "source_path": site["source"],
+                            "verify_url": site["verify_url"],
+                            "changed_files": changed_files,
+                        },
+                    )
+                    if not result.success:
+                        failed = True
+                        logger.error("[WebsiteDeploy] %s not queued: %s", domain, result.error)
             except Exception as exc:
                 logger.exception("[WebsiteDeploy] %s error: %s", domain, exc)
-                status = "failed"
+                failed = True
 
+            # Only ever stamp the RUN time here. The status belongs to the
+            # pipeline ('deploy_pending' = queued for the push) and to
+            # mark_deploy_pushed ('deployed' = bytes actually landed) — writing
+            # 'success' here would claim a deploy that never happened.
             ts = datetime.datetime.now(timezone.utc).isoformat()
+            rows = [(key_ts, ts)] + ([(key_st, "failed")] if failed else [])
             try:
                 with get_db_cursor(commit=True) as (conn, cur):
-                    for k, v in [(key_ts, ts), (key_st, status)]:
+                    for k, v in rows:
                         cur.execute(
                             """INSERT INTO system_config (key, value, updated_at)
                                VALUES (%s, %s, NOW())
@@ -5552,6 +5630,73 @@ class AgentLoop:
             from services.agent_credential_service import reset_agent_password
 
             return reset_agent_password(data.get("username", ""))
+
+        elif action_type == "pr_merge":
+            # Tier-3 / sensitive-path PR merge, approved on EITHER surface (#5283, #5338).
+            #
+            # IDEMPOTENT BY CONSTRUCTION. The Telegram button merges inside
+            # _pr_merge_callback and THEN flips this row to 'approved', so this
+            # executor routinely meets a PR that is already merged. Treating that
+            # as a failure is exactly what happened to approval #5816: PR #2522
+            # merged at 00:29:40Z and the row read 'failed' 18s later with
+            # "Unknown action type: pr_merge" — a successful merge recorded as a
+            # failure, because this branch did not exist at all. Already-merged
+            # is SUCCESS, and the Approvals-tab tap now merges for real instead
+            # of silently doing nothing.
+            try:
+                import sys
+
+                sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+                from tools.repair_bay.services.github_service import get_pr_status, merge_pr
+                from tools.repair_bay.services.pr_review_service import resolve_pr_merge_approval
+
+                pr_num = int(data.get("pr_number") or 0)
+                if not pr_num:
+                    return {"executed": False, "error": "pr_merge approval carries no pr_number"}
+                repo = data.get("repo")
+
+                status = get_pr_status(pr_num) or {}
+                if status.get("merged"):
+                    resolve_pr_merge_approval(pr_num, approved=True)
+                    logger.info("pr_merge: PR #%s was already merged — resolving row as done", pr_num)
+                    return {"executed": True, "pr_number": pr_num, "note": "already merged on the other surface"}
+
+                # A pr_merge row IS a human decision — merging on one that no
+                # human is attributed to would hand an automated actor the very
+                # authority this queue exists to withhold. pr_merge is
+                # deliberately absent from archie_coo_approve.types; this is the
+                # belt to that suspenders. Safety is universal, authority is
+                # per-actor (#2459/#2460).
+                approver = None
+                try:
+                    cur.execute(
+                        "SELECT approved_by FROM autonomy_approval_queue WHERE id = %s",
+                        (item["id"],),
+                    )
+                    _ar = cur.fetchone()
+                    if _ar:
+                        approver = _ar["approved_by"] if isinstance(_ar, dict) else _ar[0]
+                except Exception as _ae:
+                    logger.warning("pr_merge: could not read approver for #%s: %s", item["id"], _ae)
+                if not approver:
+                    return {
+                        "executed": False,
+                        "error": "pr_merge has no human approver — refusing (a Tier-3 PR is never auto-merged)",
+                    }
+
+                result = merge_pr(pr_num, "squash", repo=repo, human_override=True)
+                merged = bool(result.get("merged"))
+                if merged:
+                    resolve_pr_merge_approval(pr_num, approved=True, user_id=approver)
+                    logger.info("pr_merge: PR #%s merged via the Approvals tab (approver=%s)", pr_num, approver)
+                return {
+                    "executed": merged,
+                    "pr_number": pr_num,
+                    "error": None if merged else (result.get("error") or "merge refused"),
+                }
+            except Exception as pm_err:
+                logger.error("pr_merge execution failed: %s", pm_err)
+                return {"executed": False, "error": str(pm_err)}
 
         elif action_type == "external_webhook":
             import requests

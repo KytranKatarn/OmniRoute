@@ -15,7 +15,7 @@ import re
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import jsonify, request
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 logger = logging.getLogger(__name__)
 
@@ -84,8 +84,19 @@ def register_github_routes(bp, admin_required):
         # clicking merge is an attended decision, so it bypasses the unattended-merge
         # governance gate (#5194). Automated callers must never pass this.
         result = merge_pr(pr_number, method, human_override=True)
-        if result.get("success"):
+        if result.get("success") or result.get("merged"):
             logger.info(f"[FORGE] PR #{pr_number} merged via {method} (human override)")
+            # THIRD SURFACE, same row (#5283/#5338). Telegram and the Approvals
+            # tab already converge via resolve_pr_merge_approval; without this
+            # the Repair Bay button was the odd one out — merging the PR while
+            # leaving a pending pr_merge approval behind to expire, or worse to
+            # be tapped later against an already-merged PR.
+            try:
+                from .services.pr_review_service import resolve_pr_merge_approval
+
+                resolve_pr_merge_approval(pr_number, approved=True, user_id=getattr(current_user, "id", None))
+            except Exception as exc:  # noqa: BLE001 — bookkeeping never fails a real merge
+                logger.warning("[FORGE] PR #%s merged but approval row not resolved: %s", pr_number, exc)
         return jsonify(result)
 
     @bp.route("/api/forge/prs/<int:pr_number>/comment", methods=["POST"])

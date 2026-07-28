@@ -120,16 +120,132 @@ class DeployResult:
 
 
 def classify_risk(changed_files: list[str]) -> str:
-    """Return 'auto' if all files are safe static types, else 'approval_required'."""
+    """Return 'auto' if all files are safe static types, else 'approval_required'.
+
+    ⚠️ Feed this REAL FILE PATHS, never directories. A bare directory has no
+    suffix, so it can never match AUTO_SAFE_EXTENSIONS and always returns
+    'approval_required' — safe, but meaningless: a constant, not a
+    classification. The daily website worker passed ``["assets/portraits/",
+    "data/"]`` and therefore demanded approval on every run whatever had (or
+    had not) changed, while the translation scanner passed real ``.json`` paths
+    for the SAME site and auto-deployed. Use ``changed_files_since()`` to build
+    the list. Directories are still handled here explicitly — and logged — so
+    the behaviour is a decision rather than an accident of Path().suffix
+    (audited 2026-07-28).
+    """
     for f in changed_files:
-        name_lower = Path(f).name.lower()
-        suffix_lower = Path(f).suffix.lower()
-        if suffix_lower not in AUTO_SAFE_EXTENSIONS:
+        entry = str(f)
+        path = Path(entry)
+        if entry.endswith("/") or not path.suffix:
+            logger.info(
+                "[classify_risk] '%s' is a directory, not a file — contents unknown, "
+                "requiring approval. Pass real file paths (changed_files_since) for a "
+                "meaningful classification.",
+                entry,
+            )
             return "approval_required"
+        if path.suffix.lower() not in AUTO_SAFE_EXTENSIONS:
+            return "approval_required"
+        name_lower = path.name.lower()
         for pattern in APPROVAL_REQUIRED_PATTERNS:
             if pattern in name_lower:
                 return "approval_required"
     return "auto"
+
+
+def changed_files_since(source_path: str, since_iso: Optional[str], limit: int = 500) -> list[str]:
+    """Real file paths under ``source_path`` modified after ``since_iso``.
+
+    Gives classify_risk something it can actually classify. Returns paths
+    relative to source_path, sorted. When ``since_iso`` is missing or
+    unparseable (a site that has never recorded a push) this returns [] — and
+    [] means "nothing measurably changed", NEVER "everything is safe", so
+    callers must not treat an empty list as a green light.
+
+    ``limit`` caps the walk so a first run cannot build a 10k-entry approval
+    reason; the caller reports when the cap is hit.
+    """
+    root = Path(source_path)
+    if not root.is_dir():
+        return []
+    try:
+        since_dt = datetime.datetime.fromisoformat(str(since_iso).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return []
+    if since_dt.tzinfo is None:
+        since_dt = since_dt.replace(tzinfo=timezone.utc)
+    cutoff = since_dt.timestamp()
+
+    out: list[str] = []
+    for p in root.rglob("*"):
+        if len(out) >= limit:
+            break
+        try:
+            if p.is_file() and p.stat().st_mtime > cutoff:
+                out.append(str(p.relative_to(root)))
+        except OSError:
+            continue  # vanished mid-walk / unreadable — never fatal
+    return sorted(out)
+
+
+def mark_deploy_pushed(domain: str, artifact: str = "", file_count: int = 0, bytes_pushed: int = 0) -> bool:
+    """Record that bytes ACTUALLY reached Hostinger for ``domain``.
+
+    THE ONLY writer of status 'deployed'. Everything upstream may write
+    'deploy_pending' (queued for the push) or 'failed'; nothing else may claim
+    a completed deploy. Before this existed ``website_deploy_last_status_*``
+    could only ever read 'deploy_pending', so a site pushed an hour ago and a
+    site stranded for weeks were indistinguishable and the Ship tab showed
+    'pending' forever (audited 2026-07-28: both domains sat 'deploy_pending'
+    with live content ~2 days stale and 404s on new assets).
+
+    Called by the /deploy-website skill (and the Ship tab deploy action)
+    immediately after ``hosting_deployStaticWebsite`` returns success.
+    """
+    from database import get_db_cursor
+
+    ts = datetime.datetime.now(timezone.utc).isoformat()
+    rows = [
+        (f"website_deploy_last_status_{domain}", "deployed"),
+        (f"website_deploy_last_push_{domain}", ts),
+    ]
+    if artifact or file_count or bytes_pushed:
+        rows.append(
+            (
+                f"website_deploy_last_artifact_{domain}",
+                f"{artifact or 'zip'} files={file_count} bytes={bytes_pushed}",
+            )
+        )
+    try:
+        with get_db_cursor(commit=True) as (_, cur):
+            for k, v in rows:
+                cur.execute(
+                    """INSERT INTO system_config (key, value, updated_at)
+                       VALUES (%s, %s, NOW())
+                       ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+                    (k, v),
+                )
+        logger.info("[DeployStatic] %s marked DEPLOYED (%s, %s files)", domain, artifact, file_count)
+        return True
+    except Exception as exc:
+        logger.error("[DeployStatic] could not mark %s deployed: %s", domain, exc)
+        return False
+
+
+def last_push_iso(domain: str) -> Optional[str]:
+    """Timestamp of the last REAL push for ``domain`` (None if never pushed)."""
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (_, cur):
+            cur.execute("SELECT value FROM system_config WHERE key = %s", (f"website_deploy_last_push_{domain}",))
+            row = cur.fetchone()
+        if not row:
+            return None
+        return row["value"] if isinstance(row, dict) else row[0]
+    except Exception as exc:
+        logger.warning("[DeployStatic] last_push lookup failed for %s: %s", domain, exc)
+        return None
 
 
 def _deploy_static_hostinger(domain: str, source_path: str) -> bool:

@@ -121,14 +121,26 @@ else
   rm -f "$DEPLOY_ZIP"
   (
     cd "$DST_SITE"
+    # assets/portraits/*.png are the SDXL ORIGINALS. The site serves the JPEG
+    # thumbs generated from them; measured 2026-07-28, the whole site references
+    # exactly three .png files and none of them live in portraits/. Shipping the
+    # originals put ~97 MB of never-requested bytes (77% of a 126 MB payload)
+    # into a full-site upload that REPLACES public_html on every deploy. They are
+    # already gitignored for the same reason.
     zip -rq "$DEPLOY_ZIP" . \
       -x ".git/*" ".github/*" \
+      -x "assets/portraits/*.png" \
       -x "CONTRIBUTING.md" "SECURITY.md" "CODE_OF_CONDUCT.md" \
       -x "CHANGELOG.md" "LICENSE" "README.md" ".gitignore"
   ) || die "zip creation failed" 4
 
   zip_size=$(du -h "$DEPLOY_ZIP" | cut -f1)
-  say "zip ready: $DEPLOY_ZIP ($zip_size)"
+  zip_files=$(unzip -Z1 "$DEPLOY_ZIP" 2>/dev/null | wc -l)
+  say "zip ready: $DEPLOY_ZIP ($zip_size, $zip_files files)"
+  # Guard the one thing a full-site replace can silently destroy: an empty or
+  # index-less archive would wipe public_html and serve nothing.
+  unzip -Z1 "$DEPLOY_ZIP" 2>/dev/null | grep -qx "index.html" \
+    || die "refusing: $DEPLOY_ZIP has no index.html at its root — a full-site replace would blank the site" 4
 fi
 
 # ───── 4. instructions ──────────────────────────────────────────────────

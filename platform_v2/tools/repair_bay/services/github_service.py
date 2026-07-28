@@ -501,6 +501,12 @@ def get_pr_status(pr_number: int) -> Dict:
     return {
         "success": True,
         "state": data.get("state"),
+        # GitHub's `state` is only open|closed — it cannot distinguish MERGED
+        # from closed-without-merge. Callers deciding "is this already done?"
+        # (e.g. the idempotent pr_merge approval executor) need the real answer,
+        # so surface it rather than making them infer it from 'closed'.
+        "merged": bool(data.get("merged")),
+        "merged_at": data.get("merged_at"),
         "mergeable": data.get("mergeable"),
         "title": data.get("title"),
         "labels": [l.get("name") for l in data.get("labels", [])],

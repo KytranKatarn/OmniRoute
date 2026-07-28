@@ -494,15 +494,21 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     except (TypeError, ValueError):
         _max_auto = 1
     if _tier > _max_auto:
-        _mark_tier_processed(pr_number, _tier)
+        # HAND OFF, don't close. This used to call _mark_tier_processed, which is
+        # the very flag the tiered-merge worker skips on — so F.O.R.G.E. saying
+        # "above my ceiling, escalate" told A.R.C.H.I.E. "already handled".
+        # Tier 2 never reached her and Tier 3 never reached Kytran's buttons;
+        # every such PR waited for a manual /merge-pr (#5363).
+        _mark_forge_escalated(pr_number, _tier)
+        _next = "A.R.C.H.I.E. (COO)" if _tier == 2 else "Kytran"
         with get_db_cursor(commit=True) as (conn, cur):
             cur.execute(
                 "INSERT INTO system_notifications (title, message, type, source, visibility) "
-                "VALUES (%s, %s, 'warning', 'forge', 'all')",
+                "VALUES (%s, %s, 'info', 'forge', 'all')",
                 (
-                    f"PR #{pr_number} needs approval (Tier {_tier})",
-                    f"F.O.R.G.E. approved PR #{pr_number} but it is Tier {_tier} — gated for human "
-                    f"approval (F.O.R.G.E. → Dept Lead → COO → Kytran). Not auto-merged.",
+                    f"PR #{pr_number} escalated to {_next} (Tier {_tier})",
+                    f"F.O.R.G.E. approved PR #{pr_number}; it is Tier {_tier}, above F.O.R.G.E.'s "
+                    f"ceiling ({_max_auto}), so merge authority passes to {_next}.",
                 ),
             )
         logger.info(
@@ -547,10 +553,30 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
                 ),
             )
         logger.info(
-            "[F.O.R.G.E.] PR #%s approved but touches non-allowlisted paths (%s) — GATED for human /merge-pr",
+            "[F.O.R.G.E.] PR #%s approved but touches non-allowlisted paths (%s) — GATED for human merge",
             pr_number,
             _shown,
         )
+        # ASK, don't just announce. This gate used to stop at the notification
+        # above: no approval row, no buttons, nothing in the Approvals tab — the
+        # owner got an unactionable "[INFO] F.O.R.G.E. Review: APPROVE" and had
+        # to remember to type /merge-pr. Tier 3 already opens a durable row AND
+        # a buttoned Telegram (#5283); this gate is just as much a
+        # human-decision point, so it now uses the SAME dual surface. Both are
+        # best-effort: a notification failure must never block the gate itself.
+        try:
+            _row = get_review(pr_number) or {}
+            _title = _row.get("title") or f"PR #{pr_number}"
+            _summary = _row.get("ai_summary") or "F.O.R.G.E. approved; touches non-allowlisted paths."
+            open_pr_merge_approval(pr_number, _title, _summary, repo=_merge_repo)
+            send_pr_merge_buttons(
+                pr_number,
+                _title,
+                f"F.O.R.G.E. APPROVED, but this changes files outside the auto-merge "
+                f"allowlist:\n`{_shown}`\n\n{_summary[:280]}",
+            )
+        except Exception as _ask_exc:  # noqa: BLE001
+            logger.warning("[F.O.R.G.E.] PR #%s: could not open the merge approval: %s", pr_number, _ask_exc)
         return
 
     try:
@@ -809,11 +835,43 @@ def _changes_requested_recently(review: dict, window_hours_env: str = None) -> b
 
 
 def _mark_tier_processed(pr_number: int, tier: int) -> None:
-    """Record tier merge decision in pr_reviews.metadata."""
+    """Record that a tier decision was CARRIED OUT (merged, or sent to Kytran).
+
+    ⚠️ TERMINAL ONLY. ``metadata.tier_processed`` is the flag the tiered-merge
+    worker skips on (``if meta.get("tier_processed") … continue``), so writing it
+    means "this PR is DONE, never look at it again". Only call it after a real
+    merge or after Tier 3 has been handed to Kytran.
+
+    Do NOT use it to record that F.O.R.G.E. ESCALATED — see
+    ``_mark_forge_escalated``. Doing so was a live bug: F.O.R.G.E. saying "above
+    my ceiling, pass to the COO" wrote the same field that tells the COO
+    "already handled", so A.R.C.H.I.E.'s Tier-2 merge and Kytran's Tier-3
+    buttons were both unreachable and every such PR waited for a manual
+    /merge-pr (#5363; PRs #2523/#2524/#2528/#2533, 2026-07-28).
+    """
     from psycopg2.extras import Json as _Json  # noqa: PLC0415
     from services.time_utils import now_utc  # noqa: PLC0415
 
     payload = _Json({"tier_processed": tier, "tier_processed_at": now_utc().isoformat()})
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
+            (payload, pr_number),
+        )
+
+
+def _mark_forge_escalated(pr_number: int, tier: int) -> None:
+    """Record that F.O.R.G.E. handed a PR UP the ladder — a hand-off, not a completion.
+
+    Deliberately a DIFFERENT key from ``tier_processed``: the next authority
+    (A.R.C.H.I.E. at Tier 2, Kytran at Tier 3) must still find this PR waiting
+    for them. Tier 1 F.O.R.G.E. → Tier 2 A.R.C.H.I.E. → Tier 3 Kytran is the
+    governance ladder; an escalation is the START of the next actor's turn.
+    """
+    from psycopg2.extras import Json as _Json  # noqa: PLC0415
+    from services.time_utils import now_utc  # noqa: PLC0415
+
+    payload = _Json({"forge_escalated_tier": tier, "forge_escalated_at": now_utc().isoformat()})
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             "UPDATE pr_reviews SET metadata = COALESCE(metadata, '{}'::jsonb) || %s WHERE pr_number = %s",
@@ -875,6 +933,32 @@ def open_pr_merge_approval(pr_number: int, title: str, summary: str, repo: str =
     except Exception as exc:
         logger.warning("open_pr_merge_approval failed for PR #%s: %s", pr_number, exc)
         return None
+
+
+def send_pr_merge_buttons(pr_number: int, title: str, summary: str) -> None:
+    """Telegram message with ✅ Merge / ❌ Deny for a PR awaiting a human merge.
+
+    Same callback_data the Tier-3 path uses (``pr_merge_approve_N`` /
+    ``pr_merge_deny_N``), so ONE gateway handler serves every surface. Kept here
+    rather than on AgentLoop so the review service can ask directly — the
+    sensitive-path gate runs in the platform container, not the agent loop.
+    Best-effort: never raises.
+    """
+    try:
+        from services.telegram_service import send_with_buttons  # noqa: PLC0415
+
+        send_with_buttons(
+            category="system",
+            title=f"PR #{pr_number} — Merge Approval Required",
+            message=(f"*PR #{pr_number}:* {title}\n\n{(summary or '')[:600]}\n\nApprove to merge."),
+            buttons=[
+                {"text": "✅ Merge", "callback_data": f"pr_merge_approve_{pr_number}"},
+                {"text": "❌ Deny", "callback_data": f"pr_merge_deny_{pr_number}"},
+            ],
+            source_agent="A.R.C.H.I.E.",
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("send_pr_merge_buttons failed for PR #%s: %s", pr_number, exc)
 
 
 def resolve_pr_merge_approval(pr_number: int, approved: bool, user_id: int = None) -> None:

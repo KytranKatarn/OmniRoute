@@ -68,24 +68,34 @@ Validate the domain is in the map; if not, show the available domains.
 
 **`deploy_static` domains (kytranempowerment.com, creed-ai.org) — push DIRECTLY:**
 
-1. Zip the FULL site from its `source_path` (exclude `.git`):
+1. Build the zip with `scripts/publish_website.sh` (preferred — it regenerates
+   thumbs, syncs staging, applies the exclusion list and refuses an archive with
+   no root `index.html`). Building by hand instead, use the SAME exclusions:
    ```bash
    TS=$(date +%Y%m%d_%H%M%S); cd <source_path>
-   zip -rq /tmp/<domain>_${TS}.zip . -x '.git/*' -x '.gitignore'
+   zip -rq /tmp/<domain>_${TS}.zip . \
+     -x '.git/*' -x '.gitignore' -x 'assets/portraits/*.png'
    ```
+   ⚠️ `assets/portraits/*.png` are SDXL ORIGINALS — the site serves the JPEG
+   thumbs and references no portrait PNG at all. Including them added ~97 MB
+   (77%) of never-requested bytes to a 126 MB full-site replace (2026-07-28).
 2. Push (replaces `public_html` entirely):
    ```
    mcp__hostinger-api__hosting_deployStaticWebsite(domain="<domain>", archivePath="/tmp/<domain>_<TS>.zip", removeArchive=True)
    ```
    Expect `{"upload":{"status":"success"},"deploy":{"status":"success","data":{"message":"Request accepted"}}}`.
-3. Update `system_config`:
+3. Record the push — **only after a success response**:
    ```bash
-   docker exec archie_database psql -U archie -d archie -c "
-     UPDATE system_config SET value='success', updated_at=NOW()
-       WHERE key='website_deploy_last_status_<domain>';
-     UPDATE system_config SET value='$(date -u +%Y-%m-%dT%H:%M:%S)', updated_at=NOW()
-       WHERE key='website_deploy_last_run_<domain>';"
+   docker exec archie_platform python3 -c "
+   import sys; sys.path.insert(0,'/app')
+   from services.deploy_service import mark_deploy_pushed
+   print(mark_deploy_pushed('<domain>', artifact='<zip name>', file_count=<n>, bytes_pushed=<size>))"
    ```
+   `mark_deploy_pushed` is the ONLY writer of status `deployed` — do NOT hand-write
+   `success` into `system_config`. Nothing upstream can know bytes landed: the
+   pipeline, the daily worker and the approval executor can only ever queue
+   (`deploy_pending`). Skipping this step leaves the site reading "pending
+   push" forever and makes the next run's change-detection re-send everything.
 4. **Verify live** — fetch a changed file from `https://<domain>/...` and confirm the
    NEW content is served (Hostinger propagates in 30–120s). For widgets that fetch a
    hub API in the browser, verify from an EXTERNAL vantage (e.g. the outpost) — the

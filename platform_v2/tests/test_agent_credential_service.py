@@ -183,6 +183,33 @@ class TestCredentialsFileStore:
         )
         assert acs._write_credentials_file("K", "v") is None
 
+    def test_root_write_aligns_ownership_with_parent_dir(self, tmp_path, monkeypatch):
+        """#5311 live-probe finding (2026-07-27): both containers run as ROOT, so
+        the store landed root:root 0600 — unreadable by the host-side owner the
+        file exists for (the login skill runs as kytran). When euid==0 the writer
+        must chown the file to the credentials DIR's owner."""
+        good = tmp_path / "credentials"
+        good.mkdir()
+        target = str(good / "agent_passwords.env")
+        monkeypatch.setattr(acs, "_CREDENTIALS_FILE_CANDIDATES", (target,))
+        chowns = []
+        monkeypatch.setattr(acs.os, "geteuid", lambda: 0)
+        monkeypatch.setattr(acs.os, "chown", lambda p, uid, gid: chowns.append((p, uid, gid)))
+        assert acs._write_credentials_file("K", "v") == target
+        parent = os.stat(str(good))
+        assert chowns == [(target, parent.st_uid, parent.st_gid)]
+
+    def test_nonroot_write_skips_chown(self, tmp_path, monkeypatch):
+        good = tmp_path / "credentials"
+        good.mkdir()
+        target = str(good / "agent_passwords.env")
+        monkeypatch.setattr(acs, "_CREDENTIALS_FILE_CANDIDATES", (target,))
+        chowns = []
+        monkeypatch.setattr(acs.os, "geteuid", lambda: 4242)
+        monkeypatch.setattr(acs.os, "chown", lambda p, uid, gid: chowns.append((p, uid, gid)))
+        assert acs._write_credentials_file("K", "v") == target
+        assert chowns == []  # non-root cannot (and must not try to) chown
+
     def test_reset_writes_credentials_file_first_and_reports_it(self, tmp_path, monkeypatch):
         db = _RecordingDB()
         monkeypatch.setattr(acs, "get_db_cursor", db)

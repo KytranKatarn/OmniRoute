@@ -119,10 +119,30 @@ def _write_credentials_file(key: str, value: str) -> str | None:
         try:
             if os.path.isdir(os.path.dirname(candidate)):
                 if _rewrite_env_line(candidate, key, value, create=True):
+                    _align_store_ownership(candidate)
                     return candidate
         except Exception as exc:  # noqa: BLE001 — try the next candidate, never abort rotation
             logger.warning("agent password rotation: credentials store %s failed: %s", candidate, exc)
     return None
+
+
+def _align_store_ownership(path: str) -> None:
+    """#5311 (live-probed 2026-07-27): BOTH archie_platform and archie_scheduler
+    run as root, so a rotation used to leave ``agent_passwords.env`` at
+    root:root 0600 — unreadable by the host-side owner (kytran), which is the
+    very consumer the host-visible store exists for (the login skill reads it
+    first). Align the file's ownership with its PARENT DIRECTORY's owner, so
+    whoever owns the credentials dir on the host can read the store. Only
+    meaningful (and only possible) when running as root; best-effort — an
+    ownership hiccup must never undo a completed rotation.
+    """
+    try:
+        if os.geteuid() != 0:
+            return
+        parent = os.stat(os.path.dirname(path))
+        os.chown(path, parent.st_uid, parent.st_gid)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("agent password rotation: could not align ownership of %s: %s", path, exc)
 
 
 def reset_agent_password(username: str, env_paths: tuple = _DEFAULT_ENV_PATHS) -> dict:

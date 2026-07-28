@@ -34,7 +34,9 @@ LOCK="/tmp/.website_autocommit.lock"
 PATHS=(
   "website/kytranempowerment.com/assets/portraits"
   "website/kytranempowerment.com/data"
-  "website/creed-ai.org/assets/portraits"
+  # website/creed-ai.org is a SYMLINK to the standalone (gitignored as such) —
+  # git add hard-refuses pathspecs beyond a symlink, and its content was never
+  # tracked in this repo. Caught by the supervised first run 2026-07-28.
   ".claude/rules/service-registry.md"
 )
 

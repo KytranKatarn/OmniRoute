@@ -581,10 +581,16 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
     (A.R.C.H.I.E., Tier 2). Tier 3 always escalates to Kytran and is never auto-merged.
     An unrecognised authority falls back to the most restrictive ceiling.
 
-    THE choke point for merge governance (#5194). Two independent conditions, both
-    required:
-      1. the stored F.O.R.G.E. review VERDICT is an approval, and
-      2. the PR's tier is <= ``FORGE_AUTO_MERGE_MAX_TIER`` (default 1).
+    THE choke point for merge governance (#5194, #5370). THREE independent conditions,
+    all required:
+      1. the stored F.O.R.G.E. review VERDICT is an approval,
+      2. the PR touches ONLY auto-merge-allowlisted paths (#5370), and
+      3. the PR's tier is <= ``FORGE_AUTO_MERGE_MAX_TIER`` (default 1).
+
+    Conditions 1 and 2 are SAFETY properties and bind every actor identically;
+    condition 3 is an AUTHORITY limit and is per-actor (decision #953). Keep new
+    checks on the correct side of that line — a safety check placed inside a
+    per-authority branch protects only one caller.
 
     FAILS CLOSED — a missing review row, an unparseable verdict, or any error denies
     the merge. A dead review is not an approval (feedback_forge-no-silent-override).
@@ -602,6 +608,7 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
     """
     try:
         from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+            _automerge_paths_allowed,
             classify_pr_tier,
             get_review,
             verdict_is_approved,
@@ -616,6 +623,41 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
             return (
                 False,
                 f"F.O.R.G.E. verdict for PR #{pr_number} is not an approval — refusing unattended merge",
+            )
+
+        # CONDITION 2 — SENSITIVE-PATH ALLOWLIST. Deny-by-default; code that RUNS
+        # the platform is never auto-merged, by ANY actor.
+        #
+        # This check already existed in pr_review_service.mark_review_done, but NOT
+        # here — so the tier worker's parallel path merged straight past it. PROVEN
+        # on PR #2538 (2026-07-28): it auto-merged while changing
+        # ai_bridge/agent_loop.py and pr_review_service.py, and
+        # _automerge_paths_allowed(2538) returns False naming exactly those two
+        # files. The gate WOULD have refused it; nothing ever asked.
+        #
+        # This is the SAME omission twice. #2409 reached main carrying
+        # delegation_service.py "purely because the diff was small enough for
+        # Tier 1" — which is why the allowlist was written. #2458 then merged on a
+        # needs_changes verdict via this very second path, and the fix (#2459)
+        # moved VERDICT and TIER to this choke point but left PATHS behind. The
+        # stated lesson of #2459 was "gate the CHOKE POINT, never per-caller"; it
+        # was applied to two conditions out of three.
+        #
+        # Placed BEFORE the tier/authority logic on purpose: per decision #953,
+        # safety properties are UNIVERSAL while authority limits are per-actor. A
+        # path allowlist is a safety property, so it binds F.O.R.G.E., the COO and
+        # any future actor identically — it must not sit inside a per-authority
+        # branch. It costs one GitHub call, and only after the cheap verdict check
+        # has already passed, so it is spent only on merges that were otherwise
+        # going to happen. `human_override=True` never reaches here: merge_pr
+        # skips this whole function for an authenticated interactive caller.
+        _paths_ok, _blocking = _automerge_paths_allowed(pr_number, repo or REPO_FULL)
+        if not _paths_ok:
+            _shown = ", ".join(_blocking[:5]) + (f" (+{len(_blocking) - 5} more)" if len(_blocking) > 5 else "")
+            return (
+                False,
+                f"PR #{pr_number} changes files outside the auto-merge allowlist ({_shown}) "
+                f"— refusing unattended merge; a human must merge it deliberately",
             )
 
         tier = classify_pr_tier(review)

@@ -28,6 +28,27 @@ def _review(summary):
     return {"pr_number": 1, "ai_summary": summary, "repo": "KytranKatarn/archie-platform"}
 
 
+@pytest.fixture(autouse=True)
+def _paths_allowed_by_default():
+    """Neutralise the SENSITIVE-PATH condition for the tests in this file (#5370).
+
+    `_automerge_governance_ok` gained a third required condition: the PR must touch
+    only auto-merge-allowlisted paths. It is checked BEFORE tier, so without this
+    stub every test here would short-circuit on paths and never reach the
+    verdict/tier assertion it exists to make — and worse, it would reach for the
+    real GitHub API from a unit test.
+
+    These tests are about VERDICT and TIER, so paths are held "allowed" and the
+    path behaviour is covered separately in test_automerge_path_gate.py. A test
+    that genuinely cares about paths should patch this itself.
+    """
+    with patch(
+        "tools.repair_bay.services.pr_review_service._automerge_paths_allowed",
+        return_value=(True, []),
+    ):
+        yield
+
+
 class TestVerdictGate:
     """A finished review is not an approval."""
 

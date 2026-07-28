@@ -38,11 +38,38 @@ def process_queue():
     """
     Fetch up to 5 items in 'generating' status and process each.
     On unhandled exception per item, mark status as 'failed'.
+
+    WELFARE-GATED (#5346, #5211 step 2b). This drain used to call the generators
+    directly with ZERO dispatcher involvement — no welfare, C.R.E.E.D. or cost
+    gating — and hardcoded its attribution to agent 13 ("P.I.X.E.L.") whether or
+    not that agent had any capacity. coordinator.select_agent already scores
+    candidates on stress / energy / utilisation and returns None when nothing
+    qualifies, so asking it and HONOURING the answer is the whole gate.
     """
+    agent = None
+    try:
+        from services.department_coordinator import get_coordinator
+
+        agent = get_coordinator().select_agent("video_generation", "Creative & Design")
+        if not agent:
+            # DEFER. Items keep status='generating' and the next cycle re-queries
+            # them, so nothing is failed and nothing is lost — the queue simply
+            # waits for capacity.
+            logger.info(
+                "social_video_worker: no video_generation agent available (welfare) "
+                "— deferring this cycle, items left untouched"
+            )
+            return
+    except Exception as exc:
+        # An ERROR is not a refusal. A coordinator fault is infrastructure, not a
+        # capacity verdict; denying on it would stall ALL social video generation.
+        # Fail OPEN and fall back to the historical attribution.
+        logger.warning("social_video_worker: DHQ agent lookup failed (non-blocking): %s", exc)
+
     items = svs.get_queue_items(status="generating", limit=5)
     for item in items:
         try:
-            _process_item(item)
+            _process_item(item, agent=agent)
         except Exception as exc:
             logger.exception("Unhandled error processing queue item %s: %s", item.get("id"), exc)
             try:
@@ -60,9 +87,13 @@ def process_queue():
 # ---------------------------------------------------------------------------
 
 
-def _process_item(item):
+def _process_item(item, agent=None):
     """
     Process a single queue item: route to local or cloud, update status.
+
+    ``agent`` is the DHQ-selected video_generation agent (#5346). It is threaded
+    through purely so the task_execution_log row names who actually did the work
+    instead of a hardcoded constant; None keeps the historical fallback.
     """
     item_id = item["id"]
     generation_params = item.get("generation_params") or {}
@@ -112,12 +143,14 @@ def _process_item(item):
         logger.error("Generation failed for item %s: %s", item_id, error_msg)
         svs.update_queue_item(item_id, status="failed", error_message=error_msg)
 
-    # DHQ attribution — P.I.X.E.L. credit for all social video generation
+    # DHQ attribution — credited to the agent DHQ actually selected (#5346),
+    # falling back to P.I.X.E.L. only when the lookup failed.
     _write_task_log(
         success=result.get("success", False),
         duration_ms=_gen_dur_ms,
         model="ltx-video-2b-v0.9" if result.get("provider") in (None, "local") else result.get("provider", "video-gen"),
         node_name=result.get("node_name"),
+        agent=agent,
     )
 
 
@@ -372,8 +405,20 @@ def _log_cloud_usage(provider, model, cost):
 # ---------------------------------------------------------------------------
 
 
-def _write_task_log(success: bool, duration_ms: int, model: str, node_name=None):
-    """Write P.I.X.E.L. attribution to task_execution_log — non-fatal."""
+def _write_task_log(success: bool, duration_ms: int, model: str, node_name=None, agent=None):
+    """Write DHQ attribution to task_execution_log — non-fatal.
+
+    ``agent`` is the video_generation agent DHQ selected for this cycle (#5346).
+    It used to be hardcoded to (13, "P.I.X.E.L.") unconditionally, which credited
+    an agent that may have had no capacity and made the Token Economy's per-agent
+    view fiction. P.I.X.E.L. remains the fallback for the fail-open path, where
+    the coordinator lookup errored and we genuinely do not know who ran it.
+
+    ⚠️ This is the ONLY attribution write on this path — the drain already logs
+    here, so do NOT add telemetry_writer.log_marker alongside it or social video
+    generation double-counts on the Token Economy / A.R.M.A.D.A. surfaces (the
+    same trap documented on #5345).
+    """
     try:
         from database import get_db_cursor
 
@@ -397,7 +442,16 @@ def _write_task_log(success: bool, duration_ms: int, model: str, node_name=None)
                    (agent_id, agent_name, model_used, duration_ms, success,
                     capability, node_used_id, module_source)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (13, "P.I.X.E.L.", model, duration_ms, success, "video_generation", node_db_id, "media_studio"),
+                (
+                    (agent or {}).get("id") or 13,
+                    (agent or {}).get("name") or "P.I.X.E.L.",
+                    model,
+                    duration_ms,
+                    success,
+                    "video_generation",
+                    node_db_id,
+                    "media_studio",
+                ),
             )
     except Exception as exc:
         logger.debug("social_video_worker: task_execution_log write failed: %s", exc)

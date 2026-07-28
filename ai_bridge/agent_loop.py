@@ -2590,6 +2590,7 @@ class AgentLoop:
         # Step 1: Ask DHQ which agent handles image_generation (P.I.X.E.L.).
         # Wakes the agent if barracked and confirms Creative & Design is staffed.
         _pixel_agent = None
+        _dhq_defer = False  # set when welfare says there is no capacity (#5345)
         try:
             from services.department_coordinator import get_coordinator as _get_coord
 
@@ -2603,8 +2604,27 @@ class AgentLoop:
                     agent.get("id", "?"),
                 )
             else:
-                logger.warning("media_generation_worker: DHQ found no image_generation agent — proceeding anyway")
+                # DEFER, don't "proceed anyway" (#5345). select_agent already scores
+                # candidates on stress / energy / utilisation and returns None when
+                # nothing qualifies — so a None here IS the welfare verdict, and this
+                # drain executing regardless was precisely the ADR-002 bypass: work
+                # ran with no welfare / C.R.E.E.D. / cost gating, attributed to a
+                # hardcoded fallback (agent_id 13, "P.I.X.E.L.").
+                #
+                # Deferring is NON-DESTRUCTIVE: we return before the claim UPDATE, so
+                # rows stay 'pending' and the next cycle retries. Nothing is failed
+                # and nothing is lost — the queue waits for capacity, which is the
+                # entire point of a welfare gate.
+                _dhq_defer = True
+                logger.info(
+                    "media_generation_worker: no image_generation agent available "
+                    "(welfare) — deferring this cycle, rows stay pending"
+                )
         except Exception as dhq_err:
+            # An ERROR is not a "no". A coordinator/import failure is an
+            # infrastructure fault, not a capacity verdict — treating it as a denial
+            # would let a single bug stall ALL image generation indefinitely. Fail
+            # OPEN here; the pre-existing fallback attribution still applies.
             logger.warning("media_generation_worker: DHQ agent lookup failed (non-blocking): %s", dhq_err)
 
         # Step 2: does the queue actually hold ComfyUI-bound work? The hub wake
@@ -2674,6 +2694,29 @@ class AgentLoop:
                     logger.info("media_generation_worker: ComfyUI healthy after warmboot")
             except Exception as wake_err:
                 logger.warning("media_generation_worker: ComfyUI warmboot check failed: %s", wake_err)
+
+        # WELFARE GATE (#5345). BEFORE the claim UPDATE below, so rows keep
+        # status='pending' and the next 30s cycle simply retries them — deferring
+        # never fails or loses a job.
+        #
+        # It must also RECLAIM VRAM on the way out. The normal idle-stop lives in
+        # the `if not claimed:` branch AFTER the claim, so returning here would skip
+        # it and leave ComfyUI resident holding VRAM that Ollama wants — exactly the
+        # waste #5277 exists to prevent. Deferring means we are generating nothing,
+        # which is precisely when the container should not be up. Best-effort: an
+        # idle-stop failure must not turn a clean deferral into an error.
+        if _dhq_defer:
+            try:
+                from ai_bridge.comfyui_service import get_comfyui_service
+
+                get_comfyui_service().stop_if_idle()
+            except Exception as _stop_err:
+                logger.debug("media_generation_worker: idle-stop on defer skipped: %s", _stop_err)
+            logger.info(
+                "media_generation_worker: deferring claim — Creative & Design has no "
+                "available image_generation agent; pending rows are left untouched for the next cycle"
+            )
+            return
 
         try:
             with get_db_cursor(commit=True) as (conn, cur):

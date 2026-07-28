@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# website_content_autocommit.sh — commit PLATFORM JOB OUTPUT that belongs in git.
+#
+# Task #5288: three job families write into the git working tree and nothing
+# commits them, so the repo sits permanently dirty — which is what made
+# `git reset --hard` genuinely destructive here (PR #2504), buries real
+# uncommitted changes in expected noise, and left it to a human to notice that
+# portraits 00200-00202 were committed while 00207-00209 were not.
+#
+# Per-artifact decisions (see task #5288 — deliberately NOT a blanket rule):
+#   * website portraits + data/*.json  -> REAL deployable assets: commit them.
+#     (publish_website.sh zips the working tree for Hostinger; git is the
+#     version history + the safety that makes reset/merge operations sane.)
+#   * .claude/rules/service-registry.md -> regenerated session-rules doc; commit
+#     so worktrees + fresh clones load current registry state.
+#   * hardware_baseline.json / learned-skills.md are NOT here — they are
+#     runtime state / a KB index and are gitignored instead (same PR).
+#
+# SAFETY RAILS:
+#   * commits ONLY the allow-listed paths below — never `git add -A` the tree
+#   * only acts on the `main` branch of the primary checkout, never a worktree
+#   * refuses mid-merge/rebase states; ff-only syncs before committing
+#   * content-only paths: no code can ride along on this commit
+#
+# Install (host cron, hourly):
+#   17 * * * * /mnt/archie_brain/scripts/website_content_autocommit.sh >> /tmp/website_autocommit.log 2>&1
+set -uo pipefail
+
+REPO="${REPO:-/mnt/archie_brain}"
+LOCK="/tmp/.website_autocommit.lock"
+
+# The allow-list. Adding a path here is a DECISION (feedback_bulk-ops-are-n-decisions):
+# only generated content that should ship with the repo belongs on this list.
+PATHS=(
+  "website/kytranempowerment.com/assets/portraits"
+  "website/kytranempowerment.com/data"
+  "website/creed-ai.org/assets/portraits"
+  ".claude/rules/service-registry.md"
+)
+
+log(){ echo "[$(date '+%F %T')] $*"; }
+
+cd "$REPO" || { log "ERROR: $REPO missing"; exit 1; }
+
+# Single-flight: a slow push must not overlap the next cron tick.
+exec 9>"$LOCK"
+flock -n 9 || { log "another run holds the lock — skipping"; exit 0; }
+
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+if [ "$branch" != "main" ]; then
+  log "checkout is on '$branch', not main — refusing (never auto-commit a feature branch)"
+  exit 0
+fi
+if [ -e .git/MERGE_HEAD ] || [ -d .git/rebase-merge ] || [ -d .git/rebase-apply ]; then
+  log "repo is mid-merge/rebase — refusing"
+  exit 0
+fi
+
+# Anything to do? (diff against HEAD for tracked; ls-files for untracked, both path-scoped)
+dirty="$(git status --porcelain -- "${PATHS[@]}" 2>/dev/null)"
+if [ -z "$dirty" ]; then
+  exit 0
+fi
+log "generated-content changes detected:"
+printf '%s\n' "$dirty" | sed 's/^/  /'
+
+# Sync first so the push cannot race a PR merge. ff-only NEVER discards local
+# work — if it refuses, we stop and say so rather than escalate (see the
+# 'NEVER git reset --hard' rule for this checkout).
+git fetch origin -q || { log "WARN: fetch failed — continuing with local view"; }
+if ! git merge --ff-only origin/main -q 2>/dev/null; then
+  if [ "$(git rev-list --count origin/main..HEAD 2>/dev/null)" = "0" ]; then
+    log "ff-only refused with no local commits ahead — a dirty tracked file blocks the update; will still commit content paths"
+  else
+    log "local main has diverged from origin/main — refusing to auto-commit until a human reconciles"
+    exit 1
+  fi
+fi
+
+git add -A -- "${PATHS[@]}" || { log "ERROR: git add failed"; exit 1; }
+if git diff --cached --quiet; then
+  log "nothing staged after add (changes outside allow-list?) — done"
+  exit 0
+fi
+
+n="$(git diff --cached --name-only | wc -l | tr -d ' ')"
+if ! git commit -q -m "chore(website): auto-commit generated site content ($n files) [website_content_autocommit]"; then
+  log "ERROR: commit failed"; exit 1
+fi
+log "committed $n generated file(s) on main"
+
+if git push -q origin main; then
+  log "pushed to origin/main"
+else
+  # Most likely a race with a PR merge landing between our fetch and push.
+  log "push refused — retrying once after ff-only sync"
+  git fetch origin -q && git merge --ff-only origin/main -q 2>/dev/null
+  git push -q origin main && log "pushed on retry" || { log "ERROR: push failed — commit remains local; next run retries"; exit 1; }
+fi

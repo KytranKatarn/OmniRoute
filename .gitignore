@@ -94,7 +94,17 @@ persistence/
 # Host-specific data
 host_monitor_data.json
 bandwidth_history.json
+# Hardware-change detection baseline (host_monitor.py, PRs #2492/#2496) —
+# runtime state beside its siblings above; versioning drift-detection state
+# in git adds nothing (#5288).
+hardware_baseline.json
 CREDENTIALS.md
+
+# Auto-generated skill index — rewritten every 6h by consciousness Job #54
+# (sync_learned_skills). Its own header says the real content lives in the KB;
+# keeping it tracked meant a permanently-dirty tree (#5288). Untracked
+# 2026-07-27; sessions in fresh worktrees fall back to `mcp search_knowledge`.
+.claude/rules/learned-skills.md
 
 # Backups directory (36GB+, managed separately)
 backups/

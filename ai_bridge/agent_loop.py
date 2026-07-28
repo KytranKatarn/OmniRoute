@@ -3674,11 +3674,17 @@ class AgentLoop:
 
         Placement is decided per cycle by model_service.hub_gpu_placement (#5276): GPU when the
         dual-card fit budget allows (TITAN X 12GB + Quadro M4000 8GB since 2026-07-25), CPU-pinned
-        when VRAM is tight or ComfyUI is awake — warmth is preserved either way. Because an option
-        change makes Ollama reload the runner, this cycle is also what MIGRATES a CPU-stranded 7B
-        back onto an idle GPU. The registry used to hardcode num_gpu=0 (written for the 8GB-only
-        hub); firing every 4 min with a 30m keep-alive, that pin overrode every correct placement
-        and kept both 7Bs on CPU while 20GB of VRAM sat empty — the #5276 defect.
+        when VRAM is tight or ComfyUI is awake — warmth is preserved either way. The registry used
+        to hardcode num_gpu=0 (written for the 8GB-only hub); firing every 4 min with a 30m
+        keep-alive, that pin overrode every correct placement and kept both 7Bs on CPU while 20GB
+        of VRAM sat empty — the #5276 defect.
+
+        MIGRATION (#5328): Ollama does NOT reload a LIVE runner when a warm request merely omits
+        num_gpu (measured: three gpu-eligible cycles left qwen2.5:7b at 100% CPU — its dispatch
+        volume never lets the runner expire), while a FRESH load auto-places on GPU. So when the
+        placement says GPU but the model is resident holding zero VRAM, this cycle unloads it
+        first (keep_alive=0 queues behind in-flight work) and the warm below cold-starts it onto
+        the card.
 
         Runs every 4 min — shorter than the ~5m keep_alive a dispatch resets the model to — with a 30m
         keep_alive, so the model never unloads between sporadic dispatches. The Defiant GPU review-7B
@@ -3711,9 +3717,21 @@ class AgentLoop:
             try:
                 options = {"num_predict": 1}
                 try:
-                    from services.model_service import hub_gpu_placement
+                    from services.model_service import get_model_service, hub_gpu_placement
 
-                    options.update(hub_gpu_placement(model))
+                    placement = hub_gpu_placement(model)
+                    options.update(placement)
+                    if not placement:
+                        # GPU-bound. A live CPU-pinned runner will NOT move on an
+                        # option-omitting warm request (#5328) — unload it so the
+                        # warm below fresh-loads onto the card.
+                        svc = get_model_service()
+                        if svc.resident_vram_gb(model) == 0.0:
+                            logger.info(
+                                "[Agent Loop] Cluster keep-warm: %s CPU-stranded while GPU-eligible — unloading to migrate",
+                                model,
+                            )
+                            svc.unload_model(model)
                 except Exception as pe:
                     # Placement unknowable — keep the historical CPU pin so the warm
                     # request can never evict or overfill a card it cannot measure.

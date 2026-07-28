@@ -186,6 +186,45 @@ def test_placement_pins_cpu_on_error(svc, monkeypatch):
     assert s.gpu_placement_options("qwen2.5:7b") == {"num_gpu": 0}
 
 
+# ---- stranded-runner detection (#5328) --------------------------------------
+#
+# A live CPU-pinned runner is NOT reloaded by a warm request that omits
+# num_gpu, so the keep-warm must be able to distinguish "resident on CPU"
+# (0.0 — unload to migrate) from "resident on GPU" (>0 — leave) from "not
+# resident" (None — plain warm fresh-loads onto the card).
+
+
+def test_resident_vram_distinguishes_gpu_cpu_absent(svc):
+    s, _ = svc
+    s._loaded_cache = [
+        {"name": "qwen2.5:7b", "size_vram": 0},
+        {"name": "mistral:7b", "size_vram": int(4.8 * (1024**3))},
+    ]
+    assert s.resident_vram_gb("qwen2.5:7b") == 0.0
+    assert s.resident_vram_gb("mistral:7b") == pytest.approx(4.8)
+    assert s.resident_vram_gb("gemma3:12b") is None
+
+
+def test_resident_vram_matches_latest_tag(svc):
+    s, _ = svc
+    s._loaded_cache = [{"name": "dolphin3:latest", "size_vram": 0}]
+    assert s.resident_vram_gb("dolphin3") == 0.0
+
+
+def test_keepwarm_unloads_a_cpu_stranded_gpu_eligible_model():
+    """Source-level (#5328): the keep-warm must unload a resident-0-VRAM model
+    when placement says GPU, else the hottest model — whose runner never
+    expires — stays CPU forever despite three-cycle-verified gpu decisions."""
+    from pathlib import Path
+
+    candidate = Path(__file__).resolve()
+    repo = next(p for p in candidate.parents if (p / "ai_bridge" / "agent_loop.py").exists())
+    src = (repo / "ai_bridge" / "agent_loop.py").read_text()
+    assert "resident_vram_gb(model) == 0.0" in src
+    assert "unload_model(model)" in src
+    assert src.index("hub_gpu_placement(model)") < src.index("resident_vram_gb(model) == 0.0")
+
+
 def test_capacity_numbers_are_env_overridable(monkeypatch):
     """A hardware change must be a config edit, not a code edit — a bare constant
     is what went stale for two days."""

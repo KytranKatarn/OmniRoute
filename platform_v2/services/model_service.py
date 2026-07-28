@@ -252,10 +252,14 @@ class ModelService:
           3. Fits the dual-card budget (``get_gpu_fit_budget``) → GPU.
           4. Otherwise, or on ANY error → CPU. Warmth is preserved either way.
 
-        A CPU-resident model that now gets ``{}`` is RELOADED onto GPU by
-        Ollama on the next warm request (an option change restarts the
-        runner), so the 4-minute keep-warm doubles as the recovery path for a
-        CPU-stranded model once VRAM frees up.
+        RECOVERY CAVEAT (#5328, measured 2026-07-27 20:02-20:10): a FRESH load
+        with ``{}`` auto-places on GPU, but Ollama does NOT reload a LIVE
+        runner when a warm request merely OMITS num_gpu — three gpu-eligible
+        decisions in a row left qwen2.5:7b at 100% CPU because its dispatch
+        volume never lets the runner expire. A stranded runner must be
+        explicitly unloaded first; the keep-warm does that (see
+        ``resident_vram_gb`` + the stranded-migration branch in
+        ``_keep_cluster_models_warm``).
         """
         try:
             if not self._is_cache_fresh():
@@ -298,6 +302,20 @@ class ModelService:
         except Exception as exc:
             logger.warning("model_service: placement %s -> cpu (VRAM state unknown: %s)", model, exc)
             return {"num_gpu": 0}
+
+    def resident_vram_gb(self, model: str) -> Optional[float]:
+        """VRAM held by *model* in GB, or None if it is not resident at all.
+
+        ``0.0`` means resident but fully on CPU — the stranded case the
+        keep-warm migrates (#5328). Matches Ollama names with or without the
+        ``:latest`` tag, same as gpu_placement_options.
+        """
+        if not self._is_cache_fresh():
+            self._refresh_cache()
+        for m in self._loaded_cache:
+            if m.get("name") in (model, f"{model}:latest"):
+                return m.get("size_vram", 0) / (1024**3)
+        return None
 
     def is_model_loaded(self, model: str) -> bool:
         """Return True if *model* is currently loaded."""

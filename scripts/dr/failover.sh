@@ -78,6 +78,27 @@ fi
 # signature — beacon_flip_ports_when_ready() passes three args and would
 # silently treat the host as a port.
 
+# ---- Fleet repoint helpers (task #5278) — ONE node list, shared ----
+# The node list + repoint/verify mechanics live in fleet_repoint.sh so
+# failback.sh and force_reset_to_hub.sh can iterate the SAME nodes this script
+# touches. The 2026-07-27 drill proved the alternative: the list lived only
+# here, the rollback couldn't repoint what it didn't know about, and three
+# outposts sat orphaned for 9.6h. Fail-safe: LOUD no-ops, never silent skips.
+if [ -f "$DR/fleet_repoint.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/fleet_repoint.sh"
+else
+  log "  (WARN: $DR/fleet_repoint.sh missing — fleet will NOT be repointed)"
+  log "         deploy it: scp scripts/dr/fleet_repoint.sh root@100.64.0.10:$DR/"
+  fleet_repoint_outposts(){
+    log "  WARN: fleet_repoint.sh not staged — outposts NOT repointed (manual, per node:"
+    log "        ssh root@100.64.0.{5,7,8} /opt/archie-node/repoint.sh ${1:-<target>})"
+    return 1
+  }
+  fleet_kick_starships(){ log "  (fleet_repoint.sh not staged — Starships self-heal in ~2.5 min)"; return 0; }
+  fleet_verify_heartbeats(){ log "  WARN: fleet_repoint.sh not staged — heartbeats unverified."; return 1; }
+fi
+
 # ---- SAFETY: confirm the hub is really down (split-brain guard) ----
 log "Split-brain guard: checking the hub is actually down ($HUB_MESH:5432)..."
 if timeout 5 bash -c "echo > /dev/tcp/$HUB_MESH/5432" 2>/dev/null; then
@@ -177,46 +198,18 @@ WOK=$(docker exec archie_dr_replica psql -U archie -d archie -p 5433 -tAc \
 log "  DB write check: ${WOK:-FAILED}"
 
 # ---- 4. FLEET REPOINT: point surviving nodes at boston-2 (Phase 5b) ----
-# Each node's hub URL is a BAKED container env var → repoint.sh RECREATES the
-# sync container (a `docker restart` ignores --env-file). KB #270232. Mesh IP
-# only — MagicDNS dies with the hub. Non-fatal: failover proceeds per-node.
+# Node list + mechanics live in fleet_repoint.sh (ONE list shared with
+# failback.sh and force_reset_to_hub.sh — task #5278: a rollback must be able
+# to iterate the same nodes a failover touched). Baked-env rationale (repoint.sh
+# RECREATES the sync container; `docker restart` ignores --env-file, KB #270232)
+# and the Starship node_sync DR_HUB_URL self-heal notes live there too.
+# Mesh IPs only — MagicDNS dies with the hub. Non-fatal: failover proceeds.
+# outpost-us (kytran@, /opt/archie-outpost): watch-product URLs handled in 4d.
 DR_MESH=100.64.0.10
 FLEET_KEY="$DR/.ssh/id_ed25519"
-# Surviving global outposts (root@, /opt/archie-node).
-# LAN Starships (100.64.0.3 / .6, Famil@ SSH, Windows Docker Desktop):
-#   NOT repointed here — they self-heal via node_sync.py DR auto-failover:
-#   after 5 consecutive heartbeat failures (~2.5 min) node_sync.py switches
-#   hub_url to DR_HUB_URL (default: http://100.64.0.10:3000) and re-registers
-#   on boston-2. Auto-fails-back when primary recovers for 3 checks. No SSH
-#   needed. Requires node_sync.py v3.0.0+ (docker-compose.node.yml image).
-# outpost-us (kytran@, /opt/archie-outpost): watch-product URLs handled in 4d above.
-FLEET_NODES=( "root@100.64.0.5" "root@100.64.0.7" "root@100.64.0.8" )
 log "Repointing surviving fleet nodes -> boston-2 ($DR_MESH)..."
-if [ -f "$FLEET_KEY" ]; then
-  for node in "${FLEET_NODES[@]}"; do
-    if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$node" \
-         "/opt/archie-node/repoint.sh $DR_MESH" >/dev/null 2>&1; then
-      log "  repointed $node"
-    else
-      log "  WARN: could not repoint $node (skipping)"
-    fi
-  done
-else
-  log "  WARN: $FLEET_KEY missing — cannot repoint fleet (stage the DR key; DR plan 5b)."
-fi
-# Starship nodes (Windows, Famil@ SSH via mesh; firewall rule added 2026-06-04;
-# DR_HUB_URL=100.64.0.10:3000 baked in compose). Force-recreate sync container
-# so node_sync immediately reads DR_HUB_URL instead of waiting 2.5 min.
-if [ -f "$FLEET_KEY" ]; then
-  for starship_mesh in "100.64.0.3" "100.64.0.6"; do
-    if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "Famil@$starship_mesh" \
-         "docker compose -f C:\\archie-node\\docker-compose.yml up -d --force-recreate --no-deps sync" >/dev/null 2>&1; then
-      log "  Starship $starship_mesh: node_sync restarted (DR_HUB_URL=boston-2 active)"
-    else
-      log "  WARN: Starship $starship_mesh unreachable — self-healing fires in ~2.5 min"
-    fi
-  done
-fi
+fleet_repoint_outposts "$DR_MESH" || log "  (some outposts not repointed — see WARNs above; each self-reports on power-up)"
+fleet_kick_starships
 
 # ---- 4b. WTF: repoint its DB to boston-2 so it keeps SERVING + SAVING in DR ----
 # WTF's data is the hub `wtf` DATABASE (NOT the empty archie.wtf schema — KB #270304),

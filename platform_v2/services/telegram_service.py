@@ -511,13 +511,16 @@ def send_system(title: str, message: str = "", **kwargs) -> dict:
     Persistent conditions (same title + source) are suppressed after the first
     report within the cooldown window (default 2h) to prevent watchdog floods.
     Pass cooldown_hours=0 to disable dedup for one-shot events.
+    Pass severity="critical" for conditions that must not render like routine
+    warnings (e.g. a PERSISTING fleet mass-offline — #5278 item 3: twelve
+    identical [WARNING] Telegrams sent overnight and none registered).
     """
     return _inbox_send(
         category="system",
         title=title,
         message=message,
         source_agent=kwargs.get("source_agent", "B.A.S.E."),
-        severity="warning",
+        severity=kwargs.get("severity", "warning"),
         department=kwargs.get("source_department", "Operations & Infrastructure"),
         cooldown_hours=kwargs.get("cooldown_hours", 2.0),
     )

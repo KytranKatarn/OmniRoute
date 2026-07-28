@@ -49,6 +49,21 @@ else
   BEACON_DR_PORTS_ALL=(3000 8086 8095)
 fi
 
+# ---- Fleet repoint helpers (task #5278) — ONE node list shared with failover ----
+if [ -f "$DR/fleet_repoint.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/fleet_repoint.sh"
+else
+  log "(WARN: $DR/fleet_repoint.sh missing — fleet repoint-back will use loud no-ops)"
+  fleet_repoint_outposts(){
+    log "  WARN: fleet_repoint.sh not staged — outposts NOT repointed (manual, per node:"
+    log "        ssh root@100.64.0.{5,7,8} /opt/archie-node/repoint.sh ${1:-<target>})"
+    return 1
+  }
+  fleet_kick_starships(){ log "  (fleet_repoint.sh not staged — Starships self-heal in ~2.5 min)"; return 0; }
+  fleet_verify_heartbeats(){ log "  WARN: fleet_repoint.sh not staged — heartbeats unverified."; return 1; }
+fi
+
 # helpers
 b2(){ docker exec "$B2_CONTAINER" psql -U archie -p "$B2_PG" -tAc "$1" 2>/dev/null; }
 b2_primary(){ [ "$(b2 'SELECT pg_is_in_recovery();')" = "f" ]; }
@@ -137,10 +152,15 @@ restore-normal)  # platform + fleet + WTF + DNS back to the hub; boston-2 -> rep
   log "1) start the real hub platform + scheduler..."
   ssh -i "$FLEET_KEY" -o BatchMode=yes "$HUB_SSH" "cd /mnt/archie_brain && docker compose up -d archie_platform archie_scheduler" >/dev/null 2>&1 || log "  (do this manually if it failed)"
   log "2) repoint the global outposts back to the hub ($HUB_MESH)..."
-  for node in root@100.64.0.5 root@100.64.0.7 root@100.64.0.8; do
-    ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$node" "/opt/archie-node/repoint.sh $HUB_MESH" >/dev/null 2>&1 \
-      && log "   repointed $node -> hub" || log "   WARN: could not repoint $node"
-  done
+  # Shared list + mechanics: fleet_repoint.sh (#5278 — the same nodes failover
+  # touched, iterated by the rollback, then VERIFIED. The 07-27 drill's rollback
+  # skipped this and three outposts sat orphaned 9.6h with re-registration
+  # loops armed — the KB #270611 storm precondition.)
+  fleet_repoint_outposts "$HUB_MESH" || log "   WARN: some outposts not repointed — repoint each on power-up."
+  fleet_kick_starships
+  log "2v) VERIFY heartbeats resume — a node list is not a rollback until they do..."
+  fleet_verify_heartbeats 300 240 \
+    || log "   *** FLEET NOT VERIFIED: outposts may still point at boston-2 (#5278). Fix BEFORE closing the incident."
   log "3) repoint WTF DB back to the hub ($HUB_MESH) on the WTF host..."
   WTF_HOST="${WTF_HOST:-kytran@100.64.0.2}"; WTF_DIR="${WTF_DIR:-/opt/archie-products/what-the-fact}"
   if ssh -i "$FLEET_KEY" -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new "$WTF_HOST" \

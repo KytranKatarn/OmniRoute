@@ -18,6 +18,7 @@ Postmortem: .claude/dr-postmortem-and-remediation.md · KB mistake #270611.
 """
 
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,17 @@ REST_EXCLUDED = {
 }
 STALE_SECONDS = 180  # an approved node silent > 3 min is "offline"
 MASS_OFFLINE_THRESHOLD = 1  # MORE than this many at once -> alert (storm-shaped)
+
+# #5278 item 3: on 2026-07-27 this monitor fired correctly for 9.6h (twelve
+# "[WARNING] Fleet: N nodes OFFLINE" Telegrams, all SENT) and none registered —
+# the 9th alert looked exactly like the 1st and like every other routine
+# [WARNING]. A persisting storm precondition must stop rendering as routine:
+# after PERSIST_CRITICAL_MIN of continuous mass-offline the alert switches to a
+# DISTINCT title at critical severity. Tracked in-process; a scheduler restart
+# resets the clock, which only delays the escalation by one window.
+PERSIST_CRITICAL_MIN = 30
+
+_mass_offline_since = None  # epoch of the first check that saw the condition
 
 
 def check_fleet_identity():
@@ -71,7 +83,12 @@ def check_fleet_identity():
             rows = cur.fetchall()
             offline = [r for r in rows if (r["node_id"] if isinstance(r, dict) else r[0]) not in REST_EXCLUDED]
             result["mass_offline"] = len(offline)
+            global _mass_offline_since
             if len(offline) > MASS_OFFLINE_THRESHOLD:
+                now = time.time()
+                if _mass_offline_since is None:
+                    _mass_offline_since = now
+                persist_min = int((now - _mass_offline_since) / 60)
                 names = ", ".join(
                     "%s (%ds)"
                     % (
@@ -80,13 +97,35 @@ def check_fleet_identity():
                     )
                     for r in offline
                 )
-                send_system(
-                    "Fleet: %d nodes OFFLINE" % len(offline),
+                body = (
                     "%d approved fleet nodes went silent (>%ds): %s. "
-                    "Check ARMADA + run scripts/dr/reconcile_fleet_identity.sh." % (len(offline), STALE_SECONDS, names),
-                    cooldown_hours=1.0,
+                    "Check ARMADA + run scripts/dr/reconcile_fleet_identity.sh. "
+                    "If this follows a DR failover/drill: the nodes may still have "
+                    "HUB_URL pointed at boston-2 (100.64.0.10) — the #5278 signature "
+                    "(simultaneous drop, machines still mesh-online). Fix per node: "
+                    "/opt/archie-node/repoint.sh 100.64.0.4." % (len(offline), STALE_SECONDS, names)
                 )
-                result["alerted"].append("mass_offline")
+                if persist_min >= PERSIST_CRITICAL_MIN:
+                    # Distinct title (new dedup key) + critical severity so the
+                    # escalation cannot render identically to the initial warning.
+                    # Minutes go in the BODY only — a changing title would defeat
+                    # the cooldown dedup and flood every 5-min check.
+                    send_system(
+                        "Fleet: %d nodes OFFLINE — PERSISTING" % len(offline),
+                        "Condition has persisted for %d min without recovery. %s" % (persist_min, body),
+                        severity="critical",
+                        cooldown_hours=1.0,
+                    )
+                    result["alerted"].append("mass_offline_persisting")
+                else:
+                    send_system(
+                        "Fleet: %d nodes OFFLINE" % len(offline),
+                        body,
+                        cooldown_hours=1.0,
+                    )
+                    result["alerted"].append("mass_offline")
+            else:
+                _mass_offline_since = None
 
             # ---- 2. DUPLICATE IDENTITY (FIX1 regression signature) ------
             cur.execute(

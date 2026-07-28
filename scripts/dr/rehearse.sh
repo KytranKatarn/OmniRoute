@@ -172,6 +172,47 @@ if [ -n "${BEACON_MAINTENANCE_HOSTS+x}" ] && [ "${#BEACON_MAINTENANCE_HOSTS[@]}"
     || ok "derp. correctly excluded from the splash set"
 else unk "BEACON_MAINTENANCE_HOSTS not defined"; fi
 
+# ---- 9. Fleet nodes point at the HUB, and their heartbeats are fresh (#5278) ----
+# The 2026-07-27 drill left all three global outposts with HUB_URL=boston-2 for
+# 9.6h while this rehearsal reported all-pass: it validated shapes, not the
+# outcome "every node heartbeats the hub" (same class as the #5265 splash
+# finding — the rehearsal must assert outcomes). Two-part check, from here:
+#   a) each REACHABLE outpost's baked HUB_URL is the hub mesh IP (the drill
+#      signature is HUB_URL=100.64.0.10 while the machine is mesh-online)
+#   b) remote_nodes.last_heartbeat < 5 min for every outpost, read from the
+#      LOCAL replica — it streams from the hub, so a fresh replica answers with
+#      hub truth (if check 1 failed, this data is stale and check 1 is the story)
+# Starships are deliberately excluded: they self-heal via node_sync DR_HUB_URL
+# and rest overnight, so a naive check here would fail on a healthy cluster.
+_fleet_key=""
+for _k in "$FLEET_KEY" "$DR/.ssh/id_ed25519" "$DR/.fleet_key"; do
+  [ -n "$_k" ] && [ -f "$_k" ] && { _fleet_key="$_k"; break; }
+done
+if [ -z "$_fleet_key" ]; then
+  unk "no fleet SSH key on this host — outpost HUB_URL not checked"
+else
+  for _n in root@100.64.0.5 root@100.64.0.7 root@100.64.0.8; do
+    _url="$(ssh -i "$_fleet_key" -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "$_n" \
+           "grep -h '^HUB_URL=' /opt/archie-node/sync.env 2>/dev/null || docker inspect archie_outpost_sync --format '{{range .Config.Env}}{{println .}}{{end}}' 2>/dev/null | grep '^HUB_URL='" 2>/dev/null | head -1)"
+    case "$_url" in
+      *"$HUB_MESH"*) ok "$_n HUB_URL points at the hub" ;;
+      *"$DR_MESH"*)  bad "$_n HUB_URL points at boston-2 ($_url) — the #5278 drill signature; run /opt/archie-node/repoint.sh $HUB_MESH there" ;;
+      "")            unk "$_n unreachable — HUB_URL not checked" ;;
+      *)             bad "$_n HUB_URL is unexpected: $_url" ;;
+    esac
+  done
+fi
+_hb="$(docker exec "$B2_CONTAINER" psql -U archie -d archie -p "$B2_PG" -tA -F'|' -c \
+  "SELECT node_name, COALESCE(EXTRACT(EPOCH FROM NOW()-last_heartbeat)::int, 999999) FROM remote_nodes WHERE mesh_ip IN ('100.64.0.5','100.64.0.7','100.64.0.8') ORDER BY node_name;" 2>/dev/null)"
+if [ -z "$_hb" ]; then unk "outpost heartbeats unreadable from the replica"
+else
+  while IFS='|' read -r _name _age; do
+    [ -n "$_name" ] || continue
+    if [ "${_age:-999999}" -le 300 ] 2>/dev/null; then ok "heartbeat fresh: $_name (${_age}s)"
+    else bad "heartbeat STALE: $_name (${_age}s ago) — the node is not reporting to the hub (#5278)"; fi
+  done <<< "$_hb"
+fi
+
 log "=== REHEARSAL: $PASS pass · $FAIL fail · $UNKNOWN unknown ==="
 [ "$UNKNOWN" -gt 0 ] && log "NOTE: an UNKNOWN is not a pass — something could not be measured."
 [ "$FAIL" -gt 0 ] && { log "DR is NOT in a state where a failover would go cleanly."; exit 1; }

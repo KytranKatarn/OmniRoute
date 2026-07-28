@@ -39,6 +39,21 @@ else
   BEACON_MAINTENANCE_HOSTS=()
 fi
 
+# ---- Fleet repoint helpers (task #5278) — ONE node list shared with failover ----
+if [ -f "$DR/fleet_repoint.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$DR/fleet_repoint.sh"
+else
+  log "(WARN: $DR/fleet_repoint.sh missing — fleet repoint-back will use loud no-ops)"
+  fleet_repoint_outposts(){
+    log "  WARN: fleet_repoint.sh not staged — outposts NOT repointed (manual, per node:"
+    log "        ssh root@100.64.0.{5,7,8} /opt/archie-node/repoint.sh ${1:-<target>})"
+    return 1
+  }
+  fleet_kick_starships(){ log "  (fleet_repoint.sh not staged — Starships self-heal in ~2.5 min)"; return 0; }
+  fleet_verify_heartbeats(){ log "  WARN: fleet_repoint.sh not staged — heartbeats unverified."; return 1; }
+fi
+
 log "=== force_reset_to_hub START ==="
 
 # ---- 1. Beacon Caddyfile — revert the DR-capable upstreams to the hub ----
@@ -87,6 +102,19 @@ for product_dir in gov-watch legal-watch what-the-fact civic-watch market-watch;
     log "  $product_dir: no DR IPs found (already clean)"
   fi
 done
+
+# ---- 2b. FLEET NODES — repoint back to the hub + VERIFY heartbeats ----
+# THE 2026-07-27 DRILL HOLE (#5278): this script restored Beacon, the watch
+# products, the containers and the flags — and never repointed the FLEET, so
+# all three global outposts kept HUB_URL=boston-2 for 9.6h, stuck in
+# re-registration loops (the KB #270611 storm precondition; only the absence of
+# a listener on 100.64.0.10:3000 prevented identity churn). A repoint on an
+# already-hub-pointed node is an idempotent no-op, so this always runs.
+log "2b) Repointing fleet nodes back to the hub ($HUB_MESH) ..."
+fleet_repoint_outposts "$HUB_MESH" || log "  WARN: some outposts not repointed — repoint each on power-up."
+fleet_kick_starships
+# (heartbeat VERIFY runs as step 7, after the DR containers are stopped — the
+#  nodes get steps 3-6 of runtime to reconnect, so the wait is usually instant)
 
 # ---- 3. Stop DR containers ----
 log "3) Stopping DR containers ..."
@@ -197,6 +225,11 @@ else
   log "  *** This is the 2026-07-26 signature: healthy services, correct-looking"
   log "  *** DNS, and the name still unusable from the LAN."
 fi
+
+# ---- 7. VERIFY fleet heartbeats — a node list is not a rollback until they return (#5278) ----
+log "7) Verifying fleet heartbeats against the hub DB ..."
+fleet_verify_heartbeats 300 240 \
+  || log "  *** FLEET NOT VERIFIED: outposts may still point at boston-2 (#5278 drill defect). Fix BEFORE calling this reset complete."
 
 log "=== force_reset_to_hub COMPLETE — watchdog re-armed, all products on hub ==="
 log ""

@@ -1217,9 +1217,16 @@ def register_fleet_jobs(scheduler, flask_app):
     #     replace_existing=True,
     # )
 
+    # CRON, not INTERVAL (#5007): an IntervalTrigger's first fire is 60 min AFTER
+    # scheduler start, so every restart blinded this safety net for a full hour —
+    # precisely when drift is most likely, since a restart orphans in-flight jobs.
+    # Measured 2026-07-28: three gaps in one day (137 min, 116 min, and 169 min
+    # after the 14:03 deploy restart) against a job that is supposed to run hourly.
+    # A wall-clock schedule is restart-independent. tz kwarg is mandatory per
+    # .claude/rules/timezone.md.
     scheduler.add_job(
         with_ctx(budget_reconciliation),
-        trigger=IntervalTrigger(minutes=60),
+        trigger=CronTrigger(minute=5, timezone="America/Toronto"),
         id="budget_reconciliation",
         name="Agent Loop: Budget Counter Reconciliation",
         replace_existing=True,

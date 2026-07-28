@@ -715,19 +715,50 @@ class DepartmentCoordinator:
 
             conn = get_db()
             cur = conn.cursor()
+            # INFRASTRUCTURE FAILURES ARE NOT THE AGENT'S FAULT (#5129).
+            #
+            # This originally counted EVERY `NOT success` row against the agent. Under
+            # hub saturation that is unwinnable and mis-attributed: on 2026-07-23 the
+            # dispatch log showed a 240s fleet timeout against a model whose measured
+            # cold load was 600s (`warm_boot_ms = 600104`), with the hub 7B lane gated
+            # at 9-12 in-flight vs a cap of 8. F.O.R.G.E. was scored down on
+            # 'code_review' — its own core capability — for a GPU queue it did not
+            # cause. Welfare must respond to genuine struggle, not to contention.
+            #
+            # The signature is deliberately the SAME one dispatch_health_service uses to
+            # split failed_real from failed_timeout (#4538), so "infra failure" cannot
+            # come to mean two different things in two places.
+            #
+            # Infra rows are dropped from the NUMERATOR **and** the DENOMINATOR: a
+            # request that never reached the model tells us nothing about the agent
+            # either way. Keeping them in the denominator would silently dilute a real
+            # failure rate below the threshold and mask an agent that IS struggling.
+            # The >=5 minimum therefore now applies to ATTRIBUTABLE attempts, which is
+            # strictly more conservative than before — it cannot fire on a handful of
+            # genuine attempts buried in a pile of timeouts.
             cur.execute(
                 """
-                SELECT a.id, tel.capability,
-                       COUNT(*) AS total,
-                       COUNT(*) FILTER (WHERE NOT tel.success) AS fails
-                FROM task_execution_log tel
-                JOIN agents a ON a.name = tel.agent_name
-                WHERE tel.created_at > NOW() - INTERVAL '1 hour'
-                  AND tel.capability IS NOT NULL
-                  AND tel.model_used IS DISTINCT FROM 'internal'
-                GROUP BY a.id, tel.capability
-                HAVING COUNT(*) >= 5
-                   AND COUNT(*) FILTER (WHERE NOT tel.success)::float / COUNT(*) >= 0.6
+                WITH classified AS (
+                    SELECT a.id AS agent_id,
+                           tel.capability,
+                           tel.success,
+                           (NOT tel.success AND COALESCE(tel.error_message, '') ~*
+                             'timeout|timed out|did not respond|reaped|stale|auto-killed'
+                           ) AS is_infra
+                    FROM task_execution_log tel
+                    JOIN agents a ON a.name = tel.agent_name
+                    WHERE tel.created_at > NOW() - INTERVAL '1 hour'
+                      AND tel.capability IS NOT NULL
+                      AND tel.model_used IS DISTINCT FROM 'internal'
+                )
+                SELECT agent_id, capability,
+                       COUNT(*) FILTER (WHERE NOT is_infra) AS attributable,
+                       COUNT(*) FILTER (WHERE NOT success AND NOT is_infra) AS fails
+                FROM classified
+                GROUP BY agent_id, capability
+                HAVING COUNT(*) FILTER (WHERE NOT is_infra) >= 5
+                   AND COUNT(*) FILTER (WHERE NOT success AND NOT is_infra)::float
+                       / NULLIF(COUNT(*) FILTER (WHERE NOT is_infra), 0) >= 0.6
                 """
             )
             for aid, cap, total, fails in cur.fetchall():
@@ -757,19 +788,65 @@ class DepartmentCoordinator:
                     """,
                     (
                         aid,
-                        f"Distress opt-out: {fails}/{total} failures on '{cap}' in the last hour — "
-                        f"agent steps back, work routed to a healthy peer",
+                        f"Distress opt-out: {fails}/{total} ATTRIBUTABLE failures on '{cap}' in the last "
+                        f"hour (infrastructure timeouts excluded, #5129) — agent is scored down by 1.5 so "
+                        f"a healthy peer is preferred; NOT a hard block",
                         _json.dumps(
-                            {"capability": cap, "failures": fails, "total": total, "trigger": "sustained_failure"}
+                            {
+                                "capability": cap,
+                                "failures": fails,
+                                "attributable": total,
+                                "trigger": "sustained_failure",
+                                "infra_excluded": True,
+                            }
                         ),
                     ),
                 )
                 _c.commit()
                 _cur.close()
                 _c.close()
-                logger.info("consent: agent id=%s opted out of '%s' (%d/%d failures)", aid, cap, fails, total)
+                logger.info(
+                    "consent: agent id=%s opted out of '%s' (%d/%d attributable failures)", aid, cap, fails, total
+                )
             except Exception as _e:
                 logger.debug("distress governance log failed: %s", _e)
+
+            # SURFACE IT (#5129 item 1). An agent stepping back from its own core
+            # capability changes who reviews your PRs, and until now the only trace was
+            # a debug-level log line and a governance row nobody reads — so "F.O.R.G.E.
+            # approved this" could quietly stop being true. Advisory only: best-effort,
+            # never allowed to break selection (an alerting failure must not become a
+            # dispatch failure).
+            # FIRE-AND-FORGET, deliberately. send_system() makes a NETWORK call and
+            # this runs inside the agent-selection refresh, on the dispatch hot path.
+            # A try/except is not sufficient protection here: `except` catches a
+            # RAISE, not a BLOCK. A Telegram endpoint that hangs rather than fails
+            # would add its full timeout to every select_agent() call. The daemon
+            # flag means it can never hold up interpreter shutdown either.
+            # Defaults bind the loop variables at spawn time -- this runs per agent.
+            def _send_distress_advisory(cap=cap, aid=aid, fails=fails, total=total):
+                try:
+                    from services.telegram_service import send_system
+
+                    send_system(
+                        title=f"Agent stepped back from '{cap}'",
+                        message=(
+                            f"agent id={aid} scored down on '{cap}' after {fails}/{total} attributable "
+                            f"failures in the last hour (infra timeouts excluded). Work prefers a healthy "
+                            f"peer until the rate recovers. If this is a core capability, check hub load."
+                        ),
+                    )
+                except Exception as _e:  # noqa: BLE001 - advisory must never break dispatch
+                    logger.debug("distress advisory failed: %s", _e)
+
+            try:
+                threading.Thread(
+                    target=_send_distress_advisory,
+                    name=f"distress-advisory-{aid}",
+                    daemon=True,
+                ).start()
+            except Exception as _e:  # noqa: BLE001 - even spawning must not break dispatch
+                logger.debug("distress advisory thread failed to start: %s", _e)
 
         self._distress = new_distress
         self._distress_time = now

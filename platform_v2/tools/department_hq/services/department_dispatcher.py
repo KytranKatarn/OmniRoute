@@ -2722,7 +2722,7 @@ class DepartmentDispatcher:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 """
-                SELECT node_id, node_name, mesh_ip, hostname, port, status
+                SELECT node_id, node_name, mesh_ip, hostname, port, status, deployment_mode
                 FROM remote_nodes
                 WHERE id = %s
                   AND status = 'online'
@@ -2740,6 +2740,22 @@ class DepartmentDispatcher:
             conn.close()
             if not row:
                 return None
+            # #5332: UNDOCKED = leave the ships alone. This is the chokepoint every
+            # node-targeted dispatch (incl. preferred_node pins) builds its transport
+            # info through — an undocked Starship answers None here, so the caller
+            # falls through to the hub/next candidate exactly like an offline node.
+            if row.get("deployment_mode") == "starship":
+                try:
+                    from tools.department_hq.fleet_helpers import is_starships_undocked
+
+                    if is_starships_undocked():
+                        logger.info(
+                            "[BridgeDispatcher] node %s is UNDOCKED — pinned dispatch falls through (#5332)",
+                            row.get("node_name"),
+                        )
+                        return None
+                except Exception:
+                    pass  # fail-open: predicate errors must not un-route the fleet
             # Prefer mesh_ip — canonical inter-cluster transport (ADR mesh mandate)
             host = row.get("mesh_ip") or row.get("hostname") or ""
             if not host:

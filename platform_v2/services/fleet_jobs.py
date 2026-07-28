@@ -669,6 +669,62 @@ def budget_reconciliation():
         logger.warning("Budget reconciliation failed: %s", e)
 
 
+def hub_deploy_provenance_monitor():
+    """Alarm when merged code is not the code we are running (#5375).
+
+    Covers EVERY merge path — Telegram button, Repair Bay auto-merge, the
+    /merge-pr skill, a manual `gh pr merge` — because it measures the running
+    platform, not the act of merging.
+
+    Only a POSITIVE drift alarms. ``fail_open`` (GitHub unreachable, /proc
+    unreadable) is reported and never paged: a monitor that alarms on its own
+    outage gets muted, and a muted monitor is how the original bug hid.
+
+    The status is in the alert TITLE on purpose — ``send_system`` dedups on
+    (title, source), so a lingering ``pull_required`` must not mute a later
+    ``restart_required``. Same lesson as the per-tier backup freshness alarm.
+    """
+    try:
+        import sys
+
+        sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+        from services.hub_deploy_provenance import (
+            STATUS_FAIL_OPEN,
+            STATUS_IN_SYNC,
+            check_hub_deploy,
+        )
+
+        check = check_hub_deploy()
+        status = check.get("status")
+
+        if status in (STATUS_IN_SYNC, STATUS_FAIL_OPEN):
+            _log_cycle("hub_deploy_provenance", 1, 0, 0)
+            if status == STATUS_FAIL_OPEN:
+                logger.info("[HubProvenance] UNKNOWN (not an alarm): %s", check.get("reason"))
+            return
+
+        logger.warning("[HubProvenance] %s — %s", status, check.get("reason"))
+        try:
+            from services.telegram_service import send_system
+
+            send_system(
+                title=f"🚨 Hub deploy drift — {status}",
+                message=(
+                    f"{check.get('reason')}\n\n"
+                    f"local={(check.get('local_head') or '?')[:9]} "
+                    f"origin/main={(check.get('remote_head') or '?')[:9]}\n\n"
+                    f"Remedy:\n{check.get('remedy')}"
+                ),
+            )
+        except Exception as notif_err:
+            logger.debug("[HubProvenance] alert send failed: %s", notif_err)
+
+        _log_cycle("hub_deploy_provenance", 0, 1, 0, error_message=str(check.get("reason"))[:300])
+    except Exception as e:
+        _log_cycle("hub_deploy_provenance", 0, 1, 0, error_message=str(e))
+        logger.warning("Hub deploy provenance check failed: %s", e)
+
+
 def department_metrics_rollup():
     """Job #60: Department metrics rollup -- daily at 2:00 AM.
     Owned by Analytics & Intelligence (S.P.E.C.T.R.A.)."""
@@ -1229,6 +1285,17 @@ def register_fleet_jobs(scheduler, flask_app):
         trigger=CronTrigger(minute=5, timezone="America/Toronto"),
         id="budget_reconciliation",
         name="Agent Loop: Budget Counter Reconciliation",
+        replace_existing=True,
+    )
+
+    # #5375: catch "merged but not deployed". Wall-clock for the same reason as
+    # the job above — an observer that goes blind for an hour after every restart
+    # is blind exactly when deploys happen.
+    scheduler.add_job(
+        with_ctx(hub_deploy_provenance_monitor),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="hub_deploy_provenance",
+        name="Agent Loop: Hub Deploy Provenance (merged == running?)",
         replace_existing=True,
     )
 

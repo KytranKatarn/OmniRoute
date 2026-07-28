@@ -1557,7 +1557,38 @@ class TelegramGateway:
                     # Close the Approvals-tab row too, so the other surface stops
                     # showing this as pending (#5283).
                     resolve_pr_merge_approval(pr_number, approved=True, user_id=user_info.get("user_id"))
-                    await query.edit_message_text(f"✅ Kytran approved — PR #{pr_number} merged successfully.")
+
+                    # MERGED != DEPLOYED (#5375). /app is bind-mounted from the
+                    # /mnt/archie_brain checkout; merging updates *origin*, not
+                    # that working tree. This reply used to say "merged
+                    # successfully" full stop, which reads as "shipped" — and on
+                    # 2026-07-28 two PRs (#2543, #2542) sat merged-but-dead
+                    # behind exactly that message while every other signal
+                    # (GitHub, Repair Bay, a clean container restart) read green.
+                    #
+                    # We report the deploy state; we do NOT pull or restart here.
+                    # This handler runs INSIDE archie_platform, so restarting
+                    # would kill it mid-reply, and /mnt/archie_brain holds
+                    # Kytran's uncommitted work — automating git there is how you
+                    # lose it. Fail-safe: any error degrades to a plain merge
+                    # confirmation rather than swallowing the merge result.
+                    deploy_line = ""
+                    try:
+                        from services.hub_deploy_provenance import (  # noqa: PLC0415
+                            check_hub_deploy,
+                            describe,
+                        )
+
+                        deploy_line = f"\n\n{describe(check_hub_deploy())}"
+                    except Exception as _dep_exc:  # noqa: BLE001
+                        logger.warning(
+                            "[PRMergeCallback] deploy provenance unavailable for PR #%s: %s",
+                            pr_number,
+                            _dep_exc,
+                        )
+                        deploy_line = "\n\n❔ deploy state UNKNOWN (provenance check unavailable)"
+
+                    await query.edit_message_text(f"✅ Kytran approved — PR #{pr_number} merged.{deploy_line}")
                 else:
                     await query.edit_message_text(
                         f"❌ Merge failed for PR #{pr_number}: {result.get('error', 'unknown error')}"

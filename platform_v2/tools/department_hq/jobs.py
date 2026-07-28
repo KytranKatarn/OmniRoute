@@ -1841,13 +1841,32 @@ def _register_own_jobs(scheduler, flask_app):
             from services.telegram_service import send_system
 
             with get_db_cursor(commit=True) as (_, cur):
-                # Expire stuck 'running' items (platform restart orphans, >30 min)
+                # Expire stuck 'running' items (platform restart orphans, >30 min).
+                #
+                # ⚠️ THE CLOCK STARTS AT CLAIM, NOT AT ENQUEUE (#5188). This used
+                # `queued_at < NOW() - 30 min`, which measures QUEUE WAIT, not
+                # RUN TIME — so a job that waited out the deadline before a worker
+                # ever picked it up was eligible for reaping the INSTANT it started
+                # running. Measured 2026-07-28 across 2,183 reaped rows:
+                #   avg wait to be claimed .......... 59.0 min   (already past 30)
+                #   avg actually held (claim->reap) .. 6.2 min
+                #   claimed AFTER the deadline ....... 1,962 / 2,183 = 89.9%
+                # So ~90% were healthy, actively-running jobs killed mid-flight and
+                # labelled "stuck running >30 min" — which they never were. That one
+                # bucket is 2,022 rows, 57% of ALL dispatch failures, and it is why
+                # the queue looked like it was hanging when it was actually being
+                # shot. The label made the misdiagnosis worse than the loss.
+                #
+                # COALESCE keeps the original safety net: a 'running' row with NO
+                # claimed_at is a genuine orphan (platform restart between claim and
+                # write), so it still falls back to queued_at and is reaped.
                 cur.execute(
                     """
                     UPDATE dispatch_pending_queue
-                       SET status = 'failed', error = 'zombie: stuck running >30 min'
+                       SET status = 'failed',
+                           error = 'zombie: held >30 min after claim (no result returned)'
                      WHERE status = 'running'
-                       AND queued_at < NOW() - INTERVAL '30 minutes'
+                       AND COALESCE(claimed_at, queued_at) < NOW() - INTERVAL '30 minutes'
                     RETURNING id, agent_name, capability
                     """
                 )

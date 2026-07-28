@@ -50,6 +50,21 @@ def _log_cycle(
 ):
     """Log an agent loop execution cycle to autonomy_loop_log."""
     status = "error" if items_failed > 0 and items_processed == 0 else "partial" if items_failed > 0 else "success"
+    # #5339: 107 of 107 failing rows recorded NO reason. Resolve it here rather
+    # than at 186 call sites — most are inside an `except`, so the exception is
+    # still live in sys.exc_info(). An explicit caller message always wins.
+    #
+    # GUARDED because this runs on the LOGGING path of every job. Not every caller
+    # reaches _log_cycle with platform_v2 on sys.path — fleet_jobs inserts it
+    # explicitly before its own service imports — and an ImportError here would
+    # turn a LOGGED failure into an UNLOGGED crash, strictly worse than the bug
+    # being fixed. F.O.R.G.E. flagged exactly this on PR #2546 and was right.
+    try:
+        from services.loop_log import explain_failure
+
+        error_message = explain_failure(status, items_failed, error_message)
+    except Exception:  # noqa: BLE001 — the resolver must never break logging
+        pass
     try:
         from db import get_db
 

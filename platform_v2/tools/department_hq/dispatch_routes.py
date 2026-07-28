@@ -357,6 +357,27 @@ def register_dispatch_routes(bp, admin_required_decorator):
         ),
     }
 
+    @bp.route("/api/dispatch/invokable-skills", methods=["GET"])
+    @admin_required_decorator
+    def dispatch_invokable_skills():
+        """#5291 skill bridge: the invokable-actions registry for archie-tui and
+        the cockpit. Membership generated live from delegation_service's
+        KNOWN_TOOL_CAPABILITIES + CAPABILITY_DEPARTMENT_MAP; directors resolved
+        from the roster so the payload never goes stale against a re-org."""
+        from services.delegation_service import build_invokable_skills_registry
+
+        directors = {}
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT department, name FROM agents "
+                    "WHERE is_department_ai = TRUE AND shift_state <> 'decommissioned'"
+                )
+                directors = {r["department"]: r["name"] for r in cur.fetchall()}
+        except Exception as e:
+            logger.warning("[Dispatch] invokable-skills director lookup failed: %s", e)
+        return jsonify({"success": True, **build_invokable_skills_registry(directors)})
+
     @bp.route("/api/dispatch/backlogs", methods=["GET"])
     @admin_required_decorator
     def dispatch_backlogs():

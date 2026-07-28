@@ -62,7 +62,88 @@ VALID_DELEGATION_SOURCES = {
     "web_chat",
     "mcp_client",
     "automation",
+    # #5291 skill bridge: A.R.C.H.I.E.'s own surfaces invoke platform skills
+    # through this same delegate path (sovereign-local, ADR-013).
+    "tui",  # archie-tui command palette (via archie_engine proxy)
+    "cockpit",  # archie.kytranempowerment.com Building-Machine skills rail
 }
+
+
+# ---------------------------------------------------------------------------
+# #5291: invokable-skills registry (TUI/cockpit skill bridge)
+# ---------------------------------------------------------------------------
+
+# Display hints for the known-tool delegates: {capability: (description, args_hint)}.
+# UI hints ONLY — each executor validates its own args. Membership is NOT read
+# from here (that stays generated from KNOWN_TOOL_CAPABILITIES); a tool missing
+# from this dict still appears in the registry with a generic description.
+KNOWN_TOOL_HINTS = {
+    "run_qa_suite": ("P.R.O.B.E. — run QA suites (all active, or one)", {"suite_id": "int (optional; omit = all)"}),
+    "run_misroute_audit": ("S.P.E.C.T.R.A. — dispatch misroute audit", {}),
+    "health_check": ("Platform health check (no LLM)", {}),
+    "check_platform_health": ("Extended platform health check (no LLM)", {}),
+    "check_dep_drift": ("F.O.R.G.E. — dependency drift scan", {}),
+    "run_briefing_health": ("P.R.O.B.E. — agent chat-briefing schema check", {}),
+    "run_misroute_to_proposal_adapter": ("S.P.E.C.T.R.A. — misroute observations to proposals", {}),
+    "deploy_static": ("Deploy a static website (Hostinger pipeline)", {"domain": "str"}),
+    "deploy_vps": ("Deploy a product to its VPS node", {"product": "str"}),
+    "external_fetch": ("S.C.O.U.T. — fetch an external URL via the scraper fabric", {"url": "str"}),
+    "capture_chat_share": ("S.C.O.U.T. — render a public AI chat share link into Chronicle", {"url": "str"}),
+    "portrait_refinement": ("Media Studio — portrait refinement pass", {"agent_id": "int"}),
+    "translation_coverage_scan": ("Translation coverage scan across domains", {}),
+    "visual_scan": ("P.R.O.B.E. — Playwright visual verification", {"url": "str (optional)"}),
+    "document_pr": ("C.O.D.E.X. — persist coder-doc vault_note for a merged PR", {"pr_number": "int"}),
+    "restore_sandbox": ("W.A.R.D.E.N. — restore a backup into the staging DB", {"backup_id": "int (optional)"}),
+    "restore_production": ("W.A.R.D.E.N. — production restore (host-gated, ADR-001)", {"backup_id": "int"}),
+}
+
+
+def build_invokable_skills_registry(director_by_department: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """#5291: the registry the TUI/cockpit skill bridge lists and fires from.
+
+    Membership is GENERATED from the two live sources of truth —
+    ``KNOWN_TOOL_CAPABILITIES`` (no-LLM delegates) and
+    ``CAPABILITY_DEPARTMENT_MAP`` (LLM capabilities) — never a hand-maintained
+    parallel list (the spec's rule; KNOWN_TOOL_HINTS adds display strings only).
+    A capability present in both renders as known_tool, matching
+    ``execute_delegated_task``'s precedence at execution time. Pure function:
+    the caller resolves directors (a DB read) and injects them.
+    """
+    from services.department_coordinator import CAPABILITY_DEPARTMENT_MAP
+
+    directors = director_by_department or {}
+    skills = []
+    for cap in sorted(KNOWN_TOOL_CAPABILITIES):
+        desc, args = KNOWN_TOOL_HINTS.get(cap, ("Known-tool delegate (no LLM)", {}))
+        skills.append(
+            {
+                "capability": cap,
+                "kind": "known_tool",
+                "home_department": None,
+                "director_agent": None,
+                "args_schema": args or None,
+                "description": desc,
+            }
+        )
+    for cap, dept in sorted(CAPABILITY_DEPARTMENT_MAP.items()):
+        if cap in KNOWN_TOOL_CAPABILITIES:
+            continue  # the known-tool shortcut wins at execution time
+        skills.append(
+            {
+                "capability": cap,
+                "kind": "llm",
+                "home_department": dept,
+                "director_agent": directors.get(dept),
+                "args_schema": None,
+                "description": f"LLM capability routed via DHQ to {dept}",
+            }
+        )
+    return {
+        "delegation_sources": sorted(VALID_DELEGATION_SOURCES),
+        "known_tool_count": len(KNOWN_TOOL_CAPABILITIES),
+        "llm_count": len(skills) - len(KNOWN_TOOL_CAPABILITIES),
+        "skills": skills,
+    }
 
 
 def delegate_task(

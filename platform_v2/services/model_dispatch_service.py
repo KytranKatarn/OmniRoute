@@ -1363,6 +1363,24 @@ def _ensure_ram_for_model(model_name: str) -> bool:
         return False
 
 
+#: The expiry statement, hoisted so tests can execute the REAL SQL rather than a
+#: copy of it. A retyped duplicate in a test drifts from the code silently, and a
+#: source-text assertion passes on the very comment describing the bug — both are
+#: the "check that cannot fail" trap. Import this and run it.
+_EXPIRE_STALE_SQL = """
+    UPDATE dispatch_pending_queue
+       SET status = 'expired',
+           completed_at = NOW(),
+           error = COALESCE(
+               error,
+               'expired: still queued at expires_at — no worker claimed it'
+           )
+     WHERE status = 'queued'
+       AND expires_at IS NOT NULL
+       AND expires_at < NOW()
+"""
+
+
 def _expire_stale_tasks() -> int:
     """Mark tasks past their expires_at as expired. Returns count."""
     try:
@@ -1379,15 +1397,21 @@ def _expire_stale_tasks() -> int:
                 """,
             )
             expiring_delegations = [r["id"] for r in cur.fetchall()]
-            cur.execute(
-                """
-                UPDATE dispatch_pending_queue
-                SET status = 'expired', completed_at = NOW()
-                WHERE status = 'queued'
-                  AND expires_at IS NOT NULL
-                  AND expires_at < NOW()
-                """,
-            )
+            # Record WHY (#5374). This UPDATE wrote status='expired' with error
+            # left NULL, and only rows with callback_type='delegation_result' got
+            # any explanation at all (via _handle_failure_callback below) — so
+            # everything else expired mute. 1,784 such rows accumulated, and
+            # because a terminal status with no reason is indistinguishable from
+            # a mystery, they were logged as the single largest "unmonitored
+            # dispatch failure class" and investigated as one. They were not a
+            # failure class: measured 2026-07-28, ALL 1,832 expired rows ever are
+            # capability='warmup' — model warm-ups that sat queued past their
+            # deadline. Real work has never once expired. One sentence here would
+            # have made that legible from the row itself.
+            #
+            # COALESCE, not assignment: never clobber a real error already set by
+            # whatever actually failed.
+            cur.execute(_EXPIRE_STALE_SQL)
             rowcount = cur.rowcount
             for _qid in expiring_delegations:
                 _handle_failure_callback(cur, _qid, "queue task expired before execution")

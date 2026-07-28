@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-07-26 13:56:58 EDT · **Provenance measured**: 2026-07-26 13:55:55 EDT
+**Collected**: 2026-07-27 15:10:19 EDT · **Provenance measured**: 2026-07-27 03:41:09 EDT
 
-42/48 hub containers running · 9 image-baked products · 0 absent.
+43/49 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -22,7 +22,7 @@
 | `civic_watch` | ⚪ fail_open | `unknown` | `b69e7826f` | http://100.64.0.10:8099/version |
 | `gov_watch` | ⚪ fail_open | `unknown` | `7ef1415b1` | http://100.64.0.10:8102/version |
 | `kbs` | 🔴 DRIFT | `3fbe99831` | `af13d97e8` | http://192.168.1.200:8091/version |
-| `kso` | ⚪ fail_open | `unknown` | `91dd7bc41` | http://192.168.1.200:8085/version |
+| `kso` | ⚪ fail_open | `unknown` | `2405da16a` | http://192.168.1.200:8085/version |
 | `legal_watch` | ✅ in_sync | `234643e48` | `234643e48` | http://100.64.0.10:8100/version |
 | `market_watch` | ✅ in_sync | `f84dddaaf` | `f84dddaaf` | http://100.64.0.10:8101/version |
 | `media_hub` | ✅ in_sync | `63a1fac83` | `63a1fac83` | http://192.168.1.200:8105/version |
@@ -41,6 +41,7 @@
 | `archie_database` | running | archie_brain | 5432->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_engine` | running | archie_brain | 9090->9090/tcp | `archie_brain-archie_engine:latest` |
 | `archie_headscale` | running | archie_brain | 3478->3478/udp, 8095->8095/tcp | `headscale/headscale:0.25` |
+| `archie_llamacpp` | running | archie_brain | — | `ghcr.io/ggml-org/llama.cpp:server` |
 | `archie_mcp_gateway` | running | archie_brain | — | `archie_brain-archie_mcp_gateway:latest` |
 | `archie_ollama` | running | archie_brain | — | `ollama/ollama:0.6.2` |
 | `archie_platform` | running | archie_brain | 3000->3000/tcp | `archie_brain-archie_platform:latest` |

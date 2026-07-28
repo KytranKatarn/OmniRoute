@@ -482,7 +482,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00140_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "he/him",
       "agent_type": null
     },
@@ -680,7 +680,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00104_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "she/her",
       "agent_type": null
     },
@@ -770,7 +770,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/1758d511-c2d.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": null,
       "agent_type": null
     },
@@ -896,7 +896,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00196_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -932,7 +932,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00200_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -948,6 +948,24 @@
       "bio": "G.A.M.B.I.T. serves the News & Media department, owning bias analysis for the A.R.C.H.I.E. platform.",
       "avatar_url": "",
       "avatar_thumb_url": "",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
+      "id": 428,
+      "display_name": "G.A.T.E.W.A.Y.",
+      "code_name": "G.A.T.E.W.A.Y.",
+      "title": "Bias Analysis Specialist",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": "G.A.T.E.W.A.Y.",
+      "acronym_expansion": "Guided Access Task Engine Workflow Automation Yield",
+      "bio": "G.A.T.E.W.A.Y. serves the News & Media department, owning bias analysis for the A.R.C.H.I.E. platform.",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-07-26/media_studio_00208_.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00208_.jpg",
       "is_director": false,
       "worker_type": "ai",
       "shift_state": "active",
@@ -991,6 +1009,42 @@
       "agent_type": null
     },
     {
+      "id": 429,
+      "display_name": "R.A.N.G.E.R.",
+      "code_name": "R.A.N.G.E.R.",
+      "title": "Fact Check Specialist",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": "R.A.N.G.E.R.",
+      "acronym_expansion": "Resource Automation Network Guidance Engine Response",
+      "bio": "R.A.N.G.E.R. serves the News & Media department, owning fact check for the A.R.C.H.I.E. platform.",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-07-26/media_studio_00209_.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00209_.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
+      "id": 427,
+      "display_name": "S.I.G.M.A.",
+      "code_name": "S.I.G.M.A.",
+      "title": "Factcheck Quick Specialist",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": "S.I.G.M.A.",
+      "acronym_expansion": "Systems Intelligence Guidance Monitoring Automation",
+      "bio": "S.I.G.M.A. serves the News & Media department, owning factcheck quick for the A.R.C.H.I.E. platform.",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-07-26/media_studio_00207_.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00207_.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 379,
       "display_name": "S.T.R.I.N.G.E.R.",
       "code_name": "S.T.R.I.N.G.E.R.",
@@ -1022,7 +1076,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00195_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "barracked",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1508,7 +1562,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00029_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "winding_down",
+      "shift_state": "active",
       "pronouns": "she/her",
       "agent_type": null
     },
@@ -1634,10 +1688,10 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00109_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "winding_down",
       "pronouns": "she/her",
       "agent_type": null
     }
   ],
-  "generated_at": "2026-07-23T14:14:06.133162+00:00"
+  "generated_at": "2026-07-26T15:18:40.045808+00:00"
 }

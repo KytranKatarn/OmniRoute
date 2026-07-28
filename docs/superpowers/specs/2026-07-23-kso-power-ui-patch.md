@@ -1,3 +1,12 @@
+> ⚠️ **The wattage figures quoted below are STALE (verified 2026-07-28).** This patch cites
+> "total ~204 W, 34 % of 600 W" from a **single-GPU** hub. A second GPU (**TITAN X (Pascal)**,
+> 250 W limit, 12 GB) has since been installed — combined GPU limit is now **370 W**, not 120 W.
+> See the supersession banner in `2026-07-23-kso-power-monitoring.md`.
+>
+> **The UI edits themselves remain valid and are unaffected** — they render whatever the collector
+> reports, so a two-GPU box simply shows two GPU rows and a higher total. Only the example numbers
+> in this document are out of date. Re-measure under load before acting on PSU headroom.
+
 # KSO Power UI — ready-to-apply patch (#5140, follow-up to PR #2443)
 
 The **collector is live** (PR #2443 merged + deployed): `host_monitor.py` now writes a `power`

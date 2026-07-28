@@ -512,7 +512,18 @@ def _claim_preferred_node_tasks(limit: int = 2) -> list:
 
     These tasks bypass the warm-model filter — the node will cold-load the
     model if needed. Capped at 2/cycle to avoid starving hub warm tasks.
+
+    #5332: while the Starships are UNDOCKED, tasks pinned to a starship are
+    LEFT QUEUED (not claimed) so they drain naturally after redock, instead of
+    being claimed and then failing/waking a resting ship.
     """
+    _skip_starships = False
+    try:
+        from tools.department_hq.fleet_helpers import is_starships_undocked
+
+        _skip_starships = is_starships_undocked()
+    except Exception:
+        pass  # fail-open
     try:
         with get_db_cursor(commit=True) as (_conn, cur):
             cur.execute(
@@ -524,13 +535,15 @@ def _claim_preferred_node_tasks(limit: int = 2) -> list:
                     WHERE status = 'queued'
                       AND preferred_node_id IS NOT NULL
                       AND (expires_at IS NULL OR expires_at > NOW())
+                      AND (%s = FALSE OR preferred_node_id NOT IN (
+                            SELECT id FROM remote_nodes WHERE deployment_mode = 'starship'))
                     ORDER BY priority DESC, queued_at ASC
                     LIMIT %s
                     FOR UPDATE SKIP LOCKED
                 )
                 RETURNING *
                 """,
-                (limit,),
+                (_skip_starships, limit),
             )
             return [dict(r) for r in cur.fetchall()]
     except Exception as exc:

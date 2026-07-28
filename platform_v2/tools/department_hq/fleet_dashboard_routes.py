@@ -1794,17 +1794,27 @@ def register_dashboard_routes(bp, auth_decorator):
     @auth_decorator
     def api_fleet_rest_mode():
         """Get or set fleet hardware rest schedule (suppresses starship dispatch 8PM–6AM)."""
-        from .fleet_helpers import get_fleet_rest_config, set_fleet_rest_config, is_fleet_rest_active
+        from .fleet_helpers import (
+            get_fleet_rest_config,
+            set_fleet_rest_config,
+            is_fleet_rest_active,
+            is_starships_undocked,
+            force_undock_until,
+        )
 
         try:
             if request.method == "GET":
                 cfg = get_fleet_rest_config()
+                _force_until = force_undock_until()
                 return jsonify(
                     success=True,
                     enabled=cfg.get("enabled", False),
                     start_hour=cfg.get("start_hour", 20),
                     end_hour=cfg.get("end_hour", 6),
                     active_now=is_fleet_rest_active(),
+                    # #5332: the COMBINED truth every gate consults (schedule OR force)
+                    undocked=is_starships_undocked(),
+                    force_undock_until=_force_until.isoformat() if _force_until else None,
                     # #5321c: the real window, so no UI ever hardcodes '8PM–6AM' again
                     rest_window=f"{int(cfg.get('start_hour', 20)):02d}:00–{int(cfg.get('end_hour', 6)):02d}:00 ET",
                 )
@@ -1817,10 +1827,43 @@ def register_dashboard_routes(bp, auth_decorator):
                 success=True,
                 enabled=enabled,
                 active_now=is_fleet_rest_active(),
+                undocked=is_starships_undocked(),
                 rest_window=f"{start_hour:02d}:00–{end_hour:02d}:00 ET",
             )
         except Exception as exc:
             logger.error("api_fleet_rest_mode: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/fleet/force-undock", methods=["POST"])
+    @auth_decorator
+    def api_fleet_force_undock():
+        """#5332: manually detach the Starships NOW (or redock early).
+
+        Body {"action": "undock"} arms a force-undock that AUTO-EXPIRES at the
+        next rest-window end boundary (<24h) — a manual force can never
+        permanently strand a ship. {"action": "clear"} redocks early. Every
+        gate (dispatch pins, ComfyUI, keep-warms, model-control, queued-pin
+        claims) reads the combined is_starships_undocked() predicate.
+        """
+        from .fleet_helpers import set_force_undock, clear_force_undock, force_undock_until, is_starships_undocked
+
+        try:
+            action = (request.get_json(silent=True) or {}).get("action", "undock")
+            if action == "clear":
+                clear_force_undock()
+            elif action == "undock":
+                set_force_undock()
+            else:
+                return jsonify({"success": False, "error": "action must be 'undock' or 'clear'"}), 400
+            _until = force_undock_until()
+            return jsonify(
+                success=True,
+                action=action,
+                undocked=is_starships_undocked(),
+                force_undock_until=_until.isoformat() if _until else None,
+            )
+        except Exception as exc:
+            logger.error("api_fleet_force_undock: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
     @bp.route("/api/fleet/cluster-activity")

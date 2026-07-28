@@ -91,13 +91,34 @@ def register_model_routes(bp, admin_required):
             if node_id:
                 with get_db_cursor() as (conn, cur):
                     cur.execute(
-                        "SELECT hostname, mesh_ip, vpn_ip, ollama_port FROM remote_nodes "
-                        "WHERE id = %s AND status = 'online'",
+                        "SELECT hostname, mesh_ip, vpn_ip, ollama_port, deployment_mode, node_name "
+                        "FROM remote_nodes WHERE id = %s AND status = 'online'",
                         (node_id,),
                     )
                     node = cur.fetchone()
                     if not node:
                         return jsonify({"success": False, "error": f"Node {node_id} not found or offline"}), 404
+                    # #5332: UNDOCKED = leave the ships alone. A model load/unload on an
+                    # undocked Starship is refused unless the admin explicitly forces it
+                    # ({"force": true}) — the one deliberate human override.
+                    if node.get("deployment_mode") == "starship" and not data.get("force"):
+                        try:
+                            from tools.department_hq.fleet_helpers import is_starships_undocked
+
+                            if is_starships_undocked():
+                                return (
+                                    jsonify(
+                                        {
+                                            "success": False,
+                                            "error": f"{node.get('node_name') or node_id} is UNDOCKED "
+                                            "(hardware rest or force-undock) — pass force:true to override",
+                                            "undocked": True,
+                                        }
+                                    ),
+                                    409,
+                                )
+                        except Exception:
+                            pass  # fail-open
                     from tools.department_hq.fleet_helpers import node_inter_cluster_host
 
                     node_host = node_inter_cluster_host(node)

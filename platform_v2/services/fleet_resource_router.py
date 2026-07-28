@@ -470,12 +470,13 @@ def find_best_node_for_model(
     except Exception:
         return home_node_db_id
 
-    # Suppress starship nodes during the hardware rest window (8PM–6AM).
+    # Suppress starship nodes while UNDOCKED (#5332): scheduled hardware rest
+    # OR a manual force-undock. ONE predicate for every gate — see fleet_helpers.
     _rest_active = False
     try:
-        from tools.department_hq.fleet_helpers import is_fleet_rest_active
+        from tools.department_hq.fleet_helpers import is_starships_undocked
 
-        _rest_active = is_fleet_rest_active()
+        _rest_active = is_starships_undocked()
     except Exception:
         pass
 

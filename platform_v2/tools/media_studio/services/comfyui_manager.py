@@ -207,6 +207,17 @@ def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optiona
     hub_url = os.environ.get("COMFYUI_HOST", "http://host.docker.internal:8188")
     hub_vram_mb = 8192  # Quadro M4000 8 GB
 
+    # #5332: UNDOCKED Starships are left alone — this selector actively PREFERS
+    # them (ORDER BY gpu_vram_gb DESC), so without this gate an undocked ship
+    # still got image-gen work. Fail-open on any predicate error.
+    _exclude_starships = False
+    try:
+        from tools.department_hq.fleet_helpers import is_starships_undocked
+
+        _exclude_starships = is_starships_undocked()
+    except Exception:
+        pass
+
     try:
         with get_db_cursor() as (_, cur):
             cur.execute(
@@ -219,9 +230,11 @@ def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optiona
                   AND gpu_available = TRUE
                   AND extra_capabilities ? 'comfyui_url'
                   AND last_heartbeat > NOW() - INTERVAL '3 minutes'
+                  AND (%s = FALSE OR deployment_mode IS DISTINCT FROM 'starship')
                 ORDER BY gpu_vram_gb DESC NULLS LAST
                 LIMIT 1
-                """
+                """,
+                (_exclude_starships,),
             )
             row = cur.fetchone()
 

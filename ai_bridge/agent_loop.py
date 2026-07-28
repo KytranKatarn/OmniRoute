@@ -3460,13 +3460,25 @@ class AgentLoop:
         runner with no reload. Mirrors the owner-approved cockpit keep-warm (#4270) — a direct
         /api/generate ping is the sanctioned exception to ADR-013 for keep-warm only.
 
-        Online-gated (graceful skip when the node is offline / in 8PM-6AM hardware rest). Runs every
-        4 min with a 10m keep_alive, so even a review that resets keep_alive to ~5m never lapses
+        Online-gated + UNDOCK-gated. #5332 NOTE: this docstring claimed the 8PM-6AM
+        hardware-rest skip long before the gate existed — the only real gate was
+        node-online, so a resting-but-powered ship still got pinged every 4 min.
+        The is_starships_undocked() early-return below makes the claim true
+        (scheduled rest OR manual force-undock). Runs every 4 min with a 10m
+        keep_alive, so even a review that resets keep_alive to ~5m never lapses
         before the next ping. Toggle via the job id `forge_review_model_keepwarm`.
         """
         import time
 
         start = time.time()
+        # #5332: UNDOCKED = leave the ships alone — skip before any node contact.
+        try:
+            from tools.department_hq.fleet_helpers import is_starships_undocked
+
+            if is_starships_undocked():
+                return
+        except Exception:
+            pass  # fail-open: a predicate error must not stop keep-warm while docked
         review_node_id = "starship_76583490e36955ab"  # Defiant USS-246 (RTX 3070)
         node_label = "Defiant USS-246"
         model = "qwen2.5:7b"
@@ -3545,14 +3557,24 @@ class AgentLoop:
         Warmed CPU-only (num_gpu=0) at the cockpit's default num_ctx so it matches the runner the
         dispatch actually creates on the full-GPU node (build_options CPU-places the 3B when the
         forge 7B holds the GPU — a GPU warm copy would be a different runner the dispatch won't
-        reuse). Online-gated (graceful skip when the node is offline / in its 8PM-6AM hardware
-        rest). Runs every 4 min with a 30m keep_alive — mirrors the sibling keep-warms so even a
-        chat that resets keep_alive never lapses before the next ping. A direct /api/generate ping is the sanctioned ADR-013 exception
+        reuse). Online-gated + UNDOCK-gated (#5332 — the old "8PM-6AM hardware rest" claim here
+        was aspirational; the is_starships_undocked() early-return below makes it real, covering
+        scheduled rest AND manual force-undock). Runs every 4 min with a 30m keep_alive — mirrors
+        the sibling keep-warms so even a chat that resets keep_alive never lapses before the next
+        ping. A direct /api/generate ping is the sanctioned ADR-013 exception
         for keep-warm only. Toggle via the job id `cockpit_node_model_keepwarm`.
         """
         import time
 
         start = time.time()
+        # #5332: UNDOCKED = leave the ships alone — skip before any node contact.
+        try:
+            from tools.department_hq.fleet_helpers import is_starships_undocked
+
+            if is_starships_undocked():
+                return
+        except Exception:
+            pass  # fail-open: a predicate error must not stop keep-warm while docked
         node_id = "starship_76583490e36955ab"  # Defiant USS-246 (RTX 3070)
         node_label = "Defiant USS-246"
         model = os.getenv("COCKPIT_CHAT_MODEL", "llama3.2:3b")  # matches the cockpit fast-front routing

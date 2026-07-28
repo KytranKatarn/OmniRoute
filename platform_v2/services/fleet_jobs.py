@@ -366,11 +366,12 @@ def _kin_fleet_warmth_policy():
     # The v2 win is that this model is demand-chosen, not the smallest. Tunable.
     TOP_K = 1
 
-    # Rest gate — mirror fleet_resource_router: starships sleep in the window.
+    # Undock gate (#5332) — mirror fleet_resource_router: starships sleep while
+    # UNDOCKED (scheduled rest OR manual force-undock). ONE shared predicate.
     try:
-        from tools.department_hq.fleet_helpers import is_fleet_rest_active
+        from tools.department_hq.fleet_helpers import is_starships_undocked
 
-        rest_active = is_fleet_rest_active()
+        rest_active = is_starships_undocked()
     except Exception:
         rest_active = False
 

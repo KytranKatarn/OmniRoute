@@ -672,6 +672,90 @@ def is_fleet_rest_active() -> bool:
     return start <= hour < end
 
 
+# ── Force undock (#5332) ─────────────────────────────────────────────────────
+# "UNDOCKED = leave the ships alone" (owner, 2026-07-28). The schedule above
+# only ever gated TWO call sites (candidate selection + warm-set) — pinned
+# dispatches, ComfyUI routing, node keep-warms and model-control all still
+# reached a resting Starship. This section adds (a) a manual force-undock that
+# detaches the ships NOW, auto-expiring at the next rest-window END boundary so
+# a manual force can never permanently strand a node, and (b) ONE shared
+# predicate — is_starships_undocked() — that every gate consults, so the answer
+# cannot drift between call sites the way the beacon/fleet lists once did.
+
+FORCE_UNDOCK_KEY = "fleet_force_undock"
+
+
+def next_rest_end_boundary(now=None) -> datetime:
+    """Next occurrence of the rest window's end_hour (America/Toronto), within 24h.
+
+    Used as the force-undock expiry: "auto-expiry at the window boundary".
+    Works whether or not the schedule is enabled — the WINDOW defines the
+    boundary; the toggle only says if it fires nightly on its own.
+    """
+    import pytz
+
+    tz = pytz.timezone("America/Toronto")
+    if now is None:
+        now = datetime.now(tz)
+    end = int(get_fleet_rest_config().get("end_hour", 6))
+    candidate = now.replace(hour=end, minute=0, second=0, microsecond=0)
+    if candidate <= now:
+        candidate += timedelta(days=1)
+    return candidate
+
+
+def force_undock_until(now=None):
+    """The force-undock expiry datetime while ACTIVE, else None. Fail-open:
+    any read/parse problem answers None (docked) — a DB hiccup must never
+    silently un-route the fleet."""
+    import pytz
+
+    try:
+        with get_db_cursor(commit=False) as (_, cur):
+            cur.execute("SELECT value FROM system_config WHERE key = %s", (FORCE_UNDOCK_KEY,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        until = datetime.fromisoformat(json.loads(row["value"]).get("until"))
+        tz = pytz.timezone("America/Toronto")
+        if now is None:
+            now = datetime.now(tz)
+        return until if until > now else None
+    except Exception:
+        return None
+
+
+def set_force_undock(now=None) -> dict:
+    """Arm force-undock NOW. Expiry = next rest-window end boundary (<24h away)."""
+    until = next_rest_end_boundary(now)
+    with get_db_cursor(commit=True) as (_, cur):
+        cur.execute(
+            """INSERT INTO system_config (key, value, updated_at)
+               VALUES (%s, %s, NOW())
+               ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value, updated_at=NOW()""",
+            (FORCE_UNDOCK_KEY, json.dumps({"until": until.isoformat()})),
+        )
+    return {"until": until.isoformat()}
+
+
+def clear_force_undock() -> None:
+    """Redock early: drop the force flag (the schedule still applies on its own)."""
+    with get_db_cursor(commit=True) as (_, cur):
+        cur.execute("DELETE FROM system_config WHERE key = %s", (FORCE_UNDOCK_KEY,))
+
+
+def is_starships_undocked() -> bool:
+    """#5332 — THE dock predicate. True when the Starships must be left alone:
+    scheduled hardware rest is active OR a manual force-undock is armed.
+    Every gate (candidate selection, preferred_node pins, ComfyUI routing,
+    keep-warm jobs, model-control, queued-pin claims) consults THIS, never the
+    schedule directly."""
+    try:
+        return is_fleet_rest_active() or force_undock_until() is not None
+    except Exception:
+        return False  # fail-open: never un-route the fleet on an internal error
+
+
 def rest_status_snapshot(cfg: dict = None, now=None) -> dict:
     """#5321: ONE dict with everything the A.R.M.A.D.A. cluster strip needs
     about the hardware-rest schedule. The schedule lived only in a

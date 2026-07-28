@@ -95,7 +95,28 @@ if ! git commit -q -m "$_msg"; then
   # idempotent, so exactly one re-stage + retry settles it.
   log "commit failed — re-staging once (pre-commit fixers modify files on first attempt)"
   git add -A -- "${PATHS[@]}"
-  git commit -q -m "$_msg" || { log "ERROR: commit failed twice — a hook is REJECTING (not fixing); inspect by hand"; exit 1; }
+
+  # A fixer can normalise the ONLY pending change back to its committed state,
+  # leaving NOTHING staged for the retry. Measured on the 08:17 run 2026-07-28:
+  # translations.json was regenerated WITHOUT a trailing newline,
+  # end-of-file-fixer added it back, and the file became byte-identical to HEAD.
+  # The retry's `git commit` then fails with "nothing to commit" — a healthy
+  # no-op, NOT a rejected commit. Reporting it as "a hook is REJECTING …
+  # inspect by hand" sent the operator after a non-problem, and (worse) trains
+  # them to ignore the line, so a REAL rejection reads as routine noise. The two
+  # cases are distinguishable by one question: is anything still staged? (#5367)
+  if git diff --cached --quiet; then
+    log "pre-commit fixers normalised the change away — nothing left to commit, no-op"
+    exit 0
+  fi
+
+  # Recount: the fixers may have dropped files from the set staged above.
+  n="$(git diff --cached --name-only | wc -l | tr -d ' ')"
+  _msg="chore(website): auto-commit generated site content ($n files) [website_content_autocommit]"
+  git commit -q -m "$_msg" || {
+    log "ERROR: commit failed twice with content STILL STAGED — a hook is REJECTING (not fixing); inspect by hand"
+    exit 1
+  }
 fi
 log "committed $n generated file(s) on main"
 

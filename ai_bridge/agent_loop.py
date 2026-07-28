@@ -8898,6 +8898,27 @@ class AgentLoop:
                     )
                     continue
 
+                # A DRAFT cannot be merged — GitHub answers HTTP 405 "Pull Request
+                # is still a draft" — and nothing marks the attempt processed on
+                # failure (correctly: it must still merge once undrafted). So the
+                # worker retried forever: 35 attempts in 6 hours for PR #2444
+                # alone, and worse since the tick moved 10min -> 2min. That burns
+                # GitHub quota and emits a WARNING every cycle, which is how a log
+                # line stops being read (#5362).
+                #
+                # `draft` is recorded by poll_open_prs from the PR-list response,
+                # which already carries it — so this check costs ZERO extra API
+                # calls. Asking GitHub per tick would re-spend the quota this is
+                # meant to save. Absent/unknown (pre-existing rows, or a repo whose
+                # poll predates this) reads falsy => NOT skipped, so the worst case
+                # is today's behaviour, never a PR silently stuck unmerged.
+                if (review.get("metadata") or {}).get("draft"):
+                    logger.debug(
+                        "[PRTiers] PR #%s is a draft — skipping until it is marked ready",
+                        pr_num,
+                    )
+                    continue
+
                 tier = classify_pr_tier(review)
 
                 if tier == 1:

@@ -147,6 +147,7 @@ def poll_open_prs(repo: str = None) -> dict:
     Returns:
         dict: {polled, inserted, updated, errors}
     """
+    from psycopg2.extras import Json as _Json  # noqa: PLC0415
     from tools.repair_bay.services.github_service import list_all_prs_enriched
 
     _repo = (repo or _DEFAULT_REPO).strip()
@@ -173,8 +174,8 @@ def poll_open_prs(repo: str = None) -> dict:
                         (pr_number, repo, title, author, state,
                          base_branch, head_branch, diff_url,
                          additions, deletions, changed_files,
-                         last_polled_at)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                         metadata, last_polled_at)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
                     ON CONFLICT (pr_number, repo) DO UPDATE SET
                         title          = EXCLUDED.title,
                         state          = EXCLUDED.state,
@@ -182,6 +183,12 @@ def poll_open_prs(repo: str = None) -> dict:
                         additions      = EXCLUDED.additions,
                         deletions      = EXCLUDED.deletions,
                         changed_files  = EXCLUDED.changed_files,
+                        -- MERGE, never replace: metadata carries tier_processed /
+                        -- forge_escalated_tier / review_path, and a poll must not
+                        -- wipe them. `||` right-biases, so the fresh draft flag wins
+                        -- while every other key survives.
+                        metadata       = COALESCE(pr_reviews.metadata, '{}'::jsonb)
+                                         || EXCLUDED.metadata,
                         updated_at     = NOW(),
                         last_polled_at = NOW()
                     RETURNING (xmax = 0) AS is_new
@@ -198,6 +205,12 @@ def poll_open_prs(repo: str = None) -> dict:
                         pr.get("additions"),
                         pr.get("deletions"),
                         pr.get("changed_files"),
+                        # Draft state, captured here because the PR-list response
+                        # ALREADY carries it (#5362). Recording it at poll time is
+                        # what makes the tier worker's skip cost ZERO extra API
+                        # calls — the alternative, asking GitHub per tick, is the
+                        # quota burn this fix exists to remove.
+                        _Json({"draft": bool(pr.get("draft"))}),
                     ),
                 )
                 row = cur.fetchone()

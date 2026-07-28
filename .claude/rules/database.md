@@ -27,3 +27,45 @@ globs: ["database/**", "platform_v2/database.py", "platform_v2/services/**"]
 - Path: `database/migrations/NNN_description.sql`
 - Run: `docker exec archie_database psql -U archie -d archie -f /path/to/migration.sql`
 - Always idempotent (ON CONFLICT DO UPDATE or IF NOT EXISTS)
+
+## ⚠️ Query traps — an EMPTY result is not a PASS (2026-07-28, KB #285009)
+
+These cost three wrong conclusions in a single session. All the same shape: a query
+that FAILED looked identical to a query that found nothing.
+
+**`psql` writes errors to STDERR.** With `-tAc` (and any pipeline that drops stderr)
+a bad column name prints *nothing* and reads as "no rows".
+
+```bash
+# ❌ an error here is INVISIBLE — looks like an empty table
+docker exec archie_database psql -U archie -d archie -tAc "SELECT ..." | sed 's/^/  /'
+
+# ✅ always merge stderr, and prove a write happened
+docker exec archie_database psql -U archie -d archie -c "UPDATE ... RETURNING id, status;" 2>&1
+```
+
+- **An UPDATE is verified by `RETURNING` + a follow-up SELECT** — never by the absence
+  of output. `UPDATE ... SET result = ...` failed silently for minutes because the
+  column is `execution_result`; the rows were untouched while the run looked clean.
+- **String concat with a NULL yields NULL**, so `SELECT a||' '||b` returns an empty
+  line when any column is NULL. Use `COALESCE(col,'-')` in concatenated output, or
+  just use `-c` table mode.
+- **Long SQL through the shell**: embedded `"` / backticks get mangled by shell
+  expansion (this silently truncated an UPDATE mid-statement). Pipe a quoted heredoc
+  to `docker exec -i ... psql` instead of passing `-c "..."`, and use `$TAG$…$TAG$`
+  dollar-quoting for prose containing quotes.
+
+**Same shape in code, not just SQL**: a regex that matches NOTHING yields `False`,
+which is exactly what a passing check prints. Assert the search MATCHED before
+trusting its boolean — prefer `grep -n` output you can read over a derived predicate.
+
+## `agents` table gotchas (2026-07-28)
+
+- **Names are DOTTED.** `ILIKE '%HAVEN%'` does **not** match `H.A.V.E.N.` — use
+  `replace(name,'.','') ILIKE '%HAVEN%'`. (Same root as the `propose_hire`
+  duplicate-name bug, task #5272.)
+- **There is no `is_active` column** — use `shift_state` (`active` / `barracked` /
+  `deployed` / …). **There is no `model_preference` column** either. Both were
+  guessed in a query and produced the silent-stderr failure above.
+- `unified_tasks` has **no `work_notes` column** — long-form notes go in
+  `description`. `autonomy_approval_queue` uses **`execution_result`**, not `result`.

@@ -1,21 +1,68 @@
-> ⚠️ **SUPERSEDED IN PART — hardware changed after this spec was written (verified 2026-07-28).**
-> This spec's baseline assumes **one GPU** (Quadro M4000, 120 W cap) and concludes the 600 W PSU has
-> comfortable headroom (~204 W total, 34 % load). **A second GPU has since been installed.**
-> `nvidia-smi` on the hub, 2026-07-28:
+> ⚠️ **SUPERSEDED IN PART — hardware changed TWICE after this spec was written. RESOLVED 2026-07-28.**
+> §2's baseline assumes **one GPU** (Quadro M4000, 120 W cap) and a **single 600 W PSU**, concluding
+> comfortable headroom (~204 W total, 34 % load). Both halves of that premise are now false.
+> **Do not act on §2's figures.** The **method** (per-component watts, totals, headroom, history) is
+> unchanged and correct; the collector shipped in PR #2443. Only the numbers are stale.
 >
-> | Idx | GPU | Draw (idle) | Power limit | VRAM |
+> **Change 1 — a second GPU was installed:**
+>
+> | Idx | GPU | Power limit | VRAM | Compute cap. |
 > |---|---|---|---|---|
-> | 0 | Quadro M4000 | 12.9 W | 120 W | 8 GB |
-> | 1 | **NVIDIA TITAN X (Pascal)** | 55.0 W | **250 W** | 12 GB |
+> | 0 | Quadro M4000 | 120 W | 8 GB | 5.2 |
+> | 1 | **NVIDIA TITAN X (Pascal)** | **250 W** | 12 GB | 6.1 |
 >
-> Combined GPU power limit is now **370 W**, not 120 W. With the 95 W CPU TDP, ~30 W RAM and disks, a
-> full-load worst case approaches **~500 W against a 600 W supply** — so the "comfortable headroom"
-> conclusion below **no longer holds**, and PSU adequacy is exactly what this spec existed to answer.
+> Identify these cards by **UUID, not index** — the TITAN is idx **1**, not 0. Mixed compute
+> capability means a single model **cannot span both cards**; `remote_nodes.gpu_vram_gb` stays **12**
+> (largest single card), never the 20 GB sum.
 >
-> The **method** here (per-component watts, totals, headroom, history) remains correct and the
-> collector shipped in PR #2443. Only the single-GPU **numbers** are stale. Re-measure under GPU load
-> before any further hardware purchase. Kept as the dated point-in-time record; do not act on §2's
-> figures.
+> **Change 2 — measured under real load (2026-07-28), then a second PSU was added.**
+> Method: 480 `nvidia-smi` samples @ 0.5 s over ~120 s while driving 3 concurrent DHQ dispatches
+> (sanctioned path, ADR-013); both GPUs reached 100 % utilisation.
+>
+> | Card | Idle | Mean | Peak |
+> |---|---|---|---|
+> | Quadro M4000 (120 W cap) | 13.1 W | 78.1 W | 102.5 W |
+> | TITAN X Pascal (250 W cap) | 19.1 W | 77.6 W | 280.3 W |
+> | **Combined, same instant** | — | **155.7 W** | **375.5 W** |
+>
+> 375.5 W is a **simultaneous** measurement, not a sum of independent peaks. The earlier 370 W
+> TDP-sum estimate was slightly *low*. The TITAN transiently exceeded its 250 W cap because that cap
+> is enforced as an **average**, not an instantaneous clamp (`power.max_limit` is 300 W).
+>
+> ⚠️ **PRECISION:** only the **GPU** figure is measured. CPU/RAM/disk remain **estimates** — there is
+> no wall meter and no BMC on this box, so any "system total" is measured-GPU + estimated-rest.
+> This was **LLM inference, not SDXL** — a realistic load, not an absolute worst case.
+>
+> **Resolution — the hub now has TWO power supplies (owner-installed 2026-07-28):**
+>
+> | Supply | Model | Rating | Load | Utilisation | Feeds |
+> |---|---|---|---|---|---|
+> | PSU1 | Delta DPS-600UB rev 05 | 600 W | 314.5 W | **52.4 %** | board, CPU, RAM, disks, fans, PCIe **slot** power |
+> | PSU2 | Enermax Galaxy EVO | 1050 W | 225.5 W | **21.5 %** | the video cards only |
+>
+> ⚠️ **Two PSUs do NOT pool into one budget.** Each has its own ceiling, and PCIe **slot** power
+> (up to 75 W per card) is drawn from the motherboard = **PSU1**, regardless of which supply feeds
+> the 6/8-pin cables. With two cards PSU1 still carries ~150 W of GPU draw even though "the GPUs are
+> on PSU2". Never quote the 1650 W installed total as available headroom.
+>
+> Cabling is correct and owner-confirmed: **one dedicated cable per GPU** from PSU2, not daisy-chained
+> off a single splitter. KSO reports all of the above live (`psu_count=2`, binding PSU1).
+>
+> **The "~500 W against a 600 W supply" alarm in the original banner is retired** — that conclusion
+> assumed a single supply. At 52.4 % / 21.5 % there is no PSU-driven blocker to further GPU load, and
+> **no PSU upgrade is required.**
+>
+> **Rail layout — CONFIRMED by the owner 2026-07-29: the two GPU cables sit on SEPARATE 12 V rails,**
+> and that separation was deliberate. This matters because the Enermax Galaxy EVO is a **multi-rail**
+> unit: total wattage is not the only ceiling, since a per-rail OCP can trip well below the unit's
+> rating. With the cards on distinct rails, each cable carries roughly **113 W** of the ~225 W that
+> PSU2's cables see at the measured peak (375.5 W combined GPU **minus** up to 150 W of PCIe slot
+> power, which is drawn from PSU1) — inside a single 8-pin connector's 150 W rating, and far inside
+> any plausible rail OCP on a 1050 W supply. The pathological case for a multi-rail unit — two cards
+> sharing one connector's rail via a daisy-chained splitter — is structurally impossible here.
+>
+> **No open hardware questions remain.** Task **#5366** is complete. KSO's own PSU reporting is
+> **#5368**; the latent multi-GPU parse in KSO's container-dead `get_gpu_info()` fallback is **#5399**.
 
 # KSO Power Monitoring — Spec (2026-07-23)
 

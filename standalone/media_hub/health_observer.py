@@ -23,6 +23,7 @@ Project #279 / tasks #2243 (indexer re-checker) + #2244 (services staleness).
 from __future__ import annotations
 
 import logging
+import time as _time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -334,6 +335,79 @@ def _log_selfheal(probe: str, capability: str, actions: list) -> None:
 
 # --- download pipeline probe (every 30 min) --------------------------------
 
+def _arr_command(
+    base: str,
+    payload: dict,
+    *,
+    headers: dict = None,
+    params: dict = None,
+    verify_seconds: int = 8,
+) -> "tuple[bool, str]":
+    """Fire a Sonarr/Radarr command and report WHAT ACTUALLY HAPPENED.
+
+    #5383. Every command call site used to be::
+
+        requests.post(f"{base}/command?apikey={key}", json={...}, timeout=10)
+        actions.append("triggered ...")
+
+    The response was discarded, so a rejected command still appended a success
+    line. ``download_pipeline_probe`` therefore reported that it had healed the
+    pipeline every 30 minutes for 20 days while the command failed instantly
+    each time. A self-heal that cannot fail is not a self-heal — it is a lie
+    with a cron schedule.
+
+    Two things are checked, because they fail differently:
+      1. the POST itself (a rejected command answers non-2xx immediately), and
+      2. the command's OUTCOME — *arr accepts a command, queues it, and only
+         then fails. `{"status": "failed", "exception": ...}` on the command
+         record is the only place the real reason appears, which is why this
+         polls instead of trusting the 201.
+
+    Deliberately does NOT guess at missing parameters (e.g. whether a given
+    scan needs a ``path``). It surfaces *arr's own error so the next reader
+    diagnoses from evidence rather than from a guess.
+
+    Returns ``(ok, detail)``. ``detail`` is always safe to put in an alert.
+    """
+    try:
+        resp = requests.post(
+            f"{base}/command", json=payload, headers=headers, params=params, timeout=10
+        )
+    except Exception as e:  # network/timeout — the command definitely did not run
+        return False, f"request failed: {e}"
+
+    if not resp.ok:
+        body = (resp.text or "")[:200].replace("\n", " ")
+        return False, f"HTTP {resp.status_code}: {body}"
+
+    try:
+        cmd_id = (resp.json() or {}).get("id")
+    except Exception:
+        cmd_id = None
+    if not cmd_id:
+        # Accepted, but there is nothing to verify against. Say exactly that
+        # rather than implying the work completed.
+        return True, "accepted (no command id returned — outcome unverified)"
+
+    deadline = _time.time() + verify_seconds
+    last = "queued"
+    while _time.time() < deadline:
+        _time.sleep(1)
+        try:
+            c = requests.get(
+                f"{base}/command/{cmd_id}", headers=headers, params=params, timeout=10
+            ).json()
+        except Exception as e:
+            return True, f"accepted, status check failed ({e}) — outcome unverified"
+        last = (c.get("status") or "").lower()
+        if last == "failed":
+            why = c.get("exception") or c.get("message") or "no reason given"
+            return False, f"command failed: {str(why)[:200]}"
+        if last in ("completed", "aborted"):
+            return (last == "completed"), f"command {last}"
+    return True, f"accepted, still {last} after {verify_seconds}s — outcome unverified"
+
+
 def download_pipeline_probe() -> None:
     """Detect and auto-fix the download-to-import pipeline.
 
@@ -433,8 +507,16 @@ def download_pipeline_probe() -> None:
                 msg = f"Sonarr: {len(stuck)} episode(s) downloaded but not imported"
                 issues.append(msg)
                 log.warning("download_pipeline_probe: %s — triggering DownloadedEpisodesScan", msg)
-                requests.post(f"{base}/command?apikey={key}", json={"name": "DownloadedEpisodesScan"}, timeout=10)
-                actions.append(f"triggered Sonarr DownloadedEpisodesScan ({len(stuck)} items)")
+                ok, detail = _arr_command(
+                    base, {"name": "DownloadedEpisodesScan"}, params={"apikey": key}
+                )
+                if ok:
+                    actions.append(f"triggered Sonarr DownloadedEpisodesScan ({len(stuck)} items) — {detail}")
+                else:
+                    # #5383: this used to append a success line regardless.
+                    issues.append(f"Sonarr DownloadedEpisodesScan FAILED — {detail}")
+                    log.error("download_pipeline_probe: Sonarr scan failed — %s", detail)
+                    needs_human = True
         except Exception as e:
             log.warning("download_pipeline_probe: Sonarr check error: %s", e)
 
@@ -460,8 +542,17 @@ def download_pipeline_probe() -> None:
                 msg = f"Radarr: {len(stuck)} movie(s) downloaded but not imported"
                 issues.append(msg)
                 log.warning("download_pipeline_probe: %s — triggering DownloadedMoviesScan", msg)
-                requests.post(f"{base}/command?apikey={key}", json={"name": "DownloadedMoviesScan"}, timeout=10)
-                actions.append(f"triggered Radarr DownloadedMoviesScan ({len(stuck)} items)")
+                ok, detail = _arr_command(
+                    base, {"name": "DownloadedMoviesScan"}, params={"apikey": key}
+                )
+                if ok:
+                    actions.append(f"triggered Radarr DownloadedMoviesScan ({len(stuck)} items) — {detail}")
+                else:
+                    # #5383: this is the call that failed instantly every 30 min
+                    # for 20 days while the probe logged that it had healed.
+                    issues.append(f"Radarr DownloadedMoviesScan FAILED — {detail}")
+                    log.error("download_pipeline_probe: Radarr scan failed — %s", detail)
+                    needs_human = True
         except Exception as e:
             log.warning("download_pipeline_probe: Radarr check error: %s", e)
 
@@ -775,15 +866,28 @@ def library_coverage_probe() -> None:
                 issues.append(f"Sonarr: {len(zero)} monitored show(s) have 0 imported episodes: {titles}{extra}")
                 log.warning("library_coverage_probe: %s", issues[-1])
                 # Trigger scan on the download complete folder
-                requests.post(
-                    f"{base}/command",
-                    json={"name": "DownloadedEpisodesScan", "path": "/downloads/complete/tv"},
+                ok, detail = _arr_command(
+                    base,
+                    {"name": "DownloadedEpisodesScan", "path": "/downloads/complete/tv"},
                     headers={"X-Api-Key": key},
-                    timeout=10,
                 )
-                actions.append(f"triggered Sonarr DownloadedEpisodesScan ({len(zero)} show(s))")
+                if ok:
+                    actions.append(f"triggered Sonarr DownloadedEpisodesScan ({len(zero)} show(s)) — {detail}")
+                else:
+                    issues.append(f"Sonarr DownloadedEpisodesScan FAILED — {detail}")
+                    log.error("library_coverage_probe: Sonarr scan failed — %s", detail)
             else:
-                log.info("library_coverage_probe: Sonarr coverage healthy")
+                # #5386(a). This said "Sonarr coverage healthy" and was logged 97x
+                # in 7 days while 121 episodes were missing. It never measured
+                # coverage — the check above only finds series with **zero**
+                # imported episodes, so a series with SOME files and specific
+                # gaps is invisible to it by construction. Say what was actually
+                # measured; a status must not describe more than it looked at.
+                log.info(
+                    "library_coverage_probe: Sonarr — no series with 0 imported episodes "
+                    "(this does NOT mean coverage is complete; per-episode gaps are "
+                    "counted by the aired-missing check below)"
+                )
         except Exception as e:
             log.warning("library_coverage_probe: Sonarr error: %s", e)
 
@@ -804,7 +908,34 @@ def library_coverage_probe() -> None:
                 headers={"X-Api-Key": key},
                 timeout=10,
             ).json()
-            recent = [r for r in wanted.get("records", []) if (r.get("airDate") or "") >= cutoff]
+            records = wanted.get("records", [])
+            recent = [r for r in records if (r.get("airDate") or "") >= cutoff]
+
+            # #5386(a) — REPORT the whole gap, ACT on only part of it.
+            # `totalRecords` is the true count; `records` is capped by pageSize
+            # (100), so counting the page silently under-reports a large backlog
+            # — the same cap that hid Sonarr blocklist entries. Anything aired
+            # before the cutoff was previously invisible FOREVER: not searched
+            # (deliberate) and not reported (a bug).
+            #
+            # ⚠️ The auto-search window stays at 30 days ON PURPOSE. Widening it
+            # would auto-grab the aged backlog (~101 Impractical Jokers episodes,
+            # ~120 GB) straight onto /dev/sdb, which has 1,736 uncorrectable
+            # sectors and is pending replacement (#5385) — and the owner
+            # explicitly put that backlog on hold. Do NOT "fix" this by raising
+            # the window; visibility and action are separate decisions.
+            total_missing = wanted.get("totalRecords")
+            if total_missing is None:
+                total_missing = len(records)
+            aged = total_missing - len(recent)
+            if aged > 0:
+                issues.append(
+                    f"Sonarr: {aged} monitored episode(s) aired >30d ago are still missing "
+                    f"({total_missing} missing in total) — reported only, NOT auto-searched "
+                    f"(pending disk replacement #5385)"
+                )
+                log.warning("library_coverage_probe: %s", issues[-1])
+
             if recent:
                 q = requests.get(
                     f"{base}/queue", params={"pageSize": 200}, headers={"X-Api-Key": key}, timeout=10
@@ -812,18 +943,22 @@ def library_coverage_probe() -> None:
                 in_queue = {r.get("episodeId") for r in q.get("records", [])}
                 ep_ids = [r["id"] for r in recent if r["id"] not in in_queue][:40]
                 if ep_ids:
-                    requests.post(
-                        f"{base}/command",
-                        json={"name": "EpisodeSearch", "episodeIds": ep_ids},
+                    ok, detail = _arr_command(
+                        base,
+                        {"name": "EpisodeSearch", "episodeIds": ep_ids},
                         headers={"X-Api-Key": key},
-                        timeout=10,
                     )
                     issues.append(
                         f"Sonarr: {len(ep_ids)} recently-aired episode(s) missing files — searching"
                     )
-                    actions.append(
-                        f"triggered Sonarr EpisodeSearch for {len(ep_ids)} aired-missing episode(s)"
-                    )
+                    if ok:
+                        actions.append(
+                            f"triggered Sonarr EpisodeSearch for {len(ep_ids)} aired-missing "
+                            f"episode(s) — {detail}"
+                        )
+                    else:
+                        issues.append(f"Sonarr EpisodeSearch FAILED — {detail}")
+                        log.error("library_coverage_probe: EpisodeSearch failed — %s", detail)
                     log.warning("library_coverage_probe: %s", issues[-1])
         except Exception as e:
             log.warning("library_coverage_probe: aired-missing search error: %s", e)
@@ -845,14 +980,23 @@ def library_coverage_probe() -> None:
                 if m.get("monitored") and not m.get("hasFile") and m.get("isAvailable")
             ]
             if missing:
-                log.info("library_coverage_probe: Radarr %d monitored movie(s) missing files", len(missing))
-                requests.post(
-                    f"{base}/command",
-                    json={"name": "DownloadedMoviesScan"},
-                    headers={"X-Api-Key": key},
-                    timeout=10,
+                # #5386(a): this branch appended an ACTION but never an ISSUE, and
+                # `if not issues: return` below then skipped _log_selfheal AND the
+                # A.R.C.H.I.E. notify — so the scan it fired was invisible on both
+                # surfaces. Work that is done unrecorded is indistinguishable from
+                # work that was never done.
+                issues.append(
+                    f"Radarr: {len(missing)} monitored, available movie(s) have no file"
                 )
-                actions.append(f"triggered Radarr DownloadedMoviesScan ({len(missing)} missing)")
+                log.warning("library_coverage_probe: %s", issues[-1])
+                ok, detail = _arr_command(
+                    base, {"name": "DownloadedMoviesScan"}, headers={"X-Api-Key": key}
+                )
+                if ok:
+                    actions.append(f"triggered Radarr DownloadedMoviesScan ({len(missing)} missing) — {detail}")
+                else:
+                    issues.append(f"Radarr DownloadedMoviesScan FAILED — {detail}")
+                    log.error("library_coverage_probe: Radarr scan failed — %s", detail)
         except Exception as e:
             log.warning("library_coverage_probe: Radarr error: %s", e)
 

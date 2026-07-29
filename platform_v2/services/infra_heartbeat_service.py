@@ -120,6 +120,36 @@ CRITICAL_CONTAINERS: Dict[str, Dict[str, Any]] = {
         "auto_restart_safe": True,
         "compose_service": "media_jellyfin",
     },
+    # --- Added 2026-07-29 (#5409). Both of the Networks==0 incidents on this hub
+    # happened to containers that were NOT in this registry, so the detection
+    # added in check_container() would have caught neither. A check whose subject
+    # is unmonitored is unmonitored-while-appearing-monitored.
+    #
+    # Neither carries tcp_probes on purpose: media_samba publishes on
+    # 100.64.0.4:445, so probing _PROBE_HOST_FROM_CONTAINER (192.168.1.200) would
+    # report a false failure. Both DO have working docker healthchecks, which the
+    # existing `health != healthy` branch already consumes — media_samba's had a
+    # FailingStreak of 3014 while nothing was watching it.
+    "media_samba": {
+        "description": "SMB export of /media — Tdarr fleet nodes mount the library over it",
+        "tcp_probes": [],
+        # NOT restart-safe: media_samba is a bare `docker run` with no compose
+        # service (#5410), and restart_container() shells out to
+        # `docker compose up -d --no-deps <svc>`, which would fail every time —
+        # the same revival-loop shape as the nginx_proxy_manager note above.
+        # Flip to True only once #5410 gives it a real compose service.
+        "auto_restart_safe": False,
+        "compose_service": "media_samba",
+    },
+    "archie_tailscale": {
+        "description": "Hub-LAN subnet router (mesh presence 100.64.0.1) — dormant but must stay registered",
+        "tcp_probes": [],
+        # Detection only. Restarting a mesh component on a false positive is
+        # worse than the alert, and this one has extra_hosts subtleties
+        # (`docker compose restart` does NOT reapply them — see .claude/rules/fleet.md).
+        "auto_restart_safe": False,
+        "compose_service": "archie_tailscale",
+    },
 }
 
 # Hub IP — probes run from inside the archie_platform container, but
@@ -161,8 +191,25 @@ def _http_probe(url: str, timeout: float = _PROBE_TIMEOUT_SECONDS) -> Optional[i
 # ---------------------------------------------------------------------------
 
 
+def _absent_snapshot() -> Dict[str, Any]:
+    """Uniform "this container does not exist" snapshot.
+
+    One helper rather than three literals: when the same dict was spelled out at
+    each call site it was easy to add a key to one and miss the others, leaving a
+    check reading ``None`` for the very field it depends on.
+    """
+    return {
+        "present": False,
+        "state": None,
+        "health": None,
+        "started_at": None,
+        "networks": [],
+        "network_mode": None,
+    }
+
+
 def _inspect_via_sdk(name: str) -> Optional[Dict[str, Any]]:
-    """Return {'present', 'state', 'health'} or None on failure."""
+    """Return a snapshot dict (see :func:`inspect_container`) or None on failure."""
     try:
         import docker  # type: ignore
 
@@ -170,18 +217,22 @@ def _inspect_via_sdk(name: str) -> Optional[Dict[str, Any]]:
         container = client.containers.get(name)
         state = container.attrs.get("State", {})
         health = (state.get("Health") or {}).get("Status") if state.get("Health") else None
+        net_settings = container.attrs.get("NetworkSettings") or {}
+        host_config = container.attrs.get("HostConfig") or {}
         return {
             "present": True,
             "state": state.get("Status"),  # running, exited, paused, etc.
             "health": health,
             "started_at": state.get("StartedAt"),
+            "networks": sorted((net_settings.get("Networks") or {}).keys()),
+            "network_mode": host_config.get("NetworkMode"),
         }
     except ImportError:
         return None
     except Exception as e:
         # NotFound raised if container doesn't exist
         if "NotFound" in type(e).__name__ or "not found" in str(e).lower():
-            return {"present": False, "state": None, "health": None, "started_at": None}
+            return _absent_snapshot()
         logger.warning("docker SDK inspect failed for %s: %s", name, e)
         return None
 
@@ -194,7 +245,13 @@ def _inspect_via_cli(name: str) -> Optional[Dict[str, Any]]:
                 "docker",
                 "inspect",
                 "--format",
-                "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.State.StartedAt}}",
+                (
+                    "{{.State.Status}}"
+                    "|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}"
+                    "|{{.State.StartedAt}}"
+                    "|{{range $k, $v := .NetworkSettings.Networks}}{{$k}},{{end}}"
+                    "|{{.HostConfig.NetworkMode}}"
+                ),
                 name,
             ],
             capture_output=True,
@@ -207,24 +264,30 @@ def _inspect_via_cli(name: str) -> Optional[Dict[str, Any]]:
         return None
     if result.returncode != 0:
         # Not found
-        return {"present": False, "state": None, "health": None, "started_at": None}
+        return _absent_snapshot()
     parts = result.stdout.strip().split("|")
     state = parts[0] if parts else None
     health = parts[1] if len(parts) > 1 and parts[1] != "none" else None
     started = parts[2] if len(parts) > 2 else None
+    # Networks render as "a,b," — split and drop the trailing empty element.
+    networks = [n for n in (parts[3].split(",") if len(parts) > 3 else []) if n]
+    network_mode = parts[4] if len(parts) > 4 and parts[4] else None
     return {
         "present": True,
         "state": state,
         "health": health,
         "started_at": started,
+        "networks": sorted(networks),
+        "network_mode": network_mode,
     }
 
 
 def inspect_container(name: str) -> Dict[str, Any]:
     """Return a uniform snapshot of a container's state.
 
-    Keys: ``present`` (bool), ``state`` (str|None),
-    ``health`` (str|None), ``started_at`` (str|None).
+    Keys: ``present`` (bool), ``state`` (str|None), ``health`` (str|None),
+    ``started_at`` (str|None), ``networks`` (list[str]),
+    ``network_mode`` (str|None).
     """
     snap = _inspect_via_sdk(name)
     if snap is not None:
@@ -232,7 +295,26 @@ def inspect_container(name: str) -> Dict[str, Any]:
     snap = _inspect_via_cli(name)
     if snap is not None:
         return snap
-    return {"present": False, "state": None, "health": None, "started_at": None}
+    return _absent_snapshot()
+
+
+def _shares_network_namespace(network_mode: Optional[str]) -> bool:
+    """True when a container deliberately has no network of its own.
+
+    ``network_mode: service:X`` in compose becomes ``container:<id>`` in the
+    inspect output, and such a container legitimately reports **zero** entries
+    under ``NetworkSettings.Networks`` — it borrows the target's namespace. The
+    merged VPN torrent lane (qBittorrent behind gluetun) is exactly this shape,
+    so treating an empty network list as a fault without this carve-out would
+    page on a container that is working as designed.
+
+    ``host`` mode is deliberately NOT listed: it reports one network entry
+    (``host``), verified on this hub against archie_hub_caddy, media_plex,
+    network_ntopng and network_adguard.
+    """
+    if not network_mode:
+        return False
+    return network_mode.startswith("container:") or network_mode.startswith("service:")
 
 
 # ---------------------------------------------------------------------------
@@ -245,7 +327,7 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
     tool both render.
 
     ``severity`` rollup per container:
-      * ``error``   — container absent or exited
+      * ``error``   — container absent, exited, or running with no network
       * ``warning`` — container running but port/http probe fails
       * ``info``    — all probes pass
     """
@@ -287,6 +369,26 @@ def check_container(name: str, config: Dict[str, Any]) -> Dict[str, Any]:
         severity = "warning" if service_class == "on-demand" else "error"
         result["severity"] = severity
         result["reason"] = f"container state={snap['state']!r}"
+        return result
+
+    # A container can be 'running', with its daemon listening and its ports
+    # correctly published, while attached to NO network — making it completely
+    # unreachable. Twice on this hub: archie_tailscale (23 days) and media_samba
+    # (~25 days, healthcheck FailingStreak 3014). 'running' is what made both
+    # invisible, so state alone is not evidence of reachability.
+    #
+    # Checked BEFORE the probes deliberately: the probes can be unreliable for
+    # their own reasons (host->own-published-port hairpin is broken under
+    # userland-proxy=false), and "attached to no network" is a structural fault
+    # that deserves its own unambiguous reason string rather than being reported
+    # as a generic probe failure.
+    if not snap.get("networks") and not _shares_network_namespace(snap.get("network_mode")):
+        result["severity"] = "error"
+        result["reason"] = (
+            "container is running but attached to NO network "
+            f"(network_mode={snap.get('network_mode')!r}) — unreachable regardless "
+            "of process state. Recreate it from its captured config."
+        )
         return result
 
     # Healthy-but-unreachable cases — run the reachability probes.

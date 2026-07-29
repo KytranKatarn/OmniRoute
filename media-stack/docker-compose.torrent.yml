@@ -1,0 +1,120 @@
+# Torrent lane for the media stack — qBittorrent locked behind a VPN.
+#
+# WHY THIS EXISTS (2026-07-28): Harley Quinn S05 + S04E07 are unobtainable on
+# usenet — every release either blocklisted or aborted "not complete" (missing
+# articles on Newshosting's backbone, consistent with takedown pressure on
+# recent Max content). The same episodes are 45-55 results deep on PUBLIC
+# torrent indexers with 85-339 seeders, needing no account and no captcha.
+#
+# Bring up with BOTH files so this joins the existing media-stack project and
+# shares its default network (Sonarr/Prowlarr live there):
+#
+#   cd /mnt/archie_brain/media-stack
+#   docker compose -f docker-compose.yml -f docker-compose.torrent.yml up -d gluetun qbittorrent
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE SAFETY PROPERTY, AND WHY IT IS STRUCTURAL RATHER THAN CONFIGURED
+#
+# qbittorrent has NO network stack of its own — `network_mode: service:gluetun`
+# puts it inside gluetun's namespace. There is no route to the internet that
+# does not traverse the tunnel. If the VPN drops, qbittorrent loses all
+# connectivity rather than falling back to the residential IP. That is a
+# killswitch by construction; it cannot be defeated by a bad setting.
+#
+# The WireGuard vars use `${VAR:?message}`. Compose REFUSES TO START if any is
+# unset. This is deliberate and load-bearing: a gluetun that boots without
+# credentials would route traffic in the clear, and "it came up" would read as
+# success. Fail closed — never let a missing secret degrade into a leak.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# REQUIRED in /mnt/archie_brain/.env before first start:
+#   VPN_SERVICE_PROVIDER=protonvpn      # or airvpn / private internet access / …
+#   VPN_TYPE=wireguard
+#   WIREGUARD_PRIVATE_KEY=<from the provider's WireGuard config>
+#   WIREGUARD_ADDRESSES=10.2.0.2/32     # the Address line of that config
+#   VPN_SERVER_COUNTRIES=Canada         # optional
+#
+# PROVIDER NOTE: prefer one that still supports PORT FORWARDING (ProtonVPN,
+# AirVPN, PIA). Mullvad dropped it in 2023. Without a forwarded port you can
+# still download, but you are connectable-by-nobody, which throttles swarm
+# performance on sparse torrents.
+#
+# ⚠️ VERIFY BEFORE ANY TORRENT TRAFFIC FLOWS — do not assume the tunnel is up:
+#   docker exec gluetun wget -qO- https://ipinfo.io/ip     # must NOT be your home IP
+#   docker exec qbittorrent wget -qO- https://ipinfo.io/ip # must match gluetun's
+# A container that is "running" is not a container that is tunnelled.
+#
+# ⚠️ SEQUENCING — do NOT add torrent indexers to Prowlarr until qbittorrent is
+# up and wired into Sonarr. Prowlarr fullSync pushes indexers straight to
+# Sonarr; with no torrent client present Sonarr grabs torrents it cannot hand
+# off, they fail, and it BLOCKLISTS the releases. That is exactly the poisoning
+# that left Harley Quinn S01/S03 unfillable for days (186 entries cleared
+# 2026-07-28). Client first, indexers second.
+
+services:
+  gluetun:
+    image: qmcgaw/gluetun:v3.40.0
+    container_name: gluetun
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      # qBittorrent's WebUI is published HERE, not on qbittorrent, because
+      # qbittorrent has no network namespace of its own.
+      - "8088:8088"
+    environment:
+      - TZ=America/Toronto
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:?set VPN_SERVICE_PROVIDER in /mnt/archie_brain/.env}
+      - VPN_TYPE=${VPN_TYPE:-wireguard}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:?set WIREGUARD_PRIVATE_KEY — refusing to start unprotected}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:?set WIREGUARD_ADDRESSES — refusing to start unprotected}
+      - SERVER_COUNTRIES=${VPN_SERVER_COUNTRIES:-}
+      # Let the media-stack network reach the WebUI. Without this gluetun's
+      # firewall drops Sonarr's connection to qbittorrent and every grab fails
+      # with "unable to communicate with download client".
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.48.0/20
+      - DOT=off
+      - UPDATER_PERIOD=24h
+    volumes:
+      - /mnt/Plex/config/gluetun:/gluetun
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "https://ipinfo.io/ip"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.50"
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:5.0.4
+    container_name: qbittorrent
+    restart: unless-stopped
+    # ── the killswitch: no own network, everything via gluetun ──
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+      - WEBUI_PORT=8088
+    volumes:
+      - /mnt/Plex/config/qbittorrent:/config
+      # Sonarr mounts /mnt/Plex/downloads at /downloads, so it sees completed
+      # torrents at /downloads/torrents with no extra mount and no remote-path
+      # mapping. NOTE: this is on /dev/sdb, the FAILING 3TB disk (1,736
+      # uncorrectable sectors, task #5385) — move to healthy storage when that
+      # drive is replaced.
+      - /mnt/Plex/downloads/torrents:/downloads/torrents
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"

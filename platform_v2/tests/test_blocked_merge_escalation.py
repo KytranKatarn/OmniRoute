@@ -34,12 +34,19 @@ class _StubLoop:
 
 @pytest.fixture
 def wired(monkeypatch):
-    """Patch the two pr_review_service functions the helper imports, recording order."""
+    """Patch everything the helper imports, recording call order.
+
+    ``pr_is_open`` is stubbed to True by default (#5419) — without this the
+    suite would hit the real GitHub API on every escalation test.
+    """
     import tools.repair_bay.services.pr_review_service as svc
+    import tools.repair_bay.services.github_service as gh
 
     order = []
     opened = []
     marked = []
+    tiered = []
+    state = {"open": True}
 
     def _open(pr, title, summary, repo=None):
         order.append("open_row")
@@ -49,11 +56,24 @@ def wired(monkeypatch):
         order.append("mark_sent")
         marked.append(pr)
 
+    def _tier(pr, tier=None):
+        order.append("mark_tier")
+        tiered.append({"pr": pr, "tier": tier})
+
     monkeypatch.setattr(svc, "open_pr_merge_approval", _open, raising=True)
     monkeypatch.setattr(svc, "_mark_kytran_approval_sent", _mark, raising=True)
+    monkeypatch.setattr(svc, "_mark_tier_processed", _tier, raising=True)
+    monkeypatch.setattr(gh, "pr_is_open", lambda pr, repo=None: state["open"], raising=True)
 
     loop = _StubLoop()
-    return {"loop": loop, "order": order, "opened": opened, "marked": marked}
+    return {
+        "loop": loop,
+        "order": order,
+        "opened": opened,
+        "marked": marked,
+        "tiered": tiered,
+        "state": state,
+    }
 
 
 def _review(pr=2551):
@@ -228,3 +248,125 @@ def test_wiring_check_fails_against_prefix_code():
 
     assert n == 2, f"expected to strip 2 wiring sites, stripped {n}"
     assert _WIRE_RE.findall(stripped) == [], "pre-fix copy still looks wired"
+
+
+# ---------------------------------------------------------------------------
+# #5419 — never page about a PR that is already merged
+#
+# pr_reviews.state is refreshed by sync_closed_prs only every 4 HOURS, so a PR
+# merged out-of-band still reads 'open' to the worker. The gate refuses BEFORE
+# any GitHub call, so it never learns the PR is merged. An allowlist-refused PR
+# can ONLY be merged by hand — so every one of them opens this window. Observed
+# live on PR #2552, which paged the owner about an already-completed merge.
+# ---------------------------------------------------------------------------
+
+
+def _blocked():
+    return {
+        "merged": False,
+        "governance_blocked": True,
+        "error": "outside the auto-merge allowlist (ai_bridge/agent_loop.py)",
+    }
+
+
+def test_already_merged_pr_is_not_escalated(wired):
+    """Resolved work must not page the owner — but must still leave the loop."""
+    wired["state"]["open"] = False
+
+    assert _escalate(wired["loop"], _review(), _blocked(), 2) is True, "handled"
+    assert wired["loop"].approval_calls == [], "must NOT page about a merged PR"
+    assert wired["marked"] == [], "no approval was sent, so nothing to mark sent"
+    assert wired["tiered"] == [{"pr": 2551, "tier": 2}], "must still end the retry loop"
+
+
+def test_unknown_pr_state_STILL_escalates(wired):
+    """FAIL-SAFE DIRECTION — the asymmetry is the whole point.
+
+    `None` means we could not determine the state (API error, rate limit).
+    Staying silent then would reintroduce the #5413 bug, where a genuinely
+    blocked PR reached nobody. A redundant ping is merely noise; silence is a
+    stuck PR. These are not equally bad, so they are not treated equally.
+    """
+    wired["state"]["open"] = None
+
+    assert _escalate(wired["loop"], _review(), _blocked(), 2) is True
+    assert len(wired["loop"].approval_calls) == 1, "unknown state must still notify"
+    assert wired["marked"] == [2551]
+
+
+def test_open_pr_still_escalates(wired):
+    """The normal case is unchanged."""
+    wired["state"]["open"] = True
+
+    assert _escalate(wired["loop"], _review(), _blocked(), 2) is True
+    assert len(wired["loop"].approval_calls) == 1
+
+
+def test_suppression_requires_an_explicit_False():
+    """A truthiness check would swallow `None` and re-create the silence bug."""
+    src = inspect.getsource(al.AgentLoop._escalate_blocked_merge)
+    assert "is False" in src, "must compare identity, not truthiness"
+    assert "if not pr_is_open" not in src
+
+
+# --- pr_is_open itself -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "payload,expected",
+    [
+        ({"state": "open"}, True),
+        ({"state": "closed"}, False),
+        ({"state": "open", "merged_at": "2026-07-29T18:11:22Z"}, False),
+        ({"state": "closed", "merged": True}, False),
+        ({}, None),
+    ],
+    ids=["open", "closed", "merged_at-wins", "merged-flag", "empty-payload"],
+)
+def test_pr_is_open_classification(monkeypatch, payload, expected):
+    """`merged_at` is checked before `state` — GitHub reports merged PRs closed,
+    but a squash-merge briefly races the state field."""
+    import tools.repair_bay.services.github_service as gh
+
+    monkeypatch.setattr(gh, "_api_get", lambda path, **kw: (True, payload))
+    assert gh.pr_is_open(1) is expected
+
+
+def test_pr_is_open_returns_none_on_api_failure(monkeypatch):
+    """Unknown, NOT closed — the caller treats None as 'still open'."""
+    import tools.repair_bay.services.github_service as gh
+
+    monkeypatch.setattr(gh, "_api_get", lambda path, **kw: (False, {"error": "rate limited"}))
+    assert gh.pr_is_open(1) is None
+
+
+def test_pr_is_open_is_repo_aware(monkeypatch):
+    """F.O.R.G.E. reviews non-default repos; get_pr_status is hardcoded to REPO_FULL."""
+    import tools.repair_bay.services.github_service as gh
+
+    seen = []
+
+    def _fake(path, **kw):
+        seen.append(path)
+        return (True, {"state": "open"})
+
+    monkeypatch.setattr(gh, "_api_get", _fake)
+    gh.pr_is_open(7, repo="KytranKatarn/kytran-business-suite")
+
+    assert seen == ["/repos/KytranKatarn/kytran-business-suite/pulls/7"]
+
+
+def test_pr_is_open_makes_exactly_one_api_call(monkeypatch):
+    """get_pr_status fires FOUR calls; a state check on the refusal path must not."""
+    import tools.repair_bay.services.github_service as gh
+
+    calls = []
+
+    def _fake(path, **kw):
+        calls.append(path)
+        return (True, {"state": "open"})
+
+    monkeypatch.setattr(gh, "_api_get", _fake)
+    gh.pr_is_open(1)
+
+    assert len(calls) == 1, f"expected 1 API call, made {len(calls)}"

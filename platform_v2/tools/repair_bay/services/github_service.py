@@ -456,6 +456,35 @@ def create_pr(
     }
 
 
+def pr_is_open(pr_number: int, repo: str = None) -> Optional[bool]:
+    """Is this PR still open on GitHub? ``None`` when it cannot be determined.
+
+    #5419. Deliberately ONE API call and repo-aware — ``get_pr_status`` below
+    fires four and is hardcoded to ``REPO_FULL``, so it is both wasteful for a
+    state check and wrong for the non-default repos F.O.R.G.E. reviews.
+
+    Exists because ``pr_reviews.state`` is only refreshed by ``sync_closed_prs``
+    on a 4-hour cycle, so a PR merged out-of-band keeps reading ``open`` to the
+    tiered-merge worker for hours. The governance gate is checked BEFORE any
+    GitHub call (by design — a refusal must cost no API quota), so the refusal
+    path never discovers the PR is already merged.
+
+    ⚠️ The caller must treat ``None`` as "still open". Failing to notify on a
+    genuinely blocked PR reintroduces the silence bug #5413 fixed; a redundant
+    notification is merely noise. Those are not symmetric.
+    """
+    target = repo or REPO_FULL
+    ok, data = _api_get(f"/repos/{target}/pulls/{pr_number}")
+    if not ok or not isinstance(data, dict):
+        return None
+    if data.get("merged_at") or data.get("merged"):
+        return False
+    state = (data.get("state") or "").lower()
+    if not state:
+        return None
+    return state == "open"
+
+
 def get_pr_status(pr_number: int) -> Dict:
     """Get PR status including checks and reviews."""
     ok, data = _api_get(f"/repos/{REPO_FULL}/pulls/{pr_number}")

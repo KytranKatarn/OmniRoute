@@ -8933,8 +8933,10 @@ class AgentLoop:
         """
         from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
             _mark_kytran_approval_sent,
+            _mark_tier_processed,
             open_pr_merge_approval,
         )
+        from tools.repair_bay.services.github_service import pr_is_open  # noqa: PLC0415
 
         if not result.get("governance_blocked"):
             return False
@@ -8943,6 +8945,27 @@ class AgentLoop:
         title = review.get("title") or f"PR #{pr_num}"
         summary = review.get("ai_summary") or ""
         why = result.get("error") or "the merge was refused by the governance gate"
+
+        # #5419. `pr_reviews.state` is refreshed by sync_closed_prs only every 4
+        # HOURS, so a PR merged out-of-band still reads 'open' to this worker for
+        # hours. The gate is checked BEFORE any GitHub call (deliberately — a
+        # refusal must cost no quota), so it never discovers the PR is already
+        # merged. And an allowlist-refused PR can ONLY be merged by hand, so
+        # EVERY one of them opens this window: the escalation's own success
+        # condition guarantees its false positive. Observed on PR #2552, which
+        # paged the owner about a merge that had already happened.
+        #
+        # ASYMMETRIC ON PURPOSE: only a definite False suppresses the notice.
+        # `None` (API error, rate limit) still notifies — failing to speak up
+        # about a genuinely blocked PR reintroduces the silence #5413 fixed,
+        # whereas a redundant ping is just noise.
+        if pr_is_open(pr_num, repo=review.get("repo")) is False:
+            logger.info(
+                "[PRTiers] PR #%s was refused but is already closed/merged — " "marking processed, not paging Kytran",
+                pr_num,
+            )
+            _mark_tier_processed(pr_num, tier=tier)
+            return True
 
         logger.warning(
             "[PRTiers] Tier %s merge REFUSED for PR #%s — escalating to Kytran: %s",

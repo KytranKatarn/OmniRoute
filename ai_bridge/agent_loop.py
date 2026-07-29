@@ -8877,8 +8877,15 @@ class AgentLoop:
     # Tiered PR Merge Authority (Project #244 / feat/tiered-pr-merge-authority)
     # ------------------------------------------------------------------
 
-    def _request_kytran_pr_approval(self, pr_number: int, title: str, summary: str) -> None:
-        """Send Tier 3 Telegram message with approve/deny buttons to Kytran."""
+    def _request_kytran_pr_approval(self, pr_number: int, title: str, summary: str, reason: str = None) -> None:
+        """Send a Telegram message with approve/deny buttons to Kytran.
+
+        ``reason`` explains WHY he is being asked. It defaults to the Tier 3
+        wording so existing callers are unchanged; a merge the automation was
+        REFUSED from completing (#5413) passes the gate's own refusal text, so
+        the message says what is actually blocking rather than implying the PR
+        was classified Tier 3.
+        """
         from services.telegram_service import send_with_buttons  # noqa: PLC0415
 
         short_summary = summary[:400] if summary else "No review summary available."
@@ -8888,7 +8895,7 @@ class AgentLoop:
             message=(
                 f"*PR #{pr_number}:* {title}\n\n"
                 f"*F.O.R.G.E. Review:*\n{short_summary}\n\n"
-                "Tier 3 — requires your approval before merge."
+                f"{reason or 'Tier 3 — requires your approval before merge.'}"
             ),
             buttons=[
                 {"text": "✅ Merge", "callback_data": f"pr_merge_approve_{pr_number}"},
@@ -8896,6 +8903,64 @@ class AgentLoop:
             ],
             source_agent="A.R.C.H.I.E.",
         )
+
+    def _escalate_blocked_merge(self, review, result, tier: int) -> bool:
+        """Hand a merge the automation CANNOT complete up to Kytran — exactly once.
+
+        #5413. A Tier-1/Tier-2 merge REFUSAL used to be a ``logger.warning`` and
+        nothing else: no Telegram, no state. Because neither guard field was
+        written, the worker re-attempted a merge that could never succeed on
+        every 2-minute tick, forever — while the human who has to act was never
+        told. The escalation chain terminated in a log line (PR #2551 sat that
+        way; PR #2547 before it).
+
+        ONLY A GOVERNANCE REFUSAL ESCALATES. ``governance_blocked`` is set by
+        ``merge_pr``'s gate, which runs BEFORE any GitHub call — it means a rule
+        said no, so re-attempting in two minutes cannot change the answer and a
+        human decision is genuinely required. Everything else (GitHub 5xx, merge
+        conflict, CI still pending) leaves the flag unset and keeps today's
+        retry, which is correct for something that may clear on its own. That
+        line needs no string matching against error text, which would rot the
+        moment a message is reworded.
+
+        Ordering mirrors the Tier 3 branch (#5283): the durable Approvals-tab
+        row is opened FIRST and independently of the Telegram send, so an
+        undelivered or dismissed message still leaves the owner something to act
+        on. ``_mark_kytran_approval_sent`` is last — it is also what makes the
+        worker's own guard skip this PR next tick, ending the retry loop.
+
+        Returns True when the PR was escalated.
+        """
+        from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+            _mark_kytran_approval_sent,
+            open_pr_merge_approval,
+        )
+
+        if not result.get("governance_blocked"):
+            return False
+
+        pr_num = review["pr_number"]
+        title = review.get("title") or f"PR #{pr_num}"
+        summary = review.get("ai_summary") or ""
+        why = result.get("error") or "the merge was refused by the governance gate"
+
+        logger.warning(
+            "[PRTiers] Tier %s merge REFUSED for PR #%s — escalating to Kytran: %s",
+            tier,
+            pr_num,
+            why,
+        )
+        open_pr_merge_approval(pr_num, title, summary, repo=review.get("repo"))
+        self._request_kytran_pr_approval(
+            pr_num,
+            title,
+            summary,
+            reason=(
+                f"⛔ Tier {tier} auto-merge was REFUSED — a human must merge this " f"deliberately.\n\n*Reason:* {why}"
+            ),
+        )
+        _mark_kytran_approval_sent(pr_num)
+        return True
 
     def _run_archie_pr_review_worker(self):
         """Job: Tiered PR merge authority — F.O.R.G.E./A.R.C.H.I.E./Kytran governance."""
@@ -8977,6 +9042,8 @@ class AgentLoop:
                             department="Engineering & Technology",
                         )
                         processed += 1
+                    elif self._escalate_blocked_merge(review, result, tier=1):
+                        processed += 1
                     else:
                         logger.warning(
                             "[PRTiers] Tier 1 merge failed for PR #%s: %s",
@@ -9001,6 +9068,8 @@ class AgentLoop:
                             ),
                             source_agent="A.R.C.H.I.E.",
                         )
+                        processed += 1
+                    elif self._escalate_blocked_merge(review, result, tier=2):
                         processed += 1
                     else:
                         logger.warning(

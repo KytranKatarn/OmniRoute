@@ -23,9 +23,17 @@ logger = logging.getLogger(__name__)
 # Config file paths for each service
 CONFIG_PATHS = {
     "plex": "/mnt/Plex/config/plex/Library/Application Support/Plex Media Server/Preferences.xml",
-    "sonarr": "/mnt/Plex/config/sonarr/config.xml",
-    "radarr": "/mnt/Plex/config/radarr/config.xml",
-    "prowlarr": "/mnt/Plex/config/prowlarr/config.xml",
+    # ⚠️ The three *arr configs moved to /mnt/data2 (physical /dev/sdf) on
+    # 2026-07-29 — /mnt/Plex is /dev/sdb, which has 1760 uncorrectable sectors
+    # and had already corrupted Sonarr's DB and all 4 of its backups (#5384).
+    # The inconsistency with their siblings below is DELIBERATE: those still
+    # live on /mnt/Plex and are a pending follow-up, not an oversight.
+    # Keep in step with media-stack/docker-compose.yml AND scripts/host_monitor.py
+    # — all three hardcode these paths, and a partial change breaks *arr
+    # auto-discovery silently (nothing raises; the API key comes back empty).
+    "sonarr": "/mnt/data2/plex-config/sonarr/config.xml",
+    "radarr": "/mnt/data2/plex-config/radarr/config.xml",
+    "prowlarr": "/mnt/data2/plex-config/prowlarr/config.xml",
     "overseerr": "/mnt/Plex/config/overseerr/settings.json",
     "jellyseerr": "/mnt/Plex/config/jellyseerr/settings.json",
     "sabnzbd": "/mnt/Plex/config/sabnzbd/sabnzbd.ini",

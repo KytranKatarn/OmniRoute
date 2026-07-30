@@ -66,7 +66,15 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/Plex/config/sonarr:/config
+      # ⚠️ config lives on /mnt/data2 (physical /dev/sdf), NOT /mnt/Plex, and the
+      # difference from the media/downloads paths below is DELIBERATE, not drift.
+      # /mnt/Plex is physical /dev/sdb: 1760 pending + 1760 uncorrectable sectors.
+      # Sonarr's SQLite DB was found MALFORMED there on 2026-07-29 with all four
+      # scheduled backups corrupt too (#5384). Databases do not belong on that
+      # disk. Media can stay — a bad sector costs one file, not the whole library.
+      # (LVM names mislead: VG `sda-vg` is on /dev/sdb, VG `sdb-vg` on /dev/sdf.
+      #  Use `pvs`, never `df`. KB #285461.)
+      - /mnt/data2/plex-config/sonarr:/config
       - /mnt/Plex/media/tv:/tv
       - /mnt/Plex/downloads:/downloads
     ports:
@@ -89,7 +97,8 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/Plex/config/radarr:/config
+      # config on /dev/sdf, media on /dev/sdb — deliberate, see the sonarr note above (#5384)
+      - /mnt/data2/plex-config/radarr:/config
       - /mnt/Plex/media/movies:/movies
       - /mnt/Plex/downloads:/downloads
     ports:
@@ -112,7 +121,8 @@ services:
       - PGID=1000
       - TZ=America/New_York
     volumes:
-      - /mnt/Plex/config/prowlarr:/config
+      # config on /dev/sdf — deliberate, see the sonarr note above (#5384)
+      - /mnt/data2/plex-config/prowlarr:/config
     ports:
       - "9696:9696"
     deploy:

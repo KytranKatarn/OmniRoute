@@ -1337,7 +1337,7 @@
     "comp.calculator_intro": "Cochez les fonctionnalités dont vous avez besoin. Voyez ce que cela coûte de les assembler à partir d'outils distincts.",
     "comp.cat1_intro": "Environnements de travail pour la construction et l'exécution de systèmes multi-agents. A.R.C.H.I.E. est le seul à être fourni sous forme de plateforme fonctionnelle, et non de bibliothèque.",
     "comp.cat1_title": "Orchestration multi-agents",
-    "comp.cat2_intro": "Plateformes de gouvernance IA d'entreprise. A.R.C.H.I.E. + C.R.E.E.D. est la seule option auto-hébergée avec le bien-être des agents en production.",
+    "comp.cat2_intro": "Plateformes d'intelligence artificielle gouvernees d'entreprise. A.R.C.H.I.E. + C.R.E.E.D. est le seul choix auto-hébergé avec garde à vue des agents de production.",
     "comp.cat2_title": "2. Gouvernance et conformité de l'IA",
     "comp.cat3_intro": "Plateformes IA locales pour le chat, le RAG et la gestion des modèles. A.R.C.H.I.E. est plus profond mais plus complexe.",
     "comp.cat3_title": "3. Plateformes d'IA auto-hébergées",

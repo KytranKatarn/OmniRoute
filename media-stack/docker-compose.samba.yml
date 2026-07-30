@@ -1,0 +1,150 @@
+# SMB share for the Tdarr fleet — the declarative source for `media_samba`.
+#
+# WHY THIS EXISTS (2026-07-29, task #5410, KB #285320): media_samba was a bare
+# `docker run` with NO compose file. When it detached (Networks=0) there was no
+# declarative source to bring it back from, and recovery meant reconstructing the
+# whole invocation out of `docker inspect` JSON. Worse, the SMB password lived
+# ONLY in the running container's Cmd array — had the container been REMOVED
+# rather than stopped, the share credential would have been lost with it, and
+# with it the mount both Starships depend on.
+#
+# It is load-bearing: BOTH Starship Tdarr nodes CIFS-mount //100.64.0.4/media
+# from here. When this broke, the nodes could not start at all.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ⚠️  ADOPTING THIS FILE IS DISRUPTIVE — IT IS NOT A NO-OP
+#
+# `media_samba` is CURRENTLY a bare container with no compose labels (verified:
+# its com.docker.compose.project label is empty). Running `up -d` does not
+# "adopt" it in place; compose recreates it. That drops the SMB share, which
+# drops the CIFS mount on BOTH Starships, which takes both Tdarr nodes down
+# until they are restarted.
+#
+# So do NOT run this casually. Adopt it during a maintenance window:
+#
+#   1. Confirm no transcode is in flight (Tdarr UI, or the node worker list).
+#   2. cd /mnt/archie_brain/media-stack
+#      docker compose -f docker-compose.samba.yml up -d          # RECREATES it
+#   3. Verify the share actually SERVES — not merely that the container is up:
+#        docker exec media_samba smbclient -L localhost -U tdarr%"$PASS"
+#      and confirm it is attached to a network (the #5409 failure mode):
+#        docker inspect media_samba --format '{{len .NetworkSettings.Networks}}'
+#   4. Restart tdarr_node on 192.168.1.246 AND 192.168.1.245 so they re-mount.
+#   5. Confirm each node reports a NON-EMPTY library, not just "connected" —
+#      an empty bind mount serves an empty share and looks like "no media".
+#
+# Until then this file is documentation + a recovery path, which is most of its
+# value: the config is in git and the credential is recoverable.
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# REQUIRED in /mnt/archie_brain/media-stack/.env before first start:
+#
+#   SAMBA_TDARR_PASSWORD=<the tdarr share password>
+#
+# `.env` in THIS directory is what `cd media-stack && docker compose` reads, and
+# it is gitignored (`.gitignore:17: *.env` — verified against this exact path).
+# The var uses `${VAR:?...}` so compose REFUSES TO START when it is unset,
+# rather than quietly standing up a share with a broken credential that every
+# node then fails to mount against. Fail closed.
+#
+# To recover the password if .env is lost — either source works:
+#   docker inspect media_samba --format '{{json .Config.Cmd}}'   # -u "tdarr;<pw>"
+#   /mnt/data2/backups/samba-config/media_samba-inspect-20260729-112212.json
+# The archived snapshot is deliberately OUTSIDE git; it is a verified-working
+# capture taken during the 2026-07-29 recovery.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THREE DELIBERATE DELTAS FROM THE LIVE BARE CONTAINER (choices, not drift)
+#
+# Everything else is byte-equivalent to the running container — image,
+# container_name, command (including the load-bearing -g flags), both bind
+# mounts, both port bindings and all three env vars were diffed field-by-field
+# against `docker inspect media_samba` on 2026-07-29 and MATCH.
+#
+# 1. restart: always   (the live container is `unless-stopped`)
+#    `unless-stopped` deliberately honours an explicit `docker stop` across a
+#    daemon restart. That is exactly how BOTH Starship tdarr_node containers
+#    stayed down for 9 days after an exit-137 on 2026-07-19 while every other
+#    container on those hosts came back: a forgotten explicit stop is
+#    indistinguishable from an intentional one. Nothing ever deliberately
+#    leaves this share stopped except during maintenance, and a share that is
+#    silently down breaks both nodes, so `always` is the safer default here.
+#    The cost is small and known — if the daemon restarts while you have it
+#    stopped on purpose, it comes back under you.
+#
+# 2. It joins the compose project network instead of the default `bridge`.
+#    Consumers reach it on a published host IP:445, never by container DNS, so
+#    this is invisible to them, and it keeps the share off the shared default
+#    bridge with every other bare container on this host.
+#
+# 3. It gains CPU/memory limits, where the bare container had NONE.
+#    Required by compliance-standards.md, and every other service in this
+#    directory carries them. But be honest that this is a real behaviour
+#    change: an unbounded process is being given a 2G ceiling. That is why the
+#    ceiling is generous rather than tight — if a CIFS transfer ever OOMs this
+#    container, RAISE the limit; do not remove it and do not conclude the
+#    limits were a mistake.
+#
+# NOT a delta, and NOT an oversight: there is no `dns:` block. The rule in
+# standalone-extraction.md applies to containers that resolve EXTERNAL
+# hostnames. This one talks to nobody; it only answers on 445.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  samba:
+    image: dperson/samba
+    container_name: media_samba
+
+    environment:
+      - TZ=America/Toronto
+      - USERID=1000
+      - GROUPID=1000
+
+    # Mesh IP FIRST per the cluster mesh rule — the Starships mount
+    # //100.64.0.4/media over Headscale, never a public hostname. The LAN
+    # binding is kept for hub-local clients.
+    # Deliberately NOT published on 0.0.0.0: SMB must never face the internet.
+    ports:
+      - "100.64.0.4:445:445"
+      - "192.168.1.200:445:445"
+
+    volumes:
+      # /mnt/Plex/media contains exactly one symlink: movies -> /mnt/data2/plex/movies
+      - /mnt/Plex/media:/media
+      # ...and the real target is ALSO bind-mounted over that same path, so the
+      # healthy-disk movie library is reachable by two independent mechanisms.
+      # Both are present in the verified-working config and removing either was
+      # never tested — do not "simplify" this to one line.
+      - /mnt/data2/plex/movies:/media/movies
+
+    # LOAD-BEARING FLAGS — do not drop as cleanup:
+    #   follow symlinks / wide links : Samba otherwise REFUSES to traverse a
+    #     symlink whose target leaves the share, which is what movies is in the
+    #     underlying tree.
+    #   unix extensions = no : required alongside wide links — with unix
+    #     extensions enabled Samba ignores `wide links` entirely.
+    # Share spec fields: name;path;browseable;readonly;guest;users;admins;writelist
+    command:
+      - "-u"
+      - "tdarr;${SAMBA_TDARR_PASSWORD:?set SAMBA_TDARR_PASSWORD in media-stack/.env — refusing to start a share with no credential}"
+      - "-s"
+      - "media;/media;yes;no;no;tdarr;tdarr;tdarr"
+      - "-g"
+      - "follow symlinks = yes"
+      - "-g"
+      - "wide links = yes"
+      - "-g"
+      - "unix extensions = no"
+      - "-w"
+      - "WORKGROUP"
+
+    # Generous on purpose: this is a file server for two transcode nodes pulling
+    # multi-GB media. A tight memory cap would OOM it under CIFS load, and a dead
+    # share is a fleet-wide outage. Limits present per compliance-standards.md.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+
+    restart: always

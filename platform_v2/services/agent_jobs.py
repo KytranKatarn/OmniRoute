@@ -2179,11 +2179,24 @@ def _emit_pool_staffing_alert(capability: str, gap: dict, row_id: int) -> None:
     must never lose the recommendation."""
     pool_size = gap.get("pool_size")
     backlog = gap.get("backlog")
-    msg = (
-        f"K.I.N. flags '{capability}' at capacity: all {pool_size} active agent(s) are at/over "
-        f"their 24h token budget with {backlog} dispatch(es) queued in the last 24h. A hiring "
-        f"recommendation (candidate #{row_id}) is pending your approval in the DHQ Hiring Queue."
-    )
+    # The two signals must not borrow each other's words. A sole-agent gap has NO backlog
+    # by design (a lone agent absorbs rather than queues), so the pool wording rendered
+    # "all 1 active agent(s) ... with None dispatch(es) queued" and stamped the metadata
+    # signal as pool_saturation — an alert that misdescribes its own cause.
+    signal = gap.get("signal") or "pool_saturation"
+    if signal == "sole_agent_saturation":
+        msg = (
+            f"K.I.N. flags '{capability}' as a single point of failure: its ONLY active agent "
+            f"({gap.get('agent_name')}) is at/over its 24h token budget, so the dispatch throttle "
+            "has no healthy peer to route to. A hiring recommendation "
+            f"(candidate #{row_id}) is pending your approval in the DHQ Hiring Queue."
+        )
+    else:
+        msg = (
+            f"K.I.N. flags '{capability}' at capacity: all {pool_size} active agent(s) are at/over "
+            f"their 24h token budget with {backlog} dispatch(es) queued in the last 24h. A hiring "
+            f"recommendation (candidate #{row_id}) is pending your approval in the DHQ Hiring Queue."
+        )
     try:
         from services import creed_emit
 
@@ -2200,7 +2213,7 @@ def _emit_pool_staffing_alert(capability: str, gap: dict, row_id: int) -> None:
                 "pool_size": pool_size,
                 "backlog": backlog,
                 "hiring_candidate_id": row_id,
-                "signal": "pool_saturation",
+                "signal": signal,
             },
         )
     except Exception:
@@ -2260,13 +2273,61 @@ def kin_recommend_pool_staffing():
             recommended += 1
             _emit_pool_staffing_alert(cap, gap, row_id)
 
+        # SOLE-AGENT saturation (2026-08-02). recommend() has described this case since
+        # #4090, but only as advisory text — this loop is the only path to the DHQ Hiring
+        # Queue, and it required a pool of >= 2, so a lone maxed agent was never queued for
+        # hire. Runs AFTER the pool loop and is independently guarded: a failure here must
+        # not lose the pool recommendations already filed above.
+        try:
+            solo_gaps = welfare_governance_service.recommend_sole_agent_staffing_gaps()
+        except Exception:  # noqa: BLE001
+            logger.warning("sole-agent staffing gap scan failed", exc_info=True)
+            solo_gaps = []
+
+        for gap in solo_gaps:
+            cap = gap["capability"]
+            shortlist = hiring_service.get_shortlist(cap, limit=3)
+            if not shortlist:
+                shortlist = [
+                    {
+                        "type": "new_hire",
+                        "capability": cap,
+                        "note": "no decommissioned specialist available — recommend a net-new agent",
+                    }
+                ]
+            narrative = (
+                f"'{cap}' is served by exactly ONE active agent ({gap['agent_name']}), and that "
+                "agent is at/over its 24h token budget. This is a single point of failure as well "
+                "as a capacity gap: the dispatch throttle has no healthy peer to route to, so work "
+                "either waits or falls back to the exhausted agent, and any rest cycle or node "
+                "outage stops the capability entirely. Note there is deliberately NO backlog "
+                "requirement here — a lone agent has nothing to queue behind and absorbs the load "
+                "instead, so an empty dispatch queue is a symptom of the overwork, not evidence "
+                "against it. Recommend reactivating a bench specialist or adding an agent."
+            )
+            row_id = hiring_service.propose_for_gap(
+                capability=cap,
+                gap_reason=gap["gap_reason"],
+                shortlist=shortlist,
+                narrative=narrative,
+                proposed_by_agent_id=KIN_AGENT_ID,
+            )
+            if row_id is None:
+                continue  # dedup — pool loop or an earlier run already filed this capability
+            recommended += 1
+            _emit_pool_staffing_alert(cap, gap, row_id)
+
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
             "kin_recommend_pool_staffing",
             recommended,
             0,
             duration_ms,
-            details={"gaps_seen": len(gaps), "recommended": recommended},
+            details={
+                "gaps_seen": len(gaps),
+                "sole_agent_gaps_seen": len(solo_gaps),
+                "recommended": recommended,
+            },
         )
     except Exception as e:
         logger.exception("kin_recommend_pool_staffing failed")

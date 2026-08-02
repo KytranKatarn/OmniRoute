@@ -212,6 +212,100 @@ def recommend_pool_staffing_gaps(
     return gaps
 
 
+def recommend_sole_agent_staffing_gaps(
+    ratio_key: str = "welfare:staffing:pool_gap_ratio",
+) -> list:
+    """SOLE-AGENT saturation gaps: a skill whose ONLY active agent is at/over its 24h
+    token budget. Returns ``[{capability, pool_size, agent_id, agent_name, gap_reason}]``.
+
+    WHY THIS EXISTS SEPARATELY (2026-08-02).
+    ``recommend()`` has raised a ``staffing_gap`` for exactly this case since #4090 — and
+    it works: ``gather_sole_agent_capabilities`` returns the capability and the rec is
+    produced. But that rec is ADVISORY TEXT in the governance result. The only path that
+    ever reaches ``hiring_service.propose_for_gap`` (and therefore the DHQ Hiring Queue)
+    is ``kin_recommend_pool_staffing`` -> ``recommend_pool_staffing_gaps``, which requires
+    ``COUNT(DISTINCT agent) >= 2``. So a lone maxed agent was described but never queued
+    for hire: every ``hiring_candidates`` row on the platform carried a
+    ``pool_saturation:`` reason, none a sole-agent one.
+
+    Measured case: P.U.B.L.I.S.H. is the ONLY holder of ``beat_classification`` and ran at
+    654,032 / 150,000 tokens = 4.36x budget over 24h, with 3,024 runs and zero failures.
+
+    ⚠️ NO BACKLOG GATE — and that asymmetry is the whole point, not an oversight.
+    ``recommend_pool_staffing_gaps`` requires >= ``welfare:staffing:min_backlog`` (default
+    3) queued dispatches. ``beat_classification`` had **ZERO** rows in
+    ``dispatch_pending_queue`` over the same 24h. A pool of >=2 queues work when it
+    saturates; a LONE agent has nothing to queue behind and simply absorbs the load,
+    overrunning its budget instead. The empty queue is a symptom of the overwork, not
+    evidence against it. Copying the backlog gate here would have produced a signal that
+    could never fire for the case that motivated it.
+
+    Budget overrun IS the saturation signal for a sole agent. Reuses
+    ``pool_over_budget_by_skill`` unchanged — its ``MIN(ratio)`` over a one-agent pool is
+    simply that agent's ratio, so the "at/over budget" definition stays identical to the
+    pool path and cannot drift from it.
+
+    Fail-OPEN: any error → ``[]``, so a DB hiccup never fabricates a hiring signal.
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (_conn, cur):
+            # Sole-agent skills. Population matches gather_sole_agent_capabilities and
+            # recommend_pool_staffing_gaps so "the pool" means one thing platform-wide.
+            cur.execute(
+                """
+                SELECT s.skill_name AS skill,
+                       MIN(a.id)    AS agent_id,
+                       MIN(a.name)  AS agent_name
+                FROM agent_skills s
+                JOIN agents a ON a.id = s.agent_id
+                WHERE a.worker_type IN ('ai', 'contractor')
+                  AND a.org_id IS NULL
+                  AND a.shift_state IN ('active', 'deployed')
+                  AND s.skill_name IS NOT NULL
+                GROUP BY s.skill_name
+                HAVING COUNT(DISTINCT a.id) = 1
+                """
+            )
+            solos = [
+                {"skill": r["skill"], "agent_id": r["agent_id"], "agent_name": r["agent_name"]}
+                for r in (cur.fetchall() or [])
+            ]
+    except Exception as exc:  # noqa: BLE001 — never fabricate a hiring signal on error
+        logger.warning("recommend_sole_agent_staffing_gaps query failed: %s", exc)
+        return []
+
+    gaps: list = []
+    for solo in solos:
+        skill = solo["skill"]
+        try:
+            saturated = pool_over_budget_by_skill(skill, settings_key=ratio_key)
+        except Exception:  # noqa: BLE001
+            saturated = False
+        if not saturated:
+            continue
+        gaps.append(
+            {
+                "capability": skill,
+                "pool_size": 1,
+                "agent_id": solo["agent_id"],
+                "agent_name": solo["agent_name"],
+                # Tags the alert path so it cannot borrow the pool wording — a sole-agent
+                # gap has no backlog, and rendering "None dispatch(es) queued" would make
+                # the alert misdescribe its own cause.
+                "signal": "sole_agent_saturation",
+                "gap_reason": (
+                    f"sole_agent_saturation: the only active agent for '{skill}' "
+                    f"({solo['agent_name']}) is at/over its 24h token budget — the dispatch "
+                    "throttle has no healthy peer to route to"
+                ),
+            }
+        )
+    gaps.sort(key=lambda g: g["capability"])
+    return gaps
+
+
 def in_flight_over_cap(
     job_type: str,
     cap_key: str = "welfare:backlog:max_inflight",

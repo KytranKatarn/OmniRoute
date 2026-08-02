@@ -36,9 +36,31 @@ CONTRACT
   the code that actually failed chose to say.
 * ``success`` rows stay NULL. Do not decorate healthy runs.
 * Otherwise capture the exception being handled, if any.
-* If there is genuinely no exception (a job that counted failures without
-  raising), record an explicit admission naming the gap rather than leaving NULL.
-  An admission is greppable and countable; a NULL is indistinguishable from fine.
+* Otherwise fall back to reasons the job already enumerated in ``details``.
+* If there is genuinely no reason anywhere (a job that counted failures without
+  raising and without explaining), record an explicit admission naming the gap
+  rather than leaving NULL. An admission is greppable and countable; a NULL is
+  indistinguishable from fine.
+
+READING ``details['reasons']`` (2026-08-02)
+-------------------------------------------
+Several jobs DO explain themselves — into ``details['reasons']`` — while passing
+no ``error_message``. ``kin_welfare_digest`` is the worked example: it records
+"4 agent(s) over budget", "14 idle agents (dispatcher routing gap)" and
+"16 LLM-free scheduled workers" in ``details``, and the row still read
+"(no reason recorded: ... raised nothing)". That sentinel was *literally* true —
+the resolver was never handed ``details`` — but it had two bad effects:
+
+1. It **overstated the remaining #5339 worklist**. The marker exists to count
+   jobs that cannot say why they failed; a job whose reasons are sitting one
+   column away is not one of them.
+2. The briefing surfaces ``reasons`` and ``error_message`` side by side, so an
+   operator saw three concrete reasons next to "no reason recorded" and had to
+   work out which to believe.
+
+This lookup is deliberately LAST before the sentinel: an explicit caller message
+and a live exception both still win, so no row that is explained today changes.
+The change can only ever affect rows that currently carry the sentinel.
 """
 
 from __future__ import annotations
@@ -54,13 +76,43 @@ MAX_REASON_CHARS = 500
 NO_REASON_PREFIX = "(no reason recorded"
 
 
-def explain_failure(status: str, items_failed: int = 0, error_message: str = None) -> "str | None":
+def _reasons_from_details(details) -> "str | None":
+    """Join ``details['reasons']`` into one line, or None if unusable.
+
+    Every input is treated as hostile: ``details`` reaches us straight from
+    arbitrary job code and this runs on the logging path of every job, so an
+    exception here would turn a LOGGED failure into an UNLOGGED crash.
+    """
+    try:
+        if not isinstance(details, dict):
+            return None
+        reasons = details.get("reasons")
+        if isinstance(reasons, (str, bytes)):
+            # A bare string is a single reason, not an iterable of characters.
+            reasons = [reasons]
+        if not isinstance(reasons, (list, tuple)):
+            return None
+        parts = [str(r).strip() for r in reasons if r is not None and str(r).strip()]
+        return "; ".join(parts) or None
+    except Exception:  # noqa: BLE001 — a reason-resolver must never raise
+        return None
+
+
+def explain_failure(
+    status: str,
+    items_failed: int = 0,
+    error_message: str = None,
+    details: dict = None,
+) -> "str | None":
     """Resolve what to store in ``autonomy_loop_log.error_message``.
 
     Args:
         status: the computed cycle status (``success`` / ``partial`` / ``error``).
         items_failed: how many items the job counted as failed.
         error_message: whatever the caller passed, if anything.
+        details: the job's ``details`` dict; ``details['reasons']`` is read as a
+            last resort before admitting the gap. Optional, so the five-arg and
+            four-arg call sites both keep working.
 
     Returns:
         The reason to store, or ``None`` for a healthy run.
@@ -83,8 +135,17 @@ def explain_failure(status: str, items_failed: int = 0, error_message: str = Non
     if exc is not None:
         return f"{type(exc).__name__}: {exc}"[:MAX_REASON_CHARS]
 
-    # 4. No exception: the job counted failures without raising. Say so out loud
-    #    instead of storing NULL, which reads as "nothing went wrong".
+    # 4. No exception — but the job may have enumerated its own reasons into
+    #    details['reasons'] (kin_welfare_digest does). Prefer the job's own words
+    #    over admitting a gap that does not exist. LAST before the sentinel, so
+    #    this can only ever change rows that would otherwise be marked unexplained.
+    from_details = _reasons_from_details(details)
+    if from_details:
+        return from_details[:MAX_REASON_CHARS]
+
+    # 5. Nothing anywhere: the job counted failures without raising and without
+    #    explaining. Say so out loud instead of storing NULL, which reads as
+    #    "nothing went wrong".
     if items_failed:
         return (
             f"{NO_REASON_PREFIX}: {items_failed} item(s) failed but the job passed "

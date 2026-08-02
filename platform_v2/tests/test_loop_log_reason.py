@@ -27,6 +27,18 @@ from services.loop_log import NO_REASON_PREFIX, explain_failure  # noqa: E402
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
+#: Directories the invariant walkers below must not descend into.
+#:
+#: ``repos/`` is GITIGNORED third-party source (vendored skill repos). It is
+#: absent in a clean CI checkout but present on any developer machine, so tests
+#: that walked it passed in CI and crashed locally — 64 files under
+#: ``repos/claude-skills/claude-pilot/launcher/`` are not valid UTF-8, and
+#: ``UnicodeDecodeError`` is a ``ValueError``, so it slipped straight through the
+#: ``except OSError`` guards. The invariants here are about OUR ``_log_cycle``
+#: implementations; a vendored tree's unrelated code must never fail them.
+#: The widened ``except`` clauses are belt-and-braces for the same hazard.
+_SKIP_DIRS = {".git", "__pycache__", "node_modules", ".claude", "repos", ".venv", "venv"}
+
 
 def test_captures_the_live_exception_without_the_caller_passing_it():
     """The core fix: the reason was always available, nobody asked for it."""
@@ -105,7 +117,7 @@ def test_every_log_cycle_implementation_is_wired():
     """
     unwired = []
     for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
-        dirnames[:] = [d for d in dirnames if d not in {".git", "__pycache__", "node_modules", ".claude"}]
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         for name in filenames:
             if not name.endswith(".py"):
                 continue
@@ -113,7 +125,7 @@ def test_every_log_cycle_implementation_is_wired():
             try:
                 with open(path, "r", encoding="utf-8") as fh:
                     src = fh.read()
-            except OSError:
+            except (OSError, UnicodeDecodeError):
                 continue
             if not re.search(r"^\s*def _log_cycle\(", src, re.MULTILINE):
                 continue
@@ -129,14 +141,14 @@ def test_the_wiring_search_actually_found_implementations():
     """Guard the guard: an empty search would make the test above vacuous."""
     found = 0
     for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
-        dirnames[:] = [d for d in dirnames if d not in {".git", "__pycache__", "node_modules", ".claude"}]
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         for name in filenames:
             if name.endswith(".py"):
                 path = os.path.join(dirpath, name)
                 try:
                     with open(path, "r", encoding="utf-8") as fh:
                         src = fh.read()
-                except OSError:
+                except (OSError, UnicodeDecodeError):
                     continue
                 if re.search(r"^\s*def _log_cycle\(", src, re.MULTILINE):
                     found += 1
@@ -160,7 +172,7 @@ def test_resolver_call_is_guarded_in_every_log_cycle():
 
     unguarded = []
     for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
-        dirnames[:] = [d for d in dirnames if d not in {".git", "__pycache__", "node_modules", ".claude"}]
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
         for name in filenames:
             if not name.endswith(".py"):
                 continue
@@ -170,7 +182,7 @@ def test_resolver_call_is_guarded_in_every_log_cycle():
                 continue
             try:
                 tree = ast.parse(open(path, "r", encoding="utf-8").read())
-            except (OSError, SyntaxError):
+            except (OSError, SyntaxError, UnicodeDecodeError):
                 continue
 
             for node in ast.walk(tree):
@@ -191,6 +203,189 @@ def test_resolver_call_is_guarded_in_every_log_cycle():
                         unguarded.append(rel)
 
     assert not unguarded, f"explain_failure() called unguarded on the logging path in: {unguarded}"
+
+
+# ---------------------------------------------------------------------------
+# #5339 follow-up (2026-08-02): reasons the job already recorded in `details`
+#
+# kin_welfare_digest wrote three concrete reasons into details['reasons'] and the
+# row still said "(no reason recorded ... raised nothing)". True — the resolver
+# was never handed details — but it overstated the remaining worklist and printed
+# a contradiction next to the real reasons in the session briefing.
+# ---------------------------------------------------------------------------
+
+
+def test_reasons_recorded_in_details_are_used_instead_of_the_sentinel():
+    """The kin_welfare_digest case, verbatim."""
+    reason = explain_failure(
+        "partial",
+        items_failed=4,
+        error_message=None,
+        details={
+            "reasons": [
+                "4 agent(s) over budget",
+                "14 idle agents (dispatcher routing gap)",
+                "16 LLM-free scheduled workers (expected, no action needed)",
+            ]
+        },
+    )
+    assert not reason.startswith(NO_REASON_PREFIX)
+    assert "4 agent(s) over budget" in reason
+    assert "14 idle agents (dispatcher routing gap)" in reason
+
+
+def test_caller_message_still_beats_details_reasons():
+    """Priority is unchanged: the failing code's own words win."""
+    reason = explain_failure("partial", 1, "explicit cause", details={"reasons": ["a rollup reason"]})
+    assert reason == "explicit cause"
+
+
+def test_live_exception_still_beats_details_reasons():
+    """A raised exception is the acute cause; the rollup is context.
+
+    This ordering is what makes the change provably safe: the details lookup sits
+    LAST, so it can only affect rows that would otherwise carry the sentinel.
+    """
+    try:
+        raise ValueError("the thing that actually broke")
+    except ValueError:
+        reason = explain_failure("error", 1, None, details={"reasons": ["a rollup reason"]})
+
+    assert reason == "ValueError: the thing that actually broke"
+
+
+def test_details_without_reasons_still_admits_the_gap():
+    """weekly_knowledge_report's pre-fix shape must STAY on the worklist.
+
+    Its details carried counts but no reasons — that is a genuine gap, and the
+    sentinel is how it stays countable.
+    """
+    reason = explain_failure("partial", 2, None, details={"candidates": 46, "succeeded": 44, "failed": 2})
+    assert reason.startswith(NO_REASON_PREFIX)
+    assert "5339" in reason
+
+
+def test_malformed_details_never_raise_and_never_fabricate():
+    """details comes from arbitrary job code and runs on the logging path."""
+    for bad in (
+        None,
+        "not a dict",
+        123,
+        {"reasons": None},
+        {"reasons": []},
+        {"reasons": [None, "", "   "]},
+        {"reasons": 42},
+        {"reasons": {"nested": "dict"}},
+        [("reasons", "tuple-of-tuples")],
+    ):
+        reason = explain_failure("partial", 1, None, details=bad)
+        # Must fall through to the honest admission, never invent a reason.
+        assert reason.startswith(NO_REASON_PREFIX), f"details={bad!r} produced {reason!r}"
+
+
+def test_a_bare_string_reason_is_one_reason_not_a_pile_of_characters():
+    reason = explain_failure("partial", 1, None, details={"reasons": "single reason"})
+    assert reason == "single reason"
+
+
+def test_details_reasons_are_truncated():
+    reason = explain_failure("partial", 1, None, details={"reasons": ["y" * 5000]})
+    assert len(reason) <= 500
+
+
+def test_every_log_cycle_passes_details_to_the_resolver():
+    """Invariant: a 7th _log_cycle cannot be wired WITHOUT forwarding details.
+
+    The resolver silently falls back to the sentinel when details is omitted, so
+    a partially-wired copy would look correct and quietly lose the reasons. This
+    is the same failure mode that let 186 unwired call sites accumulate.
+    """
+    import ast
+
+    missing = []
+    for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        for name in filenames:
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, REPO_ROOT)
+            if rel.replace(os.sep, "/").startswith("platform_v2/tests/"):
+                continue
+            try:
+                tree = ast.parse(open(path, "r", encoding="utf-8").read())
+            except (OSError, SyntaxError, UnicodeDecodeError):
+                continue
+
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.FunctionDef) and node.name == "_log_cycle"):
+                    continue
+                for sub in ast.walk(node):
+                    if isinstance(sub, ast.Call) and getattr(sub.func, "id", None) == "explain_failure":
+                        forwards = any(isinstance(a, ast.Name) and a.id == "details" for a in sub.args) or any(
+                            k.arg == "details" for k in sub.keywords
+                        )
+                        if not forwards:
+                            missing.append(rel)
+
+    assert not missing, f"_log_cycle does not forward `details` to explain_failure in: {missing}"
+
+
+def test_the_details_forwarding_search_is_not_vacuous():
+    """Guard the guard — an empty walk would make the test above always pass."""
+    import ast
+
+    checked = 0
+    for dirpath, dirnames, filenames in os.walk(REPO_ROOT):
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+        for name in filenames:
+            if not name.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, name)
+            rel = os.path.relpath(path, REPO_ROOT)
+            if rel.replace(os.sep, "/").startswith("platform_v2/tests/"):
+                continue
+            try:
+                tree = ast.parse(open(path, "r", encoding="utf-8").read())
+            except (OSError, SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.FunctionDef) and node.name == "_log_cycle":
+                    for sub in ast.walk(node):
+                        if isinstance(sub, ast.Call) and getattr(sub.func, "id", None) == "explain_failure":
+                            checked += 1
+
+    assert checked >= 6, f"expected >=6 explain_failure call sites inside _log_cycle, found {checked}"
+
+
+def test_weekly_knowledge_report_records_its_per_project_reasons():
+    """The reason existed at the failure site and was dropped before the row.
+
+    2026-08-02: the job logged "2 of 46 failed" with details {candidates,
+    succeeded, failed} and no reasons, so nobody could tell WHICH two projects
+    failed or why without grepping container logs that may have rotated.
+    """
+    import ast
+
+    path = os.path.join(REPO_ROOT, "platform_v2", "tools", "consciousness", "jobs.py")
+    tree = ast.parse(open(path, "r", encoding="utf-8").read())
+
+    fn = next(
+        (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "generate_weekly_reports"),
+        None,
+    )
+    assert fn is not None, "generate_weekly_reports not found — did it move?"
+
+    details_keys = set()
+    for sub in ast.walk(fn):
+        if isinstance(sub, ast.Call) and getattr(sub.func, "id", None) == "_log_cycle":
+            for kw in sub.keywords:
+                if kw.arg == "details" and isinstance(kw.value, ast.Dict):
+                    details_keys |= {k.value for k in kw.value.keys if isinstance(k, ast.Constant)}
+
+    assert "reasons" in details_keys, (
+        "generate_weekly_reports must pass details['reasons'] — " f"found keys: {sorted(details_keys)}"
+    )
 
 
 if __name__ == "__main__":

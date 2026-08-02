@@ -51,7 +51,7 @@ def _log_cycle(
     try:
         from services.loop_log import explain_failure
 
-        error_message = explain_failure(status, items_failed, error_message)
+        error_message = explain_failure(status, items_failed, error_message, details)
     except Exception:  # noqa: BLE001 — the resolver must never break logging
         pass
     try:

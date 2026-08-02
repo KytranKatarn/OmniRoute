@@ -62,7 +62,7 @@ def _log_cycle(
     try:
         from services.loop_log import explain_failure
 
-        error_message = explain_failure(status, items_failed, error_message)
+        error_message = explain_failure(status, items_failed, error_message, details)
     except Exception:  # noqa: BLE001 — the resolver must never break logging
         pass
     try:
@@ -3069,6 +3069,11 @@ def generate_weekly_reports():
         logger.info("[WeeklyReport Job] Generating reports for %d projects", len(candidates))
         succeeded = 0
         failed = 0
+        # #5339 follow-up: the per-project reason was computed here and then thrown
+        # away — it reached the logs but never `details`, so the anomaly feed showed
+        # "2 of 46 failed" with no way to know WHICH two or why without grepping
+        # container logs that may already have rotated. Keep it on the row.
+        reasons = []
 
         for proj in candidates:
             result = generate_weekly_report(proj["id"])
@@ -3078,10 +3083,12 @@ def generate_weekly_reports():
                 pass  # Not a failure, just skip
             else:
                 failed += 1
+                reason = result.get("error", "unknown")
+                reasons.append(f"{proj.get('name', 'unknown')}: {reason}")
                 logger.warning(
                     "[WeeklyReport Job] Failed for '%s': %s",
                     proj.get("name", "unknown"),
-                    result.get("error", "unknown"),
+                    reason,
                 )
 
         duration = int((time.time() - start) * 1000)
@@ -3094,6 +3101,7 @@ def generate_weekly_reports():
                 "candidates": len(candidates),
                 "succeeded": succeeded,
                 "failed": failed,
+                "reasons": reasons,
             },
             department="Documentation & Knowledge",
         )

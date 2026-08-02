@@ -2112,19 +2112,49 @@ def _get_department_budget_rollup():
         return {}
 
 
+# How recently an agent must have executed a task to count as "working" rather than
+# starving (#5376). 7 days is deliberately generous: the flag exists to find agents
+# NOTHING routes to, and a specialist that runs weekly is not a routing gap. Tightening
+# this re-introduces false positives, which is the failure being fixed — an alarm that
+# cries wolf gets ignored and buries the real signal.
+_STARVING_RECENT_DAYS = float(os.getenv("KIN_STARVING_RECENT_DAYS", "7"))
+
+
 def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
     """Return per-agent outlier flags: over_budget, starving_idle, starving_no_llm.
 
     Flag types:
     - ``over_budget``     — 24h rolling token use > 90% of daily limit (shared
                            ``_TOKENS_24H_SUBQUERY``, NOT since-midnight; #4130)
-    - ``starving_idle``   — active, zero tokens, zero tasks, dept has NO scheduled-job
-                           activity today → dispatcher routing gap (real issue)
-    - ``starving_no_llm`` — active, zero tokens, zero tasks, BUT dept IS running scheduled
-                           jobs today → LLM-free background worker (expected, low priority)
+    - ``starving_idle``   — active, zero tokens, zero tasks, and the AGENT has not
+                           executed a task within ``_STARVING_RECENT_DAYS`` (or has
+                           never executed one) → a real routing gap
+    - ``starving_no_llm`` — active, zero tokens, zero tasks, BUT the AGENT executed a
+                           task recently → it is working without burning tokens
+                           (0-token telemetry/marker rows), expected, no action
+
+    ⚠️ THE DISCRIMINATOR IS PER-AGENT, NOT PER-DEPARTMENT (#5376). It used to be
+    ``has_loop_activity`` — whether the agent's DEPARTMENT logged a successful
+    autonomy_loop_log row in 24h — which says nothing about the agent. Measured
+    2026-08-02, that produced 25 flags of which 19 had run within 9 days, and it was
+    INVERTED on the two cases that matter:
+        A.R.C.H.I.E.  101,828 runs, ran today  -> starving_no_llm
+        F.A.C.T.       17,538 runs, ran today  -> starving_idle ("routing gap")
+        L.E.D.G.E.R.        0 runs, EVER       -> starving_no_llm ("expected, ignore")
+    The busiest agent on the platform was reported as starving while the only genuinely
+    never-dispatched one was filed as expected noise. A watchdog that is ~76% false
+    positive gets ignored, and the real signal dies inside it (same shape as #5278).
+
+    The flag VOCABULARY is deliberately unchanged. These strings are a policy key, not
+    just display text: ``welfare_load.kin_action_allowed`` refuses actions per flag and
+    is FAIL-OPEN on unknown flags, so a new flag name would silently become
+    unconstrained and let K.I.N. act freely on it. ``creed_routes`` also filters on
+    ``starving_no_llm``. Fixing the POPULATION rather than the names keeps every
+    consumer correct.
 
     Each flag also includes a ``stress_trend`` (rising/stable/recovering) derived from
-    comparing today's stress to the 7-day rolling average.
+    comparing today's stress to the 7-day rolling average, plus ``runs_ever`` and
+    ``last_run_days`` so the digest can show WHY an agent was flagged.
     """
     try:
         with get_db_cursor() as (conn, cur):
@@ -2141,11 +2171,20 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                     WHERE timestamp > NOW() - INTERVAL '7d'
                     GROUP BY agent_id
                 ),
-                dept_loop_activity AS (
-                    SELECT DISTINCT department
-                    FROM autonomy_loop_log
-                    WHERE created_at > NOW() - INTERVAL '24h'
-                      AND status = 'success'
+                agent_exec AS (
+                    -- Per-AGENT execution history (#5376). Identity is resolved the
+                    -- same NULL-safe way as _TOKENS_24H_SUBQUERY — ~48% of
+                    -- fleet-dispatched rows log a NULL agent_id, and a plain
+                    -- GROUP BY agent_id would report a busy agent as never-used,
+                    -- i.e. it would manufacture the very false positive this fixes.
+                    SELECT COALESCE(t.agent_id, a2.id) AS aid,
+                           COUNT(*)          AS runs_ever,
+                           MAX(t.created_at) AS last_run
+                    FROM task_execution_log t
+                    LEFT JOIN agents a2
+                           ON a2.name = split_part(t.agent_name, ' (CLI)', 1)
+                    WHERE COALESCE(t.agent_id, a2.id) IS NOT NULL
+                    GROUP BY COALESCE(t.agent_id, a2.id)
                 )
                 SELECT a.id, a.name, a.display_name, a.department, a.shift_state,
                        COALESCE(tk.tokens_24h, 0)           AS tokens_used_today,
@@ -2153,12 +2192,17 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                        COALESCE(ab.current_task_count, 0)   AS current_task_count,
                        COALESCE(aes.stress_level, 0.2)      AS stress_level,
                        COALESCE(s7.avg_stress_7d, 0.2)      AS stress_7d_avg,
-                       (dla.department IS NOT NULL)          AS has_loop_activity
+                       COALESCE(ae.runs_ever, 0)            AS runs_ever,
+                       -- age in DAYS computed in SQL: agent_emotional_state.timestamp
+                       -- is timestamp WITHOUT time zone on this schema and mixing it
+                       -- with an aware now() in Python raises (KB #283579).
+                       EXTRACT(EPOCH FROM (NOW() - ae.last_run)) / 86400.0
+                                                            AS last_run_days
                 FROM agents a
                 LEFT JOIN agent_budgets ab      ON a.id = ab.agent_id
                 LEFT JOIN latest_aes aes        ON a.id = aes.agent_id
                 LEFT JOIN stress_7d s7          ON s7.agent_id = a.id
-                LEFT JOIN dept_loop_activity dla ON dla.department = a.department
+                LEFT JOIN agent_exec ae         ON ae.aid = a.id
                 LEFT JOIN ({_TOKENS_24H_SUBQUERY}) tk ON tk.aid = a.id
                 WHERE a.worker_type = 'ai' AND a.status = 'active'
                 """
@@ -2193,7 +2237,15 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                         )
                         continue
                 if r["shift_state"] == "active" and r["tokens_used_today"] == 0 and r["current_task_count"] == 0:
-                    flag = "starving_no_llm" if r["has_loop_activity"] else "starving_idle"
+                    # PER-AGENT discriminator (#5376). last_run_days is NULL when the
+                    # agent has never executed anything — that is the strongest possible
+                    # starving signal, so it must fall on the ACTIONABLE side. Guard the
+                    # None explicitly: `None < x` raises in py3 and `not None` would have
+                    # silently classed a never-used agent as recent.
+                    _runs = int(r.get("runs_ever") or 0)
+                    _age_d = r.get("last_run_days")
+                    _worked_recently = _runs > 0 and _age_d is not None and float(_age_d) <= _STARVING_RECENT_DAYS
+                    flag = "starving_no_llm" if _worked_recently else "starving_idle"
                     flags.append(
                         {
                             "agent_id": r["id"],
@@ -2204,6 +2256,8 @@ def _get_agent_welfare_outliers(over_budget_threshold: float = 0.90):
                             "token_usage_pct": 0.0,
                             "stress_level": stress_now,
                             "stress_trend": stress_trend,
+                            "runs_ever": _runs,
+                            "last_run_days": (None if _age_d is None else round(float(_age_d), 1)),
                         }
                     )
             return flags

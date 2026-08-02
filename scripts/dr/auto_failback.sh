@@ -93,9 +93,36 @@ for product_dir in gov-watch legal-watch what-the-fact; do
 done
 
 # ---- 4. Stop DR platform + scheduler standby ----
+# The name here was 'archie_platform' — the HUB's container, which does not exist on
+# boston-2 (#5440). The standby is 'archie_platform_standby'. `>/dev/null 2>&1 || true`
+# swallowed the "No such container" error AND the exit code, then the next line claimed
+# success unconditionally. MEASURED: archie_platform_standby was still running 43 min
+# after this logged "DR platform stopped", firing its scheduler jobs against the
+# now-read-only replica ("cannot execute INSERT in a read-only transaction"). Benign
+# ONLY because the replica is read-only — if it were still promoted, two platform
+# instances would run the SAME scheduled jobs against one live DB.
+# ('archie_scheduler_standby' was already correct — verified present on boston-2.)
+#
+# Report success only on PROOF the containers are gone, per the same discipline the
+# rebuild branch applies to the replica.
 log "4) Stopping DR platform containers..."
-docker stop archie_platform archie_scheduler_standby >/dev/null 2>&1 || true
-log "  DR platform stopped"
+_dr_stopped=1
+for _c in archie_platform_standby archie_scheduler_standby; do
+  if ! docker ps -a --format '{{.Names}}' | grep -qx "$_c"; then
+    log "  $_c: not present (nothing to stop)"
+    continue
+  fi
+  docker stop "$_c" >/dev/null 2>&1 || true
+  # Verify by STATE, not by the stop command's exit code.
+  if docker ps --format '{{.Names}}' | grep -qx "$_c"; then
+    log "  WARN: $_c is STILL RUNNING after docker stop — stop it manually"
+    _dr_stopped=0
+  else
+    log "  $_c: stopped."
+  fi
+done
+[ "$_dr_stopped" = "1" ] && log "  DR platform stopped" \
+  || log "  WARN: DR platform NOT fully stopped — see warnings above"
 
 # ---- 5. Stop CREED DR and Headscale DR ----
 log "5) Stopping CREED DR and Headscale DR..."

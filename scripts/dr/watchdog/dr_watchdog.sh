@@ -229,10 +229,20 @@ poll_action(){
     local d
     d="$(tr -d '[:space:]' < "$dfile" 2>/dev/null | tr '[:upper:]' '[:lower:]')"
     rm -f "$dfile"
+    # NOTE the '>&2' on every log below — it is load-bearing, not style (#5439).
+    # poll_action returns its value on STDOUT (`echo "$d"`) and the caller does
+    # `action="$(poll_action ...)"`. log() also writes to STDOUT, so an unredirected
+    # log here is CAPTURED INTO $action: the caller saw "[ts]   decision 'rebuild'
+    # read from ...\nrebuild", which matches no case and fell through to "awaiting
+    # decision". And because `rm -f "$dfile"` above already consumed the file, the
+    # request was destroyed AND the log line that would have explained it was
+    # swallowed into the variable — silent, single-use, unrecoverable.
+    # This broke exactly the no-Telegram escape hatch that exists for when the bot
+    # is dead. Keep log output OFF stdout in any function whose value is captured.
     case "$d" in
-      proceed|abort|standby|rebuild|skip_rebuild|verify) log "  decision '$d' read from $dfile"; echo "$d"; return ;;
+      proceed|abort|standby|rebuild|skip_rebuild|verify) log "  decision '$d' read from $dfile" >&2; echo "$d"; return ;;
       "") : ;;
-      *) log "  WARN: ignoring unrecognised decision '$d' in $dfile" ;;
+      *) log "  WARN: ignoring unrecognised decision '$d' in $dfile" >&2 ;;
     esac
   fi
   [ -f "$DR/.telegram_env" ] || { echo ""; return; }

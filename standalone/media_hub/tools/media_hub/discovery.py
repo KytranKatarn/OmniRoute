@@ -22,22 +22,28 @@ logger = logging.getLogger(__name__)
 
 # Config file paths for each service
 CONFIG_PATHS = {
-    "plex": "/mnt/Plex/config/plex/Library/Application Support/Plex Media Server/Preferences.xml",
-    # ⚠️ The three *arr configs moved to /mnt/data2 (physical /dev/sdf) on
-    # 2026-07-29 — /mnt/Plex is /dev/sdb, which has 1760 uncorrectable sectors
-    # and had already corrupted Sonarr's DB and all 4 of its backups (#5384).
-    # The inconsistency with their siblings below is DELIBERATE: those still
-    # live on /mnt/Plex and are a pending follow-up, not an oversight.
-    # Keep in step with media-stack/docker-compose.yml AND scripts/host_monitor.py
-    # — all three hardcode these paths, and a partial change breaks *arr
-    # auto-discovery silently (nothing raises; the API key comes back empty).
+    # ⚠️ NOTHING here may name /mnt/Plex any more. That is /dev/sdb: 1784 uncorrectable
+    # sectors, it corrupted Sonarr's DB and all 4 of its backups (#5384), and it began
+    # throwing fresh medium errors on 2026-08-01. Every config was evacuated off it and
+    # /mnt/Plex/config was DELETED, so a path here that still names it resolves to
+    # nothing at all.
+    #   *arr     -> /mnt/data2/plex-config  (/dev/sdf, moved 2026-07-29, PR #2558)
+    #   the rest -> /mnt/fast/config        (the 250 GB SSD, moved 2026-08-01)
+    # Keep in step with media-stack/docker-compose.override.yml AND
+    # scripts/host_monitor.py — all three hardcode these paths, and a partial change
+    # breaks auto-discovery SILENTLY: nothing raises, the API key just comes back
+    # empty. Confirm a move by statting the file, never by reading this list.
+    "plex": "/mnt/fast/config/plex/Library/Application Support/Plex Media Server/Preferences.xml",
     "sonarr": "/mnt/data2/plex-config/sonarr/config.xml",
     "radarr": "/mnt/data2/plex-config/radarr/config.xml",
     "prowlarr": "/mnt/data2/plex-config/prowlarr/config.xml",
-    "overseerr": "/mnt/Plex/config/overseerr/settings.json",
-    "jellyseerr": "/mnt/Plex/config/jellyseerr/settings.json",
-    "sabnzbd": "/mnt/Plex/config/sabnzbd/sabnzbd.ini",
-    "jellyfin": "/mnt/Plex/config/jellyfin/config/system.xml",
+    "overseerr": "/mnt/fast/config/overseerr/settings.json",
+    "sabnzbd": "/mnt/fast/config/sabnzbd/sabnzbd.ini",
+    "jellyfin": "/mnt/fast/config/jellyfin/config/system.xml",
+    # jellyseerr REMOVED 2026-08-01: there is no jellyseerr container in this stack
+    # (only media_overseerr), so its entry named a path that could never resolve. A
+    # dead entry in a discovery map is the same failure shape as the phantom `backups`
+    # table — it reads as covered when it is not. Re-add the day the container exists.
 }
 
 

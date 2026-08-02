@@ -2972,22 +2972,32 @@ def handle_discover_media_services(params):
     from xml.etree import ElementTree as ET
 
     CONFIG_PATHS = {
-        "plex": "/mnt/Plex/config/plex/Library/Application Support/Plex Media Server/Preferences.xml",
-        # ⚠️ The three *arr configs moved to /mnt/data2 (physical /dev/sdf) on
-        # 2026-07-29 — /mnt/Plex is /dev/sdb, which has 1760 uncorrectable
-        # sectors and had already corrupted Sonarr's DB and all 4 of its backups
-        # (#5384). The inconsistency with their siblings below is DELIBERATE:
-        # those still live on /mnt/Plex and are a pending follow-up, not an
-        # oversight. Keep this map in step with media-stack/docker-compose.yml
-        # AND standalone/media_hub/tools/media_hub/discovery.py — all three
-        # hardcode these paths, and a partial change breaks *arr auto-discovery
-        # silently (nothing raises; the API key just comes back empty).
+        # ⚠️ NOTHING here may name /mnt/Plex any more. That is /dev/sdb: 1784
+        # uncorrectable sectors, it corrupted Sonarr's DB and all 4 of its
+        # backups (#5384), and it began throwing fresh medium errors on
+        # 2026-08-01. Every config was evacuated off it and /mnt/Plex/config was
+        # DELETED, so a path here that still names it resolves to nothing.
+        # This script runs ON THE HOST, so unlike discovery.py (whose container
+        # has zero bind mounts and reads keys from the DB instead) these paths
+        # are live and were genuinely dead between the move and this commit.
+        #   *arr     -> /mnt/data2/plex-config  (/dev/sdf, 2026-07-29, PR #2558)
+        #   the rest -> /mnt/fast/config        (250 GB SSD, 2026-08-01)
+        # Keep in step with media-stack/docker-compose.override.yml AND
+        # standalone/media_hub/tools/media_hub/discovery.py — all three hardcode
+        # these paths, and a partial change breaks auto-discovery SILENTLY:
+        # nothing raises, the API key just comes back empty. Confirm a move by
+        # statting the file, never by reading this list.
+        "plex": "/mnt/fast/config/plex/Library/Application Support/Plex Media Server/Preferences.xml",
         "sonarr": "/mnt/data2/plex-config/sonarr/config.xml",
         "radarr": "/mnt/data2/plex-config/radarr/config.xml",
         "prowlarr": "/mnt/data2/plex-config/prowlarr/config.xml",
-        "overseerr": "/mnt/Plex/config/overseerr/settings.json",
-        "jellyseerr": "/mnt/Plex/config/jellyseerr/settings.json",
-        "sabnzbd": "/mnt/Plex/config/sabnzbd/sabnzbd.ini",
+        "overseerr": "/mnt/fast/config/overseerr/settings.json",
+        "sabnzbd": "/mnt/fast/config/sabnzbd/sabnzbd.ini",
+        # jellyseerr REMOVED 2026-08-01: no jellyseerr container exists in this
+        # stack (only media_overseerr), so its entry named a path that could
+        # never resolve. A dead entry in a discovery map is the same failure
+        # shape as the phantom `backups` table — it reads as covered when it is
+        # not. Re-add the day the container actually exists.
     }
 
     results = {}
@@ -3044,8 +3054,10 @@ def handle_discover_media_services(params):
                 "error": str(e),
             }
 
-    # Overseerr/Jellyseerr - get API key from settings.json
-    for service, port in [("overseerr", 5055), ("jellyseerr", 5055)]:
+    # Overseerr - get API key from settings.json
+    # jellyseerr dropped 2026-08-01 alongside its CONFIG_PATHS entry: no such
+    # container exists here, so it only ever emitted a permanent "Config not found".
+    for service, port in [("overseerr", 5055)]:
         try:
             path = CONFIG_PATHS.get(service)
             if path and os.path.exists(path):
@@ -3077,8 +3089,17 @@ def handle_discover_media_services(params):
     try:
         path = CONFIG_PATHS["sabnzbd"]
         if os.path.exists(path):
+            # sabnzbd.ini is NOT valid INI: it opens with two bare assignments
+            # (`__version__ = 19`, `__encoding__ = utf-8`) BEFORE any [section],
+            # so configparser raises MissingSectionHeaderError and this has
+            # ALWAYS returned an empty key — on the old /mnt/Plex path too. The
+            # move to the SSD did not cause it, it only made it visible.
+            # Skip everything before the first real section header.
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                raw = fh.read()
+            start = raw.find("[")
             config = configparser.ConfigParser()
-            config.read(path)
+            config.read_string(raw[start:] if start != -1 else raw)
             api_key = config.get("misc", "api_key", fallback=None)
             results["sabnzbd"] = {
                 "found": bool(api_key),

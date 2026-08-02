@@ -349,24 +349,23 @@ CAPABILITY_DEPARTMENT_MAP = {
 # Maps each department to its building floor (rebrand Phase 2.2)
 # ============================================================================
 
-DEPARTMENT_FLOOR_MAP = {
-    "Executive Office": "BRIDGE",
-    "Operations & Infrastructure": "OPERATIONS",
-    "Logistics & Supply Chain": "OPERATIONS",
-    "Finance & Accounting": "OPERATIONS",
-    "Engineering & Technology": "ENGINEERING",
-    "Security & Compliance": "ENGINEERING",
-    "Research & Development": "ENGINEERING",
-    "Creative & Design": "CREATIVE",
-    "Marketing & Communications": "CREATIVE",
-    "Documentation & Knowledge": "CREATIVE",
-    "Customer Success & Support": "SERVICES",
-    "Human Resources & Culture": "SERVICES",
-    "Medical & Wellness": "SERVICES",
-    "Legal & Regulatory": "SERVICES",
-    "Diplomatic & External Relations": "SERVICES",
-    "Analytics & Intelligence": "SERVICES",
-}
+# SINGLE SOURCE (2026-08-02). This was a hardcoded COPY of the map in
+# ``services.agent_service`` and it had silently drifted: "News & Media" was added there
+# when the department was created (2026-04-14) and never here, so this copy held 16
+# entries against agent_service's 17.
+#
+# That one missing key silently misfiled approved hires. ``_create_agent_from_approval``
+# treats "not in DEPARTMENT_FLOOR_MAP" as "this must be a legacy STATION CODE" and runs it
+# through a _LEGACY lookup that defaults to "Engineering & Technology". So a hire correctly
+# filed for News & Media was created in Engineering — landing outside the home-department
+# pool for its own capability, where dispatch would never select it. Measured on S.I.F.T.
+# (agent 432, hired for beat_classification 2026-08-02): filed News & Media, created
+# Engineering & Technology, and select_agent() returned P.U.B.L.I.S.H. instead.
+#
+# agent_service owns the agents table (Project #241 Track C single-writer), so it owns this
+# mapping too. Importing rather than re-declaring makes the drift structurally impossible.
+# Safe at module scope: agent_service imports only stdlib + `database`, so there is no cycle.
+from services.agent_service import DEPARTMENT_FLOOR_MAP  # noqa: E402
 
 FLOOR_DEPARTMENTS = {}
 for _dept, _flr in DEPARTMENT_FLOOR_MAP.items():
@@ -6001,7 +6000,13 @@ class DepartmentDispatcher:
             # is removed.
             from services import agent_service
 
-            title = f"{capability.replace('_', ' ').title()} Specialist"
+            # Honour the display_name the proposal actually filed. This used to always
+            # synthesise "<Capability> Specialist" and DISCARD it, so propose_hire's
+            # display_name argument was accepted, stored in action_data, and then thrown
+            # away at creation ("Sift — Beat Classification Specialist" -> "Beat
+            # Classification Specialist"). The synthesised title stays as the fallback for
+            # older/auto proposals that carry no display_name.
+            title = approval_data.get("display_name") or f"{capability.replace('_', ' ').title()} Specialist"
             system_prompt = (
                 f"You are {suggested_name}, a specialist in {capability} " f"in the {department} department."
             )
@@ -6020,6 +6025,17 @@ class DepartmentDispatcher:
                     # keyed on worker_type='ai' (H.A.V.E.N. #431, 2026-07-28;
                     # P.R.O.O.F./Q.U.I.L.L. are 'ai').
                     worker_type="ai",
+                    # Same defect family as the worker_type note above, and the last
+                    # step that kept an approved hire from doing any work.
+                    # agent_service.create_agent defaults shift_state='barracked', and
+                    # this path never overrode it. A barracked agent is only ever woken
+                    # by _wake_barracked_specialist, which fires ONLY when no ACTIVE
+                    # candidate scores > 0 — so whenever the incumbent it was hired to
+                    # relieve is itself active (always, that is the reason for hiring),
+                    # the new agent is never selected. The hire looks complete in the
+                    # roster and does nothing. A human explicitly approved this hire
+                    # because capacity is needed NOW; it starts on duty.
+                    shift_state="active",
                     tier=3,
                 )
             except ValueError as ve:

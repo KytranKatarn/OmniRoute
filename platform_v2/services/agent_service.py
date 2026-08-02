@@ -50,6 +50,51 @@ VALID_SHIFT_STATES = (
 )
 
 
+def normalized_agent_name(name) -> str:
+    """Fold an agent name to its comparison key: lowercase, dots removed.
+
+    Dots ARE the platform's naming convention for AI agents (``F.O.R.G.E.``),
+    so a literal string comparison treats ``A.T.L.A.S.`` and ``Atlas`` as two
+    different agents. They are not — they are the same name, and creating both
+    produces a twin that any name-based lookup can resolve to the wrong row.
+
+    Deliberately narrow: case + dots ONLY (#5272). It does NOT strip spaces,
+    hyphens or underscores, because those genuinely distinguish names
+    (``Wei Chen`` vs ``WeiChen`` are plausibly different people) and
+    over-normalizing would reject legitimate hires — a worse failure than the
+    one being fixed, since a false rejection blocks the roster while a twin only
+    risks a misresolve.
+
+    Mirrors the diagnostic SQL exactly:
+        replace(lower(name), '.', '')
+    """
+    return str(name or "").lower().replace(".", "")
+
+
+def find_name_collision(cur, name):
+    """Return the existing agent row whose name collides with ``name``, else None.
+
+    Compares on :func:`normalized_agent_name`, so it catches BOTH an exact
+    literal match and a dots/case twin. Searches every ``shift_state``
+    (including ``decommissioned``) — a retired agent still owns its name, and
+    the caller should reach for ``propose_reactivation`` rather than minting a
+    duplicate.
+
+    ``cur`` is an injected cursor so both the write path and the proposal path
+    share one definition of "already taken" — see the note on ``create_agent``
+    about why this must not live in a single caller.
+    """
+    cur.execute(
+        """SELECT id, name, shift_state
+             FROM agents
+            WHERE replace(lower(name), '.', '') = %s
+            ORDER BY id
+            LIMIT 1""",
+        (normalized_agent_name(name),),
+    )
+    return cur.fetchone()
+
+
 # ---------------------------------------------------------------------------
 # CRUD
 # ---------------------------------------------------------------------------
@@ -183,17 +228,55 @@ def create_agent(name, display_name, department, model, **kwargs):
 
     Required: name, display_name, department, model
     Optional kwargs: system_prompt, temperature, max_tokens, capabilities,
-                     is_department_ai, shift_state, tier, worker_type
+                     is_department_ai, shift_state, tier, worker_type,
+                     allow_duplicate_name (default False)
+
+    NAME-COLLISION GUARD (#5272) lives HERE, at the single-writer choke point,
+    not only in ``propose_hire``. Before this, the duplicate check existed in
+    ``propose_hire`` alone — so every other caller of ``create_agent``
+    (``_create_agent_from_approval``, and any future one) minted duplicates with
+    no check whatsoever, literal or normalized. That is the same per-caller
+    gating shape as the #5194 merge-governance hole: a rule enforced in one
+    caller is not enforced at all. Fails CLOSED — an unresolvable check raises
+    rather than creating the row.
+
+    ``allow_duplicate_name=True`` is the deliberate escape hatch for a genuinely
+    distinct identity that happens to normalize onto an existing name — e.g.
+    agent #376 ``Codex`` (the Codex CLI contract identity) legitimately coexists
+    with #146 ``C.O.D.E.X.``. It must be passed explicitly and is logged loudly,
+    so a twin can only ever be created on purpose.
     """
     floor = DEPARTMENT_FLOOR_MAP.get(department, "SERVICES")
     shift_state = kwargs.get("shift_state", "barracked")
+    allow_duplicate_name = bool(kwargs.get("allow_duplicate_name", False))
 
     if department not in DEPARTMENT_FLOOR_MAP:
         raise ValueError(f"Invalid department: {department}")
     if shift_state not in VALID_SHIFT_STATES:
         raise ValueError(f"Invalid shift_state: {shift_state}")
+    if not str(name or "").strip():
+        raise ValueError("name is required")
 
     with get_db_cursor(commit=True) as (conn, cur):
+        if not allow_duplicate_name:
+            clash = find_name_collision(cur, name)
+            if clash:
+                raise ValueError(
+                    f"Agent name {name!r} collides with existing agent "
+                    f"#{clash['id']} {clash['name']!r} (shift_state="
+                    f"{clash['shift_state']!r}). Names are compared with dots and "
+                    f"case removed, so {name!r} and {clash['name']!r} are the same "
+                    f"name. Use reactivation if this is the right agent, pick a "
+                    f"different name, or pass allow_duplicate_name=True if this is "
+                    f"deliberately a separate identity."
+                )
+        elif find_name_collision(cur, name):
+            logger.warning(
+                "create_agent: minting DELIBERATE duplicate name %r "
+                "(allow_duplicate_name=True) — this creates a name twin",
+                name,
+            )
+
         cur.execute(
             """INSERT INTO agents
                (name, display_name, department, floor, model, shift_state,
@@ -659,18 +742,29 @@ def propose_hire(
     # Name-collision guard — block duplicates across every shift_state so a
     # propose_hire on a decommissioned agent's old name doesn't race the
     # reactivation path.
+    #
+    # Compares on the NORMALIZED name (#5272): the literal comparison this
+    # replaced let 'A.T.L.A.S.' sail past the existing agent #17 'Atlas', and
+    # two more twins (A.T.L.A.S. #430, H.A.V.E.N. #431) were minted after the
+    # hole was first reported — 10 twins now exist, not the 8 originally counted.
+    # This is the early, friendly check; create_agent enforces the same rule at
+    # the write itself so a proposal filed before this fix still cannot land a
+    # duplicate.
     with get_db_cursor() as (conn, cur):
-        cur.execute(
-            "SELECT id, shift_state FROM agents WHERE name = %s LIMIT 1",
-            (name,),
-        )
-        existing = cur.fetchone()
+        existing = find_name_collision(cur, name)
     if existing:
+        # Fall back to `name` when the row has no 'name' key: a guard whose job is
+        # to BLOCK must never crash with a KeyError instead of returning its error,
+        # and an indistinguishable row is treated as the exact-match (stricter) case.
+        existing_name = existing.get("name") or name
+        exact = existing_name == name
+        how = "already exists" if exact else f"collides with {existing_name!r}"
+        why = "" if exact else " Names are compared with dots and case removed, so these are the same name."
         return {
             "success": False,
             "error": (
-                f"Agent name {name!r} already exists (agent #{existing['id']}, "
-                f"shift_state={existing['shift_state']!r}). Use propose_reactivation "
+                f"Agent name {name!r} {how} (agent #{existing['id']}, "
+                f"shift_state={existing['shift_state']!r}).{why} Use propose_reactivation "
                 f"if this is the right agent, or pick a different name."
             ),
         }

@@ -40,7 +40,14 @@ def _mock_cursor(name_exists=False, existing_row=None):
     """
     cur = MagicMock()
     if name_exists:
-        cur.fetchone.return_value = existing_row or {"id": 99, "shift_state": "decommissioned"}
+        # 'name' is part of the row since #5272 — find_name_collision selects
+        # id, name, shift_state so the caller can say WHICH name was collided
+        # with (a dots/case twin is not obvious from the proposed name alone).
+        cur.fetchone.return_value = existing_row or {
+            "id": 99,
+            "name": BASE_ARGS["name"],
+            "shift_state": "decommissioned",
+        }
     else:
         cur.fetchone.return_value = None
     conn = MagicMock()

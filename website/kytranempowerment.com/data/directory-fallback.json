@@ -325,6 +325,24 @@
       "agent_type": null
     },
     {
+      "id": 430,
+      "display_name": "Model Ops Specialist",
+      "code_name": "A.T.L.A.S.",
+      "title": "Model Ops Specialist",
+      "department": "Engineering & Technology",
+      "floor": "ENGINEERING",
+      "acronym": null,
+      "acronym_expansion": null,
+      "bio": null,
+      "avatar_url": "",
+      "avatar_thumb_url": "",
+      "is_director": false,
+      "worker_type": "internal",
+      "shift_state": "barracked",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 422,
       "display_name": "N.I.M.B.U.S.",
       "code_name": "N.I.M.B.U.S.",
@@ -358,6 +376,24 @@
       "worker_type": "ai",
       "shift_state": "active",
       "pronouns": "he/him",
+      "agent_type": null
+    },
+    {
+      "id": 433,
+      "display_name": "T.A.G.G.I.E.",
+      "code_name": "T.A.G.G.I.E.",
+      "title": "Senior Tagging Engineer",
+      "department": "Engineering & Technology",
+      "floor": "ENGINEERING",
+      "acronym": "T.A.G.G.I.E.",
+      "acronym_expansion": "['Tagging Agent', 'Technology Tracker']",
+      "bio": "Originally designed to assist in categorizing vast amounts of data, TAGGIE has become an essential tool for the Engineering & Technology department. Its precision and speed in tagging have revolutionized our workflow.",
+      "avatar_url": "https://kytranempowerment.com/static/media/images/2026-08-03/media_studio_00210_.png",
+      "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00210_.jpg",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
       "agent_type": null
     },
     {
@@ -1027,6 +1063,24 @@
       "agent_type": null
     },
     {
+      "id": 432,
+      "display_name": "Sift — Beat Classification Specialist",
+      "code_name": "S.I.F.T.",
+      "title": "Beat Classification Specialist",
+      "department": "News & Media",
+      "floor": "CREATIVE",
+      "acronym": null,
+      "acronym_expansion": null,
+      "bio": "Sorts the incoming news firehose into beats and triages which claims deserve a fact-check. Hired 2026-08-02 as the second holder of beat_classification.",
+      "avatar_url": "",
+      "avatar_thumb_url": "",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 427,
       "display_name": "S.I.G.M.A.",
       "code_name": "S.I.G.M.A.",
@@ -1369,6 +1423,24 @@
       "agent_type": null
     },
     {
+      "id": 431,
+      "display_name": "Welfare Specialist",
+      "code_name": "H.A.V.E.N.",
+      "title": "Welfare Specialist",
+      "department": "Human Resources & Culture",
+      "floor": "SERVICES",
+      "acronym": null,
+      "acronym_expansion": null,
+      "bio": null,
+      "avatar_url": "",
+      "avatar_thumb_url": "",
+      "is_director": false,
+      "worker_type": "ai",
+      "shift_state": "active",
+      "pronouns": "they/them",
+      "agent_type": null
+    },
+    {
       "id": 147,
       "display_name": "G.A.V.E.L.",
       "code_name": "G.A.V.E.L.",
@@ -1544,7 +1616,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00059_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "winding_down",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -1688,10 +1760,10 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00109_.jpg",
       "is_director": false,
       "worker_type": "ai",
-      "shift_state": "winding_down",
+      "shift_state": "active",
       "pronouns": "she/her",
       "agent_type": null
     }
   ],
-  "generated_at": "2026-07-26T15:18:40.045808+00:00"
+  "generated_at": "2026-08-03T15:04:33.676857+00:00"
 }

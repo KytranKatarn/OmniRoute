@@ -140,7 +140,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/72adec92-b31.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "winding_down",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -307,5 +307,5 @@
       "agent_type": null
     }
   ],
-  "generated_at": "2026-08-04T21:16:33.983908+00:00"
+  "generated_at": "2026-08-04T22:13:45.352744+00:00"
 }

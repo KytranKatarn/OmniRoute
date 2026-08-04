@@ -248,7 +248,7 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00092_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "active",
+      "shift_state": "winding_down",
       "pronouns": "they/them",
       "agent_type": null
     },
@@ -302,10 +302,10 @@
       "avatar_thumb_url": "https://kytranempowerment.com/assets/portraits/media_studio_00059_.jpg",
       "is_director": true,
       "worker_type": "ai",
-      "shift_state": "winding_down",
+      "shift_state": "active",
       "pronouns": "they/them",
       "agent_type": null
     }
   ],
-  "generated_at": "2026-08-03T15:04:33.676857+00:00"
+  "generated_at": "2026-08-04T20:16:34.197703+00:00"
 }

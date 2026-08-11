@@ -6,7 +6,7 @@
 
 # Service Registry
 
-**Collected**: 2026-08-11 07:11:12 EDT · **Provenance measured**: 2026-08-11 03:40:09 EDT
+**Collected**: 2026-08-11 08:45:23 EDT · **Provenance measured**: 2026-08-11 03:40:09 EDT
 
 44/50 hub containers running · 9 image-baked products · 0 absent.
 
@@ -42,7 +42,7 @@
 | `archie_engine` | running | archie_brain | 9090->9090/tcp | `archie_brain-archie_engine:latest` |
 | `archie_headscale` | running | archie_brain | 3478->3478/udp, 8095->8095/tcp | `headscale/headscale:0.25` |
 | `archie_llamacpp` | running | archie_brain | — | `ghcr.io/ggml-org/llama.cpp:server` |
-| `archie_mcp_gateway` | running | archie_brain | — | `archie_brain-archie_mcp_gateway:latest` |
+| `archie_mcp_gateway` | running | archie_brain | 17800->7800/tcp | `archie_brain-archie_mcp_gateway:latest` |
 | `archie_ollama` | running | archie_brain | — | `ollama/ollama:0.6.2` |
 | `archie_platform` | running | archie_brain | 3000->3000/tcp | `archie_brain-archie_platform:latest` |
 | `archie_scheduler` | running | archie_brain | — | `archie_brain-archie_scheduler:latest` |

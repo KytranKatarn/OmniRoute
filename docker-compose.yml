@@ -1222,6 +1222,8 @@ services:
       dockerfile: mcp-gateway/Dockerfile
     image: archie_brain-archie_mcp_gateway:latest
     container_name: archie_mcp_gateway
+    ports:
+      - "127.0.0.1:17800:7800"
     restart: unless-stopped
     read_only: true
     tmpfs:

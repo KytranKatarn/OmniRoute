@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Platform Login"
+  short_description: "Codex adapter for archie platform login workflow"
+  default_prompt: "Use $archie-platform-login to run this A.R.C.H.I.E. workflow."

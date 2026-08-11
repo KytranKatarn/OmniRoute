@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Deploy"
+  short_description: "Codex adapter for archie deploy workflow"
+  default_prompt: "Use $archie-deploy to run this A.R.C.H.I.E. workflow."

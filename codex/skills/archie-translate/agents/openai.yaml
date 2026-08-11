@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Translate"
+  short_description: "Codex adapter for archie translate workflow"
+  default_prompt: "Use $archie-translate to run this A.R.C.H.I.E. workflow."

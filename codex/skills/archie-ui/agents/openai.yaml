@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Ui"
+  short_description: "Codex adapter for archie ui workflow"
+  default_prompt: "Use $archie-ui to run this A.R.C.H.I.E. workflow."

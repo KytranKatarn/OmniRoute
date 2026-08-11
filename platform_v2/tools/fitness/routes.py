@@ -23,14 +23,12 @@ from .services.fitness_service import (
     set_goal,
     get_goals,
     update_goal as svc_update_goal,
-    update_goal_progress,
     update_workout as svc_update_workout,
     get_fitness_stats,
     schedule_workout,
     get_ai_context,
     calculate_macros as svc_calculate_macros,
 )
-import sys
 import logging
 
 from tools.department_hq.services.department_dispatcher import dispatch_json
@@ -463,23 +461,8 @@ def calculate_macros():
 
 @fitness_bp.route("/api/models", methods=["GET"])
 def get_available_models():
-    """Get available AI models via BridgeDispatcher"""
-    # Models come from the bridge dispatcher
-    models = []
-    if _dispatcher:
-        try:
-            status = _dispatcher.get_dispatch_status()
-            seen = set()
-            for station_info in status.get("stations", {}).values():
-                for agent in station_info.get("agents", []):
-                    m = agent.get("model", "")
-                    if m and m not in seen:
-                        models.append({"name": m, "size": 0, "modified": ""})
-                        seen.add(m)
-        except Exception:
-            pass
-    if not models:
-        models = [{"name": "default", "size": 0, "modified": ""}]
+    """Return the default DHQ-routed model selector option."""
+    models = [{"name": "default", "size": 0, "modified": ""}]
     return jsonify({"success": True, "models": models})
 
 

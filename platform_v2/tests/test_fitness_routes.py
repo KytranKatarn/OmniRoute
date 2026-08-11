@@ -322,3 +322,14 @@ def test_delete_goal_returns_404_when_not_owned_or_missing(fitness_client):
 
     assert resp.status_code == 404
     assert resp.get_json() == {"success": False, "error": "Goal not found"}
+
+
+def test_available_models_returns_default_dhq_option(fitness_client):
+    """The selector must not depend on an uninitialized dispatcher object."""
+    resp = fitness_client.get("/tools/fitness/api/models")
+
+    assert resp.status_code == 200
+    assert resp.get_json() == {
+        "success": True,
+        "models": [{"name": "default", "size": 0, "modified": ""}],
+    }

@@ -7,4 +7,4 @@ from flask import Blueprint
 
 fitness_bp = Blueprint("fitness", __name__, url_prefix="/tools/fitness")
 
-from . import routes
+from . import routes  # noqa: E402, F401

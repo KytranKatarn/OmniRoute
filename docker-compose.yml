@@ -1281,6 +1281,7 @@ services:
     volumes:
       - codex_terminal_home:/codex-home
       - codex_terminal_work:/work
+      - ./codex/skills:/opt/archie-codex-skills:ro
     networks:
       # Dedicated network shared ONLY with the gateway — so no other container on
       # archie_internal can reach the unauthenticated in-container ttyd (HIGH fix).

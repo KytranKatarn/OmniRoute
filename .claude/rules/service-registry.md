@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-07-27 15:10:19 EDT · **Provenance measured**: 2026-07-27 03:41:09 EDT
+**Collected**: 2026-08-11 07:11:12 EDT · **Provenance measured**: 2026-08-11 03:40:09 EDT
 
-43/49 hub containers running · 9 image-baked products · 0 absent.
+44/50 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -21,11 +21,11 @@
 |---------|-------|-------|----------|----------|
 | `civic_watch` | ⚪ fail_open | `unknown` | `b69e7826f` | http://100.64.0.10:8099/version |
 | `gov_watch` | ⚪ fail_open | `unknown` | `7ef1415b1` | http://100.64.0.10:8102/version |
-| `kbs` | 🔴 DRIFT | `3fbe99831` | `af13d97e8` | http://192.168.1.200:8091/version |
-| `kso` | ⚪ fail_open | `unknown` | `2405da16a` | http://192.168.1.200:8085/version |
+| `kbs` | ✅ in_sync | `adb49fb23` | `adb49fb23` | http://192.168.1.200:8091/version |
+| `kso` | ⚪ fail_open | `unknown` | `371a40155` | http://192.168.1.200:8085/version |
 | `legal_watch` | ✅ in_sync | `234643e48` | `234643e48` | http://100.64.0.10:8100/version |
 | `market_watch` | ✅ in_sync | `f84dddaaf` | `f84dddaaf` | http://100.64.0.10:8101/version |
-| `media_hub` | ✅ in_sync | `63a1fac83` | `63a1fac83` | http://192.168.1.200:8105/version |
+| `media_hub` | 🔴 DRIFT | `aae737a86` | `141decb85` | http://192.168.1.200:8105/version |
 | `wtf_consumer` | ⚪ fail_open | `unknown` | `4d9e2c34f` | http://100.64.0.10:8103/version |
 | `wtf_tech` | 🔴 DRIFT | `6b431fa41` | `4d9e2c34f` | http://100.64.0.10:8104/version |
 
@@ -70,18 +70,19 @@
 | `media_prowlarr` | running | media-stack | 9696->9696/tcp | `lscr.io/linuxserver/prowlarr:2.3.5` |
 | `media_radarr` | running | media-stack | 7878->7878/tcp | `lscr.io/linuxserver/radarr:6.1.1` |
 | `media_sabnzbd` | running | media-stack | 8083->8080/tcp | `lscr.io/linuxserver/sabnzbd:4.5.5` |
+| `media_samba` | running | media-stack | 445->445/tcp | `dperson/samba:latest` |
 | `media_sonarr` | running | media-stack | 8989->8989/tcp | `lscr.io/linuxserver/sonarr:4.0.17` |
 | `mediahub_app` | running | media_hub | 8105->8105/tcp | `mediahub:standalone` |
 | `mediahub_db` | running | media_hub | — | `postgres:16.4-alpine` |
 | `monitoring_cadvisor` | running | network-tools | 8081->8080/tcp | `gcr.io/cadvisor/cadvisor:v0.51.0` |
 | `monitoring_dozzle` | running | network-tools | 8080->8080/tcp | `amir20/dozzle:v8-pinned` |
-| `monitoring_nagios` | running | network-tools | 8082->80/tcp | `jasonrivers/nagios:latest` |
+| `monitoring_nagios` | running | network-tools | 8082->80/tcp | `jasonrivers/nagios:4.5.7` |
 | `network_adguard` | running | network-tools | — | `adguard/adguardhome:v0.108.0-b.84` |
 | `network_ntopng` | running | network-tools | — | `ntop/ntopng:v6-pinned` |
+| `network_redis` | running | network-tools | 6379->6379/tcp | `redis:7-alpine` |
 | `stalwart_mail` | running | stalwart-mail | 25->25/tcp, 4190->4190/tcp, 465->465/tcp, 587->587/tcp, 8443->443/tcp, 993->993/tcp | `stalwartlabs/mail-server:v0.11.8` |
 | `tdarr` | running | tdarr | 8265->8265/tcp, 8266->8266/tcp | `ghcr.io/haveagitgat/tdarr:latest` |
 | `archie_hub_caddy` | running | (bare docker run) | — | `caddy:2-alpine` |
-| `media_samba` | running | (bare docker run) | — | `dperson/samba:latest` |
 
 
 ---

@@ -12,3 +12,5 @@ for skill_dir in /opt/archie-codex-skills/archie-*; do
   [ -d "$skill_dir" ] || continue
   cp -R "$skill_dir" "$CODEX_SKILLS_HOME/"
 done
+
+exec /start.sh "$@"

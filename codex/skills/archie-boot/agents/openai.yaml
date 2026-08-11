@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Boot"
+  short_description: "Codex adapter for archie boot workflow"
+  default_prompt: "Use $archie-boot to run this A.R.C.H.I.E. workflow."

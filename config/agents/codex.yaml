@@ -32,6 +32,10 @@ codex:
     - "platform_v2/static/css/therapy.css"
     # tests
     - "platform_v2/tests/"
+    # versioned Codex skill compatibility layer (owner-authorized)
+    - "codex/skills/"
+    - "codex/Dockerfile.terminal"
+    - "codex/workspace/start-with-skills.sh"
   blocked_globs:                  # always denied even if under an allowed path
     - "*.env"
     - ".env*"

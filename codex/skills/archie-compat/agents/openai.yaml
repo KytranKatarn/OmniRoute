@@ -1,0 +1,4 @@
+interface:
+  display_name: "A.R.C.H.I.E. Compatibility"
+  short_description: "Shared Claude-to-Codex workflow compatibility"
+  default_prompt: "Use $archie-compat to run this A.R.C.H.I.E. workflow."

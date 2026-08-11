@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Focus"
+  short_description: "Codex adapter for archie focus workflow"
+  default_prompt: "Use $archie-focus to run this A.R.C.H.I.E. workflow."

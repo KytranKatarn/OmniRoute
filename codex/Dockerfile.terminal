@@ -20,7 +20,9 @@ COPY codex/workspace/codex-pr.sh /usr/local/bin/codex-pr
 # init-workspace points core.hooksPath at /opt/codex-guard.
 COPY codex/workspace/git-hooks/pre-push /opt/codex-guard/pre-push
 COPY config/agents/codex.yaml /opt/codex-guard/allowlist.yaml
-RUN chmod +x /start.sh /init-workspace.sh /usr/local/bin/codex-pr /opt/codex-guard/pre-push
+COPY codex/skills/ /opt/archie-codex-skills/
+COPY codex/workspace/start-with-skills.sh /start-with-skills.sh
+RUN chmod +x /start.sh /start-with-skills.sh /init-workspace.sh /usr/local/bin/codex-pr /opt/codex-guard/pre-push
 
 EXPOSE 7681
-ENTRYPOINT ["/start.sh"]
+ENTRYPOINT ["/start-with-skills.sh"]

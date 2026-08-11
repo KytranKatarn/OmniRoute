@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Bridge Agent"
+  short_description: "Codex adapter for archie bridge agent workflow"
+  default_prompt: "Use $archie-bridge-agent to run this A.R.C.H.I.E. workflow."

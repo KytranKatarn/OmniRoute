@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Probe"
+  short_description: "Codex adapter for archie probe workflow"
+  default_prompt: "Use $archie-probe to run this A.R.C.H.I.E. workflow."

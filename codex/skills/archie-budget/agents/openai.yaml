@@ -1,0 +1,4 @@
+interface:
+  display_name: "Archie Budget"
+  short_description: "Codex adapter for archie budget workflow"
+  default_prompt: "Use $archie-budget to run this A.R.C.H.I.E. workflow."

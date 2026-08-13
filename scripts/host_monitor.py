@@ -1191,12 +1191,26 @@ def get_gpu_info():
             # to another slot" apart from "a card vanished and a different one
             # appeared". It survives a PCI address change; the address does not.
             "uuid": None,
+            # TELEMETRY HEALTH (#5595, 2026-08-12): lspci still lists a card that has
+            # FALLEN OFF the PCIe bus, so a dead GPU is still enumerated here with every
+            # field above left as None. The downstream collector (KSO metrics_collector)
+            # only records a metric when utilization is non-None, so "present but
+            # unreadable" wrote NO ROWS AT ALL -- indistinguishable from "no GPU
+            # installed" or "collector down". Both hub GPUs sat in exactly that state for
+            # 8 days and nothing alerted. This flag makes it POSITIVE and queryable.
+            #   True  = an nvidia-smi row was joined; telemetry is trustworthy
+            #   False = nvidia GPU present in lspci but nvidia-smi has no row for it
+            #   None  = not applicable (non-nvidia vendor -- never alarm on these)
+            "telemetry_ok": None,
         }
 
         # Join this lspci device to its own nvidia-smi row BY PCI ADDRESS.
         # Never index into the blob positionally -- that is the bug this fixes.
         if vendor == "nvidia":
             smi = smi_by_pci.get(_norm_pci(pci_addr))
+            # Written on EVERY nvidia path, including the one where smi is missing --
+            # that absent case is precisely the state we need to be able to see.
+            gpu["telemetry_ok"] = bool(smi)
             if smi:
                 gpu["vram_total_mb"] = smi.get("vram_total_mb")
                 gpu["vram_used_mb"] = smi.get("vram_used_mb")

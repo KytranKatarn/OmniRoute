@@ -231,6 +231,70 @@ def test_never_raises_when_health_source_breaks(harness):
     assert "error" in res
 
 
+# --- #5606: the observer must be OBSERVABLE ----------------------------------
+
+
+def test_heartbeat_records_on_a_healthy_run(harness, monkeypatch):
+    """Silent-when-healthy makes 'running' indistinguishable from 'dead'."""
+    install, _ = harness
+    healthy_week = _health(total=11750 * 7, failed=181 * 7, avg_s=24.5)
+    healthy = _health(total=int(11750 / 4), failed=int(181 / 4), avg_s=25.0)
+    mod = install({6.0: healthy, 168.0: healthy_week, 1.0: healthy, 24.0: healthy})
+
+    seen = {}
+    monkeypatch.setattr(mod, "_record_run", lambda res: seen.update(res))
+
+    res = mod.check_dispatch_posture()
+    assert seen, "a healthy run must still leave a trace"
+    assert seen.get("ok") is True
+    assert set(seen.get("checks", {})) == {"liveness", "failure_rate", "latency", "throughput"}
+
+
+def test_heartbeat_records_on_the_failure_path(harness, monkeypatch):
+    """'Broken' must look different from 'quiet' — crash runs record too."""
+    install, _ = harness
+    mod = install({}, default=None)
+
+    import sys
+    import types
+
+    boom = types.ModuleType("services.dispatch_health_service")
+
+    def _raise(hours=24.0):
+        raise RuntimeError("db gone")
+
+    boom.dispatch_health = _raise
+    sys.modules["services.dispatch_health_service"] = boom
+
+    seen = {}
+    monkeypatch.setattr(mod, "_record_run", lambda res: seen.update(res))
+
+    res = mod.check_dispatch_posture()
+    assert res["ok"] is False
+    assert seen.get("ok") is False, "a crashing monitor must still record that it ran"
+
+
+def test_heartbeat_failure_cannot_break_the_check(harness, monkeypatch):
+    """A monitor must not die because it could not write its own heartbeat."""
+    install, _ = harness
+    healthy_week = _health(total=11750 * 7, failed=181 * 7, avg_s=24.5)
+    healthy = _health(total=int(11750 / 4), failed=int(181 / 4), avg_s=25.0)
+    mod = install({6.0: healthy, 168.0: healthy_week, 1.0: healthy, 24.0: healthy})
+
+    # _record_run swallows its own errors; prove the check still returns.
+    res = mod.check_dispatch_posture()
+    assert res["ok"] is True
+    assert res["checks"]["liveness"]["status"] == "ok"
+
+
+def test_last_run_key_is_not_mistaken_for_a_threshold(harness):
+    """The stamp lives under the same `dispatch:posture:` prefix the threshold
+    loader scans with LIKE. It must be ignored there, not parsed as a number."""
+    mod = _load()
+    assert mod._LAST_RUN_KEY.startswith(mod._SETTING_PREFIX)
+    assert mod._LAST_RUN_KEY[len(mod._SETTING_PREFIX) :] not in mod._DEFAULTS
+
+
 # --- proof the suite bites (repair-bay.md) -----------------------------------
 
 

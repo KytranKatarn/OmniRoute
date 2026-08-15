@@ -214,6 +214,7 @@ def check_dispatch_posture(**overrides) -> Dict[str, object]:
                 }
             result["checks"] = checks
             result["alerts_sent"] = _send(alerts)
+            _record_run(result)
             return result
 
         # --- 2. FAILURE RATE ---------------------------------------------
@@ -319,13 +320,83 @@ def check_dispatch_posture(**overrides) -> Dict[str, object]:
 
         result["checks"] = checks
         result["alerts_sent"] = _send(alerts)
+        _record_run(result)
         return result
 
     except Exception as exc:  # pragma: no cover - must never break the job
         logger.error("dispatch_posture: check failed: %s", exc, exc_info=True)
         result["ok"] = False
         result["error"] = str(exc)
+        # Heartbeat on the FAILURE path too. A monitor that crashes every run
+        # would otherwise leave the same silence as one that never starts —
+        # and "broken" needs to look different from "quiet".
+        _record_run(result)
         return result
+
+
+_LAST_RUN_KEY = _SETTING_PREFIX + "last_run"
+
+
+def _record_run(result: Dict) -> None:
+    """Make the observer OBSERVABLE (#5606).
+
+    An alert-only monitor is silent when healthy, so "running and finding
+    nothing wrong" looks EXACTLY like "not running at all" — which is #5596's
+    own failure mode recursing onto the thing built to fix it. Hit for real on
+    2026-08-15: after deploying this job its registration could only be
+    inferred from the ABSENCE of an error, the weak evidence this whole file
+    exists to stop relying on.
+
+    Two traces, because they answer different questions:
+      * one INFO line per run  -> "is it alive?" from the scheduler log
+      * platform_settings stamp -> "when did it last run?" from SQL / the UI,
+        without log access, and monitorable by the same freshness logic
+        backup_posture_monitor applies to backups.
+
+    DELIBERATELY ONE LINE PER RUN (~96/day), never per-check, and never above
+    INFO when healthy. A noisy observer gets filtered, and a filtered observer
+    is a blind spot with extra steps.
+
+    Fail-safe: recording is best-effort. A monitor must not die because it
+    could not write its own heartbeat.
+    """
+    checks = result.get("checks") or {}
+    try:
+        logger.info(
+            "dispatch posture: %s | alerts=%s | %s",
+            "OK" if result.get("ok") else "ERROR",
+            result.get("alerts_sent", 0),
+            " ".join(f"{name}={c.get('status')}" for name, c in checks.items()) or "no-checks",
+        )
+    except Exception:  # pragma: no cover - logging must never break the job
+        pass
+
+    try:
+        import json
+
+        from database import get_db_cursor
+        from services.time_utils import now_utc
+
+        payload = json.dumps(
+            {
+                "at": now_utc().isoformat(),
+                "ok": bool(result.get("ok")),
+                "alerts_sent": result.get("alerts_sent", 0),
+                "statuses": {n: c.get("status") for n, c in checks.items()},
+            }
+        )
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                INSERT INTO platform_settings (key, value, value_type, description, updated_at)
+                VALUES (%s, %s, 'json', 'Last dispatch posture monitor run (#5606)', NOW())
+                ON CONFLICT (key) DO UPDATE
+                SET value = EXCLUDED.value, value_type = 'json', updated_at = NOW()
+                """,
+                (_LAST_RUN_KEY, payload),
+            )
+    except Exception:
+        logger.warning("dispatch_posture: could not record last_run", exc_info=True)
 
 
 def _send(alerts) -> int:

@@ -48,6 +48,22 @@ RUN cd /comfyui/custom_nodes && \
     cd ComfyUI-LTXVideo && \
     pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
 
+# ComfyUI-Manager ships its OWN requirements.txt which was never installed, so the
+# node manager failed on EVERY boot ("IMPORT FAILED: .../ComfyUI-Manager") and has
+# been entirely non-functional — not merely noisy. Missing were: toml, chardet, uv,
+# matrix-nio, PyGithub (GitPython too — note the OS `git` BINARY was already present,
+# which is a different thing from the `git` PYTHON module).
+#
+# Install from ITS requirements.txt rather than naming packages one at a time —
+# fixing `git` alone just surfaced `toml` next, and so on. The names there are
+# UNPINNED, so pip installs only what is missing and will NOT churn ComfyUI's
+# existing transformers/huggingface-hub.
+#
+# Asserted in the same layer: a missing dep fails the BUILD instead of silently
+# disabling the Manager at runtime, which is how this went unnoticed.
+RUN pip install --no-cache-dir -r /comfyui/custom_nodes/ComfyUI-Manager/requirements.txt \
+    && python -c "import git, toml, chardet, uv, typer, rich; print('ComfyUI-Manager deps OK')"
+
 # --- kornia_rs: the hub CPU cannot execute the newer wheels -----------------
 # ComfyUI startup imports kornia (comfy_extras/nodes_post_processing.py), which
 # imports kornia_rs — a RUST extension. Wheels >= 0.1.11 are built for a newer

@@ -713,6 +713,22 @@ services:
     volumes:
       - /mnt/data2/comfyui/models:/comfyui/models
       - comfyui_output:/comfyui/output
+      # Writable state under read_only:true. NAMED VOLUMES, not tmpfs — both hold
+      # data that must survive a restart, and ComfyUI is stopped/started on every
+      # idle cycle (comfyui_service.stop_if_idle), so tmpfs would wipe them constantly.
+      #   /comfyui/user  — sqlite DB (comfy/cli_args.py database_default_path =
+      #                    <root>/user/comfyui.db) + settings + comfyui_<port>.log.
+      #                    Was: "Failed to initialize database ... unable to open
+      #                    database file" on every boot.
+      #   /comfyui/input — nodes_load_3d mkdir()s /comfyui/input/3d at import; under
+      #                    read-only that raised "[Errno 30] Read-only file system:
+      #                    '/comfyui/input/3d'" -> "IMPORT FAILED: nodes_load_3d.py".
+      #                    Also where uploaded img2img source images land.
+      # NOTE: the ./comfyui/workflows bind below targets a path INSIDE /comfyui/user.
+      # Docker mounts by ascending destination depth, so the volume lands first and
+      # the repo-tracked workflows bind still applies on top. Do not reorder.
+      - comfyui_user:/comfyui/user
+      - comfyui_input:/comfyui/input
       - ./platform_v2/static/media:/media
       - ./comfyui/workflows:/comfyui/user/default/workflows
       # Image lacks tzdata — bind-mount host zoneinfo so TZ env actually resolves.
@@ -1357,6 +1373,12 @@ volumes:
     driver: local
   codex_terminal_work:
     driver: local
+  comfyui_user:
+    driver: local
+    name: archie_comfyui_user
+  comfyui_input:
+    driver: local
+    name: archie_comfyui_input
   comfyui_output:
     driver: local
     name: archie_comfyui_output

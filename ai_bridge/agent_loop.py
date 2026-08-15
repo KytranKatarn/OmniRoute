@@ -1102,6 +1102,31 @@ class AgentLoop:
         except Exception as _bpm_err:
             logger.warning("Backup posture monitor not scheduled: %s", _bpm_err)
 
+        # Dispatch posture (#5596). When both hub GPUs fell off the bus on
+        # 2026-08-04 the platform ran at 2x latency / 10x failure rate / half
+        # throughput for EIGHT DAYS and nothing paged — get_quick_summary kept
+        # answering "Platform: OK" because it asks whether components ANSWER,
+        # never whether they answer WELL. This compares a recent window against
+        # the platform's own trailing baseline, so it is symptom-based: it also
+        # catches node loss, a bad model pin, or a cause nobody has thought of.
+        # Deterministic, no LLM in the alert path (an alarm that needs inference
+        # cannot report that inference is broken). Alert-only, never mutates;
+        # send_system cooldowns bound how often it can speak.
+        try:
+            from services.dispatch_posture_monitor import check_dispatch_posture
+
+            self.scheduler.add_job(
+                with_app_context(check_dispatch_posture),
+                trigger=IntervalTrigger(minutes=15),
+                id="dispatch_posture_monitor",
+                name="Agent Loop: Dispatch Posture Monitor (#5596)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _dpm_err:
+            logger.warning("Dispatch posture monitor not scheduled: %s", _dpm_err)
+
         self.scheduler.add_job(
             with_app_context(self._generate_reports),
             trigger=IntervalTrigger(minutes=15),

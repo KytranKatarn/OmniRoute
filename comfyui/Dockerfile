@@ -16,14 +16,14 @@ RUN pip install --no-cache-dir \
 # on ~2026-07-17 did exactly that and moved us to ComfyUI v0.28.0, which broke
 # the container with no commit in this repo to blame.
 #
-# ⚠️ COMFYUI_REF BELOW IS KNOWN-BROKEN ON THIS HARDWARE. It is pinned only to
-# make the current (failing) image reproducible — do NOT read it as good.
-# v0.28.0 pulls `comfy-aimdo` 0.4.10, which dies with
-#   Fatal Python error: Illegal instruction
-# right after "[Prompt Server] web root:" on this host (Quadro M4000, compute
-# 5.2 Maxwell; image ships torch 2.7.1+cu118 while comfy_kitchen wants cu130+).
-# FIX FORWARD: set COMFYUI_REF to the newest release PREDATING comfy_kitchen /
-# comfy-aimdo, then rebuild and confirm /system_stats actually answers.
+# COMFYUI_REF = v0.28.0-5. Previously annotated here as "KNOWN-BROKEN", blaming
+# comfy-aimdo / comfy_kitchen. That was WRONG and the correction is worth keeping:
+# the SIGILL was never ComfyUI's version. It was `kornia_rs` >= 0.1.11 (see the
+# kornia_rs pin below). comfy_aimdo imports fine on this host, and comfy-kitchen/
+# comfy-aimdo ship as far back as v0.19.1 — so the "roll back to a release before
+# comfy_kitchen" plan would have rolled back many versions and still crashed.
+# Diagnose the ACTUAL faulting import (python -X faulthandler) before assuming a
+# version rollback is the fix.
 ARG COMFYUI_REF=285a98944c397a4a81f15ac63d69fa3dbc0a27b9
 ARG COMFYUI_MANAGER_REF=bd88cffa7166484cbd16c3eba8a5a377a20b01dc
 ARG COMFYUI_LTXVIDEO_REF=aceeae9635f6d493f2893ba3c411a1c36031788a
@@ -47,6 +47,28 @@ RUN cd /comfyui/custom_nodes && \
     git -C ComfyUI-LTXVideo checkout --detach ${COMFYUI_LTXVIDEO_REF} && \
     cd ComfyUI-LTXVideo && \
     pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
+
+# --- kornia_rs: the hub CPU cannot execute the newer wheels -----------------
+# ComfyUI startup imports kornia (comfy_extras/nodes_post_processing.py), which
+# imports kornia_rs — a RUST extension. Wheels >= 0.1.11 are built for a newer
+# x86-64 microarch level than this host provides, so the import died with
+#   Fatal Python error: Illegal instruction
+# during init_extra_nodes, before ComfyUI ever bound a port.
+#
+# The hub is an Intel Xeon E5-2658 v2 (Ivy Bridge, 2013): `avx f16c`, but NO
+# AVX2 and NO FMA. Measured boundary on THIS host — 0.1.14/0.1.13/0.1.12/0.1.11
+# all SIGILL (exit 132); 0.1.10 imports clean and works with kornia 0.8.2.
+#
+# ⚠️ This is a HUB-ONLY constraint. Starship-246/245 run the same ComfyUI and
+# the same wheels fine — their CPUs have AVX2. Do NOT "fix" the fleet nodes.
+# ⚠️ NOT a ComfyUI-version problem: comfy-kitchen/comfy-aimdo ship as far back
+# as v0.19.1 and import fine here. Rolling ComfyUI back would NOT have fixed it.
+#
+# The import check runs in the SAME layer as the install so a regression fails
+# the BUILD loudly, rather than producing an image that crash-loops at runtime.
+ARG KORNIA_RS_REF=0.1.10
+RUN pip install --no-cache-dir "kornia_rs==${KORNIA_RS_REF}" \
+    && python -c "import kornia, kornia_rs; print('kornia', kornia.__version__, '| kornia_rs', kornia_rs.__version__)"
 
 # C compiler for triton's runtime JIT. ComfyUI's comfy_kitchen hard-imports the
 # triton backend at startup, which compiles a CUDA driver shim (driver.c) on the

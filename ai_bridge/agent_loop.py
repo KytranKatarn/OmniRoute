@@ -5369,29 +5369,64 @@ class AgentLoop:
                 logger.info("[engine-autopull] no further work this cycle — stopping after %d", i + 1)
                 break
 
+    # Wedge detection needs TWO signals, not one. Wait-age alone is a
+    # false-positive generator: a single legitimately slow action holds the
+    # max_instances=1 slot, leaves approved rows waiting, and trips the alarm
+    # every time. Measured live 2026-08-15: website_deploy #10558 ran 16 min
+    # (13:17:13 -> 13:33:13); the queue then drained 10 items in ~3 min at
+    # ~20s each. The executor was healthy the whole time, but this watchdog
+    # paged "likely wedged" and its remedy text told the operator to restart
+    # archie_scheduler — MID-DEPLOY. A restart there destroys in-flight work.
+    #
+    # Progress = MAX(executed_at): the executor's own heartbeat. Same shape as
+    # backup posture measuring last SUCCESS rather than last attempt (#5094).
+    # Rows waiting + recent progress = BUSY. Rows waiting + no progress = WEDGED.
+    _APPROVAL_WATCHDOG_STALE_MIN = 10
+    _APPROVAL_WATCHDOG_PROGRESS_MIN = 30
+
     def _approval_queue_watchdog(self):
         """Observer-first wedge detector: alert when owner-approved actions sit
-        unexecuted. The executor runs every 60s, so an 'approved' row older than
-        the threshold means execution has stalled — most likely the
-        max_instances=1 'Approval Queue' job instance is WEDGED by a hung item
-        (live case 2026-07-02: #1832/#1833 frozen for hours until a container
-        restart). DB-symptom check → fires no matter WHY the stall happened.
-        Telegram alert via send_system (its built-in same-title cooldown prevents
-        floods). Threshold tunable via platform_settings
-        'watchdog:approval_queue:stale_min' (default 10 minutes)."""
+        unexecuted AND the executor has completed nothing recently.
+
+        Two conditions must BOTH hold before this pages:
+          1. approved rows waiting  > 'watchdog:approval_queue:stale_min'    (10 min)
+          2. no item completed for  > 'watchdog:approval_queue:progress_min' (30 min)
+
+        Condition 2 is what distinguishes a wedge from a slow item. Without it
+        every long action (deploys, browser/LinkedIn batches) fires a false
+        "wedged, restart the scheduler" alert whose remedy is destructive.
+
+        progress_min MUST stay above the slowest single action; raise it if a
+        legitimately slower action is introduced. Both thresholds are tunable
+        live via platform_settings — no deploy needed.
+
+        A queue that has NEVER executed anything cannot page a fresh install:
+        with no approved rows, condition 1 is false and we return early."""
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             try:
                 cur.execute(
-                    "SELECT value FROM platform_settings WHERE key = %s",
-                    ("watchdog:approval_queue:stale_min",),
+                    "SELECT key, value FROM platform_settings WHERE key IN (%s, %s)",
+                    (
+                        "watchdog:approval_queue:stale_min",
+                        "watchdog:approval_queue:progress_min",
+                    ),
                 )
-                row = cur.fetchone()
-                try:
-                    stale_min = int((row["value"] if row else "") or 10)
-                except Exception:
-                    stale_min = 10
+                cfg = {r["key"]: r["value"] for r in (cur.fetchall() or [])}
+
+                def _tunable(key: str, default: int) -> int:
+                    try:
+                        return int((cfg.get(key) or "") or default)
+                    except Exception:
+                        return default
+
+                stale_min = _tunable("watchdog:approval_queue:stale_min", self._APPROVAL_WATCHDOG_STALE_MIN)
+                progress_min = _tunable(
+                    "watchdog:approval_queue:progress_min",
+                    self._APPROVAL_WATCHDOG_PROGRESS_MIN,
+                )
+
                 cur.execute(
                     """
                     SELECT id, action_type, approved_at
@@ -5404,16 +5439,48 @@ class AgentLoop:
                     (stale_min,),
                 )
                 stalled = cur.fetchall()
+
+                # Executor heartbeat: newest completion of ANY item. NULL only
+                # when nothing has ever executed.
+                cur.execute(
+                    """
+                    SELECT EXTRACT(epoch FROM (NOW() - MAX(executed_at))) / 60.0
+                               AS progress_age_min
+                    FROM autonomy_approval_queue
+                    WHERE executed_at IS NOT NULL
+                    """
+                )
+                prow = cur.fetchone() or {}
+                raw_age = prow.get("progress_age_min")
+                progress_age_min = None if raw_age is None else float(raw_age)
             finally:
                 cur.close()
                 conn.close()
 
             if not stalled:
                 return
+
             ids = ", ".join(f"#{r['id']} {r['action_type']}" for r in stalled)
+
+            # BUSY, not wedged. Log it — a silent healthy path is
+            # indistinguishable from a dead one (#5606) — but do NOT page.
+            if progress_age_min is not None and progress_age_min < progress_min:
+                logger.info(
+                    f"[approval_watchdog] {len(stalled)} approved action(s) waiting "
+                    f">{stale_min}min ({ids}), but an item completed "
+                    f"{progress_age_min:.1f}min ago (<{progress_min}min threshold) — "
+                    "executor BUSY on a slow item, not wedged; no alert"
+                )
+                return
+
+            age_txt = (
+                "no item has EVER completed"
+                if progress_age_min is None
+                else f"no item has completed in {progress_age_min:.0f} min"
+            )
             logger.warning(
                 f"[approval_watchdog] {len(stalled)}+ approved action(s) unexecuted "
-                f">{stale_min}min: {ids} — executor likely wedged"
+                f">{stale_min}min: {ids} — {age_txt} (>{progress_min}min): executor stalled"
             )
             try:
                 import sys as _sys
@@ -5424,9 +5491,12 @@ class AgentLoop:
                 send_system(
                     "Approval executor stalled",
                     f"{len(stalled)}+ approved action(s) unexecuted for >{stale_min} min: {ids}. "
-                    "The 'Approval Queue' job is likely wedged (max_instances=1) — "
-                    "restart archie_scheduler to clear. Taps are safe (PR #2028) and "
-                    "infra-killed executions requeue (PR #2029).",
+                    f"Confirmed stalled, not merely slow: {age_txt} "
+                    f"(threshold {progress_min} min). "
+                    "DIAGNOSE BEFORE RESTARTING — check which action is in flight via "
+                    "`docker logs archie_scheduler | grep approval_queue` and the newest "
+                    "executed_at in autonomy_approval_queue. Restarting archie_scheduler "
+                    "kills an in-flight deploy or backup mid-run.",
                     source="approval_queue_watchdog",
                 )
             except Exception as te:

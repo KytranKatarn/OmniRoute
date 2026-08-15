@@ -3129,6 +3129,32 @@ def generate_weekly_reports():
 # clock without ever presenting the cluster with a burst it has to shed.
 _TRANSLATE_DRIP_KEYS_PER_RUN = 25
 
+# Languages the drip must NOT touch yet — a target whose output format is not decided.
+# Default 'ai' (AI Semantic): see translate_backlog_drip. Data, not code, so including
+# it later is a settings change rather than a deploy.
+_TRANSLATE_DEFERRED_DEFAULT = "ai"
+
+
+def _translate_deferred_languages() -> set:
+    """Language codes the drip skips, from platform_settings `translate:deferred_languages`.
+
+    Fail-safe: on ANY error fall back to the default. Deferring one language is a far
+    smaller failure than draining 6,931 keys into an undefined format.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_c, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = %s", ("translate:deferred_languages",))
+            row = cur.fetchone()
+        raw = (row["value"] if isinstance(row, dict) else row[0]) if row else None
+        if raw is None:
+            raw = _TRANSLATE_DEFERRED_DEFAULT
+    except Exception as exc:
+        logger.warning("[TranslateDrip] deferred-language lookup failed (%s) — using default", type(exc).__name__)
+        raw = _TRANSLATE_DEFERRED_DEFAULT
+    return {c.strip() for c in str(raw).split(",") if c.strip()}
+
 
 def translate_backlog_drip():
     """Job: drain the translation backlog a sip at a time (#5626).
@@ -3173,6 +3199,23 @@ def translate_backlog_drip():
         # exchange meaning without prose and a scraper gets an AI-efficient form of the
         # site. It is NOT junk, and must not be filtered out.
         targets = [code for code in SUPPORTED_LANGUAGES if code != "en"]
+
+        # DEFERRED, NOT REMOVED. `ai` is a real target, but its ENCODING is undefined:
+        # the generic prompt says "Translate ... to AI Semantic", which a 7B improvises
+        # differently every batch. Draining 6,931 keys of inconsistent output would
+        # produce a machine-readable format that is not actually machine-readable, and
+        # it would have to be thrown away and regenerated once a spec exists. So the
+        # human languages drain first (owner decision, 2026-08-15).
+        #
+        # Re-include it WITHOUT A DEPLOY by setting platform_settings
+        # `translate:deferred_languages` to '' (or dropping 'ai' from the list) once the
+        # AI-Semantic prompt/spec lands. Kept as data precisely so the decision does not
+        # need a code change.
+        deferred = _translate_deferred_languages()
+        if deferred:
+            targets = [c for c in targets if c not in deferred]
+            logger.info("[TranslateDrip] deferring %s (awaiting format spec)", ",".join(sorted(deferred)))
+
         if not targets:
             return {"skipped": "no_target_languages"}
 

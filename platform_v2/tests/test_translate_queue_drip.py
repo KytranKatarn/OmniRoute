@@ -226,6 +226,8 @@ def test_drip_claims_a_bounded_slice_and_translates_it():
     with (
         patch("services.work_control_service.is_enabled", return_value=True),
         patch("services.welfare_governance_service.in_flight_over_cap", return_value=False),
+        # Patched rather than mocked through the cursor: it is its own settings lookup.
+        patch("tools.consciousness.jobs._translate_deferred_languages", return_value={"ai"}),
         patch("database.get_db_cursor", return_value=cm),
         patch(
             "ai_bridge.translation_service.batch_translate",
@@ -271,6 +273,8 @@ def test_drip_reports_zero_when_nothing_actually_persisted():
     with (
         patch("services.work_control_service.is_enabled", return_value=True),
         patch("services.welfare_governance_service.in_flight_over_cap", return_value=False),
+        # Patched rather than mocked through the cursor: it is its own settings lookup.
+        patch("tools.consciousness.jobs._translate_deferred_languages", return_value={"ai"}),
         patch("database.get_db_cursor", return_value=cm),
         patch(
             "ai_bridge.translation_service.batch_translate",
@@ -297,6 +301,8 @@ def test_drip_reports_empty_backlog_without_dispatching():
     with (
         patch("services.work_control_service.is_enabled", return_value=True),
         patch("services.welfare_governance_service.in_flight_over_cap", return_value=False),
+        # Patched rather than mocked through the cursor: it is its own settings lookup.
+        patch("tools.consciousness.jobs._translate_deferred_languages", return_value={"ai"}),
         patch("database.get_db_cursor", return_value=cm),
         patch("ai_bridge.translation_service.batch_translate") as bt,
     ):

@@ -49,6 +49,22 @@ _VRAM_LARGEST_GPU_GB = float(os.getenv("ARCHIE_VRAM_LARGEST_GPU_GB", "12.0"))  #
 # means a partial offload or an eviction of the warm set (#5130).
 _GPU_FIT_HEADROOM = 1.4
 
+# CPU placement is a viable FALLBACK for small models and a GUARANTEED FAILURE for
+# large ones on this box (#5623). The hub CPU is a Xeon E5-2658 v2 (Ivy Bridge,
+# pre-AVX2, no FMA): a 7B there cannot finish inside the 240s dispatch deadline, so
+# "degrade to CPU" is not degradation, it is a timeout with extra steps.
+#
+# Measured 2026-08-15: VRAM headroom hit 0.0 GB, qwen2.5:7b was placed on CPU for
+# ~4 minutes, and EVERY fact_check dispatched in that window died on
+# "timeout after 240s ... did not return for model=qwen2.5:7b" — 89% failure for the
+# hour against a 12% 24h baseline. It recovered only when placement returned to GPU.
+#
+# The threshold sits between the models that genuinely run on CPU (qwen2.5:1.5b
+# ~1.3 GB, llama3.2:3b ~2.6 GB — the whole CPU-outpost tier depends on this staying
+# true) and the 7B+ class (~4.7 GB and up) that does not. Raw estimate_model_size,
+# NOT the _GPU_FIT_HEADROOM-inflated figure — this is about compute, not fit.
+_CPU_VIABLE_MAX_GB = float(os.getenv("ARCHIE_CPU_VIABLE_MAX_GB", "4.0"))
+
 # Models required by the Consciousness / embedding pipeline — never evict first
 CONSCIOUSNESS_MODELS = {"arctic-embed-cpu:latest", "mistral:7b"}
 
@@ -303,6 +319,29 @@ class ModelService:
             logger.warning("model_service: placement %s -> cpu (VRAM state unknown: %s)", model, exc)
             return {"num_gpu": 0}
 
+    def cpu_placement_is_viable(self, model: str) -> bool:
+        """Can *model* actually SERVE from the hub CPU, or is CPU a guaranteed timeout?
+
+        `gpu_placement_options` answers "where does this go" and falls back to CPU on
+        every uncertain input — correct, because for a small model CPU is a real
+        degraded path and warmth is preserved. For a 7B+ on this pre-AVX2 Xeon it is
+        not degradation at all: the dispatch cannot finish inside 240s, so the work is
+        dead the moment it is placed (#5623).
+
+        This is deliberately about COMPUTE, not fit: it uses the raw size estimate,
+        not the `_GPU_FIT_HEADROOM`-inflated figure that `get_gpu_fit_budget` compares.
+        Fail-safe VIABLE on an unknown size — refusing to load a model we cannot size
+        would be a worse failure than trying it.
+        """
+        try:
+            size_gb = self.estimate_model_size(model)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("model_service: size unknown for %s (%s) — treating CPU as viable", model, exc)
+            return True
+        if not size_gb:
+            return True
+        return size_gb <= _CPU_VIABLE_MAX_GB
+
     def resident_vram_gb(self, model: str) -> Optional[float]:
         """VRAM held by *model* in GB, or None if it is not resident at all.
 
@@ -436,7 +475,7 @@ class ModelService:
         try:
             url = f"{base}/api/" + "generate"
             body = {"model": model, "keep_alive": "10m", "prompt": ""}
-            if ollama_url is None and model in self._HUB_CPU_TIER:
+            if ollama_url is None:
                 # Conditional CPU pin: big models yield the GPUs when VRAM is
                 # tight (the unconditional pin starved code_review on a busy
                 # CPU beside an idle GPU, #5130) but are no longer forced off
@@ -444,7 +483,33 @@ class ModelService:
                 # gpu_placement_options (#5276), shared with the agent-loop
                 # keep-warm so no caller can override another's placement.
                 placement = self.gpu_placement_options(model)
-                if placement:
+
+                # #5623 — REFUSE rather than load a big model onto a CPU that cannot
+                # serve it. placement == {"num_gpu": 0} means the GPU had no room;
+                # for a 7B+ on this pre-AVX2 Xeon that is not a degraded path, it is a
+                # guaranteed 240s timeout for every dispatch until VRAM frees.
+                # Returning False makes ensure_model_ready report not-ready, which the
+                # dispatcher ALREADY turns into model_not_ready=True → immediate
+                # escalation to the next tier (a fleet node that HAS the GPU). Reusing
+                # that existing signal is the whole fix; no new plumbing.
+                #
+                # ⚠️ This check is deliberately OUTSIDE the `_HUB_CPU_TIER` test. The
+                # model that actually caused the #5623 outage — qwen2.5:7b — is NOT in
+                # that set, so a guard nested inside it would never have fired for the
+                # very incident it was written for. The tier governs whether the CPU
+                # PIN is carried through (unchanged below); viability governs whether
+                # we are willing to load at all.
+                if placement.get("num_gpu") == 0 and not self.cpu_placement_is_viable(model):
+                    logger.warning(
+                        "model_service: REFUSING hub CPU load of %s — too large to serve on a "
+                        "pre-AVX2 CPU (>%.1f GB); deferring so the caller escalates/queues (#5623)",
+                        model,
+                        _CPU_VIABLE_MAX_GB,
+                    )
+                    return False
+
+                # Unchanged: only the big-model tier carries the pin into the request.
+                if placement and model in self._HUB_CPU_TIER:
                     body["options"] = placement
             payload = json.dumps(body).encode()
             req = urllib.request.Request(

@@ -60,7 +60,12 @@ def run_keepwarm() -> dict:
             results[key] = "rate_limited (skipped)"
             logger.info("[keepwarm] %s rate_limited — skipped this cycle", key)
             continue
-        if res.get("success"):
+        # #5627: a warm that LANDS ON THE LOGIN WALL reports success=True (it read *a*
+        # page) AND logged_out=True. Treating that as a healthy warm re-stamped a dead
+        # profile 'active' every single day, which is what blinded the #1831 release
+        # guard. The logged-out signal must be read FIRST and forwarded to record_probe.
+        warm_logged_out = bool(res.get("logged_out"))
+        if res.get("success") and not warm_logged_out:
             results[key] = "warmed"
             # A successful warm IS a successful health signal — record it so a profile
             # that latched 'stale' on a past transient recovers to active (#4372).
@@ -70,6 +75,21 @@ def run_keepwarm() -> dict:
                 browser_session_service.record_probe(agent_id, platform, ok=True)
             except Exception as exc:
                 logger.debug("[keepwarm] record_probe(ok) failed (best-effort): %s", exc)
+        elif warm_logged_out:
+            results[key] = "STALE (logged out)"
+            logger.warning("[keepwarm] %s landed on the login wall — flipping stale", key)
+            try:
+                from services import browser_session_service
+
+                browser_session_service.record_probe(
+                    agent_id,
+                    platform,
+                    ok=False,
+                    reason="keep-warm landed on a login/authwall",
+                    logged_out=True,
+                )
+            except Exception as exc:
+                logger.debug("[keepwarm] record_probe(stale) failed (best-effort): %s", exc)
         else:
             results[key] = f"FAILED: {str(res.get('error') or res.get('_status') or 'unknown')[:120]}"
             logger.warning("[keepwarm] %s %s", key, results[key])
@@ -124,18 +144,23 @@ def run_session_health_probe() -> dict:
             results[key] = "rate_limited (skipped)"
             logger.info("[session-probe] %s rate_limited — skipped, status kept", key)
             continue
-        ok = bool(res.get("success"))
         # Only a POSITIVE logged-out signal (skill_runner surfaces result['logged_out']
         # when the page is a login/authwall) flips a session stale. A timeout / lock-busy /
         # generic error is transient and KEEPS the last-good status (#4372 false-negative).
         logged_out = bool(res.get("logged_out"))
+        # #5627: a READ skill that lands ON the login wall returns success=True AND
+        # logged_out=True. `ok` must therefore EXCLUDE the logged-out case, or the probe
+        # reports "ok" and record_probe re-stamps a dead profile 'active'.
+        ok = bool(res.get("success")) and not logged_out
         reason = None if ok else str(res.get("error") or res.get("_status") or "probe failed")[:200]
+        if logged_out and not reason:
+            reason = "probe landed on a login/authwall"
         browser_session_service.record_probe(agent_id, platform, ok, reason, logged_out=logged_out)
-        if ok:
-            results[key] = "ok"
-        elif logged_out:
+        if logged_out:
             results[key] = f"STALE (logged out): {reason}"
             logger.warning("[session-probe] %s flipped stale — logged out: %s", key, reason)
+        elif ok:
+            results[key] = "ok"
         else:
             results[key] = f"transient (status kept): {reason}"
             logger.info("[session-probe] %s transient probe failure, status kept: %s", key, reason)

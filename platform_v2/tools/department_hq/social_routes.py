@@ -716,6 +716,27 @@ def register_social_routes(bp, admin_required):
                     )
                     scheduled = int((cur.fetchone() or {}).get("n") or 0)
 
+                    # #5627: measure the OUTPUT, not just the component's self-report.
+                    # On 2026-08-15 this dot showed 'healthy' for agent 342 while every
+                    # post that day was failing on a login wall — because health was
+                    # derived ENTIRELY from browser_sessions, which a precedence bug kept
+                    # stamping 'active'. A profile whose recent posts are actually failing
+                    # is NOT healthy no matter what its own probe row claims.
+                    cur.execute(
+                        "SELECT COUNT(*) AS n FROM linkedin_post_log "
+                        "WHERE status = 'failed' AND post_type = ANY(%s) "
+                        "AND posted_at > NOW() - INTERVAL '24 hours'",
+                        (post_types,),
+                    )
+                    recent_failures = int((cur.fetchone() or {}).get("n") or 0)
+                    cur.execute(
+                        "SELECT COUNT(*) AS n FROM linkedin_post_log "
+                        "WHERE status = 'posted' AND post_type = ANY(%s) "
+                        "AND posted_at > NOW() - INTERVAL '24 hours'",
+                        (post_types,),
+                    )
+                    recent_success = int((cur.fetchone() or {}).get("n") or 0)
+
                     established = bool(a.get("profile_established"))
                     status = sess.get("status")
                     probe_ok = sess.get("last_probe_ok")
@@ -723,6 +744,9 @@ def register_social_routes(bp, admin_required):
                         health = "not_established"
                     elif status == "stale":
                         health = "logged_out"
+                    elif recent_failures and not recent_success:
+                        # Self-report says fine, reality says otherwise. Trust reality.
+                        health = "posting_failing"
                     elif probe_ok is False:
                         health = "probe_warn"  # authed on disk but probe flaky (#4372 false-negative)
                     elif status == "active":
@@ -741,11 +765,17 @@ def register_social_routes(bp, admin_required):
                             "profile_established": established,
                             "session_status": status,
                             "last_probe_ok": probe_ok,
+                            "last_probe_at": (sess["last_probe_at"].isoformat() if sess.get("last_probe_at") else None),
                             "health": health,
                             "last_posted_at": last_posted.isoformat() if last_posted else None,
                             "scheduled": scheduled,
                             "pending_approvals": counts.get("pending", 0),
                             "failing_approvals": counts.get("failed", 0),
+                            # #5627 — the OUTPUT signal behind `health`. Surfaced so the tab
+                            # can say WHY an account is degraded instead of a bare dot, and
+                            # so a 'healthy' claim can be cross-checked against reality.
+                            "posts_failed_24h": recent_failures,
+                            "posts_succeeded_24h": recent_success,
                         }
                     )
             return jsonify({"accounts": out})

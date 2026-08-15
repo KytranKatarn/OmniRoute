@@ -6524,6 +6524,37 @@ class AgentLoop:
                         or _os.getenv("LINKEDIN_WTF_GROUP_ID", "37040054")
                     )
 
+                # #5627 PRE-FLIGHT: this executor is THE choke point — there are six
+                # independent producers of linkedin_post approvals (signal_calendar_service,
+                # signal_dispatch x2, creed marketing_routes, agent_jobs x2), so gating any
+                # single producer leaves the others open. Gate here instead, per decision
+                # #953 ("gate the CHOKE POINT, never per-caller"). If the posting profile is
+                # KNOWN dead, don't burn a 240s browser run to rediscover it — fail fast with
+                # an honest reason instead of the misleading "Could not find feed share box".
+                # Fail-OPEN on any lookup error: a health-read bug must never block posting.
+                try:
+                    from services import browser_session_service as _bss
+
+                    if _bss.is_known_logged_out(agent_id, "linkedin"):
+                        logger.warning(
+                            "[linkedin] agent %s posting profile is known logged out — "
+                            "refusing to post (%s). Re-auth via DHQ → S.I.G.N.A.L. → 🔐 Session.",
+                            agent_id,
+                            skill,
+                        )
+                        return {
+                            "executed": False,
+                            "error": (
+                                f"LinkedIn posting profile for agent {agent_id} is logged out "
+                                f"(/profiles/{agent_id}-linkedin). Re-auth via DHQ → S.I.G.N.A.L. "
+                                f"→ 🔐 Session (noVNC headed login). A Cookie-Editor import only "
+                                f"fixes the READ path, not posting (#3948)."
+                            ),
+                            "profile_logged_out": True,
+                        }
+                except Exception as _pf_err:
+                    logger.debug("[linkedin] pre-flight health check failed (fail-open): %s", _pf_err)
+
                 # #4327: a cold LinkedIn post on the hub can take 180s+; 120s was
                 # shorter than the post itself, so it timed out and (with the old
                 # unconditional executed:True) was marked done without publishing.
@@ -6537,13 +6568,42 @@ class AgentLoop:
                     post_metadata=_idem_meta,
                 )
 
+                # #5627 FEEDBACK: an actual posting attempt that lands on the login wall is
+                # the HIGHEST-authority evidence the platform ever gets that a profile is
+                # dead — far better than a 4-hourly read probe. It was being dropped on the
+                # floor: five real failures on 2026-08-15 wrote NOTHING to browser_sessions,
+                # so the #1831 release guard stayed blind and kept releasing all day. Feed it
+                # back so the FIRST failure pauses every producer, not the twentieth.
+                if result.get("logged_out"):
+                    try:
+                        from services import browser_session_service as _bss
+
+                        _bss.record_probe(
+                            agent_id,
+                            "linkedin",
+                            ok=False,
+                            reason=f"{skill} landed on a login/authwall during a real post",
+                            logged_out=True,
+                        )
+                        logger.warning("[linkedin] agent %s flipped stale from a real posting attempt", agent_id)
+                    except Exception as _fb_err:
+                        logger.debug("[linkedin] logout feedback failed (best-effort): %s", _fb_err)
+
                 # Harden company/creed: the multi-stage actor-switch (share box →
                 # settings → actor toggle → select page → Save → Done) is transiently
                 # flaky — a stage selector can miss on first load (observed live: the
                 # KE Inc. post failed once then succeeded on retry). Retry ONCE on
                 # failure. Duplicate-safe: the skill returns success only AFTER the
                 # Post click; every failure path raises BEFORE any post is created.
-                if not result.get("success") and post_type in ("company", "creed"):
+                # #5627: never retry a LOGGED-OUT failure. The retry exists for a flaky
+                # actor-switch stage, not for a dead session — on a login wall it just
+                # doubles the failures and the wasted browser time (240s each).
+                if not result.get("success") and result.get("logged_out"):
+                    logger.warning(
+                        "linkedin %s post failed on a login wall — skipping actor-switch retry",
+                        post_type,
+                    )
+                elif not result.get("success") and post_type in ("company", "creed"):
                     logger.warning(
                         "linkedin %s post failed (%s) — retrying actor-switch once",
                         post_type,

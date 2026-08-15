@@ -63,6 +63,51 @@ class TestRecordProbeOutcomes:
         sql = self._run(ok=False, reason="boom")
         assert "status = 'stale'" not in sql
 
+    def test_success_AND_logged_out_marks_stale(self):
+        """#5627 — THE case that actually happens in production, and the one this
+        suite did not cover. A READ skill that lands ON the login wall reports
+        success=True AND logged_out=True (measured live on agent 342:
+        linkedin_feed -> {'success': True, 'logged_out': True}).
+
+        Every other test here pins ok=False for the logged-out path, so the old
+        `if ok:`-first ordering passed the whole suite while re-stamping a dead
+        profile 'active' on every probe and every keep-warm — which blinded the
+        #1831 release guard and let 5 posts be released into a logged-out profile
+        on 2026-08-15. logged_out MUST outrank ok.
+        """
+        sql = self._run(ok=True, reason="authwall", logged_out=True)
+        assert "status = 'stale'" in sql
+        assert "status = 'active'" not in sql
+        assert "last_probe_ok = FALSE" in sql
+
+
+class TestIsKnownLoggedOut:
+    """#5627 — the choke-point gate used by the agent_loop linkedin_post executor.
+    Fail-OPEN everywhere except a positive 'stale': a health-read bug must never
+    block posting."""
+
+    def _run(self, row):
+        from services import browser_session_service as svc
+
+        cm, _cur = _mock_cursor(row=row)
+        with patch.object(svc, "get_db_cursor", return_value=cm):
+            return svc.is_known_logged_out(342, "linkedin")
+
+    def test_stale_is_logged_out(self):
+        assert self._run({"status": "stale"}) is True
+
+    def test_active_is_not_logged_out(self):
+        assert self._run({"status": "active"}) is False
+
+    def test_no_row_fails_open(self):
+        assert self._run(None) is False
+
+    def test_read_error_fails_open(self):
+        from services import browser_session_service as svc
+
+        with patch.object(svc, "get_db_cursor", side_effect=RuntimeError("db down")):
+            assert svc.is_known_logged_out(342, "linkedin") is False
+
 
 class TestListSessionsForProbe:
     def test_includes_active_and_stale(self):

@@ -2516,12 +2516,18 @@ function renderSignalShell() {
 // rebuilds it from the registry roster (GET /api/signal/accounts/health) so ARCHIE +
 // any supporting agent appear as DATA with an honest status dot. On ANY API failure the
 // hardcoded fallback bar is left intact — no regression.
+// #5627: `posting_failing` is the OUTPUT-derived state — the session row claims it is
+// authed but no post has actually published in 24h while failures have. On 2026-08-15
+// this bar showed a GREEN dot for Kytran/342 all day while every post hit a login wall,
+// because health was read purely from the profile's self-report. A dot must never be
+// greener than the thing it describes.
 var _signalHealthColors = {
-    healthy: '#22c55e', probe_warn: '#f59e0b', logged_out: '#ef4444',
-    not_established: '#9ca3af', unknown: '#9ca3af'
+    healthy: '#22c55e', probe_warn: '#f59e0b', posting_failing: '#ef4444',
+    logged_out: '#ef4444', not_established: '#9ca3af', unknown: '#9ca3af'
 };
 var _signalHealthTitle = {
     healthy: 'Authed + posting', probe_warn: 'Authed on disk — probe flaky (#4372)',
+    posting_failing: 'Session looks authed but posts are FAILING — check the post log',
     logged_out: 'Logged out — re-auth via the Session tab',
     not_established: 'Registered — awaiting one-time login', unknown: 'Unknown'
 };

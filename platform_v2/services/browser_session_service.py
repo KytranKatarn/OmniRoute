@@ -110,29 +110,32 @@ def load_session(agent_id: int, platform: str) -> Optional[Dict[str, Any]]:
 
 
 def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None, logged_out: bool = False) -> None:
-    """Stamp a health-probe result (#3708 phase 2, hardened #4372). Three outcomes:
+    """Stamp a health-probe result (#3708 phase 2, hardened #4372, precedence fixed #5627).
 
+    Outcomes, evaluated in THIS ORDER — the order is the whole point:
+
+    • logged_out=True      → status='stale', REGARDLESS of ok. A POSITIVE logged-out signal
+      (the skill landed on a login/authwall — skill_runner surfaces result['logged_out']) is
+      the ONLY trustworthy "this profile is dead" signal, and 'stale' is the ONLY thing that
+      gates the calendar.
     • ok=True              → status='active', last_probe_ok=TRUE (clears reason). Idempotent,
       so a profile that latched 'stale' on a past transient recovers on the next good probe.
-    • ok=False, logged_out → status='stale'. A POSITIVE logged-out signal (the skill landed
-      on a login/authwall — skill_runner surfaces result['logged_out']) is the ONLY
-      trustworthy "this profile is dead" signal, and 'stale' is the ONLY thing that gates
-      the calendar.
     • ok=False, transient  → a timeout / lock-busy / generic probe error is NOT proof of
       logout. Stamp last_probe_at + reason but KEEP the last-good status + last_probe_ok, so
       a momentary blip can no longer false-gate posting for a profile whose cookies are valid
-      (this was the #4372 false-negative that paused the whole calendar)."""
+      (this was the #4372 false-negative that paused the whole calendar).
+
+    ⚠️ #5627 — WHY logged_out IS CHECKED FIRST. A READ skill reports success when it reads
+    *a* page; if that page IS the login wall it returns BOTH success=True AND logged_out=True.
+    Measured live on agent 342: `linkedin_feed` → {'success': True, 'logged_out': True}. Under
+    the old `if ok:` -first ordering the weaker signal won, the branch below became dead code
+    for the only case that actually occurs in production, and a logged-out profile was
+    re-stamped 'active' on every probe AND every keep-warm. `_linkedin_profile_healthy()` then
+    read 'active', the #1831 release guard never fired, and posts were released into a dead
+    profile — the exact pile-up #1831 exists to prevent (5 failed posts on 2026-08-15).
+    A more specific signal must always outrank a more general one."""
     with get_db_cursor(commit=True) as (_conn, cur):
-        if ok:
-            cur.execute(
-                """UPDATE browser_sessions
-                      SET last_probe_at = NOW(), last_probe_ok = TRUE,
-                          status = 'active',
-                          last_failure_reason = NULL, updated_at = NOW()
-                    WHERE agent_id = %s AND platform = %s""",
-                (agent_id, platform),
-            )
-        elif logged_out:
+        if logged_out:
             cur.execute(
                 """UPDATE browser_sessions
                       SET last_probe_at = NOW(), last_probe_ok = FALSE,
@@ -140,6 +143,15 @@ def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None, log
                           last_failure_reason = %s, updated_at = NOW()
                     WHERE agent_id = %s AND platform = %s""",
                 (reason or "logged out", agent_id, platform),
+            )
+        elif ok:
+            cur.execute(
+                """UPDATE browser_sessions
+                      SET last_probe_at = NOW(), last_probe_ok = TRUE,
+                          status = 'active',
+                          last_failure_reason = NULL, updated_at = NOW()
+                    WHERE agent_id = %s AND platform = %s""",
+                (agent_id, platform),
             )
         else:
             cur.execute(
@@ -149,6 +161,31 @@ def record_probe(agent_id: int, platform: str, ok: bool, reason: str = None, log
                     WHERE agent_id = %s AND platform = %s""",
                 (reason or "transient probe failure", agent_id, platform),
             )
+
+
+def is_known_logged_out(agent_id: int, platform: str) -> bool:
+    """True ONLY when we POSITIVELY know this profile is logged out (#5627).
+
+    Fail-OPEN by design (no row / unknown status / any error → False): a health-read bug
+    must never block posting. This is the mirror of signal_calendar_service.
+    _linkedin_profile_healthy(), exposed here so the agent_loop executor — the single
+    choke point all six linkedin_post producers funnel through — can gate without
+    importing platform-module internals.
+    """
+    try:
+        with get_db_cursor(commit=False) as (_conn, cur):
+            cur.execute(
+                "SELECT status FROM browser_sessions WHERE agent_id = %s AND platform = %s LIMIT 1",
+                (agent_id, platform),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False
+            status = (row["status"] if isinstance(row, dict) else row[0]) or ""
+            return status == "stale"
+    except Exception as exc:
+        logger.debug("is_known_logged_out failed (fail-open False): %s", exc)
+        return False
 
 
 def list_active_sessions() -> list:

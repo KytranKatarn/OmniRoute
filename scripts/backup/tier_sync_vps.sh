@@ -79,12 +79,24 @@ for c in "${VPS_COMPONENTS[@]}"; do
                 -in "$f" -out "$out" -pass env:BACKUP_VPS_PASSPHRASE
         fi
     done
-    if rsync -az "$WORK/" "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/${c}/" 2>>"$BACKUP_LOG_FILE"; then
+    # #5619: capture rsync's OWN stderr rather than only redirecting it to the log
+    # file. The summary row below used to omit log_to_db's 7th argument entirely, so
+    # every failed vps run wrote error_message=NULL. On 2026-08-15 six consecutive
+    # nightly failures said only "failed" while the real cause — outpost-us root disk
+    # at 100%, which let the 20 MB gitbundles through and rejected the 1.8 GB dump —
+    # existed nowhere in the DB. Diagnosing it needed a human grepping an 11 MB host
+    # log. rsync says "No space left on device"; record that.
+    if rsync_out=$(rsync -az "$WORK/" "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/${c}/" 2>&1); then
         sz=$(dir_size_bytes "$WORK")
         TOTAL=$(( TOTAL + sz ))
         log_info "vps tier $c OK ($sz bytes)"
     else
         log_error "vps rsync failed for $c"
+        printf '%s\n' "$rsync_out" >> "$BACKUP_LOG_FILE"
+        # Keep the LAST stderr line (rsync puts the actual reason there) and bound it,
+        # so one pathological error can't bloat the row or the alert body.
+        _why=$(printf '%s' "$rsync_out" | tail -1 | cut -c1-120)
+        FAIL_REASONS="${FAIL_REASONS:+$FAIL_REASONS; }${c}: ${_why:-rsync failed with no stderr}"
         FAILED=1
     fi
     rm -rf "$WORK"
@@ -92,5 +104,7 @@ done
 
 DUR=$(( ( $(date +%s) - START ) * 1000 ))
 STATUS=$([[ $FAILED -eq 0 ]] && echo success || echo failed)
-log_to_db "vps" "vps" "$STATUS" "$REMOTE_DIR" "$TOTAL" "$DUR"
+# Arg 7 is log_to_db's `err` -> backup_log.error_message. Omitting it (the pre-#5619
+# behaviour) is what made every vps failure unreadable from the DB.
+log_to_db "vps" "vps" "$STATUS" "$REMOTE_DIR" "$TOTAL" "$DUR" "${FAIL_REASONS:-}"
 exit "$FAILED"

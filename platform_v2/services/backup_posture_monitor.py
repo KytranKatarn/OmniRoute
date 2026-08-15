@@ -67,6 +67,48 @@ OFFSITE_STALE_HOURS = {
     "usb": 72.0,
 }
 
+# ---------------------------------------------------------------------------------------
+# #5619: an alert must QUOTE the recorded failure, not merely count failures.
+#
+# These two are PURE so they can be tested without a database — and that matters here:
+# pytest's conftest points at a TEST db with no backup_log rows, so every tier reports
+# 'unknown' and no alert is emitted. An end-to-end assertion like "a fresh tier produces
+# no alert" therefore passes WITHOUT EXERCISING ANYTHING. Test the decision, not the wiring.
+# ---------------------------------------------------------------------------------------
+_CAUSE_MAX = 300
+_TRACEBACK_MARKER = "Traceback (most recent call last)"
+
+
+def short_cause(msg) -> str:
+    """Condense a stored error_message to the actionable head.
+
+    Drops an appended Python traceback: the useful sentence is always first, and a
+    traceback would consume the whole budget and push the real cause out of the alert.
+    Measured on the live gdrive row, whose stored text is cause + full traceback.
+    Falls back to the raw text when the message is ONLY a traceback, so a non-empty
+    error can never render as blank.
+    """
+    text = str(msg or "")
+    head = text.split(_TRACEBACK_MARKER)[0]
+    return " ".join(head.split())[:_CAUSE_MAX] or " ".join(text.split())[:_CAUSE_MAX]
+
+
+def cause_line(err) -> str:
+    """The sentence that leads the alert body.
+
+    With a recorded cause the alert points at the real problem; without one it says so
+    plainly and names the file that does have it, rather than implying the DB holds an
+    answer it does not. On 2026-08-15 the static advice sent an investigation at Drive
+    quota for the better part of an hour while every failed row already said
+    `invalid_grant` — an expired OAuth token.
+    """
+    if err:
+        return "RECORDED CAUSE (newest failed row): %s -- fix THIS before following the " "generic advice below. " % err
+    return (
+        "No error_message recorded on any failed row for this tier, so the cause is NOT "
+        "in the DB — read /var/log/archie_backup.log. "
+    )
+
 
 def _threshold_overrides(cur) -> dict:
     """Read platform_settings 'backup:freshness:<tier>' -> hours. Never raises.
@@ -199,6 +241,30 @@ def check_backup_posture(
                     total = row["total_rows"] if isinstance(row, dict) else row[2]
                     seen[tier] = (None if age is None else float(age), int(total or 0))
 
+                # The recorded cause, per tier. #5619: this alert used to carry only
+                # STATIC advice ("check the quota"), so on 2026-08-15 it sent an
+                # investigation at quota for ~an hour while every failed gdrive row
+                # already held `invalid_grant: Bad Request` — an expired OAuth token,
+                # not a full Drive. The answer was one column away and nobody read it.
+                # An alert that quotes the failure beats one that counts failures.
+                last_errors: dict = {}
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (tier) tier, error_message
+                    FROM backup_log
+                    WHERE tier = ANY(%s)
+                      AND error_message IS NOT NULL
+                      AND status IN ('failed', 'partial')
+                    ORDER BY tier, created_at DESC
+                    """,
+                    (list(limits),),
+                )
+                for row in cur.fetchall() or []:
+                    t = row["tier"] if isinstance(row, dict) else row[0]
+                    msg = row["error_message"] if isinstance(row, dict) else row[1]
+                    if msg:
+                        last_errors[t] = short_cause(msg)
+
                 for tier, limit_h in sorted(limits.items()):
                     age_h, total_rows = seen.get(tier, (None, 0))
 
@@ -221,9 +287,13 @@ def check_backup_posture(
                     # The tier name is in the TITLE on purpose: send_system dedups on
                     # (title, source), so each tier keeps its own cooldown instead of one
                     # stale tier muting the alerts for all the others.
+                    # Lead with the RECORDED cause when we have one — generic advice
+                    # goes last, and only as a fallback (#5619).
+                    _cause = cause_line(last_errors.get(tier))
                     send_system(
                         "Backup posture: off-site tier '%s' has no recent successful backup" % tier,
-                        "Newest tier='%s' backup_log success is %s (limit %.0fh). The PRIMARY "
+                        "Newest tier='%s' backup_log success is %s (limit %.0fh). %s"
+                        "The PRIMARY "
                         "tier can be perfectly healthy while this off-site copy is dead — that "
                         "is how the Google Drive database backup went unnoticed for three weeks "
                         "(#5092). Check the tier-sync legs in scripts/backup/run_backup.sh (and "
@@ -233,6 +303,7 @@ def check_backup_posture(
                             tier,
                             ("MISSING ENTIRELY (rows exist, none succeeded)" if age_h is None else "%.0fh old" % age_h),
                             limit_h,
+                            _cause,
                         ),
                         cooldown_hours=12.0,
                     )

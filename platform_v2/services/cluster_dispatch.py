@@ -62,6 +62,8 @@ def queued_dispatch_text(
     local_only: bool = True,
     poll_timeout_s: int = 240,
     model_override: Optional[str] = None,
+    job_id: Optional[int] = None,
+    prefer_agent: Optional[str] = None,
 ) -> Optional[str]:
     """Dispatch one LLM step through DHQ, queue-aware. Returns response text, or None.
 
@@ -73,6 +75,12 @@ def queued_dispatch_text(
 
     Routes across the FULL cluster (hub + fleet nodes) via capability-based
     selection. `local_only=True` keeps cloud escalation off (background work).
+
+    `job_id` links the execution to an existing `bridge_jobs` row so a multi-step
+    caller keeps its progress/observability (batch_translate drives the Languages
+    tab progress bar off it). `prefer_agent` biases agent selection without
+    forcing it. Both are optional and default to None, so every pre-existing
+    caller behaves exactly as before (#5626).
     """
     # Establish the ai_bridge/db sys.path the dispatcher chain needs, then
     # lazy-import — so this works in the scheduler sidecar + bare exec, not just
@@ -91,6 +99,8 @@ def queued_dispatch_text(
         local_only=local_only,
         user_id=None,
         model_override=model_override,
+        job_id=job_id,
+        prefer_agent=prefer_agent,
     )
 
     if getattr(result, "success", False):

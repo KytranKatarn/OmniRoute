@@ -58,6 +58,25 @@ BATCH_SIZE = 5
 # Module ID for bridge tracking
 MODULE_ID = "consciousness_linguistics"
 
+# Per-language model PIN (#5626). mistral:7b garbles right-to-left scripts — it was
+# shipping mixed Chinese/Russian characters into Hebrew, which is why the ar/he/de pod
+# was split onto gemma3:12b in the first place (PR #1372, KB #270022).
+#
+# ⚠️ That pod is currently UNREACHABLE BY CAPABILITY. Agent selection matches
+# `agent_skills.skill_name` EXACTLY against the dispatched capability string, and
+# Amina (341) holds 'Arabic Translation' / 'Hebrew Translation' / 'German Translation'
+# — never the literal 'translate'. So dispatch(capability='translate') cannot select
+# her, and her task_execution_log runs stop dead on 2026-07-10. Until the skill rows
+# are reconciled (filed separately), the capability resolves to R.O.S.E.T.T.A., who
+# serves translate on BOTH gemma3:12b and mistral:7b — so which model an Arabic or
+# Hebrew batch lands on is luck. Pinning the model makes it deterministic without
+# touching the agent registry.
+_MODEL_BY_LANGUAGE: Dict[str, str] = {
+    "ar": "gemma3:12b",
+    "he": "gemma3:12b",
+    "de": "gemma3:12b",
+}
+
 # LLM placeholder words that signal the model returned a stub instead of
 # translating. These are stored as failed (fall back to English) and the
 # row is NOT persisted to the translations table.
@@ -140,6 +159,33 @@ def _dispatch(
     except Exception as e:
         logger.error("Bridge dispatch error (capability=%s): %s", capability, e)
         return ""
+
+
+def _queued_dispatch_text(**kwargs) -> Optional[str]:
+    """Lazy shim over services.cluster_dispatch.queued_dispatch_text (#5626).
+
+    Imported lazily, not at module scope: this module is loaded from BOTH the web app
+    (`/app` already on sys.path) and the scheduler sidecar / bare `python3 -c` runs,
+    where `services.*` is not importable until cluster_dispatch's own
+    `_ensure_import_paths()` has run (KB #272154). A module-level import would make
+    translation_service unimportable in the very contexts the drip producer runs in.
+
+    Returns None if the helper itself cannot be loaded, so the caller falls through to
+    its existing "no translation this batch" path rather than raising mid-drain.
+    """
+    try:
+        from services.cluster_dispatch import queued_dispatch_text
+    except ImportError:
+        try:
+            import sys
+
+            if "/app" not in sys.path:
+                sys.path.insert(0, "/app")
+            from services.cluster_dispatch import queued_dispatch_text
+        except Exception as exc:  # pragma: no cover - environment-dependent
+            logger.error("[Linguistics] queued_dispatch_text unavailable: %s", exc)
+            return None
+    return queued_dispatch_text(**kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +374,26 @@ def batch_translate(
             total_batches,
             len(batch),
         )
-        raw = _dispatch("translate", prompt, timeout=600, job_id=job_id, local_only=True, prefer_agent="C.O.D.E.X.")
+        # #5626 — QUEUE-AWARE. `_dispatch` returns "" whenever request_work reports
+        # queued=True (cold model / busy agent), which is not a failure: the work IS
+        # accepted and model_dispatch_worker writes a result nobody was reading. Every
+        # such batch was silently discarded and its keys stayed missing forever, so the
+        # backlog could never drain on a contended cluster (KB #276153).
+        # queued_dispatch_text runs inline when warm and otherwise polls
+        # dispatch_pending_queue for the worker's result. NEVER use dispatch_json here.
+        raw = (
+            _queued_dispatch_text(
+                capability="translate",
+                prompt=prompt,
+                module_id=MODULE_ID,
+                local_only=True,
+                poll_timeout_s=600,
+                job_id=job_id,
+                prefer_agent="C.O.D.E.X.",
+                model_override=_MODEL_BY_LANGUAGE.get(language),
+            )
+            or ""
+        )
 
         # Parse JSON from response
         translations = _parse_batch_response(raw, len(batch))

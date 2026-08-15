@@ -3124,6 +3124,128 @@ def generate_weekly_reports():
             fail_work_session(_session, error_msg=str(e))
 
 
+# How many missing keys one drip cycle claims. 25 keys = 5 batch_translate batches
+# (BATCH_SIZE=5). At one cycle / 15 min a ~1,600-key backlog drains in ~16h of wall
+# clock without ever presenting the cluster with a burst it has to shed.
+_TRANSLATE_DRIP_KEYS_PER_RUN = 25
+
+
+def translate_backlog_drip():
+    """Job: drain the translation backlog a sip at a time (#5626).
+
+    Replaces the old "click Generate and hope" model, where the whole backlog was
+    pushed at the dispatcher in one background thread. Two independent reasons that
+    could not drain a contended cluster:
+
+    1. `batch_translate` discarded every QUEUED batch (fixed in translation_service —
+       queued is acceptance, not failure).
+    2. Nothing ever retried. A key missed once stayed missing until a human clicked
+       Generate again.
+
+    The producer is stateless BY CONSTRUCTION: the claim query is `NOT EXISTS`, so a
+    translated key simply stops being selected. Nothing marks work in-flight, nothing
+    can leak a lock, and a crash mid-drain costs at most one cycle — restart and it
+    resumes exactly where it left off.
+
+    Gated twice. `work:translate_backlog_drip:enabled` (DEFAULT OFF — merging this
+    must not silently start spending GPU) and `in_flight_over_cap('batch_translate')`,
+    which backs off whenever the dispatch pipe for this job_type is already saturated
+    rather than adding to a queue that is not draining (#4536).
+    """
+    try:
+        from services.work_control_service import is_enabled
+
+        if not is_enabled("translate_backlog_drip", default=False):
+            return {"skipped": "disabled"}
+
+        from services.welfare_governance_service import in_flight_over_cap
+
+        if in_flight_over_cap("batch_translate"):
+            logger.info("[TranslateDrip] dispatch pipe saturated — backing off this cycle")
+            return {"skipped": "in_flight_over_cap"}
+
+        from database import get_db_cursor
+        from ai_bridge.translation_service import SUPPORTED_LANGUAGES, batch_translate
+
+        targets = [code for code in SUPPORTED_LANGUAGES if code != "en"]
+        if not targets:
+            return {"skipped": "no_target_languages"}
+
+        # Pick the language that is furthest behind, then claim its oldest missing
+        # keys. Serving one language per cycle keeps a single model resident for the
+        # whole run instead of thrashing between mistral and gemma every batch.
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                """
+                SELECT t2_lang.language,
+                       count(*) AS missing
+                  FROM unnest(%s::text[]) AS t2_lang(language)
+                  JOIN translations t1 ON t1.language = 'en'
+                 WHERE NOT EXISTS (
+                           SELECT 1 FROM translations t2
+                            WHERE t2.key = t1.key AND t2.language = t2_lang.language
+                       )
+                 GROUP BY t2_lang.language
+                 ORDER BY missing DESC
+                 LIMIT 1
+                """,
+                (targets,),
+            )
+            row = cur.fetchone()
+            if not row:
+                logger.info("[TranslateDrip] backlog empty — nothing to translate")
+                return {"translated": 0, "remaining": 0, "note": "backlog empty"}
+
+            language = row["language"] if isinstance(row, dict) else row[0]
+            remaining = row["missing"] if isinstance(row, dict) else row[1]
+
+            cur.execute(
+                """
+                SELECT DISTINCT t1.key, t1.text AS english_text, t1.context
+                  FROM translations t1
+                 WHERE t1.language = 'en'
+                   AND NOT EXISTS (
+                           SELECT 1 FROM translations t2
+                            WHERE t2.key = t1.key AND t2.language = %s
+                       )
+                 ORDER BY t1.key
+                 LIMIT %s
+                """,
+                (language, _TRANSLATE_DRIP_KEYS_PER_RUN),
+            )
+            strings = [(r["key"], r["english_text"], r.get("context") or "") for r in cur.fetchall()]
+
+        if not strings:
+            return {"translated": 0, "remaining": remaining, "language": language}
+
+        logger.info(
+            "[TranslateDrip] %s: claiming %d of %d missing keys",
+            language,
+            len(strings),
+            remaining,
+        )
+        results = batch_translate(strings, language, source_label="translate_backlog_drip")
+        ok = sum(1 for r in results if r.get("success"))
+
+        logger.info(
+            "[TranslateDrip] %s: %d/%d translated, ~%d still missing",
+            language,
+            ok,
+            len(strings),
+            max(remaining - ok, 0),
+        )
+        return {
+            "language": language,
+            "claimed": len(strings),
+            "translated": ok,
+            "failed": len(strings) - ok,
+            "remaining": max(remaining - ok, 0),
+        }
+    except Exception as e:
+        logger.error("[TranslateDrip] cycle failed: %s", e)
+        return {"error": str(e)}
+
+
 def register_consciousness_jobs(scheduler, flask_app):
     """Register all consciousness background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -3150,6 +3272,20 @@ def register_consciousness_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=24),
         id="knowledge_deduplication",
         name="Agent Loop: Knowledge Deduplication",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=300,
+    )
+
+    # #5626 — translation backlog drip. max_instances=1 + coalesce so a slow cycle
+    # (a cold gemma3:12b load can take minutes) can never stack a second producer on
+    # top of itself; the work-control flag defaults OFF until an operator enables it.
+    scheduler.add_job(
+        with_ctx(translate_backlog_drip),
+        trigger=IntervalTrigger(minutes=15),
+        id="translate_backlog_drip",
+        name="Agent Loop: Translation Backlog Drip",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

@@ -632,6 +632,207 @@ def prune_gdrive(dry_run: bool) -> int:
     return n
 
 
+# ---------------------------------------------------------------------------
+# vps tier (off-site outpost, reached over the Headscale mesh)
+# ---------------------------------------------------------------------------
+# Connection settings MUST mirror scripts/backup/tier_sync_vps.sh — the writer and
+# the pruner have to agree on where the tier lives or the prune silently no-ops.
+VPS_USER = os.environ.get("BACKUP_VPS_USER", "kytran")
+VPS_REMOTE_ROOT = os.environ.get("BACKUP_VPS_REMOTE_ROOT", "/home/kytran/backups/archie")
+_VPS_HOSTS = (
+    [os.environ["BACKUP_VPS_HOST"]]
+    if os.environ.get("BACKUP_VPS_HOST")
+    else ["100.64.0.2", "76.13.107.109"]  # mesh first, public fallback (same order as the sync)
+)
+_SSH_OPTS = ["-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no"]
+
+# Lists every <run>/<component> on the outpost together with whether it holds an
+# actual FILE. Emptiness is the whole point — see prune_vps's docstring.
+_VPS_LIST_SCRIPT = """
+import os
+ROOT = %r
+if os.path.isdir(ROOT):
+    for run in sorted(os.listdir(ROOT)):
+        rp = os.path.join(ROOT, run)
+        if not os.path.isdir(rp):
+            continue
+        for comp in sorted(os.listdir(rp)):
+            cp = os.path.join(rp, comp)
+            if not os.path.isdir(cp):
+                continue
+            has = 0
+            for _dp, _dn, files in os.walk(cp):
+                if files:
+                    has = 1
+                    break
+            print("%%s\\t%%s\\t%%d" %% (run, comp, has))
+"""
+
+
+def _vps_host():
+    """First reachable outpost host, or None. Never guess — an unreachable tier is skipped."""
+    for host in _VPS_HOSTS:
+        try:
+            r = subprocess.run(
+                ["ssh", *_SSH_OPTS, f"{VPS_USER}@{host}", "exit 0"],
+                capture_output=True,
+                timeout=20,
+            )
+            if r.returncode == 0:
+                return host
+        except Exception:
+            continue
+    return None
+
+
+def _vps_list(host: str):
+    """[(run_name, component, has_artifact)] or None if the listing failed."""
+    try:
+        r = subprocess.run(
+            ["ssh", *_SSH_OPTS, f"{VPS_USER}@{host}", "python3 -"],
+            input=(_VPS_LIST_SCRIPT % VPS_REMOTE_ROOT).encode(),
+            capture_output=True,
+            timeout=120,
+        )
+        if r.returncode != 0:
+            print(f"vps prune: listing failed — {r.stderr.decode()[:200]}", file=sys.stderr)
+            return None
+    except Exception as e:
+        print(f"vps prune: listing failed — {e}", file=sys.stderr)
+        return None
+
+    out = []
+    for line in r.stdout.decode().splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3:
+            out.append((parts[0], parts[1], parts[2] == "1"))
+    return out
+
+
+def prune_vps(dry_run: bool) -> int:
+    """Apply the GFS ladder to the vps (outpost) tier.
+
+    This tier declared a policy in RETENTION for every component and had NO pruner —
+    `vps` appeared nowhere else in this file — so it grew unbounded until outpost-us
+    hit 100% disk (63 run dirs / 49 GB) on 2026-08-02. The 1.8 GB DB dump then could
+    no longer land while the 20 MB gitbundles still fit, which is why only the
+    `database` component failed nightly. Same bug as gdrive pre-#5092, in the tier
+    that fix did not cover. (#5616)
+
+    ⚠️ KEEPERS ARE CHOSEN BY ARTIFACT PRESENCE, NOT DIRECTORY PRESENCE.
+    prune_dir() selects on `comp_path.exists()`. That is unsafe HERE because a failed
+    rsync leaves the component directory behind with NOTHING in it: on 2026-08-15 the
+    five newest `database/` dirs were all empty (0 files) while the last real 1.7 GB
+    dump sat six days back. An exists()-based ladder would have "kept" five empty
+    folders and DELETED the only surviving off-site DR copies. An empty dir can never
+    consume a keep slot.
+
+    Fail-safe throughout: unreachable tier, failed listing, unknown component or
+    unparseable run name => leave it alone. We never delete what we cannot classify,
+    and never empty a component that still holds artifacts.
+    """
+    host = _vps_host()
+    if not host:
+        print("vps prune skipped — outpost unreachable", file=sys.stderr)
+        return 0
+    entries = _vps_list(host)
+    if entries is None:
+        return 0
+
+    # component -> { run_name: has_artifact }
+    comp_runs: dict = {}
+    for run_name, component, has_artifact in entries:
+        if component not in RETENTION or parse_ts(run_name) is None:
+            continue  # never auto-delete something we can't classify
+        comp_runs.setdefault(component, {})[run_name] = has_artifact
+
+    doomed: list = []
+    for component, runs in comp_runs.items():
+        keep_d, keep_w, keep_m = RETENTION[component].get("vps", (0, 0, 0))
+        kept_d = kept_w = kept_m = 0
+        keepers, victims = [], []
+        for run_name in sorted(runs.keys(), reverse=True):  # newest first
+            if not runs[run_name]:
+                victims.append(run_name)  # empty: holds nothing, and cannot be a keeper
+                continue
+            tags = classify(parse_ts(run_name))
+            keep = False
+            if "monthly" in tags and kept_m < keep_m:
+                kept_m += 1
+                keep = True
+            elif "weekly" in tags and kept_w < keep_w:
+                kept_w += 1
+                keep = True
+            elif kept_d < keep_d:
+                kept_d += 1
+                keep = True
+            (keepers if keep else victims).append(run_name)
+
+        # Last line of defence: if this component still has real artifacts but the
+        # ladder retained none of them, something is wrong with the policy or the
+        # listing — refuse rather than wipe an off-site DR copy to zero.
+        has_any_artifact = any(runs.values())
+        if has_any_artifact and not keepers and (keep_d or keep_w or keep_m):
+            print(
+                f"vps prune: REFUSING to empty '{component}' — ladder retained 0 of "
+                f"{sum(1 for v in runs.values() if v)} artifact-bearing run(s)",
+                file=sys.stderr,
+            )
+            continue
+        doomed.extend(f"{run_name}/{component}" for run_name in victims)
+
+    if not doomed:
+        return 0
+    if dry_run:
+        for rel in sorted(doomed):
+            print(f"[dry-run] would remove {host}:{VPS_REMOTE_ROOT}/{rel}")
+        return len(doomed)
+
+    # The delete list is embedded as a literal rather than piped separately: the script
+    # itself travels on stdin via `python3 -`, so stdin is already spoken for, and
+    # passing it through `python3 -c` over ssh would put it at the mercy of shell
+    # quoting. A repr'd list crosses both boundaries untouched.
+    script = (
+        "import os, shutil, sys\n"
+        f"ROOT = {VPS_REMOTE_ROOT!r}\n"
+        f"HOUSEKEEPING = {sorted(HOUSEKEEPING)!r}\n"
+        f"TARGETS = {sorted(doomed)!r}\n"
+        "n = 0\n"
+        "for rel in TARGETS:\n"
+        "    p = os.path.join(ROOT, rel)\n"
+        "    if not os.path.isdir(p):\n"
+        "        continue\n"
+        "    try:\n"
+        "        shutil.rmtree(p); n += 1\n"
+        "    except Exception as e:\n"
+        "        print('failed %s: %s' % (p, e), file=sys.stderr); continue\n"
+        "    run = os.path.dirname(p)\n"
+        "    try:\n"
+        "        left = set(os.listdir(run))\n"
+        "        if not left or left <= set(HOUSEKEEPING):\n"
+        "            shutil.rmtree(run)\n"
+        "    except OSError:\n"
+        "        pass\n"
+        "print(n)\n"
+    )
+    try:
+        r = subprocess.run(
+            ["ssh", *_SSH_OPTS, f"{VPS_USER}@{host}", "python3 -"],
+            input=script.encode(),
+            capture_output=True,
+            timeout=300,
+        )
+        if r.returncode != 0:
+            print(f"vps prune failed — {r.stderr.decode()[:200]}", file=sys.stderr)
+            return 0
+        removed = int((r.stdout.decode().strip().splitlines() or ["0"])[-1] or 0)
+    except Exception as e:
+        print(f"vps prune failed — {e}", file=sys.stderr)
+        return 0
+    print(f"vps: removed {removed} component dir(s) on {host}")
+    return removed
+
+
 def main() -> None:
     total_deleted = 0
     usb_deleted = 0
@@ -645,6 +846,12 @@ def main() -> None:
     # no pruner, so the 15 GB free-tier quota filled and the DB dump stopped uploading (#5092).
     gdrive_deleted = prune_gdrive(DRY_RUN)
     total_deleted += gdrive_deleted
+    # vps tier (off-site outpost): same story as gdrive — the policy existed in RETENTION
+    # and NOTHING applied it, so outpost-us filled to 100% disk and the nightly DB dump
+    # stopped landing (#5616). Keepers are chosen by ARTIFACT presence, not directory
+    # presence — a failed rsync leaves an EMPTY component dir behind.
+    vps_deleted = prune_vps(DRY_RUN)
+    total_deleted += vps_deleted
     # Pre-deploy snapshots: whole-dir, count-based — they do not fit the component model.
     total_deleted += prune_predeploy_snapshots()
     # Module backups: newest N PER module (flat per-module layout, see prune_modules). The daily

@@ -21,6 +21,12 @@ It compares the two file SETS, nothing more. False positives are possible and
 cheap: regenerate, or pass SKIP_REGISTRY_DRIFT=1 with a reason in the commit
 message.
 
+SOURCES come from argv (what pre-commit passed) but the DOC side is always
+checked against the full staged set — pre-commit's `files:` regex selects
+sources only, so a generated doc can never arrive in argv. See #5602 and
+tests/test_registry_drift_hook.py; getting this wrong makes the gate
+unpassable, which is worse than having no gate at all.
+
 Exit 0 = fine, 1 = regenerate first.
 """
 
@@ -68,9 +74,20 @@ def main(argv: list[str]) -> int:
     if os.environ.get("SKIP_REGISTRY_DRIFT"):
         return 0
 
-    files = argv[1:] or _staged()
+    staged = _staged()
+    files = argv[1:] or staged
     if not files:
         return 0
+
+    # The generated docs can NEVER appear in argv. .pre-commit-config.yaml runs
+    # this hook with `pass_filenames: true` and a `files:` regex that selects
+    # registry SOURCES; neither doc matches it (it allows `.claude/skills|
+    # commands/`, not `.claude/rules/`). So asking `_DOC not in files` made the
+    # gate UNPASSABLE for a docker-compose or module_registry change — the doc
+    # was regenerated correctly and the hook still failed (hit live on PR #2577),
+    # forcing SKIP_REGISTRY_DRIFT=1 and teaching exactly the skip-reflex this
+    # gate exists to prevent. Ask the full staged set instead. #5602.
+    regenerated = set(files) | set(staged)
 
     touched_module_src = any(f in _MODULE_SOURCES for f in files) or any(
         f.startswith(p) for f in files for p in _MODULE_SOURCE_PREFIXES
@@ -79,7 +96,7 @@ def main(argv: list[str]) -> int:
     touched_skill_src = any(f.startswith(p) for f in files for p in _SKILL_SOURCE_PREFIXES)
 
     problems: list[str] = []
-    if touched_module_src and _MODULE_DOC not in files:
+    if touched_module_src and _MODULE_DOC not in regenerated:
         problems.append(f"  • a MODULE source changed but {_MODULE_DOC} was not regenerated\n" f"      {_CMD}")
     # NOTE: touched_skill_src is deliberately NOT part of this condition.
     # Skills/commands/capabilities are collected into platform_registry_skill but
@@ -89,7 +106,7 @@ def main(argv: list[str]) -> int:
     # pass SKIP_REGISTRY_DRIFT=1 and the habit of skipping would be learned. A
     # gate that is routinely skipped is worse than no gate. The nightly collector
     # still picks skill changes up; re-add this when a skills doc exists.
-    if touched_service_src and _SERVICE_DOC not in files:
+    if touched_service_src and _SERVICE_DOC not in regenerated:
         problems.append(
             f"  • a SERVICE source changed but {_SERVICE_DOC} was not regenerated\n" f"      {_CMD} --services"
         )

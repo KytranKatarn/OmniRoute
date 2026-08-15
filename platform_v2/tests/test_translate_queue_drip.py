@@ -200,19 +200,29 @@ def test_drip_backs_off_when_dispatch_pipe_is_saturated():
     bt.assert_not_called()
 
 
+def _drip_cursor(*, picker=None, keys=25, persisted=25):
+    """Serve the drip's three queries in order: rotate-pick → claim → verify-persisted.
+
+    (Targets come from SUPPORTED_LANGUAGES, not a query — 'ai' has no rows and a
+    table-derived list would exclude the one language most in need of filling.)
+    """
+    cur = MagicMock()
+    key_rows = [{"key": f"k{i}", "english_text": "Home", "context": None} for i in range(keys)]
+    cur.fetchall.side_effect = [key_rows]  # 2. claimed keys
+    cur.fetchone.side_effect = [
+        picker if picker is not None else {"language": "he", "missing": 475},  # 1. rotation pick
+        {"n": persisted},  # 3. how many actually landed
+    ]
+    cm = MagicMock()
+    cm.__enter__ = lambda _s: (MagicMock(), cur)
+    cm.__exit__ = lambda *_a: False
+    return cm, cur
+
+
 def test_drip_claims_a_bounded_slice_and_translates_it():
     from tools.consciousness import jobs
 
-    picker_row = {"language": "he", "missing": 475}
-    key_rows = [{"key": f"k{i}", "english_text": "Home", "context": None} for i in range(25)]
-
-    cm = MagicMock()
-    cur = MagicMock()
-    cur.fetchone.return_value = picker_row
-    cur.fetchall.return_value = key_rows
-    cm.__enter__ = lambda _s: (MagicMock(), cur)
-    cm.__exit__ = lambda *_a: False
-
+    cm, cur = _drip_cursor()
     with (
         patch("services.work_control_service.is_enabled", return_value=True),
         patch("services.welfare_governance_service.in_flight_over_cap", return_value=False),
@@ -227,10 +237,52 @@ def test_drip_claims_a_bounded_slice_and_translates_it():
     assert out["language"] == "he"
     assert out["claimed"] == 25
     assert out["translated"] == 25
+    assert out["persisted"] == 25
+    assert out["storage_failed"] is False
     assert out["remaining"] == 450
-    # the LIMIT is what keeps this a drip rather than a flood
-    assert cur.execute.call_args.args[1][1] == jobs._TRANSLATE_DRIP_KEYS_PER_RUN
     assert bt.call_args.args[1] == "he"
+
+
+def test_drip_rotates_instead_of_ranking_by_backlog_size():
+    """'ai' (AI Semantic — a REAL target: machine-readable output for agents and
+    scrapers) starts at ~6,900 missing vs he 475. Ranking by "furthest behind" would
+    hand it every cycle for ~3 days while no human language gained a single key —
+    measured on the first live cycle, 2026-08-15. Rotation serves whoever has waited
+    longest, and NULLS FIRST means a never-started language begins rather than being
+    deferred forever."""
+    import inspect
+
+    from tools.consciousness import jobs
+
+    src = inspect.getsource(jobs.translate_backlog_drip)
+    assert "last_progress ASC NULLS FIRST" in src, "must rotate by wait time"
+    assert "ORDER BY missing DESC" not in src, "must NOT rank by backlog size — 'ai' would starve the rest"
+    # 'ai' must remain a legitimate target
+    assert "SUPPORTED_LANGUAGES" in src
+
+
+def test_drip_reports_zero_when_nothing_actually_persisted():
+    """THE storage-boundary case: the model returns text, store_translations fails
+    (e.g. DB auth), batch_translate still logs '(stored)'. Trusting its count would
+    report 25 translated against an unchanged table — #5626 all over again."""
+    from tools.consciousness import jobs
+
+    cm, _cur = _drip_cursor(persisted=0)
+    with (
+        patch("services.work_control_service.is_enabled", return_value=True),
+        patch("services.welfare_governance_service.in_flight_over_cap", return_value=False),
+        patch("database.get_db_cursor", return_value=cm),
+        patch(
+            "ai_bridge.translation_service.batch_translate",
+            return_value=[{"key": f"k{i}", "success": True} for i in range(25)],
+        ),
+    ):
+        out = jobs.translate_backlog_drip()
+
+    assert out["translated"] == 25, "the model did return translations"
+    assert out["persisted"] == 0
+    assert out["storage_failed"] is True
+    assert out["remaining"] == 475, "backlog must NOT shrink on unpersisted work"
 
 
 def test_drip_reports_empty_backlog_without_dispatching():

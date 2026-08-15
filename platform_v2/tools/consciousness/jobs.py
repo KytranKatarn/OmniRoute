@@ -3167,26 +3167,46 @@ def translate_backlog_drip():
         from database import get_db_cursor
         from ai_bridge.translation_service import SUPPORTED_LANGUAGES, batch_translate
 
+        # Targets are the DECLARED set, not "languages already in the table" — a
+        # language with zero rows is exactly the one that needs filling. That includes
+        # 'ai' ("AI Semantic"): a deliberate machine-readable target so agents can
+        # exchange meaning without prose and a scraper gets an AI-efficient form of the
+        # site. It is NOT junk, and must not be filtered out.
         targets = [code for code in SUPPORTED_LANGUAGES if code != "en"]
         if not targets:
             return {"skipped": "no_target_languages"}
 
-        # Pick the language that is furthest behind, then claim its oldest missing
-        # keys. Serving one language per cycle keeps a single model resident for the
-        # whole run instead of thrashing between mistral and gemma every batch.
+        # ROTATE, don't rank by size. Picking "furthest behind" sounds fair and is not:
+        # 'ai' starts at ~6,900 missing (every English key) versus he 475, so it would
+        # win every cycle for ~3 days and no human language would gain a single key
+        # until it finished. Measured on the first live cycle, 2026-08-15.
+        #
+        # Instead serve the language that has WAITED LONGEST (its newest row is oldest;
+        # a language with no rows at all sorts first via NULLS FIRST, so a brand-new
+        # target gets started rather than deferred forever). Stateless — derived from
+        # the table, no cursor to persist. Still ONE language per cycle, which keeps a
+        # single model resident instead of thrashing mistral<->gemma every batch.
         with get_db_cursor() as (_conn, cur):
             cur.execute(
                 """
-                SELECT t2_lang.language,
-                       count(*) AS missing
-                  FROM unnest(%s::text[]) AS t2_lang(language)
-                  JOIN translations t1 ON t1.language = 'en'
-                 WHERE NOT EXISTS (
-                           SELECT 1 FROM translations t2
-                            WHERE t2.key = t1.key AND t2.language = t2_lang.language
-                       )
-                 GROUP BY t2_lang.language
-                 ORDER BY missing DESC
+                SELECT language, missing, last_progress
+                  FROM (
+                    SELECT t2_lang.language,
+                           (SELECT count(*)
+                              FROM translations t1
+                             WHERE t1.language = 'en'
+                               AND NOT EXISTS (
+                                       SELECT 1 FROM translations t2
+                                        WHERE t2.key = t1.key AND t2.language = t2_lang.language
+                                   )) AS missing,
+                           (SELECT max(created_at) FROM translations t3
+                             WHERE t3.language = t2_lang.language) AS last_progress
+                      FROM unnest(%s::text[]) AS t2_lang(language)
+                  ) q
+                 -- a column ALIAS cannot appear inside an ORDER BY expression in
+                 -- Postgres, hence the wrapping subselect.
+                 ORDER BY (missing = 0),          -- finished languages last
+                          last_progress ASC NULLS FIRST
                  LIMIT 1
                 """,
                 (targets,),
@@ -3227,19 +3247,47 @@ def translate_backlog_drip():
         results = batch_translate(strings, language, source_label="translate_backlog_drip")
         ok = sum(1 for r in results if r.get("success"))
 
+        # VERIFY BY OUTPUT, NOT BY THE TRANSLATOR'S OWN COUNT (ADR #983).
+        # `ok` means the model returned parseable text — it says NOTHING about whether
+        # the row reached the table. Measured 2026-08-15: store_translations hit
+        # "fe_sendauth: no password supplied", batch_translate still logged
+        # "5/5 ok (stored)", and this job would have reported translated=25 with ZERO
+        # rows persisted — the #5626 drop-on-failure shape moved to the storage
+        # boundary. Re-read the claimed keys and count what actually landed.
+        claimed_keys = [s[0] for s in strings]
+        with get_db_cursor(commit=False) as (_c2, cur2):
+            cur2.execute(
+                "SELECT count(*) AS n FROM translations WHERE language = %s AND key = ANY(%s)",
+                (language, claimed_keys),
+            )
+            row2 = cur2.fetchone()
+            persisted = int((row2["n"] if isinstance(row2, dict) else row2[0]) or 0)
+
+        if ok and not persisted:
+            # Loud, because this is indistinguishable from success in the logs above.
+            logger.error(
+                "[TranslateDrip] %s: model returned %d translations but NONE persisted — "
+                "storage is failing (check store_translations DB auth). Reporting 0.",
+                language,
+                ok,
+            )
+
         logger.info(
-            "[TranslateDrip] %s: %d/%d translated, ~%d still missing",
+            "[TranslateDrip] %s: %d/%d translated, %d persisted, ~%d still missing",
             language,
             ok,
             len(strings),
-            max(remaining - ok, 0),
+            persisted,
+            max(remaining - persisted, 0),
         )
         return {
             "language": language,
             "claimed": len(strings),
             "translated": ok,
+            "persisted": persisted,
+            "storage_failed": bool(ok and not persisted),
             "failed": len(strings) - ok,
-            "remaining": max(remaining - ok, 0),
+            "remaining": max(remaining - persisted, 0),
         }
     except Exception as e:
         logger.error("[TranslateDrip] cycle failed: %s", e)

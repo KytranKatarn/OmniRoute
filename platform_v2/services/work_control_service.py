@@ -38,6 +38,25 @@ BACKLOGS = {
     "consciousness_analysis": {"module": "Consciousness", "drains": "knowledge_base unanalyzed", "backend": "loop"},
     "consciousness_embedding": {"module": "Consciousness", "drains": "knowledge_base unembedded", "backend": "loop"},
     "consciousness_translate": {"module": "Consciousness", "drains": "untranslated keys", "backend": "loop"},
+    # #5626 — the drip that ACTUALLY drains the translation backlog. Registered here
+    # so it is visible and toggleable in the Autonomy tab; a work-control key that
+    # nothing lists is un-toggleable from the UI and invisible to the operator, which
+    # is the same "declared but never surfaced" shape as a retention tier with no
+    # pruner. ⚠️ Distinct from `consciousness_translate` above: that is the legacy
+    # LOOP backend, which has been enabled-but-idle (0 rows translated in the 7 days
+    # before 2026-08-15). Both claim work with NOT EXISTS, so they cannot
+    # double-translate a key even if both run.
+    "translate_backlog_drip": {
+        "module": "Consciousness",
+        "drains": "translations missing keys (25/cycle, 15 min)",
+        "backend": "platform_settings",
+        # ⚠️ Ships OFF, and the CONTROL CENTRE MUST AGREE WITH THE JOB. `is_enabled`
+        # defaults to True (fail-safe: a control-plane glitch must never stop work),
+        # but this job calls it with default=False. Without carrying that default
+        # here, the Autonomy tab would render the toggle ON while every cycle
+        # returned {"skipped": "disabled"} — a switch that lies about its own state.
+        "default": False,
+    },
     "delegate_task_worker": {
         "module": "Department HQ",
         "drains": "unified_tasks (delegated)",
@@ -167,7 +186,10 @@ def list_controls():
                 "module": meta["module"],
                 "drains": meta.get("drains"),
                 "backend": meta["backend"],
-                "enabled": is_enabled(key),
+                # Honour a per-backlog default so the Control Centre reports the same
+                # state the job itself computes. Absent a `default`, keep the historic
+                # fail-safe True.
+                "enabled": is_enabled(key, meta.get("default", True)),
             }
         )
     return out

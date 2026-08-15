@@ -65,11 +65,26 @@ async function _scoutLoadSessions() {
     ? _scoutPlatforms.filter(function(p) { return p.login_url; })
     : [];
   var profRows = (d.profiles || []).map(function(p) {
+    // Slice 3 (#5627): ARMED means credentials are stored, so a logged-out profile
+    // can repair itself instead of waiting for a human noVNC login.
+    var armed;
+    if (p.auto_relogin_armed === true) {
+      armed = '<span style="color:#22c55e">● ARMED</span>';
+    } else if (p.auto_relogin_armed === false) {
+      armed = '<span style="color:#94a3b8">○ manual only</span>';
+    } else {
+      armed = '<span style="color:#f59e0b">? unknown</span>';
+    }
     return '<tr><td>' + p.agent_id + '</td><td>' + esc2(p.platform) + '</td><td>'
       + (p.profile_established ? '<span style="color:#22c55e">● ESTABLISHED</span>'
          : (p.error ? '<span style="color:#f59e0b">' + esc2(p.error) + '</span>'
                     : '<span style="color:#ef4444">● not established</span>'))
-      + '</td></tr>';
+      + '</td><td>' + armed + '</td></tr>';
+  }).join('');
+  // Arming form options — one per known profile.
+  var armOptions = (d.profiles || []).map(function(p) {
+    var v = p.agent_id + '|' + p.platform;
+    return '<option value="' + esc2(v) + '">' + p.agent_id + ' · ' + esc2(p.platform) + '</option>';
   }).join('');
   // #4007 egress dropdown: hub default + each egress-READY node (others are
   // listed disabled so a dead proxy is never selectable). Established
@@ -109,8 +124,21 @@ async function _scoutLoadSessions() {
   el.innerHTML =
     '<h4 style="margin:0 0 6px">DEVICE-TRUST PROFILES (persistent, noVNC one-time login)</h4>'
     + '<p style="font-size:0.7rem;color:rgba(255,255,255,0.5);margin:0 0 6px">Managed in S.I.G.N.A.L. → 🔐 Session. Kept warm daily at 12:30 ET.</p>'
-    + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><thead><tr><th>Agent</th><th>Platform</th><th>Profile</th></tr></thead>'
-    + '<tbody>' + (profRows || '<tr><td colspan="3">none</td></tr>') + '</tbody></table>'
+    + '<table class="dhq-table" style="width:100%;margin-bottom:8px"><thead><tr><th>Agent</th><th>Platform</th><th>Profile</th><th>Auto re-login</th></tr></thead>'
+    + '<tbody>' + (profRows || '<tr><td colspan="4">none</td></tr>') + '</tbody></table>'
+    + '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:4px;padding:8px;margin-bottom:14px">'
+    + '<div style="font-size:0.7rem;font-weight:600;margin-bottom:4px">ARM AUTO RE-LOGIN</div>'
+    + '<p style="font-size:0.65rem;color:rgba(255,255,255,0.5);margin:0 0 6px">'
+    + 'Stores the login encrypted so a logged-out profile repairs itself instead of pausing posting. '
+    + 'An email challenge is cleared automatically; phone/CAPTCHA still needs a noVNC login. '
+    + 'Write-only — the password is never shown again.</p>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">'
+    + '<select id="scoutArmTarget" class="dhq-select" style="font-size:0.65rem">' + armOptions + '</select>'
+    + '<input id="scoutArmUser" class="dhq-input" style="font-size:0.65rem" placeholder="login email" autocomplete="off">'
+    + '<input id="scoutArmPass" class="dhq-input" style="font-size:0.65rem" placeholder="password" type="password" autocomplete="new-password">'
+    + '<button class="dhq-btn" style="font-size:0.65rem" onclick="scoutArmRelogin()">Arm</button>'
+    + '<span id="scoutArmMsg" style="font-size:0.65rem;color:rgba(255,255,255,0.6)"></span>'
+    + '</div></div>'
     + '<div style="display:flex;justify-content:space-between;align-items:center;margin:0 0 6px">'
     + '<h4 style="margin:0">COOKIE SESSIONS (encrypted storage_state)</h4>'
     + '<button class="dhq-btn" style="font-size:0.6rem" onclick="scoutProbeSessions()">↻ Probe now</button></div>'
@@ -199,6 +227,45 @@ async function scoutSetEgress(sel) {
   } catch (e) {
     alert('Egress change failed: ' + e);
     sel.value = prev;
+  }
+}
+
+// Slice 3 (#5627) — store the login so the profile can repair itself.
+// Deliberately NOT prompt()/alert()-driven for input: a modal dialog blocks the
+// page for automation and makes this untestable. Status goes to an inline span.
+async function scoutArmRelogin() {
+  var target = document.getElementById('scoutArmTarget');
+  var userEl = document.getElementById('scoutArmUser');
+  var passEl = document.getElementById('scoutArmPass');
+  var msg = document.getElementById('scoutArmMsg');
+  if (!target || !userEl || !passEl || !msg) return;
+
+  var parts = String(target.value || '').split('|');
+  var agentId = parts[0];
+  var platform = parts[1];
+  if (!agentId || !platform) { msg.textContent = 'pick a profile'; return; }
+  if (!userEl.value || !passEl.value) { msg.textContent = 'login and password required'; return; }
+
+  msg.textContent = 'storing…';
+  try {
+    var r = await fetch('/tools/department-hq/api/scout/sessions/' + encodeURIComponent(agentId)
+      + '/' + encodeURIComponent(platform) + '/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: userEl.value, password: passEl.value })
+    });
+    var d = await r.json();
+    if (d.success) {
+      msg.textContent = '✓ armed';
+      // Clear immediately — never leave a password sitting in the DOM.
+      userEl.value = '';
+      passEl.value = '';
+      await _scoutLoadSessions();
+    } else {
+      msg.textContent = 'failed: ' + (d.error || 'unknown');
+    }
+  } catch (e) {
+    msg.textContent = 'failed: ' + e;
   }
 }
 

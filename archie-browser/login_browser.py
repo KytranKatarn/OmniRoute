@@ -67,21 +67,17 @@ def main() -> int:
         # announce automation ("this browser may not be secure"). Strip the
         # navigator.webdriver tell + the --enable-automation default arg so
         # the headed login looks like a normal Chrome. (KB #272122 / #3953)
+        #
+        # These args now live in browser_fingerprint so the automated re-login
+        # (session_manager.setup_session) and the skill runner reopen this profile
+        # with the IDENTICAL fingerprint. They had already drifted apart, and a
+        # mismatch re-triggers LinkedIn's step-up on a profile this login trusted.
+        import browser_fingerprint
+
         context = p.chromium.launch_persistent_context(
             profile_dir,
-            headless=False,  # headed under Xvfb — the human logs in via noVNC
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--start-maximized",
-                "--disable-blink-features=AutomationControlled",
-            ],
-            ignore_default_args=["--enable-automation"],
-            user_agent=(
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            ),
-            viewport=None,
+            # headed under Xvfb — the human logs in via noVNC
+            **browser_fingerprint.persistent_context_kwargs(headless=False, maximized=True),
         )
         try:
             page = context.pages[0] if context.pages else context.new_page()

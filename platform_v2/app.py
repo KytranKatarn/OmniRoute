@@ -4917,6 +4917,86 @@ def api_internal_save_session_state(agent_id, platform):
     return save_session_state_handler(agent_id, platform)
 
 
+@app.route("/api/internal/linkedin/challenge-code", methods=["GET"])
+@_require_internal_key
+def api_internal_linkedin_challenge_code():
+    """Slice 2 (#5627 follow-up): hand archie_browser the LinkedIn email verification
+    code so an automated re-login can clear its own challenge.
+
+    archie_browser has no Google OAuth tokens and no platform_v2 on its path, so it
+    asks over the internal API (same bearer pattern as the session-state routes).
+    No mail credential ever leaves this process.
+
+    ⚠️ READS GMAIL LIVE, NOT `google_email_cache`. `gmail_service.search_emails`
+    resolves ids from the API but returns rows from the cache, so a code that arrived
+    seconds ago — the only kind that matters here — is reliably ABSENT. Polling that
+    would look exactly like "LinkedIn stopped sending codes".
+
+    ⚠️ `not_before` is load-bearing. LinkedIn reuses one subject line for every
+    challenge, so without it the newest match may be a STALE code from an earlier
+    attempt, which fails and burns a limited attempt. The caller stamps it just
+    before submitting the password.
+    """
+    import re as _re
+
+    login = (request.args.get("login") or "").strip().lower()
+    try:
+        not_before = int(request.args.get("not_before") or 0)
+    except (TypeError, ValueError):
+        not_before = 0
+    if not login:
+        return jsonify({"error": "login required"}), 400
+
+    try:
+        from database import get_db_cursor
+        from tools.google_work_suite.services.gmail_service import get_gmail_client
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute("SELECT id FROM google_accounts WHERE lower(email) = %s LIMIT 1", (login,))
+            row = cur.fetchone()
+        if not row:
+            # An unconnected mailbox is a CONFIG gap, not a transient miss — say so
+            # distinctly so the browser side does not poll for 90s against nothing.
+            return jsonify({"error": f"no connected Google account for {login}"}), 409
+        account_id = row["id"] if isinstance(row, dict) else row[0]
+
+        service = get_gmail_client(account_id)
+        listing = (
+            service.users()
+            .messages()
+            .list(
+                userId="me",
+                q="from:linkedin.com (verification OR code OR sign-in OR security)",
+                maxResults=10,
+            )
+            .execute()
+        )
+        ids = [m["id"] for m in (listing.get("messages") or [])]
+        if not ids:
+            return jsonify({"error": "no matching mail"}), 404
+
+        best = None  # (internal_ts, code)
+        for gid in ids:
+            msg = service.users().messages().get(userId="me", id=gid, format="full").execute()
+            ts = int(msg.get("internalDate", "0")) // 1000  # ms -> s
+            if not_before and ts < not_before:
+                continue
+            headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+            haystack = " ".join([headers.get("subject", ""), msg.get("snippet", "")])
+            m = _re.search(r"\b(\d{6})\b", haystack)
+            if m and (best is None or ts > best[0]):
+                best = (ts, m.group(1))
+
+        if not best:
+            return jsonify({"error": "no fresh code"}), 404
+        # Never log the code itself.
+        app.logger.info("[challenge-code] served a code for %s (age %ss)", login, int(time.time()) - best[0])
+        return jsonify({"code": best[1], "received_at": best[0]}), 200
+    except Exception as exc:
+        app.logger.error("[challenge-code] lookup failed for %s: %s", login, type(exc).__name__)
+        return jsonify({"error": f"lookup failed ({type(exc).__name__})"}), 500
+
+
 @app.route("/api/internal/engine/telemetry", methods=["POST"])
 @_require_internal_key
 def api_internal_engine_telemetry():

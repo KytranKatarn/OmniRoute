@@ -309,7 +309,9 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
     profile_dir = _profile_dir(agent_id, platform)
     if profile_dir:
         try:
-            return _execute_persistent(agent_id, skill, skill_name, platform, profile_dir, params)
+            _persistent_result = _execute_persistent(
+                agent_id, skill, skill_name, platform, profile_dir, params
+            )
         except _ProfileUnavailable as exc:
             # Launch-phase failure ONLY (e.g. ProcessSingleton lock while the owner is
             # mid-login, or a wedged chrome the watchdog just killed). A MUTATING skill
@@ -329,6 +331,19 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
                 "read-only skill, falling back to storage_state",
                 agent_id, platform, exc,
             )
+        else:
+            # #5627 slice 1 — the profile said it is logged out. Re-login HERE, not
+            # inside _execute_persistent: that function holds both the profile lock
+            # and an open context on the same dir, so an in-place login would collide
+            # on chrome's ProcessSingleton. By this point the lock is released and the
+            # context is closed, so the profile is ours to repair.
+            #
+            # We do NOT retry the skill afterwards. The skill may be MUTATING and a
+            # blind retry is exactly how a double-post happens; the repair makes the
+            # NEXT scheduled run succeed, which is the whole point of a drip/queue.
+            if isinstance(_persistent_result, dict) and _persistent_result.get("logged_out"):
+                _attempt_profile_relogin(agent_id, platform)
+            return _persistent_result
 
     storage_state = session_manager.load_session(agent_id, platform) if platform else None
 
@@ -362,15 +377,10 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
                         "[Session] Agent %s session expired on %s — attempting re-login",
                         agent_id, platform,
                     )
-                    creds = session_manager.get_credentials(agent_id, platform)
-                    if creds:
-                        session_manager.setup_session(
-                            agent_id, platform,
-                            creds["username"], creds["password"]
-                        )
-                        logger.info("[Session] Agent %s re-login complete", agent_id)
-                    else:
-                        logger.error("[Session] No credentials for agent %s/%s", agent_id, platform)
+                    # Honour the result — see _attempt_profile_relogin. The old code
+                    # here discarded it and logged "re-login complete" even when
+                    # setup_session had returned needs_2fa.
+                    _attempt_profile_relogin(agent_id, platform)
 
                 updated = context.storage_state()
                 if platform:
@@ -387,6 +397,51 @@ def execute(agent_id: int, skill_name: str, params: dict) -> dict:
                 context.close()
         finally:
             browser.close()
+
+
+def _attempt_profile_relogin(agent_id: int, platform: str) -> dict:
+    """Repair a logged-out posting profile, and report HONESTLY what happened (#5627).
+
+    The predecessor called setup_session and then logged "re-login complete"
+    unconditionally — the return value was DISCARDED, so a `needs_2fa` result was
+    announced as a success. That is the same false-success shape as the #1831 guard
+    this backs up, and it is why a dead profile looked healthy.
+
+    MUST be called with the profile lock released and no open context on the dir.
+    """
+    import session_manager
+
+    creds = session_manager.get_credentials(agent_id, platform)
+    if not creds:
+        logger.error(
+            "[Session] %s/%s logged out and NO stored credentials — "
+            "human re-auth required via the S.I.G.N.A.L. session panel",
+            agent_id, platform,
+        )
+        return {"status": "no_credentials"}
+
+    try:
+        res = session_manager.setup_session(
+            agent_id, platform, creds["username"], creds["password"]
+        ) or {}
+    except Exception as exc:
+        logger.error("[Session] %s/%s auto re-login raised: %s", agent_id, platform, type(exc).__name__)
+        return {"status": "failed", "reason": type(exc).__name__}
+
+    status = res.get("status")
+    if status == "active":
+        logger.info("[Session] %s/%s auto re-login SUCCEEDED (gate_cleared=%s)",
+                    agent_id, platform, res.get("gate_cleared"))
+    elif status == "needs_2fa":
+        # Not a failure of the design — a challenge only a human can clear.
+        logger.error(
+            "[Session] %s/%s auto re-login hit a challenge we cannot clear "
+            "(phone/CAPTCHA) — noVNC handoff required. screenshot=%s",
+            agent_id, platform, res.get("screenshot_path"),
+        )
+    else:
+        logger.error("[Session] %s/%s auto re-login FAILED: %s", agent_id, platform, res)
+    return res
 
 
 def _execute_persistent(

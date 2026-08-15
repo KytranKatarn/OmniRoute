@@ -189,12 +189,35 @@ def register_scout_routes(bp, admin_required):
             # #4006: enumerate REAL profile dirs from the sidecar instead of
             # the hardcoded WARM_PROFILES registry.
             pr = _rq.get("http://archie_browser_login:4281/profiles", headers=hdrs, timeout=5)
+
+            # Slice 3 — is the AUTOMATED re-login armed for each profile? Booleans
+            # only, and resolved in ONE query rather than a fetch per row. Without
+            # stored credentials the auto re-login stops at "NO stored credentials",
+            # so the panel has to be able to show that state.
+            armed_keys = set()
+            try:
+                with get_db_cursor(commit=False) as (_c2, cur2):
+                    cur2.execute(
+                        """SELECT agent_id, platform FROM agent_browser_sessions
+                            WHERE username IS NOT NULL AND username <> ''
+                              AND password_encrypted IS NOT NULL AND password_encrypted <> ''"""
+                    )
+                    for r2 in cur2.fetchall():
+                        d2 = dict(r2)
+                        armed_keys.add((d2["agent_id"], d2["platform"]))
+            except Exception as exc:
+                # Never let the arming indicator break the panel — show unknown.
+                logger.warning("[scout] armed-state lookup failed: %s", type(exc).__name__)
+                armed_keys = None
+
             for p in (pr.json() or {}).get("profiles") or []:
+                key = (p.get("agent_id"), p.get("platform"))
                 out["profiles"].append(
                     {
                         "agent_id": p.get("agent_id"),
                         "platform": p.get("platform"),
                         "profile_established": bool(p.get("established")),
+                        "auto_relogin_armed": (None if armed_keys is None else (key in armed_keys)),
                     }
                 )
         except Exception:
@@ -270,6 +293,92 @@ def register_scout_routes(bp, admin_required):
             return jsonify({"success": True})
         except Exception as exc:
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/scout/sessions/<int:agent_id>/<platform>/credentials", methods=["POST"])
+    @admin_required
+    def api_scout_session_credentials(agent_id, platform):
+        """Slice 3 (#5627 follow-up) — arm the AUTOMATED re-login for this profile.
+
+        Stores username+password encrypted (Fernet, BROWSER_ENCRYPTION_KEY) in the
+        browser sidecar's vault. Does NOT attempt a login: use the existing
+        `/api/browser/sessions/<id>/setup` for that, or just let the next logged-out
+        skill run repair itself.
+
+        WHY THIS MATTERS: without stored credentials the auto re-login logs
+        "NO stored credentials — human re-auth required" and stops. Today only agent
+        342 is armed (and only because a login once ran through the old path); 377 and
+        379 were established via noVNC, which never stores a password. This route is
+        how an operator arms them from the 🔐 Session panel.
+
+        ⚠️ The password is written, never read back. Responses and logs carry booleans
+        only — no echo of the credential, and no `str(exc)` (a DB error can quote the
+        statement). Storing it raises blast radius from session-theft to
+        account-takeover if BROWSER_ENCRYPTION_KEY leaks; that is the deliberate
+        trade for unattended re-auth.
+        """
+        import os as _os
+
+        import requests as _requests
+
+        data = request.get_json(silent=True) or {}
+        username = (data.get("username") or "").strip()
+        password = data.get("password") or ""
+        if not username or not password:
+            return jsonify({"success": False, "error": "username and password required"}), 400
+
+        # NOTE: the sidecar authenticates with BROWSER_API_KEY (its `_API_KEY`), NOT
+        # INTERNAL_API_KEY — those are different secrets and sending the wrong one is
+        # a flat 401. Same env names browser_routes.py already uses.
+        browser_url = _os.getenv("ARCHIE_BROWSER_URL", "http://archie_browser:4242")
+        try:
+            resp = _requests.post(
+                f"{browser_url}/session/credentials",
+                json={
+                    "agent_id": agent_id,
+                    "platform": platform,
+                    "username": username,
+                    "password": password,
+                },
+                headers={"Authorization": f"Bearer {_os.getenv('BROWSER_API_KEY', '')}"},
+                timeout=15,
+            )
+            if 200 <= resp.status_code < 300:
+                logger.info("[scout] credentials stored for %s/%s", agent_id, platform)
+                return jsonify({"success": True, "stored": True, "agent_id": agent_id, "platform": platform})
+            logger.error("[scout] credential store rejected: HTTP %s", resp.status_code)
+            return jsonify({"success": False, "error": f"sidecar returned HTTP {resp.status_code}"}), 502
+        except Exception as exc:
+            logger.error("[scout] credential store failed for %s/%s: %s", agent_id, platform, type(exc).__name__)
+            return jsonify({"success": False, "error": f"store failed ({type(exc).__name__})"}), 500
+
+    @bp.route("/api/scout/sessions/<int:agent_id>/<platform>/credentials", methods=["GET"])
+    @admin_required
+    def api_scout_session_credentials_status(agent_id, platform):
+        """Is the automated re-login ARMED for this profile? Booleans only — the
+        panel needs to show a state, and must never be able to read the secret back."""
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    "SELECT username, password_encrypted FROM agent_browser_sessions "
+                    "WHERE agent_id = %s AND platform = %s",
+                    (agent_id, platform),
+                )
+                row = cur.fetchone()
+            has_user = bool(row and (row["username"] if isinstance(row, dict) else row[0]))
+            has_pass = bool(row and (row["password_encrypted"] if isinstance(row, dict) else row[1]))
+            return jsonify(
+                {
+                    "success": True,
+                    "armed": has_user and has_pass,
+                    "has_username": has_user,
+                    "has_password": has_pass,
+                }
+            )
+        except Exception as exc:
+            logger.error("[scout] credential status failed: %s", type(exc).__name__)
+            return jsonify({"success": False, "error": f"status failed ({type(exc).__name__})"}), 500
 
     # ── #4006 phase 2a — platform registry + generic login capture ──
     # Interactive login capture for ANY registry platform (not just the

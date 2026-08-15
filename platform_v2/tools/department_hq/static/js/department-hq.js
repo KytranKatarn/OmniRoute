@@ -2634,6 +2634,37 @@ async function signalSessionLookup() {
     await loadSignalTab('session', true);
 }
 
+function _signalIdentityBanner(d, aid, plat) {
+    // "Which login is this, and what goes down with it?" — the two questions the
+    // card could not answer (#5627 follow-up). Profile 342 alone carries Kytran
+    // Katarn + Kytran Empowerment Inc. + Creed-AI, which is why ONE logged-out
+    // profile read as four broken accounts on 2026-08-15.
+    var accts = d.serves_accounts || [];
+    if (!accts.length) return '';
+    var posting = accts.filter(function(a) { return a.can_post; });
+    var stale = (d.db_session || {}).status === 'stale';
+    var names = accts.map(function(a) {
+        return '<span style="display:inline-block;background:#0b1220;border:1px solid #1e293b;'
+            + 'border-radius:4px;padding:1px 7px;margin:2px 4px 2px 0;font-size:0.72rem">'
+            + esc(a.display_label || a.account_key)
+            + (a.can_post ? '' : ' <span style="color:#64748b">(no post)</span>') + '</span>';
+    }).join('');
+    var head = stale
+        ? '<span style="color:#ef4444">⛔ ' + posting.length + ' account'
+          + (posting.length === 1 ? '' : 's') + ' PAUSED — this profile is logged out</span>'
+        : '<span style="color:#22c55e">● ' + posting.length + ' account'
+          + (posting.length === 1 ? '' : 's') + ' post through this one login</span>';
+    return '<div style="border:1px solid ' + (stale ? '#7f1d1d' : '#1e293b') + ';border-radius:6px;'
+        + 'padding:8px 10px;margin:0 0 10px;background:' + (stale ? 'rgba(127,29,29,0.12)' : 'transparent') + '">'
+        + '<div style="font-size:0.78rem;margin-bottom:4px">' + head + '</div>'
+        + '<div>' + names + '</div>'
+        + (stale
+            ? '<div style="font-size:0.72rem;color:#f59e0b;margin-top:6px">Their posts stay <b>scheduled</b> '
+              + '(not failed) until this profile is authenticated again — nothing is lost.</div>'
+            : '')
+        + '</div>';
+}
+
 function renderOneSignalSession(idn, d, isActive) {
     var aid = idn.agentId;
     var plat = idn.platform || 'linkedin';
@@ -2652,7 +2683,22 @@ function renderOneSignalSession(idn, d, isActive) {
             : '')
         + '</h4>'
         + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">' + esc(idn.note) + '</p>'
+        // WHICH LOGIN + WHAT IT TAKES DOWN (#5627 follow-up). Without these two lines
+        // the card said "342 · stale" and left you to work out both the account to log
+        // in as and the fact that THREE S.I.G.N.A.L. accounts ride this one profile.
+        + _signalIdentityBanner(d, aid, plat)
         + '<table class="dhq-table" style="width:100%;margin-bottom:14px"><tbody>'
+        + '<tr><td>Log in as</td><td>' + (d.stored_login
+            ? '<code style="background:#0b1220;border:1px solid #1e293b;border-radius:4px;padding:1px 6px;'
+              + 'font-family:IBM Plex Mono,monospace;color:#e2e8f0">' + esc(d.stored_login) + '</code>'
+            : '<span style="color:#94a3b8">not recorded — enter it under STORE LOGIN below</span>') + '</td></tr>'
+        + '<tr><td>Automated re-login</td><td>' + (d.auto_relogin_armed === true
+            ? '<span style="color:#22c55e">● ARMED</span> <span style="color:#94a3b8;font-size:0.75rem">'
+              + '— repairs itself on the next logged-out run; noVNC only if LinkedIn asks for phone/CAPTCHA</span>'
+            : (d.auto_relogin_armed === false
+                ? '<span style="color:#94a3b8">○ manual only</span> <span style="color:#94a3b8;font-size:0.75rem">'
+                  + '— every logout needs a hand-done noVNC login until a password is stored</span>'
+                : '<span style="color:#f59e0b">? unknown</span>')) + '</td></tr>'
         + '<tr><td>Persistent profile (device-trusted)</td><td>'
         + (profileOk ? '<span style="color:#22c55e">● ESTABLISHED</span>'
                      : '<span style="color:#ef4444">● NOT ESTABLISHED — one-time login required</span>') + '</td></tr>'
@@ -2684,7 +2730,10 @@ function renderOneSignalSession(idn, d, isActive) {
         + '<p class="dhq-empty" style="text-align:left;margin:0 0 8px;font-size:0.78rem">Stored AES-encrypted in the browser credential store — NOT in .env. '
         + 'Used by the fleet for automated re-login; the one-time trusted login above is still done by hand in noVNC.</p>'
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;max-width:560px">'
+        // Prefilled with the login already on file so re-arming is one field, and so
+        // the account this profile belongs to is visible without guessing.
         + '<input id="liCredUser_' + key + '" type="text" autocomplete="off" placeholder="' + esc(plat) + ' email" '
+        + 'value="' + esc(d.stored_login || '') + '" '
         + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'
         + '<input id="liCredPass_' + key + '" type="password" autocomplete="new-password" placeholder="' + esc(plat) + ' password" '
         + 'style="flex:1 1 200px;background:#0b1220;border:1px solid #1e293b;border-radius:6px;color:#e2e8f0;padding:6px 9px;font:inherit">'

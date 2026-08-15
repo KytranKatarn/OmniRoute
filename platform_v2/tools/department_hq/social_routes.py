@@ -225,6 +225,55 @@ def register_social_routes(bp, admin_required):
                 out["db_session"] = dict(row) if row else None
         except Exception as exc:
             out["db_session_error"] = str(exc)
+
+        # WHICH LOGIN IS THIS, AND WHAT DOES IT TAKE DOWN? (#5627 follow-up)
+        #
+        # The panel used to show only an agent id and a status dot, so "342 is stale"
+        # gave the owner no way to know that (a) the account to log in as is
+        # kytranempowerment@gmail.com and (b) THREE S.I.G.N.A.L. accounts post through
+        # that one profile — Kytran Katarn, Kytran Empowerment Inc. and Creed-AI. That
+        # is why a single dead profile paused three accounts and read as "four broken
+        # accounts". Both facts are already in the DB; they were simply never surfaced.
+        #
+        # ⚠️ USERNAME ONLY. `password_encrypted` is never selected, never returned.
+        # `auto_relogin_armed` is a boolean so the panel can say "armed" without the
+        # secret ever leaving the server.
+        try:
+            from database import get_db_cursor
+
+            with get_db_cursor(commit=False) as (_c, cur):
+                cur.execute(
+                    """SELECT username,
+                              (password_encrypted IS NOT NULL AND password_encrypted <> '') AS armed
+                         FROM agent_browser_sessions
+                        WHERE agent_id = %s AND platform = %s""",
+                    (agent_id, platform),
+                )
+                crow = cur.fetchone()
+                if crow:
+                    crow = dict(crow)
+                    out["stored_login"] = crow.get("username") or None
+                    out["auto_relogin_armed"] = bool(crow.get("armed"))
+                else:
+                    out["stored_login"] = None
+                    out["auto_relogin_armed"] = False
+
+                # Which S.I.G.N.A.L. accounts ride this profile — the blast radius.
+                cur.execute(
+                    """SELECT account_key, display_label, can_post
+                         FROM agent_platform_accounts
+                        WHERE platform = %s AND browser_agent_id = %s
+                        ORDER BY account_key""",
+                    (platform, agent_id),
+                )
+                out["serves_accounts"] = [dict(r) for r in cur.fetchall()]
+        except Exception as exc:
+            # Never let the new context break a panel that worked before it existed.
+            out["identity_error"] = f"identity lookup failed ({type(exc).__name__})"
+            out.setdefault("stored_login", None)
+            out.setdefault("auto_relogin_armed", None)
+            out.setdefault("serves_accounts", [])
+
         try:
             r = _rq.get(
                 f"{_LOGIN_SIDECAR}/status",

@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-08-11 08:45:23 EDT · **Provenance measured**: 2026-08-11 03:40:09 EDT
+**Collected**: 2026-08-14 22:56:10 EDT · **Provenance measured**: 2026-08-12 03:40:15 EDT
 
-44/50 hub containers running · 9 image-baked products · 0 absent.
+43/50 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -36,7 +36,7 @@
 | `archie_browser` | running | archie_brain | — | `archie_brain-archie_browser:latest` |
 | `archie_browser_login` | running | archie_brain | 4280->4280/tcp | `archie_brain-archie_browser_login:latest` |
 | `archie_codex_terminal` | running | archie_brain | 17682->7681/tcp | `archie_brain-archie_codex_terminal:latest` |
-| `archie_comfyui` ⚠ | exited | archie_brain | — | `sha256:3268b8c8da09` |
+| `archie_comfyui` ⚠ | exited | archie_brain | — | `archie_brain-archie_comfyui:latest` |
 | `archie_comms` | running | archie_brain | 3002->3002/tcp | `archie_brain-archie_comms:latest` |
 | `archie_database` | running | archie_brain | 5432->5432/tcp | `pgvector/pgvector:pg16` |
 | `archie_engine` | running | archie_brain | 9090->9090/tcp | `archie_brain-archie_engine:latest` |
@@ -70,7 +70,7 @@
 | `media_prowlarr` | running | media-stack | 9696->9696/tcp | `lscr.io/linuxserver/prowlarr:2.3.5` |
 | `media_radarr` | running | media-stack | 7878->7878/tcp | `lscr.io/linuxserver/radarr:6.1.1` |
 | `media_sabnzbd` | running | media-stack | 8083->8080/tcp | `lscr.io/linuxserver/sabnzbd:4.5.5` |
-| `media_samba` | running | media-stack | 445->445/tcp | `dperson/samba:latest` |
+| `media_samba` ⚠ | exited | media-stack | — | `dperson/samba:latest` |
 | `media_sonarr` | running | media-stack | 8989->8989/tcp | `lscr.io/linuxserver/sonarr:4.0.17` |
 | `mediahub_app` | running | media_hub | 8105->8105/tcp | `mediahub:standalone` |
 | `mediahub_db` | running | media_hub | — | `postgres:16.4-alpine` |

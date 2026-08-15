@@ -684,6 +684,14 @@ services:
       - /var/run:size=16m
       - /comfyui/temp:size=1g
       - /root/.local:size=256m
+      # triton JIT cache — comfy_kitchen imports triton at startup, whose cache
+      # manager os.makedirs('/root/.triton') before ComfyUI ever binds a port.
+      # Under read_only:true that raised OSError 30 and the container could not
+      # boot at all. Cache only (kernels recompile on start) — nothing to persist.
+      # exec is REQUIRED: docker mounts tmpfs noexec by default, and triton
+      # dlopen()s the cuda_utils.so it just compiled here — noexec turns that
+      # into "failed to map segment from shared object".
+      - /root/.triton:size=256m,exec
     mem_limit: 8g
     cpus: 2.0
     cap_drop:

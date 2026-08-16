@@ -119,6 +119,15 @@ check.** That is how PR #2458 reached main on a `needs_changes` verdict. So the 
 below re-checks the verdict **in code** and refuses before it ever overrides — never
 rely on Step 5's prose to catch it, because prose is advice and this is a merge.
 
+⚠️ **`governance_blocked` does NOT mean "authority limit".** The same flag is raised for a
+**STALE VERDICT** — an approval that covers an older commit than the head. The in-code
+pre-check cannot catch that, because it verifies the verdict TEXT, not that the verdict
+covers the head SHA. Overriding there merges code **no approval covers**.
+Measured 2026-08-16 on PR #2614: a conflict resolution moved the head, the gate said
+*"STALE VERDICT … re-run review_pr()"*, and a `governance_blocked`-only branch overrode it
+anyway. Stage 2 below therefore **allowlists** the refusal reasons that may be overridden
+and **fails closed** on everything else. If you see a stale verdict: **re-review, then merge.**
+
 ```bash
 docker exec archie_platform python3 -c "
 import sys; sys.path.insert(0, '/app')
@@ -140,16 +149,42 @@ res = merge_pr(PR, 'squash')
 if res.get('merged'):
     print('MERGE: merged (gated, no override needed)'); sys.exit(0)
 
-# ---- stage 2: gate refused. Verdict is already verified above, so the refusal is an
-#      AUTHORITY/allowlist limit -> the interactive human clears it, ON THE RECORD ----
-if res.get('governance_blocked'):
-    print('gate refused (authority/allowlist):', res.get('error'))
+# ---- stage 2: the gate refused. `governance_blocked` is NOT automatically an authority
+#      limit. The SAME flag covers a STALE VERDICT, and human_override skips that check
+#      too — so overriding it merges code that NO approval covers. The pre-check above
+#      cannot catch this: it verifies the verdict TEXT, not that the verdict covers the
+#      head SHA being merged.
+#
+#      Measured 2026-08-16 on PR #2614: resolving a merge conflict moved the head, the
+#      gate correctly said "STALE VERDICT ... the review covers 1010d1be but the head is
+#      now 0b5cd103 — re-run review_pr()", and a governance_blocked-ONLY branch overrode
+#      it regardless. That is #2458 with extra steps.
+#
+#      So: override ONLY on a RECOGNISED authority refusal. Anything else fails CLOSED. ----
+err = (res.get('error') or '')
+low = err.lower()
+stale = ('stale verdict' in low) or ('head is now' in low)
+authority = ('allowlist' in low) or ('a human must merge' in low) or ('max_auto' in low) or ('ceiling' in low)
+
+if res.get('governance_blocked') and stale:
+    print('REFUSED (stale verdict): the approval covers an OLDER commit than the head.')
+    print('  Re-run review_pr(PR) so the verdict covers what is actually being merged,')
+    print('  then re-run this step. Never override a stale verdict.')
+    print('  gate said:', err[:220]); sys.exit(1)
+elif res.get('governance_blocked') and authority:
+    print('gate refused (authority/allowlist):', err[:200])
     res2 = merge_pr(PR, 'squash', human_override=True)
-    print('MERGE:', 'merged (human_override, verdict pre-verified)' if res2.get('merged')
-          else 'FAILED', '|', res2.get('error',''))
+    print('MERGE:', 'merged (human_override; verdict pre-verified AND covers head)'
+          if res2.get('merged') else 'FAILED', '|', (res2.get('error') or '')[:160])
+elif res.get('governance_blocked'):
+    # Unrecognised governance reason -> we do not know it is safe to override. Fail closed.
+    print('REFUSED: governance refusal is not a recognised AUTHORITY limit — NOT overriding.')
+    print('  gate said:', err[:220]); sys.exit(1)
 else:
     # NOT a governance refusal (conflict, 5xx, draft, CI) -> do NOT override; fix the cause.
-    print('MERGE: FAILED (non-governance):', res.get('error',''))
+    # A merge CONFLICT lands here: resolve it by merging main INTO the branch (never a
+    # force-push), then RE-REVIEW, because the resolution is code nobody has reviewed.
+    print('MERGE: FAILED (non-governance):', err[:200])
 "
 ```
 

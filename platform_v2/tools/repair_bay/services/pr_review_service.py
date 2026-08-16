@@ -374,15 +374,43 @@ def _automerge_paths_allowed(pr_number: int, repo: str):
     return (not blocking), blocking
 
 
+def pr_head_sha(pr_number: int, repo: str = None) -> str:
+    """The PR's CURRENT head commit SHA, or '' if it cannot be determined (#5646).
+
+    Returns '' rather than raising: callers treat an unknown SHA as "cannot prove
+    freshness", which the merge gate turns into a refusal. Never let this look like
+    a match.
+    """
+    try:
+        from .github_service import _api_get  # noqa: PLC0415
+
+        ok, data = _api_get(f"/repos/{repo or _DEFAULT_REPO}/pulls/{pr_number}")
+        if not ok or not isinstance(data, dict):
+            return ""
+        return str(((data.get("head") or {}).get("sha") or "")).strip()
+    except Exception:  # noqa: BLE001 — freshness is advisory to the caller, never fatal here
+        logger.warning("[PR Review] could not read head SHA for PR #%s", pr_number, exc_info=True)
+        return ""
+
+
 def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge: bool = True) -> None:
+    # Stamp WHICH COMMIT this verdict covers (#5646). Without it the gate could only
+    # ask "is there an approval?", never "does it cover the code being merged?" — and
+    # the ordinary workflow (open PR -> review -> address feedback -> push -> merge)
+    # produces a stale verdict EVERY time. Measured on PR #2600: the stored APPROVE at
+    # 02:38:36Z predated commit c787958fc at 02:41:41Z and had never seen the file that
+    # commit changed, yet the gate reported a clean approval.
+    _head = pr_head_sha(pr_number, repo)
     with get_db_cursor(commit=True) as (conn, cur):
         cur.execute(
             """
             UPDATE pr_reviews
-            SET review_status='reviewed', ai_summary=%s, ai_review_at=NOW(), updated_at=NOW()
+            SET review_status='reviewed', ai_summary=%s, ai_review_at=NOW(), updated_at=NOW(),
+                metadata = COALESCE(metadata, '{}'::jsonb)
+                           || jsonb_build_object('reviewed_head_sha', %s::text)
             WHERE pr_number=%s AND repo=%s
             """,
-            (summary, pr_number, repo or _DEFAULT_REPO),
+            (summary, _head, pr_number, repo or _DEFAULT_REPO),
         )
 
     # ST-4: persist which review path produced this verdict + emit a telemetry line, so the

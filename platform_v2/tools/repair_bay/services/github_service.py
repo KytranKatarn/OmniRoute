@@ -640,6 +640,7 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
             _automerge_paths_allowed,
             classify_pr_tier,
             get_review,
+            pr_head_sha,
             verdict_is_approved,
         )
 
@@ -652,6 +653,50 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
             return (
                 False,
                 f"F.O.R.G.E. verdict for PR #{pr_number} is not an approval — refusing unattended merge",
+            )
+
+        # CONDITION 1b — THE VERDICT MUST COVER THE CODE BEING MERGED (#5646).
+        #
+        # Conditions 1 and 3 asked "is there an approval?" and "is the tier low
+        # enough?" — never "did that approval SEE this commit?". The ordinary
+        # workflow produces a stale verdict EVERY time: open PR -> review ->
+        # address feedback -> push -> merge. The gate was blind exactly where it is
+        # most needed.
+        #
+        # MEASURED on PR #2600 (2026-08-16): commit 347127e96 at 02:30:27Z, stored
+        # APPROVE at 02:38:36Z, then commit c787958fc at 02:41:41Z touching a file
+        # (linkedin_post_comments.py) the review had never seen. The gate reported a
+        # clean approval. This is the #2458 shape one level up — the verdict was a
+        # genuine approval, just of DIFFERENT code.
+        #
+        # SAFETY property, so it sits here with the other universal checks and NOT
+        # inside the per-authority tier branch (decision #953): "the verdict covers
+        # the code" binds F.O.R.G.E., the COO and every future actor identically.
+        #
+        # FAILS CLOSED on an unknown SHA either side. An older review row predating
+        # this change has no stamp, so it cannot prove freshness and is refused —
+        # deliberately: the remedy is one re-review, whereas trusting an unstamped
+        # row silently reinstates the exact hole this closes.
+        reviewed_sha = str((review.get("metadata") or {}).get("reviewed_head_sha") or "").strip()
+        current_sha = pr_head_sha(pr_number, repo)
+        if not reviewed_sha:
+            return (
+                False,
+                f"the stored review for PR #{pr_number} does not record which commit it covers "
+                f"(pre-#5646 row) — re-run review_pr() before merging",
+            )
+        if not current_sha:
+            return (
+                False,
+                f"could not read the current head SHA for PR #{pr_number} — refusing to assume "
+                f"the stored verdict is current",
+            )
+        if reviewed_sha != current_sha:
+            return (
+                False,
+                f"STALE VERDICT for PR #{pr_number}: the review covers {reviewed_sha[:8]} but the "
+                f"head is now {current_sha[:8]} — commits landed after the review; re-run "
+                f"review_pr() so the verdict covers the code being merged",
             )
 
         # CONDITION 2 — SENSITIVE-PATH ALLOWLIST. Deny-by-default; code that RUNS

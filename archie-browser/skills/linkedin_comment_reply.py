@@ -11,8 +11,18 @@ linkedin_comment, PR #1805).
 """
 import os
 import re
+import sys
 from datetime import datetime
 from urllib.parse import unquote
+
+# Skills are loaded by spec_from_file_location, which does NOT put the skills
+# dir on sys.path — see the _linkedin_common docstring.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import (  # noqa: E402
+    COMMENT_NODE_SEL,
+    comment_ids_from_urn,
+    comment_node_selector_for_id,
+)
 
 SKILL_NAME = "linkedin_comment_reply"
 PLATFORMS = ["linkedin"]
@@ -20,10 +30,9 @@ PLATFORMS = ["linkedin"]
 _SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "/tmp/browser_screenshots")
 os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
 
-_COMMENT_SEL = (
-    "article.comments-comment-entity, .comments-comment-item, "
-    ".comments-comments-list__comment-item, [data-id*='comment']"
-)
+# Shared with linkedin_comment / linkedin_comment_like (#5650) — the three used
+# to carry byte-identical copies, so one LinkedIn markup change broke all three.
+_COMMENT_SEL = COMMENT_NODE_SEL
 
 
 def _screenshot(page, name):
@@ -54,9 +63,12 @@ def _norm(s):
 
 def _target_comment_id(comment_url):
     # commentUrn=urn:li:comment:(activity:<act>,<commentId>) — grab <commentId>.
-    dec = unquote(comment_url or "")
-    m = re.search(r"comment:\(activity:\d+,(\d+)\)", dec)
-    return m.group(1) if m else ""
+    # Shape-tolerant (#5650): SDUI renders the LONG urn (urn:li:activity: inside
+    # the parens) while we store the SHORT one, and the old regex accepted only
+    # the short shape — a long-form deep-link silently yielded no target id and
+    # fell through to fuzzy author/text matching.
+    _act, cid = comment_ids_from_urn(unquote(comment_url or ""))
+    return cid or ""
 
 
 def execute(page, params: dict) -> dict:
@@ -111,7 +123,7 @@ def execute(page, params: dict) -> dict:
     cid = _target_comment_id(comment_url)
     if cid:
         try:
-            cand = page.locator(f"[data-id*='{cid}']").first
+            cand = page.locator(comment_node_selector_for_id(cid)).first
             cand.wait_for(state="visible", timeout=3000)
             target = cand
             target_idx = -2  # matched by id

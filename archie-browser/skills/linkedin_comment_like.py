@@ -13,8 +13,18 @@ is returned as success with ``already=True`` (idempotent).
 """
 import os
 import re
+import sys
 from datetime import datetime
 from urllib.parse import unquote
+
+# Skills are loaded by spec_from_file_location, which does NOT put the skills
+# dir on sys.path — see the _linkedin_common docstring.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import (  # noqa: E402
+    COMMENT_NODE_SEL,
+    comment_ids_from_urn,
+    comment_node_selector_for_id,
+)
 
 SKILL_NAME = "linkedin_comment_like"
 PLATFORMS = ["linkedin"]
@@ -22,10 +32,9 @@ PLATFORMS = ["linkedin"]
 _SCREENSHOTS_DIR = os.getenv("SCREENSHOTS_DIR", "/tmp/browser_screenshots")
 os.makedirs(_SCREENSHOTS_DIR, exist_ok=True)
 
-_COMMENT_SEL = (
-    "article.comments-comment-entity, .comments-comment-item, "
-    ".comments-comments-list__comment-item, [data-id*='comment']"
-)
+# Shared with linkedin_comment / linkedin_comment_reply (#5650) — the three used
+# to carry byte-identical copies, so one LinkedIn markup change broke all three.
+_COMMENT_SEL = COMMENT_NODE_SEL
 
 
 def _screenshot(page, name):
@@ -56,14 +65,35 @@ def _norm(s):
 
 def _target_comment_id(comment_url):
     # commentUrn=urn:li:comment:(activity:<act>,<commentId>) — grab <commentId>.
-    dec = unquote(comment_url or "")
-    m = re.search(r"comment:\(activity:\d+,(\d+)\)", dec)
-    return m.group(1) if m else ""
+    # Shape-tolerant (#5650): SDUI renders the LONG urn (urn:li:activity: inside
+    # the parens) while we store the SHORT one, and the old regex accepted only
+    # the short shape — a long-form deep-link silently yielded no target id and
+    # fell through to fuzzy author/text matching.
+    _act, cid = comment_ids_from_urn(unquote(comment_url or ""))
+    return cid or ""
 
 
 def _like_button(target):
     """The target comment's own Like toggle — scoped to the comment node so we can
-    never hit the POST's like button by accident."""
+    never hit the POST's like button by accident.
+
+    🔴 KNOWN BROKEN ON SDUI SURFACES (#5650 → follow-up #5651). Targeting the right
+    comment node was fixed in #5650, but the like ACTION was not: on the migrated
+    post-detail surface a comment's buttons are, measured 2026-08-16:
+
+        aria-label="View more options for <author>’s comment."
+        aria-label="Open reactions menu"        <-- the like affordance now
+        aria-label="Reply"
+        (a componentkey DIV holding the reaction count, e.g. "0")
+
+    There is no button named "Like" and NO aria-pressed anywhere in the node, so
+    all three getters below miss AND the honesty contract loses its state evidence.
+    Failing here is CORRECT behaviour for now — this skill reports failure rather
+    than claiming a like it cannot verify. Do NOT "fix" it by clicking
+    "Open reactions menu" blind: that opens a reaction PICKER (a different
+    interaction), and the new pressed-state signal has to be established by a real
+    like against a live account, which needs Kytran's go-ahead to test.
+    """
     for getter in [
         lambda: target.locator('button[aria-label^="Like"], button[aria-label*=" Like"]').first,
         lambda: target.get_by_role("button", name=re.compile(r"^Like\b", re.I)).first,
@@ -149,7 +179,7 @@ def execute(page, params: dict) -> dict:
     cid = _target_comment_id(comment_url)
     if cid:
         try:
-            cand = page.locator(f"[data-id*='{cid}']").first
+            cand = page.locator(comment_node_selector_for_id(cid)).first
             cand.wait_for(state="visible", timeout=3000)
             target = cand
             target_idx = -2  # matched by id

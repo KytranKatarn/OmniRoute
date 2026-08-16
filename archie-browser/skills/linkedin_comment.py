@@ -1,6 +1,16 @@
 """LinkedIn comment — posts a comment on a LinkedIn post by URL."""
 import os
+import sys
 from datetime import datetime
+
+# Skills are loaded by spec_from_file_location, which does NOT put the skills
+# dir on sys.path — see the _linkedin_common docstring.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _linkedin_common import (  # noqa: E402
+    COMMENT_NODE_SEL,
+    build_comment_deeplink,
+    normalize_comment_urn,
+)
 
 SKILL_NAME = "linkedin_comment"
 PLATFORMS = ["linkedin"]
@@ -21,41 +31,41 @@ def _screenshot(page, name):
         return None
 
 
-_COMMENT_NODE_SEL = (
-    "article.comments-comment-entity, .comments-comment-item, "
-    ".comments-comments-list__comment-item, [data-id*='comment']"
-)
-
-
 def _capture_comment_urn(page, needle, norm):
-    """Best-effort: find OUR rendered comment's node and lift its comment URN from
-    the data-id attribute (urn:li:comment:(activity:<a>,<c>) — the same id
-    linkedin_comment_reply targets). Returns (urn, deep_link) or (None, None).
-    The deep link is the only form that renders the thread for automation
-    (KB #274178) and is what cross-boost needs to LIKE this comment later
-    (#4632 follow-up: comments on THIRD-party posts have no notification-bell
-    deep-link, so we must capture it at posting time)."""
-    import re as _re
-    from urllib.parse import quote
+    """Best-effort: find OUR rendered comment's node and lift its comment URN.
+    Returns (urn, deep_link) or (None, None) — urn in the canonical SHORT form
+    ``urn:li:comment:(activity:<a>,<c>)``, the same shape linkedin_comment_reply
+    targets and the same shape already stored in ``linkedin_comments``.
 
+    Cross-boost needs this: comments on THIRD-party posts have no
+    notification-bell deep-link, so the urn must be captured at posting time
+    (#4632 follow-up).
+
+    ⚠️ REWRITTEN #5650. This returned (None, None) on every migrated surface —
+    it read the urn from a ``data-id`` attribute that LinkedIn's server-driven
+    UI no longer emits, and its regex only accepted the short urn shape while
+    SDUI renders the long one. Both halves failed, so PR #2600 (which shipped
+    exactly this capability) was a silent no-op on post detail. The urn now
+    comes from the componentkey, which CARRIES it — no attribute hunt at all.
+    """
     try:
-        nodes = page.locator(_COMMENT_NODE_SEL)
+        nodes = page.locator(COMMENT_NODE_SEL)
         n = min(nodes.count(), 15)
         for i in range(n):
             node = nodes.nth(i)
             try:
                 if needle and needle not in norm(node.inner_text(timeout=800)):
                     continue
-                did = node.get_attribute("data-id", timeout=800) or ""
-                m = _re.search(r"urn:li:comment:\(activity:(\d+),\d+\)", did)
-                if not m:
+                # componentkey/id carry the urn on SDUI; data-id on legacy surfaces.
+                raw = ""
+                for attr in ("componentkey", "id", "data-id"):
+                    raw = node.get_attribute(attr, timeout=800) or ""
+                    if "urn:li:comment:" in raw:
+                        break
+                urn = normalize_comment_urn(raw)
+                if not urn:
                     continue
-                urn = m.group(0)
-                link = (
-                    f"https://www.linkedin.com/feed/update/urn:li:activity:{m.group(1)}/"
-                    f"?commentUrn={quote(urn, safe='')}"
-                )
-                return urn, link
+                return urn, build_comment_deeplink(urn)
             except Exception:
                 continue
     except Exception:

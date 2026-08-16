@@ -632,7 +632,9 @@ def _recompute_verdict(issues: list, confidence, threshold: float) -> str:
     return "APPROVE"
 
 
-def _render_review_text(parsed: dict, model: str = "", note: str = "", n_ungrounded: int = 0) -> str:
+def _render_review_text(
+    parsed: dict, model: str = "", note: str = "", n_ungrounded: int = 0, unsupported_claims: list = None
+) -> str:
     """Render parsed JSON back into the canonical SUMMARY/ISSUES/VERDICT text so every downstream
     consumer (parse_verdict, merge gate, notify, UI) is unchanged."""
     issues = parsed.get("issues") or []
@@ -650,7 +652,8 @@ def _render_review_text(parsed: dict, model: str = "", note: str = "", n_ungroun
     meta = f"\n[review-meta] structured=json model={model or 'default'} confidence={conf}"
     if note:
         meta += f" {note}"
-    meta += _quality_suffix("json", n_ungrounded, issues)  # #5018 provenance, never a verdict change
+    # #5018 provenance + #5647 false-CLEAR flags. NEITHER changes the verdict.
+    meta += _quality_suffix("json", n_ungrounded, issues, unsupported_claims)
     return "\n".join(lines) + f"\n\nVERDICT: {parsed.get('verdict', 'NEEDS REVIEW')}" + meta
 
 
@@ -929,7 +932,127 @@ def _should_floor_ungrounded(verdict: str, n_ungrounded: int, surviving_issues: 
     return bool(verdict == "APPROVE" and n_ungrounded > 0 and not surviving_issues)
 
 
-def review_quality_flags(structured: str, n_ungrounded: int, surviving_issues: list) -> list:
+# --- GATE 5 (#5647): the FALSE CLEAR ---------------------------------------------------
+#
+# Gates 1-4 all interrogate FINDINGS (grounding / polarity / checkable-claim / severity). An
+# APPROVE carries NO findings, so the summary PROSE of a clear is never checked against the
+# diff at all. That is the hole, and it is not theoretical — three measured cases:
+#
+#   PR #2600  APPROVE: "introduces a shadow DOM-piercing mechanism [that] resolves the issue"
+#             — it did not; a live re-test still returned 0. The reviewer believed a CODE
+#             COMMENT describing an intention.
+#   PR #2603  APPROVE: "The parameterized SQL usage and test addition are correct."
+#             — that PR contained NO SQL and NO tests. 1 file, 0 test files, 0 `assert`.
+#             Wholesale fabrication, and every existing gate passed it.
+#   PR #2609  the inverse — a false CRITICAL grounded in a `@-@` REMOVED line. Run 2 on the
+#             SAME diff, zero code changed, self-retracted it. The gates are
+#             NON-DETERMINISTIC, not absent, which is why a single run must never be
+#             treated as authoritative.
+#
+# THE ASYMMETRY THAT MATTERS: this gate STRIPS THE CLAIM AND KEEPS THE APPROVE. It must never
+# convert a clear into a block — a fabricated compliment is a reporting defect, not evidence
+# the code is broken, and flipping the verdict on it would make every clean PR unmergeable.
+# Same principle as review_quality_flags(): annotate instead of adjudicate.
+#
+# Deliberately CONSERVATIVE in both directions:
+#   * the "does the diff have X" probes are LIBERAL (any hint counts as present), so a claim
+#     is only stripped when the artifact is plainly absent;
+#   * a sentence OBSERVING an absence ("no tests were added", "consider adding a migration")
+#     is legitimate review content and is never stripped.
+
+_ARTIFACT_ABSENCE_HINTS = (
+    "no ",
+    "not ",
+    "n't",
+    "never",
+    "missing",
+    "lack",
+    "absent",
+    "without",
+    "should add",
+    "consider adding",
+    "needs",
+    "would benefit",
+    "recommend",
+)
+
+# (label, summary asserts it, diff-actually-has-it probe)
+_ARTIFACT_CLAIM_CHECKS = (
+    (
+        "tests",
+        r"\btests?\b|\btesting\b|\btest (?:addition|coverage|case|suite)s?\b",
+        r"(?mi)^\+\+\+\s+\S*test|^\+.*(?:def test_|assert\s|it\(|describe\(|pytest|unittest)",
+    ),
+    (
+        "sql",
+        r"\bsql\b|\bparameteri[sz]ed\s+quer|\bprepared statement|\bbind(?:ing)? parameter",
+        r"(?mi)^\+.*(?:\bselect\b|\binsert\b|\bupdate\b|\bdelete\b|\bfrom\b\s+\w+|cur\.execute|cursor|%s|psycopg)",
+    ),
+    (
+        "migration",
+        r"\bmigrations?\b",
+        r"(?mi)^\+\+\+\s+\S*migrations?/|^\+.*(?:ALTER TABLE|CREATE TABLE|ADD COLUMN)",
+    ),
+)
+
+
+def _split_sentences(text: str) -> list:
+    """Cheap sentence split — good enough for review prose, no NLP dependency."""
+    parts = re.split(r"(?<=[.!?])\s+", (text or "").strip())
+    return [p for p in parts if p.strip()]
+
+
+def unsupported_artifact_claims(summary: str, diff: str) -> list:
+    """Artifact classes the SUMMARY asserts as present/correct but the DIFF does not contain.
+
+    Returns e.g. ``['sql', 'tests']``. Pure; no verdict influence.
+    """
+    if not (summary or "").strip() or not (diff or "").strip():
+        return []
+    found = []
+    for sentence in _split_sentences(summary):
+        low = sentence.lower()
+        if any(h in low for h in _ARTIFACT_ABSENCE_HINTS):
+            continue  # an observation ABOUT absence is legitimate review content
+        for label, claim_re, diff_re in _ARTIFACT_CLAIM_CHECKS:
+            if label in found:
+                continue
+            if re.search(claim_re, low) and not re.search(diff_re, diff or ""):
+                found.append(label)
+    return found
+
+
+def strip_unsupported_claims(summary: str, diff: str):
+    """(cleaned_summary, claims). Drops whole sentences that assert absent artifacts.
+
+    If EVERY sentence would be dropped the summary is replaced with an explicit marker rather
+    than left empty — an empty summary reads as "nothing to say", which is the opposite of
+    what happened.
+    """
+    claims = unsupported_artifact_claims(summary, diff)
+    if not claims:
+        return (summary or ""), []
+    keep = []
+    for sentence in _split_sentences(summary):
+        low = sentence.lower()
+        if any(h in low for h in _ARTIFACT_ABSENCE_HINTS):
+            keep.append(sentence)
+            continue
+        bad = any(
+            re.search(claim_re, low) and not re.search(diff_re, diff or "")
+            for _label, claim_re, diff_re in _ARTIFACT_CLAIM_CHECKS
+        )
+        if not bad:
+            keep.append(sentence)
+    cleaned = " ".join(keep).strip()
+    if not cleaned:
+        cleaned = "(summary withheld — every claim cited artifacts absent from the diff)"
+    return cleaned, claims
+
+
+def review_quality_flags(
+    structured: str, n_ungrounded: int, surviving_issues: list, unsupported_claims: list = None
+) -> list:
     """#5018 — provenance for a verdict. Returns flag strings; NEVER alters the verdict.
 
     #5009 floors an ungrounded APPROVE so it cannot auto-merge, and deliberately leaves
@@ -945,6 +1068,8 @@ def review_quality_flags(structured: str, n_ungrounded: int, surviving_issues: l
       freeform_fallback              structured parse failed; the weaker path produced this
       no_grounded_evidence           issues were raised and NONE survived verification
       blocking_issue_without_evidence a surviving issue cites nothing — the #2366 signature
+      unsupported_summary_claim:<x>  the summary asserted artifact <x> that is not in the diff
+                                     (#5647 — the false-CLEAR signature; verdict untouched)
     """
     flags = []
     if (structured or "").strip().lower() != "json":
@@ -953,12 +1078,14 @@ def review_quality_flags(structured: str, n_ungrounded: int, surviving_issues: l
         flags.append("no_grounded_evidence")
     if any(not str((i or {}).get("evidence", "")).strip() for i in (surviving_issues or [])):
         flags.append("blocking_issue_without_evidence")
+    for claim in unsupported_claims or []:
+        flags.append(f"unsupported_summary_claim:{claim}")
     return flags
 
 
-def _quality_suffix(structured: str, n_ungrounded: int, surviving_issues: list) -> str:
+def _quality_suffix(structured: str, n_ungrounded: int, surviving_issues: list, unsupported_claims: list = None) -> str:
     """Render flags for the [review-meta] line. Empty string when the review is clean."""
-    flags = review_quality_flags(structured, n_ungrounded, surviving_issues)
+    flags = review_quality_flags(structured, n_ungrounded, surviving_issues, unsupported_claims)
     return (" quality=" + ",".join(flags)) if flags else ""
 
 
@@ -1022,6 +1149,20 @@ def _self_refute_enabled() -> bool:
 def _ungrounded_review_floor_enabled() -> bool:
     """#5009 kill switch (platform_settings, no deploy needed)."""
     return str(_get_setting("forge:ungrounded_review_floor_enabled", "true")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _false_clear_gate_enabled() -> bool:
+    """#5647 kill switch (platform_settings, no deploy needed).
+
+    Safe to disable: the gate only edits summary PROSE and adds a provenance flag, so turning
+    it off restores the previous (unchecked) narrative and changes no verdict either way.
+    """
+    return str(_get_setting("forge:false_clear_gate_enabled", "true")).strip().lower() in (
         "1",
         "true",
         "yes",
@@ -1402,7 +1543,29 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
             pr_number,
         )
     parsed["verdict"] = verdict
-    return _render_review_text(parsed, model=model_label, note=note)
+
+    # GATE 5 (#5647) — the false CLEAR. Gates 1-4 interrogate FINDINGS; an APPROVE has none,
+    # so its summary PROSE was never checked against the diff. PR #2603 was APPROVED with
+    # "The parameterized SQL usage and test addition are correct" on a diff containing
+    # neither. Strip the fabricated sentence, flag it, and LEAVE THE VERDICT ALONE — a
+    # fabricated compliment is a reporting defect, not evidence the code is broken.
+    unsupported_claims = []
+    if _false_clear_gate_enabled():
+        cleaned, unsupported_claims = strip_unsupported_claims(parsed.get("summary") or "", diff)
+        if unsupported_claims:
+            parsed["summary"] = cleaned
+            note = (note + "; " if note else "") + (
+                "summary asserted artifact(s) absent from the diff: "
+                + ", ".join(unsupported_claims)
+                + " — claim(s) stripped, verdict unchanged (#5647)"
+            )
+            logger.warning(
+                "[PR Review] PR #%s — summary claimed %s not present in the diff; stripped (verdict %s unchanged)",
+                pr_number,
+                unsupported_claims,
+                verdict,
+            )
+    return _render_review_text(parsed, model=model_label, note=note, unsupported_claims=unsupported_claims)
 
 
 # --- QW-1 (#381): gate the FREEFORM fallback with the SAME guards as the structured path --------

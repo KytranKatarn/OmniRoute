@@ -31,6 +31,93 @@ def _screenshot(page, name):
         return None
 
 
+# Shadow-DOM-piercing comment extraction (#5644).
+#
+# THE BUG THIS REPLACES: the previous version called `document.querySelectorAll(...)`
+# once, at document level. LinkedIn renders the comment thread inside SHADOW ROOTS, and
+# `querySelectorAll` does NOT cross a shadow boundary (KB #277237) — so it matched an
+# empty NodeList on every post, the loop never ran, and the skill returned
+# `success: True, total: 0` forever. Verified 2026-08-16: zero comments returned against
+# a plain permalink AND against `?commentUrn=` deep-links built two different ways,
+# because the URL was never the problem — the extractor could not see the DOM at all.
+#
+# This is the SAME defect `linkedin_profile_view` carried until #4612 ("stale class
+# selectors + a non-shadow-piercing About extract"), and the walk below is that skill's
+# fix applied here. `pick()` re-walks each node's own subtree for the same reason: a
+# node.querySelector will not descend into that node's shadow root either.
+_JS_COMMENTS = r"""
+(limit) => {
+  function* walk(root){
+    for (const el of root.querySelectorAll('*')) {
+      yield el;
+      if (el.shadowRoot) yield* walk(el.shadowRoot);
+    }
+  }
+  const SEL = 'article.comments-comment-entity, .comments-comment-item, [data-id*="comment"], '
+            + '.comments-comments-list__comment-item, article[class*="comment"]';
+  // Collect every element once, so both node discovery and field extraction below
+  // operate over a shadow-flattened view of the page rather than the light DOM only.
+  const all = [];
+  for (const el of walk(document)) all.push(el);
+
+  const nodes = all.filter(el => { try { return el.matches && el.matches(SEL); } catch (e) { return false; } });
+
+  // Field lookup that also pierces: search this node's descendants in the flattened
+  // list rather than calling node.querySelector (which stops at its own shadow root).
+  const pick = (node, sel) => {
+    for (const el of all) {
+      if (node.contains(el) || (node.shadowRoot && node.shadowRoot.contains(el))) {
+        try { if (el.matches && el.matches(sel)) return el; } catch (e) {}
+      }
+    }
+    try { return node.querySelector(sel); } catch (e) { return null; }
+  };
+
+  const out = [];
+  const seen = new Set();
+  let count = 0;
+  for (const node of nodes) {
+    if (count >= limit) break;
+    const nameEl = pick(node,
+      '.comments-comment-meta__description-title, .comments-post-meta__name-text, '
+      + 'span.comments-comment-meta__description-title, [class*="meta__description-title"]');
+    const author = nameEl ? nameEl.textContent.trim() : '';
+    const headEl = pick(node,
+      '.comments-comment-meta__description-subtitle, .comments-post-meta__headline, '
+      + '[class*="meta__description-subtitle"]');
+    const headline = headEl ? headEl.textContent.trim() : '';
+    const bodyEl = pick(node,
+      '.comments-comment-item__main-content, .update-components-text, '
+      + '.comments-comment-entity__content, span.comments-comment-item-content-body, '
+      + '[class*="comment-item-content-body"], [class*="comment-entity__content"]');
+    const text = bodyEl ? bodyEl.textContent.trim() : '';
+    const timeEl = pick(node, 'time, .comments-comment-meta__data, [class*="meta__data"]');
+    const timestamp = timeEl ? (timeEl.getAttribute('datetime') || timeEl.textContent.trim()) : '';
+    const urn = node.getAttribute('data-id') || node.getAttribute('data-urn') || '';
+    let is_reply = false;
+    try {
+      is_reply = !!node.closest('.comments-comment-item__nested-items, .comments-replies-list, [class*="nested-items"]');
+    } catch (e) {}
+
+    if (!text && !author) continue;
+    const key = urn || (author + '|' + text.substring(0, 60));
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      urn,
+      author,
+      headline: headline.substring(0, 160),
+      text: text.substring(0, 1200),
+      timestamp,
+      is_reply,
+    });
+    count++;
+  }
+  return out;
+}
+"""
+
+
 def execute(page, params: dict) -> dict:
     post_url = params.get("post_url", "").strip()
     limit = int(params.get("limit", 50))
@@ -63,56 +150,34 @@ def execute(page, params: dict) -> dict:
         except Exception:
             break
 
-    comments = page.evaluate(
-        f"""() => {{
-        const out = [];
-        const seen = new Set();
-        const nodes = document.querySelectorAll(
-            'article.comments-comment-entity, .comments-comment-item, [data-id*="comment"], .comments-comments-list__comment-item'
-        );
-        let count = 0;
-        for (const node of nodes) {{
-            if (count >= {limit}) break;
-            const nameEl = node.querySelector(
-                '.comments-comment-meta__description-title, .comments-post-meta__name-text, span.comments-comment-meta__description-title'
-            );
-            const author = nameEl ? nameEl.textContent.trim() : '';
-            const headEl = node.querySelector(
-                '.comments-comment-meta__description-subtitle, .comments-post-meta__headline'
-            );
-            const headline = headEl ? headEl.textContent.trim() : '';
-            const bodyEl = node.querySelector(
-                '.comments-comment-item__main-content, .update-components-text, .comments-comment-entity__content, span.comments-comment-item-content-body'
-            );
-            const text = bodyEl ? bodyEl.textContent.trim() : '';
-            const timeEl = node.querySelector('time, .comments-comment-meta__data');
-            const timestamp = timeEl ? (timeEl.getAttribute('datetime') || timeEl.textContent.trim()) : '';
-            const urn = node.getAttribute('data-id') || node.getAttribute('data-urn') || '';
-            // Reply depth: replies are nested inside a replies container.
-            const is_reply = !!node.closest('.comments-comment-item__nested-items, .comments-replies-list');
+    comments = page.evaluate(_JS_COMMENTS, limit)
 
-            if (!text && !author) continue;
-            const key = urn || (author + '|' + text.substring(0, 60));
-            if (seen.has(key)) continue;
-            seen.add(key);
-            out.push({{
-                urn,
-                author,
-                headline: headline.substring(0, 160),
-                text: text.substring(0, 1200),
-                timestamp,
-                is_reply,
-            }});
-            count++;
-        }}
-        return out;
-    }}"""
-    )
+    # HONEST READ (#5644). `success: True` used to be hardcoded, so this returned
+    # "success" with total:0 whether the thread was empty, the session was walled, or
+    # the extractor simply could not see the DOM — which is precisely how the shadow-root
+    # bug above stayed invisible. An empty thread IS a legitimate answer (plenty of posts
+    # have no comments), so success only goes False when the page did not render a post
+    # surface at all.
+    body_txt = ""
+    try:
+        body_txt = (page.inner_text("body", timeout=3000) or "")[:4000].lower()
+    except Exception:
+        pass
+    walled = ("sign in to view" in body_txt) or ("join linkedin" in body_txt) or ("authwall" in page.url.lower())
 
-    return {
-        "success": True,
+    result = {
+        "success": not walled,
         "post_url": post_url,
+        "final_url": page.url,
         "total": len(comments),
         "comments": comments,
         "screenshot_path": _screenshot(page, "post_comments"),
     }
+    if walled:
+        result["result"] = "auth_wall — session not logged in for this profile"
+    elif not comments:
+        result["result"] = (
+            "no comments extracted — an empty thread, or LinkedIn changed the comment "
+            "markup (selectors are class-name based and do churn)"
+        )
+    return result

@@ -47,6 +47,24 @@ VALID_SHIFT_STATES = (
     "off_duty",
     "winding_down",
     "cooldown",
+    # TERMINAL state. Omitted until 2026-08-15 (#5643) even though the rest of the
+    # module already treated it as real: 79 agents were already sitting in it,
+    # ``update_agent`` has an explicit ``shift_state == "decommissioned"`` branch
+    # (which was UNREACHABLE — the validator above it rejected the value first),
+    # and ``reactivate_agent`` refuses any agent whose current state is not
+    # ``decommissioned``. Net effect: the platform could REACTIVATE a decommissioned
+    # agent but had no supported way to DECOMMISSION one.
+    #
+    # The failure was silent in both directions: ``transition_shift_state`` RETURNS
+    # {"success": False} rather than raising, so a caller that ignores the return
+    # value sees nothing at all. That is how 5 agents were "retired" with no error
+    # and no state change. Callers MUST check the returned dict.
+    #
+    # ``decommissioned`` is deliberately NOT part of the rotation-log state set in
+    # ``transition_shift_state`` (rotation_log's CHECK constraint allows only
+    # active/winding_down/cooldown/off_duty) — retirement closes the open rotation
+    # entry without opening a new one, which is correct for a terminal state.
+    "decommissioned",
 )
 
 

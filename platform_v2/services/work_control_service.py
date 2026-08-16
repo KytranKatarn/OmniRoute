@@ -57,6 +57,28 @@ BACKLOGS = {
         # returned {"skipped": "disabled"} — a switch that lies about its own state.
         "default": False,
     },
+    # Chronicle (#5644). BOTH were invisible in the Autonomy tab before 2026-08-16:
+    # `chronicle_story` has checked `work:chronicle_story:enabled` since it shipped but
+    # was listed in NEITHER registry, so the operator could not see or toggle a job that
+    # runs every 10 minutes. Same shape as translate_backlog_drip above.
+    #
+    # ⚠️ The KEY here must be the platform_settings key the JOB reads, NOT the scheduler
+    # job id — the story job's id is `chronicle_story_worker` but its setting is
+    # `work:chronicle_story:enabled`. Keying this off the job id would render a toggle
+    # that writes a row nothing reads.
+    "chronicle_ingest": {
+        "module": "Chronicle",
+        "drains": "new Gmail + LinkedIn items not yet in Chronicle (50/account/hour)",
+        "backend": "platform_settings",
+        # Ships OFF and the job reads default=False — these two MUST agree or the tab
+        # shows ON while every cycle returns early.
+        "default": False,
+    },
+    "chronicle_story": {
+        "module": "Chronicle",
+        "drains": "resolved entities with >=2 emails and no story yet",
+        "backend": "platform_settings",
+    },
     "delegate_task_worker": {
         "module": "Department HQ",
         "drains": "unified_tasks (delegated)",

@@ -4821,6 +4821,95 @@ def _register_own_jobs(scheduler, flask_app):
     )
     logger.info("[DeptHQ] Registered chronicle_story_worker job (every 10 min, local-only)")
 
+    # Chronicle — SOURCE INGEST (#5644).
+    #
+    # WHY THIS EXISTS: `run_gmail_ingest` and `run_linkedin_ingest` had NO production
+    # caller — the only references outside their own modules were test files. Chronicle's
+    # imports are flagged `is_live_source = true`, but the ingest ran ONCE on 2026-07-10
+    # and nothing advanced it: measured 2026-08-16, the newest Chronicle email was
+    # 2026-07-10 while Google Work Suite had synced BOTH accounts that same day
+    # (kytranempowerment@gmail.com 14:21, terry.p.caetano@gmail.com 14:31). The data was
+    # current at the Google layer and ~5 weeks stale inside Chronicle. Same
+    # "declared but never applied" shape as a retention tier with no pruner.
+    #
+    # SHIPS OFF. Enable deliberately in the Autonomy tab after watching one cycle — the
+    # first runs drain a 5-week backlog against the Gmail API, so it should be switched
+    # on with eyes on it, not silently at deploy time. BACKLOGS carries the SAME default
+    # so the Control Centre toggle cannot render ON while every cycle skips.
+    def _run_chronicle_source_ingest():
+        from services.work_control_service import is_enabled
+
+        if not is_enabled("chronicle_ingest", default=False):
+            return
+        # Ingest flips the import to status='extracted', which auto-triggers the enrich
+        # worker -> the dispatcher -> `from db import`. Without the ai_bridge path that
+        # raises ModuleNotFoundError, and Chronicle's defer-on-cold SWALLOWS it as
+        # "0 items" (KB #272154). Path first, always.
+        try:
+            from services.signal_calendar_service import _ensure_import_paths
+
+            _ensure_import_paths()
+        except Exception:
+            logger.exception("[ChronicleIngest] import-path setup failed — aborting cycle")
+            return
+
+        import os as _os
+
+        from database import get_db_cursor as _gdc
+        from services.chronicle_gmail_source import run_gmail_ingest
+        from services.chronicle_linkedin_source import run_linkedin_ingest
+
+        # Bounded per cycle: the first runs drain a multi-week backlog against the Gmail
+        # API, and an unbounded pull would burn quota in one go. Hourly x this batch
+        # catches up steadily and then idles at near-zero once current.
+        _CHRONICLE_INGEST_BATCH = int(_os.getenv("CHRONICLE_INGEST_BATCH", "50"))
+
+        landed = {"gmail": 0, "linkedin": 0}
+        errors = []
+
+        # --- Gmail: every connected account, bounded per cycle for API quota ---
+        try:
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute("SELECT id, email FROM google_accounts ORDER BY id")
+                accounts = [dict(r) for r in cur.fetchall()]
+        except Exception:
+            logger.exception("[ChronicleIngest] could not read google_accounts")
+            accounts = []
+
+        for acct in accounts:
+            try:
+                res = run_gmail_ingest(acct["id"], limit=_CHRONICLE_INGEST_BATCH) or {}
+                # Report what LANDED, not what was attempted (#5626 lesson: a cycle that
+                # logs work it did not persist is worse than one that logs nothing).
+                landed["gmail"] += int(res.get("ingested") or res.get("inserted") or 0)
+                if res.get("errors"):
+                    errors.append(f"gmail:{acct['email']}:{res['errors']}")
+            except Exception as exc:  # noqa: BLE001 — one account must not kill the cycle
+                errors.append(f"gmail:{acct.get('email')}:{type(exc).__name__}")
+                logger.exception("[ChronicleIngest] gmail ingest failed for %s", acct.get("email"))
+
+        # --- LinkedIn: reads the hub tables, no external API, so it is cheap to re-run ---
+        try:
+            res = run_linkedin_ingest() or {}
+            landed["linkedin"] += int(res.get("ingested") or res.get("inserted") or 0)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"linkedin:{type(exc).__name__}")
+            logger.exception("[ChronicleIngest] linkedin ingest failed")
+
+        if landed["gmail"] or landed["linkedin"] or errors:
+            logger.info("[ChronicleIngest] cycle landed=%s errors=%s", landed, errors or None)
+
+    scheduler.add_job(
+        with_ctx(_run_chronicle_source_ingest),
+        trigger=CronTrigger(minute="23", timezone="America/Toronto"),
+        id="chronicle_source_ingest",
+        name="Chronicle: Gmail + LinkedIn source ingest (keeps the corpus current)",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    logger.info("[DeptHQ] Registered chronicle_source_ingest job (hourly :23, DEFAULT OFF)")
+
     # #4343 drift guard: a stale _GPU_CLUSTER node_id (renamed/removed) silently no-ops
     # every GPU-affinity / preferred_node pin -> hub-CPU fallback (the cont-49 stale-name
     # bug class). Hourly check; surfaces drift to logs + an admin notification.

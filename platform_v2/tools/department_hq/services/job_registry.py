@@ -10,6 +10,34 @@ Total: 128 active jobs across 8 source files and 13 departments.
 
 # Each entry: job_id -> {department, director, description, interval, source_file}
 JOB_REGISTRY = {
+    # ── Chronicle (#5644) ──
+    # Both were absent from this registry until 2026-08-16, so neither appeared in the
+    # DHQ Jobs view. `chronicle_story_worker` had been running every 10 minutes, unlisted.
+    "chronicle_source_ingest": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": (
+            "Keeps the Chronicle corpus current: pulls new Gmail (every connected account) "
+            "and the LinkedIn authored corpus into Chronicle via ingest_source. Bounded per "
+            "cycle for Gmail API quota (CHRONICLE_INGEST_BATCH, default 50/account). "
+            "DEFAULT OFF — toggled in Autonomy tab. Added because run_gmail_ingest / "
+            "run_linkedin_ingest had NO scheduled caller and the corpus had gone ~5 weeks "
+            "stale while Google Work Suite kept syncing normally."
+        ),
+        "interval": "hourly :23 ET",
+        "source_file": "tools/department_hq/jobs.py",
+    },
+    "chronicle_story_worker": {
+        "department": "Documentation & Knowledge",
+        "director": "C.O.D.E.X.",
+        "description": (
+            "Local-only per-entity story synthesis: builds chronicle_entity_story for "
+            "resolved entities with >=2 linked emails and no story. Welfare-gated on the "
+            "'summarize' pool, resumable, defer-on-cold."
+        ),
+        "interval": "every 10 min (:7,:17,:27,:37,:47,:57 ET)",
+        "source_file": "tools/department_hq/jobs.py",
+    },
     # ── Code Health static tier (2026-07-11 spec) ──
     "agent_code_health_autoheal": {
         "department": "Engineering & Technology",

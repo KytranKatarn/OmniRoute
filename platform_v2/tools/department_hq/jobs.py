@@ -4896,14 +4896,44 @@ def _register_own_jobs(scheduler, flask_app):
             errors.append(f"linkedin:{type(exc).__name__}")
             logger.exception("[ChronicleIngest] linkedin ingest failed")
 
-        if landed["gmail"] or landed["linkedin"] or errors:
+        # --- LinkedIn PROFILE: the one BROWSER capture here, so deliberately NOT hourly ---
+        # Everything above is a DB or API read. This drives the archie_browser session, and
+        # a profile changes weekly at most, so re-capturing it 24x/day would be pure
+        # LinkedIn-automation exposure for no new data. Gated on the age of the newest
+        # stored snapshot rather than a separate toggle, so it stays under the one
+        # `chronicle_ingest` switch. It is wired in DESPITE being slow-cadence because
+        # shipping it with no caller at all is exactly the "declared but never applied"
+        # bug this whole job exists to fix.
+        try:
+            from datetime import timedelta as _td
+
+            from services.chronicle_linkedin_source import run_profile_ingest
+            from services.time_utils import now_utc as _now
+
+            _max_age_h = int(_os.getenv("CHRONICLE_PROFILE_MAX_AGE_H", "24"))
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute("SELECT max(created_at) AS last FROM mailbox_emails WHERE folder='linkedin/profile'")
+                row = cur.fetchone()
+            last = (dict(row).get("last") if row else None) if row else None
+            if last is None or (_now() - last) >= _td(hours=_max_age_h):
+                res = run_profile_ingest() or {}
+                landed["profile"] = int(res.get("inserted") or 0)
+                # A non-ok status is surfaced, not swallowed: an auth wall here is exactly
+                # the failure that would otherwise look like "the profile never changes".
+                if res.get("status") != "ok":
+                    errors.append(f"profile:{res.get('status')}")
+        except Exception as exc:  # noqa: BLE001 — must not kill the gmail/linkedin cycle
+            errors.append(f"profile:{type(exc).__name__}")
+            logger.exception("[ChronicleIngest] linkedin profile ingest failed")
+
+        if landed["gmail"] or landed["linkedin"] or landed.get("profile") or errors:
             logger.info("[ChronicleIngest] cycle landed=%s errors=%s", landed, errors or None)
 
     scheduler.add_job(
         with_ctx(_run_chronicle_source_ingest),
         trigger=CronTrigger(minute="23", timezone="America/Toronto"),
         id="chronicle_source_ingest",
-        name="Chronicle: Gmail + LinkedIn source ingest (keeps the corpus current)",
+        name="Chronicle: Gmail + LinkedIn source ingest, incl. profile snapshot (keeps the corpus current)",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

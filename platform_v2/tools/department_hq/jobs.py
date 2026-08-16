@@ -4958,7 +4958,41 @@ def _register_own_jobs(scheduler, flask_app):
             errors.append(f"own_comments:{type(exc).__name__}")
             logger.exception("[ChronicleIngest] linkedin own-comments ingest failed")
 
-        if landed["gmail"] or landed["linkedin"] or landed.get("profile") or landed.get("own_comments") or errors:
+        # --- VOICE PROFILE: the only LLM step in this job, so the slowest gate ---
+        # Rebuilt at most weekly: a writing voice drifts over months, not hours, and this is
+        # a local `summarize` dispatch competing with the rest of the cluster for the 7B.
+        # Gated on the stored profile's own `updated_at` (NOT a row count) so a build that
+        # DEFERS on a cold model retries next cycle instead of counting as done.
+        try:
+            from datetime import timedelta as _td
+
+            from services.chronicle_voice_service import run_voice_profile_build
+            from services.time_utils import now_utc as _now
+
+            _v_age_h = int(_os.getenv("CHRONICLE_VOICE_MAX_AGE_H", "168"))
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute("SELECT max(updated_at) AS last FROM chronicle_voice_profile")
+                row = cur.fetchone()
+            last = (dict(row).get("last") if row else None) if row else None
+            if last is None or (_now() - last) >= _td(hours=_v_age_h):
+                res = run_voice_profile_build() or {}
+                landed["voice"] = int(res.get("written") or 0)
+                # `dispatch_unavailable` is a DEFER (cold model), not a fault — reported in
+                # the log line but never as an error, or every cold cycle looks broken.
+                if res.get("status") not in ("ok", "dispatch_unavailable"):
+                    errors.append(f"voice:{res.get('status')}")
+        except Exception as exc:  # noqa: BLE001 — must not kill the rest of the cycle
+            errors.append(f"voice:{type(exc).__name__}")
+            logger.exception("[ChronicleIngest] voice profile build failed")
+
+        if (
+            landed["gmail"]
+            or landed["linkedin"]
+            or landed.get("profile")
+            or landed.get("own_comments")
+            or landed.get("voice")
+            or errors
+        ):
             logger.info("[ChronicleIngest] cycle landed=%s errors=%s", landed, errors or None)
 
     scheduler.add_job(

@@ -5,7 +5,9 @@ Skills are loaded by `importlib.util.spec_from_file_location(path.stem, path)`
 dir on sys.path. So a skill imports this helper with:
 
     import os, sys
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    _SKILLS_DIR = os.path.dirname(os.path.abspath(__file__))
+    if _SKILLS_DIR not in sys.path:      # guard — see #5650
+        sys.path.insert(0, _SKILLS_DIR)
     from _linkedin_common import get_company_slug
 
 Both loaders skip `_`-prefixed files, so this module is never registered as a

@@ -19,7 +19,12 @@ from urllib.parse import unquote
 
 # Skills are loaded by spec_from_file_location, which does NOT put the skills
 # dir on sys.path — see the _linkedin_common docstring.
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+_SKILLS_DIR = os.path.dirname(os.path.abspath(__file__))
+# Guard the insert (#5650): skill_runner._discover_skills() re-imports EVERY skill on
+# EVERY execute(), so an unguarded insert added a duplicate path per skill per run —
+# measured sys.path 6 -> 33 after only 3 discoveries in a long-lived container.
+if _SKILLS_DIR not in sys.path:
+    sys.path.insert(0, _SKILLS_DIR)
 from _linkedin_common import (  # noqa: E402
     COMMENT_NODE_SEL,
     comment_ids_from_urn,

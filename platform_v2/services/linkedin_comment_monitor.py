@@ -22,7 +22,15 @@ from services.signal_content_sanitizer import clean_draft
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_AGENT_ID = 342  # kytranempowerment session (matches browser_service default)
+# ⚠️ NO MODULE-LEVEL DEFAULT AGENT (#5653 follow-up). There used to be
+# `DEFAULT_AGENT_ID = 342`, and ingest_post_comments defaulted to it AND to
+# account="kytran". Its ONE caller passed neither, so EVERY watched post was scraped
+# through Kytran's browser profile and stamped `linkedin_comments.account='kytran'` —
+# regardless of who actually owns the post. Measured 2026-08-16, linkedin_post_log by
+# post_type: creed 121, company 119, personal 93, terry 47, group 33. So 328 of 413 posts
+# were mis-attributed at the SOURCE, and `account` is exactly what the reply path later
+# trusts to pick the replying identity. The owning account is now threaded through from
+# the post's own post_type; there is deliberately nothing to fall back to.
 
 
 def _dedup_key(comment: dict) -> str:
@@ -33,13 +41,27 @@ def _dedup_key(comment: dict) -> str:
     return "h:" + hashlib.sha256(raw.encode()).hexdigest()[:24]
 
 
-def ingest_post_comments(
-    post_url: str, post_log_id=None, account: str = "kytran", agent_id: int = DEFAULT_AGENT_ID
-) -> dict:
-    """Scrape one post's comments and upsert. Returns {new, total, error?}."""
+def ingest_post_comments(post_url: str, post_log_id=None, account: str = None, agent_id: int = None) -> dict:
+    """Scrape one post's comments and upsert. Returns {new, total, error?}.
+
+    ``account`` is REQUIRED — it is stored on every row and is what the reply path later
+    uses to decide WHICH IDENTITY answers. Defaulting it (it used to default to "kytran")
+    silently mis-attributes another identity's comments to the owner. ``agent_id`` is
+    derived from it so the scrape reads through that identity's OWN browser profile.
+    """
     if not post_url:
         return {"new": 0, "total": 0, "error": "empty post_url"}
-    res = browser_service.linkedin_post_comments(post_url, agent_id=agent_id)
+
+    acct = signal_accounts.resolve_key(account or "")
+    if not acct:
+        return {"new": 0, "total": 0, "error": f"unresolvable account {account!r} — refusing to attribute comments"}
+    try:
+        aid = agent_id or signal_accounts.require_browser_id(acct)
+    except signal_accounts.UnknownAccountError as exc:
+        return {"new": 0, "total": 0, "error": f"no browser identity for {acct!r}: {exc}"}
+    account = acct
+
+    res = browser_service.linkedin_post_comments(post_url, agent_id=aid)
     if not res.get("success"):
         return {"new": 0, "total": 0, "error": res.get("error", "skill failed")}
 
@@ -186,21 +208,29 @@ def ingest_comment_notifications(account: str = "kytran", agent_id: int = None, 
 
 
 def watched_post_urls(limit: int = 25) -> list:
-    """Seed list: distinct non-empty post_urls from recent linkedin_post_log."""
+    """Seed list: (id, post_url, post_type) from recent linkedin_post_log.
+
+    ``post_type`` is selected because it is the ONLY record of which identity owns the
+    post, and the comment ingest must attribute rows to that identity rather than to a
+    default. Omitting it is what let 328 of 413 posts be stamped 'kytran' (#5653).
+    """
     with get_db_cursor() as (conn, cur):
         cur.execute(
             """
-            SELECT id, post_url FROM linkedin_post_log
+            SELECT id, post_url, post_type FROM linkedin_post_log
             WHERE post_url IS NOT NULL AND post_url <> ''
             ORDER BY COALESCE(posted_at, created_at) DESC
             LIMIT %s
             """,
             (limit,),
         )
-        return [(r["id"], r["post_url"]) if isinstance(r, dict) else (r[0], r[1]) for r in cur.fetchall()]
+        return [
+            (r["id"], r["post_url"], r["post_type"]) if isinstance(r, dict) else (r[0], r[1], r[2])
+            for r in cur.fetchall()
+        ]
 
 
-def run_comment_monitor(extra_urls: list = None) -> dict:
+def run_comment_monitor(extra_urls: list = None, extra_account: str = None) -> dict:
     """Poll all watched posts + any extra_urls. Returns summary dict.
 
     NOTE: seeds from linkedin_post_log.post_url. Those are currently NULL for
@@ -212,6 +242,14 @@ def run_comment_monitor(extra_urls: list = None) -> dict:
     # Post-permalink scraping below renders 0 comments to automation (KB #274178).
     notif_new = 0
     errors = []
+    # ⚠️ HARDCODED ACCOUNT LIST — deliberately NOT made registry-driven here (#5653).
+    # `account_keys(can_engage=True)` would return personal / terry / wtf_group / stringer,
+    # but wtf_group SHARES browser profile 377 with terry, so polling both would read the
+    # SAME notification bell twice and write duplicate rows under two different `account`
+    # values. It would also switch the stamped value from 'kytran' to 'personal', splitting
+    # attribution against the 14 existing 'kytran' rows. Both are data decisions, not a
+    # refactor — see the follow-up task. A NEW account added to the registry is NOT polled
+    # until it is added here, and that is a known gap, not an oversight.
     for acct in ("kytran", "terry"):
         try:
             nr = ingest_comment_notifications(acct)
@@ -221,13 +259,27 @@ def run_comment_monitor(extra_urls: list = None) -> dict:
         except Exception as e:  # never let one account abort the run
             errors.append({"account": acct, "error": str(e)})
 
-    targets = {url: lid for lid, url in watched_post_urls()}
+    # Each post is scraped as ITS OWN identity: post_type -> account_key -> that account's
+    # browser profile. Previously every post went through Kytran's profile and was stamped
+    # account='kytran' (#5653).
+    targets = {}
+    for lid, url, ptype in watched_post_urls():
+        acct = signal_accounts.post_type_to_account(ptype or "", default=None)
+        if not acct:
+            errors.append({"url": url, "error": f"post_type {ptype!r} maps to no account — skipped"})
+            continue
+        targets[url] = (lid, acct)
     for u in extra_urls or []:
-        targets.setdefault(u, None)
+        if extra_account:
+            targets.setdefault(u, (None, extra_account))
+        else:
+            # An ad-hoc URL carries no post_type, so there is nothing to attribute it to.
+            # Refuse rather than silently filing another identity's thread under the owner.
+            errors.append({"url": u, "error": "extra_url given without extra_account — skipped (#5653)"})
 
     total_new = total_seen = posts = 0
-    for url, log_id in targets.items():
-        r = ingest_post_comments(url, post_log_id=log_id)
+    for url, (log_id, acct) in targets.items():
+        r = ingest_post_comments(url, post_log_id=log_id, account=acct)
         if r.get("error"):
             errors.append({"url": url, "error": r["error"]})
             continue

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 
 from database import get_db_cursor
 
@@ -374,23 +375,52 @@ def _automerge_paths_allowed(pr_number: int, repo: str):
     return (not blocking), blocking
 
 
+_HEAD_SHA_ATTEMPTS = 3
+_HEAD_SHA_BACKOFF_S = 1.5
+
+
 def pr_head_sha(pr_number: int, repo: str = None) -> str:
-    """The PR's CURRENT head commit SHA, or '' if it cannot be determined (#5646).
+    """The PR's CURRENT head commit SHA, or '' if it genuinely cannot be read (#5646).
 
-    Returns '' rather than raising: callers treat an unknown SHA as "cannot prove
-    freshness", which the merge gate turns into a refusal. Never let this look like
-    a match.
+    Returns '' rather than raising: an unknown SHA means "cannot prove freshness",
+    which the merge gate turns into a REFUSAL. That direction is deliberate and must
+    not be softened — treating an unreadable SHA as a match would silently reinstate
+    the hole this exists to close (a merge on a verdict that never saw the code).
+
+    BOUNDED RETRY (F.O.R.G.E. review of PR #2601): a single transient GitHub failure
+    would otherwise cost a legitimate merge until someone re-ran it. Retrying a
+    read-only GET a few times removes that nuisance WITHOUT weakening the guarantee —
+    the refusal still stands for a real, persistent failure. Deliberately small: this
+    sits on the merge path, so it must not turn a GitHub outage into a long stall.
     """
-    try:
-        from .github_service import _api_get  # noqa: PLC0415
+    from .github_service import _api_get  # noqa: PLC0415
 
-        ok, data = _api_get(f"/repos/{repo or _DEFAULT_REPO}/pulls/{pr_number}")
-        if not ok or not isinstance(data, dict):
-            return ""
-        return str(((data.get("head") or {}).get("sha") or "")).strip()
-    except Exception:  # noqa: BLE001 — freshness is advisory to the caller, never fatal here
-        logger.warning("[PR Review] could not read head SHA for PR #%s", pr_number, exc_info=True)
-        return ""
+    last_err = None
+    for attempt in range(_HEAD_SHA_ATTEMPTS):
+        try:
+            ok, data = _api_get(f"/repos/{repo or _DEFAULT_REPO}/pulls/{pr_number}")
+            if ok and isinstance(data, dict):
+                sha = str(((data.get("head") or {}).get("sha") or "")).strip()
+                if sha:
+                    return sha
+                # A 200 with no head.sha is a SHAPE problem, not a transient one —
+                # retrying cannot fix it, so stop and let the caller refuse.
+                logger.warning("[PR Review] PR #%s response carried no head.sha", pr_number)
+                return ""
+            last_err = f"api_get ok={ok}"
+        except Exception as exc:  # noqa: BLE001 — never fatal here; the caller refuses
+            last_err = f"{type(exc).__name__}: {exc}"
+        if attempt < _HEAD_SHA_ATTEMPTS - 1:
+            time.sleep(_HEAD_SHA_BACKOFF_S * (attempt + 1))
+
+    logger.warning(
+        "[PR Review] could not read head SHA for PR #%s after %d attempts (%s) — "
+        "the merge gate will refuse rather than assume freshness",
+        pr_number,
+        _HEAD_SHA_ATTEMPTS,
+        last_err,
+    )
+    return ""
 
 
 def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge: bool = True) -> None:

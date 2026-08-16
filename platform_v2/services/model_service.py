@@ -728,6 +728,44 @@ class ModelService:
                 else:
                     tier = "cpu"
                 self._last_used[model] = _time.time()
+
+                # #5623 — THE RESIDUAL HALF. The load-path guard (see gpu_placement_options
+                # / the `cpu_placement_is_viable` check in the load request) refuses to LOAD
+                # a big model onto the hub CPU. It says nothing about one that is ALREADY
+                # resident there, and in that case nothing is loading, so that guard never
+                # runs: the model is reported "hot", the dispatcher serves it, and every
+                # request dies on the 240s deadline.
+                #
+                # Measured 2026-08-16 while reviewing PR #2614:
+                #   [ModelService] qwen2.5:7b hot on cpu @ host.docker.internal:11434
+                #   [BridgeDispatcher] model qwen2.5:7b timed out for cap=code_review
+                # i.e. the exact #5623 outage signature, reached by a path the original
+                # fix did not cover. A stranded CPU-resident 7B is migrated back by the
+                # keep-warm (#5328); until it is, serving from it is a guaranteed failure,
+                # so we report not-ready and let the caller escalate to a node that has a
+                # GPU — reusing `model_not_ready`, no new plumbing (same as the load guard).
+                #
+                # ⚠️ HUB ONLY (`target_host is None`), mirroring the load guard's
+                # `ollama_url is None` scoping. Starship-246 DELIBERATELY keeps qwen2.5:7b
+                # warm on its own CPU, and that is not the hub's pre-AVX2 Xeon E5-2658 v2.
+                # An unscoped check would refuse a placement that works fine — the same
+                # shape as the hub-RAM check below that "wrongly gated node warm-boots".
+                if target_host is None and tier == "cpu" and not self.cpu_placement_is_viable(model):
+                    logger.warning(
+                        "[ModelService] %s is resident but CPU-ONLY on the hub — reporting "
+                        "NOT ready. A >%.1f GB model cannot finish inside the dispatch "
+                        "deadline on a pre-AVX2 CPU, so serving it is a timeout with extra "
+                        "steps (#5623). Caller escalates/queues; keep-warm migrates it back.",
+                        model,
+                        _CPU_VIABLE_MAX_GB,
+                    )
+                    return {
+                        "ready": False,
+                        "tier": "cpu_nonviable",
+                        "host": host_label,
+                        "warm_boot_ms": 0,
+                    }
+
                 logger.info("[ModelService] %s hot on %s @ %s", model, tier, host_label)
                 return {
                     "ready": True,

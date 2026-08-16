@@ -155,3 +155,71 @@ def test_remote_node_loads_are_untouched(svc, monkeypatch):
 
     assert ok is True
     assert urlopen.called
+
+
+# ---------------------------------------------------------------------------
+# #5623 RESIDUAL HALF — a model ALREADY resident CPU-only on the hub
+#
+# The original fix guards the LOAD path. When the model is already resident nothing
+# is loading, so that guard never runs: `ensure_model_ready` reported "hot on cpu",
+# the dispatcher served it, and the request died on the 240s deadline. Measured
+# 2026-08-16 as `qwen2.5:7b hot on cpu` -> `timed out for cap=code_review`.
+# ---------------------------------------------------------------------------
+
+
+def _ps(name: str, vram_gb: float, total_gb: float) -> dict:
+    """An /api/ps entry. vram_gb == 0 is the stranded CPU-only case."""
+    return {
+        "name": name,
+        "size_vram": int(vram_gb * (1024**3)),
+        "size": int(total_gb * (1024**3)),
+    }
+
+
+def _ready(s, ms, monkeypatch, entry, *, target_host=None):
+    monkeypatch.setattr(s, "_fetch_ps", lambda *a, **k: [entry], raising=False)
+    return s.ensure_model_ready("_test", entry["name"], target_host)
+
+
+def test_cpu_resident_big_model_on_hub_reports_not_ready(svc, monkeypatch):
+    """THE bug: resident but CPU-only, so no load happens and the load guard cannot fire."""
+    s, ms = svc
+    out = _ready(s, ms, monkeypatch, _ps("qwen2.5:7b", 0.0, 5.0))
+    assert out["ready"] is False
+    assert out["tier"] == "cpu_nonviable"
+
+
+def test_cpu_resident_small_model_on_hub_stays_ready(svc, monkeypatch):
+    """NEGATIVE SPACE: a small model on CPU is a real, working placement."""
+    s, ms = svc
+    out = _ready(s, ms, monkeypatch, _ps("qwen2.5:1.5b", 0.0, 1.3))
+    assert out["ready"] is True
+    assert out["tier"] == "cpu"
+
+
+def test_gpu_resident_big_model_stays_ready(svc, monkeypatch):
+    """Only the CPU tier is refused — a 7B on the GPU is exactly what we want."""
+    s, ms = svc
+    out = _ready(s, ms, monkeypatch, _ps("qwen2.5:7b", 5.0, 5.0))
+    assert out["ready"] is True
+    assert out["tier"] == "gpu"
+
+
+def test_node_cpu_resident_big_model_is_NOT_refused(svc, monkeypatch):
+    """SCOPING GUARANTEE. Starship-246 deliberately keeps qwen2.5:7b warm on ITS cpu,
+    which is not the hub's pre-AVX2 Xeon. Refusing that would break a working node —
+    the same shape as the hub-RAM check that once 'wrongly gated node warm-boots'."""
+    s, ms = svc
+    # target_host is a node RECORD (dict), not a string — `ensure_model_ready` reads
+    # `target_host["hostname"]`. Passing a str raised AttributeError and is what caught
+    # this test's own bug; the production guard keys off `target_host is None`, which
+    # discriminates hub (None) from node (dict) correctly either way.
+    out = _ready(
+        s,
+        ms,
+        monkeypatch,
+        _ps("qwen2.5:7b", 0.0, 5.0),
+        target_host={"hostname": "100.64.0.3", "node_name": "Starship - Defiant - USS-246"},
+    )
+    assert out["ready"] is True
+    assert out["tier"] == "cpu"

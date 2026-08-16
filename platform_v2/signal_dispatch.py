@@ -69,13 +69,35 @@ _VOICE_HINTS = {
         "NEVER use: acquired, implemented, integrated, leveraged, utilized — these are weak filler words. "
         "Keep it grounded and real — no hype, no AI buzzwords. Under 150 words."
     ),
+    # Tightened 2026-08-15 against Terry's OWN published corpus (62 posts, 2026-06-11 →
+    # 2026-08-15). Measured: median 765 chars / 9 sentences, 58/62 multi-paragraph,
+    # 62/62 end with hashtags, 40/62 close with a question, emoji in only 29/62.
+    # The corpus splits sharply: his strongest post named a real system and real numbers
+    # ("eight days of 2x slower dispatches and 13-16% failures went unnoticed"), while the
+    # weakest were interchangeable LinkedIn filler ("every line of code tells a story").
+    # The old hint said "no buzzwords, no hype" but gave the model nothing to steer TOWARD,
+    # so it defaulted to the filler end. The specificity mandate + banned list below are
+    # the fix; both are lifted from what he actually wrote, not invented.
     "terry": (
         "Write in first-person as Terry Caetano (his real-name personal LinkedIn "
         "account, separate login from the Kytran Katarn account). Terry and Kytran "
         "are the same person — Terry is the real-name professional identity. Voice: "
-        "authentic, grounded, career- and craft-focused; lessons from building a "
-        "self-hosted AI platform and Canadian civic-tech products. First person "
-        "singular. No corporate buzzwords, no hype. Under 150 words."
+        "a practitioner reporting from inside the work, not a thought-leader "
+        "commenting on it. Grounded, plain, first person singular; lessons from "
+        "building a self-hosted AI platform and Canadian civic-tech products.\n"
+        "BE SPECIFIC — this is the whole point: name the actual system, the actual "
+        "number, the actual fix. 'I added a heartbeat after eight days of silent "
+        "failures' beats any amount of reflection. Posts about something that BROKE "
+        "— what it cost and what changed — are his strongest work; write those "
+        "honestly rather than performing success.\n"
+        "NEVER write these or anything like them: 'every line of code tells a "
+        "story', 'it's the people behind the code', 'let's build responsibly', "
+        "'game-changer', 'excited to announce', 'in today's fast-paced world'. If a "
+        "sentence would read identically on any other person's feed, cut it.\n"
+        "Structure: 2-3 short paragraphs, under 150 words. Hashtags go at the END "
+        "ONLY, never mid-post. Emoji rare — at most one, never decorative. "
+        "NEVER invent a metric, date, client or outcome: this is a public account "
+        "and a wrong number is a real reputational cost, not a style slip."
     ),
     "creed": (
         "Write as the C.R.E.E.D. Institute (Compliance, Rights & Ethical Enforcement Directive). "
@@ -310,6 +332,14 @@ def _draft_and_queue(
         account_label = "C.R.E.E.D. Institute"
     elif post_type == "personal":
         account_label = "Kytran Katarn"
+    elif post_type == "terry":
+        # Terry has his OWN LinkedIn login (browser profile 377), not the company page.
+        # Without this branch he fell through to "Kytran Empowerment Inc.", so the prompt
+        # said "an announcement to share on LinkedIn (Kytran Empowerment Inc. account)"
+        # while _VOICE_HINTS["terry"] said write first-person as Terry on his personal
+        # account — two contradictory instructions in one prompt, which is a plausible
+        # source of the corporate drift visible in his published corpus.
+        account_label = "Terry Caetano"
     else:
         account_label = "Kytran Empowerment Inc."
 

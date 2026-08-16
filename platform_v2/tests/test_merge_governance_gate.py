@@ -23,9 +23,22 @@ from tools.repair_bay.services import github_service
 _APPROVED = "SUMMARY\nfine\n\nISSUES\nNo issues found.\n\nVERDICT: APPROVE"
 _NEEDS_CHANGES = "SUMMARY\nx\n\nISSUES\n- [HIGH] thing\n\nVERDICT: NEEDS REVIEW"
 
+# The commit the stored review is pinned to. #5646/#2601 added CONDITION 1b: a verdict
+# only counts if it demonstrably covers the CURRENT head, so a fixture review must say
+# which commit it saw or the gate refuses before any verdict/tier assertion is reached.
+_HEAD_SHA = "abc123def4567890abc123def4567890abc123de"
 
-def _review(summary):
-    return {"pr_number": 1, "ai_summary": summary, "repo": "KytranKatarn/archie-platform"}
+
+def _review(summary, head_sha=_HEAD_SHA):
+    """A stored review row.
+
+    ``metadata.reviewed_head_sha`` is REQUIRED by CONDITION 1b — pass ``head_sha=None``
+    to build the pre-#5646 unstamped row that the gate must refuse.
+    """
+    row = {"pr_number": 1, "ai_summary": summary, "repo": "KytranKatarn/archie-platform"}
+    if head_sha is not None:
+        row["metadata"] = {"reviewed_head_sha": head_sha}
+    return row
 
 
 @pytest.fixture(autouse=True)
@@ -45,6 +58,27 @@ def _paths_allowed_by_default():
     with patch(
         "tools.repair_bay.services.pr_review_service._automerge_paths_allowed",
         return_value=(True, []),
+    ):
+        yield
+
+
+@pytest.fixture(autouse=True)
+def _head_sha_is_current_by_default():
+    """Neutralise the FRESHNESS condition for the tests in this file (#5646 / #2601).
+
+    Same reasoning as the path stub above, one condition later. CONDITION 1b requires the
+    stored verdict to name the commit it covers and for that to equal the CURRENT head; it
+    is checked BEFORE tier, so without this stub every test here refuses with "does not
+    record which commit it covers" and never reaches the verdict/tier assertion it exists
+    to make. That is exactly what happened: these 7 tests were red from the moment #2601
+    shipped, and a red suite hides real breakage in the gate that guards every merge.
+
+    Freshness itself is covered deliberately in TestStaleVerdictGate below — this stub
+    removes it from the OTHER tests' path, it does not remove it from the file.
+    """
+    with patch(
+        "tools.repair_bay.services.pr_review_service.pr_head_sha",
+        return_value=_HEAD_SHA,
     ):
         yield
 
@@ -195,3 +229,56 @@ class TestPerAuthorityCeiling:
                 ok, why = github_service._automerge_governance_ok(1, authority="coo")
         assert ok is False
         assert "not an approval" in why
+
+
+class TestStaleVerdictGate:
+    """CONDITION 1b (#5646 / #2601): an approval of DIFFERENT code is not an approval.
+
+    The two autouse fixtures above hold freshness "current" for every other test in this
+    file so they can assert verdict/tier. This class is where freshness itself is pinned —
+    it overrides those stubs deliberately. Without it, stamping the fixtures would have
+    QUIETLY DELETED the coverage of the newest condition in the merge gate.
+
+    Measured on PR #2600: APPROVE stored at 02:38:36Z, then a commit at 02:41:41Z touching
+    a file the review never saw. The verdict was genuine — of different code.
+    """
+
+    def _run(self, *, reviewed_sha, current_sha, tier=1):
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=_review(_APPROVED, head_sha=reviewed_sha)):
+            with patch(f"{mod}.classify_pr_tier", return_value=tier):
+                with patch(f"{mod}.pr_head_sha", return_value=current_sha):
+                    with patch.dict("os.environ", {"FORGE_AUTO_MERGE_MAX_TIER": "1"}):
+                        return github_service._automerge_governance_ok(1)
+
+    def test_matching_head_sha_is_allowed(self):
+        ok, why = self._run(reviewed_sha=_HEAD_SHA, current_sha=_HEAD_SHA)
+        assert ok is True, why
+
+    def test_stale_verdict_is_refused(self):
+        """The review covers an older commit than the one about to merge."""
+        ok, why = self._run(reviewed_sha=_HEAD_SHA, current_sha="9999999999999999999999999999999999999999")
+        assert ok is False
+        assert "STALE VERDICT" in why
+
+    def test_unstamped_pre_5646_row_is_refused(self):
+        """Fails CLOSED: a row that cannot prove freshness does not get the benefit of doubt."""
+        ok, why = self._run(reviewed_sha=None, current_sha=_HEAD_SHA)
+        assert ok is False
+        assert "does not record which commit" in why
+
+    def test_unreadable_head_sha_is_refused(self):
+        """An unknown CURRENT sha is refused too — never assume the stored verdict is current."""
+        ok, why = self._run(reviewed_sha=_HEAD_SHA, current_sha="")
+        assert ok is False
+        assert "could not read the current head SHA" in why
+
+    def test_freshness_binds_the_coo_too(self):
+        """A SAFETY property is universal; only tier ceilings are per-authority (#953)."""
+        mod = "tools.repair_bay.services.pr_review_service"
+        with patch(f"{mod}.get_review", return_value=_review(_APPROVED, head_sha=None)):
+            with patch(f"{mod}.classify_pr_tier", return_value=1):
+                with patch(f"{mod}.pr_head_sha", return_value=_HEAD_SHA):
+                    ok, why = github_service._automerge_governance_ok(1, authority="coo")
+        assert ok is False
+        assert "does not record which commit" in why

@@ -25,15 +25,35 @@ import pytest
 import tools.repair_bay.services.github_service as gs
 
 
+_HEAD_SHA = "abc123def4567890abc123def4567890abc123de"
+
+
 @pytest.fixture
 def gate(monkeypatch):
     """Drive _automerge_governance_ok with every dependency stubbed."""
+    # ⚠️ This fixture replaces pr_review_service with a STUB MODULE, so it must expose
+    # EVERY symbol _automerge_governance_ok imports. #5646/#2601 added `pr_head_sha` to
+    # that import list; the stub did not gain it, so the import raised and the gate
+    # returned a refusal before calling ANY stub function — `calls` stayed empty and the
+    # failures read as `assert 'paths' in []`, i.e. the path gate looking broken when the
+    # real problem was a stub missing one name. A stub module is a contract: adding an
+    # import to the function under test means adding it here too.
     state = {
-        "review": {"ai_summary": "VERDICT: APPROVE", "additions": 10, "deletions": 0, "changed_files": 1},
+        "review": {
+            "ai_summary": "VERDICT: APPROVE",
+            "additions": 10,
+            "deletions": 0,
+            "changed_files": 1,
+            # CONDITION 1b: the verdict must name the commit it covers, and it must equal
+            # the current head (_head_sha below). Freshness itself is pinned in
+            # test_merge_governance_gate.py::TestStaleVerdictGate, not here.
+            "metadata": {"reviewed_head_sha": _HEAD_SHA},
+        },
         "approved": True,
         "tier": 1,
         "paths_ok": True,
         "blocking": [],
+        "head_sha": _HEAD_SHA,
         "calls": [],
     }
 
@@ -55,10 +75,15 @@ def gate(monkeypatch):
         state["calls"].append("paths")
         return state["paths_ok"], state["blocking"]
 
+    def _head_sha(pr, repo=None):
+        state["calls"].append("head_sha")
+        return state["head_sha"]
+
     stub.get_review = _get_review
     stub.verdict_is_approved = _verdict
     stub.classify_pr_tier = _tier
     stub._automerge_paths_allowed = _paths
+    stub.pr_head_sha = _head_sha
     monkeypatch.setitem(sys.modules, "tools.repair_bay.services.pr_review_service", stub)
     monkeypatch.setenv("FORGE_AUTO_MERGE_MAX_TIER", "1")
     return state

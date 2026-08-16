@@ -5,6 +5,15 @@ against archie-platform. Those must pass a human merge gate even on a F.O.R.G.E.
 autonomous code is never auto-merged. Normal (human/codex) PRs must keep auto-merging.
 
 All externals are mocked, so this never touches the real DB, GitHub, or Telegram.
+
+⚠️ That sentence was FALSE between #5370 and 2026-08-16, and these tests were red the whole
+time. #5370 added a sensitive-path gate to mark_review_done that runs BEFORE merge_pr and
+calls `_automerge_paths_allowed` — which was NOT stubbed here, so the "fully mocked" suite
+reached the LIVE GitHub API, got the real files of an unrelated PR #999, took the
+non-allowlisted early-return, and never called merge_pr at all. The assertion failed as
+`[] == [999]`, which reads like the safety gate misfiring rather than a missing stub.
+The stub now lives in the `merges` fixture; the path behaviour itself is covered in
+test_automerge_path_gate.py.
 """
 
 import contextlib
@@ -37,6 +46,12 @@ def merges(monkeypatch):
     monkeypatch.setattr(prs, "verdict_is_approved", lambda _s: True)
     monkeypatch.setattr(prs, "classify_pr_tier", lambda _r: 1)  # tier 1 → would auto-merge if not gated
     monkeypatch.setattr(prs, "get_db_cursor", _fake_cursor)
+    # #5370's sensitive-path gate runs BEFORE merge_pr and hits the GitHub API. Unstubbed,
+    # it made this "fully mocked" suite call the network and early-return, so merge_pr was
+    # never reached and the engine-gate assertions could not run at all. Held "allowed"
+    # here because these tests are about the ENGINE gate; paths are pinned separately in
+    # test_automerge_path_gate.py.
+    monkeypatch.setattr(prs, "_automerge_paths_allowed", lambda _pr, repo=None: (True, []))
     monkeypatch.setattr(
         github_service,
         "merge_pr",

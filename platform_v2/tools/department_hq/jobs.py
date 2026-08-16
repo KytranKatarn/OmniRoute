@@ -4926,7 +4926,39 @@ def _register_own_jobs(scheduler, flask_app):
             errors.append(f"profile:{type(exc).__name__}")
             logger.exception("[ChronicleIngest] linkedin profile ingest failed")
 
-        if landed["gmail"] or landed["linkedin"] or landed.get("profile") or errors:
+        # --- LinkedIn OWN COMMENTS: the second browser capture, faster cadence ---
+        # His hand-written comments accrue daily (11 captured on the first run), unlike a
+        # profile which changes weekly at most — so this gets its own, shorter freshness
+        # gate rather than riding the profile's 24h one. Same reasoning otherwise: gated
+        # on stored-row age, under the single `chronicle_ingest` switch, wired in so it
+        # cannot become another never-called function.
+        try:
+            from datetime import timedelta as _td
+
+            from services.chronicle_linkedin_source import run_own_comments_ingest
+            from services.time_utils import now_utc as _now
+
+            _oc_age_h = int(_os.getenv("CHRONICLE_OWN_COMMENTS_MAX_AGE_H", "6"))
+            with _gdc(commit=False) as (_c, cur):
+                cur.execute(
+                    "SELECT max(created_at) AS last FROM mailbox_emails " "WHERE folder='linkedin/comments_own'"
+                )
+                row = cur.fetchone()
+            last = (dict(row).get("last") if row else None) if row else None
+            if last is None or (_now() - last) >= _td(hours=_oc_age_h):
+                res = run_own_comments_ingest() or {}
+                landed["own_comments"] = int(res.get("inserted") or 0)
+                if res.get("status") != "ok":
+                    errors.append(f"own_comments:{res.get('status')}")
+                # Clipped samples with no expand clicks means the disclosure control moved:
+                # the corpus is still growing, but every new sample is being cut short.
+                elif res.get("truncated") and not res.get("expanded"):
+                    errors.append(f"own_comments:all_truncated_no_expand({res.get('truncated')})")
+        except Exception as exc:  # noqa: BLE001 — must not kill the rest of the cycle
+            errors.append(f"own_comments:{type(exc).__name__}")
+            logger.exception("[ChronicleIngest] linkedin own-comments ingest failed")
+
+        if landed["gmail"] or landed["linkedin"] or landed.get("profile") or landed.get("own_comments") or errors:
             logger.info("[ChronicleIngest] cycle landed=%s errors=%s", landed, errors or None)
 
     scheduler.add_job(

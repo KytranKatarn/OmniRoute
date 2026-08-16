@@ -23,6 +23,7 @@ profile lands as a new dated snapshot — the history is the point for voice dri
 import hashlib
 import json
 import logging
+import re
 
 from services.chronicle_ingest import ingest_source
 
@@ -220,6 +221,62 @@ def _fetch_engagement(agent_id):
         return cur.fetchall()
 
 
+def _approx_sent_at(age, now=None):
+    """Approximate absolute time from LinkedIn's relative label ("3h", "1w").
+
+    DERIVED, NOT FABRICATED: LinkedIn only ever exposes this coarse label on the comments
+    tab, so the precision genuinely is "within one unit". It is computed anyway because
+    without it the whole own-comment corpus lands with sent_at NULL and loses its ordering
+    in the Chronicle timeline — and ordering is what makes a voice corpus readable. Any
+    consumer needing exact times must open the permalink.
+    """
+    from datetime import timedelta
+
+    from services.time_utils import now_utc
+
+    m = re.match(r"^(\d+)\s*(s|m|h|d|w|mo|y)$", (age or "").strip(), re.I)
+    if not m:
+        return None
+    n, unit = int(m.group(1)), m.group(2).lower()
+    delta = {
+        "s": timedelta(seconds=n),
+        "m": timedelta(minutes=n),
+        "h": timedelta(hours=n),
+        "d": timedelta(days=n),
+        "w": timedelta(weeks=n),
+        "mo": timedelta(days=30 * n),
+        "y": timedelta(days=365 * n),
+    }.get(unit)
+    return ((now or now_utc()) - delta) if delta else None
+
+
+def _map_own_comment(comment, comment_urn, post_url, now=None):
+    """Pure: one parsed own-comment -> a Chronicle item (authored by the account holder).
+
+    message_id is content-addressed over (urn + text) because ONE CARD CAN CARRY MORE THAN
+    ONE COMMENT (measured: he commented twice on the same post), so the comment URN alone
+    is NOT unique per comment and would collide — silently dropping the second comment as
+    a duplicate. Hashing the text as well keeps each distinct comment, and makes a
+    re-capture of unchanged text idempotent.
+    """
+    text = (comment or {}).get("text") or ""
+    sig = hashlib.sha256(f"{comment_urn}\n{' '.join(text.split())}".encode("utf-8")).hexdigest()[:16]
+    body = _with_link(text, post_url, "On")
+    if (comment or {}).get("truncated"):
+        # Recorded so a downstream voice model is not handed a clipped sample believing
+        # it complete. LinkedIn collapses long comments at ~1245 visible chars.
+        body = f"{body}\n\n[truncated by LinkedIn — open the permalink for the full text]"
+    return {
+        "message_id": f"li:owncomment:{sig}",
+        "folder": "linkedin/comments_own",
+        "from_addr": TERRY,
+        "subject": _subject(text, "LinkedIn comment"),
+        "body_text": body,
+        "sent_at": _approx_sent_at((comment or {}).get("age"), now=now),
+        "has_attachments": False,
+    }
+
+
 def _fetch_profile_url(agent_id):
     """The agent's own LinkedIn URL from the registry — NEVER hardcoded, so a corrected
     URL is a data edit. Returns None when the agent has no row (migration 468 adds 377's)."""
@@ -315,6 +372,98 @@ def run_profile_ingest(account_key="terry", account_id=2, owner_id=4):
         # Surfaced so "0 skills" is self-explaining: 'none' means the selector found no
         # section at all, which is a break; 'anchor_id' with 0 means genuinely empty.
         "strategy": res.get("strategy"),
+        **out,
+    }
+
+
+def _capture_own_comments(agent_id, profile_url, limit):
+    """Drive the linkedin_own_comments skill. Separate so tests monkeypatch it."""
+    from services.browser_service import run_skill_sync
+
+    return run_skill_sync(
+        "linkedin_own_comments",
+        {"profile_url": profile_url, "limit": limit},
+        agent_id=agent_id,
+        timeout_s=300,
+    )
+
+
+def run_own_comments_ingest(account_key="terry", account_id=2, owner_id=4, limit=25):
+    """Capture the account holder's OWN hand-written LinkedIn comments into Chronicle.
+
+    These are invisible to every other path: the notification bell only surfaces comments
+    OTHERS leave on HIS posts, and `linkedin_engagement_ledger` only holds platform-drafted
+    ones. Per the owner this hand-written corpus is the richest voice sample available.
+
+    Identity is fail-loud (require_browser_id) for the same reason as the profile capture:
+    a defaulted 342 would file Kytran's comments as this account's voice corpus.
+    """
+    from services.linkedin_comment_parser import parse_own_comments, post_url_for
+    from services.signal_accounts import require_browser_id
+
+    agent_id = require_browser_id(account_key)  # raises UnknownAccountError
+
+    profile_url = _fetch_profile_url(agent_id)
+    if not profile_url:
+        logger.warning("own-comments ingest: agent %s has no linkedin row", agent_id)
+        return {"status": "no_profile_url", "agent_id": agent_id, "inserted": 0, "skipped": 0}
+
+    res = _capture_own_comments(agent_id, profile_url, limit) or {}
+    if not res.get("success"):
+        logger.warning(
+            "own-comments ingest: capture failed for agent %s (%s)",
+            agent_id,
+            res.get("result") or "no reason given",
+        )
+        return {
+            "status": "capture_failed",
+            "agent_id": agent_id,
+            "reason": res.get("result") or res.get("error"),
+            "inserted": 0,
+            "skipped": 0,
+        }
+
+    items, cards, truncated = [], res.get("items") or [], 0
+    for card in cards:
+        urn = card.get("comment_urn") or ""
+        # The permalink comes from the URN's embedded parent activity, NOT the card's
+        # data-urn — those mismatched on 5/5 measured cards (the card's is the
+        # "commented on this" feed-wrapper event, not the post).
+        purl = post_url_for(urn) or card.get("post_url")
+        for c in parse_own_comments(card.get("raw_text") or ""):
+            items.append(_map_own_comment(c, urn, purl))
+            truncated += 1 if c.get("truncated") else 0
+
+    if not items:
+        # Honest: a genuinely quiet tab and a broken parse both land here, so the skill's
+        # own diagnostics are returned rather than a bare zero.
+        return {
+            "status": "no_comments",
+            "agent_id": agent_id,
+            "cards": len(cards),
+            "strategy": res.get("strategy"),
+            "containers_seen": res.get("containers_seen"),
+            "inserted": 0,
+            "skipped": 0,
+        }
+
+    out = ingest_source(
+        "linkedin",
+        account_id,
+        items,
+        owner_id=owner_id,
+        is_live=True,
+        title=f"linkedin: {account_key}",
+    )
+    return {
+        "status": "ok",
+        "agent_id": agent_id,
+        "cards": len(cards),
+        "comments": len(items),
+        # If this is high while `expanded` is 0, the disclosure control moved and every
+        # sample is being clipped — the pair is the tripwire, neither number alone is.
+        "truncated": truncated,
+        "expanded": res.get("expanded"),
         **out,
     }
 

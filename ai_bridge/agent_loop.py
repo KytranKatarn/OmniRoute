@@ -6715,7 +6715,19 @@ class AgentLoop:
 
             reply = clean_draft(reply, kind="reply")
             comment_author = data.get("comment_author") or data.get("author") or ""
-            agent_id = data.get("browser_agent_id") or 342
+            # #5653 — FAIL LOUD, never default the identity. `or 342` silently posted as
+            # Kytran's personal profile whenever browser_agent_id was missing/unresolvable,
+            # which is a public identity crossover with no error anywhere. A LinkedIn action
+            # that cannot prove which identity it belongs to must not happen at all.
+            agent_id = data.get("browser_agent_id")
+            if not agent_id:
+                return {
+                    "executed": False,
+                    "error": (
+                        f"identity_unresolved: no browser_agent_id on the {action_type} approval — "
+                        "refusing to act under a defaulted identity (#5653)"
+                    ),
+                }
             if not reply or not (comment_url or post_url):
                 return {"executed": False, "error": "reply and (comment_url or post_url) required"}
             try:
@@ -6828,7 +6840,19 @@ class AgentLoop:
             # Approval-gated engagement — fires only after a Telegram/tab Approve.
             post_url = data.get("post_url", "")
             reaction = data.get("reaction", "like")
-            agent_id = data.get("browser_agent_id") or 342
+            # #5653 — FAIL LOUD, never default the identity. `or 342` silently posted as
+            # Kytran's personal profile whenever browser_agent_id was missing/unresolvable,
+            # which is a public identity crossover with no error anywhere. A LinkedIn action
+            # that cannot prove which identity it belongs to must not happen at all.
+            agent_id = data.get("browser_agent_id")
+            if not agent_id:
+                return {
+                    "executed": False,
+                    "error": (
+                        f"identity_unresolved: no browser_agent_id on the {action_type} approval — "
+                        "refusing to act under a defaulted identity (#5653)"
+                    ),
+                }
             if not post_url:
                 return {"executed": False, "error": "post_url required for linkedin_like"}
             try:
@@ -6864,7 +6888,19 @@ class AgentLoop:
             # linkedin_comment_reply action via the comment monitor.)
             post_url = data.get("post_url", "")
             comment = data.get("comment", "")
-            agent_id = data.get("browser_agent_id") or 342
+            # #5653 — FAIL LOUD, never default the identity. `or 342` silently posted as
+            # Kytran's personal profile whenever browser_agent_id was missing/unresolvable,
+            # which is a public identity crossover with no error anywhere. A LinkedIn action
+            # that cannot prove which identity it belongs to must not happen at all.
+            agent_id = data.get("browser_agent_id")
+            if not agent_id:
+                return {
+                    "executed": False,
+                    "error": (
+                        f"identity_unresolved: no browser_agent_id on the {action_type} approval — "
+                        "refusing to act under a defaulted identity (#5653)"
+                    ),
+                }
             if not post_url or not comment:
                 return {"executed": False, "error": "post_url and comment required for linkedin_comment"}
             try:
@@ -6904,7 +6940,19 @@ class AgentLoop:
             # Approved LIKE on a specific comment (cross-boost: Terry ↔ Kytran like
             # each other's comments). Approval-gated — fires only after Approve.
             comment_url = data.get("comment_url", "")
-            agent_id = data.get("browser_agent_id") or 342
+            # #5653 — FAIL LOUD, never default the identity. `or 342` silently posted as
+            # Kytran's personal profile whenever browser_agent_id was missing/unresolvable,
+            # which is a public identity crossover with no error anywhere. A LinkedIn action
+            # that cannot prove which identity it belongs to must not happen at all.
+            agent_id = data.get("browser_agent_id")
+            if not agent_id:
+                return {
+                    "executed": False,
+                    "error": (
+                        f"identity_unresolved: no browser_agent_id on the {action_type} approval — "
+                        "refusing to act under a defaulted identity (#5653)"
+                    ),
+                }
             if not comment_url:
                 return {"executed": False, "error": "comment_url required for linkedin_comment_like"}
             try:

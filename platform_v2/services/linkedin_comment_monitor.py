@@ -390,6 +390,24 @@ def draft_comment_replies(limit: int = 5) -> dict:
                 notes.append({"id": c["id"], "note": "FR translate cold — queued EN draft"})
 
         draft = _trim_reply(clean_draft(draft, kind="reply"))  # #4373 — strip model preamble
+
+        # #5653 — the reply MUST go out as the identity whose notification bell received
+        # the comment (Terry answers Terry's, Kytran answers Kytran's). Resolve strictly:
+        # browser_id_for() would answer 342 (Kytran's personal profile) for an unknown or
+        # empty account, which would publish under the WRONG NAME with no error. Skip the
+        # comment instead — an unattributable reply is not worth a wrong-identity post.
+        try:
+            acting_agent_id = signal_accounts.require_browser_id(c.get("account") or "")
+        except signal_accounts.UnknownAccountError as exc:
+            logger.error(
+                "[CommentMonitor] comment %s has unresolvable account %r — NOT drafting a reply: %s",
+                c["id"],
+                c.get("account"),
+                exc,
+            )
+            notes.append({"id": c["id"], "note": f"skipped — unresolvable account {c.get('account')!r}"})
+            continue
+
         approval_id = request_approval(
             action_type="linkedin_comment_reply",
             action_data={
@@ -398,7 +416,7 @@ def draft_comment_replies(limit: int = 5) -> dict:
                 "comment_url": c.get("comment_url"),
                 "comment_author": author,
                 "reply": draft,
-                "browser_agent_id": signal_accounts.browser_id_for((c.get("account") or "").lower()),
+                "browser_agent_id": acting_agent_id,
                 "author": author,
                 "post_type": post_type,
             },

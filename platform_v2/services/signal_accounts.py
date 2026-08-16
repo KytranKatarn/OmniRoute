@@ -90,6 +90,30 @@ _FALLBACK_PT_TO_ACCT = {
     "creed_ai": "creed",
 }
 
+# Account-NAME aliases → canonical account_key (#5653).
+#
+# ⚠️ DELIBERATELY SEPARATE from _FALLBACK_PT_TO_ACCT. These are not post_types — they are
+# the names other tables use for the same identity. `post_types_for()` feeds real SQL in
+# signal_calendar_service, so putting 'kytran' in the post_type map made the calendar look
+# for posts with post_type IN ('personal','kytran','owner'). Only resolve_key() reads this.
+#
+# 'kytran' is what `linkedin_comments.account` stores for the owner's personal identity
+# (measured 2026-08-16: 14 rows 'kytran', 45 'terry'), yet it was NOT a registry key and
+# NOT an alias — it resolved to 342 ONLY because browser_id_for()'s hardcoded `or 342`
+# default happened to be the right answer. Correct by luck; named explicitly now.
+_ACCOUNT_ALIASES = {
+    "kytran": "personal",
+    "owner": "personal",
+}
+
+
+class UnknownAccountError(ValueError):
+    """Raised when an account key cannot be resolved to a real browser identity.
+
+    Exists so a publish path can FAIL rather than silently act as somebody else —
+    see require_browser_id().
+    """
+
 
 def _load() -> None:
     """Refresh the cache from the registry; fall back to the literals on any failure."""
@@ -173,8 +197,28 @@ def post_type_to_account(post_type: str, default: Optional[str] = "personal") ->
     return _cache["pt_to_acct"].get((post_type or "").lower(), default)
 
 
+def resolve_key(account_key: str) -> Optional[str]:
+    """Canonical account_key for a key OR one of its aliases, else None.
+
+    `get()` does a direct dict lookup with NO alias resolution, which is why 'kytran'
+    (the value actually stored in linkedin_comments.account) missed the registry
+    entirely and fell through to the 342 default (#5653).
+    """
+    _load()
+    k = (account_key or "").strip().lower()
+    if not k:
+        return None
+    if k in _cache["accounts"]:
+        return k
+    # account-name aliases first, then post_type aliases (a post_type IS a valid way to
+    # name the account it belongs to — e.g. 'company_page' -> 'company').
+    alias = _ACCOUNT_ALIASES.get(k) or _cache["pt_to_acct"].get(k)
+    return alias if alias and alias in _cache["accounts"] else None
+
+
 def _field(account_key: str, field: str, default: Any = None) -> Any:
-    d = get(account_key)
+    key = resolve_key(account_key)
+    d = get(key) if key else None
     return d.get(field) if d else default
 
 
@@ -183,7 +227,34 @@ def agent_id_for(account_key: str) -> int:
 
 
 def browser_id_for(account_key: str) -> int:
+    """Browser identity for an account, defaulting to 342 for an unknown key.
+
+    ⚠️ LENIENT BY DESIGN for read/reporting callers. Anything that will PUBLISH under
+    the returned identity must use require_browser_id() instead — see #5653.
+    """
     return _field(account_key, "browser_agent_id", 342) or 342
+
+
+def require_browser_id(account_key: str) -> int:
+    """Browser identity for an account, or raise UnknownAccountError.
+
+    THE POINT (#5653): browser_id_for() answers 342 — Kytran's personal profile — for a
+    typo, an empty string, a NULL, or an account added to the data before the registry.
+    On a publish path that is a SILENT IDENTITY CROSSOVER: a reply meant for another
+    identity goes out under the owner's own name with no error anywhere. Refusing to act
+    is strictly better than acting as the wrong person, so publish boundaries call this.
+    """
+    key = resolve_key(account_key)
+    if not key:
+        raise UnknownAccountError(
+            f"account {account_key!r} does not resolve to a registered LinkedIn identity — "
+            "refusing to default to 342 (Kytran). Add it to agent_platform_accounts or to "
+            "_FALLBACK_PT_TO_ACCT as an alias."
+        )
+    val = _field(key, "browser_agent_id")
+    if not val:
+        raise UnknownAccountError(f"account {key!r} has no browser_agent_id in the registry")
+    return int(val)
 
 
 def label_for(account_key: str) -> str:

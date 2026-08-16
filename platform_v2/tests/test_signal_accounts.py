@@ -61,6 +61,45 @@ class TestFallbackEqualsLegacyLiterals:
             assert sa.company_slug_for("creed") == "115977300"
             assert sa.company_slug_for("personal") is None
 
+    # ------------------------------------------------------------------ #5653
+    # Identity must never silently default to 342 (Kytran) on a publish path.
+
+    def test_kytran_resolves_by_alias_not_by_the_342_default(self):
+        """'kytran' is what linkedin_comments.account stores for the owner.
+
+        It used to hit browser_id_for()'s hardcoded `or 342` — right answer, wrong
+        reason. resolve_key must map it to the 'personal' account explicitly, so the
+        correctness does not depend on what the default happens to be.
+        """
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.resolve_key("kytran") == "personal"
+            assert sa.resolve_key("KYTRAN") == "personal"  # case-insensitive
+            assert sa.resolve_key("owner") == "personal"
+            assert sa.resolve_key("terry") == "terry"
+            assert sa.resolve_key("company_page") == "company"
+
+    def test_resolve_key_returns_none_for_unknown(self):
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            for bad in ("bogus", "", None, "   "):
+                assert sa.resolve_key(bad) is None, bad
+
+    def test_require_browser_id_refuses_unknown_instead_of_defaulting_to_342(self):
+        """THE REGRESSION THIS EXISTS FOR: a typo / NULL / not-yet-registered account
+        must NOT publish under Kytran's personal profile."""
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.require_browser_id("terry") == 377
+            assert sa.require_browser_id("kytran") == 342  # correct, and now BY DESIGN
+            for bad in ("bogus", "", None):
+                with pytest.raises(sa.UnknownAccountError):
+                    sa.require_browser_id(bad)
+
+    def test_browser_id_for_stays_lenient_for_read_callers(self):
+        """browser_id_for keeps its 342 default on purpose — ~15 read/reporting callers
+        rely on it. Only the publish boundary uses the strict variant."""
+        with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
+            assert sa.browser_id_for("bogus") == 342
+            assert sa.browser_id_for("terry") == 377
+
     def test_post_type_aliases_match_legacy(self):
         with patch("database.get_db_cursor", side_effect=RuntimeError("no db")):
             assert sa.post_type_to_account("company_page") == "company"

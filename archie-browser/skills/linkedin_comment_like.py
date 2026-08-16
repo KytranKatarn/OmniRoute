@@ -78,62 +78,71 @@ def _target_comment_id(comment_url):
     return cid or ""
 
 
-def _like_button(target):
-    """The target comment's own Like toggle — scoped to the comment node so we can
-    never hit the POST's like button by accident.
+# The reaction control + its state signal on SDUI (#5651).
+#
+# ⚠️ THE VISIBLE CONTROL IS NOT A <button>. Measured 2026-08-16 inside a comment node on
+# the migrated post-detail surface:
+#     button[aria-label="Open reactions menu"]   -> 0x0, opacity:0, NOT clickable
+#         (a hidden a11y/menu anchor; Playwright correctly refuses it, and clicking it is
+#          not how a like is registered — the first attempt timed out on 15 retries)
+#     svg[aria-label="Reaction button state: …"] -> 16x16, cursor:pointer  <- STATE
+#     its closest div[componentkey]              -> 40x40, cursor:pointer  <- CLICK TARGET
+#
+# ⚠️ aria-pressed NO LONGER EXISTS anywhere in the node, so the old honesty contract lost
+# its evidence. The replacement is the svg's aria-label, which is a REAL state readout:
+#     "Reaction button state: no reaction"  -> not liked
+#     "Reaction button state: Like"         -> liked
+# Verified by performing one real like (Terry 377 -> Kytran's own comment, cross-boost):
+#     PRE  state="…: no reaction" count="0"
+#     POST state="…: Like"        count="1 reaction 1"
+#
+# ⚠️ Do NOT locate the click target with `div[componentkey]:has(svg[...])` — `:has()`
+# matches every ANCESTOR div containing the svg, and `.first` is the OUTERMOST wrapper.
+# Clicking that silently does nothing (measured: 4 matches, state unchanged). Use
+# `closest()` from the svg so the innermost 40x40 control is hit.
+_REACTION_SVG = 'svg[aria-label^="Reaction button state"]'
 
-    🔴 KNOWN BROKEN ON SDUI SURFACES (#5650 → follow-up #5651). Targeting the right
-    comment node was fixed in #5650, but the like ACTION was not: on the migrated
-    post-detail surface a comment's buttons are, measured 2026-08-16:
 
-        aria-label="View more options for <author>’s comment."
-        aria-label="Open reactions menu"        <-- the like affordance now
-        aria-label="Reply"
-        (a componentkey DIV holding the reaction count, e.g. "0")
+def _reaction_control(page, target):
+    """(element_handle, state_label) for the target comment's reaction toggle.
 
-    There is no button named "Like" and NO aria-pressed anywhere in the node, so
-    all three getters below miss AND the honesty contract loses its state evidence.
-    Failing here is CORRECT behaviour for now — this skill reports failure rather
-    than claiming a like it cannot verify. Do NOT "fix" it by clicking
-    "Open reactions menu" blind: that opens a reaction PICKER (a different
-    interaction), and the new pressed-state signal has to be established by a real
-    like against a live account, which needs Kytran's go-ahead to test.
+    Returns (None, '') when the control cannot be found — never a guess.
     """
-    for getter in [
-        lambda: target.locator('button[aria-label^="Like"], button[aria-label*=" Like"]').first,
-        lambda: target.get_by_role("button", name=re.compile(r"^Like\b", re.I)).first,
-        lambda: target.locator("button.comments-comment-social-bar__reaction-action").first,
-    ]:
-        try:
-            btn = getter()
-            btn.wait_for(state="visible", timeout=3000)
-            return btn
-        except Exception:
-            continue
-    return None
+    try:
+        handle = page.evaluate_handle(
+            """(node) => {
+                 const s = node.querySelector('svg[aria-label^="Reaction button state"]');
+                 return s ? s.closest('div[componentkey]') : null;
+               }""",
+            target.element_handle(),
+        )
+        el = handle.as_element()
+        if el is None:
+            return None, ""
+        state = page.evaluate(
+            """(node) => {
+                 const s = node.querySelector('svg[aria-label^="Reaction button state"]');
+                 return s ? (s.getAttribute('aria-label') || '') : '';
+               }""",
+            target.element_handle(),
+        )
+        return el, state
+    except Exception:
+        return None, ""
 
 
-def _is_pressed(btn) -> bool:
-    """State evidence that the like is registered (aria-pressed / active class /
-    label flipped to a reacted form)."""
-    try:
-        if (btn.get_attribute("aria-pressed", timeout=1500) or "").lower() == "true":
-            return True
-    except Exception:
-        pass
-    try:
-        cls = btn.get_attribute("class", timeout=1500) or ""
-        if "active" in cls or "reacted" in cls:
-            return True
-    except Exception:
-        pass
-    try:
-        label = (btn.get_attribute("aria-label", timeout=1500) or "").lower()
-        if "unreact" in label or "unlike" in label:
-            return True
-    except Exception:
-        pass
-    return False
+def _state_is_reacted(state_label: str) -> bool:
+    """True when the reaction state readout shows an ACTIVE reaction.
+
+    Deliberately inverted-safe: anything that is not a recognised 'no reaction' readout
+    but still carries the prefix counts as reacted, EXCEPT an empty/unknown label — an
+    unreadable state must never be reported as a successful like.
+    """
+    s = (state_label or "").strip().lower()
+    if not s.startswith("reaction button state"):
+        return False
+    value = s.split(":", 1)[1].strip() if ":" in s else ""
+    return bool(value) and value not in ("no reaction", "none", "")
 
 
 def execute(page, params: dict) -> dict:
@@ -231,31 +240,39 @@ def execute(page, params: dict) -> dict:
         pass
     page.wait_for_timeout(500)
 
-    btn = _like_button(target)
+    btn, state_before = _reaction_control(page, target)
     if btn is None:
         _screenshot(page, "clike_btn_miss")
         return {
             "success": False,
             "confirmed": False,
             "error": "like_button_not_found",
-            "result": "Found the comment but not its Like button",
+            "result": (
+                "Found the comment but not its reaction control — look for "
+                f"{_REACTION_SVG} inside the comment node (see #5651)"
+            ),
             "post_url": nav_url,
         }
 
     matched_by = "comment_id" if target_idx == -2 else f"index {target_idx}"
 
-    if _is_pressed(btn):
+    if _state_is_reacted(state_before):
         return {
             "success": True,
             "confirmed": True,
             "already": True,
-            "result": f"Comment already liked ({matched_by})",
+            "result": f"Comment already liked ({matched_by}) — state: {state_before}",
             "post_url": nav_url,
             "matched_by": matched_by,
+            "reaction_state": state_before,
             "error": None,
             "screenshot_path": _screenshot(page, "clike_already"),
         }
 
+    try:
+        btn.scroll_into_view_if_needed(timeout=4000)
+    except Exception:
+        pass
     try:
         btn.click(timeout=5000)
     except Exception:
@@ -267,15 +284,21 @@ def execute(page, params: dict) -> dict:
                 "success": False,
                 "confirmed": False,
                 "error": "like_click_failed",
-                "result": "Like button found but the click did not register",
+                "result": "Reaction control found but the click did not register",
                 "post_url": nav_url,
+                "reaction_state": state_before,
             }
 
-    # Verify on STATE, not hope: poll the same button for pressed evidence.
+    # Verify on STATE, not hope: re-read the reaction readout until it flips.
+    # ⚠️ Re-resolve the control each poll — do NOT cache the handle. SDUI re-renders the
+    # social bar after a reaction, and a stale handle keeps reporting the OLD label, which
+    # would turn a successful like into a reported failure.
     confirmed = False
+    state_after = state_before
     for _ in range(4):
         page.wait_for_timeout(1200)
-        if _is_pressed(btn):
+        _btn2, state_after = _reaction_control(page, target)
+        if _state_is_reacted(state_after):
             confirmed = True
             break
 
@@ -284,10 +307,14 @@ def execute(page, params: dict) -> dict:
         "confirmed": confirmed,
         "already": False,
         "result": (
-            f"Comment liked ({matched_by})" if confirmed else "Clicked Like but the pressed state was NOT confirmed"
+            f"Comment liked ({matched_by}) — state: {state_after}"
+            if confirmed
+            else f"Clicked the reaction control but the state did NOT flip (still: {state_after or 'unreadable'})"
         ),
         "post_url": nav_url,
         "matched_by": matched_by,
+        "reaction_state": state_after,
+        "reaction_state_before": state_before,
         "error": None if confirmed else "like_not_confirmed",
         "screenshot_path": _screenshot(page, "clike_done"),
     }

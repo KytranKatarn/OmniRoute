@@ -310,6 +310,34 @@ def create_agent(name, display_name, department, model, **kwargs):
         )
 
     logger.info("Created agent #%d: %s (%s) in %s", agent_id, name, display_name, department)
+
+    # Give the new hire a mailbox (#5640). Done HERE, at the single-writer choke
+    # point, so it covers every caller — the same reasoning as the name-collision
+    # guard above. Before this, agent creation never made an email_mailboxes row
+    # and no provisioning endpoint could self-heal it (they only provision rows
+    # that already exist), so 84 working agents had no mail at all.
+    # Best-effort by design: a mail outage must never block hiring.
+    try:
+        from tools.email_manager.agent_mailbox_service import ensure_agent_mailbox
+
+        result = ensure_agent_mailbox(
+            agent_id=agent_id,
+            name=name,
+            department=department,
+            worker_type=kwargs.get("worker_type", "internal"),
+            first_name=kwargs.get("first_name"),
+            last_name=kwargs.get("last_name"),
+        )
+        if not result.get("ok"):
+            logger.warning(
+                "Agent #%d created but mailbox not provisioned (%s) — run "
+                "/api/email/mailboxes/provision-all-agents to retry",
+                agent_id,
+                result.get("status"),
+            )
+    except Exception as exc:
+        logger.warning("Agent #%d created but mailbox step failed: %s", agent_id, exc)
+
     return agent_id
 
 

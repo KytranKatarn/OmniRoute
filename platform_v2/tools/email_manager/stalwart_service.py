@@ -246,6 +246,25 @@ def grant_default_permissions(address: str) -> bool:
         return False
 
 
+def _account_exists(local_part: str) -> bool:
+    """True if a Stalwart principal with this name already exists.
+
+    Fails SAFE (returns True) when the roster cannot be read: assuming the account
+    exists only costs one redundant password reset, whereas assuming it is new
+    leaves a mailbox holding a password the server never accepted.
+
+    NOTE: do NOT use ``get_mailbox()`` for this — it returns None even for
+    accounts that demonstrably authenticate (verified 2026-08-15 against
+    access@), so it cannot distinguish "absent" from "present".
+    """
+    try:
+        accounts = list_accounts() or []
+        return local_part.lower() in {(a.get("name") or "").lower() for a in accounts}
+    except Exception as exc:
+        logger.warning("Stalwart: account-existence check failed for %s: %s", local_part, exc)
+        return True
+
+
 def create_mailbox(address: str, display_name: str = "", password: str = None, quota_gb: int = 1) -> dict:
     """Provision a new mailbox in Stalwart.
 
@@ -257,6 +276,10 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
         return err
     local_part = address.split("@")[0]
     _password = password or secrets.token_urlsafe(20)
+    # Record whether the principal already exists BEFORE we POST — afterwards the
+    # two cases are indistinguishable (both answer 2xx). Fails SAFE: if the lookup
+    # errors we assume it existed, which only costs a redundant password reset.
+    _existed_before = _account_exists(local_part)
 
     try:
         resp = requests.post(
@@ -274,7 +297,25 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
             timeout=10,
         )
         if resp.status_code in (200, 201):
-            logger.info("Stalwart: provisioned mailbox %s", address)
+            # A 2xx does NOT prove our password was applied. When the principal
+            # already exists, Stalwart keeps its EXISTING secret and still answers
+            # 2xx — so the caller stores a password the server will never accept,
+            # producing a mailbox that looks provisioned and cannot authenticate.
+            # Measured 2026-08-15: axiom@ and tester@ were created "successfully"
+            # and both failed IMAP login; every other new mailbox worked. Force the
+            # secret so the returned credential is always the usable one.
+            if _existed_before:
+                reset = update_password(address, _password)
+                if not reset.get("ok"):
+                    logger.error(
+                        "Stalwart: %s already existed and password reset failed: %s",
+                        address,
+                        reset.get("error"),
+                    )
+                    return {"ok": False, "error": f"account exists, password reset failed: {reset.get('error')}"}
+                logger.info("Stalwart: %s already existed — password reset to the stored one", address)
+            else:
+                logger.info("Stalwart: provisioned mailbox %s", address)
             grant_default_permissions(address)
             return {"ok": True, "password": _password}
         err = resp.text[:300]

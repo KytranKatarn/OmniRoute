@@ -11,7 +11,7 @@ if [ ! -f "$MARKER" ]; then
 {
   "hookSpecificOutput": {
     "hookEventName": "PreToolUse",
-    "additionalContext": "⚠️ IDENTITY GATE WARNING: Session identity assertion not yet made this session. If this operation touches users/user_profiles/oauth tables or owner emails (kytranempowerment@gmail.com / admin@KytranEmpowerment.com), run /archie-boot and complete Step 1.5 first. Then run: touch /tmp/archie_identity_asserted"
+    "additionalContext": "⚠️ IDENTITY GATE WARNING: Session identity assertion not yet made this session. If this operation touches users/user_profiles/oauth tables or owner emails (kytran@kytranempowerment.com = CANONICAL platform login / kytranempowerment@gmail.com = backup Google account for external sign-ins / admin@KytranEmpowerment.com = agent account, not the human), run /archie-boot and complete Step 1.5 first. Then run: touch /tmp/archie_identity_asserted"
   }
 }
 HOOK_JSON

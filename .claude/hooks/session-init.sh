@@ -12,7 +12,7 @@ GIT_BRANCH=$(cd /mnt/archie_brain && git branch --show-current 2>/dev/null)
 GIT_STATUS=$(cd /mnt/archie_brain && git status --short 2>/dev/null | head -15)
 
 # Owner identity (canonical — never ask again)
-OWNER="Owner: Kytran Katarn | Canonical login: kytranempowerment@gmail.com (Google SSO) | admin@KytranEmpowerment.com = Claude/ARCHIE agent account only, NOT Kytran's identity | Hub: 192.168.1.200 | User is REMOTE"
+OWNER="Owner: Kytran Katarn | Canonical login: kytran@kytranempowerment.com (email+password, username 'kytran', users.id=4) — Google SSO REMOVED 2026-05-06 | kytranempowerment@gmail.com = BACKUP Google account, used to Google-sign-in to EXTERNAL sites (incl. LinkedIn profile 342) — NOT the platform login | admin@KytranEmpowerment.com = Claude/ARCHIE agent account only, NOT Kytran's identity | Hub: 192.168.1.200 | User is REMOTE"
 
 CONTEXT="SESSION INIT — REAL STATE
 

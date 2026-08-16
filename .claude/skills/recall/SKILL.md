@@ -51,7 +51,7 @@ NEXT ACTIONS:
 
 OPEN TASKS: <count> in_progress, <count> pending
 
-OWNER: kytranempowerment@gmail.com (Google SSO) — admin@ is for agents only
+OWNER: kytran@kytranempowerment.com (email+password; SSO removed) — gmail is the BACKUP Google account for external sign-ins, admin@ is for agents only
 ```
 
 ## Hard rule

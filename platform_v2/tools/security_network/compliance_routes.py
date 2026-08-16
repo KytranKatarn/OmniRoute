@@ -4,7 +4,9 @@ Compliance API Routes
 REST endpoints for compliance scanning, results, and remediation.
 """
 
+import hmac
 import logging
+import os
 
 from flask import jsonify, request, Response
 from flask_login import login_required, current_user
@@ -14,12 +16,48 @@ from . import compliance_service
 logger = logging.getLogger(__name__)
 
 
+def _session_is_admin() -> bool:
+    """True when the request carries an authenticated admin session."""
+    try:
+        u = current_user
+        if not getattr(u, "is_authenticated", False):
+            return False
+        adm = getattr(u, "is_admin", False)
+        return bool(adm() if callable(adm) else adm)
+    except Exception:
+        return False
+
+
+def _internal_key_ok() -> bool:
+    """True when the request carries the shared INTERNAL_API_KEY.
+
+    Accepts either ``X-Internal-Key: <key>`` or ``Authorization: Bearer <key>``.
+    """
+    expected = os.getenv("INTERNAL_API_KEY", "")
+    if not expected:
+        return False
+    provided = request.headers.get("X-Internal-Key", "")
+    if not provided:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "):
+            provided = auth[7:]
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
 def register_compliance_routes(bp, admin_required_decorator):
     """Register all compliance endpoints on the security_network blueprint."""
 
     @bp.route("/api/compliance/rule-packs", methods=["GET"])
     def compliance_rule_packs():
-        """Serve rule packs — public API for standalone products (KSO)."""
+        """Serve rule packs to KSO (internal key) or an admin session.
+
+        Was fully public. The payload includes host remediation *fix command*
+        strings, so anonymous access leaked exactly what the root-exec path runs
+        (Full Security Review Tier-0). KSO's ``sync_rule_packs_from_hub`` sends
+        ``X-Internal-Key``; interactive admins are also allowed.
+        """
+        if not (_internal_key_ok() or _session_is_admin()):
+            return jsonify({"success": False, "error": "unauthorized"}), 401
         try:
             packs = compliance_service.get_all_rule_packs()
             return jsonify({"success": True, "packs": packs})

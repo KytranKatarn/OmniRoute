@@ -168,14 +168,16 @@ class SecurityScannerService:
         output_file = f"/tmp/{scan_id}.xml"
 
         # Build nmap command based on scan type - command passed as list for safety
+        # "--" ends nmap option parsing so a validated target can never be
+        # re-interpreted as an option flag.
         if scan_type == "quick":
-            cmd = ["nmap", "-T4", "-F", "-oX", output_file, target]
+            cmd = ["nmap", "-T4", "-F", "-oX", output_file, "--", target]
         elif scan_type == "full":
-            cmd = ["nmap", "-T4", "-A", "-p-", "-oX", output_file, target]
+            cmd = ["nmap", "-T4", "-A", "-p-", "-oX", output_file, "--", target]
         elif scan_type == "vuln":
-            cmd = ["nmap", "-T4", "--script=vuln", "-oX", output_file, target]
+            cmd = ["nmap", "-T4", "--script=vuln", "-oX", output_file, "--", target]
         else:
-            cmd = ["nmap", "-T4", "-oX", output_file, target]
+            cmd = ["nmap", "-T4", "-oX", output_file, "--", target]
 
         result = self._docker_exec("security_nmap", cmd)
         result["scan_id"] = scan_id
@@ -239,7 +241,7 @@ class SecurityScannerService:
         scan_id = f"ssl_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         output_file = f"/tmp/{scan_id}.json"
 
-        cmd = ["/usr/local/bin/testssl.sh", "--jsonfile", output_file, domain]
+        cmd = ["/usr/local/bin/testssl.sh", "--jsonfile", output_file, "--", domain]
 
         result = self._docker_exec("security_testssl", cmd, timeout=300)
         result["scan_id"] = scan_id
@@ -248,31 +250,23 @@ class SecurityScannerService:
         return result
 
     def _validate_target(self, target: str) -> bool:
-        """Validate scan target to prevent injection"""
-        import re
+        """Validate a scan target for injection safety.
 
-        # Allow: IP addresses, hostnames, URLs, CIDR notation
-        # Disallow: shell metacharacters
-        dangerous_chars = [
-            ";",
-            "&",
-            "|",
-            "$",
-            "`",
-            "(",
-            ")",
-            "{",
-            "}",
-            "<",
-            ">",
-            "\n",
-            "\r",
-        ]
-        if any(c in target for c in dangerous_chars):
+        Delegates to the shared ``scan_input_validator`` which — unlike the old
+        regex here — rejects a leading ``-`` (nmap/nuclei argument injection)
+        as well as shell metacharacters. SSRF / internal-target policy is
+        enforced at the ROUTE layer (where the ``confirm_internal`` opt-in
+        lives), so this service-level guard passes ``allow_internal=True`` and
+        stays purely an injection guard (defense in depth for internal callers
+        such as the campaign worker).
+        """
+        from .scan_input_validator import ScanInputError, validate_target
+
+        try:
+            validate_target(target, allow_internal=True)
+            return True
+        except ScanInputError:
             return False
-        # Basic format validation
-        pattern = r"^[a-zA-Z0-9._:/@\-]+$"
-        return bool(re.match(pattern, target))
 
     def _validate_domain(self, domain: str) -> bool:
         """Validate domain name format"""

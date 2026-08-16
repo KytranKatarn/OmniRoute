@@ -17,6 +17,13 @@ import requests
 from psycopg2.extras import Json
 from database import get_db_cursor
 
+from .scan_input_validator import (
+    ScanInputError,
+    validate_ports,
+    validate_severity,
+    validate_target,
+)
+
 CURATED_MODULES = {
     "network": [
         {"id": "dns_lookup", "name": "DNS Lookup", "description": "Resolve domain to IP addresses"},
@@ -264,22 +271,43 @@ class ArgusService:
         if not container:
             return {"error": f"Unknown scan module: {module_id}"}
 
-        timeout = options.get("timeout", 300) if options else 300
+        options = options or {}
+        # Hardening: validate the caller-supplied target before it reaches any
+        # scanner argv (argument-injection + SSRF guard). Internal targets need
+        # an explicit opt-in (confirm_internal / allow_internal).
+        allow_internal = bool(options.get("allow_internal") or options.get("confirm_internal"))
+        try:
+            target = validate_target(target, allow_internal=allow_internal)
+        except ScanInputError as exc:
+            return {"error": f"invalid scan target: {exc}"}
+
+        timeout = options.get("timeout", 300)
 
         try:
             if module_id == "nmap_scan":
-                ports = options.get("ports", "-F") if options else "-F"
-                cmd = ["docker", "exec", container, "nmap", "-sV", "--open", ports, target]
+                try:
+                    ports = validate_ports(options.get("ports", "-F"))
+                except ScanInputError as exc:
+                    return {"error": f"invalid ports: {exc}"}
+                # "--" ends option parsing so a target can never be read as a flag.
+                cmd = ["docker", "exec", container, "nmap", "-sV", "--open", ports, "--", target]
             elif module_id == "nikto_scan":
                 cmd = ["docker", "exec", container, "nikto", "-h", target, "-Format", "json", "-output", "/dev/stdout"]
             elif module_id == "nuclei_scan":
-                severity = options.get("severity", "medium,high,critical") if options else "medium,high,critical"
+                try:
+                    severity = validate_severity(options.get("severity", "medium,high,critical"))
+                except ScanInputError as exc:
+                    return {"error": f"invalid severity: {exc}"}
                 cmd = ["docker", "exec", container, "nuclei", "-u", target, "-severity", severity, "-jsonl"]
             elif module_id == "zap_scan":
-                # ZAP uses API — baseline scan
+                # ZAP uses API — baseline scan. Target is validated above; URL-encode
+                # it so it cannot break out of the querystring.
+                from urllib.parse import quote as _quote
+
+                enc_target = _quote(target, safe="")
                 zap_url = "http://security_zap:8080"
                 try:
-                    resp = requests.get(f"{zap_url}/JSON/spider/action/scan/?url={target}", timeout=30)
+                    resp = requests.get(f"{zap_url}/JSON/spider/action/scan/?url={enc_target}", timeout=30)
                     scan_id = resp.json().get("scan", "0")
                     # Wait for spider to complete (max 60s)
                     import time
@@ -290,12 +318,12 @@ class ArgusService:
                             break
                         time.sleep(1)
                     # Get alerts
-                    alerts = requests.get(f"{zap_url}/JSON/core/view/alerts/?baseurl={target}", timeout=15).json()
+                    alerts = requests.get(f"{zap_url}/JSON/core/view/alerts/?baseurl={enc_target}", timeout=15).json()
                     return {"alerts": alerts.get("alerts", []), "scan_id": scan_id, "target": target}
                 except Exception as e:
                     return {"error": f"ZAP scan failed: {str(e)}"}
             elif module_id == "testssl_scan":
-                cmd = ["docker", "exec", container, "testssl.sh", "--jsonfile", "/dev/stdout", target]
+                cmd = ["docker", "exec", container, "testssl.sh", "--jsonfile", "/dev/stdout", "--", target]
             else:
                 return {"error": f"Unsupported scan: {module_id}"}
 

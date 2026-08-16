@@ -12,6 +12,39 @@ from flask import jsonify, request
 from flask_login import login_required, current_user
 from database import get_db_cursor
 from .security_alerts import create_security_alert
+from .scan_input_validator import ScanInputError as _ScanInputError
+from .scan_input_validator import validate_target as _validate_scan_target
+
+
+def _scan_target_or_error(data):
+    """Validate the request ``target`` for argument-injection + SSRF.
+
+    Returns ``(target, None)`` on success, or ``(None, (response, status))``
+    when the target is unsafe. Internal / sensitive targets (loopback, RFC1918,
+    the 100.64.0.0/10 mesh, cloud metadata) require ``confirm_internal=true``.
+    """
+    raw = (data or {}).get("target", "")
+    allow_internal = bool((data or {}).get("confirm_internal", False))
+    try:
+        return _validate_scan_target(raw, allow_internal=allow_internal), None
+    except _ScanInputError as exc:
+        msg = str(exc)
+        internal = "internal/sensitive" in msg
+        return None, (
+            jsonify(
+                {
+                    "success": False,
+                    "error": (
+                        f"Internal target requires confirmation ({msg}). Set confirm_internal=true."
+                        if internal
+                        else f"Invalid target: {msg}"
+                    ),
+                    "requires_confirmation": internal,
+                }
+            ),
+            400,
+        )
+
 
 logger = logging.getLogger(__name__)
 
@@ -272,26 +305,13 @@ def register_scanner_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Scanner not available"}), 503
 
         data = request.get_json() or {}
-        target = data.get("target", "")
         profile = data.get("profile", data.get("scan_type", "quick"))
 
-        if not target:
-            return jsonify({"success": False, "error": "Target is required"}), 400
-
-        # Safety check - don't scan internal without explicit flag
-        internal_prefixes = ["127.", "localhost", "192.168.", "10.", "172."]
-        if any(target.startswith(p) for p in internal_prefixes):
-            if not data.get("confirm_internal", False):
-                return (
-                    jsonify(
-                        {
-                            "success": False,
-                            "error": "Internal target detected. Set confirm_internal=true to proceed.",
-                            "requires_confirmation": True,
-                        }
-                    ),
-                    400,
-                )
+        # Argument-injection + SSRF guard. Internal targets need confirm_internal.
+        target, err = _scan_target_or_error(data)
+        if err:
+            resp, status = err
+            return resp, status
 
         scan_id = _track_scan_start("nmap", target, profile)
 
@@ -340,11 +360,12 @@ def register_scanner_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Scanner not available"}), 503
 
         data = request.get_json() or {}
-        target = data.get("target", "")
         profile = data.get("profile", "standard")
 
-        if not target:
-            return jsonify({"success": False, "error": "Target is required"}), 400
+        target, err = _scan_target_or_error(data)
+        if err:
+            resp, status = err
+            return resp, status
 
         scan_id = _track_scan_start("nikto", target, profile)
 
@@ -387,12 +408,13 @@ def register_scanner_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Scanner not available"}), 503
 
         data = request.get_json() or {}
-        target = data.get("target", "")
         profile = data.get("profile", "standard")
         templates = data.get("templates", SCAN_PROFILES["nuclei"].get(profile, {}).get("templates", "cves"))
 
-        if not target:
-            return jsonify({"success": False, "error": "Target is required"}), 400
+        target, err = _scan_target_or_error(data)
+        if err:
+            resp, status = err
+            return resp, status
 
         scan_id = _track_scan_start("nuclei", target, profile)
 
@@ -420,11 +442,14 @@ def register_scanner_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Scanner not available"}), 503
 
         data = request.get_json() or {}
-        domain = data.get("domain", "")
         profile = data.get("profile", "standard")
 
-        if not domain:
-            return jsonify({"success": False, "error": "Domain is required"}), 400
+        domain, err = _scan_target_or_error(
+            {"target": data.get("domain", ""), "confirm_internal": data.get("confirm_internal", False)}
+        )
+        if err:
+            resp, status = err
+            return resp, status
 
         scan_id = _track_scan_start("ssl", domain, profile)
 
@@ -461,12 +486,13 @@ def register_scanner_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Scanner not available"}), 503
 
         data = request.get_json() or {}
-        target = data.get("target", "")
         profile = data.get("profile", "quick")
         scan_type = data.get("scan_type", SCAN_PROFILES["zap"].get(profile, {}).get("scan_type", "spider"))
 
-        if not target:
-            return jsonify({"success": False, "error": "Target is required"}), 400
+        target, err = _scan_target_or_error(data)
+        if err:
+            resp, status = err
+            return resp, status
 
         scan_id = _track_scan_start("zap", target, profile)
 
@@ -986,6 +1012,11 @@ def register_scanner_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Client name is required"}), 400
         if not target:
             return jsonify({"success": False, "error": "Target is required"}), 400
+        # Argument-injection + SSRF guard (internal targets need confirm_internal).
+        target, err = _scan_target_or_error(data)
+        if err:
+            resp, status = err
+            return resp, status
         if not scanners and not recon_modules:
             return jsonify({"success": False, "error": "Select at least one scanner or module"}), 400
 

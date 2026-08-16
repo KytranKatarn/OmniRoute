@@ -21,6 +21,89 @@ def _screenshot(page, name):
         return None
 
 
+# Home-feed extraction, anchored on the SDUI feed-card component key (#5649).
+#
+# ROOT CAUSE: LinkedIn moved the home feed to its server-driven UI
+# (`data-sdui-screen="com.linkedin.sdui.flagshipnav.feed.MainFeed"`), which emits HASHED
+# css class names. Measured 2026-08-16: `.feed-shared-update-v2`, `.occludable-update`
+# and `[data-urn*="activity"]` ALL matched zero (the page has NO data-urn attributes at
+# all), so this returned `success: True, posts: []` forever — a selector break that looked
+# exactly like an empty feed.
+#
+# ⚠️ post_url IS NOT RECOVERABLE from the SDUI feed, and that is not a bug in this code.
+# Measured on a loaded feed: `a[href*="/feed/update/"]` -> 0 and `[data-urn]` -> 0. The
+# card's componentkey is an opaque TRACKING id (e.g. `my56wSYwzxvZOnQ...`), not an
+# activity urn, so there is nothing to build a permalink from. The field is returned EMPTY
+# rather than guessed. If a caller needs permalinks, open the post and use
+# linkedin_post_comments' componentkey urn, or come in via the notification bell.
+_JS_FEED = r"""
+(limit) => {
+  const clean = s => (s||'').replace(/\s+/g,' ').trim();
+  // LinkedIn renders names twice for a11y and the aria-hidden copy is normally the
+  // visible one — but on cards carrying a Verified/Premium badge that subtree is EMPTY.
+  // Fall back to the full textContent, or the author silently comes back blank.
+  const vis = el => {
+    if (!el) return '';
+    const a = el.querySelector('[aria-hidden="true"]');
+    const t = clean(a ? a.textContent : el.textContent);
+    return t || clean(el.textContent);
+  };
+
+  let strategy = 'sdui_feedtype_key';
+  let cards = [...document.querySelectorAll('[componentkey*="FeedType_MAIN_FEED"]')];
+  if (!cards.length) {
+    cards = [...document.querySelectorAll('.feed-shared-update-v2, .occludable-update, [data-urn*="activity"]')];
+    strategy = cards.length ? 'legacy_class' : 'none';
+  }
+
+  const out = [], seen = new Set();
+  for (const card of cards) {
+    if (out.length >= limit) break;
+    // The FIRST profile anchor is the avatar and has no <p> — take the first that does.
+    let anchor = null, ps = [];
+    for (const a of card.querySelectorAll('a[href*="/in/"], a[href*="/company/"]')) {
+      const q = a.querySelectorAll('p');
+      if (q.length) { anchor = a; ps = q; break; }
+      if (!anchor) anchor = a;
+    }
+    let author = ps.length ? vis(ps[0]) : '';
+    author = author.replace(/\s*[•·]\s*(1st|2nd|3rd|Following|You)\b.*$/i, '').trim();
+    const author_title = ps.length > 1 ? vis(ps[1]) : '';
+
+    const body = card.querySelector('[data-testid="expandable-text-box"]')
+              || card.querySelector('.update-components-text, .feed-shared-text__text-view');
+    let content = body ? clean(body.textContent) : '';
+    content = content.replace(/\s*[…\.]{1,3}\s*(see )?more\s*$/i, '').trim();
+
+    let timestamp = '';
+    for (const q of card.querySelectorAll('p, time')) {
+      const t = clean(q.textContent);
+      // feed stamps render like "15h •" — tolerate the trailing bullet
+      if (/^\d+\s*(s|m|h|d|w|mo|y)\b/i.test(t) && t.length < 16) {
+        timestamp = t.replace(/\s*[•·]\s*$/, '').trim();
+        break;
+      }
+    }
+
+    if (!author && !content) continue;
+    const key = author + '|' + content.substring(0, 60);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      author,
+      author_title: author_title.substring(0, 160),
+      content: content.substring(0, 300),
+      post_url: '',   // deliberately empty — see the note above
+      author_url: anchor ? (anchor.getAttribute('href') || '').split('?')[0] : '',
+      timestamp,
+      _strategy: strategy,
+    });
+  }
+  return out;
+}
+"""
+
+
 def execute(page, params: dict) -> dict:
     limit = int(params.get("limit", 10))
     feed_url = params.get("feed_url", "https://www.linkedin.com/feed/")
@@ -28,74 +111,45 @@ def execute(page, params: dict) -> dict:
     page.goto(feed_url, wait_until="domcontentloaded")
     page.wait_for_timeout(3000)
 
-    # Scroll to load more posts
-    for _ in range(2):
-        page.evaluate("window.scrollBy(0, 800)")
-        page.wait_for_timeout(1000)
+    # Scroll to load posts. The SDUI feed is lazily mounted, so this is load-bearing —
+    # without it the card list is not in the DOM at all.
+    for _ in range(3):
+        try:
+            page.mouse.wheel(0, 1600)
+        except Exception:
+            page.evaluate("window.scrollBy(0, 1600)")
+        page.wait_for_timeout(1100)
 
     _screenshot(page, "feed_loaded")
 
-    posts = page.evaluate(f"""() => {{
-        const results = [];
-        const cards = document.querySelectorAll(
-            '.feed-shared-update-v2, .occludable-update, [data-urn*="activity"]'
-        );
-        let count = 0;
-        for (const card of cards) {{
-            if (count >= {limit}) break;
+    posts = page.evaluate(_JS_FEED, limit)
 
-            // Author name
-            const authorEl = card.querySelector(
-                '.update-components-actor__name, .feed-shared-actor__name, .update-components-actor__title span[aria-hidden="true"]'
-            );
-            const author = authorEl ? authorEl.textContent.trim() : '';
+    # Which selector family matched. This is the regression tripwire: the #5649 outage was
+    # invisible because a selector break and an empty feed produced identical output.
+    strategy = posts[0].get("_strategy") if posts else None
+    for p in posts:
+        p.pop("_strategy", None)
 
-            // Author title/company
-            const titleEl = card.querySelector(
-                '.update-components-actor__description, .feed-shared-actor__description'
-            );
-            const author_title = titleEl ? titleEl.textContent.trim() : '';
+    body = ""
+    try:
+        body = (page.inner_text("body", timeout=3000) or "")[:3000].lower()
+    except Exception:
+        pass
+    walled = ("sign in to view" in body) or ("join linkedin" in body) or ("authwall" in page.url.lower())
 
-            // Post content
-            const textEl = card.querySelector(
-                '.feed-shared-update-v2__description, .update-components-text, .feed-shared-text__text-view'
-            );
-            const content = textEl ? textEl.textContent.trim().substring(0, 300) : '';
-
-            // Post URL (urn or link)
-            const urn = card.getAttribute('data-urn') || '';
-            let post_url = '';
-            const linkEl = card.querySelector('a[href*="feed/update"], a[href*="activity"]');
-            if (linkEl) post_url = linkEl.href;
-            else if (urn) post_url = 'https://www.linkedin.com/feed/update/' + urn;
-
-            // Like count
-            const likeEl = card.querySelector(
-                '.social-counts-reactions__count, .social-counts-reactions, .reactions-count'
-            );
-            const likes = likeEl ? likeEl.textContent.trim() : '0';
-
-            // Comment count
-            const commentEl = card.querySelector(
-                '.social-details-social-counts__comments, [aria-label*="comment"]'
-            );
-            const comments = commentEl ? commentEl.textContent.trim() : '0';
-
-            // Timestamp
-            const timeEl = card.querySelector('time, .update-components-actor__sub-description time');
-            const timestamp = timeEl ? (timeEl.getAttribute('datetime') || timeEl.textContent.trim()) : '';
-
-            if (author && content) {{
-                results.push({{ author, author_title, content, post_url, likes, comments, timestamp }});
-                count++;
-            }}
-        }}
-        return results;
-    }}""")
-
-    return {
-        "success": True,
+    out = {
+        "success": not walled,
         "total": len(posts),
         "posts": posts,
+        "strategy": strategy or "none",
         "screenshot_path": _screenshot(page, "feed_result"),
     }
+    if walled:
+        out["result"] = "auth_wall — session not logged in for this profile"
+    elif not posts:
+        out["result"] = (
+            "no posts extracted — either a genuinely empty feed, or LinkedIn moved the "
+            "markup again. Distinguish before assuming: if the page shows posts but "
+            "strategy=='none', the selectors broke (see #5649)."
+        )
+    return out

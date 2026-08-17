@@ -45,6 +45,11 @@ class Assignment:
 
 CAPABILITY_DEPARTMENT_MAP = {
     "code": "Engineering & Technology",
+    # #5701: code_fix was the ONLY real-inference capability (564 rows/7d) with
+    # no map entry and no skilled owner — it default-routed to Engineering with
+    # every candidate taking the -1.0 no-skill penalty. Mapped explicitly;
+    # F.O.R.G.E. holds the seeded code_fix Lv5 skill (agent_skills, 2026-08-17).
+    "code_fix": "Engineering & Technology",
     "code_review": "Engineering & Technology",
     "debug": "Engineering & Technology",
     "general": "Engineering & Technology",

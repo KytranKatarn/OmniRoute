@@ -1242,10 +1242,10 @@ def register_language_routes(bp, admin_required):
             cur.execute(
                 """
                 SELECT lang.code,
-                       COUNT(t.id) AS translated,
-                       COUNT(t.id) FILTER (WHERE t.status = 'approved') AS approved,
-                       COUNT(t.id) FILTER (WHERE t.status = 'pending_review') AS pending,
-                       %s - COUNT(t.id) AS missing
+                       COUNT(DISTINCT t.key) AS translated,
+                       COUNT(DISTINCT t.key) FILTER (WHERE t.status = 'approved') AS approved,
+                       COUNT(DISTINCT t.key) FILTER (WHERE t.status = 'pending_review') AS pending,
+                       %s - COUNT(DISTINCT t.key) AS missing
                 FROM (VALUES ('fr'),('es'),('pt'),('de'),('zh'),('ar'),('he'))
                      AS lang(code)
                 LEFT JOIN translations t ON t.language = lang.code

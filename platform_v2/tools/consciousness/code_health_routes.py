@@ -349,18 +349,34 @@ def compute_orchestration():
         "Analytics & Intelligence": "S.P.E.C.T.R.A.",
         "Research & Development": "D.A.R.W.I.N.",
     }
+    # SQL aggregation over the FULL proposal set (previously ORDER BY id DESC
+    # LIMIT 2000, a window that was ~95% archived rows — it hid ~92% of open
+    # findings and rendered total==2000, the LIMIT). Archived/rejected rows are
+    # excluded BEFORE any aggregation; 'total' is a real COUNT(*) of the
+    # remaining rows. Grouping by (issue_code, lifecycle bucket) keeps the
+    # result set tiny so the issue_code -> capability -> department mapping can
+    # stay in Python.
     with get_db_cursor() as (conn, cur):
         cur.execute(
-            """SELECT status, metadata FROM improvement_proposals
+            """SELECT COALESCE(metadata->>'issue_code', '?') AS code,
+                      CASE
+                          WHEN LOWER(COALESCE(metadata->>'reverified', '')) = 'fixed' THEN 'fixed'
+                          WHEN LOWER(COALESCE(metadata->>'reverified', '')) = 'still_open' THEN 'still_open'
+                          WHEN LOWER(COALESCE(status, '')) IN ('deployed', 'implemented') THEN 'deployed'
+                          WHEN LOWER(COALESCE(status, '')) = 'failed' THEN 'other'
+                          ELSE 'open'
+                      END AS bucket,
+                      COUNT(*) AS cnt
+               FROM improvement_proposals
                WHERE metadata->>'source' = 'code_health_audit'
-               ORDER BY id DESC LIMIT 2000"""
+                 AND LOWER(COALESCE(status, '')) NOT IN ('rejected', 'archived')
+               GROUP BY 1, 2"""
         )
         rows = cur.fetchall()
 
     agg = {}
     for r in rows:
-        md = r.get("metadata") if isinstance(r.get("metadata"), dict) else {}
-        code = md.get("issue_code") or "?"
+        code = r["code"]
         cap = _ISSUE_CAPABILITY_MAP.get(code, "code_review")
         dept = _CH_CAP_DEPT.get(cap) or CAPABILITY_DEPARTMENT_MAP.get(cap, "Engineering & Technology")
         a = agg.setdefault(
@@ -377,17 +393,13 @@ def compute_orchestration():
             },
         )
         a["capabilities"].add(cap)
-        a["total"] += 1
-        status = (r.get("status") or "").lower()
-        rev = (md.get("reverified") or "").lower()
-        if rev == "fixed":
-            a["fixed"] += 1
-        elif rev == "still_open":
-            a["still_open"] += 1
-        elif status in ("deployed", "implemented"):
-            a["deployed"] += 1
-        elif status not in ("rejected", "archived", "failed"):
-            a["open"] += 1
+        cnt = int(r["cnt"] or 0)
+        a["total"] += cnt
+        bucket = r["bucket"]
+        if bucket in ("open", "deployed", "fixed", "still_open"):
+            a[bucket] += cnt
+        # 'other' (failed, un-reverified) counts toward total only — mirrors the
+        # old per-row logic, which never bucketed failed rows as open.
 
     out = []
     for a in agg.values():
@@ -909,9 +921,27 @@ def register_code_health_routes(bp, admin_required):
     @login_required
     @admin_required
     def code_health_audit_log():
-        from services.code_metrics_service import get_audit_log
-
-        entries = get_audit_log()
+        # The JS consumer (consciousness.js) only builds latest-per-module maps
+        # from this payload, but the old implementation returned EVERY
+        # code_audit_log row (~7,800) per tab load. Return just the latest
+        # entry per module (DISTINCT ON), newest first — same response shape.
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT DISTINCT ON (module_name)
+                          id, module_name, category, files_reviewed,
+                          lines_before, lines_after, issues_found, issues_fixed,
+                          notes, status, audited_at
+                   FROM code_audit_log
+                   ORDER BY module_name, audited_at DESC"""
+            )
+            rows = cur.fetchall()
+        entries = []
+        for row in rows:
+            r = dict(row)
+            if hasattr(r.get("audited_at"), "isoformat"):
+                r["audited_at"] = r["audited_at"].isoformat()
+            entries.append(r)
+        entries.sort(key=lambda r: r.get("audited_at") or "", reverse=True)
         return jsonify({"entries": entries})
 
     @bp.route("/api/code-health/module-status")

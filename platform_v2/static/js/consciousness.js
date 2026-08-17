@@ -243,7 +243,7 @@ function loadDashboard() {
       var rateColor = rate >= 90 ? "#22c55e" : rate >= 70 ? "#f59e0b" : "#ef4444";
       while (fleetEl.firstChild) fleetEl.removeChild(fleetEl.firstChild);
       var items = [
-        {label: "Active", value: data.agents.active, color: "#22c55e"},
+        {label: "Active", value: (data.agents.fleet_active !== undefined ? data.agents.fleet_active : data.agents.active), color: "#22c55e"},
         {label: "Deployed", value: data.agents.deployed, color: "#22d3ee"},
         {label: "Reserve", value: data.agents.barracked, color: "#8b5cf6"},
         {label: "Off Duty", value: data.agents.off_duty, color: "rgba(255,255,255,0.3)"},

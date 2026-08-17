@@ -239,6 +239,12 @@ def register_dashboard_routes(bp, admin_required):
                     "agents": {
                         "total": agents["total"],
                         "active": agents["active"],
+                        # AI-only active count from the fleet partition query —
+                        # 'active' above spans ALL worker types, so it must not
+                        # be rendered next to deployed/barracked/off_duty (which
+                        # are AI-only). fleet_active partitions the same
+                        # population as the other fleet buckets.
+                        "fleet_active": fleet["active"],
                         "deployed": fleet["deployed"],
                         "barracked": fleet["barracked"],
                         "off_duty": fleet["off_duty"],

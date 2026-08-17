@@ -73,6 +73,22 @@ def get_database_schema() -> Dict[str, Any]:
         )
         tables_raw = cur.fetchall()
 
+        # Row counts: ONE planner-estimate query over pg_class.reltuples instead
+        # of a COUNT(*) per table. The per-table COUNT(*) loop scanned all ~827
+        # tables per request and hung the endpoint long before the cache could
+        # populate (Dev HQ task #5705). reltuples is an estimate (refreshed by
+        # VACUUM/ANALYZE) — the payload labels it via row_counts_estimated.
+        cur.execute(
+            """
+            SELECT c.relname AS table_name,
+                   GREATEST(c.reltuples::bigint, 0) AS est_rows
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p')
+        """
+        )
+        row_estimates = {r["table_name"]: r["est_rows"] for r in cur.fetchall()}
+
         tables = []
         total_rows = 0
 
@@ -91,12 +107,10 @@ def get_database_schema() -> Dict[str, Any]:
             )
             columns = [dict(c) for c in cur.fetchall()]
 
-            try:
-                cur.execute(f'SELECT COUNT(*) as count FROM "{table_name}"')
-                row_count = cur.fetchone()["count"]
-                total_rows += row_count
-            except Exception:
-                row_count = 0
+            # Planner estimate (see the pg_class query above) — NOT an exact
+            # COUNT(*). Views/foreign tables not in pg_class relkind r/p -> 0.
+            row_count = int(row_estimates.get(table_name, 0))
+            total_rows += row_count
 
             cur.execute(
                 """
@@ -191,6 +205,9 @@ def get_database_schema() -> Dict[str, Any]:
                 "total_functions": len(functions),
                 "total_triggers": len(triggers),
                 "total_rows": total_rows,
+                # Row counts come from pg_class.reltuples planner estimates,
+                # not COUNT(*) — see get_database_schema() (#5705).
+                "row_counts_estimated": True,
             },
         }
         set_cached("schema", result)

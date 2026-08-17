@@ -5544,7 +5544,25 @@ class AgentLoop:
         if str(inner.get("_status") or "") == "timeout":
             return True
         err = " ".join(str(x) for x in (result.get("error"), inner.get("error")) if x).lower()
-        return "timeout after" in err or "connection refused" in err or "connection error" in err
+        if "timeout after" in err or "connection refused" in err or "connection error" in err:
+            return True
+        # #5403: GitHub-MECHANICAL merge failures. The human's DECISION stays
+        # valid — what failed is the mechanism (draft-405, transient GitHub
+        # 5xx, rate limit). Terminal-failing these BURNS a Tier-3 approval:
+        # 2026-07-29, approval 6485 / PR #2549 — Kytran approved, the 405
+        # ("Pull Request is still a draft") flipped the row 'failed', nothing
+        # re-raised. Requeue instead (bounded by _APPROVAL_INFRA_RETRY_CAP;
+        # exhaustion still alerts via skill_failure_alerts). Real AUTHORIZATION
+        # refusals (governance_blocked, denied, no approver) match none of
+        # these and stay terminal.
+        return (
+            "still a draft" in err
+            or "bad gateway" in err
+            or "service unavailable" in err
+            or "rate limit" in err
+            or " 502" in err
+            or " 503" in err
+        )
 
     def _process_approval_queue(self):
         """Process the approval queue: execute approved, expire stale."""

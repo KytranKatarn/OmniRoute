@@ -984,6 +984,23 @@ def _mark_kytran_approval_sent(pr_number: int) -> None:
         )
 
 
+def _pr_is_draft(pr_number: int, repo: str = None) -> "bool | None":
+    """True/False from GitHub's PR object; None when unreadable.
+
+    Fail-OPEN on None — an unreadable draft state must never block raising a
+    legitimate approval; the guard only acts on a POSITIVE draft reading.
+    """
+    try:
+        from .github_service import REPO_FULL, _api_get  # noqa: PLC0415
+
+        ok, data = _api_get(f"/repos/{repo or REPO_FULL}/pulls/{pr_number}")
+        if ok and isinstance(data, dict) and "draft" in data:
+            return bool(data.get("draft"))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("_pr_is_draft failed for PR #%s: %s", pr_number, exc)
+    return None
+
+
 def open_pr_merge_approval(pr_number: int, title: str, summary: str, repo: str = None) -> "int | None":
     """Create the durable Approvals-tab row for a Tier-3 PR (#5283).
 
@@ -1001,6 +1018,30 @@ def open_pr_merge_approval(pr_number: int, title: str, summary: str, repo: str =
     Returns the approval id, or None if it could not be created (never raises —
     failing to open the row must not break the Telegram path that follows).
     """
+    # #5403: a DRAFT PR is structurally un-mergeable — GitHub 405s the merge.
+    # Raising an approval for one asks a human to authorise the impossible and
+    # then BURNS their authorisation when the executor hits the 405 (approval
+    # 6485 / PR #2549, 2026-07-29: Kytran tapped approve, the 405 flipped the
+    # row 'failed', nothing re-raised, the PR sat unmerged). Guard fires only
+    # on a POSITIVE draft reading; an unreadable state fails open.
+    if _pr_is_draft(pr_number, repo) is True:
+        logger.info("open_pr_merge_approval: PR #%s is a DRAFT — no approval raised (#5403)", pr_number)
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "INSERT INTO system_notifications (title, message, type, source, visibility) "
+                    "VALUES (%s, %s, 'warning', 'forge', 'all')",
+                    (
+                        f"PR #{pr_number} is a DRAFT — merge approval NOT raised",
+                        f"PR #{pr_number} ({title}) passed review but is still a draft, which GitHub "
+                        "refuses to merge. Mark it 'Ready for review' and the approval will be raised "
+                        "on the next review pass — no authorisation was requested or spent.",
+                    ),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("draft-guard notification failed for PR #%s: %s", pr_number, exc)
+        return None
+
     try:
         from ai_bridge.agent_loop import request_approval  # noqa: PLC0415
 
@@ -1022,7 +1063,7 @@ def open_pr_merge_approval(pr_number: int, title: str, summary: str, repo: str =
         return None
 
 
-def send_pr_merge_buttons(pr_number: int, title: str, summary: str) -> None:
+def send_pr_merge_buttons(pr_number: int, title: str, summary: str, repo: str = None) -> None:
     """Telegram message with ✅ Merge / ❌ Deny for a PR awaiting a human merge.
 
     Same callback_data the Tier-3 path uses (``pr_merge_approve_N`` /
@@ -1031,6 +1072,12 @@ def send_pr_merge_buttons(pr_number: int, title: str, summary: str) -> None:
     sensitive-path gate runs in the platform container, not the agent loop.
     Best-effort: never raises.
     """
+    # #5403: same draft guard as open_pr_merge_approval — a Merge button on a
+    # draft can only 405. open_pr_merge_approval already posted the explanation,
+    # so this just skips quietly.
+    if _pr_is_draft(pr_number, repo) is True:
+        logger.info("send_pr_merge_buttons: PR #%s is a DRAFT — buttons skipped (#5403)", pr_number)
+        return
     try:
         from services.telegram_service import send_with_buttons  # noqa: PLC0415
 

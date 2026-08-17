@@ -53,7 +53,10 @@ def test_open_uses_queue_tier_2_never_1():
 
     fake_mod = mock.MagicMock()
     fake_mod.request_approval = fake_request_approval
-    with mock.patch.dict(sys.modules, {"ai_bridge.agent_loop": fake_mod}):
+    # #5403 draft guard: None = unreadable = fail-open (pre-guard behaviour)
+    with mock.patch.object(prs, "_pr_is_draft", return_value=None), mock.patch.dict(
+        sys.modules, {"ai_bridge.agent_loop": fake_mod}
+    ):
         out = prs.open_pr_merge_approval(2501, "some title", "some summary", repo="o/r")
 
     assert out == 4242
@@ -70,7 +73,9 @@ def test_open_never_raises_so_telegram_still_fires():
     """Opening the row must not break the Telegram send that follows it."""
     fake_mod = mock.MagicMock()
     fake_mod.request_approval = mock.Mock(side_effect=RuntimeError("db down"))
-    with mock.patch.dict(sys.modules, {"ai_bridge.agent_loop": fake_mod}):
+    with mock.patch.object(prs, "_pr_is_draft", return_value=None), mock.patch.dict(
+        sys.modules, {"ai_bridge.agent_loop": fake_mod}
+    ):
         assert prs.open_pr_merge_approval(1, "t", "s") is None
 
 

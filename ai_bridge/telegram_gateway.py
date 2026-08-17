@@ -2013,7 +2013,19 @@ class TelegramGateway:
             return {}
 
     def _get_authorized_user(self, telegram_id: int) -> Optional[dict]:
-        """Get authorized Telegram user info."""
+        """Get authorized Telegram user info.
+
+        #5404: this is THE resolution chokepoint — every handler (including the
+        approval buttons whose user_id lands in autonomy_approval_queue
+        .approved_by) goes through it. For ~3 months telegram_users id 2 mapped
+        Kytran's real Telegram identity to the DEACTIVATED users row id 2, so
+        every Telegram approval was attributed to a dead account and NOTHING
+        noticed. The mapping is fixed (-> id 4, the canonical live account); the
+        check below makes any future rot SELF-ANNOUNCING on the first
+        interaction: warn-and-honor, never reject — silently refusing the
+        single most privileged actor's approval is the worse failure mode
+        (that is how PR #2549's approval went unseen).
+        """
         try:
             conn = get_db()
             try:
@@ -2023,6 +2035,38 @@ class TelegramGateway:
                     (telegram_id,),
                 )
                 result = cur.fetchone()
+                if result:
+                    try:
+                        mapped = result.get("user_id")
+                        anomaly = None
+                        if not mapped:
+                            anomaly = "authorized telegram identity has NO linked users row"
+                        else:
+                            cur.execute("SELECT is_active FROM users WHERE id = %s", (mapped,))
+                            u = cur.fetchone()
+                            if u is None:
+                                anomaly = f"linked users row {mapped} does not exist"
+                            elif not u.get("is_active"):
+                                anomaly = f"linked users row {mapped} is DEACTIVATED"
+                        if anomaly:
+                            logger.error(
+                                "telegram_gateway: attribution anomaly for telegram_id %s: %s — "
+                                "honoring the interaction but the audit trail is naming a dead "
+                                "identity; fix telegram_users.user_id (#5404)",
+                                telegram_id,
+                                anomaly,
+                            )
+                            try:
+                                cur.execute(
+                                    """INSERT INTO audit_log (action, resource_type, details, severity, category)
+                                       VALUES ('TELEGRAM_ATTRIBUTION_ANOMALY', 'telegram_user', %s, 'warning', 'governance')""",
+                                    (f"telegram_id {telegram_id}: {anomaly}",),
+                                )
+                                conn.commit()
+                            except Exception:
+                                pass
+                    except Exception as _chk_err:
+                        logger.debug(f"attribution check skipped: {_chk_err}")
                 return dict(result) if result else None
             finally:
                 try:

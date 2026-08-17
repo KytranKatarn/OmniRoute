@@ -31,7 +31,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "schedules": [dict(r) for r in schedules]})
         except Exception as exc:
             logger.error("Failed to list supervision schedules: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/schedules", methods=["POST"])
     @login_required
@@ -52,7 +52,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"id": new_id, "status": "created"}), 201
         except Exception as exc:
             logger.error("Failed to create supervision schedule: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/schedules/<int:schedule_id>", methods=["PUT"])
     @login_required
@@ -67,7 +67,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"status": "updated"})
         except Exception as exc:
             logger.error("Failed to update supervision schedule %s: %s", schedule_id, exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/schedules/<int:schedule_id>", methods=["DELETE"])
     @login_required
@@ -81,7 +81,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"status": "deleted"})
         except Exception as exc:
             logger.error("Failed to delete supervision schedule %s: %s", schedule_id, exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/enforce", methods=["POST"])
     @login_required
@@ -93,7 +93,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify(result)
         except Exception as exc:
             logger.error("Supervision enforcement failed: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/known-devices", methods=["GET"])
     @login_required
@@ -115,7 +115,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "devices": devices})
         except Exception as exc:
             logger.error("known-devices error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/device-activity", methods=["GET"])
     @login_required
@@ -186,7 +186,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "devices": devices})
         except Exception as exc:
             logger.error("device-activity error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/categories", methods=["GET"])
     @login_required
@@ -197,7 +197,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify(svc.get_category_domains())
         except Exception as exc:
             logger.error("Failed to get supervision categories: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/available-services", methods=["GET"])
     @login_required
@@ -219,7 +219,7 @@ def register_supervision_routes(bp, admin_required_decorator):
             )
         except Exception as exc:
             logger.error("available-services error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/supervision/blocked-services", methods=["POST"])
     @login_required
@@ -236,4 +236,4 @@ def register_supervision_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "blocked": services})
         except Exception as exc:
             logger.error("set-blocked-services error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

@@ -185,11 +185,10 @@ def register_domain_npm_routes(bp, admin_required_decorator):
                        ORDER BY root_domain, subdomain""",
                     (current_user.id,),
                 )
-                cols = [d[0] for d in cur.description]
                 rows = cur.fetchall()
                 domains = []
                 for r in rows:
-                    d = dict(zip(cols, r))
+                    d = dict(r)  # RealDictCursor rows; dict(zip(cols,r)) yielded {col: col}
                     d["created_at"] = str(d["created_at"]) if d["created_at"] else None
                     d["updated_at"] = str(d["updated_at"]) if d["updated_at"] else None
                     d["verified_at"] = str(d["verified_at"]) if d["verified_at"] else None
@@ -369,11 +368,10 @@ def register_domain_npm_routes(bp, admin_required_decorator):
                        ORDER BY record_type, name""",
                     (domain_id,),
                 )
-                cols = [d[0] for d in cur.description]
                 rows = cur.fetchall()
                 records = []
                 for r in rows:
-                    rec = dict(zip(cols, r))
+                    rec = dict(r)  # RealDictCursor rows; dict(zip(cols,r)) yielded {col: col}
                     rec["created_at"] = str(rec["created_at"]) if rec["created_at"] else None
                     rec["updated_at"] = str(rec["updated_at"]) if rec["updated_at"] else None
                     records.append(rec)

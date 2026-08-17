@@ -74,9 +74,11 @@ def register_device_routes(bp, admin_required_decorator):
     def devices_users_upsert():
         """Create or update a device-to-user mapping."""
         data = request.get_json(silent=True) or {}
-        mac_address = data.get("mac_address", "").strip().upper()
-        user_name = data.get("user_name", "").strip()
-        device_label = data.get("device_label", "").strip()
+        # Accept both the backend keys and the keys the UI form actually sends
+        # (mac / username / device_name) — the mismatch 400'd every submit.
+        mac_address = (data.get("mac_address") or data.get("mac") or "").strip().upper()
+        user_name = (data.get("user_name") or data.get("username") or "").strip()
+        device_label = (data.get("device_label") or data.get("device_name") or "").strip()
         device_type = data.get("device_type", "").strip()
 
         if not mac_address or not user_name:

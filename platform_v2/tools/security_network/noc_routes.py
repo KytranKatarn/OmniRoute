@@ -402,7 +402,7 @@ def register_noc_routes(bp, admin_required_decorator):
 
         except Exception as exc:
             logger.error("noc_overview error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
         return jsonify(
             {
@@ -437,7 +437,7 @@ def register_noc_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "top_consumers": rows})
         except Exception as exc:
             logger.error("noc_top_consumers error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/noc/traffic-tab")
     @login_required
@@ -612,7 +612,7 @@ def register_noc_routes(bp, admin_required_decorator):
 
         except Exception as exc:
             logger.error("noc_traffic_tab error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
         return jsonify({"success": True, **result})
 
@@ -770,7 +770,7 @@ def register_noc_routes(bp, admin_required_decorator):
 
         except Exception as exc:
             logger.error("vpn_detect error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
         return jsonify({"success": True, **result})
 
@@ -841,6 +841,6 @@ def register_noc_routes(bp, admin_required_decorator):
 
         except Exception as exc:
             logger.error("l7_protocols error: %s", exc)
-            return jsonify({"success": False, "error": str(exc)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
         return jsonify({"success": True, "protocols": protocols})

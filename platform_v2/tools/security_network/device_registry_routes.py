@@ -46,7 +46,8 @@ def register_device_registry_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Device registry not available"}), 503
         try:
             zone = request.args.get("zone")
-            device_type = request.args.get("device_type")
+            # UI sends ?type=; accept it alongside the canonical ?device_type=.
+            device_type = request.args.get("device_type") or request.args.get("type")
             owner = request.args.get("owner")
             online = request.args.get("online")
             if online is not None:
@@ -139,7 +140,9 @@ def register_device_registry_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "Device registry not available"}), 503
         try:
             data = request.get_json() or {}
-            result = device_registry.update_device(device_id, data)
+            # update_device(self, device_id, **kwargs) — pass the fields as kwargs,
+            # not the dict positionally (which raised TypeError -> 500 every edit).
+            result = device_registry.update_device(device_id, **data)
             if not result:
                 return jsonify({"success": False, "error": "Device not found"}), 404
             return jsonify({"success": True, "device": result})

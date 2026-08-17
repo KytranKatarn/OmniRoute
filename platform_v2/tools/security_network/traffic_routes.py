@@ -180,15 +180,18 @@ def register_traffic_routes(bp, admin_required_decorator):
                 with get_db_cursor() as (conn, cur):
                     cur.execute(
                         """
-                        SELECT COALESCE(SUM(bytes_in), 0), COALESCE(SUM(bytes_out), 0)
+                        SELECT COALESCE(SUM(bytes_in), 0) AS total_in,
+                               COALESCE(SUM(bytes_out), 0) AS total_out
                         FROM network_traffic_stats
                         WHERE hour_bucket >= NOW() - INTERVAL '24 hours'
                         """
                     )
                     row = cur.fetchone()
                     if row:
-                        bandwidth_bytes_in = int(row[0])
-                        bandwidth_bytes_out = int(row[1])
+                        # RealDictCursor rows are dicts; the columns are aliased so
+                        # they don't collide and can be read by name (row[0] KeyError'd).
+                        bandwidth_bytes_in = int(row["total_in"])
+                        bandwidth_bytes_out = int(row["total_out"])
             except Exception as bw_exc:
                 logger.warning("bandwidth_bytes lookup failed: %s", bw_exc)
 
@@ -213,18 +216,23 @@ def register_traffic_routes(bp, admin_required_decorator):
         hours = request.args.get("hours", 24, type=int)
         try:
             with get_db_cursor() as (conn, cur):
+                # network_traffic_stats columns: device_mac, device_ip, bytes_in,
+                # bytes_out, protocol, hour_bucket, created_at. The old query used
+                # recorded_at/bytes_sent/bytes_recv (don't exist), an INTERVAL '%s'
+                # placeholder inside a string literal (never substituted), and
+                # row[0] indexing on RealDictCursor rows — every call 500'd.
                 cur.execute(
                     """
                     SELECT
                         device_mac,
                         device_ip,
-                        DATE_TRUNC('hour', recorded_at) AS hour,
-                        SUM(bytes_sent) AS bytes_sent,
-                        SUM(bytes_recv) AS bytes_recv,
-                        SUM(bytes_sent + bytes_recv) AS bytes_total
+                        hour_bucket AS hour,
+                        SUM(bytes_out) AS bytes_sent,
+                        SUM(bytes_in) AS bytes_recv,
+                        SUM(bytes_in + bytes_out) AS bytes_total
                     FROM network_traffic_stats
-                    WHERE recorded_at >= NOW() - INTERVAL '%s hours'
-                    GROUP BY device_mac, device_ip, DATE_TRUNC('hour', recorded_at)
+                    WHERE hour_bucket >= NOW() - make_interval(hours => %s)
+                    GROUP BY device_mac, device_ip, hour_bucket
                     ORDER BY hour DESC, bytes_total DESC
                     """,
                     (hours,),
@@ -232,12 +240,12 @@ def register_traffic_routes(bp, admin_required_decorator):
                 rows = cur.fetchall()
                 history = [
                     {
-                        "device_mac": row[0],
-                        "device_ip": row[1],
-                        "hour": row[2].isoformat() if row[2] else None,
-                        "bytes_sent": row[3],
-                        "bytes_recv": row[4],
-                        "bytes_total": row[5],
+                        "device_mac": row["device_mac"],
+                        "device_ip": row["device_ip"],
+                        "hour": row["hour"].isoformat() if row["hour"] else None,
+                        "bytes_sent": row["bytes_sent"],
+                        "bytes_recv": row["bytes_recv"],
+                        "bytes_total": row["bytes_total"],
                     }
                     for row in rows
                 ]

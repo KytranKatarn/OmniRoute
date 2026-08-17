@@ -33,7 +33,7 @@ def register_incident_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "incidents": [dict(r) for r in incidents]})
         except Exception as exc:
             logger.error("Failed to list incidents: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/incidents/<int:incident_id>", methods=["GET"])
     @login_required
@@ -47,7 +47,7 @@ def register_incident_routes(bp, admin_required_decorator):
             return jsonify(detail)
         except Exception as exc:
             logger.error("Failed to get incident %s: %s", incident_id, exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/incidents/<int:incident_id>/resolve", methods=["POST"])
     @login_required
@@ -63,7 +63,7 @@ def register_incident_routes(bp, admin_required_decorator):
             return jsonify({"status": "resolved"})
         except Exception as exc:
             logger.error("Failed to resolve incident %s: %s", incident_id, exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500
 
     @bp.route("/api/incidents/correlate", methods=["POST"])
     @login_required
@@ -75,4 +75,4 @@ def register_incident_routes(bp, admin_required_decorator):
             return jsonify(result)
         except Exception as exc:
             logger.error("Alert correlation failed: %s", exc)
-            return jsonify({"error": str(exc)}), 500
+            return jsonify({"error": "Internal server error"}), 500

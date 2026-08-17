@@ -141,12 +141,12 @@ function loadDnsStats() {
         if (!d.success) return;
         const s = d.stats;
         document.getElementById('dns-total').textContent = (s.total_queries||0).toLocaleString();
-        document.getElementById('dns-blocked').textContent = (s.blocked||0).toLocaleString();
+        document.getElementById('rpt-dns-blocked').textContent = (s.blocked||0).toLocaleString();
         document.getElementById('dns-rate').textContent = (s.block_rate_pct||0) + '%';
         document.getElementById('dns-latency').textContent = (s.avg_processing_ms||0) + 'ms';
 
         // Top blocked domains
-        const blockedEl = document.getElementById('dns-top-blocked');
+        const blockedEl = document.getElementById('rpt-dns-top-blocked');
         blockedEl.textContent = '';
         if (s.top_blocked && s.top_blocked.length) {
             s.top_blocked.slice(0,5).forEach(b => blockedEl.appendChild(_renderDnsListItem(b.domain, b.count, '#ef4444')));

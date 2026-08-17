@@ -11073,27 +11073,36 @@ class AgentLoop:
             import sys
 
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-            from tools.department_hq.services.department_dispatcher import dispatch
+            # #5340: queue-aware dispatch (ADR-990 / KB #276153). The bare dispatch()
+            # held a 240s sync window that a qwen2.5:7b cold-load blows (~30% of daily
+            # runs), and the resulting retries tripped the hub 7B admission cap. The
+            # queued path rides dispatch_pending_queue instead: the row waits for
+            # warmth and the worker delivers whenever the model lands. Daily job —
+            # latency is irrelevant, completion is everything, so the poll window is
+            # generous (queue-row expiry still bounds it).
+            from services.cluster_dispatch import queued_dispatch_text
 
             start = time.time()
-            result = dispatch(
-                capability="user_audit",
-                prompt=(
+            text = queued_dispatch_text(
+                "user_audit",
+                (
                     "Run a daily user account audit for the A.R.C.H.I.E. platform. "
                     "Check for: (1) users inactive for more than 30 days, "
                     "(2) currently locked accounts (auth_events), "
                     "(3) expired or pending invites older than 7 days. "
                     "Summarise findings concisely. Flag anything that needs attention."
                 ),
+                module_id="warden_daily",
+                poll_timeout_s=900,
             )
             duration_ms = int((time.time() - start) * 1000)
-            success = result.success if result else False
+            success = bool(text)
             self._log_cycle(
                 "warden_user_audit",
                 1 if success else 0,
                 0 if success else 1,
                 duration_ms,
-                details={"response": result.response[:500] if result and result.response else "no response"},
+                details={"response": text[:500] if text else "no response"},
             )
         except Exception as e:
             logger.error("warden_user_audit failed: %s", e)
@@ -11104,7 +11113,6 @@ class AgentLoop:
             import sys
 
             sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-            from tools.department_hq.services.department_dispatcher import dispatch
             from database import get_db_cursor
 
             start = time.time()
@@ -11140,24 +11148,30 @@ class AgentLoop:
                 or "no backups found"
             )
 
-            result = dispatch(
-                capability="backup_verify",
-                prompt=(
+            # #5340: queue-aware LLM leg — see _run_warden_user_audit. The
+            # deterministic posture check + backup_log query above are unaffected.
+            from services.cluster_dispatch import queued_dispatch_text
+
+            text = queued_dispatch_text(
+                "backup_verify",
+                (
                     f"Verify backup health. Recent backups: {summary}. "
                     "Check: (1) is the most recent DB backup less than 24h old? "
                     "(2) are any backups in failed/error status? "
                     "(3) is retention policy being followed (7 daily, 4 weekly)? "
                     "Flag anything that needs attention."
                 ),
+                module_id="warden_daily",
+                poll_timeout_s=900,
             )
             duration_ms = int((time.time() - start) * 1000)
-            success = result.success if result else False
+            success = bool(text)
             self._log_cycle(
                 "warden_backup_verify",
                 1 if success else 0,
                 0 if success else 1,
                 duration_ms,
-                details={"response": result.response[:500] if result and result.response else "no response"},
+                details={"response": text[:500] if text else "no response"},
             )
         except Exception as e:
             logger.error("warden_backup_verify failed: %s", e)

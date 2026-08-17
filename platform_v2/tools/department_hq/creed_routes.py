@@ -439,7 +439,7 @@ def register_creed_routes(bp, admin_required):
         if _carbon_cache["data"] and now < _carbon_cache["expires"]:
             return jsonify(_carbon_cache["data"])
         try:
-            from services.carbon_footprint_service import _co2_kg, _watts_for_model
+            from services.carbon_footprint_service import _co2_kg, _is_llm_model, _watts_for_model
 
             kwh = co2 = 0.0
             runs = 0
@@ -452,6 +452,13 @@ def register_creed_routes(bp, admin_required):
                 for row in cur.fetchall():
                     model = (row["model_used"] if isinstance(row, dict) else row[0]) or ""
                     dur = int((row["duration_ms"] if isinstance(row, dict) else row[1]) or 0)
+                    # #5703: markers/scrape/embeddings are NOT LLM inference —
+                    # their duration is cycle wall-clock, so a watts x duration
+                    # estimate FABRICATES carbon, and counting them inflated
+                    # runs_24h by ~30%. Same SSOT as A.R.M.A.D.A. / the hourly
+                    # CarbonJob (_is_llm_model).
+                    if not _is_llm_model(model):
+                        continue
                     w = _watts_for_model(model)
                     co2 += _co2_kg(w, dur)
                     kwh += w * (dur / 1_000 / 3_600) / 1000.0

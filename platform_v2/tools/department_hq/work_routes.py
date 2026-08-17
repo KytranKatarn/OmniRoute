@@ -13,6 +13,23 @@ Endpoints:
 from flask import jsonify, request
 from database import get_db_cursor
 
+# #5703 'Real inference only' — the SAME exclusion the A.R.M.A.D.A. Dispatch tab
+# applies by default (dispatch_routes.py feed filter) and that
+# carbon_footprint_service._is_llm_model encodes as the SSOT: orchestration
+# MARKERS (worker_type IS NULL, model_used='bridge-managed', 0 tokens,
+# duration = cycle wall-clock), internal 0-token actions (S.C.O.U.T./M.A.V.E.N.
+# model_used='internal'), scrape (browser), image gen (comfyui), and embedding
+# (batch / *embed*) rows. Live "jobs" counts on the Performance tab must never
+# include these — Executive Office showed 6,296 jobs of which 6,256 were markers.
+# NOTE: '%%' is safe both with params (psycopg2 unescapes to '%') and without
+# (SQL LIKE treats consecutive wildcards the same as one).
+_REAL_INFERENCE_SQL = (
+    "{t}.worker_type IS NOT NULL "
+    "AND lower(COALESCE({t}.model_used, '')) NOT IN "
+    "('bridge-managed', 'internal', 'batch', 'browser', 'comfyui', '') "
+    "AND lower(COALESCE({t}.model_used, '')) NOT LIKE '%%embed%%'"
+)
+
 
 def register_work_routes(bp, admin_required):
     """Register work tracking, performance, and C.R.E.E.D. routes."""
@@ -692,6 +709,8 @@ def register_work_routes(bp, admin_required):
                 # was bridge_jobs (partial table → ~53% success), which diverged from the
                 # ARMADA tab that reads task_execution_log (~100%). Same source now, so the
                 # K.I.N. PERFORMANCE numbers match ARMADA, plus real token volume.
+                # #5703: markers excluded — a department's live counts must match
+                # what the A.R.M.A.D.A. Dispatch tab calls 'real inference'.
                 cur.execute(
                     """
                     SELECT a.department,
@@ -704,6 +723,9 @@ def register_work_routes(bp, admin_required):
                     JOIN agents a ON a.name = tel.agent_name
                     WHERE tel.created_at >= NOW() - INTERVAL '7 days'
                       AND a.department IS NOT NULL
+                      AND """
+                    + _REAL_INFERENCE_SQL.format(t="tel")
+                    + """
                     GROUP BY a.department
                 """
                 )
@@ -711,8 +733,10 @@ def register_work_routes(bp, admin_required):
                 live_map = {r["department"]: dict(r) for r in live_rows}
 
             result = []
+            seen_depts = set()
             for m in metrics:
                 dept = m["department"]
+                seen_depts.add(dept)
                 entry = dict(m)
                 # Merge live data
                 live = live_map.get(dept, {})
@@ -722,6 +746,37 @@ def register_work_routes(bp, admin_required):
                 entry["live_tokens_7d"] = int(live.get("tokens") or 0)
                 entry["live_avg_ms_7d"] = round(live.get("avg_ms") or 0, 1)
                 result.append(entry)
+
+            # #5703 outer-merge: a department with live task_execution_log
+            # activity but NO department_metrics row (e.g. News & Media, created
+            # 2026-04-14 after the nightly writer's static list) must still be
+            # emitted. Metric-only fields are null; the JS renderer falls back
+            # to the live_* fields.
+            for dept in sorted(live_map):
+                if dept in seen_depts:
+                    continue
+                live = live_map[dept]
+                result.append(
+                    {
+                        "id": None,
+                        "department": dept,
+                        "period_start": None,
+                        "period_end": None,
+                        "jobs_completed": None,
+                        "jobs_failed": None,
+                        "avg_response_ms": None,
+                        "tokens_used": None,
+                        "sessions_completed": None,
+                        "kpis": None,
+                        "creed_score": None,
+                        "computed_at": None,
+                        "live_jobs_7d": live.get("total_jobs", 0),
+                        "live_completed_7d": live.get("completed", 0),
+                        "live_failed_7d": live.get("failed", 0),
+                        "live_tokens_7d": int(live.get("tokens") or 0),
+                        "live_avg_ms_7d": round(live.get("avg_ms") or 0, 1),
+                    }
+                )
 
             return jsonify({"departments": result})
         except Exception as e:
@@ -756,6 +811,8 @@ def register_work_routes(bp, admin_required):
                 cur.execute(
                     """
                     -- COORD-3 (KB #270619): task_execution_log (matches ARMADA), was bridge_jobs.
+                    -- #5703: marker exclusion lives in the JOIN condition so agents
+                    -- with only marker rows still appear (with zero counts).
                     SELECT a.id, a.name, a.display_name, a.shift_state, a.is_department_ai,
                            COUNT(tel.id) AS total_jobs,
                            COUNT(tel.id) FILTER (WHERE tel.success) AS completed,
@@ -765,6 +822,9 @@ def register_work_routes(bp, admin_required):
                     FROM agents a
                     LEFT JOIN task_execution_log tel ON tel.agent_name = a.name
                         AND tel.created_at >= NOW() - INTERVAL '7 days'
+                        AND """
+                    + _REAL_INFERENCE_SQL.format(t="tel")
+                    + """
                     WHERE a.department = %s
                     GROUP BY a.id, a.name, a.display_name, a.shift_state, a.is_department_ai
                     ORDER BY a.is_department_ai DESC, total_jobs DESC

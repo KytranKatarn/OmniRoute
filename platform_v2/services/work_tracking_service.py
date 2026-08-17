@@ -19,7 +19,9 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-# 16 canonical departments
+# Static department FLOOR — compute_department_metrics() derives the real list
+# from the agents table and unions it with this (#5703). Do NOT treat this as
+# the authoritative roster; it predates News & Media (2026-04-14).
 DEPARTMENTS = [
     "Executive Office",
     "Operations & Infrastructure",
@@ -150,15 +152,29 @@ def get_session_history(department=None, limit=50):
 
 
 def compute_department_metrics(period_hours=24):
-    """Compute metrics for all 16 departments for the given period.
+    """Compute metrics for ALL departments for the given period.
 
     Called by Agent Loop Job #60 (daily at 2:00 AM, owned by S.P.E.C.T.R.A.).
     Upserts into department_metrics using (department, period_start, period_end).
+
+    #5703: the department list is derived from the live agents table, unioned
+    with the static DEPARTMENTS constant (kept as a floor for departments that
+    currently have no agents rows). The static-only iteration silently dropped
+    News & Media (created 2026-04-14) — and would drop any future department —
+    leaving it without a department_metrics row and invisible on the DHQ
+    Performance tab.
     """
     computed = 0
 
     with get_db_cursor(commit=True) as (conn, cur):
-        for dept in DEPARTMENTS:
+        try:
+            cur.execute("SELECT DISTINCT department FROM agents WHERE department IS NOT NULL AND department <> ''")
+            departments = sorted({r["department"] for r in cur.fetchall()} | set(DEPARTMENTS))
+        except Exception as e:
+            logger.warning("Department discovery failed, falling back to static list: %s", e)
+            conn.rollback()  # clear the aborted txn so the per-dept queries can run
+            departments = list(DEPARTMENTS)
+        for dept in departments:
             try:
                 # --- bridge_jobs metrics (join agents to get department) ---
                 cur.execute(
@@ -236,5 +252,5 @@ def compute_department_metrics(period_hours=24):
             except Exception as e:
                 logger.warning("Failed to compute metrics for %s: %s", dept, e)
 
-    logger.info("Department metrics computed for %d/%d departments", computed, len(DEPARTMENTS))
+    logger.info("Department metrics computed for %d/%d departments", computed, len(departments))
     return {"departments_computed": computed, "period_hours": period_hours}

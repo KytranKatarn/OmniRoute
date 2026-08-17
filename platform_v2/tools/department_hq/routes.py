@@ -218,81 +218,106 @@ def register_routes(bp, _admin_required=None):
         except Exception as exc:
             result["error"] = str(exc)[:200]
 
-        # Attention items
+        # Attention items — each probe is isolated in its own try/except with a
+        # rollback so one failed query cannot abort the shared transaction and
+        # blank the remaining probes (#5706).
         attention = []
         try:
             with get_db_cursor(cursor_factory=None) as (conn, cur):
-                # High-stress agents (stress > 0.7)
-                cur.execute(
+                # High-stress agents (stress > 0.7). The welfare source of truth
+                # is agent_emotional_state (SINGULAR) — agents has NO stress_level
+                # column; the old probe errored and blanked the whole panel.
+                try:
+                    cur.execute(
+                        """
+                        SELECT a.display_name, a.name, ae.stress_level, a.department
+                        FROM agents a
+                        JOIN LATERAL (
+                            SELECT stress_level
+                            FROM agent_emotional_state
+                            WHERE agent_id = a.id
+                            ORDER BY timestamp DESC
+                            LIMIT 1
+                        ) ae ON TRUE
+                        WHERE a.shift_state = 'active' AND ae.stress_level > 0.7
+                        ORDER BY ae.stress_level DESC LIMIT 5
                     """
-                    SELECT display_name, name, stress_level, department
-                    FROM agents
-                    WHERE stress_level > 0.7 AND shift_state = 'active'
-                    ORDER BY stress_level DESC LIMIT 5
-                """
-                )
-                for r in cur.fetchall():
-                    attention.append(
-                        {
-                            "level": "warn",
-                            "text": f"{r[0] or r[1]} — Stress: {int(r[2]*100)}%",
-                            "link_tab": "roster",
-                            "category": "welfare",
-                        }
                     )
+                    for r in cur.fetchall():
+                        attention.append(
+                            {
+                                "level": "warn",
+                                "text": f"{r[0] or r[1]} — Stress: {int(r[2]*100)}%",
+                                "link_tab": "roster",
+                                "category": "welfare",
+                            }
+                        )
+                except Exception:
+                    conn.rollback()
 
                 # Failed agent loop jobs (last 24h)
-                cur.execute(
+                try:
+                    cur.execute(
+                        """
+                        SELECT job_name, COUNT(*) as fails
+                        FROM autonomy_loop_log
+                        WHERE status IN ('error', 'failed') AND created_at > NOW() - INTERVAL '24 hours'
+                        GROUP BY job_name
+                        HAVING COUNT(*) >= 3
+                        ORDER BY fails DESC LIMIT 5
                     """
-                    SELECT job_name, COUNT(*) as fails
-                    FROM autonomy_loop_log
-                    WHERE status IN ('error', 'failed') AND created_at > NOW() - INTERVAL '24 hours'
-                    GROUP BY job_name
-                    HAVING COUNT(*) >= 3
-                    ORDER BY fails DESC LIMIT 5
-                """
-                )
-                for r in cur.fetchall():
-                    attention.append(
-                        {
-                            "level": "error",
-                            "text": f"Job '{r[0]}' failed {r[1]}x in 24h",
-                            "link_tab": "dispatch",
-                            "category": "jobs",
-                        }
                     )
+                    for r in cur.fetchall():
+                        attention.append(
+                            {
+                                "level": "error",
+                                "text": f"Job '{r[0]}' failed {r[1]}x in 24h",
+                                "link_tab": "dispatch",
+                                "category": "jobs",
+                            }
+                        )
+                except Exception:
+                    conn.rollback()
 
-                # Failed QA runs
-                cur.execute(
+                # Failed QA runs — QA lives in Repair Bay, not a DHQ tab
+                try:
+                    cur.execute(
+                        """
+                        SELECT s.name, r.passed, r.failed
+                        FROM qa_test_runs r JOIN qa_test_suites s ON s.id = r.suite_id
+                        WHERE r.status = 'failed' AND r.started_at > NOW() - INTERVAL '24 hours'
+                        ORDER BY r.started_at DESC LIMIT 3
                     """
-                    SELECT s.name, r.passed, r.failed
-                    FROM qa_test_runs r JOIN qa_test_suites s ON s.id = r.suite_id
-                    WHERE r.status = 'failed' AND r.started_at > NOW() - INTERVAL '24 hours'
-                    ORDER BY r.started_at DESC LIMIT 3
-                """
-                )
-                for r in cur.fetchall():
-                    attention.append(
-                        {
-                            "level": "warn",
-                            "text": f"QA '{r[0]}' — {r[1]} pass, {r[2]} fail",
-                            "link_tab": "qa",
-                            "category": "qa",
-                        }
                     )
+                    for r in cur.fetchall():
+                        attention.append(
+                            {
+                                "level": "warn",
+                                "text": f"QA '{r[0]}' — {r[1]} pass, {r[2]} fail",
+                                "link_url": "/tools/repair-bay",
+                                "link_label": "Repair Bay",
+                                "category": "qa",
+                            }
+                        )
+                except Exception:
+                    conn.rollback()
 
-                # Security issues from scans
-                cur.execute("SELECT SUM(security_issues) FROM code_scans WHERE security_issues > 0")
-                sec = cur.fetchone()[0]
-                if sec and sec > 0:
-                    attention.append(
-                        {
-                            "level": "warn" if sec < 50 else "error",
-                            "text": f"{int(sec)} security issues across code scans",
-                            "link_tab": "diagnose",
-                            "category": "security",
-                        }
-                    )
+                # Security issues from scans — surfaced in Repair Bay Diagnose
+                try:
+                    cur.execute("SELECT SUM(security_issues) FROM code_scans WHERE security_issues > 0")
+                    sec = cur.fetchone()[0]
+                    if sec and sec > 0:
+                        attention.append(
+                            {
+                                "level": "warn" if sec < 50 else "error",
+                                "text": f"{int(sec)} security issues across code scans",
+                                "link_url": "/tools/repair-bay",
+                                "link_label": "Repair Bay",
+                                "category": "security",
+                            }
+                        )
+                except Exception:
+                    conn.rollback()
         except Exception:
             pass
 

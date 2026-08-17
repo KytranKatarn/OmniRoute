@@ -39,15 +39,10 @@ def register_auth_routes(bp, admin_required):
             201,
         )
 
-    @bp.route("/api/auth/devices")
-    @admin_required
-    def list_devices_route():
-        """List all registered devices."""
-        from services.auth_service import list_devices
-
-        status_filter = request.args.get("status")
-        devices = list_devices(status=status_filter)
-        return jsonify(devices)
+    # NOTE: GET /api/auth/devices (device list) was removed 2026-08-17 (#5706) —
+    # zero runtime callers repo-wide (the DHQ Devices tab it served is gone).
+    # The register/approve/deny/revoke/validate device API-key flow below stays:
+    # /api/auth/register is actively called by archie_engine/hub_skills.py.
 
     @bp.route("/api/auth/approve/<int:device_id>", methods=["POST"])
     @admin_required

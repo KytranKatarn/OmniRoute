@@ -88,8 +88,43 @@ def register_roster_routes(bp, admin_required):
                 limit=limit + offset,  # fetch enough for offset pagination
             )
 
-            # Apply offset pagination on the result
+            # Exclude decommissioned agents from the roster listing — some carry
+            # status='active' with shift_state='decommissioned' and leaked through
+            # (#5706). An explicit ?shift_state=decommissioned filter still works.
+            if shift_state != "decommissioned":
+                all_agents = [a for a in all_agents if a.get("shift_state") != "decommissioned"]
+
+            # True total via COUNT(*) with the SAME filters — len() of a
+            # limit-capped fetch under-reports once the roster exceeds the cap.
             total = len(all_agents)
+            try:
+                count_conditions = ["a.status = %s"]
+                count_params: list = ["active"]
+                if department:
+                    count_conditions.append("a.department = %s")
+                    count_params.append(department)
+                if floor:
+                    count_conditions.append("a.floor = %s")
+                    count_params.append(floor)
+                if shift_state:
+                    count_conditions.append("a.shift_state = %s")
+                    count_params.append(shift_state)
+                else:
+                    count_conditions.append("a.shift_state != 'decommissioned'")
+                if search:
+                    count_conditions.append("(a.name ILIKE %s OR a.display_name ILIKE %s)")
+                    count_params.extend([f"%{search}%", f"%{search}%"])
+                with get_db_cursor() as (conn, cur):
+                    cur.execute(
+                        "SELECT COUNT(*) AS total FROM agents a WHERE " + " AND ".join(count_conditions),
+                        count_params,
+                    )
+                    row = cur.fetchone()
+                    if row is not None:
+                        total = row["total"]
+            except Exception:
+                pass  # fall back to the fetched-page count
+
             agents = all_agents[offset : offset + limit]
 
             # Fetch wellness data for all agents

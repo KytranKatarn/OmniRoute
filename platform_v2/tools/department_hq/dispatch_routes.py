@@ -1310,14 +1310,18 @@ def register_dispatch_routes(bp, admin_required_decorator):
                 except Exception:
                     pass
 
-            total = len(feed)
+            # Page-scoped only: the feed is LIMIT-capped, so these describe the
+            # fetched page, NOT the whole window. Renamed from total/success_rate
+            # which rendered "30 · 100%" beside window-wide failure tiles (#5706).
+            # Sole consumer is loadDispatchTraffic() in department-hq.js (updated).
+            page_total = len(feed)
             successes = sum(1 for f in feed if f["success"])
             return jsonify(
                 {
                     "success": True,
                     "hours": hours,
-                    "total": total,
-                    "success_rate": round(successes / total * 100) if total else 0,
+                    "page_total": page_total,
+                    "page_success_rate": round(successes / page_total * 100) if page_total else 0,
                     "feed": feed,
                     "by_source": by_source,
                     "by_agent": by_agent,

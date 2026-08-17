@@ -15,64 +15,71 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-# Known direct Telegram callers — tracked for migration status
+# Known Telegram callers — tracked for migration status.
+#
+# "module" MUST be the dotted source_module identifier the call site passes to
+# telegram_service (what lands in telegram_message_log.source_module) — NOT a
+# filename. The old list held filenames ('department_dispatcher.py') which can
+# never intersect logged values ('security_network.jobs'), so the meter was
+# permanently stuck at 0/9 (#5706). Matching is prefix-tolerant so suffixed
+# identifiers like 'department_hq.jobs.token_welfare_monitor' still count.
 KNOWN_SENDERS = [
     {
-        "module": "department_dispatcher.py",
+        "module": "department_hq.services.department_dispatcher",
         "location": "tools/department_hq/services/department_dispatcher.py",
         "purpose": "Dispatch advisories, cross-department alerts, cloud escalation",
         "agent": "A.R.C.H.I.E.",
     },
     {
-        "module": "agent_loop.py",
-        "location": "ai_bridge/agent_loop.py",
+        "module": "telegram_approval",
+        "location": "ai_bridge/agent_loop.py (approvals via services/telegram_service.py)",
         "purpose": "Approval requests, escalation buttons, briefings",
         "agent": "A.R.C.H.I.E.",
     },
     {
-        "module": "telegram_gateway.py",
+        "module": "telegram_gateway",
         "location": "ai_bridge/telegram_gateway.py",
         "purpose": "Inbound message handler + bot polling (keep as-is)",
         "agent": "A.R.C.H.I.E.",
     },
     {
-        "module": "forge_self_heal.py",
+        "module": "forge_self_heal",
         "location": "tools/repair_bay/services/forge_self_heal.py",
         "purpose": "Self-healing pipeline alerts",
         "agent": "F.O.R.G.E.",
     },
     {
-        "module": "forge_pipeline.py",
+        "module": "forge_pipeline",
         "location": "tools/repair_bay/services/forge_pipeline.py",
         "purpose": "PR review, scan results",
         "agent": "F.O.R.G.E.",
     },
     {
-        "module": "github_routes.py",
+        "module": "github_routes",
         "location": "tools/repair_bay/github_routes.py",
         "purpose": "GitHub webhook notifications",
         "agent": "F.O.R.G.E.",
     },
     {
-        "module": "security jobs.py",
+        "module": "security_network.jobs",
         "location": "tools/security_network/jobs.py",
         "purpose": "Security scan alerts, compliance failures",
         "agent": "V.I.G.I.L.",
     },
     {
-        "module": "compliance_safe_exec.py",
+        "module": "compliance_safe_exec",
         "location": "tools/security_network/compliance_safe_exec.py",
         "purpose": "Compliance remediation results",
         "agent": "V.I.G.I.L.",
     },
     {
-        "module": "consciousness jobs.py",
+        "module": "consciousness.jobs",
         "location": "tools/consciousness/jobs.py",
         "purpose": "Analysis completion, embedding progress",
         "agent": "C.O.D.E.X.",
     },
     {
-        "module": "qa_service.py",
+        "module": "qa_service",
         "location": "services/qa_service.py",
         "purpose": "QA test results, P.R.O.B.E. reports",
         "agent": "P.R.O.B.E.",
@@ -245,9 +252,11 @@ def register_coms_routes(bp, admin_required):
 
         senders = []
         for sender in KNOWN_SENDERS:
-            is_migrated = sender["module"] in migrated_modules
+            # Prefix-tolerant: 'department_hq.jobs.token_welfare_monitor'
+            # counts for a 'department_hq.jobs' sender entry.
+            is_migrated = any(m == sender["module"] or m.startswith(sender["module"] + ".") for m in migrated_modules)
             # telegram_gateway is special — it stays as inbound handler
-            if sender["module"] == "telegram_gateway.py":
+            if sender["module"] == "telegram_gateway":
                 status = "keep"
                 note = "Inbound handler — not migrated, stays as-is"
             elif is_migrated:

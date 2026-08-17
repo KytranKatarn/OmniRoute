@@ -452,21 +452,10 @@ def validate_api_key(api_key):
     return None
 
 
-def list_devices(status=None):
-    """List registered devices, optionally filtered by status."""
-    with get_db_connection() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        try:
-            if status:
-                cur.execute(
-                    "SELECT * FROM registered_devices WHERE status = %s ORDER BY registered_at DESC",
-                    (status,),
-                )
-            else:
-                cur.execute("SELECT * FROM registered_devices ORDER BY registered_at DESC")
-            return [dict(r) for r in cur.fetchall()]
-        finally:
-            cur.close()
+# NOTE: list_devices() was removed 2026-08-17 (#5706) — its only caller was the
+# orphaned GET /api/auth/devices route (removed with it). The rest of the device
+# API-key system (register/approve/deny/revoke/validate + registered_devices
+# table) is live and stays.
 
 
 # ---------------------------------------------------------------------------

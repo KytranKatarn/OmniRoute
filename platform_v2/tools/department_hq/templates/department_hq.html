@@ -1267,7 +1267,9 @@ async function loadDhqApprovals() {
                     left.style.color = '#cbd5e1';
                     left.textContent = '#' + h.id + ' ' + (h.display_name || h.action_type || 'action');
                     var right = document.createElement('span');
-                    var color = h.status === 'executed' ? '#22c55e' : (h.status === 'rejected' ? '#ef4444' : '#fbbf24');
+                    var _green = ['executed', 'completed', 'approved'];
+                    var _red = ['rejected', 'failed', 'denied', 'cancelled'];
+                    var color = _green.indexOf(h.status) !== -1 ? '#22c55e' : (_red.indexOf(h.status) !== -1 ? '#ef4444' : '#fbbf24');
                     right.style.color = color;
                     right.textContent = h.status.toUpperCase();
                     row.appendChild(left);

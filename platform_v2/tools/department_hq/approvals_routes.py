@@ -875,6 +875,9 @@ def register_approvals_routes(bp, admin_required_decorator):
                               cancellation_reason AS reason
                        FROM bridge_jobs
                        WHERE status IN ('approved', 'cancelled', 'completed', 'failed')
+                         -- Approval-flow rows only — without this gate every routine
+                         -- dispatch (completed/failed) floods Recent History (#5706)
+                         AND (approved_at IS NOT NULL OR cancelled_by IS NOT NULL)
                        ORDER BY COALESCE(approved_at, cancelled_at, completed_at, updated_at) DESC NULLS LAST
                        LIMIT %s""",
                     (limit,),

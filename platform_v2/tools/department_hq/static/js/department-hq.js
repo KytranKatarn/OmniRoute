@@ -203,10 +203,16 @@ async function loadOverview() {
                 var item = attn[i];
                 var icon = item.level === 'error' ? '🔴' : item.level === 'warn' ? '🟡' : '🟢';
                 var tab = item.link_tab || '';
-                html += '<div class="dhq-attention-item" onclick="switchTab(\'' + esc(tab) + '\')">'
+                // Items outside DHQ (QA / security → Repair Bay) carry link_url
+                // instead of link_tab — navigate rather than switchTab (#5706).
+                var go = item.link_url
+                    ? "window.location.href='" + esc(item.link_url) + "'"
+                    : "switchTab('" + esc(tab) + "')";
+                var label = item.link_label || tab;
+                html += '<div class="dhq-attention-item" onclick="' + go + '">'
                     + '<span class="dhq-attention-icon">' + icon + '</span>'
                     + '<span class="dhq-attention-text">' + esc(item.text) + '</span>'
-                    + '<span class="dhq-attention-link">→ ' + esc(tab) + '</span>'
+                    + '<span class="dhq-attention-link">→ ' + esc(label) + '</span>'
                     + '</div>';
             }
             html += '</div>';
@@ -3869,34 +3875,6 @@ async function renderSignalThemes(el) {
 }
 
 // ───────────────────────────────────────────────────────────────
-// Devices
-// ───────────────────────────────────────────────────────────────
-
-const DEVICE_TYPE_LABELS = {
-    cli: 'CLI',
-    node: 'Node',
-    kso: 'KSO',
-    kbs: 'KBS',
-    standalone: 'Standalone',
-};
-
-const DEVICE_STATUS_COLORS = {
-    pending:  '#fbbf24',
-    approved: '#10b981',
-    denied:   '#ef4444',
-    revoked:  '#6b7280',
-};
-
-function formatDeviceTime(ts) {
-    if (!ts) return '—';
-    // Force UTC: naive server timestamps have no tz info — append Z for correct EDT display
-    var s = (typeof ts === 'string' && !ts.endsWith('Z') && !ts.includes('+')) ? ts + 'Z' : ts;
-    var d = new Date(s);
-    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-}
-
-
-// ───────────────────────────────────────────────────────────────
 // Dispatch & Orchestration
 // ───────────────────────────────────────────────────────────────
 
@@ -4663,8 +4641,11 @@ async function loadDispatchTraffic() {
         if (!_trafficRealOnly) _turl += '&markers=all';
         _trafficData = await api(_turl);
         if (sumEl) {
-            var rate = _trafficData.success_rate != null ? _trafficData.success_rate + '% ok' : '';
-            sumEl.textContent = '(' + (_trafficData.total || 0) + ' dispatches · ' + rate + ')';
+            // page_* keys are scoped to the fetched feed page (LIMIT 30) — not
+            // the whole window; the old total/success_rate keys implied window
+            // totals beside window-scoped failure tiles (#5706).
+            var rate = _trafficData.page_success_rate != null ? _trafficData.page_success_rate + '% ok' : '';
+            sumEl.textContent = '(' + (_trafficData.page_total || 0) + ' on this page · ' + rate + ')';
         }
         showTrafficView(_trafficView);
     } catch(e) {

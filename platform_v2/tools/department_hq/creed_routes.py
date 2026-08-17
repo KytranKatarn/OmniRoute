@@ -20,8 +20,10 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-# Hub-local C.R.E.E.D. standalone (same pattern as creed_command/tenants_routes.py)
-_CREED_STANDALONE_URL = os.getenv("CREED_API_URL", "http://192.168.1.200:8086")
+# Hub-local C.R.E.E.D. standalone (same pattern as creed_command/tenants_routes.py).
+# Default is the Docker service name — the old 192.168.1.200:8086 default hits the
+# userland-proxy hairpin from inside the container and times out (#5706).
+_CREED_STANDALONE_URL = os.getenv("CREED_API_URL", "http://kytran_creed:8086")
 
 # ── Cache singletons ─────────────────────────────────────────────────────────
 _cache = {"data": None, "expires": 0}

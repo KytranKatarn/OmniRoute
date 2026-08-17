@@ -104,6 +104,13 @@ def coerce_style_guide(raw):
         raw = parse_json_loose(raw)
     if not isinstance(raw, dict):
         return {}
+    if not any(k in raw for k in _STYLE_KEYS):
+        # Models sometimes wrap the guide one level deep ({"style_guide": {...}},
+        # {"data": {...}}). Descend a single benign wrapper; never recurse further —
+        # a payload that isn't the guide one level down isn't the guide at all.
+        inner_dicts = [v for v in raw.values() if isinstance(v, dict)]
+        if len(inner_dicts) == 1:
+            raw = inner_dicts[0]
     out = {}
     for key in _STYLE_KEYS:
         cleaned = _scrub_factual(raw.get(key))
@@ -233,18 +240,26 @@ def gather_samples(owner_id, author_name, per_folder=40, max_chars=1400, total_b
 
 
 def _build_prompt(author_name, samples):
+    # Instructions go AFTER the samples: a 7B under format=json attends to the
+    # tail of a long prompt, and with the task stated up front it regurgitated
+    # the samples themselves as {"data": [...]} (2026-08-17, task #5709 rerun).
+    # The literal skeleton anchors both the task and the exact key set.
     joined = "\n\n---\n\n".join(f"[{s['folder']}]\n{s['text']}" for s in samples)
     return (
-        f"Below are writing samples by {author_name}. Describe HOW he writes — his voice, "
-        "not what he wrote about.\n\n"
-        "Return ONLY a JSON object with these keys (omit any you cannot support from the "
-        "samples): tone, register, sentence_rhythm, structure, rhetorical_devices, openers, "
-        "closers, formatting_habits, vocabulary, recurring_themes, avoid.\n"
-        "Each value is a short string or a list of short strings.\n\n"
+        f"WRITING SAMPLES BY {author_name}:\n{joined}\n\n"
+        "=== END OF SAMPLES ===\n\n"
+        f"TASK: You are a writing-style analyst. Describe HOW {author_name} writes — his "
+        "voice, not what he wrote about. Do NOT summarize, list, or repeat the samples.\n\n"
+        "Return ONLY one JSON object exactly in this shape (omit any key you cannot "
+        "support from the samples; each value is a short string or list of short strings):\n"
+        "{\n"
+        '  "tone": ..., "register": ..., "sentence_rhythm": ..., "structure": ...,\n'
+        '  "rhetorical_devices": ..., "openers": ..., "closers": ..., "formatting_habits": ...,\n'
+        '  "vocabulary": ..., "recurring_themes": ..., "avoid": ...\n'
+        "}\n\n"
         "CRITICAL: describe STYLE ONLY. Do NOT include any statistic, dollar amount, "
         "percentage, date, or factual claim from the samples — those are stripped and would "
-        "make the profile unusable. Say 'cites specific figures' rather than repeating one.\n\n"
-        f"SAMPLES:\n{joined}"
+        "make the profile unusable. Say 'cites specific figures' rather than repeating one."
     )
 
 

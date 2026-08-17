@@ -2817,55 +2817,64 @@ async function viewReport(reportId) {
         const rpt = d.report;
         const content = rpt.content || {};
 
+        // XSS guard: report content is built from network/DNS/device-discovery
+        // data (hostnames, DNS domains, event descriptions) that an attacker can
+        // influence, then injected via innerHTML below. Escape every value.
+        const esc = (typeof window !== 'undefined' && window.escHtml) ? window.escHtml : function(v) {
+            return String(v == null ? '' : v).replace(/[&<>"']/g, function(c) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+            });
+        };
+
         let html = '<div style="padding:16px;max-height:70vh;overflow-y:auto">';
-        html += '<h2 style="color:var(--archie-text-primary);margin:0 0 4px">' + (rpt.title||'Report') + '</h2>';
-        html += '<p style="color:var(--archie-text-muted);font-size:0.82rem;margin:0 0 16px">Generated: ' + (rpt.created_at||'-') + '</p>';
+        html += '<h2 style="color:var(--archie-text-primary);margin:0 0 4px">' + esc(rpt.title||'Report') + '</h2>';
+        html += '<p style="color:var(--archie-text-muted);font-size:0.82rem;margin:0 0 16px">Generated: ' + esc(rpt.created_at||'-') + '</p>';
 
         if(content.events_by_severity && content.events_by_severity.length) {
             html += '<h3 style="color:var(--archie-accent)">Events by Severity</h3><ul>';
-            content.events_by_severity.forEach(e=>{ html += '<li><strong>'+e.severity+'</strong>: '+e.count+'</li>'; });
+            content.events_by_severity.forEach(e=>{ html += '<li><strong>'+esc(e.severity)+'</strong>: '+esc(e.count)+'</li>'; });
             html += '</ul>';
         }
         if(content.recent_events && content.recent_events.length) {
             html += '<h3 style="color:var(--archie-accent)">Recent Events ('+content.recent_events.length+')</h3>';
             html += '<table class="data-table"><thead><tr><th>Type</th><th>Severity</th><th>Status</th><th>Description</th></tr></thead><tbody>';
             content.recent_events.forEach(e=>{
-                html += '<tr><td>'+e.type+'</td><td>'+e.severity+'</td><td>'+e.status+'</td><td>'+(e.description||'-')+'</td></tr>';
+                html += '<tr><td>'+esc(e.type)+'</td><td>'+esc(e.severity)+'</td><td>'+esc(e.status)+'</td><td>'+esc(e.description||'-')+'</td></tr>';
             });
             html += '</tbody></table>';
         }
         if(content.daily_breakdown) {
-            html += '<h3 style="color:var(--archie-accent)">Daily Breakdown</h3><pre style="background:var(--archie-bg-tertiary);padding:12px;border-radius:6px;overflow-x:auto;color:var(--archie-text-secondary)">' + JSON.stringify(content.daily_breakdown, null, 2) + '</pre>';
+            html += '<h3 style="color:var(--archie-accent)">Daily Breakdown</h3><pre style="background:var(--archie-bg-tertiary);padding:12px;border-radius:6px;overflow-x:auto;color:var(--archie-text-secondary)">' + esc(JSON.stringify(content.daily_breakdown, null, 2)) + '</pre>';
         }
         if(content.devices && content.devices.length) {
-            html += '<h3 style="color:var(--archie-accent)">Devices ('+content.total_devices+')</h3>';
+            html += '<h3 style="color:var(--archie-accent)">Devices ('+esc(content.total_devices)+')</h3>';
             html += '<table class="data-table"><thead><tr><th>Hostname</th><th>IP</th><th>Type</th><th>Zone</th><th>Status</th></tr></thead><tbody>';
             content.devices.forEach(dev=>{
-                html += '<tr><td>'+(dev.hostname||'-')+'</td><td>'+dev.ip+'</td><td>'+(dev.type||'-')+'</td><td>'+(dev.zone||'-')+'</td><td>'+dev.status+'</td></tr>';
+                html += '<tr><td>'+esc(dev.hostname||'-')+'</td><td>'+esc(dev.ip)+'</td><td>'+esc(dev.type||'-')+'</td><td>'+esc(dev.zone||'-')+'</td><td>'+esc(dev.status)+'</td></tr>';
             });
             html += '</tbody></table>';
         }
         if(content.zone_summary && content.zone_summary.length) {
             html += '<h3 style="color:var(--archie-accent)">Zone Summary</h3><ul>';
-            content.zone_summary.forEach(z=>{ html += '<li><strong>'+z.zone+'</strong>: '+z.count+' devices</li>'; });
+            content.zone_summary.forEach(z=>{ html += '<li><strong>'+esc(z.zone)+'</strong>: '+esc(z.count)+' devices</li>'; });
             html += '</ul>';
         }
         if(content.dns_changes && content.dns_changes.length) {
             html += '<h3 style="color:var(--archie-accent)">DNS Changes ('+content.dns_changes.length+')</h3>';
             html += '<table class="data-table"><thead><tr><th>Source</th><th>Action</th><th>Domain</th><th>By</th><th>Date</th></tr></thead><tbody>';
             content.dns_changes.forEach(c=>{
-                html += '<tr><td>'+c.source+'</td><td>'+c.action+'</td><td>'+(c.domain||'-')+'</td><td>'+(c.changed_by||'-')+'</td><td>'+(c.created_at||'-')+'</td></tr>';
+                html += '<tr><td>'+esc(c.source)+'</td><td>'+esc(c.action)+'</td><td>'+esc(c.domain||'-')+'</td><td>'+esc(c.changed_by||'-')+'</td><td>'+esc(c.created_at||'-')+'</td></tr>';
             });
             html += '</tbody></table>';
         }
         if(content.dns_providers && content.dns_providers.length) {
             html += '<h3 style="color:var(--archie-accent)">DNS Providers</h3><ul>';
-            content.dns_providers.forEach(p=>{ html += '<li><strong>'+p.name+'</strong> ('+p.type+') — '+(p.active?'Active':'Inactive')+'</li>'; });
+            content.dns_providers.forEach(p=>{ html += '<li><strong>'+esc(p.name)+'</strong> ('+esc(p.type)+') — '+(p.active?'Active':'Inactive')+'</li>'; });
             html += '</ul>';
         }
         if(content.scan_findings && content.scan_findings.length) {
             html += '<h3 style="color:var(--archie-accent)">Scan Findings</h3><ul>';
-            content.scan_findings.forEach(f=>{ html += '<li><strong>'+f.severity+'</strong>: '+f.count+'</li>'; });
+            content.scan_findings.forEach(f=>{ html += '<li><strong>'+esc(f.severity)+'</strong>: '+esc(f.count)+'</li>'; });
             html += '</ul>';
         }
 
@@ -2873,7 +2882,7 @@ async function viewReport(reportId) {
         const hasContent = (content.events_by_severity||[]).length || (content.recent_events||[]).length ||
             content.daily_breakdown || (content.devices||[]).length || (content.dns_changes||[]).length;
         if(!hasContent) {
-            html += '<pre style="background:var(--archie-bg-tertiary);padding:12px;border-radius:6px;overflow-x:auto;color:var(--archie-text-secondary)">' + JSON.stringify(content, null, 2) + '</pre>';
+            html += '<pre style="background:var(--archie-bg-tertiary);padding:12px;border-radius:6px;overflow-x:auto;color:var(--archie-text-secondary)">' + esc(JSON.stringify(content, null, 2)) + '</pre>';
         }
 
         html += '</div>';

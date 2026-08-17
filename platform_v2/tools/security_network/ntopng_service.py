@@ -73,14 +73,20 @@ class NtopngService:
             return {"rc": -1}
 
     def is_healthy(self) -> bool:
-        """Check if ntopng is reachable and authenticated."""
+        """Healthy only if ntopng returns AUTHENTICATED JSON.
+
+        ntopng serves its login page with HTTP 200 when auth fails/expires, so a
+        bare ``status_code == 200`` check reported healthy while every data call
+        returned nothing (fail-open). Require a successful authenticated reply:
+        _ensure_auth must have authenticated, and _get (which distinguishes the
+        HTML login page from a JSON payload) must return rc == 0.
+        """
         try:
             self._ensure_auth()
-            resp = self.session.get(
-                f"{self.base_url}/lua/rest/v2/get/ntopng/interfaces.lua",
-                timeout=5,
-            )
-            return resp.status_code == 200
+            if not self._authenticated:
+                return False
+            data = self._get("/lua/rest/v2/get/ntopng/interfaces.lua")
+            return isinstance(data, dict) and data.get("rc", -1) == 0
         except Exception:
             return False
 

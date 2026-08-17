@@ -104,7 +104,7 @@ def register_analytics_routes(bp, admin_required_decorator):
         """Top blocked domains across all devices."""
         days = _get_days_param()
         try:
-            with get_db_cursor(dict_cursor=True) as (conn, cur):
+            with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
                     SELECT domain,
@@ -132,7 +132,7 @@ def register_analytics_routes(bp, admin_required_decorator):
         """Devices with the most blocked queries (potential malware/misconfigured)."""
         days = _get_days_param()
         try:
-            with get_db_cursor(dict_cursor=True) as (conn, cur):
+            with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
                     SELECT ddh.device_ip,
@@ -169,7 +169,7 @@ def register_analytics_routes(bp, admin_required_decorator):
         """Per-device breakdown of domain categories visited."""
         days = _get_days_param()
         try:
-            with get_db_cursor(dict_cursor=True) as (conn, cur):
+            with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
                     SELECT device_ip, domain, SUM(query_count)::int AS queries
@@ -207,7 +207,7 @@ def register_analytics_routes(bp, admin_required_decorator):
         """Activity heatmap data - queries per device per hour of day."""
         days = _get_days_param()
         try:
-            with get_db_cursor(dict_cursor=True) as (conn, cur):
+            with get_db_cursor() as (conn, cur):
                 cur.execute(
                     """
                     SELECT device_ip,
@@ -243,7 +243,7 @@ def register_analytics_routes(bp, admin_required_decorator):
         """Overview of security-relevant findings (high unique blocked domains)."""
         days = _get_days_param()
         try:
-            with get_db_cursor(dict_cursor=True) as (conn, cur):
+            with get_db_cursor() as (conn, cur):
                 # Devices with >10 unique blocked domains in the period
                 cur.execute(
                     """

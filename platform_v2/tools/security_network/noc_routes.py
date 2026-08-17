@@ -272,9 +272,9 @@ def register_noc_routes(bp, admin_required_decorator):
 
                 # Surveillance cameras — check HA or Blink
                 try:
-                    from tools.security_network.ha_surveillance_service import HaSurveillanceService
+                    from tools.security_network.ha_surveillance_service import HASurveillanceService
 
-                    ha = HaSurveillanceService()
+                    ha = HASurveillanceService()
                     cams = ha.get_cameras()
                     services["surveillance"] = {"status": "online" if cams else "offline"}
                 except Exception:

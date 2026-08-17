@@ -375,7 +375,14 @@ def check_camera_anomaly():
 
 
 def run_auto_block():
-    """Run suggestion engine and auto-execute critical/high suggestions (every 15 min)."""
+    """Run the suggestion engine and FLAG critical/high threats for review (every 15 min).
+
+    NOTE: this does NOT automatically block anything. approve_suggestion() only
+    records the suggestion as acknowledged in the DB — no code consumes approved
+    security_agent_actions rows, so no firewall/DNS block is executed. The alert
+    below therefore says "flagged", not "blocked". Wiring real auto-execution is a
+    deliberate owner decision (it can block legitimate traffic), tracked separately.
+    """
     try:
         from tools.security_network.agent_automation import AgentAutomationService
         from tools.security_network.security_alerts import create_security_alert
@@ -403,18 +410,18 @@ def run_auto_block():
                         "device_vulnerability",
                     ):
                         try:
+                            # Acknowledge (dedupe) — this does NOT execute a block.
                             svc.approve_suggestion(suggestion["id"])
+                            desc = suggestion.get("description", "Threat detected by the security pipeline")
                             create_security_alert(
-                                "block",
-                                f"Auto-blocked: {suggestion.get('title', stype)}",
-                                suggestion.get(
-                                    "description",
-                                    "Threat auto-blocked by security pipeline",
-                                ),
+                                "recommendation",
+                                f"Action recommended: {suggestion.get('title', stype)}",
+                                f"{desc} — flagged by the V.I.G.I.L. pipeline. Review and act in the "
+                                f"Suggestions queue. This was NOT automatically blocked.",
                                 priority="high",
                                 telegram=True,
                             )
-                            logger.info(f"Auto-block: executed suggestion #{suggestion['id']} ({stype})")
+                            logger.info(f"Auto-block: flagged suggestion #{suggestion['id']} ({stype}) for review")
                         except Exception as e:
                             logger.warning(f"Failed: {e}")
     except Exception as e:

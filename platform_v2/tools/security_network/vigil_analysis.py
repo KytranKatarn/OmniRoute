@@ -59,7 +59,7 @@ def _dispatch_to_vigil(prompt):
 def analyze_device_behavior(device_ip):
     """Use LLM to analyze a device's network behavior and assess risk."""
     try:
-        with get_db_cursor(dict_cursor=True) as (conn, cur):
+        with get_db_cursor() as (conn, cur):
             # Top 30 domains for this device
             cur.execute(
                 """
@@ -108,7 +108,7 @@ Respond in JSON:
 def generate_threat_report():
     """Generate a V.I.G.I.L. network threat assessment report."""
     try:
-        with get_db_cursor(dict_cursor=True) as (conn, cur):
+        with get_db_cursor() as (conn, cur):
             # Top blocked domains (potential threats)
             cur.execute(
                 """
@@ -168,7 +168,7 @@ Provide a threat assessment in JSON:
 def classify_unknown_device(device_ip):
     """For devices without a label, analyze traffic to classify what they are."""
     try:
-        with get_db_cursor(dict_cursor=True) as (conn, cur):
+        with get_db_cursor() as (conn, cur):
             # Top domains
             cur.execute(
                 """

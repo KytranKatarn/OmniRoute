@@ -23,6 +23,7 @@ PRIORITY_TYPE_MAP = {
 VALID_ALERT_TYPES = {
     "intrusion",
     "block",
+    "recommendation",
     "ssl_expiry",
     "dns_change",
     "motion",

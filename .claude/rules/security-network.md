@@ -79,11 +79,24 @@ mcp__archie__delegate_task(
 - Trust center page: any product offered as a service needs one
 - Badge scores auto-refresh from latest scan results
 
-## Full Security Review — changes (2026-08-16, project #392, PRs #2617–#2621)
+## Full Security Review — changes (2026-08-16, project #392, PRs #2617–#2622)
 
-Audit: KB #289778 (62/62 findings verified) · remediation #289779 · pattern-bug KB #289780.
-7 PRs, 84 unit tests. **Static+unit verified only — a live drive of the scanners/controls is still
-pending** (was blocked on an `archie_platform` restart hold). New/changed operational surface:
+Audit: KB #289778 (62/62 findings verified) · remediation #289779 · pattern-bugs KB #289780/#289783.
+8 PRs, 98 unit tests. **Static+unit verified only — a live drive of the scanners/controls is still
+pending** (blocked on the `archie_platform` restart hold; **#2617/#2619/#2620/#2621/#2622 MERGED, #2618 open**).
+New/changed operational surface:
+
+- **Un-gated code layer (#2622)** — the scanner findings PIPELINE now works IN CODE: parsers read the
+  `stdout` key `_docker_exec` actually returns (was the phantom `output` → 0 findings), and `scanner_routes`
+  reads RealDictCursor rows BY NAME (int-indexing 500'd campaign create/get/list + findings/running/summary).
+  `threat_intel /iocs` reads real `feed_name`/`description` (phantom `feed_source`/`threat_type` → 500).
+  **NEW migration 469 `device_presence_log`** (table previously lived only in the live DB). Auto-block matches
+  the `device_vulnerability:<ip>` suffix by prefix; fingerprint/pcap stop leaking `str(e)`; the dead shadowed
+  `loadHoneypotEvents` was removed. ⚠️ **Still LIVE/HOST-gated — do NOT fix blind:** start the 5 scanner
+  containers (in `created`), install `fail2ban-client`/`speedtest-cli`, then prove a real scan lands in
+  `security_scan_results` (#5675/#5676/#5677). A container-context check for a HOST service (jobs.py fail2ban
+  log probe) was deliberately HELD, not activated — activating it would false-positive every audit (KB #289783).
+  **Bucket-3 owner wire-or-remove / CSRF / jobs→DHQ decisions filed as tasks #5678–#5685.**
 
 - **Scanner injection guard — NEW `scan_input_validator.py`** (fail-closed chokepoint). Every scan
   path (`argus_service._docker_scan`, `stack_integration.SecurityScannerService`, and all

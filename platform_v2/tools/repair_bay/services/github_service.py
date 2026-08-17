@@ -603,6 +603,60 @@ def _pr_on_open_window(pr_number: int) -> tuple:
         return False, f"window check failed ({type(exc).__name__}) — refusing"
 
 
+def _override_stale_verdict_check(pr_number: int, repo: str = None) -> tuple:
+    """(ok, why) — refuse a human_override merge on a PROVEN-stale verdict (#5672).
+
+    Runs for EVERY interactive override merge. Deliberately narrower than
+    _automerge_governance_ok's condition 1b: the unattended gate fails closed on
+    an unstamped row, but the override contract already requires a human to have
+    verified the stored verdict in code, so here only a PROVEN mismatch refuses —
+    the recorded reviewed_head_sha exists, the current head is readable, and they
+    differ. Everything unprovable (no review row, no stamp, unreadable head, any
+    exception) allows with a logged warning rather than re-litigating the gate.
+    The remedy for a refusal is one re-review; merging around it needs raw `gh`,
+    which is the correct amount of friction for merging unreviewed code.
+    """
+    try:
+        from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+            get_review,
+            pr_head_sha,
+        )
+
+        review = get_review(pr_number, repo=repo)
+        if not review:
+            logger.warning(
+                "[MergeGate] override merge of PR #%s with NO stored review — allowed (unprovable)", pr_number
+            )
+            return (True, "no stored review — staleness unprovable")
+        reviewed_sha = str((review.get("metadata") or {}).get("reviewed_head_sha") or "").strip()
+        if not reviewed_sha:
+            logger.warning(
+                "[MergeGate] override merge of PR #%s: review row has no reviewed_head_sha stamp — allowed (unprovable)",
+                pr_number,
+            )
+            return (True, "review row predates SHA stamping — staleness unprovable")
+        current_sha = pr_head_sha(pr_number, repo)
+        if not current_sha:
+            logger.warning(
+                "[MergeGate] override merge of PR #%s: current head SHA unreadable — allowed (unprovable)", pr_number
+            )
+            return (True, "current head unreadable — staleness unprovable")
+        if reviewed_sha != current_sha:
+            return (
+                False,
+                f"STALE VERDICT for PR #{pr_number}: the review covers {reviewed_sha[:8]} but the "
+                f"head is now {current_sha[:8]} — commits landed after the review. human_override "
+                f"clears authority limits, not this: re-run review_pr() so the verdict covers the "
+                f"code being merged",
+            )
+        return (True, f"verdict covers current head {current_sha[:8]}")
+    except Exception as exc:
+        logger.warning(
+            "[MergeGate] override staleness check errored for PR #%s: %s — allowed (unprovable)", pr_number, exc
+        )
+        return (True, f"staleness check errored ({exc}) — unprovable")
+
+
 def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = _DEFAULT_AUTHORITY) -> tuple:
     """Is an UNATTENDED merge of ``pr_number`` permitted? Returns ``(ok, reason)``.
 
@@ -808,6 +862,26 @@ def merge_pr(
                 "error": f"Refusing to merge PR #{pr_number}: {_gov_why}",
             }
         logger.info("[MergeGate] PR #%s cleared for unattended merge (%s)", pr_number, _gov_why)
+    else:
+        # #5672 — human_override clears AUTHORITY limits (tier ceiling, path
+        # allowlist), never the SAFETY property that the verdict covers the code
+        # being merged (decision #953). PROVEN on PR #2614 (2026-08-16): the gate
+        # correctly refused a stale verdict, and human_override=True then merged
+        # commits the review had never seen — because the override skipped the
+        # whole gate rather than only the authority half. Refuse PROVEN staleness
+        # for every actor; an unprovable case (pre-#5646 row with no SHA stamp,
+        # or an unreadable head) stays with the human — the override contract
+        # already requires the caller to verify the stored verdict in code.
+        _fresh_ok, _fresh_why = _override_stale_verdict_check(pr_number, repo)
+        if not _fresh_ok:
+            logger.warning("[MergeGate] refusing OVERRIDE merge of PR #%s: %s", pr_number, _fresh_why)
+            return {
+                "success": False,
+                "merged": False,
+                "governance_blocked": True,
+                "stale_verdict": True,
+                "error": f"Refusing to merge PR #{pr_number}: {_fresh_why}",
+            }
 
     pre_ok, pre = _api_get(f"/repos/{_repo}/pulls/{pr_number}")
     if pre_ok:

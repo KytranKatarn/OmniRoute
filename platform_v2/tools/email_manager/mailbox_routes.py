@@ -50,7 +50,10 @@ def register_mailbox_routes(bp, admin_required):
         if not row:
             return jsonify({"error": "Mailbox not found"}), 404
 
-        result = create_mailbox(row["address"], row["display_name"])
+        # force_reset: this is an EXPLICIT admin action that persists the new
+        # credential to email_mailboxes below — the both-sides rotation #5698's
+        # guard exists to protect is exactly what this route does correctly.
+        result = create_mailbox(row["address"], row["display_name"], force_reset=True)
         if result["ok"]:
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute(
@@ -113,7 +116,9 @@ def register_mailbox_routes(bp, admin_required):
             row = cur.fetchone()
             mailbox_id = row["id"]
 
-        result = create_mailbox(address, display_name, quota_gb=10)
+        # force_reset: explicit owner-provisioning admin action; the new
+        # credential is persisted to email_mailboxes below (#5698 guard).
+        result = create_mailbox(address, display_name, quota_gb=10, force_reset=True)
         # If Stalwart returns 409 (already exists), rotate the password instead
         if not result["ok"] and "409" in str(result.get("error", "")):
             from .stalwart_service import update_password

@@ -265,10 +265,82 @@ def _account_exists(local_part: str) -> bool:
         return True
 
 
-def create_mailbox(address: str, display_name: str = "", password: str = None, quota_gb: int = 1) -> dict:
+def _protected_mailbox_type(address: str):
+    """The mailbox_type when this address is an owner/business mailbox, else None.
+
+    #5698: on 2026-08-16 the OWNER principal's Stalwart secret was rotated to an
+    unattributed token while email_mailboxes was untouched — a forked credential
+    that took all 156 mailboxes' sync down for ~20h. Owner/business principals
+    must never be reset as a side effect of an 'ensure mailbox' sweep.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT mailbox_type FROM email_mailboxes WHERE lower(address) = lower(%s)",
+                (address,),
+            )
+            row = cur.fetchone()
+        mtype = (row["mailbox_type"] if row else None) or None
+        return mtype if mtype in ("owner", "business") else None
+    except Exception as exc:
+        # Fail SAFE for the guard's purpose: unknown type -> treat as protected
+        # is tempting, but it would brick agent provisioning on any DB blip.
+        # The guard exists for owner/business rows we could not read — log loud.
+        logger.warning("Stalwart: mailbox-type lookup failed for %s: %s", address, exc)
+        return None
+
+
+def _audit_secret_rotation(address: str, caller: str, ok: bool, note: str = "") -> None:
+    """Durable (DB) record of every Stalwart secret rotation — #5698.
+
+    The 2026-08-16 rotation could not be attributed because Stalwart does not
+    log principal updates and docker-log rotation ate the window. This row in
+    audit_log survives both.
+    """
+    try:
+        from database import get_db_cursor
+        from psycopg2.extras import Json
+
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """INSERT INTO audit_log (action, resource_type, details, metadata, severity, category)
+                   VALUES ('STALWART_SECRET_ROTATION', 'mailbox', %s, %s, %s, 'email_security')""",
+                (
+                    f"{address}: rotation {'applied' if ok else 'refused/failed'} via {caller}. {note}".strip(),
+                    Json({"address": address, "caller": caller, "ok": ok, "note": note}),
+                    "warning" if ok else "info",
+                ),
+            )
+    except Exception as exc:
+        logger.error("Stalwart: audit write for %s rotation failed: %s", address, exc)
+
+
+def _caller_name() -> str:
+    """Best-effort name of the code calling into this module (for the audit row)."""
+    try:
+        import inspect
+
+        for frame in inspect.stack()[2:8]:
+            fn = frame.filename
+            if "stalwart_service" not in fn:
+                return f"{fn.rsplit('/', 1)[-1]}:{frame.function}:{frame.lineno}"
+    except Exception:
+        pass
+    return "unknown"
+
+
+def create_mailbox(
+    address: str, display_name: str = "", password: str = None, quota_gb: int = 1, force_reset: bool = False
+) -> dict:
     """Provision a new mailbox in Stalwart.
 
     Returns {ok: bool, password: str, error: str}.
+
+    force_reset: required to reset the secret of an ALREADY-EXISTING principal
+    whose mailbox is owner/business (#5698). Explicit admin provisioning routes
+    pass True; sweeps and agent provisioning must not.
     The generated password is returned so the caller can store it.
     """
     err = _check_password()
@@ -305,6 +377,21 @@ def create_mailbox(address: str, display_name: str = "", password: str = None, q
             # and both failed IMAP login; every other new mailbox worked. Force the
             # secret so the returned credential is always the usable one.
             if _existed_before:
+                _protected = _protected_mailbox_type(address)
+                if _protected and not force_reset:
+                    # #5698: never rotate an owner/business principal as a side
+                    # effect. The caller gets a hard refusal, and the attempt is
+                    # durably recorded so the NEXT mystery rotation has a trail.
+                    _audit_secret_rotation(
+                        address,
+                        _caller_name(),
+                        ok=False,
+                        note=f"create_mailbox refused reset of existing {_protected} principal (force_reset not set)",
+                    )
+                    return {
+                        "ok": False,
+                        "error": f"refusing to reset existing {_protected} principal {address} — pass force_reset=True",
+                    }
                 reset = update_password(address, _password)
                 if not reset.get("ok"):
                     logger.error(
@@ -368,6 +455,9 @@ def update_password(address: str, password: str = None) -> dict:
         )
         if resp.status_code in (200, 204):
             logger.info("Stalwart: rotated password for %s", address)
+            # #5698: every applied rotation leaves a durable DB audit row —
+            # Stalwart doesn't log principal updates and docker logs rotate.
+            _audit_secret_rotation(address, _caller_name(), ok=True)
             return {"ok": True, "password": _password}
         err = resp.text[:300]
         logger.error("Stalwart update_password failed for %s: %s %s", address, resp.status_code, err)

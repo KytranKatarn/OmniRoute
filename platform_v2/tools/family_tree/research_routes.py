@@ -35,9 +35,14 @@ def register_research_routes(bp, admin_required):
         if not person_id or not research_type:
             return jsonify({"error": "person_id and research_type are required"}), 400
 
+        # #5343: 'queued', not 'pending' — the table's CHECK constraint allows
+        # (queued, searching, found_matches, reviewed, no_results). 'pending'
+        # violated it, so EVERY Start-Research click 500'd since inception and
+        # the queue was empty not from disuse but because enqueueing itself
+        # failed (proven live 2026-08-17 in a ROLLBACK probe).
         sql = """
             INSERT INTO family_research_queue (user_id, person_id, research_type, status)
-            VALUES (%(user_id)s, %(person_id)s, %(research_type)s, 'pending')
+            VALUES (%(user_id)s, %(person_id)s, %(research_type)s, 'queued')
             RETURNING *
         """
         with get_db_cursor(commit=True) as (conn, cur):

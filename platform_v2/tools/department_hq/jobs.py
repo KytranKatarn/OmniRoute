@@ -811,6 +811,96 @@ def dispatch_retention_prune():
         logger.exception("dispatch_retention_prune failed")
 
 
+def family_research_worker(flask_app=None):
+    """#5343 (#5211): scheduled drain for family_research_queue.
+
+    Users queue research per person (Family Tree → Start Research), but the only
+    thing that ever ran a search was nothing — the queue had a compliant dispatch
+    path and NO scheduled consumer. Claims a couple of 'queued' rows per cycle,
+    runs the existing non-LLM search_all_sources() (8 external genealogy/archive
+    APIs), stores the combined matches, and moves the row to 'found_matches' /
+    'no_results' per the table's CHECK vocabulary. The LLM analyze step stays
+    user-triggered (S.C.R.O.L.L. via the /analyze route). Toggle: work_control
+    'family_research'.
+    """
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("family_research", default=True):
+        return
+    from database import get_db_cursor
+    from psycopg2.extras import Json
+
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            """
+            UPDATE family_research_queue
+            SET status = 'searching'
+            WHERE id IN (
+                SELECT id FROM family_research_queue
+                WHERE status = 'queued'
+                ORDER BY created_at ASC
+                LIMIT 2
+                FOR UPDATE SKIP LOCKED
+            )
+            RETURNING id, person_id
+            """
+        )
+        claimed = [dict(r) for r in cur.fetchall()]
+    if not claimed:
+        return
+
+    from tools.family_tree.services.research_service import search_all_sources
+
+    done = 0
+    for row in claimed:
+        try:
+            with get_db_cursor() as (_c, cur):
+                cur.execute(
+                    "SELECT first_name, last_name, birth_place FROM family_persons WHERE id = %s",
+                    (row["person_id"],),
+                )
+                p = cur.fetchone()
+            if not p:
+                raise ValueError(f"person {row['person_id']} not found")
+            p = dict(p)
+            matches = search_all_sources(
+                p.get("first_name") or "",
+                p.get("last_name") or "",
+                birth_place=p.get("birth_place") or "",
+            )
+            status = "found_matches" if matches else "no_results"
+            top_score = max((m.get("score") or 0 for m in matches), default=None)
+            with get_db_cursor(commit=True) as (_c, cur):
+                cur.execute(
+                    """
+                    UPDATE family_research_queue
+                    SET status = %s,
+                        results = %s,
+                        confidence_score = %s,
+                        completed_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (status, Json({"matches": matches, "count": len(matches)}), top_score, row["id"]),
+                )
+            done += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("family_research_worker: entry %s failed: %s", row["id"], exc)
+            # 'no_results' with the error recorded — the CHECK vocabulary has no
+            # 'failed'; an honest empty result beats a row stuck in 'searching'.
+            with get_db_cursor(commit=True) as (_c, cur):
+                cur.execute(
+                    """
+                    UPDATE family_research_queue
+                    SET status = 'no_results',
+                        results = COALESCE(results, '{}'::jsonb) || %s::jsonb,
+                        completed_at = NOW()
+                    WHERE id = %s
+                    """,
+                    (Json({"error": str(exc)[:300]}), row["id"]),
+                )
+    logger.info("[DeptHQ] family_research_worker: processed %d/%d claimed entr(ies)", done, len(claimed))
+
+
 def platform_registry_collect(flask_app=None, scheduler=None):
     """Nightly Living Platform Registry collection (#5230).
 
@@ -1128,6 +1218,18 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=3, minute=40, timezone="America/Toronto"),
         id="platform_registry_collect",
         name="Registry: collect modules/services/skills + change feed",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # #5343 (#5211) — family research queue drain (every 15 min). Non-LLM
+    # external-archive searches; the LLM analyze step stays user-triggered.
+    scheduler.add_job(
+        with_ctx(family_research_worker),
+        trigger=IntervalTrigger(minutes=15),
+        id="family_research_worker",
+        name="Family Tree: drain queued research (8-source search)",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

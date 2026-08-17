@@ -843,24 +843,9 @@ function loadDnsThreatCrossref() {
     }).catch(function() { el.textContent = 'Failed to load'; });
 }
 
-/* ─── Honeypot Monitor ─── */
-function loadHoneypotEvents() {
-    var el = document.getElementById('honeypot-events');
-    if (!el) return;
-    el.textContent = '';
-    // Check if honeypot port is being probed via AdGuard or connection logs
-    fetch(SN_API + '/threat-intel/dns-crossref').then(function(r) { return r.json(); }).then(function(d) {
-        if (!d.success) { el.textContent = 'Honeypot offline'; return; }
-        var div = document.createElement('div');
-        div.style.cssText = 'padding:12px;font-size:0.85rem;color:#94a3b8';
-        div.textContent = 'Honeypot monitoring via DNS threat correlation. ' +
-            d.dns_blocked_24h + ' suspicious queries blocked in last 24h. ' +
-            d.match_count + ' matched known threat IOCs.';
-        el.appendChild(div);
-    }).catch(function() {
-        el.textContent = 'Honeypot not configured';
-    });
-}
+/* ─── Honeypot Monitor: the live loadHoneypotEvents() is defined below.
+   An earlier /threat-intel/dns-crossref version here was a dead shadow
+   (JS hoisting made the later definition always win) and was removed. ─── */
 
 /* ═══════════════════════════════════════════════════════════════════
    4. INCIDENTS

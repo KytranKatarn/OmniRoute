@@ -405,7 +405,10 @@ def run_auto_block():
                     severity = data.get("severity", "low")
                     stype = data.get("suggestion_type", "")
 
-                    if severity in ("critical", "high") and stype in (
+                    # suggestion_type may carry a suffix (e.g. "device_vulnerability:<ip>"),
+                    # so match on the prefix — the exact-membership test silently skipped
+                    # every device_vulnerability suggestion (dead branch).
+                    if severity in ("critical", "high") and stype.split(":")[0] in (
                         "ssh_brute_force",
                         "device_vulnerability",
                     ):
@@ -1956,4 +1959,4 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 21 security/network jobs")
+    logger.info("[SecurityJobs] Registered 22 security/network jobs")

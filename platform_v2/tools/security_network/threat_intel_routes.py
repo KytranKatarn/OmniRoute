@@ -96,7 +96,7 @@ def register_threat_intel_routes(bp, admin_required_decorator):
             params = []
 
             if feed:
-                conditions.append("feed_source = %s")
+                conditions.append("feed_name = %s")
                 params.append(feed)
             if ioc_type:
                 conditions.append("ioc_type = %s")
@@ -113,8 +113,8 @@ def register_threat_intel_routes(bp, admin_required_decorator):
 
             with get_db_cursor() as (conn, cur):
                 cur.execute(
-                    "SELECT id, ioc_type, ioc_value, severity, feed_source, "
-                    "threat_type, first_seen, last_updated "
+                    "SELECT id, ioc_type, ioc_value, severity, feed_name, "
+                    "description, first_seen, last_updated "
                     "FROM threat_intel_iocs " + where + " ORDER BY last_updated DESC LIMIT %s",
                     params,
                 )
@@ -126,8 +126,8 @@ def register_threat_intel_routes(bp, admin_required_decorator):
                     "ioc_type": r["ioc_type"],
                     "ioc_value": r["ioc_value"],
                     "severity": r["severity"],
-                    "feed_source": r["feed_source"],
-                    "threat_type": r["threat_type"],
+                    "feed_source": r["feed_name"],
+                    "description": r["description"],
                     "first_seen": r["first_seen"].isoformat() if r["first_seen"] else None,
                     "last_updated": r["last_updated"].isoformat() if r["last_updated"] else None,
                 }

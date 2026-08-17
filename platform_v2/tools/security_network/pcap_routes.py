@@ -233,4 +233,4 @@ def _stop_capture(capture_id):
             return {"capture_id": capture_id, "file_size": file_size, "status": "completed"}
     except Exception as e:
         logger.error("[PCAP] Stop capture DB update failed: %s", e)
-        return {"error": str(e)}
+        return {"error": "Internal server error"}

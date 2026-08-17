@@ -3399,9 +3399,12 @@ async function quickSetupDomain() {
             if (d.steps) {
                 const stepsInfo = document.createElement('div');
                 stepsInfo.style.cssText = 'margin-top:8px;font-size:0.8rem;color:var(--text-dim)';
-                stepsInfo.textContent = 'DNS: ' + (d.steps.dns && d.steps.dns.success ? '\u2713' : '\u2717')
-                    + ' | Proxy: ' + (d.steps.proxy && d.steps.proxy.success ? '\u2713' : '\u2717')
-                    + ' | SSL: ' + (d.steps.ssl && d.steps.ssl.success ? '\u2713' : '\u2717');
+                // NPM was decommissioned 2026-06-27 \u2014 this endpoint creates only a
+                // DNS A record. TLS is auto-provisioned by the ingress Caddy on first
+                // request, so the old Proxy/SSL indicators (always undefined -> always
+                // \u2717) were removed as a misleading NPM-era leftover.
+                stepsInfo.textContent = 'DNS record: ' + (d.steps.dns && d.steps.dns.success ? '\u2713 created' : '\u2717 failed')
+                    + '  \u00b7  TLS auto-provisioned by the ingress on first request';
                 resultDiv.appendChild(stepsInfo);
             }
 
@@ -5092,8 +5095,8 @@ async function loadHardeningContent(scanId) {
                 html += '<div style="background: var(--archie-bg-secondary); border: 1px solid var(--archie-border-default); border-left: 3px solid ' + sevColors[sev] + '; border-radius: 6px; padding: 12px 15px; margin-bottom: 8px;">'
                     + '<div style="display: flex; justify-content: space-between; align-items: start;">'
                     + '<div>'
-                    + '<span class="mono" style="font-size: 0.8rem; color: var(--archie-text-muted);">' + f.rule_id + '</span>'
-                    + '<span style="font-size: 0.8rem; color: var(--archie-text-muted); margin-left: 8px;">' + (f.pack_id || '').replace('-stig', '') + '</span>'
+                    + '<span class="mono" style="font-size: 0.8rem; color: var(--archie-text-muted);">' + _compEsc(f.rule_id) + '</span>'
+                    + '<span style="font-size: 0.8rem; color: var(--archie-text-muted); margin-left: 8px;">' + _compEsc((f.pack_id || '').replace('-stig', '')) + '</span>'
                     + '</div>'
                     + '</div>'
                     + '<div style="font-size: 0.85rem; color: var(--archie-text-primary); margin-top: 6px;">' + detailText + '</div>'

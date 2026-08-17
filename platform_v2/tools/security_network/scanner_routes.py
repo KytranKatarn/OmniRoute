@@ -199,7 +199,8 @@ def register_scanner_routes(bp, admin_required_decorator):
                         getattr(current_user, "username", "user"),
                     ),
                 )
-                return cur.fetchone()[0]
+                row = cur.fetchone()
+                return row["id"] if row else None
         except Exception as e:
             logger.debug("Failed to track scan start: %s", e)
             return None
@@ -252,7 +253,7 @@ def register_scanner_routes(bp, admin_required_decorator):
     def _parse_nmap_findings(result):
         """Extract findings from nmap scan result"""
         findings = []
-        output = result.get("output", "") if isinstance(result, dict) else ""
+        output = result.get("stdout", "") if isinstance(result, dict) else ""
         for line in output.split("\n"):
             if "/tcp" in line and "open" in line:
                 parts = line.strip().split()
@@ -271,7 +272,7 @@ def register_scanner_routes(bp, admin_required_decorator):
     def _parse_nuclei_findings(result):
         """Extract findings from nuclei scan result"""
         findings = []
-        output = result.get("output", "") if isinstance(result, dict) else ""
+        output = result.get("stdout", "") if isinstance(result, dict) else ""
         for line in output.strip().split("\n"):
             if not line.strip():
                 continue
@@ -374,7 +375,7 @@ def register_scanner_routes(bp, admin_required_decorator):
 
             # Parse nikto findings from output
             findings = []
-            output = result.get("output", "") if isinstance(result, dict) else ""
+            output = result.get("stdout", "") if isinstance(result, dict) else ""
             for line in output.split("\n"):
                 line = line.strip()
                 if line.startswith("+") and ":" in line:
@@ -457,12 +458,12 @@ def register_scanner_routes(bp, admin_required_decorator):
             result = scanner_service.run_ssl_scan(domain)
 
             findings = []
-            if isinstance(result, dict) and result.get("output"):
+            if isinstance(result, dict) and result.get("stdout"):
                 findings.append(
                     {
                         "severity": "info",
                         "finding": f"SSL/TLS analysis for {domain}",
-                        "details": {"output_length": len(result.get("output", ""))},
+                        "details": {"output_length": len(result.get("stdout", ""))},
                     }
                 )
 
@@ -581,11 +582,11 @@ def register_scanner_routes(bp, admin_required_decorator):
                     row = cur.fetchone()
                     if row:
                         last_scan = {
-                            "id": row[0],
-                            "target": row[1],
-                            "status": row[2],
-                            "started_at": row[3].isoformat() if row[3] else None,
-                            "completed_at": row[4].isoformat() if row[4] else None,
+                            "id": row["id"],
+                            "target": row["target"],
+                            "status": row["status"],
+                            "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+                            "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
                         }
 
                     # Finding counts from security_scan_results
@@ -597,7 +598,7 @@ def register_scanner_routes(bp, admin_required_decorator):
                     """,
                         (scanner_id,),
                     )
-                    findings = {r[0]: r[1] for r in cur.fetchall()}
+                    findings = {r["severity"]: r["count"] for r in cur.fetchall()}
             except Exception as e:
                 logger.debug("Scanner summary DB error: %s", e)
                 findings = {}
@@ -653,11 +654,11 @@ def register_scanner_routes(bp, admin_required_decorator):
                 for row in cur.fetchall():
                     running.append(
                         {
-                            "id": row[0],
-                            "scanner": row[1],
-                            "target": row[2],
-                            "started_at": row[3].isoformat() if row[3] else None,
-                            "elapsed_seconds": row[4] or 0,
+                            "id": row["id"],
+                            "scanner": row["module_name"],
+                            "target": row["target"],
+                            "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+                            "elapsed_seconds": row["elapsed_seconds"] or 0,
                         }
                     )
             return jsonify({"success": True, "running": running})
@@ -692,14 +693,14 @@ def register_scanner_routes(bp, admin_required_decorator):
                 for row in cur.fetchall():
                     findings.append(
                         {
-                            "id": row[0],
-                            "scanner": row[1],
-                            "target": row[2],
-                            "severity": row[3],
-                            "finding": row[4],
-                            "details": row[5],
-                            "scan_id": row[6],
-                            "created_at": row[7].isoformat() if row[7] else None,
+                            "id": row["id"],
+                            "scanner": row["scanner"],
+                            "target": row["target"],
+                            "severity": row["severity"],
+                            "finding": row["finding"],
+                            "details": row["details"],
+                            "scan_id": row["scan_id"],
+                            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
                         }
                     )
 
@@ -1033,7 +1034,7 @@ def register_scanner_routes(bp, admin_required_decorator):
                        VALUES (%s, %s, %s, %s, 'running', %s) RETURNING id""",
                     (client_name, target, profile, psycopg2.extras.Json(all_tools), triggered_by),
                 )
-                campaign_id = cur.fetchone()[0]
+                campaign_id = cur.fetchone()["id"]
 
             # Launch each scanner in background threads
             scan_ids = []
@@ -1055,7 +1056,7 @@ def register_scanner_routes(bp, admin_required_decorator):
                                 camp_id,
                             ),
                         )
-                        scan_id = cur.fetchone()[0]
+                        scan_id = cur.fetchone()["id"]
 
                     # Execute the scan
                     result = None
@@ -1147,12 +1148,12 @@ def register_scanner_routes(bp, admin_required_decorator):
                             (camp_id,),
                         )
                         row = cur.fetchone()
-                        if row and row[0]:
+                        if row and row["array_agg"]:
                             import psycopg2.extras
 
                             cur.execute(
                                 "UPDATE scan_campaigns SET scan_ids = %s WHERE id = %s",
-                                (psycopg2.extras.Json(list(row[0])), camp_id),
+                                (psycopg2.extras.Json(list(row["array_agg"])), camp_id),
                             )
                 except Exception as e:
                     logger.debug("Campaign monitor error: %s", e)
@@ -1192,16 +1193,16 @@ def register_scanner_routes(bp, admin_required_decorator):
                     return jsonify({"success": False, "error": "Campaign not found"}), 404
 
                 campaign = {
-                    "id": row[0],
-                    "client_name": row[1],
-                    "target": row[2],
-                    "profile": row[3],
-                    "scanners": row[4],
-                    "status": row[5],
-                    "scan_ids": row[6],
-                    "created_by": row[7],
-                    "created_at": row[8].isoformat() if row[8] else None,
-                    "completed_at": row[9].isoformat() if row[9] else None,
+                    "id": row["id"],
+                    "client_name": row["client_name"],
+                    "target": row["target"],
+                    "profile": row["profile"],
+                    "scanners": row["scanners"],
+                    "status": row["status"],
+                    "scan_ids": row["scan_ids"],
+                    "created_by": row["created_by"],
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "completed_at": row["completed_at"].isoformat() if row["completed_at"] else None,
                 }
 
                 # Get all scans for this campaign
@@ -1216,13 +1217,13 @@ def register_scanner_routes(bp, admin_required_decorator):
                 for r in cur.fetchall():
                     scans.append(
                         {
-                            "id": r[0],
-                            "scanner": r[1],
-                            "target": r[2],
-                            "status": r[3],
-                            "results": r[4],
-                            "started_at": r[5].isoformat() if r[5] else None,
-                            "completed_at": r[6].isoformat() if r[6] else None,
+                            "id": r["id"],
+                            "scanner": r["module_name"],
+                            "target": r["target"],
+                            "status": r["status"],
+                            "results": r["results"],
+                            "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+                            "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None,
                         }
                     )
 
@@ -1241,11 +1242,11 @@ def register_scanner_routes(bp, admin_required_decorator):
                 for r in cur.fetchall():
                     findings.append(
                         {
-                            "scanner": r[0],
-                            "severity": r[1],
-                            "finding": r[2],
-                            "target": r[3],
-                            "details": r[4],
+                            "scanner": r["scanner"],
+                            "severity": r["severity"],
+                            "finding": r["finding"],
+                            "target": r["target"],
+                            "details": r["details"],
                         }
                     )
 
@@ -1277,14 +1278,14 @@ def register_scanner_routes(bp, admin_required_decorator):
                 for r in cur.fetchall():
                     campaigns.append(
                         {
-                            "id": r[0],
-                            "client_name": r[1],
-                            "target": r[2],
-                            "profile": r[3],
-                            "scanners": r[4],
-                            "status": r[5],
-                            "created_at": r[6].isoformat() if r[6] else None,
-                            "completed_at": r[7].isoformat() if r[7] else None,
+                            "id": r["id"],
+                            "client_name": r["client_name"],
+                            "target": r["target"],
+                            "profile": r["profile"],
+                            "scanners": r["scanners"],
+                            "status": r["status"],
+                            "created_at": r["created_at"].isoformat() if r["created_at"] else None,
+                            "completed_at": r["completed_at"].isoformat() if r["completed_at"] else None,
                         }
                     )
                 return jsonify({"success": True, "campaigns": campaigns})

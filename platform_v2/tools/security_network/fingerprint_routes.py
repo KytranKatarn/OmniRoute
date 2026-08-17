@@ -103,7 +103,7 @@ def register_fingerprint_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "fingerprint": fingerprint})
         except Exception as e:
             logger.error("Device fingerprint lookup error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/devices/fingerprint/<device_ip>/scan", methods=["POST"])
     @login_required
@@ -195,7 +195,7 @@ def register_fingerprint_routes(bp, admin_required_decorator):
             return jsonify({"success": False, "error": "nmap scan timed out after 120 seconds"}), 504
         except Exception as e:
             logger.error("Device fingerprint scan error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/devices/port-changes")
     @login_required
@@ -257,7 +257,7 @@ def register_fingerprint_routes(bp, admin_required_decorator):
             )
         except Exception as e:
             logger.error("Port changes error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/devices/wol/<mac_address>", methods=["POST"])
     @login_required
@@ -287,4 +287,4 @@ def register_fingerprint_routes(bp, admin_required_decorator):
             return jsonify({"success": True, "message": f"Wake-on-LAN packet sent to {mac_address}"})
         except Exception as e:
             logger.error("Wake-on-LAN error: %s", e)
-            return jsonify({"success": False, "error": str(e)}), 500
+            return jsonify({"success": False, "error": "Internal server error"}), 500

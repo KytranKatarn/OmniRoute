@@ -108,7 +108,7 @@ Every new session MUST begin with one of:
 
 ### 3 Core Systems
 1. **Autonomy Module** - Scheduled jobs, background processing (`ai_bridge/agent_loop.py`)
-2. **Department HQ** - Agents, departments, dispatch, fleet, jobs — 12 tabs (`tools/department_hq/`)
+2. **Department HQ** - Agents, departments, dispatch, fleet, jobs — 11 tabs (`tools/department_hq/`)
 3. **AI Bridge** - Model routing, embeddings, knowledge analysis (`ai_bridge/`)
 
 ### 6 Subsystems
@@ -170,7 +170,7 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 ### Department HQ → Agent Service Pattern
 - All agent mutations go through `agent_service.py` — no direct SQL on agent tables
 - 17 departments across 5 floors: BRIDGE, OPERATIONS, ENGINEERING, CREATIVE, SERVICES
-- Department HQ module: 12 tabs (Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Devices, Dispatch, Fleet, Contractors, COMs)
+- Department HQ module: 11 tabs (Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Dispatch, Fleet, Contractors, COMs) — Devices tab removed 2026-08-17 (device management lives in Security & Network)
 - Agent Academy module: 5 tabs (Benchmarks, Training, A/B Testing, Skills, Reports)
 - Agent lifecycle: `agent_service.create_agent()`, `.update_agent()`, `.deactivate_agent()`
 
@@ -186,8 +186,8 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 - Reference: `bridge.html` lines 9209-9249
 
 ### Agent Roster
-- `agents` table = single source of truth (131 non-decommissioned: 34 AI + 90 internal + 5 contractor)
-- 34 AI agents (worker_type='ai') across 17 departments — 29 active, 5 barracked
+- `agents` table = single source of truth (140 non-decommissioned measured 2026-08-17: 116 ai + 24 internal + 1 contractor by worker_type)
+- worker_type='ai' spans 17 departments (incl. persona/collaborator identities — the ~34 "roster AI agents" figure was a stale, narrower classification)
 - 17 departments (News & Media added 2026-04-14 with 6 AI agents)
 - 1 agent = 1 department (managed via `agent_service.py`)
 - Shift states: active, deployed, barracked, off_duty, winding_down, cooldown

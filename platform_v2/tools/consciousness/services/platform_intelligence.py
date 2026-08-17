@@ -92,62 +92,77 @@ def get_database_schema() -> Dict[str, Any]:
         tables = []
         total_rows = 0
 
+        # Batch the per-table metadata into FOUR set-returning queries instead of
+        # four queries PER table (~3,300 round-trips across ~827 tables) — the
+        # remaining half of the #5705 hang after the COUNT(*) loop was replaced
+        # with the reltuples estimate above.
+        cur.execute(
+            """
+            SELECT table_name, column_name, data_type, is_nullable,
+                   column_default, character_maximum_length
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            ORDER BY table_name, ordinal_position
+        """
+        )
+        columns_by_table = {}
+        for c in cur.fetchall():
+            row = dict(c)
+            columns_by_table.setdefault(row.pop("table_name"), []).append(row)
+
+        cur.execute(
+            """
+            SELECT c.relname AS table_name, a.attname AS column_name
+            FROM pg_index i
+            JOIN pg_class c ON c.oid = i.indrelid
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_attribute a ON a.attrelid = i.indrelid
+                 AND a.attnum = ANY(i.indkey)
+            WHERE n.nspname = 'public' AND i.indisprimary
+        """
+        )
+        pks_by_table = {}
+        for r in cur.fetchall():
+            pks_by_table.setdefault(r["table_name"], []).append(r["column_name"])
+
+        cur.execute(
+            """
+            SELECT tc.table_name, kcu.column_name,
+                   ccu.table_name AS foreign_table,
+                   ccu.column_name AS foreign_column
+            FROM information_schema.table_constraints AS tc
+            JOIN information_schema.key_column_usage AS kcu
+                ON tc.constraint_name = kcu.constraint_name
+            JOIN information_schema.constraint_column_usage AS ccu
+                ON ccu.constraint_name = tc.constraint_name
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND tc.table_schema = 'public'
+        """
+        )
+        fks_by_table = {}
+        for fk in cur.fetchall():
+            row = dict(fk)
+            fks_by_table.setdefault(row.pop("table_name"), []).append(row)
+
+        cur.execute(
+            """
+            SELECT tablename, indexname, indexdef
+            FROM pg_indexes WHERE schemaname = 'public'
+        """
+        )
+        idx_by_table = {}
+        for i in cur.fetchall():
+            row = dict(i)
+            idx_by_table.setdefault(row.pop("tablename"), []).append(row)
+
         for t in tables_raw:
             table_name = t["table_name"]
-
-            cur.execute(
-                """
-                SELECT column_name, data_type, is_nullable,
-                       column_default, character_maximum_length
-                FROM information_schema.columns
-                WHERE table_schema = 'public' AND table_name = %s
-                ORDER BY ordinal_position
-            """,
-                (table_name,),
-            )
-            columns = [dict(c) for c in cur.fetchall()]
+            columns = columns_by_table.get(table_name, [])
 
             # Planner estimate (see the pg_class query above) — NOT an exact
             # COUNT(*). Views/foreign tables not in pg_class relkind r/p -> 0.
             row_count = int(row_estimates.get(table_name, 0))
             total_rows += row_count
-
-            cur.execute(
-                """
-                SELECT a.attname as column_name
-                FROM pg_index i
-                JOIN pg_attribute a ON a.attrelid = i.indrelid
-                     AND a.attnum = ANY(i.indkey)
-                WHERE i.indrelid = %s::regclass AND i.indisprimary
-            """,
-                (table_name,),
-            )
-            primary_keys = [r["column_name"] for r in cur.fetchall()]
-
-            cur.execute(
-                """
-                SELECT kcu.column_name,
-                       ccu.table_name AS foreign_table,
-                       ccu.column_name AS foreign_column
-                FROM information_schema.table_constraints AS tc
-                JOIN information_schema.key_column_usage AS kcu
-                    ON tc.constraint_name = kcu.constraint_name
-                JOIN information_schema.constraint_column_usage AS ccu
-                    ON ccu.constraint_name = tc.constraint_name
-                WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = %s
-            """,
-                (table_name,),
-            )
-            foreign_keys = [dict(fk) for fk in cur.fetchall()]
-
-            cur.execute(
-                """
-                SELECT indexname, indexdef
-                FROM pg_indexes WHERE tablename = %s
-            """,
-                (table_name,),
-            )
-            indexes = [dict(i) for i in cur.fetchall()]
 
             tables.append(
                 {
@@ -156,9 +171,9 @@ def get_database_schema() -> Dict[str, Any]:
                     "row_count": row_count,
                     "columns": columns,
                     "column_count": len(columns),
-                    "primary_keys": primary_keys,
-                    "foreign_keys": foreign_keys,
-                    "indexes": indexes,
+                    "primary_keys": pks_by_table.get(table_name, []),
+                    "foreign_keys": fks_by_table.get(table_name, []),
+                    "indexes": idx_by_table.get(table_name, []),
                 }
             )
 

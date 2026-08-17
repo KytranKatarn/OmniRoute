@@ -20,7 +20,7 @@ Legend: ✅ verified light (browser) · 🔧 fixed this pass · ☑︎ static-cl
 | Email HQ | `/tools/email-manager` | 🔧 | PR #2072 — bare tokens + literal-hex holdouts (msg row, ai banner, actions, chips) |
 | Google Work Suite | `/tools/google-work-suite` | 🔧 | PR #2073 — private `--gws-*` namespace remap |
 | Game Studio | `/tools/game-studio` | 🔧 | PR #2073 — private `--gs-*` namespace remap (builder canvas left dark by design) |
-| Department HQ | `/tools/department-hq` | 🔧 | this pass — private `--dhq-*` remap + `--dhq-card-bg` + crew card/header. **Overview + Roster verified; deeper tabs (Dispatch/Fleet/COMs/Social/Perf/Devices/Contractors/Autonomy/Approvals) rely on the token remap, not yet individually screenshotted** |
+| Department HQ | `/tools/department-hq` | 🔧 | this pass — private `--dhq-*` remap + `--dhq-card-bg` + crew card/header. **Overview + Roster verified; deeper tabs (Dispatch/Fleet/COMs/Social/Perf/Contractors/Autonomy/Approvals — Devices tab removed 2026-08-17) rely on the token remap, not yet individually screenshotted** |
 | Agent Academy | `/tools/agent-academy` | 🔧 | this pass — private `--aa-*` remap (RUN BENCHMARK panel was dark) |
 | Backup Manager | `/tools/backup-manager` | ✅ | clean |
 | C.R.E.E.D. Command | `/tools/creed-command` | ✅ | clean (E.T.H.O.S. KPIs readable) |

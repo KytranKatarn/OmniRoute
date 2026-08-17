@@ -411,7 +411,11 @@ def register_creed_routes(bp, admin_required):
             r = requests.get(
                 f"{_CREED_STANDALONE_URL}/api/internal/tenants",
                 headers={"X-Internal-Key": key},
-                timeout=10,
+                # The standalone's tenant directory answers in ~13s (measured
+                # 2026-08-17: per-tenant grade/freshness computed inline), so a
+                # 10s timeout 502'd the panel on every load. 25s until the
+                # standalone endpoint is made fast; the TTL cache absorbs it.
+                timeout=25,
             )
             data = r.json()
             for t in data.get("tenants", []):

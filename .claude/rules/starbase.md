@@ -10,7 +10,7 @@ Old Starbase/Starship modules are commented out in `module_registry.py`.
 Old URLs redirect via `app.py` `starship_compat_redirect`.
 
 ## Department HQ — 11 Tabs
-Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Devices, Dispatch, **Fleet**, Contractors
+Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Dispatch, **Fleet**, Contractors, COMs
 
 ## Fleet Tab File Structure (inside `tools/department_hq/`)
 - `fleet_dashboard_routes.py` — fleet overview, stats, map

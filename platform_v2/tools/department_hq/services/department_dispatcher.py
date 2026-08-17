@@ -2942,6 +2942,7 @@ class DepartmentDispatcher:
                 _node_keep_alive = "30m" if len(_hist) >= _DISPATCH_BURST_THRESHOLD else "5m"
             else:
                 _node_keep_alive = "30m"
+            _dispatch_t0 = time.time()  # honest duration for the #5700 failure row
             payload = {
                 "model": model,
                 "prompt": prompt,
@@ -3065,6 +3066,72 @@ class DepartmentDispatcher:
                 conn.close()
             except Exception as _exc:
                 pass
+
+        # #5700: write the NODE-ATTRIBUTED failure row. Without this, a fleet
+        # timeout produced NO task_execution_log row at all (the caller falls
+        # through to the next tier and only the eventual outcome is logged), so
+        # per-node success rates showed ~100% while real failure was ~9% —
+        # Starship-246's timeouts were structurally invisible to A.R.M.A.D.A.
+        # agent_id stays NULL deliberately: a node timeout is INFRA fault, not
+        # agent work — same unattributed precedent as warm-up rows, so K.I.N.
+        # welfare/budget accounting (keyed on agent_id) is never charged for a
+        # node's failure. agent_name is kept as an informational marker.
+        try:
+            _fail_reason = (locals().get("_err") or "fleet dispatch failed (no detail captured)")[:1000]
+            _dur_ms = int((time.time() - locals().get("_dispatch_t0", time.time())) * 1000)
+            _node_pk = None
+            try:
+                _node_pk = int(node_id)
+            except (TypeError, ValueError):
+                pass
+            conn = self._get_db()
+            cur = conn.cursor()
+            if _node_pk is None and node_id:
+                cur.execute("SELECT id FROM remote_nodes WHERE node_id = %s LIMIT 1", (str(node_id),))
+                _pkr = cur.fetchone()
+                _node_pk = int(_pkr[0]) if _pkr else None
+            cur.execute(
+                """
+                INSERT INTO task_execution_log (
+                    agent_id, agent_name, module_source, task_type, capability,
+                    model_used, provider, prompt_tokens, completion_tokens,
+                    tokens_used, duration_ms, success, error_message,
+                    station_code, requested_by, priority, request_metadata,
+                    job_id, worker_type, node_used_id
+                ) VALUES (
+                    NULL, %s, %s, %s, %s,
+                    %s, 'ollama', 0, 0,
+                    0, %s, FALSE, %s,
+                    %s, %s, 'normal', %s,
+                    %s, 'internal', %s
+                )
+                """,
+                (
+                    agent_name,
+                    (module_id if module_id and module_id != "unknown" else capability),
+                    capability,
+                    capability,
+                    model,
+                    _dur_ms,
+                    _fail_reason,
+                    station_code,
+                    user_id,
+                    json.dumps(
+                        {
+                            "node_name": node_name,
+                            "node_host": f"{hostname}:{port}",
+                            "phase": "fleet_dispatch_failure",
+                        }
+                    ),
+                    job_id,
+                    _node_pk,
+                ),
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as _exc:
+            logger.debug("[BridgeDispatcher] fleet failure-row logging skipped: %s", _exc)
 
         return None
 

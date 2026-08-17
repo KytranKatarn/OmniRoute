@@ -162,6 +162,11 @@ def poll_open_prs(repo: str = None) -> dict:
     except Exception as e:
         logger.error("pr_review_service: GitHub poll failed: %s", e)
         return {"polled": 0, "inserted": 0, "updated": 0, "errors": 1}
+    if not data.get("success", True):
+        # #5707: list_all_prs_enriched reports API failure via success=False, it
+        # does not raise — an unchecked failure dict reads as "zero open PRs".
+        logger.error("pr_review_service: GitHub poll failed: %s", data.get("error"))
+        return {"polled": 0, "inserted": 0, "updated": 0, "errors": 1}
 
     prs = data.get("prs", [])
     inserted = updated = errors = 0
@@ -252,6 +257,17 @@ def sync_closed_prs(repo: str = None) -> int:
         open_data = list_all_prs_enriched("open", repo=_repo)
     except Exception as e:
         logger.error("pr_review_service: sync_closed poll failed: %s", e)
+        return 0
+    if not open_data.get("success", True):
+        # #5707: a FAILED list is not an EMPTY list. During the 2026-08-17 GitHub
+        # partial outage the pulls-list endpoint 403'd with valid tokens; the
+        # failure dict has no "prs" key, so .get("prs", []) turned the outage
+        # into "zero open PRs" and this function closed every live pr_reviews
+        # row (terminating their pending reviews as 'skipped'). Twice.
+        logger.error(
+            "pr_review_service: sync_closed skipped — open-PR list failed: %s",
+            open_data.get("error"),
+        )
         return 0
 
     open_numbers = {pr["number"] for pr in open_data.get("prs", [])}

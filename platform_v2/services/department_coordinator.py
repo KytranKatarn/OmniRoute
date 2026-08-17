@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set
 
@@ -425,10 +426,60 @@ class DepartmentCoordinator:
 
     def __init__(self, model_service: Optional[ModelService] = None) -> None:
         self._model_service: ModelService = model_service or get_model_service()
-        self._reserved_agents: Set[int] = set()
+        # #5007: agent_id -> monotonic reserved_at. Was a bare Set — a dispatch
+        # raising between reserve and release_agent leaked the id FOREVER (per
+        # process), silently removing the agent from routing: C.O.D.E.X. vanished
+        # for 25 misroutes/24h while the log blamed "no skilled agent". The
+        # timestamp lets _sweep_stale_reservations() self-heal any leak in
+        # <= _RESERVATION_TTL_S instead of until the next restart.
+        self._reserved_agents: Dict[int, float] = {}
         self._lock = threading.Lock()
         # job_id → agent_id, for cleanup on release
         self._job_map: Dict[int, int] = {}
+
+    # A reservation older than any legitimate dispatch is by definition leaked:
+    # fleet timeout 240s, hub cold-load window 600s. 20 min is comfortably past
+    # both while still bounding a leak to minutes instead of a process lifetime.
+    _RESERVATION_TTL_S = 1200.0
+
+    def _sweep_stale_reservations(self) -> None:
+        """Release leaked reservations (#5007). Call under self._lock."""
+        now = time.monotonic()
+        stale = [aid for aid, t in self._reserved_agents.items() if now - t > self._RESERVATION_TTL_S]
+        for aid in stale:
+            age = now - self._reserved_agents.pop(aid)
+            logger.error(
+                "department_coordinator: reservation for agent %s LEAKED (age %.0fs > TTL %.0fs) — "
+                "released by sweep; a dispatch raised between reserve and release_agent (#5007)",
+                aid,
+                age,
+                self._RESERVATION_TTL_S,
+            )
+
+    def _is_reserved_locked(self, agent_id: int) -> bool:
+        """Reservation check with lazy TTL expiry + honest logging (#5007).
+
+        MUST be called under self._lock. The old bare `in self._reserved_agents`
+        check `continue`d SILENTLY — a leaked reservation made the agent vanish
+        from routing with no log line anywhere, and the misroute log actively
+        blamed "no skilled agent". Now a stale entry self-expires at lookup and
+        a live skip says so, with the reservation's age.
+        """
+        t = self._reserved_agents.get(agent_id)
+        if t is None:
+            return False
+        age = time.monotonic() - t
+        if age > self._RESERVATION_TTL_S:
+            del self._reserved_agents[agent_id]
+            logger.error(
+                "department_coordinator: reservation for agent %s LEAKED (age %.0fs) — "
+                "expired at lookup, agent returned to routing (#5007)",
+                agent_id,
+                age,
+            )
+            return False
+        logger.info("department_coordinator: agent %s skipped — reserved for %.0fs (#5007)", agent_id, age)
+        return True
 
     @property
     def model_service(self) -> ModelService:
@@ -468,8 +519,7 @@ class DepartmentCoordinator:
             model: str = candidate.get("model", "")
 
             with self._lock:
-                if agent_id in self._reserved_agents:
-                    logger.debug("department_coordinator: agent %s is reserved, skipping", agent_id)
+                if self._is_reserved_locked(agent_id):
                     continue
 
             # Check model capacity outside lock (potentially slow Ollama call)
@@ -486,9 +536,9 @@ class DepartmentCoordinator:
             with self._lock:
                 # Double-check — another thread may have grabbed it while we
                 # were waiting for ensure_ready
-                if agent_id in self._reserved_agents:
+                if self._is_reserved_locked(agent_id):
                     continue
-                self._reserved_agents.add(agent_id)
+                self._reserved_agents[agent_id] = time.monotonic()
 
             self._model_service.register_job(model, agent_id)
 
@@ -910,7 +960,7 @@ class DepartmentCoordinator:
             )
             if score > 0 and block_reason is None:
                 with self._lock:
-                    if info["id"] in self._reserved_agents:
+                    if self._is_reserved_locked(info["id"]):
                         continue
                 candidates.append((score, name, info))
 
@@ -1013,7 +1063,7 @@ class DepartmentCoordinator:
             score, block_reason = self.score_agent(name, info, capability, dept, recommended_tier=recommended_tier)
             if score > 0 and block_reason is None:
                 with self._lock:
-                    if info["id"] in self._reserved_agents:
+                    if self._is_reserved_locked(info["id"]):
                         continue
                 candidates.append((score, name, info))
 
@@ -1221,7 +1271,7 @@ class DepartmentCoordinator:
     def release_agent(self, agent_id: int, job_id: Optional[int] = None) -> None:
         """Release an agent reservation so it can accept new work."""
         with self._lock:
-            self._reserved_agents.discard(agent_id)
+            self._reserved_agents.pop(agent_id, None)
             if job_id is not None:
                 self._job_map.pop(job_id, None)
 
@@ -1230,10 +1280,16 @@ class DepartmentCoordinator:
     def get_status(self) -> Dict:
         """Return a snapshot of coordinator state for monitoring endpoints."""
         with self._lock:
+            self._sweep_stale_reservations()
+            _now = time.monotonic()
             reserved = list(self._reserved_agents)
+            reserved_ages = {aid: round(_now - t, 1) for aid, t in self._reserved_agents.items()}
 
         return {
             "reserved_agents": reserved,
+            # #5007: age per reservation so monitoring can SEE a nascent leak
+            # before the TTL sweep releases it.
+            "reserved_ages_s": reserved_ages,
             "loaded_models": self._model_service.check_loaded_models(),
             "available_ram_gb": self._model_service.get_available_ram(),
             "active_jobs": len(reserved),

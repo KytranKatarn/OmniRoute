@@ -1102,6 +1102,28 @@ class AgentLoop:
         except Exception as _bpm_err:
             logger.warning("Backup posture monitor not scheduled: %s", _bpm_err)
 
+        # Dispatch drain liveness (#5699). The queue's single consumer went absent
+        # twice in one week — a 50h whole-scheduler outage and chronic 5-12 min
+        # cycles under max_instances=1 — and 1,589 rows of real work were reaped as
+        # 'expired: no drain worker' with nothing paging. Deterministic, no LLM:
+        # watches the worker's per-cycle autonomy_loop_log heartbeat + queued
+        # non-warmup rows aging with no claim progress. Alert-only, never mutates;
+        # fail-open (a broken monitor must never block dispatch). 5-min cadence.
+        try:
+            from services.dispatch_drain_monitor import check_drain_liveness
+
+            self.scheduler.add_job(
+                with_app_context(check_drain_liveness),
+                trigger=IntervalTrigger(minutes=5),
+                id="dispatch_drain_liveness",
+                name="Agent Loop: Dispatch Drain Liveness Monitor (#5699)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _ddl_err:
+            logger.warning("Dispatch drain liveness monitor not scheduled: %s", _ddl_err)
+
         # Dispatch posture (#5596). When both hub GPUs fell off the bus on
         # 2026-08-04 the platform ran at 2x latency / 10x failure rate / half
         # throughput for EIGHT DAYS and nothing paged — get_quick_summary kept

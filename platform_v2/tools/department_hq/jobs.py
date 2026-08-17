@@ -1887,23 +1887,47 @@ def _register_own_jobs(scheduler, flask_app):
                 )
                 reaped = cur.fetchall() or []
 
+                # Warmup rows first (#5699 item 3): capability='warmup' is a K.I.N.
+                # infrastructure ping with a minutes-scale TTL of its own (12-min
+                # expires_at at enqueue + the worker's fallback TTL). It must NEVER
+                # land in the 'no drain worker' failure bucket below — 1,589 rows of
+                # REAL expired work were invisible under 1,791 rows of warmup noise.
+                # Terminal state is 'expired' (infrastructure), not 'failed'.
+                cur.execute(
+                    """
+                    UPDATE dispatch_pending_queue
+                       SET status = 'expired',
+                           error = COALESCE(error, 'expired: warmup TTL — infrastructure ping, not real work')
+                     WHERE status = 'queued'
+                       AND capability = 'warmup'
+                       AND queued_at < NOW() - INTERVAL '15 minutes'
+                    RETURNING id
+                    """
+                )
+                warmup_expired = cur.fetchall() or []
+
                 # Expire stuck 'queued' items (no drain worker available, >2 hours)
                 # These are CPU-model pre-queue entries that accumulate when model_dispatch_worker
                 # is behind or offline. Expire them so the cluster activity display stays accurate.
+                # COALESCE: a NULL capability is real work, not warmup — NULL <> 'warmup' is
+                # NULL in SQL and would silently exempt those rows from the reaper.
                 cur.execute(
                     """
                     UPDATE dispatch_pending_queue
                        SET status = 'failed', error = 'expired: no drain worker, stuck queued >2h'
                      WHERE status = 'queued'
+                       AND COALESCE(capability, '') <> 'warmup'
                        AND queued_at < NOW() - INTERVAL '2 hours'
                     RETURNING id, agent_name, capability
                     """
                 )
                 stale_queued = cur.fetchall() or []
-                if stale_queued:
+                if stale_queued or warmup_expired:
                     logger.warning(
-                        "[DeptHQ] Queue reaper: expired %d stale queued tasks (no drain worker >2h)",
+                        "[DeptHQ] Queue reaper: expired %d stale queued tasks (no drain worker >2h) "
+                        "+ %d warmup rows past TTL",
                         len(stale_queued),
+                        len(warmup_expired),
                     )
 
                 # Close rest cycles past THEIR break-type duration (#379 Phase 2): micro_rest

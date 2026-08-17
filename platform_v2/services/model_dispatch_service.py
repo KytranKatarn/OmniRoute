@@ -20,7 +20,7 @@ import json
 import logging
 import os
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import requests
@@ -41,6 +41,54 @@ MAX_TASKS_PER_CYCLE = 20
 PINNED_RESERVED_SLICE = 2
 # Thread pool for concurrent CPU-model dispatches (prevents blocking the worker thread)
 _CPU_EXECUTOR = ThreadPoolExecutor(max_workers=6, thread_name_prefix="mdw_cpu")
+
+# Dedicated single-thread executor for background model re-pulls (_heal_pull_model).
+# A pull legitimately runs up to 40 minutes (timeout=2400) — sharing _CPU_EXECUTOR
+# meant one slow fleet pull ate a drain thread for the duration and starved the
+# queue (#5699). One thread also serialises pulls, which is the right bandwidth cap.
+_HEAL_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="mdw_heal")
+
+# Futures still in flight from previous cycles (#5699). The worker used to block the
+# scheduler slot on two sequential 300s as_completed() barriers, turning a 15s job
+# into 5-12 minute cycles — with max_instances=1 + coalesce=True every fire during a
+# long cycle was silently skipped (926 skips/72h) and effective cadence collapsed.
+# Worse, it claimed up to MAX_TASKS_PER_CYCLE=20 rows into a 6-thread pool, flipping
+# rows to 'running' that never got a thread — they rotted until the 900s reaper.
+# Now each cycle claims ONLY what the pool can actually start (free threads) and
+# returns immediately; results/errors are handled by a done-callback. Double-claim
+# is impossible regardless: _claim_tasks only claims status='queued'.
+_INFLIGHT: set = set()
+
+# Fallback TTL (minutes) for capability='warmup' rows that arrive without an
+# expires_at. kin_warmth enqueues with a 12-minute TTL; this backstop keeps warmup
+# noise minutes-scale so it can never sit long enough to pollute the 2h
+# "no drain worker" reaper bucket (#5699 item 3 — all 1,791 historic 'expired'
+# rows were warmup). Tunable via platform_settings 'dispatch:warmup_ttl_min'.
+WARMUP_TTL_MIN_DEFAULT = 15
+
+
+def _executor_free_slots() -> int:
+    """Prune finished futures and return the number of free _CPU_EXECUTOR threads."""
+    for fut in [f for f in _INFLIGHT if f.done()]:
+        _INFLIGHT.discard(fut)
+    return max(0, _CPU_EXECUTOR._max_workers - len(_INFLIGHT))
+
+
+def _on_task_done(fut) -> None:
+    """Done-callback: drop from the in-flight set and surface exceptions."""
+    _INFLIGHT.discard(fut)
+    try:
+        fut.result()
+    except Exception as exc:
+        log.warning("model_dispatch: task execution raised: %s", exc)
+
+
+def _submit_task(task: dict, node_id=None):
+    """Submit a claimed task to the pool with in-flight tracking (#5699)."""
+    fut = _CPU_EXECUTOR.submit(_execute_task, task, node_id)
+    _INFLIGHT.add(fut)
+    fut.add_done_callback(_on_task_done)
+    return fut
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -290,7 +338,8 @@ def _is_pullable(model: str) -> bool:
 def _heal_pull_model(mesh_ip: str, port: int, model: str, node_str_id: str, node_db_id: int) -> None:
     """Background re-pull of a missing registered model on a fleet node.
 
-    Runs in _CPU_EXECUTOR. On success, flips node_ollama_models.is_available back
+    Runs in _HEAL_EXECUTOR (single-thread — a 40-min pull must never eat a drain
+    thread, #5699). On success, flips node_ollama_models.is_available back
     on so dispatch resumes. On a registry error (custom model), records the model
     as unpullable so we stop retrying it.
     """
@@ -459,7 +508,7 @@ def reconcile_fleet_models() -> None:
             if now - _heal_cooldown.get(key, 0) < _HEAL_COOLDOWN_SEC:
                 continue
             _heal_cooldown[key] = now
-            _CPU_EXECUTOR.submit(_heal_pull_model, node["mesh_ip"], node["port"], m, node_str_id, node_db_id)
+            _HEAL_EXECUTOR.submit(_heal_pull_model, node["mesh_ip"], node["port"], m, node_str_id, node_db_id)
             healed += 1
         log.warning(
             "reconcile: %s missing %d/%d registered models live (healing %d): %s",
@@ -1416,6 +1465,36 @@ def _expire_stale_tasks() -> int:
             for _qid in expiring_delegations:
                 _handle_failure_callback(cur, _qid, "queue task expired before execution")
 
+            # Warmup fallback TTL (#5699 item 3). kin_warmth rows carry a 12-min
+            # expires_at, but any capability='warmup' row that lands WITHOUT one
+            # would otherwise sit until the dept_hq 2h reaper shot it as
+            # 'expired: no drain worker' — polluting the real-work failure bucket
+            # (all 1,791 historic 'expired' rows were warmup noise). Keep warmup
+            # strictly minutes-scale, labelled as what it is.
+            cur.execute("SELECT value FROM platform_settings WHERE key='dispatch:warmup_ttl_min'")
+            _wt = cur.fetchone()
+            try:
+                warmup_ttl = int(str(_wt["value"])) if _wt else WARMUP_TTL_MIN_DEFAULT
+            except (ValueError, TypeError):
+                warmup_ttl = WARMUP_TTL_MIN_DEFAULT
+            warmup_ttl = max(warmup_ttl, 2)  # floor: never mass-expire live warmups
+            cur.execute(
+                """
+                UPDATE dispatch_pending_queue
+                   SET status = 'expired',
+                       completed_at = NOW(),
+                       error = COALESCE(error, %s)
+                 WHERE status = 'queued'
+                   AND capability = 'warmup'
+                   AND queued_at < NOW() - make_interval(mins => %s)
+                """,
+                ("expired: warmup TTL (%dm) — infrastructure ping, not real work" % warmup_ttl, warmup_ttl),
+            )
+            warmup_expired = cur.rowcount
+            if warmup_expired:
+                log.debug("[MDW] expired %s warmup row(s) past the %sm fallback TTL", warmup_expired, warmup_ttl)
+            rowcount += warmup_expired
+
             # Reap orphaned 'running' rows. A dead worker thread or a timed-out
             # completion barrier can leave a task 'running' forever — no other reaper
             # touches 'running', and _claim_tasks only claims 'queued'. Threshold sits
@@ -1493,7 +1572,12 @@ def model_dispatch_worker() -> None:
     """
     start = time.time()
     total_executed = 0
-    futures = []
+
+    # #5699: claim only what the pool can actually START this cycle. Claiming a row
+    # flips it to 'running'; a row claimed with no free thread rots until the 900s
+    # reaper. Reserve PINNED_RESERVED_SLICE threads for the pinned (fleet-node)
+    # drain so a sustained unpinned queue can't starve fleet warm-keeps (#3804).
+    free_slots = _executor_free_slots()
 
     # 0. Keep fleet inventory honest before routing (throttled to 60s internally).
     #    Prevents routing into a node whose advertised models are stale (the
@@ -1515,94 +1599,63 @@ def model_dispatch_worker() -> None:
 
     # 3. Drain queued tasks — dispatch to ALL warm nodes for each model in parallel.
     #    Each node gets its own claimed task batch (one claim per node so tasks don't
-    #    duplicate). CPU and GPU tasks both go through the thread pool to avoid
-    #    blocking the 15-second worker thread.
+    #    duplicate). #5699: the cycle NO LONGER BLOCKS on a completion barrier — the
+    #    old 300s as_completed() barriers stretched cycles to 5-12+ minutes and, with
+    #    max_instances=1 + coalesce=True, silently skipped every 15s fire in between
+    #    (926 skips/72h). Claims are bounded by FREE pool threads instead, so nothing
+    #    is claimed that cannot start; double-claim is impossible because _claim_tasks
+    #    only touches status='queued'. Results/errors surface via _on_task_done.
+    unpinned_budget = min(MAX_TASKS_PER_CYCLE, max(0, free_slots - PINNED_RESERVED_SLICE))
     for model_name, node_ids in all_warm_by_model.items():
-        if total_executed >= MAX_TASKS_PER_CYCLE:
+        if total_executed >= unpinned_budget:
             break
         for node_id in node_ids:
-            if total_executed >= MAX_TASKS_PER_CYCLE:
+            if total_executed >= unpinned_budget:
                 break
             # Claim a batch of tasks for this model+node combination
-            per_node_limit = min(MAX_TASKS_PER_MODEL, MAX_TASKS_PER_CYCLE - total_executed)
+            per_node_limit = min(MAX_TASKS_PER_MODEL, unpinned_budget - total_executed)
             tasks = _claim_tasks(model_name, limit=per_node_limit)
             for task in tasks:
                 node_label = f"node:{node_id}" if node_id else "hub"
                 log.debug("model_dispatch: submitting %s→%s to thread pool", model_name, node_label)
-                fut = _CPU_EXECUTOR.submit(_execute_task, task, node_id)
-                futures.append(fut)
+                _submit_task(task, node_id)
                 total_executed += 1
 
-    # Wait for all submitted tasks to complete (or fail) before returning
-    # so the next cycle doesn't double-claim still-running tasks.
-    if futures:
-        completed = 0
-        try:
-            for fut in as_completed(futures, timeout=300):
-                try:
-                    fut.result()
-                    completed += 1
-                except Exception as exc:
-                    log.warning("model_dispatch: task execution raised: %s", exc)
-        except FuturesTimeoutError:
-            _still = sum(1 for f in futures if not f.done())
-            log.warning(
-                "model_dispatch: completion barrier hit 300s; %d task(s) still running "
-                "— the stale-running reaper will mop up",
-                _still,
-            )
-        log.info("model_dispatch: parallel drain — %d/%d tasks completed", completed, len(futures))
-
-    # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable). RESERVED slice:
-    # pinned tasks execute on the pinned NODE's Ollama (not hub RAM) and are mostly
-    # cheap kin_warmth pings, so guarantee a floor every cycle. Previously this was
-    # gated behind `total_executed < MAX_TASKS_PER_CYCLE`, so a sustained unpinned
-    # queue filled the budget and the pinned drain was skipped forever — fleet
-    # warmups starved and expired unclaimed, so the warm-keep never landed
-    # (#3804/#375). Now: up to 4 when there is headroom, but always at least
-    # PINNED_RESERVED_SLICE even when the cycle is otherwise full.
-    _pinned_limit = min(4, max(PINNED_RESERVED_SLICE, MAX_TASKS_PER_CYCLE - total_executed))
+    # 3.5 Drain tasks pinned to fleet nodes (cold-load acceptable). Pinned tasks run
+    # on the pinned NODE's Ollama and are mostly cheap kin_warmth pings; the
+    # PINNED_RESERVED_SLICE threads held back from the unpinned budget above
+    # guarantee this drain a floor every cycle (#3804/#375). Bounded by what is
+    # actually startable — an unstartable claim would rot as 'running' (#5699).
+    _pinned_limit = min(4, free_slots - total_executed)
     if _pinned_limit > 0:
         preferred_tasks = _claim_preferred_node_tasks(limit=_pinned_limit)
-        pref_futures = []
         for task in preferred_tasks:
-            fut = _CPU_EXECUTOR.submit(_execute_task, task)
-            pref_futures.append(fut)
+            _submit_task(task)
             total_executed += 1
+
+    # 4. Cold-load the highest-priority queued model when it is warm NOWHERE.
+    #    #5699: this was gated on `total_executed == 0`, but the constant kin_warmth
+    #    pinned stream kept total_executed >= 1 nearly every cycle, so queued work
+    #    needing a cold model (classify — the dominant expiry class, 945 rows/7d)
+    #    starved until something else happened to warm it. Trigger on the actual
+    #    condition instead: queued work exists for a model with no warm home.
+    next_model = _get_highest_priority_queued_model()
+    if next_model and next_model not in all_warm_by_model:
+        log.info("model_dispatch: no warm node has %s — preparing to load it", next_model)
         try:
-            for fut in as_completed(pref_futures, timeout=300):
-                try:
-                    fut.result()
-                except Exception as exc:
-                    log.warning("model_dispatch: preferred-node task raised: %s", exc)
-        except FuturesTimeoutError:
-            _still = sum(1 for f in pref_futures if not f.done())
-            log.warning(
-                "model_dispatch: preferred-node barrier hit 300s; %d still running "
-                "— the stale-running reaper will mop up",
-                _still,
-            )
+            # Clear RAM before attempting load — evict idle models if needed
+            ram_ok = _ensure_ram_for_model(next_model)
+            if not ram_ok:
+                log.warning("model_dispatch: could not free enough RAM for %s — will retry", next_model)
+            else:
+                from tools.department_hq.services.department_dispatcher import get_dispatcher
 
-    # 4. If capacity remaining and nothing was warm for the queue,
-    #    clear RAM if needed then load the highest-priority model batch
-    if total_executed == 0:
-        next_model = _get_highest_priority_queued_model()
-        if next_model:
-            log.info("model_dispatch: no warm model matches queue — preparing to load %s", next_model)
-            try:
-                # Clear RAM before attempting load — evict idle models if needed
-                ram_ok = _ensure_ram_for_model(next_model)
-                if not ram_ok:
-                    log.warning("model_dispatch: could not free enough RAM for %s — will retry", next_model)
-                else:
-                    from tools.department_hq.services.department_dispatcher import get_dispatcher
-
-                    disp = get_dispatcher()
-                    readiness = disp.ensure_model_ready("model_dispatch_worker", next_model)
-                    if readiness and readiness.get("ready"):
-                        log.info("model_dispatch: %s now ready, will drain on next cycle", next_model)
-            except Exception as exc:
-                log.debug("model_dispatch: model load request failed for %s: %s", next_model, exc)
+                disp = get_dispatcher()
+                readiness = disp.ensure_model_ready("model_dispatch_worker", next_model)
+                if readiness and readiness.get("ready"):
+                    log.info("model_dispatch: %s now ready, will drain on next cycle", next_model)
+        except Exception as exc:
+            log.debug("model_dispatch: model load request failed for %s: %s", next_model, exc)
 
     elapsed_ms = int((time.time() - start) * 1000)
     if total_executed > 0 or expired > 0:
@@ -1612,3 +1665,42 @@ def model_dispatch_worker() -> None:
             expired,
             elapsed_ms,
         )
+
+    # 5. Heartbeat — EVERY cycle, including idle ones (#5699 item 4). The worker
+    #    previously wrote nothing to autonomy_loop_log and its cycle-done line only
+    #    printed when executed>0, so a 50h whole-scheduler outage AND chronic
+    #    10-minute cycles were both invisible in data. The liveness monitor
+    #    (services/dispatch_drain_monitor.py) alarms when this heartbeat stops.
+    _log_cycle_heartbeat(
+        executed=total_executed,
+        expired=expired,
+        duration_ms=elapsed_ms,
+        free_slots=free_slots,
+        inflight=len(_INFLIGHT),
+    )
+
+
+def _log_cycle_heartbeat(executed: int, expired: int, duration_ms: int, free_slots: int, inflight: int) -> None:
+    """Write one autonomy_loop_log row per worker cycle. Fail-open: never raises.
+
+    autonomy_loop_log is pruned at 14 days by dispatch_retention_prune, so the
+    15s cadence is bounded (~80k rows max). A broken heartbeat writer must never
+    block the drain path — errors are logged at debug and swallowed.
+    """
+    try:
+        with get_db_cursor(commit=True) as (_conn, cur):
+            cur.execute(
+                """
+                INSERT INTO autonomy_loop_log
+                    (job_name, status, items_processed, items_failed, duration_ms, details, department)
+                VALUES ('model_dispatch_worker', 'success', %s, %s, %s, %s, 'Department HQ')
+                """,
+                (
+                    executed,
+                    expired,
+                    duration_ms,
+                    json.dumps({"free_slots": free_slots, "inflight": inflight}),
+                ),
+            )
+    except Exception as exc:
+        log.debug("model_dispatch: heartbeat write failed: %s", exc)

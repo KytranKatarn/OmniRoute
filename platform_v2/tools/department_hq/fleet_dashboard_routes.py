@@ -1590,15 +1590,21 @@ def register_dashboard_routes(bp, auth_decorator):
                     }
                     for r in cur.fetchall()
                 ]
+                # #5699 item 3: split warmup (kin_warmth infrastructure pings) out of
+                # the headline totals so real stuck work stays visible. `totals` keeps
+                # its historical meaning (everything); `totals_real` excludes warmup.
                 cur.execute(
                     """
-                    SELECT status, COUNT(*) AS cnt
+                    SELECT status, COUNT(*) AS cnt,
+                           COUNT(*) FILTER (WHERE capability = 'warmup') AS warmup_cnt
                     FROM dispatch_pending_queue
                     WHERE status IN ('queued', 'running')
                     GROUP BY status
                     """
                 )
-                totals = {r["status"]: r["cnt"] for r in cur.fetchall()}
+                _total_rows = cur.fetchall()
+                totals = {r["status"]: r["cnt"] for r in _total_rows}
+                totals_real = {r["status"]: r["cnt"] - r["warmup_cnt"] for r in _total_rows}
 
                 # Unified platform queue — aggregates all module queues into one feed
                 platform_queues = [
@@ -1714,6 +1720,11 @@ def register_dashboard_routes(bp, auth_decorator):
                 success=True,
                 queued=totals.get("queued", 0),
                 running=totals.get("running", 0),
+                # Warmup-excluded counts (#5699 item 3) — real work only, so warmup
+                # noise cannot mask a genuinely stuck queue. Additive; the legacy
+                # `queued`/`running` keys keep their all-rows meaning.
+                queued_real=totals_real.get("queued", 0),
+                running_real=totals_real.get("running", 0),
                 items=items,
                 loaded=loaded,
                 platform_queues=platform_queues,

@@ -8,6 +8,8 @@ The host_monitor.py daemon (running as root on the host) picks up pending
 commands, validates them, executes whitelisted operations, and writes results.
 """
 
+import hashlib
+import hmac
 import json
 import os
 import time
@@ -18,6 +20,24 @@ BASE_DIR = os.environ.get("ARCHIE_BASE_DIR", "/mnt/archie_brain")
 COMMANDS_DIR = os.path.join(BASE_DIR, "host_commands")
 PENDING_DIR = os.path.join(COMMANDS_DIR, "pending")
 COMPLETED_DIR = os.path.join(COMMANDS_DIR, "completed")
+
+# Command types whose payload authorizes a privileged root operation on the host
+# (arbitrary `sudo bash -c`, sysctl writes, file edits, service restarts). These
+# MUST carry an HMAC signed with the shared INTERNAL_API_KEY so that a plain JSON
+# file dropped into the shared/bind-mounted queue cannot trigger a root action.
+# This set and command_signature() MUST stay identical to scripts/host_monitor.py.
+SIGNED_COMMAND_TYPES = {
+    "compliance_fix_command",
+    "compliance_fix_sysctl",
+    "compliance_fix_file_line",
+    "compliance_fix_service",
+}
+
+
+def command_signature(command_type, params, secret):
+    """HMAC-SHA256 over command_type + canonical params. Must match host_monitor.py."""
+    msg = command_type + ":" + json.dumps(params or {}, sort_keys=True, separators=(",", ":"))
+    return hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
 
 
 # ============================================================================
@@ -102,6 +122,12 @@ def submit_host_command(command_type, params, submitted_by="platform", user_id=N
         "user_id": user_id,
         "submitted_at": datetime.now().isoformat(),
     }
+
+    # Sign privileged command types so the host can prove the payload came from
+    # the authenticated platform path (not a file dropped into the shared queue).
+    secret = os.environ.get("INTERNAL_API_KEY", "").strip()
+    if command_type in SIGNED_COMMAND_TYPES and secret:
+        command_data["hmac"] = command_signature(command_type, params, secret)
 
     pending_path = os.path.join(PENDING_DIR, f"{command_id}.json")
     with open(pending_path, "w") as f:

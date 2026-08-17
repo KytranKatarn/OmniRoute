@@ -5901,6 +5901,69 @@ def _cleanup_completed():
         pass
 
 
+# ---------------------------------------------------------------------------
+# Command authenticity — HMAC gate for privileged (root) command types
+# ---------------------------------------------------------------------------
+
+# Must stay identical to host_command_client.SIGNED_COMMAND_TYPES. Each of these
+# runs a privileged root operation (arbitrary `sudo bash -c`, sysctl write, file
+# edit, service restart), so a queue file must PROVE it came from the
+# authenticated platform path (valid HMAC over INTERNAL_API_KEY) before it runs.
+# Without this, any process able to drop a JSON file into the shared/bind-mounted
+# pending/ directory could execute root commands.
+_SIGNED_COMMAND_TYPES = {
+    "compliance_fix_command",
+    "compliance_fix_sysctl",
+    "compliance_fix_file_line",
+    "compliance_fix_service",
+}
+
+
+def _load_internal_key():
+    """INTERNAL_API_KEY from the environment or /mnt/archie_brain/.env."""
+    key = os.environ.get("INTERNAL_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        env_file = Path("/mnt/archie_brain/.env")
+        if env_file.exists():
+            for line in env_file.read_text().splitlines():
+                line = line.strip()
+                if line.startswith("INTERNAL_API_KEY="):
+                    return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return ""
+
+
+def _command_signature(command_type, params, secret):
+    """HMAC-SHA256 over command_type + canonical params. Must match host_command_client."""
+    import hashlib
+    import hmac as _hmac
+
+    msg = command_type + ":" + json.dumps(params or {}, sort_keys=True, separators=(",", ":"))
+    return _hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
+
+
+def _verify_command_signature(cmd_data):
+    """Return (ok, error). Privileged command types require a valid HMAC; fail closed."""
+    import hmac as _hmac
+
+    command_type = cmd_data.get("command_type", "")
+    if command_type not in _SIGNED_COMMAND_TYPES:
+        return True, ""
+    secret = _load_internal_key()
+    if not secret:
+        return False, f"{command_type} rejected: INTERNAL_API_KEY not configured on host (cannot verify signature)"
+    provided = cmd_data.get("hmac", "")
+    if not provided:
+        return False, f"{command_type} rejected: missing HMAC signature"
+    expected = _command_signature(command_type, cmd_data.get("params", {}), secret)
+    if not _hmac.compare_digest(str(provided), expected):
+        return False, f"{command_type} rejected: invalid HMAC signature"
+    return True, ""
+
+
 def process_command_queue():
     """Scan pending directory, validate, execute, write results.
     Returns the number of commands processed."""
@@ -5938,6 +6001,22 @@ def process_command_queue():
             _write_result(
                 cmd_id,
                 {"success": False, "error": error},
+                cmd_data=cmd_data,
+                duration=0,
+            )
+            _safe_remove(filepath)
+            processed += 1
+            continue
+
+        # Authenticity gate: a privileged (root) command type must carry a valid
+        # HMAC. A bare JSON file dropped into the shared queue cannot forge one,
+        # so it can no longer trigger root command execution.
+        sig_ok, sig_err = _verify_command_signature(cmd_data)
+        if not sig_ok:
+            print(f"  Signature check failed: {sig_err}")
+            _write_result(
+                cmd_id,
+                {"success": False, "error": sig_err},
                 cmd_data=cmd_data,
                 duration=0,
             )

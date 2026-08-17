@@ -120,7 +120,7 @@ def register_hostinger_routes(bp, admin_required_decorator):
 
         try:
             records = [{"type": record_type, "name": name, "content": content, "ttl": ttl}]
-            result = hostinger_service.update_dns_records(records, overwrite=False, domain=domain)
+            result = hostinger_service.update_dns_records_bulk(records, overwrite=False, domain=domain)
             if result is None:
                 return jsonify({"success": False, "error": "Failed to update DNS record"}), 500
             if isinstance(result, dict) and "error" in result:

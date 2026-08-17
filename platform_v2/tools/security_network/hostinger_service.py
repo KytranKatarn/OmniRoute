@@ -118,6 +118,19 @@ class HostingerService:
         domain = domain or self.domain
         return self._request("DELETE", f"dns/v1/zones/{domain}")
 
+    def delete_dns_records(self, record_type: str, name: str, domain: str = None) -> Optional[Any]:
+        """Delete the DNS record(s) matching name+type (NOT the whole zone).
+
+        Uses Hostinger's filtered-delete: DELETE dns/v1/zones/{domain} with a
+        ``filters`` body scoping the deletion to one name+type pair.
+        """
+        domain = domain or self.domain
+        return self._request(
+            "DELETE",
+            f"dns/v1/zones/{domain}",
+            {"filters": [{"name": name, "type": record_type}]},
+        )
+
     # --- Domain Info ---
     def get_domain_list(self) -> Optional[Any]:
         """List all domains in portfolio."""

@@ -28,7 +28,9 @@ def register_incident_routes(bp, admin_required_decorator):
         limit = request.args.get("limit", 50, type=int)
         try:
             incidents = svc.get_incidents(status=status, limit=limit)
-            return jsonify([dict(r) for r in incidents])
+            # The UI (loadIncidents) reads d.incidents — a bare array rendered as
+            # "No open incidents" always. Return the expected object shape.
+            return jsonify({"success": True, "incidents": [dict(r) for r in incidents]})
         except Exception as exc:
             logger.error("Failed to list incidents: %s", exc)
             return jsonify({"error": str(exc)}), 500

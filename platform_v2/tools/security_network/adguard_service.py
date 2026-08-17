@@ -185,7 +185,21 @@ class AdGuardService:
         return self._request("POST", "filtering/remove_url", {"url": url, "whitelist": False})
 
     def toggle_filter(self, url: str, enabled: bool) -> Optional[Dict]:
-        return self._request("POST", "filtering/set_url", {"url": url, "data": {"enabled": enabled}})
+        # AdGuard's filtering/set_url requires the FULL data object
+        # (name + url + enabled) plus whitelist — sending only {"enabled": ...}
+        # is rejected (HTTP 400). Look up the filter's current name by URL.
+        name = url
+        status = self.get_filtering_status()
+        if status:
+            for f in status.get("filters") or []:
+                if f.get("url") == url:
+                    name = f.get("name") or url
+                    break
+        return self._request(
+            "POST",
+            "filtering/set_url",
+            {"url": url, "whitelist": False, "data": {"enabled": enabled, "name": name, "url": url}},
+        )
 
     def refresh_filters(self) -> Optional[Dict]:
         return self._request("POST", "filtering/refresh", {"whitelist": False})

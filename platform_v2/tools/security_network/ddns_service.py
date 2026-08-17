@@ -80,8 +80,10 @@ class DdnsService:
 
         with get_db_cursor() as (conn, cur):
             cur.execute(query, params)
-            columns = [desc[0] for desc in cur.description]
-            return [dict(zip(columns, row)) for row in cur.fetchall()]
+            # get_db_cursor uses RealDictCursor, so rows are already dict-like.
+            # The old dict(zip(columns, row)) zipped column names with the ROW's
+            # keys -> every value became its own column name. Return the rows.
+            return [dict(r) for r in cur.fetchall()]
 
     def get_ip_history(self, limit: int = 50) -> list[dict]:
         """Get IP change history from network_ip_history table."""

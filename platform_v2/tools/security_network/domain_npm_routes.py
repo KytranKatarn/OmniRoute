@@ -28,6 +28,36 @@ except ImportError:
 def register_domain_npm_routes(bp, admin_required_decorator):
     """Register all domain and nginx config endpoints."""
 
+    @bp.route("/api/domains/certificates")
+    @login_required
+    @admin_required_decorator
+    def api_domains_certificates():
+        """SSL certificates for monitored domains (Domains > Certificates subtab).
+
+        The UI (loadDomainCertificates) fetched a route that never existed (404).
+        Surface the tracked security_ssl_monitors rows in the shape it expects.
+        """
+        try:
+            from .security_service import get_ssl_monitors
+
+            certs = []
+            for m in get_ssl_monitors() or []:
+                exp = m.get("valid_until")
+                certs.append(
+                    {
+                        "domain_names": [m.get("domain")] if m.get("domain") else [],
+                        "provider": m.get("issuer") or "custom",
+                        "created_on": None,
+                        "expires_on": exp.isoformat() if hasattr(exp, "isoformat") else exp,
+                        "grade": m.get("grade"),
+                        "days_left": m.get("days_until_expiry"),
+                    }
+                )
+            return jsonify({"success": True, "certificates": certs})
+        except Exception as exc:
+            logger.error("Failed to load domain certificates: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
     # ========================================================================
     # DOMAIN OVERVIEW
     # ========================================================================

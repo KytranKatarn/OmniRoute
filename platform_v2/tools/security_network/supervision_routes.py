@@ -26,7 +26,9 @@ def register_supervision_routes(bp, admin_required_decorator):
         """List all supervision schedules."""
         try:
             schedules = svc.get_schedules()
-            return jsonify([dict(r) for r in schedules])
+            # The UI (loadSupervisionSchedules) reads d.success/d.schedules — a bare
+            # array always renders "No supervision schedules configured".
+            return jsonify({"success": True, "schedules": [dict(r) for r in schedules]})
         except Exception as exc:
             logger.error("Failed to list supervision schedules: %s", exc)
             return jsonify({"error": str(exc)}), 500

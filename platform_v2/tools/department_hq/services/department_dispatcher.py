@@ -2783,6 +2783,7 @@ class DepartmentDispatcher:
         station_code: str = "UNKNOWN",
         user_id: Optional[int] = None,
         job_id: Optional[int] = None,
+        json_mode: bool = False,
     ) -> Optional[Dict]:
         """Dispatch a job to a fleet node's Ollama API.
 
@@ -2951,6 +2952,12 @@ class DepartmentDispatcher:
                 payload["system"] = system_prompt
             if options:
                 payload["options"] = options
+            if json_mode:
+                # #5709: without this, a json_mode dispatch that lands on the fleet
+                # tier silently degrades to free-text — the node model returns prose
+                # and every downstream parser fails. The hub path sets format=json;
+                # the fleet leg must match.
+                payload["format"] = "json"
 
             # Use the fleet node's mesh_ip:port directly (canonical mesh transport).
             # Never use _node_url / build_options here — those resolve to hub Ollama.
@@ -6600,6 +6607,7 @@ class DepartmentDispatcher:
                                 station_code=station_code,
                                 user_id=user_id,
                                 job_id=job_id,
+                                json_mode=json_mode,
                             )
                             if _pn_res and _pn_res.get("success"):
                                 _pn_dur = int((time.time() - start) * 1000)
@@ -6702,6 +6710,7 @@ class DepartmentDispatcher:
                         station_code=station_code,
                         user_id=user_id,
                         job_id=job_id,
+                        json_mode=json_mode,
                     )
                     if _fleet_res and _fleet_res.get("success"):
                         _dur_ms = int((time.time() - start) * 1000)
@@ -6816,6 +6825,7 @@ class DepartmentDispatcher:
                         station_code=station_code,
                         user_id=user_id,
                         job_id=job_id,
+                        json_mode=json_mode,
                     )
                     if _wp_res and _wp_res.get("success"):
                         _wp_dur = int((time.time() - start) * 1000)
@@ -6889,6 +6899,7 @@ class DepartmentDispatcher:
                     station_code=DEPARTMENT_FLOOR_MAP.get(blocked_department, "ENGINEERING"),
                     user_id=user_id,
                     job_id=job_id,
+                    json_mode=json_mode,
                 )
                 if fleet_result and fleet_result.get("success"):
                     duration_ms = int((time.time() - start) * 1000)

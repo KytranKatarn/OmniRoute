@@ -6,7 +6,32 @@
 set -euo pipefail
 
 DOMAIN="kytranempowerment.com"
-SUBDOMAINS=("archie" "platform" "adguard" "nagios" "plex" "n8n" "voice" "store" "mediahub" "consciousness" "bridge" "brainstorm" "server" "business" "proxy" "mail" "mail-admin" "webmail" "mesh" "creed" "terminal")
+# #5260: ONLY names that genuinely live on the hub's dynamic public IP belong
+# here. `mail` is the sole one — Stalwart is hub-fronted and MX must track the
+# residential lease. EVERYTHING ELSE is Beacon-fronted (2.25.170.252) or
+# Citadel-fronted and must NEVER be DDNS'd:
+#   - On 2026-08-14 22:10 EDT (snapshot 172469584) this script pushed ALL 21
+#     names — including the PROTECTED Headscale control plane `mesh.` — to the
+#     hub IP with overwrite:true. Two corrective zone updates ~17-40 min later
+#     restored the Beacon set, but the run also RESURRECTED six deliberately
+#     deleted records (n8n/proxy/webmail/mail-admin/brainstorm + voice) at the
+#     hub IP. The hub has NO :443 listener, so mesh at the hub IP kills node
+#     enrollment/key rotation (fleet.md: mesh. is PROTECTED).
+SUBDOMAINS=("mail")
+
+# Hard denylist — belt and braces against anyone re-adding a fronted name to
+# SUBDOMAINS above. Mirrors adguard_service.PROTECTED_REWRITES (task #5219),
+# which only guards the AdGuard/LAN path; this script talks straight to the
+# Hostinger API and needs its own refusal.
+PROTECTED_NAMES=("mesh" "platform" "creed" "server" "business" "mediahub" "consciousness" "bridge" "store" "terminal" "archie" "adguard" "nagios" "plex" "media" "jellyfin" "claude" "codex" "sandbox" "shop" "voice")
+for sub in "${SUBDOMAINS[@]}"; do
+    for prot in "${PROTECTED_NAMES[@]}"; do
+        if [ "$sub" = "$prot" ]; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S') - FATAL: '$sub' is a PROTECTED (Beacon/Citadel-fronted) name and must never be DDNS'd to the hub IP (#5260). Refusing to run." >> "/mnt/archie_brain/scripts/ddns_updater.log"
+            exit 1
+        fi
+    done
+done
 IP_FILE="/mnt/archie_brain/scripts/.ddns_last_ip"
 LOG_FILE="/mnt/archie_brain/scripts/ddns_updater.log"
 ENV_FILE="/mnt/archie_brain/.env"

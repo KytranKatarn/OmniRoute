@@ -520,26 +520,114 @@ def reconcile_fleet_models() -> None:
         )
 
 
+# #5372 DIVERT: pool over-fetch factor for profiled (non-auto) claims. Mirrors the
+# Fleet Backlog Runner's `slots * 6` (agent_loop.py) — wide enough that a matching
+# row buried behind a wall of non-matching ones still surfaces this cycle.
+_PROFILE_POOL_FACTOR = 6
+
+# Ollama treats a bare name as ':latest', but the warm inventory registers the
+# tagged form. Match both ways so a queue row 'minicpm-v-cpu' is claimed when the
+# warm model is 'minicpm-v-cpu:latest' (and vice-versa). Only equates
+# bare<->:latest — does NOT cross-match other tags (qwen2.5:7b vs qwen2.5:1.5b
+# stay distinct). (#3469)
+_MODEL_MATCH_SQL = """(model_needed = %s
+                           OR model_needed = %s || ':latest'
+                           OR model_needed || ':latest' = %s)"""
+
+
+def _get_profile_mode() -> str:
+    try:
+        from services.fleet_dispatch_profile import get_dispatch_mode
+
+        return get_dispatch_mode()
+    except Exception:
+        return "auto"
+
+
+def _profile_ordered_ids(rows: list[dict], mode: str, limit: int) -> list[int]:
+    """#5372: stable-split a claim pool under the active mobility profile.
+
+    Profile-matching rows first, DB order (priority DESC, queued_at ASC)
+    preserved WITHIN each group, then truncate to `limit`. This is a SPLIT,
+    never a filter: a non-matching row still drains — it only yields its slot
+    when a matching row is queued behind it. Fail-open: any error falls back
+    to the plain priority order (byte-identical to the pre-#5372 drain).
+    """
+    try:
+        from services.fleet_dispatch_profile import queue_row_gets_priority
+
+        tagged = [(r, queue_row_gets_priority(r.get("capability"), r.get("module_id"), mode)) for r in rows]
+        ordered = [r for r, p in tagged if p] + [r for r, p in tagged if not p]
+        n_match = sum(1 for _, p in tagged if p)
+        if 0 < n_match < len(tagged):
+            log.info(
+                "model_dispatch: profile=%s promoted %d/%d queued row(s) in claim pool (#5372)",
+                mode,
+                n_match,
+                len(tagged),
+            )
+        return [r["id"] for r in ordered[:limit]]
+    except Exception as exc:
+        log.warning("model_dispatch: profile split failed (%s) — plain priority order", exc)
+        return [r["id"] for r in rows[:limit]]
+
+
+def _claim_ids(cur, ids: list[int]) -> list[dict]:
+    """Claim exactly `ids` (already locked by the pool SELECT) and return them
+    in the profile order — the drain executes the claimed batch in list order."""
+    if not ids:
+        return []
+    cur.execute(
+        """
+        UPDATE dispatch_pending_queue
+        SET status = 'running', claimed_at = NOW()
+        WHERE id = ANY(%s)
+        RETURNING *
+        """,
+        (ids,),
+    )
+    claimed = [dict(r) for r in cur.fetchall()]
+    pos = {tid: i for i, tid in enumerate(ids)}
+    claimed.sort(key=lambda r: pos.get(r["id"], len(ids)))
+    return claimed
+
+
 def _claim_tasks(model_needed: str, limit: int = MAX_TASKS_PER_MODEL) -> list[dict]:
-    """Atomically claim up to `limit` queued tasks for a given model."""
+    """Atomically claim up to `limit` queued tasks for a given model.
+
+    Under a non-auto mobility profile (#5372) the claim over-fetches a locked
+    pool in pure priority order, stable-splits it via
+    fleet_dispatch_profile.queue_row_gets_priority, and claims only the top
+    `limit` — so the DIVERT profile finally reaches the queue drain, not just
+    warmth/routing/backlog. `auto` keeps the original single-statement claim.
+    """
+    mode = _get_profile_mode()
     try:
         with get_db_cursor(commit=True) as (_conn, cur):
+            if mode != "auto":
+                cur.execute(
+                    f"""
+                    SELECT id, capability, module_id FROM dispatch_pending_queue
+                    WHERE status = 'queued'
+                      AND {_MODEL_MATCH_SQL}
+                      AND preferred_node_id IS NULL
+                      AND (expires_at IS NULL OR expires_at > NOW())
+                    ORDER BY priority DESC, queued_at ASC
+                    LIMIT %s
+                    FOR UPDATE SKIP LOCKED
+                    """,
+                    (model_needed, model_needed, model_needed, limit * _PROFILE_POOL_FACTOR),
+                )
+                pool = [dict(r) for r in cur.fetchall()]
+                return _claim_ids(cur, _profile_ordered_ids(pool, mode, limit))
             cur.execute(
-                """
+                f"""
                 UPDATE dispatch_pending_queue
                 SET status = 'running', claimed_at = NOW()
                 WHERE id IN (
                     SELECT id FROM dispatch_pending_queue
                     WHERE status = 'queued'
-                      -- Ollama treats a bare name as ':latest', but the warm
-                      -- inventory registers the tagged form. Match both ways so
-                      -- a queue row 'minicpm-v-cpu' is claimed when the warm
-                      -- model is 'minicpm-v-cpu:latest' (and vice-versa).
-                      -- Only equates bare<->:latest — does NOT cross-match other
-                      -- tags (qwen2.5:7b vs qwen2.5:1.5b stay distinct). (#3469)
-                      AND (model_needed = %s
-                           OR model_needed = %s || ':latest'
-                           OR model_needed || ':latest' = %s)
+                      AND {_MODEL_MATCH_SQL}
                       AND preferred_node_id IS NULL
                       AND (expires_at IS NULL OR expires_at > NOW())
                     ORDER BY priority DESC, queued_at ASC
@@ -561,6 +649,8 @@ def _claim_preferred_node_tasks(limit: int = 2) -> list:
 
     These tasks bypass the warm-model filter — the node will cold-load the
     model if needed. Capped at 2/cycle to avoid starving hub warm tasks.
+    Under a non-auto mobility profile this applies the same #5372 stable-split
+    as _claim_tasks (pool over-fetch → profile split → claim top `limit`).
 
     #5332: while the Starships are UNDOCKED, tasks pinned to a starship are
     LEFT QUEUED (not claimed) so they drain naturally after redock, instead of
@@ -573,8 +663,27 @@ def _claim_preferred_node_tasks(limit: int = 2) -> list:
         _skip_starships = is_starships_undocked()
     except Exception:
         pass  # fail-open
+    mode = _get_profile_mode()
     try:
         with get_db_cursor(commit=True) as (_conn, cur):
+            if mode != "auto":
+                # #5372: same stable-split as _claim_tasks — pinned rows too.
+                cur.execute(
+                    """
+                    SELECT id, capability, module_id FROM dispatch_pending_queue
+                    WHERE status = 'queued'
+                      AND preferred_node_id IS NOT NULL
+                      AND (expires_at IS NULL OR expires_at > NOW())
+                      AND (%s = FALSE OR preferred_node_id NOT IN (
+                            SELECT id FROM remote_nodes WHERE deployment_mode = 'starship'))
+                    ORDER BY priority DESC, queued_at ASC
+                    LIMIT %s
+                    FOR UPDATE SKIP LOCKED
+                    """,
+                    (_skip_starships, limit * _PROFILE_POOL_FACTOR),
+                )
+                pool = [dict(r) for r in cur.fetchall()]
+                return _claim_ids(cur, _profile_ordered_ids(pool, mode, limit))
             cur.execute(
                 """
                 UPDATE dispatch_pending_queue

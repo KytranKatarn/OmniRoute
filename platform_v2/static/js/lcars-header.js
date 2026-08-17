@@ -214,12 +214,12 @@
       return;
     }
     if (modeEl) modeEl.textContent = "DIVERTED · " + String(mode).toUpperCase();
-    if (detailEl) detailEl.textContent = "warmth · routing · backlog";
+    if (detailEl) detailEl.textContent = "warmth · routing · backlog · queue";
     tag.title =
       "Yellow Alert — agent mobility profile is " +
       String(mode).toUpperCase() +
-      ". Warmth, node routing and backlog promotion favour this domain. " +
-      "Queue drain order is not yet diverted (#5132). Click to change in A.R.M.A.D.A.";
+      ". Warmth, node routing, backlog promotion and queue drain order favour this domain (#5372). " +
+      "Click to change in A.R.M.A.D.A.";
     tag.classList.add("is-active");
   }
 

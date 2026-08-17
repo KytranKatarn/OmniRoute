@@ -168,9 +168,13 @@ def call_ollama_json(
         try:
             payload = {
                 "model": model,
-                "prompt": prompt if attempt == 0 else (
-                    f"Your previous response was not valid JSON. "
-                    f"Please respond with ONLY valid JSON.\n\n{prompt}"
+                "prompt": (
+                    prompt
+                    if attempt == 0
+                    else (
+                        f"Your previous response was not valid JSON. "
+                        f"Please respond with ONLY valid JSON.\n\n{prompt}"
+                    )
                 ),
                 "stream": False,
                 "format": "json",
@@ -458,21 +462,44 @@ def call_ollama(
         }
 
 
-def _log_cloud_usage(model, provider, prompt_tokens, completion_tokens, response_ms,
-                     success=True, error_message=None, session_id=None, agent_id=None, task_type=None):
+def _log_cloud_usage(
+    model,
+    provider,
+    prompt_tokens,
+    completion_tokens,
+    response_ms,
+    success=True,
+    error_message=None,
+    session_id=None,
+    agent_id=None,
+    task_type=None,
+):
     """Log cloud model usage to cloud_model_usage table."""
     conn = None
     try:
         conn = get_db()
         cur = conn.cursor()
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO cloud_model_usage
                 (model_name, provider, prompt_tokens, completion_tokens, total_tokens,
                  response_ms, success, error_message, session_id, agent_id, task_type)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (model, provider, prompt_tokens, completion_tokens,
-              prompt_tokens + completion_tokens, response_ms, success,
-              error_message, session_id, agent_id, task_type))
+        """,
+            (
+                model,
+                provider,
+                prompt_tokens,
+                completion_tokens,
+                prompt_tokens + completion_tokens,
+                response_ms,
+                success,
+                error_message,
+                session_id,
+                agent_id,
+                task_type,
+            ),
+        )
         conn.commit()
     except Exception as e:
         logger.debug(f"Failed to log cloud usage: {e}")
@@ -486,7 +513,7 @@ def _log_cloud_usage(model, provider, prompt_tokens, completion_tokens, response
 
 def call_ollama_cloud(
     prompt,
-    model="minimax-m2.5",
+    model="qwen3-coder-next",  # was minimax-m2.5 — retired 2026-08-17 (#5706), 410s on every dispatch
     system_prompt=None,
     session_id=None,
     agent_id=None,
@@ -499,7 +526,7 @@ def call_ollama_cloud(
     infrastructure — no local GPU needed. All calls are logged to
     cloud_model_usage for weekly/session tracking.
 
-    Supported models: minimax-m2.5, qwen3-coder-next
+    Supported models: qwen3-coder-next (minimax-m2.5 retired 2026-08-17, #5706)
     """
     import time
 
@@ -540,10 +567,15 @@ def call_ollama_cloud(
 
             # Log usage
             _log_cloud_usage(
-                model=cloud_model, provider="ollama_cloud",
-                prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
-                response_ms=response_ms, success=True,
-                session_id=session_id, agent_id=agent_id, task_type=task_type,
+                model=cloud_model,
+                provider="ollama_cloud",
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                response_ms=response_ms,
+                success=True,
+                session_id=session_id,
+                agent_id=agent_id,
+                task_type=task_type,
             )
 
             return {
@@ -560,11 +592,16 @@ def call_ollama_cloud(
             }
         else:
             _log_cloud_usage(
-                model=cloud_model, provider="ollama_cloud",
-                prompt_tokens=0, completion_tokens=0,
-                response_ms=response_ms, success=False,
+                model=cloud_model,
+                provider="ollama_cloud",
+                prompt_tokens=0,
+                completion_tokens=0,
+                response_ms=response_ms,
+                success=False,
                 error_message=f"HTTP {response.status_code}",
-                session_id=session_id, agent_id=agent_id, task_type=task_type,
+                session_id=session_id,
+                agent_id=agent_id,
+                task_type=task_type,
             )
             return {
                 "success": False,
@@ -575,11 +612,16 @@ def call_ollama_cloud(
 
     except Exception as e:
         _log_cloud_usage(
-            model=cloud_model, provider="ollama_cloud",
-            prompt_tokens=0, completion_tokens=0,
-            response_ms=int((time.time() - start_time) * 1000), success=False,
+            model=cloud_model,
+            provider="ollama_cloud",
+            prompt_tokens=0,
+            completion_tokens=0,
+            response_ms=int((time.time() - start_time) * 1000),
+            success=False,
             error_message=str(e)[:500],
-            session_id=session_id, agent_id=agent_id, task_type=task_type,
+            session_id=session_id,
+            agent_id=agent_id,
+            task_type=task_type,
         )
         return {
             "success": False,
@@ -636,8 +678,7 @@ def call_claude_api(prompt, model="claude-sonnet-4-20250514", system_prompt=None
                 "response": result["content"][0]["text"],
                 "model": model,
                 "provider": "claude",
-                "tokens_used": usage.get("input_tokens", 0)
-                + usage.get("output_tokens", 0),
+                "tokens_used": usage.get("input_tokens", 0) + usage.get("output_tokens", 0),
                 "prompt_tokens": usage.get("input_tokens", 0),
                 "completion_tokens": usage.get("output_tokens", 0),
             }
@@ -843,11 +884,7 @@ def generate_image(
                 "metadata": {"size": size, "quality": quality, "style": style},
             }
         else:
-            error_msg = (
-                response.json()
-                .get("error", {})
-                .get("message", f"HTTP {response.status_code}")
-            )
+            error_msg = response.json().get("error", {}).get("message", f"HTTP {response.status_code}")
 
             # Log failed attempt (cost=0)
             try:
@@ -871,9 +908,7 @@ def generate_image(
                         ),
                     )
                     conn.commit()
-                    print(
-                        f"[archie_bridge] Logged failed image generation: {error_msg[:100]}"
-                    )
+                    print(f"[archie_bridge] Logged failed image generation: {error_msg[:100]}")
                 finally:
                     try:
                         cur.close()
@@ -1012,9 +1047,7 @@ def generate_image_local(
     try:
         start_time = datetime.now()
 
-        response = requests.post(
-            f"{fooocus_url}/v1/generation/text-to-image", json=payload, timeout=timeout
-        )
+        response = requests.post(f"{fooocus_url}/v1/generation/text-to-image", json=payload, timeout=timeout)
 
         end_time = datetime.now()
         duration_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -1058,9 +1091,7 @@ def generate_image_local(
                         ),
                     )
                     conn.commit()
-                    print(
-                        f"[archie_bridge] Logged local image generation: style={style}, duration={duration_ms}ms"
-                    )
+                    print(f"[archie_bridge] Logged local image generation: style={style}, duration={duration_ms}ms")
                 finally:
                     try:
                         cur.close()
@@ -1196,9 +1227,7 @@ def generate_image_smart(
 
     # Fallback to DALL-E (or if prefer_local=False)
     # Map styles for DALL-E
-    dalle_style = (
-        "vivid" if style in ["anime", "artistic", "digital-art"] else "natural"
-    )
+    dalle_style = "vivid" if style in ["anime", "artistic", "digital-art"] else "natural"
 
     result = generate_image(
         prompt=prompt,
@@ -1310,9 +1339,7 @@ def analyze_image(
     try:
         start_time = datetime.now()
 
-        response = requests.post(
-            f"{ollama_host}/api/generate", json=payload, timeout=timeout
-        )
+        response = requests.post(f"{ollama_host}/api/generate", json=payload, timeout=timeout)
 
         end_time = datetime.now()
         duration_ms = int((end_time - start_time).total_seconds() * 1000)
@@ -1342,9 +1369,7 @@ def analyze_image(
                         ),
                     )
                     conn.commit()
-                    print(
-                        f"[archie_bridge] Vision analysis complete: model={model}, duration={duration_ms}ms"
-                    )
+                    print(f"[archie_bridge] Vision analysis complete: model={model}, duration={duration_ms}ms")
                 finally:
                     try:
                         cur.close()
@@ -1407,9 +1432,7 @@ def analyze_image(
         }
     except Exception as e:
         if NODE_ROUTING_AVAILABLE and node_id:
-            log_model_request(
-                node_id=node_id, model_name=model, success=False, error_message=str(e)
-            )
+            log_model_request(node_id=node_id, model_name=model, success=False, error_message=str(e))
         return {
             "success": False,
             "error": str(e),
@@ -1456,9 +1479,7 @@ Do not include any explanations or preamble."""
     user_prompt = f"Original prompt: {basic_prompt}"
 
     # Use local Ollama model for enhancement (free)
-    result = call_ollama(
-        prompt=user_prompt, model="dolphin3:latest", system_prompt=system_prompt
-    )
+    result = call_ollama(prompt=user_prompt, model="dolphin3:latest", system_prompt=system_prompt)
 
     if result.get("success"):
         enhanced = result.get("response", basic_prompt).strip()
@@ -1481,12 +1502,14 @@ def get_default_provider():
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT provider, model_name
                 FROM archie_api_settings
                 WHERE enabled = TRUE AND is_default = TRUE
                 LIMIT 1
-            """)
+            """
+            )
 
             result = cur.fetchone()
 
@@ -1645,9 +1668,7 @@ def track_token_usage(agent_id, provider, model, tokens_used, cost, user_id=None
             monthly_cost = float(agent_data["monthly_cost"])
             threshold = float(agent_data.get("budget_alert_threshold") or 0.8)
 
-            usage_percent = (
-                (monthly_cost / monthly_budget) * 100 if monthly_budget > 0 else 0
-            )
+            usage_percent = (monthly_cost / monthly_budget) * 100 if monthly_budget > 0 else 0
 
             if monthly_cost >= monthly_budget:
                 warning = {
@@ -1703,9 +1724,7 @@ def track_token_usage(agent_id, provider, model, tokens_used, cost, user_id=None
                                 ),
                             )
                             conn2.commit()
-                            print(
-                                f"[AI Bridge] Budget alert recorded for agent {agent_id}: {warning['level']}"
-                            )
+                            print(f"[AI Bridge] Budget alert recorded for agent {agent_id}: {warning['level']}")
                     finally:
                         try:
                             cur2.close()
@@ -1755,9 +1774,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
                 memory_used = True
                 local_knowledge_used = True
                 prompt = mistake_warning + "\n\n" + prompt
-                print(
-                    f"[AI Bridge] Known mistake detected - prepended warning to prompt"
-                )
+                print(f"[AI Bridge] Known mistake detected - prepended warning to prompt")
         except Exception as e:
             print(f"[AI Bridge] Error checking for known mistakes: {e}")
 
@@ -1769,9 +1786,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
                 memory_used = True
                 local_knowledge_used = True
                 prompt = local_knowledge + "\n\n" + prompt
-                print(
-                    f"[AI Bridge] Local knowledge retrieved and prepended to prompt"
-                )
+                print(f"[AI Bridge] Local knowledge retrieved and prepended to prompt")
         except Exception as e:
             print(f"[AI Bridge] Error retrieving local knowledge: {e}")
 
@@ -1789,9 +1804,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
                 password=_get_db_password(),
             )
             cur = conn.cursor()
-            cur.execute(
-                "SELECT enable_local_answers FROM users WHERE id = %s", (user_id,)
-            )
+            cur.execute("SELECT enable_local_answers FROM users WHERE id = %s", (user_id,))
             result = cur.fetchone()
             if result:
                 user_wants_local_answers = result[0]
@@ -1848,13 +1861,9 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
                     )
 
                     # Estimate savings
-                    savings = estimate_cost_savings(
-                        original_prompt, model, provider
-                    )
+                    savings = estimate_cost_savings(original_prompt, model, provider)
 
-                    print(
-                        f"[AI Bridge] Cost saved: ${savings['cost_saved']:.4f}, tokens: {savings['tokens_saved']}"
-                    )
+                    print(f"[AI Bridge] Cost saved: ${savings['cost_saved']:.4f}, tokens: {savings['tokens_saved']}")
 
                     # Return early with local answer
                     local_answer = {
@@ -1882,9 +1891,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
                         "local_answer": local_answer,
                     }
                 else:
-                    print(
-                        f"[AI Bridge] Local answer not confident enough: {decision['reason']}"
-                    )
+                    print(f"[AI Bridge] Local answer not confident enough: {decision['reason']}")
 
         except Exception as e:
             print(f"[AI Bridge] Error in local answer generation: {e}")
@@ -1910,9 +1917,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
             for i, conv in enumerate(similar_conversations, 1):
                 memory_context += f"{i}. {conv.get('summary', conv.get('user_message', '')[:100])}\n"
                 if conv.get("ai_response"):
-                    memory_context += (
-                        f"   Response: {conv['ai_response'][:200]}...\n"
-                    )
+                    memory_context += f"   Response: {conv['ai_response'][:200]}...\n"
                 memory_context += f"   Tags: {', '.join(conv.get('tags', []))}\n\n"
 
             # Prepend memory context to prompt
@@ -1920,9 +1925,7 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
     except Exception as e:
         print(f"Error retrieving similar conversations: {e}")
         # Fallback to old memory system
-        memory_context = get_memory_context(
-            original_prompt, user_id=user_id, max_context=3
-        )
+        memory_context = get_memory_context(original_prompt, user_id=user_id, max_context=3)
         if memory_context:
             memory_used = True
             prompt = f"{memory_context}\n\n{prompt}"
@@ -1937,8 +1940,14 @@ def _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_lo
 
 
 def _select_bridge_model(
-    original_prompt, prompt, context, force_model, use_smart_routing,
-    task_type, complexity, agent_id,
+    original_prompt,
+    prompt,
+    context,
+    force_model,
+    use_smart_routing,
+    task_type,
+    complexity,
+    agent_id,
 ):
     """
     Determine which model/provider to use via smart routing or force_model.
@@ -1956,9 +1965,7 @@ def _select_bridge_model(
             router = get_router()
             if router:
                 # Classify task if not provided
-                detected_task_type = task_type or classify_task(
-                    original_prompt, context
-                )
+                detected_task_type = task_type or classify_task(original_prompt, context)
 
                 # Get routing recommendation
                 recommendation = router.suggest_model(
@@ -1981,9 +1988,7 @@ def _select_bridge_model(
                     "estimated_cost": recommendation.estimated_cost,
                 }
 
-                print(
-                    f"[AI Bridge] Smart routing: {detected_task_type} → {recommendation.tier} ({smart_routed_model})"
-                )
+                print(f"[AI Bridge] Smart routing: {detected_task_type} → {recommendation.tier} ({smart_routed_model})")
 
         except Exception as e:
             print(f"[AI Bridge] Smart routing error: {e}, falling back to default")
@@ -2020,43 +2025,25 @@ def _execute_bridge_call(prompt, context, system_prompt, provider, model, force_
 
         if is_ollama_format:
             # Ollama model format - route to local Ollama
-            return call_ollama(
-                prompt, model=force_model, system_prompt=system_prompt, context=context
-            )
+            return call_ollama(prompt, model=force_model, system_prompt=system_prompt, context=context)
         elif "grok" in force_model.lower():
-            return call_grok_api(
-                prompt, model=force_model, system_prompt=system_prompt
-            )
+            return call_grok_api(prompt, model=force_model, system_prompt=system_prompt)
         elif "gemini" in force_model.lower():
-            return call_gemini_api(
-                prompt, model=force_model, system_prompt=system_prompt
-            )
+            return call_gemini_api(prompt, model=force_model, system_prompt=system_prompt)
         elif "command" in force_model.lower() or "cohere" in force_model.lower():
-            return call_cohere_api(
-                prompt, model=force_model, system_prompt=system_prompt
-            )
+            return call_cohere_api(prompt, model=force_model, system_prompt=system_prompt)
         elif "mistral" in force_model.lower() or "codestral" in force_model.lower():
-            return call_mistral_api(
-                prompt, model=force_model, system_prompt=system_prompt
-            )
+            return call_mistral_api(prompt, model=force_model, system_prompt=system_prompt)
         elif "gpt" in force_model.lower() or "o1" in force_model.lower():
-            return call_openai_api(
-                prompt, model=force_model, system_prompt=system_prompt
-            )
+            return call_openai_api(prompt, model=force_model, system_prompt=system_prompt)
         elif "claude" in force_model.lower():
-            return call_claude_api(
-                prompt, model=force_model, system_prompt=system_prompt
-            )
+            return call_claude_api(prompt, model=force_model, system_prompt=system_prompt)
         else:
             # Assume Ollama
-            return call_ollama(
-                prompt, model=force_model, system_prompt=system_prompt, context=context
-            )
+            return call_ollama(prompt, model=force_model, system_prompt=system_prompt, context=context)
     else:
         if provider == "ollama":
-            return call_ollama(
-                prompt, model=model, system_prompt=system_prompt, context=context
-            )
+            return call_ollama(prompt, model=model, system_prompt=system_prompt, context=context)
         elif provider == "claude":
             return call_claude_api(prompt, model=model, system_prompt=system_prompt)
         elif provider == "openai":
@@ -2075,9 +2062,17 @@ def _execute_bridge_call(prompt, context, system_prompt, provider, model, force_
 
 
 def _log_bridge_result(
-    result, original_prompt, user_id, agent_id, enable_memory,
-    memory_used, local_knowledge_used, similar_conversations,
-    environment, routing_info, task_type,
+    result,
+    original_prompt,
+    user_id,
+    agent_id,
+    enable_memory,
+    memory_used,
+    local_knowledge_used,
+    similar_conversations,
+    environment,
+    routing_info,
+    task_type,
 ):
     """
     Handle cost calculation, token tracking, conversation learning, and bridge logging.
@@ -2149,15 +2144,9 @@ def _log_bridge_result(
                 # Add emotional response prefix if applicable
                 emotional_context = {
                     "sentiment": learning_result.get("sentiment", {}).get("sentiment"),
-                    "user_emotion": learning_result.get("sentiment", {}).get(
-                        "user_emotion"
-                    ),
-                    "should_double_check": learning_result.get("trust_impact", {}).get(
-                        "should_double_check"
-                    ),
-                    "trust_delta": learning_result.get("trust_impact", {}).get(
-                        "trust_delta", 0
-                    ),
+                    "user_emotion": learning_result.get("sentiment", {}).get("user_emotion"),
+                    "should_double_check": learning_result.get("trust_impact", {}).get("should_double_check"),
+                    "trust_delta": learning_result.get("trust_impact", {}).get("trust_delta", 0),
                 }
 
                 # Generate personality-aware response prefix
@@ -2190,9 +2179,7 @@ def _log_bridge_result(
     # Add memory stats to result
     result["memory_used"] = memory_used
     result["memories_learned"] = memories_learned
-    result["local_knowledge_used"] = (
-        local_knowledge_used  # Phase 3: Track local-first retrieval
-    )
+    result["local_knowledge_used"] = local_knowledge_used  # Phase 3: Track local-first retrieval
     result["environment"] = environment  # Phase 23: Track environment context
 
     # Add smart routing info if used (Phase 32-37)
@@ -2234,9 +2221,7 @@ def _log_bridge_result(
             user_id=user_id,
             module_name="archie_bridge",  # Can be overridden by caller
             agent_id=agent_id,
-            intent_type=(
-                task_type or routing_info.get("task_type") if routing_info else None
-            ),
+            intent_type=(task_type or routing_info.get("task_type") if routing_info else None),
             prompt_summary=original_prompt[:500] if original_prompt else None,
             response_summary=(result.get("response", "") or "")[:500],
             model_used=result.get("model"),
@@ -2315,9 +2300,7 @@ def archie_bridge(
     original_prompt = prompt  # Keep original for learning
 
     # STEP 1: Parse intent, retrieve knowledge, check local answers
-    intent = _parse_bridge_intent(
-        prompt, original_prompt, user_id, enable_memory, try_local_first
-    )
+    intent = _parse_bridge_intent(prompt, original_prompt, user_id, enable_memory, try_local_first)
 
     # If answerable locally, return immediately
     if intent["local_answer"]:
@@ -2330,20 +2313,32 @@ def archie_bridge(
 
     # STEP 2: Select model/provider via smart routing or force_model
     provider, model, routing_info = _select_bridge_model(
-        original_prompt, prompt, context, force_model, use_smart_routing,
-        task_type, complexity, agent_id,
+        original_prompt,
+        prompt,
+        context,
+        force_model,
+        use_smart_routing,
+        task_type,
+        complexity,
+        agent_id,
     )
 
     # STEP 3: Execute the LLM call
-    result = _execute_bridge_call(
-        prompt, context, system_prompt, provider, model, force_model
-    )
+    result = _execute_bridge_call(prompt, context, system_prompt, provider, model, force_model)
 
     # STEP 4: Log result, track costs, learn from conversation
     _log_bridge_result(
-        result, original_prompt, user_id, agent_id, enable_memory,
-        memory_used, local_knowledge_used, similar_conversations,
-        environment, routing_info, task_type,
+        result,
+        original_prompt,
+        user_id,
+        agent_id,
+        enable_memory,
+        memory_used,
+        local_knowledge_used,
+        similar_conversations,
+        environment,
+        routing_info,
+        task_type,
     )
 
     return result
@@ -2423,9 +2418,7 @@ def call_grok_api(prompt, model="grok-beta", system_prompt=None):
                 "provider": "grok",
                 "tokens_used": result.get("usage", {}).get("total_tokens", 0),
                 "prompt_tokens": result.get("usage", {}).get("prompt_tokens", 0),
-                "completion_tokens": result.get("usage", {}).get(
-                    "completion_tokens", 0
-                ),
+                "completion_tokens": result.get("usage", {}).get("completion_tokens", 0),
             }
         else:
             return {
@@ -2529,9 +2522,7 @@ def call_cohere_api(prompt, model="command-r-plus", system_prompt=None):
         payload["preamble"] = system_prompt
 
     try:
-        response = requests.post(
-            "https://api.cohere.ai/v1/chat", headers=headers, json=payload, timeout=60
-        )
+        response = requests.post("https://api.cohere.ai/v1/chat", headers=headers, json=payload, timeout=60)
 
         if response.status_code == 200:
             result = response.json()
@@ -2671,30 +2662,18 @@ def call_contractor(contractor_agent, prompt, system_prompt=None):
             system_prompt=system_prompt,
         )
     elif provider == "openai":
-        result = call_openai_api(
-            prompt, model=model or "gpt-4-turbo", system_prompt=system_prompt
-        )
+        result = call_openai_api(prompt, model=model or "gpt-4-turbo", system_prompt=system_prompt)
     elif provider == "google" or provider == "gemini":
-        result = call_gemini_api(
-            prompt, model=model or "gemini-2.0-flash-exp", system_prompt=system_prompt
-        )
+        result = call_gemini_api(prompt, model=model or "gemini-2.0-flash-exp", system_prompt=system_prompt)
     elif provider == "x-ai" or provider == "grok":
-        result = call_grok_api(
-            prompt, model=model or "grok-beta", system_prompt=system_prompt
-        )
+        result = call_grok_api(prompt, model=model or "grok-beta", system_prompt=system_prompt)
     elif provider == "cohere":
-        result = call_cohere_api(
-            prompt, model=model or "command-r-plus", system_prompt=system_prompt
-        )
+        result = call_cohere_api(prompt, model=model or "command-r-plus", system_prompt=system_prompt)
     elif provider == "mistral":
-        result = call_mistral_api(
-            prompt, model=model or "mistral-large-latest", system_prompt=system_prompt
-        )
+        result = call_mistral_api(prompt, model=model or "mistral-large-latest", system_prompt=system_prompt)
     else:
         # Fallback to Ollama for unknown providers
-        result = call_ollama(
-            prompt, model=model or "dolphin3-8k:latest", system_prompt=system_prompt
-        )
+        result = call_ollama(prompt, model=model or "dolphin3-8k:latest", system_prompt=system_prompt)
 
     # Track usage if successful
     if result.get("success"):
@@ -2746,9 +2725,7 @@ def get_contractor_proposal(contractor_agent, prompt, proposal_context=None):
     # Try to extract code blocks
     import re
 
-    code_blocks = re.findall(
-        r"```(?:python|javascript|sql|bash)?\n(.*?)```", response, re.DOTALL
-    )
+    code_blocks = re.findall(r"```(?:python|javascript|sql|bash)?\n(.*?)```", response, re.DOTALL)
     if code_blocks:
         code_suggestion = "\n\n".join(code_blocks)
         # Remove code blocks from explanation
@@ -2823,7 +2800,8 @@ def list_available_contractors():
         try:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT id, name, api_provider, model, personality_prompt,
                        communication_style, status, api_enabled
                 FROM agents
@@ -2831,7 +2809,8 @@ def list_available_contractors():
                 AND status = 'active'
                 AND api_enabled = TRUE
                 ORDER BY api_provider, name
-            """)
+            """
+            )
 
             contractors = cur.fetchall()
             return [dict(c) for c in contractors]
@@ -2896,9 +2875,7 @@ def estimate_contractor_cost(prompt, model=None, provider=None):
     estimated_total = estimated_tokens * 3
 
     # Use existing cost calculation
-    return calculate_cost(
-        provider or "openai", model or "gpt-4-turbo", int(estimated_total)
-    )
+    return calculate_cost(provider or "openai", model or "gpt-4-turbo", int(estimated_total))
 
 
 def check_contractor_approval(agent_id, task_type, estimated_cost, user_id=None):
@@ -3367,9 +3344,7 @@ def log_agent_learning_from_claude(
 
         log_id = result["log_id"] if result else None
         if log_id:
-            print(
-                f"[AI Bridge] Agent {agent_id} learned skill '{skill_name}' from Claude (ID: {log_id})"
-            )
+            print(f"[AI Bridge] Agent {agent_id} learned skill '{skill_name}' from Claude (ID: {log_id})")
         return log_id
 
     except Exception as e:
@@ -3518,17 +3493,13 @@ def call_contractor_with_approval(
 
     # Check approval unless skipped
     if not skip_approval_check:
-        approval = check_contractor_approval(
-            agent_id, task_type or "general", estimated_cost, user_id
-        )
+        approval = check_contractor_approval(agent_id, task_type or "general", estimated_cost, user_id)
 
         if not approval.get("approved"):
             return {
                 "success": False,
                 "needs_approval": True,
-                "error": approval.get(
-                    "message", "Contractor usage requires admin approval"
-                ),
+                "error": approval.get("message", "Contractor usage requires admin approval"),
                 "estimated_cost": estimated_cost,
                 "budget_remaining": approval.get("budget_remaining"),
                 "model": model,
@@ -3567,9 +3538,7 @@ def call_contractor_with_approval(
     if result.get("success") and "claude" in (provider or "").lower():
         try:
             # Extract skill from the task
-            skill_name, skill_category = extract_skill_from_task(
-                prompt, result.get("response", ""), task_type
-            )
+            skill_name, skill_category = extract_skill_from_task(prompt, result.get("response", ""), task_type)
 
             # Find the best internal agent to learn this skill
             # Use the module_source to determine department
@@ -3874,9 +3843,7 @@ def format_tool_results(tool_results):
                 # Search results
                 formatted += f"Found {res['count']} matches:\n"
                 for m in res["matches"][:10]:
-                    formatted += (
-                        f"- {m['file']}:{m['line_number']} - {m['line_content'][:80]}\n"
-                    )
+                    formatted += f"- {m['file']}:{m['line_number']} - {m['line_content'][:80]}\n"
                 if res["count"] > 10:
                     formatted += f"*(and {res['count'] - 10} more)*\n"
 
@@ -4426,9 +4393,7 @@ Generate the EXACT code changes needed. Respond with a ```edit block containing:
                     )
 
                     if not edit_result.get("success"):
-                        errors.append(
-                            f"Step {step_num}: Failed to generate code changes"
-                        )
+                        errors.append(f"Step {step_num}: Failed to generate code changes")
                         execution_failed = True
                         continue
 
@@ -4436,14 +4401,10 @@ Generate the EXACT code changes needed. Respond with a ```edit block containing:
                     import re
 
                     edit_pattern = r"```edit\s*\n(.*?)\n```"
-                    edit_matches = re.findall(
-                        edit_pattern, edit_result["response"], re.DOTALL
-                    )
+                    edit_matches = re.findall(edit_pattern, edit_result["response"], re.DOTALL)
 
                     if not edit_matches:
-                        errors.append(
-                            f"Step {step_num}: A.R.C.H.I.E. did not generate valid edit block"
-                        )
+                        errors.append(f"Step {step_num}: A.R.C.H.I.E. did not generate valid edit block")
                         execution_failed = True
                         continue
 
@@ -4486,9 +4447,7 @@ Generate the complete file content. Respond with a ```content block:
                     )
 
                     if not content_result.get("success"):
-                        errors.append(
-                            f"Step {step_num}: Failed to generate file content"
-                        )
+                        errors.append(f"Step {step_num}: Failed to generate file content")
                         execution_failed = True
                         continue
 
@@ -4496,14 +4455,10 @@ Generate the complete file content. Respond with a ```content block:
                     import re
 
                     content_pattern = r"```content\s*\n(.*?)\n```"
-                    content_matches = re.findall(
-                        content_pattern, content_result["response"], re.DOTALL
-                    )
+                    content_matches = re.findall(content_pattern, content_result["response"], re.DOTALL)
 
                     if not content_matches:
-                        errors.append(
-                            f"Step {step_num}: A.R.C.H.I.E. did not generate valid content block"
-                        )
+                        errors.append(f"Step {step_num}: A.R.C.H.I.E. did not generate valid content block")
                         execution_failed = True
                         continue
 
@@ -4517,9 +4472,7 @@ Generate the complete file content. Respond with a ```content block:
                     }
 
                 except Exception as e:
-                    errors.append(
-                        f"Step {step_num}: Error generating content: {str(e)}"
-                    )
+                    errors.append(f"Step {step_num}: Error generating content: {str(e)}")
                     execution_failed = True
                     continue
 
@@ -4564,9 +4517,7 @@ Generate the complete file content. Respond with a ```content block:
             if backups_created and execution_failed:
                 restore_result = restore_from_backups(proposal_id, backups_created)
                 if restore_result["success"]:
-                    errors.append(
-                        f"Auto-restored {restore_result['restored_count']} files from backup"
-                    )
+                    errors.append(f"Auto-restored {restore_result['restored_count']} files from backup")
         else:
             final_status = "completed"
 
@@ -4585,9 +4536,7 @@ Generate the complete file content. Respond with a ```content block:
             WHERE id = %s
         """,
             (
-                json.dumps(
-                    {"results": results, "errors": errors, "backups": backups_created}
-                ),
+                json.dumps({"results": results, "errors": errors, "backups": backups_created}),
                 final_status,
                 json.dumps(metadata),
                 proposal_id,
@@ -4758,10 +4707,7 @@ def execute_agent_task(agent_id, task, user_id, stream=False):
         conn.commit()
 
         # Build system prompt
-        system_prompt = (
-            agent["system_prompt"]
-            or f"You are {agent['name']}, a {agent['type_name']}."
-        )
+        system_prompt = agent["system_prompt"] or f"You are {agent['name']}, a {agent['type_name']}."
 
         # Call the AI model based on agent configuration
         result = archie_bridge(

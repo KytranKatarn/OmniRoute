@@ -88,6 +88,10 @@ BACKLOGS = {
         "module": "Department HQ",
         "drains": "unified_tasks (pending → fleet)",
         "backend": "platform_settings",
+        # The job gates on is_enabled(default=False) — without carrying that default
+        # here the API reports enabled=true while every cycle returns early (a toggle
+        # that lies about its own state; same pattern as translate_backlog_drip).
+        "default": False,
     },
     "repair_bay_weekly_batch": {
         "module": "Repair Bay",

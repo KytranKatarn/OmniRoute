@@ -536,61 +536,67 @@ class AgentAutomationService:
         return created
 
     def _suggest_device_offline(self) -> List[int]:
-        """Check for trusted/family devices that went offline unexpectedly (>4 hours)."""
+        """Check for trusted/family devices that went offline unexpectedly (>4 hours).
+
+        The age is computed IN SQL (per .claude/rules/database.md): `last_seen_at` is a
+        timestamp WITHOUT time zone, so subtracting it from an aware `now()` in Python
+        raised a naive/aware TypeError on every run — this check never produced output
+        until 2026-08-17 (#5706). Postgres coerces the tz itself, so the TypeError is
+        structurally impossible here.
+        """
         created = []
         try:
-            from .device_registry_service import DeviceRegistryService
+            conn = get_db()
+            try:
+                cur = conn.cursor(cursor_factory=RealDictCursor)
+                cur.execute(
+                    """
+                    SELECT ip_address::text AS ip_address, friendly_name, hostname,
+                           security_zone AS zone,
+                           last_seen_at::text AS last_seen_text,
+                           EXTRACT(EPOCH FROM (now() - last_seen_at)) / 3600 AS hours_offline
+                    FROM network_devices
+                    WHERE security_zone IN ('trusted', 'family')
+                      AND status = 'active'
+                      AND last_seen_at IS NOT NULL
+                      AND last_seen_at < now() - interval '4 hours'
+                    """
+                )
+                rows = cur.fetchall()
+                cur.close()
+            finally:
+                conn.close()
 
-            registry = DeviceRegistryService()
-            # Check trusted and family zones for offline devices
-            for zone in ("trusted", "family"):
-                devices = registry.get_devices(zone=zone, status="active")
-                if not devices:
-                    continue
+            for device in rows:
+                hours_offline = float(device["hours_offline"] or 0)
+                ip = device.get("ip_address") or "unknown"
+                name = device.get("friendly_name") or device.get("hostname") or ip
+                zone = device.get("zone")
+                suggestion_type = f"device_offline_unexpected:{ip}"
 
-                now = datetime.now(timezone.utc)
-                for device in devices:
-                    last_seen = device.get("last_seen_at")
-                    if not last_seen:
-                        continue
-                    # Ensure timezone-aware comparison
-                    if isinstance(last_seen, str):
-                        try:
-                            last_seen = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
-                        except (ValueError, TypeError):
-                            continue
-                    elif last_seen.tzinfo is None:
-                        last_seen = last_seen.replace(tzinfo=timezone.utc)
-
-                    hours_offline = (now - last_seen).total_seconds() / 3600
-                    if hours_offline >= 4:
-                        ip = device.get("ip_address", "unknown")
-                        name = device.get("friendly_name") or device.get("hostname") or ip
-                        suggestion_type = f"device_offline_unexpected:{ip}"
-
-                        sid = self._create_typed_suggestion(
-                            suggestion_type=suggestion_type,
-                            category="scanning",
-                            title=f"Trusted device offline: {name}",
-                            description=(
-                                f"Device '{name}' ({ip}, zone: {zone}) hasn't been seen "
-                                f"for {hours_offline:.1f} hours. Last seen: {last_seen.isoformat()}"
-                            ),
-                            reasoning=(
-                                "Trusted/family devices going offline unexpectedly may indicate "
-                                "network issues, device failure, or unauthorized removal."
-                            ),
-                            severity="medium",
-                            extra_data={
-                                "ip_address": ip,
-                                "friendly_name": name,
-                                "zone": zone,
-                                "hours_offline": round(hours_offline, 1),
-                                "last_seen_at": last_seen.isoformat(),
-                            },
-                        )
-                        if sid:
-                            created.append(sid)
+                sid = self._create_typed_suggestion(
+                    suggestion_type=suggestion_type,
+                    category="scanning",
+                    title=f"Trusted device offline: {name}",
+                    description=(
+                        f"Device '{name}' ({ip}, zone: {zone}) hasn't been seen "
+                        f"for {hours_offline:.1f} hours. Last seen: {device.get('last_seen_text')}"
+                    ),
+                    reasoning=(
+                        "Trusted/family devices going offline unexpectedly may indicate "
+                        "network issues, device failure, or unauthorized removal."
+                    ),
+                    severity="medium",
+                    extra_data={
+                        "ip_address": ip,
+                        "friendly_name": name,
+                        "zone": zone,
+                        "hours_offline": round(hours_offline, 1),
+                        "last_seen_at": device.get("last_seen_text"),
+                    },
+                )
+                if sid:
+                    created.append(sid)
         except Exception as e:
             logger.warning("_suggest_device_offline failed: %s", e)
         return created

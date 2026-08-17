@@ -671,7 +671,7 @@ def _fleet_dispatch(
         prefer_model=prefer_model,
         prefer_agent=prefer_agent,
         # local_only: portrait refinement is a background, non-urgent task. Never
-        # escalate it to paid cloud (minimax-m2.5:cloud) when the local agent is
+        # escalate it to cloud contractor models when the local agent is
         # busy — that produces spurious Telegram approval prompts for what should
         # be local CPU/GPU work. routing_mode='local_only' makes the dispatcher
         # queue for local instead of firing cloud_throughput_escalation.

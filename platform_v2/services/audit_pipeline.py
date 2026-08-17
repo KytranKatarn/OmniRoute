@@ -336,6 +336,16 @@ _TIER_CONFIG = {
 }
 
 
+# ADR-013 carve-out (#5706): the DHQ dispatcher + orchestration engine ARE the
+# sanctioned direct-Ollama callers — every other module routes through them, so
+# flagging these two files as DIRECT_OLLAMA violations is a structural false
+# positive that regenerated proposals forever. Exempt exactly these paths.
+_DIRECT_OLLAMA_SANCTIONED_SUFFIXES = (
+    "department_hq/services/department_dispatcher.py",
+    "department_hq/services/orchestration_engine.py",
+)
+
+
 def process_audit_findings(module_name, issues_list):
     """Process audit findings and create Repair Bay proposals for red/yellow issues.
 
@@ -369,6 +379,11 @@ def process_audit_findings(module_name, issues_list):
             else:
                 file_path = f"platform_v2/tools/{module_name}/{issue_file}"
             issue_code = issue["code"]
+
+            # Sanctioned ADR-013 Ollama callers are not DIRECT_OLLAMA violations.
+            if issue_code == "DIRECT_OLLAMA" and file_path.endswith(_DIRECT_OLLAMA_SANCTIONED_SUFFIXES):
+                info_skipped += 1
+                continue
 
             if _has_open_audit_proposal(file_path, issue_code):
                 skipped += 1
@@ -503,19 +518,41 @@ def reverify_deployed_findings(module_name=None):
     return {"modules": len(by_module), "fixed": fixed, "still_open": still_open, "details": details}
 
 
+def _audit_path_variants(file_path):
+    """Every alias spelling of one file across the [MODULE]/ placeholder prefixes.
+
+    The scanner emits the same file as e.g. 'platform_v2/app.py' AND
+    '[APP_CORE]/app.py' depending on the scan entry point, so a bare equality
+    dedup created twin proposals for the same defect (#5706). Normalize via
+    _PLACEHOLDER_MAP in both directions and dedup against every spelling.
+    """
+    variants = {file_path}
+    canonical = file_path
+    for placeholder, real_root in _PLACEHOLDER_MAP.items():
+        if file_path.startswith(placeholder):
+            canonical = real_root + file_path[len(placeholder) :]
+            variants.add(canonical)
+            break
+    for placeholder, real_root in _PLACEHOLDER_MAP.items():
+        if canonical.startswith(real_root):
+            variants.add(placeholder + canonical[len(real_root) :])
+    return sorted(variants)
+
+
 def _has_open_audit_proposal(file_path, issue_code):
-    """Check if an open proposal already exists for this file + issue code."""
+    """Check if an open proposal already exists for this file + issue code
+    (under ANY alias spelling of the path — see _audit_path_variants)."""
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
             SELECT id FROM improvement_proposals
             WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed')
               AND metadata->>'source' = 'code_health_audit'
-              AND metadata->>'file_path' = %s
+              AND metadata->>'file_path' = ANY(%s)
               AND metadata->>'issue_code' = %s
             LIMIT 1
             """,
-            (file_path, issue_code),
+            (_audit_path_variants(file_path), issue_code),
         )
         return cur.fetchone() is not None
 

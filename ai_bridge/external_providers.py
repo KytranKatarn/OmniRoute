@@ -484,7 +484,8 @@ FREE_TEXT_PROVIDERS = ["groq", "cerebras", "cohere"]
 # proxies first (already the wired translation proxies, 7k/wk each), then the free
 # OpenAI-compatible tiers. A caller rotates to the first with weekly headroom and
 # falls back to local when all are exhausted.
-CLOUD_TEXT_ROTATION = ["minimax_cloud", "qwen3_cloud", "groq", "cerebras", "cohere"]
+# minimax_cloud removed 2026-08-17 (#5706) — minimax-m2.5:cloud 410s on every dispatch.
+CLOUD_TEXT_ROTATION = ["qwen3_cloud", "groq", "cerebras", "cohere"]
 
 
 def get_weekly_free_limit(provider: str) -> Optional[int]:

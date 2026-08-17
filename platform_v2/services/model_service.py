@@ -27,9 +27,13 @@ _DEFAULT_RAM_BUDGET_GB = 102.4  # 80% of 128 GB
 #   _VRAM_TOTAL_GB        — how much VRAM the box has in AGGREGATE. Different models
 #                           legitimately live on different cards, so residency budgets
 #                           against the SUM.
-#   _VRAM_LARGEST_GPU_GB  — the biggest SINGLE card. A model cannot span cards (the hub's
-#                           are compute capability 6.1 and 5.2), so ANY ONE model must fit
-#                           inside this, no matter how much aggregate VRAM is free.
+#   _VRAM_LARGEST_GPU_GB  — the biggest SINGLE card, used as a deliberate SAFETY clamp for
+#                           one-model-at-a-time sizing. Spanning IS possible — measured
+#                           2026-08-15: Ollama split qwen layers 31/18 across the Quadro
+#                           (CC 5.2) and TITAN (CC 6.1), 49/49 offloaded (fleet.md). But a
+#                           spanning model consumes headroom on BOTH cards simultaneously
+#                           (the #5623 saturation shape), so sizing each model against the
+#                           largest single card stays the conservative, correct input.
 #
 # This replaced a single `_DEFAULT_VRAM_BUDGET_GB = 8.0  # Quadro M4000 full 8 GB`, written
 # before the TITAN X 12 GB was installed 2026-07-25. For two days the platform believed it
@@ -215,10 +219,13 @@ class ModelService:
 
         Two independent ceilings, so take the lower:
           * aggregate free  — cannot use VRAM that other models already hold
-          * largest card    — a model cannot SPAN cards (mixed compute capability
-                              6.1 / 5.2 on the hub), so no single model fits in
-                              more than the biggest device, however much
-                              aggregate VRAM happens to be free.
+          * largest card    — a deliberate safety clamp for one-model-at-a-time
+                              sizing. Spanning across the mixed-CC 6.1/5.2 cards
+                              IS possible (proven 2026-08-15: Ollama split 31/18
+                              layers across Quadro+TITAN), but a spanning model
+                              eats headroom on BOTH cards at once — the #5623
+                              saturation shape — so clamping each model to the
+                              biggest device remains the conservative input.
 
         Using aggregate alone would claim a 16 GB model fits on a 12 GB card.
         Using the largest card alone would ignore VRAM already consumed.

@@ -2753,7 +2753,7 @@ def _warmup_ollama_models():
             # api/generate path handles retries + keep_alive=5m.
             # Note: model_service.load_model doesn't preserve CPU-only preference
             # (num_gpu=0); Ollama auto-places based on VRAM. Acceptable since
-            # MAX_LOADED_MODELS=3 bounds GPU pressure.
+            # MAX_LOADED_MODELS=10 (systemd override, 2026-06-19) bounds GPU pressure.
             if endpoint == "embed":
                 for attempt in range(3):
                     try:

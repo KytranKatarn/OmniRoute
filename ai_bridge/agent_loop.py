@@ -7847,13 +7847,13 @@ class AgentLoop:
 
         TARGET = 5  # keep ~5 tasks queued for the fleet
         MAX_PROMOTE = 3  # never promote more than this per cycle
+        # Fleet LLM agents produce analysis, not commits — promoting bugfix/implementation
+        # lets a 7B falsely 'complete' engineering/hardware tasks (audit 2026-08-17, KB #290290).
         CAP_MAP = {
             "research": "research",
-            "review": "analyze",
-            "bugfix": "debug",
-            "implementation": "code",
-            "testing": "analyze",
             "documentation": "documentation",
+            "review": "analyze",
+            "testing": "analyze",
         }
         promoted = 0
         try:
@@ -7880,14 +7880,16 @@ class AgentLoop:
                     except Exception:
                         _mode = "auto"
                     _pool = slots * 6 if _mode != "auto" else slots
+                    _eligible_types = tuple(CAP_MAP.keys())
                     cur.execute(
                         "SELECT ut.id, ut.title, ut.task_type, p.name AS project_name "
                         "FROM unified_tasks ut "
                         "LEFT JOIN unified_projects p ON p.id = ut.project_id "
                         "WHERE ut.delegation_source IS NULL AND ut.status = 'pending' "
                         "AND ut.task_type IS NOT NULL "
+                        "AND lower(ut.task_type) IN %s "
                         "ORDER BY ut.priority DESC, ut.created_at ASC LIMIT %s",
-                        (_pool,),
+                        (_eligible_types, _pool),
                     )
                     _cands = cur.fetchall()
                     if _mode != "auto" and _cands:
@@ -7902,7 +7904,10 @@ class AgentLoop:
                             len(_tagged),
                         )
                     for r in _cands[:slots]:
-                        cap = CAP_MAP.get((r["task_type"] or "").lower(), "research")
+                        cap = CAP_MAP.get((r["task_type"] or "").lower())
+                        if not cap:
+                            # Not fleet-delegable — never default to 'research' (KB #290290)
+                            continue
                         args = json.dumps({"capability": cap, "reason": (r["title"] or "")[:300]})
                         cur.execute(
                             "UPDATE unified_tasks SET delegation_source = 'automation', "

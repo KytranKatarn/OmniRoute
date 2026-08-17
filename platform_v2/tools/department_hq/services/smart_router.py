@@ -19,10 +19,25 @@ from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
 
-# Database imports
+# Database imports — direct psycopg2, mirroring department_dispatcher._get_db's working
+# fallback. The old `from config import get_db` NEVER resolved (config.py exports no
+# get_db), which left get_db=None forever: routing_mode was silently ignored and every
+# DB-backed lookup degraded to defaults (audit 2026-08-17, proposal #3383).
 try:
-    from config import get_db
+    import os
+
+    import psycopg2
     from psycopg2.extras import RealDictCursor
+
+    def get_db():
+        return psycopg2.connect(
+            host=os.getenv("DB_HOST", "192.168.1.200"),
+            port=os.getenv("DB_PORT", "5432"),
+            database=os.getenv("DB_NAME", "archie"),
+            user=os.getenv("DB_USER", "archie"),
+            password=os.getenv("DB_PASSWORD", ""),
+        )
+
 except ImportError:
     # Fallback for testing
     get_db = None
@@ -38,7 +53,7 @@ class ModelTier(Enum):
     LOCAL = "local"
     LOCAL_ANALYSIS = "local_analysis"
     VISION = "vision"  # Multimodal vision model (CPU)
-    MINIMAX_CLOUD = "minimax_cloud"
+    # MINIMAX_CLOUD retired 2026-08-17 (#5706) — minimax-m2.5:cloud 410s on every dispatch.
     QWEN3_CLOUD = "qwen3_cloud"
     HAIKU = "haiku"
     SONNET = "sonnet"
@@ -106,14 +121,7 @@ DEFAULT_MODEL_CONFIGS = {
         output_cost_per_1m=0.0,
         max_tokens=4096,
     ),
-    "minimax_cloud": ModelConfig(
-        tier="minimax_cloud",
-        provider="ollama_cloud",
-        model_name="minimax-m2.5",
-        input_cost_per_1m=0.0,
-        output_cost_per_1m=0.0,
-        max_tokens=32768,
-    ),
+    # "minimax_cloud" retired 2026-08-17 (#5706) — minimax-m2.5 410s on every dispatch.
     "qwen3_cloud": ModelConfig(
         tier="qwen3_cloud",
         provider="ollama_cloud",
@@ -153,7 +161,6 @@ TIER_ORDER = [
     "classify",
     "local",
     "local_analysis",
-    "minimax_cloud",
     "qwen3_cloud",
     "openai",
     "perplexity",
@@ -178,10 +185,10 @@ CAPABILITY_ROUTING = {
     "embed": "local",  # (handled by embedding service, not router)
     "translate": "local_analysis",  # Translation via the 'translate' capability (mistral:7b / gemma3:12b)
     "detect_language": "classify",  # Language detection via qwen25-classify
-    "image_generation": "minimax_cloud",  # Placeholder — actual routing via media adapters
-    "video_generation": "minimax_cloud",  # Placeholder — actual routing via media adapters
+    "image_generation": "qwen3_cloud",  # Placeholder — actual routing via media adapters (was minimax_cloud, retired #5706)
+    "video_generation": "qwen3_cloud",  # Placeholder — actual routing via media adapters (was minimax_cloud, retired #5706)
     "audio_tts": "local",  # Local Kokoro/XTTS first
-    "audio_music": "minimax_cloud",  # Placeholder — actual routing via media adapters
+    "audio_music": "qwen3_cloud",  # Placeholder — actual routing via media adapters (was minimax_cloud, retired #5706)
 }
 
 # Capability taxonomy — maps detected intent to normalized capability tags
@@ -244,7 +251,7 @@ class SmartRouter:
             routing_mode = _get_routing_mode()
 
         local_tiers = {"classify", "local", "local_analysis", "vision"}
-        cloud_tiers = {"minimax_cloud", "qwen3_cloud"}
+        cloud_tiers = {"qwen3_cloud"}  # minimax_cloud retired #5706
 
         if routing_mode == "local_only":
             return [t for t in TIER_ORDER if t in local_tiers]

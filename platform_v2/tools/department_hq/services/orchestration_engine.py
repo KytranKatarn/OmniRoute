@@ -58,7 +58,11 @@ def _node_url_for_orchestration(node_id: str) -> str:
 def _default_conversation_model():
     """Get conversation model from BridgeDispatcher (lazy, with fallback)."""
     try:
-        from department_dispatcher import get_dispatcher
+        # Relative import — the bare `from department_dispatcher import ...` NEVER
+        # resolved (nothing puts services/ on sys.path), so this always fell through
+        # to the hardcoded fallback (audit 2026-08-17, proposal #3381). Lazy inside
+        # the function, so no circular import with the dispatcher at module load.
+        from .department_dispatcher import get_dispatcher
 
         model = get_dispatcher().get_model_for_capability("conversation")
         return model or "dolphin3-8k:latest"

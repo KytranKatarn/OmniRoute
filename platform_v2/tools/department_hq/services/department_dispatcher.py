@@ -46,7 +46,6 @@ try:
     if "/mnt/archie_brain/platform_v2" not in sys.path:
         sys.path.insert(0, "/mnt/archie_brain/platform_v2")
     from services.agent_service import (
-        transition_shift_state as svc_transition_shift_state,
         find_replacement as svc_find_replacement,
         increment_budget as svc_increment_budget,
         decrement_budget as svc_decrement_budget,
@@ -5090,7 +5089,7 @@ class DepartmentDispatcher:
     # Cloud contractor models (free via OLLAMA_API_KEY) — legacy fallback.
     # Prefer _find_contractors_for_capability() which queries contractor_providers table.
     FREE_CLOUD_MODELS = [
-        "minimax-m2.5:cloud",
+        # minimax-m2.5:cloud RETIRED 2026-08-17 (#5706) — every dispatch 410'd after ~370s.
         "qwen3-coder-next:cloud",
     ]
 
@@ -10610,13 +10609,22 @@ class DepartmentDispatcher:
                 return
 
             # Clear old state for this host
+            key_node_id = node_db_id
             if node_db_id:
                 cur.execute(
                     "DELETE FROM model_load_state WHERE host_type = 'node' AND node_db_id = %s",
                     (node_db_id,),
                 )
             else:
-                cur.execute("DELETE FROM model_load_state WHERE host_type = 'hub' AND node_db_id IS NULL")
+                # #5706: key hub rows to the hub's remote_nodes row (deployment_mode
+                # 'starbase', id 68) so per-node readers (fleet dashboard joins on
+                # rn.id) see them. Previously keyed node_db_id=NULL, which no reader
+                # matched — hub rows sat stale since 2026-05-28. DELETE covers the
+                # legacy NULL-keyed rows too (host_type 'hub' is only ever the hub).
+                cur.execute("SELECT id FROM remote_nodes WHERE deployment_mode = 'starbase' ORDER BY id LIMIT 1")
+                hub_row = cur.fetchone()
+                key_node_id = hub_row["id"] if hub_row else None
+                cur.execute("DELETE FROM model_load_state WHERE host_type = 'hub'")
 
             # Insert current state
             for m in models:
@@ -10636,7 +10644,7 @@ class DepartmentDispatcher:
                     ON CONFLICT (host_type, node_db_id, model_name)
                     DO UPDATE SET tier = EXCLUDED.tier, size_gb = EXCLUDED.size_gb, saved_at = NOW()
                     """,
-                    (host_type, node_db_id, model_name, tier, size_gb),
+                    (host_type, key_node_id, model_name, tier, size_gb),
                 )
 
             conn.commit()
@@ -10696,11 +10704,14 @@ class DepartmentDispatcher:
                     (node_db_id,),
                 )
             else:
+                # host_type 'hub' rows are only ever the hub's — match regardless of
+                # node_db_id so both the new hub-row keying (#5706) and legacy
+                # NULL-keyed rows restore.
                 cur.execute(
                     """
                     SELECT model_name, tier, size_gb
                     FROM model_load_state
-                    WHERE host_type = 'hub' AND node_db_id IS NULL
+                    WHERE host_type = 'hub'
                     ORDER BY tier DESC, size_gb DESC
                     """
                 )

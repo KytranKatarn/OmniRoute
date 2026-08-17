@@ -148,7 +148,7 @@ def check_drain_liveness():
                 FROM dispatch_pending_queue
                 WHERE status = 'queued'
                   AND COALESCE(capability, '') <> 'warmup'
-                  AND queued_at < NOW() - make_interval(mins => %s)
+                  AND queued_at < NOW() - (%s * INTERVAL '1 minute')
                 """,
                 (stall_limit,),
             )

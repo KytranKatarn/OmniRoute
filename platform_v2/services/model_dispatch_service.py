@@ -1486,7 +1486,7 @@ def _expire_stale_tasks() -> int:
                        error = COALESCE(error, %s)
                  WHERE status = 'queued'
                    AND capability = 'warmup'
-                   AND queued_at < NOW() - make_interval(mins => %s)
+                   AND queued_at < NOW() - (%s * INTERVAL '1 minute')
                 """,
                 ("expired: warmup TTL (%dm) — infrastructure ping, not real work" % warmup_ttl, warmup_ttl),
             )

@@ -2037,6 +2037,16 @@ def _list_current_capability_gaps() -> list[dict[str, Any]]:
 
     Single source of truth — avoids cross-table dependency on
     system_notifications / autonomy_loop_log for the gap list.
+
+    #5187: gaps are DEMAND-GATED — a capability only counts as a gap if it saw
+    real inference dispatch in the last 30 days. Measured 2026-08-17, the
+    ungated list was 104 capabilities and EXACTLY ZERO of them had a single
+    real dispatch in 30 days: pure skill-inventory noise (Lv4+ skill rows left
+    behind on decommissioned/inactive agents for work nobody requests). That
+    noise is why skipped_empty_shortlist ran at 100% for weeks — and had a
+    demanded capability ever genuinely lost its last agent, the signal would
+    have been indistinguishable from the noise. With the gate, a surviving gap
+    means "work is actually arriving and nobody active can take it".
     """
     from db import get_db
     from psycopg2.extras import RealDictCursor
@@ -2064,15 +2074,32 @@ def _list_current_capability_gaps() -> list[dict[str, Any]]:
                   AND a.shift_state = 'active'
                   AND (b.agent_id IS NULL
                        OR b.current_task_count < COALESCE(b.task_queue_limit, 100))
+            ),
+            demand AS (
+                -- Real inference only — same exclude-list the Token Economy /
+                -- A.R.M.A.D.A. surfaces use to split markers from real work.
+                SELECT DISTINCT capability
+                FROM task_execution_log
+                WHERE created_at > NOW() - INTERVAL '30 days'
+                  AND worker_type IS NOT NULL
+                  AND lower(COALESCE(model_used, '')) NOT IN
+                      ('bridge-managed', 'internal', 'batch', 'browser', 'comfyui', '')
             )
             SELECT skill_name AS capability
             FROM all_capabilities
             WHERE skill_name NOT IN (SELECT skill_name FROM staffed)
+              AND skill_name IN (SELECT capability FROM demand)
             ORDER BY skill_name
             """
         )
         return [
-            {"capability": r["capability"], "gap_reason": f"No active Lv4+ dispatchable agent for '{r['capability']}'"}
+            {
+                "capability": r["capability"],
+                "gap_reason": (
+                    f"No active Lv4+ dispatchable agent for '{r['capability']}' "
+                    "despite real dispatch demand in the last 30 days"
+                ),
+            }
             for r in cur.fetchall()
         ]
     finally:
@@ -2146,24 +2173,34 @@ def kin_generate_hire_proposals(max_proposals_per_run: int = MAX_PROPOSALS_PER_R
             else:
                 inserted += 1
 
+        # Pool-saturation staffing tail BEFORE the summary log (#5187 defect 1):
+        # this used to run AFTER _log_cycle, so its inserts were invisible in the
+        # parent row — 2026-07-24 logged {"inserted": 0} on the exact run that
+        # filed hiring_candidates 406-409. The tail keeps its own guard + its own
+        # kin_recommend_pool_staffing log row; this belt-and-braces except only
+        # protects the parent summary from a raise before that guard engages.
+        pool_recommended = 0
+        try:
+            pool_recommended = kin_recommend_pool_staffing() or 0
+        except Exception:
+            logger.warning("pool staffing tail failed (zero-agent results unaffected)", exc_info=True)
+
         duration_ms = int((time.time() - start) * 1000)
         _log_cycle(
             "kin_generate_hire_proposals",
-            inserted,
+            inserted + pool_recommended,
             0,
             duration_ms,
             details={
                 "gaps_seen": len(gaps),
                 "inserted": inserted,
+                "inserted_pool_staffing": pool_recommended,
+                # Post demand-gate this counts REAL demanded gaps with no
+                # reactivation candidate — no longer 100% inventory noise.
                 "skipped_empty_shortlist": skipped_empty,
                 "skipped_dedup": skipped_dedup,
             },
         )
-
-        # Pool-saturation staffing gaps (a whole skill-pool at its 24h budget ceiling + a
-        # sustained dispatch backlog) → CREED-gated, human-approved hire recommendations.
-        # Self-guarded, so it never masks the zero-agent proposal result logged above.
-        kin_recommend_pool_staffing()
     except Exception as e:
         logger.exception("kin_generate_hire_proposals failed")
         duration_ms = int((time.time() - start) * 1000)

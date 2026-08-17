@@ -814,8 +814,21 @@ def collect_traffic_stats():
 
         svc = NtopngService()
         if not svc.is_healthy():
-            logger.warning("collect_traffic_stats: ntopng unavailable, skipping")
-            _log_cycle("collect_traffic_stats", 0, 0, 0, error_message="ntopng unavailable")
+            # #5704: this skip path used to record items_failed=0 -> status='success',
+            # so 17 days of auth failures produced 3,390 'success' rows and nothing
+            # alarmed. A cycle that collects NOTHING because the source is down is a
+            # FAILED cycle — record it as one, and say WHICH failure occurred.
+            reason = svc.auth_failure_reason or "no authenticated JSON reply"
+            if reason == "credentials_rejected":
+                error_msg = (
+                    "ntopng credentials REJECTED (auth split-brain: .env NTOPNG_ADMIN_PASSWORD "
+                    "does not match ntopng's redis admin hash) — no traffic collected"
+                )
+            else:
+                error_msg = f"ntopng unavailable ({reason}) — no traffic collected"
+            logger.error("collect_traffic_stats: %s", error_msg)
+            dur = int((time.time() - t0) * 1000)
+            _log_cycle("collect_traffic_stats", 0, 1, dur, error_message=error_msg)
             return
 
         # Discover the active (non-loopback) interface
@@ -906,6 +919,40 @@ def collect_traffic_stats():
         dur = int((time.time() - t0) * 1000)
         logger.error(f"collect_traffic_stats failed: {e}")
         _log_cycle("collect_traffic_stats", processed, failed, dur, error_message=str(e))
+
+
+# Schedule: every 30 min — deterministic freshness alarm for the traffic feed (#5704)
+def check_traffic_feed_freshness_job():
+    """Alert when network_traffic_stats stops advancing (traffic_feed_monitor).
+
+    Exists because the collector's own run log recorded 'success' with 0 items for 17
+    days while the feed was dead — this watches the TABLE the panels read, which
+    survives log pruning. No LLM anywhere in the alert path.
+    """
+    t0 = time.time()
+    try:
+        from tools.security_network.traffic_feed_monitor import check_traffic_feed_freshness
+
+        res = check_traffic_feed_freshness()
+        dur = int((time.time() - t0) * 1000)
+        checked = bool(res.get("checked"))
+        _log_cycle(
+            "traffic_feed_freshness",
+            1 if checked else 0,
+            0 if checked else 1,
+            dur,
+            details={
+                "status": res.get("status"),
+                "age_h": res.get("age_h"),
+                "limit_h": res.get("limit_h"),
+                "alerted": res.get("alerted"),
+            },
+            error_message=res.get("error"),
+        )
+    except Exception as e:
+        dur = int((time.time() - t0) * 1000)
+        logger.error(f"traffic_feed_freshness failed: {e}")
+        _log_cycle("traffic_feed_freshness", 0, 1, dur, error_message=str(e))
 
 
 # NOTE: pattern_compliance_check is registered in dev_hq/jobs.py (code quality job)
@@ -1859,6 +1906,18 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
+    # --- Traffic feed freshness alarm (#5704) ---
+    # Watches MAX(hour_bucket) in network_traffic_stats — the durable signal that
+    # survives autonomy_loop_log pruning. The 2026-07-30 ntopng credential split-brain
+    # froze the feed for 17 days while the collector logged 'success' every cycle.
+    scheduler.add_job(
+        with_ctx(check_traffic_feed_freshness_job),
+        trigger=IntervalTrigger(minutes=30),
+        id="agent_traffic_feed_freshness",
+        name="Agent Loop: Traffic Feed Freshness Alarm",
+        replace_existing=True,
+    )
+
     # --- DNS history collection (Job #59) ---
     scheduler.add_job(
         with_ctx(collect_dns_history),
@@ -1959,4 +2018,4 @@ def register_security_jobs(scheduler, flask_app):
         replace_existing=True,
     )
 
-    logger.info("[SecurityJobs] Registered 22 security/network jobs")
+    logger.info("[SecurityJobs] Registered 23 security/network jobs")

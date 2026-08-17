@@ -29,6 +29,13 @@ class NtopngService:
         self.base_url = f"http://{self.host}:{self.port}"
         self.session = requests.Session()
         self._authenticated = False
+        # WHY auth last failed — 'credentials_rejected' | 'unreachable: <err>' | None.
+        # #5704: for 17 days every collector cycle logged a generic "unavailable" while
+        # ntopng was perfectly healthy and simply REJECTING the platform's password
+        # (credential split-brain after the 2026-07-30 network-tools stack recreate).
+        # Callers need to know WHICH failure occurred so alerts say the actionable
+        # thing ("credentials rejected — fix the password") instead of "unavailable".
+        self.auth_failure_reason = None
 
     def _ensure_auth(self):
         """Authenticate via cookie-based session if not already done."""
@@ -43,11 +50,21 @@ class NtopngService:
             )
             # Auth fails if we land on login or wrong-credentials page
             if "login" in resp.url or "wrong" in resp.url:
-                logger.error("ntopng auth failed — wrong credentials")
+                self.auth_failure_reason = "credentials_rejected"
+                logger.error(
+                    "ntopng auth REJECTED for user %r at %s — ntopng is reachable but the "
+                    "platform's NTOPNG_ADMIN_PASSWORD does not match ntopng's stored admin "
+                    "credential (redis key ntopng.user.admin.password). Fix the credential "
+                    "split-brain; restarting ntopng alone will not help.",
+                    self.user,
+                    self.base_url,
+                )
                 return
             self._authenticated = True
+            self.auth_failure_reason = None
         except Exception as e:
-            logger.error(f"ntopng auth error: {e}")
+            self.auth_failure_reason = f"unreachable: {e}"
+            logger.error(f"ntopng auth error (service unreachable at {self.base_url}): {e}")
 
     def _get(self, endpoint: str, params: dict = None) -> dict:
         """Make a GET request to ntopng API with session auth."""

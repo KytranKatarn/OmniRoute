@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import re
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -120,79 +121,105 @@ _WELFARE_CACHE: dict = {}
 _WELFARE_CACHE_TTL = 120  # 2 min — welfare is live data
 
 
-def _get_welfare_lookup() -> dict:
-    """Return {display_name: {welfare_score, stress, energy, shift_state}} (#3355).
-
-    Calls hub /tools/department-hq/api/creed/fleet-agents via mesh (WTF_HUB_URL),
-    filters department='News & Media', and dedupes by agent id — fleet-agents
-    lists each agent once PER NODE (the bug that bit #3356). Keyed by display_name
-    to match TEAM_AGENTS 'name'. No-auth public endpoint over mesh; 2-min cache;
-    fails open to stale/empty so /team always renders.
-    """
+def _swr(cache: dict, ttl: int, fetch_fn) -> dict:
+    """Stale-while-revalidate for the module-level lookup caches (#5726):
+    on TTL expiry serve the STALE data immediately and refresh in a daemon
+    thread — a visitor never pays the hub round-trip (the welfare
+    fleet-agents call measured 2.5s cold; with 4 workers × 2-min TTL that
+    was up to 4 slow /team loads every 2 minutes). Only the first-ever
+    request in a worker blocks. A failed refresh keeps the stale data and
+    clears the flag so the next request retries."""
     now = time.time()
-    if _WELFARE_CACHE.get("ts", 0) + _WELFARE_CACHE_TTL > now:
-        return _WELFARE_CACHE.get("data", {})
+    if cache.get("ts", 0) + ttl > now:
+        return cache.get("data", {})
+    if cache.get("data") is not None:
+        if not cache.get("refreshing"):
+            cache["refreshing"] = True
+            threading.Thread(target=_swr_refresh, args=(cache, fetch_fn),
+                             daemon=True).start()
+        return cache["data"]
+    return _swr_refresh(cache, fetch_fn)
+
+
+def _swr_refresh(cache: dict, fetch_fn) -> dict:
+    try:
+        data = fetch_fn()
+        cache["data"] = data
+        cache["ts"] = time.time()
+        return data
+    except Exception:
+        return cache.get("data") or {}
+    finally:
+        cache["refreshing"] = False
+
+
+def _fetch_welfare() -> dict:
+    """One live fetch of the News & Media welfare lookup (raises on error —
+    _swr_refresh handles fail-open)."""
     hub_url = os.environ.get("WTF_HUB_URL", "")
     if not hub_url:
         return {}
-    try:
-        headers = {"Accept": "application/json"}
-        hub_token = os.environ.get("WTF_HUB_TOKEN", "")
-        if hub_token:
-            headers["Authorization"] = f"Bearer {hub_token}"
-        req = urllib.request.Request(
-            f"{hub_url}/tools/department-hq/api/creed/fleet-agents",
-            headers=headers,
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-        seen: set = set()
-        lookup: dict = {}
-        for node in (data.get("nodes") or []):
-            for a in (node.get("agents") or []):
-                if a.get("department") != "News & Media":
-                    continue
-                uid = a.get("id") or a.get("display_name")
-                if uid in seen:
-                    continue
-                seen.add(uid)
-                dname = a.get("display_name", "")
-                if dname:
-                    lookup[dname] = {
-                        "welfare_score": a.get("welfare_score"),
-                        "stress": a.get("stress_level"),
-                        "energy": a.get("energy_level"),
-                        "shift_state": a.get("shift_state", ""),
-                    }
-        _WELFARE_CACHE["ts"] = now
-        _WELFARE_CACHE["data"] = lookup
-        return lookup
-    except Exception:
-        return _WELFARE_CACHE.get("data", {})
+    headers = {"Accept": "application/json"}
+    hub_token = os.environ.get("WTF_HUB_TOKEN", "")
+    if hub_token:
+        headers["Authorization"] = f"Bearer {hub_token}"
+    req = urllib.request.Request(
+        f"{hub_url}/tools/department-hq/api/creed/fleet-agents",
+        headers=headers,
+    )
+    with urllib.request.urlopen(req, timeout=3) as resp:
+        data = json.loads(resp.read())
+    seen: set = set()
+    lookup: dict = {}
+    for node in (data.get("nodes") or []):
+        for a in (node.get("agents") or []):
+            if a.get("department") != "News & Media":
+                continue
+            uid = a.get("id") or a.get("display_name")
+            if uid in seen:
+                continue
+            seen.add(uid)
+            dname = a.get("display_name", "")
+            if dname:
+                lookup[dname] = {
+                    "welfare_score": a.get("welfare_score"),
+                    "stress": a.get("stress_level"),
+                    "energy": a.get("energy_level"),
+                    "shift_state": a.get("shift_state", ""),
+                }
+    return lookup
+
+
+def _get_welfare_lookup() -> dict:
+    """Return {display_name: {welfare_score, stress, energy, shift_state}} (#3355).
+
+    Hub fleet-agents via mesh (WTF_HUB_URL), department='News & Media',
+    deduped by agent id (fleet-agents lists each agent once PER NODE — the
+    #3356 bug). 2-min TTL, stale-while-revalidate (#5726), fails open so
+    /team always renders.
+    """
+    return _swr(_WELFARE_CACHE, _WELFARE_CACHE_TTL, _fetch_welfare)
+
+
+def _fetch_portraits() -> dict:
+    """One live fetch of the platform portrait directory (raises on error)."""
+    req = urllib.request.Request(
+        f"{_PLATFORM}/api/public/directory",
+        headers={"Accept": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=5) as resp:
+        data = json.loads(resp.read())
+    return {
+        a["display_name"]: a.get("avatar_thumb_url") or a.get("avatar_url")
+        for a in data.get("agents", [])
+        if a.get("display_name") and (a.get("avatar_thumb_url") or a.get("avatar_url"))
+    }
 
 
 def _get_portrait_lookup() -> dict:
-    """Return {display_name: portrait_url} from platform directory. Cached 1h."""
-    now = time.time()
-    if _PORTRAIT_CACHE.get("ts", 0) + _PORTRAIT_CACHE_TTL > now:
-        return _PORTRAIT_CACHE.get("data", {})
-    try:
-        req = urllib.request.Request(
-            f"{_PLATFORM}/api/public/directory",
-            headers={"Accept": "application/json"},
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read())
-        lookup = {
-            a["display_name"]: a.get("avatar_thumb_url") or a.get("avatar_url")
-            for a in data.get("agents", [])
-            if a.get("display_name") and (a.get("avatar_thumb_url") or a.get("avatar_url"))
-        }
-        _PORTRAIT_CACHE["data"] = lookup
-        _PORTRAIT_CACHE["ts"] = now
-        return lookup
-    except Exception:
-        return _PORTRAIT_CACHE.get("data", {})
+    """Return {display_name: portrait_url} from the platform directory.
+    1h TTL, stale-while-revalidate (#5726)."""
+    return _swr(_PORTRAIT_CACHE, _PORTRAIT_CACHE_TTL, _fetch_portraits)
 
 
 def _db():
@@ -1586,6 +1613,8 @@ def claims_index():
 
 @bp.get("/claims/<slug>")
 def claims_by_politician(slug: str):
+    if not slug.replace("-", "").replace("_", "").isalnum():
+        abort(404)
     S = _schema()
     try:
         with _db().begin() as c:
@@ -1609,8 +1638,12 @@ def claims_by_politician(slug: str):
             claims.append(d)
     except Exception:
         claims = []
+    if not claims:
+        # No tracked claims for this slug — any junk URL previously rendered
+        # a fake politician page with the raw slug as the name (#5728).
+        abort(404)
     subscribed = is_subscriber()
-    politician_name = claims[0]["politician_name"] if claims else slug
+    politician_name = claims[0]["politician_name"]
     return render_template("claims.html", claims=claims,
                            is_subscriber=subscribed,
                            active_status="all",

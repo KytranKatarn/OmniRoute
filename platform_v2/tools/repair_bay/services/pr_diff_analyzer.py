@@ -387,6 +387,60 @@ _DEFECT_ASSERTION_RE = re.compile(
 )
 
 
+# A DESIGN OBSERVATION is the third shape of non-finding, and neither gate above catches it.
+# _asserts_no_defect needs APPROVAL wording ("ensures", "prevents"); _NONBLOCKING_CATEGORY_RE needs a
+# known nit CATEGORY. A neutral remark about shape — "introduces new functions which add complexity",
+# "the threshold value may be too long or too short" — asserts no fault at all, so it matches neither
+# and blocks the merge on its own.
+#
+# Measured 2026-08-18 on three consecutive PRs (#2686/#2687/#2688): every one returned REQUEST CHANGES
+# on WARNING-level remarks of exactly this shape, and #2687 (an auth + rate-limit fix closing a LIVE
+# anonymous path into hub LLM work) was blocked twice by it. "This change adds code" cannot be a
+# defect in a PR whose entire purpose is to add a security gate.
+#
+# Two families, both requiring NO fault assertion anywhere (same asymmetry as _asserts_no_defect):
+#   1. complexity//size remarks — adding functions or complexity is not a defect
+#   2. unfalsifiable hedges — "may be too long OR too short" names both directions, so it makes no
+#      checkable claim; a real defect is asserted, not hypothesised in both directions at once.
+_DESIGN_OBSERVATION_RE = re.compile(
+    r"add(s|ed|ing)?\s+(to\s+the\s+)?complexity|increas\w+\s+\w*\s*complexity"
+    r"|complexity\s+(to|in|of)\s+the\s+(codebase|code|module)"
+    r"|introduc\w+\s+(new\s+)?(functions?|methods?|classes?|helpers?)"
+    r"|additional\s+functionality"
+    r"|hard[\s-]?cod\w+"
+    r"|may\s+be\s+too\s+\w+\s+or\s+too\s+\w+",
+    re.I,
+)
+
+# CARVE-OUT — a hardcoded SECRET or ADDRESS is a real bug in this codebase, not a nit. `.env` rules
+# and the mesh mandate both exist because of exactly these. If any of these nouns appear, the finding
+# keeps its severity no matter how it is phrased.
+_HARDCODE_IS_REAL_RE = re.compile(
+    r"\b(secret|credential|password|passphrase|token|api[\s-]?key|private\s+key"
+    r"|ip\s+address|hostname|endpoint\s+url|connection\s+string|dsn)\b",
+    re.I,
+)
+
+
+def _is_design_observation(blob: str) -> bool:
+    """True when a finding only remarks on SHAPE (complexity, size, a hardcoded tunable) or hedges
+    unfalsifiably, and asserts no fault anywhere.
+
+    Demote-only and deliberately narrow. Requires ALL of:
+      * a design-observation phrase,
+      * no predicative fault claim (_DEFECT_ASSERTION_RE) — so "adds complexity AND is vulnerable"
+        still blocks,
+      * no secret/address noun (_HARDCODE_IS_REAL_RE) — a hardcoded credential is a REAL finding.
+    """
+    if not blob:
+        return False
+    if _DEFECT_ASSERTION_RE.search(blob):
+        return False
+    if _HARDCODE_IS_REAL_RE.search(blob):
+        return False
+    return bool(_DESIGN_OBSERVATION_RE.search(blob))
+
+
 def _asserts_no_defect(blob: str) -> bool:
     """True when a finding reads as APPROVAL and asserts no fault — i.e. it is not a finding.
 
@@ -410,7 +464,7 @@ def _normalize_severity(issues: list) -> list:
         if str(i.get("severity", "")).upper() not in _BLOCKING_SEVERITIES:
             continue
         blob = f"{i.get('title', '')} {i.get('why', '')}"
-        if _NONBLOCKING_CATEGORY_RE.search(blob) or _asserts_no_defect(blob):
+        if _NONBLOCKING_CATEGORY_RE.search(blob) or _asserts_no_defect(blob) or _is_design_observation(blob):
             i["_demoted_from"] = str(i.get("severity", "")).upper()
             i["severity"] = "INFO"
     return issues
@@ -426,7 +480,11 @@ def _demote_nonblocking_lines(review_text: str) -> str:
     out = []
     for line in review_text.splitlines():
         m = re.match(r"(\s*[-*]?\s*)\[\s*(?:CRITICAL|WARNING)\s*\](.*)", line, re.IGNORECASE)
-        if m and (_NONBLOCKING_CATEGORY_RE.search(m.group(2)) or _asserts_no_defect(m.group(2))):
+        if m and (
+            _NONBLOCKING_CATEGORY_RE.search(m.group(2))
+            or _asserts_no_defect(m.group(2))
+            or _is_design_observation(m.group(2))
+        ):
             line = f"{m.group(1)}[INFO]{m.group(2)}"
         out.append(line)
     return "\n".join(out)

@@ -11,6 +11,7 @@ import pytest
 
 from tools.repair_bay.services.pr_diff_analyzer import (
     _apply_severity_gate,
+    _is_design_observation,
     _demote_nonblocking_lines,
     _normalize_severity,
     _recompute_verdict,
@@ -128,3 +129,107 @@ def test_demote_lines_only_rewrites_matching():
     out = _demote_nonblocking_lines(text)
     assert "[INFO] Missing tests" in out
     assert "[CRITICAL] SQL injection" in out
+
+
+# ── design observations (2026-08-18) ─────────────────────────────────────────
+#
+# A third shape of non-finding that neither existing gate caught: a neutral remark about
+# SHAPE. _asserts_no_defect needs APPROVAL wording; _NONBLOCKING_CATEGORY_RE needs a known
+# nit CATEGORY. "introduces new functions which add complexity" is neither, so it blocked.
+#
+# Measured on three consecutive PRs (#2686/#2687/#2688), every one REQUEST CHANGES on a
+# WARNING of this shape. #2687 — an auth + rate-limit fix closing a LIVE anonymous path into
+# hub LLM work — was blocked twice by it. "This change adds code" cannot be a defect in a PR
+# whose whole purpose is to add a security gate.
+
+DESIGN_OBSERVATIONS = [
+    (
+        "Additional Functionality Introduced",
+        "Introduces new functions _rate_limited, _require_session and _public_api which add "
+        "complexity to the codebase.",
+    ),
+    ("Increased complexity", "this increases complexity in the module"),
+    ("New helpers", "introduces new helpers for the gate"),
+    (
+        "Hard-coded threshold",
+        "The threshold value of 180 minutes may be too long or too short, depending on the "
+        "expected update frequency.",
+    ),
+    ("Hardcoded timeout", "the timeout is hardcoded rather than configurable"),
+]
+
+# The carve-outs. A hardcoded SECRET or ADDRESS is a real bug in this codebase (the .env rules
+# and the mesh mandate exist because of exactly these), and any predicative fault claim wins
+# over the observation wording — so "adds complexity AND is vulnerable" must still block.
+DESIGN_LOOKALIKES_THAT_MUST_BLOCK = [
+    ("Hardcoded credential", "the API key is hard-coded in the module"),
+    ("Hardcoded secret", "password hard-coded in the source"),
+    ("Hardcoded token", "the bearer token is hardcoded"),
+    ("Hardcoded IP", "the mesh ip address is hardcoded, bypassing config"),
+    ("Hardcoded connection string", "the connection string is hard-coded"),
+    ("Complexity plus a fault", "adds complexity to the codebase and the new path is vulnerable to injection"),
+    ("New functions but broken", "introduces new helpers which fail to handle the None case"),
+    ("Complexity and a crash", "increases complexity and will crash on empty input"),
+    ("New class that lacks a guard", "introduces new classes which lack a permission check"),
+]
+
+
+@pytest.mark.parametrize("title,why", DESIGN_OBSERVATIONS)
+@pytest.mark.parametrize("sev", ["WARNING", "CRITICAL"])
+def test_design_observations_demoted_to_info(title, why, sev):
+    issues = [{"severity": sev, "title": title, "why": why, "evidence": "+x"}]
+    _normalize_severity(issues)
+    assert issues[0]["severity"] == "INFO", f"should demote {sev}: {title}"
+    assert issues[0]["_demoted_from"] == sev
+
+
+@pytest.mark.parametrize("title,why", DESIGN_LOOKALIKES_THAT_MUST_BLOCK)
+@pytest.mark.parametrize("sev", ["WARNING", "CRITICAL"])
+def test_design_lookalikes_keep_severity(title, why, sev):
+    """The safety half. If these ever demote, the gate has started swallowing real findings."""
+    issues = [{"severity": sev, "title": title, "why": why, "evidence": "+x"}]
+    _normalize_severity(issues)
+    assert issues[0]["severity"] == sev, f"must NOT demote: {title}"
+    assert "_demoted_from" not in issues[0]
+
+
+def test_hedged_security_language_still_blocks():
+    """Deliberately NOT demoted, and this test exists to keep it that way.
+
+    "could lead to bugs or security vulnerabilities if not thoroughly tested" is hedged and
+    arguably unfalsifiable — but it NAMES security vulnerabilities, so it reaches a human.
+    This is the finding that still blocks PR #2687 after this change shipped; loosening the
+    fault-assertion guard to clear it would be the author grading their own homework.
+    """
+    blob = (
+        "Introducing conditional logic for session checks could lead to bugs or "
+        "security vulnerabilities if not thoroughly tested."
+    )
+    assert not _is_design_observation(blob)
+    issues = [{"severity": "WARNING", "title": "Complexity in Session Handling", "why": blob, "evidence": "+x"}]
+    _normalize_severity(issues)
+    assert issues[0]["severity"] == "WARNING"
+
+
+def test_design_observation_needs_the_phrase_not_just_absence_of_faults():
+    """A benign-sounding finding with no design-observation phrase is NOT demoted by this gate —
+    it must fall through to the other gates or block. Absence of fault language is not enough."""
+    assert not _is_design_observation("The endpoint returns 200 for an empty result set.")
+
+
+def test_empty_blob_is_not_a_design_observation():
+    assert not _is_design_observation("")
+    assert not _is_design_observation(None)
+
+
+def test_freeform_path_demotes_design_observations_too():
+    """Both review paths must agree — a structured-only fix leaves freeform reviews blocking."""
+    text = (
+        "SUMMARY\nok\n\nISSUES\n"
+        "- [WARNING] Additional Functionality Introduced — introduces new functions which "
+        "add complexity to the codebase — Evidence: +def _require_session():\n"
+        "\nVERDICT: REQUEST CHANGES"
+    )
+    out = _demote_nonblocking_lines(text)
+    assert "[INFO] Additional Functionality" in out
+    assert _apply_severity_gate(out).strip().endswith("APPROVE") or "APPROVE" in _apply_severity_gate(out)

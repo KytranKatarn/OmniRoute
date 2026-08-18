@@ -337,6 +337,24 @@
 </div>
 {% endif %}
 
+{% if committees %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">🏛 House committees — current memberships</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for cm in committees %}
+    <a href="https://www.ourcommons.ca/Committees/en/{{ cm.committee_abbr }}" target="_blank" rel="noopener"
+       style="background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 12px;font-size:11px;color:#9ca3af;text-decoration:none;">
+      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span style="color:#0af;">{{ cm.role|capitalize }}</span>{% endif %}
+      <span style="color:#4b5563;margin-left:4px;">↗</span>
+    </a>
+    {% endfor %}
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">
+    Source: House of Commons · <a href="https://www.ourcommons.ca/Committees/en/List" target="_blank" rel="noopener" style="color:#374151;">ourcommons.ca/Committees</a>
+  </div>
+</div>
+{% endif %}
+
 {% if disclosures %}
 <div class="wtf-mp-section">
   <div class="wtf-mp-section-title">⚖️ Ethics Commissioner — disclosure documents</div>
@@ -350,7 +368,7 @@
     {% endfor %}
   </div>
   <div style="font-size:9px;color:#374151;margin-top:8px;">
-    Source: Conflict of Interest and Ethics Commissioner · <a href="https://prciec-rpccie.parl.gc.ca/EN/PublicRegistries/Pages/PublicRegistryCode.aspx" target="_blank" rel="noopener" style="color:#374151;">prciec-rpccie.parl.gc.ca</a>
+    Source: Conflict of Interest and Ethics Commissioner · <a href="https://www.ethicscanada.ca/en/public-registry" target="_blank" rel="noopener" style="color:#374151;">ethicscanada.ca</a>
   </div>
 </div>
 {% endif %}

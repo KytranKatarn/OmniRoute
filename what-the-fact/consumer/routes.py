@@ -2553,8 +2553,18 @@ def mp_profile(slug: str):
     expense_periods = []
     disclosures = []
     promises = []
+    committees = []
     try:
         with _db().begin() as c:
+            committees = c.execute(text("""
+                SELECT committee_abbr, committee_name, role
+                FROM parliament.mp_committees
+                WHERE member_id = :mp_id AND is_current
+                ORDER BY CASE role WHEN 'chair' THEN 0
+                                   WHEN 'vice-chair' THEN 1 ELSE 2 END,
+                         committee_name
+            """), {"mp_id": mp["id"]}).mappings().all()
+
             lobbying_contacts = c.execute(text("""
                 SELECT lc.lobbyist_last, lc.lobbyist_first, lc.client_org,
                        lc.communication_date, lc.comlog_id
@@ -2676,6 +2686,7 @@ def mp_profile(slug: str):
                            expense_periods=[dict(r) for r in expense_periods],
                            disclosures=[dict(r) for r in disclosures],
                            promises=[dict(r) for r in promises],
+                           committees=[dict(r) for r in committees],
                            is_subscriber=is_subscriber())
 
 

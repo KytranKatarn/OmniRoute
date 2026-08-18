@@ -309,7 +309,7 @@ TEAM_AGENTS = [
         "full": "Atmospheric & Universal Resource for Observation, Research & Analysis",
         "role": "Weather Intelligence",
         "model": "qwen2.5:7b",
-        "description": "Environment Canada + NASA EarthData + NOAA. Weather intelligence integrated into every story — because in Canada, the weather IS the news.",
+        "description": "Tracks climate and severe-weather coverage across our Canadian news sources — because in Canada, the weather IS the news.",
         "coming_soon": False,
         "portrait_url": _PLATFORM + "/static/media/images/2026-04-30/7b1193b5-868.png",
         "accent_colour": "#7c3aed",
@@ -574,8 +574,12 @@ def news():
 def weather():
     """A.U.R.O.R.A. — Weather & Climate Intelligence page.
 
-    Aggregates climate + science-tech beat articles, Environment Canada
-    context, and weather-relevant provincial stories.
+    Aggregates climate + science-tech beat articles and weather-relevant
+    provincial stories FROM OUR NEWS SOURCES. It does NOT ingest Environment
+    Canada / NASA / NOAA data: no weather feed, table or endpoint exists
+    (verified 2026-08-18). Do not re-add that claim to any user-facing copy
+    without shipping the ingest first — a false data-provenance claim is the
+    most damaging kind of error a fact-checking product can make.
     """
     S = _schema()
     with _db().begin() as c:

@@ -10,7 +10,7 @@
     <h1 style="font-size:1.6rem;color:#e0e0e0;margin:0 0 6px 0;">Public API v1</h1>
     <p style="color:#9ca3af;font-size:0.85rem;margin:0;">
       Read-only endpoints for researchers, civic-tech projects, and dashboards.
-      No auth required — rate-limited per IP. CORS open.
+      No auth required. CORS open. Fair-use: please keep request volume reasonable.
     </p>
   </div>
 
@@ -81,7 +81,7 @@
       Limits &amp; License
     </div>
     <div style="font-size:0.72rem;color:#9ca3af;line-height:1.7;">
-      <div><strong style="color:#e0e0e0;">Rate limit:</strong> 60 requests / 60-second rolling window per IP. Exceeding returns HTTP 429 with <code>Retry-After</code> header.</div>
+      <div><strong style="color:#e0e0e0;">Fair use:</strong> no hard per-IP quota is enforced on these endpoints today. Please keep request volume reasonable; abusive clients may be blocked at the edge. A published quota is planned — this page will state the real number when it ships.</div>
       <div><strong style="color:#e0e0e0;">Auth:</strong> none required for read endpoints.</div>
       <div><strong style="color:#e0e0e0;">CORS:</strong> open — call from any origin.</div>
       <div><strong style="color:#e0e0e0;">Versioning:</strong> every response carries <code>X-WTF-API-Version: v1</code>. Breaking changes ship as <code>/api/v2</code>.</div>

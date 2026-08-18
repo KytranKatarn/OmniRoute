@@ -146,6 +146,30 @@ def _expected_sha(repo, path, branch=None) -> str:
         return None
 
 
+_MIN_SHA_PREFIX = 7
+
+
+def _sha_matches(baked: str, expected: str) -> bool:
+    """True when the two SHAs name the same commit.
+
+    A git abbreviation is a PREFIX, so `e5e054f51` and `e5e054f51f4a` are the
+    same commit — but exact `==` calls them drift. Every deploy stamped with
+    `git rev-parse --short HEAD` therefore reported DRIFT forever (measured
+    2026-08-18 on wtf_consumer, which was byte-for-byte current). A drift
+    monitor that cries wolf is worse than none: it trains the reader to skip
+    the line where a REAL drift will one day appear.
+
+    Requires >= 7 chars on both sides before prefix-matching, so a truncated
+    or junk stamp cannot accidentally satisfy the check.
+    """
+    if not baked or not expected:
+        return False
+    b, e = baked.strip().lower(), expected.strip().lower()
+    if len(b) < _MIN_SHA_PREFIX or len(e) < _MIN_SHA_PREFIX:
+        return b == e
+    return e.startswith(b) or b.startswith(e)
+
+
 def _baked_sha(url: str) -> str:
     try:
         with urllib.request.urlopen(url, timeout=6) as r:  # noqa: S310 — trusted LAN endpoint
@@ -189,7 +213,7 @@ def check_products() -> list:
         # unreachable/unstamped — never counted as drift.
         if not expected or baked == "unknown" or baked.startswith("unreachable"):
             status = "fail_open"
-        elif bare == expected:
+        elif _sha_matches(bare, expected):
             status = "in_sync"
         else:
             status = "drift"

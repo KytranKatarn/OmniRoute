@@ -38,6 +38,17 @@
    ends where our data does. It is dimmed and says why on hover. */
 .wtf-wx-scope-btn.is-empty { opacity:.38; }
 .wtf-wx-maprow { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:20px; align-items:start; }
+/* MAP ZONE + content columns — mirrors the homepage (full-width map band above,
+   content columns below) so the weather page reads as the same furniture. */
+.wtf-wx-mapzone { background:#050d1a; border:1px solid #112233; border-radius:6px;
+                  padding:12px; margin:14px 0 20px; }
+.wtf-wx-mapzone .wtf-wx-maprow { margin-bottom:0; }
+.wtf-wx-below { display:grid; grid-template-columns:1fr 320px; gap:22px; align-items:start; }
+/* min-width:0 or a long headline blows the grid column out past the viewport */
+.wtf-wx-col-main, .wtf-wx-col-side { min-width:0; }
+/* totals read as a stacked sidebar rail here, not a wide banner row */
+.wtf-wx-col-side .wtf-wx-stats { flex-direction:column; gap:6px; margin:0 0 18px; }
+.wtf-wx-col-side .wtf-wx-stat { width:100%; }
 .wtf-wx-mapwrap { position:relative; background:#060d14; border:1px solid #0a1a2a; border-radius:6px; overflow:hidden; }
 #wtf-wx-map { height:420px; width:100%; background:#050a10; }
 .wtf-wx-layerbar { display:flex; gap:4px; padding:8px 10px; border-bottom:1px solid #0a1a2a; }
@@ -97,6 +108,8 @@
 .wtf-wx-age-silent { color:#9ca3af; }
 @media (max-width: 860px) {
   .wtf-wx-maprow { grid-template-columns:1fr; }
+  .wtf-wx-below { grid-template-columns:1fr; gap:16px; }
+  .wtf-wx-col-side .wtf-wx-stats { flex-direction:row; flex-wrap:wrap; }
   #wtf-wx-map { height:320px; }
 }
 
@@ -111,216 +124,228 @@
   </div>
 </div>
 
-<div class="wtf-wx-stats">
-  <div class="wtf-wx-stat">
-    <div class="wtf-wx-stat-n">{{ climate_count }}</div>
-    <div class="wtf-wx-stat-l">Climate stories</div>
-  </div>
-  <div class="wtf-wx-stat">
-    <div class="wtf-wx-stat-n">{{ sci_count }}</div>
-    <div class="wtf-wx-stat-l">Science &amp; tech</div>
-  </div>
-  <div class="wtf-wx-stat">
-    <div class="wtf-wx-stat-n">{{ source_count if source_count is defined else 46 }}</div>
-    <div class="wtf-wx-stat-l">Outlets tracked</div>
-  </div>
-</div>
+{# ── MAP ZONE ──────────────────────────────────────────────────────────────
+   Map first, then content in columns — the same shape as the homepage
+   (#wtf-map-zone above #wtf-main), so this reads as the same site.
 
-  {# ── A.U.R.O.R.A. environmental layers (project #393) ──────────────────────
-     The provenance strip below LOOPS `layers`. Do NOT hardcode a source name
-     here: this page previously advertised "Environment Canada + NASA EarthData
-     + NOAA" while holding no weather data at all (KB #290491). If a layer is
-     not in the database it does not appear, and a stale layer says so. #}
-  {% if layers %}
-  <div class="wtf-wx-section-title">Wildfire &amp; fire-weather — live layers</div>
+   Guard is `aurora_map` alone, NOT `aurora_map.stations`. Requiring fire-weather
+   stations meant a CWFIS outage would have taken the Current-weather city layer
+   down with it — city observations come from a different feed (MSC Datamart). #}
+{% if aurora_map %}
+<div class="wtf-wx-mapzone">
 
-  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
-    {% for L in layers %}
-    <div style="background:#060d14;border:1px solid {% if L.is_stale %}#7f1d1d{% else %}#1a3a5a{% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
-      <div style="font-size:9px;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">{{ L.layer_label }}</div>
-      <div style="font-size:15px;font-family:'Orbitron',sans-serif;color:{% if L.is_stale %}#ef4444{% else %}#60a5fa{% endif %};margin-top:3px;">
-        {{ '{:,}'.format(L.record_count or 0) }}
+    {# ── Interactive national / provincial map (task #5756) ───────────────────
+       Reuses the HOMEPAGE map stack verbatim — same Leaflet build, same CARTO
+       dark tiles, same canada-provinces.geojson, same province codes — so the
+       weather page reads as the same site rather than a bolt-on.
+
+       TWO layers, switchable, because they cover DISJOINT halves of the country
+       (see the weather() docstring): satellite hotspots are western/northern,
+       fire-weather stations are eastern. A province with no data on the ACTIVE
+       layer is drawn grey and labelled "no data on this layer" — never coloured
+       as though it measured zero. #}
+    <div class="wtf-wx-section-title">Explore by area</div>
+
+    <div class="wtf-wx-scope">
+      <button class="wtf-wx-scope-btn active" data-prov="" type="button">🍁 Canada</button>
+      {% for code in aurora_map.prov_order %}
+        {% set P = aurora_map.provinces.get(code) %}
+        <button class="wtf-wx-scope-btn{% if not P %} is-empty{% endif %}"
+                data-prov="{{ code }}" type="button"
+                {% if not P %}title="No A.U.R.O.R.A. layer covers this area yet"{% endif %}>{{ code }}</button>
+      {% endfor %}
+    </div>
+    <div class="wtf-wx-maprow">
+      <div class="wtf-wx-mapwrap">
+        <div class="wtf-wx-layerbar">
+          <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
+          <button class="wtf-wx-layer-btn" data-layer="wx" type="button">🌡 Fire weather</button>
+          <button class="wtf-wx-layer-btn" data-layer="cities" type="button">🌤 Current weather</button>
+        </div>
+        <div id="wtf-wx-map"></div>
+        <div class="wtf-wx-maplegend" id="wtf-wx-legend"></div>
       </div>
-      <div style="font-size:9px;color:#6b7280;margin-top:4px;line-height:1.5;">
-        {{ L.issuing_body }}<br>
-        <span style="color:#4b5563;">{{ L.dataset_id }}</span><br>
-        {% if L.is_stale %}
-        <span style="color:#ef4444;">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
+
+      {# A.U.R.O.R.A. readout for whatever area is selected. Phase 1 renders
+         MEASURED values only. The narrative outlook is Phase 3 (task #5761) and
+         says so plainly rather than showing an empty box that implies breakage. #}
+      <div class="wtf-wx-aurora" id="wtf-wx-aurora">
+        <div class="wtf-wx-aurora-head">
+          <span class="wtf-wx-aurora-badge">A.U.R.O.R.A.</span>
+          <span class="wtf-wx-aurora-scope" id="wtf-wx-scope-label">Canada</span>
+        </div>
+        <div class="wtf-wx-aurora-body" id="wtf-wx-aurora-body"></div>
+        <div class="wtf-wx-aurora-foot" id="wtf-wx-aurora-foot"></div>
+      </div>
+    </div>
+</div>
+{% endif %}
+
+{# Totals + articles below the map, in columns. #}
+<div class="wtf-wx-below">
+  <div class="wtf-wx-col-main">
+
+      {# ── City conditions (Phase 2, task #5760) ────────────────────────────────
+         25 cities covering ALL 13 provinces and territories. That coverage is
+         deliberate: the fire map above has to grey out five provinces because CWFIS
+         has no stations there, and a national weather page that quietly omitted the
+         North would repeat the same coverage dishonesty somewhere new.
+
+         Each card carries its OWN observation age. One blanket "updated N minutes
+         ago" for the whole page would be a claim about 25 independent feeds. #}
+      {% if aurora_cities and aurora_cities.cities %}
+      <div class="wtf-wx-section-title">
+        City conditions
+        <span style="color:#4b5563;font-size:10px;text-transform:none;letter-spacing:0;">
+          — {{ aurora_cities.reporting }} of {{ aurora_cities.count }} reporting
+          across {{ aurora_cities.provinces | length }} provinces &amp; territories
+        </span>
+      </div>
+      <div class="wtf-wx-citygrid" id="wtf-wx-citygrid"></div>
+      {% endif %}
+      <div class="wtf-wx-cards" id="wtf-wx-cards"></div>
+      <div class="wtf-wx-section-title">Recent climate &amp; science stories</div>
+
+      <div class="wtf-wx-article-list">
+        {% if articles %}
+        {% for a in articles %}
+        <div class="wtf-wx-article-card">
+          <div class="wtf-wx-card-meta">
+            <span class="beat-pill {% if a.beat == 'climate' %}beat-climate{% else %}beat-science{% endif %}">
+              {{ '🌱 climate' if a.beat == 'climate' else '🔬 sci-tech' }}
+            </span>
+            <a href="#" class="wtf-wx-outlet-link">{{ a.source or '' }}</a>
+            {% if a.province_code %}<span class="wtf-wx-province-tag">{{ a.province_code }}</span>{% endif %}
+            <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
+            {% if a.band %}<span style="color:#6b7280">{{ a.band.upper() }}</span>{% endif %}
+          </div>
+          <a href="/article/{{ a.id }}" class="wtf-wx-card-title">{{ a.title }}</a>
+          {% if a.cluster_size and a.cluster_size > 1 %}
+          <div class="wtf-wx-card-footer">
+            <a href="/cluster/{{ a.cluster_id }}" style="color:#0af;font-size:9px;text-decoration:none;">📰 {{ a.cluster_size }} outlets covering this</a>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
         {% else %}
-        pulled {{ L.last_pull.strftime('%Y-%m-%d %H:%M') }} UTC
+        <div class="wtf-wx-empty">
+          No climate or science stories in the last 7 days.<br>
+          Check back soon — the pipeline is running.
+        </div>
         {% endif %}
       </div>
+      <div style="margin-top:20px;text-align:center;">
+        <a href="/news?beat=climate" style="color:#7c3aed;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Climate →</a>
+        <a href="/news?beat=science-tech" style="color:#a78bfa;font-size:10px;letter-spacing:1px;text-decoration:none;">All Science & Tech →</a>
+      </div>
+  </div>
+
+  <aside class="wtf-wx-col-side">
+    <div class="wtf-wx-stats">
+      <div class="wtf-wx-stat">
+        <div class="wtf-wx-stat-n">{{ climate_count }}</div>
+        <div class="wtf-wx-stat-l">Climate stories</div>
+      </div>
+      <div class="wtf-wx-stat">
+        <div class="wtf-wx-stat-n">{{ sci_count }}</div>
+        <div class="wtf-wx-stat-l">Science &amp; tech</div>
+      </div>
+      <div class="wtf-wx-stat">
+        <div class="wtf-wx-stat-n">{{ source_count if source_count is defined else 46 }}</div>
+        <div class="wtf-wx-stat-l">Outlets tracked</div>
+      </div>
     </div>
-    {% endfor %}
-  </div>
+      {# ── A.U.R.O.R.A. environmental layers (project #393) ──────────────────────
+         The provenance strip below LOOPS `layers`. Do NOT hardcode a source name
+         here: this page previously advertised "Environment Canada + NASA EarthData
+         + NOAA" while holding no weather data at all (KB #290491). If a layer is
+         not in the database it does not appear, and a stale layer says so. #}
+      {% if layers %}
+      <div class="wtf-wx-section-title">Wildfire &amp; fire-weather — live layers</div>
 
-  {% if fire_summary %}
-  <div style="font-size:11px;color:#6b7280;margin-bottom:16px;line-height:1.7;">
-    <strong style="color:#e5e7eb;">{{ '{:,}'.format(fire_summary.perimeter_count) }}</strong> active fire perimeters mapped nationally
-    {% if fire_summary.earliest_start %}· earliest still burning since {{ fire_summary.earliest_start.strftime('%b %-d, %Y') }}{% endif %}
-    <br><span style="color:#4b5563;">The source publishes no fire name, province or cause on this layer, so none is shown.</span>
-  </div>
-  {% endif %}
-
-  {% if fire_provinces %}
-  <div style="overflow-x:auto;margin-bottom:20px;">
-    <table style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead><tr>
-        <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Province</th>
-        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Hotspots (72h)</th>
-        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Peak fire-weather index</th>
-      </tr></thead>
-      <tbody>
-        {% for f in fire_provinces %}
-        <tr>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#e5e7eb;">{{ f.prov }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#60a5fa;">{{ '{:,}'.format(f.hotspots) }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(f.max_fwi) if f.max_fwi is not none else '—' }}</td>
-        </tr>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
+        {% for L in layers %}
+        <div style="background:#060d14;border:1px solid {% if L.is_stale %}#7f1d1d{% else %}#1a3a5a{% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
+          <div style="font-size:9px;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">{{ L.layer_label }}</div>
+          <div style="font-size:15px;font-family:'Orbitron',sans-serif;color:{% if L.is_stale %}#ef4444{% else %}#60a5fa{% endif %};margin-top:3px;">
+            {{ '{:,}'.format(L.record_count or 0) }}
+          </div>
+          <div style="font-size:9px;color:#6b7280;margin-top:4px;line-height:1.5;">
+            {{ L.issuing_body }}<br>
+            <span style="color:#4b5563;">{{ L.dataset_id }}</span><br>
+            {% if L.is_stale %}
+            <span style="color:#ef4444;">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
+            {% else %}
+            pulled {{ L.last_pull.strftime('%Y-%m-%d %H:%M') }} UTC
+            {% endif %}
+          </div>
+        </div>
         {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-
-
-
-  {% if windiest %}
-  <div class="wtf-wx-section-title">Strongest winds at fire-weather stations</div>
-  <div style="overflow-x:auto;margin-bottom:22px;">
-    <table style="width:100%;border-collapse:collapse;font-size:12px;">
-      <thead><tr>
-        <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Station</th>
-        <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Prov</th>
-        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Wind</th>
-        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Gust</th>
-        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Temp</th>
-        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">FWI</th>
-      </tr></thead>
-      <tbody>
-        {% for w in windiest %}
-        <tr>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#e5e7eb;">{{ w.station_name or '—' }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#6b7280;">{{ w.prov or '—' }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#60a5fa;">{{ '%.0f'|format(w.wind_speed_kmh) }} km/h</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.0f'|format(w.wind_gust_kmh) if w.wind_gust_kmh is not none else '—' }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(w.temp_c) if w.temp_c is not none else '—' }}</td>
-          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(w.fwi) if w.fwi is not none else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% endif %}
-  {% endif %}
-
-  {# ── Interactive national / provincial map (task #5756) ───────────────────
-     Reuses the HOMEPAGE map stack verbatim — same Leaflet build, same CARTO
-     dark tiles, same canada-provinces.geojson, same province codes — so the
-     weather page reads as the same site rather than a bolt-on.
-
-     TWO layers, switchable, because they cover DISJOINT halves of the country
-     (see the weather() docstring): satellite hotspots are western/northern,
-     fire-weather stations are eastern. A province with no data on the ACTIVE
-     layer is drawn grey and labelled "no data on this layer" — never coloured
-     as though it measured zero. #}
-  {% if aurora_map and aurora_map.stations %}
-  <div class="wtf-wx-section-title">Explore by area</div>
-
-  <div class="wtf-wx-scope">
-    <button class="wtf-wx-scope-btn active" data-prov="" type="button">🍁 Canada</button>
-    {% for code in aurora_map.prov_order %}
-      {% set P = aurora_map.provinces.get(code) %}
-      <button class="wtf-wx-scope-btn{% if not P %} is-empty{% endif %}"
-              data-prov="{{ code }}" type="button"
-              {% if not P %}title="No A.U.R.O.R.A. layer covers this area yet"{% endif %}>{{ code }}</button>
-    {% endfor %}
-  </div>
-
-  <div class="wtf-wx-maprow">
-    <div class="wtf-wx-mapwrap">
-      <div class="wtf-wx-layerbar">
-        <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
-        <button class="wtf-wx-layer-btn" data-layer="wx" type="button">🌡 Fire weather</button>
-        <button class="wtf-wx-layer-btn" data-layer="cities" type="button">🌤 Current weather</button>
       </div>
-      <div id="wtf-wx-map"></div>
-      <div class="wtf-wx-maplegend" id="wtf-wx-legend"></div>
-    </div>
 
-    {# A.U.R.O.R.A. readout for whatever area is selected. Phase 1 renders
-       MEASURED values only. The narrative outlook is Phase 3 (task #5761) and
-       says so plainly rather than showing an empty box that implies breakage. #}
-    <div class="wtf-wx-aurora" id="wtf-wx-aurora">
-      <div class="wtf-wx-aurora-head">
-        <span class="wtf-wx-aurora-badge">A.U.R.O.R.A.</span>
-        <span class="wtf-wx-aurora-scope" id="wtf-wx-scope-label">Canada</span>
-      </div>
-      <div class="wtf-wx-aurora-body" id="wtf-wx-aurora-body"></div>
-      <div class="wtf-wx-aurora-foot" id="wtf-wx-aurora-foot"></div>
-    </div>
-  </div>
-
-
-  {# ── City conditions (Phase 2, task #5760) ────────────────────────────────
-     25 cities covering ALL 13 provinces and territories. That coverage is
-     deliberate: the fire map above has to grey out five provinces because CWFIS
-     has no stations there, and a national weather page that quietly omitted the
-     North would repeat the same coverage dishonesty somewhere new.
-
-     Each card carries its OWN observation age. One blanket "updated N minutes
-     ago" for the whole page would be a claim about 25 independent feeds. #}
-  {% if aurora_cities and aurora_cities.cities %}
-  <div class="wtf-wx-section-title">
-    City conditions
-    <span style="color:#4b5563;font-size:10px;text-transform:none;letter-spacing:0;">
-      — {{ aurora_cities.reporting }} of {{ aurora_cities.count }} reporting
-      across {{ aurora_cities.provinces | length }} provinces &amp; territories
-    </span>
-  </div>
-  <div class="wtf-wx-citygrid" id="wtf-wx-citygrid"></div>
-  {% endif %}
-
-  <div class="wtf-wx-cards" id="wtf-wx-cards"></div>
-  {% endif %}
-
-  <div class="wtf-wx-section-title">Recent climate &amp; science stories</div>
-
-  <div class="wtf-wx-article-list">
-    {% if articles %}
-    {% for a in articles %}
-    <div class="wtf-wx-article-card">
-      <div class="wtf-wx-card-meta">
-        <span class="beat-pill {% if a.beat == 'climate' %}beat-climate{% else %}beat-science{% endif %}">
-          {{ '🌱 climate' if a.beat == 'climate' else '🔬 sci-tech' }}
-        </span>
-        <a href="#" class="wtf-wx-outlet-link">{{ a.source or '' }}</a>
-        {% if a.province_code %}<span class="wtf-wx-province-tag">{{ a.province_code }}</span>{% endif %}
-        <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
-        {% if a.band %}<span style="color:#6b7280">{{ a.band.upper() }}</span>{% endif %}
-      </div>
-      <a href="/article/{{ a.id }}" class="wtf-wx-card-title">{{ a.title }}</a>
-      {% if a.cluster_size and a.cluster_size > 1 %}
-      <div class="wtf-wx-card-footer">
-        <a href="/cluster/{{ a.cluster_id }}" style="color:#0af;font-size:9px;text-decoration:none;">📰 {{ a.cluster_size }} outlets covering this</a>
+      {% if fire_summary %}
+      <div style="font-size:11px;color:#6b7280;margin-bottom:16px;line-height:1.7;">
+        <strong style="color:#e5e7eb;">{{ '{:,}'.format(fire_summary.perimeter_count) }}</strong> active fire perimeters mapped nationally
+        {% if fire_summary.earliest_start %}· earliest still burning since {{ fire_summary.earliest_start.strftime('%b %-d, %Y') }}{% endif %}
+        <br><span style="color:#4b5563;">The source publishes no fire name, province or cause on this layer, so none is shown.</span>
       </div>
       {% endif %}
-    </div>
-    {% endfor %}
-    {% else %}
-    <div class="wtf-wx-empty">
-      No climate or science stories in the last 7 days.<br>
-      Check back soon — the pipeline is running.
-    </div>
-    {% endif %}
-  </div>
 
-  <div style="margin-top:20px;text-align:center;">
-    <a href="/news?beat=climate" style="color:#7c3aed;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Climate →</a>
-    <a href="/news?beat=science-tech" style="color:#a78bfa;font-size:10px;letter-spacing:1px;text-decoration:none;">All Science & Tech →</a>
-  </div>
+      {% if fire_provinces %}
+      <div style="overflow-x:auto;margin-bottom:20px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr>
+            <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Province</th>
+            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Hotspots (72h)</th>
+            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Peak fire-weather index</th>
+          </tr></thead>
+          <tbody>
+            {% for f in fire_provinces %}
+            <tr>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#e5e7eb;">{{ f.prov }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#60a5fa;">{{ '{:,}'.format(f.hotspots) }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(f.max_fwi) if f.max_fwi is not none else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
 
-{% if aurora_map and aurora_map.stations %}
+
+
+      {% if windiest %}
+      <div class="wtf-wx-section-title">Strongest winds at fire-weather stations</div>
+      <div style="overflow-x:auto;margin-bottom:22px;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr>
+            <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Station</th>
+            <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Prov</th>
+            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Wind</th>
+            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Gust</th>
+            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">Temp</th>
+            <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid #1a3a5a;">FWI</th>
+          </tr></thead>
+          <tbody>
+            {% for w in windiest %}
+            <tr>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#e5e7eb;">{{ w.station_name or '—' }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:#6b7280;">{{ w.prov or '—' }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#60a5fa;">{{ '%.0f'|format(w.wind_speed_kmh) }} km/h</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.0f'|format(w.wind_gust_kmh) if w.wind_gust_kmh is not none else '—' }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(w.temp_c) if w.temp_c is not none else '—' }}</td>
+              <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:#6b7280;">{{ '%.1f'|format(w.fwi) if w.fwi is not none else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% endif %}
+  </aside>
+</div>
+
+{% if aurora_map %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 <script>

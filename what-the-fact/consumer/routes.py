@@ -2278,6 +2278,11 @@ _LOBBY_CACHE_TTL = int(os.environ.get("WTF_LOBBY_CACHE_TTL", "1800"))
 # Registry junk that must never reach a leaderboard: 1,286 rows have an empty
 # client_org and 464 carry the LITERAL four-character string 'null' (true SQL
 # NULLs: zero). Unfiltered, 'null' ranks 8th among 3,689 organizations.
+# Deep OFFSET paging is unbounded work: Postgres walks every skipped row, so
+# a far page costs ~19x a near one. Cap it and point bulk callers at `since`
+# (index-backed). 10k rows deep is far past any legitimate UI need.
+_API_MAX_OFFSET = int(os.environ.get("WTF_API_MAX_OFFSET", "10000"))
+
 _LOBBY_ORG_FILTER = "btrim(lc.client_org) NOT IN ('', 'null', 'NULL')"
 
 
@@ -3609,7 +3614,15 @@ def api_v1_articles():
     beat = _norm_beat(beat)
     try:
         limit = min(100, max(1, int(_req.args.get("limit", 50))))
-        offset = max(0, int(_req.args.get("offset", 0)))
+        # OFFSET IS CLAMPED because deep paging is the real availability risk on
+        # this endpoint — not request volume. A deep page costs ~19x a shallow
+        # one (Postgres still walks every skipped row), so SIX concurrent
+        # deep-offset requests — an order of magnitude UNDER the published
+        # 60/min quota — drove the public /news page from 0.14s to 11.13s
+        # (measured 2026-08-18). No rate-limit setting fixes that; bounding the
+        # scan does. Callers needing the full corpus should page by `since`,
+        # which is index-backed and unbounded.
+        offset = max(0, min(_API_MAX_OFFSET, int(_req.args.get("offset", 0))))
     except (TypeError, ValueError):
         return _api_cors_response({"ok": False, "error": "invalid_limit_or_offset"}, status=400)
 

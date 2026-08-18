@@ -672,16 +672,68 @@ def municipal():
                            is_subscriber=is_subscriber())
 
 
-@bp.get("/activity")
-def activity():
-    from flask import request as _req
-    S = _schema()
-    PAGE_SIZE = 100
-    page = max(1, int(_req.args.get("page", 1)))
-    agent_filter = _req.args.get("agent", "all")
-    offset = (page - 1) * PAGE_SIZE
+# /activity stats bundle cache — every block on the page except the paginated
+# event feed is identical for all visitors but was recomputed per request:
+# ~40 whole-table COUNTs (articles 108k / fact_checks 357k / audit_trail 214k)
+# + analytics + sparklines + source-health measured 20-36s per page view.
+# One shared snapshot, 5-min TTL (per gunicorn worker); the event feed stays
+# per-request but each union branch is pre-sorted + capped (#5725).
+_ACTIVITY_CACHE: dict = {}  # 'bundle' -> (expiry, dict) | ('total', filter) -> (expiry, int)
+_ACTIVITY_CACHE_TTL = int(os.environ.get("WTF_ACTIVITY_CACHE_TTL", "300"))
 
+
+def _activity_agent_queries(S):
+    """Per-agent event-feed branch queries (shared by the feed page + total)."""
+    return {
+        "F.A.C.T.": f"""
+            SELECT 'F.A.C.T.' AS agent, a.id AS article_id, a.title AS title,
+                   'ingested' AS result, at.created_at AS ts, s.name AS source
+            FROM {S}.audit_trail at
+            JOIN {S}.articles a ON a.id = at.article_id
+            JOIN {S}.sources s ON s.id = a.source_id
+            WHERE at.event_type = 'ingested'""",
+        "B.I.A.S.": f"""
+            SELECT 'B.I.A.S.' AS agent, a.id AS article_id, a.title AS title,
+                   bs.band AS result, bs.computed_at AS ts, s.name AS source
+            FROM {S}.bias_scores bs
+            JOIN {S}.articles a ON a.id = bs.article_id
+            JOIN {S}.sources s ON s.id = a.source_id""",
+        "V.E.R.I.F.Y.": f"""
+            SELECT 'V.E.R.I.F.Y.' AS agent, a.id AS article_id, a.title AS title,
+                   fc.overall_verdict AS result, fc.checked_at AS ts, s.name AS source
+            FROM {S}.fact_checks fc
+            JOIN {S}.articles a ON a.id = fc.article_id
+            JOIN {S}.sources s ON s.id = a.source_id""",
+        "L.O.C.A.L.": f"""
+            SELECT 'L.O.C.A.L.' AS agent, a.id AS article_id, a.title AS title,
+                   a.province_code AS result, at.created_at AS ts, s.name AS source
+            FROM {S}.articles a
+            JOIN {S}.sources s ON s.id = a.source_id
+            JOIN {S}.audit_trail at ON at.article_id = a.id AND at.event_type = 'ingested'
+            WHERE a.province_code IS NOT NULL""",
+        "D.R.A.F.T.": f"""
+            SELECT 'D.R.A.F.T.' AS agent, NULL AS article_id,
+                   sc.representative_title AS title,
+                   'summarized' AS result, su.created_at AS ts, NULL AS source
+            FROM {S}.summaries su
+            JOIN {S}.story_clusters sc ON sc.id = su.cluster_id""",
+        "I.N.K.": f"""
+            SELECT 'I.N.K.' AS agent, NULL AS article_id,
+                   representative_title AS title,
+                   CONCAT(article_count::text, ' article', CASE WHEN article_count = 1 THEN '' ELSE 's' END) AS result,
+                   created_at AS ts, NULL AS source
+            FROM {S}.story_clusters""",
+    }
+
+
+def _activity_bundle(S):
+    """Everything on /activity except the paginated event feed — one shared
+    snapshot cached _ACTIVITY_CACHE_TTL seconds."""
+    ent = _ACTIVITY_CACHE.get("bundle")
+    if ent and ent[0] > time.time():
+        return ent[1]
     with _db().begin() as c:
+        c.execute(text("SET LOCAL jit = off"))
         source_count = c.execute(
             text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
@@ -809,62 +861,6 @@ def activity():
             "verify": _trend_pct(stats["verify_24h"], stats["verify_yesterday"]),
         }
 
-        # Build unified event query per agent type, then union + paginate
-        agent_queries = {
-            "F.A.C.T.": f"""
-                SELECT 'F.A.C.T.' AS agent, a.id AS article_id, a.title AS title,
-                       'ingested' AS result, at.created_at AS ts, s.name AS source
-                FROM {S}.audit_trail at
-                JOIN {S}.articles a ON a.id = at.article_id
-                JOIN {S}.sources s ON s.id = a.source_id
-                WHERE at.event_type = 'ingested'""",
-            "B.I.A.S.": f"""
-                SELECT 'B.I.A.S.' AS agent, a.id AS article_id, a.title AS title,
-                       bs.band AS result, bs.computed_at AS ts, s.name AS source
-                FROM {S}.bias_scores bs
-                JOIN {S}.articles a ON a.id = bs.article_id
-                JOIN {S}.sources s ON s.id = a.source_id""",
-            "V.E.R.I.F.Y.": f"""
-                SELECT 'V.E.R.I.F.Y.' AS agent, a.id AS article_id, a.title AS title,
-                       fc.overall_verdict AS result, fc.checked_at AS ts, s.name AS source
-                FROM {S}.fact_checks fc
-                JOIN {S}.articles a ON a.id = fc.article_id
-                JOIN {S}.sources s ON s.id = a.source_id""",
-            "L.O.C.A.L.": f"""
-                SELECT 'L.O.C.A.L.' AS agent, a.id AS article_id, a.title AS title,
-                       a.province_code AS result, at.created_at AS ts, s.name AS source
-                FROM {S}.articles a
-                JOIN {S}.sources s ON s.id = a.source_id
-                JOIN {S}.audit_trail at ON at.article_id = a.id AND at.event_type = 'ingested'
-                WHERE a.province_code IS NOT NULL""",
-            "D.R.A.F.T.": f"""
-                SELECT 'D.R.A.F.T.' AS agent, NULL AS article_id,
-                       sc.representative_title AS title,
-                       'summarized' AS result, su.created_at AS ts, NULL AS source
-                FROM {S}.summaries su
-                JOIN {S}.story_clusters sc ON sc.id = su.cluster_id""",
-            "I.N.K.": f"""
-                SELECT 'I.N.K.' AS agent, NULL AS article_id,
-                       representative_title AS title,
-                       CONCAT(article_count::text, ' article', CASE WHEN article_count = 1 THEN '' ELSE 's' END) AS result,
-                       created_at AS ts, NULL AS source
-                FROM {S}.story_clusters""",
-        }
-
-        if agent_filter != "all" and agent_filter in agent_queries:
-            selected = {agent_filter: agent_queries[agent_filter]}
-        else:
-            selected = agent_queries
-
-        union_sql = " UNION ALL ".join(f"({q})" for q in selected.values())
-        total = c.execute(text(f"SELECT COUNT(*) FROM ({union_sql}) x")).scalar() or 0
-
-        rows = c.execute(text(f"""
-            SELECT * FROM ({union_sql}) x
-            ORDER BY ts DESC NULLS LAST
-            LIMIT {PAGE_SIZE} OFFSET {offset}
-        """)).fetchall()
-
         def _daily(sql: str) -> list:
             today = datetime.date.today()
             by_date = {r[0]: int(r[1] or 0) for r in c.execute(text(sql)).fetchall()}
@@ -947,6 +943,71 @@ def activity():
             "status": status,
         })
 
+    B = {
+        "source_count": source_count,
+        "stats": dict(stats),
+        "trends": trends,
+        "beat_breakdown": beat_breakdown,
+        "top_stories": top_stories,
+        "throughput_sparkline": throughput_sparkline,
+        "bias_spectrum": bias_spectrum,
+        "llm_rate": llm_rate,
+        "geo_rate": geo_rate,
+        "sparklines": sparklines,
+        "source_health": source_health,
+    }
+    _ACTIVITY_CACHE["bundle"] = (time.time() + _ACTIVITY_CACHE_TTL, B)
+    return B
+
+
+@bp.get("/activity")
+def activity():
+    from flask import request as _req
+    S = _schema()
+    PAGE_SIZE = 100
+    # Page cap bounds the per-branch feed LIMIT below (100 pages = 10k events
+    # per branch worst case — far beyond any human scroll depth).
+    page = max(1, min(100, int(_req.args.get("page", 1))))
+    agent_filter = _req.args.get("agent", "all")
+    offset = (page - 1) * PAGE_SIZE
+
+    B = _activity_bundle(S)
+    stats = B["stats"]
+
+    agent_queries = _activity_agent_queries(S)
+    if agent_filter != "all" and agent_filter in agent_queries:
+        selected = {agent_filter: agent_queries[agent_filter]}
+    else:
+        selected = agent_queries
+
+    # Feed total is a whole-union COUNT (~800k rows) — cache per filter.
+    _tk = ("total", agent_filter if agent_filter in agent_queries else "all")
+    _te = _ACTIVITY_CACHE.get(_tk)
+
+    with _db().begin() as c:
+        c.execute(text("SET LOCAL jit = off"))
+        if _te and _te[0] > time.time():
+            total = _te[1]
+        else:
+            union_all = " UNION ALL ".join(f"({q})" for q in selected.values())
+            total = c.execute(text(f"SELECT COUNT(*) FROM ({union_all}) x")).scalar() or 0
+            _ACTIVITY_CACHE[_tk] = (time.time() + _ACTIVITY_CACHE_TTL, total)
+
+        # Each branch is pre-sorted + capped so the union never materializes
+        # and sorts whole tables per request (was ~800k rows every view). The
+        # branch ts columns are indexed (migration 051), so each cap is an
+        # index-ordered top-N.
+        cap = offset + PAGE_SIZE
+        union_sql = " UNION ALL ".join(
+            f"(SELECT * FROM ({q}) b{i} ORDER BY ts DESC NULLS LAST LIMIT {cap})"
+            for i, q in enumerate(selected.values())
+        )
+        rows = c.execute(text(f"""
+            SELECT * FROM ({union_sql}) x
+            ORDER BY ts DESC NULLS LAST
+            LIMIT {PAGE_SIZE} OFFSET {offset}
+        """)).fetchall()
+
     events = [
         {"agent": r[0], "article_id": r[1], "title": (r[2] or "")[:120],
          "result": r[3] or "", "source": r[5] or "",
@@ -955,6 +1016,8 @@ def activity():
     ]
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
 
+    llm_rate = B["llm_rate"]
+    geo_rate = B["geo_rate"]
     llm_pending_count = int(stats.get("llm_pending") or 0)
     geo_pending_count = int(stats.get("geo_pending") or 0)
     llm_days_left = round(llm_pending_count / (llm_rate * 24), 1) if llm_rate > 0 else None
@@ -963,17 +1026,18 @@ def activity():
 
     creed_scan = _fetch_creed_scan()
 
-    return render_template("activity.html", events=events, source_count=source_count,
+    return render_template("activity.html", events=events,
+                           source_count=B["source_count"],
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, agent_filter=agent_filter,
-                           stats=dict(stats), source_health=source_health,
-                           sparklines=sparklines,
+                           stats=stats, source_health=B["source_health"],
+                           sparklines=B["sparklines"],
                            agent_stats=_fetch_agent_stats(),
-                           trends=trends,
-                           beat_breakdown=beat_breakdown,
-                           top_stories=top_stories,
-                           throughput_sparkline=throughput_sparkline,
-                           bias_spectrum=bias_spectrum,
+                           trends=B["trends"],
+                           beat_breakdown=B["beat_breakdown"],
+                           top_stories=B["top_stories"],
+                           throughput_sparkline=B["throughput_sparkline"],
+                           bias_spectrum=B["bias_spectrum"],
                            llm_days_left=llm_days_left,
                            geo_days_left=geo_days_left,
                            llm_rate=round(llm_rate, 1),
@@ -2890,18 +2954,32 @@ def search():
     results = []
     if q:
         with _db().begin() as c:
+            c.execute(text("SET LOCAL jit = off"))
             source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+            # The WHERE expression must stay byte-identical to the expression
+            # GIN index idx_articles_fts (migration 051) or the planner falls
+            # back to a full seq scan recomputing to_tsvector over 108k bodies
+            # — measured 45s+ per query, a guaranteed edge 504 (#5725).
+            # ts_rank re-derives the tsvector per row (detoasting the body),
+            # so it runs only over the newest 400 matches, never unbounded:
+            # relevance-among-recent is the right semantics for a news site.
             rows = c.execute(text(f"""
-                SELECT a.id, a.title, a.url, a.published_at,
-                       s.name AS source, s.slug AS source_slug, b.band,
-                       ts_rank(to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,'')),
+                SELECT m.id, m.title, m.url, m.published_at,
+                       m.source, m.source_slug, m.band,
+                       ts_rank(to_tsvector('english', COALESCE(m.title,'') || ' ' || COALESCE(m.body,'')),
                                plainto_tsquery('english', :q)) AS rank
-                FROM {S}.articles a
-                JOIN {S}.sources s ON s.id = a.source_id
-                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-                WHERE to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
-                      @@ plainto_tsquery('english', :q)
-                ORDER BY rank DESC, a.published_at DESC
+                FROM (
+                    SELECT a.id, a.title, a.body, a.url, a.published_at,
+                           s.name AS source, s.slug AS source_slug, b.band
+                    FROM {S}.articles a
+                    JOIN {S}.sources s ON s.id = a.source_id
+                    LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                    WHERE to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
+                          @@ plainto_tsquery('english', :q)
+                    ORDER BY a.published_at DESC
+                    LIMIT 400
+                ) m
+                ORDER BY rank DESC, m.published_at DESC
                 LIMIT 50
             """), {"q": q}).mappings().all()
         results = [dict(r) for r in rows]

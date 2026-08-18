@@ -29,6 +29,16 @@ services:
     # archie_platform container (172.x.x.x) can authenticate against ntopng
     # the same way host LAN traffic can. Without this, ntopng returns
     # wrong-credentials for any request from a non-LAN source IP.
+    #
+    # entrypoint bypasses the image's /run.sh, which UNCONDITIONALLY starts a
+    # bundled redis-server that races network_redis's 127.0.0.1:6379 publish in
+    # the host netns — whichever bound first won, so the backend ntopng used
+    # flipped nondeterministically at recreate (the #5704 credential/stats
+    # split-brain class). network_redis (persistent volume, memory-capped) is
+    # THE backend; the bundled redis never starts. Owner-approved 2026-08-18.
+    entrypoint: ["ntopng"]
+    depends_on:
+      - network_redis
     command: --redis 127.0.0.1:6379 -i eno1 -w 3001 --community -m "192.168.1.0/24,172.16.0.0/12"
     volumes:
       - network_ntopng_data:/var/lib/ntopng

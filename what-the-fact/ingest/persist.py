@@ -43,12 +43,59 @@ def _schema() -> str:
     return os.environ.get("WTF_SCHEMA", "wtf")
 
 
+
+# A headline that is only the publisher's own name is not a headline. Google
+# News emits exactly this when it has no title for an item — measured 2026-08-18:
+# 74 of La Presse's 180 articles were the literal string "- La Presse+", giving
+# that source 43.9% title uniqueness while every other source sat above 73%.
+# Those rows still got bias-scored and fact-checked, so the pipeline spent real
+# work on a string that says nothing (#5775).
+#
+# Deliberately NARROW. It matches a title that is ONLY punctuation + the source
+# name (+ an optional trailing '+' or '|' fragment). A real headline that merely
+# CONTAINS the publisher's name is untouched.
+_JUNK_TITLE_MAX_LEN = 60
+
+
+def is_publisher_suffix_title(title, source_name):
+    """True when `title` carries no information beyond the publisher's name."""
+    if not title or not source_name:
+        return False
+    def _norm(v):
+        # Callers pass a SLUG ("la-presse") while the junk title carries the
+        # display name ("La Presse"), so hyphens/underscores normalise to spaces
+        # before comparing. Without this the guard silently never matches.
+        v = " ".join(str(v).replace("-", " ").replace("_", " ").split())
+        return v.strip(" |\u2013\u2014\u00b7+").casefold()
+
+    t = " ".join(str(title).split())
+    if len(t) > _JUNK_TITLE_MAX_LEN:
+        return False
+    # Google leaves separators behind: "- Name+", "| Name". Strip the leading
+    # dash here (not in _norm) so a hyphenated slug keeps its internal hyphens
+    # converted to spaces rather than being eaten.
+    stripped = _norm(t.lstrip(" -|\u2013\u2014\u00b7"))
+    name = _norm(source_name)
+    return bool(name) and stripped == name
+
+
 def upsert_article(
     engine, source_id: int, article: dict, bias: dict, source_slug: str = ""
 ) -> bool:
     """Insert article + bias_score + audit entry, then cluster + fact-check. Returns article_id (int) on insert, None on dedupe/failure."""
     S = _schema()
     aid = None
+
+    # Reject a title that is only the publisher's name BEFORE it costs a bias
+    # score and a fact-check. Treated as a dedupe (return None), not an error:
+    # the feed is working, this one item simply carries no headline.
+    if is_publisher_suffix_title(article.get("title"), source_slug or article.get("source_name")):
+        logger.warning(
+            "persist: dropping publisher-suffix title from source %s: %r",
+            source_id, (article.get("title") or "")[:80],
+        )
+        return None
+
     with engine.begin() as c:
         r = c.execute(
             text(f"""

@@ -164,15 +164,48 @@ if res.get('merged'):
 err = (res.get('error') or '')
 low = err.lower()
 stale = ('stale verdict' in low) or ('head is now' in low)
-authority = ('allowlist' in low) or ('a human must merge' in low) or ('max_auto' in low) or ('ceiling' in low)
+
+# THREE governance families, and they need THREE different responses (#5778).
+#
+# ALLOWLIST — "changes files outside the auto-merge allowlist ... a human must
+#   merge it deliberately". The allowlist exists PRECISELY to require a human,
+#   so an interactive authenticated caller overriding it is the sanctioned path.
+allowlist = ('allowlist' in low) or ('a human must merge' in low)
+#
+# TIER CEILING — "Tier 2 > FORGE_AUTO_MERGE_MAX_TIER=1 for authority 'forge' —
+#   gated for the next level up". This is NOT a request for a human. The gate is
+#   telling the caller to ESCALATE: A.R.C.H.I.E. as COO carries a higher ceiling
+#   and merges exactly this tier herself (observed live on PR #2683, "cleared for
+#   unattended merge ... under authority 'coo'"). Overriding here would step over
+#   her delegated authority — the same mistake as PR #2459, which gated the COO
+#   under a FORGE_-scoped setting.
+#
+#   ⚠️ The old single `authority` test looked for 'max_auto'. The real string is
+#   FORGE_AUTO_MERGE_MAX_TIER -> 'max_tier'. It could therefore NEVER match, and
+#   a tier-ceiling refusal silently fell through to the generic fail-closed
+#   branch. That accident produced the RIGHT outcome for the WRONG reason; it is
+#   now explicit.
+tier_ceiling = ('max_tier' in low) or ('ceiling' in low) or ('next level up' in low)
+#
+#   NOTE the deliberate gap: a TIER 3 refusal that does not carry one of those
+#   tokens falls through to the generic fail-closed branch below, and that is
+#   RIGHT. Tier 3 is Kytran's and is auto-merged by nobody — not F.O.R.G.E., not
+#   the COO, not this skill. Escalating it would be as wrong as overriding it.
 
 if res.get('governance_blocked') and stale:
     print('REFUSED (stale verdict): the approval covers an OLDER commit than the head.')
     print('  Re-run review_pr(PR) so the verdict covers what is actually being merged,')
     print('  then re-run this step. Never override a stale verdict.')
     print('  gate said:', err[:220]); sys.exit(1)
-elif res.get('governance_blocked') and authority:
-    print('gate refused (authority/allowlist):', err[:200])
+elif res.get('governance_blocked') and tier_ceiling:
+    # NOT an error, and NOT ours to override. Report and stop.
+    print('ESCALATED (tier ceiling): this PR is above F.O.R.G.E.\'s auto-merge tier.')
+    print('  The gate is routing it UP, not asking for a human. A.R.C.H.I.E. as COO')
+    print('  carries the higher ceiling and merges this tier herself — leave it.')
+    print('  Re-check in a few minutes, or merge deliberately if it is genuinely yours.')
+    print('  gate said:', err[:220]); sys.exit(0)
+elif res.get('governance_blocked') and allowlist:
+    print('gate refused (allowlist — a human must merge deliberately):', err[:200])
     res2 = merge_pr(PR, 'squash', human_override=True)
     print('MERGE:', 'merged (human_override; verdict pre-verified AND covers head)'
           if res2.get('merged') else 'FAILED', '|', (res2.get('error') or '')[:160])

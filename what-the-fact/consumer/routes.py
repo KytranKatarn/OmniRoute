@@ -462,7 +462,7 @@ def news():
             SELECT COUNT(*) FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE 1=1 {band_where}
+            WHERE 1=1 AND a.suppressed_reason IS NULL {band_where}
         """), params).scalar() or 0
         # #5719 rewrite — the old form joined fact_checks/decorations across
         # the WHOLE table before ranking: the newest-per-cluster subquery ran
@@ -483,7 +483,7 @@ def news():
                 FROM {S}.articles a
                 JOIN {S}.sources s ON s.id = a.source_id
                 LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-                WHERE 1=1 {band_where}
+                WHERE 1=1 AND a.suppressed_reason IS NULL {band_where}
                 AND (a.cluster_id IS NULL OR a.id = (
                     SELECT a2.id FROM {S}.articles a2
                     WHERE a2.cluster_id = a.cluster_id
@@ -610,7 +610,7 @@ def weather():
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
-            WHERE a.beat IN ('climate', 'science-tech')
+            WHERE a.suppressed_reason IS NULL AND a.beat IN ('climate', 'science-tech')
             ORDER BY a.published_at DESC
             LIMIT 60
         """)).mappings().all()
@@ -759,7 +759,7 @@ def economy():
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
-            WHERE a.beat IN ('economy', 'business', 'foreign-policy')
+            WHERE a.suppressed_reason IS NULL AND a.beat IN ('economy', 'business', 'foreign-policy')
             ORDER BY a.published_at DESC
             LIMIT 60
         """)).mappings().all()
@@ -806,7 +806,7 @@ def municipal():
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
-            WHERE a.beat = 'municipal'{city_clause}
+            WHERE a.suppressed_reason IS NULL AND a.beat = 'municipal'{city_clause}
             ORDER BY a.published_at DESC
             LIMIT 60
         """), params).mappings().all()
@@ -1275,7 +1275,8 @@ def index():
             -- parse error) that would pin that one article atop the feed indefinitely.
             -- Exclude anything more than a small grace window ahead of now.
             -- (WTF front-page freeze, 2026-07-14)
-            WHERE a.published_at <= NOW() + INTERVAL '2 hours'
+            WHERE a.suppressed_reason IS NULL
+                  AND a.published_at <= NOW() + INTERVAL '2 hours'
             ORDER BY a.published_at DESC LIMIT 50
         """)).mappings().all()
         source_count = c.execute(
@@ -1460,7 +1461,7 @@ def proxy_articles_geo():
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE {' AND '.join(where)}
+            WHERE a.suppressed_reason IS NULL AND {' AND '.join(where)}
             ORDER BY a.published_at DESC NULLS LAST
             LIMIT 500
         """), params).mappings().all()
@@ -1832,7 +1833,7 @@ def literacy_page():
             JOIN {S}.articles a ON a.id = v.article_id
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE v.user_email = :email
+            WHERE a.suppressed_reason IS NULL AND v.user_email = :email
             ORDER BY v.last_view_at DESC
             LIMIT 20
         """), {"email": email}).mappings().all()
@@ -1954,7 +1955,7 @@ def source_profile(slug: str):
             SELECT a.id, a.title, a.url, a.published_at, b.band, b.score
             FROM {S}.articles a
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE a.source_id = :sid
+            WHERE a.suppressed_reason IS NULL AND a.source_id = :sid
             ORDER BY a.published_at DESC LIMIT 20
         """), {"sid": src["id"]}).mappings().all()
     return render_template("source.html",
@@ -1996,7 +1997,7 @@ def frame_cluster(cluster_id: int):
                    s.name AS source_name, s.bias_lean
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
-            WHERE a.cluster_id = :cid AND a.title IS NOT NULL
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid AND a.title IS NOT NULL
             ORDER BY a.published_at ASC LIMIT 8
         """), {"cid": cluster_id}).mappings().all()
     if not articles:
@@ -2088,7 +2089,7 @@ def cluster_comparison(cluster_id: int):
                 WHERE article_id = a.id AND checker NOT LIKE 'GoogleFCT%%'
                 ORDER BY created_at DESC LIMIT 1
             ) fc ON true
-            WHERE a.cluster_id = :cid
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid
             ORDER BY a.published_at ASC
         """), {"cid": cluster_id}).mappings().all()
 
@@ -2112,7 +2113,7 @@ def cluster_comparison(cluster_id: int):
             SELECT DISTINCT LOWER(TRIM(s.bias_lean)) AS band
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
-            WHERE a.cluster_id = :cid
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid
               AND s.bias_lean IS NOT NULL
               AND TRIM(s.bias_lean) != ''
         """), {"cid": cluster_id}).fetchall()
@@ -2250,7 +2251,7 @@ def cluster_timeline(cluster_id: int):
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE a.cluster_id = :cid
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid
             ORDER BY a.published_at ASC
         """), {"cid": cluster_id}).mappings().all()
 
@@ -2865,7 +2866,7 @@ def mp_profile(slug: str):
             JOIN {S}.articles a ON a.id = t.article_id
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores bs ON bs.article_id = a.id
-            WHERE t.mp_id = :mp_id
+            WHERE a.suppressed_reason IS NULL AND t.mp_id = :mp_id
             ORDER BY a.published_at DESC
             LIMIT 15
         """), {"mp_id": mp["id"]}).mappings().all()
@@ -3080,7 +3081,7 @@ def journalist_profile(entity_id):
                    src.slug AS source_slug, src.name AS source_name
               FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id
               JOIN {S}.sources src ON src.id=a.source_id
-             WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
+             WHERE a.suppressed_reason IS NULL AND em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
              ORDER BY a.published_at DESC NULLS LAST LIMIT 12
         """), {"e": entity_id}).mappings().all()
         # Premium analysis — only run the heavier queries for subscribers.
@@ -3145,7 +3146,7 @@ def entity_profile_page(entity_id):
                    src.slug AS source_slug, src.name AS source_name
               FROM {SH}.entity_mentions em JOIN {S}.articles a ON a.id::text=em.content_id
               JOIN {S}.sources src ON src.id=a.source_id
-             WHERE em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
+             WHERE a.suppressed_reason IS NULL AND em.entity_id=:e AND em.product='wtf' AND em.content_type='article'
              ORDER BY a.published_at DESC NULLS LAST LIMIT 12
         """), {"e": entity_id}).mappings().all()
         # Competition Bureau items naming this organization (free — Legal Watch link, #3059).
@@ -3393,7 +3394,7 @@ def search():
                     FROM {S}.articles a
                     JOIN {S}.sources s ON s.id = a.source_id
                     LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-                    WHERE to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
+                    WHERE a.suppressed_reason IS NULL AND to_tsvector('english', COALESCE(a.title,'') || ' ' || COALESCE(a.body,''))
                           @@ plainto_tsquery('english', :q)
                     ORDER BY a.published_at DESC
                     LIMIT 400
@@ -4207,7 +4208,7 @@ def api_map_data():
                 MAX(a.published_at) AS latest
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
-            WHERE a.lat IS NOT NULL AND a.lng IS NOT NULL
+            WHERE a.suppressed_reason IS NULL AND a.lat IS NOT NULL AND a.lng IS NOT NULL
               AND a.published_at > NOW() - INTERVAL '7 days'
               {beat_where}
             GROUP BY 1, 2, 3, 4
@@ -4403,7 +4404,7 @@ def upgrade_tier2(article_id: int):
             SELECT a.id, a.title, a.body, a.analysis_tier, s.slug AS source_slug
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
-            WHERE a.id = :id
+            WHERE a.suppressed_reason IS NULL AND a.id = :id
         """), {"id": article_id}).mappings().first()
     if not row:
         return jsonify({"ok": False, "error": "not_found"}), 404
@@ -4582,7 +4583,7 @@ def edu_api_articles():
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.fact_checks fc
                 ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
-            WHERE {where_clause}
+            WHERE a.suppressed_reason IS NULL AND {where_clause}
             ORDER BY a.published_at DESC NULLS LAST
             LIMIT :limit OFFSET :offset
         """), params).mappings().all()
@@ -4718,7 +4719,7 @@ def edu_api_story(cluster_id: int):
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.fact_checks fc
                 ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
-            WHERE a.cluster_id = :cid
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid
             ORDER BY a.published_at ASC
         """), {"cid": cluster_id}).mappings().all()
 
@@ -4726,7 +4727,7 @@ def edu_api_story(cluster_id: int):
             SELECT COALESCE(b.band, 'unscored') AS band, COUNT(*) AS n
             FROM {S}.articles a
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-            WHERE a.cluster_id = :cid
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid
             GROUP BY 1 ORDER BY 2 DESC
         """), {"cid": cluster_id}).mappings().all()
 
@@ -4734,7 +4735,7 @@ def edu_api_story(cluster_id: int):
             SELECT fc.overall_verdict, COUNT(*) AS n
             FROM {S}.fact_checks fc
             JOIN {S}.articles a ON a.id = fc.article_id
-            WHERE a.cluster_id = :cid
+            WHERE a.suppressed_reason IS NULL AND a.cluster_id = :cid
               AND fc.checker NOT LIKE 'GoogleFCT%%'
               AND fc.overall_verdict IS NOT NULL
             GROUP BY 1 ORDER BY 2 DESC

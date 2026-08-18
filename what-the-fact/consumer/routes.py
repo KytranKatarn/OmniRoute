@@ -376,6 +376,17 @@ def news():
     if not _news_rate_ok(_client_ip()):
         return Response("Too many requests — slow down.", 429, {"Retry-After": "30"})
 
+    # Faceted-crawl guard: crawlers walking /news?band=…&province=…&page=N
+    # permutations defeat both defenses above — each permutation is a unique
+    # cache key (always a miss → full DB query) and bot fleets spread across
+    # IPs stay under the per-IP limiter (GPTBot was 91% of traffic on
+    # 2026-08-18). Compliant bots are told via robots.txt (Disallow: /news?);
+    # this shared bucket bounds the remainder. Clean /news is never throttled.
+    if _req.args and _is_crawler_ua(_req.headers.get("User-Agent", "")):
+        if not _crawler_facet_rate_ok():
+            return Response("Faceted /news is rate-limited for crawlers — see /robots.txt.",
+                            429, {"Retry-After": "300"})
+
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
@@ -2303,6 +2314,14 @@ def senator_profile(slug: str):
                            is_subscriber=is_subscriber())
 
 
+# MP donor-rollup cache — the two EC aggregations in mp_profile are the
+# expensive part of the page (parliament.ec_contributions, 7.3M rows). EC
+# data changes at most daily; keyed by normalized riding so every MP page
+# in a riding shares one entry (343 ridings max — bounded).
+_MP_DONOR_CACHE: dict = {}  # lower(riding) -> (expiry_ts, (totals, donors))
+_MP_DONOR_CACHE_TTL = int(os.environ.get("WTF_MP_DONOR_CACHE_TTL", "3600"))
+
+
 @bp.get("/mp/<slug>")
 def mp_profile(slug: str):
     """Individual MP profile — votes, party, riding, articles mentioning them."""
@@ -2404,44 +2423,58 @@ def mp_profile(slug: str):
     except Exception:
         pass  # accountability tables may not exist yet
 
-    # Donor data from Elections Canada (parliament.ec_contributions)
+    # Donor data from Elections Canada (parliament.ec_contributions).
+    # The two aggregations scan a 7.3M-row table, so the riding filter MUST
+    # stay index-usable: lower(electoral_district) = lower(:riding) is served
+    # by ix_ec_district_lower (migration 049). ILIKE here previously forced a
+    # full seq scan per query (~24s/page — the "won't populate" outage).
+    # EC data changes at most daily; all MPs in a riding share one cache entry.
     riding_donor_totals = []
     top_named_donors = []
     try:
         riding = mp.get("riding_name") or ""
         # EC uses "--" (double dash), parliament.mps uses "—" (em dash) — normalize
         riding_ec = riding.replace("—", "--").replace("–", "--")
-        with _db().begin() as c:
-            riding_donor_totals = c.execute(text("""
-                SELECT electoral_event, political_entity,
-                       COUNT(*) AS donation_count,
-                       SUM(monetary_amount) AS total_raised,
-                       COUNT(DISTINCT contributor_name)
-                           FILTER (WHERE contributor_name NOT ILIKE '%200 or less%'
-                                     AND contributor_name NOT ILIKE '%ou moins%') AS named_donors
-                FROM parliament.ec_contributions
-                WHERE electoral_district ILIKE :riding
-                  AND monetary_amount > 0
-                GROUP BY electoral_event, political_entity
-                ORDER BY electoral_event DESC, total_raised DESC
-                LIMIT 12
-            """), {"riding": riding_ec}).mappings().all()
+        _dk = riding_ec.lower()
+        _dc = _MP_DONOR_CACHE.get(_dk)
+        if _dc and _dc[0] > time.time():
+            riding_donor_totals, top_named_donors = _dc[1]
+        else:
+            with _db().begin() as c:
+                riding_donor_totals = [dict(r) for r in c.execute(text("""
+                    SELECT electoral_event, political_entity,
+                           COUNT(*) AS donation_count,
+                           SUM(monetary_amount) AS total_raised,
+                           COUNT(DISTINCT contributor_name)
+                               FILTER (WHERE contributor_name NOT ILIKE '%200 or less%'
+                                         AND contributor_name NOT ILIKE '%ou moins%') AS named_donors
+                    FROM parliament.ec_contributions
+                    WHERE lower(electoral_district) = lower(:riding)
+                      AND monetary_amount > 0
+                    GROUP BY electoral_event, political_entity
+                    ORDER BY electoral_event DESC, total_raised DESC
+                    LIMIT 12
+                """), {"riding": riding_ec}).mappings().all()]
 
-            top_named_donors = c.execute(text("""
-                SELECT contributor_name, contributor_city, contributor_province,
-                       SUM(monetary_amount) AS total_given,
-                       COUNT(*) AS num_contributions,
-                       MAX(electoral_event) AS latest_event
-                FROM parliament.ec_contributions
-                WHERE electoral_district ILIKE :riding
-                  AND monetary_amount >= 200
-                  AND contributor_name NOT ILIKE '%200 or less%'
-                  AND contributor_name NOT ILIKE '%ou moins%'
-                  AND contributor_name != ''
-                GROUP BY contributor_name, contributor_city, contributor_province
-                ORDER BY total_given DESC
-                LIMIT 20
-            """), {"riding": riding_ec}).mappings().all()
+                top_named_donors = [dict(r) for r in c.execute(text("""
+                    SELECT contributor_name, contributor_city, contributor_province,
+                           SUM(monetary_amount) AS total_given,
+                           COUNT(*) AS num_contributions,
+                           MAX(electoral_event) AS latest_event
+                    FROM parliament.ec_contributions
+                    WHERE lower(electoral_district) = lower(:riding)
+                      AND monetary_amount >= 200
+                      AND contributor_name NOT ILIKE '%200 or less%'
+                      AND contributor_name NOT ILIKE '%ou moins%'
+                      AND contributor_name != ''
+                    GROUP BY contributor_name, contributor_city, contributor_province
+                    ORDER BY total_given DESC
+                    LIMIT 20
+                """), {"riding": riding_ec}).mappings().all()]
+            _MP_DONOR_CACHE[_dk] = (
+                time.time() + _MP_DONOR_CACHE_TTL,
+                (riding_donor_totals, top_named_donors),
+            )
     except Exception:
         pass  # ec_contributions might not be populated yet
 
@@ -2869,6 +2902,11 @@ def robots_txt():
         "Disallow: /literacy\n"
         "Disallow: /auth/\n"
         "Disallow: /billing/\n"
+        # Faceted /news (any query string: band/province/beat/scope/riding/page
+        # permutations) is a crawl trap — thousands of DB-heavy URL variants of
+        # the same content. Clean /news stays crawlable; articles are in the
+        # sitemap. GPTBot walking these facets was 91% of traffic 2026-08-18.
+        "Disallow: /news?\n"
         "Sitemap: https://what-the-fact.com/sitemap.xml\n"
     )
     return Response(body, mimetype="text/plain")
@@ -2876,7 +2914,13 @@ def robots_txt():
 
 @bp.get("/sitemap.xml")
 def sitemap_xml():
-    """Dynamic XML sitemap — static pages + most recent 5,000 articles."""
+    """Dynamic XML sitemap — static pages + most recent 50,000 articles.
+
+    50,000 is the sitemap-protocol per-file max. With faceted /news
+    disallowed in robots.txt, the sitemap is the primary crawl path to the
+    article back-catalogue — when the archive exceeds 50k, move to a sitemap
+    index with yearly archive files instead of raising this further.
+    """
     from flask import Response
     S = _schema()
     with _db().begin() as c:
@@ -2884,7 +2928,7 @@ def sitemap_xml():
             SELECT id, published_at
             FROM {S}.articles
             ORDER BY published_at DESC
-            LIMIT 5000
+            LIMIT 50000
         """)).fetchall()
 
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
@@ -3012,6 +3056,43 @@ def _news_rate_ok(ip: str) -> bool:
         if len(bucket) >= _NEWS_RATE_LIMIT:
             return False
         bucket.append(now)
+        return True
+    except Exception:
+        return True
+
+
+# Faceted-crawl guard: one bucket shared by ALL crawler UAs hitting /news
+# with query params. Per-IP limiting can't catch a bot fleet (GPTBot crawled
+# faceted /news from many IPs at 91% of traffic, 2026-08-18) and each unique
+# facet permutation misses _NEWS_CACHE by construction. Clean /news (no query
+# string) is never subject to this bucket. Fail-open on any error.
+# Deliberately NOT matched: user-triggered fetchers (facebookexternalhit link
+# previews, ChatGPT-User) — a human sharing /news?province=ON must still get
+# a preview card. Bulk crawlers only.
+_CRAWLER_UA_RE = re.compile(
+    r"(?i)(gptbot|oai-searchbot|claudebot|claude-web|ccbot|"
+    r"bytespider|amazonbot|petalbot|semrushbot|ahrefsbot|mj12bot|dotbot|"
+    r"googlebot|bingbot|yandexbot|applebot|perplexitybot|meta-externalagent)"
+)
+_CRAWLER_FACET_BUCKET: list = []
+# PER-WORKER limit — module state is per gunicorn worker (4 sync workers ⇒
+# aggregate ≈ 4×). Default 6/min/worker ≈ 24/min aggregate, which binds below
+# the measured incident rate (~35 faceted req/min, 2026-08-18).
+_CRAWLER_FACET_LIMIT = int(os.environ.get("WTF_CRAWLER_FACET_LIMIT", "6"))
+
+
+def _is_crawler_ua(ua: str) -> bool:
+    return bool(_CRAWLER_UA_RE.search(ua or ""))
+
+
+def _crawler_facet_rate_ok() -> bool:
+    """Shared token bucket for faceted /news requests from crawler UAs."""
+    try:
+        now = time.time()
+        _CRAWLER_FACET_BUCKET[:] = [t for t in _CRAWLER_FACET_BUCKET if t > now - 60]
+        if len(_CRAWLER_FACET_BUCKET) >= _CRAWLER_FACET_LIMIT:
+            return False
+        _CRAWLER_FACET_BUCKET.append(now)
         return True
     except Exception:
         return True

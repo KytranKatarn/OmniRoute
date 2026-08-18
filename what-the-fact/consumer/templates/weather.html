@@ -28,6 +28,56 @@
 .wtf-wx-outlet-link { color:#60a5fa; text-decoration:none; }
 .wtf-wx-empty { color:#6b7280; font-size:13px; padding:30px 0; text-align:center; }
 .wtf-wx-scroll { overflow-x:auto; }
+/* ── interactive map + A.U.R.O.R.A. panel (task #5756) ───────────────────── */
+.wtf-wx-scope { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:12px; }
+.wtf-wx-scope-btn { background:#060d14; border:1px solid #16304a; color:#9ca3af; border-radius:20px;
+  padding:5px 13px; font-size:11px; font-family:inherit; cursor:pointer; transition:all .15s; }
+.wtf-wx-scope-btn:hover { border-color:#2563eb; color:#e5e7eb; }
+.wtf-wx-scope-btn.active { background:#1e3a5a; border-color:#2563eb; color:#93c5fd; }
+/* A scope with no coverage is still SHOWN — hiding it would imply the country
+   ends where our data does. It is dimmed and says why on hover. */
+.wtf-wx-scope-btn.is-empty { opacity:.38; }
+.wtf-wx-maprow { display:grid; grid-template-columns:1fr 320px; gap:14px; margin-bottom:20px; align-items:start; }
+.wtf-wx-mapwrap { position:relative; background:#060d14; border:1px solid #0a1a2a; border-radius:6px; overflow:hidden; }
+#wtf-wx-map { height:420px; width:100%; background:#050a10; }
+.wtf-wx-layerbar { display:flex; gap:4px; padding:8px 10px; border-bottom:1px solid #0a1a2a; }
+.wtf-wx-layer-btn { background:transparent; border:1px solid #16304a; color:#6b7280; border-radius:4px;
+  padding:4px 10px; font-size:10px; font-family:inherit; cursor:pointer; letter-spacing:.04em; }
+.wtf-wx-layer-btn.active { background:#1e3a5a; border-color:#2563eb; color:#93c5fd; }
+.wtf-wx-maplegend { padding:8px 12px; border-top:1px solid #0a1a2a; font-size:10px; color:#6b7280; line-height:1.7; }
+.wtf-wx-legend-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.wtf-wx-swatch { display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:4px;
+  vertical-align:-1px; border:1px solid #00000055; }
+.wtf-wx-aurora { background:#060d14; border:1px solid #2e1065; border-radius:6px; padding:14px; }
+.wtf-wx-aurora-head { display:flex; align-items:center; gap:8px; margin-bottom:10px;
+  padding-bottom:9px; border-bottom:1px solid #1e1b4b; }
+.wtf-wx-aurora-badge { font-size:8px; letter-spacing:1.6px; color:#a78bfa; background:#2e1065;
+  border-radius:3px; padding:3px 7px; text-transform:uppercase; }
+.wtf-wx-aurora-scope { font-family:'Orbitron',sans-serif; font-size:13px; color:#e5e7eb; }
+.wtf-wx-metric { margin-bottom:9px; }
+.wtf-wx-metric-top { display:flex; justify-content:space-between; align-items:baseline; font-size:11px; }
+.wtf-wx-metric-l { color:#6b7280; }
+.wtf-wx-metric-v { color:#e5e7eb; font-family:'Orbitron',sans-serif; font-size:13px; }
+/* Bars are plain divs sized by percentage — this site carries NO chart library
+   by deliberate choice (see static/js/cost.js). Do not add one for one page. */
+.wtf-wx-bar { height:4px; background:#0f1620; border-radius:2px; margin-top:4px; overflow:hidden; }
+.wtf-wx-bar-fill { height:100%; border-radius:2px; transition:width .25s; }
+.wtf-wx-aurora-foot { margin-top:11px; padding-top:9px; border-top:1px solid #1e1b4b;
+  font-size:9.5px; color:#4b5563; line-height:1.65; }
+.wtf-wx-nodata { color:#6b7280; font-size:11.5px; line-height:1.7; padding:6px 0; }
+.wtf-wx-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:8px; margin-bottom:22px; }
+.wtf-wx-card { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid #f59e0b;
+  border-radius:4px; padding:10px 12px; }
+.wtf-wx-card-name { font-size:12px; color:#e5e7eb; margin-bottom:2px; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.wtf-wx-card-prov { font-size:9px; color:#4b5563; text-transform:uppercase; letter-spacing:.08em; }
+.wtf-wx-card-temp { font-family:'Orbitron',sans-serif; font-size:19px; color:#60a5fa; margin:5px 0 3px; }
+.wtf-wx-card-row { font-size:10px; color:#6b7280; display:flex; gap:9px; flex-wrap:wrap; }
+@media (max-width: 860px) {
+  .wtf-wx-maprow { grid-template-columns:1fr; }
+  #wtf-wx-map { height:320px; }
+}
+
 </style>
 
 <div class="wtf-wx-header">
@@ -111,6 +161,8 @@
   </div>
   {% endif %}
 
+
+
   {% if windiest %}
   <div class="wtf-wx-section-title">Strongest winds at fire-weather stations</div>
   <div style="overflow-x:auto;margin-bottom:22px;">
@@ -138,6 +190,55 @@
     </table>
   </div>
   {% endif %}
+  {% endif %}
+
+  {# ── Interactive national / provincial map (task #5756) ───────────────────
+     Reuses the HOMEPAGE map stack verbatim — same Leaflet build, same CARTO
+     dark tiles, same canada-provinces.geojson, same province codes — so the
+     weather page reads as the same site rather than a bolt-on.
+
+     TWO layers, switchable, because they cover DISJOINT halves of the country
+     (see the weather() docstring): satellite hotspots are western/northern,
+     fire-weather stations are eastern. A province with no data on the ACTIVE
+     layer is drawn grey and labelled "no data on this layer" — never coloured
+     as though it measured zero. #}
+  {% if aurora_map and aurora_map.stations %}
+  <div class="wtf-wx-section-title">Explore by area</div>
+
+  <div class="wtf-wx-scope">
+    <button class="wtf-wx-scope-btn active" data-prov="" type="button">🍁 Canada</button>
+    {% for code in aurora_map.prov_order %}
+      {% set P = aurora_map.provinces.get(code) %}
+      <button class="wtf-wx-scope-btn{% if not P %} is-empty{% endif %}"
+              data-prov="{{ code }}" type="button"
+              {% if not P %}title="No A.U.R.O.R.A. layer covers this area yet"{% endif %}>{{ code }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="wtf-wx-maprow">
+    <div class="wtf-wx-mapwrap">
+      <div class="wtf-wx-layerbar">
+        <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
+        <button class="wtf-wx-layer-btn" data-layer="wx" type="button">🌡 Fire weather</button>
+      </div>
+      <div id="wtf-wx-map"></div>
+      <div class="wtf-wx-maplegend" id="wtf-wx-legend"></div>
+    </div>
+
+    {# A.U.R.O.R.A. readout for whatever area is selected. Phase 1 renders
+       MEASURED values only. The narrative outlook is Phase 3 (task #5761) and
+       says so plainly rather than showing an empty box that implies breakage. #}
+    <div class="wtf-wx-aurora" id="wtf-wx-aurora">
+      <div class="wtf-wx-aurora-head">
+        <span class="wtf-wx-aurora-badge">A.U.R.O.R.A.</span>
+        <span class="wtf-wx-aurora-scope" id="wtf-wx-scope-label">Canada</span>
+      </div>
+      <div class="wtf-wx-aurora-body" id="wtf-wx-aurora-body"></div>
+      <div class="wtf-wx-aurora-foot" id="wtf-wx-aurora-foot"></div>
+    </div>
+  </div>
+
+  <div class="wtf-wx-cards" id="wtf-wx-cards"></div>
   {% endif %}
 
   <div class="wtf-wx-section-title">Recent climate &amp; science stories</div>
@@ -175,4 +276,270 @@
     <a href="/news?beat=climate" style="color:#7c3aed;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Climate →</a>
     <a href="/news?beat=science-tech" style="color:#a78bfa;font-size:10px;letter-spacing:1px;text-decoration:none;">All Science & Tech →</a>
   </div>
+
+{% if aurora_map and aurora_map.stations %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script>
+(function () {
+  "use strict";
+  // Same Leaflet build, tiles, GeoJSON and province codes as the homepage map.
+  // ALL text from this payload is written with textContent — never innerHTML —
+  // because station names are third-party strings (site-wide rule).
+  var A = {{ aurora_map | tojson }};
+  var PROVINCE_CODES = {
+    "Alberta":"AB","British Columbia":"BC","Manitoba":"MB","New Brunswick":"NB",
+    "Newfoundland and Labrador":"NL","Nova Scotia":"NS","Northwest Territories":"NT",
+    "Nunavut":"NU","Ontario":"ON","Prince Edward Island":"PE","Quebec":"QC",
+    "Saskatchewan":"SK","Yukon":"YT","Yukon Territory":"YT"
+  };
+  var CENTROIDS = {
+    "ON":[51.25,-85.32],"QC":[53.00,-70.00],"BC":[53.73,-127.65],"AB":[53.93,-116.58],
+    "SK":[52.94,-106.45],"MB":[56.42,-98.74],"NB":[46.57,-66.46],"NS":[44.68,-63.74],
+    "NL":[53.14,-57.66],"PE":[46.51,-63.42],"YT":[64.28,-135.00],"NT":[64.28,-119.18],
+    "NU":[70.30,-83.11]
+  };
+  var NO_DATA = "#1b2430";   // grey = this layer does not cover the area
+  var selected = null, activeLayer = "fire";
+
+  var map = L.map("wtf-wx-map", { center:[60,-96], zoom:3, zoomControl:true, scrollWheelZoom:false });
+  // Attribution stays ON. index.html suppresses it; that is a licensing
+  // obligation to CARTO/OSM, so it is not a pattern worth copying.
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    subdomains:"abcd", maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+  }).addTo(map);
+  map.createPane("provPane"); map.getPane("provPane").style.zIndex = 400;
+  map.createPane("stnPane");  map.getPane("stnPane").style.zIndex  = 500;
+
+  function ramp(stops, v) {
+    for (var i = 0; i < stops.length; i++) if (v <= stops[i][0]) return stops[i][1];
+    return stops[stops.length - 1][1];
+  }
+  var FIRE_STOPS = [[0,"#1e3a5a"],[10,"#78350f"],[100,"#b45309"],[500,"#ea580c"],[2000,"#dc2626"],[1e9,"#7f1d1d"]];
+  var FWI_STOPS  = [[5,"#1d4ed8"],[11,"#0891b2"],[21,"#ca8a04"],[38,"#ea580c"],[1e9,"#dc2626"]];
+
+  function metricFor(code) {
+    var p = A.provinces[code];
+    if (!p) return null;
+    return activeLayer === "fire"
+      ? (p.hotspots === null ? null : { v: p.hotspots, col: ramp(FIRE_STOPS, p.hotspots) })
+      : (p.max_fwi === null || !p.stations ? null : { v: p.max_fwi, col: ramp(FWI_STOPS, p.max_fwi) });
+  }
+
+  function styleFor(f) {
+    var code = PROVINCE_CODES[f.properties.name];
+    var m = code ? metricFor(code) : null;
+    var isSel = selected && code === selected;
+    return {
+      fillColor: m ? m.col : NO_DATA,
+      fillOpacity: m ? (isSel ? 0.88 : 0.62) : 0.30,
+      color: isSel ? "#93c5fd" : "#0f2942",
+      weight: isSel ? 2.4 : 1,
+    };
+  }
+
+  var provLayer = null;
+  fetch("/static/canada-provinces.geojson").then(function (r) { return r.json(); }).then(function (gj) {
+    provLayer = L.geoJSON(gj, {
+      pane: "provPane", style: styleFor,
+      onEachFeature: function (f, lyr) {
+        var code = PROVINCE_CODES[f.properties.name];
+        var p = code ? A.provinces[code] : null;
+        var bits = [f.properties.name];
+        if (p && p.hotspots !== null) bits.push(p.hotspots.toLocaleString() + " hotspots (72h)");
+        if (p && p.stations) bits.push(p.stations + " fire-weather stations");
+        if (!p || (p.hotspots === null && !p.stations)) bits.push("no A.U.R.O.R.A. layer covers this area");
+        lyr.bindTooltip(bits.join(" · "), { sticky: true });
+        lyr.on("click", function () { select(code === selected ? null : code); });
+        lyr.on("mouseover", function () { lyr.setStyle({ weight: 2.4, color: "#60a5fa" }); });
+        lyr.on("mouseout",  function () { provLayer.resetStyle(lyr); if (selected) restyle(); });
+      }
+    }).addTo(map);
+    restyle();
+  }).catch(function () {
+    // Never leave a silent blank rectangle — say the geometry failed to load.
+    var el = document.getElementById("wtf-wx-legend");
+    if (el) el.textContent = "Province outlines could not be loaded; station markers below are unaffected.";
+  });
+
+  var stnLayer = L.layerGroup([], { pane: "stnPane" }).addTo(map);
+  function drawStations() {
+    stnLayer.clearLayers();
+    if (activeLayer !== "wx") return;   // stations measure fire WEATHER, not fire activity
+    A.stations.forEach(function (s) {
+      if (s.lat === null || s.lon === null) return;
+      if (selected && s.p !== selected) return;
+      var t = s.t === null ? null : s.t;
+      var col = t === null ? "#6b7280" : ramp([[0,"#3b82f6"],[10,"#0891b2"],[18,"#22c55e"],[25,"#f59e0b"],[1e9,"#dc2626"]], t);
+      var m = L.circleMarker([s.lat, s.lon], {
+        pane:"stnPane", radius: s.w === null ? 3 : Math.min(3 + Math.sqrt(s.w) * 0.9, 9),
+        fillColor: col, fillOpacity: 0.85, color: "#020617", weight: 1
+      });
+      var lines = [s.n];
+      if (s.t !== null) lines.push(s.t + " °C");
+      if (s.w !== null) lines.push("wind " + s.w + " km/h" + (s.g !== null ? " (gust " + s.g + ")" : ""));
+      if (s.h !== null) lines.push(s.h + "% RH");
+      if (s.f !== null) lines.push("FWI " + s.f);
+      if (!s.p) lines.push("province not reported by the source");
+      m.bindTooltip(lines.join(" · "), { sticky: true });
+      stnLayer.addLayer(m);
+    });
+  }
+
+  function restyle() { if (provLayer) provLayer.setStyle(styleFor); drawStations(); drawLegend(); }
+
+  function drawLegend() {
+    var el = document.getElementById("wtf-wx-legend");
+    el.textContent = "";
+    var row = document.createElement("div"); row.className = "wtf-wx-legend-row";
+    var stops = activeLayer === "fire"
+      ? [["#1e3a5a","0"],["#78350f","10+"],["#b45309","100+"],["#ea580c","500+"],["#dc2626","2,000+"]]
+      : [["#1d4ed8","FWI 0-5"],["#0891b2","5-11"],["#ca8a04","11-21"],["#ea580c","21-38"],["#dc2626","38+"]];
+    stops.forEach(function (s) {
+      var sp = document.createElement("span");
+      var sw = document.createElement("i"); sw.className = "wtf-wx-swatch"; sw.style.background = s[0];
+      sp.appendChild(sw); sp.appendChild(document.createTextNode(s[1]));
+      row.appendChild(sp);
+    });
+    var g = document.createElement("span");
+    var gs = document.createElement("i"); gs.className = "wtf-wx-swatch"; gs.style.background = NO_DATA;
+    g.appendChild(gs); g.appendChild(document.createTextNode("no data on this layer"));
+    row.appendChild(g);
+    el.appendChild(row);
+
+    // State the coverage limits in the legend, not in a footnote nobody reads.
+    var cov = document.createElement("div");
+    cov.style.marginTop = "5px";
+    var covered = activeLayer === "fire" ? A.coverage.hotspot_provinces : A.coverage.station_provinces;
+    cov.textContent = (activeLayer === "fire"
+        ? "Satellite hotspots reported in " : "Fire-weather stations reporting in ")
+      + covered.length + " of 13 provinces & territories: " + covered.join(", ")
+      + ". Grey areas are not covered by this layer — that is not a reading of zero.";
+    el.appendChild(cov);
+  }
+
+  function bar(parent, label, value, display, pct, colour) {
+    var w = document.createElement("div"); w.className = "wtf-wx-metric";
+    var top = document.createElement("div"); top.className = "wtf-wx-metric-top";
+    var l = document.createElement("span"); l.className = "wtf-wx-metric-l"; l.textContent = label;
+    var v = document.createElement("span"); v.className = "wtf-wx-metric-v";
+    v.textContent = value === null || value === undefined ? "—" : display;
+    top.appendChild(l); top.appendChild(v); w.appendChild(top);
+    if (value !== null && value !== undefined) {
+      var b = document.createElement("div"); b.className = "wtf-wx-bar";
+      var f = document.createElement("div"); f.className = "wtf-wx-bar-fill";
+      f.style.width = Math.max(2, Math.min(100, pct)) + "%"; f.style.background = colour;
+      b.appendChild(f); w.appendChild(b);
+    }
+    parent.appendChild(w);
+  }
+
+  function renderAurora() {
+    var body = document.getElementById("wtf-wx-aurora-body");
+    var foot = document.getElementById("wtf-wx-aurora-foot");
+    var lbl  = document.getElementById("wtf-wx-scope-label");
+    body.textContent = ""; foot.textContent = "";
+    var p = selected ? A.provinces[selected] : null;
+    lbl.textContent = selected ? ((p && p.name) || selected) : "Canada";
+
+    var n, temp, wind, fwi, hot, scopeStations;
+    if (selected) {
+      if (!p) {
+        var msg = document.createElement("div"); msg.className = "wtf-wx-nodata";
+        msg.textContent = "No A.U.R.O.R.A. layer reaches this area yet. Phase 1 ingests the "
+          + "Canadian Wildland Fire Information System only; city observations and forecasts "
+          + "arrive in Phase 2.";
+        body.appendChild(msg); return;
+      }
+      scopeStations = A.stations.filter(function (s) { return s.p === selected; });
+      n = p.stations; temp = p.max_temp; wind = p.max_wind; fwi = p.max_fwi; hot = p.hotspots;
+    } else {
+      scopeStations = A.stations;
+      n = A.national.stations; temp = A.national.warmest; wind = A.national.max_wind;
+      fwi = A.national.max_fwi; hot = A.national.hotspots;
+    }
+
+    bar(body, "Warmest reading", temp, temp + " °C", ((temp + 20) / 60) * 100, "#f59e0b");
+    bar(body, "Strongest wind", wind, wind + " km/h", (wind / 60) * 100, "#60a5fa");
+    bar(body, "Peak fire-weather index", fwi, String(fwi), (fwi / 50) * 100, "#dc2626");
+    bar(body, "Satellite hotspots (72h)", hot === null ? null : hot,
+        hot === null ? "—" : hot.toLocaleString(), (hot / 6500) * 100, "#ea580c");
+
+    var parts = [];
+    if (n) parts.push(n + " fire-weather station" + (n === 1 ? "" : "s") + " reporting");
+    else parts.push("no fire-weather station reports here");
+    if (hot === null) parts.push("this area is not on the satellite hotspot layer");
+    if (p && p.fwi_source === "hotspots")
+      parts.push("fire-weather index shown is from the satellite layer, not a ground station");
+    if (!selected && A.coverage.stations_unplaced)
+      parts.push(A.coverage.stations_unplaced + " stations report coordinates but no province, "
+        + "so they are mapped but excluded from provincial totals");
+    // Phase 3 is an LLM narrative outlook (task #5761). Until it exists, say so
+    // — an empty AI panel reads as broken, and a fabricated one is worse.
+    parts.push("Values are measured, not forecast. A.U.R.O.R.A.'s narrative outlook "
+      + "arrives with the forecast layer.");
+    foot.textContent = parts.join(". ") + ".";
+  }
+
+  function renderCards() {
+    var wrap = document.getElementById("wtf-wx-cards");
+    wrap.textContent = "";
+    var list = A.stations.filter(function (s) {
+      return (!selected || s.p === selected) && s.t !== null;
+    }).sort(function (a, b) { return (b.w || 0) - (a.w || 0); }).slice(0, 12);
+    if (!list.length) {
+      var d = document.createElement("div"); d.className = "wtf-wx-nodata";
+      d.textContent = selected
+        ? "No fire-weather station in this area reported a temperature at the latest observation time."
+        : "No station readings available.";
+      wrap.appendChild(d); return;
+    }
+    list.forEach(function (s) {
+      var c = document.createElement("div"); c.className = "wtf-wx-card";
+      var nm = document.createElement("div"); nm.className = "wtf-wx-card-name";
+      nm.textContent = s.n; nm.title = s.n;
+      var pv = document.createElement("div"); pv.className = "wtf-wx-card-prov";
+      pv.textContent = s.p || "province not reported";
+      var tp = document.createElement("div"); tp.className = "wtf-wx-card-temp";
+      tp.textContent = s.t + "°C";
+      var rw = document.createElement("div"); rw.className = "wtf-wx-card-row";
+      [["💨", s.w === null ? null : s.w + " km/h"], ["💧", s.h === null ? null : s.h + "%"],
+       ["🔥", s.f === null ? null : "FWI " + s.f]].forEach(function (x) {
+        if (x[1] === null) return;
+        var e = document.createElement("span"); e.textContent = x[0] + " " + x[1]; rw.appendChild(e);
+      });
+      [nm, pv, tp, rw].forEach(function (e) { c.appendChild(e); });
+      wrap.appendChild(c);
+    });
+  }
+
+  function select(code) {
+    selected = code || null;
+    document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
+      b.classList.toggle("active", (b.getAttribute("data-prov") || "") === (selected || ""));
+    });
+    if (selected && CENTROIDS[selected]) map.flyTo(CENTROIDS[selected], 5, { duration: 0.6 });
+    else map.flyTo([60, -96], 3, { duration: 0.6 });
+    restyle(); renderAurora(); renderCards();
+  }
+
+  document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
+    b.addEventListener("click", function () { select(b.getAttribute("data-prov")); });
+  });
+  document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (b) {
+    b.addEventListener("click", function () {
+      activeLayer = b.getAttribute("data-layer");
+      document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (x) {
+        x.classList.toggle("active", x === b);
+      });
+      restyle();
+    });
+  });
+
+  renderAurora(); renderCards(); drawLegend();
+})();
+</script>
+{% endif %}
+
 {% endblock %}

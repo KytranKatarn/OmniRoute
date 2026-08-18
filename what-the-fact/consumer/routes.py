@@ -570,16 +570,32 @@ def news():
                            is_subscriber=is_subscriber())
 
 
+from .aurora_map import _aurora_map_payload  # pure, DB-free (see module docstring)
+
+
 @bp.get("/weather")
 def weather():
     """A.U.R.O.R.A. — Weather & Climate Intelligence page.
 
-    Aggregates climate + science-tech beat articles and weather-relevant
-    provincial stories FROM OUR NEWS SOURCES. It does NOT ingest Environment
-    Canada / NASA / NOAA data: no weather feed, table or endpoint exists
-    (verified 2026-08-18). Do not re-add that claim to any user-facing copy
-    without shipping the ingest first — a false data-provenance claim is the
-    most damaging kind of error a fact-checking product can make.
+    Two independent things live here:
+
+    1. Climate + science-tech beat articles FROM OUR NEWS SOURCES.
+    2. Environmental measurements we genuinely ingest — currently CWFIS only
+       (fire-weather stations, satellite hotspots, fire perimeters). Every
+       source name on the page is rendered by LOOPING wtf.aurora_layer_status,
+       never hardcoded, because until 2026-08-18 this page advertised
+       "Environment Canada + NASA EarthData + NOAA" while holding no weather
+       data at all (KB #290491). We still ingest none of those three.
+
+    ⚠️ The two CWFIS layers are COMPLEMENTARY, not overlapping, and the map
+    depends on that being handled honestly. Measured 2026-08-18:
+      stations  — QC 101, ON 92, NS 67, NF 60, NB 21, NU 18, PE 6, AB 1
+                  and ZERO in BC, SK, MB, YT, NT
+      hotspots  — NT 6488, BC 748, YT 387, AB 114, MB 29, ON 6, SK 2, QC 1
+                  and ZERO in NS, NF, NB, PE, NU
+    So a single-metric choropleth is a lie in one direction or the other. The
+    map switches layers and greys "no data for this layer" explicitly — a
+    province with no stations must never render as if it measured zero.
     """
     S = _schema()
     with _db().begin() as c:
@@ -645,6 +661,35 @@ def weather():
             ORDER BY wind_speed_kmh DESC LIMIT 12
         """)).mappings().all()
 
+        # Every station at the latest reporting time, for the map. Rounded on
+        # the way out — full float precision is ~40% of the payload and the
+        # instruments do not justify it.
+        station_rows = c.execute(text("""
+            SELECT station_name, prov, lat, lon, temp_c, rel_humidity,
+                   wind_speed_kmh, wind_gust_kmh, fwi
+            FROM wtf.aurora_firewx_obs
+            WHERE rep_date = (SELECT max(rep_date) FROM wtf.aurora_firewx_obs)
+              AND lat IS NOT NULL AND lon IS NOT NULL
+        """)).mappings().all()
+
+        # Per-province station aggregate — the OTHER choropleth metric. Kept in
+        # SQL rather than derived in JS so the map and any future export agree.
+        station_provinces = c.execute(text("""
+            SELECT prov, count(*) AS stations,
+                   avg(temp_c) AS avg_temp, max(temp_c) AS max_temp,
+                   min(temp_c) AS min_temp, max(wind_speed_kmh) AS max_wind,
+                   max(fwi) AS max_fwi, avg(rel_humidity) AS avg_rh
+            FROM wtf.aurora_firewx_obs
+            WHERE rep_date = (SELECT max(rep_date) FROM wtf.aurora_firewx_obs)
+            GROUP BY prov
+        """)).mappings().all()
+
+        obs_time = c.execute(text(
+            "SELECT max(rep_date) FROM wtf.aurora_firewx_obs")).scalar()
+
+    map_payload = _aurora_map_payload(station_rows, station_provinces,
+                                      fire_provinces, obs_time)
+
     return render_template("weather.html",
                            articles=rows,
                            climate_count=climate_count,
@@ -654,6 +699,8 @@ def weather():
                            fire_provinces=[dict(r) for r in fire_provinces],
                            fire_summary=dict(fire_summary) if fire_summary else None,
                            windiest=[dict(r) for r in windiest],
+                           aurora_map=map_payload,
+                           obs_time=obs_time,
                            is_subscriber=is_subscriber())
 
 

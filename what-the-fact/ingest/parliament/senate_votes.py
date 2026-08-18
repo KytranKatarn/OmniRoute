@@ -36,19 +36,43 @@ def _norm_name(name: str) -> str:
 
 
 def _build_senator_map(engine) -> dict[str, int]:
-    """Return {normalized_name: senator_db_id} for all current senators."""
+    """{normalized_name_key: senator_db_id} for ALL senators (departed included).
+
+    Keys, most->least specific:
+      1. full normalized name          "kutcher, stan"
+      2. family + first given token    "massicotte, paul"   (drops initials/middle names)
+      3. family name alone             "boniface"           (only when unambiguous)
+
+    Departed senators (is_current=false) still cast ballots in older votes,
+    so they MUST be in the map — the old is_current=true filter dropped
+    ballots for every senator who departed after the roster's first scrape
+    (4 of the 12 unmatched names in the 2026-08-18 backfill). Current
+    senators overwrite departed ones on key collisions, and ambiguous keys
+    are dropped rather than guessed.
+    """
     with engine.begin() as c:
         rows = c.execute(text(
-            "SELECT id, name FROM parliament.senators WHERE is_current = true"
+            "SELECT id, name, is_current FROM parliament.senators"
         )).fetchall()
-    result = {}
-    for sid, name in rows:
+    ordered = sorted(rows, key=lambda r: bool(r[2]))  # departed first -> current wins
+    result: dict[str, int] = {}
+    key_owner: dict[str, set[int]] = {}
+    family_owner: dict[str, set[int]] = {}
+    for sid, name, _cur in ordered:
         norm = _norm_name(name)
         result[norm] = sid
-        # Also index family name alone for fallback
-        family = norm.split(",")[0].strip() if "," in norm else norm
-        if family not in result:
-            result[family] = sid
+        family, _, given = (p.strip() for p in norm.partition(","))
+        if given:
+            key = f"{family}, {given.split()[0]}"
+            key_owner.setdefault(key, set()).add(sid)
+            result[key] = sid
+        family_owner.setdefault(family, set()).add(sid)
+    for key, sids in key_owner.items():
+        if len(sids) > 1:
+            result.pop(key, None)  # ambiguous "family, firsttoken" — never guess
+    for family, sids in family_owner.items():
+        if len(sids) == 1 and family not in result:
+            result[family] = next(iter(sids))
     return result
 
 
@@ -57,11 +81,12 @@ def _match_senator(name: str, senator_map: dict) -> int | None:
     norm = _norm_name(name)
     if norm in senator_map:
         return senator_map[norm]
-    # Try family name only
-    family = norm.split(",")[0].strip()
-    if family in senator_map:
-        return senator_map[family]
-    return None
+    family, _, given = (p.strip() for p in norm.partition(","))
+    if given:
+        key = f"{family}, {given.split()[0]}"
+        if key in senator_map:
+            return senator_map[key]
+    return senator_map.get(family)
 
 
 def scrape_senate_votes(max_votes: int = 0) -> dict:

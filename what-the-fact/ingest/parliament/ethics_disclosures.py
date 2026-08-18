@@ -1,173 +1,206 @@
-"""ethics_disclosures.py — Ethics Commissioner disclosure link ingest.
+"""ethics_disclosures.py — Ethics Commissioner disclosure ingest.
 
-Scrapes the CIEC Public Registry (prciec-rpccie.parl.gc.ca) using Playwright.
-The site moved from ciec-ccie.parl.gc.ca/en/disclosures/ (404) to a
-SharePoint-backed JS-rendered portal at prciec-rpccie.parl.gc.ca.
+The CIEC rebranded in 2026: the old SharePoint portal
+(prciec-rpccie.parl.gc.ca/...PublicRegistryCode.aspx) now 301s to
+www.ethicscanada.ca, whose registry search is a plain ASP.NET site with an
+UNAUTHENTICATED HTML-partial endpoint — GET /en/public-registry/Cards —
+serving the whole registry as parseable cards (30/page with a
+"page N of M" counter, real per-entry "Disclosed on" dates back to 2009,
+server-side df/dt ISO date filtering). The site's own JS fetches exactly
+this endpoint; there is no JSON API. Verified live 2026-08-18: 1,645
+Disclosure Summaries (Code), 55 pages, every card role
+'Member of Parliament'.
 
-MP disclosure page links are stored in parliament.mp_disclosures.
-The registry only lists *current* MPs; new MPs are added as they complete
-the initial compliance process — run weekly to pick up new additions.
+No Playwright, no bs4 — plain urllib + regex — so this runs in the
+wtf-ingest container on the normal weekly loop (the old scraper needed
+Playwright, which is deliberately hub-only, and therefore returned
+{'error': ...} on every container run: the 88-day silent freeze).
 
-Pagination: 25 MPs per page, JS-driven (href="#"). Use page.evaluate()
-click to advance pages — plain Playwright click() does not trigger the
-DOM update; you must fire the click via JS and wait 5s for the update.
-
-Requires: playwright + system Chrome at /usr/bin/google-chrome
+Rows land in parliament.mp_disclosures with the pre-existing contract:
+(mp_id, disclosure_year, disclosure_type='public', disclosure_url),
+UNIQUE (mp_id, disclosure_year, disclosure_type). disclosure_year now
+comes from the card's real Disclosed-on date (the old code hardcoded the
+current year), which unlocks the 2009+ history; the newest summary of a
+given (mp, year) wins.
 """
 import logging
-from datetime import date
+import re
+import time
+import urllib.parse
+import urllib.request
+from datetime import datetime
 
 from sqlalchemy import text
 
 logger = logging.getLogger("wtf-ingest.ethics")
 
-_BASE = "https://prciec-rpccie.parl.gc.ca"
-_LIST_URL = f"{_BASE}/EN/PublicRegistries/Pages/PublicRegistryCode.aspx"
-_CHROME_ARGS = ["--no-sandbox", "--disable-dev-shm-usage", "--headless", "--disable-gpu"]
-_HEADERS = {"User-Agent": "Mozilla/5.0 WTFIngest (+https://what-the-fact.com)"}
+_CARDS_URL = "https://www.ethicscanada.ca/en/public-registry/Cards"
+_DETAILS_BASE = "https://www.ethicscanada.ca/en/public-registry/Details?declarationId="
+# select[name=t] option "Disclosure Summaries (Code)" — the Members' Code registry
+_CODE_TYPE_GUID = "5924f660-7f25-4702-a727-bc15b1b85dba"
+_HEADERS = {
+    "User-Agent": "WTFIngest/1.0 (+https://what-the-fact.com; contact@what-the-fact.com)",
+    "Accept": "text/html",
+}
+_PAGE_SLEEP = 0.4
+_MAX_PAGES = 80  # 55 pages live today at 30/page — ceiling for growth
 
-_MAX_PAGES = 30  # safety ceiling (50 MPs/page would need 7 pages for all 343 MPs)
+_TOTAL_RE = re.compile(r"page\s+(\d+)\s+of\s+(\d+)", re.IGNORECASE)
+_DECL_RE = re.compile(r"Details\?declarationId=([0-9a-fA-F-]{36})")
+_NAME_RE = re.compile(r"<strong>([^<]+)</strong>")
+_DATE_RE = re.compile(r"Disclosed on\s+([A-Z][a-z]+ \d{1,2}, \d{4})")
 
 
-def _scrape_mp_disclosure_links() -> list[dict]:
-    """Scrape all visible MP disclosure page links from the OCIEC public registry.
+def _fetch_page(p: int) -> str:
+    qs = urllib.parse.urlencode(
+        # sort=date&dir=asc so that when two summaries share a (mp, year),
+        # iteration order makes the NEWER one overwrite in the dedup dict.
+        {"t": _CODE_TYPE_GUID, "sort": "date", "dir": "asc", "p": p}
+    )
+    req = urllib.request.Request(f"{_CARDS_URL}?{qs}", headers=_HEADERS)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return r.read().decode("utf-8", "replace")
 
-    Returns list of {name_raw: "Last, First", client_url: "https://..."}.
-    Iterates pages until no new page link is found.
+
+def _parse_cards(html: str) -> tuple[list[dict], int | None]:
+    """Parse the Cards HTML partial → ([{declaration_id, name_raw, disclosed}], total_pages).
+
+    Each card leads with its Details?declarationId anchor, then the client
+    link wrapping <strong>First Last</strong>, then 'Disclosed on Month D, YYYY'
+    — so splitting on the declarationId anchor pairs each card's fields.
     """
-    try:
-        from playwright.sync_api import sync_playwright
-    except ImportError:
-        logger.error(
-            "playwright not installed — cannot scrape ethics disclosures. "
-            "Run: pip install playwright && playwright install chromium"
-        )
-        return []
-
-    all_links: list[dict] = []
-    seen_names: set[str] = set()
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            executable_path="/usr/bin/google-chrome",
-            args=_CHROME_ARGS,
-        )
+    m = _TOTAL_RE.search(html)
+    total_pages = int(m.group(2)) if m else None
+    entries: list[dict] = []
+    for chunk in re.split(r"(?=Details\?declarationId=)", html)[1:]:
+        dm = _DECL_RE.search(chunk[:200])
+        nm = _NAME_RE.search(chunk)
+        dtm = _DATE_RE.search(chunk)
+        if not (dm and nm and dtm):
+            continue
         try:
-            page = browser.new_page()
-            page.set_extra_http_headers(_HEADERS)
-            page.goto(_LIST_URL, wait_until="networkidle", timeout=25000)
+            disclosed = datetime.strptime(dtm.group(1), "%B %d, %Y").date()
+        except ValueError:
+            continue
+        entries.append({
+            "declaration_id": dm.group(1),
+            "name_raw": nm.group(1).strip(),
+            "disclosed": disclosed,
+        })
+    return entries, total_pages
 
-            current_page = 1
 
-            while current_page <= _MAX_PAGES:
-                # Scroll to reveal lazily-loaded items
-                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                page.wait_for_timeout(2000)
+def _build_mp_index(engine) -> tuple[dict, dict, dict]:
+    """Three name→mp_id maps, most→least specific. ALL MPs, not just current
+    — historical summaries (2009+) belong to former members.
 
-                # Extract MP Client.aspx links from current page
-                raw = page.evaluate(
-                    "() => Array.from(document.querySelectorAll('a[href*=\"Client.aspx\"]')).map(a => "
-                    "({name: a.textContent.trim(), href: a.href})).filter(l => l.name && l.href)"
-                )
-                new_on_page = 0
-                for item in raw:
-                    if item["name"] not in seen_names:
-                        seen_names.add(item["name"])
-                        all_links.append({"name_raw": item["name"], "client_url": item["href"]})
-                        new_on_page += 1
+    ⚠️ Never match on bare family name unless it is UNIQUE: parliament.mps
+    holds SEVEN current MPs surnamed Gill — the old family-first index
+    silently collapsed all of them onto one id.
+    """
+    with engine.connect() as c:
+        rows = c.execute(text(
+            "SELECT id, name, family_name, is_current FROM parliament.mps"
+        )).fetchall()
+    rows = sorted(rows, key=lambda r: bool(r[3]))  # current LAST → wins collisions
+    exact: dict = {}
+    token: dict = {}
+    token_owner: dict = {}
+    family_owner: dict = {}
+    for mp_id, name, fam, _cur in rows:
+        n = (name or "").strip().lower()
+        if not n:
+            continue
+        exact[n] = mp_id
+        toks = n.replace(".", "").split()
+        if len(toks) >= 2:
+            key = (toks[0], toks[-1])
+            token_owner.setdefault(key, set()).add(mp_id)
+            token[key] = mp_id
+        fam_l = (fam or (toks[-1] if toks else "")).strip().lower()
+        if fam_l:
+            family_owner.setdefault(fam_l, set()).add(mp_id)
+    for key, ids in token_owner.items():
+        if len(ids) > 1:
+            token.pop(key, None)  # ambiguous first+last — never guess
+    family = {f: next(iter(ids)) for f, ids in family_owner.items() if len(ids) == 1}
+    return exact, token, family
 
-                logger.info(
-                    "ethics: page %d — %d visible, %d new", current_page, len(raw), new_on_page
-                )
 
-                # Stop as soon as a page yields no new MPs — listing is exhausted
-                if new_on_page == 0:
-                    logger.info("ethics: page %d empty — listing complete", current_page)
-                    break
-
-                # Try to advance to next page via JS click on the page-number link.
-                # The site uses href="#" with a JS handler; plain click() doesn't trigger
-                # the DOM update — must use page.evaluate() to fire it.
-                next_page_num = current_page + 1
-                advanced = page.evaluate(
-                    f"""() => {{
-                        const all = Array.from(document.querySelectorAll('a'));
-                        const link = all.find(a => a.textContent.trim() === '{next_page_num}');
-                        if (link) {{ link.click(); return true; }}
-                        return false;
-                    }}"""
-                )
-                if not advanced:
-                    logger.info("ethics: no page %d link — listing complete", next_page_num)
-                    break
-
-                # Wait for SharePoint to load the new page's results into the DOM
-                page.wait_for_timeout(3000)
-                current_page += 1
-
-        finally:
-            browser.close()
-
-    logger.info("ethics: scraped %d total MP disclosure links across %d page(s)", len(all_links), current_page)
-    return all_links
+def _match_mp(name_raw: str, exact: dict, token: dict, family: dict):
+    """Portal names are 'First Last' (e.g. 'Amanpreet Singh Gill'); DB may
+    hold initials ('Amanpreet S. Gill') — dot-stripped (first, last) tokens
+    bridge both. Bare family only when unique."""
+    n = name_raw.strip().lower()
+    if n in exact:
+        return exact[n]
+    toks = n.replace(".", "").split()
+    if len(toks) >= 2:
+        mp_id = token.get((toks[0], toks[-1]))
+        if mp_id:
+            return mp_id
+    return family.get(toks[-1]) if toks else None
 
 
 def run_ethics_sync(engine) -> dict:
-    """Scrape OCIEC public registry and upsert MP disclosure page URLs."""
-    mp_links = _scrape_mp_disclosure_links()
-    if not mp_links:
-        return {"error": "no MP links scraped — playwright may not be installed or site is down"}
+    """Fetch every Disclosure Summary (Code) card and upsert per (mp, year)."""
+    entries: list[dict] = []
+    total_pages = None
+    p = 1
+    while p <= _MAX_PAGES:
+        try:
+            html = _fetch_page(p)
+        except Exception as exc:
+            if entries:
+                logger.warning("ethics: page %d fetch failed (%s) — proceeding with %d entries",
+                               p, exc, len(entries))
+                break
+            return {"error": f"ethicscanada.ca Cards fetch failed on page {p}: {exc}"}
+        page_entries, tp = _parse_cards(html)
+        if total_pages is None and tp:
+            total_pages = tp
+            logger.info("ethics: %d pages of Code disclosure summaries", total_pages)
+        if not page_entries:
+            break
+        entries.extend(page_entries)
+        if total_pages is not None and p >= total_pages:
+            break
+        p += 1
+        time.sleep(_PAGE_SLEEP)
 
-    # Load current-MP name maps
-    with engine.connect() as c:
-        mp_rows = c.execute(text(
-            "SELECT id, name, family_name FROM parliament.mps WHERE is_current = true"
-        )).fetchall()
+    if not entries:
+        return {"error": "no disclosure cards parsed from ethicscanada.ca — markup changed?"}
 
-    family_idx = {(r[2] or "").strip().lower(): r[0] for r in mp_rows if r[2]}
-    name_idx = {(r[1] or "").strip().lower(): r[0] for r in mp_rows if r[1]}
-
-    current_year = date.today().year
-    inserted = 0
-    skipped = 0
-
-    for item in mp_links:
-        name_raw = item["name_raw"]   # OCIEC format: "Last, First" (e.g. "Trudeau, Justin")
-        client_url = item["client_url"]
-
-        # Parse "Last, First" → family + given
-        if "," in name_raw:
-            family, given = name_raw.split(",", 1)
-            family = family.strip().lower()
-            given = given.strip().lower()
-        else:
-            family = name_raw.strip().lower()
-            given = ""
-
-        # Match against DB by family name (most reliable), then full name variants
-        mp_id = family_idx.get(family)
-        if not mp_id and given:
-            mp_id = name_idx.get(f"{given} {family}") or name_idx.get(f"{family} {given}")
-
+    exact, token, family = _build_mp_index(engine)
+    latest: dict = {}  # (mp_id, year) -> entry; asc iteration → newest wins
+    unmatched = 0
+    for e in entries:
+        mp_id = _match_mp(e["name_raw"], exact, token, family)
         if not mp_id:
-            logger.debug("ethics: no DB match for %r (family=%r)", name_raw, family)
-            skipped += 1
+            unmatched += 1
             continue
+        latest[(mp_id, e["disclosed"].year)] = e
 
+    upserted = 0
+    failed = 0
+    for (mp_id, yr), e in latest.items():
         try:
             with engine.begin() as c:
                 c.execute(text("""
                     INSERT INTO parliament.mp_disclosures
                         (mp_id, disclosure_year, disclosure_type, disclosure_url)
-                    VALUES (:mp, :yr, :dtype, :url)
+                    VALUES (:mp, :yr, 'public', :url)
                     ON CONFLICT (mp_id, disclosure_year, disclosure_type) DO UPDATE SET
                         disclosure_url = EXCLUDED.disclosure_url,
                         synced_at = NOW()
-                """), {"mp": mp_id, "yr": current_year, "dtype": "public", "url": client_url})
-            inserted += 1
+                """), {"mp": mp_id, "yr": yr,
+                       "url": _DETAILS_BASE + e["declaration_id"]})
+            upserted += 1
         except Exception as exc:
-            logger.debug("ethics: insert failed mp_id=%s: %s", mp_id, exc)
-            skipped += 1
+            logger.debug("ethics: upsert failed mp_id=%s yr=%s: %s", mp_id, yr, exc)
+            failed += 1
 
-    logger.info("ethics: inserted=%d skipped=%d scraped=%d", inserted, skipped, len(mp_links))
-    return {"inserted": inserted, "skipped": skipped, "scraped": len(mp_links)}
+    logger.info("ethics: fetched=%d upserted=%d unmatched=%d failed=%d pages=%d",
+                len(entries), upserted, unmatched, failed, p)
+    return {"fetched": len(entries), "upserted": upserted,
+            "unmatched": unmatched, "failed": failed, "pages": p}

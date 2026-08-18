@@ -70,7 +70,18 @@ _MAX_AGE_DAYS = {
     "promise_tracker": int(os.environ.get("WTF_DRIFT_PROMISE_DAYS", "21")),
     # House committee rosters (#5728, container phase-3 since 2026-08-18).
     "committees": int(os.environ.get("WTF_DRIFT_COMMITTEES_DAYS", "21")),
+    # A.U.R.O.R.A. environmental layers (project #393, CWFIS — ADR-001).
+    # Tighter than the parliamentary feeds because these refresh daily, not
+    # weekly: a fire layer three weeks stale is worthless during fire season.
+    "aurora_firewx": int(os.environ.get("WTF_DRIFT_AURORA_FIREWX_DAYS", "2")),
+    "aurora_fire": int(os.environ.get("WTF_DRIFT_AURORA_FIRE_DAYS", "2")),
 }
+
+# Tasks that MUST have run at least once. The freshness loop below skips a task
+# with zero rows ("not yet tracked"), which is right for a legacy sync that
+# predates ingest_log — but for a NEW puller it means one that never runs at all
+# reports green forever. Anything listed here alarms on absence instead.
+_REQUIRED_TASKS = {"aurora_firewx", "aurora_fire"}
 
 
 def _source_freshness(engine) -> list:
@@ -93,6 +104,10 @@ def _source_freshness(engine) -> list:
             ).fetchone()
             n_entries, age_days, latest_error = (row[0], row[1], row[2]) if row else (0, None, None)
             if not n_entries:
+                if task in _REQUIRED_TASKS:
+                    problems.append(
+                        "%s: has NEVER run — no ingest_log row at all" % task)
+                    continue
                 # Never logged — there's no baseline to assess freshness against, and the sync
                 # may simply predate ingest_log tracking (the data can still be present). Skip
                 # quietly rather than false-alarm; it starts being watched once it logs once.

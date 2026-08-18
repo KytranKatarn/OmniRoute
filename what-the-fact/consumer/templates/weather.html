@@ -87,6 +87,92 @@
     </div>
   </div>
 
+  {# ── A.U.R.O.R.A. environmental layers (project #393) ──────────────────────
+     The provenance strip below LOOPS `layers`. Do NOT hardcode a source name
+     here: this page previously advertised "Environment Canada + NASA EarthData
+     + NOAA" while holding no weather data at all (KB #290491). If a layer is
+     not in the database it does not appear, and a stale layer says so. #}
+  {% if layers %}
+  <div class="section-title">Wildfire &amp; fire-weather — live layers</div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;">
+    {% for L in layers %}
+    <div style="background:var(--wtf-surface);border:1px solid {% if L.is_stale %}#7f1d1d{% else %}var(--wtf-border){% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
+      <div style="font-size:9px;letter-spacing:1.5px;color:var(--wtf-muted);text-transform:uppercase;">{{ L.layer_label }}</div>
+      <div style="font-size:15px;font-family:'Orbitron',sans-serif;color:{% if L.is_stale %}#ef4444{% else %}var(--wtf-accent){% endif %};margin-top:3px;">
+        {{ '{:,}'.format(L.record_count or 0) }}
+      </div>
+      <div style="font-size:9px;color:var(--wtf-muted);margin-top:4px;line-height:1.5;">
+        {{ L.issuing_body }}<br>
+        <span style="color:#4b5563;">{{ L.dataset_id }}</span><br>
+        {% if L.is_stale %}
+        <span style="color:#ef4444;">⚠ STALE — last pull {{ L.last_pull.strftime('%Y-%m-%d %H:%M') if L.last_pull else 'never' }}</span>
+        {% else %}
+        pulled {{ L.last_pull.strftime('%Y-%m-%d %H:%M') }} UTC
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if fire_summary %}
+  <div style="font-size:11px;color:var(--wtf-muted);margin-bottom:16px;line-height:1.7;">
+    <strong style="color:var(--wtf-text);">{{ '{:,}'.format(fire_summary.perimeter_count) }}</strong> active fire perimeters mapped nationally
+    {% if fire_summary.earliest_start %}· earliest still burning since {{ fire_summary.earliest_start.strftime('%b %-d, %Y') }}{% endif %}
+    <br><span style="color:#4b5563;">The source publishes no fire name, province or cause on this layer, so none is shown.</span>
+  </div>
+  {% endif %}
+
+  {% if fire_provinces %}
+  <div style="overflow-x:auto;margin-bottom:20px;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr>
+        <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Province</th>
+        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Hotspots (72h)</th>
+        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Peak fire-weather index</th>
+      </tr></thead>
+      <tbody>
+        {% for f in fire_provinces %}
+        <tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:var(--wtf-text);">{{ f.prov }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:var(--wtf-accent);">{{ '{:,}'.format(f.hotspots) }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:var(--wtf-muted);">{{ '%.1f'|format(f.max_fwi) if f.max_fwi is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if windiest %}
+  <div class="section-title">Strongest winds at fire-weather stations</div>
+  <div style="overflow-x:auto;margin-bottom:22px;">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr>
+        <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Station</th>
+        <th style="text-align:left;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Prov</th>
+        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Wind</th>
+        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Gust</th>
+        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">Temp</th>
+        <th style="text-align:right;font-size:9px;color:#4b5563;text-transform:uppercase;letter-spacing:1px;padding:6px 8px;border-bottom:1px solid var(--wtf-border);">FWI</th>
+      </tr></thead>
+      <tbody>
+        {% for w in windiest %}
+        <tr>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:var(--wtf-text);">{{ w.station_name or '—' }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;color:var(--wtf-muted);">{{ w.prov or '—' }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:var(--wtf-accent);">{{ '%.0f'|format(w.wind_speed_kmh) }} km/h</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:var(--wtf-muted);">{{ '%.0f'|format(w.wind_gust_kmh) if w.wind_gust_kmh is not none else '—' }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:var(--wtf-muted);">{{ '%.1f'|format(w.temp_c) if w.temp_c is not none else '—' }}</td>
+          <td style="padding:6px 8px;border-bottom:1px solid #0f1620;text-align:right;color:var(--wtf-muted);">{{ '%.1f'|format(w.fwi) if w.fwi is not none else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% endif %}
+
   <div class="section-title">Recent climate &amp; science stories</div>
 
   <div class="article-list">

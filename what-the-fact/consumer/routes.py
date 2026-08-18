@@ -603,10 +603,47 @@ def weather():
             f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'science-tech'"
         )).scalar() or 0
 
+        # A.U.R.O.R.A. environmental layers (project #393). Every panel below is
+        # rendered from these rows, and the provenance strip LOOPS
+        # aurora_layer_status — no source name is hardcoded in the template.
+        # That is deliberate: the false "Environment Canada + NASA EarthData +
+        # NOAA" claim removed from this page on 2026-08-18 lived in prose that
+        # no query could contradict (KB #290491).
+        layers = c.execute(text("""
+            SELECT layer_key, layer_label, issuing_body, dataset_id, source_url,
+                   data_latest, last_pull, record_count,
+                   (last_pull IS NULL
+                    OR last_pull < now() - interval '48 hours') AS is_stale
+            FROM wtf.aurora_layer_status ORDER BY layer_key
+        """)).mappings().all()
+        fire_provinces = c.execute(text("""
+            SELECT prov, sum(hotspot_count) AS hotspots, max(max_fwi) AS max_fwi,
+                   max(obs_date) AS obs_date
+            FROM wtf.aurora_fire_hotspot_daily
+            WHERE obs_date > CURRENT_DATE - 3
+            GROUP BY prov ORDER BY sum(hotspot_count) DESC
+        """)).mappings().all()
+        fire_summary = c.execute(text("""
+            SELECT snapshot_date, perimeter_count, total_area, max_area, earliest_start
+            FROM wtf.aurora_fire_perimeters ORDER BY snapshot_date DESC LIMIT 1
+        """)).mappings().first()
+        windiest = c.execute(text("""
+            SELECT station_name, prov, wind_speed_kmh, wind_gust_kmh, wind_dir_deg,
+                   temp_c, rel_humidity, fwi, rep_date
+            FROM wtf.aurora_firewx_obs
+            WHERE rep_date = (SELECT max(rep_date) FROM wtf.aurora_firewx_obs)
+              AND wind_speed_kmh IS NOT NULL
+            ORDER BY wind_speed_kmh DESC LIMIT 12
+        """)).mappings().all()
+
     return render_template("weather.html",
                            articles=rows,
                            climate_count=climate_count,
                            sci_count=sci_count,
+                           layers=[dict(r) for r in layers],
+                           fire_provinces=[dict(r) for r in fire_provinces],
+                           fire_summary=dict(fire_summary) if fire_summary else None,
+                           windiest=[dict(r) for r in windiest],
                            is_subscriber=is_subscriber())
 
 

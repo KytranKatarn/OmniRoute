@@ -377,6 +377,7 @@ def main():
     engine = create_engine(os.environ["WTF_DATABASE_URL"], pool_pre_ping=True)
     _last_report_date = None
     _last_parliament_date = None
+    _last_aurora_date = None
     _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
     _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
     _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
@@ -525,6 +526,20 @@ def main():
             except Exception:
                 log.exception("securities issuer_contracts sync crashed")
             _last_issuer_contracts_date = today
+
+        # A.U.R.O.R.A. environmental layers — daily (project #393).
+        # CWFIS only: allow-all robots.txt, verified. NOT api.weather.gc.ca,
+        # which disallows /collections/*/items (ADR-001, owner decision).
+        # Runs BEFORE the drift guard so the guard evaluates a heartbeat written
+        # this pass, not yesterday's. run_aurora_cwfis never raises and writes
+        # its own heartbeats on both the success and swallowed-error paths.
+        if _last_aurora_date != today:
+            try:
+                from ingest.weather.cwfis import run_aurora_cwfis
+                log.info("aurora cwfis: %s", run_aurora_cwfis(engine))
+            except Exception:
+                log.exception("aurora cwfis crashed")
+            _last_aurora_date = today
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

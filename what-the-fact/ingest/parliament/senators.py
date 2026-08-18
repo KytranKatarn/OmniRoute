@@ -117,17 +117,22 @@ def _norm_name(name: str) -> str:
 # ── sencanada.ca scraper ──────────────────────────────────────────────────────
 
 def _name_from_slug(slug: str) -> str:
-    """'martel-richard' → 'Richard Martel' (sencanada slugs are family-given).
+    """'martel-richard' → 'Martel, Richard' (sencanada slugs are family-given).
 
     Best-effort display name for a brand-new appointee whose list-view anchor
     text came back empty — the raw slug is what previously landed in `name`
-    and rendered on /mps. Multi-part given/family names come out imperfect;
-    enrichment or curation refines them later."""
+    and rendered on /mps. ⚠️ MUST be 'Family, Given' — that is how every
+    roster row is stored ('Kutcher, Stan') and what the senate_votes ballot
+    matcher partitions on; a 'Given Family' name silently strands that
+    senator's ballots (measured 2026-08-18: 8 backfilled retirees matched 0
+    ballots until their names were re-written comma-style). Multi-part
+    given/family names come out imperfect; enrichment refines them later."""
     parts = [p for p in slug.split("-") if p]
     if len(parts) < 2:
         return slug.replace("-", " ").title()
     family, given = parts[0], parts[1:]
-    return " ".join(w.capitalize() for w in given + [family])
+    return "{}, {}".format(family.capitalize(),
+                           " ".join(w.capitalize() for w in given))
 
 
 def _scrape_profile(slug: str, page=None) -> dict:

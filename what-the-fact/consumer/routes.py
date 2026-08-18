@@ -2362,9 +2362,17 @@ def mps_listing():
             "SELECT DISTINCT province_code FROM parliament.mps WHERE is_current=true AND province_code IS NOT NULL ORDER BY province_code"
         )).scalars().all()
         source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        # COALESCE is load-bearing: the template does `groupby('caucus')`, and
+        # Jinja's groupby SORTS by key — None < str raises TypeError and 500s
+        # the whole page. A freshly-appointed senator legitimately has no
+        # caucus yet (2026-08-18: three appointees took /mps down for ~2.5h).
+        # 'Non-affiliated' is also the factual label for a new appointee.
         senators = c.execute(text("""
-            SELECT slug, name, given_name, family_name, caucus, province, photo_url, profile_url, appointed_at
-            FROM parliament.senators WHERE is_current = true ORDER BY caucus, name
+            SELECT slug, name, given_name, family_name,
+                   COALESCE(caucus, 'Non-affiliated') AS caucus,
+                   province, photo_url, profile_url, appointed_at
+            FROM parliament.senators WHERE is_current = true
+            ORDER BY COALESCE(caucus, 'Non-affiliated'), name
         """)).mappings().all()
 
     senators_list = [dict(s) for s in senators]

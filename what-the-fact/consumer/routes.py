@@ -2319,6 +2319,48 @@ def gic_appointments():
                            is_subscriber=is_subscriber())
 
 
+# ── nav live-source counter ───────────────────────────────────────────────────
+# base.html renders "LIVE · N SOURCES" in both the desktop and mobile nav from
+# `nav_source_count`. It is injected for EVERY template by the context
+# processor below rather than passed per route, because the per-route approach
+# failed twice over: /lobbying and /claims rendered a literal ZERO (their routes
+# never passed it), and the routes that DID pass it used two different
+# definitions — COUNT(*) FROM sources (46, every source ever ingested) vs
+# distinct sources active in 48h (41) — so the same "LIVE" label showed a
+# different number depending on which page you were on.
+#
+# One definition, one place, and a route can no longer forget it. Per-page
+# `source_count` values are deliberately left alone: some pages legitimately
+# display a total in their own copy.
+_NAV_SOURCE_CACHE: dict = {}
+_NAV_SOURCE_TTL = int(os.environ.get("WTF_NAV_SOURCE_TTL", "300"))
+
+
+def _nav_source_count() -> int:
+    """Distinct sources that actually published in the last 48h. Cached — this
+    runs on every page render, so it must never be a per-request query."""
+    hit = _NAV_SOURCE_CACHE.get("n")
+    now = time.time()
+    if hit and hit[0] > now:
+        return hit[1]
+    try:
+        with _db().begin() as c:
+            n = c.execute(text(
+                f"SELECT COUNT(DISTINCT s.id) FROM {_schema()}.sources s "
+                f"JOIN {_schema()}.articles a ON a.source_id = s.id "
+                f"AND a.ingested_at > NOW() - INTERVAL '48 hours'"
+            )).scalar() or 0
+    except Exception:      # a nav counter must never take a page down
+        return (hit or (0, 0))[1]
+    _NAV_SOURCE_CACHE["n"] = (now + _NAV_SOURCE_TTL, int(n))
+    return int(n)
+
+
+@bp.app_context_processor
+def _inject_nav_source_count():
+    return {"nav_source_count": _nav_source_count()}
+
+
 _LOBBY_CACHE: dict = {}  # ("index"|org) -> (expiry_ts, payload)
 _LOBBY_CACHE_TTL = int(os.environ.get("WTF_LOBBY_CACHE_TTL", "1800"))
 

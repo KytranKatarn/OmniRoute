@@ -52,7 +52,7 @@
     </div>
     <div class="wtf-nav-live">
       <span class="wtf-live-dot"></span>
-      <span>LIVE &middot; {{ source_count | default(0) }} SOURCES</span>
+      <span>LIVE &middot; {{ nav_source_count | default(source_count) | default(0) }} SOURCES</span>
     </div>
     <div class="wtf-nav-actions">
       {% if session.get('wtf_authenticated') %}
@@ -87,7 +87,7 @@
   <div class="wtf-nav-mobile" id="wtfNavMobile">
     <div class="wtf-mobile-live">
       <span class="wtf-live-dot"></span>
-      LIVE &middot; {{ source_count | default(0) }} SOURCES
+      LIVE &middot; {{ nav_source_count | default(source_count) | default(0) }} SOURCES
     </div>
     <a href="/">News</a>
     <a href="/activity">Activity Log</a>

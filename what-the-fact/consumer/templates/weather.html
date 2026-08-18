@@ -73,6 +73,28 @@
 .wtf-wx-card-prov { font-size:9px; color:#4b5563; text-transform:uppercase; letter-spacing:.08em; }
 .wtf-wx-card-temp { font-family:'Orbitron',sans-serif; font-size:19px; color:#60a5fa; margin:5px 0 3px; }
 .wtf-wx-card-row { font-size:10px; color:#6b7280; display:flex; gap:9px; flex-wrap:wrap; }
+/* ── city cards (Phase 2, task #5760) ────────────────────────────────────── */
+.wtf-wx-citygrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(196px,1fr)); gap:9px; margin-bottom:22px; }
+.wtf-wx-citycard { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid #38bdf8;
+  border-radius:5px; padding:12px 13px; }
+.wtf-wx-citycard.is-stale { border-left-color:#f59e0b; }
+.wtf-wx-citycard.is-silent { border-left-color:#6b7280; opacity:.72; }
+.wtf-wx-city-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.wtf-wx-city-name { font-size:13px; color:#e5e7eb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wtf-wx-city-prov { font-size:9px; color:#4b5563; letter-spacing:.09em; }
+.wtf-wx-city-temp { font-family:'Orbitron',sans-serif; font-size:26px; color:#60a5fa; margin:6px 0 1px; }
+.wtf-wx-city-cond { font-size:11px; color:#9ca3af; min-height:15px; }
+.wtf-wx-city-row { font-size:10px; color:#6b7280; display:flex; flex-wrap:wrap; gap:9px; margin-top:6px; }
+.wtf-wx-city-fc { margin-top:8px; padding-top:7px; border-top:1px solid #0f1620;
+  display:flex; gap:7px; overflow-x:auto; }
+.wtf-wx-fc-day { flex:0 0 auto; text-align:center; min-width:46px; }
+.wtf-wx-fc-lbl { font-size:8.5px; color:#4b5563; text-transform:uppercase; letter-spacing:.05em; }
+.wtf-wx-fc-t { font-size:11px; color:#e5e7eb; margin-top:2px; }
+.wtf-wx-fc-pop { font-size:9px; color:#38bdf8; }
+.wtf-wx-city-age { font-size:9px; margin-top:6px; }
+.wtf-wx-age-ok { color:#4b5563; }
+.wtf-wx-age-stale { color:#f59e0b; }
+.wtf-wx-age-silent { color:#9ca3af; }
 @media (max-width: 860px) {
   .wtf-wx-maprow { grid-template-columns:1fr; }
   #wtf-wx-map { height:320px; }
@@ -237,6 +259,26 @@
       <div class="wtf-wx-aurora-foot" id="wtf-wx-aurora-foot"></div>
     </div>
   </div>
+
+
+  {# ── City conditions (Phase 2, task #5760) ────────────────────────────────
+     25 cities covering ALL 13 provinces and territories. That coverage is
+     deliberate: the fire map above has to grey out five provinces because CWFIS
+     has no stations there, and a national weather page that quietly omitted the
+     North would repeat the same coverage dishonesty somewhere new.
+
+     Each card carries its OWN observation age. One blanket "updated N minutes
+     ago" for the whole page would be a claim about 25 independent feeds. #}
+  {% if aurora_cities and aurora_cities.cities %}
+  <div class="wtf-wx-section-title">
+    City conditions
+    <span style="color:#4b5563;font-size:10px;text-transform:none;letter-spacing:0;">
+      — {{ aurora_cities.reporting }} of {{ aurora_cities.count }} reporting
+      across {{ aurora_cities.provinces | length }} provinces &amp; territories
+    </span>
+  </div>
+  <div class="wtf-wx-citygrid" id="wtf-wx-citygrid"></div>
+  {% endif %}
 
   <div class="wtf-wx-cards" id="wtf-wx-cards"></div>
   {% endif %}
@@ -526,7 +568,7 @@
     });
     if (selected && CENTROIDS[selected]) map.flyTo(CENTROIDS[selected], 5, { duration: 0.6 });
     else map.flyTo([60, -96], 3, { duration: 0.6 });
-    restyle(); renderAurora(); renderCards();
+    restyle(); renderAurora(); renderCards(); renderCities();
   }
 
   document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
@@ -542,7 +584,100 @@
     });
   });
 
-  renderAurora(); renderCards(); drawLegend();
+
+  // ── city cards (Phase 2) ──────────────────────────────────────────────────
+  // Rendered here rather than server-side so they follow the SAME province
+  // selection as the map — one control, one filtered view.
+  var CITIES = {{ (aurora_cities or {}) | tojson }};
+
+  function renderCities() {
+    var wrap = document.getElementById("wtf-wx-citygrid");
+    if (!wrap || !CITIES.cities) return;
+    wrap.textContent = "";
+    var list = CITIES.cities.filter(function (c) { return !selected || c.prov === selected; });
+    if (!list.length) {
+      var d = document.createElement("div"); d.className = "wtf-wx-nodata";
+      d.textContent = "No city in this area is in the A.U.R.O.R.A. city set yet.";
+      wrap.appendChild(d); return;
+    }
+    list.forEach(function (c) {
+      var card = document.createElement("div");
+      // Three states, three different facts: reporting / stale / silent.
+      // A city MSC stopped publishing must not look like a fresh reading.
+      var stale = c.age_min !== null && c.age_min > 180;
+      var silent = c.temp === null;
+      card.className = "wtf-wx-citycard" + (silent ? " is-silent" : (stale ? " is-stale" : ""));
+
+      var top = document.createElement("div"); top.className = "wtf-wx-city-top";
+      var nm = document.createElement("span"); nm.className = "wtf-wx-city-name";
+      nm.textContent = c.name; nm.title = c.name;
+      var pv = document.createElement("span"); pv.className = "wtf-wx-city-prov";
+      pv.textContent = c.prov || "";
+      top.appendChild(nm); top.appendChild(pv); card.appendChild(top);
+
+      var t = document.createElement("div"); t.className = "wtf-wx-city-temp";
+      t.textContent = c.temp === null ? "—" : c.temp + "°";
+      card.appendChild(t);
+
+      var cond = document.createElement("div"); cond.className = "wtf-wx-city-cond";
+      cond.textContent = c.condition || "";
+      card.appendChild(cond);
+
+      var row = document.createElement("div"); row.className = "wtf-wx-city-row";
+      // calm is a MEASUREMENT (say so); a missing wind reading is omitted.
+      if (c.calm) row.appendChild(_chip("💨 calm"));
+      else if (c.wind !== null) row.appendChild(_chip("💨 " + c.wind + " km/h" + (c.gust !== null ? " g" + c.gust : "")));
+      if (c.humidity !== null) row.appendChild(_chip("💧 " + c.humidity + "%"));
+      if (c.humidex !== null) row.appendChild(_chip("🌡 fl " + c.humidex + "°"));
+      card.appendChild(row);
+
+      if (c.forecast && c.forecast.length) {
+        var fc = document.createElement("div"); fc.className = "wtf-wx-city-fc";
+        c.forecast.forEach(function (p) {
+          var d = document.createElement("div"); d.className = "wtf-wx-fc-day";
+          var l = document.createElement("div"); l.className = "wtf-wx-fc-lbl";
+          l.textContent = (p.label || "").slice(0, 9);
+          var v = document.createElement("div"); v.className = "wtf-wx-fc-t";
+          v.textContent = p.high !== null ? p.high + "°" : (p.low !== null ? p.low + "°" : "—");
+          d.appendChild(l); d.appendChild(v);
+          // pop is NULL when MSC gives no chance of precipitation — it is not
+          // "0%", so nothing is drawn rather than drawing a zero.
+          if (p.pop !== null) {
+            var pp = document.createElement("div"); pp.className = "wtf-wx-fc-pop";
+            pp.textContent = p.pop + "%"; d.appendChild(pp);
+          }
+          fc.appendChild(d);
+        });
+        card.appendChild(fc);
+      }
+
+      var age = document.createElement("div"); age.className = "wtf-wx-city-age";
+      if (silent) {
+        age.className += " wtf-wx-age-silent";
+        age.textContent = c.status === "no_observations"
+          ? "MSC published no observations for this site"
+          : "no reading available";
+      } else if (c.age_min === null) {
+        age.className += " wtf-wx-age-silent"; age.textContent = "observation time unknown";
+      } else {
+        age.className += stale ? " wtf-wx-age-stale" : " wtf-wx-age-ok";
+        age.textContent = (stale ? "⚠ " : "") + _ago(c.age_min);
+      }
+      card.appendChild(age);
+      wrap.appendChild(card);
+    });
+  }
+
+  function _chip(s) { var e = document.createElement("span"); e.textContent = s; return e; }
+  function _ago(m) {
+    m = Math.round(m);
+    if (m < 1) return "just now";
+    if (m < 90) return m + " min ago";
+    var h = Math.round(m / 60);
+    return h < 48 ? h + " h ago" : Math.round(h / 24) + " d ago";
+  }
+
+  renderAurora(); renderCards(); renderCities(); drawLegend();
 })();
 </script>
 {% endif %}

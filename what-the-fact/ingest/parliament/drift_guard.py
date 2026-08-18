@@ -75,13 +75,20 @@ _MAX_AGE_DAYS = {
     # weekly: a fire layer three weeks stale is worthless during fire season.
     "aurora_firewx": int(os.environ.get("WTF_DRIFT_AURORA_FIREWX_DAYS", "2")),
     "aurora_fire": int(os.environ.get("WTF_DRIFT_AURORA_FIRE_DAYS", "2")),
+    # City weather is an HOURLY feed, so 2 days would let it be dead for ~48
+    # cycles before anyone heard. 1 day is still generous (24 missed pulls) but
+    # this dict is in DAYS; the per-layer 3h/12h staleness that the UI honours
+    # lives in wtf.aurora_layer_status.stale_after_hours.
+    "aurora_city_obs": int(os.environ.get("WTF_DRIFT_AURORA_CITY_OBS_DAYS", "1")),
+    "aurora_city_forecast": int(os.environ.get("WTF_DRIFT_AURORA_CITY_FCST_DAYS", "1")),
 }
 
 # Tasks that MUST have run at least once. The freshness loop below skips a task
 # with zero rows ("not yet tracked"), which is right for a legacy sync that
 # predates ingest_log — but for a NEW puller it means one that never runs at all
 # reports green forever. Anything listed here alarms on absence instead.
-_REQUIRED_TASKS = {"aurora_firewx", "aurora_fire"}
+_REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
+                   "aurora_city_obs", "aurora_city_forecast"}
 
 
 def _source_freshness(engine) -> list:

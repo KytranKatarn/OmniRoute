@@ -141,3 +141,61 @@ def _aurora_map_payload(station_rows, station_provinces, fire_provinces, obs_tim
     }
 
 
+
+
+# ── city cards (Phase 2) ────────────────────────────────────────────────────
+
+def _aurora_city_payload(city_rows, forecast_rows):
+    """Build the /weather city-card payload.
+
+    Same discipline as the map payload above: a missing reading stays None and
+    never becomes 0, and each card carries its OWN observation age so a stale
+    city can say so individually rather than the page making one blanket claim.
+
+    `wind_is_calm` is carried through as its own flag. "Calm" is a MEASUREMENT
+    with no number; a missing wind reading is an ABSENCE. Rendering both as
+    "0 km/h" — or both as "—" — would merge two different facts.
+    """
+    by_site = {}
+    for f in forecast_rows:
+        by_site.setdefault(f["site_code"], []).append({
+            "label": f["period_label"],
+            "high": _r(f["temp_high_c"]),
+            "low": _r(f["temp_low_c"]),
+            "pop": _r(f["pop_pct"], 0),
+            "summary": f["abbrev_summary"] or f["text_summary"],
+        })
+
+    cities = []
+    for r in city_rows:
+        code = r["site_code"]
+        cities.append({
+            "code": code,
+            "name": r["display_name"] or r["name_en"],
+            "prov": _canon_prov(r["source_prov"]),
+            "lat": _r(r["lat"], 3),
+            "lon": _r(r["lon"], 3),
+            "status": r["last_obs_status"],
+            "observed": r["observed_utc"].isoformat() if r.get("observed_utc") else None,
+            "age_min": (int(r["age_min"]) if r.get("age_min") is not None else None),
+            "temp": _r(r["temp_c"]),
+            "condition": r["condition_text"],
+            "humidity": _r(r["rel_humidity_pct"], 0),
+            "wind": _r(r["wind_speed_kmh"], 0),
+            "calm": bool(r["wind_is_calm"]),
+            "gust": _r(r["wind_gust_kmh"], 0),
+            "dir": r["wind_dir"],
+            "humidex": _r(r["humidex"]),
+            "pressure": _r(r["pressure_kpa"]),
+            "forecast": by_site.get(code, [])[:4],
+        })
+
+    temps = [c["temp"] for c in cities if c["temp"] is not None]
+    return {
+        "cities": cities,
+        "count": len(cities),
+        "reporting": sum(1 for c in cities if c["temp"] is not None),
+        "warmest": max(temps) if temps else None,
+        "coldest": min(temps) if temps else None,
+        "provinces": sorted({c["prov"] for c in cities if c["prov"]}),
+    }

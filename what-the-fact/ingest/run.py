@@ -378,6 +378,7 @@ def main():
     _last_report_date = None
     _last_parliament_date = None
     _last_aurora_date = None
+    _last_city_hour = None
     _last_covered_date = None   # entity-graph WTF covered_by reconcile (daily)
     _last_ec_date = None        # entity-graph EC donations reconcile (weekly, Sat)
     _last_dedup_date = None     # entity-graph dedup engine (weekly, Mon)
@@ -540,6 +541,24 @@ def main():
             except Exception:
                 log.exception("aurora cwfis crashed")
             _last_aurora_date = today
+
+        # A.U.R.O.R.A. city observations + forecasts — HOURLY, not daily.
+        # citypage_weather is a current-conditions feed: its layer goes stale
+        # after 3h, so a daily gate would leave the cards wrong for most of the
+        # day. Gated on the UTC HOUR so a 30-min loop still fires it once per
+        # hour rather than twice. Same contract as cwfis: never raises, writes
+        # its own heartbeats on every path, and runs BEFORE the drift guard so
+        # the guard reads a heartbeat from this pass.
+        # UTC, not local: the feed partitions by UTC hour, so a local-time key
+        # would fire twice (or skip) around a DST boundary.
+        _city_hour = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d%H")
+        if _last_city_hour != _city_hour:
+            try:
+                from ingest.weather.citypage import run_aurora_citypage
+                log.info("aurora citypage: %s", run_aurora_citypage(engine))
+            except Exception:
+                log.exception("aurora citypage crashed")
+            _last_city_hour = _city_hour
 
         # Parliamentary cost/funds DRIFT GUARD — daily. Self-policing: reconciliation still ties
         # out + every ingest source is fresh & not erroring. Alerts Kytran through A.R.C.H.I.E.

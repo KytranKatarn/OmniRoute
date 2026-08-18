@@ -570,7 +570,10 @@ def news():
                            is_subscriber=is_subscriber())
 
 
-from .aurora_map import _aurora_map_payload  # pure, DB-free (see module docstring)
+from .aurora_map import (  # pure, DB-free (see module docstring)
+    _aurora_map_payload,
+    _aurora_city_payload,
+)
 
 
 @bp.get("/weather")
@@ -687,8 +690,42 @@ def weather():
         obs_time = c.execute(text(
             "SELECT max(rep_date) FROM wtf.aurora_firewx_obs")).scalar()
 
+        # Phase 2 — city current conditions. LATERAL to the newest observation
+        # per city so a city that stopped reporting keeps its card (with an
+        # honest age) instead of silently vanishing from the page.
+        city_rows = c.execute(text("""
+            SELECT s.site_code, s.name_en, s.display_name, s.source_prov,
+                   s.lat, s.lon, s.last_obs_status,
+                   o.observed_utc, o.temp_c, o.condition_text, o.rel_humidity_pct,
+                   o.wind_speed_kmh, o.wind_is_calm, o.wind_gust_kmh, o.wind_dir,
+                   o.humidex, o.pressure_kpa,
+                   EXTRACT(EPOCH FROM (now() - o.observed_utc))/60 AS age_min
+            FROM wtf.aurora_city_site s
+            LEFT JOIN LATERAL (
+                SELECT * FROM wtf.aurora_city_obs x
+                WHERE x.site_code = s.site_code
+                ORDER BY x.observed_utc DESC LIMIT 1
+            ) o ON true
+            WHERE s.is_city
+            ORDER BY s.sort_order, s.name_en
+        """)).mappings().all()
+
+        # Newest forecast ISSUE per city — issued_utc is a real key, so this
+        # picks one coherent issue rather than mixing periods across issues.
+        forecast_rows = c.execute(text("""
+            SELECT f.site_code, f.period_index, f.period_label,
+                   f.temp_high_c, f.temp_low_c, f.pop_pct,
+                   f.abbrev_summary, f.text_summary
+            FROM wtf.aurora_city_forecast f
+            JOIN (SELECT site_code, max(issued_utc) AS latest
+                  FROM wtf.aurora_city_forecast GROUP BY site_code) m
+              ON m.site_code = f.site_code AND m.latest = f.issued_utc
+            ORDER BY f.site_code, f.period_index
+        """)).mappings().all()
+
     map_payload = _aurora_map_payload(station_rows, station_provinces,
                                       fire_provinces, obs_time)
+    city_payload = _aurora_city_payload(city_rows, forecast_rows)
 
     return render_template("weather.html",
                            articles=rows,
@@ -700,6 +737,7 @@ def weather():
                            fire_summary=dict(fire_summary) if fire_summary else None,
                            windiest=[dict(r) for r in windiest],
                            aurora_map=map_payload,
+                           aurora_cities=city_payload,
                            obs_time=obs_time,
                            is_subscriber=is_subscriber())
 

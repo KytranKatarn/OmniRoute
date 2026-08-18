@@ -81,7 +81,7 @@ EXTERNAL_DOMAINS: list[dict] = [
     },
     {
         "name": "what_the_fact_com",
-        "translations_url": "https://what-the-fact.com/data/translations.json",
+        "translations_url": "https://what-the-fact.com/static/data/translations.json",  # /data/ 404s — the app serves /static/data/ (#5750)
         "pages": [
             "https://what-the-fact.com/",
         ],

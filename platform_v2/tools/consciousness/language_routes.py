@@ -75,11 +75,21 @@ EXTERNAL_SCAN_SOURCES = [
         "/mnt/standalone/kytran-market-watch/static/data/translations.json",
     ),
     # ── What The Fact (brand) — frontend + backend ──
-    (
-        "website_what_the_fact",
-        "/mnt/standalone/websites/what-the-fact.com",
-        "/mnt/standalone/websites/what-the-fact.com/data/translations.json",
-    ),
+    # NO BUNDLE (#5750). This entry used to export to
+    # /mnt/standalone/websites/what-the-fact.com/data/translations.json — a static
+    # marketing site frozen 2026-04-14, from before WTF became a Flask app. Nothing
+    # serves that directory, and the DB held no rows for these keys, so the nightly
+    # translation_coverage_scan wrote a 2-byte "{}" there and reported SUCCESS. The
+    # verify step passed because it fetched the LIVE url, which serves the file baked
+    # into the wtf-consumer image — a different artifact the export never touched.
+    #
+    # WTF's translations are HAND-MAINTAINED in the repo at
+    # consumer/static/data/translations.json (en/fr/es, the three the switcher offers).
+    # Do NOT point the export at that file: the DB set and the file set are not
+    # supersets of one another (DB = 8 keys x 8 langs; file = 18 keys x 3 langs), so an
+    # export would silently drop 10 keys per live language. Scanned for coverage,
+    # exported by nobody — same as website_kso / product_business_suite below.
+    ("website_what_the_fact", "/mnt/standalone/websites/what-the-fact.com", None),
     ("product_what_the_fact", "/mnt/archie_brain/what-the-fact", None),
     # ── KBS ──
     ("product_business_suite", "/mnt/standalone/kytran-business-suite", None),
@@ -1899,6 +1909,30 @@ def register_language_routes(bp, admin_required):
                     (lang_code, list(source_keys)),
                 )
                 bundle[lang_code] = {r["key"]: r["text"] for r in cur.fetchall()}
+
+            # An export that resolved NO translations is a failure, not a success
+            # (#5750). Writing an empty bundle overwrites a possibly-good file with
+            # nothing and then reports success, which is how WTF's i18n pipeline sat
+            # broken while every nightly run looked green. Refuse before writing.
+            total_pairs = sum(len(v) for v in bundle.values())
+            if total_pairs == 0:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "error": (
+                                f"Refusing to write an EMPTY bundle for {label}: "
+                                f"{len(source_keys)} key(s) found in {site_dir} but none "
+                                f"resolved to a translation in the DB. Either the source "
+                                f"directory is stale or the keys were never ingested."
+                            ),
+                            "source": label,
+                            "source_keys": len(source_keys),
+                            "bundle_path": bundle_path,
+                        }
+                    ),
+                    409,
+                )
 
             os.makedirs(os.path.dirname(bundle_path), exist_ok=True)
             with open(bundle_path, "w", encoding="utf-8") as f:

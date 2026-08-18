@@ -284,7 +284,9 @@
         <td style="padding:6px 8px 6px 0;color:#e5e7eb;">
           {{ lc.lobbyist_first }} {{ lc.lobbyist_last }}
         </td>
-        <td style="padding:6px 0;color:#9ca3af;">{{ (lc.client_org or '')[:60] }}</td>
+        <td style="padding:6px 0;color:#9ca3af;">
+          {% if lc.client_org %}<a href="/lobbying?org={{ lc.client_org | upper | trim | urlencode }}" style="color:#60a5fa;text-decoration:none;">{{ lc.client_org[:60] }}</a>{% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>

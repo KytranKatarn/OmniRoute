@@ -2268,6 +2268,142 @@ def gic_appointments():
                            is_subscriber=is_subscriber())
 
 
+_LOBBY_CACHE: dict = {}  # ("index"|org) -> (expiry_ts, payload)
+_LOBBY_CACHE_TTL = int(os.environ.get("WTF_LOBBY_CACHE_TTL", "1800"))
+
+# Registry junk that must never reach a leaderboard: 1,286 rows have an empty
+# client_org and 464 carry the LITERAL four-character string 'null' (true SQL
+# NULLs: zero). Unfiltered, 'null' ranks 8th among 3,689 organizations.
+_LOBBY_ORG_FILTER = "btrim(lc.client_org) NOT IN ('', 'null', 'NULL')"
+
+
+@bp.get("/lobbying")
+def lobbying_tracker():
+    """Who lobbies Parliament — org leaderboard, most-lobbied MPs, per-org drill-down.
+
+    Aggregate statistics are PUBLIC (they are counts, and the accountability
+    story is the point of the product); the contact-level rows stay subscriber
+    -gated, which is exactly what the /mp paywall copy already promises
+    ("lobbying contacts ... available to subscribers"). Flipping either half is
+    a one-line change — see is_subscriber use in templates/lobbying.html.
+
+    subject_matter is deliberately absent from this page: the column exists in
+    the DDL but is 100% NULL (the registry export carries no topic), so a
+    "what they lobbied about" panel would be an empty promise.
+    """
+    from flask import request as _req
+    org = (_req.args.get("org") or "").strip()
+    cache_key = ("org", org.lower()) if org else ("index",)
+    hit = _LOBBY_CACHE.get(cache_key)
+    now = time.time()
+    if hit and hit[0] > now:
+        payload = hit[1]
+    else:
+        payload = _lobbying_payload(org)
+        _LOBBY_CACHE[cache_key] = (now + _LOBBY_CACHE_TTL, payload)
+    return render_template("lobbying.html", org=org, **payload,
+                           is_subscriber=is_subscriber())
+
+
+def _lobbying_payload(org: str) -> dict:
+    """One DB round-trip for the /lobbying page (cached by the caller)."""
+    with _db().begin() as c:
+        stats = dict(c.execute(text(f"""
+            SELECT count(*) AS contacts,
+                   count(DISTINCT upper(btrim(lc.client_org)))
+                       FILTER (WHERE {_LOBBY_ORG_FILTER}) AS orgs,
+                   count(DISTINCT lc.mp_id) AS mps,
+                   min(lc.communication_date) AS first_seen,
+                   max(lc.communication_date) AS last_seen,
+                   count(*) FILTER (
+                       WHERE lc.communication_date > CURRENT_DATE - 30) AS last_30d
+            FROM parliament.lobbyist_contacts lc
+        """)).mappings().first() or {})
+
+        # Freshness stamp from the ingest heartbeat — the page states when the
+        # registry was last pulled rather than implying it is live.
+        stats["synced_at"] = c.execute(text("""
+            SELECT max(run_at) FROM parliament.ingest_log
+            WHERE task = 'lobbying' AND COALESCE(error, '') = ''
+        """)).scalar()
+
+        if org:
+            detail = c.execute(text(f"""
+                SELECT (array_agg(lc.client_org ORDER BY lc.client_org))[1] AS org_label,
+                       count(*) AS contacts, count(DISTINCT lc.mp_id) AS mps,
+                       min(lc.communication_date) AS first_seen,
+                       max(lc.communication_date) AS last_seen
+                FROM parliament.lobbyist_contacts lc
+                WHERE upper(btrim(lc.client_org)) = upper(:org) AND {_LOBBY_ORG_FILTER}
+            """), {"org": org}).mappings().first()
+            if not detail or not detail["contacts"]:
+                abort(404)
+            org_mps = c.execute(text(f"""
+                SELECT m.slug, m.name, m.party, m.riding_name, m.is_current,
+                       count(*) AS contacts, max(lc.communication_date) AS last_seen
+                FROM parliament.lobbyist_contacts lc
+                JOIN parliament.mps m ON m.id = lc.mp_id
+                WHERE upper(btrim(lc.client_org)) = upper(:org) AND {_LOBBY_ORG_FILTER}
+                GROUP BY m.id, m.slug, m.name, m.party, m.riding_name, m.is_current
+                ORDER BY count(*) DESC, m.name
+                LIMIT 60
+            """), {"org": org}).mappings().all()
+            contacts = c.execute(text(f"""
+                SELECT lc.communication_date, lc.lobbyist_first, lc.lobbyist_last,
+                       m.name AS mp_name, m.slug AS mp_slug
+                FROM parliament.lobbyist_contacts lc
+                JOIN parliament.mps m ON m.id = lc.mp_id
+                WHERE upper(btrim(lc.client_org)) = upper(:org) AND {_LOBBY_ORG_FILTER}
+                ORDER BY lc.communication_date DESC NULLS LAST, lc.id DESC
+                LIMIT 100
+            """), {"org": org}).mappings().all()
+            return {"stats": stats, "detail": dict(detail),
+                    "org_mps": [dict(r) for r in org_mps],
+                    "contacts": [dict(r) for r in contacts],
+                    "top_orgs": [], "top_mps": [], "recent": []}
+
+        top_orgs = c.execute(text(f"""
+            SELECT (array_agg(lc.client_org ORDER BY lc.client_org))[1] AS org_label,
+                   upper(btrim(lc.client_org)) AS org_key,
+                   count(*) AS contacts, count(DISTINCT lc.mp_id) AS mps,
+                   max(lc.communication_date) AS last_seen
+            FROM parliament.lobbyist_contacts lc
+            WHERE {_LOBBY_ORG_FILTER}
+            GROUP BY upper(btrim(lc.client_org))
+            ORDER BY count(*) DESC
+            LIMIT 40
+        """)).mappings().all()
+
+        top_mps = c.execute(text(f"""
+            SELECT m.slug, m.name, m.party, m.riding_name,
+                   count(*) AS contacts,
+                   count(DISTINCT upper(btrim(lc.client_org))) AS orgs
+            FROM parliament.lobbyist_contacts lc
+            JOIN parliament.mps m ON m.id = lc.mp_id
+            WHERE lc.communication_date > CURRENT_DATE - 365
+              AND m.is_current = true AND {_LOBBY_ORG_FILTER}
+            GROUP BY m.id, m.slug, m.name, m.party, m.riding_name
+            ORDER BY count(*) DESC, m.name
+            LIMIT 25
+        """)).mappings().all()
+
+        recent = c.execute(text(f"""
+            SELECT lc.communication_date, lc.client_org,
+                   lc.lobbyist_first, lc.lobbyist_last,
+                   m.name AS mp_name, m.slug AS mp_slug
+            FROM parliament.lobbyist_contacts lc
+            JOIN parliament.mps m ON m.id = lc.mp_id
+            WHERE {_LOBBY_ORG_FILTER}
+            ORDER BY lc.communication_date DESC NULLS LAST, lc.id DESC
+            LIMIT 50
+        """)).mappings().all()
+
+    return {"stats": stats, "detail": None, "org_mps": [], "contacts": [],
+            "top_orgs": [dict(r) for r in top_orgs],
+            "top_mps": [dict(r) for r in top_mps],
+            "recent": [dict(r) for r in recent]}
+
+
 @bp.get("/rates")
 def boc_rates():
     """Bank of Canada overnight rate decisions."""
@@ -3174,7 +3310,7 @@ def sitemap_core():
     S = _schema()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    static_pages = ["/", "/sources", "/map", "/team", "/join", "/activity", "/news"]
+    static_pages = ["/", "/sources", "/map", "/team", "/join", "/activity", "/news", "/lobbying"]
     for path in static_pages:
         lines.append(f"  <url><loc>https://what-the-fact.com{path}</loc></url>")
     with _db().begin() as c:

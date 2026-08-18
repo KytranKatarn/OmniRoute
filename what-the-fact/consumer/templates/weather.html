@@ -478,8 +478,13 @@
     // Phase 3 is an LLM narrative outlook (task #5761). Until it exists, say so
     // — an empty AI panel reads as broken, and a fabricated one is worse.
     parts.push("Values are measured, not forecast. A.U.R.O.R.A.'s narrative outlook "
-      + "arrives with the forecast layer.");
-    foot.textContent = parts.join(". ") + ".";
+      + "arrives with the forecast layer");
+    // Each part is a clause WITHOUT terminal punctuation; the join supplies it.
+    // Mixing the two conventions produced a visible ".." in the live panel, and
+    // joining raw clauses left lowercase letters after every full stop.
+    foot.textContent = parts.map(function (c) {
+      return c.charAt(0).toUpperCase() + c.slice(1);
+    }).join(". ") + ".";
   }
 
   function renderCards() {

@@ -75,7 +75,13 @@ def scrape_senate_votes(max_votes: int = 0) -> dict:
     stats = {"votes_upserted": 0, "ballots_upserted": 0, "senator_unmatched": set()}
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        # System Chrome, like senators.py — the hub has playwright's PACKAGE
+        # but not its managed Chromium download; a bare launch() would raise
+        # "Executable doesn't exist" on every cron run (2026-08-18 review).
+        browser = p.chromium.launch(
+            executable_path="/usr/bin/google-chrome",
+            headless=True,
+        )
         page = browser.new_page()
         page.set_default_timeout(30000)
 
@@ -190,6 +196,37 @@ def scrape_senate_votes(max_votes: int = 0) -> dict:
     return stats
 
 
+def run_senate_votes_sync(max_votes: int = 0) -> dict:
+    """scrape_senate_votes + a parliament.ingest_log heartbeat either way.
+
+    This scraper needs Playwright + Chrome, which the wtf-ingest container
+    deliberately does not carry — it runs on the HUB via weekly cron
+    (/etc/cron.d/wtf-senate-votes → scripts/senate_votes_cron.sh). The
+    heartbeat is what lets the container-side drift_guard watch it anyway
+    ('senate_votes' in _MAX_AGE_DAYS). Before 2026-08-18 this script was
+    never scheduled at all: 25 votes frozen at 2026-04-21 while the Senate
+    sat and voted through June (site audit)."""
+    engine = create_engine(os.environ["WTF_DATABASE_URL"])
+    try:
+        stats = scrape_senate_votes(max_votes=max_votes)
+        with engine.begin() as c:
+            c.execute(text(
+                "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                "VALUES ('senate_votes', :f, :u)"),
+                {"f": int(stats.get("votes_upserted") or 0),
+                 "u": int(stats.get("ballots_upserted") or 0)})
+        return stats
+    except Exception as exc:
+        try:
+            with engine.begin() as c:
+                c.execute(text(
+                    "INSERT INTO parliament.ingest_log (task, error) VALUES ('senate_votes', :e)"),
+                    {"e": str(exc)[:500]})
+        except Exception:
+            logger.exception("senate_votes heartbeat write failed")
+        raise
+
+
 if __name__ == "__main__":
     max_v = int(sys.argv[1]) if len(sys.argv) > 1 else 0
-    scrape_senate_votes(max_votes=max_v)
+    run_senate_votes_sync(max_votes=max_v)

@@ -41,11 +41,12 @@ import csv
 import io
 import logging
 import os
+import re
 import shutil
 import time
 import urllib.request
 import zipfile
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import text
@@ -138,12 +139,26 @@ def _parse_amount(s: str) -> Optional[float]:
         return None
 
 
+_EC_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATE_REJECTS = {"n": 0}  # per-run tally, logged + reset in sync_contributions
+
+
 def _parse_date(s: str) -> Optional[str]:
-    s = s.strip()
+    s = (s or "").strip()[:10]
     if not s:
         return None
-    # EC dates are YYYY-MM-DD — return as-is for PostgreSQL
-    return s[:10] if len(s) >= 10 else None
+    # EC dates are YYYY-MM-DD — but the source CSVs carry artifacts (prod
+    # held 0025-04-07, 0201-02-16 and 551 future rows up to 2923-12-28,
+    # measured 2026-08-18). Guard impossible values the way gov-watch's
+    # date_guard does: store NULL instead of garbage — the weekly
+    # TRUNCATE+reimport then self-heals the whole table. Bounds are loose
+    # on purpose: 1990 predates EC's electronic era; +366d allows a dated
+    # filing near year-end without admitting year-2923 artifacts.
+    if not _EC_DATE_RE.match(s) or s < "1990-01-01" \
+            or s > (date.today() + timedelta(days=366)).isoformat():
+        _DATE_REJECTS["n"] += 1
+        return None
+    return s
 
 
 _INSERT_SQL = """
@@ -237,8 +252,15 @@ def sync_contributions(engine) -> dict:
     finally:
         raw_conn.close()
 
-    logger.info("ec_contributions: done — inserted=%d skipped=%d", inserted, skipped)
-    return {"inserted": inserted, "skipped": skipped}
+    rejected_dates = _DATE_REJECTS["n"]
+    _DATE_REJECTS["n"] = 0
+    if rejected_dates:
+        # A silent discard is how the garbage got in — a JUMP in this count
+        # means the upstream CSV format changed, not that the guard is wrong.
+        logger.warning("ec_contributions: %d impossible dates stored as NULL", rejected_dates)
+    logger.info("ec_contributions: done — inserted=%d skipped=%d date_rejects=%d",
+                inserted, skipped, rejected_dates)
+    return {"inserted": inserted, "skipped": skipped, "date_rejects": rejected_dates}
 
 
 def run_ec_sync(engine) -> dict:

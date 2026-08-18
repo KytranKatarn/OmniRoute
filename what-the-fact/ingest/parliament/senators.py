@@ -23,7 +23,6 @@ from datetime import date, datetime, timezone
 from typing import Optional
 
 import requests
-from bs4 import BeautifulSoup
 from sqlalchemy import create_engine, text
 
 logger = logging.getLogger("wtf-ingest.senators")

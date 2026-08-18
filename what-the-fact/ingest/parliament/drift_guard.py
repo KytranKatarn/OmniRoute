@@ -49,6 +49,19 @@ _MAX_AGE_DAYS = {
     "senator_expenses_sync": int(os.environ.get("WTF_DRIFT_SEN_DAYS", "45")),
     "dept_contracts": int(os.environ.get("WTF_DRIFT_DEPTC_DAYS", "21")),
     "issuer_contracts": int(os.environ.get("WTF_DRIFT_ISSUERC_DAYS", "21")),
+    # Added 2026-08-18 (#5725): these five were EXACTLY the feeds that died
+    # silently for 2-3 months while this guard watched everything else —
+    # senators frozen 87d on a DEAD top-level bs4 import (never called —
+    # removed, not dependency-added), senate votes never scheduled,
+    # lobbying 57d / ethics 88d with swallowed exceptions and no heartbeat.
+    # Their pullers now write parliament.ingest_log rows (openparl.py
+    # phase-3 heartbeats, run.py senators block, senate_votes.py hub cron),
+    # so a recurrence alarms here instead of rotting quietly.
+    "senators_sync": int(os.environ.get("WTF_DRIFT_SENATORS_DAYS", "21")),
+    "senate_votes": int(os.environ.get("WTF_DRIFT_SENVOTES_DAYS", "21")),
+    "lobbying": int(os.environ.get("WTF_DRIFT_LOBBY_DAYS", "21")),
+    "ethics_disclosures": int(os.environ.get("WTF_DRIFT_ETHICS_DAYS", "21")),
+    "promise_tracker": int(os.environ.get("WTF_DRIFT_PROMISE_DAYS", "21")),
 }
 
 

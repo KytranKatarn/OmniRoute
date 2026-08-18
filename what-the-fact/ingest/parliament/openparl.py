@@ -420,6 +420,47 @@ def tag_articles(engine, days_back: int = 7) -> dict:
 
 # ── main entry point ──────────────────────────────────────────────────────────
 
+# Phase-3 tasks that write their own parliament.ingest_log rows — the
+# heartbeat below must not double-log them.
+_PHASE3_SELF_LOGGING = {"mp_expenses", "minister_travel"}
+
+
+def _phase3_heartbeat(engine, task_name, result, exc):
+    """Write a parliament.ingest_log heartbeat for Phase-3 tasks that don't
+    self-log. Lobbying and ethics failed SILENTLY for 2-3 months (57d/88d
+    stale, 2026-08-18 site audit) because their exceptions were swallowed
+    non-fatally with no run record — unmonitored while appearing monitored.
+    drift_guard alarms on a stale last-SUCCESS, so it needs these rows.
+    Never raises (a heartbeat failure must not break the sync)."""
+    if task_name in _PHASE3_SELF_LOGGING:
+        return
+    try:
+        # A puller that SWALLOWS its failure and returns {"error": ...}
+        # without raising (lobbying does exactly this; in-container ethics
+        # can never succeed — playwright is hub-only) must log as an ERROR,
+        # or the guard certifies a structurally dead feed green forever.
+        swallowed = result.get("error") if isinstance(result, dict) else None
+        from sqlalchemy import text as _text
+        with engine.begin() as c:
+            if exc is None and not swallowed:
+                fetched = upserted = 0
+                if isinstance(result, dict):
+                    fetched = int(result.get("fetched") or result.get("total")
+                                  or result.get("articles_scanned") or 0)
+                    upserted = int(result.get("upserted") or result.get("updated")
+                                   or result.get("inserted")
+                                   or result.get("promises_inserted") or 0)
+                c.execute(_text(
+                    "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                    "VALUES (:t, :f, :u)"), {"t": task_name, "f": fetched, "u": upserted})
+            else:
+                c.execute(_text(
+                    "INSERT INTO parliament.ingest_log (task, error) VALUES (:t, :e)"),
+                    {"t": task_name, "e": str(exc if exc is not None else swallowed)[:500]})
+    except Exception:
+        logger.exception("phase3 heartbeat write failed for %s", task_name)
+
+
 def run_parliament_sync(engine, current_session: str = "45-1") -> dict:
     """Full parliamentary sync. Called weekly from run.py.
 
@@ -476,9 +517,11 @@ def run_parliament_sync(engine, current_session: str = "45-1") -> dict:
             fn = getattr(mod, func_name)
             results[task_name] = fn(engine)
             logger.info("parliament sync %s: %s", task_name, results[task_name])
+            _phase3_heartbeat(engine, task_name, results[task_name], None)
         except Exception as exc:
             logger.exception("%s sync failed (non-fatal): %s", task_name, exc)
             results[task_name] = {"error": str(exc)}
+            _phase3_heartbeat(engine, task_name, None, exc)
         time.sleep(_TASK_SLEEP)
 
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()

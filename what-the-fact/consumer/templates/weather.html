@@ -242,6 +242,7 @@
       <div class="wtf-wx-layerbar">
         <button class="wtf-wx-layer-btn active" data-layer="fire" type="button">🔥 Fire activity</button>
         <button class="wtf-wx-layer-btn" data-layer="wx" type="button">🌡 Fire weather</button>
+        <button class="wtf-wx-layer-btn" data-layer="cities" type="button">🌤 Current weather</button>
       </div>
       <div id="wtf-wx-map"></div>
       <div class="wtf-wx-maplegend" id="wtf-wx-legend"></div>
@@ -329,6 +330,7 @@
   // ALL text from this payload is written with textContent — never innerHTML —
   // because station names are third-party strings (site-wide rule).
   var A = {{ aurora_map | tojson }};
+  var CITIES = {{ (aurora_cities or {}) | tojson }};
   var PROVINCE_CODES = {
     "Alberta":"AB","British Columbia":"BC","Manitoba":"MB","New Brunswick":"NB",
     "Newfoundland and Labrador":"NL","Nova Scotia":"NS","Northwest Territories":"NT",
@@ -360,8 +362,41 @@
   }
   var FIRE_STOPS = [[0,"#1e3a5a"],[10,"#78350f"],[100,"#b45309"],[500,"#ea580c"],[2000,"#dc2626"],[1e9,"#7f1d1d"]];
   var FWI_STOPS  = [[5,"#1d4ed8"],[11,"#0891b2"],[21,"#ca8a04"],[38,"#ea580c"],[1e9,"#dc2626"]];
+  // Air temperature. Wider span than the fire ramps because Canadian city obs
+  // legitimately run from about -40 to +35.
+  var TEMP_STOPS = [[-20,"#312e81"],[-10,"#3730a3"],[0,"#1d4ed8"],[8,"#0891b2"],
+                    [16,"#22c55e"],[24,"#f59e0b"],[31,"#ea580c"],[1e9,"#dc2626"]];
+
+  // A city observation older than this is shown as stale. The number is DERIVED
+  // from wtf.aurora_layer_status.stale_after_hours (city_obs = 3h) and passed in
+  // by the route — restating it here would create a second definition of
+  // "current" that drifts from the registry the moment either is tuned.
+  var CITY_STALE_MIN = {{ city_stale_min | default(180) | int }};
+
+  function cityIsFresh(c) {
+    return c.temp !== null && c.status === "ok"
+        && (c.age_min === null || c.age_min <= CITY_STALE_MIN);
+  }
+
+  // Provinces with at least one CURRENTLY REPORTING city.
+  var CITY_PROVS = (function () {
+    var set = {};
+    ((CITIES && CITIES.cities) || []).forEach(function (c) {
+      if (c.prov && cityIsFresh(c)) set[c.prov] = true;
+    });
+    return set;
+  })();
 
   function metricFor(code) {
+    // The city layer deliberately does NOT colour provinces by temperature.
+    // 25 cities across 13 provinces & territories is one or two point readings
+    // per province; painting the whole province from that asserts a provincial
+    // average nobody measured. Coverage is the honest provincial fact here, so
+    // a province with a reporting city gets one flat tint and nothing more —
+    // the temperature lives on the city markers, where it was actually taken.
+    if (activeLayer === "cities") {
+      return CITY_PROVS[code] ? { v: null, col: "#14344f" } : null;
+    }
     var p = A.provinces[code];
     if (!p) return null;
     return activeLayer === "fire"
@@ -391,7 +426,16 @@
         var bits = [f.properties.name];
         if (p && p.hotspots !== null) bits.push(p.hotspots.toLocaleString() + " hotspots (72h)");
         if (p && p.stations) bits.push(p.stations + " fire-weather stations");
-        if (!p || (p.hotspots === null && !p.stations)) bits.push("no A.U.R.O.R.A. layer covers this area");
+        // Tooltips bind once, so they must be true on EVERY layer, not just the
+        // fire ones: a province can have a reporting city and no fire coverage,
+        // and the old wording called that "no layer covers this area".
+        var nCity = ((CITIES && CITIES.cities) || []).filter(function (c) {
+          return c.prov === code && cityIsFresh(c);
+        }).length;
+        if (nCity) bits.push(nCity + (nCity === 1 ? " city" : " cities") + " reporting weather");
+        if (!nCity && (!p || (p.hotspots === null && !p.stations))) {
+          bits.push("no A.U.R.O.R.A. layer covers this area");
+        }
         lyr.bindTooltip(bits.join(" · "), { sticky: true });
         lyr.on("click", function () { select(code === selected ? null : code); });
         lyr.on("mouseover", function () { lyr.setStyle({ weight: 2.4, color: "#60a5fa" }); });
@@ -408,6 +452,7 @@
   var stnLayer = L.layerGroup([], { pane: "stnPane" }).addTo(map);
   function drawStations() {
     stnLayer.clearLayers();
+    if (activeLayer === "cities") { drawCities(); return; }
     if (activeLayer !== "wx") return;   // stations measure fire WEATHER, not fire activity
     A.stations.forEach(function (s) {
       if (s.lat === null || s.lon === null) return;
@@ -429,15 +474,54 @@
     });
   }
 
+  function drawCities() {
+    ((CITIES && CITIES.cities) || []).forEach(function (c) {
+      if (c.lat === null || c.lon === null) return;
+      if (selected && c.prov !== selected) return;
+      var fresh = cityIsFresh(c);
+      var m = L.circleMarker([c.lat, c.lon], {
+        pane: "stnPane",
+        radius: 6,
+        fillColor: fresh ? ramp(TEMP_STOPS, c.temp) : NO_DATA,
+        fillOpacity: fresh ? 0.9 : 0.35,
+        color: fresh ? "#020617" : "#6b7280",
+        weight: fresh ? 1 : 1.5,
+        dashArray: fresh ? null : "2,2"
+      });
+
+      var lines = [c.name];
+      if (c.temp !== null) lines.push(c.temp + " °C");
+      if (c.condition) lines.push(c.condition);
+      // "Calm" is a MEASUREMENT with no number; a missing wind reading is an
+      // ABSENCE. Rendering both as "0 km/h" would merge two different facts.
+      if (c.calm) lines.push("wind calm");
+      else if (c.wind !== null) lines.push("wind " + c.wind + " km/h"
+              + (c.dir ? " " + c.dir : "") + (c.gust !== null ? " (gust " + c.gust + ")" : ""));
+      if (c.humidity !== null) lines.push(c.humidity + "% RH");
+      if (!fresh) {
+        lines.push(c.temp === null ? "no current reading"
+                 : "reading " + Math.round(c.age_min / 60) + "h old — shown as stale");
+      }
+      m.bindTooltip(lines.join(" · "), { sticky: true });
+      stnLayer.addLayer(m);
+    });
+  }
+
   function restyle() { if (provLayer) provLayer.setStyle(styleFor); drawStations(); drawLegend(); }
 
   function drawLegend() {
     var el = document.getElementById("wtf-wx-legend");
     el.textContent = "";
     var row = document.createElement("div"); row.className = "wtf-wx-legend-row";
-    var stops = activeLayer === "fire"
-      ? [["#1e3a5a","0"],["#78350f","10+"],["#b45309","100+"],["#ea580c","500+"],["#dc2626","2,000+"]]
-      : [["#1d4ed8","FWI 0-5"],["#0891b2","5-11"],["#ca8a04","11-21"],["#ea580c","21-38"],["#dc2626","38+"]];
+    var stops;
+    if (activeLayer === "fire") {
+      stops = [["#1e3a5a","0"],["#78350f","10+"],["#b45309","100+"],["#ea580c","500+"],["#dc2626","2,000+"]];
+    } else if (activeLayer === "cities") {
+      stops = [["#312e81","-20 °C"],["#1d4ed8","-10"],["#0891b2","0"],["#22c55e","8"],
+               ["#f59e0b","16"],["#ea580c","24"],["#dc2626","31+"]];
+    } else {
+      stops = [["#1d4ed8","FWI 0-5"],["#0891b2","5-11"],["#ca8a04","11-21"],["#ea580c","21-38"],["#dc2626","38+"]];
+    }
     stops.forEach(function (s) {
       var sp = document.createElement("span");
       var sw = document.createElement("i"); sw.className = "wtf-wx-swatch"; sw.style.background = s[0];
@@ -453,6 +537,19 @@
     // State the coverage limits in the legend, not in a footnote nobody reads.
     var cov = document.createElement("div");
     cov.style.marginTop = "5px";
+    if (activeLayer === "cities") {
+      var provs = Object.keys(CITY_PROVS).sort();
+      var total = ((CITIES && CITIES.cities) || []).length;
+      var reporting = ((CITIES && CITIES.cities) || []).filter(cityIsFresh).length;
+      cov.textContent = "Temperature is shown at the " + reporting + " of " + total
+        + " cities currently reporting, across " + provs.length
+        + " of 13 provinces & territories: " + provs.join(", ")
+        + ". Provinces are tinted only to show which have a reporting city — the shade is"
+        + " NOT a provincial temperature, because one or two city readings do not average a"
+        + " province. Hollow markers are stale or not reporting.";
+      el.appendChild(cov);
+      return;
+    }
     var covered = activeLayer === "fire" ? A.coverage.hotspot_provinces : A.coverage.station_provinces;
     cov.textContent = (activeLayer === "fire"
         ? "Satellite hotspots reported in " : "Fire-weather stations reporting in ")
@@ -588,7 +685,7 @@
   // ── city cards (Phase 2) ──────────────────────────────────────────────────
   // Rendered here rather than server-side so they follow the SAME province
   // selection as the map — one control, one filtered view.
-  var CITIES = {{ (aurora_cities or {}) | tojson }};
+  // CITIES is declared near the top so the map layer can use it too.
 
   function renderCities() {
     var wrap = document.getElementById("wtf-wx-citygrid");

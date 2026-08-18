@@ -637,11 +637,18 @@ def weather():
         # That is deliberate: the false "Environment Canada + NASA EarthData +
         # NOAA" claim removed from this page on 2026-08-18 lived in prose that
         # no query could contradict (KB #290491).
+        # is_stale is computed from the layer's OWN declared threshold, never a
+        # blanket window. Migration 055 added stale_after_hours (city_obs 3h,
+        # city_forecast 12h, fire 48h) precisely because a fixed 48h let a
+        # 40-hour-old "current condition" render as fresh on an HOURLY layer —
+        # and until now nothing read the column, so that fix never took effect.
         layers = c.execute(text("""
             SELECT layer_key, layer_label, issuing_body, dataset_id, source_url,
-                   data_latest, last_pull, record_count,
+                   data_latest, last_pull, record_count, stale_after_hours,
                    (last_pull IS NULL
-                    OR last_pull < now() - interval '48 hours') AS is_stale
+                    OR last_pull < now()
+                       - make_interval(hours => COALESCE(stale_after_hours, 48))
+                   ) AS is_stale
             FROM wtf.aurora_layer_status ORDER BY layer_key
         """)).mappings().all()
         fire_provinces = c.execute(text("""
@@ -727,7 +734,17 @@ def weather():
                                       fire_provinces, obs_time)
     city_payload = _aurora_city_payload(city_rows, forecast_rows)
 
+    # One definition of "current", read from the registry rather than restated in
+    # JS. Fallback matches the view's city_obs value so behaviour is unchanged if
+    # the row is ever missing.
+    _city_stale_min = 180
+    for _l in layers:
+        if _l["layer_key"] == "city_obs" and _l["stale_after_hours"]:
+            _city_stale_min = int(_l["stale_after_hours"]) * 60
+            break
+
     return render_template("weather.html",
+                           city_stale_min=_city_stale_min,
                            articles=rows,
                            climate_count=climate_count,
                            sci_count=sci_count,

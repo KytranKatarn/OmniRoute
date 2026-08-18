@@ -135,6 +135,41 @@ def test_drift_guard_watches_the_aurora_layers():
     )
 
 
+# ── staleness must be APPLIED, not merely declared (#5756 follow-up) ──────────
+
+def test_layer_staleness_uses_the_declared_threshold_not_a_blanket_window():
+    """Migration 055 added wtf.aurora_layer_status.stale_after_hours (city_obs 3h,
+    city_forecast 12h, fire 48h) specifically because a fixed 48-hour window let a
+    40-hour-old "current condition" render as FRESH on an hourly layer.
+
+    Measured 2026-08-18: the column existed and NOTHING read it — the /weather
+    route still computed is_stale from a hardcoded `interval '48 hours'`, so the
+    fix had never taken effect. A threshold that is declared but never applied is
+    unmonitored while APPEARING monitored; same shape as a retention tier with a
+    policy and no pruner.
+    """
+    src = (ROOT / "consumer" / "routes.py").read_text()
+    assert "stale_after_hours" in src, (
+        "the /weather route must SELECT stale_after_hours — declaring it in the "
+        "view and never reading it is the bug this guards"
+    )
+    assert "interval '48 hours'" not in src, (
+        "is_stale must derive from each layer's own stale_after_hours, not a "
+        "blanket 48h window that is wrong for every hourly layer"
+    )
+
+
+def test_city_staleness_is_not_restated_in_the_template():
+    """One definition of 'current'. The JS threshold must be passed in from the
+    registry, not hardcoded alongside it."""
+    tpl = (ROOT / "consumer" / "templates" / "weather.html").read_text()
+    assert "var CITY_STALE_MIN = 180;" not in tpl, (
+        "CITY_STALE_MIN must come from city_stale_min (derived from the view), "
+        "not be restated as a literal that drifts from the registry"
+    )
+    assert "city_stale_min" in tpl
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
 

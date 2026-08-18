@@ -36,6 +36,11 @@
   {% endif %}
   <div class="wtf-sen-info">
     <h1 class="wtf-sen-name">{{ senator.name }}</h1>
+    {% if not senator.is_current %}
+    <span class="wtf-sen-badge" style="background:#37415122;color:#9ca3af;border:1px solid #37415188;">
+      Former senator
+    </span>
+    {% endif %}
     <span class="wtf-sen-badge" style="background:{{ senator.caucus_colour }}22;color:{{ senator.caucus_colour }};border:1px solid {{ senator.caucus_colour }}44;">
       {{ senator.caucus_label or senator.caucus or '—' }}
     </span>

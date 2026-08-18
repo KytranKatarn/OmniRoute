@@ -2406,12 +2406,17 @@ def senator_profile(slug: str):
         "GRO": "Government Representative Office", "Non-affiliated": "Non-affiliated",
     }
     with _db().begin() as c:
+        # FORMER senators are served too (badged in the template), not 404'd.
+        # Their voting record is permanent public record and we hold it: 12
+        # former senators carry 222 ballots, and the 4 who departed in the
+        # 2026-08-18 roster sync had LIVE urls that turned into 404s the
+        # moment they retired — link rot on a transparency product.
         row = c.execute(text("""
             SELECT id, slug, name, given_name, family_name, caucus, province,
                    photo_url, profile_url, appointed_at, date_of_birth,
                    appointed_by, biography, office_phone, office_email,
-                   twitter_handle, linkedin_url, website_url
-            FROM parliament.senators WHERE slug = :slug AND is_current = true
+                   twitter_handle, linkedin_url, website_url, is_current
+            FROM parliament.senators WHERE slug = :slug
         """), {"slug": slug}).mappings().first()
         if not row:
             abort(404)
@@ -2449,9 +2454,12 @@ def senator_profile(slug: str):
         days_left = (retirement - today).days
         years_left = days_left // 365
         senator["age"] = age
-        senator["retirement_date"] = retirement
-        senator["years_until_retirement"] = years_left
-        senator["retirement_date_str"] = retirement.strftime("%B %-d, %Y")
+        # A forward-looking countdown is meaningless for someone who has
+        # already left the chamber — emit it only for sitting senators.
+        if senator.get("is_current"):
+            senator["retirement_date"] = retirement
+            senator["years_until_retirement"] = years_left
+            senator["retirement_date_str"] = retirement.strftime("%B %-d, %Y")
     appt = senator.get("appointed_at")
     if appt:
         if hasattr(appt, "date"):

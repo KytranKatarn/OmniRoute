@@ -2679,7 +2679,17 @@ function renderOneSignalSession(idn, d, isActive) {
     var ls = d.login_surface || {};
     var profileOk = !!ls.profile_established;
     var loginRunning = !!ls.login_browser_running;
-    var novncUrl = 'http://' + location.hostname + ':4280/vnc.html';
+    // #5712: noVNC is LAN/mesh-ONLY by design (headed browser with logged-in
+    // social sessions) — the public domain fronts through Beacon, which has no
+    // :4280 listener. Inheriting location.hostname handed anyone browsing via
+    // platform.kytranempowerment.com a dead link with no explanation (owner
+    // hit ERR_CONNECTION_ABORTED live during the #5627 re-login). Only keep
+    // the page hostname when it is ALREADY the LAN or mesh IP; otherwise
+    // default to the LAN IP and show the mesh alternative beside the button.
+    var _vncHost = (location.hostname === '192.168.1.200' || location.hostname === '100.64.0.4')
+        ? location.hostname : '192.168.1.200';
+    var novncUrl = 'http://' + _vncHost + ':4280/vnc.html';
+    var novncMeshUrl = 'http://100.64.0.4:4280/vnc.html';
 
     return '<h4 style="font-family:Antonio,sans-serif;letter-spacing:1px;margin:0 0 4px">' + esc(idn.label)
         + (isActive
@@ -2718,6 +2728,8 @@ function renderOneSignalSession(idn, d, isActive) {
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
         + (loginRunning
             ? '<a class="dhq-btn dhq-btn-primary" target="_blank" rel="noopener" href="' + novncUrl + '">Open noVNC → log in</a>'
+              + '<span style="font-size:0.72rem;color:#94a3b8">LAN/mesh only — plain http. Away from home? use '
+              + '<a target="_blank" rel="noopener" style="color:#22d3ee" href="' + novncMeshUrl + '">the mesh address</a></span>'
               + '<button class="dhq-btn" onclick="signalSessionLoginStop()">Stop & save profile</button>'
             : '<button class="dhq-btn dhq-btn-primary" onclick="signalSessionLoginStart(' + aid + ', \'' + plat + '\')">Start one-time login</button>')
         + '<button class="dhq-btn" onclick="loadSignalTab(\'session\', true)">↻ Refresh</button>'

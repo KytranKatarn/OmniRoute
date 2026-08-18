@@ -1,135 +1,109 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Economy &amp; Markets — What The Fact</title>
-  <link rel="icon" href="/static/favicon.ico">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    :root{--wtf-bg:#070b12;--wtf-surface:#0d1117;--wtf-accent:#00e5ff;--wtf-text:#e2e8f0;--wtf-muted:#6b7280;--wtf-border:#1f2937;--market:#f59e0b}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--wtf-bg);color:var(--wtf-text);font-family:'IBM Plex Mono',monospace;min-height:100vh}
-    header{background:#060b11;border-bottom:1px solid var(--wtf-border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .logo{font-family:'Orbitron',sans-serif;font-size:1rem;color:var(--wtf-accent);letter-spacing:3px;text-decoration:none}
-    .nav-links{display:flex;gap:16px;align-items:center}
-    .nav-links a{font-size:10px;letter-spacing:1.5px;color:var(--wtf-muted);text-decoration:none;text-transform:uppercase;transition:color .15s}
-    .nav-links a:hover,.nav-links a.active{color:var(--wtf-accent)}
-    main{max-width:900px;margin:0 auto;padding:32px 20px}
-    .page-header{margin-bottom:28px}
-    .market-label{font-size:9px;letter-spacing:2px;color:var(--market);text-transform:uppercase;margin-bottom:6px}
-    .page-title{font-family:'Orbitron',sans-serif;font-size:1.3rem;color:var(--market);letter-spacing:2px;margin-bottom:8px}
-    .page-desc{font-size:11px;color:var(--wtf-muted);line-height:1.7;max-width:620px}
-    .attribution{font-size:9px;color:var(--wtf-muted);letter-spacing:1px;margin-top:6px}
-    .attribution a{color:var(--market);text-decoration:none}
-    .attribution a:hover{text-decoration:underline}
-    .stats-row{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px}
-    .stat-box{background:var(--wtf-surface);border:1px solid var(--wtf-border);border-left:3px solid var(--market);border-radius:6px;padding:12px 16px;min-width:120px}
-    .stat-num{font-family:'Orbitron',sans-serif;font-size:1.2rem;color:var(--market)}
-    .stat-lbl{font-size:9px;color:var(--wtf-muted);letter-spacing:1px;text-transform:uppercase;margin-top:4px}
-    .section-title{font-size:10px;letter-spacing:2px;color:var(--wtf-muted);text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid var(--wtf-border);padding-bottom:6px}
-    .article-list{display:flex;flex-direction:column;gap:8px}
-    .article-card{background:var(--wtf-surface);border:1px solid var(--wtf-border);border-left:3px solid var(--market);border-radius:6px;padding:12px 16px}
-    .card-meta{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;font-size:9px;color:var(--wtf-muted)}
-    .beat-pill{padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
-    .beat-economy{background:#1a0e00;color:#f59e0b;border:1px solid #f59e0b30}
-    .beat-business{background:#052e1a;color:#34d399;border:1px solid #34d39930}
-    .beat-foreign{background:#0f0a00;color:#fbbf24;border:1px solid #fbbf2430}
-    .card-title{font-size:12px;font-weight:500;line-height:1.5;color:var(--wtf-text);text-decoration:none}
-    .card-title:hover{color:var(--wtf-accent)}
-    .card-footer{margin-top:6px;display:flex;gap:8px;align-items:center;font-size:9px;color:#374151}
-    .outlet-link{color:var(--wtf-muted);font-size:9px;text-decoration:none}
-    .outlet-link:hover{color:var(--wtf-accent)}
-    .province-tag{padding:1px 5px;background:#0d1117;border:1px solid #1f2937;border-radius:3px;font-size:8px;color:#6b7280}
-    .empty-state{text-align:center;padding:48px;color:var(--wtf-muted);font-size:11px;line-height:1.8}
-    .market-cta{background:var(--wtf-surface);border:1px solid #f59e0b40;border-radius:6px;padding:16px 20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-    .market-cta-text{font-size:11px;color:var(--wtf-muted);line-height:1.6}
-    .market-cta-text strong{color:var(--market)}
-    .market-cta-btn{display:inline-block;background:var(--market);color:#000;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:8px 18px;border-radius:4px;text-decoration:none;white-space:nowrap}
-    .market-cta-btn:hover{background:#d97706}
-    @media(max-width:600px){main{padding:20px 12px}.stats-row{gap:10px}.market-cta{flex-direction:column}}
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Economy &amp; Markets — M.A.R.K.E.T. · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Economy, business and foreign-policy coverage from What The Fact.">
+{% endblock %}
+{% block content %}
+{# Converted off a standalone document 2026-08-18 (task #5767).
+   Classes are namespaced wtf-ec-* — the originals (.logo, .nav-links, .active,
+   .page-title, .legend) were safe only while this page was isolated and would
+   collide site-wide now that it shares style.css.
+   Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main #}
+<style>
+.wtf-ec-page-header { margin-bottom:28px }
+.wtf-ec-market-label { font-size:9px;letter-spacing:2px;color:#f59e0b;text-transform:uppercase;margin-bottom:6px }
+.wtf-ec-page-title { font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#f59e0b;letter-spacing:2px;margin-bottom:8px }
+.wtf-ec-page-desc { font-size:11px;color:#6b7280;line-height:1.7;max-width:620px }
+.wtf-ec-attribution { font-size:9px;color:#6b7280;letter-spacing:1px;margin-top:6px }
+.wtf-ec-attribution a { color:#f59e0b;text-decoration:none }
+.wtf-ec-attribution a:hover { text-decoration:underline }
+.wtf-ec-stats-row { display:flex;gap:16px;flex-wrap:wrap;margin-bottom:24px }
+.wtf-ec-stat-box { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #f59e0b;border-radius:6px;padding:12px 16px;min-width:120px }
+.wtf-ec-stat-num { font-family:'Orbitron',sans-serif;font-size:1.2rem;color:#f59e0b }
+.wtf-ec-stat-lbl { font-size:9px;color:#6b7280;letter-spacing:1px;text-transform:uppercase;margin-top:4px }
+.wtf-ec-section-title { font-size:10px;letter-spacing:2px;color:#6b7280;text-transform:uppercase;margin-bottom:12px;border-bottom:1px solid #1f2937;padding-bottom:6px }
+.wtf-ec-article-list { display:flex;flex-direction:column;gap:8px }
+.wtf-ec-article-card { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #f59e0b;border-radius:6px;padding:12px 16px }
+.wtf-ec-card-meta { display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;font-size:9px;color:#6b7280 }
+.wtf-ec-beat-pill { padding:1px 6px;border-radius:8px;font-size:8px;font-weight:700;letter-spacing:.5px;text-transform:uppercase }
+.wtf-ec-beat-economy { background:#1a0e00;color:#f59e0b;border:1px solid #f59e0b30 }
+.wtf-ec-beat-business { background:#052e1a;color:#34d399;border:1px solid #34d39930 }
+.wtf-ec-beat-foreign { background:#0f0a00;color:#fbbf24;border:1px solid #fbbf2430 }
+.wtf-ec-card-title { font-size:12px;font-weight:500;line-height:1.5;color:#e2e8f0;text-decoration:none }
+.wtf-ec-card-title:hover { color:#00e5ff }
+.wtf-ec-card-footer { margin-top:6px;display:flex;gap:8px;align-items:center;font-size:9px;color:#374151 }
+.wtf-ec-outlet-link { color:#6b7280;font-size:9px;text-decoration:none }
+.wtf-ec-outlet-link:hover { color:#00e5ff }
+.wtf-ec-province-tag { padding:1px 5px;background:#0d1117;border:1px solid #1f2937;border-radius:3px;font-size:8px;color:#6b7280 }
+.wtf-ec-empty-state { text-align:center;padding:48px;color:#6b7280;font-size:11px;line-height:1.8 }
+.wtf-ec-market-cta { background:#0d1117;border:1px solid #f59e0b40;border-radius:6px;padding:16px 20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px }
+.wtf-ec-market-cta-text { font-size:11px;color:#6b7280;line-height:1.6 }
+.wtf-ec-market-cta-text strong { color:#f59e0b }
+.wtf-ec-market-cta-btn { display:inline-block;background:#f59e0b;color:#000;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;letter-spacing:1px;padding:8px 18px;border-radius:4px;text-decoration:none;white-space:nowrap }
+.wtf-ec-market-cta-btn:hover { background:#d97706 }
+.wtf-ec-stats-row { gap:10px }
+.wtf-ec-market-cta { flex-direction:column }
+@media(max-width:600px){main{padding:20px 12px}.wtf-ec-stats-row{gap:10px}.wtf-ec-market-cta{flex-direction:column}}
+</style>
 
-<header>
-  <a href="/" class="logo">WHAT·THE·FACT</a>
-  <nav class="nav-links">
-    <a href="/">Feed</a>
-    <a href="/news">News</a>
-    <a href="/weather">Weather</a>
-    <a href="/economy" class="active">Economy</a>
-    <a href="/blindspot">Blindspot</a>
-    <a href="/divergence">Divergence</a>
-    <a href="/owners">Owners</a>
-    <a href="/sources">Sources</a>
-    {% if is_subscriber %}
-    <a href="/profile" style="color:var(--market)">●</a>
-    {% else %}
-    <a href="/join" style="color:#f59e0b">Join</a>
-    {% endif %}
-  </nav>
-</header>
-
-<main>
-  <div class="page-header">
-    <div class="market-label">M.A.R.K.E.T. · Market Analysis, Research &amp; Knowledge for Economic Tracking</div>
-    <div class="page-title">💰 ECONOMY &amp; MARKETS</div>
-    <p class="page-desc">
+<div class="wtf-ec-page-header">
+    <div class="wtf-ec-market-label">M.A.R.K.E.T. · Market Analysis, Research &amp; Knowledge for Economic Tracking</div>
+    <div class="wtf-ec-page-title">💰 ECONOMY &amp; MARKETS</div>
+    <p class="wtf-ec-page-desc">
       Business, economy, and foreign-policy stories from 46 Canadian outlets — bias-scored and geo-mapped.
       Follow the money behind the headlines.
     </p>
-    <p class="attribution">Powered by WTF + <a href="https://market.kytranempowerment.com" target="_blank" rel="noopener">Market Watch ↗</a></p>
+    <p class="wtf-ec-attribution">Powered by WTF + <a href="https://market.kytranempowerment.com" target="_blank" rel="noopener">Market Watch ↗</a></p>
   </div>
 
-  <div class="stats-row">
-    <div class="stat-box">
-      <div class="stat-num">{{ economy_count }}</div>
-      <div class="stat-lbl">📈 Economy stories</div>
+  <div class="wtf-ec-stats-row">
+    <div class="wtf-ec-stat-box">
+      <div class="wtf-ec-stat-num">{{ economy_count }}</div>
+      <div class="wtf-ec-stat-lbl">📈 Economy stories</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-num">{{ business_count }}</div>
-      <div class="stat-lbl">💼 Business stories</div>
+    <div class="wtf-ec-stat-box">
+      <div class="wtf-ec-stat-num">{{ business_count }}</div>
+      <div class="wtf-ec-stat-lbl">💼 Business stories</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-num">{{ foreign_count }}</div>
-      <div class="stat-lbl">🌍 Foreign policy</div>
+    <div class="wtf-ec-stat-box">
+      <div class="wtf-ec-stat-num">{{ foreign_count }}</div>
+      <div class="wtf-ec-stat-lbl">🌍 Foreign policy</div>
     </div>
-    <div class="stat-box">
-      <div class="stat-num">46</div>
-      <div class="stat-lbl">Outlets tracked</div>
+    <div class="wtf-ec-stat-box">
+      <div class="wtf-ec-stat-num">46</div>
+      <div class="wtf-ec-stat-lbl">Outlets tracked</div>
     </div>
   </div>
 
-  <div class="section-title">Recent economy, business &amp; foreign-policy stories</div>
+  <div class="wtf-ec-section-title">Recent economy, business &amp; foreign-policy stories</div>
 
-  <div class="article-list">
+  <div class="wtf-ec-article-list">
     {% if articles %}
     {% for a in articles %}
-    <div class="article-card">
-      <div class="card-meta">
+    <div class="wtf-ec-article-card">
+      <div class="wtf-ec-card-meta">
         {% if a.beat == 'economy' %}
-        <span class="beat-pill beat-economy">📈 Economy</span>
+        <span class="wtf-ec-beat-pill wtf-ec-beat-economy">📈 Economy</span>
         {% elif a.beat == 'business' %}
-        <span class="beat-pill beat-business">💼 Business</span>
+        <span class="wtf-ec-beat-pill wtf-ec-beat-business">💼 Business</span>
         {% else %}
-        <span class="beat-pill beat-foreign">🌍 Foreign Policy</span>
+        <span class="wtf-ec-beat-pill wtf-ec-beat-foreign">🌍 Foreign Policy</span>
         {% endif %}
-        <a href="#" class="outlet-link">{{ a.source or '' }}</a>
-        {% if a.province_code %}<span class="province-tag">{{ a.province_code }}</span>{% endif %}
+        <a href="#" class="wtf-ec-outlet-link">{{ a.source or '' }}</a>
+        {% if a.province_code %}<span class="wtf-ec-province-tag">{{ a.province_code }}</span>{% endif %}
         <span>{{ a.published_at.strftime('%b %d %H:%M') if a.published_at else '' }}</span>
         {% if a.band %}<span style="color:#6b7280">{{ a.band.upper() }}</span>{% endif %}
       </div>
-      <a href="/article/{{ a.id }}" class="card-title">{{ a.title }}</a>
+      <a href="/article/{{ a.id }}" class="wtf-ec-card-title">{{ a.title }}</a>
       {% if a.cluster_size and a.cluster_size > 1 %}
-      <div class="card-footer">
+      <div class="wtf-ec-card-footer">
         <a href="/cluster/{{ a.cluster_id }}" style="color:#0af;font-size:9px;text-decoration:none;">📰 {{ a.cluster_size }} outlets covering this</a>
       </div>
       {% endif %}
     </div>
     {% endfor %}
     {% else %}
-    <div class="empty-state">
+    <div class="wtf-ec-empty-state">
       No economy or business stories in the last 7 days.<br>
       Check back soon — the pipeline is running.
     </div>
@@ -137,19 +111,16 @@
   </div>
 
   <div style="margin-top:20px;text-align:center;">
-    <a href="/news?beat=economy" style="color:var(--market);font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Economy →</a>
+    <a href="/news?beat=economy" style="color:#f59e0b;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Economy →</a>
     <a href="/news?beat=business" style="color:#34d399;font-size:10px;letter-spacing:1px;text-decoration:none;margin-right:16px;">All Business →</a>
     <a href="/news?beat=foreign-policy" style="color:#fbbf24;font-size:10px;letter-spacing:1px;text-decoration:none;">All Foreign Policy →</a>
   </div>
 
-  <div class="market-cta">
-    <div class="market-cta-text">
+  <div class="wtf-ec-market-cta">
+    <div class="wtf-ec-market-cta-text">
       <strong>Want deeper market intelligence?</strong><br>
       Market Watch tracks stocks, commodities, and economic indicators alongside Canadian news coverage.
     </div>
-    <a href="https://market.kytranempowerment.com" target="_blank" rel="noopener" class="market-cta-btn">Open Market Watch ↗</a>
+    <a href="https://market.kytranempowerment.com" target="_blank" rel="noopener" class="wtf-ec-market-cta-btn">Open Market Watch ↗</a>
   </div>
-</main>
-
-</body>
-</html>
+{% endblock %}

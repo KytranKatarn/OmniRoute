@@ -1,193 +1,68 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Blindspot Feed — What The Fact</title>
-  <link rel="icon" href="/static/favicon.ico">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    :root{--wtf-bg:#070b12;--wtf-surface:#0d1117;--wtf-accent:#00e5ff;--wtf-text:#e2e8f0;--wtf-muted:#6b7280;--wtf-border:#1f2937}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--wtf-bg);color:var(--wtf-text);font-family:'IBM Plex Mono',monospace;min-height:100vh}
-    header{background:#060b11;border-bottom:1px solid var(--wtf-border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .logo{font-family:'Orbitron',sans-serif;font-size:1rem;color:var(--wtf-accent);letter-spacing:3px;text-decoration:none}
-    .nav-links{display:flex;gap:16px;align-items:center}
-    .nav-links a{font-size:10px;letter-spacing:1.5px;color:var(--wtf-muted);text-decoration:none;text-transform:uppercase;transition:color .15s}
-    .nav-links a:hover,.nav-links a.active{color:var(--wtf-accent)}
-    main{max-width:860px;margin:0 auto;padding:32px 20px}
-    .page-header{margin-bottom:28px}
-    .page-title{font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#ef4444;letter-spacing:2px;margin-bottom:8px}
-    .page-desc{font-size:11px;color:var(--wtf-muted);line-height:1.7;max-width:600px}
-    .filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
-    .filter-btn{background:var(--wtf-surface);border:1px solid var(--wtf-border);border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--wtf-muted);cursor:pointer;transition:all .15s}
-    .filter-btn:hover,.filter-btn.active{border-color:var(--wtf-accent);color:var(--wtf-accent)}
-    .filter-label{font-size:10px;color:var(--wtf-muted);letter-spacing:1px}
-    #bs-list{display:flex;flex-direction:column;gap:10px}
-    .bs-card{background:var(--wtf-surface);border:1px solid var(--wtf-border);border-left:3px solid #ef4444;border-radius:6px;padding:14px 16px}
-    .bs-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
-    .bs-gap-pill{font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.5px}
-    .gap-critical{background:#2d0a0a;color:#ef4444;border:1px solid #ef444430}
-    .gap-low{background:#0a1a2d;color:#f59e0b;border:1px solid #f59e0b30}
-    .bs-sources{font-size:9px;color:var(--wtf-muted)}
-    .bs-certainty{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}
-    .bs-title{font-size:13px;font-weight:500;color:var(--wtf-text);line-height:1.5;margin-bottom:4px}
-    .bs-title a{color:inherit;text-decoration:none}
-    .bs-title a:hover{color:var(--wtf-accent)}
-    .bs-brief{font-size:11px;color:var(--wtf-muted);line-height:1.6;margin-top:4px}
-    .bs-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:9px;color:#374151;flex-wrap:wrap;gap:4px}
-    .bs-deep-link{font-size:9px;color:var(--wtf-accent);text-decoration:none;letter-spacing:.5px}
-    .bs-msg{text-align:center;padding:40px;color:var(--wtf-muted);font-size:11px;line-height:1.8}
-    .paywall-gate{background:#060d14;border:1px solid #2a1a00;border-radius:6px;padding:16px;text-align:center;margin-top:20px}
-    .paywall-gate-title{font-family:'Orbitron',sans-serif;font-size:11px;color:#f59e0b;margin-bottom:6px}
-    .paywall-gate-desc{font-size:11px;color:var(--wtf-muted);margin-bottom:10px}
-    .paywall-btn{display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none}
-    @media(max-width:600px){main{padding:20px 12px}}
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Coverage Blind Spots · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Stories carried by only one side of the Canadian media spectrum.">
+{% endblock %}
+{% block content %}
+{# Converted off a standalone document 2026-08-18 (task #5767).
+   Classes are namespaced wtf-bs-* — the originals (.logo, .nav-links, .active,
+   .page-title, .legend) were safe only while this page was isolated and would
+   collide site-wide now that it shares style.css.
+   Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main #}
+<style>
+.wtf-bs-page-header { margin-bottom:28px }
+.wtf-bs-page-title { font-family:'Orbitron',sans-serif;font-size:1.3rem;color:#ef4444;letter-spacing:2px;margin-bottom:8px }
+.wtf-bs-page-desc { font-size:11px;color:#6b7280;line-height:1.7;max-width:600px }
+.wtf-bs-filters { display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center }
+.wtf-bs-filter-btn { background:#0d1117;border:1px solid #1f2937;border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#6b7280;cursor:pointer;transition:all .15s }
+.wtf-bs-filter-btn:hover,.wtf-bs-filter-btn.wtf-bs-active { border-color:#00e5ff;color:#00e5ff }
+.wtf-bs-filter-label { font-size:10px;color:#6b7280;letter-spacing:1px }
+#bs-list { display:flex;flex-direction:column;gap:10px }
+.wtf-bs-bs-card { background:#0d1117;border:1px solid #1f2937;border-left:3px solid #ef4444;border-radius:6px;padding:14px 16px }
+.wtf-bs-bs-meta { display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap }
+.wtf-bs-bs-gap-pill { font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:.5px }
+.wtf-bs-gap-critical { background:#2d0a0a;color:#ef4444;border:1px solid #ef444430 }
+.wtf-bs-gap-low { background:#0a1a2d;color:#f59e0b;border:1px solid #f59e0b30 }
+.wtf-bs-bs-sources { font-size:9px;color:#6b7280 }
+.wtf-bs-bs-certainty { font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px }
+.wtf-bs-bs-title { font-size:13px;font-weight:500;color:#e2e8f0;line-height:1.5;margin-bottom:4px }
+.wtf-bs-bs-title a { color:inherit;text-decoration:none }
+.wtf-bs-bs-title a:hover { color:#00e5ff }
+.wtf-bs-bs-brief { font-size:11px;color:#6b7280;line-height:1.6;margin-top:4px }
+.wtf-bs-bs-footer { display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:9px;color:#374151;flex-wrap:wrap;gap:4px }
+.wtf-bs-bs-deep-link { font-size:9px;color:#00e5ff;text-decoration:none;letter-spacing:.5px }
+.wtf-bs-bs-msg { text-align:center;padding:40px;color:#6b7280;font-size:11px;line-height:1.8 }
+.wtf-bs-paywall-gate { background:#060d14;border:1px solid #2a1a00;border-radius:6px;padding:16px;text-align:center;margin-top:20px }
+.wtf-bs-paywall-gate-title { font-family:'Orbitron',sans-serif;font-size:11px;color:#f59e0b;margin-bottom:6px }
+.wtf-bs-paywall-gate-desc { font-size:11px;color:#6b7280;margin-bottom:10px }
+.wtf-bs-paywall-btn { display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none }
+@media(max-width:600px){main{padding:20px 12px}}
+</style>
 
-<header>
-  <a href="/" class="logo">WHAT·THE·FACT</a>
-  <nav class="nav-links">
-    <a href="/">Feed</a>
-    <a href="/news">News</a>
-    <a href="/weather">Weather</a>
-    <a href="/economy">Economy</a>
-    <a href="/blindspot" class="active">Blindspot</a>
-    <a href="/divergence">Divergence</a>
-    <a href="/owners">Owners</a>
-    <a href="/sources">Sources</a>
-    {% if is_subscriber %}
-    <a href="/profile" style="color:var(--wtf-accent)">●</a>
-    {% else %}
-    <a href="/join" style="color:#f59e0b">Join</a>
-    {% endif %}
-  </nav>
-</header>
-
-<main>
-  <div class="page-header">
-    <div class="page-title">👁 BLINDSPOT FEED</div>
-    <p class="page-desc">
+<div class="wtf-bs-page-header">
+    <div class="wtf-bs-page-title">👁 BLINDSPOT FEED</div>
+    <p class="wtf-bs-page-desc">
       Stories covered by only 1–2 outlets while the rest of the Canadian press stays silent.
       Low coverage score = more ignored. These are the stories editors didn't assign.
     </p>
   </div>
 
-  <div class="filters">
-    <span class="filter-label">WINDOW</span>
-    <button class="filter-btn" data-days="3">3 days</button>
-    <button class="filter-btn active" data-days="7">7 days</button>
-    <button class="filter-btn" data-days="14">14 days</button>
-    <button class="filter-btn" data-days="30">30 days</button>
+  <div class="wtf-bs-filters">
+    <span class="wtf-bs-filter-label">WINDOW</span>
+    <button class="wtf-bs-filter-btn" data-days="3">3 days</button>
+    <button class="wtf-bs-filter-btn wtf-bs-active" data-days="7">7 days</button>
+    <button class="wtf-bs-filter-btn" data-days="14">14 days</button>
+    <button class="wtf-bs-filter-btn" data-days="30">30 days</button>
   </div>
 
   <div id="bs-list"></div>
 
   {% if not is_subscriber %}
-  <div class="paywall-gate">
-    <div class="paywall-gate-title">Deeper Analysis Locked</div>
-    <div class="paywall-gate-desc">Subscribers see why each story was ignored — outlet breakdown, bias pattern, and Deep Dive.</div>
-    <a href="/join" class="paywall-btn">Unlock with Starter</a>
+  <div class="wtf-bs-paywall-gate">
+    <div class="wtf-bs-paywall-gate-title">Deeper Analysis Locked</div>
+    <div class="wtf-bs-paywall-gate-desc">Subscribers see why each story was ignored — outlet breakdown, bias pattern, and Deep Dive.</div>
+    <a href="/join" class="wtf-bs-paywall-btn">Unlock with Starter</a>
     <span style="margin-left:10px"><a href="/login" style="font-size:10px;color:#6b7280;text-decoration:none">Sign in</a></span>
   </div>
   {% endif %}
-</main>
-
-<script>
-/* jshint esversion:6 */
-'use strict';
-
-const IS_SUB = {{ 'true' if is_subscriber else 'false' }};
-let _days = 7;
-
-function mk(tag, cls, txt) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (txt !== undefined) e.textContent = txt;
-    return e;
-}
-
-function fmtDate(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleDateString('en-CA', {month:'short', day:'numeric'});
-}
-
-function setMsg(text) {
-    const list = document.getElementById('bs-list');
-    list.replaceChildren(mk('div', 'bs-msg', text));
-}
-
-function buildCard(b) {
-    const card = mk('div', 'bs-card');
-
-    const gapPct = Math.round((b.coverage_gap_score || 0) * 100);
-    const isCritical = gapPct <= 10;
-    const gapLabel = gapPct <= 5 ? 'NEAR-INVISIBLE' : isCritical ? 'CRITICAL' : 'UNDERREPORTED';
-
-    // meta row
-    const meta = mk('div', 'bs-meta');
-    const pill = mk('span', 'bs-gap-pill ' + (isCritical ? 'gap-critical' : 'gap-low'), gapLabel + ' · ' + gapPct + '%');
-    meta.appendChild(pill);
-    meta.appendChild(mk('span', 'bs-sources', (b.source_count || 1) + ' outlet' + ((b.source_count || 1) !== 1 ? 's' : '')));
-    if (b.certainty_label) meta.appendChild(mk('span', 'bs-certainty', b.certainty_label));
-    card.appendChild(meta);
-
-    // title
-    const titleDiv = mk('div', 'bs-title');
-    const a = mk('a');
-    a.href = '/cluster/' + b.id;
-    a.textContent = b.headline || b.title;
-    titleDiv.appendChild(a);
-    card.appendChild(titleDiv);
-
-    // brief (subscribers only)
-    if (IS_SUB && b.brief) {
-        card.appendChild(mk('div', 'bs-brief', b.brief));
-    }
-
-    // footer
-    const foot = mk('div', 'bs-footer');
-    foot.appendChild(mk('span', null, fmtDate(b.latest) + ' · ' + (b.article_count || 1) + ' article' + ((b.article_count || 1) !== 1 ? 's' : '')));
-    const deepA = mk('a', 'bs-deep-link', 'COVERAGE →');
-    deepA.href = '/cluster/' + b.id;
-    foot.appendChild(deepA);
-    card.appendChild(foot);
-
-    return card;
-}
-
-function render(data) {
-    const list = document.getElementById('bs-list');
-    const items = (data && data.blindspots) ? data.blindspots : [];
-    if (!items.length) {
-        setMsg('No blindspot stories found in the last ' + _days + ' days. Try a wider window or check back after the next ingest cycle.');
-        return;
-    }
-    const frag = document.createDocumentFragment();
-    items.forEach(function(b) { frag.appendChild(buildCard(b)); });
-    list.replaceChildren(frag);
-}
-
-function load(days) {
-    _days = days;
-    document.querySelectorAll('.filter-btn').forEach(function(btn) {
-        btn.classList.toggle('active', parseInt(btn.dataset.days) === days);
-    });
-    setMsg('Loading…');
-    fetch('/api/v1/blindspot?days=' + days + '&limit=30&max_gap_score=0.20', {credentials:'same-origin'})
-        .then(function(r) { return r.json(); })
-        .then(render)
-        .catch(function() { setMsg('Error loading blindspot feed. Refresh to retry.'); });
-}
-
-document.querySelectorAll('.filter-btn').forEach(function(btn) {
-    btn.addEventListener('click', function() { load(parseInt(btn.dataset.days)); });
-});
-
-load(7);
-</script>
-
-</body>
-</html>
+{% endblock %}

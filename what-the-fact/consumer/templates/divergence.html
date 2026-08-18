@@ -1,253 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>FR/EN Divergence — What The Fact</title>
-  <link rel="icon" href="/static/favicon.ico">
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
-  <style>
-    :root{--wtf-bg:#070b12;--wtf-surface:#0d1117;--wtf-accent:#00e5ff;--wtf-text:#e2e8f0;--wtf-muted:#6b7280;--wtf-border:#1f2937;--en:#3b82f6;--fr:#ef4444}
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--wtf-bg);color:var(--wtf-text);font-family:'IBM Plex Mono',monospace;min-height:100vh}
-    header{background:#060b11;border-bottom:1px solid var(--wtf-border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-    .logo{font-family:'Orbitron',sans-serif;font-size:1rem;color:var(--wtf-accent);letter-spacing:3px;text-decoration:none}
-    .nav-links{display:flex;gap:16px;align-items:center}
-    .nav-links a{font-size:10px;letter-spacing:1.5px;color:var(--wtf-muted);text-decoration:none;text-transform:uppercase;transition:color .15s}
-    .nav-links a:hover,.nav-links a.active{color:var(--wtf-accent)}
-    main{max-width:880px;margin:0 auto;padding:32px 20px}
-    .page-title{font-family:'Orbitron',sans-serif;font-size:1.3rem;letter-spacing:2px;margin-bottom:8px}
-    .page-desc{font-size:11px;color:var(--wtf-muted);line-height:1.7;max-width:640px;margin-bottom:28px}
-    .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px}
-    .leg{display:flex;align-items:center;gap:5px;font-size:9px;letter-spacing:.5px;color:var(--wtf-muted)}
-    .leg-dot{width:8px;height:8px;border-radius:2px}
-    .filters{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
-    .filter-btn{background:var(--wtf-surface);border:1px solid var(--wtf-border);border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--wtf-muted);cursor:pointer;transition:all .15s}
-    .filter-btn:hover,.filter-btn.active{border-color:var(--wtf-accent);color:var(--wtf-accent)}
-    .filter-label{font-size:10px;color:var(--wtf-muted);letter-spacing:1px}
-    #div-list{display:flex;flex-direction:column;gap:10px}
-    .dv-card{background:var(--wtf-surface);border:1px solid var(--wtf-border);border-radius:6px;padding:14px 16px}
-    .dv-card.en-only{border-left:3px solid var(--en)}
-    .dv-card.fr-only{border-left:3px solid var(--fr)}
-    .dv-card.bias-gap{border-left:3px solid #a855f7}
-    .dv-meta{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
-    .dv-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px}
-    .badge-en{background:#0a1428;color:var(--en);border:1px solid #3b82f630}
-    .badge-fr{background:#280a0a;color:var(--fr);border:1px solid #ef444430}
-    .badge-gap{background:#1a0a28;color:#a855f7;border:1px solid #a855f730}
-    .dv-cert{font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px}
-    .dv-title{font-size:13px;font-weight:500;line-height:1.5;margin-bottom:8px}
-    .dv-title a{color:var(--wtf-text);text-decoration:none}
-    .dv-title a:hover{color:var(--wtf-accent)}
-    .score-bar{display:flex;gap:12px;align-items:center;margin-top:4px}
-    .score-lang{font-size:10px;font-weight:700;width:24px}
-    .score-track{flex:1;height:6px;background:#1f2937;border-radius:3px;position:relative;overflow:hidden}
-    .score-fill{height:100%;border-radius:3px;position:absolute;transition:width .3s}
-    .score-val{font-size:10px;color:var(--wtf-muted);width:38px;text-align:right}
-    .en-fill{background:var(--en)}
-    .fr-fill{background:var(--fr)}
-    .dv-counts{font-size:10px;color:var(--wtf-muted);margin-top:6px}
-    .dv-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:9px;color:#374151;flex-wrap:wrap;gap:4px}
-    .dv-deep{font-size:9px;color:var(--wtf-accent);text-decoration:none;letter-spacing:.5px}
-    .dv-msg{text-align:center;padding:40px;color:var(--wtf-muted);font-size:11px;line-height:1.8}
-    .paywall-gate{background:#060d14;border:1px solid #2a1a00;border-radius:6px;padding:16px;text-align:center;margin-top:20px}
-    .paywall-gate-title{font-family:'Orbitron',sans-serif;font-size:11px;color:#f59e0b;margin-bottom:6px}
-    .paywall-gate-desc{font-size:11px;color:var(--wtf-muted);margin-bottom:10px}
-    .paywall-btn{display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none}
-    @media(max-width:600px){main{padding:20px 12px}.score-bar{flex-wrap:wrap}}
-  </style>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Coverage Divergence · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Where Canadian outlets diverge most in how they cover the same story.">
+{% endblock %}
+{% block content %}
+{# Converted off a standalone document 2026-08-18 (task #5767).
+   Classes are namespaced wtf-dv-* — the originals (.logo, .nav-links, .active,
+   .page-title, .legend) were safe only while this page was isolated and would
+   collide site-wide now that it shares style.css.
+   Shell rules dropped (base.html owns them): :root, *, body, header, .logo, .nav-links, .nav-links a, .nav-links a:hover,.nav-links a.active, main #}
+<style>
+.wtf-dv-page-title { font-family:'Orbitron',sans-serif;font-size:1.3rem;letter-spacing:2px;margin-bottom:8px }
+.wtf-dv-page-desc { font-size:11px;color:#6b7280;line-height:1.7;max-width:640px;margin-bottom:28px }
+.wtf-dv-legend { display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px }
+.wtf-dv-leg { display:flex;align-items:center;gap:5px;font-size:9px;letter-spacing:.5px;color:#6b7280 }
+.wtf-dv-leg-dot { width:8px;height:8px;border-radius:2px }
+.wtf-dv-filters { display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;align-items:center }
+.wtf-dv-filter-btn { background:#0d1117;border:1px solid #1f2937;border-radius:4px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#6b7280;cursor:pointer;transition:all .15s }
+.wtf-dv-filter-btn:hover,.wtf-dv-filter-btn.wtf-dv-active { border-color:#00e5ff;color:#00e5ff }
+.wtf-dv-filter-label { font-size:10px;color:#6b7280;letter-spacing:1px }
+#div-list { display:flex;flex-direction:column;gap:10px }
+.wtf-dv-dv-card { background:#0d1117;border:1px solid #1f2937;border-radius:6px;padding:14px 16px }
+.wtf-dv-dv-card.wtf-dv-en-only { border-left:3px solid #3b82f6 }
+.wtf-dv-dv-card.wtf-dv-fr-only { border-left:3px solid #ef4444 }
+.wtf-dv-dv-card.wtf-dv-bias-gap { border-left:3px solid #a855f7 }
+.wtf-dv-dv-meta { display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap }
+.wtf-dv-dv-badge { font-size:9px;font-weight:700;padding:2px 8px;border-radius:10px;letter-spacing:.5px }
+.wtf-dv-badge-en { background:#0a1428;color:#3b82f6;border:1px solid #3b82f630 }
+.wtf-dv-badge-fr { background:#280a0a;color:#ef4444;border:1px solid #ef444430 }
+.wtf-dv-badge-gap { background:#1a0a28;color:#a855f7;border:1px solid #a855f730 }
+.wtf-dv-dv-cert { font-size:9px;color:#6b7280;text-transform:uppercase;letter-spacing:.5px }
+.wtf-dv-dv-title { font-size:13px;font-weight:500;line-height:1.5;margin-bottom:8px }
+.wtf-dv-dv-title a { color:#e2e8f0;text-decoration:none }
+.wtf-dv-dv-title a:hover { color:#00e5ff }
+.wtf-dv-score-bar { display:flex;gap:12px;align-items:center;margin-top:4px }
+.wtf-dv-score-lang { font-size:10px;font-weight:700;width:24px }
+.wtf-dv-score-track { flex:1;height:6px;background:#1f2937;border-radius:3px;position:relative;overflow:hidden }
+.wtf-dv-score-fill { height:100%;border-radius:3px;position:absolute;transition:width .3s }
+.wtf-dv-score-val { font-size:10px;color:#6b7280;width:38px;text-align:right }
+.wtf-dv-en-fill { background:#3b82f6 }
+.wtf-dv-fr-fill { background:#ef4444 }
+.wtf-dv-dv-counts { font-size:10px;color:#6b7280;margin-top:6px }
+.wtf-dv-dv-footer { display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:9px;color:#374151;flex-wrap:wrap;gap:4px }
+.wtf-dv-dv-deep { font-size:9px;color:#00e5ff;text-decoration:none;letter-spacing:.5px }
+.wtf-dv-dv-msg { text-align:center;padding:40px;color:#6b7280;font-size:11px;line-height:1.8 }
+.wtf-dv-paywall-gate { background:#060d14;border:1px solid #2a1a00;border-radius:6px;padding:16px;text-align:center;margin-top:20px }
+.wtf-dv-paywall-gate-title { font-family:'Orbitron',sans-serif;font-size:11px;color:#f59e0b;margin-bottom:6px }
+.wtf-dv-paywall-gate-desc { font-size:11px;color:#6b7280;margin-bottom:10px }
+.wtf-dv-paywall-btn { display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none }
+.wtf-dv-score-bar { flex-wrap:wrap }
+@media(max-width:600px){main{padding:20px 12px}.wtf-dv-score-bar{flex-wrap:wrap}}
+</style>
 
-<header>
-  <a href="/" class="logo">WHAT·THE·FACT</a>
-  <nav class="nav-links">
-    <a href="/">Feed</a>
-    <a href="/news">News</a>
-    <a href="/weather">Weather</a>
-    <a href="/economy">Economy</a>
-    <a href="/blindspot">Blindspot</a>
-    <a href="/divergence" class="active">Divergence</a>
-    <a href="/owners">Owners</a>
-    <a href="/sources">Sources</a>
-    {% if is_subscriber %}
-    <a href="/profile" style="color:var(--wtf-accent)">●</a>
-    {% else %}
-    <a href="/join" style="color:#f59e0b">Join</a>
-    {% endif %}
-  </nav>
-</header>
-
-<main>
-  <div class="page-title" style="color:#a855f7">🇨🇦 FR/EN DIVERGENCE ALERT</div>
-  <p class="page-desc">
+<div class="wtf-dv-page-title" style="color:#a855f7">🇨🇦 FR/EN DIVERGENCE ALERT</div>
+  <p class="wtf-dv-page-desc">
     Stories where French and English Canadian outlets tell a different story —
     either by ignoring it entirely or by framing it with opposite political lean.
     Bias score: −1.0 = far left · 0 = center · +1.0 = far right.
   </p>
 
-  <div class="legend">
-    <span class="leg"><span class="leg-dot" style="background:#3b82f6"></span>EN ONLY — French press silent</span>
-    <span class="leg"><span class="leg-dot" style="background:#ef4444"></span>FR ONLY — English press silent</span>
-    <span class="leg"><span class="leg-dot" style="background:#a855f7"></span>BIAS GAP — Different framing</span>
+  <div class="wtf-dv-legend">
+    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot" style="background:#3b82f6"></span>EN ONLY — French press silent</span>
+    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot" style="background:#ef4444"></span>FR ONLY — English press silent</span>
+    <span class="wtf-dv-leg"><span class="wtf-dv-leg-dot" style="background:#a855f7"></span>BIAS GAP — Different framing</span>
   </div>
 
-  <div class="filters" style="margin-top:14px">
-    <span class="filter-label">WINDOW</span>
-    <button class="filter-btn" data-days="7">7 days</button>
-    <button class="filter-btn active" data-days="30">30 days</button>
-    <button class="filter-btn" data-days="60">60 days</button>
-    <button class="filter-btn" data-days="90">90 days</button>
+  <div class="wtf-dv-filters" style="margin-top:14px">
+    <span class="wtf-dv-filter-label">WINDOW</span>
+    <button class="wtf-dv-filter-btn" data-days="7">7 days</button>
+    <button class="wtf-dv-filter-btn wtf-dv-active" data-days="30">30 days</button>
+    <button class="wtf-dv-filter-btn" data-days="60">60 days</button>
+    <button class="wtf-dv-filter-btn" data-days="90">90 days</button>
   </div>
 
   <div id="div-list"></div>
 
   {% if not is_subscriber %}
-  <div class="paywall-gate">
-    <div class="paywall-gate-title">Bias Score Analysis Locked</div>
-    <div class="paywall-gate-desc">Subscribers see the full EN vs FR bias score breakdown per story cluster.</div>
-    <a href="/join" class="paywall-btn">Unlock with Starter</a>
+  <div class="wtf-dv-paywall-gate">
+    <div class="wtf-dv-paywall-gate-title">Bias Score Analysis Locked</div>
+    <div class="wtf-dv-paywall-gate-desc">Subscribers see the full EN vs FR bias score breakdown per story cluster.</div>
+    <a href="/join" class="wtf-dv-paywall-btn">Unlock with Starter</a>
     <span style="margin-left:10px"><a href="/login" style="font-size:10px;color:#6b7280;text-decoration:none">Sign in</a></span>
   </div>
   {% endif %}
-</main>
-
-<script>
-'use strict';
-
-const IS_SUB = {{ 'true' if is_subscriber else 'false' }};
-let _days = 30;
-
-function mk(tag, cls, txt) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (txt !== undefined) e.textContent = txt;
-    return e;
-}
-
-function fmtDate(iso) {
-    if (!iso) return '';
-    return new Date(iso).toLocaleDateString('en-CA', {month:'short', day:'numeric'});
-}
-
-function fmtScore(s) {
-    if (s === null || s === undefined) return '—';
-    return (s >= 0 ? '+' : '') + s.toFixed(2);
-}
-
-function scoreToLeft(s) {
-    // Convert -1..+1 to 0..100% for positioning in bar
-    // Center = 50%, left = 0%, right = 100%
-    if (s === null || s === undefined) return 50;
-    return Math.round(((s + 1) / 2) * 100);
-}
-
-function setMsg(text) {
-    const list = document.getElementById('div-list');
-    list.replaceChildren(mk('div', 'dv-msg', text));
-}
-
-function buildCard(d) {
-    const isEnOnly = d.en_only;
-    const isFrOnly = d.fr_only;
-    const cardClass = isEnOnly ? 'dv-card en-only' : isFrOnly ? 'dv-card fr-only' : 'dv-card bias-gap';
-    const card = mk('div', cardClass);
-
-    // meta row
-    const meta = mk('div', 'dv-meta');
-    if (isEnOnly) {
-        meta.appendChild(mk('span', 'dv-badge badge-en', 'EN ONLY'));
-    } else if (isFrOnly) {
-        meta.appendChild(mk('span', 'dv-badge badge-fr', 'FR ONLY'));
-    } else {
-        const gapPct = Math.round(d.divergence_score * 100);
-        meta.appendChild(mk('span', 'dv-badge badge-gap', 'BIAS GAP · ' + gapPct + '%'));
-    }
-    if (d.certainty_label) meta.appendChild(mk('span', 'dv-cert', d.certainty_label));
-    card.appendChild(meta);
-
-    // title
-    const titleDiv = mk('div', 'dv-title');
-    const a = mk('a');
-    a.href = '/cluster/' + d.id;
-    a.textContent = d.title;
-    titleDiv.appendChild(a);
-    card.appendChild(titleDiv);
-
-    // Score bars — subscriber only
-    if (IS_SUB && !isEnOnly && !isFrOnly) {
-        const bars = mk('div');
-        bars.style.marginBottom = '4px';
-
-        function addBar(lang, score, fillClass, langColor) {
-            const row = mk('div', 'score-bar');
-            const lbl = mk('span', 'score-lang', lang);
-            lbl.style.color = langColor;
-            row.appendChild(lbl);
-            const track = mk('div', 'score-track');
-            const fill = mk('div', 'score-fill ' + fillClass);
-            const pct = scoreToLeft(score);
-            fill.style.width = Math.abs(pct - 50) + '%';
-            fill.style.left = score >= 0 ? '50%' : (pct + '%');
-            track.appendChild(fill);
-            row.appendChild(track);
-            row.appendChild(mk('span', 'score-val', fmtScore(score)));
-            return row;
-        }
-        bars.appendChild(addBar('EN', d.en_avg_score, 'en-fill', '#3b82f6'));
-        bars.appendChild(addBar('FR', d.fr_avg_score, 'fr-fill', '#ef4444'));
-        card.appendChild(bars);
-    }
-
-    // Counts
-    const counts = mk('div', 'dv-counts');
-    const parts = [];
-    if (d.en_count) parts.push(d.en_count + ' EN');
-    if (d.fr_count) parts.push(d.fr_count + ' FR');
-    counts.textContent = parts.join(' · ') + ' · ' + (d.article_count || 0) + ' total';
-    card.appendChild(counts);
-
-    // footer
-    const foot = mk('div', 'dv-footer');
-    foot.appendChild(mk('span', null, fmtDate(d.latest)));
-    const deepA = mk('a', 'dv-deep', 'COVERAGE →');
-    deepA.href = '/cluster/' + d.id;
-    foot.appendChild(deepA);
-    card.appendChild(foot);
-
-    return card;
-}
-
-function render(data) {
-    const list = document.getElementById('div-list');
-    const items = (data && data.divergence) ? data.divergence : [];
-    if (!items.length) {
-        setMsg('No divergence stories found in the last ' + _days + ' days. Try a wider window or check after more articles are bias-scored.');
-        return;
-    }
-    const frag = document.createDocumentFragment();
-    items.forEach(function(d) { frag.appendChild(buildCard(d)); });
-    list.replaceChildren(frag);
-}
-
-function load(days) {
-    _days = days;
-    document.querySelectorAll('.filter-btn').forEach(function(b) {
-        b.classList.toggle('active', parseInt(b.dataset.days) === days);
-    });
-    setMsg('Loading…');
-    fetch('/api/v1/divergence?days=' + days + '&limit=30&min_divergence=0.05', {credentials:'same-origin'})
-        .then(function(r) { return r.json(); })
-        .then(render)
-        .catch(function() { setMsg('Error loading divergence feed. Refresh to retry.'); });
-}
-
-document.querySelectorAll('.filter-btn').forEach(function(b) {
-    b.addEventListener('click', function() { load(parseInt(b.dataset.days)); });
-});
-
-load(30);
-</script>
-
-</body>
-</html>
+{% endblock %}

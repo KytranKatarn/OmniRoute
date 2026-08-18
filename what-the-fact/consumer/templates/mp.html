@@ -211,7 +211,8 @@
 
   {% if riding_donor_totals %}
   <div style="margin-bottom:14px;">
-    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Total raised by {{ mp.riding_name or 'riding' }} association + candidate</div>
+    <div style="font-size:10px;color:#6b7280;margin-bottom:8px;">Total raised by {{ mp.riding_name or 'riding' }} association + candidate
+      <span style="color:#4b5563;">· association returns are annual — the current year appears once Elections Canada publishes it</span></div>
     {% for r in riding_donor_totals %}
     <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #060d14;font-size:11px;">
       <div>

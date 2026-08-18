@@ -2433,6 +2433,22 @@ _MP_DONOR_CACHE: dict = {}  # lower(riding) -> (expiry_ts, (totals, donors))
 _MP_DONOR_CACHE_TTL = int(os.environ.get("WTF_MP_DONOR_CACHE_TTL", "3600"))
 
 
+def _donor_group_sort_key(label: str):
+    """Display order for the riding-funding groups (#5731): contest returns
+    (the newest money) first, then annual association returns newest-year
+    first with undated last, then general elections newest first. Sorted in
+    Python because the DB collation orders 'Annual (undated)' ABOVE
+    'Annual 2025' — punctuation-vs-digit ordering is collation-dependent."""
+    m = re.search(r"(\d{4})$", label)
+    year = int(m.group(1)) if m else 0
+    if label.startswith("Contest returns"):
+        return (0, -year)
+    if label.startswith("Annual"):
+        return (1, -year if year else 1)  # undated (year 0) sinks below real years
+    m = re.match(r"(\d+)", label)
+    return (2, -int(m.group(1)) if m else 0, label)
+
+
 @bp.get("/mp/<slug>")
 def mp_profile(slug: str):
     """Individual MP profile — votes, party, riding, articles mentioning them."""
@@ -2552,8 +2568,25 @@ def mp_profile(slug: str):
             riding_donor_totals, top_named_donors = _dc[1]
         else:
             with _db().begin() as c:
+                # 'Annual' association returns are split by YEAR (#5731) —
+                # lumping 2019-2025 into one row made the panel read as if
+                # nothing newer than the last election existed. Note EC's
+                # cadence: riding association returns are ANNUAL, so the
+                # current year appears only once EC publishes it (spring of
+                # the following year); rows with an empty electoral_event
+                # are leadership/nomination contest returns.
                 riding_donor_totals = [dict(r) for r in c.execute(text("""
-                    SELECT electoral_event, political_entity,
+                    SELECT CASE
+                             WHEN electoral_event = 'Annual'
+                               THEN 'Annual ' || COALESCE(
+                                      EXTRACT(YEAR FROM contribution_date)::int::text,
+                                      '(undated)')
+                             WHEN COALESCE(electoral_event, '') = ''
+                               THEN TRIM('Contest returns ' || COALESCE(
+                                      EXTRACT(YEAR FROM contribution_date)::int::text, ''))
+                             ELSE electoral_event
+                           END AS electoral_event,
+                           political_entity,
                            COUNT(*) AS donation_count,
                            SUM(monetary_amount) AS total_raised,
                            COUNT(DISTINCT contributor_name)
@@ -2562,10 +2595,12 @@ def mp_profile(slug: str):
                     FROM parliament.ec_contributions
                     WHERE lower(electoral_district) = lower(:riding)
                       AND monetary_amount > 0
-                    GROUP BY electoral_event, political_entity
-                    ORDER BY electoral_event DESC, total_raised DESC
-                    LIMIT 12
+                    GROUP BY 1, political_entity
+                    ORDER BY 1 DESC, total_raised DESC
+                    LIMIT 16
                 """), {"riding": riding_ec}).mappings().all()]
+                riding_donor_totals.sort(
+                    key=lambda r: _donor_group_sort_key(r["electoral_event"] or ""))
 
                 top_named_donors = [dict(r) for r in c.execute(text("""
                     SELECT contributor_name, contributor_city, contributor_province,

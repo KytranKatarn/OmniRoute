@@ -602,6 +602,15 @@ def weather():
         sci_count = c.execute(text(
             f"SELECT COUNT(*) FROM {S}.articles WHERE beat = 'science-tech'"
         )).scalar() or 0
+        # base.html's nav renders "LIVE · {{ source_count }} SOURCES". This page
+        # was a standalone document until 2026-08-18 and never supplied it, so
+        # inheriting the shell without this would render "LIVE · 0 SOURCES".
+        # Same definition every other page uses: distinct sources seen in 48h.
+        source_count = c.execute(text(
+            f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s "
+            f"JOIN {S}.articles a ON a.source_id = s.id "
+            f"AND a.ingested_at > NOW() - INTERVAL '48 hours'"
+        )).scalar() or 0
 
         # A.U.R.O.R.A. environmental layers (project #393). Every panel below is
         # rendered from these rows, and the provenance strip LOOPS
@@ -640,6 +649,7 @@ def weather():
                            articles=rows,
                            climate_count=climate_count,
                            sci_count=sci_count,
+                           source_count=source_count,
                            layers=[dict(r) for r in layers],
                            fire_provinces=[dict(r) for r in fire_provinces],
                            fire_summary=dict(fire_summary) if fire_summary else None,

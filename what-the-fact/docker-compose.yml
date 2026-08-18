@@ -9,7 +9,12 @@ services:
     volumes:
       - hf_cache:/opt/hf-cache
     cap_drop: [ALL]
-    mem_limit: 2g
+    # 3g (was 2g): measured steady-state working set is ~2.0 GiB (1.16 GiB
+    # anon + ~0.85 GiB hot mmapped model weights) — NOT a leak; 2g forced
+    # permanent reclaim churn at the ceiling. Citadel has ~20 GiB free.
+    # A memory change needs `docker compose up -d wtf-ingest` (recreate) —
+    # `restart` does not apply HostConfig.Memory. #5716
+    mem_limit: 3g
     cpus: 1.0
     networks: [default, archie_net]
     environment:

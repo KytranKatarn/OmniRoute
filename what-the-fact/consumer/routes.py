@@ -402,6 +402,10 @@ def news():
                                is_subscriber=is_subscriber())
 
     with _db().begin() as c:
+        # JIT compilation alone cost 3.5s on this route's big query (its
+        # correlated-subquery cost estimate keeps JIT triggered even after
+        # the rewrite below). Transaction-scoped, read-only-safe. #5719
+        c.execute(text("SET LOCAL jit = off"))
         source_count = c.execute(
             text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
@@ -433,46 +437,84 @@ def news():
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             WHERE 1=1 {band_where}
         """), params).scalar() or 0
+        # #5719 rewrite — the old form joined fact_checks/decorations across
+        # the WHOLE table before ranking: the newest-per-cluster subquery ran
+        # 107,885× (planner can't push the LIMIT below the WindowAgg), and the
+        # unindexed fact_checks fan-out both cost ~500ms AND duplicated
+        # articles on the page (86k articles carry >1 non-GoogleFCT check —
+        # a 50-row page measurably returned 104 rows). Now: pick the top-300
+        # FIRST via a backward ix_articles_published_at walk (~360 rows
+        # visited), rank just those, and decorate ONLY the final page. The
+        # src_rank semantics are identical: any same-source article newer
+        # than a top-300 member is itself in the top-300. The fc LATERAL
+        # LIMIT 1 yields exactly one row per article (newest check wins).
         rows = c.execute(text(f"""
-            SELECT * FROM (
+            WITH top_recent AS MATERIALIZED (
                 SELECT a.id, a.title, a.url, a.published_at,
-                       s.name AS source, s.id AS source_id, b.band, a.ai_analyzed, a.province_code,
-                       a.beat, a.geo_scope,
-                       a.cluster_id, sc.article_count AS cluster_size,
-                       fc.overall_verdict,
-                       (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
-                        FROM {S}.article_mp_tags t
-                        JOIN parliament.mps m ON m.id = t.mp_id
-                        WHERE t.article_id = a.id) AS mp_mentions,
-                       ROW_NUMBER() OVER (PARTITION BY s.id ORDER BY a.published_at DESC) AS src_rank
+                       a.source_id, b.band, a.ai_analyzed, a.province_code,
+                       a.beat, a.geo_scope, a.cluster_id
                 FROM {S}.articles a
                 JOIN {S}.sources s ON s.id = a.source_id
                 LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
-                LEFT JOIN {S}.story_clusters sc ON sc.id = a.cluster_id
-                LEFT JOIN {S}.fact_checks fc ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
                 WHERE 1=1 {band_where}
                 AND (a.cluster_id IS NULL OR a.id = (
                     SELECT a2.id FROM {S}.articles a2
                     WHERE a2.cluster_id = a.cluster_id
                     ORDER BY a2.published_at DESC LIMIT 1
                 ))
-                ORDER BY a.published_at DESC
+                ORDER BY a.published_at DESC, a.id DESC
                 LIMIT {PAGE_SIZE * 6}
-            ) diverse
-            WHERE src_rank <= {max(PAGE_SIZE // 4, 3)}
-            ORDER BY published_at DESC
-            LIMIT {PAGE_SIZE} OFFSET {offset}
+            ),
+            ranked AS (
+                SELECT tr.*,
+                       ROW_NUMBER() OVER (PARTITION BY tr.source_id
+                                          ORDER BY tr.published_at DESC,
+                                                   tr.id DESC) AS src_rank
+                FROM top_recent tr
+            ),
+            page AS (
+                SELECT * FROM ranked
+                WHERE src_rank <= {max(PAGE_SIZE // 4, 3)}
+                ORDER BY published_at DESC, id DESC
+                LIMIT {PAGE_SIZE} OFFSET {offset}
+            )
+            SELECT p.id, p.title, p.url, p.published_at,
+                   s.name AS source, p.source_id, p.band, p.ai_analyzed,
+                   p.province_code, p.beat, p.geo_scope,
+                   p.cluster_id, sc.article_count AS cluster_size,
+                   fc.overall_verdict,
+                   (SELECT STRING_AGG(m.name, ', ' ORDER BY m.name)
+                    FROM {S}.article_mp_tags tg
+                    JOIN parliament.mps m ON m.id = tg.mp_id
+                    WHERE tg.article_id = p.id) AS mp_mentions,
+                   p.src_rank
+            FROM page p
+            JOIN {S}.sources s ON s.id = p.source_id
+            LEFT JOIN {S}.story_clusters sc ON sc.id = p.cluster_id
+            LEFT JOIN LATERAL (
+                SELECT fc2.overall_verdict
+                FROM {S}.fact_checks fc2
+                WHERE fc2.article_id = p.id
+                  AND fc2.checker NOT LIKE 'GoogleFCT%%'
+                ORDER BY fc2.id DESC
+                LIMIT 1
+            ) fc ON true
+            ORDER BY p.published_at DESC, p.id DESC
         """), params).mappings().all()
 
+        # Pre-aggregate per-source counts instead of grouping 107k wide
+        # joined rows — measured 305ms → 66ms (#5719).
         sources = c.execute(text(f"""
             SELECT s.name, s.url, s.bias_lean,
                    obs.avg_score, obs.band AS bias_band,
-                   COUNT(a.id) AS article_count
+                   COALESCE(ac.article_count, 0) AS article_count
             FROM {S}.sources s
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = s.id
-            LEFT JOIN {S}.articles a ON a.source_id = s.id
-            GROUP BY s.id, s.name, s.url, s.bias_lean, obs.avg_score, obs.band
-            ORDER BY COUNT(a.id) DESC
+            LEFT JOIN (
+                SELECT source_id, COUNT(*) AS article_count
+                FROM {S}.articles GROUP BY source_id
+            ) ac ON ac.source_id = s.id
+            ORDER BY COALESCE(ac.article_count, 0) DESC
         """)).mappings().all()
 
         # Ridings that have at least one tagged article — for filter dropdown
@@ -2912,31 +2954,51 @@ def robots_txt():
     return Response(body, mimetype="text/plain")
 
 
+# One article-sitemap file holds 40k URLs — under the 50k/50MB protocol cap
+# with headroom. With faceted /news disallowed in robots.txt, the sitemap is
+# the primary crawl path to the article back-catalogue, which outgrows a
+# single file (#5717) — so /sitemap.xml is a sitemap INDEX.
+_SITEMAP_ARTICLE_PAGE = 40000
+
+
 @bp.get("/sitemap.xml")
 def sitemap_xml():
-    """Dynamic XML sitemap — static pages + most recent 50,000 articles.
-
-    50,000 is the sitemap-protocol per-file max. With faceted /news
-    disallowed in robots.txt, the sitemap is the primary crawl path to the
-    article back-catalogue — when the archive exceeds 50k, move to a sitemap
-    index with yearly archive files instead of raising this further.
-    """
+    """Sitemap INDEX — points at the core sitemap + paged article sitemaps."""
     from flask import Response
     S = _schema()
     with _db().begin() as c:
-        rows = c.execute(text(f"""
-            SELECT id, published_at
-            FROM {S}.articles
-            ORDER BY published_at DESC
-            LIMIT 50000
-        """)).fetchall()
+        total, newest = c.execute(text(f"""
+            SELECT COUNT(*), MAX(published_at) FROM {S}.articles
+        """)).fetchone()
+    pages = max(1, -(-int(total or 0) // _SITEMAP_ARTICLE_PAGE))
+    newest_tag = (f"<lastmod>{newest.strftime('%Y-%m-%d')}</lastmod>"
+                  if newest else "")
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+             "  <sitemap><loc>https://what-the-fact.com/sitemap-core.xml</loc>"
+             f"{newest_tag}</sitemap>"]
+    for p in range(1, pages + 1):
+        # Chunks are OLDEST-first, so earlier pages are immutable and only
+        # the LAST page grows — stamp it so crawlers re-fetch just that one.
+        tag = newest_tag if p == pages else ""
+        lines.append(
+            f"  <sitemap><loc>https://what-the-fact.com/sitemap-articles-{p}.xml</loc>"
+            f"{tag}</sitemap>"
+        )
+    lines.append("</sitemapindex>")
+    return Response("\n".join(lines), mimetype="application/xml")
 
+
+@bp.get("/sitemap-core.xml")
+def sitemap_core():
+    """Static pages + source profiles (formerly the head of the single sitemap)."""
+    from flask import Response
+    S = _schema()
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
              '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     static_pages = ["/", "/sources", "/map", "/team", "/join", "/activity", "/news"]
     for path in static_pages:
         lines.append(f"  <url><loc>https://what-the-fact.com{path}</loc></url>")
-    # Source profile pages
     with _db().begin() as c:
         src_rows = c.execute(text(f"SELECT slug FROM {S}.sources ORDER BY slug")).fetchall()
     for sr in src_rows:
@@ -2944,6 +3006,35 @@ def sitemap_xml():
             f"  <url><loc>https://what-the-fact.com/source/{sr[0]}</loc>"
             "<changefreq>weekly</changefreq></url>"
         )
+    lines.append("</urlset>")
+    return Response("\n".join(lines), mimetype="application/xml")
+
+
+@bp.get("/sitemap-articles-<int:page>.xml")
+def sitemap_articles(page: int):
+    """One 40k-article chunk, OLDEST first — page 1 never changes, new
+    articles only ever append to the last page (crawler-cache friendly).
+    Ordering is bare ASC (published_at has no NULLs; id breaks ties) so the
+    published_at index + incremental sort serve it — no full-table sort.
+    """
+    from flask import Response
+    # Werkzeug's int converter is unbounded — a 20-digit page would reach
+    # Postgres and 500 on bigint overflow. 50k pages = 2B articles.
+    if page < 1 or page > 50000:
+        abort(404)
+    S = _schema()
+    with _db().begin() as c:
+        rows = c.execute(text(f"""
+            SELECT id, published_at
+            FROM {S}.articles
+            ORDER BY published_at ASC, id ASC
+            LIMIT :lim OFFSET :off
+        """), {"lim": _SITEMAP_ARTICLE_PAGE,
+               "off": (page - 1) * _SITEMAP_ARTICLE_PAGE}).fetchall()
+    if not rows and page != 1:
+        abort(404)
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
     for row in rows:
         art_id = row[0]
         lastmod = row[1].strftime("%Y-%m-%d") if row[1] else ""

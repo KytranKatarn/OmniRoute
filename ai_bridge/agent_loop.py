@@ -5710,6 +5710,13 @@ class AgentLoop:
                         processed += 1
                     else:
                         failed += 1
+                        # #5627: a failed linkedin_* action whose OWN diagnostics show
+                        # LinkedIn's login/authwall is POSITIVE knowledge the posting
+                        # profile is logged out. Feed it back immediately instead of
+                        # waiting for the 4-hourly probe — on 2026-08-15 that window
+                        # let 3 producers burn 5 posts over 50 minutes while the
+                        # evidence sat unread in execution_result.
+                        self._maybe_flag_linkedin_authwall(item, result or {})
 
                     # Layer A Phase 1 — alert on logical failure (success path that returned an error)
                     try:
@@ -5765,6 +5772,66 @@ class AgentLoop:
         duration_ms = int((time.time() - start) * 1000)
         if processed > 0 or failed > 0 or (expired if "expired" in dir() else []):
             self._log_cycle("approvals", processed, failed, duration_ms)
+
+    @staticmethod
+    def _maybe_flag_linkedin_authwall(item: dict, result: dict) -> None:
+        """#5627: close the auth feedback loop for LinkedIn posting failures.
+
+        The #1831 release guard gates on browser_sessions.status='stale', which
+        ONLY the 4-hourly health probe used to set — so a logout landed a
+        multi-hour window where releases/top-ups kept burning approvals while
+        every failure's diagnostics plainly showed the login page. When a
+        failed linkedin_* result carries an authwall signature, mark the
+        posting profile stale NOW (the guard holds everything from the next
+        cycle) and fire the deduped re-auth alert the owner never got on
+        2026-08-15. Best-effort: never raises into the executor.
+        """
+        try:
+            action_type = str(item.get("action_type") or "")
+            if not action_type.startswith("linkedin"):
+                return
+            blob = json.dumps(result, default=str).lower()
+            if not any(sig in blob for sig in ("uas/login", "authwall", "session_redirect", "checkpoint/challenge")):
+                return
+            import sys
+
+            sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+            data = item.get("action_data")
+            if not isinstance(data, dict):
+                try:
+                    data = json.loads(data or "{}")
+                except (TypeError, ValueError):
+                    data = {}
+            account = (data.get("account") or data.get("post_type") or "").strip() or None
+            agent_id = 342
+            try:
+                from services import signal_accounts
+
+                if account:
+                    agent_id = signal_accounts.browser_id_for(account) or 342
+            except Exception:
+                pass  # default 342 — the shared majors profile
+            from services import browser_session_service
+
+            browser_session_service.mark_stale(
+                agent_id,
+                "linkedin",
+                f"authwall in failed {action_type} approval #{item.get('id')} (#5627 feedback)",
+            )
+            try:
+                from services.signal_calendar_service import _alert_linkedin_stale
+
+                _alert_linkedin_stale(account or "personal", agent_id)
+            except Exception:
+                logger.warning("authwall re-auth alert failed (profile IS marked stale)", exc_info=True)
+            logger.warning(
+                "[approval_queue] %s #%s hit LinkedIn AUTHWALL — profile agent %s marked stale (#5627)",
+                action_type,
+                item.get("id"),
+                agent_id,
+            )
+        except Exception:
+            logger.exception("_maybe_flag_linkedin_authwall failed (non-fatal)")
 
     def _execute_approved_action(self, cur, conn, item: dict) -> dict:
         """Execute an approved action from the approval queue."""

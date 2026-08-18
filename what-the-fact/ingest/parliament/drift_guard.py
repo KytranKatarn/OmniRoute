@@ -58,6 +58,10 @@ _MAX_AGE_DAYS = {
     # phase-3 heartbeats, run.py senators block, senate_votes.py hub cron),
     # so a recurrence alarms here instead of rotting quietly.
     "senators_sync": int(os.environ.get("WTF_DRIFT_SENATORS_DAYS", "21")),
+    # senators_sync = the CONTAINER run (enrichment-only — its roster scrape
+    # needs Playwright and yields 0 in-container, proven 2026-08-18);
+    # senators_roster = the HUB cron run that actually refreshes the roster.
+    "senators_roster": int(os.environ.get("WTF_DRIFT_SENROSTER_DAYS", "21")),
     "senate_votes": int(os.environ.get("WTF_DRIFT_SENVOTES_DAYS", "21")),
     "lobbying": int(os.environ.get("WTF_DRIFT_LOBBY_DAYS", "21")),
     "ethics_disclosures": int(os.environ.get("WTF_DRIFT_ETHICS_DAYS", "21")),

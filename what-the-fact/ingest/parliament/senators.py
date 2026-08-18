@@ -665,6 +665,39 @@ def sync_senators(dry_run: bool = False) -> dict:
     return stats
 
 
+def run_roster_sync_hub() -> dict:
+    """sync_senators + a parliament.ingest_log heartbeat (task='senators_roster').
+
+    HUB-side entrypoint (weekly cron beside senate_votes): the roster +
+    committees scrape needs Playwright/Chrome, which the ingest container
+    lacks — the container's weekly run is enrichment-only and scrapes 0
+    (proven on the 2026-08-18 backfill), so its 'senators_sync' success rows
+    must NOT be the roster's freshness signal. drift_guard watches
+    'senators_roster' instead."""
+    engine = _get_engine()
+    try:
+        stats = sync_senators()
+        with engine.begin() as c:
+            c.execute(text(
+                "INSERT INTO parliament.ingest_log (task, records_fetched, records_upserted) "
+                "VALUES ('senators_roster', :f, :u)"),
+                {"f": int(stats.get("total") or 0),
+                 "u": int((stats.get("updated") or 0) + (stats.get("appointed") or 0)
+                          + (stats.get("departed") or 0))})
+        return stats
+    except Exception as exc:
+        try:
+            with engine.begin() as c:
+                c.execute(text(
+                    "INSERT INTO parliament.ingest_log (task, error) "
+                    "VALUES ('senators_roster', :e)"), {"e": str(exc)[:500]})
+        except Exception:
+            logger.exception("senators_roster heartbeat write failed")
+        raise
+
+
 if __name__ == "__main__":
-    dry_run = "--dry-run" in sys.argv
-    sync_senators(dry_run=dry_run)
+    if "--dry-run" in sys.argv:
+        sync_senators(dry_run=True)
+    else:
+        run_roster_sync_hub()

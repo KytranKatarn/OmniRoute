@@ -91,6 +91,39 @@ def test_foreign_hotspots_are_filtered():
     )
 
 
+def test_foreign_fire_weather_stations_are_filtered():
+    """CWFIS is Canadian but its station layer carries US NWS stations too.
+
+    Measured 2026-08-18: 177 of 571 stations were US (Florida at 25.7N,
+    Michigan, New York...). Phase 1 shipped with the filter applied to hotspots
+    but NOT to stations, so the live "strongest winds" table briefly ranked US
+    stations on a page whose stated premise is Canada.
+    """
+    src = CWFIS.read_text(encoding="utf-8")
+    assert "_FOREIGN_AGENCIES" in src and "NWS" in src, (
+        "station ingest must exclude foreign operating agencies"
+    )
+    assert "_US_STATE_CODES" in src, (
+        "station ingest must also reject US state codes appearing in `prov`"
+    )
+    assert "foreign_by_agency" in src, (
+        "the drop must be REPORTED per agency, not silent — an unexpected "
+        "agency code showing up in the drop list is how we learn the feed "
+        "changed"
+    )
+
+
+def test_newfoundland_legacy_code_is_accepted():
+    """CWFIS still emits NF (not NL) for Newfoundland — 60 stations on the
+    first live run. An allowlist missing it would silently drop the province."""
+    src = CWFIS.read_text(encoding="utf-8")
+    prov_block = re.search(r"_CA_PROV\s*=\s*\{(.*?)\}", src, re.S)
+    assert prov_block, "_CA_PROV not found"
+    assert '"NF"' in prov_block.group(1), (
+        "CWFIS emits Newfoundland as NF; dropping it loses the province"
+    )
+
+
 def test_drift_guard_watches_the_aurora_layers():
     guard = (ROOT / "ingest" / "parliament" / "drift_guard.py").read_text(encoding="utf-8")
     for task in ("aurora_firewx", "aurora_fire"):

@@ -44,11 +44,30 @@ _HEADERS = {
 }
 _TIMEOUT = 120
 
-# Canadian province/territory codes. hotspots_last24hrs carries US states and
-# Mexican states in the same `agency` column, so this allowlist is what keeps a
-# Canadian page from quietly reporting Texas fires.
-_CA_PROV = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
-            "PC"}  # PC = Parks Canada, a legitimate Canadian reporting agency
+# CWFIS is a Canadian system but its layers carry FOREIGN stations and
+# detections too (US border coverage feeds the fire-weather models). A page
+# whose premise is "Canada first" must exclude them.
+#
+# hotspots_last24hrs puts the jurisdiction in `agency`, mixing CA provinces
+# with US and Mexican state codes.
+_CA_PROV = {"AB", "BC", "MB", "NB", "NL", "NF", "NS", "NT", "NU", "ON", "PE", "QC", "SK",
+            "YT", "PC"}   # NF = Newfoundland's legacy code, still emitted by CWFIS
+                          # PC = Parks Canada
+# firewx_stns_current is DENYLISTED instead, deliberately: it reports the
+# operating agency (MSC / DNR / NL-DFF / NS-DLF / NWS ...), and CWFIS is
+# Canadian by default, so "keep unless proven foreign" avoids silently dropping
+# a provincial agency whose code we have not seen yet (BC/AB/SK stations are
+# absent from the feed at some hours, so an allowlist could not be verified).
+# Measured 2026-08-18: NWS accounted for exactly the 177 non-Canadian stations,
+# and 19 Canadian MSC stations carry a BLANK prov — which is why this filters on
+# agency, not province.
+_FOREIGN_AGENCIES = {"NWS"}
+_US_STATE_CODES = {
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN",
+    "IA", "KS", "KY", "LA", "MA", "MD", "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND",
+    "NE", "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN",
+    "TX", "UT", "VA", "VT", "WA", "WI", "WV", "WY",
+}
 
 
 def _fetch(layer: str, extra: str = "") -> dict:
@@ -99,7 +118,8 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
     if not feats:
         return {"error": "firewx returned 0 features — layer renamed or WFS changed?"}
 
-    rows, skipped = [], 0
+    rows, skipped, foreign = [], 0, 0
+    foreign_by_agency = defaultdict(int)
     for f in feats:
         p = f.get("properties") or {}
         # wmo is the stable identifier; aes is the fallback for stations without one.
@@ -107,6 +127,12 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
         rep = _ts(p.get("rep_date"))
         if not key or rep is None:
             skipped += 1
+            continue
+        agency = (_clean(p.get("agency")) or "").upper()
+        prov_code = (_clean(p.get("prov")) or "").upper()
+        if agency in _FOREIGN_AGENCIES or prov_code in _US_STATE_CODES:
+            foreign += 1
+            foreign_by_agency[agency or prov_code or "?"] += 1
             continue
         rows.append({
             "k": key, "n": _clean(p.get("name")), "pv": _clean(p.get("prov")),
@@ -124,6 +150,7 @@ def run_firewx_sync(engine, dry_run: bool = False) -> dict:
     # silent collapse is the exact shape of defect this project keeps finding.
     dupes = len(rows) - len({r["k"] for r in rows})
     result = {"fetched": len(feats), "parsed": len(rows), "skipped": skipped,
+              "foreign_skipped": foreign, "foreign_by_agency": dict(foreign_by_agency),
               "duplicate_station_keys": dupes}
     if dry_run:
         logger.info("firewx DRY RUN: %s", result)

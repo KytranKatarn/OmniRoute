@@ -712,16 +712,16 @@ def _activity_agent_queries(S):
             JOIN {S}.audit_trail at ON at.article_id = a.id AND at.event_type = 'ingested'
             WHERE a.province_code IS NOT NULL""",
         "D.R.A.F.T.": f"""
-            SELECT 'D.R.A.F.T.' AS agent, NULL AS article_id,
+            SELECT 'D.R.A.F.T.' AS agent, NULL::int AS article_id,
                    sc.representative_title AS title,
-                   'summarized' AS result, su.created_at AS ts, NULL AS source
+                   'summarized' AS result, su.created_at AS ts, NULL::text AS source
             FROM {S}.summaries su
             JOIN {S}.story_clusters sc ON sc.id = su.cluster_id""",
         "I.N.K.": f"""
-            SELECT 'I.N.K.' AS agent, NULL AS article_id,
+            SELECT 'I.N.K.' AS agent, NULL::int AS article_id,
                    representative_title AS title,
                    CONCAT(article_count::text, ' article', CASE WHEN article_count = 1 THEN '' ELSE 's' END) AS result,
-                   created_at AS ts, NULL AS source
+                   created_at AS ts, NULL::text AS source
             FROM {S}.story_clusters""",
     }
 
@@ -967,7 +967,10 @@ def activity():
     PAGE_SIZE = 100
     # Page cap bounds the per-branch feed LIMIT below (100 pages = 10k events
     # per branch worst case — far beyond any human scroll depth).
-    page = max(1, min(100, int(_req.args.get("page", 1))))
+    try:
+        page = max(1, min(100, int(_req.args.get("page", 1))))
+    except (TypeError, ValueError):
+        page = 1
     agent_filter = _req.args.get("agent", "all")
     offset = (page - 1) * PAGE_SIZE
 
@@ -994,9 +997,11 @@ def activity():
             _ACTIVITY_CACHE[_tk] = (time.time() + _ACTIVITY_CACHE_TTL, total)
 
         # Each branch is pre-sorted + capped so the union never materializes
-        # and sorts whole tables per request (was ~800k rows every view). The
-        # branch ts columns are indexed (migration 051), so each cap is an
-        # index-ordered top-N.
+        # and sorts whole tables per request (was ~800k rows every view). Honest
+        # note: the planner satisfies these caps with parallel top-N sorts
+        # (~750ms total), NOT the migration-051 ts indexes — those serve the
+        # 24h stats windows. Cost grows linearly with table size; revisit if
+        # the feed crosses ~2s again.
         cap = offset + PAGE_SIZE
         union_sql = " UNION ALL ".join(
             f"(SELECT * FROM ({q}) b{i} ORDER BY ts DESC NULLS LAST LIMIT {cap})"

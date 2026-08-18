@@ -12,7 +12,20 @@ def create_app():
     # Trust X-Forwarded-Proto and X-Forwarded-Host from Caddy so that
     # request.url_root is https:// not http:// behind the reverse proxy.
     app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev")
+    # FLASK_SECRET_KEY signs the session cookie that the cross-watch auth gate
+    # (#5747) now depends on. A silent "dev" fallback would make every session
+    # forgeable, so refuse to boot instead — fail closed, matching admin_gate().
+    # Production sets this; the escape hatch is for local dev only.
+    _secret = os.environ.get("FLASK_SECRET_KEY", "")
+    if not _secret:
+        if os.environ.get("WTF_ALLOW_INSECURE_SECRET") == "1":
+            _secret = "dev-insecure-local-only"
+        else:
+            raise RuntimeError(
+                "FLASK_SECRET_KEY is not set. Sessions would be forgeable. "
+                "Set it, or export WTF_ALLOW_INSECURE_SECRET=1 for local dev."
+            )
+    app.secret_key = _secret
     from .billing import billing_bp
     from .db import init_billing_table
     init_billing_table()

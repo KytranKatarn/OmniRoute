@@ -68,6 +68,11 @@ services:
     networks: [default, archie_net]
     environment:
       TZ: America/Toronto
+      # Public-edge rate limiting (#5747/#5748). Buckets are per-gunicorn-worker,
+      # so WTF_GUNICORN_WORKERS MUST match the --workers in Dockerfile.consumer (4)
+      # or the advertised limit drifts from the enforced one again.
+      WTF_GUNICORN_WORKERS: ${WTF_GUNICORN_WORKERS:-4}
+      WTF_RATE_BUCKET_MAX_KEYS: ${WTF_RATE_BUCKET_MAX_KEYS:-20000}
 
   # Dedicated entity-graph INGEST API (#4195) — isolates the heavy ingest POST
   # endpoint off the PUBLIC wtf-consumer workers so a big backfill can never
@@ -92,6 +97,10 @@ services:
       # create_app()'s init_billing_table() works under the read-only rootfs
       # without needing the /app/data volume.
       WTF_BILLING_DB_PATH: /tmp/wtf_billing.db
+      # This service runs the SAME consumer app on --workers 2 (not 4), so the
+      # limiter's divisor must differ. The entity-graph ingest route lives in its
+      # own blueprint gated by X-Internal-Key and is NOT rate-limited.
+      WTF_GUNICORN_WORKERS: ${WTF_INGEST_API_WORKERS:-2}
 
   wtf-tech:
     build:

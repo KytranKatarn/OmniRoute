@@ -7,7 +7,20 @@ from .routes import bp
 def create_app():
     import os
     app = Flask(__name__, template_folder="templates", static_folder="static")
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev")
+    # FLASK_SECRET_KEY signs the session cookie that the cross-watch auth gate
+    # (#5747) now depends on. A silent "dev" fallback would make every session
+    # forgeable, so refuse to boot instead — fail closed, matching admin_gate().
+    # Production sets this; the escape hatch is for local dev only.
+    _secret = os.environ.get("FLASK_SECRET_KEY", "")
+    if not _secret:
+        if os.environ.get("WTF_ALLOW_INSECURE_SECRET") == "1":
+            _secret = "dev-insecure-local-only"
+        else:
+            raise RuntimeError(
+                "FLASK_SECRET_KEY is not set. Sessions would be forgeable. "
+                "Set it, or export WTF_ALLOW_INSECURE_SECRET=1 for local dev."
+            )
+    app.secret_key = _secret
     # Allow what-the-fact.com consumer to fetch map-data + agent-activity
     CORS(app, resources={r"/api/v1/*": {"origins": [
         "https://what-the-fact.com",

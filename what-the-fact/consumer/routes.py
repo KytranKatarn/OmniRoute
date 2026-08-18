@@ -10,6 +10,8 @@ import urllib.request
 from flask import Blueprint, render_template, abort, Response, request, jsonify, session
 
 from sqlalchemy import create_engine, text
+from . import rate_limit as _rate_limit  # shared bucket store (#5747/#5748)
+from . import rate_policy as _rate_policy  # pure, stdlib-only decision logic
 from .auth import is_subscriber
 
 bp = Blueprint("wtf", __name__)
@@ -319,6 +321,9 @@ TEAM_AGENTS = [
 
 @bp.get("/api/stats")
 def api_stats():
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     from flask import jsonify
     S = _schema()
     with _db().begin() as c:
@@ -1392,6 +1397,9 @@ _VALID_SCOPES = {"all","national","provincial","international"}
 
 @bp.get("/api/proxy/map-data")
 def proxy_map_data():
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     beat = request.args.get("beat", "all")
     scope = request.args.get("scope", "all")
     beat = _norm_beat(beat)
@@ -1402,11 +1410,17 @@ def proxy_map_data():
 
 @bp.get("/api/proxy/agent-activity")
 def proxy_agent_activity():
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     return _proxy_tech("/api/v1/agent-activity")
 
 
 @bp.get("/api/proxy/articles/geo")
 def proxy_articles_geo():
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     beat = request.args.get("beat", "all")
     beat = _norm_beat(beat)
     province = (request.args.get("province") or "").strip().upper()[:2]
@@ -1504,16 +1518,25 @@ def proxy_articles_geo():
 @bp.post("/api/proxy/articles/<int:article_id>/analyze")
 def proxy_article_analyze(article_id: int):
     # Returns instantly (queued=true) — background thread handles the hub call
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     return _proxy_tech(f"/api/v1/articles/{article_id}/analyze", method="POST", body=b"{}", timeout=10)
 
 
 @bp.get("/api/proxy/articles/<int:article_id>/analyze/status")
 def proxy_article_analyze_status(article_id: int):
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     return _proxy_tech(f"/api/v1/articles/{article_id}/analyze/status")
 
 
 @bp.post("/api/proxy/articles/<int:article_id>/flag")
 def proxy_article_flag(article_id: int):
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     import json as _json
     from flask import request as _req
     body = _req.get_json(silent=True) or {}
@@ -1990,6 +2013,9 @@ def frame_cluster(cluster_id: int):
     dispatches to the hub's WTF Hub analyze endpoint (task=summarize), stores
     the result in story_clusters.framing_summary.
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     import json as _json
     from flask import jsonify
     S = _schema()
@@ -2169,6 +2195,9 @@ def outlet_bias_trend(source_id: int):
     Response: {source_id, months: [{month, avg_score, band, article_count}]}
     No auth required — same public data shown in source profile.
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     S = _schema()
     with _db().begin() as c:
         rows = c.execute(text(f"""
@@ -2252,6 +2281,9 @@ def cluster_timeline(cluster_id: int):
     Response: {cluster_id, article_count, articles: [{id, title, url,
                published_at, source_name, source_slug, bias_band, bias_score}]}
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     S = _schema()
     with _db().begin() as c:
         meta = c.execute(text(f"""
@@ -3565,9 +3597,9 @@ def sitemap_articles(page: int):
 @bp.get("/api/v1/featured-story")
 def featured_story():
     """Return the top story cluster ranked by distinct outlets (not raw article count)."""
-    allowed, retry = _api_rate_ok(request.remote_addr)
-    if not allowed:
-        return _api_cors_response({"error": "rate limited"}, 429)
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     S = _schema()
     with _db().begin() as c:
         row = c.execute(text(f"""
@@ -3613,24 +3645,24 @@ def health():
 # In-memory IP token bucket. 60 requests / 60-second rolling window per IP.
 # Resets when the container restarts. Sufficient for the read-only public API
 # without dragging Redis in — first abuser hits 429 long before they DoS us.
-_API_RATE_BUCKETS: dict = {}  # ip → [timestamps]
+_API_RATE_BUCKETS: dict = _rate_limit.BUCKETS  # ip → [timestamps]; shared with cross_watch
 _API_RATE_LIMIT = int(os.environ.get("WTF_API_V1_RATE_LIMIT", "60"))
 _API_RATE_WINDOW_SEC = 60
 
 
 def _api_rate_ok(ip: str) -> tuple[bool, int]:
-    """Return (allowed, retry_after_seconds)."""
-    now = time.time()
-    bucket = _API_RATE_BUCKETS.setdefault(ip, [])
-    cutoff = now - _API_RATE_WINDOW_SEC
-    # Drop expired
-    bucket[:] = [t for t in bucket if t > cutoff]
-    if len(bucket) >= _API_RATE_LIMIT:
-        oldest = bucket[0]
-        retry = int(_API_RATE_WINDOW_SEC - (now - oldest)) + 1
-        return False, max(1, retry)
-    bucket.append(now)
-    return True, 0
+    """Return (allowed, retry_after_seconds).
+
+    Kept for the callers that bucket by an explicit key (/news, crawler facets).
+    The algorithm now lives in the stdlib-only ``rate_policy`` so it is unit
+    tested without Flask (KB #290497); behaviour here is unchanged.
+    """
+    return _rate_policy.bucket_allow(
+        _API_RATE_BUCKETS.setdefault(ip, []),
+        time.time(),
+        _API_RATE_LIMIT,
+        _API_RATE_WINDOW_SEC,
+    )
 
 
 # --- /news overload defense (#4256): short-TTL data cache + generous per-IP limit.
@@ -3736,17 +3768,23 @@ def _api_cors_response(payload, status: int = 200):
     return resp
 
 
-def _api_rate_check():
-    """Returns 429 response if rate-limited, else None to proceed."""
-    from flask import request as _req
-    ip = _req.headers.get("X-Forwarded-For", "").split(",")[0].strip() or _req.remote_addr or "unknown"
-    ok, retry = _api_rate_ok(ip)
+def _api_rate_check(tier: str | None = None):
+    """Returns a 429 response if rate-limited, else None to proceed.
+
+    ``tier`` defaults to whatever ``rate_policy.classify()`` makes of the request
+    path, so an expensive route (``/analyze``, which enqueues LLM work on the
+    hub) or a write (``/flag``, ``/newsletter/subscribe``) gets its small budget
+    without every call site having to remember. The reported ``limit`` is the
+    AGGREGATE figure, not the per-worker number enforced, so this response and
+    the public API docs quote the same number.
+    """
+    ok, retry, limit, window = _rate_limit.check(tier=tier)
     if not ok:
         resp = _api_cors_response({
             "ok": False, "error": "rate_limited",
             "retry_after": retry,
-            "limit": _API_RATE_LIMIT,
-            "window_seconds": _API_RATE_WINDOW_SEC,
+            "limit": limit,
+            "window_seconds": window,
         }, status=429)
         resp.headers["Retry-After"] = str(retry)
         return resp
@@ -3982,6 +4020,9 @@ def api_v1_blindspot():
       days          int   default 7    look-back window
       max_gap_score float default 0.15 coverage threshold
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     from flask import request as _req
     limit = min(int(_req.args.get("limit", 20)), 100)
     days = min(int(_req.args.get("days", 7)), 90)
@@ -4054,6 +4095,9 @@ def api_v1_divergence():
       days           int   default 30   look-back window
       min_divergence float default 0.1  minimum |en_score - fr_score|
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     from flask import request as _req
     limit = min(int(_req.args.get("limit", 20)), 100)
     days = min(int(_req.args.get("days", 30)), 90)
@@ -4141,6 +4185,9 @@ def api_v1_ridings():
       min_count  — minimum article count to include (default 1).
       limit      — max results (default 100, max 338 = total Canadian ridings).
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     from flask import request as _req
 
     province = (_req.args.get("province") or "all").strip().upper()
@@ -4204,6 +4251,9 @@ def api_map_data():
 
     Supports ?beat=<slug> to filter pins by news beat (category).
     """
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     from flask import jsonify, request as _req
     S = _schema()
     beat = _req.args.get("beat", "all")
@@ -4264,6 +4314,9 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
 
 @bp.post("/api/newsletter/subscribe")
 def newsletter_subscribe():
+    _rl = _api_rate_check()
+    if _rl is not None:
+        return _rl
     data = request.get_json(silent=True) or {}
     # Honeypot — real users never fill the hidden 'website' field; bots that
     # do get a quiet 200 and no row.
@@ -4537,7 +4590,16 @@ _EDU_MAX_LIMIT = 50
 @bp.get("/edu")
 def edu_landing():
     """Education API landing page — explains the API and institutional licensing."""
-    return render_template("edu.html", is_subscriber=is_subscriber())
+    # Render the ENFORCED limit, never a hardcoded promise. This page advertised
+    # "100 requests / hour per IP" while the code enforced 60/60s (#5748); a
+    # number typed into a template drifts the moment the constant changes.
+    _limit, _window = _rate_policy.limits_for("default")
+    return render_template(
+        "edu.html",
+        is_subscriber=is_subscriber(),
+        rate_limit=_limit,
+        rate_window=_window,
+    )
 
 
 @bp.get("/api/edu/v1/articles")

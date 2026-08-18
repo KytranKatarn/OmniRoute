@@ -109,7 +109,7 @@
     <div style="color:#9ca3af;font-size:0.6rem;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;">Rate Limits &amp; CORS</div>
     <ul style="font-size:0.82rem;color:#9ca3af;margin:0;padding-left:20px;line-height:1.9;">
       <li><span style="color:#e0e0e0;">No API key required</span> — all education endpoints are public</li>
-      <li><span style="color:#e0e0e0;">100 requests / hour per IP</span> — enough for classroom use; contact us for higher limits</li>
+      <li><span style="color:#e0e0e0;">{{ rate_limit }} requests / {{ rate_window }}s per IP</span> — enough for classroom use; contact us for higher limits</li>
       <li><span style="color:#e0e0e0;">CORS: *</span> — call directly from browser or any origin</li>
       <li>All responses include <code style="color:#e0e0e0;">X-WTF-API-Version: v1</code></li>
       <li>Rate-limited responses return HTTP <code style="color:#e0e0e0;">429</code> with a <code style="color:#e0e0e0;">retry_after</code> field</li>

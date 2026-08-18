@@ -137,6 +137,28 @@
 </div>
 <script src="{{ url_for('static', filename='js/cost.js') }}"></script>
 
+{# Committee membership is PUBLIC: it is one click away on ourcommons.ca,
+   so paywalling it buys no exclusivity and reads as charging for a public
+   record. Subscriber value stays on the granular material (per-MP lobbying
+   contacts, donor rollups, expenses). Owner decision 2026-08-18. #}
+{% if committees %}
+<div class="wtf-mp-section">
+  <div class="wtf-mp-section-title">🏛 House committees — current memberships</div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;">
+    {% for cm in committees %}
+    <a href="https://www.ourcommons.ca/Committees/en/{{ cm.committee_abbr }}" target="_blank" rel="noopener"
+       style="background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 12px;font-size:11px;color:#9ca3af;text-decoration:none;">
+      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span style="color:#0af;">{{ cm.role|capitalize }}</span>{% endif %}
+      <span style="color:#4b5563;margin-left:4px;">↗</span>
+    </a>
+    {% endfor %}
+  </div>
+  <div style="font-size:9px;color:#374151;margin-top:8px;">
+    Source: House of Commons · <a href="https://www.ourcommons.ca/Committees/en/List" target="_blank" rel="noopener" style="color:#374151;">ourcommons.ca/Committees</a>
+  </div>
+</div>
+{% endif %}
+
 {% if is_subscriber %}
 
 <!-- Vote record -->
@@ -339,23 +361,6 @@
 </div>
 {% endif %}
 
-{% if committees %}
-<div class="wtf-mp-section">
-  <div class="wtf-mp-section-title">🏛 House committees — current memberships</div>
-  <div style="display:flex;flex-wrap:wrap;gap:8px;">
-    {% for cm in committees %}
-    <a href="https://www.ourcommons.ca/Committees/en/{{ cm.committee_abbr }}" target="_blank" rel="noopener"
-       style="background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;padding:5px 12px;font-size:11px;color:#9ca3af;text-decoration:none;">
-      {{ cm.committee_name }} ({{ cm.committee_abbr }}){% if cm.role != 'member' %} · <span style="color:#0af;">{{ cm.role|capitalize }}</span>{% endif %}
-      <span style="color:#4b5563;margin-left:4px;">↗</span>
-    </a>
-    {% endfor %}
-  </div>
-  <div style="font-size:9px;color:#374151;margin-top:8px;">
-    Source: House of Commons · <a href="https://www.ourcommons.ca/Committees/en/List" target="_blank" rel="noopener" style="color:#374151;">ourcommons.ca/Committees</a>
-  </div>
-</div>
-{% endif %}
 
 {% if disclosures %}
 <div class="wtf-mp-section">

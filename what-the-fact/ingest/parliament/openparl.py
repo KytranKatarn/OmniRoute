@@ -503,11 +503,17 @@ def run_parliament_sync(engine, current_session: str = "45-1") -> dict:
         logger.exception("ec_contributions sync failed (non-fatal): %s", exc)
         results["ec_contributions"] = {"error": str(exc)}
 
-    # Phase 3: Accountability data — expenses, lobbying, ethics, promises
+    # Phase 3: Accountability data — expenses, committees, ethics, promises.
+    # NOTE: 'lobbying' is deliberately ABSENT — lobbycanada.gc.ca is behind an
+    # interactive Cloudflare turnstile, so the container run could only ever
+    # 403 (it did, silently, for 60+ days). It is HUB-OWNED now, like
+    # senators/senate_votes: scripts/senate_votes_cron.sh runs
+    # `ingest.parliament.lobbying` under xvfb weekly and writes the
+    # 'lobbying' heartbeat that drift_guard watches. Do not re-add it here.
     for task_name, module_path, func_name in [
         ("mp_expenses",       "ingest.parliament.mp_expenses",      "run_expenses_sync"),
         ("minister_travel",   "ingest.parliament.minister_travel",  "run_minister_travel_sync"),
-        ("lobbying",          "ingest.parliament.lobbying",          "run_lobbying_sync"),
+        ("committees",        "ingest.parliament.committees",       "run_committees_sync"),
         ("ethics_disclosures","ingest.parliament.ethics_disclosures","run_ethics_sync"),
         ("promise_tracker",   "ingest.parliament.promise_tracker",   "run_promise_tracker"),
     ]:

@@ -63,9 +63,13 @@ _MAX_AGE_DAYS = {
     # senators_roster = the HUB cron run that actually refreshes the roster.
     "senators_roster": int(os.environ.get("WTF_DRIFT_SENROSTER_DAYS", "21")),
     "senate_votes": int(os.environ.get("WTF_DRIFT_SENVOTES_DAYS", "21")),
+    # lobbying is HUB-owned since 2026-08-18 (Cloudflare turnstile — the
+    # weekly hub cron writes this heartbeat; the container no longer tries).
     "lobbying": int(os.environ.get("WTF_DRIFT_LOBBY_DAYS", "21")),
     "ethics_disclosures": int(os.environ.get("WTF_DRIFT_ETHICS_DAYS", "21")),
     "promise_tracker": int(os.environ.get("WTF_DRIFT_PROMISE_DAYS", "21")),
+    # House committee rosters (#5728, container phase-3 since 2026-08-18).
+    "committees": int(os.environ.get("WTF_DRIFT_COMMITTEES_DAYS", "21")),
 }
 
 

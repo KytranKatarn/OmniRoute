@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Weekly Senate scrapes — run on the HUB, not in wtf-ingest (#5725).
+# Weekly parliament HUB scrapes — everything that cannot run in wtf-ingest
+# (#5725 Senate, #5727 lobbying).
 #
-# sencanada.ca's roster + votes pages are JS-rendered, so both scrapers need
-# Playwright + system Chrome, which the ingest container deliberately does
-# not carry. The container's weekly senators run is enrichment-only (its
-# roster scrape yields 0 without Playwright — proven 2026-08-18).
+# sencanada.ca's roster + votes pages are JS-rendered (Playwright + system
+# Chrome, which the ingest container deliberately does not carry — its weekly
+# senators run is enrichment-only and scrapes 0, proven 2026-08-18).
+# lobbycanada.gc.ca sits behind an interactive Cloudflare turnstile that only
+# HEADED Chrome clears (xvfb-run below; headless never passes — 2026-08-18).
 #
 # Install (hub, one-time):
 #   sudo tee /etc/cron.d/wtf-senate-votes >/dev/null <<'CRON'
@@ -40,5 +42,8 @@ python3 -m ingest.parliament.senators || echo "senators roster sync FAILED (erro
 
 echo "--- senate votes sync ---"
 python3 -m ingest.parliament.senate_votes || echo "senate votes sync FAILED (error heartbeat written by python)"
+
+echo "--- lobbying registry sync (headed Chrome under Xvfb — turnstile) ---"
+xvfb-run -a python3 -m ingest.parliament.lobbying || echo "lobbying sync FAILED (error heartbeat written by python)"
 
 echo "=== senate cron run done $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="

@@ -116,6 +116,20 @@ def _norm_name(name: str) -> str:
 
 # ── sencanada.ca scraper ──────────────────────────────────────────────────────
 
+def _name_from_slug(slug: str) -> str:
+    """'martel-richard' → 'Richard Martel' (sencanada slugs are family-given).
+
+    Best-effort display name for a brand-new appointee whose list-view anchor
+    text came back empty — the raw slug is what previously landed in `name`
+    and rendered on /mps. Multi-part given/family names come out imperfect;
+    enrichment or curation refines them later."""
+    parts = [p for p in slug.split("-") if p]
+    if len(parts) < 2:
+        return slug.replace("-", " ").title()
+    family, given = parts[0], parts[1:]
+    return " ".join(w.capitalize() for w in given + [family])
+
+
 def _scrape_profile(slug: str, page=None) -> dict:
     """Scrape one senator's sencanada.ca profile. Returns partial dict of enrichment fields.
 
@@ -494,20 +508,30 @@ def _reconcile_senator_roster(engine, snapshot: dict, roster: dict,
     for slug, name in roster.items():
         if slug in current_set:
             continue
+        # The list-view anchor's inner_text is often EMPTY (the 2026-08-18
+        # appointees landed with name == slug and caucus NULL, and the /mps
+        # template's `groupby('caucus')` 500'd on the NULL for ~2.5h). Derive
+        # a display name from the slug (sencanada slugs are family-given) and
+        # start every appointee 'Non-affiliated' — factually what a brand-new
+        # senator is until they join a group; enrichment refines later.
+        display = name if (name and name != slug) else _name_from_slug(slug)
         if not dry_run:
             with engine.begin() as conn:
                 if slug in snapshot:      # returning senator → reactivate
                     conn.execute(text(
                         "UPDATE parliament.senators SET is_current = true, synced_at = NOW() "
                         "WHERE slug = :s"), {"s": slug})
-                else:                     # brand-new → minimal stub (enrichment fills the rest)
+                else:                     # brand-new → sane stub (enrichment fills the rest)
                     conn.execute(text(
-                        "INSERT INTO parliament.senators (slug, name, is_current, synced_at) "
-                        "VALUES (:s, :n, true, NOW()) "
+                        "INSERT INTO parliament.senators "
+                        "  (slug, name, caucus, profile_url, is_current, synced_at) "
+                        "VALUES (:s, :n, 'Non-affiliated', :u, true, NOW()) "
                         "ON CONFLICT (slug) DO UPDATE SET is_current = true, synced_at = NOW()"),
-                        {"s": slug, "n": name or slug})
-                _record_movement(conn, "appointed", subject_slug=slug, name=name or slug,
+                        {"s": slug, "n": display,
+                         "u": f"{_SEN_BASE}/en/senators/{slug}/"})
+                _record_movement(conn, "appointed", subject_slug=slug, name=display,
                                  after={"is_current": True})
+        stats.setdefault("appointed_slugs", []).append(slug)
         stats["appointed"] += 1
 
     logger.info("senator roster diff: departed=%d appointed=%d",
@@ -658,11 +682,56 @@ def sync_senators(dry_run: bool = False) -> dict:
     #    roster scrape came back implausible) ──────────────────────────────────
     _reconcile_senator_roster(engine, snapshot, roster, dry_run, stats)
 
+    # ── same-run enrichment of NEW appointees ─────────────────────────────────
+    # _load_senators() ran BEFORE the reconcile inserted them, so without this
+    # pass a new senator sits as a bare stub until the NEXT weekly run — that
+    # 7-day window is exactly how the 2026-08-18 appointees reached /mps as
+    # slug-named NULL-caucus rows (and NULL caucus 500'd the page).
+    _enrich_new_appointees(engine, stats.get("appointed_slugs") or [], dry_run)
+
     logger.info("Done. updated=%d no_bio=%d committees=%d dob_matched=%d "
                 "departed=%d appointed=%d",
                 stats["updated"], stats["no_bio"], stats["committees_total"],
                 stats["dob_matched"], stats.get("departed", 0), stats.get("appointed", 0))
     return stats
+
+
+def _enrich_new_appointees(engine, slugs: list, dry_run: bool) -> None:
+    """Profile-enrich freshly-appointed senators in the SAME run.
+
+    Opens its own short-lived browser (the main enrichment browser is closed
+    before the reconcile runs). Best-effort: a failure here leaves the sane
+    stub in place — never breaks the sync."""
+    if not slugs or dry_run:
+        return
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                executable_path="/usr/bin/google-chrome",
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--headless", "--disable-gpu"],
+            )
+            page = browser.new_page()
+            page.set_extra_http_headers(_HEADERS)
+            for slug in slugs:
+                try:
+                    with engine.connect() as c:
+                        row = c.execute(text(
+                            "SELECT id FROM parliament.senators WHERE slug = :s"),
+                            {"s": slug}).fetchone()
+                    if not row:
+                        continue
+                    fields = _scrape_profile(slug, page=page)
+                    fields.pop("committees", None)
+                    if fields:
+                        _update_senator(engine, row[0], fields, dry_run=False)
+                    logger.info("appointee enriched same-run: %s (%s)",
+                                slug, ", ".join(sorted(fields)))
+                except Exception as exc:
+                    logger.warning("appointee enrichment failed for %s: %s", slug, exc)
+            browser.close()
+    except Exception as exc:
+        logger.warning("appointee enrichment pass unavailable: %s", exc)
 
 
 def run_roster_sync_hub() -> dict:

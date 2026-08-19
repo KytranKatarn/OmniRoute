@@ -349,6 +349,53 @@ CAPABILITY_DEPARTMENT_MAP = {
     "duplicate_triage": "Operations & Infrastructure",
 }
 
+# ── Capability aliases + unknown-capability observability (#5819) ─────────────
+# An UNKNOWN capability does not fail. ``CAPABILITY_DEPARTMENT_MAP.get()`` falls
+# back to Engineering & Technology, and because NO agent holds a skill by that
+# literal name, the +skill bonus / -no-skill penalty never differentiates
+# anyone — so selection silently lands on whoever is least loaded.
+#
+# Measured 2026-08-19: `ui_verify` and `browser_test` BOTH routed to H.A.R.B.O.R.
+# (whose only browser skill is ui_testing) instead of P.R.O.B.E., who holds
+# browser_testing / playwright_testing / e2e_automation / qa_testing at Lv5.
+# The caller gets a confident answer and the work is done by the wrong agent.
+#
+# This matters beyond internal convenience: aaas_service.normalize_brief()
+# DERIVES SKILLS FROM free-text capabilities in a paying client's brief, so the
+# same guess lands the same misroute on the commercial path.
+#
+# Every VALUE below must be a skill some agent actually holds — otherwise the
+# alias just relocates the misroute instead of fixing it. Guarded by a test.
+CAPABILITY_ALIASES = {
+    # browser / UI verification -> P.R.O.B.E.
+    "ui_verify": "ui_testing",
+    "ui_check": "ui_testing",
+    "ui_test": "ui_testing",
+    "browser_test": "browser_testing",
+    "browser_check": "browser_testing",
+    "playwright": "playwright_testing",
+    "e2e": "e2e_automation",
+    "e2e_test": "e2e_automation",
+    "e2e_testing": "e2e_automation",
+    "visual_check": "visual_regression",
+    "visual_test": "visual_regression",
+    "qa": "qa_testing",
+    "qa_test": "qa_testing",
+    "regression_test": "regression_detection",
+}
+
+
+def normalize_capability(capability):
+    """Fold a plausible-but-wrong capability onto its canonical skill name (#5819).
+
+    Case/whitespace-insensitive on the LOOKUP only; an unrecognised capability is
+    returned UNCHANGED (never lower-cased), so existing exact-match callers and
+    any case-sensitive skill names are unaffected.
+    """
+    if not capability or not isinstance(capability, str):
+        return capability
+    return CAPABILITY_ALIASES.get(capability.strip().lower(), capability)
+
 
 def _is_news_capability(capability: Optional[str]) -> bool:
     """ADR-010 #741 — is this a News & Media (WTF) capability?
@@ -906,8 +953,50 @@ class DepartmentCoordinator:
         self._distress = new_distress
         self._distress_time = now
 
+    def _observe_unknown_capability(self, capability) -> None:
+        """LOG — never fail — a capability that no agent holds as a skill (#5819).
+
+        Deliberately option (c) of the task: MEASURE the real guess-rate before
+        tightening routing. Failing closed here would be more correct in theory
+        and would break live callers that rely on the permissive
+        Engineering & Technology default, so the honest first move is to make
+        the silence visible and decide with data.
+
+        Only warns when the capability is unknown on BOTH axes — absent from
+        CAPABILITY_DEPARTMENT_MAP *and* held by no agent — so the many
+        legitimate capabilities that are mapped but are not literal skill names
+        never produce noise. Deduped per process; best-effort throughout,
+        because an observability helper must never be able to break dispatch.
+        """
+        try:
+            if not capability or not isinstance(capability, str):
+                return
+            if capability in CAPABILITY_DEPARTMENT_MAP:
+                return
+            seen = getattr(self, "_unknown_capability_seen", None)
+            if seen is None:
+                seen = set()
+                self._unknown_capability_seen = seen
+            if capability in seen:
+                return
+            for info in (self._agent_cache or {}).values():
+                for skill in info.get("skills") or {}:
+                    if skill == capability:
+                        return
+            seen.add(capability)
+            logger.warning(
+                "dispatch: capability %r is held by NO agent and is unmapped — "
+                "selection will fall back to the least-loaded agent in the default "
+                "department, which is a silent misroute (#5819). Add it to "
+                "CAPABILITY_ALIASES or to an agent's skills.",
+                capability,
+            )
+        except Exception:  # pragma: no cover - observability must never break dispatch
+            pass
+
     def resolve_department(self, capability: str) -> str:
-        """Map a capability to its home department."""
+        """Map a capability to its home department (alias-normalized, #5819)."""
+        capability = normalize_capability(capability)
         return CAPABILITY_DEPARTMENT_MAP.get(capability, "Engineering & Technology")
 
     @staticmethod
@@ -948,8 +1037,10 @@ class DepartmentCoordinator:
         home-department dispatch path preferred over cross-department
         escalation whenever a qualified specialist exists on the bench.
         """
+        capability = normalize_capability(capability)
         self._refresh_caches()
         self._refresh_distress()
+        self._observe_unknown_capability(capability)
 
         candidates = []
         for name, info in self._agent_cache.items():
@@ -1052,6 +1143,7 @@ class DepartmentCoordinator:
         """
         if n <= 0:
             return []
+        capability = normalize_capability(capability)
         self._refresh_caches()
         self._refresh_distress()
         dept = department or self.resolve_department(capability)

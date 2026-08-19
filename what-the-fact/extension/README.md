@@ -17,7 +17,28 @@ Bias data comes live from WTF's public, CORS-open API
 3. Click **Load unpacked** and select this `extension/` folder.
 4. Browse X/Reddit/etc. — dots appear next to links pointing at rated Canadian outlets.
 
-(For a shareable build, `wtf-bias-extension.zip` in this folder is the same files zipped.)
+## Packaging
+
+**Never zip this folder by hand.** Build it:
+
+```bash
+python3 build.py            # writes wtf-bias-extension.zip
+python3 build.py --check    # exit 1 if the zip on disk is stale; writes nothing
+```
+
+The payload is read out of `manifest.json`, so a newly referenced script, stylesheet
+or icon is picked up automatically and can never be left out of the package (Chrome
+rejects the whole extension over one missing file). `tests/`, this README and the zip
+itself are unreachable from the manifest and so are excluded by construction.
+
+The archive is byte-reproducible — same sources in, identical file out — which is what
+lets `--check` and `tests/test_extension_package.py` answer "is this current?" by
+comparison instead of by trusting a modification time.
+
+> A hand-built zip drifted 9 days behind source for six weeks (task #5752) and was
+> missing the #4671 X/Twitter fix. Uploading it would have shipped an extension that
+> badges nothing on X — it loads fine and silently does nothing, so a store review
+> would not have caught it.
 
 ## How it works
 

@@ -21,9 +21,13 @@ from __future__ import annotations
 import os
 import time
 
-from flask import request
+from flask import g, request
 
 from . import rate_policy
+
+# Header the public API reads a key from. Authorization: Bearer <key> is accepted
+# too, because that is what every HTTP client already knows how to send.
+API_KEY_HEADER = "X-API-Key"
 
 # Shared bucket store: caller-key -> [timestamps].
 # `routes.py` aliases this as _API_RATE_BUCKETS so its existing /news and
@@ -55,6 +59,61 @@ def client_ip() -> str:
     return request.remote_addr or "unknown"
 
 
+def presented_key() -> str | None:
+    """Pull an API key off the request, from either accepted header."""
+    raw = request.headers.get(API_KEY_HEADER)
+    if raw:
+        return raw.strip()
+    auth = request.headers.get("Authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return None
+
+
+def caller_plan() -> tuple[str, str | None]:
+    """(plan, key_prefix) for this request, resolved at most ONCE.
+
+    Cached on ``flask.g`` because a request can consult the limiter more than
+    once and each miss would otherwise be a fresh DB round-trip on the hot path.
+
+    Fails toward LESS privilege in every direction: no key, bad key, revoked key,
+    unreachable database, or an import problem all yield ``anonymous``. The
+    limiter fails open for AVAILABILITY; privilege must fail closed, or an outage
+    becomes an escalation.
+    """
+    cached = getattr(g, "_wtf_caller_plan", None)
+    if cached is not None:
+        return cached
+
+    plan, prefix = "anonymous", None
+    try:
+        raw = presented_key()
+        if raw:
+            from .routes import _db
+            from . import api_keys as _ak
+            plan, prefix = _ak.resolve_plan(_db(), raw)
+            if prefix:
+                _ak.touch(_db(), prefix)
+    except Exception:  # pragma: no cover - defensive
+        plan, prefix = "anonymous", None
+
+    # A paid browser session upgrades a caller even without a key, so an
+    # entitlement someone paid for is never withheld pending a setup step.
+    try:
+        from .auth import is_subscriber
+        if is_subscriber():
+            plan = rate_policy.higher_plan(plan, "paid")
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+    result = (plan, prefix)
+    try:
+        g._wtf_caller_plan = result
+    except Exception:  # pragma: no cover - outside an app context
+        pass
+    return result
+
+
 def check(path: str | None = None, tier: str | None = None) -> tuple[bool, int, int, int]:
     """Consume one unit of the caller's budget for this route.
 
@@ -70,11 +129,17 @@ def check(path: str | None = None, tier: str | None = None) -> tuple[bool, int, 
     try:
         if tier is None:
             tier = rate_policy.classify(path or request.path)
-        advertised, window = rate_policy.limits_for(tier)
+        plan, prefix = caller_plan()
+        advertised, window = rate_policy.limits_for(tier, plan)
         per_worker = rate_policy.effective_limit(advertised, WORKERS)
 
         now = time.time()
-        key = f"{tier}:{client_ip()}"
+        # Bucket keyed callers by their KEY, not their IP: that is the whole
+        # point of issuing keys. Two colleagues behind one NAT stop sharing a
+        # budget, and one abusive client can be revoked without throttling the
+        # office. Anonymous callers still bucket by IP.
+        identity = f"key:{prefix}" if prefix else client_ip()
+        key = f"{plan}:{tier}:{identity}"
         bucket = BUCKETS.setdefault(key, [])
         allowed, retry = rate_policy.bucket_allow(bucket, now, per_worker, window)
 
@@ -85,8 +150,12 @@ def check(path: str | None = None, tier: str | None = None) -> tuple[bool, int, 
             # is expired by definition once the longest window has passed, but
             # the reverse is not true — pruning on 60s would forget an hourly
             # write budget after a minute and hand an abuser a fresh one.
-            longest = max(w for _, w in rate_policy.POLICY.values())
-            rate_policy.prune(BUCKETS, now, longest, MAX_BUCKET_KEYS)
+            # Must span EVERY plan, not just POLICY: the `score` tier runs on a
+            # 86400s window while POLICY tops out at 3600, and pruning on the
+            # shorter one hands an abuser a fresh daily budget every hour.
+            rate_policy.prune(
+                BUCKETS, now, rate_policy.longest_window(), MAX_BUCKET_KEYS
+            )
 
         return allowed, retry, advertised, window
     except Exception:  # pragma: no cover - defensive

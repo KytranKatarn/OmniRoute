@@ -45,6 +45,78 @@ POLICY: dict[str, tuple[int, int]] = {
 
 DEFAULT_TIER = "default"
 
+# ── Plans (task #2138) ────────────────────────────────────────────────────────
+#
+# A PLAN is who the caller is; a TIER is what the route costs.  The table above
+# stays the ANONYMOUS plan verbatim, so nothing that works today gets slower.
+#
+# THE INVARIANT, and the reason this is a table rather than multipliers:
+# for every tier, the window is IDENTICAL across plans and the limit is
+# NON-DECREASING as the plan escalates.  Upgrading can therefore never give a
+# caller less than they had.  That is easy to break by hand — "5/hour" for
+# anonymous vs "50/day" for keyed looks generous and is actually a 58% CUT — so
+# `test_rate_policy.py` asserts it instead of trusting review.
+#
+# Paid limits are deliberately finite.  Every `expensive` call is real LLM work
+# on the hub that runs the whole platform; "unlimited" would just move the
+# outage.
+PLAN_ORDER: tuple[str, ...] = ("anonymous", "keyed", "paid")
+
+PLANS: dict[str, dict[str, tuple[int, int]]] = {
+    # unchanged from the pre-#2138 behaviour — no public caller is newly throttled
+    "anonymous": {
+        "default": (60, 60),
+        "proxy_read": (60, 60),
+        "write": (10, 3600),
+        "expensive": (5, 3600),
+        "score": (5, 86400),        # matches tech/routes.py's long-standing 5/day
+    },
+    # free self-serve beta key, issued to any SSO-authenticated user
+    "keyed": {
+        "default": (600, 60),
+        "proxy_read": (600, 60),
+        "write": (60, 3600),
+        "expensive": (25, 3600),
+        "score": (50, 86400),
+    },
+    # holder of a paid WTF entitlement (consumer/tiers.py SUBSCRIBED_TIERS)
+    "paid": {
+        "default": (6000, 60),
+        "proxy_read": (6000, 60),
+        "write": (600, 3600),
+        "expensive": (200, 3600),
+        "score": (500, 86400),
+    },
+}
+
+DEFAULT_PLAN = "anonymous"
+
+
+def higher_plan(a: str, b: str) -> str:
+    """The more generous of two plans.
+
+    A caller can present BOTH a key and a paid browser session; they must get the
+    better of the two, never whichever the code happened to check last. Unknown
+    names sort to the bottom, so a typo downgrades rather than escalates.
+    """
+    def rank(p: str) -> int:
+        return PLAN_ORDER.index(p) if p in PLAN_ORDER else -1
+    return a if rank(a) >= rank(b) else b
+
+
+def plan_for(has_valid_key: bool, is_subscriber: bool) -> str:
+    """Resolve the caller's plan. Paid beats keyed; absent both, anonymous.
+
+    A paid subscriber gets paid limits even without a key, so the entitlement
+    they bought is never withheld pending a setup step they did not know about.
+    """
+    if is_subscriber:
+        return "paid"
+    if has_valid_key:
+        return "keyed"
+    return DEFAULT_PLAN
+
+
 # Route classification.  Order matters: the first matching rule wins, so the
 # expensive/write rules are checked before the generic read prefixes.
 #
@@ -53,6 +125,7 @@ DEFAULT_TIER = "default"
 # has the real path and templates vary ("<int:article_id>" vs "<article_id>").
 _RULES: tuple[tuple[str, str], ...] = (
     # (needle, tier) — needle is a substring test against the path
+    ("/api/v1/score", "score"),      # tech live scorer — real LLM work per call
     ("/analyze", "expensive"),
     ("/flag", "write"),
     ("/newsletter/subscribe", "write"),
@@ -65,6 +138,20 @@ _RULES: tuple[tuple[str, str], ...] = (
 # itself after 5 checks.  Checked before _RULES.
 _EXEMPT_SUFFIXES: tuple[str, ...] = ("/analyze/status",)
 
+
+
+def longest_window() -> int:
+    """The longest window in ANY plan — the only safe basis for bucket pruning.
+
+    Pruning on a SHORTER window silently refills a longer budget. `POLICY` tops
+    out at 3600s while the `score` tier runs on 86400s, so pruning at 3600 would
+    hand an abuser a fresh 5-per-DAY allowance every hour. Computed rather than
+    written down, so adding a plan or tier cannot desynchronise it.
+    """
+    windows = [w for _, w in POLICY.values()]
+    for table in PLANS.values():
+        windows.extend(w for _, w in table.values())
+    return max(windows)
 
 def classify(path: str) -> str:
     """Map a request path to a policy tier name.
@@ -83,9 +170,16 @@ def classify(path: str) -> str:
     return DEFAULT_TIER
 
 
-def limits_for(tier: str) -> tuple[int, int]:
-    """Return (limit, window_seconds) for a tier, falling back to default."""
-    return POLICY.get(tier, POLICY[DEFAULT_TIER])
+def limits_for(tier: str, plan: str = DEFAULT_PLAN) -> tuple[int, int]:
+    """(limit, window_seconds) for a route tier under a caller plan.
+
+    Unknown tier or plan falls back to the safest thing that still works: the
+    anonymous default. Fail-closed — an unrecognised plan must never grant more.
+    """
+    table = PLANS.get(plan) or PLANS[DEFAULT_PLAN]
+    if tier not in table:
+        table = PLANS[DEFAULT_PLAN]
+    return table.get(tier, PLANS[DEFAULT_PLAN][DEFAULT_TIER])
 
 
 def effective_limit(total_limit: int, workers: int) -> int:

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}API Documentation — What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="Public API for Canadian news bias scores, outlet data and cross-product accountability signals.">
+{% endblock %}
+{% block content %}
+{# Namespaced wtf-doc-* per the shell-continuity rule (task #5767).
+   EVERY limit below is rendered from consumer/rate_policy at request time.
+   The /edu page hardcoded "100 requests/hour" and was wrong for as long as it
+   existed, with no way for a reader to tell — see task #5748. #}
+<style>
+  .wtf-doc-wrap { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  .wtf-doc-lede { opacity: .85; line-height: 1.6; margin-bottom: 1.75rem; }
+  .wtf-doc-h2 { margin: 2rem 0 .75rem; font-size: 1.15rem; letter-spacing: .02em; }
+  .wtf-doc-table { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  .wtf-doc-table th, .wtf-doc-table td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid rgba(127,127,127,.25); }
+  .wtf-doc-table th { font-weight: 600; opacity: .8; }
+  .wtf-doc-scroll { overflow-x: auto; }
+  .wtf-doc-code { display: block; white-space: pre; overflow-x: auto; padding: .8rem 1rem;
+                  border-radius: 6px; background: rgba(127,127,127,.12); font-size: .85rem; line-height: 1.5; }
+  .wtf-doc-plan { text-transform: capitalize; font-weight: 600; }
+  .wtf-doc-note { font-size: .85rem; opacity: .75; margin-top: .5rem; line-height: 1.5; }
+  .wtf-doc-cta { display: inline-block; margin-top: .6rem; padding: .5rem .9rem; border-radius: 6px;
+                 background: rgba(127,127,127,.18); text-decoration: none; }
+</style>
+<div class="wtf-doc-wrap">
+  <h1>Public API</h1>
+  <p class="wtf-doc-lede">
+    Read-only access to What The Fact's article, outlet and bias data, plus the
+    cross-product accountability signals behind <a href="/cross-watch">Cross-Watch</a>.
+    No key is required to start — anonymous callers are simply limited per IP.
+    A free key raises your limits and, more usefully, gives you your own budget
+    instead of one shared with everyone behind your network address.
+  </p>
+
+  <h2 class="wtf-doc-h2">Authentication</h2>
+  <p class="wtf-doc-note">Send your key in either header. Both are accepted; pick whichever your client makes easy.</p>
+  <code class="wtf-doc-code">{{ key_header }}: wtf_yourprefix_yoursecret
+
+# or, equivalently
+Authorization: Bearer wtf_yourprefix_yoursecret</code>
+  {% if signed_in %}
+    <a class="wtf-doc-cta" href="/account/api-keys">Manage your API keys →</a>
+  {% else %}
+    <a class="wtf-doc-cta" href="/login?next=/account/api-keys">Sign in to get a free key →</a>
+  {% endif %}
+
+  <h2 class="wtf-doc-h2">Rate limits</h2>
+  <p class="wtf-doc-note">
+    These are the numbers the edge actually enforces — this table is generated
+    from the running policy, not written by hand. Limits are aggregate across
+    our workers. When you exceed one you get <code>429</code> with a
+    <code>Retry-After</code> header; honour it rather than retrying immediately.
+  </p>
+  <div class="wtf-doc-scroll">
+    <table class="wtf-doc-table">
+      <thead>
+        <tr><th>Plan</th><th>Category</th><th>Requests</th><th>Per</th></tr>
+      </thead>
+      <tbody>
+      {% for p in plans %}
+        {% for r in p.rows %}
+        <tr>
+          {% if loop.first %}<td class="wtf-doc-plan" rowspan="{{ p.rows|length }}">{{ p.plan }}</td>{% endif %}
+          <td>{{ r.tier }}</td>
+          <td>{{ r.limit }}</td>
+          <td>{% if r.window == 60 %}minute{% elif r.window == 3600 %}hour{% elif r.window == 86400 %}day{% else %}{{ r.window }}s{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="wtf-doc-note">
+    <strong>anonymous</strong> — no key. <strong>keyed</strong> — any free key.
+    <strong>paid</strong> — a key or session with an active What The Fact subscription.
+    Categories: <em>default</em> and <em>proxy_read</em> are ordinary reads;
+    <em>write</em> covers submissions such as flagging; <em>expensive</em> and
+    <em>score</em> run real language-model work and are budgeted accordingly.
+  </p>
+
+  <h2 class="wtf-doc-h2">Endpoints</h2>
+  <div class="wtf-doc-scroll">
+    <table class="wtf-doc-table">
+      <thead><tr><th>Method</th><th>Path</th><th>Returns</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/api/v1</code></td><td>Index of available endpoints</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/articles</code></td><td>Recent articles with bias scores</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/sources</code></td><td>Tracked outlets and their aggregate lean</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/bias-distribution</code></td><td>Distribution of scores across coverage</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/blindspot</code></td><td>Stories covered by one side only</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/divergence</code></td><td>English vs French coverage divergence</td></tr>
+        <tr><td>GET</td><td><code>/api/v1/outlets/&lt;id&gt;/bias-trend</code></td><td>An outlet's lean over time</td></tr>
+        <tr><td>GET</td><td><code>/api/cross-watch/entities</code></td><td>Entities in the shared accountability graph</td></tr>
+        <tr><td>GET</td><td><code>/api/cross-watch/search</code></td><td>Free-text search across signal types</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="wtf-doc-h2">Fair use</h2>
+  <p class="wtf-doc-note">
+    Every request costs us something and the expensive categories cost real
+    compute. Cache what you can, honour <code>Retry-After</code>, and give your
+    key a label so we can tell you which integration is misbehaving before we
+    have to revoke it. Keys are free — if the limits genuinely do not fit what
+    you are building, get in touch rather than rotating keys around them.
+  </p>
+</div>
+{% endblock %}

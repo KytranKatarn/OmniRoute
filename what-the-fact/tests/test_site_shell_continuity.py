@@ -24,6 +24,10 @@ TPL = ROOT / "consumer" / "templates"
 
 # page -> required class prefix
 CONVERTED = {
+    # New pages are pinned from birth (#2138) rather than after a regression —
+    # the five below were only added once they had already drifted.
+    "api_keys": "wtf-ak-",
+    "api_docs": "wtf-doc-",
     "weather": "wtf-wx-",
     "municipal": "wtf-mu-",
     "blindspot": "wtf-bs-",

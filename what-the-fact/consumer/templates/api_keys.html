@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}API Keys — What The Fact{% endblock %}
+{% block content %}
+{# Namespaced wtf-ak-* per the shell-continuity rule (task #5767).
+   XSS: every value below is user-supplied (labels) or DB-sourced. Jinja
+   autoescapes the server-rendered pass; the JS path uses textContent only,
+   never innerHTML — the standing rule for all external content in this app. #}
+<style>
+  .wtf-ak-wrap { max-width: 780px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  .wtf-ak-lede { opacity: .85; line-height: 1.6; margin-bottom: 1.5rem; }
+  .wtf-ak-card { border: 1px solid rgba(127,127,127,.28); border-radius: 8px;
+                 padding: .85rem 1rem; margin-bottom: .7rem; }
+  .wtf-ak-row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: baseline; justify-content: space-between; }
+  .wtf-ak-prefix { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; }
+  .wtf-ak-meta { font-size: .8rem; opacity: .7; }
+  .wtf-ak-revoked { opacity: .45; }
+  .wtf-ak-btn { padding: .4rem .8rem; border-radius: 6px; border: 1px solid rgba(127,127,127,.4);
+                background: transparent; color: inherit; cursor: pointer; font: inherit; }
+  .wtf-ak-btn:disabled { opacity: .5; cursor: default; }
+  .wtf-ak-new { margin: 1.25rem 0; display: flex; gap: .5rem; flex-wrap: wrap; }
+  .wtf-ak-input { flex: 1 1 220px; padding: .45rem .6rem; border-radius: 6px;
+                  border: 1px solid rgba(127,127,127,.4); background: transparent; color: inherit; font: inherit; }
+  .wtf-ak-reveal { margin: 1rem 0; padding: .9rem 1rem; border-radius: 8px;
+                   border: 1px solid rgba(200,160,40,.6); background: rgba(200,160,40,.1); }
+  .wtf-ak-key { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                word-break: break-all; margin: .5rem 0; font-size: .9rem; }
+  .wtf-ak-err { color: #c0392b; font-size: .88rem; margin-top: .5rem; }
+  .wtf-ak-empty { opacity: .7; font-style: italic; }
+</style>
+<div class="wtf-ak-wrap">
+  <h1>API keys</h1>
+  <p class="wtf-ak-lede">
+    Keys are free. They raise your rate limits and give you a budget of your own
+    rather than one shared with everyone on your network address. See the
+    <a href="/api/docs">API documentation</a> for endpoints and current limits.
+    {% if not is_subscriber %}
+      Subscriber accounts get higher limits again on the same key.
+    {% endif %}
+  </p>
+
+  <div class="wtf-ak-new">
+    <input class="wtf-ak-input" id="wtf-ak-label" type="text" maxlength="80"
+           placeholder="Label (e.g. research notebook)" aria-label="Key label">
+    <button class="wtf-ak-btn" id="wtf-ak-create" type="button">Create key</button>
+  </div>
+  <div class="wtf-ak-err" id="wtf-ak-error" hidden></div>
+
+  <div class="wtf-ak-reveal" id="wtf-ak-reveal" hidden>
+    <strong>Copy this now — it is shown once and cannot be recovered.</strong>
+    <code class="wtf-ak-key" id="wtf-ak-value"></code>
+    <span class="wtf-ak-meta">We store only a hash, so we genuinely cannot show it to you again. Lost it? Revoke and create another.</span>
+  </div>
+
+  <h2 style="font-size:1.05rem;margin:1.5rem 0 .6rem;">Your keys
+    <span class="wtf-ak-meta">({{ keys | selectattr('revoked', 'equalto', false) | list | length }} active of {{ max_keys }})</span>
+  </h2>
+  <div id="wtf-ak-list">
+    {% if not keys %}
+      <p class="wtf-ak-empty">No keys yet.</p>
+    {% endif %}
+    {% for k in keys %}
+      <div class="wtf-ak-card {% if k.revoked %}wtf-ak-revoked{% endif %}" data-prefix="{{ k.prefix }}">
+        <div class="wtf-ak-row">
+          <div>
+            <span class="wtf-ak-prefix">wtf_{{ k.prefix }}_&hellip;</span>
+            {% if k.label %}<span class="wtf-ak-meta"> — {{ k.label }}</span>{% endif %}
+          </div>
+          {% if not k.revoked %}
+            <button class="wtf-ak-btn wtf-ak-revoke" type="button" data-prefix="{{ k.prefix }}">Revoke</button>
+          {% else %}
+            <span class="wtf-ak-meta">revoked</span>
+          {% endif %}
+        </div>
+        <div class="wtf-ak-meta">
+          plan {{ k.plan }} · {{ k.request_count }} requests ·
+          created {{ k.created_at[:10] if k.created_at else '—' }} ·
+          last used {{ k.last_used_at[:10] if k.last_used_at else 'never' }}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+<script>
+(function () {
+  var err = document.getElementById('wtf-ak-error');
+  function showError(msg) { err.textContent = msg; err.hidden = false; }
+  function clearError() { err.textContent = ''; err.hidden = true; }
+
+  document.getElementById('wtf-ak-create').addEventListener('click', function () {
+    clearError();
+    var btn = this; btn.disabled = true;
+    fetch('/api/account/api-keys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ label: document.getElementById('wtf-ak-label').value })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { showError(res.j.error || 'Could not create key.'); btn.disabled = false; return; }
+        // textContent, never innerHTML — the key is data, not markup.
+        document.getElementById('wtf-ak-value').textContent = res.j.key;
+        document.getElementById('wtf-ak-reveal').hidden = false;
+        // Reload so the list reflects the new key without hand-building DOM.
+        setTimeout(function () { window.location.reload(); }, 30000);
+      })
+      .catch(function () { showError('Network error.'); btn.disabled = false; });
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.wtf-ak-revoke'), function (b) {
+    b.addEventListener('click', function () {
+      clearError();
+      var prefix = b.getAttribute('data-prefix');
+      if (!prefix) { return; }
+      b.disabled = true;
+      fetch('/api/account/api-keys/' + encodeURIComponent(prefix) + '/revoke', { method: 'POST' })
+        .then(function (r) {
+          if (!r.ok) { showError('Could not revoke that key.'); b.disabled = false; return; }
+          window.location.reload();
+        })
+        .catch(function () { showError('Network error.'); b.disabled = false; });
+    });
+  });
+})();
+</script>
+{% endblock %}

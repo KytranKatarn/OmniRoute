@@ -14,7 +14,13 @@ from . import rate_limit as _rate_limit  # shared bucket store (#5747/#5748)
 from . import rate_policy as _rate_policy  # pure, stdlib-only decision logic
 from .auth import is_subscriber
 
+import logging
+
 bp = Blueprint("wtf", __name__)
+
+# Module logger. Error paths in the API-key routes (#2138) use this; before it
+# existed the only logging here was an inline `import logging` at one call site.
+logger = logging.getLogger(__name__)
 _engine = None
 _PLATFORM = "https://platform.kytranempowerment.com"
 
@@ -4983,3 +4989,114 @@ def internal_set_tier():
         return jsonify({"error": str(exc)}), 500
 
     return jsonify({"ok": True, "email": email, "tier": tier})
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Public API keys + docs (task #2138)
+#
+# Keys are FREE and self-serve (owner decision 2026-08-19). They exist to give a
+# caller an IDENTITY so limits can be per-caller instead of per-IP — two
+# colleagues behind one NAT stop sharing a budget, and one abusive client can be
+# revoked without throttling everyone around them. Paid tiers are a table change
+# in rate_policy.PLANS, not a schema or route change.
+#
+# The docs page renders the ENFORCED numbers straight out of the policy, for the
+# same reason /edu does: a hardcoded "100 requests/hour" in the docs was wrong
+# for as long as it existed, and nobody could tell by reading it.
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@bp.get("/account/api-keys")
+def api_keys_page():
+    """Self-serve key management. Login required; no tier requirement."""
+    from flask import redirect
+    email = _user_email()
+    if not email:
+        return redirect("/login?next=/account/api-keys")
+    from . import api_keys as _ak
+    try:
+        keys = _ak.list_keys(_db(), email)
+    except Exception as exc:
+        logger.warning("[api-keys] list failed: %s", exc)
+        keys = []
+    return render_template(
+        "api_keys.html",
+        keys=keys,
+        email=email,
+        is_subscriber=is_subscriber(),
+        max_keys=_ak.MAX_ACTIVE_KEYS_PER_USER,
+    )
+
+
+@bp.post("/api/account/api-keys")
+def api_keys_create():
+    """Mint a key. The full value is returned ONCE and is not recoverable."""
+    from flask import jsonify, request as freq
+    email = _user_email()
+    if not email:
+        return jsonify({"error": "authentication_required"}), 401
+    limited = _api_rate_check("write")
+    if limited is not None:
+        return limited
+    body = freq.get_json(silent=True) or {}
+    label = (body.get("label") or "").strip()[:80]
+    from . import api_keys as _ak
+    try:
+        created = _ak.create_key(_db(), email, label=label)
+    except ValueError as exc:
+        # e.g. per-user cap reached — a user-correctable condition, not a 500
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        logger.error("[api-keys] create failed: %s", exc)
+        return jsonify({"error": "could not create key"}), 500
+    return jsonify({"ok": True, **created}), 201
+
+
+@bp.post("/api/account/api-keys/<prefix>/revoke")
+def api_keys_revoke(prefix: str):
+    """Soft-revoke one of the caller's OWN keys.
+
+    Scoped to owner_email in SQL, so a guessed prefix cannot revoke someone
+    else's key. Returns 404 (not 403) on a miss — a caller must not be able to
+    probe which prefixes exist.
+    """
+    from flask import jsonify
+    email = _user_email()
+    if not email:
+        return jsonify({"error": "authentication_required"}), 401
+    limited = _api_rate_check("write")
+    if limited is not None:
+        return limited
+    from . import api_keys as _ak
+    try:
+        ok = _ak.revoke_key(_db(), email, (prefix or "").strip())
+    except Exception as exc:
+        logger.error("[api-keys] revoke failed: %s", exc)
+        return jsonify({"error": "could not revoke key"}), 500
+    if not ok:
+        return jsonify({"error": "not_found"}), 404
+    return jsonify({"ok": True, "prefix": prefix, "revoked": True})
+
+
+@bp.get("/api/docs")
+def api_docs_page():
+    """Public API documentation.
+
+    Every limit shown is read live from rate_policy, so the page cannot drift
+    from what the edge enforces — the failure the /edu page had until #5748.
+    """
+    from . import rate_policy as _rp
+    from . import rate_limit as _rate_limit
+    plans = []
+    for plan in _rp.PLAN_ORDER:
+        rows = []
+        for tier in sorted(_rp.PLANS[plan]):
+            limit, window = _rp.limits_for(tier, plan)
+            rows.append({"tier": tier, "limit": limit, "window": window})
+        plans.append({"plan": plan, "rows": rows})
+    return render_template(
+        "api_docs.html",
+        plans=plans,
+        key_header=_rate_limit.API_KEY_HEADER,
+        signed_in=bool(_user_email()),
+    )

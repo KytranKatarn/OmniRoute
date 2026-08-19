@@ -543,10 +543,18 @@ CAPABILITY_TIMEOUTS = {
     # the delegate worker gave up at 360s even though the node finished at
     # ~497s — destroying completed FR translations (#3967, 2026-06-10).
     "translate": 600,
-    # code_review runs in a background thread. mistral:7b cold-loads in 90-150s
-    # under concurrent Repair Bay bursts; 300s gives the model time to warm and
-    # serve queued requests without timing out (misroute_audit ADR-001 follow-up).
-    "code_review": 300,
+    # code_review runs in a background thread (so it never holds a Gunicorn worker —
+    # the thread-pool concern behind "conversation": 90 below does not apply here).
+    # mistral:7b cold-loads in 90-150s under concurrent Repair Bay bursts.
+    # ⚠️ This was 300 "to give the model time to warm" — but 300 NEVER APPLIED on the
+    # fleet leg, which hardcoded 240 and discarded this value entirely (#5810). So the
+    # 300 was never actually in force where reviews run; it was only ever the hub
+    # figure. Measured 2026-08-18 on PR #2697 (1,015-line diff): 11 of 16 dispatches
+    # died at exactly the cap, the structured JSON path never completed, and the review
+    # fell back to freeform — where the #5009 ungrounded-evidence floor turned a clean
+    # PR into NEEDS REVIEW. A warm re-run returned APPROVE with no code change.
+    # Raised to 600 to match code_analysis, its true sibling: same full-diff 7B profile.
+    "code_review": 600,
     # CPU inference (gemma2-cpu, etc.) blocks Gunicorn threads for 300s+ causing
     # platform-wide hangs. Cap at 90s — GPU agents (qwen2.5:7b) respond in <30s;
     # CPU-only agents will fail fast rather than exhausting the thread pool.
@@ -2784,6 +2792,7 @@ class DepartmentDispatcher:
         user_id: Optional[int] = None,
         job_id: Optional[int] = None,
         json_mode: bool = False,
+        timeout: int = 240,
     ) -> Optional[Dict]:
         """Dispatch a job to a fleet node's Ollama API.
 
@@ -2970,11 +2979,20 @@ class DepartmentDispatcher:
                 agent_name,
                 model,
             )
+            # #5810: honor the CALLER's budget instead of a hardcoded 240. request_work
+            # resolves a per-capability timeout (CAPABILITY_TIMEOUTS, up to 600s) and that
+            # value used to die here — every fleet dispatch of every capability was capped
+            # at 240s, silently defeating the 600s granted to documentation/translate/
+            # research/code_analysis etc., which CAPABILITY_NODE_AFFINITY (#3955) routes to
+            # the fleet ON PURPOSE. Callers floor this at 240 so cold-load headroom (the
+            # reason 240 replaced the original 15s, KB #266396) is never reduced.
+            _node_call_start = time.time()
             resp = requests.post(
                 _gen_url,
                 json=payload,
-                timeout=240,  # Starship model swaps (evict+load 7B) can take 2-3 min cold
+                timeout=timeout,
             )
+            _node_call_ms = int((time.time() - _node_call_start) * 1000)
 
             if resp.status_code == 200:
                 data = resp.json()
@@ -3018,6 +3036,12 @@ class DepartmentDispatcher:
                     "bridge_job_id": bridge_job_id,
                     "prompt_tokens": data.get("prompt_eval_count", 0),
                     "completion_tokens": data.get("eval_count", 0),
+                    # #5810: the HTTP call alone. DispatchResult.duration_ms is measured from
+                    # the top of request_work, so it also covers agent selection, welfare
+                    # checks, cold-load and every prior failed ladder attempt — which is why
+                    # rows show 300-540s "successes" against a 240s cap. Keep duration_ms as
+                    # is (carbon/token-economy consume it); expose the real call time here.
+                    "node_call_ms": _node_call_ms,
                 }
             else:
                 # HTTP error from the node. Previously this `return None` skipped the
@@ -3030,12 +3054,15 @@ class DepartmentDispatcher:
         except requests.exceptions.Timeout:
             # Timeout also used to leak to the reaper. Capture it — a persistent timeout
             # usually means the node cannot actually run this model (e.g. a 7B routed to
-            # a CPU outpost) or is cold-loading past 240s.
+            # a CPU outpost) or is cold-loading past the window.
+            # #5810: report the ACTUAL budget. These strings hardcoded "240s", which is now
+            # per-capability — a stale literal here would send the next investigation looking
+            # for a 240s cap that no longer applies.
             _err = (
-                f"timeout after 240s — {node_name} ({hostname}:{port}) did not return for model={model} "
+                f"timeout after {timeout}s — {node_name} ({hostname}:{port}) did not return for model={model} "
                 f"(likely cannot run this model, or cold-load exceeded the window)"
             )
-            logger.warning(f"[BridgeDispatcher] Fleet dispatch timeout (240s) to {hostname}:{port} model={model}")
+            logger.warning(f"[BridgeDispatcher] Fleet dispatch timeout ({timeout}s) to {hostname}:{port} model={model}")
         except Exception as e:
             _err = f"{type(e).__name__}: {str(e)[:500]}"
             logger.warning(f"[BridgeDispatcher] Fleet dispatch failed: {e}")
@@ -6675,6 +6702,13 @@ class DepartmentDispatcher:
                                 user_id=user_id,
                                 job_id=job_id,
                                 json_mode=json_mode,
+                                # #5810: the resolved per-capability budget, floored at the
+                                # historical 240. The floor is load-bearing — an explicit
+                                # SHORT caller timeout (e.g. 120 for email_composition, see
+                                # the note above CAPABILITY_TIMEOUTS) must never shrink the
+                                # fleet leg below the cold-load headroom that 240 exists to
+                                # provide (KB #266396). Widening only; never narrowing.
+                                timeout=max(timeout, 240),
                             )
                             if _pn_res and _pn_res.get("success"):
                                 _pn_dur = int((time.time() - start) * 1000)
@@ -6778,6 +6812,7 @@ class DepartmentDispatcher:
                         user_id=user_id,
                         job_id=job_id,
                         json_mode=json_mode,
+                        timeout=max(timeout, 240),  # #5810 — see the floor note above
                     )
                     if _fleet_res and _fleet_res.get("success"):
                         _dur_ms = int((time.time() - start) * 1000)
@@ -6893,6 +6928,7 @@ class DepartmentDispatcher:
                         user_id=user_id,
                         job_id=job_id,
                         json_mode=json_mode,
+                        timeout=max(timeout, 240),  # #5810 — see the floor note above
                     )
                     if _wp_res and _wp_res.get("success"):
                         _wp_dur = int((time.time() - start) * 1000)
@@ -6967,6 +7003,7 @@ class DepartmentDispatcher:
                     user_id=user_id,
                     job_id=job_id,
                     json_mode=json_mode,
+                    timeout=max(timeout, 240),  # #5810 — see the floor note above
                 )
                 if fleet_result and fleet_result.get("success"):
                     duration_ms = int((time.time() - start) * 1000)

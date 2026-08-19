@@ -19,14 +19,46 @@ Economy and A.R.M.A.D.A. surfaces — turning an accounting-integrity task into 
 accounting-integrity bug. The count assertions below exist to catch that.
 """
 
-import inspect
+import ast
+import os
 import re
 
 import pytest
 
-import ai_bridge.agent_loop as al
+# Read the method's SOURCE from disk rather than via `inspect.getsource` on an imported
+# module (#5665). Other test modules install a stub at sys.modules["ai_bridge.agent_loop"]
+# at import time, and a stub cannot yield source — so in a full-suite run this file died
+# with `AttributeError: module 'ai_bridge.agent_loop' has no attribute 'AgentLoop'`, and a
+# collection error aborts ALL 3,337 tests. It passed alone (11 passed), which is exactly
+# what made it easy to miss.
+# Reading the file keeps the test running in EVERY order instead of skipping it, and this
+# test only ever wanted the source text.
+_CANDIDATES = [
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "ai_bridge", "agent_loop.py"
+    ),
+    "/mnt/archie_brain/ai_bridge/agent_loop.py",
+]
+_AGENT_LOOP_PY = next((c for c in _CANDIDATES if os.path.isfile(c)), None)
+if _AGENT_LOOP_PY is None:  # pragma: no cover - environment-dependent
+    pytest.skip(f"ai_bridge/agent_loop.py not found (looked in {_CANDIDATES})", allow_module_level=True)
 
-SRC = inspect.getsource(al.AgentLoop._media_generation_worker)
+with open(_AGENT_LOOP_PY, "r", encoding="utf-8") as _fh:
+    _AGENT_LOOP_SRC = _fh.read()
+
+
+def _method_source(class_name: str, method_name: str) -> str:
+    """Exact source of ``class_name.method_name`` — import-state independent."""
+    tree = ast.parse(_AGENT_LOOP_SRC)
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == class_name:
+            for sub in node.body:
+                if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)) and sub.name == method_name:
+                    return ast.get_source_segment(_AGENT_LOOP_SRC, sub) or ""
+    raise AssertionError(f"{class_name}.{method_name} not found in {_AGENT_LOOP_PY}")
+
+
+SRC = _method_source("AgentLoop", "_media_generation_worker")
 
 
 class TestWelfareRefusalDefers:

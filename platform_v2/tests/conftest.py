@@ -34,6 +34,33 @@ for _ai_bridge in (
         sys.path.append(_ai_bridge)
         break
 
+# ── Real root packages, imported EAGERLY (#5665) ──────────────────────────────
+# Several test modules stub a leaf like
+#     sys.modules["tools.department_hq.services.department_dispatcher"] = _stub
+# and first do `sys.modules.setdefault("tools", types.ModuleType("tools"))` to give it a
+# parent. That synthetic parent has NO __path__, so if such a module is collected BEFORE
+# anything imported the real `tools`, the empty shell wins for the whole session and every
+# later `tools.*` import dies with "'tools' is not a package". A collection error aborts the
+# ENTIRE run, so one test file silently disables all 3,332 tests.
+# Those tests use setdefault — i.e. they INTEND to reuse the real package if present.
+# Importing the real roots here (conftest loads before any test module) makes that true, so
+# each setdefault becomes a harmless no-op and NO test file needs changing. Leaf stubs still
+# win over path resolution, so deliberate stubbing is unaffected (as in the ai_bridge block).
+# Include any package a test synthesises as a stub PARENT — not just top-level roots.
+# test_delegation_service fakes `tools.consciousness.translation_scanners` to hang an
+# `orchestrator` stub off, which then makes the real semantic_scanner / untagged_scanner /
+# generator submodules unimportable for the rest of the session.
+for _root in (
+    "tools",
+    "ai_bridge",
+    "tools.department_hq.services",
+    "tools.consciousness.translation_scanners",
+):
+    try:
+        __import__(_root)
+    except Exception:  # pragma: no cover - must never abort collection
+        pass
+
 # ── Test DB isolation (CRITICAL — see KB #274942) ─────────────────────────────
 # Tests hit the SAME postgres server as production but a SEPARATE database.
 # DB_NAME is a HARD override, NOT setdefault: inside the archie_platform

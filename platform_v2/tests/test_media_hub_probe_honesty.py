@@ -21,6 +21,15 @@ import pytest
 
 _HO_PATH = Path(__file__).resolve().parents[2] / "standalone" / "media_hub" / "health_observer.py"
 
+# The standalone tree is NOT mounted in archie_platform (only platform_v2 -> /app), so
+# parents[2] resolves to "/standalone/..." here and the file is absent. Skip honestly:
+# a FileNotFoundError at import time aborts collection for the ENTIRE suite (#5665).
+if not _HO_PATH.exists():  # pragma: no cover - environment-dependent
+    pytest.skip(
+        f"media_hub standalone tree not available at {_HO_PATH} (not mounted in this container)",
+        allow_module_level=True,
+    )
+
 
 def _load():
     spec = importlib.util.spec_from_file_location("_mh_health_observer", _HO_PATH)

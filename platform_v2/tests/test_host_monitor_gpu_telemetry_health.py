@@ -32,7 +32,12 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
 
-import host_monitor as hm  # noqa: E402
+hm = pytest.importorskip(  # noqa: E402
+    "host_monitor",
+    reason=(
+        "host-only: this module lives in scripts/ on the HOST and is not present in the archie_platform container. Skipping keeps it honest — an ImportError here aborts collection for the ENTIRE suite (#5665)."
+    ),
+)
 
 _LSPCI_TWO_NVIDIA = (
     "04:00.0 VGA compatible controller: NVIDIA Corporation GM204GL [Quadro M4000] (rev a1)\n"

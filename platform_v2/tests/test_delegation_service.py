@@ -23,6 +23,13 @@ _pkg_dhq = sys.modules.setdefault("tools.department_hq", types.ModuleType("tools
 _pkg_services = sys.modules.setdefault("tools.department_hq.services", types.ModuleType("tools.department_hq.services"))
 _stub_dispatcher = types.ModuleType("tools.department_hq.services.department_dispatcher")
 _stub_dispatcher.dispatch = MagicMock(return_value=MagicMock(success=False))
+
+# PEP 562 catch-all: a sys.modules stub replaces the module for the WHOLE session, so
+# ANY name a later-collected module imports from it must resolve or collection aborts
+# for all 3,332 tests (#5665). Enumerating names is whack-a-mole — dispatch_json,
+# DispatchResult and resolve_department_escalation_owner each surfaced in turn.
+# Explicitly-set attributes above still win; this only catches the rest.
+_stub_dispatcher.__getattr__ = lambda _n: MagicMock()
 sys.modules["tools.department_hq.services.department_dispatcher"] = _stub_dispatcher
 _pkg_services.department_dispatcher = _stub_dispatcher
 

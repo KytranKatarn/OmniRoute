@@ -20,6 +20,12 @@ import pytest
 _stub_pkg = sys.modules.setdefault("ai_bridge", types.ModuleType("ai_bridge"))
 _stub_agent_loop = types.ModuleType("ai_bridge.agent_loop")
 _stub_agent_loop.request_approval = MagicMock(return_value=None)
+# PEP 562 catch-all — see #5665. This stub replaces ai_bridge.agent_loop for the WHOLE
+# session, so any name a later-collected module needs must resolve or collection aborts
+# for all 3,332 tests. test_media_drain_welfare_gate does `al.AgentLoop` and died here,
+# even though the real ai_bridge/agent_loop.py DOES define it (line 523).
+# The explicit request_approval mock above still wins.
+_stub_agent_loop.__getattr__ = lambda _n: MagicMock()
 sys.modules["ai_bridge.agent_loop"] = _stub_agent_loop
 _stub_pkg.agent_loop = _stub_agent_loop
 

@@ -1278,7 +1278,6 @@ def cost_of_parliament():
 @bp.get("/")
 def index():
     S = _schema()
-    wtf_tech_url = os.environ.get("WTF_TECH_URL", "http://wtf-tech:8104")
     with _db().begin() as c:
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
@@ -1304,7 +1303,7 @@ def index():
         source_count = c.execute(
             text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
-    return render_template("index.html", articles=rows, wtf_tech_url=wtf_tech_url,
+    return render_template("index.html", articles=rows,
                            source_count=source_count, is_subscriber=is_subscriber())
 
 
@@ -1558,7 +1557,6 @@ def proxy_article_flag(article_id: int):
 def article(article_id: int):
     import json as _json
     S = _schema()
-    wtf_tech_url = os.environ.get("WTF_TECH_URL", "http://wtf-tech:8104")
     with _db().begin() as c:
         row = c.execute(text(f"""
             SELECT a.id, a.title, a.body, a.url, a.published_at,
@@ -1739,7 +1737,7 @@ def article(article_id: int):
         # Never break article rendering on the teaser
         pass
 
-    return render_template("article.html", a=a, wtf_tech_url=wtf_tech_url,
+    return render_template("article.html", a=a,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
                            is_limited_body=is_limited_body,

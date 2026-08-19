@@ -196,6 +196,31 @@ def _validate_approval_request(action_type: str, action_data: dict) -> Optional[
     return None
 
 
+def tab_merge_refusal(summary: str, verdict_ok: bool, gate_ok: bool, gate_reason: str) -> "str | None":
+    """Why the Approvals tab must NOT merge this PR — or None if it may (#5834).
+
+    Pure, so the decision table is testable without a DB, GitHub or a Flask app.
+
+    The tab merges with ``human_override=True``, which bypasses
+    ``_automerge_governance_ok`` entirely. That is CORRECT for the ALLOWLIST — a
+    sensitive path deliberately requires a human and the tap IS that human — but
+    it must not also excuse a STALE VERDICT. Decision #953: safety properties are
+    universal, authority limits are per-actor. Nobody, owner included, can review
+    a commit that did not exist when they were asked.
+
+    Only staleness (and a missing/negative verdict) refuses here. An allowlist or
+    tier refusal is precisely what the human tap clears, so it must NOT block.
+    """
+    if not summary:
+        return "no stored F.O.R.G.E. review — a dead review is not an approval"
+    if not verdict_ok:
+        return "the stored verdict is NOT an approval — re-review before merging"
+    low = str(gate_reason or "").lower()
+    if not gate_ok and (("stale verdict" in low) or ("head is now" in low)):
+        return f"STALE VERDICT — {gate_reason}"
+    return None
+
+
 def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
     """Check if a pending approval that would collide with this request already exists.
 
@@ -5893,7 +5918,10 @@ class AgentLoop:
 
                 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
                 from tools.repair_bay.services.github_service import get_pr_status, merge_pr
-                from tools.repair_bay.services.pr_review_service import resolve_pr_merge_approval
+                from tools.repair_bay.services.pr_review_service import (
+                    get_review,
+                    resolve_pr_merge_approval,
+                )
 
                 pr_num = int(data.get("pr_number") or 0)
                 if not pr_num:
@@ -5927,6 +5955,53 @@ class AgentLoop:
                     return {
                         "executed": False,
                         "error": "pr_merge has no human approver — refusing (a Tier-3 PR is never auto-merged)",
+                    }
+
+                # #5834: human_override=True bypasses _automerge_governance_ok()
+                # ENTIRELY — verdict, FRESHNESS and tier ceiling. The tap above proves
+                # AUTHORITY (a human cleared the allowlist, which is exactly what the
+                # override is for), but it cannot prove the approval still describes the
+                # code. An approval raised at time T is tapped at T+n; every commit that
+                # landed in between merges UNREVIEWED, silently.
+                #
+                # Decision #953: safety properties are UNIVERSAL, authority limits are
+                # PER-ACTOR. Freshness is a SAFETY property — it binds the owner too,
+                # because nobody can review a commit that did not exist when they were
+                # asked. The allowlist is an AUTHORITY limit, and a human may clear it.
+                # So: restore the safety check, keep the override for authority.
+                #
+                # Nearly happened 2026-08-19: approval #11693 (PR #2710) was raised at
+                # 22:57; the fix removing a query that took this very endpoint from ~70ms
+                # to 57-84s landed AFTER it. A tap in that window would have merged the
+                # slow version. It resolved only because the PR was re-reviewed.
+                _fresh_err = None
+                try:
+                    from tools.repair_bay.services.github_service import (  # noqa: PLC0415
+                        _automerge_governance_ok,
+                    )
+                    from tools.repair_bay.services.pr_review_service import (  # noqa: PLC0415
+                        verdict_is_approved,
+                    )
+
+                    _row = get_review(pr_num, repo=repo) or {}
+                    _summary = _row.get("ai_summary") or ""
+                    _vok = bool(_summary) and verdict_is_approved(_summary)
+                    _ok, _why = _automerge_governance_ok(pr_num, authority="coo") if _vok else (False, "")
+                    _fresh_err = tab_merge_refusal(_summary, _vok, _ok, _why)
+                except Exception as _fe:  # noqa: BLE001
+                    # FAIL CLOSED. An unreadable verdict is not a fresh one, and this
+                    # path ends in an unrevertable merge to main.
+                    _fresh_err = f"could not verify the verdict ({_fe}) — refusing rather than guessing"
+
+                if _fresh_err:
+                    logger.warning("[pr_merge] REFUSING PR #%s from the Approvals tab: %s", pr_num, _fresh_err)
+                    return {
+                        "executed": False,
+                        "pr_number": pr_num,
+                        "error": (
+                            f"Refusing to merge PR #{pr_num}: {_fresh_err}. "
+                            "Re-run the review, then approve again — the row is left pending."
+                        ),
                     }
 
                 result = merge_pr(pr_num, "squash", repo=repo, human_override=True)

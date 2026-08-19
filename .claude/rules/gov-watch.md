@@ -74,6 +74,31 @@ invisible if you only watch the table.
   test_every_monitored_job_has_a_heartbeat_writer` diffs INGEST_JOBS against every call site to
   make that a red test.
 
+## ENTITY_INGEST_URL — the shared entity graph lives on CITADEL (#5799, fixed 2026-08-19)
+
+```
+ENTITY_INGEST_URL=http://100.64.0.10:8106     # Citadel/boston-2, wtf-ingest-api
+```
+
+⚠️ **NOT `100.64.0.4:8106` (the hub).** `wtf-ingest-api` moved to Citadel in the June
+migration; gov-watch and legal-watch `.env`s did not follow, so both pushed at a port with
+no listener (*Connection refused*) for ~**7 weeks**. Cross-Watch (#3331) looked like a UI
+problem; it was a dead feed. Catch-up after the fix: **3,584 batches, 0 failed**;
+gov mentions **290,790 → 1,958,093**. Backups `.env.bak-entitygraph-<ts>`.
+Apply with `docker compose up -d` — `restart` does NOT re-read `env_file` (KB #268829).
+
+**It was invisible because `entity_graph_push` was the ONE job with no `record_ingest_run`**
+— zero `ingest_runs` rows ever ⇒ `unknown` ⇒ never alarms (see the section above; a job in
+`INGEST_JOBS` with no writer is unmonitored while APPEARING monitored). Fixed in
+**PR kytran-gov-watch#46** with three differentiated heartbeat paths (unset → ok+note ·
+ran → `ok = failed==0` · raised → ok=False+error) plus
+`test_every_monitored_job_has_a_heartbeat_writer`. legal-watch + civic-watch halves still
+open under **#5799** — legal-watch has NO heartbeat infrastructure at all.
+
+⚠️ **`shared.entity_mentions` has only `created_at`** — `max(created_at)` cannot distinguish
+a dead feed from one re-upserting existing rows. Prove liveness via `shared.entities.updated_at`.
+KB **#291054** (mistake) / **#291055** (coder ref) · ADR decision 1003.
+
 ## Date guard — impossible dates cannot re-enter (#5067 / #5069 / #5072)
 
 `procure/date_guard.sane_date(value, field, *, event=False)` is wired into ALL FOUR parsers:

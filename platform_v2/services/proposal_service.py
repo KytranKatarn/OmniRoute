@@ -1155,6 +1155,12 @@ def deploy_to_production(proposal_id):
                         },
                         "deployment_log": deployment_log,
                         "deployed_timestamp": datetime.now().isoformat(),
+                        # #5808: status='deployed' means "backed up and cleared to apply",
+                        # NOT "the code is live". This path never writes production files.
+                        # Machine-readable so nothing downstream has to parse the prose in
+                        # deployment_log to learn the truth.
+                        "code_applied": False,
+                        "apply_mode": "manual",
                     }
                 ),
                 proposal_id,
@@ -1162,16 +1168,24 @@ def deploy_to_production(proposal_id):
         )
         conn.commit()
 
-        # Mark linked code_issues as fixed so the scanner "fixed" count updates
-        try:
-            cur.execute(
-                "UPDATE code_issues SET status='fixed', fixed_by='system', fixed_at=NOW() "
-                "WHERE proposal_id=%s AND status NOT IN ('fixed','resolved')",
-                (proposal_id,),
-            )
-            conn.commit()
-        except Exception as _fix_err:
-            logger.debug("mark code_issues fixed: %s", _fix_err)
+        # ⚠️ DELIBERATELY NOT marking code_issues 'fixed' here (#5808, 2026-08-19).
+        # This function does NOT apply code to production — see the deployment_log it
+        # builds three lines up: "Manual deployment required - automatic code
+        # application disabled for safety". It takes a backup and stops.
+        #
+        # Marking the linked issues 'fixed' therefore closed REAL, STILL-PRESENT defects:
+        # the scanner stopped re-proposing them, so the debt became invisible rather than
+        # resolved. Measured on proposal 8658 — the file it claimed to have fixed had not
+        # been written in three weeks (mtime), in the repo, the container OR the sandbox.
+        #
+        # An issue is fixed when the CODE changes, never when a proposal is approved.
+        # The issues stay open; `reverify_deployed_findings()` (audit_pipeline) re-audits
+        # deployed proposals and is the correct place to close them, because it looks at
+        # the artifact. Gate on the artifact, not the status field (ADR-014).
+        logger.info(
+            "proposal %s: code_issues left OPEN — this path applies no code (see deployment_log)",
+            proposal_id,
+        )
 
         # ── C.O.D.E.X. auto-documents the deploy (non-blocking, fire-and-forget) ─
         try:

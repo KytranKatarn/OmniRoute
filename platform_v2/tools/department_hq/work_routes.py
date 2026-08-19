@@ -330,6 +330,17 @@ def register_work_routes(bp, admin_required):
                 # act: a failure-standby record within the Academy window means "under
                 # verification"; its absence means the agent stranded there (#5155) and
                 # is simply lost. The UI must never render either as a healthy agent.
+                # #5829: is this "benched" agent actually still WORKING? Four agents
+                # (P.U.B.L.I.S.H. 582 runs/24h, C.O.D.E.X. 173, G.A.V.E.L. 59,
+                # P.R.O.B.E. 41) sat barracked while serving hundreds of tasks a day —
+                # excluded from skill-based selection, yet fed by pinned/known-tool paths
+                # that never consult shift_state. The card rendered them like any other
+                # bench, so the contradiction was invisible for as long as it lasted.
+                # Reuses the velocity query already run above (d1h) — no extra query, and
+                # the 1-hour window is the sharper signal: a task that STARTED before the
+                # bench can log shortly after it, but an agent still dispatching an hour
+                # later is not resting by any reading.
+                _recent_runs = d1h
                 _benched = r["shift_state"] == "barracked"
                 _benched_at = r.get("benched_at")
                 _bench_age_h = None
@@ -349,9 +360,22 @@ def register_work_routes(bp, admin_required):
                     "department": r["department"],
                     "shift_state": r["shift_state"],
                     "benched": _benched,
-                    # 'failure' => kin_failure_standby benched it; 'stranded' => it is
-                    # barracked with no failure record, i.e. an accident.
-                    "bench_reason": (("failure" if _benched_at else "stranded") if _benched else None),
+                    # 'failure'          => kin_failure_standby benched it (under Academy
+                    #                        verification);
+                    # 'stranded_working'  => benched but STILL LOGGING WORK — a contradiction
+                    #                        between the status field and the work record
+                    #                        (#5829), the most actionable of the three;
+                    # 'stranded'          => barracked with no failure record and no activity,
+                    #                        i.e. probably an accident (#5155).
+                    # A failure-standby record wins: it explains the bench, and the agent may
+                    # legitimately flush a task that began before it.
+                    "bench_reason": (
+                        ("failure" if _benched_at else ("stranded_working" if _recent_runs > 0 else "stranded"))
+                        if _benched
+                        else None
+                    ),
+                    # Shown on the card so the claim is auditable, not just asserted.
+                    "bench_recent_runs": _recent_runs if _benched else None,
                     "bench_age_hours": _bench_age_h if _benched else None,
                     "stats_updated_at": (_stats_at.isoformat() + "Z" if _stats_at else None),
                     "stats_age_hours": _stats_age_h,

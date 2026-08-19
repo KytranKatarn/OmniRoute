@@ -1056,7 +1056,15 @@ async function loadKinWelfare() {
             var statusLabel = a.benched
                     ? (a.bench_reason === 'failure'
                         ? '⛔ BENCHED ' + _kinAge(a.bench_age_hours)
-                        : '⛔ STRANDED')
+                        /* #5829: 'stranded_working' is the LOUDEST of the three — the agent
+                           is flagged off the floor yet still dispatching, so it is excluded
+                           from skill-based selection while pinned paths keep feeding it.
+                           Four agents sat like this for days (P.U.B.L.I.S.H. 582 runs/24h),
+                           rendering as an ordinary bench. Show the run count so the claim is
+                           auditable on the card instead of merely asserted. */
+                        : (a.bench_reason === 'stranded_working'
+                            ? '⛔ BENCHED BUT WORKING · ' + (a.bench_recent_runs || 0) + '/hr'
+                            : '⛔ STRANDED'))
                 : (a.resting ? '😴 ' + (a.rest_type || 'resting')
                 : (a.at_limit ? (a.limit_dimension === 'task'
                         ? '⚠ QUEUE ' + (a.task_count || 0) + '/' + (a.task_limit || 0)

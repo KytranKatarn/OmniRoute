@@ -35,14 +35,30 @@ _DEPLOY_CONTEXT_BY_LABEL: dict[str, dict] = {
         "verify_url": "https://creed-ai.org/data/translations.json",
         "is_translation": True,
     },
-    # WTF consumer — VPS container, bind-mounted translations
+    # WTF consumer — Flask app on Citadel, image-baked (NOT bind-mounted).
+    # Corrected 2026-08-18 (#5792). This entry previously carried:
+    #   source_path    /mnt/standalone/websites/what-the-fact.com  <- static site
+    #                  frozen 2026-04-14, from before WTF became a Flask app
+    #   container_name "wtf_consumer"                              <- NO SUCH
+    #                  CONTAINER; the real one is compose-prefixed (verified by
+    #                  docker ps on 100.64.0.10)
+    #   changed_files  ["data/translations.json"]                  <- the dead
+    #                  site's path shape; the app serves /static/data/
+    # A deploy step targeting a container name that matches nothing cannot succeed
+    # and reports nothing — the same silent-no-op class as #5750.
+    #
+    # Nothing exports here today: #5750 set the WTF bundle to None in
+    # EXTERNAL_SCAN_SOURCES because the DB set and the hand-maintained repo file
+    # are not supersets of one another. These fields are therefore unreachable —
+    # corrected so the next person to re-enable a bundle does not inherit four
+    # wrong values at once.
     "website_what_the_fact": {
         "domain": "what-the-fact.com",
-        "source_path": "/mnt/standalone/websites/what-the-fact.com",
-        "changed_files": ["data/translations.json"],
+        "source_path": "/mnt/archie_brain/what-the-fact",
+        "changed_files": ["consumer/static/data/translations.json"],
         "verify_url": "https://what-the-fact.com/static/data/translations.json",
         "is_translation": True,
-        "container_name": "wtf_consumer",
+        "container_name": "what-the-fact-wtf-consumer-1",
         "_capability": "deploy_vps",
     },
     # Watch products — VPS containers, serve static/data/ path

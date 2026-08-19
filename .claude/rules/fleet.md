@@ -196,3 +196,134 @@ A DR window orphaned 7/9 nodes via a re-registration storm. Postmortem:
   storm: deploy hub fixes FIRST → restart each sync container → `repoint.sh` DR-mispointed nodes →
   delete FK-safe junk rows. **Monitor**: `fleet_identity_monitor` job (FIX8) alerts on mass-offline +
   duplicate-identity. KB ref docs **#270612–270616**.
+
+---
+
+## 🔧 Adding a NODE or a new GPU — placement checklist (2026-08-19, KB #291799)
+
+Written after a live session where a **100%-healthy node was capped on the strength of one log
+line**, and two "sensible" cap values would each have silently broken a different model. Run
+this before touching `remote_nodes.extra_capabilities` or enrolling new hardware.
+
+### 1. MEASURE FIRST — a node is judged by its success rate, never by one log line
+
+```sql
+-- per-node health, last 3h (do this BEFORE and AFTER any change)
+SELECT COALESCE(r.node_name,'hub') AS node, count(*) runs,
+       count(*) FILTER (WHERE t.success) ok,
+       round(100.0*count(*) FILTER (WHERE t.success)/count(*),0) pct
+  FROM task_execution_log t LEFT JOIN remote_nodes r ON r.id=t.node_used_id
+ WHERE t.created_at > now()-interval '3 hours'
+   AND t.model_used IS NOT NULL AND t.model_used <> 'bridge-managed'
+ GROUP BY 1 ORDER BY runs DESC;
+
+-- per-node × per-model, hour by hour (the one that actually settles it)
+SELECT date_trunc('hour',t.created_at) hr, t.model_used, count(*) runs,
+       count(*) FILTER (WHERE t.success) ok, round(avg(t.duration_ms)/1000.0,1) avg_s
+  FROM task_execution_log t JOIN remote_nodes r ON r.id=t.node_used_id
+ WHERE r.node_name ILIKE '%<node>%' AND t.created_at > now()-interval '24 hours'
+ GROUP BY 1,2 ORDER BY 1 DESC;
+```
+
+⚠️ **A cold-load line is a MOMENT; a success rate is a FACT.** `model_dispatch: … still
+cold-loading on <node>` is NORMAL for a node that passes `can_node_run_model` — it is not
+evidence of misplacement. On 2026-08-19 that single line was read as "USS-245 can't run 7B"
+while the node was doing `qwen2.5:7b` **50/50 @ 32.4s** and 98% overall. The cap removed real
+capacity and was reverted the same hour. The genuinely sick node was USS-246 (77%).
+
+### 2. `max_model_gb` semantics — it is a CPU CEILING, not a disk size
+
+`fleet_resource_router.can_node_run_model()`:
+
+```python
+if footprint.prefer_gpu and gpu_avail and footprint.vram_gb <= gpu_vram:
+    return True                       # GPU path — checked FIRST, cap is irrelevant here
+cap = float(declared_cap) if declared_cap is not None else ram_gb
+required = max(footprint.vram_gb, footprint.ram_gb)
+return required <= cap
+```
+
+**Always look up the REAL footprints before choosing a number** — never guess from the model's
+name or its disk size:
+
+```bash
+docker exec archie_platform python3 -c "
+import sys; sys.path.insert(0,'/app')
+from services.model_sizes import lookup
+for m in ['qwen2.5:1.5b','llama3.2:3b','qwen2.5:7b','gemma3:12b','arctic-embed-cpu:latest','dolphin3:latest']:
+    f=lookup(m); print(m, 'required=', max(f.vram_gb,f.ram_gb), 'vram=', f.vram_gb)"
+```
+
+Measured 2026-08-19 (`required = max(vram_gb, ram_gb)`):
+
+| model | required | trap |
+|---|---|---|
+| `qwen2.5:1.5b` | 3.0 | |
+| **`llama3.2:3b`** | **5.0** | a "sensible" cap of **4 silently disqualifies it** — and it is in several nodes' documented warm set |
+| `qwen2.5:7b` / `mistral:7b` / `qwen2.5-coder:7b` | 8.0 | |
+| **`arctic-embed-cpu:latest`** | **16.0** | a cap of **12 silently kills embeddings** on that node |
+| **`dolphin3:latest`** | **16.0** | same |
+| `gemma3:12b` | 24.0 | |
+
+Pick a cap in the OPEN INTERVAL between what you want to keep and what you want to block, with
+margin on both sides — e.g. to admit `llama3.2:3b` (5.0) and block 7B (8.0), use **6**, not 5
+(zero margin) and never 4.
+
+### 3. Who gets a cap
+
+- **CPU-only nodes** (outposts, Citadel, Beacon) — capped. Historically all at `4`.
+- **GPU nodes** (hub, Starships) — **deliberately UNCAPPED** so an oversized model can CPU-demote
+  onto ample RAM (KB #270009, and there is a test pinning this). Do NOT cap a GPU node without
+  step-1 evidence that it is actually failing that model.
+- ⚠️ **Size the cap to the NODE, not to its tier.** Citadel sat at `4` (copied from the 7.8GB
+  outposts) despite **31.3GB RAM**, so a box taking 377 real dispatches/30d could only ever run
+  `qwen2.5:1.5b`. Raised to `6` on 2026-08-19 — purely additive, removed nothing.
+
+### 4. ⚠️ A CAP DOES NOT BIND EVERY PATH (open — task #5809)
+
+There are **TWO routing paths and only one enforces capacity**:
+
+| path | enforces `can_node_run_model`? |
+|---|---|
+| `BridgeDispatcher` | ✅ — logs `Refusing fleet dispatch (flag enforced): capacity-mismatch: model=… disqualifies node=…` |
+| `ModelQueuePlanner` (`dept_hq/jobs.py`, the `fleet_warmup` module) | ❌ — imports only `utilization_pct`, never calls the predicate |
+
+So setting a cap will NOT stop `fleet_warmup` planning that model onto the node. Verified live:
+caps were set on USS-245/246 and the planner kept assigning `gemma3:12b` to both. **Until #5809
+lands, treat a cap as advisory for warm-up and authoritative for dispatch.**
+
+### 5. Adding a GPU / a new card
+
+- `remote_nodes.gpu_vram_gb` = **LARGEST SINGLE GPU, never the sum** (see the ship-class section
+  above). Total goes in `extra_capabilities.gpu_vram_total_gb` for reporting only.
+- Ship-class re-derives automatically from `gpu_vram_gb` via `ship_classes` — no deploy needed.
+- A model CAN span cards (Ollama does it routinely on the hub), and a spanning model eats headroom
+  on BOTH cards at once, which placement does not anticipate. Keep the single-card value anyway —
+  it is the right SAFETY input for `_fits()` / `get_agents_for_hardware()`, which size one model
+  at a time.
+
+### 6. Verify the BEHAVIOUR, not the row
+
+A correct `remote_nodes` row proves nothing. Prove it through the predicate in the running code:
+
+```bash
+docker exec archie_platform python3 -c "
+import sys; sys.path.insert(0,'/app')
+from database import get_db_cursor
+from services.fleet_resource_router import can_node_run_model
+with get_db_cursor() as (conn,cur):
+    cur.execute(\"SELECT node_name,gpu_available,gpu_vram_gb,ram_gb,extra_capabilities FROM remote_nodes WHERE status='online'\")
+    rows=[dict(r) for r in cur.fetchall()]
+for m in ['qwen2.5:7b','gemma3:12b','llama3.2:3b','arctic-embed-cpu:latest']:
+    print(m, '->', [n['node_name'] for n in rows if can_node_run_model(n,m)])"
+```
+
+Then re-run the step-1 query ~30 min later and confirm the node's success rate moved the way you
+predicted. **If you cannot state the prediction in advance, you are not ready to make the change.**
+
+### 7. Model choice is a separate question from placement
+
+`gemma3:12b` measured **56% fleet-wide** (hub 35%, USS-246 60%) — bad *everywhere*, because
+nothing in this fleet can GPU-fit its 15.6GB. That is a MODEL-FIT problem for the owner to decide
+(retire it / move consumers to `qwen2.5:7b` at 90.3%), **not** something to fix by shuffling caps.
+Placement fixes where work runs; it cannot make an oversized model fit the hardware.

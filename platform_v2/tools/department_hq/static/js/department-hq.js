@@ -4888,7 +4888,7 @@ function switchArmadaSection(s) {
     // CLUSTER: refresh live data + world map
     if (s === 'cluster') {
         loadQueueStatus(); loadClusterActivity(); loadClusterStats(); loadWtfAgentStatus();
-        loadClusterMap();
+        loadClusterMap(); loadClusterRest();
     }
 
     // ORCHESTRATION: move cluster-orchestration-panel into its section on first open
@@ -4964,74 +4964,213 @@ function startFleetRefresh() {
 // /api/fleet/rest-mode endpoint existed with NO UI caller — which is exactly
 // how the schedule went invisible. Inline editor, textContent-only labels;
 // Save POSTs then re-renders the strip from fresh server state.
-function _openRestEditor() {
-    var strip = document.getElementById('fleetRestStrip');
-    if (!strip || strip.dataset.editing === '1') return;
+// ── Hardware rest — the cluster's sleep schedule, managed in the CLUSTER tab (#5816)
+//
+// The schedule binds EIGHT real dispatch gates — dispatcher candidate
+// selection, cold-load queue drain, fleet resource router, ComfyUI routing,
+// model-control, fleet jobs, and two agent-loop legs — all via the single
+// is_starships_undocked() predicate. Despite that reach it could only be seen
+// and changed through a one-line strip and a tiny pencil glyph in FLEET DOCK,
+// which is how it sat DISABLED without anyone noticing.
+//
+// ONE source of truth: /api/fleet/rest-mode serves rest_status_snapshot() —
+// the SAME dict the FLEET DOCK strip renders. Neither surface recomputes the
+// window locally; a second implementation of "are we in the window" is exactly
+// what #5321 was filed for.
+//
+// All text goes in via textContent — never innerHTML.
+var _crSaving = false;
+
+function _crMk(tag, txt, css) {
+    var e = document.createElement(tag);
+    if (txt !== undefined && txt !== null) e.textContent = txt;
+    if (css) e.style.cssText = css;
+    return e;
+}
+
+function _crHourSelect(selected, id) {
+    var sel = document.createElement('select');
+    sel.id = id;
+    sel.style.cssText = 'font-size:0.75rem;background:rgba(0,0,0,0.35);color:var(--dhq-text);' +
+                        'border:1px solid rgba(255,255,255,0.2);border-radius:4px;padding:2px 4px;';
+    for (var h = 0; h < 24; h++) {
+        var o = _crMk('option', (h < 10 ? '0' : '') + h + ':00');
+        o.value = h;
+        if (h === selected) o.selected = true;
+        sel.appendChild(o);
+    }
+    return sel;
+}
+
+function loadClusterRest() {
+    var body = document.getElementById('crBody');
+    if (!body) return;
     fetch('/tools/department-hq/api/fleet/rest-mode')
         .then(function(r) { return r.json(); })
-        .then(function(cfg) {
-            if (!cfg.success) return;
-            strip.dataset.editing = '1';
-            strip.textContent = '';
-            strip.style.cursor = 'default';
-            var mk = function(tag, txt) {
-                var e = document.createElement(tag);
-                if (txt) e.textContent = txt;
-                return e;
-            };
-            var enabled = document.createElement('input');
-            enabled.type = 'checkbox';
-            enabled.checked = !!cfg.enabled;
-            enabled.id = 'restEditEnabled';
-            var lab = mk('label', ' rest enabled ');
-            lab.htmlFor = 'restEditEnabled';
-            var mkHourSel = function(selected) {
-                var sel = document.createElement('select');
-                sel.style.cssText = 'font-size:0.75rem;background:rgba(0,0,0,0.3);color:inherit;border:1px solid rgba(255,255,255,0.2);border-radius:4px;';
-                for (var h = 0; h < 24; h++) {
-                    var o = mk('option', (h < 10 ? '0' : '') + h + ':00');
-                    o.value = h;
-                    if (h === selected) o.selected = true;
-                    sel.appendChild(o);
-                }
-                return sel;
-            };
-            var selStart = mkHourSel(cfg.start_hour), selEnd = mkHourSel(cfg.end_hour);
-            var save = mk('button', 'Save'), cancel = mk('button', 'Cancel');
-            [save, cancel].forEach(function(b) {
-                b.style.cssText = 'margin-left:8px;padding:1px 10px;font-size:0.72rem;border-radius:4px;cursor:pointer;';
-            });
-            save.addEventListener('click', function(ev) {
-                ev.stopPropagation();
-                fetch('/tools/department-hq/api/fleet/rest-mode', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        enabled: enabled.checked,
-                        start_hour: parseInt(selStart.value, 10),
-                        end_hour: parseInt(selEnd.value, 10),
-                    }),
-                }).then(function(r) { return r.json(); }).then(function() {
-                    delete strip.dataset.editing;
-                    loadQueueStatus();
-                }).catch(function() { delete strip.dataset.editing; loadQueueStatus(); });
-            });
-            cancel.addEventListener('click', function(ev) {
-                ev.stopPropagation();
-                delete strip.dataset.editing;
-                loadQueueStatus();
-            });
-            strip.appendChild(mk('span', '🛠 Rest schedule: '));
-            strip.appendChild(enabled);
-            strip.appendChild(lab);
-            strip.appendChild(mk('span', 'window '));
-            strip.appendChild(selStart);
-            strip.appendChild(mk('span', ' → '));
-            strip.appendChild(selEnd);
-            strip.appendChild(mk('span', ' ET'));
-            strip.appendChild(save);
-            strip.appendChild(cancel);
+        .then(function(d) {
+            if (!d || !d.success) { body.textContent = 'Rest schedule unavailable.'; return; }
+            _crRender(d);
+        })
+        .catch(function() { body.textContent = 'Rest schedule unavailable.'; });
+}
+
+function _crRender(d) {
+    var body = document.getElementById('crBody');
+    if (!body) return;
+    var st = d.status || {};
+    var forced = !!d.force_undock_until;
+    body.textContent = '';
+
+    // #5816: the ⚓ button now lives in this panel, so paint it from the SAME
+    // payload rather than leaving it to a separate poll. One fetch, one truth —
+    // the button and the lines below cannot disagree with each other.
+    if (typeof updateRestModeUI === 'function') {
+        try { updateRestModeUI(d); } catch (_e) {}
+    }
+
+    // ── state pill. Four DISTINCT states — the point of #5321 was that
+    //    "in the window" and "armed" are different facts and conflating
+    //    them produced two wrong beliefs in one day.
+    // ── line 1: window / now / next transition
+    var nt = st.next_transition || {};
+    var mins = nt.in_minutes || 0;
+    var l1 = _crMk('div', null, 'margin-bottom:8px;');
+    var schedLabel = forced ? 'FORCE-UNDOCK' : (st.active ? 'RESTING' : (st.enabled ? 'ARMED' : 'DISABLED'));
+    var schedColor = forced || st.active ? '#c4b5fd' : (st.enabled ? '#00e5c0' : '#f59e0b');
+    l1.appendChild(_crMk('span', 'Schedule ', 'opacity:0.8;'));
+    l1.appendChild(_crMk('span', schedLabel, 'color:' + schedColor + ';font-weight:600;letter-spacing:0.5px;'));
+    l1.appendChild(_crMk('span', '  ·  window ' + (st.window_label || '--') + '  ·  now ' + (st.now_et || '--')));
+    if (forced) {
+        // A manual force outranks the schedule: saying "takes work around the
+        // clock" here would flatly contradict the FORCE-UNDOCK label beside it.
+        l1.appendChild(_crMk('span', '  ·  manually undocked — ships detached until the next window end',
+                             'color:#c4b5fd;'));
+    } else if (st.enabled) {
+        l1.appendChild(_crMk('span',
+            '  ·  ' + (nt.kind === 'rest_end' ? 'wake' : 'rest starts') + ' ' + (nt.at || '--') +
+            ' (in ' + Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm)'));
+    } else if (st.in_window) {
+        // The honest case that used to read as "resting": the clock IS inside
+        // the window, but nothing is suppressed because the toggle is off.
+        l1.appendChild(_crMk('span', '  ·  clock is INSIDE the window, but rest is not armed — nothing is suppressed',
+                             'color:#f59e0b;'));
+    } else {
+        l1.appendChild(_crMk('span', '  ·  not armed — Starships take work around the clock', 'color:#f59e0b;'));
+    }
+    body.appendChild(l1);
+
+    // ── line 2: the controls
+    var l2 = _crMk('div', null, 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;');
+    var chk = document.createElement('input');
+    chk.type = 'checkbox';
+    chk.id = 'crEnabled';
+    chk.checked = !!st.enabled;
+    chk.style.cssText = 'cursor:pointer;';
+    var chkLab = _crMk('label', 'Arm rest schedule', 'cursor:pointer;color:var(--dhq-text);');
+    chkLab.htmlFor = 'crEnabled';
+    l2.appendChild(chk);
+    l2.appendChild(chkLab);
+    l2.appendChild(_crMk('span', 'window', 'margin-left:12px;'));
+    l2.appendChild(_crHourSelect(st.start_hour, 'crStart'));
+    l2.appendChild(_crMk('span', '→'));
+    l2.appendChild(_crHourSelect(st.end_hour, 'crEnd'));
+    l2.appendChild(_crMk('span', 'ET'));
+    var save = _crMk('button', 'SAVE',
+        'margin-left:10px;padding:3px 14px;font-size:0.7rem;letter-spacing:1px;border-radius:4px;' +
+        'cursor:pointer;background:rgba(0,229,192,0.15);color:#00e5c0;border:1px solid rgba(0,229,192,0.45);');
+    save.id = 'crSaveBtn';
+    save.addEventListener('click', _crSave);
+    l2.appendChild(save);
+    var status = _crMk('span', '', 'margin-left:8px;font-size:0.72rem;');
+    status.id = 'crSaveStatus';
+    l2.appendChild(status);
+    body.appendChild(l2);
+
+    // ── line 3: force undock (manual, auto-expiring)
+    var l3 = _crMk('div', null, 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;');
+    l3.appendChild(_crMk('span', 'Force undock:'));
+    if (forced) {
+        l3.appendChild(_crMk('span', 'ACTIVE until ' + String(d.force_undock_until).slice(11, 16) + ' ET (auto-expires)',
+                             'color:#c4b5fd;'));
+        var clr = _crMk('button', 'REDOCK NOW',
+            'padding:2px 12px;font-size:0.7rem;border-radius:4px;cursor:pointer;' +
+            'background:rgba(0,229,192,0.12);color:#00e5c0;border:1px solid rgba(0,229,192,0.4);');
+        clr.addEventListener('click', function() { _crUndock('clear'); });
+        l3.appendChild(clr);
+    } else {
+        l3.appendChild(_crMk('span', 'none'));
+        var und = _crMk('button', 'UNDOCK NOW',
+            'padding:2px 12px;font-size:0.7rem;border-radius:4px;cursor:pointer;' +
+            'background:rgba(139,92,246,0.15);color:#c4b5fd;border:1px solid rgba(139,92,246,0.45);');
+        und.title = 'Detach the Starships immediately. Auto-expires at the next window end — a manual force can never permanently strand a node.';
+        und.addEventListener('click', function() { _crUndock('undock'); });
+        l3.appendChild(und);
+    }
+    body.appendChild(l3);
+
+    // ── line 4: scope. Say what rest DOES and does NOT stop, so nobody has to
+    //    guess how far the switch reaches.
+    var note = _crMk('div', null,
+        'font-size:0.7rem;line-height:1.5;color:var(--dhq-text-dim);opacity:0.85;border-top:1px solid rgba(255,255,255,0.08);padding-top:6px;');
+    note.appendChild(_crMk('div', 'Scope: detaches the LAN Starships only. Hub and outposts keep taking work — the cluster never goes idle.'));
+    note.appendChild(_crMk('div', 'Binds 8 gates: dispatcher selection · queue drain · resource router · ComfyUI · model-control · fleet jobs · agent loop (×2).'));
+    body.appendChild(note);
+}
+
+function _crSave() {
+    if (_crSaving) return;
+    var chk = document.getElementById('crEnabled');
+    var s = document.getElementById('crStart');
+    var e = document.getElementById('crEnd');
+    var st = document.getElementById('crSaveStatus');
+    var btn = document.getElementById('crSaveBtn');
+    if (!chk || !s || !e) return;
+    _crSaving = true;
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+    if (st) { st.textContent = 'saving…'; st.style.color = 'var(--dhq-text-dim)'; }
+    fetch('/tools/department-hq/api/fleet/rest-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            enabled: chk.checked,
+            start_hour: parseInt(s.value, 10),
+            end_hour: parseInt(e.value, 10),
+        }),
+    })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            _crSaving = false;
+            if (!d || !d.success) {
+                if (st) { st.textContent = 'save failed'; st.style.color = '#ef4444'; }
+                if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+                return;
+            }
+            // The response carries a snapshot RE-READ from system_config, so
+            // this renders what actually persisted — not what we asked for.
+            _crRender(d);
+            var st2 = document.getElementById('crSaveStatus');
+            if (st2) { st2.textContent = '✓ saved'; st2.style.color = '#22c55e'; }
+            if (typeof loadQueueStatus === 'function') loadQueueStatus();  // keep the FLEET DOCK strip in step
+        })
+        .catch(function() {
+            _crSaving = false;
+            if (st) { st.textContent = 'save failed'; st.style.color = '#ef4444'; }
+            if (btn) { btn.disabled = false; btn.style.opacity = ''; }
         });
+}
+
+function _crUndock(action) {
+    fetch('/tools/department-hq/api/fleet/force-undock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: action }),
+    })
+        .then(function(r) { return r.json(); })
+        .then(function() {
+            loadClusterRest();
+            if (typeof loadQueueStatus === 'function') loadQueueStatus();
+        })
+        .catch(function() { loadClusterRest(); });
 }
 
 function loadQueueStatus() {
@@ -5053,54 +5192,16 @@ function loadQueueStatus() {
                 }
             }
 
-            // #5321: hardware-rest schedule strip — the window lived only in a
-            // system_config blob, which produced two real wrong beliefs in one
-            // day (a UTC/ET mix-up + treating a DISABLED schedule as armed).
-            // textContent-only; hidden when the API sends no rest object.
-            var restStrip = document.getElementById('fleetRestStrip');
-            var qpAnchor = document.getElementById('queueItemsPanel');
-            if (!restStrip && qpAnchor && qpAnchor.parentNode) {
-                restStrip = document.createElement('div');
-                restStrip.id = 'fleetRestStrip';
-                restStrip.style.cssText = 'margin:4px 0 8px;padding:5px 10px;border-radius:6px;' +
-                    'font-size:0.78rem;letter-spacing:0.03em;display:none;';
-                qpAnchor.parentNode.insertBefore(restStrip, qpAnchor);
-            }
-            if (restStrip && restStrip.dataset.editing === '1') {
-                // #5321b: an inline edit is open — the 10s poll must not clobber it.
-            } else if (restStrip) {
-                var rest = data.rest;
-                if (!rest) {
-                    restStrip.style.display = 'none';
-                } else {
-                    var mins = (rest.next_transition && rest.next_transition.in_minutes) || 0;
-                    var inLbl = Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
-                    var nextAt = (rest.next_transition && rest.next_transition.at) || '?';
-                    var text, color, bg;
-                    if (rest.enabled && rest.active) {
-                        text = '🌙 HARDWARE REST · ' + rest.window_label + ' · now ' + rest.now_et +
-                               ' · Starships resting — heavy work runs on hub · wake at ' + nextAt;
-                        color = '#c4b5fd'; bg = 'rgba(139,92,246,0.14)';
-                    } else if (rest.enabled) {
-                        text = '🛌 Hardware rest ARMED · ' + rest.window_label + ' · now ' + rest.now_et +
-                               ' · rest starts ' + nextAt + ' (in ' + inLbl + ')';
-                        color = 'var(--dhq-text-dim)'; bg = 'rgba(0,188,212,0.08)';
-                    } else {
-                        text = '⚠ Hardware rest DISABLED · window ' + rest.window_label +
-                               ' is NOT armed · now ' + rest.now_et;
-                        color = '#f59e0b'; bg = 'rgba(245,158,11,0.10)';
-                    }
-                    restStrip.textContent = text + '  ✎';
-                    restStrip.style.color = color;
-                    restStrip.style.background = bg;
-                    restStrip.style.display = '';
-                    restStrip.style.cursor = 'pointer';
-                    restStrip.title = 'Click to edit the rest schedule';
-                    if (!restStrip.dataset.wired) {
-                        restStrip.dataset.wired = '1';
-                        restStrip.addEventListener('click', _openRestEditor);
-                    }
-                }
+            // #5816: the hardware-rest strip USED to render here, duplicating what
+            // FLEET COMMAND now owns — and both render in the SAME Cluster
+            // sub-tab, so the window and its ✎ editor appeared twice on one
+            // screen. Two editors over one system_config key is exactly the
+            // divergence #5321 was filed to end, so the strip is retired
+            // rather than kept in sync. Remove any node a cached page left
+            // behind, so a stale DOM cannot resurrect the duplicate.
+            var _staleRestStrip = document.getElementById('fleetRestStrip');
+            if (_staleRestStrip && _staleRestStrip.parentNode) {
+                _staleRestStrip.parentNode.removeChild(_staleRestStrip);
             }
 
             // Unified platform queue — Dispatch + Media Studio + F.O.R.G.E. + Bridge
@@ -5580,12 +5681,23 @@ function updateRestModeUI(data) {
     // and serving; UNDOCKED = Starships detached (resting). The lit state is
     // UNDOCKED ("light up when agents are on rest"). Real window from the API.
     var windowLabel = data.rest_window || '';
-    if (data.enabled && data.active_now) {
-        // UNDOCKED — Starships detached from the cluster, resting; blue glow
+    // #5816: prefer the COMBINED predicate the gates actually read. A manual
+    // force-undock detaches the ships while enabled/active_now are both false,
+    // so the schedule-only test rendered a confident "⚓ DOCKED" over a fleet
+    // that was taking no work. Fall back to the schedule test when the payload
+    // predates `undocked`.
+    var _undocked = (data.undocked !== undefined && data.undocked !== null)
+        ? !!data.undocked
+        : !!(data.enabled && data.active_now);
+    if (_undocked) {
+        // UNDOCKED — Starships detached from the cluster, resting.
+        // #5816: violet, NOT blue. Blue now means DOCKED (see below), so the
+        // two states must not share a hue or the highlight says nothing.
         btn.textContent = '⚓ UNDOCKED';
-        btn.style.color = '#60a5fa';
-        btn.style.borderColor = '#60a5fa';
-        btn.style.boxShadow = '0 0 6px #60a5fa66';
+        btn.style.background = 'rgba(139,92,246,0.18)';
+        btn.style.color = '#c4b5fd';
+        btn.style.borderColor = '#8b5cf6';
+        btn.style.boxShadow = '0 0 6px #8b5cf666';
         if (status) {
             status.style.display = 'inline-block';
             status.style.whiteSpace = 'pre-line';
@@ -5594,10 +5706,15 @@ function updateRestModeUI(data) {
             status.textContent = '● STARSHIPS UNDOCKED' + (windowLabel ? '\n' + windowLabel : '');
         }
     } else if (data.enabled) {
-        // DOCKED, undock scheduled — ships serving, will detach in the window; amber
+        // DOCKED, undock scheduled — ships serving, will detach in the window.
+        // #5816 (owner): DOCKED is the GOOD state and reads as SELECTED —
+        // same treatment as an active PROFILE chip (rgba(0,188,212,0.2) /
+        // #00bcd4). The "will detach later" nuance stays, but it moves to the
+        // status text beside the button so the dock state itself is never dim.
         btn.textContent = '⚓ DOCKED';
-        btn.style.color = '#f59e0b';
-        btn.style.borderColor = '#f59e0b';
+        btn.style.background = 'rgba(0,188,212,0.2)';
+        btn.style.color = '#00bcd4';
+        btn.style.borderColor = '#00bcd4';
         btn.style.boxShadow = 'none';
         if (status) {
             status.style.display = 'inline-block';
@@ -5607,10 +5724,13 @@ function updateRestModeUI(data) {
             status.textContent = '🕐 undock ' + (windowLabel || 'scheduled');
         }
     } else {
-        // DOCKED — schedule off, ships connected around the clock; dim
+        // DOCKED — schedule off, ships connected around the clock.
+        // #5816 (owner): was dim slate, which made the healthy everyday state
+        // look inert. Highlighted like a selected PROFILE chip.
         btn.textContent = '⚓ DOCKED';
-        btn.style.color = '#94a3b8';
-        btn.style.borderColor = '#334155';
+        btn.style.background = 'rgba(0,188,212,0.2)';
+        btn.style.color = '#00bcd4';
+        btn.style.borderColor = '#00bcd4';
         btn.style.boxShadow = 'none';
         if (status) {
             status.style.display = 'none';

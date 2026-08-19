@@ -1811,6 +1811,7 @@ def register_dashboard_routes(bp, auth_decorator):
             is_fleet_rest_active,
             is_starships_undocked,
             force_undock_until,
+            rest_status_snapshot,
         )
 
         try:
@@ -1828,6 +1829,12 @@ def register_dashboard_routes(bp, auth_decorator):
                     force_undock_until=_force_until.isoformat() if _force_until else None,
                     # #5321c: the real window, so no UI ever hardcodes '8PM–6AM' again
                     rest_window=f"{int(cfg.get('start_hour', 20)):02d}:00–{int(cfg.get('end_hour', 6)):02d}:00 ET",
+                    # #5816: the A.R.M.A.D.A. Cluster panel needs in_window /
+                    # now_et / next_transition too. Serve the SAME snapshot the
+                    # FLEET DOCK strip uses rather than letting a second surface
+                    # recompute the window — that divergence is exactly what
+                    # #5321 was filed for.
+                    status=rest_status_snapshot(cfg=cfg),
                 )
             data = request.get_json(silent=True) or {}
             enabled = bool(data.get("enabled", False))
@@ -1840,6 +1847,10 @@ def register_dashboard_routes(bp, auth_decorator):
                 active_now=is_fleet_rest_active(),
                 undocked=is_starships_undocked(),
                 rest_window=f"{start_hour:02d}:00–{end_hour:02d}:00 ET",
+                # Re-READ from system_config rather than echoing the request
+                # body: the caller must be able to tell a persisted change from
+                # an accepted-but-lost one (ADR-014 — gate on the artifact).
+                status=rest_status_snapshot(),
             )
         except Exception as exc:
             logger.error("api_fleet_rest_mode: %s", exc)

@@ -607,6 +607,43 @@
 
       </div><!-- end fleetNetworkContent -->
 
+      <!-- FLEET COMMAND — one place to see and command the dock state (#5816) -->
+      <div class="dhq-dispatch-section" id="fleetCommandSection" style="margin-bottom:12px;">
+        <div class="dhq-section-title">
+          FLEET COMMAND
+          <button onclick="loadClusterRest()" title="Refresh now" style="float:right;background:none;border:1px solid rgba(255,255,255,0.2);color:var(--dhq-text-dim);padding:2px 8px;border-radius:4px;font-size:0.65rem;cursor:pointer;letter-spacing:1px;">&#8635; REFRESH</button>
+        </div>
+        <!-- #5816: AGENT MOBILITY / PROFILE / FLEET DOCK relocated here from the
+             CLUSTER ACTIVITY title bar. They were three separate control clusters
+             crammed into a section heading; every one of them commands the same
+             thing this panel is about — where fleet work is allowed to run. The
+             ids and inline handlers are untouched, and every painter resolves by
+             getElementById, so moving the nodes changes nothing but their home. -->
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:10px 0 8px;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <span style="display:inline-flex;align-items:center;gap:6px;font-size:0.65rem;letter-spacing:1px;color:var(--dhq-text-dim);">
+            <span title="Fleet routing on/off. When OFF all agents stay on Hub. When ON agents distribute across Starship-246, outpost-us, and Hub based on dispatch profile.">AGENT MOBILITY</span>
+            <label style="position:relative;display:inline-block;width:34px;height:18px;cursor:pointer;">
+              <input type="checkbox" id="fleetRoutingToggle" onchange="toggleFleetRouting(this.checked)" style="opacity:0;width:0;height:0;">
+              <span id="fleetRoutingSlider" style="position:absolute;inset:0;border-radius:18px;background:#444;transition:background 0.2s;"></span>
+              <span id="fleetRoutingThumb" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left 0.2s;"></span>
+            </label>
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">
+            PROFILE
+            <button id="fleetModeAuto" onclick="setFleetDispatchMode('auto')" title="AUTO — demand-driven. No profile bias: K.I.N. warms each node's hottest model, routing & backlog follow pure priority." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">AUTO</button>
+            <button id="fleetModeNews" onclick="setFleetDispatchMode('news')" title="NEWS — News & Media agents get priority across the cluster: K.I.N. reserves warm slots for them, routing favours outpost-us, and the backlog drains WTF/Watch/CREED work first." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">📰 NEWS</button>
+            <button id="fleetModePlatform" onclick="setFleetDispatchMode('platform')" title="PLATFORM — core platform agents (incl. R.O.S.E.T.T.A./translate, C.O.D.E.X., F.O.R.G.E.) get priority: K.I.N. reserves warm GPU slots for them, routing favours Starship GPU, and the backlog drains platform work first." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">🖥 PLATFORM</button>
+            <span id="fleetModeStatus" style="margin-left:8px;font-size:0.58rem;letter-spacing:0;color:var(--dhq-text-dim);text-transform:none;"></span>
+          </span>
+          <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">
+            FLEET DOCK
+            <button id="restModeBtn" data-enabled="false" onclick="toggleRestMode()" title="Undock schedule — Starships detach from the cluster (no new dispatch, models unwarmed) during the configured window. DOCKED = connected &amp; serving. Click to arm/disarm; edit the window in FLEET COMMAND, just below." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">⚓ DOCKED</button>
+            <span id="restModeStatus" style="font-size:0.6rem;color:var(--dhq-text-dim);"></span>
+          </span>
+        </div>
+        <div id="crBody" style="padding:8px 0;font-size:0.8rem;color:var(--dhq-text-dim);">Loading&hellip;</div>
+      </div>
+
       <!-- Cluster World Map — geo presence of fleet nodes (#3230) -->
       <div class="dhq-dispatch-section" style="margin-bottom:12px;">
         <div class="dhq-section-title">
@@ -625,26 +662,6 @@
         <div class="dhq-section-title">
           CLUSTER ACTIVITY
           <span id="clusterActivityBadge" style="margin-left:8px;font-family:'IBM Plex Mono',monospace;font-size:0.7rem;color:var(--dhq-text-dim);">--</span>
-          <span style="display:inline-flex;align-items:center;gap:6px;margin-left:16px;font-size:0.65rem;letter-spacing:1px;color:var(--dhq-text-dim);">
-            <span title="Fleet routing on/off. When OFF all agents stay on Hub. When ON agents distribute across Starship-246, outpost-us, and Hub based on dispatch profile.">AGENT MOBILITY</span>
-            <label style="position:relative;display:inline-block;width:34px;height:18px;cursor:pointer;">
-              <input type="checkbox" id="fleetRoutingToggle" onchange="toggleFleetRouting(this.checked)" style="opacity:0;width:0;height:0;">
-              <span id="fleetRoutingSlider" style="position:absolute;inset:0;border-radius:18px;background:#444;transition:background 0.2s;"></span>
-              <span id="fleetRoutingThumb" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left 0.2s;"></span>
-            </label>
-          </span>
-          <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">
-            PROFILE
-            <button id="fleetModeAuto" onclick="setFleetDispatchMode('auto')" title="AUTO — demand-driven. No profile bias: K.I.N. warms each node's hottest model, routing & backlog follow pure priority." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">AUTO</button>
-            <button id="fleetModeNews" onclick="setFleetDispatchMode('news')" title="NEWS — News & Media agents get priority across the cluster: K.I.N. reserves warm slots for them, routing favours outpost-us, and the backlog drains WTF/Watch/CREED work first." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">📰 NEWS</button>
-            <button id="fleetModePlatform" onclick="setFleetDispatchMode('platform')" title="PLATFORM — core platform agents (incl. R.O.S.E.T.T.A./translate, C.O.D.E.X., F.O.R.G.E.) get priority: K.I.N. reserves warm GPU slots for them, routing favours Starship GPU, and the backlog drains platform work first." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">🖥 PLATFORM</button>
-            <span id="fleetModeStatus" style="margin-left:8px;font-size:0.58rem;letter-spacing:0;color:var(--dhq-text-dim);text-transform:none;"></span>
-          </span>
-          <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">
-            FLEET DOCK
-            <button id="restModeBtn" data-enabled="false" onclick="toggleRestMode()" title="Undock schedule — Starships detach from the cluster (no new dispatch, models unwarmed) during the configured window. DOCKED = connected &amp; serving. Click to arm/disarm; edit hours via the rest strip in CLUSTER." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">⚓ DOCKED</button>
-            <span id="restModeStatus" style="font-size:0.6rem;color:var(--dhq-text-dim);"></span>
-          </span>
           <span id="fleetLiveIndicator" style="float:right;display:inline-flex;align-items:center;gap:5px;font-size:0.65rem;color:#10b981;">
             <span class="sc-live" style="font-size:0.5rem;">●</span> LIVE
             <span id="fleetLastRefresh" style="color:var(--dhq-text-dim);margin-left:4px;"></span>

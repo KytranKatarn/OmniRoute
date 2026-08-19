@@ -1,0 +1,93 @@
+suite:
+  name: "DHQ — FLEET COMMAND (cluster dock/rest)"
+  description: >
+    DOM-level coverage for the FLEET COMMAND panel in A.R.M.A.D.A. -> CLUSTER
+    (task #5816). The pre-existing ai-command-dhq suite is entirely type:api,
+    which cannot see whether anything RENDERS — the exact blind spot behind
+    mistake #281727, where a DHQ card passed page-load + API QA while rendering
+    nowhere because a shared JS file shadowed its handler at load.
+  base_url: "http://192.168.1.200:3000"
+  auth:
+    username: "${ARCHIE_TEST_USERNAME}"
+    password: "${ARCHIE_TEST_PASSWORD}"
+
+tests:
+  - name: "fleet-command-panel-renders-and-owns-its-controls"
+    type: e2e
+    # ?tab=fleet is the supported deep-link (see the DOMContentLoaded handler in
+    # department-hq.js) and opens A.R.M.A.D.A. directly. Clicking a tab selector
+    # was the first attempt and it timed out: DHQ's tab buttons carry no
+    # data-tab attribute in this template, so the click never resolved, the
+    # actions aborted, and the panel stayed inside a display:none parent —
+    # every selector_visible failed while every js_eval passed, because JS can
+    # read a hidden DOM. That split is the signature of a NAVIGATION failure,
+    # not a rendering one.
+    path: /tools/department-hq?tab=fleet
+    wait_until: load
+    actions:
+      - wait: 1200
+      - click: "#armadaBtn-cluster"
+      - wait: 2500
+      - screenshot: "fleet-command-cluster"
+    expect:
+      selector_visible:
+        "#fleetCommandSection": true
+        "#crBody": true
+        "#restModeBtn": true
+        # NOT #fleetRoutingToggle — that input is deliberately
+        # opacity:0;width:0;height:0 behind a styled slider, so a visibility
+        # assertion on it can NEVER pass. Assert the slider the user actually
+        # sees; the input's presence is covered by the js_eval below.
+        "#fleetRoutingSlider": true
+        "#fleetModeAuto": true
+      js_eval:
+        # The consolidation itself: all three control clusters must live INSIDE
+        # the panel, not back in the CLUSTER ACTIVITY heading.
+        - name: controls_live_inside_fleet_command
+          expr: >
+            ['fleetRoutingToggle','fleetModeAuto','fleetModePlatform','restModeBtn','restModeStatus']
+              .every(function (i) {
+                var el = document.getElementById(i);
+                return !!el && document.getElementById('fleetCommandSection').contains(el);
+              })
+          equals: true
+
+        # The duplicate the owner caught: the old rest strip must be gone, so
+        # the window + its editor cannot appear twice in one sub-tab.
+        - name: no_duplicate_rest_strip
+          expr: "document.getElementById('fleetRestStrip') === null"
+          equals: true
+
+        # The dock button must be LIT, not the old dim slate (#94a3b8).
+        # Accepts either live state (cyan DOCKED / violet UNDOCKED) so the
+        # assertion does not depend on whether rest happens to be armed.
+        - name: dock_button_is_lit_not_dim
+          expr: >
+            ['rgb(0, 188, 212)', 'rgb(196, 181, 253)']
+              .indexOf(getComputedStyle(document.getElementById('restModeBtn')).color) >= 0
+          equals: true
+
+        # The body must actually populate — "Loading…" left on screen is the
+        # signature of a fetch that never resolved.
+        - name: body_populated_not_stuck_loading
+          expr: >
+            (function (t) {
+              return t.indexOf('Loading') === -1 && t.indexOf('Schedule') !== -1
+                  && t.indexOf('window') !== -1;
+            })(document.getElementById('crBody').textContent || '')
+          equals: true
+
+        # The editor controls the whole feature exists for.
+        - name: window_editor_present
+          expr: >
+            !!document.getElementById('crEnabled') && !!document.getElementById('crStart')
+              && !!document.getElementById('crEnd')
+          equals: true
+
+        # The panel must state the dock state and the schedule state as
+        # SEPARATE facts — conflating them is what #5321 was filed for.
+        - name: schedule_state_is_named
+          expr: >
+            /Schedule\s+(ARMED|DISABLED|RESTING|FORCE-UNDOCK)/
+              .test(document.getElementById('crBody').textContent || '')
+          equals: true

@@ -255,6 +255,29 @@ def recommend_sole_agent_staffing_gaps(
             # recommend_pool_staffing_gaps so "the pool" means one thing platform-wide.
             cur.execute(
                 """
+                WITH demand AS (
+                    -- #5829: DEMAND GATE. The ZERO-AGENT scan was gated in #5187 for
+                    -- exactly this reason — ungated, it produced 104 "gaps" with zero
+                    -- real dispatches, pure skill-inventory noise. The SOLE-AGENT path
+                    -- never got the same gate and reproduced the identical failure at
+                    -- smaller scale: measured 2026-08-19, 14 of the 15 pending
+                    -- proposals had ZERO dispatches in 30 days.
+                    --
+                    -- A sole agent who is over budget for work NOBODY REQUESTS is not a
+                    -- staffing gap; hiring against it adds an agent, a budget row,
+                    -- welfare tracking and warm-model pressure, and changes nothing.
+                    --
+                    -- Same definition as the zero-agent gate (real inference only,
+                    -- 30 days, the shared marker exclude-list) so "demand" means ONE
+                    -- thing platform-wide and the two scans cannot disagree.
+                    SELECT DISTINCT lower(replace(capability, ' ', '_')) AS capability
+                    FROM task_execution_log
+                    WHERE created_at > NOW() - INTERVAL '30 days'
+                      AND worker_type IS NOT NULL
+                      AND capability IS NOT NULL
+                      AND lower(COALESCE(model_used, '')) NOT IN
+                          ('bridge-managed', 'internal', 'batch', 'browser', 'comfyui', '')
+                )
                 SELECT s.skill_name AS skill,
                        MIN(a.id)    AS agent_id,
                        MIN(a.name)  AS agent_name
@@ -264,6 +287,9 @@ def recommend_sole_agent_staffing_gaps(
                   AND a.org_id IS NULL
                   AND a.shift_state IN ('active', 'deployed')
                   AND s.skill_name IS NOT NULL
+                  -- Normalized both sides: agent_skills carries Title Case rows from
+                  -- older/human agents, task_execution_log carries snake_case.
+                  AND lower(replace(s.skill_name, ' ', '_')) IN (SELECT capability FROM demand)
                 GROUP BY s.skill_name
                 HAVING COUNT(DISTINCT a.id) = 1
                 """

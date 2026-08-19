@@ -498,7 +498,26 @@ def list_pending_approvals():
                    hc.shortlist,
                    hc.proposed_at,
                    hc.proposed_by_agent_id,
-                   a.display_name AS proposer_name
+                   a.display_name AS proposer_name,
+                   -- #5829: age ONLY. Pure arithmetic on a column already selected —
+                   -- no join, no scan.
+                   --
+                   -- ⚠️ An earlier revision of this query ALSO computed demand_30d and
+                   -- active_holders here, as correlated subqueries over
+                   -- task_execution_log. That table holds 1,238,358 rows and is
+                   -- deliberately never pruned (it is the token ledger, #4550), and the
+                   -- lower(replace(...)) on both sides defeated every index — so it ran
+                   -- ONE FULL SCAN PER HIRING ROW. Measured live: this endpoint went
+                   -- from ~70ms to 57-84s and the tab died with "Unexpected end of JSON
+                   -- input" as the worker timed out mid-response. Even the corrected
+                   -- single-aggregate form costs 778ms, which is still wrong for an
+                   -- endpoint the UI polls.
+                   --
+                   -- Demand belongs where it already lives: the SCHEDULED gate in
+                   -- welfare_governance_service.recommend_sole_agent_staffing_gaps(),
+                   -- which stops a no-demand proposal from ever being created. A UI
+                   -- poll must not re-derive it.
+                   EXTRACT(EPOCH FROM (NOW() - hc.proposed_at)) / 86400.0 AS age_days_sql
                FROM hiring_candidates hc
                LEFT JOIN agents a ON a.id = hc.proposed_by_agent_id
                WHERE hc.status = 'pending'
@@ -524,6 +543,10 @@ def list_pending_approvals():
                         "shortlist": shortlist,
                         "gap_reason": r.get("gap_reason"),
                         "narrative": r.get("narrative"),
+                        # #5829: a proposal nobody drains should show its own age.
+                        # 15 sat pending, oldest 08-17, none ever actioned.
+                        "age_days": (round(float(r["age_days_sql"]), 1) if r.get("age_days_sql") is not None else None),
+                        "stale": bool(r.get("age_days_sql") is not None and float(r["age_days_sql"]) >= 7.0),
                     },
                 }
             )

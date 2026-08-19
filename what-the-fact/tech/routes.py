@@ -6,6 +6,9 @@ from collections import defaultdict
 from flask import Blueprint, current_app, render_template, session, abort, redirect, url_for
 from sqlalchemy import create_engine, text
 
+# stdlib-only, unit-testable without Flask (#5791)
+from .analyze_guard import ALREADY_RUNNING, AT_CAPACITY, AnalyzeGuard
+
 bp = Blueprint("wtf_tech", __name__)
 _engine = None
 
@@ -647,15 +650,53 @@ def analyze_article(article_id: int):
         return jsonify({"ok": True, "done": True, "cached": True,
                         "article_id": article_id, "tier": article.analysis_tier})
 
-    threading.Thread(
-        target=_analyze_bg,
-        args=(article_id, article.title or "", article.body or "",
-              S, HUB_URL, HUB_TOKEN),
-        kwargs={"source_slug": article.source_slug or ""},
-        daemon=True,
-    ).start()
+    # Reserve a slot BEFORE spawning. Three outcomes:
+    #   already_running -> a thread is already analysing this article; the caller
+    #                      gets the same "queued" answer and polls the same status.
+    #                      Costs nothing extra to serve, so it is never refused.
+    #   at_capacity     -> refuse honestly with Retry-After rather than accept work
+    #                      that will not complete.
+    #   accepted        -> we own the slot and MUST release it.
+    slot = _analyze_guard.try_acquire(article_id)
+    if slot == ALREADY_RUNNING:
+        return jsonify({"ok": True, "queued": True, "done": False,
+                        "already_running": True, "article_id": article_id})
+    if slot == AT_CAPACITY:
+        resp = jsonify({"ok": False, "error": "analysis_at_capacity",
+                        "retry_after": 30, "article_id": article_id,
+                        "in_flight": _analyze_guard.in_flight()})
+        resp.status_code = 503
+        resp.headers["Retry-After"] = "30"
+        return resp
+
+    def _run_and_release():
+        # try/finally is load-bearing. _analyze_bg guards each of its three tasks
+        # individually but has NO top-level handler, so an exception outside that
+        # loop (e.g. the persist step) would kill the thread and, without this,
+        # leak the slot permanently. Enough leaks and the endpoint wedges closed.
+        try:
+            _analyze_bg(article_id, article.title or "", article.body or "",
+                        S, HUB_URL, HUB_TOKEN,
+                        source_slug=article.source_slug or "")
+        finally:
+            _analyze_guard.release(article_id)
+
+    threading.Thread(target=_run_and_release, daemon=True).start()
 
     return jsonify({"ok": True, "queued": True, "done": False, "article_id": article_id})
+
+
+# ---------------------------------------------------------------------------
+# Bounded concurrency + in-flight dedup for on-demand analysis (#5791)
+# ---------------------------------------------------------------------------
+# analyze_article used to spawn a daemon thread per POST with no cap, no dedup and
+# no semaphore. PR #2687 bounded the TRIGGER at the consumer edge (5/hour); this
+# bounds the WORK, which a caller reaching tech directly is still not limited by.
+# PER-WORKER: Dockerfile.tech runs --workers 2, so effective_cap divides the
+# advertised aggregate down to what ONE process may actually run at once.
+_ANALYZE_MAX = int(os.environ.get("WTF_ANALYZE_MAX_CONCURRENT", "6"))
+_ANALYZE_WORKERS = int(os.environ.get("WTF_TECH_GUNICORN_WORKERS", "2"))
+_analyze_guard = AnalyzeGuard(max_concurrent=_ANALYZE_MAX, workers=_ANALYZE_WORKERS)
 
 
 # ---------------------------------------------------------------------------

@@ -1278,7 +1278,7 @@ def cost_of_parliament():
 @bp.get("/")
 def index():
     S = _schema()
-    wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+    wtf_tech_url = os.environ.get("WTF_TECH_URL", "http://wtf-tech:8104")
     with _db().begin() as c:
         rows = c.execute(text(f"""
             SELECT a.id, a.title, a.url, a.published_at,
@@ -1313,7 +1313,13 @@ def index():
 # (mixed content: page is HTTPS, wtf-tech is an internal Docker hostname)
 # ───────────────────────────────────────────────────────────────────────────
 def _proxy_tech(path: str, method: str = "GET", body: bytes = None, timeout: int = 30) -> Response:
-    url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech") + path
+    # Default is the CONTAINER name, never the public hostname (#5794). A public
+    # default is a latent mesh-mandate violation: if the env var is ever dropped or
+    # missing in a new environment, every consumer->tech call silently traverses the
+    # internet — capped at 60s by the CDN, bypassing the queue, invisible to
+    # task_execution_log — and fails as mystery latency rather than a clear error.
+    # Production already sets http://wtf-tech:8104; this makes that the fallback too.
+    url = os.environ.get("WTF_TECH_URL", "http://wtf-tech:8104") + path
     req = urllib.request.Request(url, data=body, method=method)
     req.add_header("Content-Type", "application/json")
     try:
@@ -1552,7 +1558,7 @@ def proxy_article_flag(article_id: int):
 def article(article_id: int):
     import json as _json
     S = _schema()
-    wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+    wtf_tech_url = os.environ.get("WTF_TECH_URL", "http://wtf-tech:8104")
     with _db().begin() as c:
         row = c.execute(text(f"""
             SELECT a.id, a.title, a.body, a.url, a.published_at,
@@ -3387,7 +3393,7 @@ def score_url():
         if len(article_text) < 100:
             error = "Please paste at least 100 characters of article text."
         else:
-            wtf_tech_url = os.environ.get("WTF_TECH_URL", "https://what-the-fact.tech")
+            wtf_tech_url = os.environ.get("WTF_TECH_URL", "http://wtf-tech:8104")
             hub_token = os.environ.get("WTF_HUB_TOKEN", "")
             try:
                 import json as _json

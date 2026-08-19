@@ -308,7 +308,12 @@ def test_map_does_not_depend_on_the_layer_status_block():
             layers_end = i
             break
     assert layers_end is not None, "could not find the endif closing `if layers`"
-    assert map_at > layers_end, (
+    # Assert NESTING, not ORDER. The original form was `map_at > layers_end`, which
+    # also required the map to come AFTER the strip — true of the old page, false
+    # once #2691 moved the map to the top to match the homepage. That is a layout
+    # choice, not a correctness property; the property is that an empty
+    # aurora_layer_status view must not be able to remove the map.
+    assert not (layers_if < map_at < layers_end), (
         "the map is nested inside `{% if layers %}` — an empty layer-status "
         "view would silently remove the whole map"
     )

@@ -1256,9 +1256,18 @@ async function loadDhqApprovals() {
             empty.textContent = 'No pending approvals — all clear.';
             container.appendChild(empty);
         } else {
+            _dhqMaxBulk = data.max_bulk || 50;
+            container.appendChild(_renderBulkBar());
+            // Group by action_type, preserving first-seen order so the list does not
+            // reshuffle between polls.
+            var groups = [], byType = {};
             data.approvals.forEach(function(a) {
-                container.appendChild(_renderApprovalCard(a));
+                var t = a.action_type || 'other';
+                if (!byType[t]) { byType[t] = { type: t, items: [], bulkAll: a.bulk_all_allowed !== false, blocked: a.blocked_reasons || [], noBulkReason: a.bulk_all_reason || '' }; groups.push(byType[t]); }
+                byType[t].items.push(a);
             });
+            groups.forEach(function(g) { container.appendChild(_renderApprovalGroup(g)); });
+            _dhqUpdateBulkBar();
         }
     } catch (e) {
         container.textContent = 'Failed to load: ' + e.message;
@@ -1298,6 +1307,262 @@ async function loadDhqApprovals() {
     } catch (e) {}
 }
 
+var _dhqMaxBulk = 50;
+
+function _dhqPicks() {
+    return Array.prototype.slice.call(document.querySelectorAll('.dhq-approval-pick'));
+}
+function _dhqSelectedIds() {
+    return _dhqPicks().filter(function(c) { return c.checked; })
+                      .map(function(c) { return c.getAttribute('data-approval-id'); })
+                      .filter(Boolean);
+}
+
+function _renderBulkBar() {
+    var bar = document.createElement('div');
+    bar.id = 'dhq-bulk-bar';
+    bar.style.cssText = 'position:sticky;top:0;z-index:5;display:none;align-items:center;gap:12px;' +
+        'background:#0b1220;border:1px solid rgba(0,229,255,0.35);border-radius:6px;padding:10px 14px;margin-bottom:14px';
+    var label = document.createElement('span');
+    label.id = 'dhq-bulk-count';
+    label.style.cssText = 'color:#00e5ff;font-weight:bold;font-size:0.85rem';
+    bar.appendChild(label);
+    var spacer = document.createElement('span');
+    spacer.style.cssText = 'flex:1';
+    bar.appendChild(spacer);
+    [['Approve selected', 'approve', '#22c55e'], ['Deny selected', 'deny', '#ef4444']].forEach(function(spec) {
+        var b = document.createElement('button');
+        b.textContent = spec[0];
+        b.style.cssText = 'background:transparent;border:1px solid ' + spec[2] + ';color:' + spec[2] +
+            ';padding:6px 14px;border-radius:4px;cursor:pointer;font-size:0.8rem';
+        b.addEventListener('click', function() { _dhqBulkAction(spec[1], _dhqSelectedIds()); });
+        bar.appendChild(b);
+    });
+    var clear = document.createElement('button');
+    clear.textContent = 'Clear';
+    clear.style.cssText = 'background:transparent;border:1px solid #475569;color:#94a3b8;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:0.8rem';
+    clear.addEventListener('click', function() {
+        _dhqPicks().forEach(function(c) { c.checked = false; });
+        _dhqUpdateBulkBar();
+    });
+    bar.appendChild(clear);
+    return bar;
+}
+
+function _dhqUpdateBulkBar() {
+    var bar = document.getElementById('dhq-bulk-bar');
+    if (!bar) return;
+    var n = _dhqSelectedIds().length;
+    bar.style.display = n ? 'flex' : 'none';
+    var label = document.getElementById('dhq-bulk-count');
+    if (label) {
+        label.textContent = n + ' selected' + (n > _dhqMaxBulk ? '  —  over the limit of ' + _dhqMaxBulk + ', deselect some' : '');
+        label.style.color = n > _dhqMaxBulk ? '#ef4444' : '#00e5ff';
+    }
+}
+
+function _renderApprovalGroup(g) {
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'margin-bottom:20px';
+
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 4px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.08)';
+
+    var all = document.createElement('input');
+    all.type = 'checkbox';
+    all.title = 'Select all in this category';
+    all.style.cssText = 'width:16px;height:16px;accent-color:#00e5ff;cursor:pointer';
+    all.addEventListener('change', function() {
+        wrap.querySelectorAll('.dhq-approval-pick').forEach(function(c) { c.checked = all.checked; });
+        _dhqUpdateBulkBar();
+    });
+    head.appendChild(all);
+
+    var name = document.createElement('span');
+    name.style.cssText = 'color:#e2e8f0;font-weight:bold;font-size:0.85rem;letter-spacing:0.04em';
+    name.textContent = g.type;
+    head.appendChild(name);
+
+    var count = document.createElement('span');
+    count.style.cssText = 'color:#64748b;font-size:0.78rem';
+    count.textContent = '(' + g.items.length + ')';
+    head.appendChild(count);
+
+    var spacer = document.createElement('span');
+    spacer.style.cssText = 'flex:1';
+    head.appendChild(spacer);
+
+    // A BLOCKED category loses its one-click shortcut even when the type would normally
+    // allow it: a prerequisite is pending (backup / PR merge) and clearing this first is
+    // what puts the running code out of step. Individual approval stays available — the
+    // rule is advisory, so the operator is never stranded.
+    if (g.blocked && g.blocked.length) {
+        var warn = document.createElement('span');
+        warn.style.cssText = 'color:#fbbf24;font-size:0.7rem;text-align:right;max-width:60%';
+        warn.textContent = '\u23F8 ' + g.blocked.join('  •  ');
+        head.appendChild(warn);
+    } else if (g.bulkAll) {
+        // One-click shortcut, INTERNAL categories only. The server stamps
+        // bulk_all_allowed so this rule lives in one place (approvals_bulk.py).
+        var btn = document.createElement('button');
+        btn.textContent = 'Approve all ' + g.items.length;
+        btn.style.cssText = 'background:transparent;border:1px solid #22c55e;color:#22c55e;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem';
+        btn.addEventListener('click', function() {
+            _dhqBulkAction('approve', g.items.map(function(i) { return i.id; }));
+        });
+        head.appendChild(btn);
+    } else {
+        var note = document.createElement('span');
+        note.style.cssText = 'color:#fbbf24;font-size:0.7rem';
+        note.textContent = g.noBulkReason || 'select individually';
+        head.appendChild(note);
+    }
+
+    wrap.appendChild(head);
+    g.items.forEach(function(a) { wrap.appendChild(_renderApprovalCard(a)); });
+    return wrap;
+}
+
+// LCARS confirm + toast. Native confirm()/alert() were used at first and were WRONG twice
+// over: they break the LCARS language on the most consequential control in the tab, and they
+// BLOCK the event loop (which is why browser automation has to register dialog handlers to
+// get past them). Shape follows the established _rbLcarsConfirm in repair-bay-main.js:
+// bm-overlay > bm-shell > bm-frame + bm-content > bm-header + bm-body + bm-footer, themed by
+// --bm-accent. Self-contained: repair-bay-main.js is not loaded in DHQ.
+function _dhqEl(tag, opts) {
+    opts = opts || {};
+    var el = document.createElement(tag);
+    if (opts.cls) el.className = opts.cls;
+    if (opts.style) el.setAttribute('style', opts.style);
+    if (opts.text != null) el.textContent = opts.text;   // textContent — never innerHTML
+    if (opts.onclick) el.addEventListener('click', opts.onclick);
+    return el;
+}
+
+function _dhqLcarsConfirm(opts) {
+    opts = opts || {};
+    var accent = opts.accent || '#22d3ee';
+    var accentRgb = opts.accentRgb || '34,211,238';
+    return new Promise(function(resolve) {
+        var overlay = _dhqEl('div', {
+            cls: 'bm-overlay active',
+            style: '--bm-accent:' + accent + '; --bm-accent-rgb:' + accentRgb +
+                   '; display:flex; align-items:center; justify-content:center;'
+        });
+        function close(r) { document.removeEventListener('keydown', onKey); overlay.remove(); resolve(r); }
+        function onKey(e) {
+            if (e.key === 'Escape') close(false);
+            else if (e.key === 'Enter') close(true);
+        }
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) close(false); });
+
+        var shell = _dhqEl('div', {cls: 'bm-shell', style: 'max-width:520px; width:92%;'});
+        var frame = _dhqEl('div', {cls: 'bm-frame'});
+        ['bm-frame-elbow-top','bm-frame-seg','bm-frame-seg dim','bm-frame-light on',
+         'bm-frame-light amber','bm-frame-seg purple','bm-frame-fill','bm-frame-elbow-bottom']
+            .forEach(function(c) { frame.appendChild(_dhqEl('div', {cls: c})); });
+
+        var content = _dhqEl('div', {cls: 'bm-content'});
+        var header = _dhqEl('div', {cls: 'bm-header'});
+        header.appendChild(_dhqEl('span', {cls: 'bm-header-title', text: opts.title || 'Confirm'}));
+        var strip = _dhqEl('div', {cls: 'bm-header-strip'});
+        ['w1','w2','w3'].forEach(function(w) { strip.appendChild(_dhqEl('div', {cls: 'bm-header-pip ' + w})); });
+        strip.appendChild(_dhqEl('button', {cls: 'bm-close', text: '\u00D7', onclick: function() { close(false); }}));
+        header.appendChild(strip);
+
+        var body = _dhqEl('div', {cls: 'bm-body', style: 'padding:20px 24px; color:#e2e8f0; font-size:0.9rem; line-height:1.55;'});
+        if (opts.message) body.appendChild(_dhqEl('div', {text: opts.message, style: 'margin-bottom:12px;'}));
+        // The exact ids being actioned, scrollable — the operator must be able to SEE what
+        // they are about to approve, not just a count.
+        if (opts.items && opts.items.length) {
+            var list = _dhqEl('div', {
+                style: 'max-height:220px; overflow-y:auto; border:1px solid rgba(' + accentRgb + ',0.25); ' +
+                       'border-radius:2px; padding:8px 10px; background:rgba(0,0,0,0.25); ' +
+                       'font-family:"IBM Plex Mono",monospace; font-size:0.76rem; color:#94a3b8;'
+            });
+            opts.items.forEach(function(it) { list.appendChild(_dhqEl('div', {text: it, style: 'padding:1px 0;'})); });
+            body.appendChild(list);
+        }
+
+        var footer = _dhqEl('div', {
+            cls: 'bm-footer',
+            style: 'display:flex; justify-content:flex-end; gap:10px; padding:14px 24px; border-top:1px solid rgba(' + accentRgb + ',0.2);'
+        });
+        var btnStyle = 'padding:8px 18px; font-family:"IBM Plex Mono",monospace; font-size:0.78rem; ' +
+                       'letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; border-radius:2px;';
+        footer.appendChild(_dhqEl('button', {
+            text: opts.cancelText || 'Cancel',
+            style: btnStyle + ' background:rgba(100,116,139,0.15); border:1px solid #64748b; color:#cbd5e1;',
+            onclick: function() { close(false); }
+        }));
+        footer.appendChild(_dhqEl('button', {
+            text: opts.confirmText || 'Confirm',
+            style: btnStyle + ' background:' + accent + '; border:1px solid ' + accent + '; color:#0b1120; font-weight:600;',
+            onclick: function() { close(true); }
+        }));
+
+        content.appendChild(header); content.appendChild(body); content.appendChild(footer);
+        shell.appendChild(frame); shell.appendChild(content);
+        overlay.appendChild(shell);
+        document.body.appendChild(overlay);
+        document.addEventListener('keydown', onKey);
+    });
+}
+
+function _dhqToast(text, accent) {
+    accent = accent || '#22d3ee';
+    var t = _dhqEl('div', {
+        text: text,
+        style: 'position:fixed; bottom:24px; right:24px; z-index:99999; max-width:420px; ' +
+               'padding:12px 16px; background:#0a0f0f; border-left:3px solid ' + accent + '; ' +
+               'border-top:1px solid rgba(255,255,255,0.06); color:#e2e8f0; ' +
+               'font-family:"IBM Plex Mono",monospace; font-size:0.78rem; line-height:1.5; ' +
+               'white-space:pre-line; box-shadow:0 6px 24px rgba(0,0,0,0.5); border-radius:2px;'
+    });
+    document.body.appendChild(t);
+    setTimeout(function() { t.remove(); }, 7000);
+}
+
+async function _dhqBulkAction(action, ids) {
+    if (!ids || !ids.length) return;
+    if (ids.length > _dhqMaxBulk) {
+        _dhqToast('Select at most ' + _dhqMaxBulk + ' at a time (you selected ' + ids.length + ').', '#f59e0b');
+        return;
+    }
+    var isDeny = (action === 'deny');
+    var ok = await _dhqLcarsConfirm({
+        title: action.toUpperCase() + ' ' + ids.length + ' APPROVAL' + (ids.length === 1 ? '' : 'S'),
+        message: 'These ' + ids.length + ' item' + (ids.length === 1 ? '' : 's') + ' will be ' + action + 'd:',
+        items: ids,
+        confirmText: isDeny ? 'Deny' : 'Approve',
+        cancelText: 'Cancel',
+        accent: isDeny ? '#ef4444' : '#22c55e',
+        accentRgb: isDeny ? '239,68,68' : '34,197,94'
+    });
+    if (!ok) return;
+    try {
+        var resp = await fetch('/tools/department-hq/api/approvals/bulk', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: action, ids: ids })
+        });
+        var d = await resp.json();
+        if (!d.success) { _dhqToast('Bulk ' + action + ' failed: ' + (d.error || 'unknown'), '#ef4444'); return; }
+        // Report PER ITEM. Partial failure is normal (an item actioned from Telegram in
+        // the meantime is no longer pending) and reporting a bare "done" would claim work
+        // that did not happen.
+        var msg = d.succeeded + ' of ' + d.requested + ' ' + action + 'd.';
+        if (d.failed_count) {
+            msg += '\n\n' + d.failed_count + ' failed:\n' +
+                   d.failed.map(function(f) { return '  ' + f.id + ' — ' + f.error; }).join('\n');
+        }
+        _dhqToast(msg, d.failed_count ? '#f59e0b' : '#22c55e');
+        loadDhqApprovals();
+    } catch (e) {
+        _dhqToast('Bulk ' + action + ' error: ' + e.message, '#ef4444');
+    }
+}
+
 function _renderApprovalCard(a) {
     var card = document.createElement('div');
     // Stable id for cross-linking from other tabs (#2168).
@@ -1310,14 +1575,28 @@ function _renderApprovalCard(a) {
     var header = document.createElement('div');
     header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px';
     var title = document.createElement('div');
+    title.style.cssText = 'display:flex;align-items:flex-start;gap:10px';
+    // Selection checkbox — multi-select works for EVERY category, including publishing.
+    // An explicit tick per item is a deliberate act even when you tick twelve; what the
+    // carve-out withholds is the one-click category shortcut, not the ability to batch.
+    var pick = document.createElement('input');
+    pick.type = 'checkbox';
+    pick.className = 'dhq-approval-pick';
+    pick.setAttribute('data-approval-id', a.id || '');
+    pick.setAttribute('data-action-type', a.action_type || '');
+    pick.style.cssText = 'margin-top:4px;width:16px;height:16px;accent-color:#00e5ff;cursor:pointer';
+    pick.addEventListener('change', _dhqUpdateBulkBar);
+    title.appendChild(pick);
+    var titleText = document.createElement('div');
     var name = document.createElement('div');
     name.style.cssText = 'font-weight:bold;color:#00e5ff;font-size:1rem';
     name.textContent = a.display_name;
     var sub = document.createElement('div');
     sub.style.cssText = 'font-size:0.75rem;color:#94a3b8;margin-top:2px';
     sub.textContent = '#' + a.id + ' | ' + a.action_type + ' | by ' + (a.requested_by || 'unknown');
-    title.appendChild(name);
-    title.appendChild(sub);
+    titleText.appendChild(name);
+    titleText.appendChild(sub);
+    title.appendChild(titleText);
 
     var rightWrap = document.createElement('div');
     rightWrap.style.cssText = 'display:flex;align-items:center;gap:8px';

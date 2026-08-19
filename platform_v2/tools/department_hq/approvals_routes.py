@@ -562,16 +562,108 @@ def register_approvals_routes(bp, admin_required_decorator):
         by_source} envelope the DHQ Approvals tab consumes.
         """
         try:
+            from tools.department_hq.services.approvals_bulk import (
+                MAX_BULK,
+                blocking_reasons,
+                bulk_all_reason,
+                can_bulk_all,
+                category_priority,
+            )
+
+            from tools.department_hq.services.approvals_bulk import (
+                BACKUP_FRESH_HOURS,
+                unsatisfied_prerequisites,
+            )
+
             approvals = list_pending_approvals()
+            pending_types = {(a.get("action_type") or "").strip().lower() for a in approvals}
+
+            # A prerequisite is satisfied by the ARTIFACT, not by the status field
+            # (ADR-014). Approving a backup removes it from `pending` INSTANTLY while the
+            # executor has not run and nothing is on disk yet — measured 2026-08-19 on
+            # #11442 — so the gate must also ask: is one still RUNNING, and did a backup
+            # actually LAND? Both are cheap indexed reads.
+            backup_in_flight, recent_backup_ok, pr_merge_open = False, True, None
+            try:
+                from database import get_db_cursor
+
+                with get_db_cursor(commit=False) as (_c, cur):
+                    cur.execute(
+                        "SELECT count(*) AS n FROM autonomy_approval_queue "
+                        "WHERE action_type='backup_before_deploy' AND status='approved' "
+                        "AND executed_at IS NULL"
+                    )
+                    row = cur.fetchone()
+                    backup_in_flight = bool((row["n"] if isinstance(row, dict) else row[0]) or 0)
+
+                    cur.execute(
+                        "SELECT count(*) AS n FROM backup_log "
+                        "WHERE status='success' AND created_at > now() - make_interval(hours => %s)",
+                        (BACKUP_FRESH_HOURS,),
+                    )
+                    row = cur.fetchone()
+                    recent_backup_ok = bool((row["n"] if isinstance(row, dict) else row[0]) or 0)
+
+                    # Is any PENDING pr_merge approval about a PR that is STILL OPEN?
+                    # A pending row whose PR already merged is stale and must not block —
+                    # merging through Repair Bay does not action the approval row, and
+                    # historic rows sat 24-50h before expiring. `pr_reviews.state` is the
+                    # cheap local mirror Repair Bay maintains; anything not 'open'
+                    # (closed / merged) means the merge already happened.
+                    cur.execute(
+                        """
+                        SELECT count(*) AS n
+                          FROM autonomy_approval_queue q
+                          JOIN pr_reviews r
+                            ON r.pr_number = NULLIF(q.action_data->>'pr_number','')::int
+                         WHERE q.action_type = 'pr_merge'
+                           AND q.status = 'pending' AND q.executed_at IS NULL
+                           AND r.state = 'open'
+                        """
+                    )
+                    row = cur.fetchone()
+                    pr_merge_open = bool((row["n"] if isinstance(row, dict) else row[0]) or 0)
+            except Exception as _pre_exc:  # noqa: BLE001
+                # FAIL SAFE, not fail open: if the facts cannot be read we assume the
+                # backup is NOT satisfied, so the gate stays on. A gate that disappears
+                # when its own query breaks is worse than no gate — it looks green.
+                logger.warning("prerequisite state unreadable (%s) — holding the gate", _pre_exc)
+                backup_in_flight, recent_backup_ok, pr_merge_open = True, False, None
+
+            unsatisfied = unsatisfied_prerequisites(
+                pending_types,
+                backup_in_flight=backup_in_flight,
+                recent_backup_ok=recent_backup_ok,
+                pr_merge_open=pr_merge_open,
+            )
+
             by_source = {}
             for a in approvals:
                 by_source[a["source"]] = by_source.get(a["source"], 0) + 1
+                # Stamped server-side so the UI does not keep a SECOND copy of the
+                # publishing carve-out or the prerequisite graph that could drift.
+                a["bulk_all_allowed"] = can_bulk_all(a.get("action_type"))
+                a["blocked_reasons"] = blocking_reasons(a.get("action_type"), unsatisfied)
+                a["bulk_all_reason"] = bulk_all_reason(a.get("action_type"))
+
+            # Prerequisites first: the queue is presented in the order it is SAFE to clear,
+            # so "work top-down" is correct behaviour rather than something to remember.
+            approvals.sort(
+                key=lambda a: (
+                    category_priority(a.get("action_type")),
+                    (a.get("action_type") or ""),
+                    str(a.get("id") or ""),
+                )
+            )
             return jsonify(
                 {
                     "success": True,
                     "approvals": approvals,
                     "count": len(approvals),
                     "by_source": by_source,
+                    # The UI disables its bulk buttons past this rather than letting the
+                    # server reject a batch the operator already thought was submitted.
+                    "max_bulk": MAX_BULK,
                 }
             )
         except Exception as exc:
@@ -771,6 +863,84 @@ def register_approvals_routes(bp, admin_required_decorator):
             )
         except Exception as exc:
             logger.error("approvals_approve error: %s", exc)
+            return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/approvals/bulk", methods=["POST"])
+    @admin_required_decorator
+    def approvals_bulk():
+        """Approve or deny several approvals in one request.
+
+        Body: {"action": "approve"|"deny", "ids": ["autonomy:123", "bridge:9", ...]}
+
+        Reuses the SAME per-source helpers as the single-item routes, so bulk introduces
+        no second execution path that could drift from it.
+
+        Returns PER-ITEM results, never a bare "done". Partial failure is the normal case:
+        an item already actioned from Telegram in the meantime simply is not pending any
+        more, and reporting that as success would tell the operator work happened that
+        did not. The response is 200 with the breakdown even when some items fail — the
+        caller renders it.
+        """
+        from tools.department_hq.services.approvals_bulk import validate_batch
+
+        try:
+            data = request.get_json(silent=True) or {}
+            parsed, err = validate_batch(data.get("ids"), (data.get("action") or "").strip())
+            if err:
+                return jsonify({"success": False, "error": err}), 400
+
+            action = data["action"].strip()
+            reason = (data.get("reason") or "Bulk denied via Approvals tab").strip()
+            approved, failed = [], []
+            for approval_id, prefix, source_id in parsed:
+                try:
+                    if action == "approve":
+                        if prefix == "autonomy":
+                            ok, action_type = _approve_autonomy(source_id, current_user.id)
+                        elif prefix == "contractor":
+                            ok, action_type = _approve_contractor(source_id, current_user.id)
+                        else:
+                            ok, action_type = _approve_bridge(source_id, current_user.id)
+                    else:
+                        # NOTE the asymmetry: the _deny_* helpers take a REASON and return
+                        # a plain bool, while the _approve_* helpers return
+                        # (ok, action_type). Unpacking them the same way raises.
+                        action_type = None
+                        if prefix == "autonomy":
+                            ok = _deny_autonomy(source_id, current_user.id, reason)
+                        elif prefix == "contractor":
+                            ok = _deny_contractor(source_id, current_user.id, reason)
+                        else:
+                            ok = _deny_bridge(source_id, current_user.id, reason)
+                    if ok:
+                        approved.append({"id": approval_id, "action_type": action_type})
+                    else:
+                        failed.append({"id": approval_id, "error": "not found or already processed"})
+                except Exception as item_exc:  # noqa: BLE001 — one bad item must not
+                    # abort the rest; the operator gets a per-item reason instead.
+                    logger.error("bulk %s failed for %s: %s", action, approval_id, item_exc)
+                    failed.append({"id": approval_id, "error": str(item_exc)})
+
+            logger.info(
+                "Bulk %s by user %s: %s succeeded, %s failed",
+                action,
+                current_user.id,
+                len(approved),
+                len(failed),
+            )
+            return jsonify(
+                {
+                    "success": True,
+                    "action": action,
+                    "requested": len(parsed),
+                    "succeeded": len(approved),
+                    "failed_count": len(failed),
+                    "results": approved,
+                    "failed": failed,
+                }
+            )
+        except Exception as exc:
+            logger.error("approvals_bulk error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
 
     @bp.route("/api/approvals/<path:approval_id>/deny", methods=["POST"])

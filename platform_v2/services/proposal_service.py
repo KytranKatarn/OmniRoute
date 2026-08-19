@@ -1109,11 +1109,81 @@ def deploy_to_production(proposal_id):
                 )
                 backup_result = None
         if backup_result is None:
-            backup_result = create_backup_programmatic(
-                description=f"Pre-deploy snapshot for proposal #{proposal_id}: {proposal['title'][:60]}",
-                created_by_username="system",
-                proposal_id=proposal_id,
-            )
+            # #5812: a batch of N deploys took N FULL ~2.8 GB snapshots of a tree that never
+            # changed (deploy_to_production applies no code — #5808): ~33 GB measured for one
+            # batch of 12. Reuse a recent snapshot when the tree is PROVABLY identical.
+            #
+            # Decided by the ARTIFACT, never the clock — a matching fingerprint is required and
+            # recency is only a secondary bound. FAIL CLOSED everywhere: no fingerprint, no
+            # match, or any exception -> a fresh backup. Wasting 2.8 GB is cheap; deploying
+            # against a restore point that does not match the tree is not.
+            #
+            # The fingerprint is stamped into backup_log.notes AFTER creation, never into the
+            # description — create_backup_programmatic derives the backup DIRECTORY NAME from
+            # the description, so putting it there would pollute the path.
+            _reused, _fp = None, None
+            try:
+                from services.predeploy_backup_reuse import (
+                    FINGERPRINT_PREFIX,
+                    REUSE_MAX_AGE_MINUTES,
+                    pick_reusable_backup,
+                    tree_fingerprint,
+                )
+
+                _app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                _fp = tree_fingerprint([_app_root])
+                if _fp:
+                    with _get_db_cursor() as (_rc, _rcur):
+                        # backup_log has NO backup_name column — the name is the BASENAME of
+                        # file_path (verified: /backups/20260819_125159_Pre-deploy_...).
+                        # Querying a column that does not exist would throw on every deploy and
+                        # fall through to a fresh backup forever: a feature that can never fire.
+                        _rcur.execute(
+                            """SELECT regexp_replace(file_path, '^.*/', '') AS backup_name,
+                                      notes,
+                                      EXTRACT(EPOCH FROM (now() - created_at))/60.0 AS age_minutes
+                                 FROM backup_log
+                                WHERE status = 'success'
+                                  AND file_path IS NOT NULL
+                                  AND notes LIKE %s
+                                  AND created_at > now() - make_interval(mins => %s)
+                                ORDER BY created_at DESC LIMIT 10""",
+                            (f"%{FINGERPRINT_PREFIX}%", REUSE_MAX_AGE_MINUTES),
+                        )
+                        _cands = [dict(r) for r in _rcur.fetchall()]
+                    _reused = pick_reusable_backup(_cands, _fp)
+            except Exception as _reuse_err:
+                logger.warning("pre-deploy backup reuse check failed (taking a fresh backup): %s", _reuse_err)
+                _reused = None
+
+            if _reused:
+                logger.info(
+                    "proposal %s: REUSING pre-deploy backup %s (tree fingerprint %s unchanged)",
+                    proposal_id,
+                    _reused,
+                    _fp,
+                )
+                backup_result = {"success": True, "backup_name": _reused, "reused": True, "tree_fingerprint": _fp}
+            else:
+                backup_result = create_backup_programmatic(
+                    description=f"Pre-deploy snapshot for proposal #{proposal_id}: {proposal['title'][:60]}",
+                    created_by_username="system",
+                    proposal_id=proposal_id,
+                )
+                # Stamp the fingerprint so the NEXT deploy in this batch can match it.
+                # Non-fatal: without the stamp we simply take another full backup.
+                if _fp and backup_result and backup_result.get("success"):
+                    try:
+                        from services.predeploy_backup_reuse import FINGERPRINT_PREFIX as _FPP
+
+                        with _get_db_cursor(commit=True) as (_sc, _scur):
+                            _scur.execute(
+                                "UPDATE backup_log SET notes = COALESCE(notes,'') || %s "
+                                "WHERE id = (SELECT max(id) FROM backup_log WHERE status='success')",
+                                (f" {_FPP}{_fp}",),
+                            )
+                    except Exception as _stamp_err:
+                        logger.warning("could not stamp tree fingerprint on backup: %s", _stamp_err)
         backup_name = backup_result.get("backup_name", "") if backup_result.get("success") else ""
 
         # Record in improvement_deployments so Deployment Backups tab shows it

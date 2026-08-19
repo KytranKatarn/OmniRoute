@@ -1156,6 +1156,30 @@ def signal_group_image_retry():
                 pass
 
 
+def _planner_node_fits(node: dict, model: str) -> bool:
+    """Can *node* actually hold *model*? Diagnostic-grade wrapper for the planner.
+
+    Delegates to the SAME predicate BridgeDispatcher routes on
+    (fleet_resource_router.can_node_run_model), so the planner's hint and the
+    dispatcher's decision cannot drift apart.
+
+    FAIL-OPEN on purpose. This only decorates a log line — the planner writes
+    priorities, never node assignments. A capacity lookup that raises must never
+    take the queue planner down; a slightly optimistic hint is the cheaper failure.
+
+    Context: an UNFILTERED hint printed gpu_fleet[0] for every model, so it claimed
+    "gemma3:12b -> GPU fleet (USS-245)" for a 4GB node. On 2026-08-19 that misled an
+    operator into capping a node that was serving qwen2.5:7b at 50/50 and 32.4s
+    (KB #291799). A diagnostic naming an impossible node is worse than no diagnostic.
+    """
+    try:
+        from services.fleet_resource_router import can_node_run_model
+
+        return bool(can_node_run_model(node, model))
+    except Exception:  # pragma: no cover - defensive
+        return True
+
+
 def _register_own_jobs(scheduler, flask_app):
     """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -1724,6 +1748,7 @@ def _register_own_jobs(scheduler, flask_app):
                     """
                     SELECT node_id, node_name, hostname, gpu_vram_gb, ram_gb,
                            ollama_available, deployment_mode,
+                           gpu_available, extra_capabilities,
                            last_heartbeat,
                            (last_heartbeat > NOW() - INTERVAL '3 minutes') AS is_live
                     FROM remote_nodes
@@ -1781,11 +1806,21 @@ def _register_own_jobs(scheduler, flask_app):
                 # Priority: top batch = 9, each rank down -1, floor at 5
                 new_priority = max(5, 9 - rank + (1 if is_cpu else 0))
 
-                # Route hint: can any fleet node handle this model?
-                if is_cpu and cpu_fleet:
-                    route = f"→ CPU fleet ({cpu_fleet[0]['node_name']})"
-                elif not is_cpu and gpu_fleet:
-                    route = f"→ GPU fleet ({gpu_fleet[0]['node_name']})"
+                # Route hint: name a node that can ACTUALLY hold this model.
+                # This string is diagnostic only — the planner writes priority, never a
+                # node assignment (node choice belongs to BridgeDispatcher/model_dispatch,
+                # which enforce capacity themselves). But an unfiltered hint printed
+                # gpu_fleet[0] regardless of the model, so it happily claimed
+                # "gemma3:12b -> GPU fleet (USS-245)" for a 4GB node. On 2026-08-19 that
+                # misled an operator into capping a 100%-healthy node (KB #291799).
+                # A diagnostic that names an impossible node is worse than no hint.
+                candidates = cpu_fleet if is_cpu else gpu_fleet
+                eligible = [n for n in candidates if _planner_node_fits(n, model)]
+                if eligible:
+                    lane = "CPU" if is_cpu else "GPU"
+                    route = f"→ {lane} fleet ({eligible[0]['node_name']})"
+                elif candidates:
+                    route = "→ hub (no fleet node can hold this model)"
                 else:
                     route = "→ hub"
 

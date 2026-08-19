@@ -591,10 +591,30 @@ def reactivate_agent(agent_id, reason="manual reactivation"):
                 ),
             }
 
-        cur.execute(
-            "UPDATE agents SET shift_state = 'barracked', updated_at = NOW() " "WHERE id = %s",
-            (agent_id,),
+        # #5829: was a RAW UPDATE, which left no rotation row — the bench had no
+        # provenance and no age, so nobody could tell why an agent was on it or
+        # for how long. Now goes through the logged transition (migration 472
+        # made 'barracked' recordable). Landing on the BENCH rather than active
+        # is deliberate and unchanged: a reactivated agent should not silently
+        # start taking work.
+        _log_res = transition_shift_state(
+            agent_id,
+            "barracked",
+            reason=f"reactivated: {reason}",
+            changed_by="agent_service.reactivate_agent",
         )
+        if not _log_res.get("success"):
+            # Fall back to the direct write rather than leave the agent stuck in
+            # 'decommissioned' — reactivation must not fail on a logging problem.
+            logger.warning(
+                "[agent_service] reactivate %s: logged transition failed (%s) — writing directly",
+                agent_id,
+                _log_res.get("error"),
+            )
+            cur.execute(
+                "UPDATE agents SET shift_state = 'barracked', updated_at = NOW() WHERE id = %s",
+                (agent_id,),
+            )
         logger.info(f"[agent_service] Reactivated agent {agent_id} ({row['name']}): {reason}")
         return {
             "success": True,
@@ -1533,8 +1553,13 @@ def transition_shift_state(agent_id, new_state, reason="manual", changed_by="sys
     if new_state not in VALID_SHIFT_STATES:
         return {"success": False, "error": f"Invalid shift state: {new_state}"}
 
-    # rotation_log CHECK only allows: active, winding_down, cooldown, off_duty
-    ROTATION_LOG_STATES = ("active", "winding_down", "cooldown", "off_duty")
+    # rotation_log CHECK states. 'barracked' added by migration 472 (#5829):
+    # it was previously UNRECORDABLE, so every bench in the platform's history
+    # left no audit row — which made a deliberate bench indistinguishable from an
+    # accident. Four agents were found working while flagged barracked with no
+    # rotation row and no rest cycle; there was literally no evidence to consult.
+    # 'decommissioned' stays out on purpose: a terminal lifecycle state, not a shift.
+    ROTATION_LOG_STATES = ("active", "winding_down", "cooldown", "off_duty", "barracked")
 
     replacement = None
     with get_db_cursor(commit=True) as (conn, cur):

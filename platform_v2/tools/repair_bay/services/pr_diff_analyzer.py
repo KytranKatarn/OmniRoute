@@ -438,6 +438,63 @@ _HARDCODE_IS_REAL_RE = re.compile(
 _CONTRASTIVE_RE = re.compile(r"\b(however|but|although|though|that\s+said|nevertheless|nonetheless|whereas)\b", re.I)
 
 
+# SPECULATIVE COVERAGE (#5846) — the FOURTH non-finding shape, and the one that blocked
+# PR #2718 three times running.
+#
+# "The regex `_PERMANENT_AUTH_RE` is deliberately narrow to avoid false positives, but it
+# could still miss some cases where the server rejects a credential."
+#
+# By the third pass the finding had absorbed the rebuttal and stated the design rationale
+# ITSELF — and still carried [WARNING], which blocks. It asserts no present defect: it
+# hypothesises about INPUTS THAT DO NOT EXIST IN THE DIFF. That makes it a CLAIM problem in
+# ADR-001 terms (like _is_unverifiable_test_execution_claim), not a severity-vocabulary one:
+# no diff can show that a pattern handles every string that might ever arrive. A reviewer can
+# always say "your allow-list might be incomplete" about any allow-list, forever.
+#
+# Distinct from its neighbours: _asserts_no_defect needs APPROVAL wording, _is_design_observation
+# needs a SHAPE remark, _NONBLOCKING_CATEGORY_RE needs a known nit category. This matches none.
+#
+# THREE conditions, because this DEMOTES and a false positive hides a real defect:
+#   1. speculative-coverage phrasing,
+#   2. no predicative fault claim (_DEFECT_ASSERTION_RE) — "may not cover X and IS broken" blocks,
+#   3. NO CONCRETE EXEMPLAR. "may not cover all edge cases, SUCH AS multiple retries" names a
+#      case a human can go and check, which makes it an observation rather than speculation —
+#      it keeps its severity. Measured on the live corpus: this exclusion is what keeps
+#      pr_reviews' "exception handling ... such as multiple retries" finding blocking.
+#
+# Corpus-measured before shipping (1,743 real issue lines): this predicate demotes 6 lines
+# total, of which only 2 carried a BLOCKING severity — the #2718 finding and a "consider
+# adding more explicit mocks" suggestion. Neither alleges a defect. The exemplar rule is what
+# keeps the third blocking candidate ("may not cover all edge cases, SUCH AS multiple
+# retries") at WARNING.
+_SPECULATIVE_COVERAGE_RE = re.compile(
+    r"not\s+exhaustive" r"|may\s+not\s+be\s+(exhaustive|comprehensive|complete)"
+    # NB: no "fail to ..." branch — `_DEFECT_ASSERTION_RE` matches `fail(s|ing|ed)? to` and
+    # vetoes first, so such a branch could never take effect. That veto is the CORRECT
+    # outcome ("could fail to cover" reads as a fault claim, so the finding keeps its
+    # severity); the branch would just be dead pattern implying otherwise.
+    r"|(may|might|could)\s+(still\s+)?(miss|not\s+(match|cover|handle|account))"
+    r"|future\s+(?:\w+\s+){1,3}(may|might|could)\s+not"
+    r"|(may|might|could)\s+not\s+cover\s+all",
+    re.I,
+)
+
+# A cited example turns speculation into a checkable observation — keep its severity.
+_CONCRETE_EXEMPLAR_RE = re.compile(r"\bsuch\s+as\b|\be\.?g\.?\b|\bfor\s+(example|instance)\b", re.I)
+
+
+def _is_speculative_coverage_claim(blob: str) -> bool:
+    """True when a finding's only complaint is that a pattern/list might not cover inputs that
+    are not in the diff — unfalsifiable from a diff, so it may inform but must not block."""
+    if not blob:
+        return False
+    if _DEFECT_ASSERTION_RE.search(blob):
+        return False
+    if _CONCRETE_EXEMPLAR_RE.search(blob):
+        return False
+    return bool(_SPECULATIVE_COVERAGE_RE.search(blob))
+
+
 def _is_design_observation(blob: str) -> bool:
     """True when a finding only remarks on SHAPE (complexity, size, a hardcoded tunable) or hedges
     unfalsifiably, and asserts no fault anywhere.
@@ -484,7 +541,12 @@ def _normalize_severity(issues: list) -> list:
         if str(i.get("severity", "")).upper() not in _BLOCKING_SEVERITIES:
             continue
         blob = f"{i.get('title', '')} {i.get('why', '')}"
-        if _NONBLOCKING_CATEGORY_RE.search(blob) or _asserts_no_defect(blob) or _is_design_observation(blob):
+        if (
+            _NONBLOCKING_CATEGORY_RE.search(blob)
+            or _asserts_no_defect(blob)
+            or _is_design_observation(blob)
+            or _is_speculative_coverage_claim(blob)
+        ):
             i["_demoted_from"] = str(i.get("severity", "")).upper()
             i["severity"] = "INFO"
     return issues
@@ -504,6 +566,7 @@ def _demote_nonblocking_lines(review_text: str) -> str:
             _NONBLOCKING_CATEGORY_RE.search(m.group(2))
             or _asserts_no_defect(m.group(2))
             or _is_design_observation(m.group(2))
+            or _is_speculative_coverage_claim(m.group(2))
         ):
             line = f"{m.group(1)}[INFO]{m.group(2)}"
         out.append(line)

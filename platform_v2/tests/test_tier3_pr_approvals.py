@@ -19,6 +19,7 @@ to force-merge any PR past governance.
 from __future__ import annotations
 
 import ast
+import importlib.util
 import sys
 from pathlib import Path
 from unittest import mock
@@ -29,7 +30,6 @@ _PLATFORM = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_PLATFORM))
 
 from tools.repair_bay.services import pr_review_service as prs  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # open_pr_merge_approval — the tier-conflation trap
@@ -121,7 +121,14 @@ def test_resolve_never_raises():
 
 
 def _pr_merge_callback_ast():
-    src = (_PLATFORM.parent / "ai_bridge" / "telegram_gateway.py").read_text()
+    # Resolve ai_bridge through the IMPORT SYSTEM, never by walking up from _PLATFORM.
+    # Inside archie_platform, _PLATFORM is /app, so _PLATFORM.parent is / and this read
+    # went looking for /ai_bridge/telegram_gateway.py — which is not mounted. The package
+    # IS importable (/mnt/archie_brain/ai_bridge), so ask for it. find_spec locates it
+    # without executing the package (#5852).
+    _spec = importlib.util.find_spec("ai_bridge")
+    _base = Path(_spec.origin).parent if _spec and _spec.origin else _PLATFORM.parent / "ai_bridge"
+    src = (_base / "telegram_gateway.py").read_text()
     tree = ast.parse(src)
     for node in ast.walk(tree):
         if isinstance(node, ast.AsyncFunctionDef) and node.name == "_pr_merge_callback":

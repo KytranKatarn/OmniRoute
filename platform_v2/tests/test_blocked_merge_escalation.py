@@ -46,11 +46,16 @@ def wired(monkeypatch):
     opened = []
     marked = []
     tiered = []
-    state = {"open": True}
+    state = {"open": True, "approval_id": 4242}
 
     def _open(pr, title, summary, repo=None):
         order.append("open_row")
         opened.append({"pr": pr, "title": title, "repo": repo})
+        # MUST return an approval id. #5829 made the escalation mark "asked" only when a
+        # queue ROW EXISTS, so a double that returns None silently exercises the failure
+        # path and every escalation test goes red for the wrong reason. Record the
+        # artifact, never the intent — the double has to honour that too.
+        return state["approval_id"]
 
     def _mark(pr):
         order.append("mark_sent")
@@ -67,6 +72,7 @@ def wired(monkeypatch):
 
     loop = _StubLoop()
     return {
+        "state": state,
         "loop": loop,
         "order": order,
         "opened": opened,
@@ -370,3 +376,18 @@ def test_pr_is_open_makes_exactly_one_api_call(monkeypatch):
     gh.pr_is_open(1)
 
     assert len(calls) == 1, f"expected 1 API call, made {len(calls)}"
+
+
+def test_a_failed_approval_row_is_NOT_marked_as_asked(wired):
+    """#5829, previously UNPINNED — which is why the stale double went red instead.
+
+    `kytran_approval_sent` permanently suppresses re-escalation. Setting it when the row
+    was never created (draft guard, dedup, or error) retires an OPEN, UNMERGED PR from the
+    queue forever. So a falsy approval id must NOT mark, and must report failure so the
+    next cycle retries. Same principle as ADR-014: record the artifact, never the intent.
+    """
+    wired["state"]["approval_id"] = None
+    result = {"merged": False, "governance_blocked": True, "error": "nope"}
+
+    assert _escalate(wired["loop"], _review(7777), result, 1) is False
+    assert wired["marked"] == [], "a PR with no queue row must never be marked as asked"

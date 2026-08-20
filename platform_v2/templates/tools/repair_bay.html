@@ -3672,13 +3672,29 @@ function triggerPRAnalysis(prNumber) {
         }).catch(function(e){ alert('Analyze request failed.'); });
 }
 
-function confirmMergePR(prNumber) {
-    if (!confirm('Merge PR #' + prNumber + ' into main?')) return;
+function confirmMergePR(prNumber, coverageAck) {
+    if (!coverageAck && !confirm('Merge PR #' + prNumber + ' into main?')) return;
     fetch('/tools/repair-bay/api/forge/prs/' + prNumber + '/merge',
-          {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({method:'squash'})})
+          {method:'POST', headers:{'Content-Type':'application/json'},
+           body: JSON.stringify({method:'squash', coverage_ack: !!coverageAck})})
         .then(function(r){ return r.json(); }).then(function(d) {
-            if (d.success) { window.loadPRReviews(_prStateFilter); }
-            else { alert('Merge failed: ' + (d.error || 'Unknown')); }
+            if (d.success) { window.loadPRReviews(_prStateFilter); return; }
+            // Coverage-only demotion: the model approved what it read. Dischargeable by a
+            // human who reads the dropped files — so NAME them in the confirm.
+            if (d.coverage_only && !coverageAck) {
+                var files = d.dropped_files || [];
+                var list = files.length
+                    ? '\n\n' + files.map(function(f){ return '  \u2022 ' + f; }).join('\n')
+                    : '\n\n  (the review did not name them)';
+                if (confirm('PR #' + prNumber + ' \u2014 COVERAGE ONLY\n\n'
+                    + 'F.O.R.G.E. APPROVED everything it read, but ' + files.length
+                    + ' file(s) were truncated away before it saw them:' + list
+                    + '\n\nMerging now means YOU have read those files. Cancel to re-review instead.')) {
+                    confirmMergePR(prNumber, true);
+                }
+                return;
+            }
+            alert('Merge failed: ' + (d.error || 'Unknown'));
         }).catch(function(){ alert('Merge request failed.'); });
 }
 

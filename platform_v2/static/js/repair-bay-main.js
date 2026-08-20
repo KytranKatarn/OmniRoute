@@ -481,13 +481,25 @@ function _mergePr(prNumber, btn) {
     });
 }
 
-function _doMergePr(prNumber, btn) {
+function _rbCoverageAckPrompt(prNumber, files) {
+    var list = (files || []);
+    var shown = list.length
+        ? '\n\n' + list.map(function (f) { return '  \u2022 ' + f; }).join('\n')
+        : '\n\n  (the review did not name them)';
+    return 'PR #' + prNumber + ' \u2014 COVERAGE ONLY\n\n'
+        + 'F.O.R.G.E. APPROVED everything it read, but ' + list.length
+        + ' file(s) were truncated away before it saw them:' + shown
+        + '\n\nMerging now means YOU have read those files. '
+        + 'Cancel to re-review instead.';
+}
+
+function _doMergePr(prNumber, btn, coverageAck) {
     btn.disabled = true;
     btn.textContent = 'Merging…';
     _rbFetchJson(RB_API + '/forge/prs/' + prNumber + '/merge', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({method: 'squash'})
+        body: JSON.stringify({method: 'squash', coverage_ack: !!coverageAck})
     })
     .then(function(data) {
         if (data.success) {
@@ -495,6 +507,15 @@ function _doMergePr(prNumber, btn) {
             btn.style.background = '#16a34a';
             _rbShowToast('success', 'PR #' + prNumber + ' merged');
             setTimeout(loadReviews, 1500);
+        } else if (data.coverage_only && !coverageAck) {
+            // The reviewer APPROVED what it read; only truncated files demoted the verdict.
+            // That is dischargeable by a human who reads them — but the confirm must NAME
+            // the files, or the click is uninformed and the gate is theatre.
+            btn.disabled = false;
+            btn.textContent = 'Merge';
+            if (confirm(_rbCoverageAckPrompt(prNumber, data.dropped_files))) {
+                _doMergePr(prNumber, btn, true);   // one retry only, guarded by coverageAck
+            }
         } else {
             btn.disabled = false;
             btn.textContent = 'Merge failed';

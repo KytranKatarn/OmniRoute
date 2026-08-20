@@ -95,6 +95,54 @@ def verdict_is_approved(summary_or_text: str | None) -> bool:
     return parse_verdict(summary_or_text) == "APPROVE"
 
 
+def coverage_only_demotion(summary_or_text: str | None) -> bool:
+    """True when the ONLY thing standing between this review and an approval is coverage.
+
+    The #5836 coverage gate appends its block to the model's summary and ends it with
+    ``VERDICT: NEEDS REVIEW``. parse_verdict reads the LAST verdict, so a review the model
+    APPROVED becomes indistinguishable from one it REJECTED — both return False from
+    verdict_is_approved. The standing rule distinguishes them ("a coverage demotion is
+    overridable — a human should read the rest; a REQUEST CHANGES is NOT"), but until now
+    only in prose. This makes that distinction checkable.
+
+    STRICT by construction: annotate() builds the summary as f"{summary}\n\n{block}", so
+    everything before MARKER is verbatim what the model produced. We re-parse THAT and
+    require an approval. A REQUEST CHANGES that also got coverage-demoted therefore returns
+    False and stays unmergeable — which is the whole point.
+    """
+    if not summary_or_text:
+        return False
+    from services.review_coverage import MARKER  # noqa: PLC0415 - pure module, no cycle
+
+    if MARKER not in summary_or_text:
+        return False
+    underlying = summary_or_text.split(MARKER, 1)[0]
+    return parse_verdict(underlying) == "APPROVE"
+
+
+def coverage_dropped_paths(summary_or_text: str | None) -> list:
+    """The files the reviewer never read, for showing a human what they are discharging.
+
+    A count alone does not tell anyone whether the dropped file was a README or the deploy
+    path — the same reasoning as coverage_note's own listing.
+    """
+    if not summary_or_text:
+        return []
+    from services.review_coverage import MARKER  # noqa: PLC0415
+
+    if MARKER not in summary_or_text:
+        return []
+    block = summary_or_text.split(MARKER, 1)[1]
+    out = []
+    for line in block.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- ") and not stripped.startswith("- ...and "):
+            out.append(stripped[2:].strip())
+        elif out and not stripped:
+            break  # the listing ends at the first blank line after it starts
+    return out
+
+
 def get_tracked_repos(cur=None) -> list:
     """Return repos to poll.
 

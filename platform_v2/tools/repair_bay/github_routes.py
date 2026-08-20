@@ -91,18 +91,39 @@ def register_github_routes(bp, admin_required):
         # main. Staleness stays with merge_pr's _override_stale_verdict_check (#5672).
         try:
             from .services.github_service import verdict_refusal
-            from .services.pr_review_service import get_review, verdict_is_approved
+            from .services.pr_review_service import (
+                coverage_dropped_paths,
+                get_review,
+                verdict_is_approved,
+            )
 
             _row = get_review(pr_number) or {}
             _summary = _row.get("ai_summary") or ""
-            _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary))
+            _ack = bool(data.get("coverage_ack"))
+            _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary), coverage_ack=_ack)
+            _dropped = coverage_dropped_paths(_summary) if _refusal else []
         except Exception as _exc:  # noqa: BLE001
             # FAIL CLOSED — an unreadable verdict is not an approval, and this ends in an
             # unrevertable merge to main.
             _refusal = f"could not verify the verdict ({_exc}) — refusing rather than guessing"
+            _dropped = []
         if _refusal:
             logger.warning("[FORGE] refusing merge of PR #%s: %s", pr_number, _refusal)
-            return jsonify({"success": False, "merged": False, "error": _refusal}), 422
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "merged": False,
+                        "error": _refusal,
+                        # coverage_only tells the UI it may offer an informed discharge; the
+                        # dropped list is WHAT the human is being asked to take responsibility
+                        # for. A count alone would make that an uninformed click.
+                        "coverage_only": _refusal.startswith("COVERAGE ONLY"),
+                        "dropped_files": _dropped,
+                    }
+                ),
+                422,
+            )
 
         result = merge_pr(pr_number, method, human_override=True)
         if result.get("success") or result.get("merged"):
@@ -925,15 +946,29 @@ def register_github_routes(bp, admin_required):
         # non-None only proves a review ROW exists; it says nothing about the verdict.
         try:
             from .services.github_service import verdict_refusal
-            from .services.pr_review_service import verdict_is_approved
+            from .services.pr_review_service import coverage_dropped_paths, verdict_is_approved
 
             _summary = review.get("ai_summary") or ""
-            _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary))
+            _ack = bool((request.get_json(silent=True) or {}).get("coverage_ack"))
+            _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary), coverage_ack=_ack)
+            _dropped = coverage_dropped_paths(_summary) if _refusal else []
         except Exception as _exc:  # noqa: BLE001
             _refusal = f"could not verify the verdict ({_exc}) — refusing rather than guessing"
+            _dropped = []
         if _refusal:
             logger.warning("[FORGE] refusing merge of PR #%s: %s", pr_number, _refusal)
-            return jsonify({"success": False, "merged": False, "error": _refusal}), 422
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "merged": False,
+                        "error": _refusal,
+                        "coverage_only": _refusal.startswith("COVERAGE ONLY"),
+                        "dropped_files": _dropped,
+                    }
+                ),
+                422,
+            )
 
         # #4494: merge against the PR's OWN repo (watch-product PRs live in separate repos).
         # human_override: @login_required @admin_required — an attended operator merge,

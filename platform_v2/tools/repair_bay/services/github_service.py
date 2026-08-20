@@ -603,7 +603,7 @@ def _pr_on_open_window(pr_number: int) -> tuple:
         return False, f"window check failed ({type(exc).__name__}) — refusing"
 
 
-def verdict_refusal(summary: str, verdict_ok: bool) -> "str | None":
+def verdict_refusal(summary: str, verdict_ok: bool, coverage_ack: bool = False) -> "str | None":
     """Why a stored verdict does not authorize a merge — or None if it does.
 
     ONE definition of the SAFETY half of merge governance, shared by every
@@ -623,9 +623,30 @@ def verdict_refusal(summary: str, verdict_ok: bool) -> "str | None":
     """
     if not summary:
         return "no stored F.O.R.G.E. review — a dead review is not an approval"
-    if not verdict_ok:
-        return "the stored verdict is NOT an approval — re-review before merging"
-    return None
+    if verdict_ok:
+        return None
+
+    # THIRD STATE (#5834 follow-up): the model APPROVED what it read and the verdict was
+    # demoted only because files were truncated away. The standing rule has always said a
+    # coverage demotion is dischargeable by a human who reads the rest, while a REQUEST
+    # CHANGES is not — but the coverage gate rewrites the final verdict, so both looked
+    # identical here and the UI could offer neither. Fail CLOSED if the check itself breaks.
+    try:
+        from .pr_review_service import coverage_only_demotion  # noqa: PLC0415
+
+        _coverage_only = coverage_only_demotion(summary)
+    except Exception:  # noqa: BLE001 - an unverifiable demotion is not a dischargeable one
+        _coverage_only = False
+
+    if _coverage_only:
+        if coverage_ack:
+            return None
+        return (
+            "COVERAGE ONLY — the reviewer APPROVED what it read, but some files were "
+            "truncated away before it saw them. Read the dropped files and confirm, or "
+            "re-review with a wider window."
+        )
+    return "the stored verdict is NOT an approval — re-review before merging"
 
 
 def _override_stale_verdict_check(pr_number: int, repo: str = None) -> tuple:

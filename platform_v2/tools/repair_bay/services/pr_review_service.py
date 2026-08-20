@@ -346,6 +346,22 @@ def sync_closed_prs(repo: str = None) -> int:
             updated = cur.rowcount
     except Exception as e:
         logger.error("pr_review_service: sync_closed update failed: %s", e)
+
+    # A PR leaving the open set also makes any pending merge APPROVAL for it moot
+    # (#5862). Wired HERE rather than at each caller: sync_closed_prs has three
+    # (the manual Repair Bay route, dept_hq jobs `agent_forge_pr_poll`, and
+    # agent_loop `forge_pr_review_poll`), and per-caller wiring is precisely how the
+    # merge-governance hole existed. Deliberately below the early returns above — a
+    # FAILED PR list must not be read as "everything closed" (#5707).
+    try:
+        from tools.department_hq.services.approvals_reconcile import (
+            close_stale_pr_merge_approvals,
+        )
+
+        close_stale_pr_merge_approvals()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pr_review_service: approval reconcile skipped: %s", e)
+
     return updated
 
 

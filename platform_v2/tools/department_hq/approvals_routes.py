@@ -590,6 +590,7 @@ def register_approvals_routes(bp, admin_required_decorator):
                 blocking_reasons,
                 bulk_all_reason,
                 can_bulk_all,
+                category_of,
                 category_priority,
             )
 
@@ -668,6 +669,10 @@ def register_approvals_routes(bp, admin_required_decorator):
                 a["bulk_all_allowed"] = can_bulk_all(a.get("action_type"))
                 a["blocked_reasons"] = blocking_reasons(a.get("action_type"), unsatisfied)
                 a["bulk_all_reason"] = bulk_all_reason(a.get("action_type"))
+                # Sub-tab grouping for the Approvals tab. Stamped here for the same
+                # reason as the fields above: a second copy of the taxonomy in JS would
+                # drift from the one the backend enforces.
+                a["category"] = category_of(a.get("action_type"))
 
             # Prerequisites first: the queue is presented in the order it is SAFE to clear,
             # so "work top-down" is correct behaviour rather than something to remember.

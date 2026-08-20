@@ -107,6 +107,83 @@ def category_priority(action_type):
     return CATEGORY_PRIORITY.get((action_type or "").strip().lower(), _DEFAULT_PRIORITY)
 
 
+# ---------------------------------------------------------------------------
+# UI CATEGORIES — the Approvals tab's sub-tab filter (#5862 follow-on).
+#
+# Distinct from CATEGORY_PRIORITY above: that is a SORT key (what is safe to clear
+# first), this is a GROUPING (what kind of attention this needs). Shipping decisions
+# and content review are different modes, and 34 pending items mixing both is what
+# made the tab hard to work.
+#
+# Stamped server-side onto each approval, for the same reason bulk_all_allowed is:
+# a second copy of this taxonomy in JS would drift from the one the backend enforces.
+#
+# ⚠️ INVARIANT: a prerequisite and the thing it gates MUST land in the SAME category.
+# The tab filters an already-sorted, already-gated list, so a split chain would show a
+# blocked item in one tab while its blocker sits unseen in another. PREREQUISITES
+# currently maps deploy_approve/improvement_approve_red/website_deploy onto
+# backup_before_deploy + pr_merge — all "ship" — and test_approval_categories.py
+# fails if that ever stops being true.
+CATEGORY_SHIP = "ship"
+CATEGORY_SOCIAL = "social"
+CATEGORY_MAIL = "mail"
+CATEGORY_AGENTS = "agents"
+CATEGORY_OTHER = "other"
+
+# Order is the sub-tab order in the UI. "all" is synthesised by the frontend.
+CATEGORY_ORDER = (CATEGORY_SHIP, CATEGORY_SOCIAL, CATEGORY_MAIL, CATEGORY_AGENTS, CATEGORY_OTHER)
+
+CATEGORY_LABELS = {
+    CATEGORY_SHIP: "Ship",
+    CATEGORY_SOCIAL: "Social",
+    CATEGORY_MAIL: "Mail",
+    CATEGORY_AGENTS: "Agents",
+    CATEGORY_OTHER: "Other",
+}
+
+ACTION_CATEGORY = {
+    # Ship — code, deploys, and the restore point that gates them.
+    "backup_before_deploy": CATEGORY_SHIP,
+    "pr_merge": CATEGORY_SHIP,
+    "deploy_approve": CATEGORY_SHIP,
+    "improvement_approve": CATEGORY_SHIP,
+    "improvement_approve_red": CATEGORY_SHIP,
+    "website_deploy": CATEGORY_SHIP,
+    "restart_container": CATEGORY_SHIP,
+    # Mail
+    "email_reply": CATEGORY_MAIL,
+    # Agents — hiring and agent-account changes.
+    "hire_candidate": CATEGORY_AGENTS,
+    "create_agent": CATEGORY_AGENTS,
+    "agent_password_reset": CATEGORY_AGENTS,
+    # Other named surfaces
+    "media_hub_action": CATEGORY_OTHER,
+}
+
+# Every outbound social action is `linkedin_*`. Matched by PREFIX deliberately: new
+# LinkedIn skills get added regularly (linkedin_comment_like and linkedin_reply both
+# arrived after the first four), and defaulting a NEW publish action into "Other"
+# would quietly hide it from the Social tab an operator uses to review outbound
+# content. Prefix-matching fails toward visibility in the right place.
+_CATEGORY_PREFIXES = (("linkedin_", CATEGORY_SOCIAL),)
+
+
+def category_of(action_type):
+    """Which sub-tab does this action belong in? Never raises; defaults to 'other'.
+
+    Coerces rather than assuming a string: action_type is read out of a JSONB column,
+    so a non-string is representable even if nothing writes one today. This function
+    feeds the tab render — it must degrade to "other", never take the page down.
+    """
+    key = ("" if action_type is None else str(action_type)).strip().lower()
+    if key in ACTION_CATEGORY:
+        return ACTION_CATEGORY[key]
+    for prefix, category in _CATEGORY_PREFIXES:
+        if key.startswith(prefix):
+            return category
+    return CATEGORY_OTHER
+
+
 # A backup approval that is APPROVED but not yet EXECUTED — or executed with no resulting
 # artifact — does NOT satisfy the prerequisite. Measured 2026-08-19: approving
 # `backup_before_deploy` #11442 removed it from `pending` INSTANTLY, clearing the deploy

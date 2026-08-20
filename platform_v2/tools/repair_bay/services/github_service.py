@@ -997,6 +997,20 @@ def merge_pr(
                 except Exception:
                     pass
 
+    # The PR is merged, so any pending merge APPROVAL for it is now moot (#5862).
+    # Closed at the choke point rather than per-caller: merge_pr has several call sites
+    # and human_override merges bypass every one of the automated ones, which is exactly
+    # how 4 of 4 pending approvals ended up pointing at already-merged PRs. Bookkeeping
+    # only — it must never turn a SUCCESSFUL merge into a failure, hence the broad catch.
+    try:
+        from tools.department_hq.services.approvals_reconcile import (
+            close_pr_merge_approvals_for,
+        )
+
+        close_pr_merge_approvals_for(pr_number, _repo)
+    except Exception as _appr_exc:  # noqa: BLE001
+        logger.warning("post-merge approval cleanup skipped for #%s: %s", pr_number, _appr_exc)
+
     return {
         "success": True,
         # GitHub's merge response carries "merged": true; default True since a

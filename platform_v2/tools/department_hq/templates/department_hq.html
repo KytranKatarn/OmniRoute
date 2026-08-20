@@ -1231,16 +1231,26 @@
 async function loadDhqApprovals() {
     var container = document.getElementById('dhq-approvals-pending');
     if (!container) return;
-    container.textContent = '';
-    var loading = document.createElement('div');
-    loading.style.cssText = 'text-align:center;padding:40px;color:#64748b';
-    loading.textContent = 'Loading approvals...';
-    container.appendChild(loading);
+    // ONLY on a cold load. This used to wipe the container and drop in a spinner on
+    // EVERY call, including the 15s auto-refresh — which is half of why the tab threw
+    // you back to the top: even an unchanged payload repainted from scratch. A refresh
+    // now leaves the rendered list untouched until there is something different to show.
+    if (_dhqRenderedSig === null) {
+        container.textContent = '';
+        var loading = document.createElement('div');
+        loading.style.cssText = 'text-align:center;padding:40px;color:#64748b';
+        loading.textContent = 'Loading approvals...';
+        container.appendChild(loading);
+    }
 
     try {
         var resp = await fetch('/tools/department-hq/api/approvals/pending');
         var data = await resp.json();
-        if (!data.success) { container.textContent = 'Error: ' + (data.error || 'unknown'); return; }
+        if (!data.success) {
+            _dhqRenderedSig = null;   // force a full repaint once the API recovers
+            container.textContent = 'Error: ' + (data.error || 'unknown');
+            return;
+        }
 
         // Update badge count
         var badge = document.getElementById('dhq-approvals-badge');
@@ -1249,27 +1259,14 @@ async function loadDhqApprovals() {
             else { badge.style.display = 'none'; }
         }
 
-        container.textContent = '';
-        if (!data.approvals.length) {
-            var empty = document.createElement('div');
-            empty.style.cssText = 'text-align:center;padding:40px;color:#22c55e;font-size:0.9rem';
-            empty.textContent = 'No pending approvals — all clear.';
-            container.appendChild(empty);
-        } else {
-            _dhqMaxBulk = data.max_bulk || 50;
-            container.appendChild(_renderBulkBar());
-            // Group by action_type, preserving first-seen order so the list does not
-            // reshuffle between polls.
-            var groups = [], byType = {};
-            data.approvals.forEach(function(a) {
-                var t = a.action_type || 'other';
-                if (!byType[t]) { byType[t] = { type: t, items: [], bulkAll: a.bulk_all_allowed !== false, blocked: a.blocked_reasons || [], noBulkReason: a.bulk_all_reason || '' }; groups.push(byType[t]); }
-                byType[t].items.push(a);
-            });
-            groups.forEach(function(g) { container.appendChild(_renderApprovalGroup(g)); });
-            _dhqUpdateBulkBar();
-        }
+        // The 15s auto-refresh must not steal the operator's place. Rendering is now
+        // separated from fetching, and a rebuild only happens when the payload actually
+        // CHANGED — see _dhqRenderApprovals.
+        _dhqLastApprovals = data.approvals || [];
+        _dhqMaxBulk = data.max_bulk || 50;
+        _dhqRenderApprovals();
     } catch (e) {
+        _dhqRenderedSig = null;   // force a full repaint once the fetch recovers
         container.textContent = 'Failed to load: ' + e.message;
     }
 
@@ -1308,6 +1305,184 @@ async function loadDhqApprovals() {
 }
 
 var _dhqMaxBulk = 50;
+
+/* ── Approvals rendering — filter by category, and DON'T lose the operator's place ──
+ *
+ * WHY THIS IS SPLIT FROM THE FETCH: a 15s auto-refresh rebuilt the whole list
+ * unconditionally, which reset window scroll to the top and dropped every ticked
+ * checkbox. With 34 pending items that made the tab actively hard to work — you would
+ * scroll to item 20, and 15 seconds later be back at item 1.
+ *
+ * Two guards, in order of how often they save you:
+ *   1. NO-OP ON NO CHANGE. Most polls return identical data. If the signature matches
+ *      what is already on screen, the DOM is not touched at all — no scroll jump, no
+ *      lost ticks, no flicker.
+ *   2. PRESERVE ACROSS A REAL REBUILD. When something genuinely changed, capture scroll
+ *      + which ids were ticked, rebuild, then restore (re-ticking only ids that still
+ *      exist — an approval that was actioned elsewhere must not come back ticked).
+ *
+ * The category filter is presentation ONLY. `blocked_reasons` / `bulk_all_allowed` are
+ * computed server-side across ALL pending types and are re-used verbatim here, so
+ * filtering can never relax a prerequisite gate. Categories also keep a prerequisite and
+ * the thing it gates in the same tab (enforced by test_approval_categories.py), so a
+ * filtered view cannot hide a blocker while showing the blocked item.
+ */
+var _dhqLastApprovals = [];
+var _dhqActiveCategory = 'all';
+var _dhqRenderedSig = null;
+
+var DHQ_CATEGORY_LABELS = { ship: 'Ship', social: 'Social', mail: 'Mail', agents: 'Agents', other: 'Other' };
+var DHQ_CATEGORY_ORDER = ['ship', 'social', 'mail', 'agents', 'other'];
+
+function _dhqCategoryOf(a) {
+    // Server stamps `category`; the fallback only matters if an older cached payload
+    // is in flight right after a deploy.
+    if (a && a.category) return a.category;
+    var t = ((a && a.action_type) || '').toLowerCase();
+    if (t.indexOf('linkedin_') === 0) return 'social';
+    return 'other';
+}
+
+function _dhqApprovalsSignature(list) {
+    // Sensitive to everything that changes what is DRAWN: identity, type, and gating.
+    return (list || []).map(function(a) {
+        return [a.id, a.action_type, (a.blocked_reasons || []).join('~')].join('|');
+    }).join(';') + '#' + _dhqActiveCategory;
+}
+
+function _dhqCaptureViewState() {
+    var ticked = {};
+    _dhqPicks().forEach(function(c) {
+        if (c.checked) ticked[c.getAttribute('data-approval-id')] = true;
+    });
+    return { scrollY: window.scrollY || window.pageYOffset || 0, ticked: ticked };
+}
+
+function _dhqRestoreViewState(state, release) {
+    if (!state) { if (typeof release === 'function') release(); return; }
+    _dhqPicks().forEach(function(c) {
+        if (state.ticked[c.getAttribute('data-approval-id')]) c.checked = true;
+    });
+    // TWO frames, not one: the first lets style/layout flush, the second runs after the
+    // browser has actually laid the new nodes out. One frame was measurably too early.
+    requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+            window.scrollTo(0, state.scrollY);
+            // Unpinning immediately collapses the page under the cursor before the new
+            // content has reached full height (async icon rendering), and the browser
+            // clamps the scroll straight back — measured 6300 -> 903. Release on the
+            // next macrotask, then RE-ASSERT the position against the settled layout.
+            // If the list genuinely got shorter, the clamp that follows is correct.
+            if (typeof release === 'function') {
+                setTimeout(function() {
+                    release();
+                    window.scrollTo(0, state.scrollY);
+                }, 250);
+            }
+        });
+    });
+}
+
+function _dhqRenderCategoryBar(all) {
+    var counts = { all: all.length };
+    all.forEach(function(a) {
+        var c = _dhqCategoryOf(a);
+        counts[c] = (counts[c] || 0) + 1;
+    });
+    var bar = document.createElement('div');
+    bar.id = 'dhq-approval-cats';
+    bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px';
+
+    var tabs = [['all', 'All']];
+    DHQ_CATEGORY_ORDER.forEach(function(key) {
+        // An empty category is not worth a tab; the active one always stays visible so
+        // the bar cannot drop the tab you are standing on.
+        if (counts[key] || _dhqActiveCategory === key) tabs.push([key, DHQ_CATEGORY_LABELS[key] || key]);
+    });
+
+    tabs.forEach(function(spec) {
+        var key = spec[0], active = (_dhqActiveCategory === key);
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('data-cat', key);
+        b.style.cssText = 'background:' + (active ? 'rgba(0,229,255,0.15)' : 'transparent') +
+            ';border:1px solid ' + (active ? '#00e5ff' : 'rgba(255,255,255,0.18)') +
+            ';color:' + (active ? '#00e5ff' : '#94a3b8') +
+            ';padding:5px 14px;border-radius:14px;cursor:pointer;font-size:0.78rem;' +
+            'letter-spacing:0.04em;' + (active ? 'font-weight:bold;' : '');
+        b.textContent = spec[1] + ' ' + (counts[key] || 0);
+        b.addEventListener('click', function() {
+            if (_dhqActiveCategory === key) return;
+            _dhqActiveCategory = key;
+            _dhqRenderApprovals(true);   // force — the filter changed, not the data
+        });
+        bar.appendChild(b);
+    });
+    return bar;
+}
+
+function _dhqRenderApprovals(force) {
+    var container = document.getElementById('dhq-approvals-pending');
+    if (!container) return;
+
+    var all = _dhqLastApprovals || [];
+    var sig = _dhqApprovalsSignature(all);
+    // _dhqRenderedSig is set ONLY after a successful render, so it is the honest
+    // "there is a real list on screen" signal. childElementCount is NOT: the loading
+    // spinner is also a child, so counting it reported an empty tab as rendered.
+    if (!force && sig === _dhqRenderedSig) return;  // guard 1
+
+    var keep = _dhqCaptureViewState();                                             // guard 2
+    // Emptying the container collapses the document, so a scroll restore afterwards
+    // CLAMPS to a page that is momentarily short — measured live: 6300 -> 944. Pinning
+    // the height across the rebuild keeps the scroll range intact, which makes the
+    // restore deterministic instead of a race against layout + async icon rendering.
+    var _prevMinHeight = container.style.minHeight;
+    var _prevHeight = container.offsetHeight;
+    if (_prevHeight) container.style.minHeight = _prevHeight + 'px';
+    var _releaseHeight = function() { container.style.minHeight = _prevMinHeight; };
+    container.textContent = '';
+
+    if (!all.length) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'text-align:center;padding:40px;color:#22c55e;font-size:0.9rem';
+        empty.textContent = 'No pending approvals — all clear.';
+        container.appendChild(empty);
+        _dhqRenderedSig = sig;
+        _releaseHeight();
+        return;
+    }
+
+    container.appendChild(_dhqRenderCategoryBar(all));
+
+    var visible = (_dhqActiveCategory === 'all')
+        ? all
+        : all.filter(function(a) { return _dhqCategoryOf(a) === _dhqActiveCategory; });
+
+    if (!visible.length) {
+        var none = document.createElement('div');
+        none.style.cssText = 'text-align:center;padding:32px;color:#64748b;font-size:0.85rem';
+        none.textContent = 'Nothing pending in this category.';
+        container.appendChild(none);
+        _dhqRenderedSig = sig;
+        _releaseHeight();
+        return;
+    }
+
+    container.appendChild(_renderBulkBar());
+    // Group by action_type, preserving first-seen order so the list does not
+    // reshuffle between polls. `visible` keeps the server's prerequisite-first sort.
+    var groups = [], byType = {};
+    visible.forEach(function(a) {
+        var t = a.action_type || 'other';
+        if (!byType[t]) { byType[t] = { type: t, items: [], bulkAll: a.bulk_all_allowed !== false, blocked: a.blocked_reasons || [], noBulkReason: a.bulk_all_reason || '' }; groups.push(byType[t]); }
+        byType[t].items.push(a);
+    });
+    groups.forEach(function(g) { container.appendChild(_renderApprovalGroup(g)); });
+    _dhqRestoreViewState(keep, _releaseHeight);
+    _dhqUpdateBulkBar();
+    _dhqRenderedSig = sig;
+}
 
 function _dhqPicks() {
     return Array.prototype.slice.call(document.querySelectorAll('.dhq-approval-pick'));

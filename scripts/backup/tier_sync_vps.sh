@@ -62,21 +62,42 @@ if ! ssh "${VPS_USER}@${VPS_HOST}" "mkdir -p '${REMOTE_DIR}'" 2>>"$BACKUP_LOG_FI
     exit 1
 fi
 
+# #5847: stage encrypted copies on DISK, never in /tmp. /tmp is a 2.0G tmpfs and the
+# encrypted database dump alone is ~1.9G, so `mktemp -d` there CANNOT hold it -- openssl
+# died mid-write, `set -e` killed the script before the `rm -rf "$WORK"` below, and the
+# orphaned 1.9G artifact then kept /tmp full so every later run failed identically.
+# Two nights lost (2026-08-19/20) and it took the hub's Docker runtime down with it.
+# BACKUP_ROOT is /mnt/data2/backups. Mirrors tier_sync_gdrive.py's staging pattern.
+STAGE=$(mktemp -d "${BACKUP_ROOT}/.vps_sync.XXXXXX")
+# The `rm -rf` at the end of the loop only runs on the happy path. This trap is what
+# makes an orphan impossible when the script dies mid-encrypt.
+trap 'rm -rf "$STAGE"' EXIT
+
 TOTAL=0
 FAILED=0
 for c in "${VPS_COMPONENTS[@]}"; do
     src="$RUN_DIR/$c"
     [[ ! -d "$src" ]] && continue
-    WORK=$(mktemp -d)
+    WORK=$(mktemp -d "${STAGE}/${c}.XXXXXX")
     # Encrypt per-file into WORK dir (skip re-encryption if already .enc from config tier).
+    enc_ok=1
     for f in "$src"/*; do
         [[ -f "$f" ]] || continue
         out="$WORK/$(basename "$f").enc"
+        # #5847: guard BOTH copy and encrypt. Unguarded under `set -e` these killed the
+        # whole script UPSTREAM of log_to_db, so a two-night off-site outage left ZERO
+        # rows in backup_log -- unmonitored while appearing monitored. Record instead.
         if [[ "$f" == *.enc ]]; then
-            cp "$f" "$out"
+            cp "$f" "$out" || enc_ok=0
         else
             openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
-                -in "$f" -out "$out" -pass env:BACKUP_VPS_PASSPHRASE
+                -in "$f" -out "$out" -pass env:BACKUP_VPS_PASSPHRASE || enc_ok=0
+        fi
+        if [[ $enc_ok -eq 0 ]]; then
+            log_error "vps encrypt/copy failed for $(basename "$f") ($c)"
+            FAIL_REASONS="${FAIL_REASONS:+$FAIL_REASONS; }${c}: encrypt failed for $(basename "$f")"
+            FAILED=1
+            break
         fi
     done
     # #5619: capture rsync's OWN stderr rather than only redirecting it to the log
@@ -86,6 +107,13 @@ for c in "${VPS_COMPONENTS[@]}"; do
     # at 100%, which let the 20 MB gitbundles through and rejected the 1.8 GB dump —
     # existed nowhere in the DB. Diagnosing it needed a human grepping an 11 MB host
     # log. rsync says "No space left on device"; record that.
+    if [[ $enc_ok -eq 0 ]]; then
+        # #5847: never ship a partial component set. A truncated upload that reports OK
+        # is a restore point that does not exist.
+        log_error "vps skipping rsync for $c -- encryption incomplete"
+        rm -rf "$WORK"
+        continue
+    fi
     if rsync_out=$(rsync -az "$WORK/" "${VPS_USER}@${VPS_HOST}:${REMOTE_DIR}/${c}/" 2>&1); then
         sz=$(dir_size_bytes "$WORK")
         TOTAL=$(( TOTAL + sz ))

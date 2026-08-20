@@ -7,6 +7,7 @@ Phase 2 (F.O.R.G.E. AI review) and Phase 3 (Repair Bay UI) build on this.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -511,6 +512,10 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
     # structured-vs-freeform ratio is observable (a silent drop to ~100% freeform = a regression).
     _path = _extract_review_path(summary)
     _mark_review_path(pr_number, _path, repo)
+    # #5859 — APPEND this attempt before anything else can overwrite ai_summary. Without it a
+    # rebuttal-flip (same head sha, REQUEST CHANGES -> APPROVE, zero code change) is erased by
+    # the very re-review that proves the finding was false. Best-effort by construction.
+    record_review_attempt(pr_number, summary, repo=repo, head_sha=_head, review_path=_path)
     logger.info(
         "[PR Review] PR #%s path=%s verdict=%s",
         pr_number,
@@ -1204,6 +1209,89 @@ def _mark_review_path(pr_number: int, path: str, repo: str = None) -> None:
             )
     except Exception as exc:  # noqa: BLE001
         logger.warning("[PR Review] review_path stamp failed: %s", exc)
+
+
+_ATTEMPT_SEVERITY_RE = re.compile(r"^\s*-\s*\[(CRITICAL|WARNING|INFO|LOW)\]", re.M)
+
+
+def _attempt_severity_counts(summary: str) -> dict:
+    """{severity: n} over the rendered '- [SEV] ...' finding lines."""
+    out: dict = {}
+    for sev in _ATTEMPT_SEVERITY_RE.findall(summary or ""):
+        out[sev] = out.get(sev, 0) + 1
+    return out
+
+
+def record_review_attempt(
+    pr_number: int,
+    summary: str,
+    repo: str = None,
+    head_sha: str = None,
+    review_path: str = None,
+) -> int | None:
+    """Append THIS review attempt to ``forge_reviews`` (#5859, corpus for #5857).
+
+    ``pr_reviews`` is UNIQUE on (pr_number, repo) and ``mark_review_done`` UPDATEs
+    ``ai_summary`` IN PLACE, so a re-review DESTROYS the previous verdict. That throws away
+    the single most valuable label a review corpus can produce: a REQUEST CHANGES that a
+    rebuttal flipped to APPROVE **at the same head sha with no code change** — i.e. a
+    blocking finding demonstrably false. Measured 2026-08-20: 343 reviewed PRs in 30 days,
+    only 20 carrying a blocking finding, and every false one already overwritten by the
+    APPROVE that disproved it. Severity-rubric tuning cannot be measured without those
+    pairs, so they must be kept AS THEY HAPPEN — they cannot be reconstructed later.
+
+    ``forge_reviews`` already had exactly this shape (``attempt_number``, ``raw_payload``)
+    and ZERO rows: its only writers were two INSERTs inside ``POST /api/forge/webhook``, an
+    external receiver that has never fired. This wires the REAL review path to it.
+
+    The table has no ``repo`` column, so repo (plus head sha, path, verdict, coverage state
+    and severity counts) goes in ``raw_payload``; the full text goes in ``summary``.
+
+    ⚠️ ``forge_reviews.created_at`` is ``timestamp WITHOUT time zone``, deviating from the
+    platform TIMESTAMPTZ convention — compute ages for it IN SQL, never by subtracting an
+    aware ``now_utc()`` (that raises a naive/aware TypeError).
+
+    NEVER raises and never blocks: a review that COMPLETED must not be lost because a
+    bookkeeping INSERT failed. Returns the attempt number, or None."""
+    try:
+        verdict = parse_verdict(summary)
+        payload = {
+            "repo": repo or _DEFAULT_REPO,
+            "head_sha": head_sha,
+            "review_path": review_path,
+            "verdict": verdict,
+            "coverage_only": bool(coverage_only_demotion(summary or "")),
+            "dropped_files": coverage_dropped_paths(summary or ""),
+            "severities": _attempt_severity_counts(summary or ""),
+        }
+        with get_db_cursor(commit=True) as (conn, cur):
+            # attempt_number derived inside the INSERT so two concurrent reviews of the same
+            # PR cannot both read the same MAX and collide on it.
+            cur.execute(
+                """
+                INSERT INTO forge_reviews
+                       (pr_number, review_source, review_status, summary, raw_payload, attempt_number)
+                SELECT %s, 'forge', %s, %s, %s::jsonb, COALESCE(MAX(attempt_number), 0) + 1
+                  FROM forge_reviews
+                 WHERE pr_number = %s
+                   AND COALESCE(raw_payload->>'repo', %s) = %s
+                RETURNING attempt_number
+                """,
+                (
+                    pr_number,
+                    verdict,
+                    summary,
+                    json.dumps(payload),
+                    pr_number,
+                    _DEFAULT_REPO,
+                    repo or _DEFAULT_REPO,
+                ),
+            )
+            row = cur.fetchone()
+        return (dict(row) if row else {}).get("attempt_number")
+    except Exception as exc:  # noqa: BLE001 — telemetry must never break a completed review
+        logger.warning("[F.O.R.G.E.] review-attempt record error (PR #%s): %s", pr_number, exc)
+        return None
 
 
 def get_forge_review_metrics(days: int = 7) -> dict:

@@ -12,6 +12,7 @@ import re
 
 import requests
 
+from services.review_coverage import annotate, coverage, summarize
 from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
     get_review,
@@ -1780,19 +1781,36 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     never re-examined by this guard. A degraded APPROVE is deliberately NOT retried — the
     existing #5009 floor + the approved-verdict + tier requirements of the merge gate already
     bound that direction, and re-rolling approvals would add dispatch load for no safety gain."""
+    # #5836 — COVERAGE gate. Measured at _diff_cap_for_model(strong=False) because that
+    # cap (min(full, _DIFF_MAX_7B)) is what BOTH the freeform fallback AND every Tier-1/2
+    # structured review use; only the Tier-3 strong path gets the wider window, and a
+    # Tier-3 PR is auto-merged by nobody, so an extra coverage note there costs nothing.
+    # Erring toward the smaller cap errs toward FLAGGING, which is the safe direction:
+    # an over-flag costs a human glance, an under-flag is #5836 itself.
+    _shown, _ = _truncate_diff(diff, _diff_cap_for_model(strong=False))
+    _cov = coverage(diff, _shown)
+    if not _cov["complete"]:
+        logger.warning("[PR Review] PR #%s — %s", pr_number, summarize(_cov))
+
     summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(
         _build_prompt(review, diff), pr_number, repo, diff=diff
     )
     if not summary or not _freeform_rc_retry_enabled() or not _is_degraded_blocking(summary):
-        return summary
+        return annotate(summary, _cov)
     logger.info(
         "[PR Review] PR #%s — degraded-path blocking verdict; attempting one structured retry (#5287)",
         pr_number,
     )
     retry = _structured_review(review, diff, pr_number, repo)
     if retry:
-        return retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
-    return summary + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
+        return annotate(
+            retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)",
+            _cov,
+        )
+    return annotate(
+        summary + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)",
+        _cov,
+    )
 
 
 def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff: str = None) -> str | None:

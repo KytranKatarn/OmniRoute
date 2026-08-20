@@ -731,6 +731,26 @@ def _side_text(diff: str, sign: str) -> str:
     return _normalize_match(" ".join(ln[1:] for ln in (diff or "").splitlines() if ln[:1] == sign and ln[:3] != skip))
 
 
+def _token_present(tok: str, haystack_n: str) -> bool:
+    """Is ``tok`` in the haystack as its own identifier, not buried inside a longer word?
+
+    #5839: the old test was a bare ``tok in haystack_n``, so the INVENTED token ``pass``
+    matched inside the real word ``passed`` and a fabricated evidence line scored as
+    grounded. Measured on PR #2715: no standalone ``pass`` existed on the added side at all
+    (``\bpass\b`` -> False; the only matches were ``passed``, ``passed``), yet token overlap
+    came out 12/12 = 1.00 and the finding blocked the PR.
+
+    The boundary deliberately treats ``_`` as a SEPARATOR rather than a word character
+    (which is why this is not ``\b``): ``coverage`` must still match ``review_coverage`` —
+    a model citing a bare identifier that the code prefixes is a REAL citation, and
+    rejecting it would drop true findings, which is the far worse direction. Only a
+    same-alphabet extension (``pass`` -> ``passed``, ``cap`` -> ``capability``) is refused.
+    """
+    import re as _re
+
+    return bool(_re.search(r"(?<![a-z0-9])" + _re.escape(tok) + r"(?![a-z0-9])", haystack_n))
+
+
 def _cites(core: str, haystack_n: str) -> bool:
     """Does this evidence string tie to the given side of the diff? Substring match, or an
     85% token overlap so a lightly-paraphrased real line still counts."""
@@ -738,10 +758,14 @@ def _cites(core: str, haystack_n: str) -> bool:
 
     if not core or not haystack_n:
         return False
-    if core in haystack_n:
+    # #5839: the whole-core substring fast-path needs the SAME boundary rule as the token
+    # test below. A bare `core in haystack_n` matched the invented core `pass` inside the
+    # real word `passed` and returned True before the token logic ever ran — which is why
+    # fixing only the token loop left the bug alive.
+    if _token_present(core, haystack_n):
         return True
     toks = _re.findall(r"[a-z_][a-z0-9_]{2,}", core)
-    return bool(toks) and sum(1 for t in toks if t in haystack_n) / len(toks) >= 0.85
+    return bool(toks) and sum(1 for t in toks if _token_present(t, haystack_n)) / len(toks) >= 0.85
 
 
 def _evidence_polarity(evidence: str, diff: str) -> str:
@@ -763,6 +787,37 @@ def _evidence_polarity(evidence: str, diff: str) -> str:
 
     if not evidence or not diff:
         return "added"  # nothing to verify -> don't drop
+
+    lines = [ln for ln in str(evidence).splitlines() if ln.strip()]
+    if len(lines) > 1:
+        # #5839: judge EACH cited line. The old code normalised the whole block into ONE
+        # string, so a fabricated line's tokens were diluted by a real line's and the
+        # 85% overlap still passed. Measured on PR #2715: evidence was
+        #     +def prioritize(diff: str | None, cap: int | None = None) -> str | None:
+        #     +    pass
+        # The first line is REAL, `+    pass` is INVENTED — no standalone `pass` exists on
+        # the added side — yet the blob scored 12/12 = 1.00 and the finding blocked the PR.
+        #
+        # ANY evaluable line that is absent disqualifies the whole citation: a model that
+        # invented part of its evidence was not reading the diff for that part, and a
+        # finding is only as grounded as its weakest cited line. Lines with no identifier
+        # token at all (`}`, `)`, `...`) carry no information and are SKIPPED rather than
+        # counted either way — they cannot confirm or refute anything.
+        verdicts = []
+        for ln in lines:
+            ln_core = _normalize_match(_re.sub(r"^[+\-\s]+", "", ln))
+            if not _re.findall(r"[a-z_][a-z0-9_]{2,}", ln_core):
+                continue  # punctuation-only, unevaluable
+            if _cites(ln_core, _side_text(diff, "+")):
+                verdicts.append("added")
+            elif _cites(ln_core, _side_text(diff, "-")):
+                verdicts.append("removed_only")
+            else:
+                return "absent"
+        if not verdicts:
+            return "added"  # nothing evaluable -> don't drop
+        return "added" if "added" in verdicts else "removed_only"
+
     core = _normalize_match(_re.sub(r"^[+\-\s]+", "", evidence))
     if len(core) < 6:
         return "added"  # trivially short (<6 chars) -> ambiguous, don't drop

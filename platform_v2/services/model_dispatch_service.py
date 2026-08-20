@@ -1210,7 +1210,7 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
             # warm-booted there (disk-swap -> timeout -> re-queue). Fail the bad
             # pin fast instead. Regular (already-gated) tasks pass as a no-op.
             try:
-                from services.fleet_resource_router import can_node_run_model
+                from services.fleet_resource_router import can_node_run_model, node_has_model
 
                 if not can_node_run_model(node_row, model):
                     log.warning(
@@ -1219,6 +1219,24 @@ def _execute_task(task: dict, node_id: Optional[int] = None) -> None:
                         model,
                     )
                     _mark_failed(task_id, f"node {node_name} cannot fit {model} (capacity gate)")
+                    return
+                # PRESENCE, not just capacity (#5863/#5861). Capacity only proves the node
+                # COULD hold a model this size; it does not prove THIS model is pulled
+                # there. `find_best_node_for_model` already pairs these two predicates on
+                # the SELECTION path — the PINNED path checked only capacity, and that is
+                # the whole bug: can_node_run_model(USS-245, 'qwen2.5-coder:7b') is True
+                # (GPU fit fails, so it falls through to ram_gb 11.7 >= required 8.0 and
+                # deems CPU demotion viable) while the model is NOT pulled there. Measured
+                # 2026-08-20: 16 dispatches, 0 succeeded, ~0.3s each, MODEL_NOT_FOUND.
+                # node_has_model is fail-OPEN (unknown model list => allow), so a stale or
+                # missing heartbeat inventory can never starve the queue.
+                if not node_has_model(node_row, model):
+                    log.warning(
+                        "model_dispatch: node %s does not have %s pulled — failing pin (presence)",
+                        node_name,
+                        model,
+                    )
+                    _mark_failed(task_id, f"node {node_name} does not have {model} (presence gate)")
                     return
             except Exception:
                 pass  # fail-open: never block dispatch on a router import error

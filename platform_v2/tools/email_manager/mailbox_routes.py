@@ -159,7 +159,12 @@ def register_mailbox_routes(bp, admin_required):
                     "UPDATE email_mailboxes SET imap_password=%s, updated_at=NOW() WHERE id=%s",
                     (result["password"], mailbox_id),
                 )
-            return jsonify({"success": True, "address": row["address"]})
+            # #5844: return the new secret EXACTLY ONCE, here. No GET can retrieve it
+            # later -- email_list_mailboxes selects explicit columns and imap_password is
+            # deliberately not among them. A rotation whose password is never surfaced is
+            # unusable: the operator cannot update the mail client, which is precisely how
+            # the OWNER mailbox sat forked from Stalwart for days (#5698 residue).
+            return jsonify({"success": True, "address": row["address"], "password": result["password"]})
         return jsonify({"success": False, "error": result.get("error")}), 500
 
     @bp.route("/api/email/mailboxes/rotate-all-passwords", methods=["POST"])

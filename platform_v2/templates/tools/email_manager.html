@@ -261,6 +261,31 @@
 </div>
 
 <!-- Smart Inbox Settings modal (Slice 5) -->
+<div class="bm-overlay" id="em-pw-modal">
+  <div class="bm-shell" style="--bm-accent:#f59e0b; max-width:520px; width:96vw;">
+    <div class="bm-frame"></div>
+    <div class="bm-content">
+      <div class="bm-header">
+        <span class="bm-title">New mailbox password</span>
+        <button class="bm-close" id="em-pw-close">&#10005;</button>
+      </div>
+      <div class="bm-body" style="padding:1.25rem 1.5rem;">
+        <div class="em-pw-address" id="em-pw-address"></div>
+        <div class="em-pw-warn">
+          Shown once. Nothing can read this back &mdash; save it into your mail client now.
+          If you lose it, rotate again.
+        </div>
+        <div class="em-pw-box"><code id="em-pw-value"></code></div>
+        <button class="em-sidebar-action" id="em-pw-copy">Copy to clipboard</button>
+        <span class="em-pw-copied" id="em-pw-copied" hidden>Copied</span>
+      </div>
+      <div class="bm-footer" style="padding:0.75rem 1.5rem;">
+        <button class="em-sidebar-action" id="em-pw-done">I&#39;ve saved it</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="bm-overlay" id="em-settings-modal">
   <div class="bm-shell" style="--bm-accent:#00ffff; max-width:520px; width:96vw;">
     <div class="bm-frame"></div>

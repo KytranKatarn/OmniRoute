@@ -292,14 +292,30 @@
           var rotBtn = document.createElement('button');
           rotBtn.className = 'em-text-btn';
           rotBtn.textContent = 'Rotate pw';
-          (function (id) {
+          (function (id, address) {
             rotBtn.addEventListener('click', function (e) {
               e.stopPropagation();
+              // #5844: rotating breaks every mail client using this mailbox until the new
+              // secret is pasted in, so CONFIRM first. And SHOW the result after -- the old
+              // handler alerted only on failure, so a successful rotation was indistinguishable
+              // from nothing happening and the operator had no way to learn the new password.
+              if (!window.confirm(
+                'Rotate the password for ' + address + '?\n\n'
+                + 'Any mail client using this mailbox will stop authenticating until you paste '
+                + 'in the new password.\n\nThe new password is shown ONCE and cannot be read '
+                + 'back afterwards.'
+              )) return;
+              rotBtn.disabled = true;
               apiPost('/api/email/mailboxes/' + id + '/rotate-password').then(function (r) {
-                if (!r.success) alert('Failed: ' + (r.error || 'unknown'));
-              }).catch(function () {});
+                rotBtn.disabled = false;
+                if (r && r.success && r.password) showRotatedPassword(address, r.password);
+                else alert('Rotate failed: ' + ((r && r.error) || 'unknown'));
+              }).catch(function () {
+                rotBtn.disabled = false;
+                alert('Rotate failed: request error');
+              });
             });
-          }(m.id));
+          }(m.id, m.address));
           actions.appendChild(rotBtn);
         }
 
@@ -1410,6 +1426,60 @@
       });
   }
 
+  // ── Rotated-password show-once panel (#5844) ──────────────────────────
+  // The secret exists in the browser ONLY between the rotate response and dismissal.
+  // Nothing persists it and no GET can return it, so closing the panel is final.
+  function showRotatedPassword(address, password) {
+    var modal = el('em-pw-modal');
+    if (!modal) { alert('New password for ' + address + ':\n\n' + password); return; }
+    el('em-pw-address').textContent = address;
+    el('em-pw-value').textContent = password;   // textContent: never innerHTML
+    var copied = el('em-pw-copied');
+    if (copied) copied.hidden = true;
+    modal.classList.add('active');
+  }
+
+  function closeRotatedPassword() {
+    var modal = el('em-pw-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    // Drop the secret out of the DOM rather than leaving it in a hidden node.
+    var v = el('em-pw-value');
+    if (v) v.textContent = '';
+    var a = el('em-pw-address');
+    if (a) a.textContent = '';
+  }
+
+  function copyRotatedPassword() {
+    var v = el('em-pw-value');
+    if (!v || !v.textContent) return;
+    var text = v.textContent;
+    var done = function () {
+      var c = el('em-pw-copied');
+      if (c) { c.hidden = false; setTimeout(function () { c.hidden = true; }, 2000); }
+    };
+    // navigator.clipboard exists ONLY in a secure context. The platform is served over
+    // plain HTTP on the LAN (192.168.1.200:3000), so it is undefined there and the copy
+    // would silently do nothing. Fall back to a detached textarea + execCommand.
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done).catch(function () { legacyCopy(text, done); });
+    } else {
+      legacyCopy(text, done);
+    }
+  }
+
+  function legacyCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (err) { /* user can select manually */ }
+    document.body.removeChild(ta);
+  }
+
   // ── Smart Inbox settings (Slice 5) ────────────────────────────────────
   function openSettings() {
     var status = el('em-settings-status');
@@ -1586,6 +1656,9 @@
     wire('em-compose-close', closeCompose);
     wire('em-compose-cancel', closeCompose);
     wire('em-compose-send', sendCompose);
+    wire('em-pw-close', closeRotatedPassword);
+    wire('em-pw-done', closeRotatedPassword);
+    wire('em-pw-copy', copyRotatedPassword);
     wire('em-settings-open', openSettings);
     wire('em-settings-close', closeSettings);
     wire('em-settings-cancel', closeSettings);

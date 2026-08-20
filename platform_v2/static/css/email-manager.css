@@ -772,3 +772,37 @@ body.light-mode .em-status-badge.pending { background: #fef3c7; color: #b45309; 
 body.light-mode .em-toast--success { background: #dcfce7; color: #15803d; }
 body.light-mode .em-toast--error   { background: #fee2e2; color: #dc2626; }
 body.light-mode .em-toast--info    { background: #dbeafe; color: #1d4ed8; }
+
+
+/* ── Rotate-password show-once panel (#5844) ─────────────────────────── */
+.em-pw-address {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--archie-text-secondary, #94a3b8);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+.em-pw-warn {
+  color: #f59e0b;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  margin-bottom: 0.85rem;
+}
+.em-pw-box {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 0.7rem 0.85rem;
+  margin-bottom: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.em-pw-box code {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1rem;
+  color: var(--archie-text-primary, #e2e8f0);
+  letter-spacing: 0.04em;
+}
+.em-pw-copied {
+  color: #10b981;
+  font-size: 0.8rem;
+  margin-left: 0.6rem;
+}

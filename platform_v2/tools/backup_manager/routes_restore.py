@@ -28,6 +28,7 @@ from database import _get_db_password
 from ._shared import (
     BACKUP_DIR,
     PLATFORM_DIR,
+    _AI_BRIDGE_ROOTS,
     acquire_backup_lock,
     admin_required,
     backup_module,
@@ -675,12 +676,36 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
                     else:
                         missing.append(module_info)
 
-            coverage_pct = (len(covered) / len(modules) * 100) if modules else 0
+            # #5835 / ADR-009: `ai_bridge` and `services` are not registry modules, but
+            # they ARE first-class pre-deploy backup scopes — backup_module() copies each
+            # tree wholesale and _predeploy_module_scope() will now select them. Without
+            # these rows the coverage view silently omits the two trees that carry scoped
+            # restore points, which reads as "not covered" when the opposite is true.
+            for pseudo_id, pseudo_root in (
+                ("ai_bridge", next((r for r in _AI_BRIDGE_ROOTS if os.path.isdir(r)), None)),
+                ("services", os.path.join(PLATFORM_DIR, "services")),
+            ):
+                info = {
+                    "id": pseudo_id,
+                    "name": pseudo_id,
+                    "category": "Pre-deploy scope (pseudo-module)",
+                    "has_routes": bool(pseudo_root and os.path.isdir(pseudo_root)),
+                    "has_templates": False,
+                    "enabled": True,
+                    "status": "live",
+                    "pseudo": True,
+                }
+                (covered if info["has_routes"] else missing).append(info)
+
+            # Divide by the COMBINED total, not len(modules) — the two rows above are not
+            # in the registry, so the original denominator would overstate coverage.
+            total_modules = len(covered) + len(missing)
+            coverage_pct = (len(covered) / total_modules * 100) if total_modules else 0
 
             return jsonify(
                 {
                     "success": True,
-                    "total_modules": len(modules),
+                    "total_modules": total_modules,
                     "covered_count": len(covered),
                     "missing_count": len(missing),
                     "coverage_percentage": round(coverage_pct, 1),

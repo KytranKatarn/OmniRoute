@@ -966,21 +966,22 @@ def _module_backup_ref(backup_result):
 
 
 def _predeploy_module_scope(proposal):
-    """#5279 / ADR-009: the module name when this proposal's change is fully CONTAINED
-    in platform_v2/tools/<module>/ — else None, meaning take a FULL snapshot.
+    """#5279 / #5835 / ADR-009: the module to scope the pre-deploy backup to, else None
+    (meaning take the FULL snapshot).
 
-    A backup only protects what it contains, so scoping is allowed ONLY when the
-    touched file provably lives inside what backup_module() captures. Everything
-    else stays on the full-snapshot safety net (task item 4):
-      * services / ai_bridge — wide blast radius (the primitive now covers them,
-        item 1, but policy keeps them full until the scoped rung is proven there)
-      * database/migrations, templates, static, anything outside tools/<module>/
-      * containment mismatch (module_name says X, file lives under Y)
-      * missing/nonexistent runtime_file, traversal or odd characters
+    Thin adapter — the rules live in `services/predeploy_scope.resolve_scope`, which is a
+    pure function so its guards can actually be tested. They could not be before, and that
+    hid a real defect: the CHARSET guard was rejecting every ai_bridge proposal
+    (`module_name` is the bracketed LABEL `'[AI_BRIDGE]'`), so the documented
+    `("services", "ai_bridge")` policy exclusion below it was dead code for exactly the
+    rows it named. Measured 2026-08-19 — three one-line pyflakes fixes in ai_bridge/ took
+    three FULL 2,800 MB snapshots (backup_log 4617/4618/4619) of a 3.8 MB tree.
+
+    Scoping is now allowed for the two widened pseudo-modules, decided on the RESOLVED
+    REAL path of `runtime_file` being inside the tree `backup_module()` copies wholesale.
+    Anything unresolvable still returns None and rides the full-snapshot safety net.
     """
     import json as _json
-    import os as _os
-    import re as _re
 
     meta = (proposal or {}).get("metadata") or {}
     if isinstance(meta, str):
@@ -990,22 +991,19 @@ def _predeploy_module_scope(proposal):
             return None
     if not isinstance(meta, dict):
         return None
-    module_name = str(meta.get("module_name") or "")
-    file_path = str(meta.get("file_path") or "")
-    runtime_file = str(meta.get("runtime_file") or "")
-    if not module_name or not file_path or not runtime_file:
+
+    try:
+        from services.predeploy_scope import default_pseudo_roots, resolve_scope
+        from tools.backup_manager._shared import _AI_BRIDGE_ROOTS, PLATFORM_DIR
+
+        return resolve_scope(
+            meta,
+            tools_root=os.path.join(PLATFORM_DIR, "tools"),
+            pseudo_roots=default_pseudo_roots(PLATFORM_DIR, _AI_BRIDGE_ROOTS),
+        )
+    except Exception as exc:  # never let scope resolution block a deploy
+        logger.warning("pre-deploy scope resolution failed (taking a FULL backup): %s", exc)
         return None
-    if not _re.fullmatch(r"[A-Za-z0-9_-]+", module_name):
-        return None
-    if module_name in ("services", "ai_bridge"):
-        return None
-    if ".." in file_path or ".." in runtime_file:
-        return None
-    if not file_path.lstrip("/").startswith(f"platform_v2/tools/{module_name}/"):
-        return None
-    if not _os.path.isabs(runtime_file) or not _os.path.isfile(runtime_file):
-        return None
-    return module_name
 
 
 def deploy_to_production(proposal_id):

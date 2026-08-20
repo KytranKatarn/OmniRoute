@@ -35,6 +35,60 @@ the recurring watch-products drift (`reference_watch-products-deploy-drift`, KB 
    unstamped ("unknown") is never counted as drift. Endpoints are env-overridable (the hub
    host→own-published-port hairpin is unreliable under `userland-proxy=false`).
 
+## The OTHER half: volume-mounted hub code — a merge deploys NOTHING
+
+Everything above is about image-baked products, where the risk is a stale image. The hub has
+the opposite hazard and it is not obvious.
+
+`archie_platform` and `archie_scheduler` **bind-mount the working tree**:
+
+```
+/mnt/archie_brain/platform_v2  ->  /app   (rw)
+```
+
+So they execute **whatever branch is checked out on the host right now** — not `origin/main`,
+not the merge commit. Two consequences, and both bit on 2026-08-20:
+
+**1. Merging on GitHub deploys nothing.** PRs #2718/#2721 were merged, `origin/main` advanced,
+and the containers went on running the feature branch that was still checked out. Verifying with
+`git log origin/main` said "shipped"; the container disagreed:
+
+```
+ImportError: cannot import name 'is_permanent_auth_failure' from 'tools.email_manager.idle_worker'
+```
+
+**`git checkout main && git pull --ff-only` IS the deploy step for hub code.** Then restart the
+affected container — Python modules are already imported, so a file change alone changes nothing
+in a running process (templates and static JS are re-read per request, but browsers cache the JS).
+
+**2. While you sit on a feature branch, the LIVE platform is running your branch.** That is how
+live-testing an unmerged change works here at all — and it is also why an unmerged, half-finished
+edit is served to every user of the hub until you switch back. Prefer short-lived branches, and
+return to `main` when you stop working on one.
+
+### Verify through the RUNNING process, never through git
+
+`git log` describes the repository. The question is what the container has loaded:
+
+```bash
+# does the running process actually have the symbol?
+docker exec archie_scheduler python3 -c "
+import sys; sys.path.insert(0,'/app')
+from tools.email_manager.idle_worker import is_permanent_auth_failure
+print('live:', is_permanent_auth_failure('[AUTHENTICATIONFAILED] x'))"
+
+# or, for a route: read the SOURCE the process has, not the file on disk
+docker exec archie_platform python3 -c "
+import sys, inspect; sys.path.insert(0,'/app')
+import tools.repair_bay.github_routes as m
+print('verdict_refusal' in inspect.getsource(m))"
+```
+
+⚠️ **`grep` on the file — even inside the container — is not this check.** The bind mount means
+the file is always current; the *imported module* may not be. On 2026-08-20 host and container
+greps both matched at the same line number while the running route still returned the old
+payload. Same family as the image-baked drift above: the artifact is not the source.
+
 ## In the merge flow
 `merge-pr` **Step 7.5** rebuilds the affected product from `main` + runs the drift check + re-verifies
 the merged features **together** (not the stale per-branch checks). Never skip it for an image-baked change.

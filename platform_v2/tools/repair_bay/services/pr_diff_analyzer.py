@@ -12,13 +12,14 @@ import re
 
 import requests
 
-from services.review_coverage import annotate, coverage, prioritize, summarize
+from services.review_coverage import annotate, chunk_plan, coverage, prioritize, summarize
 from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
     get_review,
     mark_review_done,
     mark_review_pending,
     mark_review_started,
+    _classify_review_path,
     parse_verdict,
     poll_open_prs,
 )
@@ -1407,6 +1408,19 @@ def _diff_cap_for_model(strong: bool) -> int:
     return full if strong else min(full, _DIFF_MAX_7B)
 
 
+def _review_max_chunks() -> int:
+    """How many serial passes a review may take (#5848). Default 1 = today's behaviour.
+
+    Clamped to [1, 3]: 3 is the owner-chosen ceiling (~4 min, ~3x tokens). Anything
+    unparseable falls back to 1, so a bad setting degrades to the SAFE single-pass path
+    rather than to an unbounded one. Rollback is this value, not a deploy."""
+    try:
+        n = int(_get_setting("forge:review_max_chunks", 1) or 1)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(n, 3))
+
+
 def forge_settings_snapshot() -> dict:
     """ST-4: the EFFECTIVE value of every forge:* review knob, read through the same accessors the
     pipeline uses (so the defaults match exactly — no drift, no seeded platform_settings rows
@@ -1617,7 +1631,14 @@ def _check_dockerfile_provenance(diff: str) -> list:
     return findings
 
 
-def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None, ground_diff: str = None):
+def _structured_review(
+    review: dict,
+    diff: str,
+    pr_number: int = None,
+    repo: str = None,
+    ground_diff: str = None,
+    dockerfile_findings: list = None,
+):
     """PR-B: JSON-structured grounded review. Returns canonical review TEXT, or None to fall back
     to the freeform path (disabled flag / queue / empty / unparseable JSON — all fail-safe)."""
     # #5848 — `diff` is what the MODEL SEES (a chunk once chunking is on). `ground_diff`
@@ -1708,7 +1729,11 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
         note = (note + "; " if note else "") + f"normalized {n_demoted} nit(s) to INFO"
     # Deploy-provenance guard (#4749): deterministic, appended AFTER normalize so it stays
     # advisory 'low' (non-blocking) and isn't counted among the demoted nits.
-    dockerfile_findings = _check_dockerfile_provenance(ground_diff)
+    # #5848 task 5 — provenance is a WHOLE-PR property, so the caller computes it once on the
+    # full diff and hands it in. None means no caller supplied it (any future direct caller),
+    # in which case compute it here exactly as before.
+    if dockerfile_findings is None:
+        dockerfile_findings = _check_dockerfile_provenance(ground_diff)
     if dockerfile_findings:
         issues.extend(dockerfile_findings)
         note = (note + "; " if note else "") + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
@@ -1910,6 +1935,77 @@ def _is_degraded_blocking(summary: str) -> bool:
     return parse_verdict(summary) == "REQUEST CHANGES"
 
 
+# #5848 — verdict LATTICE for folding chunk results. NEEDS REVIEW means "a human should look";
+# REQUEST CHANGES asserts a DEFECT. Folding the first into the second manufactures a defect claim
+# no pass actually made, and false blocks are the live problem this work exists to reduce. An
+# unparseable verdict ("REVIEWED") and a lost pass both land on NEEDS REVIEW: neither found a
+# defect, and neither auto-merges (verdict_is_approved admits APPROVE only).
+_VERDICT_RANK = {"APPROVE": 0, "REVIEWED": 1, "NEEDS REVIEW": 1, "REQUEST CHANGES": 2}
+_VERDICT_BY_RANK = {0: "APPROVE", 1: "NEEDS REVIEW", 2: "REQUEST CHANGES"}
+
+
+def _merge_chunk_summaries(summaries: list, cov: dict) -> str:
+    """Fold per-chunk summaries into ONE canonical review (#5848). Worst verdict wins.
+
+    Fails CLOSED twice over: a pass that returned NOTHING blocks, and so does one whose
+    verdict will not parse — ``parse_verdict`` returns "REVIEWED", not "APPROVE", when there
+    is no VERDICT line. A lost pass must never read as an approval; that is the #2458 shape.
+
+    The ``[review-meta]`` path marker is carried forward WEAKEST-WINS. It is not cosmetic:
+    ``pr_review_service._classify_review_path`` reads a summary with NO marker as "legacy —
+    the degraded path" and feeds ``check_review_path_health`` → ``send_system``, so folding
+    the marker away would alarm on a perfectly healthy chunked review. A lost pass degrades
+    the marker too, because that review genuinely was degraded."""
+    findings, seen, paths = [], set(), []
+    worst, lost = 0, False
+    for idx, s in enumerate(summaries, 1):
+        if not s:
+            lost = True
+            continue
+        paths.append(_classify_review_path(s))
+        rank = _VERDICT_RANK.get(parse_verdict(s), 1)
+        chunk_blocks = rank > 0
+        worst = max(worst, rank)
+        before = len(findings)
+        for line in s.splitlines():
+            st = line.strip()
+            if not st.startswith("- ["):
+                continue
+            key = _normalize_match(st)
+            if key in seen:
+                continue
+            seen.add(key)
+            findings.append(st)
+        # A blocking pass that yielded no parseable finding would otherwise fold into
+        # "REQUEST CHANGES / No issues found." — a block with no stated reason. That is the
+        # unactionable review this work exists to stop producing, so keep its prose.
+        if chunk_blocks and len(findings) == before:
+            raw = " ".join(
+                x.strip() for x in s.splitlines() if x.strip() and not x.strip().startswith(("VERDICT:", "[review-"))
+            )
+            if raw:
+                findings.append(f"- [WARNING] pass {idx} blocked without a parseable finding — {raw[:300]}")
+
+    n = len(summaries)
+    read = ""
+    if cov and cov.get("total"):
+        read = f"; {cov.get('reviewed', cov['total'])}/{cov['total']} files read"
+    body = "\n".join(findings) if findings else "No issues found."
+    verdict = _VERDICT_BY_RANK[max(worst, 1 if lost else 0)]
+
+    healthy = bool(paths) and not lost
+    if healthy and all(p == "structured_json" for p in paths):
+        meta = f"\n[review-meta] structured=json chunks={len(paths)}"
+    elif healthy and all(p in ("structured_json", "freeform_gated") for p in paths):
+        meta = f"\n[review-meta] structured=freeform-gated chunks={len(paths)}"
+    else:
+        meta = ""
+    if lost:
+        meta += "\n[review-meta] a chunk produced no parseable review — failing closed"
+    plural = "pass" if n == 1 else "passes"
+    return f"SUMMARY\nChunked review ({n} {plural}{read}).\n\nISSUES\n{body}\n\nVERDICT: {verdict}{meta}"
+
+
 def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo: str = None) -> str | None:
     """Structured first, freeform fallback — with ONE bounded structured retry when the fallback
     produced a blocking verdict (#5287). Shared by review_pr and analyze_pending_prs.
@@ -1941,30 +2037,67 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # "only a markdown file update". prioritize() is a no-op unless the diff would actually
     # truncate, so a PR that fits is passed through byte-identical.
     diff = prioritize(diff, _cap)
-    _shown, _ = _truncate_diff(diff, _cap)
+    # #5848 — a diff that will not fit is split into at most 3 SERIAL passes rather than
+    # truncated away. At the default forge:review_max_chunks=1, chunk_plan returns [diff]
+    # UNCHANGED, so every line below runs exactly as it did pre-chunking. That byte-identity
+    # IS the killswitch — it is pinned by tests/test_chunked_review_loop.py, do not weaken it.
+    _chunks = chunk_plan(diff, _cap, _review_max_chunks()) or [diff]
+    # Coverage is measured over the UNION of what the passes actually show, never over a
+    # single window — otherwise chunking would keep reporting as dropped the very files it
+    # just started reading.
+    # Join with a NEWLINE, not "": _truncate_diff cuts an oversized chunk MID-LINE, and "" glues
+    # that cut line straight onto the next chunk's "diff --git" header, so the ^diff --git
+    # MULTILINE regex stops matching and a file that WAS reviewed reads as dropped — one lost
+    # file per chunk boundary. For a single chunk "\n".join is byte-identical, so the
+    # max_chunks=1 killswitch is unaffected.
+    _shown = "\n".join(_truncate_diff(_c, _cap)[0] for _c in _chunks)
     _cov = coverage(diff, _shown)
     if not _cov["complete"]:
         logger.warning("[PR Review] PR #%s — %s", pr_number, summarize(_cov))
 
-    summary = _structured_review(review, diff, pr_number, repo) or _run_forge_review(
-        _build_prompt(review, diff), pr_number, repo, diff=diff
-    )
-    if not summary or not _freeform_rc_retry_enabled() or not _is_degraded_blocking(summary):
-        return annotate(summary, _cov)
-    logger.info(
-        "[PR Review] PR #%s — degraded-path blocking verdict; attempting one structured retry (#5287)",
-        pr_number,
-    )
-    retry = _structured_review(review, diff, pr_number, repo)
-    if retry:
-        return annotate(
-            retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)",
-            _cov,
-        )
-    return annotate(
-        summary + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)",
-        _cov,
-    )
+    # #5848 task 5 — whole-PR checks run ONCE, on the FULL diff. Dockerfile provenance (#4749)
+    # is a property of the PR, not of a chunk: per-chunk it would duplicate the finding N times,
+    # and scoped to a chunk it would miss a Dockerfile that landed in a different one. It is
+    # attached to chunk 0 only, so it renders exactly once in the merged review.
+    _prov = _check_dockerfile_provenance(diff)
+
+    _summaries = []
+    _retry_used = False
+    for _idx, _chunk in enumerate(_chunks):
+        _chunk_prov = _prov if _idx == 0 else []
+        # ground_diff is ALWAYS the FULL diff (spec Decision 2). A finding whose evidence
+        # lives in a different chunk is a genuine cross-chunk defect — the exact class that
+        # splitting creates — and grounding against the chunk would drop precisely those.
+        summary = _structured_review(
+            review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
+        ) or _run_forge_review(_build_prompt(review, _chunk), pr_number, repo, diff=diff)
+        # #5287 — ONE structured retry per REVIEW, not per chunk. The retry is a path upgrade
+        # for a degraded blocking verdict and its dispatch budget belongs to the review; a
+        # persistent REQUEST CHANGES still stands whatever the retry says.
+        if summary and not _retry_used and _freeform_rc_retry_enabled() and _is_degraded_blocking(summary):
+            _retry_used = True
+            logger.info(
+                "[PR Review] PR #%s — degraded-path blocking verdict; attempting one structured retry (#5287)",
+                pr_number,
+            )
+            retry = _structured_review(
+                review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
+            )
+            summary = (
+                retry + "\n[review-meta-note] degraded-path blocking verdict superseded by structured retry (#5287)"
+                if retry
+                else summary
+                + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
+            )
+        _summaries.append(summary)
+
+    if len(_summaries) == 1:
+        return annotate(_summaries[0], _cov)
+    # Every pass failed — return None so the caller sees "review unavailable", exactly as the
+    # single-pass path does. A fabricated empty review would be worse than no review.
+    if not any(_summaries):
+        return None
+    return annotate(_merge_chunk_summaries(_summaries, _cov), _cov)
 
 
 def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff: str = None) -> str | None:

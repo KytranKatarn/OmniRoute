@@ -74,7 +74,10 @@ def _arm(monkeypatch, structured_results, freeform_text):
     """Stub the two dispatch boundaries; return the call-count dict."""
     calls = {"structured": 0, "freeform": 0}
 
-    def fake_structured(review, diff, pr_number=None, repo=None):
+    # **_kw so this double tolerates keyword growth on _structured_review. It has broken
+    # twice on additive params (ground_diff #5848 t2, dockerfile_findings #5848 t5) while
+    # testing neither — these tests pin the #5287 RETRY semantics, not the signature.
+    def fake_structured(review, diff, pr_number=None, repo=None, **_kw):
         calls["structured"] += 1
         idx = min(calls["structured"], len(structured_results)) - 1
         return structured_results[idx]

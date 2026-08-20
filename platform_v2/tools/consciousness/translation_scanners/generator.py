@@ -164,6 +164,7 @@ def _generate_translation(en_text: str, language: str, glossary: Optional[list] 
             f"Output ONLY the translation — no quotes, no explanation, no notes."
             f"{glossary_block}\n\nTEXT: {en_text}"
         )
+        deferred = False
         try:
             r = dispatch(
                 capability="translate",
@@ -173,13 +174,27 @@ def _generate_translation(en_text: str, language: str, glossary: Optional[list] 
                 model_override=model,
                 local_only=True,
             )
+            # #5851 — ADR-013: ALWAYS check .success. Reading .response directly turned a
+            # SHED dispatch ("hub saturated — ... retry shortly", 96% of this capability's
+            # 1,160 failures/48h, avg 2.9s) into translated="" — indistinguishable from
+            # "the model produced nothing". Nothing retried, so the string stayed
+            # untranslated, returned on the next scan, and re-flooded an already-saturated
+            # hub. An unsuccessful dispatch is not evidence ABOUT THE STRING.
+            if not getattr(r, "success", False):
+                return {"translated": "", "confidence": 0.0, "deferred": True}
             raw = (getattr(r, "response", "") or "").strip().strip('"').strip()
             translated = raw.splitlines()[0].strip() if raw else ""
         except Exception:
+            # An exception says nothing about the string either.
             translated = ""
+            deferred = True
         # gemma3 gives no self-confidence; assign a sane default that auto-approves
         # good output. The back-translation QA pass is the quality backstop.
-        return {"translated": translated, "confidence": 0.9 if translated else 0.0}
+        return {
+            "translated": translated,
+            "confidence": 0.9 if translated else 0.0,
+            "deferred": deferred,
+        }
 
     # JSON mode — mistral honours the envelope and reports a confidence we gate on.
     prompt = (
@@ -200,17 +215,35 @@ def _generate_translation(en_text: str, language: str, glossary: Optional[list] 
         local_only=True,
     )
     if not isinstance(r, dict):
-        return {"translated": "", "confidence": 0.0}
+        # dispatch_json yields a non-dict when the dispatch itself did not succeed
+        # (shed / timeout / error) — deferred, NOT an untranslatable string (#5851).
+        return {"translated": "", "confidence": 0.0, "deferred": True}
     translated = r.get("translated", "") or ""
     try:
         confidence = float(r.get("confidence", 0.0) or 0.0)
     except (TypeError, ValueError):
         confidence = 0.0
-    return {"translated": translated, "confidence": confidence}
+    return {"translated": translated, "confidence": confidence, "deferred": False}
 
 
 def process_missing_gap(gap: dict) -> bool:
-    """Fetch EN source, generate, gate, write. Return True on success."""
+    """True only when a translation was WRITTEN.
+
+    Thin wrapper over process_missing_gap_status so the two existing call sites
+    (`if process_missing_gap(gap):`) keep meaning exactly what they meant — a
+    deferral must never read as a write.
+    """
+    return process_missing_gap_status(gap) == "written"
+
+
+def process_missing_gap_status(gap: dict) -> str:
+    """Fetch EN source, generate, gate, write. Returns 'written' | 'skipped' | 'deferred'.
+
+    'deferred' means the DISPATCH did not happen (hub shed the work, timeout, error) — the
+    gap is untouched and must be retried, not counted. Distinguishing it from 'skipped' is
+    the whole point: they were collapsed into one falsy return, so 1,117 shed dispatches in
+    48h looked like 1,117 strings that could not be translated (#5851).
+    """
     with get_db_cursor() as (_conn, cur):
         cur.execute(
             """SELECT text FROM translations
@@ -219,7 +252,7 @@ def process_missing_gap(gap: dict) -> bool:
         )
         row = cur.fetchone()
         if not row:
-            return False
+            return "skipped"
         en_text = row["text"]
         cur.execute(
             """SELECT source_text, translated_text FROM translation_memory
@@ -229,10 +262,14 @@ def process_missing_gap(gap: dict) -> bool:
         glossary = list(cur.fetchall())
 
     result = _generate_translation(en_text, gap["language"], glossary)
+    if result.get("deferred"):
+        # Leave the gap OPEN and untouched. The dispatcher said "retry shortly"; this is
+        # what actually retries — on the next pass, against a hub that has drained.
+        return "deferred"
     translated = result["translated"]
     confidence = result["confidence"]
     if not translated:
-        return False
+        return "skipped"
 
     status = "approved" if confidence >= AUTO_APPROVE_MIN else "pending_review"
 
@@ -267,4 +304,4 @@ def process_missing_gap(gap: dict) -> bool:
             confidence,
             gap["gap_type"],
         )
-    return True
+    return "written"

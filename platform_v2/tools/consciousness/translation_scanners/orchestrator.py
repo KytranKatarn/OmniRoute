@@ -14,7 +14,7 @@ from .base import ScannerResult
 from .tagged_scanner import TaggedScanner
 from .untagged_scanner import UntaggedScanner
 from .semantic_scanner import SemanticScanner
-from .generator import NIGHTLY_CAP, process_missing_gap
+from .generator import NIGHTLY_CAP, process_missing_gap_status
 
 logger = logging.getLogger("agent_loop")
 
@@ -290,13 +290,42 @@ def run_translation_coverage_scan(
         except Exception:  # noqa: BLE001
             logger.exception("[TranslationScan] semantic pass failed for %s", label)
 
+    # #5851 — BRAKES. This pass fired 2,152 translate dispatches in 48h with no
+    # backpressure gate; the hub shed 1,117 of them at the 7B in-flight admission cap and
+    # they were recorded as failures. The WTF producers got this same gate in #4536; this
+    # one never did. Fail-OPEN (any error -> proceed), tunable via platform_settings with
+    # no deploy, exactly as wtf_hub/routes.py uses it.
+    totals["generation_deferred"] = 0
+    if generate:
+        try:
+            from services.welfare_governance_service import in_flight_over_cap
+
+            if in_flight_over_cap("translate"):
+                logger.info("[TranslationScan] translate lane already saturated — skipping generation pass")
+                generate = False
+                totals["generation_deferred"] = -1  # -1 = never started
+        except Exception:  # noqa: BLE001
+            logger.warning("[TranslationScan] in-flight check failed; proceeding", exc_info=True)
+
     # Generation pass — cap at NIGHTLY_CAP.
     # Each gap is isolated: one translation failure must not abort the whole
     # scan (e.g. if the bridge dispatcher is unavailable for a single call).
     for gap in _load_open_missing_gaps(NIGHTLY_CAP, source_labels) if generate else []:
         try:
-            if process_missing_gap(gap):
+            status = process_missing_gap_status(gap)
+            if status == "written":
                 totals["auto_fixed"] += 1
+            elif status == "deferred":
+                # The hub shed this one. Continuing to fire into a saturated hub is what
+                # produced 1,117 shed dispatches — stop the batch and leave the remaining
+                # gaps OPEN for the next pass rather than converting them all into
+                # "failures" that never get retried (#5851).
+                totals["generation_deferred"] += 1
+                logger.info(
+                    "[TranslationScan] dispatch deferred (hub backpressure) at gap_id=%s — stopping generation pass",
+                    gap.get("id"),
+                )
+                break
         except Exception:  # noqa: BLE001
             logger.exception(
                 "[TranslationScan] process_missing_gap failed for gap_id=%s",
@@ -310,7 +339,7 @@ def run_translation_coverage_scan(
     totals["quality_retranslated"] = 0
     for gap in _load_open_quality_gaps(NIGHTLY_CAP, source_labels) if generate else []:
         try:
-            if process_missing_gap(gap):
+            if process_missing_gap_status(gap) == "written":
                 totals["quality_retranslated"] += 1
                 totals["auto_fixed"] += 1
         except Exception:  # noqa: BLE001

@@ -243,3 +243,39 @@ def prioritize(diff: str | None, cap: int | None = None) -> str | None:
     files = [b for b in blocks if b[0] != ""]
     files.sort(key=lambda pb: file_band(pb[0]))  # stable: ties keep original order
     return "".join(b for _, b in preamble + files)
+
+
+def chunk_plan(diff: str | None, cap: int, max_chunks: int) -> list:
+    """Pack whole diff blocks into at most ``max_chunks`` bins of <= ``cap`` chars (#5848).
+
+    A block is NEVER split. Splitting mid-hunk reintroduces the exact mid-statement cut
+    ``_truncate_diff`` was written to avoid — the one that produced false 'no tests added'
+    and 'unclosed loop' flags. A single block larger than ``cap`` takes its own bin and is
+    truncated downstream by the existing ``_truncate_diff``.
+
+    ``max_chunks <= 1`` returns the diff UNCHANGED, so the killswitch path is byte-identical
+    to the pre-chunking behaviour. That property is pinned by a test; do not "optimise" it
+    into an early truncation.
+
+    Ordering comes from ``prioritize`` (#2715) — code before tests before docs — so chunk 1
+    is the code. That ordering is also why tests were the thing being truncated away: five of
+    six consecutive truncations on 2026-08-20 were the test file.
+    """
+    if not diff:
+        return []
+    if max_chunks <= 1:
+        return [diff]
+
+    ordered = prioritize(diff, cap) or diff
+    bins: list = []
+    current = ""
+    for _path, block in split_blocks(ordered):
+        if current and len(current) + len(block) > cap:
+            bins.append(current)
+            current = ""
+            if len(bins) >= max_chunks:
+                break
+        current += block
+    if current and len(bins) < max_chunks:
+        bins.append(current)
+    return bins[:max_chunks]

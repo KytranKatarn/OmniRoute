@@ -1617,9 +1617,19 @@ def _check_dockerfile_provenance(diff: str) -> list:
     return findings
 
 
-def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None):
+def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str = None, ground_diff: str = None):
     """PR-B: JSON-structured grounded review. Returns canonical review TEXT, or None to fall back
     to the freeform path (disabled flag / queue / empty / unparseable JSON — all fail-safe)."""
+    # #5848 — `diff` is what the MODEL SEES (a chunk once chunking is on). `ground_diff`
+    # is the WHOLE PR, used by every grounding / absence check. Defaults to diff, so every
+    # pre-chunking caller is byte-for-byte unchanged.
+    #
+    # Decision 2 of the spec: judge against the whole PR, show only the chunk. If grounding
+    # used the chunk, a finding whose evidence lives in ANOTHER chunk would be dropped as
+    # ungrounded — and that is a real defect class splitting itself manufactures (a caller
+    # in chunk 1 broken by a signature change in chunk 3).
+    ground_diff = ground_diff if ground_diff is not None else diff
+
     if not _structured_review_enabled():
         return None
     from tools.repair_bay.services.pr_review_service import classify_pr_tier
@@ -1657,7 +1667,7 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     n_ungrounded = 0
     # PR-C: deterministic evidence-verification — drop issues whose evidence isn't a changed line.
     if _evidence_verification_enabled():
-        kept, dropped = _verify_evidence(issues, diff)
+        kept, dropped = _verify_evidence(issues, ground_diff)
         if dropped:
             note = f"dropped {len(dropped)} issue(s) with evidence not in the diff"
             n_ungrounded = _count_ungrounded(dropped)
@@ -1670,7 +1680,7 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     if _self_refute_enabled():
         criticals = [i for i in issues if str((i or {}).get("severity", "")).upper() == "CRITICAL"]
         if criticals:
-            confirmed, audit_ran = _self_refute_criticals(review, diff, criticals)
+            confirmed, audit_ran = _self_refute_criticals(review, ground_diff, criticals)
             if audit_ran:
                 if len(confirmed) != len(criticals):
                     cset = {id(c) for c in confirmed}
@@ -1698,7 +1708,7 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
         note = (note + "; " if note else "") + f"normalized {n_demoted} nit(s) to INFO"
     # Deploy-provenance guard (#4749): deterministic, appended AFTER normalize so it stays
     # advisory 'low' (non-blocking) and isn't counted among the demoted nits.
-    dockerfile_findings = _check_dockerfile_provenance(diff)
+    dockerfile_findings = _check_dockerfile_provenance(ground_diff)
     if dockerfile_findings:
         issues.extend(dockerfile_findings)
         note = (note + "; " if note else "") + f"deploy-provenance: {len(dockerfile_findings)} Dockerfile finding(s)"
@@ -1747,7 +1757,7 @@ def _structured_review(review: dict, diff: str, pr_number: int = None, repo: str
     # fabricated compliment is a reporting defect, not evidence the code is broken.
     unsupported_claims = []
     if _false_clear_gate_enabled():
-        cleaned, unsupported_claims = strip_unsupported_claims(parsed.get("summary") or "", diff)
+        cleaned, unsupported_claims = strip_unsupported_claims(parsed.get("summary") or "", ground_diff)
         if unsupported_claims:
             parsed["summary"] = cleaned
             note = (note + "; " if note else "") + (

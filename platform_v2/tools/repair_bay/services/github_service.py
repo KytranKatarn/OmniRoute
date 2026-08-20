@@ -603,6 +603,31 @@ def _pr_on_open_window(pr_number: int) -> tuple:
         return False, f"window check failed ({type(exc).__name__}) — refusing"
 
 
+def verdict_refusal(summary: str, verdict_ok: bool) -> "str | None":
+    """Why a stored verdict does not authorize a merge — or None if it does.
+
+    ONE definition of the SAFETY half of merge governance, shared by every
+    attended surface. Pure, so the decision is testable without a DB, GitHub or
+    a Flask app.
+
+    Deliberately covers ONLY the verdict. It does NOT re-impose the allowlist or
+    the tier ceiling: those are AUTHORITY limits, and an authenticated human
+    clicking Merge is precisely the authority they exist to require (decision
+    #953 — safety properties are universal, authority limits are per-actor).
+    Staleness is enforced separately, for every actor, inside merge_pr via
+    _override_stale_verdict_check (#5672).
+
+    ``ai_bridge.agent_loop.tab_merge_refusal`` delegates its verdict branches
+    here so the Approvals tab and the two @admin_required Repair Bay routes
+    cannot drift apart — a duplicated safety rule is how #2458 happened.
+    """
+    if not summary:
+        return "no stored F.O.R.G.E. review — a dead review is not an approval"
+    if not verdict_ok:
+        return "the stored verdict is NOT an approval — re-review before merging"
+    return None
+
+
 def _override_stale_verdict_check(pr_number: int, repo: str = None) -> tuple:
     """(ok, why) — refuse a human_override merge on a PROVEN-stale verdict (#5672).
 

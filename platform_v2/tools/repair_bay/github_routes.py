@@ -83,6 +83,27 @@ def register_github_routes(bp, admin_required):
         # human_override: this endpoint is @login_required @admin_required — an operator
         # clicking merge is an attended decision, so it bypasses the unattended-merge
         # governance gate (#5194). Automated callers must never pass this.
+        #
+        # #5834 PARITY: the override clears AUTHORITY (allowlist, tier ceiling) — never the
+        # SAFETY property that an approving verdict exists. The Approvals tab enforces this
+        # via tab_merge_refusal; this route did not, so the SAME PR refused there could be
+        # merged here on a needs_changes verdict. That inconsistency is how #2458 reached
+        # main. Staleness stays with merge_pr's _override_stale_verdict_check (#5672).
+        try:
+            from .services.github_service import verdict_refusal
+            from .services.pr_review_service import get_review, verdict_is_approved
+
+            _row = get_review(pr_number) or {}
+            _summary = _row.get("ai_summary") or ""
+            _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary))
+        except Exception as _exc:  # noqa: BLE001
+            # FAIL CLOSED — an unreadable verdict is not an approval, and this ends in an
+            # unrevertable merge to main.
+            _refusal = f"could not verify the verdict ({_exc}) — refusing rather than guessing"
+        if _refusal:
+            logger.warning("[FORGE] refusing merge of PR #%s: %s", pr_number, _refusal)
+            return jsonify({"success": False, "merged": False, "error": _refusal}), 422
+
         result = merge_pr(pr_number, method, human_override=True)
         if result.get("success") or result.get("merged"):
             logger.info(f"[FORGE] PR #{pr_number} merged via {method} (human override)")
@@ -898,6 +919,21 @@ def register_github_routes(bp, admin_required):
         review = get_review(pr_number)
         if not review:
             return jsonify({"error": f"PR #{pr_number} not found"}), 404
+
+        # #5834 PARITY — same rule as the Approvals tab: the override clears AUTHORITY,
+        # never the SAFETY property that an approving verdict exists. `review` being
+        # non-None only proves a review ROW exists; it says nothing about the verdict.
+        try:
+            from .services.github_service import verdict_refusal
+            from .services.pr_review_service import verdict_is_approved
+
+            _summary = review.get("ai_summary") or ""
+            _refusal = verdict_refusal(_summary, bool(_summary) and verdict_is_approved(_summary))
+        except Exception as _exc:  # noqa: BLE001
+            _refusal = f"could not verify the verdict ({_exc}) — refusing rather than guessing"
+        if _refusal:
+            logger.warning("[FORGE] refusing merge of PR #%s: %s", pr_number, _refusal)
+            return jsonify({"success": False, "merged": False, "error": _refusal}), 422
 
         # #4494: merge against the PR's OWN repo (watch-product PRs live in separate repos).
         # human_override: @login_required @admin_required — an attended operator merge,

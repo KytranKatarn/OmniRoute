@@ -211,10 +211,15 @@ def tab_merge_refusal(summary: str, verdict_ok: bool, gate_ok: bool, gate_reason
     Only staleness (and a missing/negative verdict) refuses here. An allowlist or
     tier refusal is precisely what the human tap clears, so it must NOT block.
     """
-    if not summary:
-        return "no stored F.O.R.G.E. review — a dead review is not an approval"
-    if not verdict_ok:
-        return "the stored verdict is NOT an approval — re-review before merging"
+    # Verdict branches live in github_service.verdict_refusal so the tab and the
+    # two @admin_required Repair Bay routes share ONE definition (#5834 parity).
+    from tools.repair_bay.services.github_service import (  # noqa: PLC0415
+        verdict_refusal,
+    )
+
+    _vr = verdict_refusal(summary, verdict_ok)
+    if _vr:
+        return _vr
     low = str(gate_reason or "").lower()
     if not gate_ok and (("stale verdict" in low) or ("head is now" in low)):
         return f"STALE VERDICT — {gate_reason}"

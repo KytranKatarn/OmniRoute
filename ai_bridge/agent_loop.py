@@ -258,6 +258,42 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
             )
             return cur.fetchone() is not None
 
+    if action_type == "pr_merge":
+        # #5829: pr_merge dedups on (action_type, pr_number). The coarse
+        # action_type-only check meant ONLY ONE PR could await approval at a
+        # time — every other escalation was silently dropped while one sat
+        # pending, and `_mark_kytran_approval_sent()` still recorded it as
+        # asked, so it was never raised again.
+        #
+        # Measured 2026-08-19: 108 PRs flagged kytran_approval_sent, only 78
+        # ever got a row. Concretely, while PR #2703's approval sat pending
+        # 19:32-22:41, the escalations for #2697/#2705/#2706 (21:11) and
+        # #2700/#2707 (21:41) all evaporated. They stayed open, believed
+        # escalated, and never appeared in the Approvals tab — whose own
+        # subtitle promises "Approve here or via Telegram — same result".
+        #
+        # This is the THIRD time this exact trap has been fixed: the docstring
+        # above records it for contractor_dispatch (Phase 7 smoke testing) and
+        # for linkedin_post (#3944). A coarse per-action_type dedup is only
+        # correct when the action is genuinely a singleton; a merge approval
+        # never was.
+        pr_no = (action_data or {}).get("pr_number")
+        if pr_no is not None:
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = %s
+                  AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND action_data->>'pr_number' = %s
+                LIMIT 1
+                """,
+                (action_type, str(pr_no)),
+            )
+            return cur.fetchone() is not None
+        # No pr_number in the payload -> fall through to the coarse check rather
+        # than bypass dedup entirely (same fallback rule as contractor_dispatch).
+
     if action_type in ("linkedin_like", "linkedin_comment", "linkedin_comment_like"):
         # Engagement actions dedup on (action_type, post_urn, acting browser agent) —
         # multi-account engagement (Terry 377 + Kytran 342) means approvals for
@@ -9363,7 +9399,7 @@ class AgentLoop:
             pr_num,
             why,
         )
-        open_pr_merge_approval(pr_num, title, summary, repo=review.get("repo"))
+        approval_id = open_pr_merge_approval(pr_num, title, summary, repo=review.get("repo"))
         self._request_kytran_pr_approval(
             pr_num,
             title,
@@ -9372,8 +9408,22 @@ class AgentLoop:
                 f"⛔ Tier {tier} auto-merge was REFUSED — a human must merge this " f"deliberately.\n\n*Reason:* {why}"
             ),
         )
-        _mark_kytran_approval_sent(pr_num)
-        return True
+        # #5829: mark "asked" only when a QUEUE ROW EXISTS. This flag is checked at
+        # the top of the worker loop and permanently suppresses re-escalation, so
+        # setting it on a failed/deduped/draft-guarded creation retires the PR from
+        # the queue forever while it is still open and unmerged. Telegram alone is
+        # not enough — a message scrolls away, a row does not, and the Approvals tab
+        # is where the owner actually looks. Same shape as ADR-014: record the
+        # artifact, never the intent.
+        if approval_id:
+            _mark_kytran_approval_sent(pr_num)
+            return True
+        logger.warning(
+            "[PRTiers] PR #%s: no approval row was created (draft guard, dedup or error) — "
+            "NOT marking as asked, so the next cycle retries instead of losing it",
+            pr_num,
+        )
+        return False
 
     def _run_archie_pr_review_worker(self):
         """Job: Tiered PR merge authority — F.O.R.G.E./A.R.C.H.I.E./Kytran governance."""

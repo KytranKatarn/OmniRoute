@@ -406,7 +406,7 @@ _DEFECT_ASSERTION_RE = re.compile(
 _DESIGN_OBSERVATION_RE = re.compile(
     r"add(s|ed|ing)?\s+(to\s+the\s+)?complexity|increas\w+\s+\w*\s*complexity"
     r"|complexity\s+(to|in|of)\s+the\s+(codebase|code|module)"
-    r"|introduc\w+\s+(new\s+)?(functions?|methods?|classes?|helpers?)"
+    r"|introduc\w+\s+(a|an|the)?\s*(new\s+)?(functions?|methods?|class(es)?|helpers?)"
     r"|additional\s+functionality"
     r"|hard[\s-]?cod\w+"
     r"|may\s+be\s+too\s+\w+\s+or\s+too\s+\w+",
@@ -423,6 +423,21 @@ _HARDCODE_IS_REAL_RE = re.compile(
 )
 
 
+# CARVE-OUT #2 (#5841) — a CONTRASTIVE conjunction means the operative claim is what FOLLOWS it,
+# not the shape remark before it. "Introduces a new function `_logout(client)` ... HOWEVER, this
+# function is not used in any of the tests. It should either be used or removed" is a real dead-code
+# finding wearing a design-observation opening. Without this guard the article fix below would have
+# DEMOTED it — measured on the live corpus (pr_reviews #1692), which is exactly the suppression risk
+# that kept #5841 out of the #5839 PR.
+#
+# Deliberately broad: ANY contrastive anywhere in the blob vetoes the demotion. Erring toward NOT
+# demoting is the safe direction for a demote-only gate — a false block costs one human glance, a
+# false demotion hides a defect. Measured cost on 1,741 real issue lines: 4 findings stop being
+# demoted, and one of them is a genuine "[WARNING] SQL Injection Risk: ... queries use string
+# formatting directly" that the gate had been silently demoting.
+_CONTRASTIVE_RE = re.compile(r"\b(however|but|although|though|that\s+said|nevertheless|nonetheless|whereas)\b", re.I)
+
+
 def _is_design_observation(blob: str) -> bool:
     """True when a finding only remarks on SHAPE (complexity, size, a hardcoded tunable) or hedges
     unfalsifiably, and asserts no fault anywhere.
@@ -431,13 +446,17 @@ def _is_design_observation(blob: str) -> bool:
       * a design-observation phrase,
       * no predicative fault claim (_DEFECT_ASSERTION_RE) — so "adds complexity AND is vulnerable"
         still blocks,
-      * no secret/address noun (_HARDCODE_IS_REAL_RE) — a hardcoded credential is a REAL finding.
+      * no secret/address noun (_HARDCODE_IS_REAL_RE) — a hardcoded credential is a REAL finding,
+      * no contrastive conjunction (_CONTRASTIVE_RE) — after "however"/"but" the operative claim is
+        what FOLLOWS, so the shape remark before it cannot speak for the whole finding (#5841).
     """
     if not blob:
         return False
     if _DEFECT_ASSERTION_RE.search(blob):
         return False
     if _HARDCODE_IS_REAL_RE.search(blob):
+        return False
+    if _CONTRASTIVE_RE.search(blob):
         return False
     return bool(_DESIGN_OBSERVATION_RE.search(blob))
 

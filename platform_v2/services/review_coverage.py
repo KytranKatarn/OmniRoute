@@ -152,3 +152,94 @@ def is_low_signal_path(path: str, patterns: Iterable[str] = ()) -> bool:
         if pat and re.search(pat, p):
             return True
     return False
+
+
+# ---------------------------------------------------------------------------
+# ORDERING — spend a limited diff window on CODE first (#5836 follow-up)
+#
+# Coverage (above) makes a partial review honest. Ordering makes it RARER, by deciding
+# WHICH files survive truncation instead of leaving it to alphabetical accident.
+#
+# GitHub emits diff files alphabetically, so `.claude/rules/...` sorts FIRST — ahead of
+# everything. Measured 2026-08-19 on PR #2713: a ONE-LINE edit to
+# .claude/rules/module-capability-index.md produced a 10,837-char diff (58% of an 18,768
+# budget) because that file's lines are multi-KB, so a one-line change emits the whole old
+# line plus the whole new line. It consumed the window before any code was reached, and the
+# review that came back described the PR as "only a markdown file update" — while approving
+# a change to a pre-deploy BACKUP path.
+#
+# BANDS, and why tests are NOT last:
+#   0 code   — the behaviour under review
+#   1 tests  — a sliced-off test file is the documented cause of the false "no tests added"
+#              flag (see _truncate_diff's docstring). Demoting tests BELOW docs would
+#              manufacture that false finding on exactly the PRs that do add tests.
+#   2 docs / generated / lockfiles — real changes, but the least reviewable per byte.
+#
+# Ordering is applied ONLY when the diff would actually truncate. A diff that fits is passed
+# through byte-identical, so the overwhelming majority of reviews see no behaviour change at
+# all — the change is confined to the case it exists to fix.
+#
+# Reordering is safe because a unified diff is a concatenation of INDEPENDENT per-file
+# blocks, each carrying its own `diff --git` header. Nothing is added or removed, so
+# `coverage()` (a set comparison) stays exactly as honest either way.
+
+_TEST_RE = re.compile(r"(^|/)(tests?|spec)/|(^|/)test_[^/]*$|_test\.[^/]+$|\.spec\.[^/]+$")
+_DOC_RE = re.compile(
+    r"\.(md|rst|txt|adoc)$"
+    r"|^\.claude/"
+    r"|(^|/)docs?/"
+    r"|(^|/)(changelog|license|notice|authors|codeowners)"
+    r"|(-|\.)lock$|lock\.json$|\.min\.(js|css)$|\.snap$",
+    re.IGNORECASE,
+)
+
+
+def file_band(path: str) -> int:
+    """0 = code, 1 = tests, 2 = docs/generated. Lower is reviewed first."""
+    p = (path or "").strip()
+    if _DOC_RE.search(p):
+        return 2
+    if _TEST_RE.search(p):
+        return 1
+    return 0
+
+
+def split_blocks(diff: str | None) -> list:
+    """Split a unified diff into (path, block) pairs, preserving each block verbatim.
+
+    Anything before the first `diff --git` (rare preamble) is returned under the path
+    ``""`` so it is never silently dropped.
+    """
+    if not diff:
+        return []
+    marks = [(m.start(), m.group(1)) for m in _FILE_RE.finditer(diff)]
+    if not marks:
+        return [("", diff)]
+    blocks = []
+    if marks[0][0] > 0:
+        blocks.append(("", diff[: marks[0][0]]))
+    for i, (start, path) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(diff)
+        blocks.append((path, diff[start:end]))
+    return blocks
+
+
+def prioritize(diff: str | None, cap: int | None = None) -> str | None:
+    """Reorder a diff so code precedes tests precedes docs — only when it would truncate.
+
+    ``cap`` is the truncation budget. When it is None, or the diff already fits, the diff is
+    returned UNCHANGED (byte-identical), because reordering a diff the model will see in
+    full changes presentation for no benefit.
+
+    The sort is STABLE, so within a band GitHub's original ordering is preserved.
+    """
+    if not diff or cap is None or len(diff) <= cap:
+        return diff
+    blocks = split_blocks(diff)
+    if len(blocks) < 2:
+        return diff
+    # A leading preamble (path "") must stay at the front — it is not a file block.
+    preamble = [b for b in blocks if b[0] == ""]
+    files = [b for b in blocks if b[0] != ""]
+    files.sort(key=lambda pb: file_band(pb[0]))  # stable: ties keep original order
+    return "".join(b for _, b in preamble + files)

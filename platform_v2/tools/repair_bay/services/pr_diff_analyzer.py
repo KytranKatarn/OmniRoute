@@ -12,7 +12,7 @@ import re
 
 import requests
 
-from services.review_coverage import annotate, coverage, summarize
+from services.review_coverage import annotate, coverage, prioritize, summarize
 from tools.repair_bay.services.pr_review_service import (
     get_pending_reviews,
     get_review,
@@ -1787,7 +1787,14 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # Tier-3 PR is auto-merged by nobody, so an extra coverage note there costs nothing.
     # Erring toward the smaller cap errs toward FLAGGING, which is the safe direction:
     # an over-flag costs a human glance, an under-flag is #5836 itself.
-    _shown, _ = _truncate_diff(diff, _diff_cap_for_model(strong=False))
+    _cap = _diff_cap_for_model(strong=False)
+    # #5836 follow-up — ORDER the window before measuring or reviewing it. GitHub emits
+    # files alphabetically, so `.claude/rules/...` sorts ahead of all code; on PR #2713 a
+    # ONE-LINE rules edit (multi-KB lines) took 58% of the budget and the review came back
+    # "only a markdown file update". prioritize() is a no-op unless the diff would actually
+    # truncate, so a PR that fits is passed through byte-identical.
+    diff = prioritize(diff, _cap)
+    _shown, _ = _truncate_diff(diff, _cap)
     _cov = coverage(diff, _shown)
     if not _cov["complete"]:
         logger.warning("[PR Review] PR #%s — %s", pr_number, summarize(_cov))

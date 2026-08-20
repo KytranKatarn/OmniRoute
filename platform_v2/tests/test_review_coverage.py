@@ -16,7 +16,10 @@ from services.review_coverage import (  # noqa: E402
     coverage,
     coverage_note,
     diff_files,
+    file_band,
     is_low_signal_path,
+    prioritize,
+    split_blocks,
     summarize,
 )
 from tools.repair_bay.services.pr_review_service import (  # noqa: E402
@@ -169,3 +172,110 @@ class TestLowSignalPath(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFileBand(unittest.TestCase):
+    def test_code_is_first(self):
+        for p in ("platform_v2/services/deploy.py", "src/app.js", "migrations/001.sql"):
+            self.assertEqual(file_band(p), 0, p)
+
+    def test_tests_are_middle(self):
+        for p in (
+            "platform_v2/tests/test_x.py",
+            "app/spec/thing.spec.ts",
+            "pkg/foo_test.go",
+            "test_top_level.py",
+        ):
+            self.assertEqual(file_band(p), 1, p)
+
+    def test_docs_and_generated_are_last(self):
+        for p in (
+            ".claude/rules/module-capability-index.md",
+            "README.md",
+            "docs/design.rst",
+            "package-lock.json",
+            "poetry.lock",
+            "static/js/app.min.js",
+            "CHANGELOG",
+        ):
+            self.assertEqual(file_band(p), 2, p)
+
+    def test_tests_outrank_docs_so_the_false_no_tests_flag_is_not_resurrected(self):
+        """A sliced-off test file is the documented cause of the false 'no tests added'
+        finding. Demoting tests below docs would manufacture it on exactly the PRs that
+        DO add tests."""
+        self.assertLess(file_band("platform_v2/tests/test_x.py"), file_band("README.md"))
+
+
+class TestSplitBlocks(unittest.TestCase):
+    def test_round_trip_is_byte_exact(self):
+        d = _hunk("a.py") + _hunk("b.md")
+        self.assertEqual("".join(b for _, b in split_blocks(d)), d)
+
+    def test_preamble_is_kept_under_empty_path(self):
+        d = "some preamble\n" + _hunk("a.py")
+        blocks = split_blocks(d)
+        self.assertEqual(blocks[0][0], "")
+        self.assertEqual("".join(b for _, b in blocks), d)
+
+    def test_no_headers_returns_one_block(self):
+        self.assertEqual(split_blocks("no headers here"), [("", "no headers here")])
+
+
+class TestPrioritize(unittest.TestCase):
+    def test_no_op_when_the_diff_fits(self):
+        d = _hunk("z.md") + _hunk("a.py")
+        self.assertEqual(prioritize(d, cap=10_000), d, "a fitting diff must be byte-identical")
+
+    def test_no_op_when_no_cap_given(self):
+        d = _hunk("z.md") + _hunk("a.py")
+        self.assertEqual(prioritize(d, None), d)
+
+    def test_reorders_when_truncating(self):
+        d = _hunk(".claude/rules/x.md") + _hunk("services/deploy.py") + _hunk("tests/test_d.py")
+        out = prioritize(d, cap=1)
+        self.assertEqual(
+            diff_files(out),
+            ["services/deploy.py", "tests/test_d.py", ".claude/rules/x.md"],
+        )
+
+    def test_reordering_loses_nothing(self):
+        d = _hunk("z.md") + _hunk("a.py") + _hunk("tests/test_a.py")
+        out = prioritize(d, cap=1)
+        self.assertEqual(sorted(diff_files(out)), sorted(diff_files(d)))
+        self.assertEqual(len(out), len(d), "no bytes added or dropped")
+
+    def test_stable_within_a_band(self):
+        d = _hunk("b.py") + _hunk("a.py")
+        self.assertEqual(diff_files(prioritize(d, cap=1)), ["b.py", "a.py"])
+
+    def test_preamble_stays_in_front(self):
+        d = "PREAMBLE\n" + _hunk("z.md") + _hunk("a.py")
+        self.assertTrue(prioritize(d, cap=1).startswith("PREAMBLE\n"))
+
+    def test_coverage_is_unaffected_by_ordering(self):
+        """coverage() compares SETS, so it stays exactly as honest either way."""
+        d = _hunk("z.md") + _hunk("a.py")
+        self.assertEqual(coverage(d, d)["complete"], coverage(prioritize(d, cap=1), d)["complete"])
+
+
+class TestPR2713OrderingReplay(unittest.TestCase):
+    """With ordering, the budget that a one-line rules edit used to consume goes to code."""
+
+    def test_code_survives_a_tight_window(self):
+        big_doc = "diff --git a/.claude/rules/big.md b/.claude/rules/big.md\n" + ("X" * 4000) + "\n"
+        code = _hunk("platform_v2/services/proposal_service.py")
+        tests = _hunk("platform_v2/tests/test_scope.py")
+        full = big_doc + code + tests
+
+        # Before: alphabetical order puts the 4 KB doc first and it eats the window.
+        cap = len(code) + len(tests) + 10
+        self.assertEqual(diff_files(full)[0], ".claude/rules/big.md")
+
+        # After: both code files lead, so a cap that can hold them does.
+        ordered = prioritize(full, cap)
+        self.assertEqual(
+            diff_files(ordered)[:2],
+            ["platform_v2/services/proposal_service.py", "platform_v2/tests/test_scope.py"],
+        )
+        self.assertEqual(diff_files(ordered)[-1], ".claude/rules/big.md")

@@ -715,7 +715,13 @@ def register_github_repo_routes(bp, admin_required):
 
             cur.execute(
                 f"""
-                SELECT id, title, file_path, importance_score, has_embedding,
+                SELECT id, title, file_path, importance_score,
+                       -- #5864: DERIVE it. The stored `has_embedding` flag is a
+                       -- denormalised mirror nobody maintains — 9,082 rows held a real
+                       -- embedding while the flag read false (measured 2026-08-20), so
+                       -- this rendered "—" for files that ARE embedded. Matches what
+                       -- knowledge_routes.py:247/:874 and routes.py:1338 already do.
+                       (embedding IS NOT NULL) AS has_embedding,
                        memory_metadata, created_at, updated_at, knowledge_type,
                        is_code, is_documentation, repo_type
                 FROM knowledge_base

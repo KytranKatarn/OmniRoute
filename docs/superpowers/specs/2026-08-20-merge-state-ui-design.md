@@ -1,6 +1,8 @@
 # Merge state must be visible before you click — design
 
-**Date:** 2026-08-20 · **Status:** approved design, not implemented · **For:** a fresh session
+**Date:** 2026-08-20 · **Status:** **Surface 1 IMPLEMENTED (PR #2737, open)** — Surface 2 (DHQ Approvals) still open · **For:** a fresh session
+
+> **Update 2026-08-20:** Surface 1 (Repair Bay > PR Review) is built and live-verified — see PR #2737, KB #292213/#292214. The spec's open question about the stale #2717/#2713 `pr_merge` rows is ANSWERED: nothing closed them at all (not a resolver misfire, not pre-dating a fix) — fixed and shipped as #5862 / PR #2736. Surface 2's stale-row half therefore also landed; its merge-state DISPLAY half has not. Also still open: the SECOND Merge affordance at `static/js/repair-bay-main.js` ~333, which renders from a GitHub-shaped payload with no `merge_state`.
 
 ## Problem
 

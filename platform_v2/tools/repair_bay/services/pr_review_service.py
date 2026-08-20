@@ -853,6 +853,102 @@ def reap_stale_reviews(stale_minutes: int = 20, max_retries: int = 3) -> dict:
     return {"reset": reset, "skipped": skipped}
 
 
+# ---------------------------------------------------------------------------
+# MERGE STATE — what the Merge affordance should SAY before you click it (#5853).
+#
+# THE BUG THIS FIXES: the Merge button rendered unconditionally green/enabled for every
+# open PR, and the badge beside it showed `review_status`, whose green "reviewed" is
+# IDENTICAL for an APPROVE, a REQUEST CHANGES and a coverage demotion. So a refused PR
+# displayed a green badge next to a green button — the UI actively signalled "good to go"
+# on something the gate would refuse. You learned the truth by clicking. Measured live
+# 2026-08-20 on PR #2736: first click 422, second click (with ack) 200.
+#
+# ⚠️ THE VERDICT RULE STAYS ON THE SERVER. This composes the EXISTING predicates and adds
+# no new ones. Re-deriving "is this approved" in JS would be a second implementation of a
+# safety rule — exactly what #2722 existed to collapse, and how #2458 reached main.
+#
+# ⚠️ ORDER IS LOAD-BEARING: approved BEFORE coverage_only BEFORE changes_requested. A
+# coverage demotion rewrites the FINAL verdict to NEEDS REVIEW (so verdict_is_approved is
+# False) while coverage_only_demotion re-reads the ORIGINAL — and a REQUEST CHANGES that
+# was ALSO coverage-demoted must land in changes_requested, never coverage_only, because
+# an ack is consent to unread files and never consent to a defect.
+MERGE_STATE_REVIEWING = "reviewing"
+MERGE_STATE_AWAITING = "awaiting_review"
+MERGE_STATE_APPROVED = "approved"
+MERGE_STATE_COVERAGE_ONLY = "coverage_only"
+MERGE_STATE_CHANGES = "changes_requested"
+
+
+def merge_state(review_status: str | None, ai_summary: str | None) -> dict:
+    """Derive what the UI should render for one PR row. Pure — no DB, no Flask.
+
+    Returns {state, mergeable, label, hint, dropped_files}. `mergeable` means only "the
+    gate would not refuse outright"; coverage_only is mergeable ONLY with an explicit ack,
+    which the merge handler still enforces server-side.
+    """
+    status = (review_status or "").strip().lower()
+    summary = ai_summary or ""
+
+    if status == "in_progress":
+        return {
+            "state": MERGE_STATE_REVIEWING,
+            "mergeable": False,
+            "label": "REVIEWING…",
+            "hint": "A review is running — wait for it to finish.",
+            "dropped_files": [],
+        }
+    if not summary.strip() or status == "pending":
+        return {
+            "state": MERGE_STATE_AWAITING,
+            "mergeable": False,
+            "label": "WAITING FOR REVIEW",
+            "hint": "No stored verdict yet — nothing has reviewed this PR.",
+            "dropped_files": [],
+        }
+
+    if verdict_is_approved(summary):
+        return {
+            "state": MERGE_STATE_APPROVED,
+            "mergeable": True,
+            "label": "APPROVED",
+            "hint": "",
+            "dropped_files": [],
+        }
+
+    if coverage_only_demotion(summary):
+        dropped = coverage_dropped_paths(summary) or []
+        return {
+            "state": MERGE_STATE_COVERAGE_ONLY,
+            "mergeable": True,  # only WITH an ack — the route still enforces it
+            "label": f"COVERAGE · {len(dropped)} unread",
+            # Reuse the refusal's own words so the row and the refusal agree.
+            "hint": _merge_hint(summary, False),
+            "dropped_files": dropped,
+        }
+
+    return {
+        "state": MERGE_STATE_CHANGES,
+        "mergeable": False,
+        "label": "CHANGES REQUESTED",
+        "hint": _merge_hint(summary, False),
+        "dropped_files": [],
+    }
+
+
+def _merge_hint(summary: str, verdict_ok: bool) -> str:
+    """The refusal string the merge route itself would produce, verbatim.
+
+    Imported lazily: github_service imports this module, so a top-level import would be
+    circular. Never raises — a missing hint must not blank the whole row.
+    """
+    try:
+        from tools.repair_bay.services.github_service import verdict_refusal
+
+        return verdict_refusal(summary, verdict_ok) or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def list_reviews(state: str = None, review_status: str = None, limit: int = 50) -> list:
     """List PR reviews with optional filters."""
     query = "SELECT * FROM pr_reviews WHERE 1=1"
@@ -867,7 +963,13 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     params.append(limit)
     with get_db_cursor() as (conn, cur):
         cur.execute(query, params)
-        return [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall()]
+    # Stamp the merge state server-side (#5853) so the UI renders a decision it did not
+    # make. Kept out of the SQL deliberately: the verdict rule is Python, and a second
+    # copy of it in SQL would be the same duplication the JS copy would have been.
+    for row in rows:
+        row["merge_state"] = merge_state(row.get("review_status"), row.get("ai_summary"))
+    return rows
 
 
 def get_review(pr_number: int, repo: str = None) -> dict | None:

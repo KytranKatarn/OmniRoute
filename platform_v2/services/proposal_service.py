@@ -53,6 +53,10 @@ def list_proposals(status=None):
                        ip.code_diff, ip.retry_count,
                        ip.backup_clearance_approved, ip.backup_clearance_reason,
                        ip.backup_clearance_at,
+                       -- deployed_at was never serialised, so the Repair Bay
+                       -- "Shipped (24h)" tile had nothing to measure and silently read 0
+                       -- while the table held 4 deploys in 24h (measured 2026-08-20).
+                       ip.deployed_at, ip.deployment_started_at,
                        a.display_name AS agent_display_name,
                        a.name AS agent_code_name,
                        a.model AS agent_model

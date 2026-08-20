@@ -37,6 +37,12 @@
 {% include 'includes/lcars-header.html' %}
 
 <div class="dp-container">
+    <!-- Dashboard Tab -->
+    <div id="tab-reviews" class="tab-content active">
+      <!-- REPAIR BAY OVERVIEW — moved INSIDE the dashboard panel 2026-08-20.
+           It previously sat outside every .tab-content, so these five totals rendered
+           on EVERY tab. Owner call: it is a dashboard summary, so it belongs to the
+           dashboard. `tab-reviews` IS the Dashboard tab (see the comment above). -->
     <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:0 0 0 0 !important;">
         <div style="width:56px;flex-shrink:0;">
           <div style="height:44px;background:var(--cat-accent,#00ffff);border-radius:20px 0 0 20px;"></div>
@@ -80,8 +86,6 @@
     </div>
     </div>
 
-    <!-- Dashboard Tab -->
-    <div id="tab-reviews" class="tab-content active">
       <div class="lcars-frame" style="display:flex !important;align-items:stretch !important;margin:12px 0 !important;">
         <div class="lcars-sidebar" style="display:flex !important;flex-direction:column !important;flex-shrink:0 !important;width:56px !important;gap:4px !important;">
           <div style="height:52px !important;background:var(--cat-accent,#00ffff) !important;border-radius:20px 0 0 0 !important;flex-shrink:0 !important;"></div>
@@ -2360,7 +2364,12 @@ function loadStats() {
         if (!Array.isArray(all)) all = [];
         var cutoff = Date.now() - 86400000;
         var today = all.filter(function(p) {
-            var ts = p.implemented_at || p.proposed_at;
+            // `implemented_at` DOES NOT EXIST on improvement_proposals (columns are
+            // deployed_at / deployment_started_at / test_completed_at). It read undefined
+            // and silently fell back to proposed_at — WHEN IT WAS CREATED, not when it
+            // shipped — so recently-deployed-but-long-proposed rows were filtered out and
+            // the tile read 0 while the DB held 4 deploys in 24h (measured 2026-08-20).
+            var ts = p.deployed_at || p.deployment_started_at;
             return ts && new Date(ts).getTime() > cutoff;
         });
         document.getElementById('statDeployed').textContent = today.length;
@@ -3488,6 +3497,9 @@ window.loadPRReviews = function(state) {
     list.appendChild(loading);
     fetch(url).then(function(r) { return r.json(); }).then(function(d) {
         var reviews = d.reviews || [];
+        // Stamped on SUCCESS only — a failed refresh must leave the previous timestamp
+        // standing so the rows correctly go stale instead of looking freshly confirmed.
+        window._prReviewFetchedAt = Date.now();
         var countEl = document.getElementById('prReviewCount');
         if (countEl) countEl.textContent = reviews.length + ' PR' + (reviews.length !== 1 ? 's' : '');
         list.textContent = '';
@@ -3504,7 +3516,25 @@ window.loadPRReviews = function(state) {
             card.onmouseenter = function(){ this.style.background='rgba(255,255,255,0.04)'; };
             card.onmouseleave = function(){ this.style.background=''; };
 
-            var statusColor = {'pending':'#fbbf24','in_progress':'#22d3ee','reviewed':'#22c55e','skipped':'#6b7280'}[pr.review_status] || '#6b7280';
+            // #5853 — render the MERGE state, not review_status. review_status='reviewed'
+            // is identical for an APPROVE, a REQUEST CHANGES and a coverage demotion, so the
+            // old badge showed green next to a green Merge button on a PR the gate refuses.
+            // `pr.merge_state` is computed SERVER-SIDE (pr_review_service.merge_state) — this
+            // file must never re-derive a verdict, or the safety rule exists in two places.
+            var ms = pr.merge_state || null;
+            var MS_COLOR = {
+                approved: '#22c55e', coverage_only: '#fbbf24', changes_requested: '#ef4444',
+                awaiting_review: '#6b7280', reviewing: '#22d3ee'
+            };
+            var statusColor = ms ? (MS_COLOR[ms.state] || '#6b7280')
+                : ({'pending':'#fbbf24','in_progress':'#22d3ee','reviewed':'#22c55e','skipped':'#6b7280'}[pr.review_status] || '#6b7280');
+            // Staleness = how long since the LIST WAS FETCHED, not how old the PR row is.
+            // Keying off pr.updated_at marked every historical/closed PR stale forever
+            // (caught in the live drive) — for a closed PR an old updated_at is normal, not
+            // a warning, and a marker that is always on says nothing. Only OPEN PRs can
+            // change state underneath you, so only they can go stale.
+            var _stale = (pr.state === 'open') &&
+                         (Date.now() - (window._prReviewFetchedAt || Date.now())) > 60000;
             var header = document.createElement('div');
             header.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:6px;';
 
@@ -3518,7 +3548,9 @@ window.loadPRReviews = function(state) {
 
             var badge = document.createElement('span');
             badge.style.cssText = 'font-size:0.6rem;padding:2px 6px;border-radius:4px;border:1px solid ' + statusColor + ';color:' + statusColor + ';flex-shrink:0;';
-            badge.textContent = pr.review_status || 'pending';
+            badge.textContent = (_stale ? '\u29D6 ' : '') + (ms ? ms.label : (pr.review_status || 'pending'));
+            if (ms && ms.hint) badge.title = ms.hint;
+            else if (_stale) badge.title = 'This row has not refreshed in over a minute.';
 
             header.appendChild(num); header.appendChild(title); header.appendChild(badge);
 
@@ -3544,9 +3576,37 @@ window.loadPRReviews = function(state) {
 
             if (pr.state === 'open') {
                 var mergeBtn = document.createElement('button');
-                mergeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);color:#4ade80;border-radius:4px;cursor:pointer;';
-                mergeBtn.textContent = 'Merge';
-                mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number); };
+                // The button now SAYS what will happen. It used to be unconditionally green
+                // and enabled for every open PR, so the only way to learn the real state was
+                // to click and read the refusal (measured on #2736: click -> 422 -> click).
+                var _st = ms ? ms.state : null;
+                var _can = ms ? !!ms.mergeable : true;   // no state (stale payload) => legacy
+                var _n = (ms && ms.dropped_files) ? ms.dropped_files.length : 0;
+                var _text = 'Merge', _col = '#4ade80', _bg = 'rgba(34,197,94,0.15)', _br = 'rgba(34,197,94,0.4)';
+                if (_st === 'coverage_only') {
+                    _text = 'Merge (' + _n + ' unread)'; _col = '#fbbf24';
+                    _bg = 'rgba(251,191,36,0.15)'; _br = 'rgba(251,191,36,0.45)';
+                } else if (_st === 'changes_requested') {
+                    _text = 'Blocked — re-review'; _col = '#ef4444';
+                    _bg = 'rgba(239,68,68,0.10)'; _br = 'rgba(239,68,68,0.35)';
+                } else if (_st === 'awaiting_review') {
+                    _text = 'Waiting for review'; _col = '#94a3b8';
+                    _bg = 'rgba(148,163,184,0.10)'; _br = 'rgba(148,163,184,0.30)';
+                } else if (_st === 'reviewing') {
+                    _text = 'Reviewing…'; _col = '#67e8f9';
+                    _bg = 'rgba(34,211,238,0.10)'; _br = 'rgba(34,211,238,0.30)';
+                }
+                mergeBtn.style.cssText = 'font-size:0.6rem;padding:2px 8px;background:' + _bg +
+                    ';border:1px solid ' + _br + ';color:' + _col + ';border-radius:4px;cursor:' +
+                    (_can ? 'pointer' : 'not-allowed') + ';' + (_can ? '' : 'opacity:0.6;');
+                mergeBtn.textContent = _text;
+                // A disabled button must carry its REASON — reachable without clicking.
+                if (ms && ms.hint) mergeBtn.title = ms.hint;
+                if (_can) {
+                    mergeBtn.onclick = function(e){ e.stopPropagation(); confirmMergePR(pr.pr_number); };
+                } else {
+                    mergeBtn.disabled = true;
+                }
                 actions.appendChild(mergeBtn);
             }
 

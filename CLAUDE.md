@@ -186,7 +186,7 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 - Reference: `bridge.html` lines 9209-9249
 
 ### Agent Roster
-- `agents` table = single source of truth (140 non-decommissioned measured 2026-08-17: 116 ai + 24 internal + 1 contractor by worker_type)
+- `agents` table = single source of truth (**140 non-decommissioned re-measured 2026-08-20: 116 ai + 23 internal + 1 contractor** by worker_type; the 2026-08-17 line said 24 internal, which summed to 141 — the arithmetic did not close)
 - worker_type='ai' spans 17 departments (incl. persona/collaborator identities — the ~34 "roster AI agents" figure was a stale, narrower classification)
 - 17 departments (News & Media added 2026-04-14 with 6 AI agents)
 - 1 agent = 1 department (managed via `agent_service.py`)

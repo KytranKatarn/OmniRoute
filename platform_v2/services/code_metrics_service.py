@@ -1840,9 +1840,16 @@ def log_audit(
     status="completed",
     audit_profile="python",
     trigger_reason="scheduled",
-    dispatched_via=None,
+    dispatched_via="local_static_analysis",
 ):
-    """Record an audit entry and bridge issues into Repair Bay improvement_proposals."""
+    """Record an audit entry and bridge issues into Repair Bay improvement_proposals.
+
+    dispatched_via defaults to "local_static_analysis" — every current caller of
+    this function (audit_single_module's python/web/config checks, and the
+    PATTERN_COMPLIANCE grep sweep) IS local static analysis; no caller invokes an
+    LLM to produce these rows. A caller that omitted dispatched_via used to write
+    a silent NULL — "unmonitored while APPEARING monitored" (#5881) — the same
+    defect class as W.A.R.D.E.N. swallowing its exception every run (#2366)."""
     import json as _json
 
     with get_db_cursor(commit=True) as (conn, cur):

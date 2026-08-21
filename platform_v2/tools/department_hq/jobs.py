@@ -13,6 +13,7 @@ Own jobs (moved from dev_hq — Decision #433):
   - automated_module_audit (Job #58)
   - daily_code_health_digest (Job #51)
   - daily_code_health_scan (Job #55)
+  - daily_code_health_static_audit — THE persistent local_static_analysis scan (#5881)
   - competitor_landscape_scan (Job #52)
 """
 
@@ -509,6 +510,51 @@ def daily_code_health_scan():
             int((time.time() - start) * 1000),
             error_message=str(e),
         )
+
+
+def daily_code_health_static_audit():
+    """THE persistent local_static_analysis audit for the Code Health tab (#5881).
+
+    Calls `_audit_one()` per module — the SAME write path
+    (`services.code_metrics_service.audit_single_module` -> `log_audit(...,
+    dispatched_via="local_static_analysis")`) that the manual "Audit All" button
+    uses in tools.consciousness.code_health_routes. Byte-identical code path means
+    pressing that button between runs of this job can never move the numbers the
+    tab shows — scheduled and manual are the same computation against the same
+    (unchanged) code.
+
+    Deliberately separate from `daily_code_metrics_scan` (Job #40) and
+    `automated_module_audit` (Job #58), which keep running and keep writing
+    dispatched_via="F.O.R.G.E." — the owner's decision (2026-08-21) was to keep
+    that stream, but separate + labelled, never blended into the headline count.
+    """
+    start = time.time()
+    try:
+        from services.code_metrics_service import scan_codebase
+        from tools.consciousness.code_health_routes import _audit_one
+
+        metrics = scan_codebase()
+        all_modules = metrics.get("modules", {})
+        audited = 0
+        failed = 0
+        for key, mod_data in all_modules.items():
+            try:
+                _audit_one(key, mod_data)
+                audited += 1
+            except Exception as audit_err:
+                failed += 1
+                logger.warning("Static audit failed for %s: %s", key, audit_err)
+        duration_ms = int((time.time() - start) * 1000)
+        _log_cycle("code_health_static_audit", audited, failed, duration_ms)
+    except Exception as e:
+        _log_cycle(
+            "code_health_static_audit",
+            0,
+            1,
+            int((time.time() - start) * 1000),
+            error_message=str(e),
+        )
+        logger.warning(f"Code health static audit failed: {e}")
 
 
 def _autoheal_enabled():
@@ -1308,6 +1354,22 @@ def _register_own_jobs(scheduler, flask_app):
         id="agent_code_health_scan",
         name="Agent Loop: Daily Code Health Scan",
         replace_existing=True,
+    )
+
+    # #5881 — THE persistent local_static_analysis scan (2:10 AM, after the 2:00
+    # metrics snapshot). Calls the exact same _audit_one() write path as the manual
+    # "Audit All" button, so scheduled and manual are byte-comparable and pressing
+    # the button can never move the Code Health tab's numbers. Kept separate from
+    # the 3:00/3:30 F.O.R.G.E.-labelled jobs below (owner decision 2026-08-21: keep
+    # F.O.R.G.E., but separate + labelled — it never sets the headline colour).
+    scheduler.add_job(
+        with_ctx(daily_code_health_static_audit),
+        trigger=CronTrigger(hour=2, minute=10, timezone="America/Toronto"),
+        id="code_health_static_audit",
+        name="Code Health: persistent local_static_analysis scan (#5881)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
     )
 
     # Autonomous Code Health heal cycle (02:45 AM — after the 2:00 scan;

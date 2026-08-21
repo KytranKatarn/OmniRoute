@@ -14,9 +14,12 @@ Date: 2026-01-06
 
 import os
 import json
+import logging
 import requests
 from typing import Dict, List, Optional
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeEmbeddingGenerator:
@@ -57,7 +60,7 @@ class KnowledgeEmbeddingGenerator:
                 embedding = data.get("embedding", [])
 
                 if len(embedding) == 0:
-                    print(f"[Embeddings] Warning: Empty embedding returned for text")
+                    logger.warning("[Embeddings] Warning: Empty embedding returned for text")
                     return None
 
                 return embedding

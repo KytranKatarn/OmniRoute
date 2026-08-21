@@ -13,8 +13,11 @@ Date: 2026-01-06
 """
 
 from typing import Dict, List, Optional
+import logging
 import re
 from .knowledge_embedding_generator import KnowledgeEmbeddingGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class KnowledgeHybridSearch:
@@ -128,7 +131,7 @@ class KnowledgeHybridSearch:
                 return results
 
         except Exception as e:
-            print(f"[Hybrid Search] Error in keyword search: {e}")
+            logger.error(f"[Hybrid Search] Error in keyword search: {e}", exc_info=True)
             return []
 
     def semantic_search(self, query: str, limit: int = 50) -> List[Dict]:

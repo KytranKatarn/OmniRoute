@@ -9,10 +9,13 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 import os
 from database import _get_db_password
+import logging
 import re
 import json
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def get_db():
@@ -175,7 +178,7 @@ class MistakeDetector:
 
                 if existing:
                     # We already know about this mistake!
-                    print(f"[Mistake Detector] ⚠️ REPEATED MISTAKE DETECTED: {mistake_type}")
+                    logger.warning(f"[Mistake Detector] ⚠️ REPEATED MISTAKE DETECTED: {mistake_type}")
                     print(f"[Mistake Detector] 📚 Known solution: {existing.get('content', '')[:200]}")
                     return existing
 

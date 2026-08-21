@@ -19,6 +19,7 @@ import os
 from database import _get_db_password
 import sys
 import json
+import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from datetime import datetime
@@ -27,6 +28,8 @@ import importlib.util
 
 # Add platform to path
 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
+
+logger = logging.getLogger(__name__)
 
 
 def get_db():
@@ -86,10 +89,7 @@ def discover_routes_from_app():
         return sorted(routes, key=lambda x: (x["module"], x["path"]))
 
     except Exception as e:
-        print(f"Error discovering routes: {e}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"Error discovering routes: {e}", exc_info=True)
         return []
 
 

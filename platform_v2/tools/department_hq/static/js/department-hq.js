@@ -19,8 +19,7 @@ const FLOOR_ORDER = ['BRIDGE', 'OPERATIONS', 'ENGINEERING', 'CREATIVE', 'SERVICE
 // Track which tabs have been loaded
 const loaded = {};
 let rosterDebounce = null;
-let rosterView = 'cards'; // 'cards' or 'table'
-let lastRosterData = null; // cache for view switching
+let lastRosterData = null; // cache of the last /api/roster response, reused for re-sort/re-group/export
 
 // ───────────────────────────────────────────────────────────────
 // Helpers
@@ -357,16 +356,6 @@ function debounceRoster() {
     rosterDebounce = setTimeout(loadRoster, 300);
 }
 
-function setRosterView(view) {
-    rosterView = view;
-    document.querySelectorAll('.dhq-view-btn').forEach(function(b) {
-        b.classList.toggle('active', b.dataset.view === view);
-    });
-    if (lastRosterData) {
-        renderRoster(lastRosterData);
-    }
-}
-
 function toggleRosterView(view) {
     var listEl  = document.getElementById('rosterContent');
     var chartEl = document.getElementById('rosterOrgChartProxy');
@@ -379,21 +368,141 @@ function toggleRosterView(view) {
     if (isChart && !loaded['org-chart']) { loadOrgChart(); }
 }
 
-async function loadRoster() {
-    var el = document.getElementById('rosterContent');
-    var search = document.getElementById('rosterSearch').value;
-    var floor = document.getElementById('rosterFloor').value;
-    var shift = document.getElementById('rosterShift').value;
+var ALL_SHIFT_STATES = ['active','deployed','barracked','off_duty','winding_down','cooldown'];
+let rosterFilterOptionsData = null; // first UNFILTERED /api/roster payload — the filter dropdowns
+                                     // are always (re)built from this, never from a filtered
+                                     // response. Rebuilding options from e.g. a department=Engineering
+                                     // response would erase every other department and trap the user.
 
+// Rebuilds the Shift/Department/Floor filter selects + the bulk-shift select from live
+// roster data. `agents` MUST be an unfiltered roster snapshot — see rosterFilterOptionsData.
+function populateRosterFilters(agents) {
+    var counts = {};
+    agents.forEach(function(a){ counts[a.shift_state] = (counts[a.shift_state] || 0) + 1; });
+
+    // Every valid state is listed WITH its count. A zero-count option that is
+    // visible is honest; a removed one is indistinguishable from a state that
+    // does not exist (spec A §6).
+    var shift = document.getElementById('rosterShift');
+    var keep = shift.value;
+    shift.innerHTML = '<option value="">All Shifts</option>';
+    ALL_SHIFT_STATES.forEach(function(s){
+        var o = document.createElement('option');
+        o.value = s; o.textContent = s + ' (' + (counts[s] || 0) + ')';
+        shift.appendChild(o);
+    });
+    shift.value = keep;
+
+    var depts = Array.from(new Set(agents.map(function(a){ return a.department; }).filter(Boolean))).sort();
+    var dsel = document.getElementById('rosterDept'), dkeep = dsel.value;
+    dsel.innerHTML = '<option value="">All Departments</option>';
+    depts.forEach(function(d){
+        var o = document.createElement('option');
+        o.value = d; o.textContent = d;
+        dsel.appendChild(o);
+    });
+    dsel.value = dkeep;
+
+    // rosterFloor lost its hardcoded BRIDGE/OPERATIONS/ENGINEERING/CREATIVE/SERVICES
+    // options in a prior task and today renders "All Floors" only — a dead control
+    // until populated here, the same way as department. Order by the canonical
+    // FLOOR_ORDER used elsewhere in this file; anything unrecognized sorts after,
+    // alphabetically, rather than being dropped.
+    var floors = Array.from(new Set(agents.map(function(a){ return a.floor; }).filter(Boolean)));
+    floors.sort(function(a, b){
+        var ia = FLOOR_ORDER.indexOf(a), ib = FLOOR_ORDER.indexOf(b);
+        if (ia === -1 && ib === -1) return a.localeCompare(b);
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+    });
+    var fsel = document.getElementById('rosterFloor'), fkeep = fsel.value;
+    fsel.innerHTML = '<option value="">All Floors</option>';
+    floors.forEach(function(f){
+        var o = document.createElement('option');
+        o.value = f; o.textContent = f;
+        fsel.appendChild(o);
+    });
+    fsel.value = fkeep;
+
+    var bulk = document.getElementById('rosterBulkShift');
+    if (bulk && bulk.options.length <= 1) {
+        ALL_SHIFT_STATES.forEach(function(s){
+            var o = document.createElement('option'); o.value = s; o.textContent = s;
+            bulk.appendChild(o);
+        });
+    }
+}
+
+// ───────────────────────────────────────────────────────────────
+// Needed-agents strip — pending hiring_candidates surfaced where the
+// workforce is managed (Roster) and where its health is shown (K.I.N.).
+// ONE renderer, two mounts — never duplicate this to keep them from
+// drifting apart later.
+// ───────────────────────────────────────────────────────────────
+
+function renderHiringStrip(elId, data) {
+    var el = document.getElementById(elId);
+    if (!el) return;
+    // Always render something. An absent panel is indistinguishable from a
+    // failed load; an explicit empty state is honest (spec B §5.2).
+    if (!data || !data.count) {
+        setHtml(el, '<div class="dhq-hiring-strip dhq-hiring-empty">No agents proposed</div>');
+        return;
+    }
+    var rows = data.candidates.map(function(c){
+        var age = (c.age_hours === null || c.age_hours === undefined) ? '—' : (String(c.age_hours) + 'h');
+        return '<li><b>' + esc(c.capability || '—') + '</b> — ' + esc(c.gap_reason || '')
+             + ' <span class="dhq-precheck">' + esc(c.precheck_status || '') + '</span>'
+             + ' <span class="dhq-age">' + esc(age) + '</span></li>';
+    }).join('');
+    var more = data.count > data.candidates.length
+        ? '<li>… ' + (data.count - data.candidates.length) + ' more</li>' : '';
+    setHtml(el, '<div class="dhq-hiring-strip">⚠ ' + data.count
+        + ' agent(s) proposed but not hired<ul>' + rows + more + '</ul></div>');
+}
+
+async function loadHiringStrip() {
+    try {
+        var data = await api('/api/hiring/pending');
+        renderHiringStrip('rosterHiringStrip', data);
+        renderHiringStrip('kinHiringStrip', data);
+    } catch (err) {
+        renderHiringStrip('rosterHiringStrip', null);
+        renderHiringStrip('kinHiringStrip', null);
+    }
+}
+
+async function loadRoster() {
+    loadHiringStrip();
+    var el = document.getElementById('rosterContent');
+
+    var filterIds = ['rosterSearch','rosterDept','rosterType','rosterFloor','rosterShift'];
     var params = new URLSearchParams();
-    if (search) params.set('search', search);
-    if (floor) params.set('floor', floor);
-    if (shift) params.set('shift_state', shift);
+    var anyFilterActive = false;
+    filterIds.forEach(function(id){
+        var v = (document.getElementById(id) || {}).value;
+        if (v) {
+            anyFilterActive = true;
+            params.set({rosterSearch:'search', rosterDept:'department', rosterType:'worker_type',
+                       rosterFloor:'floor', rosterShift:'shift_state'}[id], v);
+        }
+    });
 
     try {
         var data = await api('/api/roster?' + params.toString());
         loaded['roster'] = true;
         lastRosterData = data;
+
+        // Populate the filter dropdowns from the first (or latest) unfiltered
+        // payload only. On a filtered request, keep using whatever unfiltered
+        // snapshot was already cached — never rebuild options from a subset.
+        if (!anyFilterActive) {
+            rosterFilterOptionsData = data.agents;
+        }
+        if (rosterFilterOptionsData) {
+            populateRosterFilters(rosterFilterOptionsData);
+        }
 
         document.getElementById('rosterCount').textContent = data.total + ' agents';
 
@@ -408,65 +517,156 @@ async function loadRoster() {
     }
 }
 
-function renderRoster(data) {
-    var el = document.getElementById('rosterContent');
-    if (rosterView === 'table') {
-        renderRosterTable(data, el);
-    } else if (rosterView === 'gallery') {
-        renderRosterGallery(data, el);
-    } else {
-        renderRosterCards(data, el);
-    }
+var rosterSortKey = 'display_name', rosterSortDir = 'asc';
+// Map of id -> full agent object, captured at selection time (item A). Selections
+// must survive a filter/department change, so we cannot re-derive the selected
+// agents from the currently-visible page — the Map stores the actual objects.
+var rosterSelection = new Map();
+
+var ROSTER_COLS = [
+    {key:'display_name',          label:'Agent'},
+    {key:'department',            label:'Dept'},
+    {key:'floor',                 label:'Floor'},
+    {key:'shift_state',           label:'Shift'},
+    {key:'title',                 label:'Role'},
+    {key:'worker_type',           label:'Type'},
+    {key:'performance_score',     label:'Perf'},
+    {key:'success_rate',          label:'Success'},
+    {key:'total_tasks_completed', label:'Tasks'}
+];
+
+function fmtCell(v) {
+    // NULL renders as an em dash. Never 0, never blank — see spec A §5.1.
+    return (v === null || v === undefined || v === '') ? '—' : String(v);
 }
 
-function renderRosterGallery(data, el) {
-    // Portrait-first grid. Agents missing an avatar_url get a red
-    // "missing" indicator + eligible for the bulk-generate action.
-    var agents = data.agents || [];
-    var missing = agents.filter(function(a) { return !a.avatar_url; });
+function sortRosterBy(key) {
+    if (rosterSortKey === key) rosterSortDir = (rosterSortDir === 'asc' ? 'desc' : 'asc');
+    else { rosterSortKey = key; rosterSortDir = 'asc'; }
+    renderRoster(lastRosterData);
+}
 
-    var html = '';
-    if (missing.length > 0) {
-        html += '<div class="dhq-gallery-toolbar">'
-            + '<span class="dhq-gallery-missing-count">'
-            + missing.length + ' missing portrait' + (missing.length === 1 ? '' : 's')
-            + '</span>'
-            + '<button class="dhq-action-btn dhq-gallery-bulk-btn" onclick="generateAllMissingPortraits()">'
-            + 'Generate All Missing</button>'
-            + '</div>';
+function renderRoster(data) {
+    var el = document.getElementById('rosterContent');
+    if (!data) return;
+    var truncated = data.total > data.agents.length;
+    var groupKey = (document.getElementById('rosterGroupBy') || {}).value || '';
+    var rows = truncated ? data.agents : sortAgents(data.agents, rosterSortKey, rosterSortDir);
+
+    var head = '<tr><th></th>' + ROSTER_COLS.map(function(c){
+        var arrow = (c.key === rosterSortKey && !truncated) ? (rosterSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+        return truncated
+            ? '<th>' + esc(c.label) + '</th>'
+            : '<th class="dhq-sortable" onclick="sortRosterBy(\'' + c.key + '\')">' + esc(c.label) + arrow + '</th>';
+    }).join('') + '</tr>';
+
+    function agentCell(a) {
+        // Avatar thumb + name + acronym (spec A §5). 131/140 have an avatar;
+        // the rest fall back to initials, same pattern the old card used.
+        var initials = (a.display_name || a.name || '?').split(' ')
+            .map(function(w){ return w[0]; }).join('').substring(0, 2).toUpperCase();
+        var av = a.avatar_url
+            ? '<img class="dhq-row-av" src="' + esc(bust(a.avatar_url, a.avatar_updated_at))
+              + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'
+            : '<span class="dhq-row-av dhq-row-av-fallback">' + esc(initials) + '</span>';
+        var shownName = a.display_name || a.name || '—';
+        // Only append the acronym when it adds information beyond the name
+        // already shown — for AI agents display_name IS the acronym, so
+        // appending it duplicated the text on 106/140 rows.
+        var acr = (a.acronym && a.acronym !== shownName) ? ' <span class="dhq-acr">' + esc(a.acronym) + '</span>' : '';
+        return '<td>' + av + esc(shownName) + acr + '</td>';
     }
 
-    html += '<div class="dhq-gallery-grid">';
-    agents.forEach(function(a) {
-        var color = floorColor(a.floor);
-        var initials = (a.display_name || a.name || '?').split(' ')
-            .map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
-        var isMissing = !a.avatar_url;
-        var portraitInner = isMissing
-            ? '<div class="dhq-gallery-placeholder" style="color:' + color + '"><span>' + esc(initials) + '</span></div>'
-            : '<span class="dhq-gallery-initials" style="display:none;color:' + color + '">' + esc(initials) + '</span>'
-              + '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="" loading="lazy"'
-              + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">';
+    function bodyFor(list) {
+        return list.map(function(a){
+            return '<tr><td><input type="checkbox" class="dhq-row-sel" data-id="' + a.id + '"'
+                 + (rosterSelection.has(a.id) ? ' checked' : '') + ' onchange="toggleRosterSel(' + a.id + ',this.checked)"></td>'
+                 + ROSTER_COLS.map(function(c){
+                       if (c.key === 'display_name') return agentCell(a);
+                       return '<td>' + esc(fmtCell(a[c.key])) + '</td>';
+                   }).join('') + '</tr>';
+        }).join('');
+    }
 
-        html += '<div class="dhq-gallery-card ' + (isMissing ? 'missing' : '') + '"'
-            + ' onclick="openAgentDetail(' + a.id + ')" style="--card-accent:' + color + '">'
-            + '<div class="dhq-gallery-portrait">'
-            + portraitInner
-            + (isMissing ? '<span class="dhq-gallery-missing-badge">MISSING</span>' : '')
-            + (a.is_department_ai ? '<span class="dhq-gallery-director-badge">DIRECTOR</span>' : '')
-            + '</div>'
-            + '<div class="dhq-gallery-info">'
-            + '<div class="dhq-gallery-name">' + esc(a.display_name || a.name) + '</div>'
-            + (a.title
-                ? '<div class="dhq-gallery-title">' + esc(a.title) + '</div>'
-                : '')
-            + '<div class="dhq-gallery-dept" style="color:' + color + '">' + esc(a.department || '') + '</div>'
-            + '</div>'
-            + '</div>';
-    });
-    html += '</div>';
+    var body;
+    if (groupKey) {
+        var groups = groupAgents(rows, groupKey);
+        body = Object.keys(groups).sort().map(function(k){
+            return '<tr class="dhq-group-row"><td colspan="' + (ROSTER_COLS.length + 1) + '">'
+                 + esc(k) + ' (' + groups[k].length + ')</td></tr>' + bodyFor(groups[k]);
+        }).join('');
+    } else {
+        body = bodyFor(rows);
+    }
 
-    setHtml(el, html);
+    var notice = truncated
+        ? '<div class="dhq-warn">Showing ' + data.agents.length + ' of ' + data.total
+          + ' — sorting disabled on a partial list. Narrow the filters.</div>' : '';
+    setHtml(el, notice + '<table class="dhq-roster-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>');
+}
+
+function toggleRosterSel(id, on) {
+    if (on) {
+        // Capture the agent OBJECT now, while it is still part of the currently
+        // rendered view — a later filter/department change must not lose it
+        // (item A: re-deriving from lastRosterData.agents at apply-time let a
+        // selected department director silently vanish from the warning).
+        var agent = ((lastRosterData && lastRosterData.agents) || []).filter(function(a){ return a.id === id; })[0];
+        if (agent) rosterSelection.set(id, agent);
+    } else {
+        rosterSelection.delete(id);
+    }
+    var bar = document.getElementById('rosterBulkBar');
+    document.getElementById('rosterSelCount').textContent = rosterSelection.size + ' selected';
+    bar.style.display = rosterSelection.size ? 'flex' : 'none';
+}
+
+async function applyBulkShift() {
+    var state = document.getElementById('rosterBulkShift').value;
+    if (!state || !rosterSelection.size) return;
+    var ids = Array.from(rosterSelection.keys());
+    var chosen = Array.from(rosterSelection.values());
+    var directors = chosen.filter(function(a){ return a.is_department_ai; });
+
+    // A batch over N targets is N decisions — name the count, the transition,
+    // and anything unusual in the selection before acting.
+    var msg = 'Change shift for ' + ids.length + ' agent(s) to "' + state + '".';
+    if (directors.length) msg += '\n\n⚠ ' + directors.length + ' of them are department directors.';
+    if (!confirm(msg)) return;
+
+    var res = await apiPost('/api/roster/bulk-shift', {agent_ids: ids, shift_state: state});
+    var failed = (res.results || []).filter(function(r){ return !r.ok; });
+    alert('Applied: ' + res.ok_count + ' ok, ' + res.failed_count + ' failed'
+          + (failed.length ? '\n\n' + failed.map(function(f){
+                return '#' + f.agent_id + ': ' + f.error; }).join('\n') : ''));
+    rosterSelection.clear();
+    toggleRosterSel(null, false);
+    loadRoster();
+}
+
+function exportRosterCsv() {
+    var groupKey = (document.getElementById('rosterGroupBy') || {}).value || '';
+    var data = lastRosterData || {agents: [], total: 0};
+    var agents = data.agents || [];
+    // Match renderRoster's predicate exactly: a truncated (partial) list is
+    // shown in unsorted server order, so the export must not silently
+    // re-sort it into something that doesn't match what was on screen.
+    var truncated = data.total > agents.length;
+    var rows = truncated ? agents : sortAgents(agents, rosterSortKey, rosterSortDir);
+    if (groupKey) {
+        var g = groupAgents(rows, groupKey);
+        rows = Object.keys(g).sort().reduce(function(acc, k){ return acc.concat(g[k]); }, []);
+    }
+    var q = function(v){ return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"'; };
+    var csv = [ROSTER_COLS.map(function(c){ return q(c.label); }).join(',')]
+        .concat(rows.map(function(a){
+            return ROSTER_COLS.map(function(c){ return q(a[c.key]); }).join(',');
+        })).join('\n');
+    var url = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+    var link = document.createElement('a');
+    link.href = url; link.download = 'roster.csv';
+    document.body.appendChild(link); link.click();
+    document.body.removeChild(link); URL.revokeObjectURL(url);
 }
 
 /** Bulk-generate portraits for every currently-visible agent with no avatar_url.
@@ -485,7 +685,7 @@ async function generateAllMissingPortraits() {
         return;
     }
 
-    var btn = document.querySelector('.dhq-gallery-bulk-btn');
+    var btn = document.getElementById('rosterGenPortraitsBtn');
     var ok = 0, fail = 0;
     for (var i = 0; i < missing.length; i++) {
         var a = missing[i];
@@ -505,120 +705,6 @@ async function generateAllMissingPortraits() {
     if (btn) btn.textContent = 'Done — ' + ok + ' ok, ' + fail + ' failed';
     // Refresh roster after a moment to pick up new avatar_urls
     setTimeout(loadRoster, 1500);
-}
-
-function renderRosterTable(data, el) {
-    var html = '<table class="dhq-roster-table">'
-        + '<thead><tr>'
-        + '<th>Agent</th><th>Department</th><th>Floor</th><th>Shift</th><th>Role</th><th>Actions</th>'
-        + '</tr></thead><tbody>';
-
-    for (var i = 0; i < data.agents.length; i++) {
-        var a = data.agents[i];
-        var color = floorColor(a.floor);
-        html += '<tr class="dhq-roster-row" onclick="openAgentDetail(' + a.id + ')">'
-            + '<td><div style="font-weight:600">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
-            + '<div style="font-size:0.7rem;color:var(--dhq-text-dim)">' + esc(a.name) + '</div></td>'
-            + '<td style="color:' + color + '">' + esc(a.department) + '</td>'
-            + '<td>' + esc(a.floor) + '</td>'
-            + '<td>' + shiftBadge(a.shift_state) + '</td>'
-            + '<td>' + (a.is_department_ai ? '<span class="dhq-role-director">DIRECTOR</span>' : 'Staff') + '</td>'
-            + '<td><button class="dhq-action-btn" onclick="event.stopPropagation();toggleShift(' + a.id + ',\'' + esc(a.shift_state) + '\')">Shift</button></td>'
-            + '</tr>';
-    }
-    html += '</tbody></table>';
-    setHtml(el, html);
-}
-
-// ── Shift group config ──
-var SHIFT_GROUPS = [
-    { key: 'active',       label: 'ON DUTY',       color: '#10b981', icon: '\u25CF' },
-    { key: 'winding_down', label: 'WINDING DOWN',  color: '#f97316', icon: '\u25D6' },
-    { key: 'deployed',     label: 'DEPLOYED',       color: '#0ea5e9', icon: '\u2B06' },
-    { key: 'barracked',    label: 'BARRACKED',      color: '#6b7280', icon: '\u2588' },
-    { key: 'cooldown',     label: 'COOLDOWN',       color: '#f59e0b', icon: '\u2744' },
-    { key: 'off_duty',     label: 'OFF DUTY',       color: '#4b5563', icon: '\u2014' },
-];
-
-function renderRosterCards(data, el) {
-    // Group agents by shift state
-    var groups = {};
-    SHIFT_GROUPS.forEach(function(g) { groups[g.key] = []; });
-
-    data.agents.forEach(function(a) {
-        var key = a.shift_state || 'off_duty';
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(a);
-    });
-
-    var html = '';
-
-    SHIFT_GROUPS.forEach(function(g) {
-        var agents = groups[g.key];
-        if (!agents || agents.length === 0) return;
-
-        var groupId = 'crew-group-' + g.key;
-        html += '<div class="dhq-crew-group">'
-            + '<div class="dhq-crew-group-header" onclick="toggleCrewGroup(\'' + groupId + '\')" style="--group-color:' + g.color + '">'
-            + '<span class="dhq-crew-group-icon" style="color:' + g.color + '">' + g.icon + '</span>'
-            + '<span class="dhq-crew-group-label" style="color:' + g.color + '">' + g.label + '</span>'
-            + '<span class="dhq-crew-group-count">' + agents.length + '</span>'
-            + '<span class="dhq-crew-group-chevron" id="chevron-' + groupId + '">\u25BC</span>'
-            + '</div>'
-            + '<div class="dhq-crew-grid" id="' + groupId + '">';
-
-        agents.forEach(function(a) {
-            var color = floorColor(a.floor);
-            var initials = (a.display_name || a.name || '?').split(' ').map(function(w) { return w[0]; }).join('').substring(0, 2).toUpperCase();
-
-            // Avatar: render both fallback span (hidden) and img (visible).
-            // If the image errors, hide it and show the sibling initials.
-            // Avoids innerHTML mutation — safer against any future content drift.
-            var avatarInner = a.avatar_url
-                ? '<span class="dhq-crew-avatar-initials" style="display:none">' + esc(initials) + '</span>'
-                  + '<img src="' + esc(bust(a.avatar_url, a.avatar_updated_at)) + '" alt="" loading="lazy"'
-                  + ' onerror="this.style.display=\'none\';this.previousElementSibling.style.display=\'flex\'">'
-                : '<span>' + esc(initials) + '</span>';
-
-            html += '<div class="dhq-crew-card" onclick="openAgentDetail(' + a.id + ')" style="--card-accent:' + color + '">'
-                + '<div class="dhq-crew-card-top">'
-                + '<div class="dhq-crew-avatar" style="border-color:' + color + '">'
-                + avatarInner
-                + '</div>'
-                + '<div class="dhq-crew-card-info">'
-                + '<div class="dhq-crew-card-name">' + esc(a.display_name || a.name) + ' <span class="dhq-wellness-dot" data-status="' + esc(a.wellness_status || 'green') + '" title="Stress: ' + (a.stress_level != null ? a.stress_level.toFixed(2) : '0.00') + '"></span></div>'
-                + (a.acronym_expansion
-                    ? '<div class="dhq-crew-card-acronym">&ldquo;' + esc(a.acronym_expansion) + '&rdquo;</div>'
-                    : '')
-                + (a.title
-                    ? '<div class="dhq-crew-card-title">' + esc(a.title) + '</div>'
-                    : '<div class="dhq-crew-card-code">' + esc(a.display_name || a.name) + '</div>')
-                + '</div>'
-                + '</div>'
-                + '<div class="dhq-crew-card-meta">'
-                + '<div class="dhq-crew-card-dept" style="color:' + color + '">' + esc(a.department) + '</div>'
-                + '<span class="dhq-crew-floor-badge" style="background:' + color + '20;color:' + color + '">' + esc(a.floor) + '</span>'
-                + '</div>'
-                + '<div class="dhq-crew-card-bottom">'
-                + shiftBadge(a.shift_state)
-                + (a.is_department_ai ? ' <span class="dhq-role-director">DIRECTOR</span>' : '')
-                + (a.model ? '<span class="dhq-crew-model">' + esc(a.model) + '</span>' : '')
-                + '</div>'
-                + '</div>';
-        });
-
-        html += '</div></div>';
-    });
-
-    setHtml(el, html);
-}
-
-function toggleCrewGroup(groupId) {
-    var grid = document.getElementById(groupId);
-    var chevron = document.getElementById('chevron-' + groupId);
-    if (!grid) return;
-    var collapsed = grid.classList.toggle('dhq-crew-grid-collapsed');
-    if (chevron) chevron.textContent = collapsed ? '\u25B6' : '\u25BC';
 }
 
 async function toggleShift(agentId, currentState) {
@@ -657,6 +743,7 @@ function switchKinSection(section) {
 var _kinRefreshInterval = null;
 
 async function loadKinTab() {
+    loadHiringStrip();
     await loadKinWelfare();
     loadWorkSessions();
     // Auto-refresh welfare + workload every 60s

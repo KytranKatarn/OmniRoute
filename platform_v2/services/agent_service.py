@@ -139,25 +139,22 @@ def get_agent_by_name(name):
         return dict(cur.fetchone()) if cur.rowcount else None
 
 
-def list_agents(
+def _agent_filter_sql(
     department=None,
     floor=None,
     shift_state=None,
-    skill=None,
+    worker_type=None,
     search=None,
     is_department_ai=None,
     status="active",
-    limit=200,
 ):
-    """List agents with optional filters. Returns list of dicts.
+    """Build the roster WHERE clause ONCE.
 
-    status defaults to 'active' so decommissioned/inactive agents don't leak
-    into Roster / Org Chart / dispatch call sites. Pass status=None to opt
-    out (e.g. admin audit tooling that needs the full history).
+    The list and the count MUST agree. They used to be written twice — once
+    here and once by hand in roster_routes for a COUNT(*) — so a filter added
+    to one silently skipped the other (spec A §8).
     """
-    conditions = []
-    params = []
-
+    conditions, params = [], []
     if status is not None:
         conditions.append("a.status = %s")
         params.append(status)
@@ -170,14 +167,57 @@ def list_agents(
     if shift_state:
         conditions.append("a.shift_state = %s")
         params.append(shift_state)
+    else:
+        conditions.append("a.shift_state <> 'decommissioned'")
+    if worker_type:
+        conditions.append("a.worker_type = %s")
+        params.append(worker_type)
     if is_department_ai is not None:
         conditions.append("a.is_department_ai = %s")
         params.append(is_department_ai)
     if search:
-        conditions.append("(a.name ILIKE %s OR a.display_name ILIKE %s)")
-        params.extend([f"%{search}%", f"%{search}%"])
-
+        conditions.append(
+            "(a.name ILIKE %s OR a.display_name ILIKE %s OR a.title ILIKE %s "
+            "OR a.acronym ILIKE %s OR a.department ILIKE %s)"
+        )
+        params.extend([f"%{search}%"] * 5)
     where = "WHERE " + " AND ".join(conditions) if conditions else ""
+    return where, params
+
+
+def list_agents(
+    department=None,
+    floor=None,
+    shift_state=None,
+    skill=None,
+    worker_type=None,
+    search=None,
+    is_department_ai=None,
+    status="active",
+    limit=200,
+):
+    """List agents with optional filters. Returns list of dicts.
+
+    status defaults to 'active' so decommissioned/inactive agents don't leak
+    into Roster / Org Chart / dispatch call sites. Pass status=None to opt
+    out (e.g. admin audit tooling that needs the full history).
+
+    Filtering is built by ``_agent_filter_sql`` — the single definition shared
+    with the Roster count endpoint (spec A §8). That also means: when no
+    explicit ``shift_state`` is passed, decommissioned agents are excluded
+    (bug #5706 — a decommissioned agent with status='active' was leaking
+    through). This is a deliberate behavior change for ALL callers of
+    ``list_agents``, not a regression.
+    """
+    where, params = _agent_filter_sql(
+        department=department,
+        floor=floor,
+        shift_state=shift_state,
+        worker_type=worker_type,
+        search=search,
+        is_department_ai=is_department_ai,
+        status=status,
+    )
     params.append(limit)
 
     with get_db_cursor() as (conn, cur):
@@ -187,13 +227,44 @@ def list_agents(
                        a.temperature, a.max_tokens, a.system_prompt,
                        a.capabilities, a.metadata, a.title, a.avatar_url,
                        a.acronym, a.acronym_expansion, a.bio, a.worker_type,
-                       a.updated_at
+                       a.updated_at, a.performance_score, a.success_rate,
+                       a.total_tasks_completed
                 FROM agents a {where}
                 ORDER BY a.floor, a.department, a.is_department_ai DESC, a.name
                 LIMIT %s""",
             params,
         )
         return [dict(r) for r in cur.fetchall()]
+
+
+def count_agents(
+    department=None,
+    floor=None,
+    shift_state=None,
+    worker_type=None,
+    search=None,
+    is_department_ai=None,
+    status="active",
+):
+    """Total matching the SAME predicate ``list_agents`` uses.
+
+    Built from ``_agent_filter_sql`` so the Roster count can never disagree
+    with the Roster list (spec A §8) — they used to be two hand-written
+    WHERE clauses that drifted apart.
+    """
+    where, params = _agent_filter_sql(
+        department=department,
+        floor=floor,
+        shift_state=shift_state,
+        worker_type=worker_type,
+        search=search,
+        is_department_ai=is_department_ai,
+        status=status,
+    )
+    with get_db_cursor() as (conn, cur):
+        cur.execute(f"SELECT COUNT(*) AS total FROM agents a {where}", params)
+        row = cur.fetchone()
+        return row["total"] if row else 0
 
 
 def list_agents_public(department=None, search=None, is_department_ai=None, agent_type=None, limit=200):

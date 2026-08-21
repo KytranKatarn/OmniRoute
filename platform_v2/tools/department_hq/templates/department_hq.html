@@ -83,29 +83,29 @@
           <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">AGENT ROSTER</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">CREW</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
           <div style="flex:1 !important;padding:16px !important;">
       <div class="dhq-roster-controls">
-        <input type="text" id="rosterSearch" class="dhq-input" placeholder="Search agents..." oninput="debounceRoster()">
-        <select id="rosterFloor" class="dhq-select" onchange="loadRoster()">
-          <option value="">All Floors</option>
-          <option value="BRIDGE">BRIDGE</option>
-          <option value="OPERATIONS">OPERATIONS</option>
-          <option value="ENGINEERING">ENGINEERING</option>
-          <option value="CREATIVE">CREATIVE</option>
-          <option value="SERVICES">SERVICES</option>
+        <input type="text" id="rosterSearch" class="dhq-input" placeholder="Search name, role, acronym, department…" oninput="debounceRoster()">
+        <select id="rosterDept" class="dhq-select" onchange="loadRoster()"><option value="">All Departments</option></select>
+        <select id="rosterType" class="dhq-select" onchange="loadRoster()">
+          <option value="">All Types</option><option value="ai">AI</option>
+          <option value="internal">Human-like</option><option value="contractor">Contractor</option>
         </select>
-        <select id="rosterShift" class="dhq-select" onchange="loadRoster()">
-          <option value="">All Shifts</option>
-          <option value="active">Active</option>
-          <option value="deployed">Deployed</option>
-          <option value="barracked">Barracked</option>
-          <option value="off_duty">Off Duty</option>
-          <option value="cooldown">Cooldown</option>
+        <select id="rosterFloor" class="dhq-select" onchange="loadRoster()"><option value="">All Floors</option></select>
+        <select id="rosterShift" class="dhq-select" onchange="loadRoster()"><option value="">All Shifts</option></select>
+        <select id="rosterGroupBy" class="dhq-select" onchange="renderRoster(lastRosterData)">
+          <option value="department" selected>Group: Department</option>
+          <option value="floor">Group: Floor</option>
+          <option value="shift_state">Group: Shift</option>
+          <option value="worker_type">Group: Type</option>
+          <option value="">No grouping</option>
         </select>
-        <div class="dhq-view-toggle">
-          <button class="dhq-view-btn active" data-view="cards" onclick="setRosterView('cards')" title="Card View">&#9638;</button>
-          <button class="dhq-view-btn" data-view="gallery" onclick="setRosterView('gallery')" title="Portrait Gallery">&#9783;</button>
-          <button class="dhq-view-btn" data-view="table" onclick="setRosterView('table')" title="Table View">&#9776;</button>
-        </div>
         <span class="dhq-roster-count" id="rosterCount"></span>
+        <button class="dhq-btn" onclick="exportRosterCsv()" id="rosterExportCsv">Export CSV</button>
+        <button class="dhq-btn" onclick="generateAllMissingPortraits()" id="rosterGenPortraitsBtn">Generate Missing Portraits</button>
+        <div id="rosterBulkBar" class="dhq-bulk-bar" style="display:none">
+          <span id="rosterSelCount"></span>
+          <select id="rosterBulkShift" class="dhq-select"><option value="">Set shift…</option></select>
+          <button class="dhq-btn" onclick="applyBulkShift()">Apply</button>
+        </div>
       </div>
     <!-- Roster / Org Chart view toggle (PR 2) -->
     <div class="dhq-roster-view-bar">
@@ -115,6 +115,7 @@
     <div id="rosterOrgChartProxy" style="display:none;">
       <div id="orgChartContent" class="dhq-loading">Loading org chart...</div>
     </div>
+      <div id="rosterHiringStrip"></div>
       <div id="rosterContent" class="dhq-loading">Loading roster...</div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
@@ -129,6 +130,8 @@
         <div style="flex:1 !important;display:flex !important;flex-direction:column !important;margin-left:8px !important;min-width:0 !important;">
           <div style="height:44px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 20px 20px 0 !important;display:flex !important;align-items:center !important;gap:12px !important;padding:0 16px !important;flex-shrink:0 !important;"><span style="font-family:'Antonio',sans-serif !important;font-size:0.85rem !important;font-weight:500 !important;letter-spacing:2px !important;text-transform:uppercase !important;color:#010409 !important;">K.I.N. — HR &amp; CULTURE</span><div style="flex:1"></div><span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:rgba(0,0,0,0.5);letter-spacing:1px;">WELFARE · WORK · PERFORMANCE</span><div style="display:flex !important;align-items:center !important;gap:4px !important;"><span style="width:20px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span><span style="width:35px;height:8px;border-radius:4px;background:rgba(0,0,0,0.2)"></span><span style="width:14px;height:8px;border-radius:4px;background:rgba(0,0,0,0.3)"></span></div></div>
           <div style="flex:1 !important;padding:16px !important;">
+
+        <div id="kinHiringStrip"></div>
 
         <!-- K.I.N. Welfare Status Banner -->
         <div id="kinWelfareBanner" style="margin-bottom:16px;padding:10px 14px;background:rgba(0,0,0,0.3);border:1px solid rgba(0,255,255,0.15);border-radius:6px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
@@ -3012,6 +3015,7 @@ async function _dhqRejectHire(approvalId, btn) {
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
+<script src="{{ url_for('department_hq.static', filename='js/roster_sort.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/department-hq.js') }}"></script>
 <script src="{{ url_for('static', filename='js/agent_profile_modal.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/browser_presence.js') }}"></script>

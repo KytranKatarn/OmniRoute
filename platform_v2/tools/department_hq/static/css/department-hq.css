@@ -922,7 +922,6 @@
     .dhq-session-card { grid-template-columns: 1fr; }
     .dhq-perf-grid { grid-template-columns: 1fr; }
     .dhq-creed-grid { grid-template-columns: 1fr; }
-    .dhq-crew-grid { grid-template-columns: 1fr; }
     .dhq-ad-header { flex-direction: column; align-items: center; text-align: center; }
     .dhq-ad-perf-grid { grid-template-columns: repeat(2, 1fr); }
     .dhq-agent-modal { width: 98vw; max-height: 95vh; }
@@ -1060,309 +1059,26 @@
     color: var(--dhq-text-dim);
 }
 
-/* ── View Toggle ── */
+/* ── Roster Table ── */
 
-.dhq-view-toggle {
-    display: flex;
-    gap: 2px;
-    background: var(--dhq-surface);
-    border: 1px solid var(--dhq-border);
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.dhq-view-btn {
-    padding: 0.35rem 0.6rem;
-    background: transparent;
-    border: none;
-    color: var(--dhq-text-dim);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    line-height: 1;
-}
-
-.dhq-view-btn:hover {
-    color: var(--dhq-text);
-    background: rgba(0, 229, 255, 0.05);
-}
-
-.dhq-view-btn.active {
-    color: var(--dhq-accent);
-    background: rgba(0, 229, 255, 0.12);
-}
-
-/* ── Portrait Gallery (Task #1919) ── */
-.dhq-gallery-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.8rem;
-    padding: 0.6rem 0.8rem;
-    margin-bottom: 0.8rem;
-    background: rgba(239, 68, 68, 0.06);
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    border-radius: 8px;
-}
-.dhq-gallery-missing-count {
-    color: #f87171;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-}
-.dhq-gallery-bulk-btn {
-    background: rgba(239, 68, 68, 0.15);
-    border: 1px solid rgba(239, 68, 68, 0.5);
-    color: #fca5a5;
-}
-.dhq-gallery-bulk-btn:hover {
-    background: rgba(239, 68, 68, 0.25);
-    color: #fff;
-}
-
-.dhq-gallery-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 1rem;
-}
-.dhq-gallery-card {
-    background: var(--dhq-surface);
-    border: 1px solid var(--dhq-border);
-    border-radius: 10px;
-    overflow: hidden;
-    cursor: pointer;
-    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
-    display: flex;
-    flex-direction: column;
-}
-.dhq-gallery-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--card-accent, var(--dhq-accent));
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-}
-.dhq-gallery-card.missing {
-    border-color: rgba(239, 68, 68, 0.4);
-    background: rgba(239, 68, 68, 0.04);
-}
-
-.dhq-gallery-portrait {
-    position: relative;
-    aspect-ratio: 1 / 1;
-    background: rgba(139, 92, 246, 0.08);
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.dhq-gallery-portrait img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-.dhq-gallery-initials,
-.dhq-gallery-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 2.5rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-}
-.dhq-gallery-placeholder {
-    background: repeating-linear-gradient(
-        45deg,
-        rgba(239, 68, 68, 0.04),
-        rgba(239, 68, 68, 0.04) 10px,
-        rgba(239, 68, 68, 0.08) 10px,
-        rgba(239, 68, 68, 0.08) 20px
-    );
-}
-
-.dhq-gallery-missing-badge,
-.dhq-gallery-director-badge {
-    position: absolute;
-    top: 6px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.6rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    padding: 0.15rem 0.45rem;
-    border-radius: 3px;
-    text-transform: uppercase;
-}
-.dhq-gallery-missing-badge {
-    right: 6px;
-    background: rgba(239, 68, 68, 0.85);
-    color: #fff;
-}
-.dhq-gallery-director-badge {
-    left: 6px;
-    background: rgba(168, 85, 247, 0.85);
-    color: #fff;
-}
-
-.dhq-gallery-info {
-    padding: 0.55rem 0.7rem 0.7rem;
-}
-.dhq-gallery-name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--dhq-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.dhq-gallery-title {
-    font-size: 0.7rem;
-    color: var(--dhq-text-dim);
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.dhq-gallery-dept {
-    font-size: 0.65rem;
-    margin-top: 3px;
-    font-family: 'IBM Plex Mono', monospace;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* ── Crew Manifest Cards ── */
-
-.dhq-crew-group {
-    margin-bottom: 1rem;
-}
-
-.dhq-crew-group-header {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    padding: 0.5rem 0.75rem;
-    background: rgba(0, 0, 0, 0.3);
-    border-left: 3px solid var(--group-color, var(--dhq-accent));
-    border-radius: 0 6px 6px 0;
-    cursor: pointer;
-    user-select: none;
-    transition: background 0.15s;
-    margin-bottom: 0.5rem;
-}
-
-.dhq-crew-group-header:hover {
-    background: rgba(0, 0, 0, 0.45);
-}
-
-.dhq-crew-group-icon {
-    font-size: 0.75rem;
-    flex-shrink: 0;
-}
-
-.dhq-crew-group-label {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-}
-
-.dhq-crew-group-count {
-    font-size: 0.7rem;
-    color: var(--dhq-text-dim);
-    margin-left: auto;
-    background: rgba(255, 255, 255, 0.06);
-    padding: 1px 8px;
-    border-radius: 10px;
-}
-
-.dhq-crew-group-chevron {
-    font-size: 0.6rem;
-    color: var(--dhq-text-dim);
-    transition: transform 0.2s;
-}
-
-.dhq-crew-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 0.6rem;
-    padding-left: 0.5rem;
-    transition: max-height 0.3s ease, opacity 0.2s ease;
-    overflow: hidden;
-}
-
-.dhq-crew-grid-collapsed {
-    max-height: 0 !important;
-    opacity: 0;
-    margin: 0;
-    padding: 0;
-}
-
-.dhq-crew-card {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(139, 92, 246, 0.15);
-    border-radius: 8px;
-    padding: 0.75rem;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
-    position: relative;
-    overflow: hidden;
-}
-
-.dhq-crew-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--card-accent, #8b5cf6);
-    opacity: 0.5;
-    transition: opacity 0.2s;
-}
-
-.dhq-crew-card:hover {
-    border-color: var(--card-accent, #8b5cf6);
-    background: rgba(139, 92, 246, 0.04);
-    box-shadow: 0 0 12px rgba(139, 92, 246, 0.08);
-}
-
-.dhq-crew-card:hover::before {
-    opacity: 1;
-}
-
-.dhq-crew-card-top {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    margin-bottom: 0.5rem;
-}
-
-.dhq-crew-avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 2px solid rgba(139, 92, 246, 0.4);
-    background: rgba(139, 92, 246, 0.1);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    font-size: 0.7rem;
-    font-weight: 700;
-    color: #c4b5fd;
-    font-family: 'Orbitron', sans-serif;
-    overflow: hidden;
-}
+.dhq-roster-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.dhq-roster-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--archie-border); white-space: nowrap; }
+.dhq-roster-table td { padding: 6px 8px; border-bottom: 1px solid var(--archie-border); }
+.dhq-sortable { cursor: pointer; user-select: none; }
+.dhq-sortable:hover { color: var(--archie-accent); }
+.dhq-group-row td { background: var(--archie-surface-2, rgba(255,255,255,0.05)); font-weight: 600; letter-spacing: .04em; }
+.dhq-bulk-bar { display: flex; gap: 8px; align-items: center; padding: 8px; }
+.dhq-warn { padding: 8px; border-left: 3px solid #f59e0b; margin-bottom: 8px; }
+.dhq-row-av { width: 22px; height: 22px; border-radius: 50%; vertical-align: middle; margin-right: 6px; object-fit: cover; }
+.dhq-row-av-fallback { display: inline-flex; align-items: center; justify-content: center; font-size: 10px; background: var(--archie-surface-2, rgba(255,255,255,0.05)); }
+.dhq-acr { opacity: .6; font-size: 11px; margin-left: 4px; }
+.dhq-hiring-strip { padding: 10px; border-left: 3px solid #f59e0b; margin-bottom: 10px; }
+.dhq-hiring-empty { opacity: .5; border-left-color: var(--archie-border); }
+.dhq-precheck, .dhq-age { opacity: .6; font-size: 11px; margin-left: 6px; }
 
 /* Avatar image overrides — portrait fills the circle. Fallback span (initials)
    sits next to the img with display:none and becomes visible via inline
-   onerror if the image 404s. Applies to roster cards + org chart cells. */
-.dhq-crew-avatar img,
+   onerror if the image 404s. Applies to org chart cells. */
 .dhq-org-director-icon img,
 .dhq-org-staff-avatar img {
     width: 100%;
@@ -1388,7 +1104,6 @@
     font-family: 'Orbitron', sans-serif;
 }
 
-.dhq-crew-avatar-initials,
 .dhq-org-avatar-initials,
 .dhq-org-staff-initials {
     width: 100%;
@@ -1396,97 +1111,6 @@
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.dhq-crew-card-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.dhq-crew-card-name {
-    font-weight: 600;
-    font-size: 0.82rem;
-    color: var(--dhq-text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.dhq-crew-card-code {
-    font-size: 0.65rem;
-    color: var(--dhq-text-dim);
-    font-family: 'IBM Plex Mono', monospace;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.dhq-crew-card-acronym {
-    font-size: 0.62rem;
-    color: var(--dhq-text-dim);
-    font-style: italic;
-    line-height: 1.25;
-    margin-top: 0.1rem;
-    white-space: normal;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-}
-
-.dhq-crew-card-title {
-    font-size: 0.65rem;
-    color: var(--dhq-text-dim);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-top: 0.05rem;
-}
-
-.dhq-crew-card-meta {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.4rem;
-    margin-bottom: 0.4rem;
-}
-
-.dhq-crew-card-dept {
-    font-size: 0.68rem;
-    font-weight: 600;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.dhq-crew-floor-badge {
-    font-size: 0.55rem;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 8px;
-    letter-spacing: 0.5px;
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.dhq-crew-card-bottom {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    flex-wrap: wrap;
-}
-
-.dhq-crew-model {
-    font-size: 0.6rem;
-    color: var(--dhq-text-dim);
-    background: rgba(255, 255, 255, 0.04);
-    padding: 1px 5px;
-    border-radius: 4px;
-    margin-left: auto;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 120px;
 }
 
 /* ── Devices Tab ── */
@@ -2291,10 +1915,3 @@ body.light-mode {
   --dhq-text-dim:  #64748b;
   --dhq-card-bg:   #ffffff;
 }
-
-/* Roster crew cards/headers use semi-transparent black (rgba(0,0,0,.3-.4)) — fine on
-   the dark theme, but a dark overlay on the light page. Give them light values in
-   light mode. (#agentDetailOverlay's rgba(0,0,0,.8) is a MODAL dimmer — left dark.) */
-body.light-mode .dhq-crew-card { background: #ffffff; }
-body.light-mode .dhq-crew-group-header { background: #f1f5f9; }
-body.light-mode .dhq-crew-group-header:hover { background: #e2e8f0; }

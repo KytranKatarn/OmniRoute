@@ -120,7 +120,11 @@ class TestHireSourceInPendingEndpoint:
 
             hire_row = next(r for r in approvals if r.get("id") == f"hire:{hire_id}")
             assert hire_row["source"] == "hire"
-            assert hire_row["category"] == "hiring"
+            # #2736's approvals_bulk.category_of() overwrites every row's category with
+            # the sub-tab taxonomy (All/Ship/Social/Mail/Agents/Other) — hire_candidate
+            # maps to "agents" (see ACTION_CATEGORY), not the pre-#2736 ad-hoc "hiring"
+            # literal list_pending_approvals() stamps first and category_of() overwrites.
+            assert hire_row["category"] == "agents"
             assert hire_row["display_name"] == "translate"
             assert hire_row["payload"]["shortlist"] == []
             assert hire_row["payload"]["gap_reason"] == "only 2 active"
@@ -157,7 +161,10 @@ class TestHireSourceInPendingEndpoint:
             assert hire_row is not None, f"hire:{hire_id} not found in approvals"
             # Required shape fields
             assert hire_row["source"] == "hire"
-            assert hire_row["category"] == "hiring"
+            # See test_pending_endpoint_unions_hire_rows above: category_of() (#2736)
+            # stamps "agents" for hire_candidate rows, superseding the pre-#2736
+            # "hiring" literal.
+            assert hire_row["category"] == "agents"
             assert isinstance(hire_row["display_name"], str)
             assert isinstance(hire_row["payload"], dict)
             assert isinstance(hire_row["payload"]["shortlist"], list)

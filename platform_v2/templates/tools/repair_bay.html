@@ -2360,8 +2360,23 @@ function loadStats() {
         }
     }).catch(function() {});
     fetch(API + '/proposals?status=deployed').then(function(r) { return r.json(); }).then(function(d) {
-        var all = d.proposals || d || [];
-        if (!Array.isArray(all)) all = [];
+        var raw = d.proposals || d || [];
+        if (!Array.isArray(raw)) raw = [];
+        // #5881 (root cause filed as #5899): status='deployed' can mean "backed up
+        // and cleared to apply, but the code was never actually applied" —
+        // deploy_to_production() writes metadata.code_applied=false for that path.
+        // The manual-apply safety behaviour is correct; the STATUS NAME is what
+        // lies, and that one word is what made this count lie too. Measured live:
+        // 17 proposals marked 'deployed' in one burst with none applied (proven by
+        // pyflakes still reporting the exact imports they claimed to remove).
+        // Exclude only rows that EXPLICITLY say code_applied=false; rows with no
+        // flag at all (older deploys, or a real PR-merge deploy — github_routes.py
+        // sets status='deployed' there because the merge itself applied the code)
+        // are left counted, since we cannot retroactively know their truth and a
+        // merge really did ship code. Do NOT rename the status here — see #5899.
+        var all = raw.filter(function(p) {
+            return !(p.metadata && p.metadata.code_applied === false);
+        });
         var cutoff = Date.now() - 86400000;
         var today = all.filter(function(p) {
             // `implemented_at` DOES NOT EXIST on improvement_proposals (columns are

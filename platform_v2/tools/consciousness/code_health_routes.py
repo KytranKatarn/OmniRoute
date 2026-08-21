@@ -125,6 +125,59 @@ def _audit_one(key, mod_data):
     }
 
 
+# Severity classification shared by the audit-details drilldown AND the
+# severity-summary badge coloring — ONE set, used by both, so they cannot
+# silently diverge (severity_summary used to carry its own narrower 4-red/
+# 3-yellow copy of this same list; see #5881).
+_FINDING_RED_CODES = {
+    "SQL_INJECTION_RISK",
+    "HARDCODED_SECRET",
+    "DIRECT_OLLAMA",
+    "DIRECT_CLOUD",
+    "INSECURE_DEFAULT",
+}
+_FINDING_YELLOW_CODES = {
+    "BARE_EXCEPT",
+    "LARGE_FILE",
+    "MISSING_INIT",
+    "INLINE_SCRIPT",
+    "CONSOLE_LOG",
+    "LATEST_TAG",
+    "MISSING_RESOURCE_LIMIT",
+}
+
+
+def _parse_audit_findings(notes):
+    """Parse a code_audit_log.notes string into structured findings.
+
+    THE single source of truth for "how many findings does this audit hold" —
+    used by both the audit-details drilldown and the severity-summary count, so
+    the number an operator is asked to act on and the list they'd act from can
+    never drift again (#5881, defect 3: the headline count was NOT derived from
+    the findings list — e.g. [AI_BRIDGE]'s persisted issues_found=6 while notes
+    held 30 parseable findings, because issues_found only counts 'red'-severity
+    issues while every finding, of any severity, belongs in the count shown).
+    """
+    findings = []
+    notes = notes or ""
+    if not notes or notes in ("clean — all checks passed", "clean"):
+        return findings
+    for part in notes.split("; "):
+        part = part.strip()
+        if not part:
+            continue
+        code = part.split(":")[0].strip() if ":" in part else part
+        detail = part.split(":", 1)[1].strip() if ":" in part else ""
+        if code in _FINDING_RED_CODES:
+            severity = "red"
+        elif code in _FINDING_YELLOW_CODES:
+            severity = "yellow"
+        else:
+            severity = "info"
+        findings.append({"code": code, "detail": detail, "severity": severity})
+    return findings
+
+
 def start_code_health_scan():
     """Kick the async full-codebase scan job. Returns (payload, http_status)."""
 
@@ -925,6 +978,12 @@ def register_code_health_routes(bp, admin_required):
         # from this payload, but the old implementation returned EVERY
         # code_audit_log row (~7,800) per tab load. Return just the latest
         # entry per module (DISTINCT ON), newest first — same response shape.
+        #
+        # Pinned to dispatched_via='local_static_analysis' (#5881) — before this,
+        # DISTINCT ON picked whichever engine wrote LAST (this scan or the
+        # separately-labelled F.O.R.G.E. scheduled jobs), so the same tab painted
+        # red or green depending purely on run order, not on the code. F.O.R.G.E.
+        # keeps running and writing; it surfaces via /api/code-health/second-opinion.
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT DISTINCT ON (module_name)
@@ -932,6 +991,7 @@ def register_code_health_routes(bp, admin_required):
                           lines_before, lines_after, issues_found, issues_fixed,
                           notes, status, audited_at
                    FROM code_audit_log
+                   WHERE dispatched_via = 'local_static_analysis'
                    ORDER BY module_name, audited_at DESC"""
             )
             rows = cur.fetchall()
@@ -940,6 +1000,16 @@ def register_code_health_routes(bp, admin_required):
             r = dict(row)
             if hasattr(r.get("audited_at"), "isoformat"):
                 r["audited_at"] = r["audited_at"].isoformat()
+            # Defect 3 (#5881): the "Issues" number this feeds (consciousness.js
+            # _renderModuleTable / _renderAuditTable) must be DERIVED FROM the
+            # findings list, never from the separately-tracked issues_found
+            # column — that column counts only 'red'-severity findings and used
+            # to disagree with the findings list by 2x-6x in EITHER direction
+            # (measured: [AI_BRIDGE] persisted issues_found=6 while notes held
+            # 30 parseable findings). Raw persisted value kept as issues_found_raw
+            # for anyone auditing the audit; issues_found is what the UI shows.
+            r["issues_found_raw"] = r.get("issues_found")
+            r["issues_found"] = len(_parse_audit_findings(r.get("notes")))
             entries.append(r)
         entries.sort(key=lambda r: r.get("audited_at") or "", reverse=True)
         return jsonify({"entries": entries})
@@ -984,11 +1054,13 @@ def register_code_health_routes(bp, admin_required):
             per_module = row["per_module"] if row and row.get("per_module") else {}
             module_names = list(per_module.keys())
 
-            # Get latest audit per module
+            # Get latest audit per module — pinned to local_static_analysis (#5881),
+            # same reasoning as code_health_audit_log above.
             cur.execute(
                 """SELECT DISTINCT ON (module_name)
                       module_name, audited_at, status, stale
                    FROM code_audit_log
+                   WHERE dispatched_via = 'local_static_analysis'
                    ORDER BY module_name, audited_at DESC"""
             )
             audits = {
@@ -1064,37 +1136,30 @@ def register_code_health_routes(bp, admin_required):
     def code_health_severity_summary():
         """Return per-module severity breakdown for badge coloring.
 
-        For each module, parses the latest code_audit_log notes to determine
-        the highest severity: red (security), yellow (quality), green (clean).
+        For each module, parses the latest local_static_analysis code_audit_log
+        notes into findings (shared _parse_audit_findings, #5881) to determine
+        the highest severity — red (security), yellow (quality), green (clean).
+        total_issues = len(findings): the headline count is DERIVED FROM the
+        findings list, never from the separately-tracked issues_found column
+        (which counts only 'red'-severity issues and used to disagree with the
+        findings list by 2x-6x in either direction — defect 3, #5881).
         """
-        RED_CODES = {"SQL_INJECTION", "HARDCODED_SECRET", "DIRECT_OLLAMA", "DIRECT_CLOUD"}
-        YELLOW_CODES = {"BARE_EXCEPT", "LARGE_FILE", "MISSING_INIT"}
-
         modules = {}
         with get_db_cursor() as (conn, cur):
             cur.execute(
                 """SELECT DISTINCT ON (module_name)
-                      module_name, issues_found, notes, status, audited_at
+                      module_name, notes, audited_at
                    FROM code_audit_log
+                   WHERE dispatched_via = 'local_static_analysis'
                    ORDER BY module_name, audited_at DESC"""
             )
             for row in cur.fetchall():
                 name = row["module_name"]
-                notes = row["notes"] or ""
-                issues_found = row["issues_found"] or 0
+                findings = _parse_audit_findings(row["notes"])
 
-                red_count = 0
-                yellow_count = 0
-                info_count = 0
-
-                if issues_found > 0 and notes:
-                    for code in RED_CODES:
-                        if code in notes:
-                            red_count += notes.count(code)
-                    for code in YELLOW_CODES:
-                        if code in notes:
-                            yellow_count += notes.count(code)
-                    info_count = max(0, issues_found - red_count - yellow_count)
+                red_count = sum(1 for f in findings if f["severity"] == "red")
+                yellow_count = sum(1 for f in findings if f["severity"] == "yellow")
+                info_count = sum(1 for f in findings if f["severity"] == "info")
 
                 if red_count > 0:
                     highest = "red"
@@ -1108,11 +1173,46 @@ def register_code_health_routes(bp, admin_required):
                     "red": red_count,
                     "yellow": yellow_count,
                     "info": info_count,
-                    "total_issues": issues_found,
+                    "total_issues": len(findings),
                     "last_audit": row["audited_at"].isoformat() if row["audited_at"] else None,
                 }
 
         return jsonify({"success": True, "modules": modules})
+
+    @bp.route("/api/code-health/second-opinion")
+    @login_required
+    @admin_required
+    def code_health_second_opinion():
+        """F.O.R.G.E.'s scheduled audit pass, surfaced SEPARATELY (#5881).
+
+        Owner decision 2026-08-21: "keep F.O.R.G.E., but separate + labelled" —
+        it keeps running (Job #40 change-triggered + Job #58 weekly) and keeps
+        writing dispatched_via='F.O.R.G.E.' rows. This endpoint is the ONLY place
+        those rows are surfaced; the headline count/colour is owned entirely by
+        local_static_analysis (code_health_severity_summary /
+        code_health_module_status). Same shape as the other views, mirrored onto
+        the F.O.R.G.E. label instead — an "AI second opinion", never authoritative.
+        """
+        modules = {}
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """SELECT DISTINCT ON (module_name)
+                      module_name, issues_found, notes, status, audited_at, trigger_reason
+                   FROM code_audit_log
+                   WHERE dispatched_via = 'F.O.R.G.E.'
+                   ORDER BY module_name, audited_at DESC"""
+            )
+            for row in cur.fetchall():
+                findings = _parse_audit_findings(row["notes"])
+                modules[row["module_name"]] = {
+                    "status": row["status"],
+                    "issues_found": row["issues_found"],
+                    "total_issues": len(findings),
+                    "trigger_reason": row["trigger_reason"],
+                    "last_audit": row["audited_at"].isoformat() if row["audited_at"] else None,
+                }
+
+        return jsonify({"success": True, "source": "F.O.R.G.E. (AI second opinion)", "modules": modules})
 
     @bp.route("/api/code-health/backfill-git", methods=["POST"])
     @login_required
@@ -1310,38 +1410,10 @@ def register_code_health_routes(bp, admin_required):
             if not row:
                 return jsonify({"success": False, "error": "Audit entry not found"}), 404
 
-            # Parse notes into structured findings
-            findings = []
+            # Parse notes into structured findings — shared parser (#5881), so this
+            # drilldown and the severity-summary count can never diverge again.
             notes = row["notes"] or ""
-            if notes and notes != "clean — all checks passed" and notes != "clean":
-                for part in notes.split("; "):
-                    part = part.strip()
-                    if not part:
-                        continue
-                    code = part.split(":")[0].strip() if ":" in part else part
-                    detail = part.split(":", 1)[1].strip() if ":" in part else ""
-                    severity = "info"
-                    red_codes = {
-                        "SQL_INJECTION_RISK",
-                        "HARDCODED_SECRET",
-                        "DIRECT_OLLAMA",
-                        "DIRECT_CLOUD",
-                        "INSECURE_DEFAULT",
-                    }
-                    yellow_codes = {
-                        "BARE_EXCEPT",
-                        "LARGE_FILE",
-                        "MISSING_INIT",
-                        "INLINE_SCRIPT",
-                        "CONSOLE_LOG",
-                        "LATEST_TAG",
-                        "MISSING_RESOURCE_LIMIT",
-                    }
-                    if code in red_codes:
-                        severity = "red"
-                    elif code in yellow_codes:
-                        severity = "yellow"
-                    findings.append({"code": code, "detail": detail, "severity": severity})
+            findings = _parse_audit_findings(notes)
 
             # Check if proposals already exist for this module (use metadata for accuracy)
             proposal_status = {"total": 0, "by_status": {}, "items": []}
@@ -1388,7 +1460,11 @@ def register_code_health_routes(bp, admin_required):
                     "category": row["category"],
                     "files_reviewed": row["files_reviewed"],
                     "lines_before": row["lines_before"],
-                    "issues_found": row["issues_found"],
+                    # Defect 3 (#5881): derive the displayed count FROM findings,
+                    # same as code_health_audit_log. Raw persisted value kept as
+                    # issues_found_raw for anyone auditing the audit.
+                    "issues_found": len(findings),
+                    "issues_found_raw": row["issues_found"],
                     "issues_fixed": row["issues_fixed"],
                     "status": row["status"],
                     "audited_at": row["audited_at"].isoformat() if row["audited_at"] else None,

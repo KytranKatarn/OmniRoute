@@ -4101,10 +4101,30 @@ class DepartmentDispatcher:
         """
         # ── Hub admission control (RCA KB #278774; generalized f/u) ──────────────
         # _execute_llm is the HUB/local execution chokepoint (node dispatch goes via
-        # _dispatch_to_node), so anything reaching here is about to run on the hub. The hub's
-        # single 8GB M4000 can't hold a 7B beside the warm small set → 7B runs on hub CPU; a
-        # concurrent burst thrashes it so every job blows past the 240s timeout, cascading into
-        # queue congestion that even starves F.O.R.G.E. reviews.
+        # _dispatch_to_node), so anything reaching here is about to run on the hub. A concurrent
+        # 7B burst thrashes the hub so jobs blow past their timeout, cascading into queue
+        # congestion that even starves F.O.R.G.E. reviews.
+        #
+        # ⚠️ THE ORIGINAL PREMISE HERE IS STALE (corrected 2026-08-21, #5903). This read: "the
+        # hub's single 8GB M4000 can't hold a 7B beside the warm small set → 7B runs on hub CPU".
+        # The hub has had TWO GPUs since 2026-07-25 — M4000 8GB + TITAN X 12GB, 20GB total —
+        # and model_service reports _VRAM_LARGEST_GPU_GB=12.0, so a 7B (5.9GB) DOES fit on the
+        # TITAN. Live scheduler logs agree: "placement qwen2.5:7b -> gpu (budget 12.0 GB >=
+        # needed 5.9 GB)". 7B on the hub is not CPU-bound by construction any more.
+        #
+        # What the failures actually look like (hub, qwen2.5:7b, 10h window, task_execution_log):
+        #     success  n=630  median  33.2s   p90 212.4s   max 1134.7s
+        #     failure  n=449  median 300.1s   p90 303.8s   max  916.8s
+        # Failures cluster TIGHTLY at the 300s deadline while successes run to 1134s. So this is
+        # a LATENCY TAIL vs a DEADLINE, not a hang, not a slot leak, and not CPU demotion — the
+        # hub is merely slow under concurrency and the deadline truncates work that would finish.
+        # Two consequences worth knowing before you retune anything here:
+        #   • The cap is still worth having — it is what stops the burst — but it was SIZED for
+        #     CPU-only 7B on an 8GB box. Whether 8/3 is still right for 20GB is UNPROVEN; do not
+        #     assume either way without measuring at load (see #5903).
+        #   • Relieving the hub by PLACEMENT beats retuning this gate: after the 2026-08-21 fleet
+        #     rebalance moved 7B toward the Starships, hub success went 15% -> 99% with ZERO
+        #     sheds in the following two hours.
         #
         # Gate on MODEL CLASS, not a fixed capability tuple: _model_is_gpu_class(model) is True
         # for any 7B+ model (excludes the 1.5b/3b/embed warm set that runs fine on hub CPU), so

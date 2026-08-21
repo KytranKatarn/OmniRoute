@@ -16,6 +16,7 @@ ADR-555.
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
@@ -23,6 +24,71 @@ from services.model_sizes import lookup
 
 STALE_HEARTBEAT_SECONDS = 180
 STALE_HEARTBEAT_PENALTY = 1.0
+
+# ── Fleet-wide model hardware blocklist (2026-08-21 fleet rebalance) ──
+# Some models fit NO GPU anywhere in this fleet regardless of which node is asked —
+# that is an owner-decided hardware-fit exclusion, not a per-node capacity gap, so it
+# belongs here rather than in any one node's extra_capabilities.max_model_gb.
+#
+# SEEDED EMPTY, DELIBERATELY. This was seeded with gemma3:12b on the reasoning that its
+# 15.6GB footprint exceeds every card in the fleet, so it "only ever runs CPU-demoted —
+# 56% success fleet-wide". That 56% is a FLEET-WIDE AVERAGE and it hides the answer:
+# split by node over 30 days it is hub 12,103 runs / 52% and USS-246 2,918 runs / 95%
+# (avg 38.4s). The model is not unfit for the hardware; it is unfit for THE HUB. Blocking
+# it fleet-wide removed the 95% path and left the 52% one untouched, because this
+# blocklist binds FLEET placement and the hub does not consult it — exactly backwards.
+#
+# So: a model belongs here only when it fails on EVERY node, proven per-node, never from
+# an aggregate. Populate via platform_settings 'dispatch:model_blocklist' (comma-separated;
+# an explicit empty string clears it) once you have that per-node evidence. DB-unreachable
+# or unset -> this compiled-in default, which is empty: the fail-safe direction for an
+# unproven blocklist is to allow, since a wrong block silently deletes capacity.
+_MODEL_BLOCKLIST_DEFAULT: frozenset = frozenset()
+_model_blocklist_cache: Optional[frozenset] = None
+_model_blocklist_cache_time = 0.0
+_MODEL_BLOCKLIST_CACHE_TTL = 60.0
+
+
+def _load_model_blocklist() -> frozenset:
+    """DB read behind model_hardware_blocklist()'s cache. Fail-safe -> the compiled-in
+    default on any error (missing table, no DB, connection issue)."""
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'dispatch:model_blocklist'")
+            row = cur.fetchone()
+        if row is None:
+            return _MODEL_BLOCKLIST_DEFAULT
+        raw = row["value"] if isinstance(row, dict) else row[0]
+        raw = raw or ""
+        return frozenset(m.strip() for m in raw.split(",") if m.strip())
+    except Exception:
+        return _MODEL_BLOCKLIST_DEFAULT
+
+
+def model_hardware_blocklist() -> frozenset:
+    """Cached (~60s) accessor for the fleet-wide model blocklist. Tests monkeypatch
+    this function directly rather than exercising the DB. See module docstring above
+    for semantics."""
+    global _model_blocklist_cache, _model_blocklist_cache_time
+    now = time.time()
+    if _model_blocklist_cache is None or (now - _model_blocklist_cache_time) >= _MODEL_BLOCKLIST_CACHE_TTL:
+        _model_blocklist_cache = _load_model_blocklist()
+        _model_blocklist_cache_time = now
+    return _model_blocklist_cache
+
+
+def _is_model_blocked(model: str) -> bool:
+    if not model:
+        return False
+    blocked = model_hardware_blocklist()
+    if not blocked:
+        return False
+    m = model.strip()
+    m_norm = m[:-7] if m.endswith(":latest") else m
+    return m in blocked or m_norm in blocked
+
 
 # Latency-aware routing (refined-B / K.I.N.-advises): a node that already has the
 # model LOADED (warm-resident, per model_load_state) skips a multi-GB cold-load —
@@ -145,6 +211,10 @@ def can_node_run_model(node: dict[str, Any], model: str) -> bool:
     """
     if not node or not model:
         return False
+    if _is_model_blocked(model):
+        return False  # fleet-wide hardware-fit exclusion — see model_hardware_blocklist()
+    if node.get("ollama_available") is False:
+        return False  # ingress-only node (e.g. Beacon) — never a dispatch candidate
     footprint = lookup(model)
     extra = node.get("extra_capabilities") or {}
     if not isinstance(extra, dict):
@@ -174,6 +244,10 @@ def score_node_for_model(node: dict[str, Any], model: str) -> Optional[float]:
     """
     if not node or not model:
         return None
+    if _is_model_blocked(model):
+        return None  # fleet-wide hardware-fit exclusion — see model_hardware_blocklist()
+    if node.get("ollama_available") is False:
+        return None  # ingress-only node (e.g. Beacon) — never a dispatch candidate
 
     footprint = lookup(model)
     extra = node.get("extra_capabilities") or {}

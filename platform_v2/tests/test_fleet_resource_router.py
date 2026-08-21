@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from services.fleet_resource_router import (
+    can_node_run_model,
     is_stale,
     score_node_for_model,
     utilization_pct,
@@ -360,3 +361,89 @@ def test_should_dispatch_unnamed_node_falls_back_to_node_id():
     node.pop("node_name")
     _, reason = should_dispatch_to_node(node, "qwen2.5:7b", enforce=True)
     assert "outpost_us_001" in reason
+
+
+# ---------------------------------------------------------------------------
+# Ingress-only node hard exclusion (2026-08-21 fleet rebalance) — Beacon has
+# no Ollama and must NEVER be a dispatch candidate, even if a caller builds a
+# node dict directly (bypassing find_best_node_for_model's SQL-level filter).
+# ---------------------------------------------------------------------------
+
+
+def test_ollama_unavailable_node_disqualified_even_when_capacity_fits():
+    ingress_only = dict(HUB)
+    ingress_only["ollama_available"] = False
+    # Would otherwise fit easily (small model, huge RAM) — must still be excluded.
+    assert can_node_run_model(ingress_only, "qwen2.5:1.5b") is False
+    assert score_node_for_model(ingress_only, "qwen2.5:1.5b") is None
+
+
+def test_ollama_available_absent_is_unaffected():
+    # Fail-open: every existing test node omits this key — must stay unchanged.
+    assert "ollama_available" not in HUB
+    assert can_node_run_model(HUB, "qwen2.5:7b") is True
+    assert score_node_for_model(HUB, "qwen2.5:7b") is not None
+
+
+def test_ollama_available_true_is_unaffected():
+    node = dict(HUB)
+    node["ollama_available"] = True
+    assert can_node_run_model(node, "qwen2.5:7b") is True
+    assert score_node_for_model(node, "qwen2.5:7b") == score_node_for_model(HUB, "qwen2.5:7b")
+
+
+# ---------------------------------------------------------------------------
+# Fleet-wide model hardware blocklist (2026-08-21 fleet rebalance) — a model
+# that fits NO node's GPU in this fleet (e.g. gemma3:12b: 15.6GB vs a 12GB
+# largest card) should not be scheduled anywhere, not just penalised. Backed
+# by a DB-cached, platform_settings-tunable accessor; tests monkeypatch the
+# accessor directly so they never touch the live database.
+# ---------------------------------------------------------------------------
+
+
+def test_blocklisted_model_disqualifies_gpu_node(monkeypatch):
+    import services.fleet_resource_router as frr
+
+    monkeypatch.setattr(frr, "model_hardware_blocklist", lambda: frozenset({"gemma3:12b"}))
+    assert can_node_run_model(HUB, "gemma3:12b") is False
+    assert score_node_for_model(HUB, "gemma3:12b") is None
+
+
+def test_blocklisted_model_disqualifies_cpu_outpost_too(monkeypatch):
+    import services.fleet_resource_router as frr
+
+    monkeypatch.setattr(frr, "model_hardware_blocklist", lambda: frozenset({"some-cpu-model:3b"}))
+    assert can_node_run_model(OUTPOST, "some-cpu-model:3b") is False
+    assert score_node_for_model(OUTPOST, "some-cpu-model:3b") is None
+
+
+def test_blocklist_normalizes_the_latest_suffix(monkeypatch):
+    import services.fleet_resource_router as frr
+
+    monkeypatch.setattr(frr, "model_hardware_blocklist", lambda: frozenset({"gemma3:12b"}))
+    assert can_node_run_model(HUB, "gemma3:12b:latest") is False
+
+
+def test_empty_blocklist_changes_nothing(monkeypatch):
+    import services.fleet_resource_router as frr
+
+    monkeypatch.setattr(frr, "model_hardware_blocklist", lambda: frozenset())
+    # gemma3:12b is CPU-demoted on the hub (128GB RAM) when nothing blocks it.
+    assert score_node_for_model(HUB, "gemma3:12b") is not None
+
+
+def test_unrelated_model_unaffected_by_blocklist(monkeypatch):
+    import services.fleet_resource_router as frr
+
+    monkeypatch.setattr(frr, "model_hardware_blocklist", lambda: frozenset({"gemma3:12b"}))
+    assert score_node_for_model(HUB, "qwen2.5:7b") is not None
+
+
+def test_model_hardware_blocklist_default_is_empty():
+    # The compiled-in fallback is EMPTY on purpose. It briefly held gemma3:12b, justified
+    # by a 56% FLEET-WIDE average — which split by node is hub 52% vs USS-246 95% over
+    # 2,918 runs. A fleet-wide block therefore deleted the good path and kept the bad one.
+    # A wrong block silently removes capacity, so an unproven blocklist must fail OPEN.
+    import services.fleet_resource_router as frr
+
+    assert frr._MODEL_BLOCKLIST_DEFAULT == frozenset()

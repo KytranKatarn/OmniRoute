@@ -217,9 +217,41 @@
     return band;
   }
 
-  function buildReadOnlySections(skills, welfare, perf) {
-    const frag = document.createDocumentFragment();
+  // ── Skills (add/update — Task #10) ─────────────────────────────────────
+  // Self-contained widget: renders current skills as chips + an add/update
+  // form that POSTs {skill_name, level, category} to the existing endpoint
+  // (note: `level`/`category`, NOT proficiency_level/skill_category — that's
+  // the DB column naming, the API contract is different and must not change).
+  function renderSkillChips(listEl, skills) {
+    clear(listEl);
+    if (skills && skills.length) {
+      skills.slice(0, 30).forEach(function (s) {
+        const label = (s.skill_name || s.name || s) +
+          (s.proficiency_level ? ' · Lv' + s.proficiency_level : '') +
+          (s.skill_category ? ' [' + s.skill_category + ']' : '');
+        listEl.appendChild(el('span', 'apm-chip', label));
+      });
+    } else {
+      const em = el('em'); em.style.opacity = '0.6';
+      em.textContent = 'No skills recorded';
+      listEl.appendChild(em);
+    }
+  }
 
+  async function refreshSkillChips(agentId, listEl) {
+    try {
+      const r = await fetch(
+        '/tools/department-hq/api/agent/' + agentId + '/skills',
+        { credentials: 'same-origin' }
+      );
+      const j = await r.json();
+      renderSkillChips(listEl, (j && j.skills) || []);
+    } catch (e) {
+      // leave existing chips in place — the add form already reported the error
+    }
+  }
+
+  function buildSkillsSection(agentId, skills) {
     const sk = el('div', 'apm-section');
     const skTitle = el('div', 'apm-section-title');
     skTitle.appendChild(document.createTextNode('Skills '));
@@ -227,18 +259,99 @@
     skLink.href = '/tools/agent-academy#skills';
     skTitle.appendChild(skLink);
     sk.appendChild(skTitle);
-    if (skills && skills.length) {
-      skills.slice(0, 30).forEach(function (s) {
-        const label = (s.skill_name || s.name || s) +
-          (s.proficiency_level ? ' · Lv' + s.proficiency_level : '');
-        sk.appendChild(el('span', 'apm-chip', label));
-      });
-    } else {
-      const em = el('em'); em.style.opacity = '0.6';
-      em.textContent = 'No skills recorded';
-      sk.appendChild(em);
-    }
-    frag.appendChild(sk);
+
+    const list = el('div', 'apm-skills-list');
+    renderSkillChips(list, skills);
+    sk.appendChild(list);
+
+    const addRow = el('div', 'apm-facts-add');
+    addRow.style.cssText = 'display:flex;gap:.4rem;margin-top:.6rem;' +
+      'flex-wrap:wrap;align-items:center';
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'apm-input';
+    nameInput.placeholder = 'skill_name (e.g. research)';
+    nameInput.style.cssText = 'flex:2;min-width:160px';
+
+    const levelInput = document.createElement('input');
+    levelInput.type = 'number';
+    levelInput.className = 'apm-input';
+    levelInput.min = '1'; levelInput.max = '5'; levelInput.value = '1';
+    levelInput.title = 'level 1-5';
+    levelInput.style.cssText = 'width:70px';
+
+    const catInput = document.createElement('input');
+    catInput.type = 'text';
+    catInput.className = 'apm-input';
+    catInput.placeholder = 'category';
+    catInput.value = 'general';
+    catInput.style.cssText = 'flex:1;min-width:120px';
+
+    const addBtn = el('button', 'apm-btn apm-btn-primary', 'Add / Update Skill');
+    const status = el('span');
+    status.style.cssText = 'font-size:.72rem;flex-basis:100%';
+
+    addBtn.onclick = async function () {
+      const skill_name = nameInput.value.trim();
+      const level = parseInt(levelInput.value, 10);
+      const category = catInput.value.trim() || 'general';
+      status.textContent = '';
+      if (!skill_name) {
+        status.textContent = 'skill_name is required';
+        status.style.color = '#ff2244';
+        return;
+      }
+      if (!Number.isInteger(level) || level < 1 || level > 5) {
+        status.textContent = 'level must be 1-5';
+        status.style.color = '#ff2244';
+        return;
+      }
+      addBtn.disabled = true;
+      const orig = addBtn.textContent;
+      addBtn.textContent = 'Saving…';
+      try {
+        const r = await fetch(
+          '/tools/department-hq/api/agent/' + agentId + '/skills',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              skill_name: skill_name, level: level, category: category,
+            }),
+          }
+        );
+        const j = await r.json().catch(function () { return {}; });
+        if (!r.ok || j.success === false) {
+          status.textContent = 'Failed: ' + (j.error || r.status);
+          status.style.color = '#ff2244';
+        } else {
+          status.textContent = j.message || 'Saved';
+          status.style.color = '#00e58a';
+          nameInput.value = '';
+          await refreshSkillChips(agentId, list);
+        }
+      } catch (e) {
+        status.textContent = 'Network error';
+        status.style.color = '#ff2244';
+      }
+      addBtn.disabled = false;
+      addBtn.textContent = orig;
+    };
+
+    addRow.appendChild(nameInput);
+    addRow.appendChild(levelInput);
+    addRow.appendChild(catInput);
+    addRow.appendChild(addBtn);
+    addRow.appendChild(status);
+    sk.appendChild(addRow);
+
+    return sk;
+  }
+
+  function buildReadOnlySections(welfare, perf) {
+    const frag = document.createDocumentFragment();
 
     const pct = function (v) { return v !== undefined && v !== null ?
       (Number(v) * 100).toFixed(0) + '%' : '—'; };
@@ -400,6 +513,204 @@
     return sec;
   }
 
+  // ── Decommission (Task #10) ─────────────────────────────────────────────
+  // Never deletes an agent — decommission_agent() only flips shift_state.
+  // The precheck's warnings are shown VERBATIM before any confirmation is
+  // possible; confirming re-POSTs with acknowledge_warnings:true. A 409
+  // means the server did not accept that acknowledgement (e.g. the warning
+  // set changed underneath us) — the fresh warnings are re-shown and the
+  // operator must click Confirm again; nothing here auto-retries.
+  // Built as a real DOM tree (el()/textContent only, no innerHTML on
+  // dynamic data) per this file's XSS policy — NEVER window.confirm(),
+  // which would freeze browser automation.
+  function ensureDecommOverlay() {
+    let ov = document.getElementById('apmDecommOverlay');
+    if (ov) return ov;
+
+    ov = el('div', 'bm-overlay');
+    ov.id = 'apmDecommOverlay';
+    // The generic .bm-overlay rule is z-index:1000, which sits BEHIND the
+    // parent #agentDetailOverlay (z-index:9000) — this modal must render on
+    // top of the profile modal it was opened from. #apmConfirmOverlay (the
+    // existing sensitive-field confirm) uses 10000 for the same reason.
+    ov.style.zIndex = '10000';
+    ov.style.setProperty('--bm-accent', '#ff2244');
+    ov.style.setProperty('--bm-accent-rgb', '255,34,68');
+
+    const shell = el('div', 'bm-shell');
+    shell.style.maxWidth = '480px';
+
+    const frame = el('div', 'bm-frame');
+    frame.appendChild(el('div', 'bm-frame-elbow-top'));
+    frame.appendChild(el('div', 'bm-frame-seg'));
+    frame.appendChild(el('div', 'bm-frame-seg dim'));
+    frame.appendChild(el('div', 'bm-frame-light on'));
+    frame.appendChild(el('div', 'bm-frame-light amber'));
+    frame.appendChild(el('div', 'bm-frame-seg purple'));
+    frame.appendChild(el('div', 'bm-frame-fill'));
+    frame.appendChild(el('div', 'bm-frame-elbow-bottom'));
+    shell.appendChild(frame);
+
+    const content = el('div', 'bm-content');
+
+    const header = el('div', 'bm-header');
+    header.appendChild(el('span', 'bm-header-title', 'Confirm Decommission'));
+    content.appendChild(header);
+
+    const bodyDiv = el('div', 'bm-body');
+    bodyDiv.id = 'apmDecommBody';
+    bodyDiv.style.padding = '16px';
+    content.appendChild(bodyDiv);
+
+    const footer = el('div', 'bm-footer');
+    footer.style.cssText = 'padding:12px 16px;display:flex;gap:8px;justify-content:flex-end';
+    const cancelBtn = el('button', 'apm-btn', 'CANCEL');
+    cancelBtn.dataset.dx = 'cancel';
+    const confirmBtn = el('button', 'apm-btn apm-btn-primary', 'CONFIRM DECOMMISSION');
+    confirmBtn.dataset.dx = 'confirm';
+    footer.appendChild(cancelBtn);
+    footer.appendChild(confirmBtn);
+    content.appendChild(footer);
+
+    shell.appendChild(content);
+    ov.appendChild(shell);
+    document.body.appendChild(ov);
+    return ov;
+  }
+
+  function renderDecommWarnings(bodyDiv, agentInfo, warnings, extraNote) {
+    clear(bodyDiv);
+    const p = el('div');
+    p.style.marginBottom = '.6rem';
+    p.appendChild(document.createTextNode('Decommissioning '));
+    const strong = document.createElement('strong');
+    strong.textContent = (agentInfo && (agentInfo.display_name || agentInfo.name)) ||
+      ('agent #' + (agentInfo && agentInfo.id));
+    p.appendChild(strong);
+    p.appendChild(document.createTextNode(
+      ' sets shift_state to "decommissioned". Agents are never deleted.'));
+    bodyDiv.appendChild(p);
+
+    if (warnings && warnings.length) {
+      const list = document.createElement('ul');
+      list.style.cssText = 'margin:0 0 .5rem;padding-left:1.2rem;color:#ff8a00';
+      warnings.forEach(function (w) {
+        const li = document.createElement('li');
+        li.style.marginBottom = '.4rem';
+        li.textContent = (w && w.message) ? w.message : JSON.stringify(w);
+        list.appendChild(li);
+      });
+      bodyDiv.appendChild(list);
+    } else {
+      const em = el('em', null, 'No warnings from the precheck.');
+      em.style.opacity = '0.7';
+      bodyDiv.appendChild(em);
+    }
+
+    if (extraNote) {
+      const note = el('div', null, extraNote);
+      note.style.cssText = 'color:#ff2244;margin-top:.5rem;font-size:.8rem';
+      bodyDiv.appendChild(note);
+    }
+  }
+
+  async function handleDecommissionClick(agentId, overlay, body, triggerBtn) {
+    triggerBtn.disabled = true;
+    let pre;
+    try {
+      const r = await fetch(
+        '/tools/department-hq/api/agent/' + agentId + '/decommission-precheck',
+        { credentials: 'same-origin' }
+      );
+      pre = await r.json();
+      if (!r.ok || pre.success === false) {
+        toast(overlay, 'Precheck failed: ' + (pre.error || r.status), 'err');
+        triggerBtn.disabled = false;
+        return;
+      }
+    } catch (e) {
+      toast(overlay, 'Precheck network error', 'err');
+      triggerBtn.disabled = false;
+      return;
+    }
+
+    const dov = ensureDecommOverlay();
+    const dBody = dov.querySelector('#apmDecommBody');
+    const confirmBtn = dov.querySelector('[data-dx="confirm"]');
+    confirmBtn.disabled = false;
+    confirmBtn.textContent = 'CONFIRM DECOMMISSION';
+    renderDecommWarnings(dBody, pre.agent, pre.warnings, null);
+    dov.classList.add('active');
+
+    dov.onclick = async function (e) {
+      const b = e.target.closest('[data-dx]');
+      if (!b) return;
+      if (b.getAttribute('data-dx') === 'cancel') {
+        dov.classList.remove('active');
+        triggerBtn.disabled = false;
+        return;
+      }
+      // confirm — explicit, single POST per click; a 409 re-shows warnings
+      // and requires another explicit click, never an automatic retry.
+      b.disabled = true;
+      b.textContent = 'Decommissioning…';
+      try {
+        const r2 = await fetch(
+          '/tools/department-hq/api/agent/' + agentId + '/decommission',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ acknowledge_warnings: true }),
+          }
+        );
+        const out = await r2.json().catch(function () { return {}; });
+        if (r2.status === 409 || out.ok === false) {
+          renderDecommWarnings(dBody, pre.agent, out.warnings || pre.warnings,
+            'Not decommissioned — the server did not accept the ' +
+            'acknowledgement. Review the warnings above and click ' +
+            'Confirm again.');
+          b.disabled = false;
+          b.textContent = 'CONFIRM DECOMMISSION';
+          triggerBtn.disabled = false;
+          return;
+        }
+        dov.classList.remove('active');
+        toast(overlay, 'Agent decommissioned', 'ok');
+        state.snapshot = await fetchProfile(state.agentId);
+        renderInto(body);
+        bindActions(overlay, body);
+      } catch (err) {
+        b.disabled = false;
+        b.textContent = 'CONFIRM DECOMMISSION';
+        toast(overlay, 'Decommission network error', 'err');
+        triggerBtn.disabled = false;
+      }
+    };
+  }
+
+  function buildDecommissionSection(agent) {
+    const sec = el('div', 'apm-section');
+    const title = el('div', 'apm-section-title');
+    title.appendChild(document.createTextNode('Decommission'));
+    sec.appendChild(title);
+
+    const note = el('div');
+    note.style.cssText = 'font-size:.78rem;opacity:.75;margin-bottom:.6rem';
+    note.textContent = 'Retires the agent (shift_state → decommissioned). ' +
+      'Agents are never deleted from the database.';
+    sec.appendChild(note);
+
+    const isDecommissioned = agent.shift_state === 'decommissioned';
+    const btn = el('button', 'apm-btn',
+      isDecommissioned ? 'Already Decommissioned' : 'Decommission Agent');
+    btn.style.cssText = 'border-color:#ff2244;color:#ff2244';
+    btn.dataset.action = 'decommission';
+    if (isDecommissioned) btn.disabled = true;
+    sec.appendChild(btn);
+    return sec;
+  }
+
   function buildFooter() {
     const f = el('div', 'apm-footer-actions');
     const viewCol = el('div', 'apm-view-only');
@@ -443,6 +754,56 @@
     msLink.textContent = 'Generate in Media Studio →';
     infoWrap.appendChild(statusBadge);
     infoWrap.appendChild(msLink);
+
+    // Regenerate Portrait — convenience wrapper around the Media Studio
+    // pipeline (Bridge → P.I.X.E.L. → ComfyUI). Auto-approves the result as
+    // the canonical portrait with NO preview — the button label says so, and
+    // the Media Studio link above is the preview-before-approve path.
+    const regenRow = document.createElement('div');
+    regenRow.style.cssText = 'display:flex;flex-direction:column;gap:.35rem;margin-top:.35rem';
+    const regenBtn = document.createElement('button');
+    regenBtn.className = 'apm-btn';
+    regenBtn.textContent = 'Regenerate Portrait (auto-approves)';
+    regenBtn.title = 'Generates a new portrait and immediately sets it as ' +
+      'canonical — no preview. For preview-before-approve, use "Generate in ' +
+      'Media Studio" above.';
+    const regenStatus = document.createElement('span');
+    regenStatus.style.cssText = 'font-size:.72rem;color:#94a3b8';
+    regenBtn.onclick = async function () {
+      regenBtn.disabled = true;
+      const origLabel = regenBtn.textContent;
+      regenBtn.textContent = 'Queuing…';
+      regenStatus.textContent = '';
+      try {
+        const res = await fetch(
+          '/tools/department-hq/api/agents/' + agent.id + '/generate-portrait',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({}),
+          }
+        );
+        const data = await res.json().catch(function () { return {}; });
+        if (res.ok && data && data.success) {
+          regenStatus.textContent = 'queued (queue_id ' + data.queue_id +
+            ') — ComfyUI may cold-start; check back in a few minutes.';
+          regenStatus.style.color = '#00e5ff';
+        } else {
+          regenStatus.textContent = 'Failed: ' + (data.error || res.status);
+          regenStatus.style.color = '#ff2244';
+        }
+      } catch (e) {
+        regenStatus.textContent = 'Network error';
+        regenStatus.style.color = '#ff2244';
+      }
+      regenBtn.disabled = false;
+      regenBtn.textContent = origLabel;
+    };
+    regenRow.appendChild(regenBtn);
+    regenRow.appendChild(regenStatus);
+    infoWrap.appendChild(regenRow);
+
     imgWrap.appendChild(img);
     imgWrap.appendChild(infoWrap);
     wrap.appendChild(imgWrap);
@@ -534,10 +895,12 @@
     root.appendChild(buildHeaderBand(agent));
     root.appendChild(buildPortraitSection(agent));
     SECTIONS.forEach(function (sec) { root.appendChild(buildSection(sec, agent)); });
+    root.appendChild(buildSkillsSection(agent.id, state.snapshot.skills));
     root.appendChild(buildReadOnlySections(
-      state.snapshot.skills, state.snapshot.welfare, state.snapshot.performance
+      state.snapshot.welfare, state.snapshot.performance
     ));
     root.appendChild(buildFactsSection(agent.id));
+    root.appendChild(buildDecommissionSection(agent));
     root.appendChild(buildFooter());
     body.appendChild(root);
   }
@@ -557,6 +920,7 @@
       }
       else if (action === 'save') saveHandler(overlay, body);
       else if (action === 'toggle-shift') cycleShift(overlay, body);
+      else if (action === 'decommission') handleDecommissionClick(state.agentId, overlay, body, t);
     };
   }
 

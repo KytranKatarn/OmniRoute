@@ -3,7 +3,7 @@
 **Date**: 2026-08-20
 **Module**: Department HQ → Roster + shared agent profile modal
 **Status**: design approved, implementation plan pending
-**Sub-project**: C of 5 (A Roster table · B hire visibility · **C this** · D portraits · E identity & access)
+**Sub-project**: C of 4 (A Roster table ✅ merged · B hire visibility ✅ merged · **C this** · ~~D portraits — CANCELLED, folded into C~~ · E identity & access)
 
 ---
 
@@ -46,7 +46,7 @@ Verified by reading the code on 2026-08-20:
 
 | exists | detail |
 |---|---|
-| `agent_service.create_agent(name, display_name, department, model, **kwargs)` | line 244. kwargs: `system_prompt, temperature, max_tokens, capabilities, is_department_ai, shift_state, tier, worker_type, allow_duplicate_name`. Carries the **#5272 name-collision guard at the single-writer choke point** — `allow_duplicate_name` defaults `False`. |
+| `agent_service.create_agent(name, display_name, department, model, **kwargs)` | line 315 (was 244 before the A+B filter helpers were inserted above it). kwargs: `system_prompt, temperature, max_tokens, capabilities, is_department_ai, shift_state, tier, worker_type, allow_duplicate_name`. Carries the **#5272 name-collision guard at the single-writer choke point** — `allow_duplicate_name` defaults `False`. |
 | `agent_service.update_agent(agent_id, **fields)` | line 362. Auto-derives `floor` from `department`. |
 | `agent_service.propose_hire(...)` | line 763. K.I.N.'s gap-driven path. |
 | async name generation | `POST /api/approvals/hire/<id>/generate-name` + `GET .../generate-name/<job_id>`, backed by `hire_name_jobs` + `services/hire_name_job_service.py` + `agent_identity_builder.build_identity`. |
@@ -144,6 +144,20 @@ Editable: `title`, `bio`, `system_prompt`, `model`, `department`, skills (add/re
 and the identity fields for the agent's kind. All writes go through
 `agent_service.update_agent()` — no direct SQL on agent tables.
 
+**AMENDED 2026-08-21 — this is WIRING, not new endpoints.** The backend already exists
+(§7.2): `PATCH /api/agent/<id>` for fields and `POST /api/agent/<id>/skills` for skills.
+This section's work is the modal UI calling them. Do NOT add parallel endpoints.
+
+**Portrait regeneration lands here too** (formerly sub-project D, now folded in — §8).
+`POST /api/agents/<id>/generate-portrait` already exists and already queues via
+`portrait_service.generate_canonical`, returning a `queue_id`. The work is a
+"Regenerate portrait" button on the profile that calls it and surfaces the queued state.
+Style follows §2: sci-fi for AI agents, corporate for human-like.
+
+⚠️ Queue depth is not completion. The button must show "queued", not "done" — a portrait
+job can sit behind a ComfyUI cold start, and ComfyUI parks itself (`exited`) to free VRAM,
+which is its correct resting state (§4.4).
+
 ## 6. Decommission — never DELETE
 
 **New code** (§3.1 — no existing function).
@@ -170,15 +184,48 @@ manufacturing the gap.
 
 ## 7. API surface
 
+> **AMENDED 2026-08-21, before implementation.** The original table proposed five
+> endpoints. A pre-planning audit of `tools/department_hq/agent_detail_routes.py` found
+> that **three of them already exist**, and the existing implementations are better than
+> what this spec described. Building the original table would have stood up a SECOND
+> parallel agent-CRUD surface — the same duplication class as the Roster's hand-built
+> COUNT and the per-caller merge gate. Only the genuinely-missing endpoints are new.
+
+### 7.1 NEW — these do not exist
+
 | endpoint | purpose |
 |---|---|
 | `POST /api/roster/agent` | create; returns agent id + per-side-effect results |
-| `PATCH /api/roster/agent/<id>` | profile/field update |
-| `POST /api/roster/agent/<id>/decommission` | decommission; returns the §6.1 warnings when not forced |
-| `GET /api/roster/agent/<id>/decommission-precheck` | the warnings, without acting |
-| `POST /api/roster/agent/<id>/skills` · `DELETE .../skills/<skill>` | skill management |
+| `GET /api/agent/<id>/decommission-precheck` | the §6.1 warnings, without acting |
+| `POST /api/agent/<id>/decommission` | decommission; refuses/warns per §6.1 |
 
 All `@admin_required`. All mutations through `agent_service`.
+
+### 7.2 ALREADY EXISTS — CALL IT, DO NOT REBUILD IT
+
+| existing endpoint | what it already does |
+|---|---|
+| `PATCH /api/agent/<id>` | field update via `agent_service.update_agent`, validates unknown fields, captures a before-state, **and writes `governance_audit_log`** |
+| `GET`/`POST /api/agent/<id>/skills` | list / add-or-update a skill, with 1–5 level validation |
+| `POST /api/agents/<id>/generate-portrait` | calls `portrait_service.generate_canonical`, returns a `queue_id` — already QUEUED, not sync |
+| `GET /api/agent/<id>/profile` · `/welfare` · `/facts` · `POST /shift` · `/department` | profile read, welfare, curated facts, shift + department changes |
+
+⚠️ The audit-logging in `PATCH /api/agent/<id>` is a REASON to reuse it, not an
+incidental. A second update path would silently skip the governance trail.
+
+### 7.3 How create composes them — SERVER-SIDE
+
+`POST /api/roster/agent` performs its side effects by calling the SAME service functions
+those existing routes call, **in the request handler** — not by having the browser fire a
+sequence of follow-up requests after the agent row exists.
+
+Rationale: a browser-driven sequence fails partially and invisibly (three of five calls
+land, the user sees one toast), and there is no single place to report the outcome. A
+server-side composition has one place to catch each failure and one response carrying
+per-side-effect results (§4.3). This mirrors the decision already made for
+`POST /api/roster/bulk-shift`, which loops server-side for exactly this reason.
+
+Import the service functions; do not issue internal HTTP calls to our own routes.
 
 ## 8. Out of scope
 
@@ -189,8 +236,15 @@ All `@admin_required`. All mutations through `agent_service`.
   `kbs`), separate auth, multi-tenant by schema. There is **no CRM module in
   `module_registry.py`**. Cross-product access is E, and is materially harder than platform
   RBAC.
-- Portrait *iteration* UI — sub-project D. C only queues the first one.
+- ~~Portrait *iteration* UI — sub-project D. C only queues the first one.~~
+  **AMENDED 2026-08-21: sub-project D is CANCELLED and folded into C (§5).** D was scoped
+  on the assumption that portrait generation needed building. It does not:
+  `POST /api/agents/<id>/generate-portrait` exists and already queues through
+  `portrait_service.generate_canonical`. What remained of D was a button, so it belongs in
+  C's profile surface rather than in a sub-project of its own.
 - Bulk create. One agent at a time, deliberately.
+- **Bulk portrait generation** — `generateAllMissingPortraits()` already exists and was
+  re-wired to a Roster control-bar button during the A+B work. C does not touch it.
 
 ## 9. Testing
 

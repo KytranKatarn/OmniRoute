@@ -441,9 +441,34 @@ function populateRosterFilters(agents) {
 // drifting apart later.
 // ───────────────────────────────────────────────────────────────
 
+// Candidate objects backing the strip's "Create from this" buttons, keyed by
+// hiring_candidates.id. The buttons carry ONLY a numeric data-hire-id — never
+// candidate text — so the click handler can look up the REAL fetched object
+// and hand it to openAgentCreate() directly, with no candidate-authored text
+// ever passing through an HTML attribute or being parsed as JS (an inline
+// onclick built from this text was a stored-XSS hole: an HTML attribute is
+// entity-decoded BEFORE its contents are compiled as JS, so a candidate
+// narrative containing e.g. `&quot;});alert(1);//` survives JSON.stringify,
+// gets decoded to a real `"` by the attribute parser, and only then executes
+// as JS — no single-stage escaping scheme defends against that).
+var _hiringCandidatesById = {};
+
+function _hiringStripClickHandler(e) {
+    var btn = e.target.closest('button[data-hire-id]');
+    if (!btn) return;
+    var id = Number(btn.getAttribute('data-hire-id'));
+    var c = _hiringCandidatesById[id];
+    if (!c) return;
+    openAgentCreate({capability: c.capability, narrative: c.narrative || '', hire_id: c.id});
+}
+
 function renderHiringStrip(elId, data) {
     var el = document.getElementById(elId);
     if (!el) return;
+    // Bind the delegated handler ONCE on the container; it survives setHtml()
+    // re-renders (innerHTML replaces children, not the element) — same
+    // pattern as loadClaudeFeed's _delegationClickHandler.
+    el.onclick = _hiringStripClickHandler;
     // Always render something. An absent panel is indistinguishable from a
     // failed load; an explicit empty state is honest (spec B §5.2).
     if (!data || !data.count) {
@@ -451,10 +476,12 @@ function renderHiringStrip(elId, data) {
         return;
     }
     var rows = data.candidates.map(function(c){
+        _hiringCandidatesById[c.id] = c;
         var age = (c.age_hours === null || c.age_hours === undefined) ? '—' : (String(c.age_hours) + 'h');
         return '<li><b>' + esc(c.capability || '—') + '</b> — ' + esc(c.gap_reason || '')
              + ' <span class="dhq-precheck">' + esc(c.precheck_status || '') + '</span>'
-             + ' <span class="dhq-age">' + esc(age) + '</span></li>';
+             + ' <span class="dhq-age">' + esc(age) + '</span>'
+             + ' <button class="dhq-btn-sm" data-hire-id="' + (Number(c.id) || 0) + '">Create from this</button></li>';
     }).join('');
     var more = data.count > data.candidates.length
         ? '<li>… ' + (data.count - data.candidates.length) + ' more</li>' : '';
@@ -546,9 +573,27 @@ function sortRosterBy(key) {
     renderRoster(lastRosterData);
 }
 
+// Regression fix (PR #2740/19a9debbc dropped this): the roster row-click
+// wiring to openAgentDetail(id) was lost in the table-redesign rewrite,
+// leaving all 140 agents unopenable from the Roster tab. Delegated on the
+// container (same pattern as _hiringStripClickHandler /
+// _delegationClickHandler) so it survives setHtml() re-renders — binding
+// el.onclick is idempotent, safe to reassign on every renderRoster() call.
+// Guards on input/label/button/a so the select checkbox keeps working
+// (click -> select via its own onchange, NOT open) and never fires for
+// .dhq-group-row (no data-agent-id to match).
+function _rosterRowClickHandler(e) {
+    if (e.target.closest('input, label, button, a')) return;
+    var row = e.target.closest('tr[data-agent-id]');
+    if (!row) return;
+    var id = Number(row.getAttribute('data-agent-id'));
+    if (id && typeof openAgentDetail === 'function') openAgentDetail(id);
+}
+
 function renderRoster(data) {
     var el = document.getElementById('rosterContent');
     if (!data) return;
+    el.onclick = _rosterRowClickHandler;
     var truncated = data.total > data.agents.length;
     var groupKey = (document.getElementById('rosterGroupBy') || {}).value || '';
     var rows = truncated ? data.agents : sortAgents(data.agents, rosterSortKey, rosterSortDir);
@@ -578,8 +623,13 @@ function renderRoster(data) {
     }
 
     function bodyFor(list) {
+        // dhq-roster-row + data-agent-id: the row is clickable to open the
+        // profile modal (see _rosterRowClickHandler, delegated on the
+        // container) — .dhq-roster-row already carries cursor:pointer +
+        // hover styling in department-hq.css from the pre-redesign renderer.
         return list.map(function(a){
-            return '<tr><td><input type="checkbox" class="dhq-row-sel" data-id="' + a.id + '"'
+            return '<tr class="dhq-roster-row" data-agent-id="' + a.id + '">'
+                 + '<td><input type="checkbox" class="dhq-row-sel" data-id="' + a.id + '"'
                  + (rosterSelection.has(a.id) ? ' checked' : '') + ' onchange="toggleRosterSel(' + a.id + ',this.checked)"></td>'
                  + ROSTER_COLS.map(function(c){
                        if (c.key === 'display_name') return agentCell(a);

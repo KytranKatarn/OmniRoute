@@ -312,13 +312,56 @@ def list_agents_public(department=None, search=None, is_department_ai=None, agen
         return [dict(r) for r in cur.fetchall()]
 
 
+# Kwargs create_agent() actually honours. Anything else used to be accepted
+# by **kwargs and silently discarded (#5878, KB #292520) — nine real `agents`
+# columns (the identity fields below) were collected by the roster create-agent
+# form, forwarded here, and vanished with no error anywhere in the chain: the
+# per-step results panel reported every step green while the row never got
+# them. Before adding a new key here, grep every caller of create_agent(/
+# create_agent_full( — if none of them pass it, it is genuinely unknown and
+# the TypeError below is correct; if one does, add the key AND wire it into
+# the INSERT, don't just widen the allowlist.
+_CREATE_AGENT_KNOWN_KWARGS = frozenset(
+    {
+        # guard / lifecycle controls — read via kwargs.get, not agents columns
+        "shift_state",
+        "allow_duplicate_name",
+        # existing persisted columns
+        "system_prompt",
+        "temperature",
+        "max_tokens",
+        "capabilities",
+        "is_department_ai",
+        "tier",
+        "worker_type",
+        # identity columns (#5878) — previously accepted and silently dropped
+        "title",
+        "bio",
+        "acronym",
+        "acronym_expansion",
+        "gender",
+        "ethnicity",
+        "age_range",
+        "first_name",
+        "last_name",
+    }
+)
+
+
 def create_agent(name, display_name, department, model, **kwargs):
     """Create a new agent. Returns agent_id.
 
     Required: name, display_name, department, model
     Optional kwargs: system_prompt, temperature, max_tokens, capabilities,
                      is_department_ai, shift_state, tier, worker_type,
-                     allow_duplicate_name (default False)
+                     allow_duplicate_name (default False), title, bio,
+                     acronym, acronym_expansion, gender, ethnicity,
+                     age_range, first_name, last_name
+
+    Unknown kwargs RAISE TypeError (#5878) — see ``_CREATE_AGENT_KNOWN_KWARGS``
+    above for why: this used to be a silent no-op, and that silence is exactly
+    how nine identity columns were dropped for months while the create-agent
+    UI reported success.
 
     NAME-COLLISION GUARD (#5272) lives HERE, at the single-writer choke point,
     not only in ``propose_hire``. Before this, the duplicate check existed in
@@ -335,6 +378,15 @@ def create_agent(name, display_name, department, model, **kwargs):
     with #146 ``C.O.D.E.X.``. It must be passed explicitly and is logged loudly,
     so a twin can only ever be created on purpose.
     """
+    unknown = set(kwargs) - _CREATE_AGENT_KNOWN_KWARGS
+    if unknown:
+        raise TypeError(
+            f"create_agent() got unexpected keyword argument(s): {sorted(unknown)!r}. "
+            f"If this is a real `agents` column, add it to _CREATE_AGENT_KNOWN_KWARGS "
+            f"and the INSERT below — do not widen the allowlist without wiring the "
+            f"column, or this becomes the same silent-drop bug again (#5878)."
+        )
+
     floor = DEPARTMENT_FLOOR_MAP.get(department, "SERVICES")
     shift_state = kwargs.get("shift_state", "barracked")
     allow_duplicate_name = bool(kwargs.get("allow_duplicate_name", False))
@@ -370,8 +422,11 @@ def create_agent(name, display_name, department, model, **kwargs):
             """INSERT INTO agents
                (name, display_name, department, floor, model, shift_state,
                 system_prompt, temperature, max_tokens, capabilities,
-                is_department_ai, tier, worker_type, status)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active')
+                is_department_ai, tier, worker_type,
+                title, bio, acronym, acronym_expansion,
+                gender, ethnicity, age_range, first_name, last_name, status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s, 'active')
                RETURNING id""",
             (
                 name,
@@ -387,6 +442,17 @@ def create_agent(name, display_name, department, model, **kwargs):
                 kwargs.get("is_department_ai", False),
                 kwargs.get("tier", 3),
                 kwargs.get("worker_type", "internal"),
+                # Identity columns (#5878) — optional; absent means NULL,
+                # same as for any agent created without them today.
+                kwargs.get("title"),
+                kwargs.get("bio"),
+                kwargs.get("acronym"),
+                kwargs.get("acronym_expansion"),
+                kwargs.get("gender"),
+                kwargs.get("ethnicity"),
+                kwargs.get("age_range"),
+                kwargs.get("first_name"),
+                kwargs.get("last_name"),
             ),
         )
         agent_id = cur.fetchone()["id"]

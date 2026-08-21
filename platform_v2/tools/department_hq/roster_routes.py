@@ -285,3 +285,39 @@ def register_roster_routes(bp, admin_required):
         coordinator = get_coordinator()
         status = coordinator.get_status()
         return jsonify({"success": True, **status})
+
+    @bp.route("/api/roster/agent", methods=["POST"])
+    @admin_required
+    def api_roster_create_agent():
+        """Create a new agent via the full lifecycle (fields + skills + side effects)."""
+        from services.agent_lifecycle import create_agent_full
+
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"ok": False, "error": "request body must be a JSON object"}), 400
+
+        fields = data.get("fields")
+        if not isinstance(fields, dict):
+            fields = {}
+        skills = data.get("skills")
+        if not isinstance(skills, list):
+            skills = []
+        side_effects = data.get("side_effects")
+        if not isinstance(side_effects, dict):
+            side_effects = {}
+
+        for required in ("name", "display_name", "department", "model"):
+            if not fields.get(required):
+                return jsonify({"ok": False, "error": "%s is required" % required}), 400
+        if fields["department"] not in VALID_DEPARTMENTS:
+            return jsonify({"ok": False, "error": "Invalid department: %s" % fields["department"]}), 400
+        if fields.get("worker_type") not in ("ai", "internal", "contractor"):
+            return jsonify({"ok": False, "error": "worker_type must be ai, internal or contractor"}), 400
+        if not skills:
+            return jsonify({"ok": False, "error": "At least one skill is required"}), 400
+
+        try:
+            out = create_agent_full(fields, skills, side_effects)
+            return (jsonify(out), 201) if out["ok"] else (jsonify(out), 400)
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500

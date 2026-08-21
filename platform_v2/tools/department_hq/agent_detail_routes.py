@@ -536,6 +536,43 @@ def register_agent_detail_routes(bp, admin_required):
             200,
         )
 
+    @bp.route("/api/agent/<int:agent_id>/decommission-precheck")
+    @admin_required
+    def api_agent_decommission_precheck(agent_id):
+        from services.agent_lifecycle import decommission_precheck
+
+        try:
+            out = decommission_precheck(agent_id)
+            return jsonify(
+                {
+                    "success": True,
+                    "warnings": out["warnings"],
+                    "agent": {
+                        "id": out["agent"]["id"],
+                        "name": out["agent"].get("name"),
+                        "shift_state": out["agent"].get("shift_state"),
+                    },
+                }
+            )
+        except ValueError as e:
+            return jsonify({"success": False, "error": str(e)}), 404
+        except Exception as e:
+            return jsonify({"success": False, "error": str(e)}), 500
+
+    @bp.route("/api/agent/<int:agent_id>/decommission", methods=["POST"])
+    @admin_required
+    def api_agent_decommission(agent_id):
+        from services.agent_lifecycle import decommission_agent
+
+        data = request.get_json(silent=True) or {}
+        try:
+            out = decommission_agent(agent_id, acknowledge_warnings=bool(data.get("acknowledge_warnings")))
+            return (jsonify(out), 200) if out["ok"] else (jsonify(out), 409)
+        except ValueError as e:
+            return jsonify({"ok": False, "error": str(e)}), 404
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
 
 def _validate_patch_payload(agent_id, payload):
     """Return None if ok; else dict with error + field keys (for jsonify)."""

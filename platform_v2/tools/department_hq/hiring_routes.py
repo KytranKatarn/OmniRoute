@@ -10,7 +10,7 @@ from database import get_db_cursor
 
 PENDING_SQL = """
     SELECT id, capability, gap_reason, precheck_status, precheck_message,
-           proposed_at,
+           narrative, proposed_at,
            ROUND(EXTRACT(EPOCH FROM (now() - proposed_at)) / 3600.0)::int AS age_hours
       FROM hiring_candidates
      WHERE status = 'pending'

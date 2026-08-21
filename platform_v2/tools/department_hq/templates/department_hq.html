@@ -101,6 +101,7 @@
         <span class="dhq-roster-count" id="rosterCount"></span>
         <button class="dhq-btn" onclick="exportRosterCsv()" id="rosterExportCsv">Export CSV</button>
         <button class="dhq-btn" onclick="generateAllMissingPortraits()" id="rosterGenPortraitsBtn">Generate Missing Portraits</button>
+        <button class="dhq-btn" onclick="openAgentCreate(null)" id="rosterNewAgentBtn">+ New Agent</button>
         <div id="rosterBulkBar" class="dhq-bulk-bar" style="display:none">
           <span id="rosterSelCount"></span>
           <select id="rosterBulkShift" class="dhq-select"><option value="">Set shift…</option></select>
@@ -119,6 +120,183 @@
       <div id="rosterContent" class="dhq-loading">Loading roster...</div>
           </div>
           <div style="height:6px !important;background:var(--cat-accent,#00ffff) !important;border-radius:0 0 20px 0 !important;flex-shrink:0 !important;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Create Agent modal (agent-lifecycle, Task 7/8). Self-contained JS in agent_create.js.
+         Lives here (sibling of the panels, not inside one) since it's a position:fixed
+         overlay that must work regardless of which DHQ tab is active. -->
+    <div id="agCreateOverlay" class="bm-overlay" style="display:none;--bm-accent:#00d4ff;--bm-accent-rgb:0,212,255;" onclick="if(event.target===this)closeAgentCreate()">
+      <div class="bm-shell ag-shell" style="max-width:640px;width:92%;">
+        <div class="bm-frame">
+          <div class="bm-frame-elbow-top"></div>
+          <div class="bm-frame-seg"></div>
+          <div class="bm-frame-seg dim"></div>
+          <div class="bm-frame-light on"></div>
+          <div class="bm-frame-light amber"></div>
+          <div class="bm-frame-seg purple"></div>
+          <div class="bm-frame-fill"></div>
+          <div class="bm-frame-elbow-bottom"></div>
+        </div>
+        <div class="bm-content">
+          <div class="bm-header">
+            <div class="bm-header-title">+ NEW AGENT</div>
+            <div class="bm-header-strip">
+              <div class="bm-header-pip w1"></div>
+              <div class="bm-header-pip w2"></div>
+              <div class="bm-header-pip w3"></div>
+              <button type="button" class="bm-close" onclick="closeAgentCreate()">&times;</button>
+            </div>
+          </div>
+          <div class="bm-body">
+
+            <div class="ag-body-section">
+              <div class="ag-section-title">Agent Kind</div>
+              <select id="agKind" onchange="agApplyKind()">
+                <option value="ai">AI Agent &mdash; dotted acronym identity</option>
+                <option value="internal">Human-like Agent &mdash; named identity</option>
+              </select>
+              <div class="ag-kind-desc" id="agKindDesc"></div>
+            </div>
+
+            <div class="ag-body-section">
+              <div class="ag-section-title">Identity</div>
+              <div id="agAiFields">
+                <label>Name</label>
+                <input type="text" id="agName" placeholder="e.g. F.O.R.G.E.">
+                <div class="ag-row-2col">
+                  <div>
+                    <label>Acronym</label>
+                    <input type="text" id="agAcronym" placeholder="e.g. FORGE">
+                  </div>
+                  <div>
+                    <label>Acronym Expansion</label>
+                    <input type="text" id="agAcronymExp" placeholder="Full-stack Orchestration &amp; Release Governance Engine">
+                  </div>
+                </div>
+              </div>
+              <div id="agHumanFields" style="display:none">
+                <div class="ag-row-2col">
+                  <div>
+                    <label>First Name</label>
+                    <input type="text" id="agFirstName" placeholder="e.g. Terry">
+                  </div>
+                  <div>
+                    <label>Last Name</label>
+                    <input type="text" id="agLastName" placeholder="e.g. Caetano">
+                  </div>
+                </div>
+                <div class="ag-row-2col">
+                  <div>
+                    <label>Gender</label>
+                    <input type="text" id="agGender" placeholder="e.g. female">
+                  </div>
+                  <div>
+                    <label>Ethnicity</label>
+                    <input type="text" id="agEthnicity" placeholder="e.g. South Asian">
+                  </div>
+                </div>
+                <label>Age Range</label>
+                <input type="text" id="agAgeRange" placeholder="e.g. 30s">
+              </div>
+              <label>Display Name <span class="ag-hint-inline">(optional &mdash; defaults to the name above)</span></label>
+              <input type="text" id="agDisplayName" placeholder="Shown on cards and in dispatch logs">
+            </div>
+
+            <div class="ag-body-section">
+              <div class="ag-section-title">Assignment</div>
+              <div class="ag-row-2col">
+                <div>
+                  <label>Department</label>
+                  <select id="agDepartment">
+                    <option value="">&mdash; Select Department &mdash;</option>
+                    <option value="Executive Office">Executive Office</option>
+                    <option value="Operations &amp; Infrastructure">Operations &amp; Infrastructure</option>
+                    <option value="Logistics &amp; Supply Chain">Logistics &amp; Supply Chain</option>
+                    <option value="Finance &amp; Accounting">Finance &amp; Accounting</option>
+                    <option value="Engineering &amp; Technology">Engineering &amp; Technology</option>
+                    <option value="Security &amp; Compliance">Security &amp; Compliance</option>
+                    <option value="Research &amp; Development">Research &amp; Development</option>
+                    <option value="Creative &amp; Design">Creative &amp; Design</option>
+                    <option value="Marketing &amp; Communications">Marketing &amp; Communications</option>
+                    <option value="Documentation &amp; Knowledge">Documentation &amp; Knowledge</option>
+                    <option value="News &amp; Media">News &amp; Media</option>
+                    <option value="Customer Success &amp; Support">Customer Success &amp; Support</option>
+                    <option value="Human Resources &amp; Culture">Human Resources &amp; Culture</option>
+                    <option value="Medical &amp; Wellness">Medical &amp; Wellness</option>
+                    <option value="Legal &amp; Regulatory">Legal &amp; Regulatory</option>
+                    <option value="Diplomatic &amp; External Relations">Diplomatic &amp; External Relations</option>
+                    <option value="Analytics &amp; Intelligence">Analytics &amp; Intelligence</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Title</label>
+                  <input type="text" id="agTitle" placeholder="e.g. Engineering Director">
+                </div>
+              </div>
+              <div class="ag-row-2col">
+                <div>
+                  <label>Model</label>
+                  <select id="agModel">
+                    <option value="qwen2.5:1.5b">qwen2.5:1.5b</option>
+                    <option value="llama3.2:3b">llama3.2:3b</option>
+                    <option value="qwen2.5:7b" selected>qwen2.5:7b</option>
+                    <option value="mistral:7b">mistral:7b</option>
+                    <option value="gemma3:12b">gemma3:12b</option>
+                    <option value="dolphin3:latest">dolphin3:latest</option>
+                  </select>
+                </div>
+                <div class="ag-checkbox-row ag-checkbox-row-top-align">
+                  <input type="checkbox" id="agIsDirector">
+                  <label class="ag-inline-label">Director of this department</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="ag-body-section">
+              <div class="ag-section-title">Persona</div>
+              <label>System Prompt</label>
+              <textarea id="agSystemPrompt" rows="3" placeholder="How this agent should behave when dispatched"></textarea>
+              <label>Bio</label>
+              <textarea id="agBio" rows="2" placeholder="Short bio / backstory"></textarea>
+            </div>
+
+            <div class="ag-body-section">
+              <div class="ag-section-title">Skills <span class="ag-hint-inline">(at least one required &mdash; this is how the agent gets dispatched work)</span></div>
+              <div class="ag-skill-scroll"><div id="agSkillList" class="ag-skill-list"></div></div>
+              <button type="button" class="dhq-btn" onclick="agAddSkillRow()">+ Add Skill</button>
+            </div>
+
+            <div class="ag-body-section">
+              <div class="ag-section-title">Side Effects</div>
+              <div class="ag-checkbox-row">
+                <input type="checkbox" id="agSideBudget" checked>
+                <label class="ag-inline-label">Create a token budget row</label>
+              </div>
+              <div class="ag-hint">Needed for K.I.N. welfare gating and daily token limits.</div>
+              <div class="ag-checkbox-row">
+                <input type="checkbox" id="agSidePortrait">
+                <label class="ag-inline-label">Queue a canonical portrait</label>
+              </div>
+              <div class="ag-hint">Off by default &mdash; a fresh agent has no portrait prompt yet. Set one in Media Studio, then queue the portrait from there or here afterward.</div>
+              <div class="ag-static-line">&#10003; Mailbox &mdash; always provisioned automatically, no choice needed</div>
+            </div>
+
+            <div id="agResults" class="ag-results"></div>
+
+          </div>
+          <div class="bm-actions">
+            <button type="button" class="btn-cancel" onclick="closeAgentCreate()">Cancel</button>
+            <button type="button" class="btn-submit" id="agSubmit" onclick="agSubmit()">Create Agent</button>
+          </div>
+          <div class="bm-footer">
+            <div class="bm-footer-strip">
+              <div class="bm-footer-dot cyan"></div>
+              <div class="bm-footer-dot gold"></div>
+              <div class="bm-footer-dot green"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -3017,6 +3195,7 @@ async function _dhqRejectHire(approvalId, btn) {
 <script src="{{ url_for('static', filename='js/lcars-header.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/roster_sort.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/department-hq.js') }}"></script>
+<script src="{{ url_for('department_hq.static', filename='js/agent_create.js') }}"></script>
 <script src="{{ url_for('static', filename='js/agent_profile_modal.js') }}"></script>
 <script src="{{ url_for('department_hq.static', filename='js/browser_presence.js') }}"></script>
 <script src="{{ url_for('static', filename='js/department-hq-chat.js') }}" defer></script>

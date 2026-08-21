@@ -1915,3 +1915,135 @@ body.light-mode {
   --dhq-text-dim:  #64748b;
   --dhq-card-bg:   #ffffff;
 }
+
+/* ── Agent Create Modal (Task 7/8, agent-lifecycle) ───────────────────────
+   Lives in #agCreateOverlay (.bm-overlay, shared/lcars-modals.css) — that
+   shared CSS already themes inputs/selects/textareas/buttons for both dark
+   and light mode and already collapses the shell to width:95% + scrollable
+   body at <=768px. These rules only add the section/grid/skill-row/results
+   scaffolding on top.
+
+   Responsive: 2-col rows collapse to 1 col at 768px, matching the platform's
+   1024/768/480 breakpoint convention (see the other @media blocks in this
+   file). The skill list gets its own overflow-x:auto container so a long
+   capability name can never force the page itself to scroll horizontally —
+   any wide content in this modal scrolls inside its own container, never
+   the page (#5873 must not repeat here). */
+.ag-body-section { margin-bottom: 18px; }
+.ag-body-section:last-of-type { margin-bottom: 8px; }
+.ag-section-title {
+    font-family: 'Antonio', sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--bm-accent, #00d4ff);
+    opacity: 0.9;
+    margin-bottom: 10px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(var(--bm-accent-rgb, 0, 212, 255), 0.15);
+}
+.ag-hint-inline {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+    opacity: 0.75;
+}
+.ag-kind-desc {
+    font-size: 0.76rem;
+    line-height: 1.5;
+    color: var(--dhq-text-dim, #8892a4);
+    background: rgba(var(--bm-accent-rgb, 0, 212, 255), 0.05);
+    border-left: 2px solid var(--bm-accent, #00d4ff);
+    border-radius: 2px;
+    padding: 8px 10px;
+    margin-top: 4px;
+}
+.ag-row-2col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 12px;
+}
+.ag-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+.ag-checkbox-row input[type="checkbox"] {
+    width: 16px; height: 16px; margin: 0; flex-shrink: 0;
+}
+.ag-checkbox-row-top-align { margin-top: 26px; }
+.ag-inline-label {
+    margin: 0 !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-size: 0.82rem !important;
+    color: inherit !important;
+}
+.ag-hint {
+    font-size: 0.68rem;
+    color: var(--dhq-text-dim, #8892a4);
+    margin: -2px 0 10px 24px;
+}
+.ag-static-line {
+    font-size: 0.78rem;
+    color: #10b981;
+    padding: 6px 0 0;
+}
+.ag-skill-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+}
+.ag-skill-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 10px;
+    min-width: 0;
+}
+.ag-skill-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.ag-skill-row .ag-skill-name { flex: 1 1 160px; min-width: 160px; margin-bottom: 0 !important; }
+.ag-skill-row .ag-skill-level { flex: 0 0 auto; width: auto; margin-bottom: 0 !important; }
+.ag-skill-row button {
+    flex: 0 0 auto;
+    width: 28px; height: 28px;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    line-height: 1;
+}
+.ag-skill-row button:hover { background: rgba(239, 68, 68, 0.3); }
+.ag-results ul {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+.ag-ok { color: #10b981; font-size: 0.8rem; }
+.ag-fail { color: #ef4444; font-size: 0.8rem; }
+div.ag-ok { font-weight: 600; }
+.ag-err {
+    color: #ef4444;
+    font-size: 0.85rem;
+    padding: 8px 10px;
+    background: rgba(239, 68, 68, 0.08);
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+@media (max-width: 768px) {
+    .ag-row-2col { grid-template-columns: 1fr; gap: 0; }
+    .ag-checkbox-row-top-align { margin-top: 4px; }
+}

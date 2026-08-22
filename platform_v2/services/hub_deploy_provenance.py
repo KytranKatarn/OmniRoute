@@ -51,6 +51,7 @@ own outage gets muted, which is how the original bug stayed invisible.
 from __future__ import annotations
 
 import logging
+import hashlib
 import os
 import subprocess
 import time
@@ -253,6 +254,65 @@ def newest_source_mtime(app_dir: str = None) -> "tuple[float, str] | None":
         return None
 
 
+# --- #5918: content, not mtime -------------------------------------------------
+#
+# `newest_source_mtime() > process_start` was the only restart_required signal, and
+# mtime is NOT evidence the CODE changed. `git checkout` between branches, `touch`,
+# an editor re-save, or Black reformatting-then-reverting all bump mtime with byte-
+# identical content. A working session does that many times a day, so the observer
+# cried "restart_required" on code that was already live — and an alarm that fires on
+# a no-op is the same failure family this module exists to prevent (see FAIL-OPEN).
+#
+# Measured 2026-08-22: hashing every .py under /app is 1,150 files / 15.9 MB in
+# **0.186 s**, so recording it at import costs nothing worth optimising.
+_IMPORT_GRACE_S = 120.0
+
+
+def source_tree_sha(app_dir: str = None) -> "str | None":
+    """Stable sha256 over the CONTENT of every .py under app_dir (path + bytes)."""
+    root = app_dir or APP_DIR
+    try:
+        h = hashlib.sha256()
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+            for name in sorted(filenames):
+                if not name.endswith(".py"):
+                    continue
+                full = os.path.join(dirpath, name)
+                try:
+                    with open(full, "rb") as fh:
+                        blob = fh.read()
+                except OSError:
+                    continue
+                h.update(full.encode("utf-8", "replace"))
+                h.update(hashlib.sha256(blob).digest())
+        return h.hexdigest()
+    except Exception:  # noqa: BLE001 — fail-open, never a fault
+        return None
+
+
+# Captured when THIS process imported the module — i.e. a fingerprint of the source it
+# actually loaded. Cheap enough (0.19 s) to take unconditionally.
+_LOADED_TREE_SHA = source_tree_sha()
+_IMPORT_TIME = time.time()
+
+
+def _loaded_sha_is_trustworthy(process_started: float) -> bool:
+    """Is the import-time hash a faithful record of what this process LOADED?
+
+    Only if the module was imported near process start. ⚠️ If it were imported late —
+    lazily, on the first request — an edit made between startup and that import would
+    ALREADY be inside _LOADED_TREE_SHA, so a content match would wrongly read as
+    in_sync. That is a false NEGATIVE on the exact condition this module exists to
+    catch, which is far worse than the false positive being fixed. When in doubt we
+    keep the old, conservative mtime verdict.
+    """
+    try:
+        return (_IMPORT_TIME - float(process_started)) <= _IMPORT_GRACE_S
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def check_hub_deploy(branch: str = DEFAULT_BRANCH) -> dict:
     """Is the running hub platform serving the merged code?
 
@@ -299,6 +359,18 @@ def check_hub_deploy(branch: str = DEFAULT_BRANCH) -> dict:
         result["process_started"] = started
 
         if newest[0] > started:
+            # mtime moved. Ask whether the CONTENT moved before alarming (#5918).
+            if _LOADED_TREE_SHA and _loaded_sha_is_trustworthy(started):
+                current_sha = source_tree_sha()
+                if current_sha and current_sha == _LOADED_TREE_SHA:
+                    result["status"] = STATUS_IN_SYNC
+                    result["mtime_moved_without_content_change"] = True
+                    result["reason"] = (
+                        f"running {local[:9]}, matches origin/{branch} — "
+                        f"{os.path.basename(newest[1])} has a newer mtime but the source "
+                        "content is byte-identical to what this process loaded"
+                    )
+                    return result
             result["status"] = STATUS_RESTART_REQUIRED
             result["reason"] = (
                 f"{newest[1]} is newer than the running process — " "the merged code is on disk but not loaded"

@@ -1,0 +1,42 @@
+# Codex CLI agent config (Phase A). See .claude/plans/codex-cli-integration-design.md
+codex:
+  model: "gpt-5-codex"            # set to the model your `codex` CLI exposes; informational for telemetry
+  auth_mode: "chatgpt_signin"     # phase A; phase B may use api_key
+  max_concurrent: 1
+  max_runtime_sec: 1800           # 30 min hard cap per task
+  max_files_changed: 25
+  # SCOPE = the codex tooling itself + the MCP gateway + tests. This is the
+  # INFRASTRUCTURE codex; it is NOT the module codex (see codex.yaml, which owns the
+  # six low-data modules fitness/family_tree/therapy/faith/brainstorm/doc). The
+  # previous comment here was copy-pasted from codex.yaml and described none of the
+  # paths below — #5949.
+  allowed_paths:
+    - "mcp-gateway/"
+    - "platform_v2/tests/"
+    - "codex/"
+    # ⚠️ REMOVED "docker-compose.yml" (#5949). codex.yaml blocks docker-compose* and
+    #    .claude/rules/codex-agent.md lists it under "Always blocked (even if under an
+    #    allowed path)". Editing it triggers a rebuild + DNS downtime. The baked scope
+    #    guard ENFORCES this list, so leaving it here actively permitted the push.
+    # ⚠️ REMOVED "config/agents/codex-infrastructure.yaml" (#5949) — this file. The agent
+    #    has no reason to edit its own leash. The running guard reads a BAKED copy
+    #    (/opt/codex-guard/allowlist.yaml), so a tree edit cannot loosen it live; but the
+    #    edit would still reach the enforced allowlist on the next merge + image rebuild.
+
+  blocked_globs:                  # always denied even if under an allowed path
+    - "*.env"
+    - ".env*"
+    - "docker-compose*"           # #5949 — was MISSING here while present in codex.yaml
+    - "scripts/dr/*"
+    - ".github/*"
+    # #5949 — the scope guard's own source lives under the allowed "codex/" prefix.
+    # Blocking it keeps codex/ useful (this agent maintains the codex tooling) while
+    # denying the one sub-path that could weaken the guard on a later rebuild.
+    - "codex/workspace/git-hooks/*"
+  preflight:
+    - "git status --porcelain"    # must be empty in the fresh worktree
+  postflight:
+    - "git diff --check"          # whitespace / conflict markers
+    - "pre-commit run --files {changed}"
+  # secrets stripped from Codex's env (allowlist is the default; this list is documentation)
+  env_allowlist: ["HOME", "PATH", "TERM", "LANG", "CODEX_HOME"]

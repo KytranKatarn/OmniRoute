@@ -903,6 +903,19 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                     """,
                     (resp, pr_number, repo),
                 )
+                # #5780: an UPDATE matching ZERO rows is a SILENT no-op — the review
+                # succeeded, the artifact exists, and the verdict is simply dropped. That is
+                # invisible today, and the merge gate then fails closed on a missing verdict
+                # with no explanation. Make the miss loud; never guess at a repair here.
+                if cur.rowcount == 0:
+                    log.warning(
+                        "model_dispatch: pr_review_result callback matched NO pr_reviews row "
+                        "(pr=%s repo=%s, %d chars of verdict DROPPED) — the review ran and its "
+                        "result is being lost",
+                        pr_number,
+                        repo,
+                        len(resp),
+                    )
 
         elif cb_type == "webhook":
             # Fire async — don't block the worker cycle

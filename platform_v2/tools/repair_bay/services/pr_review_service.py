@@ -344,6 +344,34 @@ def sync_closed_prs(repo: str = None) -> int:
                 (_repo, tuple(open_numbers) if open_numbers else (0,)),
             )
             updated = cur.rowcount
+
+            # #5780: the CASE above can only reach rows STILL marked state='open'. A row that
+            # reached state='closed' while its review_status was still 'pending'/'in_progress'
+            # is missed by BOTH owners — this UPDATE (WHERE state='open') and
+            # reap_stale_reviews (which also filters AND state='open', delegating closed PRs
+            # to here). Neither finalizes it, so it is stuck FOREVER.
+            # Measured 2026-08-22: 20 such rows (19 pending + 1 in_progress), all dated
+            # 2026-05-31; the in_progress one had sat 83 days on an already-MERGED PR.
+            # The comment above already states the invariant ("must be terminated to
+            # 'skipped' — otherwise they accumulate forever"); this enforces it.
+            # ⚠️ Deliberately NOT gated on pr_number: a closed PR is closed regardless of
+            # whether it appeared in this poll's open set.
+            cur.execute(
+                """
+                UPDATE pr_reviews
+                   SET review_status = 'skipped', updated_at = NOW()
+                 WHERE repo = %s AND state <> 'open'
+                   AND review_status IN ('pending', 'in_progress')
+                """,
+                (_repo,),
+            )
+            if cur.rowcount:
+                logger.info(
+                    "pr_review_service: finalized %d orphaned review row(s) on closed PRs (%s) — #5780",
+                    cur.rowcount,
+                    _repo,
+                )
+                updated += cur.rowcount
     except Exception as e:
         logger.error("pr_review_service: sync_closed update failed: %s", e)
 

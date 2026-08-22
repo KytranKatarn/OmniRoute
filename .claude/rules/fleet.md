@@ -279,34 +279,51 @@ margin on both sides — e.g. to admit `llama3.2:3b` (5.0) and block 7B (8.0), u
   outposts) despite **31.3GB RAM**, so a box taking 377 real dispatches/30d could only ever run
   `qwen2.5:1.5b`. Raised to `6` on 2026-08-19 — purely additive, removed nothing.
 
-### 4. ⚠️ A CAP DOES NOT BIND EVERY PATH (open — task #5809)
-
-There are **TWO routing paths and only one enforces capacity**:
+### 4. ✅ THE CAP NOW BINDS BOTH PATHS (#5809 — resolved 2026-08-22)
 
 | path | enforces `can_node_run_model`? |
 |---|---|
 | `BridgeDispatcher` | ✅ — logs `Refusing fleet dispatch (flag enforced): capacity-mismatch: model=… disqualifies node=…` |
-| the warm-up path — see the identification below | ❌ — the predicate is not consulted on this path (#5809) |
+| the warm-up path (`fleet_warmup` / `kin_warmth`) | ✅ **since PR #2738** — gated at the DRAIN, see below |
 
-**What `fleet_warmup` actually is (verified 2026-08-22, #5809).** `ModelQueuePlanner` does
-not exist — `grep -rn "class ModelQueuePlanner"` over `platform_v2/` + `ai_bridge/` returns
-nothing. `fleet_warmup` is a **module_id STRING** supplied by callers of `dispatch()`. The only
-place the dispatcher branches on it is `department_dispatcher.py:4643-4652`:
+**The caller is identified. There is no planner class** — `grep -rn "class ModelQueuePlanner"`
+still returns nothing. TWO producers, both in `platform_v2/services/fleet_jobs.py`:
 
-```python
-is_warmup = module_id in ("fleet_warmup", "kin_warmth")
-if is_warmup:
-    log_agent_id = None      # keep agent_name as "an informational marker of which model was warmed"
-```
+- **`warmup_fleet` (~L269)** calls `dispatch(capability=…, module_id="fleet_warmup")`. It is
+  **CAPABILITY-driven, not model-driven** — the list reads
+  `("workforce_planning", "Status: 'ping'")  # K.I.N. gemma3:12b`. The model is whatever the
+  selected agent carries. That is why nothing in the codebase appears to "plan gemma3:12b onto
+  a node": **no code names the model.** Searching for the model is the wrong search.
+- **`kin_warmth` (~L496)** does a raw `INSERT INTO dispatch_pending_queue (…, model_needed,
+  preferred_node_id, module_id, …)`. It never calls `dispatch()`, so **there is still no
+  producer-side capacity check.** This was the bypass.
 
-That gates **LOG ATTRIBUTION, not placement** — it is why warm-up rows carry an agent_name with a
-NULL agent_id (792 such rows/24h, measured). ⚠️ **The caller that PLANS the model onto a node is
-still unidentified** — that is precisely what #5809 has to find. Do not go looking for a planner
-class; look for whoever passes `module_id="fleet_warmup"` into a dispatch.
+**Why it is nonetheless closed: the gate is at the DRAIN, which is the choke point.**
+`model_dispatch_service.py:1204-1245` runs `can_node_run_model` + `node_has_model` inside
+`if node_id:` (L1181) — which covers the preferred-pinned branch **and** warm-discovery, so
+warm-up rows are gated like everything else. ⚠️ `_WARMUP_MODULES` (L1064/L1075) and
+`department_dispatcher.py:4664` gate **LOG ATTRIBUTION ONLY** (`agent_id`→None, which is why
+warm-up rows carry an agent_name with a NULL agent_id). Neither grants a placement exemption —
+easy to misread as one.
 
-So setting a cap will NOT stop `fleet_warmup` planning that model onto the node. Verified live:
-caps were set on USS-245/246 and the planner kept assigning `gemma3:12b` to both. **Until #5809
-lands, treat a cap as advisory for warm-up and authoritative for dispatch.**
+**Proof it fires** (a live refusal, not a code reading) — `dispatch_pending_queue`, 7d:
+`module_id=kin_warmth | "node Outpost - Lithuania cannot fit qwen2.5:7b (capacity gate)"`.
+
+⚠️ **The old evidence for #5809 no longer reproduces, and not because of any fix to it.**
+It read "`can_node_run_model` REFUSES a model USS-246 ran 2,918× at 95%". The 2026-08-21
+rebalance raised USS-246 `max_model_gb` 16→**26**, so the predicate now returns **True** for
+`gemma3:12b` there (verified live). Predicate and reality agree; do not go chasing that
+contradiction.
+
+**Residual (waste, not danger):** `kin_warmth` still queues a pin it cannot honour, and the
+drain claims-then-fails it — burning a queue slot and a 30s cycle. Bounded by the 12-minute TTL
+and the one-in-flight-per-node dedup. Calling the predicate before the INSERT would keep it out
+of the queue entirely.
+
+⚠️ `node_has_model` is **fail-OPEN** (unknown/empty model list ⇒ allow), so a presence check
+lists **Beacon** for `gemma3:12b` and `qwen2.5:7b` even though Beacon runs no Ollama. Harmless
+today — capacity refuses Beacon, and `ollama_available=False` is a hard refusal — but reading
+the presence predicate alone will mislead you.
 
 ### 5. Adding a GPU / a new card
 

@@ -32,6 +32,16 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
+# --- Timed-window revert bookkeeping (#5902) ---------------------------------
+# NOT steering keys. `active_mission_profile` (and, for real routing,
+# `system_config['fleet_dispatch_mode']`) decide what the fleet does; these two
+# only record that a TIMED window is outstanding and which profile it belongs to.
+# Keeping the pair together is what stops a stale revert from overriding a later
+# manual activation — see _apply_pending_revert.
+_REVERT_AT_KEY = "mission_revert_at"
+_REVERT_FROM_KEY = "mission_revert_from"
+_REVERT_TARGET = "standard_operations"
+
 
 class MissionManager:
     """Manages mission profiles for Bridge dispatcher routing."""
@@ -272,6 +282,14 @@ class MissionManager:
         Called every 5 minutes by agent loop. Checks if any schedule
         should activate its profile based on current time.
         """
+        # End any elapsed timed window FIRST (#5902). Deliberately before the
+        # croniter import: a missing croniter must not strand a pending revert,
+        # and reverting is useful even when no schedule can fire.
+        try:
+            self._apply_pending_revert()
+        except Exception as e:  # a stuck revert must never break schedule checks
+            logger.warning(f"Pending-revert check failed: {e}")
+
         try:
             from croniter import croniter
         except ImportError:
@@ -322,6 +340,12 @@ class MissionManager:
         """
         Store a revert time in system_config so a future check_schedule
         call can switch back to standard_operations.
+
+        ⚠️ ``from_profile`` is PERSISTED, not just accepted (#5902). Without it a
+        pending revert cannot tell whether the profile it was scheduled for is
+        still the active one — so a stale revert would yank a LATER, deliberate
+        manual activation back to standard_operations. The reader
+        (``_apply_pending_revert``) refuses to act when they disagree.
         """
         try:
             revert_at = datetime.now().timestamp() + (duration_minutes * 60)
@@ -329,15 +353,109 @@ class MissionManager:
                 cur.execute(
                     """
                     INSERT INTO system_config (key, value, description, updated_at)
-                    VALUES ('mission_revert_at', %s, 'When to revert mission profile', NOW())
+                    VALUES (%s, %s, 'When to revert mission profile', NOW())
                     ON CONFLICT (key) DO UPDATE SET
                         value = EXCLUDED.value,
                         updated_at = NOW()
                     """,
-                    (str(revert_at),),
+                    (_REVERT_AT_KEY, str(revert_at)),
+                )
+                cur.execute(
+                    """
+                    INSERT INTO system_config (key, value, description, updated_at)
+                    VALUES (%s, %s, 'Profile the pending revert applies to', NOW())
+                    ON CONFLICT (key) DO UPDATE SET
+                        value = EXCLUDED.value,
+                        updated_at = NOW()
+                    """,
+                    (_REVERT_FROM_KEY, str(from_profile or "")),
                 )
         except Exception as e:
-            logger.debug(f"Failed to schedule revert: {e}")
+            logger.warning(f"Failed to schedule revert from {from_profile}: {e}")
+
+    def _clear_pending_revert(self):
+        """Drop both revert keys. Called once a revert is applied or invalidated."""
+        try:
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    "DELETE FROM system_config WHERE key IN (%s, %s)",
+                    (_REVERT_AT_KEY, _REVERT_FROM_KEY),
+                )
+        except Exception as e:
+            logger.warning(f"Failed to clear pending revert: {e}")
+
+    def _read_pending_revert(self):
+        """``(revert_at_epoch, from_profile)``; ``(None, None)`` when nothing pends."""
+        try:
+            with get_db_cursor(commit=False) as (conn, cur):
+                cur.execute(
+                    "SELECT key, value FROM system_config WHERE key IN (%s, %s)",
+                    (_REVERT_AT_KEY, _REVERT_FROM_KEY),
+                )
+                rows = {
+                    (r["key"] if isinstance(r, dict) else r[0]): (r["value"] if isinstance(r, dict) else r[1])
+                    for r in (cur.fetchall() or [])
+                }
+        except Exception as e:
+            logger.warning(f"Failed to read pending revert: {e}")
+            return None, None
+
+        raw = rows.get(_REVERT_AT_KEY)
+        if raw in (None, ""):
+            return None, None
+        try:
+            return float(raw), (rows.get(_REVERT_FROM_KEY) or None)
+        except (TypeError, ValueError):
+            # Garbage in the slot would otherwise wedge every future check.
+            logger.warning("mission_revert_at is unparseable (%r) — clearing", raw)
+            self._clear_pending_revert()
+            return None, None
+
+    def _apply_pending_revert(self):
+        """End a timed mission window whose duration has elapsed (#5902).
+
+        THE BUG THIS FIXES: ``_schedule_revert`` wrote ``mission_revert_at`` and
+        NOTHING read it — the key appeared exactly once in the whole codebase. Its
+        own docstring promised "a future check_schedule call can switch back", and
+        check_schedule never did. Live consequence: the one active schedule
+        (``maintenance``, cron ``0 2 * * 0``, 120 min) fired on Sunday 2026-08-16,
+        wrote a 04:04 revert, and the platform sat in ``maintenance`` from then on
+        — re-arming a revert nobody honoured every Sunday since.
+
+        ⚠️ Refuses to act if the active profile is no longer the one the revert was
+        scheduled for. A revert is permission to end ONE window, never a licence to
+        override whatever a human chose afterwards.
+        """
+        revert_at, scheduled_from = self._read_pending_revert()
+        if revert_at is None:
+            return False
+        if datetime.now().timestamp() < revert_at:
+            return False
+
+        active = (self.get_active_profile() or {}).get("name")
+        if scheduled_from and active and active != scheduled_from:
+            logger.info(
+                "mission revert due for %r but active profile is %r — "
+                "the window was superseded; dropping the revert",
+                scheduled_from,
+                active,
+            )
+            self._clear_pending_revert()
+            return False
+
+        if active == _REVERT_TARGET:
+            # Already where the revert would take us; just tidy the keys.
+            self._clear_pending_revert()
+            return False
+
+        self.activate_profile(
+            _REVERT_TARGET,
+            triggered_by="schedule_revert",
+            reason=f"Timed window on {scheduled_from or 'a scheduled profile'} elapsed",
+        )
+        self._clear_pending_revert()
+        logger.info("mission profile reverted %s -> %s", active, _REVERT_TARGET)
+        return True
 
     # ------------------------------------------------------------------
     # Event triggers

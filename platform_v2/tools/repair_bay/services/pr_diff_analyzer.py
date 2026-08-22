@@ -1055,6 +1055,53 @@ def _is_removal_claim_without_removal(issue: dict, diff: str) -> bool:
     return not _side_text(diff, "-")
 
 
+# #5921 — an assertion MESSAGE quoted as an assertion RESULT.
+_ASSERT_MSG_RE = re.compile(r"""assert\s+.+?,\s*(?:f|rf|fr|b)?(['"])(.+?)\1""", re.X)
+_MIN_GUARD_MSG_CHARS = 24
+
+
+def _is_inverted_guard_assertion(issue: dict, diff: str) -> bool:
+    """True when a finding's evidence is a guard test's FAILURE MESSAGE, restated as if the
+    guarded-against condition HOLDS (#5921).
+
+    Caught live on PR #2759, which ADDED registration guards. F.O.R.G.E. raised:
+        [CRITICAL] "_TABLES entries with no DEFAULTS key — will cause a KeyError at runtime"
+        Evidence: assert not missing, f"_TABLES entries with no DEFAULTS key ...: {missing}"
+    That message text only ever PRINTS IF THE ASSERTION FAILS. It describes the condition the
+    test PREVENTS; it was quoted as proof the condition exists. Executed on the branch, both
+    lists were empty.
+
+    ⚠️ ALL FOUR EXISTING ADR-001 GATES PASS ON IT, which is why a fifth is needed: the line is
+    genuinely in the diff (grounding ✓), genuinely ADDED (polarity ✓), the claim "this dict
+    lacks this key" is diff-checkable (claim ✓), and CRITICAL matches the stated consequence
+    (severity ✓). They verify a finding is well-FORMED about real diff text; none verifies that
+    the quoted text ASSERTS what the finding says it asserts.
+
+    Self-reinforcing hazard: every guard test added creates another plain-English description
+    of a failure condition sitting on an added line, ready to be quoted back as a defect.
+
+    Narrow on purpose — the evidence must BE an assert carrying a message, and the finding must
+    literally restate that message's leading literal (>= 24 chars, before any f-string
+    placeholder). A finding that merely mentions the same file is untouched.
+    """
+    m = _ASSERT_MSG_RE.search(str((issue or {}).get("evidence", "") or ""))
+    if not m:
+        return False
+    literal = m.group(2).split("{", 1)[0].strip().strip(":").strip()
+    if len(literal) < _MIN_GUARD_MSG_CHARS:
+        return False
+    squash = lambda x: re.sub(r"\s+", " ", x).strip().lower()  # noqa: E731
+    title = squash(str((issue or {}).get("title", "")))
+    text = squash(str((issue or {}).get("title", "")) + " " + str((issue or {}).get("why", "")))
+    lit = squash(literal)
+    # BOTH directions. The live #2759 case lifted a PREFIX of the message as its title
+    # ("_TABLES entries with no DEFAULTS key" out of "... (KeyError at prune time): {missing}"),
+    # so testing only "message appears in finding" misses the very case this exists for.
+    if len(title) >= _MIN_GUARD_MSG_CHARS and title in lit:
+        return True
+    return lit in text
+
+
 def _verify_evidence(issues: list, diff: str):
     """Split issues into (kept, dropped): drop issues whose evidence isn't a changed diff line
     (fabricated citation) OR that are a spurious 'SQL injection' flag on a parameterized query.
@@ -1081,6 +1128,10 @@ def _verify_evidence(issues: list, diff: str):
                                 contains ZERO removed lines — the claim is provably false
                                 (#5286). Like spurious_injection: deterministic, trusted, and
                                 says nothing bad about grounding (the citation is real).
+      ``inverted_guard_assertion``
+                                the evidence is a guard test's FAILURE MESSAGE, restated as if
+                                the guarded-against condition holds (#5921). All four ADR-001
+                                gates pass on it; the citation is real, the reading is inverted.
     Only the first may influence the verdict floor.
     """
     kept, dropped = [], []
@@ -1097,6 +1148,8 @@ def _verify_evidence(issues: list, diff: str):
             reason = "unverifiable_runtime_claim"
         elif _is_removal_claim_without_removal(it, diff):
             reason = "removal_claim_without_removal"
+        elif _is_inverted_guard_assertion(it, diff):
+            reason = "inverted_guard_assertion"
         else:
             reason = None
         if reason:

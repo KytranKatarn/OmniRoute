@@ -83,6 +83,7 @@ body.light-mode {
     --archie-bg-input:   var(--archie-bg-elevated);
     --archie-card-bg:    var(--archie-bg-tertiary);
     --archie-surface:    var(--archie-bg-tertiary);
+    --archie-surface-2:  var(--archie-bg-hover);
     --archie-text:       var(--archie-text-secondary);
     --archie-text-dim:   var(--archie-text-tertiary);
     --archie-muted:      var(--archie-text-muted);

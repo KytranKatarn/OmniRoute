@@ -76,7 +76,7 @@ _(Audited + pruned 2026-06-11 — KB #272182. ⚠️ Verify public DNS from an E
 ## 3-System Architecture (MANDATORY — See project_core-architecture-vision.md)
 
 1. **Autonomy Module** — runs scheduled jobs (agent_loop.py)
-2. **Department HQ** — manages agents, departments, fleet, dispatch, jobs (11 tabs incl. Fleet)
+2. **Department HQ** — manages agents, departments, fleet, dispatch, jobs (14 tabs incl. A.R.M.A.D.A. fleet)
 3. **AI Bridge** — model routing, embeddings, knowledge analysis (`ai_bridge/`). Dispatcher moved to Dept HQ (Decision #440).
 
 *Starbase Command merged into Department HQ Fleet tab (2026-04-08). No longer a separate system.*

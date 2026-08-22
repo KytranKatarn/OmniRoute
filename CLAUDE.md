@@ -108,7 +108,7 @@ Every new session MUST begin with one of:
 
 ### 3 Core Systems
 1. **Autonomy Module** - Scheduled jobs, background processing (`ai_bridge/agent_loop.py`)
-2. **Department HQ** - Agents, departments, dispatch, fleet, jobs — 11 tabs (`tools/department_hq/`)
+2. **Department HQ** - Agents, departments, dispatch, fleet, jobs — 14 tabs (`tools/department_hq/`)
 3. **AI Bridge** - Model routing, embeddings, knowledge analysis (`ai_bridge/`)
 
 ### 6 Subsystems
@@ -170,9 +170,9 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 ### Department HQ → Agent Service Pattern
 - All agent mutations go through `agent_service.py` — no direct SQL on agent tables
 - 17 departments across 5 floors: BRIDGE, OPERATIONS, ENGINEERING, CREATIVE, SERVICES
-- Department HQ module: 11 tabs (Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Dispatch, Fleet, Contractors, COMs) — Devices tab removed 2026-08-17 (device management lives in Security & Network)
+- Department HQ module: 14 tabs (Overview, Org Chart, Roster, K.I.N., C.R.E.E.D., S.I.G.N.A.L., S.C.O.U.T., Autonomy, A.R.M.A.D.A., Contractors, COMs, Online Presence, V.I.G.I.L., Approvals) — Devices tab removed 2026-08-17 (device management lives in Security & Network)
 - Agent Academy module: 5 tabs (Benchmarks, Training, A/B Testing, Skills, Reports)
-- Agent lifecycle: `agent_service.create_agent()`, `.update_agent()`, `.deactivate_agent()`
+- Agent lifecycle: `agent_service.create_agent()`, `.update_agent()` — there is NO `deactivate_agent()`/decommission function today; retire an agent via `update_agent()` setting `shift_state='decommissioned'`
 
 ### Bridge Dispatch → ALL LLM Calls (ADR-013)
 - `get_dispatcher()` singleton — never instantiate directly

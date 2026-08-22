@@ -9,8 +9,8 @@ Starbase Command + Starship + A.R.M.A.D.A. fully merged into Department HQ (2026
 Old Starbase/Starship modules are commented out in `module_registry.py`.
 Old URLs redirect via `app.py` `starship_compat_redirect`.
 
-## Department HQ — 11 Tabs
-Overview, Org Chart, Roster, Work Tracking, Performance, C.R.E.E.D., Social, Dispatch, **Fleet**, Contractors, COMs
+## Department HQ — 14 Tabs
+Overview, Org Chart, Roster, K.I.N., C.R.E.E.D., S.I.G.N.A.L., S.C.O.U.T., Autonomy, **A.R.M.A.D.A.** (Fleet lives here), Contractors, COMs, Online Presence, V.I.G.I.L., Approvals
 
 ## Fleet Tab File Structure (inside `tools/department_hq/`)
 - `fleet_dashboard_routes.py` — fleet overview, stats, map

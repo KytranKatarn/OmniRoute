@@ -43,6 +43,39 @@ _REVERT_FROM_KEY = "mission_revert_from"
 _REVERT_TARGET = "standard_operations"
 
 
+def dispatch_mode_for_profile(profile) -> str:
+    """#5902 — the mobility profile a mission profile should put the fleet into.
+
+    Activating a mission profile used to record the choice, log it, and Telegram you
+    while applying NO routing: `job_routing_overrides` and `station_priorities` have
+    ZERO consumers platform-wide. Meanwhile `system_config.fleet_dispatch_mode`
+    (auto/news/platform) genuinely steers K.I.N. warmth, the score-based fleet router
+    and the Fleet Backlog Runner. This maps one onto the other so the buttons drive the
+    mechanism that demonstrably moves work — WITHOUT introducing a third steering key.
+
+    ⚠️ THE MODE IS DECLARED, NOT DERIVED, and that is deliberate. There is no principled
+    mapping from a mission profile to the news/platform split: the profiles key on ten
+    STATIONS (COMMAND, CREATIVE, RESEARCH, SECURITY, ANALYTICS, LOGISTICS, DIPLOMATIC,
+    OPERATIONS, ENGINEERING, COMMUNICATIONS) while fleet_dispatch_profile keys on the
+    "News & Media" DEPARTMENT. Measured: **zero** of the 6 profiles mention news in
+    station_priorities. Guessing "content_push == news" would invent semantics nobody
+    chose. So a profile declares its own mode in agent_config.dispatch_mode and anything
+    unset falls back to "auto" — no bias, which is exactly today's effective behaviour,
+    so activating an unassigned profile changes nothing rather than changing something
+    arbitrary.
+
+    Lives in agent_config (an existing JSONB) so assigning a mode is a data edit, not a
+    migration or a deploy.
+    """
+    from services.fleet_dispatch_profile import VALID_MODES
+
+    cfg = (profile or {}).get("agent_config") or {}
+    if not isinstance(cfg, dict):
+        return "auto"
+    mode = str(cfg.get("dispatch_mode") or "auto").strip().lower()
+    return mode if mode in VALID_MODES else "auto"
+
+
 class MissionManager:
     """Manages mission profiles for Bridge dispatcher routing."""
 
@@ -198,6 +231,22 @@ class MissionManager:
                         updated_at = NOW()
                     """,
                     (profile["name"],),
+                )
+
+                # #5902: ALSO steer the key that actually routes work. Same transaction,
+                # so the recorded profile and the live mobility mode can never disagree.
+                # Unassigned profiles resolve to "auto" (no bias) = current behaviour.
+                cur.execute(
+                    """
+                    INSERT INTO system_config (key, value, description, updated_at)
+                    VALUES ('fleet_dispatch_mode', %s,
+                            'Agent mobility profile (auto/news/platform) — set by the '
+                            'A.R.M.A.D.A. mobility control or by a mission profile', NOW())
+                    ON CONFLICT (key) DO UPDATE SET
+                        value = EXCLUDED.value,
+                        updated_at = NOW()
+                    """,
+                    (dispatch_mode_for_profile(profile),),
                 )
 
                 # Log to governance_audit_log

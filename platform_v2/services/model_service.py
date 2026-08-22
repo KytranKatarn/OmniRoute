@@ -252,6 +252,29 @@ class ModelService:
         largest_card_free = max(0.0, _VRAM_LARGEST_GPU_GB - used)
         return min(self.get_available_vram(), largest_card_free)
 
+    @staticmethod
+    def _record_placement(**kw) -> None:
+        """Best-effort persistence of a placement decision (#5273 Phase 1).
+
+        Deliberately a LAZY import: this module imports no DB machinery (json,
+        logging, os, socket, time, urllib only) and must keep it that way — it is
+        a low-level Ollama HTTP client, and a module-level `from database import`
+        here would both add a dependency it has never had and invite an import
+        cycle. `services.placement_telemetry.record_placement` owns the write and
+        never raises; this wrapper only guards the IMPORT.
+
+        Telemetry must never break placement — but it must not go quiet either,
+        so an import failure warns rather than passing silently (the same reason
+        the sink warns instead of using logger.debug: an observer that fails
+        invisibly is 'unmonitored while APPEARING monitored').
+        """
+        try:
+            from services.placement_telemetry import record_placement
+
+            record_placement(**kw)
+        except Exception as exc:  # never break placement
+            logger.warning("model_service: placement telemetry unavailable: %s", exc)
+
     def gpu_placement_options(self, model: str) -> Dict:
         """Ollama ``options`` fragment placing *model* on the HUB: ``{}`` lets
         Ollama use the GPUs, ``{"num_gpu": 0}`` pins it to CPU.
@@ -298,12 +321,19 @@ class ModelService:
                     model,
                     resident_vram_gb,
                 )
+                self._record_placement(
+                    model=model,
+                    decision="gpu",
+                    reason="resident",
+                    resident_vram_gb=round(resident_vram_gb, 2),
+                )
                 return {}
             if _comfyui_container_running():
                 logger.info(
                     "model_service: placement %s -> cpu (ComfyUI awake — GPUs reserved for image gen)",
                     model,
                 )
+                self._record_placement(model=model, decision="cpu", reason="comfyui_reserved")
                 return {"num_gpu": 0}
             needed = self.estimate_model_size(model) * _GPU_FIT_HEADROOM
             budget = self.get_gpu_fit_budget()
@@ -314,6 +344,13 @@ class ModelService:
                     budget,
                     needed,
                 )
+                self._record_placement(
+                    model=model,
+                    decision="gpu",
+                    reason="budget_fit",
+                    budget_gb=round(budget, 2),
+                    needed_gb=round(needed, 2),
+                )
                 return {}
             logger.info(
                 "model_service: placement %s -> cpu (budget %.1f GB < needed %.1f GB)",
@@ -321,9 +358,21 @@ class ModelService:
                 budget,
                 needed,
             )
+            self._record_placement(
+                model=model,
+                decision="cpu",
+                reason="budget_short",
+                budget_gb=round(budget, 2),
+                needed_gb=round(needed, 2),
+            )
             return {"num_gpu": 0}
         except Exception as exc:
             logger.warning("model_service: placement %s -> cpu (VRAM state unknown: %s)", model, exc)
+            # The fail-open branch, and the highest-value row in the table: an
+            # exception-driven CPU demotion is indistinguishable from a deliberate
+            # one in the logs, and for a 7B on this pre-AVX2 Xeon CPU is a
+            # GUARANTEED deadline failure, not a degraded path (#5623).
+            self._record_placement(model=model, decision="cpu", reason="vram_unknown", detail=str(exc)[:500])
             return {"num_gpu": 0}
 
     def cpu_placement_is_viable(self, model: str) -> bool:

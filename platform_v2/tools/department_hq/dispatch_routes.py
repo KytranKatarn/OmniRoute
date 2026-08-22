@@ -364,18 +364,15 @@ def register_dispatch_routes(bp, admin_required_decorator):
         the cockpit. Membership generated live from delegation_service's
         KNOWN_TOOL_CAPABILITIES + CAPABILITY_DEPARTMENT_MAP; directors resolved
         from the roster so the payload never goes stale against a re-org."""
-        from services.delegation_service import build_invokable_skills_registry
+        from services.delegation_service import (
+            build_invokable_skills_registry,
+            resolve_department_directors,
+        )
 
-        directors = {}
-        try:
-            with get_db_cursor() as (conn, cur):
-                cur.execute(
-                    "SELECT department, name FROM agents "
-                    "WHERE is_department_ai = TRUE AND shift_state <> 'decommissioned'"
-                )
-                directors = {r["department"]: r["name"] for r in cur.fetchall()}
-        except Exception as e:
-            logger.warning("[Dispatch] invokable-skills director lookup failed: %s", e)
+        # #5333: director resolution is shared with the internal-key route
+        # (/api/internal/delegation/invokable-skills) so the two surfaces can
+        # never disagree about who directs a department.
+        directors = resolve_department_directors()
         return jsonify({"success": True, **build_invokable_skills_registry(directors)})
 
     @bp.route("/api/dispatch/backlogs", methods=["GET"])

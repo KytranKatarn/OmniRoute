@@ -5537,6 +5537,36 @@ def api_internal_repair_proposals():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/internal/delegation/invokable-skills", methods=["GET"])
+@_require_internal_key
+def api_internal_invokable_skills():
+    """#5333 skill bridge: the invokable-actions registry, on the INTERNAL-KEY
+    surface so archie_engine (and through it archie-tui) can actually read it.
+
+    The same registry is served to the DHQ UI at
+    /tools/department-hq/api/dispatch/invokable-skills, but that route is gated
+    by a SESSION-based admin check. archie_engine holds INTERNAL_API_KEY and no
+    session, so it got 401 on every credential it has — the listing endpoint was
+    unreachable by the only two surfaces it exists for, while its sibling write
+    path (/api/internal/delegation/submit) was reachable. Measured 2026-08-22.
+
+    Same generated payload, same builder, no second source of truth: membership
+    comes from KNOWN_TOOL_CAPABILITIES + CAPABILITY_DEPARTMENT_MAP, never a
+    hand-maintained list.
+    """
+    from services.delegation_service import (
+        build_invokable_skills_registry,
+        resolve_department_directors,
+    )
+
+    try:
+        directors = resolve_department_directors()
+        return jsonify({"success": True, **build_invokable_skills_registry(directors)})
+    except Exception as exc:
+        logger.error("api_internal_invokable_skills failed: %s", exc)
+        return jsonify({"success": False, "error": "registry build failed"}), 500
+
+
 @app.route("/api/internal/delegation/submit", methods=["POST"])
 @_require_internal_key
 def api_internal_delegation_submit():
@@ -5544,14 +5574,34 @@ def api_internal_delegation_submit():
     import psycopg2.extras as _psyext
     from database import get_db_cursor
 
+    from services.delegation_service import VALID_DELEGATION_SOURCES
+
     data = request.get_json(silent=True) or {}
     capability = (data.get("capability") or "general").strip()
     reason = (data.get("reason") or "").strip()
     args = data.get("args") or {}
     priority = int(data.get("priority") or 5)
 
+    # #5333: the skill bridge fires through THIS endpoint, so the source has to
+    # be a parameter. It was hardcoded 'web_chat', which meant the 'tui' and
+    # 'cockpit' sources added by #5291 could never actually be emitted by
+    # anything — every TUI invocation would have been logged as web chat.
+    # Default stays 'web_chat' so the existing archie-comms caller (which sends
+    # no source) is byte-identical.
+    delegation_source = (data.get("delegation_source") or "web_chat").strip()
+
     if not reason:
         return jsonify({"error": "reason required"}), 400
+    if delegation_source not in VALID_DELEGATION_SOURCES:
+        return (
+            jsonify(
+                {
+                    "error": f"Invalid delegation_source {delegation_source!r}",
+                    "valid": sorted(VALID_DELEGATION_SOURCES),
+                }
+            ),
+            400,
+        )
 
     try:
         with get_db_cursor(commit=True) as (conn, cur):
@@ -5569,7 +5619,7 @@ def api_internal_delegation_submit():
                     "pending",
                     priority,
                     "implementation",
-                    "web_chat",
+                    delegation_source,
                     _psyext.Json({"capability": capability, "args": args}),
                 ),
             )
@@ -5585,6 +5635,7 @@ def api_internal_delegation_submit():
                 "status": "queued",
                 "capability": capability,
                 "reason": reason,
+                "delegation_source": delegation_source,
             }
         ),
         201,
@@ -5606,7 +5657,7 @@ def api_internal_delegation_status(task_id):
                        (SELECT string_agg(wn.content, E'\n' ORDER BY wn.created_at)
                         FROM work_notes wn WHERE wn.task_id = t.id) AS work_notes
                 FROM unified_tasks t
-                WHERE t.id = %s AND t.delegation_source = 'web_chat'
+                WHERE t.id = %s AND t.delegation_source IS NOT NULL
                 """,
                 (task_id,),
             )

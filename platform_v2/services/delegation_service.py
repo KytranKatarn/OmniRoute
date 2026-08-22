@@ -146,6 +146,32 @@ def build_invokable_skills_registry(director_by_department: Optional[Dict[str, s
     }
 
 
+def resolve_department_directors() -> Dict[str, str]:
+    """{department: director_name} for the invokable-skills registry.
+
+    #5333: the DB half of the registry, factored out so the admin route
+    (DHQ) and the internal-key route (the engine/TUI) resolve directors
+    through ONE query instead of two copies that drift after a re-org.
+    ``build_invokable_skills_registry`` stays pure and takes this as input.
+
+    Fail-soft: a director lookup that raises must degrade the payload to
+    ``director_agent: None``, never fail the listing — the TUI palette is
+    unusable without the skill list, but perfectly usable without a name.
+    """
+    from database import get_db_cursor
+
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                "SELECT department, name FROM agents "
+                "WHERE is_department_ai = TRUE AND shift_state <> 'decommissioned'"
+            )
+            return {r["department"]: r["name"] for r in cur.fetchall()}
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("resolve_department_directors failed: %s", exc)
+        return {}
+
+
 def delegate_task(
     capability: str,
     reason: str,

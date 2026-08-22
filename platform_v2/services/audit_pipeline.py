@@ -437,6 +437,49 @@ def _audit_file_path(module_name, issue_file):
     return f"platform_v2/tools/{module_name}/{issue_file}"
 
 
+# #5945 — the inverse of _audit_file_path, for FIXERS rather than fingerprints.
+#
+# `file_path` is a FINGERPRINT KEY: _audit_file_path deliberately preserves a
+# "["-prefixed module token so a re-audit's findings match the proposals created from
+# the original audit. That is correct for matching and useless for FIXING — nothing can
+# open "[AI_BRIDGE]/semantic_search.py".
+#
+# ⚠️ DO NOT "fix" this by rewriting file_path. The fingerprint would stop matching, every
+# affected proposal would fall out of `current` in the reverify, and each one would flip to
+# "fixed" — converting a real backlog into a fake clean bill of health.
+#
+# Roots were DERIVED, not assumed: each token's file list was tested against candidate
+# roots on disk. [AI_BRIDGE] 43/43, [APP_CORE] 262/274, [MIGRATIONS] 7/8.
+# ⚠️ "[dispatch_routing]" is deliberately ABSENT — only 1 of its 69 files resolves anywhere,
+# so it is a LOGICAL grouping, not a directory. Guessing a root for it would write paths
+# that silently point at nothing.
+_FIX_PATH_ROOTS = {
+    "[AI_BRIDGE]": "ai_bridge",
+    "[ai_bridge]": "ai_bridge",
+    "[APP_CORE]": "platform_v2",
+    "[MIGRATIONS]": "database/migrations",
+}
+
+
+def resolve_fix_path(file_path: str):
+    """Repo-relative path a fixer can open, or None when the token has no known root.
+
+    PURE: no filesystem access, so it returns the same answer in the container (where
+    /app is platform_v2 and ai_bridge/ is not a sibling) as on the host. Callers that
+    need certainty should confirm the file exists; the backfill does exactly that.
+    Returns file_path unchanged when it is already a real path.
+    """
+    if not file_path or not isinstance(file_path, str):
+        return None
+    if not file_path.startswith("["):
+        return file_path
+    token, _, rel = file_path.partition("/")
+    root = _FIX_PATH_ROOTS.get(token)
+    if not root or not rel:
+        return None
+    return f"{root}/{rel}"
+
+
 def _set_reverified(proposal_id, verdict):
     """Stamp a proposal's metadata with the re-verify verdict + timestamp (UTC)."""
     import datetime as _dt

@@ -1781,6 +1781,32 @@ def _audit_module_python(module_name, module_path):
     )
 
 
+def audit_status_for(issues_list) -> str:
+    """#5942 — the audit status, derived from the FULL findings list.
+
+    GREEN NOW MEANS "NO FINDINGS AT ALL", not "no RED findings". Measured from
+    code_audit_log 2026-08-22: 16 of 34 `completed` modules carried findings in their
+    notes and rendered as clean — e.g. `faith`, status completed / issues_found 0, notes
+    "LARGE_FILE: routes.py (1553 lines)". Fixing yellow/info issues could never move the
+    tile, because the tile was driven by the red count.
+
+    Three states, most severe first:
+      violations_found  at least one red
+      findings_open     findings present, none red   <- these were green
+      completed         nothing found
+
+    ⚠️ This does NOT change `issues_found`, which stays len(red_issues). log_audit derives
+    `priority = "high" if issues_found >= 10` and drives repair-task creation from it, so
+    redefining it would silently change WHAT RAISES A TASK. A full count belongs in its own
+    field, never on top of that one.
+    """
+    if not issues_list:
+        return "completed"
+    if any((i or {}).get("severity") == "red" for i in issues_list):
+        return "violations_found"
+    return "findings_open"
+
+
 def audit_single_module(module_name, module_path=None, module_data=None):
     """
     Run automated checks on a single module and return audit results.
@@ -1845,8 +1871,17 @@ def audit_single_module(module_name, module_path=None, module_data=None):
     # Only red (critical) issues count — yellow = warnings, info = advisory
     red_issues = [i for i in issues_list if i.get("severity") == "red"] if issues_list else []
     has_critical = len(red_issues) > 0
-    status = "violations_found" if has_critical else "completed"
-    return (len(red_issues), notes, status, issues_list, profile)
+    # #5942 — GREEN NOW MEANS "NO FINDINGS AT ALL", not "no RED findings".
+    # Measured 2026-08-22: 26 of 54 modules rendered a green "clean" tile while their
+    # badge showed findings (app_builder: green with 21), because status counted RED
+    # only. Fixing yellow/info issues could never move the tile.
+    # THREE states now: violations_found (red present) > findings_open (findings, none
+    # red) > completed (nothing).
+    # ⚠️ THE RETURNED COUNT IS DELIBERATELY UNCHANGED — still len(red_issues). log_audit
+    # derives `priority = "high" if issues_found >= 10` and drives repair-task creation
+    # from it, so redefining it would silently change WHAT RAISES A TASK. The full count
+    # belongs in a separate field, never on top of this one.
+    return (len(red_issues), notes, audit_status_for(issues_list), issues_list, profile)
 
 
 def log_audit(

@@ -5092,6 +5092,12 @@ function _renderAuditTable(entries) {
       badgeClass = "ch-badge-purple"; statusLabel = "IN REPAIR"; nameColor = "#a78bfa";
     } else if (e.status === "violations_found") {
       badgeClass = "ch-badge-amber"; statusLabel = "ISSUES"; nameColor = "#f59e0b";
+    } else if (e.status === "findings_open") {
+      // #5942 — findings present, none red. MUST be handled here: this chain's final
+      // else renders red "PENDING", the OPPOSITE default to the server-side summary
+      // (which falls through to green). Leaving it unhandled would show the same module
+      // green in the counts and red in the table.
+      badgeClass = "ch-badge-amber"; statusLabel = "FINDINGS"; nameColor = "#f59e0b";
     } else {
       badgeClass = "ch-badge-red"; statusLabel = e.status || "PENDING"; nameColor = "#ef4444";
     }

@@ -1113,6 +1113,12 @@ def register_code_health_routes(bp, admin_required):
                     status = "purple"  # issues submitted to Repair Bay
                 elif audit["status"] == "violations_found":
                     status = "orange"  # audited but issues not submitted yet
+                elif audit["status"] == "findings_open":
+                    # #5942 — findings present, none red. Shares the yellow bucket with
+                    # stale (both are "attention, not urgent"); it must be handled
+                    # EXPLICITLY because this chain ends `else: green`, so an unhandled
+                    # status would silently keep rendering these 26 modules as clean.
+                    status = "yellow"
                 elif audit.get("stale"):
                     status = "yellow"  # audit expired (>30 days)
                 else:

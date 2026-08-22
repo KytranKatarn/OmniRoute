@@ -89,6 +89,15 @@ DEFAULTS = {
     # chose a GENEROUS 365d keep (preserve a full year of the signed trail; widest
     # reader is 30d). Prunes ~0 today (table <140d old) — bounds future growth. #4542.
     "governance_audit_log_keep_days": 365,
+    # model_placement_log (#5273/#5917). 30d because the value of this table is
+    # TREND — "how often did we CPU-demote this month" — not forensics on a single
+    # load. Deliberately longer than autonomy_loop_log's 14d: a placement question
+    # is usually asked AFTER a bad week, and #5903 took days to even formulate.
+    # ⚠️ This key is MANDATORY once model_placement_log is in _TABLES: run_retention
+    # indexes cfg[spec["keep_key"]] DIRECTLY, and the loop sits inside ONE outer
+    # try/except — so a missing default is a KeyError that aborts retention for
+    # EVERY table, not just this one. test_dispatch_retention pins the pairing.
+    "model_placement_log_keep_days": 30,
     "batch_size": 5000,
 }
 
@@ -99,6 +108,7 @@ _PS_KEYS = {
     "retention:dpq:keep_days": "dpq_keep_days",
     "retention:autonomy_loop_log:keep_days": "autonomy_loop_log_keep_days",
     "retention:governance_audit_log:keep_days": "governance_audit_log_keep_days",
+    "retention:model_placement_log:keep_days": "model_placement_log_keep_days",
     "retention:batch_size": "batch_size",
 }
 
@@ -130,6 +140,22 @@ _TABLES = {
         "age_col": '"timestamp"',
         "statuses": None,
         "keep_key": "governance_audit_log_keep_days",
+    },
+    # Placement observer (#5273/#5917). Append-only → AGE-ONLY: every row is a
+    # completed GPU-vs-CPU decision, there is nothing in flight to protect.
+    # idx_mpl_created (migration 473) makes the age filter an index scan.
+    #
+    # Registered here at birth ON PURPOSE. A table with a retention POLICY and no
+    # PRUNER has shipped TWICE: the `vps` tier was declared for all 10 components
+    # while the string "vps" appeared nowhere else in retention_prune.py, and
+    # outpost-us hit 100% disk (#5616); the gdrive tier had RETENTION tuples that
+    # main() never walked, and the 15 GB account filled for ~3 weeks (#5092).
+    # Measured rate is modest (~75 rows/hour steady state), but "small today" is
+    # not a reason to leave an append-only table unbounded.
+    "model_placement_log": {
+        "age_col": "created_at",
+        "statuses": None,
+        "keep_key": "model_placement_log_keep_days",
     },
 }
 

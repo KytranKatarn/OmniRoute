@@ -286,7 +286,23 @@ There are **TWO routing paths and only one enforces capacity**:
 | path | enforces `can_node_run_model`? |
 |---|---|
 | `BridgeDispatcher` | ✅ — logs `Refusing fleet dispatch (flag enforced): capacity-mismatch: model=… disqualifies node=…` |
-| `ModelQueuePlanner` (`dept_hq/jobs.py`, the `fleet_warmup` module) | ❌ — imports only `utilization_pct`, never calls the predicate |
+| the warm-up path — see the identification below | ❌ — the predicate is not consulted on this path (#5809) |
+
+**What `fleet_warmup` actually is (verified 2026-08-22, #5809).** `ModelQueuePlanner` does
+not exist — `grep -rn "class ModelQueuePlanner"` over `platform_v2/` + `ai_bridge/` returns
+nothing. `fleet_warmup` is a **module_id STRING** supplied by callers of `dispatch()`. The only
+place the dispatcher branches on it is `department_dispatcher.py:4643-4652`:
+
+```python
+is_warmup = module_id in ("fleet_warmup", "kin_warmth")
+if is_warmup:
+    log_agent_id = None      # keep agent_name as "an informational marker of which model was warmed"
+```
+
+That gates **LOG ATTRIBUTION, not placement** — it is why warm-up rows carry an agent_name with a
+NULL agent_id (792 such rows/24h, measured). ⚠️ **The caller that PLANS the model onto a node is
+still unidentified** — that is precisely what #5809 has to find. Do not go looking for a planner
+class; look for whoever passes `module_id="fleet_warmup"` into a dispatch.
 
 So setting a cap will NOT stop `fleet_warmup` planning that model onto the node. Verified live:
 caps were set on USS-245/246 and the planner kept assigning `gemma3:12b` to both. **Until #5809

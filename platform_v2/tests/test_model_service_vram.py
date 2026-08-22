@@ -215,10 +215,29 @@ def test_keepwarm_unloads_a_cpu_stranded_gpu_eligible_model():
     """Source-level (#5328): the keep-warm must unload a resident-0-VRAM model
     when placement says GPU, else the hottest model — whose runner never
     expires — stays CPU forever despite three-cycle-verified gpu decisions."""
+    import pytest
     from pathlib import Path
 
+    # #5916 — bare next() over an EMPTY generator raised StopIteration, so this
+    # test was permanently RED inside the container: platform_v2 is bind-mounted
+    # at /app, so the parents are /app/tests, /app, / — none of which has an
+    # `ai_bridge` sibling. The file is reachable, just not by walking upward.
+    #
+    # A permanently-failing test trains everyone to ignore red, and the next REAL
+    # failure hides in the noise. Walk first (works from a normal checkout), then
+    # try the known mount, and only THEN skip — with a reason, never a crash.
     candidate = Path(__file__).resolve()
-    repo = next(p for p in candidate.parents if (p / "ai_bridge" / "agent_loop.py").exists())
+    repo = next(
+        (p for p in candidate.parents if (p / "ai_bridge" / "agent_loop.py").exists()),
+        None,
+    )
+    if repo is None:
+        for fallback in (Path("/mnt/archie_brain"), Path("/app").parent):
+            if (fallback / "ai_bridge" / "agent_loop.py").exists():
+                repo = fallback
+                break
+    if repo is None:
+        pytest.skip("ai_bridge/agent_loop.py not reachable from this checkout or mount")
     src = (repo / "ai_bridge" / "agent_loop.py").read_text()
     assert "resident_vram_gb(model) == 0.0" in src
     assert "unload_model(model)" in src

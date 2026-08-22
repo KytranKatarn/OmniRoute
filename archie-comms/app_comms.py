@@ -181,7 +181,7 @@ def _fetch_platform_health():
     return health
 
 
-def _call_platform_delegation_submit(capability, reason, args=None):
+def _call_platform_delegation_submit(capability, reason, args=None, delegation_source=None):
     """POST to platform internal delegation endpoint. Returns response dict.
 
     Extracted as a function so tests can monkeypatch without touching requests.
@@ -192,9 +192,39 @@ def _call_platform_delegation_submit(capability, reason, args=None):
 
     platform_url = _os.getenv("PLATFORM_INTERNAL_URL", "http://192.168.1.200:3000")
     api_key = _os.getenv("INTERNAL_API_KEY", "")
+    payload = {"capability": capability, "reason": reason, "args": args or {}}
+    # #5334: the source is OMITTED unless a caller asks for one, so the existing
+    # chat path sends a byte-identical body and the hub keeps defaulting it to
+    # 'web_chat'. Passing a source here unconditionally would retroactively
+    # relabel every cockpit chat delegation in task_execution_log.
+    if delegation_source:
+        payload["delegation_source"] = delegation_source
     resp = _req.post(
         f"{platform_url}/api/internal/delegation/submit",
-        json={"capability": capability, "reason": reason, "args": args or {}},
+        json=payload,
+        headers={"Authorization": f"Bearer {api_key}"},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _call_platform_invokable_skills():
+    """#5334: the platform's GENERATED invokable-skills registry.
+
+    Same registry archie-tui lists (#5333) — known-tool delegates plus every LLM
+    capability in CAPABILITY_DEPARTMENT_MAP. Distinct from the curated
+    {{ACTION:<key>}} rail, which is a hand-picked SAFE subset that A.R.C.H.I.E.
+    emits herself and runs synchronously. This one is user-picked, async, and
+    routed through DHQ.
+    """
+    import requests as _req
+    import os as _os
+
+    platform_url = _os.getenv("PLATFORM_INTERNAL_URL", "http://192.168.1.200:3000")
+    api_key = _os.getenv("INTERNAL_API_KEY", "")
+    resp = _req.get(
+        f"{platform_url}/api/internal/delegation/invokable-skills",
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=10,
     )
@@ -1282,6 +1312,53 @@ def api_delegation_submit():
         return jsonify(result), 200
     except Exception as exc:
         logger.error("api_delegation_submit: platform call failed: %s", exc)
+        return jsonify({"error": "Platform delegation unavailable"}), 503
+
+
+@app.route("/api/skills")
+def api_skills_registry():
+    """#5334 Skills rail: the platform's invokable-skills registry. Session-gated.
+
+    The rail is a THIN proxy — the hub owns the registry, so the cockpit never
+    keeps a parallel list that goes stale when a capability is added.
+    """
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+    try:
+        return jsonify(_call_platform_invokable_skills()), 200
+    except Exception as exc:
+        logger.error("api_skills_registry: platform call failed: %s", exc)
+        return jsonify({"error": "Skills registry unavailable"}), 503
+
+
+@app.route("/api/skills/invoke", methods=["POST"])
+def api_skills_invoke():
+    """#5334: fire one platform skill from the cockpit rail, attributed to 'cockpit'.
+
+    Capability is NOT validated here: the hub owns the registry and rejects an
+    unknown capability itself (400). A local allowlist would be a second source
+    of truth that goes stale the moment a capability is added.
+    """
+    from flask import session as flask_session
+
+    if not flask_session.get("user_id"):
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json(silent=True) or {}
+    capability = (data.get("capability") or "").strip()
+    if not capability:
+        return jsonify({"error": "capability required"}), 400
+    reason = (data.get("reason") or "").strip() or f"cockpit Skills rail: {capability}"
+
+    try:
+        result = _call_platform_delegation_submit(
+            capability, reason, data.get("args") or {}, delegation_source="cockpit"
+        )
+        return jsonify(result), 200
+    except Exception as exc:
+        logger.error("api_skills_invoke(%s): platform call failed: %s", capability, exc)
         return jsonify({"error": "Platform delegation unavailable"}), 503
 
 

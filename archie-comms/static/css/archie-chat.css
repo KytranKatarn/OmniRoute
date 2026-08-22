@@ -1749,3 +1749,29 @@ body {
 .ac-mail-btn { background: var(--ac-panel, #10151c); color: var(--ac-text, #cfe3ff); border: 1px solid var(--ac-line, #24405c); border-radius: 6px; padding: 6px 10px; font-size: 12px; cursor: pointer; }
 .ac-mail-reply { width: 100%; min-height: 100px; background: var(--ac-panel, #10151c); color: var(--ac-text, #cfe3ff); border: 1px solid var(--ac-line, #24405c); border-radius: 6px; padding: 8px; font-size: 13px; }
 .ac-mail-note { font-size: 11px; color: var(--ac-text-dim, #7f95a8); margin-top: 6px; }
+
+/* ── Skills rail (#5334) — the platform invokable-skills registry.
+   Sits beside the Building Machine card; matches its 9-10px rail typography.
+   Known-tool rows are tinted cyan (no LLM time); LLM rows amber. ── */
+.ac-skills-filter {
+  width: 100%; box-sizing: border-box; margin-bottom: 6px;
+  background: rgba(0, 0, 0, 0.35); border: 1px solid #223344; border-radius: 3px;
+  color: #ccd6e0; font-family: inherit; font-size: 10px; padding: 3px 6px;
+}
+.ac-skills-filter:focus { outline: none; border-color: #00ffff; }
+.ac-skill-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; box-sizing: border-box; text-align: left; cursor: pointer;
+  background: rgba(255, 176, 0, 0.06); border: 1px solid transparent;
+  border-left: 2px solid #ffb000; border-radius: 2px;
+  color: #ccd6e0; font-family: inherit; font-size: 10px;
+  padding: 3px 6px; margin-bottom: 2px;
+}
+.ac-skill-row.tool { background: rgba(0, 255, 255, 0.06); border-left-color: #00ffff; }
+.ac-skill-row:hover:not(:disabled) { background: rgba(255, 176, 0, 0.16); }
+.ac-skill-row.tool:hover:not(:disabled) { background: rgba(0, 255, 255, 0.16); }
+.ac-skill-row:disabled { opacity: 0.45; cursor: default; }
+.ac-skill-cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ac-skill-owner { flex: 0 0 auto; font-size: 9px; color: #667788; }
+.ac-skills-more { font-size: 9px; color: #556677; margin-top: 3px; }
+.ac-skills-status { font-size: 9px; color: #8899aa; margin-top: 5px; min-height: 11px; }

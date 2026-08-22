@@ -1499,3 +1499,139 @@ document.addEventListener('DOMContentLoaded', () => {
 
   window.acCollab = { onOpen: onOpen };
 })();
+
+/* ── Skills rail (#5334) — the PLATFORM invokable-skills registry in the right rail.
+   Lists the same generated registry archie-tui lists (#5333): known-tool delegates
+   (no LLM) + every LLM capability in CAPABILITY_DEPARTMENT_MAP. Click dispatches
+   through DHQ as delegation_source='cockpit' and polls the task row.
+
+   Distinct from the curated {{ACTION:<key>}} rail, which is a hand-picked SAFE
+   subset A.R.C.H.I.E. emits herself and runs synchronously. This one is
+   user-picked and async.
+
+   SECURITY: every value from the registry is written via textContent — the
+   XSS-safe sink that never parses HTML. No innerHTML anywhere here. ── */
+(function () {
+  var listEl = document.getElementById('ac-skills-list');
+  var filterEl = document.getElementById('ac-skills-filter');
+  var statusEl = document.getElementById('ac-skills-status');
+  if (!listEl || !filterEl || !statusEl) return;
+
+  var _skills = [];
+  var _loaded = false;      // a reply arrived — including an EMPTY one
+  var _busy = false;
+  var _pollTimer = null;
+  var MAX_ROWS = 12;        // a viewport, not all 237 rows
+
+  function _setStatus(text) { statusEl.textContent = text || ''; }
+
+  function _visible() {
+    var f = (filterEl.value || '').trim().toLowerCase();
+    if (!f) return _skills;
+    return _skills.filter(function (s) {
+      return (s.capability || '').toLowerCase().indexOf(f) !== -1 ||
+             (s.home_department || '').toLowerCase().indexOf(f) !== -1 ||
+             (s.director_agent || '').toLowerCase().indexOf(f) !== -1;
+    });
+  }
+
+  function render() {
+    listEl.textContent = '';
+    if (!_loaded) { _setStatus('Loading registry…'); return; }
+    if (!_skills.length) { _setStatus('registry empty — is the hub reachable?'); return; }
+
+    var vis = _visible();
+    if (!vis.length) { _setStatus('(no match)'); return; }
+
+    vis.slice(0, MAX_ROWS).forEach(function (s) {
+      var row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'ac-skill-row' + (s.kind === 'known_tool' ? ' tool' : '');
+      row.disabled = _busy;
+
+      var name = document.createElement('span');
+      name.className = 'ac-skill-cap';
+      name.textContent = s.capability;                       // XSS-safe
+      row.appendChild(name);
+
+      var owner = document.createElement('span');
+      owner.className = 'ac-skill-owner';
+      owner.textContent = s.kind === 'known_tool'
+        ? 'no LLM'
+        : (s.director_agent || s.home_department || '');      // XSS-safe
+      row.appendChild(owner);
+
+      row.title = (s.description || s.capability) + (s.kind === 'known_tool'
+        ? ' — runs directly, no LLM time'
+        : ' — routed via DHQ');
+      row.addEventListener('click', function () { invoke(s.capability); });
+      listEl.appendChild(row);
+    });
+
+    if (vis.length > MAX_ROWS) {
+      var more = document.createElement('div');
+      more.className = 'ac-skills-more';
+      more.textContent = '… ' + (vis.length - MAX_ROWS) + ' more (type to filter)';
+      listEl.appendChild(more);
+    }
+    if (!_busy) _setStatus(_skills.length + ' skills');
+  }
+
+  function invoke(capability) {
+    if (_busy) return;
+    _busy = true;
+    _setStatus('dispatching ' + capability + '…');
+    render();
+    fetch('/api/skills/invoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ capability: capability })
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        _busy = false;
+        if (!res.ok || res.d.error) {
+          _setStatus('failed: ' + (res.d.error || 'dispatch error'));
+          render();
+          return;
+        }
+        _setStatus('task #' + res.d.task_id + ' ' + (res.d.status || 'queued'));
+        render();
+        pollTask(res.d.task_id);
+      })
+      .catch(function () { _busy = false; _setStatus('dispatch failed'); render(); });
+  }
+
+  function pollTask(taskId) {
+    if (!taskId) return;
+    if (_pollTimer) clearInterval(_pollTimer);
+    var tries = 0;
+    _pollTimer = setInterval(function () {
+      tries++;
+      // Give up POLLING after ~2 min — the task keeps running on the cluster;
+      // only the rail stops watching. Live Dispatch still shows it.
+      if (tries > 40) { clearInterval(_pollTimer); _pollTimer = null; return; }
+      fetch('/api/delegation/' + taskId + '/status')
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) return;
+          _setStatus('task #' + taskId + ' ' + (d.status || '?'));
+          if (d.status === 'completed' || d.status === 'blocked' || d.status === 'failed') {
+            clearInterval(_pollTimer); _pollTimer = null;
+          }
+        })
+        .catch(function () {});
+    }, 3000);
+  }
+
+  filterEl.addEventListener('input', render);
+
+  fetch('/api/skills')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      _loaded = true;                                  // an empty reply is still a reply
+      _skills = (d && d.skills) || [];
+      render();
+    })
+    .catch(function () { _loaded = true; _skills = []; render(); });
+})();

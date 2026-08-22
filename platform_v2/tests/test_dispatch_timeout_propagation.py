@@ -178,7 +178,7 @@ def test_capability_timeouts_has_no_duplicate_keys(source):
 
 
 def test_heavy_capabilities_keep_their_budgets(source):
-    """Guard the budgets other tasks fought for: #3549/#3551, #3624-#3630, #3967."""
+    """Guard the budgets other tasks fought for: #3549/#3551, #3624-#3630, #3967, #5925."""
     timeouts = _capability_timeouts(source)
     for cap in (
         "code_analysis",
@@ -189,6 +189,10 @@ def test_heavy_capabilities_keep_their_budgets(source):
         "analyze",
         "documentation",
         "translate",
+        # #5925: fact_check was the last heavy 7B capability inheriting the 300s
+        # default. 293 hub rows/24h died at exactly 300.2s while successful runs
+        # reached p95 319s — the wall, not the work.
+        "fact_check",
     ):
         assert timeouts.get(cap) == 600, f"{cap} lost its 600s budget"
 

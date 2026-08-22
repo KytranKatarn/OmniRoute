@@ -555,6 +555,19 @@ CAPABILITY_TIMEOUTS = {
     # PR into NEEDS REVIEW. A warm re-run returned APPROVE with no code change.
     # Raised to 600 to match code_analysis, its true sibling: same full-diff 7B profile.
     "code_review": 600,
+    # fact_check was the ONE heavy 7B capability still inheriting the 300s default
+    # while every sibling above had been raised — so WTF's fact-check stream died on
+    # the wall instead of on the work (#5925). Measured 2026-08-22, qwen2.5:7b, 24h,
+    # successful runs only (n=1,756): p50 33.2s, p90 249.8s, p95 319.0s, max 915.5s.
+    # The median call matches the 100%-success archie_platform caller (26.7s), so the
+    # work is not pathological — it is a latency TAIL crossing an arbitrary deadline
+    # (the #5903 shape). 293 rows/24h died at exactly 300.2s on the hub alone.
+    # ⚠️ 600 does not recover everything: 15 successes exceeded 600s wall-clock, and
+    # duration_ms is whole-dispatch (queue + cold-load included), NOT the HTTP window.
+    # ⚠️ This deadline INTERACTS with the dispatch:hub_inflight_max admission cap — a
+    # longer deadline raises the occupancy that cap exists to bound. This is the ONLY
+    # lever moved here; if shed volume climbs, retune the cap separately, not both.
+    "fact_check": 600,
     # CPU inference (gemma2-cpu, etc.) blocks Gunicorn threads for 300s+ causing
     # platform-wide hangs. Cap at 90s — GPU agents (qwen2.5:7b) respond in <30s;
     # CPU-only agents will fail fast rather than exhausting the thread pool.

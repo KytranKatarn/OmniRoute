@@ -71,19 +71,40 @@ def coverage(full_diff: str | None, shown_diff: str | None) -> dict:
 
     Returns ``{total, reviewed, dropped: [paths], complete: bool}``.
 
-    ``complete`` is True when nothing was dropped — including the degenerate case of a
-    diff with no parseable file headers, where we cannot tell and must not cry wolf. A
-    diff that yields zero files also yields zero dropped files, so an unparseable diff
-    behaves exactly as it does today rather than blocking every review.
+    ``complete`` is True when nothing was dropped AND nothing was cut short — including
+    the degenerate case of a diff with no parseable file headers, where we cannot tell and
+    must not cry wolf. A diff that yields zero files also yields zero dropped files, so an
+    unparseable diff behaves exactly as it does today rather than blocking every review.
+
+    ⚠️ PRESENCE IS NOT COVERAGE (#5910). This compared file PATHS only until 2026-08-22,
+    which made it BLIND to the single-file case: a PR whose diff exceeds the window but
+    contains ONE file loses no whole file, so ``dropped`` was empty, ``complete`` was True,
+    and it recorded a clean APPROVE while the reviewer had seen only part of the change.
+    Measured on PR #2749: 8,135 of 13,379 chars shown — **60%** — reported as full
+    coverage and merged on that basis. That is #5836's own failure mode in a shape #5836
+    could not see. So we now also compare BYTES PER FILE: a file present but SHORTER than
+    in the full diff was truncated mid-way and is reported ``partial``.
     """
     full = diff_files(full_diff)
-    shown = set(diff_files(shown_diff))
-    dropped = [f for f in full if f not in shown]
+    full_blocks = {p: b for p, b in split_blocks(full_diff) if p}
+    shown_blocks = {p: b for p, b in split_blocks(shown_diff) if p}
+    dropped = [f for f in full if f not in shown_blocks]
+    partial = []
+    for f in full:
+        if f in dropped:
+            continue
+        have = len(full_blocks.get(f, ""))
+        saw = len(shown_blocks.get(f, ""))
+        if have and saw < have:
+            partial.append({"path": f, "shown_pct": max(1, round(100.0 * saw / have))})
     return {
         "total": len(full),
-        "reviewed": len(full) - len(dropped),
+        # A partially-read file is NOT a reviewed file — counting it as one is exactly
+        # the overstatement this function exists to prevent.
+        "reviewed": len(full) - len(dropped) - len(partial),
         "dropped": dropped,
-        "complete": not dropped,
+        "partial": partial,
+        "complete": not dropped and not partial,
     }
 
 
@@ -91,21 +112,34 @@ def coverage_note(cov: dict, *, max_listed: int = 12) -> str:
     """Human-readable coverage block. Lists the dropped paths — a count alone does not
     tell a reviewer whether the missing file was a README or the deploy path."""
     dropped = list(cov.get("dropped") or [])
+    partial = list(cov.get("partial") or [])
     shown = dropped[:max_listed]
     more = len(dropped) - len(shown)
     lines = [
         f"{MARKER} COVERAGE: {cov.get('reviewed', 0)} of {cov.get('total', 0)} files were "
-        "in the diff window this review actually read.",
-        "NOT REVIEWED (truncated away before the model saw them):",
+        "read IN FULL by this review.",
     ]
-    lines += [f"  - {p}" for p in shown]
-    if more > 0:
-        lines.append(f"  - ...and {more} more")
+    if dropped:
+        lines.append("NOT REVIEWED (truncated away before the model saw them):")
+        lines += [f"  - {p}" for p in shown]
+        if more > 0:
+            lines.append(f"  - ...and {more} more")
+    # ⚠️ The blank line below TERMINATES the dropped-path listing that
+    # pr_review_service.coverage_dropped_paths() parses, and the partial entries use a
+    # "*" bullet rather than "- " so that parser can never mistake a partially-read file
+    # for a wholly-dropped one — it keys on a leading "- ". Do not switch these to "-".
+    lines.append("")
+    if partial:
+        lines.append("READ ONLY IN PART (the window cut mid-file — #5910):")
+        for e in partial[:max_listed]:
+            lines.append(f"  * {e.get('path')} — about {e.get('shown_pct')}% shown")
+        if len(partial) > max_listed:
+            lines.append(f"  * ...and {len(partial) - max_listed} more")
+        lines.append("")
     lines += [
-        "",
-        "A verdict cannot cover a file the reviewer never read, so this review is recorded "
-        "as NEEDS REVIEW rather than an approval (#5836). The findings above still stand "
-        "for the files that WERE read.",
+        "A verdict cannot cover code the reviewer never read — whether a whole file was "
+        "dropped or one was cut short — so this review is recorded as NEEDS REVIEW rather "
+        "than an approval (#5836/#5910). The findings above still stand for what WAS read.",
         "VERDICT: NEEDS REVIEW",
     ]
     return "\n".join(lines)
@@ -133,10 +167,11 @@ def summarize(cov: dict) -> str:
     """One-line form for logs."""
     if cov.get("complete", True):
         return f"full coverage ({cov.get('total', 0)} files)"
-    return "PARTIAL: %d/%d files reviewed; dropped=%s" % (
+    return "PARTIAL: %d/%d files read in full; dropped=%s; part-read=%s" % (
         cov.get("reviewed", 0),
         cov.get("total", 0),
-        ",".join(cov.get("dropped") or []),
+        ",".join(cov.get("dropped") or []) or "-",
+        ",".join("%s@%s%%" % (e.get("path"), e.get("shown_pct")) for e in (cov.get("partial") or [])) or "-",
     )
 
 

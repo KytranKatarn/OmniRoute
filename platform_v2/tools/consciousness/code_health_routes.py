@@ -1206,8 +1206,21 @@ def register_code_health_routes(bp, admin_required):
                 findings = _parse_audit_findings(row["notes"])
                 modules[row["module_name"]] = {
                     "status": row["status"],
-                    "issues_found": row["issues_found"],
+                    # TWO counts, deliberately, and the NAMES have to say which is which
+                    # (#5914). `total_issues` is DERIVED from the parsed findings and is the
+                    # authoritative number — same meaning as in code_health_severity_summary,
+                    # so the two endpoints agree. `forge_claimed_issues` is the raw
+                    # code_audit_log column, i.e. what F.O.R.G.E. SAID it found.
+                    #
+                    # Keeping both is the point of a second-opinion view: when they DISAGREE,
+                    # F.O.R.G.E.'s own count does not match its own notes, and that is a
+                    # finding about F.O.R.G.E. worth seeing. But shipping them as
+                    # `issues_found` + `total_issues` — as this endpoint did until 2026-08-22
+                    # — is exactly the two-counts-of-one-thing drift #5881 removed everywhere
+                    # else: a consumer reading the raw field silently gets the underived
+                    # number. Never emit a raw count next to a derived one without saying so.
                     "total_issues": len(findings),
+                    "forge_claimed_issues": row["issues_found"],
                     "trigger_reason": row["trigger_reason"],
                     "last_audit": row["audited_at"].isoformat() if row["audited_at"] else None,
                 }

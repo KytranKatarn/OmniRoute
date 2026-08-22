@@ -612,6 +612,15 @@ _scan_cache = {"result": None, "timestamp": 0}
 _SCAN_CACHE_TTL = 300  # 5 minutes
 
 
+# The audit `notes` field is the SINGLE SOURCE the UI counts findings from
+# (#5881 made the badge, the audit-log table and the details drilldown all derive
+# from `_parse_audit_findings(notes)`). It was capped at 30, so the displayed count
+# was PINNED at 30 and could not fall until the true count dropped below it --
+# a re-audit reporting fewer findings changed nothing on screen (#5926).
+# Keep a sane upper bound so one pathological module cannot write an unbounded row.
+_NOTES_MAX_FINDINGS = 500
+
+
 def scan_codebase(force=False):
     """
     Full codebase scan. Returns comprehensive metrics dict.
@@ -1567,7 +1576,11 @@ def audit_module_web(module_path):
     if todo_count > 0:
         _add_issue("TODO_FIXME", module_path, f"{todo_count} TODO/FIXME/HACK/XXX comments")
 
-    return (len(issues), "; ".join(issues[:30]) if issues else "clean — all web checks passed", issues_list)
+    return (
+        len(issues),
+        "; ".join(issues[:_NOTES_MAX_FINDINGS]) if issues else "clean — all web checks passed",
+        issues_list,
+    )
 
 
 def audit_module_config(module_path):
@@ -1664,7 +1677,11 @@ def audit_module_config(module_path):
             except Exception:
                 pass
 
-    return (len(issues), "; ".join(issues[:30]) if issues else "clean — all config checks passed", issues_list)
+    return (
+        len(issues),
+        "; ".join(issues[:_NOTES_MAX_FINDINGS]) if issues else "clean — all config checks passed",
+        issues_list,
+    )
 
 
 def _audit_module_python(module_name, module_path):
@@ -1757,7 +1774,11 @@ def _audit_module_python(module_name, module_path):
         except Exception:
             pass
 
-    return (len(issues), "; ".join(issues[:30]) if issues else "clean — all checks passed", issues_list)
+    return (
+        len(issues),
+        "; ".join(issues[:_NOTES_MAX_FINDINGS]) if issues else "clean — all checks passed",
+        issues_list,
+    )
 
 
 def audit_single_module(module_name, module_path=None, module_data=None):

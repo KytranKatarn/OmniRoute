@@ -118,7 +118,14 @@ def _audit_one(key, mod_data):
     return {
         "module": key,
         "profile": profile,
-        "issues": issues_found,
+        # #5926: report the TOTAL, matching what every UI surface counts
+        # (badge / audit-log table / details drilldown all derive from
+        # `_parse_audit_findings(notes)`). `issues_found` is the RED-severity
+        # SUBSET -- returning it here is why a re-audit said "12" while the tab
+        # said "30" for the same module (true total: 33 = 12 red + 19 yellow +
+        # 2 info). Both numbers are now reported, neither is inferred.
+        "issues": len(issues_list),
+        "issues_red": issues_found,
         "status": status,
         "proposals_created": proposals_created,
         "proposals_skipped": proposals_skipped,

@@ -1332,6 +1332,16 @@ def get_stats():
                 COUNT(*) FILTER (WHERE status = 'pending' OR status = 'proposed') as pending,
                 COUNT(*) FILTER (WHERE status = 'approved') as approved,
                 COUNT(*) FILTER (WHERE status = 'deployed' OR status = 'implemented') as deployed,
+                -- #5899: on the manual path 'deployed' means "backed up and cleared to
+                -- apply", NOT "the code is live" -- deploy_proposal() logs exactly that
+                -- three lines before it writes the status. Split it honestly. `deployed`
+                -- above is UNCHANGED byte-for-byte so every existing consumer keeps its
+                -- number; these are ADDITIVE. Absence of the flag stays UNKNOWN and is
+                -- never counted as applied.
+                COUNT(*) FILTER (WHERE (status = 'deployed' OR status = 'implemented')
+                                   AND metadata->>'code_applied' = 'false') as not_applied,
+                COUNT(*) FILTER (WHERE (status = 'deployed' OR status = 'implemented')
+                                   AND metadata->>'code_applied' IS NULL) as apply_unknown,
                 COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
                 COUNT(*) FILTER (WHERE status = 'testing') as testing,
                 COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
@@ -1411,6 +1421,9 @@ def get_deploy_history():
         cur.execute(
             """SELECT
                 COUNT(*) FILTER (WHERE status IN ('deployed', 'implemented')) as total_deployed,
+                -- #5899, additive (see the note on the stats query above).
+                COUNT(*) FILTER (WHERE status IN ('deployed', 'implemented')
+                                   AND metadata->>'code_applied' = 'false') as total_not_applied,
                 COUNT(*) FILTER (WHERE status = 'tested') as ready_to_deploy,
                 COUNT(*) FILTER (WHERE status = 'fix_requested') as failed
             FROM improvement_proposals"""

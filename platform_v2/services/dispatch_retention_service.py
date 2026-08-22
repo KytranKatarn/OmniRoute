@@ -265,15 +265,23 @@ def prune_table(cur, conn, *, table, age_col, statuses, keep_days, batch_size, d
     return total
 
 
-def _record_last_run(cur, result, dry_run):
+def _record_last_run(cur, result, dry_run, failed=None):
     """Stamp ``platform_settings[retention:last_run]`` for Autonomy-tab visibility.
-    Fail-safe — a write error must never undo the prune."""
+    Fail-safe — a write error must never undo the prune.
+
+    ``failed`` (#5920) is ADDITIVE: a ``{table: reason}`` map recorded alongside
+    the existing ``deleted`` key, never inside it, so the stamp's established
+    shape is unchanged for anything already reading it. A partial run must be
+    distinguishable from a clean one AT THE STAMP — otherwise the only record
+    that some tables never pruned lives in a log line nobody reads.
+    """
+    extra = {"failed": failed} if failed else {}
     try:
         from services.time_utils import now_utc
 
-        payload = json.dumps({"at": now_utc().isoformat(), "dry_run": dry_run, "deleted": result})
+        payload = json.dumps({"at": now_utc().isoformat(), "dry_run": dry_run, "deleted": result, **extra})
     except Exception:
-        payload = json.dumps({"dry_run": dry_run, "deleted": result})
+        payload = json.dumps({"dry_run": dry_run, "deleted": result, **extra})
     try:
         cur.execute(
             """
@@ -308,33 +316,69 @@ def run_retention(dry_run=False):
                 return {"enabled": False, "dry_run": dry_run, "deleted": {}}
 
             result = {}
+            failed = {}
             for table, spec in _TABLES.items():
-                keep_days = cfg[spec["keep_key"]]
-                if keep_days is None or keep_days <= 0:
-                    logger.info("[Retention] %s keep_days<=0 → skip", table)
-                    result[table] = 0
-                    continue
-                n = prune_table(
-                    cur,
-                    conn,
-                    table=table,
-                    age_col=spec["age_col"],
-                    statuses=spec["statuses"],
-                    keep_days=keep_days,
-                    batch_size=cfg["batch_size"],
-                    dry_run=dry_run,
-                )
-                result[table] = n
-                logger.info(
-                    "[Retention] %s: %s %d row(s) (keep_days=%d, dry_run=%s)",
-                    table,
-                    "would delete" if dry_run else "deleted",
-                    n,
-                    keep_days,
-                    dry_run,
-                )
-            _record_last_run(cur, result, dry_run)
-            return {"enabled": True, "dry_run": dry_run, "deleted": result}
+                # #5920 — PER-TABLE isolation. This loop used to sit bare inside the
+                # single outer try/except, so ANY failure on ANY one table (a missing
+                # DEFAULTS key -> KeyError, a renamed column, a lock timeout, a
+                # permissions change) aborted the WHOLE run: every later table went
+                # unpruned, `_record_last_run` never stamped, and the caller got
+                # {"enabled": None, "deleted": {}} — which reads like "nothing needed
+                # pruning" rather than "retention is broken".
+                #
+                # Same defect `run_backup.sh` had, and the same resolution (#5092):
+                # one component's failure must not veto the rest; report a PARTIAL.
+                try:
+                    keep_days = cfg[spec["keep_key"]]
+                    if keep_days is None or keep_days <= 0:
+                        logger.info("[Retention] %s keep_days<=0 → skip", table)
+                        result[table] = 0
+                        continue
+                    n = prune_table(
+                        cur,
+                        conn,
+                        table=table,
+                        age_col=spec["age_col"],
+                        statuses=spec["statuses"],
+                        keep_days=keep_days,
+                        batch_size=cfg["batch_size"],
+                        dry_run=dry_run,
+                    )
+                    result[table] = n
+                    logger.info(
+                        "[Retention] %s: %s %d row(s) (keep_days=%d, dry_run=%s)",
+                        table,
+                        "would delete" if dry_run else "deleted",
+                        n,
+                        keep_days,
+                        dry_run,
+                    )
+                except Exception as exc:  # noqa: BLE001 — one table must not veto the rest
+                    # Deliberately NOT recorded in `deleted`: a failed table showing 0
+                    # would be indistinguishable from a table with nothing to prune,
+                    # which is the reporting bug this fix exists to remove.
+                    failed[table] = f"{type(exc).__name__}: {exc}"
+                    logger.exception("[Retention] %s FAILED — continuing with the rest", table)
+                    # A failed table may have left this transaction aborted; without a
+                    # rollback every SUBSEQUENT table would die on
+                    # "current transaction is aborted", turning isolation into a no-op.
+                    try:
+                        conn.rollback()
+                    except Exception:  # noqa: BLE001
+                        logger.warning("[Retention] rollback after %s failure did not succeed", table)
+            # `result` is passed UNWRAPPED: _record_last_run already nests it under
+            # "deleted". Passing a {"deleted":..., "failed":...} dict here would store
+            # {"deleted": {"deleted": ...}} and silently change the stamp's shape for
+            # whatever reads it.
+            _record_last_run(cur, result, dry_run, failed=failed)
+            if failed:
+                logger.warning("[Retention] PARTIAL — %d table(s) failed: %s", len(failed), list(failed))
+            return {
+                "enabled": True,
+                "dry_run": dry_run,
+                "deleted": result,
+                "failed": failed,
+            }
     except Exception:
         logger.exception("[Retention] run_retention failed")
         return {"enabled": None, "dry_run": dry_run, "deleted": {}}

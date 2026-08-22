@@ -431,6 +431,37 @@ def _document_pr(payload: Dict[str, Any], reason: str = "") -> Dict[str, Any]:
         return {"success": False, "summary": f"document_pr KB insert failed: {exc}", "error": str(exc)}
 
 
+_PREAMBLE_RE = re.compile(
+    r"^(here'?s?\b|here is\b|below (is|are)\b|sure[,!.]|certainly[,!.]|okay[,!.]|"
+    r"of course[,!.]|i('|’)?ve\b|i will\b|i can\b|let me\b|the following\b|"
+    r"this (document|note|doc)\b|as requested\b)",
+    re.I,
+)
+
+
+def _looks_like_preamble(line: str) -> bool:
+    """Is this the model talking ABOUT the doc rather than titling it? (#5912)
+
+    Two independent signals, both deliberately conservative:
+      1. an explicit conversational opener ("Here's ...", "Below is ...");
+      2. a long line ending in ':' — a real title is a noun phrase, whereas
+         "Here's a suggested format for the ... pairs in the Consciousness KB:"
+         is a sentence introducing what follows.
+
+    The word-count floor matters: "Deploy Provenance:" or "Fleet Rebalance:" are
+    perfectly good titles that happen to end in a colon, so a bare
+    endswith(':') test would discard them. Only a SENTENCE-length colon line is
+    treated as preamble.
+    """
+    if not line:
+        return True
+    if _PREAMBLE_RE.match(line):
+        return True
+    if line.endswith(":") and len(line.split()) > 6:
+        return True
+    return False
+
+
 def _persist_dispatched_documentation(reason: str, payload: Dict[str, Any], response: Optional[str]) -> Optional[int]:
     """Persist LLM-generated documentation (non-PR delegations) as a vault_note.
 
@@ -452,10 +483,35 @@ def _persist_dispatched_documentation(reason: str, payload: Dict[str, Any], resp
     # generated doc keeps the title consistent with its content (F.O.R.G.E.
     # review on #1317 flagged reason-only derivation as inconsistent).
     def _first_meaningful_line(s: Optional[str]) -> str:
-        for ln in (s or "").splitlines():
-            cleaned = ln.strip().lstrip("#").strip()
-            if cleaned:
-                return cleaned
+        """First line that reads like a TITLE, not like the model talking (#5912).
+
+        Taking the raw first line stored the model's conversational framing as the
+        title — measured live: "Here's a suggested format for the user-doc and
+        coder-doc vault_note pa..." (KB #292878) and "Title: Documentation for
+        Merged PRs #2746 and #2748" (#292881). The BODIES were accurate; only the
+        titles were junk, and title is the highest-signal field for KB retrieval,
+        so a doc that exists but cannot be found fails the same way one that was
+        never written fails — silently.
+
+        Deliberately NARROW: it skips a line only on a positive preamble match,
+        then falls through to the existing precedence chain. Over-rejecting would
+        be worse than the bug, and reverting to reason-only derivation is not an
+        option — F.O.R.G.E. flagged that as inconsistent on #1317.
+        """
+        for ln in (s or "").splitlines()[:12]:
+            cleaned = ln.strip().lstrip("#").strip().strip("*").strip()
+            if not cleaned:
+                continue
+            # "Title: Foo" / "**Title:** Foo" -> "Foo". The label is scaffolding.
+            m = re.match(r"^title\s*[:\-—]\s*(.+)$", cleaned, re.I)
+            if m:
+                cleaned = m.group(1).strip().strip("*").strip()
+                if cleaned:
+                    return cleaned
+                continue
+            if _looks_like_preamble(cleaned):
+                continue
+            return cleaned
         return ""
 
     title = (

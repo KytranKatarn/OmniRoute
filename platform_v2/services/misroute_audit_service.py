@@ -183,8 +183,8 @@ def _missing_capability(cur, window_hours: int) -> List[Dict[str, Any]]:
 def _high_failure_agents(cur, window_hours: int) -> List[Dict[str, Any]]:
     # JOIN agents to get the authoritative name — task_execution_log.agent_name
     # can be stale (e.g. hardcoded to the dispatching router rather than the
-    # executing agent). COALESCE falls back to the stored column when agent_id
-    # is NULL (legacy rows written before FK was populated).
+    # executing agent). COALESCE falls back to the stored column for display, but
+    # a row is only ADMITTED when agent_id is present -- see the WHERE note below.
     cur.execute(
         """
         SELECT COALESCE(a.name, tel.agent_name) AS agent_name,
@@ -200,7 +200,21 @@ def _high_failure_agents(cur, window_hours: int) -> List[Dict[str, Any]]:
         FROM task_execution_log tel
         LEFT JOIN agents a ON a.id = tel.agent_id
         WHERE tel.created_at > now() - (%s || ' hours')::interval
-          AND (tel.agent_name IS NOT NULL OR tel.agent_id IS NOT NULL)
+          -- #5809: agent_id IS NULL is not a legacy artifact -- the dispatcher
+          -- assigns it DELIBERATELY for infrastructure work. department_dispatcher
+          -- `is_warmup = module_id in ("fleet_warmup","kin_warmth")` sets
+          -- log_agent_id = None while KEEPING agent_name purely as "an informational
+          -- marker of which model was warmed". Admitting those rows scored keep-alive
+          -- warm-ups as agent/capability failures: E.M.B.E.R. was reported misrouted
+          -- to `documentation` having never been selected for it (select_agent
+          -- correctly excludes it -- it holds no documentation skill).
+          -- Measured 2026-08-22, 24h: 20 pairs over the failure threshold, 0 of
+          -- which survive this filter. The ENTIRE alarm population was infrastructure.
+          -- This audit groups BY agent; a row with no agent has no place in it.
+          -- NOTE: those failures are real (they are #5925) and remain visible via
+          -- dispatch-health, which measures infra. This narrows attribution, it does
+          -- not hide the work -- do not let it become "unmonitored yet monitored".
+          AND tel.agent_id IS NOT NULL
           -- Admission-control sheds never reached the agent, so they are
           -- neither a failure nor a call: drop them from the numerator AND
           -- the denominator. Leaving them in the denominator would let a

@@ -37,17 +37,41 @@ def cur(db_conn):
         yield c
 
 
-def _seed(cur, agent_name, capability="fact_check", ok=0, shed=0, real_fail=0):
-    """Insert a synthetic dispatch history for one (agent, capability) pair."""
+def _agent(cur, agent_name):
+    """Create a throwaway agents row and return its id.
+
+    #5809: the audit now admits a row only when ``agent_id`` is populated, so a
+    seed that sets ``agent_name`` alone no longer represents agent work — that is
+    precisely the UNATTRIBUTED shape the dispatcher reserves for infrastructure.
+    """
+    cur.execute(
+        """
+        INSERT INTO agents (name, model, department, floor)
+        VALUES (%s, 'qwen2.5:7b', 'Engineering & Technology', 'ENGINEERING')
+        RETURNING id
+        """,
+        (agent_name,),
+    )
+    return cur.fetchone()["id"]
+
+
+def _seed(cur, agent_name, capability="fact_check", ok=0, shed=0, real_fail=0, attributed=True):
+    """Insert a synthetic dispatch history for one (agent, capability) pair.
+
+    ``attributed=False`` reproduces an infrastructure row: agent_name present as an
+    informational marker, agent_id NULL — what department_dispatcher writes for
+    ``fleet_warmup`` / ``kin_warmth``.
+    """
+    agent_id = _agent(cur, agent_name) if attributed else None
     rows = [(True, None)] * ok + [(False, SHED_ERROR)] * shed + [(False, REAL_ERROR)] * real_fail
     for success, err in rows:
         cur.execute(
             """
             INSERT INTO task_execution_log
-                (agent_name, capability, success, error_message, created_at)
-            VALUES (%s, %s, %s, %s, now())
+                (agent_id, agent_name, capability, success, error_message, created_at)
+            VALUES (%s, %s, %s, %s, %s, now())
             """,
-            (agent_name, capability, success, err),
+            (agent_id, agent_name, capability, success, err),
         )
 
 
@@ -101,3 +125,35 @@ def test_min_call_threshold_applies_after_sheds_are_excluded(cur):
     _seed(cur, "T.E.S.T.lowvolume", ok=2, real_fail=5, shed=40)
 
     assert _flagged(cur, "T.E.S.T.lowvolume") == []
+
+
+def test_warmup_keepalives_are_not_scored_as_agent_failures(cur):
+    """#5809: E.M.B.E.R. was reported misrouted to `documentation` and failing 100%.
+
+    She was never selected for it — ``select_agent`` correctly excludes her (she holds
+    no documentation skill). The rows were ``fleet_warmup`` keep-alives, which
+    department_dispatcher logs with ``log_agent_id = None`` while KEEPING agent_name
+    as "an informational marker of which model was warmed". The audit admitted them
+    and scored infrastructure as agent behaviour.
+
+    Measured 2026-08-22 over 24h: 20 pairs above the 20% threshold, 0 of which had an
+    agent_id. The entire alarm population was infra.
+    """
+    _seed(cur, "T.E.S.T.ember", capability="documentation", ok=0, real_fail=26, attributed=False)
+
+    assert _flagged(cur, "T.E.S.T.ember") == []
+
+
+def test_the_filter_does_not_silence_a_real_agent(cur):
+    """The guard against over-correcting: identical failure volume, but attributed.
+
+    If this ever goes green alongside the test above, the filter has stopped
+    discriminating and is simply suppressing the audit.
+    """
+    _seed(cur, "T.E.S.T.attributed", capability="documentation", ok=0, real_fail=26, attributed=True)
+
+    flagged = _flagged(cur, "T.E.S.T.attributed")
+
+    assert len(flagged) == 1
+    assert flagged[0]["failures"] == 26
+    assert flagged[0]["agent_id"] is not None

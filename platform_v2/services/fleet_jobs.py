@@ -400,12 +400,18 @@ def _kin_fleet_warmth_policy():
     except Exception:
         profile_mode = "auto"
 
-    queued = rested = 0
+    queued = rested = skipped = 0
     try:
         with get_db_cursor(commit=True) as (_c, cur):
             cur.execute(
                 """
                 SELECT rn.id, rn.node_name, rn.deployment_mode,
+                       -- #5947: the capacity predicate reads these. Without them
+                       -- can_node_run_model() sees gpu 0 / ram 0 and refuses EVERY
+                       -- model, silently killing warm-up. rn.id is the PK, so the
+                       -- rest are functionally dependent and need no GROUP BY entry.
+                       rn.gpu_available, rn.gpu_vram_gb, rn.ram_gb,
+                       rn.ollama_available, rn.extra_capabilities,
                        array_agg(nom.model_name) FILTER (WHERE nom.is_available) AS models
                 FROM remote_nodes rn
                 LEFT JOIN node_ollama_models nom ON nom.node_id = rn.node_id
@@ -413,7 +419,7 @@ def _kin_fleet_warmth_policy():
                   AND rn.status = 'online'
                   AND rn.last_heartbeat > NOW() - INTERVAL '2 minutes'
                   AND rn.deployment_mode IS DISTINCT FROM 'starbase'
-                GROUP BY rn.id, rn.node_name, rn.deployment_mode
+                GROUP BY rn.id
                 """
             )
             nodes = cur.fetchall()
@@ -487,6 +493,20 @@ def _kin_fleet_warmth_policy():
                     )
                     if cur.fetchone():
                         break  # one in-flight warmth task per node is enough
+                    # #5947: don't QUEUE a pin the drain will only reject. The drain
+                    # (model_dispatch_service) remains the authoritative gate -- this is
+                    # an optimisation that saves a wasted claim + 30s cycle, NEVER a
+                    # replacement for it. `continue`, not `break`: a model this node
+                    # can't hold says nothing about the next target.
+                    if not _node_can_hold(n, model):
+                        # Counted + logged, never silent. Before this check the bad pin
+                        # surfaced as a queue failure you could see; skipping it here
+                        # would otherwise HIDE a cap that is too low for the node's
+                        # documented warm set (the cap-4 vs llama3.2:3b/5.0 trap in
+                        # .claude/rules/fleet.md). A silent skip is how that stays unnoticed.
+                        skipped += 1
+                        logger.debug("[kin_warmth] %s cannot hold %s — not queueing", n["node_name"], model)
+                        continue
                     cur.execute(
                         """
                         INSERT INTO dispatch_pending_queue
@@ -501,8 +521,9 @@ def _kin_fleet_warmth_policy():
                     )
                     queued += 1
         logger.debug(
-            "[kin_warmth] cycle — %d warmth task(s) queued, %d starship(s) resting",
+            "[kin_warmth] cycle — %d warmth task(s) queued, %d skipped (capacity), %d starship(s) resting",
             queued,
+            skipped,
             rested,
         )
     except Exception as exc:
@@ -510,6 +531,24 @@ def _kin_fleet_warmth_policy():
         return
 
     _log_kin_warmth_audit(queued, rested, rest_active)
+
+
+def _node_can_hold(node: dict, model: str) -> bool:
+    """#5947: producer-side capacity pre-check for kin_warmth.
+
+    FAIL-OPEN by design. The drain already gates every pinned dispatch
+    (model_dispatch_service, the choke point); this only avoids queueing a row that
+    is certain to be refused there. If the predicate is unavailable or raises, we
+    queue as before and let the authoritative gate decide -- a broken import here
+    must never be able to starve the fleet's keep-warm.
+    """
+    try:
+        from services.fleet_resource_router import can_node_run_model
+
+        return bool(can_node_run_model(node, model))
+    except Exception as exc:  # noqa: BLE001 - advisory check, never fatal
+        logger.debug("[kin_warmth] capacity pre-check unavailable (%s) - queueing anyway", exc)
+        return True
 
 
 def _log_kin_warmth_audit(queued: int, rested: int, rest_active: bool):

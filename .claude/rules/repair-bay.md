@@ -43,9 +43,9 @@ Two capabilities that are easy to conflate — they have different tokens:
 | | Mechanism | Scope |
 |---|---|---|
 | **Review** | `review_pr(pr_number, repo="owner/name")` | `FORGE_REVIEW_TOKEN` = read PAT, **all repos** |
-| **Merge** | `merge_pr(..., repo=)` | write token is **archie-platform-scoped** — a non-default merge needs `gh pr merge` |
+| **Merge** | `merge_pr(..., repo=)` | write token has **push+admin on archie-platform, archie-code, KSO and creed**; the 4 watch repos + KBS return 404 → human merge. ⚠️ NOT platform-scoped — corrected 2026-08-23 (#5981) |
 
-- `GITHUB_REPOS` (the auto-poll list) = archie-platform + the 4 watch repos. **A repo
+- `GITHUB_REPOS` (the auto-poll list) = archie-platform + the 4 watch repos + **kytran-system-operations** (added since #5369). ⚠️ **archie-code is NOT in it** — the repo holding the TUI and engine is never auto-polled, despite the write token having admin there; it is reviewed only when a caller passes `repo=` explicitly. **A repo
   not in that list is never polled**, so its PRs never reach Repair Bay, never get a
   stored verdict, and `_automerge_governance_ok` then fails closed — correctly, but it
   means nothing can ever merge there.

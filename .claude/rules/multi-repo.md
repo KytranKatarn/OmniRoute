@@ -82,8 +82,19 @@ missing credential. The tokens live in the `archie_platform` container.
   fails closed — correctly, but it means nothing can ever auto-merge there.
 - Review one explicitly: `review_pr(<pr>, repo="KytranKatarn/kytran-business-suite")` —
   `FORGE_REVIEW_TOKEN` is read-scoped across all repos.
-- **Merges on non-default repos are human-only** — the write token is archie-platform-scoped.
-  Use `gh pr merge` in that repo. Task #5369 tracks widening `GITHUB_REPOS`.
+- ⚠️ **The write token is NOT archie-platform-scoped** — corrected 2026-08-23 (#5981) after
+  probing `GET /repos/{repo}` → `.permissions` with the container's own `GITHUB_TOKEN`:
+
+  | repo | write token |
+  |---|---|
+  | `archie-platform`, `archie-code`, `kytran-system-operations`, `kytran-creed` | **push + admin** |
+  | the 4 watch repos, `kytran-business-suite` | 404 — no access |
+
+  So "human-merge-only" holds for the **watch products and KBS** — but NOT for archie-code, KSO or
+  creed, where the token can merge and administer. **Never reason about merge safety from assumed
+  token absence**; the governance gate (`_automerge_governance_ok`, and the `coo_window` manifest
+  naming an explicit `(repo, PR)` pair) is the control that actually binds. Re-probe before trusting
+  this table — a token's grants can change without any code change.
 
 ## Databases are separate too
 

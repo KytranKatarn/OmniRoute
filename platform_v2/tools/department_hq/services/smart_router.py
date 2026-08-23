@@ -30,12 +30,34 @@ try:
     from psycopg2.extras import RealDictCursor
 
     def get_db():
+        # #5968: the password comes from the DOCKER SECRET, not the environment.
+        # DB_PASSWORD is EMPTY in every process — measured len=0 in PID 1 of BOTH
+        # archie_platform and archie_scheduler — and the real value lives only in
+        # /run/secrets/db_password. `password=os.getenv("DB_PASSWORD", "")` therefore
+        # sent an empty password on EVERY call, so this connection has NEVER succeeded:
+        #     fe_sendauth: no password supplied
+        # Every DB-backed lookup below (routing_mode, model tier configs, task-type
+        # complexity thresholds, the Opus budget cap, v_model_usage_summary, floors)
+        # silently fell back to hardcoded defaults, and the caller logs a WARNING and
+        # continues — so the router LOOKED healthy while ignoring its own configuration.
+        #
+        # ⚠️ This is the SECOND time this exact symptom shipped here. The comment above
+        # describes the first (a `from config import get_db` that never resolved, leaving
+        # get_db=None "forever"). That was fixed by copying department_dispatcher's
+        # connect() — but not its password resolution: the dispatcher uses
+        # `from db import _get_db_password`, which reads the secret. The shape was copied
+        # and the one line that mattered was not.
+        #
+        # Imported INSIDE the function deliberately: module-level would couple import
+        # order and risk a cycle, and sys.modules makes the repeat cost nil.
+        from database import _get_db_password
+
         return psycopg2.connect(
             host=os.getenv("DB_HOST", "192.168.1.200"),
             port=os.getenv("DB_PORT", "5432"),
             database=os.getenv("DB_NAME", "archie"),
             user=os.getenv("DB_USER", "archie"),
-            password=os.getenv("DB_PASSWORD", ""),
+            password=_get_db_password(),
         )
 
 except ImportError:

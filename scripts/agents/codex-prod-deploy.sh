@@ -17,7 +17,11 @@ LOG="/tmp/codex-prod-deploy.log"
 LIVE="${CODEX_DEPLOY_LIVE:-0}"
 HEALTH_TIMEOUT=90
 log(){ echo "$(date '+%F %T') $*" >>"$LOG"; echo "$*"; }
-psql_q(){ docker exec -i archie_database psql -U archie -d archie -tA "$@"; }
+# NOTE (#5980): `docker exec -i` keeps stdin open and DRAINS it. Called from
+# inside `echo "$ROWS" | while read ...`, it swallowed the remaining rows, so
+# the loop silently processed exactly ONE row per invocation. `</dev/null`
+# gives it nothing to eat; every call here passes -c and needs no stdin.
+psql_q(){ docker exec -i archie_database psql -U archie -d archie -tA "$@" </dev/null; }
 
 tg(){ # tg <title> <msg> — Telegram via the platform service (argv; no interpolation)
   docker exec archie_platform python3 -c 'import sys; sys.path.insert(0,"/app")
@@ -46,6 +50,20 @@ echo "$ROWS" | while IFS='|' read -r AID PR MODULE MERGE_SHA; do
     log "REJECT #$AID — invalid merge_sha '$MERGE_SHA'"; continue
   fi
   cd "$REPO"
+
+  # RECONCILE — runs in DRY-RUN too (#5980). If this merge SHA is already an
+  # ancestor of main, the code IS deployed: the flag is stale, not a backlog.
+  # The clear below used to live ONLY inside the LIVE branch, and
+  # CODEX_DEPLOY_LIVE has never been set anywhere, so it never ran. Fourteen
+  # approvals whose PRs merged in June 2026 were re-detected every 2 minutes,
+  # growing an 18 MB log and burying any REAL pending deploy among permanent
+  # false positives. Fails CLOSED: an absent or unknown SHA keeps the flag.
+  if [ -n "$MERGE_SHA" ] && git cat-file -e "${MERGE_SHA}^{commit}" 2>/dev/null \
+     && git merge-base --is-ancestor "$MERGE_SHA" main 2>/dev/null; then
+    log "RECONCILE #$AID — ${MERGE_SHA:0:7} already an ancestor of main; clearing stale deploy_pending"
+    psql_q -c "UPDATE autonomy_approval_queue SET execution_result=jsonb_set(COALESCE(execution_result,'{}'),'{deploy_pending}','false'), updated_at=NOW() WHERE id=$AID;" >>"$LOG" 2>&1 || true
+    continue
+  fi
 
   # SAFETY GUARD: never clobber active dev work. Only DEFER on uncommitted TRACKED
   # changes (which the `git reset --hard` below would discard). Ignore untracked files

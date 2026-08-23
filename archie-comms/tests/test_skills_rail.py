@@ -205,3 +205,36 @@ def test_rail_never_uses_innerHTML():
     block = _strip_js_comments(js[js.index("document.getElementById('ac-skills-list')"):])
     assert "innerHTML" not in block, "the Skills rail must never use innerHTML"
     assert "textContent" in block
+
+
+def test_director_filter_matches_the_UNDOTTED_name():
+    """#5959, found by a live DOM drive: typing "forge" must match "F.O.R.G.E.".
+
+    Agent names are dotted; a human types them without dots. The original filter
+    lowercased both sides but kept the dots, so "forge" returned ZERO rows while a
+    row visibly displayed F.O.R.G.E. Same trap as .claude/rules/database.md
+    (ILIKE '%HAVEN%' never matches 'H.A.V.E.N.').
+
+    The earlier unit tests missed this because they searched WITH the dots typed.
+    """
+    js = open(os.path.join(os.path.dirname(__file__), "..", "static", "js", "archie-chat.js")).read()
+    block = js[js.index("document.getElementById('ac-skills-list')"):]
+    assert "_norm(" in block, "the rail must normalise dotted agent names"
+    assert "replace(/\\./g, '')" in block, "dots must be stripped before matching"
+    # the director comparison must use the normalised form, not the raw one
+    assert "_norm(s.director_agent)" in block
+
+
+def test_dispatch_result_is_sticky_and_not_overwritten_by_render():
+    """#5959, found by clicking the real UI: the task id vanished instantly.
+
+    invoke() sets "task #N queued" then calls render(), and render()'s idle branch
+    reset the line to "237 skills" because _busy was already false. The dispatch DID
+    happen (task 5965 landed with delegation_source='cockpit') — the user just got no
+    confirmation, which is the #5844 failure mode: a success that looks like a no-op.
+    """
+    js = open(os.path.join(os.path.dirname(__file__), "..", "static", "js", "archie-chat.js")).read()
+    block = _strip_js_comments(js[js.index("document.getElementById('ac-skills-list')"):])
+    assert "_sticky" in block, "dispatch results must be marked sticky"
+    assert "!_busy && !_sticky" in block, "the idle status must not clobber a sticky message"
+    assert "_setStatus('task #' + res.d.task_id + ' ' + (res.d.status || 'queued'), true)" in block

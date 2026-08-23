@@ -1523,15 +1523,33 @@ document.addEventListener('DOMContentLoaded', () => {
   var _pollTimer = null;
   var MAX_ROWS = 12;        // a viewport, not all 237 rows
 
-  function _setStatus(text) { statusEl.textContent = text || ''; }
+  // `sticky` marks a message the user must actually SEE (a dispatch result or an
+  // error). render() runs again right after invoke() resolves, and without this it
+  // overwrote "task #N queued" with the idle "237 skills" before anyone could read
+  // it -- the click looked like it did nothing while the task was really dispatched.
+  // Same class as #5844: a success that is indistinguishable from a no-op.
+  var _sticky = false;
+  function _setStatus(text, sticky) {
+    statusEl.textContent = text || '';
+    _sticky = !!sticky;
+  }
+
+  // Agent names are DOTTED (F.O.R.G.E., C.O.D.E.X.). A human types "forge", so
+  // match with the dots stripped from BOTH sides -- otherwise the director filter
+  // silently returns nothing while the row visibly shows that director. Same trap
+  // as .claude/rules/database.md: ILIKE '%HAVEN%' never matches 'H.A.V.E.N.'.
+  // Caught by a live DOM drive (#5959); the unit tests missed it because they
+  // searched with the dots typed in.
+  function _norm(v) { return (v || '').toLowerCase().replace(/\./g, ''); }
 
   function _visible() {
-    var f = (filterEl.value || '').trim().toLowerCase();
-    if (!f) return _skills;
+    var raw = (filterEl.value || '').trim().toLowerCase();
+    if (!raw) return _skills;
+    var f = _norm(raw);
     return _skills.filter(function (s) {
-      return (s.capability || '').toLowerCase().indexOf(f) !== -1 ||
-             (s.home_department || '').toLowerCase().indexOf(f) !== -1 ||
-             (s.director_agent || '').toLowerCase().indexOf(f) !== -1;
+      return (s.capability || '').toLowerCase().indexOf(raw) !== -1 ||
+             (s.home_department || '').toLowerCase().indexOf(raw) !== -1 ||
+             _norm(s.director_agent).indexOf(f) !== -1;
     });
   }
 
@@ -1574,7 +1592,7 @@ document.addEventListener('DOMContentLoaded', () => {
       more.textContent = '… ' + (vis.length - MAX_ROWS) + ' more (type to filter)';
       listEl.appendChild(more);
     }
-    if (!_busy) _setStatus(_skills.length + ' skills');
+    if (!_busy && !_sticky) _setStatus(_skills.length + ' skills');
   }
 
   function invoke(capability) {
@@ -1591,15 +1609,15 @@ document.addEventListener('DOMContentLoaded', () => {
       .then(function (res) {
         _busy = false;
         if (!res.ok || res.d.error) {
-          _setStatus('failed: ' + (res.d.error || 'dispatch error'));
+          _setStatus('failed: ' + (res.d.error || 'dispatch error'), true);
           render();
           return;
         }
-        _setStatus('task #' + res.d.task_id + ' ' + (res.d.status || 'queued'));
+        _setStatus('task #' + res.d.task_id + ' ' + (res.d.status || 'queued'), true);
         render();
         pollTask(res.d.task_id);
       })
-      .catch(function () { _busy = false; _setStatus('dispatch failed'); render(); });
+      .catch(function () { _busy = false; _setStatus('dispatch failed', true); render(); });
   }
 
   function pollTask(taskId) {
@@ -1615,7 +1633,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (d) {
           if (!d) return;
-          _setStatus('task #' + taskId + ' ' + (d.status || '?'));
+          _setStatus('task #' + taskId + ' ' + (d.status || '?'), true);
           if (d.status === 'completed' || d.status === 'blocked' || d.status === 'failed') {
             clearInterval(_pollTimer); _pollTimer = null;
           }
@@ -1624,7 +1642,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3000);
   }
 
-  filterEl.addEventListener('input', render);
+  filterEl.addEventListener('input', function () {
+    _sticky = false;   // the user moved on; let the idle count show again
+    render();
+  });
 
   fetch('/api/skills')
     .then(function (r) { return r.ok ? r.json() : null; })

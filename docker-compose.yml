@@ -518,6 +518,16 @@ services:
       - KYTRAN_AUTH_URL=https://platform.kytranempowerment.com
       - KYTRAN_AUTH_INTERNAL_URL=http://archie_platform:3000
       - KYTRAN_REDIRECT_URI=https://archie.kytranempowerment.com/auth/kytran/callback
+      # #5959 — LAN-origin OAuth client, so the cockpit can be browser-tested from
+      # ON the hub. AdGuard split-horizon points archie.kytranempowerment.com at
+      # 192.168.1.200, which has no :443 listener (Beacon is the front door), so the
+      # SSO hop cannot complete locally. kytran_auth picks this client ONLY when the
+      # request ARRIVES on a private/mesh origin — keyed on the request host, never a
+      # flag, so the public hostname can never take it. Unset these and behaviour is
+      # byte-identical to before. oauth_clients row: archie-comms-lan (id 27).
+      - KYTRAN_LAN_CLIENT_ID=${KYTRAN_LAN_CLIENT_ID:-}
+      - KYTRAN_LAN_CLIENT_SECRET=${KYTRAN_LAN_CLIENT_SECRET:-}
+      - KYTRAN_LAN_REDIRECT_URI=${KYTRAN_LAN_REDIRECT_URI:-}
       # Secure=false: comms sits behind NPM (TLS at the edge) and sees the request as http
       # with no ProxyFix, so a Secure cookie is dropped on the post-login redirect hop → the
       # session is lost → login loops (SSO accepted repeatedly). The padlock comes from NPM's

@@ -16,6 +16,7 @@ Env vars required:
 import base64
 import hashlib
 import os
+import re as _re
 import secrets
 import time
 from functools import wraps
@@ -36,6 +37,22 @@ def _clean_expired_states():
         _pending_states.pop(k, None)
 
 
+_LAN_HOST_RE = _re.compile(
+    r"^(?:localhost"
+    r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|192\.168\.\d{1,3}\.\d{1,3}"
+    r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
+    r"|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}"
+    r")$"
+)
+
+
+def _is_lan_host(host: str) -> bool:
+    """True for a private/mesh origin. A PUBLIC hostname can never match."""
+    return bool(_LAN_HOST_RE.match(host or ""))
+
+
 class KytranAuth:
     def __init__(self, app=None):
         self.client_id = None
@@ -47,6 +64,35 @@ class KytranAuth:
         self._on_login = None
         if app:
             self.init_app(app)
+
+    # --- #5959: LAN QA origin support ---------------------------------------
+    # The cockpit's OAuth client is pinned to https://archie.kytranempowerment.com.
+    # From ON the hub, AdGuard split-horizon resolves that name to 192.168.1.200,
+    # which has no :443 listener (NPM decommissioned; Beacon is the front door),
+    # so the SSO hop dies with ERR_CONNECTION_REFUSED and the cockpit cannot be
+    # browser-tested locally at all — the gap that left the Skills rail (#5334)
+    # shipped with no DOM verification.
+    #
+    # Fix: when a request ARRIVES on a private/mesh origin, use a separate
+    # registered client (archie-comms-lan) whose redirect_uri is that origin.
+    #
+    # The branch is keyed on the REQUEST HOST, not a feature flag, so the public
+    # hostname can never take it — 'archie.kytranempowerment.com' cannot match a
+    # private-IPv4 pattern. With the LAN env vars unset this is byte-identical to
+    # the previous behaviour. Both properties are pinned by tests.
+    def client_for_request(self):
+        """(client_id, client_secret, redirect_uri) for THIS request's origin."""
+        lan_id = os.environ.get("KYTRAN_LAN_CLIENT_ID", "").strip()
+        lan_uri = os.environ.get("KYTRAN_LAN_REDIRECT_URI", "").strip()
+        if lan_id and lan_uri:
+            try:
+                host = (request.host or "").split(":")[0].strip().lower()
+            except Exception:  # outside a request context
+                host = ""
+            if _is_lan_host(host):
+                lan_secret = os.environ.get("KYTRAN_LAN_CLIENT_SECRET", "").strip()
+                return lan_id, (lan_secret or self.client_secret), lan_uri
+        return self.client_id, self.client_secret, self.redirect_uri
 
     def init_app(self, app):
         """Configure OAuth settings and register auth routes."""
@@ -109,10 +155,11 @@ class KytranAuth:
             session["oauth_next"] = next_url
             session["oauth_code_verifier"] = code_verifier
 
+            _cid, _csec, _curi = sdk.client_for_request()
             authorize_url = (
                 f"{sdk.auth_url}/oauth/authorize"
-                f"?client_id={sdk.client_id}"
-                f"&redirect_uri={sdk.redirect_uri}"
+                f"?client_id={_cid}"
+                f"&redirect_uri={_curi}"
                 f"&response_type=code"
                 f"&state={state}"
                 f"&code_challenge={code_challenge}"
@@ -153,13 +200,15 @@ class KytranAuth:
                 error = request.args.get("error", "unknown")
                 return f"Authorization failed: {error}", 400
 
-            # Exchange code for token
+            # Exchange code for token — same origin-resolved client as the
+            # authorize hop, or the code/redirect_uri pair will not match.
+            _cb_cid, _cb_csec, _cb_curi = sdk.client_for_request()
             token_payload = {
                 "grant_type": "authorization_code",
                 "code": code,
-                "client_id": sdk.client_id,
-                "client_secret": sdk.client_secret,
-                "redirect_uri": sdk.redirect_uri,
+                "client_id": _cb_cid,
+                "client_secret": _cb_csec,
+                "redirect_uri": _cb_curi,
             }
             if code_verifier:
                 token_payload["code_verifier"] = code_verifier

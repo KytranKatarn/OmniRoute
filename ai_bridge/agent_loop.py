@@ -1168,6 +1168,27 @@ class AgentLoop:
         except Exception as _bpm_err:
             logger.warning("Backup posture monitor not scheduled: %s", _bpm_err)
 
+        # Per-lane coder dormancy (#380). Every autonomous coder on this platform was
+        # built, merged, and then quietly stopped — Codex last dispatched 2026-06-28,
+        # the archie_engine build loop 2026-07-20 — and nothing reported the silence.
+        # Deterministic, no LLM in the alert path; a lane that never ran reports
+        # 'unknown' rather than alerting, so a fresh deploy must not page. Hourly is
+        # ample for thresholds measured in days. Alert-only, never mutates.
+        try:
+            from services.lane_liveness_monitor import check_lane_liveness
+
+            self.scheduler.add_job(
+                with_app_context(check_lane_liveness),
+                trigger=IntervalTrigger(hours=1),
+                id="lane_liveness_monitor",
+                name="Agent Loop: Lane Liveness Monitor (#380)",
+                max_instances=1,
+                coalesce=True,
+                replace_existing=True,
+            )
+        except Exception as _llm_err:
+            logger.warning("Lane liveness monitor not scheduled: %s", _llm_err)
+
         # Dispatch drain liveness (#5699). The queue's single consumer went absent
         # twice in one week — a 50h whole-scheduler outage and chronic 5-12 min
         # cycles under max_instances=1 — and 1,589 rows of real work were reaped as

@@ -5682,6 +5682,26 @@ def api_internal_delegation_status(task_id):
     )
 
 
+@app.route("/api/internal/lane-liveness", methods=["GET"])
+@_require_internal_key  # VERIFIED name (leading underscore) -- same guard used by
+# /api/internal/delegation/invokable-skills and
+# /api/internal/delegation/submit above.
+def api_internal_lane_liveness():
+    """Per-lane dormancy for the cockpit badge (#380).
+
+    Internal-key surface, NOT session-gated: the cockpit is a separate
+    container holding the internal key and no session cookie. #2781 shipped
+    exactly this bug once already -- a registry gated behind a session admin
+    check, so the only surface that needed it got 401 with every credential
+    it had.
+    """
+    from services.lane_liveness_monitor import check_lane_liveness
+
+    # alert=False: the hourly job owns alerting. A page refresh must never page.
+    data = check_lane_liveness(alert=False)
+    return jsonify({"ok": True, **data})
+
+
 @app.route("/api/internal/repair/count")
 @_require_internal_key
 def api_internal_repair_count():

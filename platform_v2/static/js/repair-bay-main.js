@@ -326,23 +326,57 @@ function _buildReviewCard(pr) {
     });
     actions.appendChild(viewBtn);
 
-    // Show merge button if mergeable AND no one requested changes.
-    // Admin (user) can merge their own PRs without requiring a separate
-    // review decision — which is the common case for solo dev flow.
-    if (pr.mergeable === 'MERGEABLE' && pr.review_decision !== 'CHANGES_REQUESTED') {
-        var mergeBtn = _rbMakeEl('button', {
-            cls: 'dp-btn',
-            style: 'padding:6px 14px; font-size:0.8rem; background:#22c55e; color:#0a0e1a; border:none; border-radius:3px; cursor:pointer; font-weight:700; white-space:nowrap;',
-            text: 'Merge ✓',
-            onclick: function() { _mergePr(pr.number, mergeBtn); }
-        });
-        actions.appendChild(mergeBtn);
-    } else if (pr.mergeable === 'CONFLICTING') {
+    // #5853: render the SERVER's merge_state, never GitHub's fields.
+    // The old condition was `pr.mergeable === 'MERGEABLE' && pr.review_decision !==
+    // 'CHANGES_REQUESTED'`. Both are GitHub's own — and F.O.R.G.E. posts NO GitHub
+    // review (its verdict lives in pr_reviews.ai_summary), so review_decision is
+    // ~always null and the test collapsed to "mergeable => enabled green button".
+    // A REQUEST CHANGES, a coverage demotion and a never-reviewed PR all rendered
+    // identically, and you only learned the truth from a 422 after clicking.
+    // The verdict rule stays SERVER-side (tests/test_merge_state_ui.py pins that);
+    // this reads a decision it did not make.
+    var ms = pr.merge_state || {};
+    var msOk = !!ms.mergeable;
+    var ghOk = pr.mergeable === 'MERGEABLE';
+
+    if (pr.mergeable === 'CONFLICTING') {
+        // Checked FIRST: a conflict blocks the merge whatever the verdict says.
         var conflictBadge = _rbMakeEl('span', {
             style: 'padding:6px 12px; font-size:0.75rem; background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid #ef4444; border-radius:3px;',
             text: 'Needs rebase'
         });
         actions.appendChild(conflictBadge);
+    } else if (msOk && ghOk) {
+        // coverage_only is mergeable ONLY with an explicit ack. _doMergePr already
+        // handles that round-trip (422 -> _rbCoverageAckPrompt naming the files), so
+        // the amber colour is a HONEST PREVIEW of the confirm, not a second gate.
+        var coverage = ms.state === 'coverage_only';
+        var nDropped = (ms.dropped_files || []).length;
+        var mergeBtn = _rbMakeEl('button', {
+            cls: 'dp-btn',
+            style: 'padding:6px 14px; font-size:0.8rem; background:' +
+                (coverage ? '#f59e0b' : '#22c55e') +
+                '; color:#0a0e1a; border:none; border-radius:3px; cursor:pointer; font-weight:700; white-space:nowrap;',
+            text: coverage ? ('Merge (' + nDropped + ' unread)') : 'Merge ✓',
+            onclick: function() { _mergePr(pr.number, mergeBtn); }
+        });
+        if (ms.hint) mergeBtn.title = ms.hint;
+        actions.appendChild(mergeBtn);
+    } else {
+        // Disabled, and it SAYS WHY. Two distinct reasons, never conflated:
+        // the verdict does not authorize it, or GitHub has not called it mergeable.
+        var blockedBtn = _rbMakeEl('button', {
+            cls: 'dp-btn',
+            style: 'padding:6px 14px; font-size:0.8rem; background:rgba(100,116,139,0.15); color:#64748b; border:1px solid #64748b55; border-radius:3px; cursor:not-allowed; font-weight:700; white-space:nowrap;',
+            text: msOk
+                ? ('GitHub: ' + String(pr.mergeable || 'unknown').toLowerCase())
+                : (ms.label || 'WAITING FOR REVIEW')
+        });
+        blockedBtn.disabled = true;
+        blockedBtn.title = msOk
+            ? 'GitHub has not reported this PR as mergeable yet.'
+            : (ms.hint || 'No stored verdict yet — nothing has reviewed this PR.');
+        actions.appendChild(blockedBtn);
     }
 
     card.appendChild(actions);

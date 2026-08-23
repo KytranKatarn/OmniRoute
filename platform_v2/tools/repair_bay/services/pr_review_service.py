@@ -1000,6 +1000,65 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     return rows
 
 
+def stamp_merge_states(prs: list, repo: str = None) -> list:
+    """Stamp ``merge_state`` onto GitHub-shaped PR dicts from their STORED verdicts.
+
+    The Reviews-tab list (``GET /api/forge/prs``) renders from a GitHub payload whose
+    ``mergeable`` / ``review_decision`` fields know nothing about F.O.R.G.E. — it stores
+    its verdict in ``pr_reviews.ai_summary`` and posts **no GitHub review**, so
+    ``review_decision`` is ~always null and a button gated on it degenerates to
+    "mergeable => green". That surface therefore rendered an enabled green Merge on a
+    REQUEST CHANGES and on a coverage demotion alike (#5853); #2737 fixed only the
+    OTHER surface, which reads ``list_reviews()``.
+
+    Reuses the same pure ``merge_state()`` as ``list_reviews`` so the two surfaces cannot
+    drift — a second copy of the verdict rule is exactly what #2722 collapsed.
+
+    Fail-CLOSED, in both directions that matter:
+      * a PR with **no stored row** stamps ``awaiting_review`` / ``mergeable=False``,
+        which is precisely what ``verdict_refusal("", False)`` returns for an empty
+        summary ("a dead review is not an approval"), so the row and the route agree;
+      * a **DB read error** stamps the same, because a UI that cannot read the verdict
+        must not imply one.
+    The UI can therefore only ever be MORE conservative than the server, never less —
+    it is a mirror of the gate, not a second gate.
+    """
+    prs = prs or []
+    if not prs:
+        return prs
+    _repo = (repo or _DEFAULT_REPO).strip()
+
+    numbers = []
+    for pr in prs:
+        n = pr.get("number")
+        if isinstance(n, int):
+            numbers.append(n)
+
+    stored: dict = {}
+    if numbers:
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT pr_number, review_status, ai_summary FROM pr_reviews "
+                    "WHERE repo = %s AND pr_number = ANY(%s)",
+                    (_repo, numbers),
+                )
+                for row in cur.fetchall():
+                    stored[row["pr_number"]] = (row["review_status"], row["ai_summary"])
+        except Exception as e:  # fail-CLOSED: unknown verdict => not mergeable
+            logger.warning(
+                "stamp_merge_states: verdict lookup failed for %s, rendering all rows " "as awaiting_review: %s",
+                _repo,
+                e,
+            )
+            stored = {}
+
+    for pr in prs:
+        status, summary = stored.get(pr.get("number"), (None, None))
+        pr["merge_state"] = merge_state(status, summary)
+    return prs
+
+
 def get_review(pr_number: int, repo: str = None) -> dict | None:
     """Fetch a single PR review by number."""
     with get_db_cursor() as (conn, cur):

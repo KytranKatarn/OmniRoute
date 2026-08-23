@@ -55,9 +55,22 @@ def register_github_routes(bp, admin_required):
         is still available via list_pipeline_prs() for F.O.R.G.E.-specific views.
         """
         from .services.github_service import list_all_prs_enriched
+        from .services.pr_review_service import stamp_merge_states
 
         state = request.args.get("state", "open")
-        return jsonify(list_all_prs_enriched(state))
+        data = list_all_prs_enriched(state)
+        # #5853: this payload is GitHub-shaped — `mergeable`/`review_decision` know
+        # nothing about the F.O.R.G.E. verdict, so the Reviews tab was rendering an
+        # enabled green Merge on PRs the server would refuse. Stamp the SAME
+        # merge_state that list_reviews() uses so both surfaces agree.
+        # Best-effort: a stamping failure must degrade the BUTTON, never the LISTING —
+        # stamp_merge_states is itself fail-closed, so an unstamped row is simply
+        # rendered as awaiting_review by the client.
+        try:
+            stamp_merge_states(data.get("prs") or [])
+        except Exception as exc:
+            logger.warning("forge_list_prs: merge_state stamping failed: %s", exc)
+        return jsonify(data)
 
     @bp.route("/api/forge/prs/<int:pr_number>", methods=["GET"])
     @login_required

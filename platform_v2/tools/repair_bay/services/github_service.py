@@ -566,15 +566,28 @@ _AUTHORITY_CEILING = {
 }
 _DEFAULT_AUTHORITY = "forge"  # most restrictive; an unknown caller never inherits COO powers
 
+# Manifest item_types that denote an actual GitHub pull request. Anything else
+# — 'unified_task', 'proposal', 'code_issue' (written by services.proposer_service
+# onto this SAME maintenance_window_items table) — carries a `ref` that is a
+# SOURCE-ROW id, not a PR number, and must never authorise a merge just because
+# that id happens to collide with a real PR number (#380 review round 2, Critical 1).
+_PR_ITEM_TYPES = ("repair_bay_pr", "pr")
 
-def _pr_on_open_window(pr_number: int) -> tuple:
-    """Is there an OPEN maintenance window whose manifest contains this PR? (#5247b)
 
-    The extra condition that makes 'coo_window' narrower than 'coo'. Three things
-    must hold, and each exists for a reason:
+def _pr_on_open_window(pr_number: int, repo: str = None) -> tuple:
+    """Is there an OPEN maintenance window whose manifest contains this (repo, PR)? (#5247b)
+
+    Four things must hold, and each exists for a reason:
 
       * a window is OPEN — not merely planned or announced. An announced window is
         a proposal; an open one is the period the owner agreed to.
+      * the item's item_type denotes an actual pull request (_PR_ITEM_TYPES) —
+        NOT a unified_task/proposal/code_issue row from proposer_service.py.
+        Those share this same table and repo string, and their `ref` is a
+        SOURCE-ROW id — measured to overlap real PR numbers (unified_tasks ids
+        535-5985, improvement_proposals ids 328-11758, latest PR #2790). Matching
+        on ref+repo alone let a window containing 'proposal ref 2790' authorise
+        an unrelated PR #2790 (#380 review round 2, Critical 1).
       * the PR is ON that window's manifest — the owner was shown a SPECIFIC list
         beforehand. add_item() already refuses to extend a manifest once the window
         opens, so the list cannot grow after approval; honouring it here is what
@@ -585,19 +598,45 @@ def _pr_on_open_window(pr_number: int) -> tuple:
     FAILS CLOSED. No window, no manifest hit, a lookup error, or the schedule
     service being unavailable all return False. An unattended merge must never
     happen because a check could not be performed.
+
+    REPO QUALIFICATION: PR numbers collide across repos. Matching on the number
+    alone let a window listing archie-platform #48 authorise archie-code #48.
+    An item naming no repo authorises NOTHING — fail closed, never assume the
+    default repo, or the hole silently reopens.
     """
     try:
         from services.maintenance_schedule_service import get_manifest, list_windows
 
+        want_repo = (repo or REPO_FULL or "").strip()
         open_windows = list_windows(status="open", limit=5) or []
         if not open_windows:
             return False, "no maintenance window is open"
         for w in open_windows:
             for item in get_manifest(w["id"]) or []:
-                if str(item.get("ref") or "") == str(pr_number):
-                    if (item.get("status") or "planned") != "planned":
-                        return False, f"PR #{pr_number} already '{item.get('status')}' on window {w['id']}"
-                    return True, f"on the manifest of open window {w['id']}"
+                if str(item.get("ref") or "") != str(pr_number):
+                    continue
+                item_type = (item.get("item_type") or "").strip()
+                if item_type not in _PR_ITEM_TYPES:
+                    # Same ref, same repo, wrong kind of row — a source-row id
+                    # collision, not a pull request. Skip it and keep scanning
+                    # the rest of this window's manifest rather than denying
+                    # outright, in case a genuine PR item with the same ref
+                    # exists elsewhere on it.
+                    continue
+                item_repo = (item.get("repo") or "").strip()
+                if not item_repo:
+                    return False, (
+                        f"PR #{pr_number} is on window {w['id']} but the entry names no repo "
+                        f"— refusing (a repo-less entry authorises nothing)"
+                    )
+                if item_repo != want_repo:
+                    return False, (
+                        f"PR #{pr_number} on window {w['id']} is for {item_repo}, "
+                        f"not {want_repo} — a window for one repo grants nothing in another"
+                    )
+                if (item.get("status") or "planned") != "planned":
+                    return False, f"PR #{pr_number} already '{item.get('status')}' on window {w['id']}"
+                return True, f"on the manifest of open window {w['id']} for {item_repo}"
         return False, f"PR #{pr_number} is not on any open window's approved manifest"
     except Exception as exc:  # noqa: BLE001 - fail closed, always
         return False, f"window check failed ({type(exc).__name__}) — refusing"
@@ -853,7 +892,7 @@ def _automerge_governance_ok(pr_number: int, repo: str = None, authority: str = 
         # merge under COO authority is permitted only INSIDE the window the owner
         # agreed to, for a PR that was on the list they were shown.
         if (authority or "").lower() == "coo_window":
-            on_window, why = _pr_on_open_window(pr_number)
+            on_window, why = _pr_on_open_window(pr_number, repo=repo or REPO_FULL)
             if not on_window:
                 return (False, f"PR #{pr_number}: {why} — refusing window-scoped merge")
             return (True, f"approved, Tier {tier} <= {max_auto}, {why}")

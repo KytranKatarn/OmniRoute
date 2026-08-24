@@ -106,6 +106,8 @@ def _record_on_next_window(proposal: Dict, pr_result: Dict) -> None:
     try:
         from services.maintenance_schedule_service import add_item, next_window
 
+        from .github_service import REPO_FULL
+
         window = next_window(create_if_missing=False)
         if not window:
             logger.info(
@@ -121,6 +123,11 @@ def _record_on_next_window(proposal: Dict, pr_result: Dict) -> None:
             item_type="repair_bay_pr",
             ref=str(pr_result.get("pr_number")),
             added_by="repair_bay",
+            # F.O.R.G.E. self-heal PRs are always against archie-platform. Without
+            # this, the item's repo is NULL and _pr_on_open_window refuses it
+            # ("names no repo") — the manifest would ship with zero working
+            # producers (#380 fix round 1).
+            repo=REPO_FULL,
         )
         if res.get("ok") is False:
             logger.info(

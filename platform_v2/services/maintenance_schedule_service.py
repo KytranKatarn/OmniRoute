@@ -110,11 +110,15 @@ def add_item(
     item_type: str = "other",
     ref: str = None,
     added_by: str = "repair_bay",
+    repo: str = None,
 ) -> dict:
     """Append a fix to a window's manifest.
 
     Refuses once a window has opened — the owner approved a SPECIFIC list, and
     silently extending it after the fact would make that approval meaningless.
+
+    ``repo`` qualifies ``ref``: PR numbers collide across repos, so an entry
+    that names no repo authorises nothing (see _pr_on_open_window).
     """
     with _cursor() as (conn, cur):
         cur.execute("SELECT status FROM maintenance_windows WHERE id = %s", (window_id,))
@@ -128,9 +132,9 @@ def add_item(
             }
         cur.execute(
             """INSERT INTO maintenance_window_items
-                   (window_id, item_type, ref, title, added_by)
-               VALUES (%s, %s, %s, %s, %s) RETURNING id""",
-            (window_id, item_type, ref, title, added_by),
+                   (window_id, item_type, ref, title, added_by, repo)
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+            (window_id, item_type, ref, title, added_by, repo),
         )
         item_id = cur.fetchone()["id"]
         # Adding to an ALREADY-announced window invalidates that announcement:
@@ -146,7 +150,7 @@ def add_item(
 def get_manifest(window_id: int) -> list:
     with _cursor() as (conn, cur):
         cur.execute(
-            """SELECT id, item_type, ref, title, added_by, status, notes
+            """SELECT id, item_type, ref, title, added_by, status, notes, repo
                  FROM maintenance_window_items WHERE window_id = %s ORDER BY id""",
             (window_id,),
         )

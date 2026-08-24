@@ -60,7 +60,11 @@ _ANNOUNCED = [{"id": 3, "status": "announced"}]
 
 # ------------------------------------------------------------- happy path ---
 def test_pr_on_open_window_manifest_is_allowed(monkeypatch):
-    _install(monkeypatch, _OPEN, {3: [{"ref": "2499", "status": "planned"}]})
+    _install(
+        monkeypatch,
+        _OPEN,
+        {3: [{"ref": "2499", "repo": gs.REPO_FULL, "status": "planned", "item_type": "repair_bay_pr"}]},
+    )
     ok, why = gs._pr_on_open_window(2499)
     assert ok is True
     assert "open window 3" in why
@@ -69,7 +73,11 @@ def test_pr_on_open_window_manifest_is_allowed(monkeypatch):
 def test_ref_is_compared_as_a_string(monkeypatch):
     """manifest refs are TEXT; a PR number is an int. A type mismatch here would
     silently deny every merge."""
-    _install(monkeypatch, _OPEN, {3: [{"ref": 2499, "status": "planned"}]})
+    _install(
+        monkeypatch,
+        _OPEN,
+        {3: [{"ref": 2499, "repo": gs.REPO_FULL, "status": "planned", "item_type": "repair_bay_pr"}]},
+    )
     ok, _ = gs._pr_on_open_window(2499)
     assert ok is True
 
@@ -100,10 +108,39 @@ def test_pr_not_on_the_manifest_denies(monkeypatch):
 
 
 def test_already_deployed_item_denies(monkeypatch):
-    _install(monkeypatch, _OPEN, {3: [{"ref": "2499", "status": "deployed"}]})
+    _install(
+        monkeypatch,
+        _OPEN,
+        {3: [{"ref": "2499", "repo": gs.REPO_FULL, "status": "deployed", "item_type": "repair_bay_pr"}]},
+    )
     ok, why = gs._pr_on_open_window(2499)
     assert ok is False
     assert "already" in why
+
+
+# --------------------------------------------------------- item_type gate ---
+def test_a_non_pr_item_type_is_never_authorised(monkeypatch):
+    """#380 review round 2, Critical 1: proposer_service writes unified_task /
+    proposal / code_issue manifest rows whose `ref` is a SOURCE-ROW id, not a PR
+    number -- and those id ranges overlap real PR numbers. Matching on ref+repo
+    alone let a window listing 'proposal ref 2790' authorise unrelated PR #2790."""
+    _install(
+        monkeypatch,
+        _OPEN,
+        {3: [{"ref": "2499", "repo": gs.REPO_FULL, "status": "planned", "item_type": "proposal"}]},
+    )
+    ok, _ = gs._pr_on_open_window(2499)
+    assert ok is False
+
+
+def test_a_repair_bay_pr_item_type_is_still_authorised(monkeypatch):
+    _install(
+        monkeypatch,
+        _OPEN,
+        {3: [{"ref": "2499", "repo": gs.REPO_FULL, "status": "planned", "item_type": "repair_bay_pr"}]},
+    )
+    ok, _ = gs._pr_on_open_window(2499)
+    assert ok is True
 
 
 def test_lookup_error_fails_closed(monkeypatch):

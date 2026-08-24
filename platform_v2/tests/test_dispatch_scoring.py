@@ -603,7 +603,7 @@ class TestCrossDepartmentSkillFallback:
         coord._agent_cache = agent_cache
         coord._welfare_cache = welfare_cache or {}
         coord._cache_time = float("inf")
-        coord._reserved_agents = set()
+        coord._reserved_agents = {}
         import threading
 
         coord._lock = threading.Lock()
@@ -791,7 +791,7 @@ class TestMultiAgentDispatchCoverage:
         coord._agent_cache = _roster_cache()
         coord._welfare_cache = {}
         coord._cache_time = float("inf")
-        coord._reserved_agents = set()
+        coord._reserved_agents = {}
         import threading
 
         coord._lock = threading.Lock()
@@ -905,7 +905,7 @@ class TestSpecialistPreference:
         coord._agent_cache = agent_cache
         coord._welfare_cache = welfare_cache or {}
         coord._cache_time = float("inf")
-        coord._reserved_agents = set()
+        coord._reserved_agents = {}
         import threading
 
         coord._lock = threading.Lock()
@@ -1023,7 +1023,7 @@ class TestNewsBeatClassificationSpecialist:
         coord._agent_cache = agent_cache
         coord._welfare_cache = welfare_cache or {}
         coord._cache_time = float("inf")
-        coord._reserved_agents = set()
+        coord._reserved_agents = {}
         import threading
 
         coord._lock = threading.Lock()
@@ -1122,7 +1122,7 @@ class TestTokenBudgetThrottle:
         coord._agent_cache = agent_cache
         coord._welfare_cache = welfare_cache
         coord._cache_time = float("inf")
-        coord._reserved_agents = set()
+        coord._reserved_agents = {}
         coord._lock = threading.Lock()
         coord._distress = set()
         coord._distress_time = float("inf")
@@ -1212,7 +1212,7 @@ class TestNewsDedicationWall:
         coord._agent_cache = agent_cache
         coord._welfare_cache = welfare_cache or {}
         coord._cache_time = float("inf")
-        coord._reserved_agents = set()
+        coord._reserved_agents = {}
         import threading
 
         coord._lock = threading.Lock()
@@ -1356,7 +1356,7 @@ def test_select_agents_returns_top_n_home_department_only():
     coord._agent_cache = {"D.A.R.W.I.N.": a1, "W.A.T.C.H.": a2, "S.C.O.U.T.": a3, "F.O.R.G.E.": a4}
     coord._welfare_cache = welfare
     coord._cache_time = float("inf")
-    coord._reserved_agents = set()
+    coord._reserved_agents = {}
     coord._lock = threading.Lock()
     coord._refresh_distress = lambda: None  # no DB
 

@@ -64,3 +64,69 @@ def test_unreserved_agent_is_not_blocked():
     c = _coordinator()
     with c._lock:
         assert c._is_reserved_locked(999) is False
+
+
+# ---------------------------------------------------------------------------
+# The CONTRACT (#5993). #5007 changed `_reserved_agents` from a bare set to a
+# TTL map, and 30 test fixtures still built the old shape — they blew up with
+# `AttributeError: 'set' object has no attribute 'get'` pointing at PRODUCTION
+# code, which reads like a live dispatch bug until you check the live object.
+#
+# One shape change should fail in ONE obvious place, not 30 scattered ones.
+# ---------------------------------------------------------------------------
+
+
+def test_reserved_agents_is_a_MAPPING_of_agent_id_to_timestamp():
+    """A set satisfies `in` but not `.get()` — which is exactly how #5993 hid.
+
+    If a future change swaps the container again, this is the test that should
+    fail first and say what the shape is supposed to be."""
+    c = _coordinator()
+    assert isinstance(c._reserved_agents, dict), (
+        "_reserved_agents must be a Dict[int, float] (agent_id -> time.monotonic()); "
+        "a set passes `in` checks but has no .get(), so _is_reserved_locked raises"
+    )
+    assert c._reserved_agents == {}, "a fresh coordinator must hold no reservations"
+
+
+def test_the_production_write_site_stores_a_MONOTONIC_TIMESTAMP():
+    """The TTL machinery does arithmetic on the value (`now - t`).
+
+    A bool or None would satisfy an isinstance(dict) check and still break
+    _sweep_stale_reservations() and _is_reserved_locked(). There is no
+    reserve_agent() to call — the reservation is written inline inside
+    select_agent — so this pins the WRITE SITE itself rather than a value a
+    test hand-built, which would only prove the test's own assumption."""
+    import inspect
+
+    from services import department_coordinator
+
+    src = inspect.getsource(department_coordinator)
+    assert "self._reserved_agents[agent_id] = time.monotonic()" in src, (
+        "the reservation write site changed shape — the value must stay a "
+        "time.monotonic() float, because _is_reserved_locked and "
+        "_sweep_stale_reservations subtract it from time.monotonic()"
+    )
+
+
+def test_no_test_fixture_rebuilds_the_pre_5007_SET_shape():
+    """Grep guard. The 30 #5993 failures were all `_reserved_agents = set()` in fixtures.
+
+    Asserted over the test tree because a stale fixture is invisible until the whole
+    suite runs — and until 2026-08-24 the suite could not finish (#5998), so these sat
+    undetected. This makes a revert fail loudly in one place instead of scattering."""
+    import pathlib
+    import re
+
+    tests_dir = pathlib.Path(__file__).parent
+    offenders = []
+    for path in tests_dir.rglob("test_*.py"):
+        if path.name == pathlib.Path(__file__).name:
+            continue  # this file names the bad pattern on purpose, in prose
+        for i, line in enumerate(path.read_text().splitlines(), 1):
+            if re.search(r"_reserved_agents\s*=\s*set\(", line):
+                offenders.append(f"{path.name}:{i}")
+    assert not offenders, (
+        "_reserved_agents is a TTL map since #5007, not a set — these fixtures build "
+        "the pre-#5007 shape and will raise AttributeError inside production code: " + ", ".join(offenders)
+    )

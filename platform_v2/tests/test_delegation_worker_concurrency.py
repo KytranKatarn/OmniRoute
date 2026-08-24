@@ -59,6 +59,52 @@ sys.modules.setdefault("services.telegram_service", _stub_telegram)
 from services import delegation_service as ds  # noqa: E402
 
 
+# Task ids this file ever queues. Anything else reaching the recorder came from OUTSIDE
+# this test — see _recording_complete below (#6019).
+_OWN_TASK_IDS = frozenset({1, 2, 3, 4, 5, 7, 9})
+
+
+def _recording_complete(rec):
+    """Record completions, and make a FOREIGN one self-diagnosing (#6019).
+
+    test_tasks_run_concurrently failed once in three full-suite runs with
+        assert [1, 2, 3, 4, 33, 34, ...] == [1, 2, 3, 4]
+    Four consecutive ids this file never queues (it uses only 1,2,3,4,5,7,9) arrived in a
+    PER-TEST fixture's recorder. Something outside the test called the monkeypatched
+    `ds.mark_task_completed` while it was installed — a worker thread that outlived its own
+    test and is still running against the same delegation_service module object.
+
+    The leak source is NOT identifiable statically: every ThreadPoolExecutor in these files
+    is `shutdown(wait=True)`, delegation_service's only detached thread is the telegram
+    fire-and-forget one (which never touches mark_task_completed), and no delegation test
+    file uses ids in the 30s. It is also not reproducible on demand — it passed the other
+    two runs.
+
+    So: capture it when it next happens rather than guess. This prints the offending id and
+    the FULL STACK of whatever thread is calling, which names the leaker directly. Kept in
+    the assertion path (not a bare print) so the evidence lands in the failure output.
+
+    ⚠️ Do NOT "fix" #6019 by filtering foreign ids out of `rec`. That would hide a thread
+    doing real work during unrelated tests, which is the actual defect.
+    """
+
+    def _mark(tid, summary, response=None, capability=None):
+        if tid not in _OWN_TASK_IDS:
+            import threading as _t
+            import traceback as _tb
+
+            rec.setdefault("foreign", []).append(
+                {
+                    "tid": tid,
+                    "thread": _t.current_thread().name,
+                    "stack": "".join(_tb.format_stack()),
+                }
+            )
+        rec["completed"].append(tid)
+
+    return _mark
+
+
 @pytest.fixture
 def patched(monkeypatch):
     """Patch every DB/comms boundary; return a recorder of mark_* calls."""
@@ -77,9 +123,7 @@ def patched(monkeypatch):
 
     monkeypatch.setattr(ds, "fetch_pending_delegations", _fetch)
     monkeypatch.setattr(ds, "mark_task_in_progress", lambda tid: rec["in_progress"].append(tid))
-    monkeypatch.setattr(
-        ds, "mark_task_completed", lambda tid, summary, response=None, capability=None: rec["completed"].append(tid)
-    )
+    monkeypatch.setattr(ds, "mark_task_completed", _recording_complete(rec))
     monkeypatch.setattr(ds, "mark_task_failed", lambda tid, err: rec["failed"].append((tid, err)))
     monkeypatch.setattr(ds, "mark_task_queued", lambda tid, summary: rec["queued"].append(tid))
     monkeypatch.setattr(ds, "emit_delegation_event", lambda *a, **k: None)
@@ -122,7 +166,12 @@ def test_tasks_run_concurrently(patched, monkeypatch):
     pool.shutdown(wait=True)
 
     assert stats["completed"] == 4
-    assert sorted(patched["completed"]) == [1, 2, 3, 4]
+    assert sorted(patched["completed"]) == [
+        1,
+        2,
+        3,
+        4,
+    ], "foreign completions leaked in from another test's thread (#6019): " + repr(patched.get("foreign", []))
     assert elapsed < 1.2, f"serial would be ~1.6s; got {elapsed:.2f}s"
     assert inflight == []  # all finished within budget, nothing carried
 

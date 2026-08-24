@@ -87,7 +87,22 @@ def now():
 
 
 def patch_db(cursor):
-    return patch("tools.brainstorm.routes.get_db_cursor", return_value=fake_db_cursor(cursor))
+    """Patch `get_db_cursor` so EVERY call gets its OWN context manager (#6015).
+
+    `return_value=fake_db_cursor(cursor)` evaluates once, so all calls share a single
+    `_GeneratorContextManager`. `__enter__` does `del self.args` on first use, so the
+    SECOND `with get_db_cursor(...)` in a route raises
+    `AttributeError: '_GeneratorContextManager' object has no attribute 'args'` — which
+    surfaces as an HTTP 500 and reads like a production defect. It is not: the route
+    correctly calls get_db_cursor() afresh each time; the fixture handed it a used object.
+
+    `side_effect` re-evaluates per call, which is what a real context-manager factory does.
+    The cursor stays shared on purpose — tests assert against `cursor.execute_calls`.
+    """
+    return patch(
+        "tools.brainstorm.routes.get_db_cursor",
+        side_effect=lambda *_a, **_k: fake_db_cursor(cursor),
+    )
 
 
 def test_brainstorm_validators_normalize_boundaries():

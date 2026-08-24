@@ -13,6 +13,26 @@ from __future__ import annotations
 import pytest
 from flask import Flask
 from flask_login import LoginManager, UserMixin
+from contextlib import contextmanager
+from unittest.mock import MagicMock, patch
+
+
+@contextmanager
+def _patched_db():
+    """Patch `get_db_cursor` with a mock of the RIGHT SHAPE (#6015).
+
+    Production does `with get_db_cursor(commit=True) as (_conn, cur):` — the context
+    manager yields a (connection, cursor) PAIR. A bare `patch("...get_db_cursor")` hands
+    back a plain MagicMock whose `__enter__` yields an *empty iterator*, so that unpack
+    raises `ValueError: not enough values to unpack (expected 2, got 0)` INSIDE the route.
+
+    That surfaces as an HTTP 500 and reads exactly like a production defect — it was the
+    only 500-family in the whole suite, and the reason #6015 existed. The code under test
+    is correct; the mock was the wrong shape.
+    """
+    with patch("tools.faith.routes.get_db_cursor") as m:
+        m.return_value.__enter__.return_value = (MagicMock(), MagicMock())
+        yield m
 
 
 @pytest.fixture(scope="module")
@@ -79,7 +99,7 @@ def test_faith_chat_returns_response(faith_client):
     _login(faith_client)
     with patch("tools.faith.routes.archie_bridge", return_value=mock_result), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
-    ), patch("tools.faith.routes.get_db_cursor"):
+    ), _patched_db():
         resp = faith_client.post(
             "/tools/faith/api/faith/chat",
             json={"message": "What does scripture say about doubt?"},
@@ -95,7 +115,7 @@ def test_faith_chat_crisis_detection(faith_client):
     _login(faith_client)
     with patch("tools.faith.routes.archie_bridge", return_value=mock_result), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
-    ), patch("tools.faith.routes.get_db_cursor"):
+    ), _patched_db():
         resp = faith_client.post(
             "/tools/faith/api/faith/chat",
             json={"message": "I have no reason to live"},
@@ -111,7 +131,7 @@ def test_faith_devotional(faith_client):
     _login(faith_client)
     with patch("tools.faith.routes.archie_bridge", return_value=mock), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
-    ), patch("tools.faith.routes.get_db_cursor"):
+    ), _patched_db():
         resp = faith_client.get("/tools/faith/api/faith/devotional")
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
@@ -124,7 +144,7 @@ def test_faith_scripture_search(faith_client):
     _login(faith_client)
     with patch("tools.faith.routes.archie_bridge", return_value=mock), patch(
         "tools.faith.routes.BRIDGE_AVAILABLE", True
-    ), patch("tools.faith.routes.get_db_cursor"):
+    ), _patched_db():
         resp = faith_client.post("/tools/faith/api/faith/scripture-search", json={"query": "grief"})
     assert resp.status_code == 200
     assert resp.get_json()["success"] is True
@@ -327,7 +347,7 @@ def test_connect_chaplain(faith_client):
     from unittest.mock import patch
 
     _login(faith_client)
-    with patch("tools.faith.routes._send_chaplain_email", return_value=True), patch("tools.faith.routes.get_db_cursor"):
+    with patch("tools.faith.routes._send_chaplain_email", return_value=True), _patched_db():
         resp = faith_client.post(
             "/tools/faith/api/faith/connect-chaplain",
             json={"message": "I need to talk."},

@@ -26,6 +26,7 @@ import pytest
 pytest.importorskip("psycopg2")
 
 from tests.dbguard import import_or_skip  # noqa: E402
+from tests.modstub import install_module_stub  # noqa: E402
 
 try:
     from tools.repair_bay.services import github_service as gs
@@ -34,11 +35,6 @@ except Exception as exc:  # pragma: no cover
 
 
 def _install(monkeypatch, windows=None, manifests=None, boom=False):
-    import sys
-    import types
-
-    mod = types.ModuleType("services.maintenance_schedule_service")
-
     def list_windows(status=None, limit=20):
         if boom:
             raise RuntimeError("db down")
@@ -49,9 +45,12 @@ def _install(monkeypatch, windows=None, manifests=None, boom=False):
             raise RuntimeError("db down")
         return (manifests or {}).get(window_id, [])
 
-    mod.list_windows = list_windows
-    mod.get_manifest = get_manifest
-    monkeypatch.setitem(sys.modules, "services.maintenance_schedule_service", mod)
+    install_module_stub(
+        monkeypatch,
+        "services.maintenance_schedule_service",
+        list_windows=list_windows,
+        get_manifest=get_manifest,
+    )
 
 
 _OPEN = [{"id": 3, "status": "open"}]

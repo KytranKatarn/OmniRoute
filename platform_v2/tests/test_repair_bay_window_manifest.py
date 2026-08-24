@@ -21,6 +21,7 @@ import pytest
 pytest.importorskip("psycopg2")
 
 from tests.dbguard import import_or_skip  # noqa: E402
+from tests.modstub import install_module_stub  # noqa: E402
 
 try:
     from tools.repair_bay.services import forge_pipeline as fp
@@ -48,13 +49,12 @@ class _FakeSchedule:
 
 
 def _install(monkeypatch, fake):
-    import sys
-    import types
-
-    mod = types.ModuleType("services.maintenance_schedule_service")
-    mod.next_window = fake.next_window
-    mod.add_item = fake.add_item
-    monkeypatch.setitem(sys.modules, "services.maintenance_schedule_service", mod)
+    install_module_stub(
+        monkeypatch,
+        "services.maintenance_schedule_service",
+        next_window=fake.next_window,
+        add_item=fake.add_item,
+    )
     return fake
 
 

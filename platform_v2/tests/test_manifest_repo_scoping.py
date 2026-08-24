@@ -9,29 +9,27 @@ import sys
 import types
 
 import pytest
+from tests.modstub import install_module_stub
 from tools.repair_bay.services import github_service as gs
 
 _WINDOW = [{"id": 7}]
 
 
 def _patch(monkeypatch, manifest_rows):
-    # A types.ModuleType + sys.modules swap (not a real `import
-    # services.maintenance_schedule_service` + monkeypatch.setattr) — matching
-    # the pattern already used by test_window_scoped_merge.py and
-    # test_maintenance_window_driver.py. A genuine absolute import here would
-    # be the FIRST real import of this submodule in the session and would
-    # cache it as an attribute on the `services` package; jobs.py's
-    # `from services import maintenance_schedule_service as mss` resolves via
-    # that cached package attribute BEFORE it ever consults sys.modules, so it
-    # would keep returning the real (unpatched) module even after a later
-    # test's `monkeypatch.setitem(sys.modules, ...)` — silently emptying
-    # test_maintenance_window_driver.py's results when run in the same
-    # session as this file. Verified live: that exact cross-file pollution
-    # reproduced with the naive `import ... ; monkeypatch.setattr(...)` form.
-    mod = types.ModuleType("services.maintenance_schedule_service")
-    mod.list_windows = lambda status=None, limit=5: _WINDOW
-    mod.get_manifest = lambda window_id: manifest_rows
-    monkeypatch.setitem(sys.modules, "services.maintenance_schedule_service", mod)
+    # The package-attribute trap this comment used to describe is now handled centrally by
+    # tests/modstub.py, which patches BOTH sys.modules and the `services` package attribute.
+    #
+    # The old mitigation here was "never do a real import of this submodule anywhere in the
+    # suite", so the attribute would stay unset. That is an invariant spanning every test
+    # file, enforced only by a comment — and it broke the day test_proposer_service.py did a
+    # normal `import services.maintenance_schedule_service`, which silently emptied
+    # test_maintenance_window_driver.py's results (#5987: 10 passed alone, 7 failed together).
+    install_module_stub(
+        monkeypatch,
+        "services.maintenance_schedule_service",
+        list_windows=lambda status=None, limit=5: _WINDOW,
+        get_manifest=lambda window_id: manifest_rows,
+    )
 
 
 def test_a_window_for_one_repo_does_not_authorise_another(monkeypatch):

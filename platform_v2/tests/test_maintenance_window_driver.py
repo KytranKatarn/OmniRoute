@@ -26,6 +26,7 @@ import pytest
 pytest.importorskip("psycopg2")
 
 from tests.dbguard import import_or_skip  # noqa: E402
+from tests.modstub import install_module_stub, uninstall_module  # noqa: E402
 
 try:
     from services.time_utils import now_utc
@@ -63,14 +64,15 @@ class _FakeSchedule:
 
 
 def _install(monkeypatch, windows):
+    """#5987 — jobs.py says `from services import maintenance_schedule_service as mss`, which
+    reads the PACKAGE ATTRIBUTE and ignores a sys.modules-only stub once anything has imported
+    the submodule. install_module_stub patches both, so import order stops mattering."""
     fake = _FakeSchedule(windows)
-    import sys
-    import types
-
-    mod = types.ModuleType("services.maintenance_schedule_service")
-    for n in ("list_windows", "announce_plan", "open_scheduled", "close_scheduled"):
-        setattr(mod, n, getattr(fake, n))
-    monkeypatch.setitem(sys.modules, "services.maintenance_schedule_service", mod)
+    install_module_stub(
+        monkeypatch,
+        "services.maintenance_schedule_service",
+        **{n: getattr(fake, n) for n in ("list_windows", "announce_plan", "open_scheduled", "close_scheduled")},
+    )
     return fake
 
 
@@ -172,9 +174,12 @@ def test_one_bad_window_does_not_stop_the_others(monkeypatch):
 
 
 def test_missing_service_does_not_raise(monkeypatch):
-    """Unattended job: never raise into the scheduler."""
-    import sys
+    """Unattended job: never raise into the scheduler.
 
-    monkeypatch.setitem(sys.modules, "services.maintenance_schedule_service", None)
+    #5987 — a sys.modules-only removal is NOT enough: `from services import x` still resolves
+    off the cached package attribute, so this test used to exercise the HEALTHY path and pass
+    for the wrong reason. uninstall_module removes both bindings, so the service really is gone.
+    """
+    uninstall_module(monkeypatch, "services.maintenance_schedule_service")
     res = jobs.maintenance_window_driver()
     assert res.get("ok") is False

@@ -54,6 +54,17 @@ def _is_kernel(path: str) -> bool:
     return any(pat in path for pat in KERNEL_PATTERNS)
 
 
+def is_kernel_path(path: str) -> bool:
+    """Public form of the kernel test, for consumers outside the lane machinery.
+
+    ``pr_review_service.classify_pr_tier`` calls this so the REVIEW tier ladder and the
+    LANE boundary share ONE definition of "kernel". Two independent lists of sensitive
+    paths is the shape behind #5194 and #5862: a correct guard that some second surface
+    never consulted. Adding a pattern to KERNEL_PATTERNS now moves both at once.
+    """
+    return _is_kernel(path)
+
+
 def classify(item: dict, lane_prefixes: dict) -> dict:
     """Return {"lane", "tier", "reason"} for one work item.
 

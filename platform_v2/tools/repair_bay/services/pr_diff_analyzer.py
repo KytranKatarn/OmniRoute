@@ -2132,6 +2132,16 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     # Tier-3 PR is auto-merged by nobody, so an extra coverage note there costs nothing.
     # Erring toward the smaller cap errs toward FLAGGING, which is the safe direction:
     # an over-flag costs a human glance, an under-flag is #5836 itself.
+    # #5986 — classify_pr_tier is PURE and sits on hot paths (it is monkeypatched in seven
+    # test files), so it must never make a GitHub call. It doesn't have to: the diff is
+    # already in hand here, so the changed paths are free. Stamp them onto a COPY so a
+    # caller's dict is never mutated, and let the classifier simply read them.
+    try:
+        from services.review_coverage import diff_files  # noqa: PLC0415
+
+        review = {**(review or {}), "changed_paths": diff_files(diff)}
+    except Exception:  # noqa: BLE001 — an unparseable diff must not break the review
+        pass
     _cap = _diff_cap_for_model(strong=False)
     # #5836 follow-up — ORDER the window before measuring or reviewing it. GitHub emits
     # files alphabetically, so `.claude/rules/...` sorts ahead of all code; on PR #2713 a

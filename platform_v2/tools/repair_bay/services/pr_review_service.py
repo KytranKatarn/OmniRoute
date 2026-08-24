@@ -1083,6 +1083,16 @@ def classify_pr_tier(review: dict) -> int:
         - title contains breaking/migration/security
         - branch looks like a numbered migration (e.g. 382_partner_profiles)
         - F.O.R.G.E. verdict contains REJECT
+        - touches a KERNEL path — lane_classifier.KERNEL_PATTERNS (#5986)
+
+    The kernel gate needs ``review["changed_paths"]``. That is stamped by
+    ``pr_diff_analyzer._obtain_review_summary``, which already holds the diff, so the
+    REVIEW path always has it. A review dict loaded straight from the DB (e.g. at merge
+    time) does NOT, and then this gate is silently inert — deliberately, and safely: the
+    merge path refuses sensitive paths earlier and unconditionally via
+    ``_automerge_paths_allowed`` (CONDITION 2), which fails CLOSED and binds every actor.
+    Do not "fix" that by making this function fetch the file list; it is pure, it is
+    monkeypatched in seven test files, and it sits on hot paths.
 
     Tier 1:
         - < 300 lines changed AND < 10 files changed
@@ -1113,6 +1123,23 @@ def classify_pr_tier(review: dict) -> int:
     if any(kw in title for kw in _TIER3_TITLE_KW):
         return 3
     if "migration" in branch or _re.search(r"\d{3}_", branch):
+        return 3
+    # KERNEL PATHS (#5986). Every gate above this line reads SIZE, TITLE or BRANCH — never
+    # what the PR actually touches. The branch-name migration check right above is a proxy
+    # for "touches a migration" and is trivially missed: a branch called `fix/typo` that
+    # adds database/migrations/479_x.sql escapes it and classifies on size alone.
+    #
+    # Tier is not only a merge ceiling. `pr_diff_analyzer._review_is_strong` is `tier >= 3`,
+    # and it picks the REVIEW MODEL: Tier 3 gets gemma3:12b at the wide cap, everything else
+    # qwen2.5:7b at the tight one. So before this gate a small diff to the dispatch kernel,
+    # the merge kernel, rbac.py or auth_service.py drew the WEAKEST review available —
+    # exactly inverted.
+    #
+    # Uses lane_classifier.is_kernel_path so the tier ladder and the coder-lane boundary
+    # cannot drift apart (decision #953: safety properties are universal).
+    from services.lane_classifier import is_kernel_path  # noqa: PLC0415
+
+    if any(is_kernel_path(p) for p in (review.get("changed_paths") or [])):
         return 3
 
     # --- Tier 1 gates ---

@@ -107,12 +107,27 @@ EXPECTED_FIELDS = {
 }
 
 
+_TEST_AGENT_NAME = "T.E.S.T.-profile-get-fixture"
+
+
 def test_profile_returns_all_editable_fields(db, client):
+    # Create the agent this test needs rather than borrowing whatever comes back first
+    # (#6016). `archie_test` is EMPTY — schema, no rows — so the old SELECT returned None
+    # and the test died on `assert row` before exercising anything. It only surfaced once
+    # the suite could finish at all (#5998).
     cur = db.cursor()
-    cur.execute("SELECT id FROM agents WHERE worker_type='ai' LIMIT 1")
-    row = cur.fetchone()
-    assert row, "need at least one AI agent in DB"
-    agent_id = row["id"]
+    cur.execute("SELECT current_database() AS db")
+    assert cur.fetchone()["db"] != "archie", "refusing to create test agents in production"
+    cur.execute("DELETE FROM agents WHERE name = %s", (_TEST_AGENT_NAME,))
+    cur.execute(
+        """
+        INSERT INTO agents (name, model, department, floor, worker_type)
+        VALUES (%s, 'qwen2.5:1.5b', 'Engineering & Technology', 'ENGINEERING', 'ai')
+        RETURNING id
+        """,
+        (_TEST_AGENT_NAME,),
+    )
+    agent_id = cur.fetchone()["id"]
 
     resp = client.get(f"/tools/department-hq/api/agent/{agent_id}/profile")
     assert resp.status_code == 200, resp.data
@@ -123,3 +138,7 @@ def test_profile_returns_all_editable_fields(db, client):
 
     missing = EXPECTED_FIELDS - set(agent.keys())
     assert not missing, f"missing fields in profile response: {missing}"
+
+    # This test only READS through the API, so no FK rows are created; a plain delete is
+    # enough. Kept explicit so a repeat run cannot trip the name collision above.
+    cur.execute("DELETE FROM agents WHERE name = %s", (_TEST_AGENT_NAME,))

@@ -11,6 +11,29 @@ import psycopg2
 import psycopg2.extras
 
 
+_TEST_AGENT_NAME = "T.E.S.T.-profile-patch-fixture"
+
+# Tables that reference agents.id and that THESE tests cause writes to. The PATCH route
+# writes a governance_audit_log row, so the agent cannot be deleted until that row is gone.
+# Deliberately an explicit list, not a generic cascade: if a future route writes to another
+# FK table, teardown fails LOUDLY and someone extends this line — which is better than a
+# silent swallow that leaves rows behind in a database everyone assumes is clean.
+_AGENT_FK_TABLES = ("governance_audit_log",)
+
+
+def _purge_test_agents(cur):
+    """Remove any agent this fixture created, plus its dependent rows.
+
+    Runs before the INSERT as well as after: a run that dies mid-test (or an earlier
+    teardown that hit the FK) leaves the row behind, and the next run then fails on it.
+    """
+    cur.execute("SELECT id FROM agents WHERE name = %s", (_TEST_AGENT_NAME,))
+    for row in cur.fetchall():
+        for table in _AGENT_FK_TABLES:
+            cur.execute(f"DELETE FROM {table} WHERE agent_id = %s", (row["id"],))
+        cur.execute("DELETE FROM agents WHERE id = %s", (row["id"],))
+
+
 def _pw():
     try:
         return open("/run/secrets/db_password").read().strip()
@@ -116,11 +139,40 @@ def user_client():
 
 @pytest.fixture(scope="module")
 def agent_id(db):
+    """Create a purpose-made agent instead of mutating whatever row comes back first (#6016).
+
+    The old fixture did `SELECT id FROM agents ... LIMIT 1`, and these tests then PATCH that
+    row (e.g. bio='updated-by-test'). Two separate problems:
+
+    1. `archie_test` is EMPTY — schema, no rows — so the SELECT returned None and all 11
+       tests ERRORed at setup on a bare `assert None`. That was the largest single family in
+       the #6016 backlog, and it only surfaced once the suite could finish at all (#5998).
+
+    2. Grabbing an arbitrary row and WRITING to it is safe only because conftest hard-
+       overrides DB_NAME to archie_test. Should that override ever regress, these tests would
+       rewrite a REAL agent's bio. Creating our own row removes the hazard instead of leaning
+       on the guard.
+
+    The safety check below asks the CONNECTION which database it is on, not the environment:
+    `os.environ["DB_NAME"]` can be unset and still connect to `archie` via this module's own
+    `os.environ.get("DB_NAME", "archie")` default.
+    """
     cur = db.cursor()
-    cur.execute("SELECT id FROM agents WHERE worker_type='ai' " "AND department IS NOT NULL LIMIT 1")
-    row = cur.fetchone()
-    assert row
-    return row["id"]
+    cur.execute("SELECT current_database() AS db")
+    assert cur.fetchone()["db"] != "archie", "refusing to create test agents in production"
+
+    _purge_test_agents(cur)
+    cur.execute(
+        """
+        INSERT INTO agents (name, model, department, floor, worker_type)
+        VALUES (%s, 'qwen2.5:1.5b', 'Engineering & Technology', 'ENGINEERING', 'ai')
+        RETURNING id
+        """,
+        (_TEST_AGENT_NAME,),
+    )
+    aid = cur.fetchone()["id"]
+    yield aid
+    _purge_test_agents(cur)
 
 
 def test_patch_unknown_field_rejected(admin_client, agent_id):

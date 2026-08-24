@@ -18,13 +18,25 @@ import asyncio
 import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 
-# Ensure platform_v2 is importable (mirrors agent_loop bootstrap)
-# os.environ.get() is used to avoid hardcoding secrets
+# Ensure platform_v2 is importable (mirrors agent_loop bootstrap).
+#
+# The guard here was `if ARCHIE_PLATFORM_PATH != "":`. os.getenv returns **None** when the
+# variable is unset - and `None != ""` is TRUE - so this inserted **None into sys.path**.
+# That one line was the largest single source of failure in the whole suite: importlib
+# .metadata walks sys.path, so every later flask.testing.FlaskClient() (which probes the
+# Werkzeug version on construction) died with
+#     TypeError: stat: path should be string, bytes, os.PathLike or integer, not NoneType
+# - 296 errors across 379 test files, about two-thirds of the suite's red, from ONE
+# module-level line in ONE test file. Use truthiness, never `!= ""`, on an env lookup.
 ARCHIE_PLATFORM_PATH = os.getenv("ARCHIE_PLATFORM_PATH")
-if ARCHIE_PLATFORM_PATH != "":
+if ARCHIE_PLATFORM_PATH and ARCHIE_PLATFORM_PATH not in sys.path:
     sys.path.insert(0, ARCHIE_PLATFORM_PATH)
-if "$ARCHIE_AI_BRIDGE_PATH" not in sys.path:
-    sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
+
+# This was `if "$ARCHIE_AI_BRIDGE_PATH" not in sys.path:` - a literal shell-style string
+# that is never in sys.path, so the condition was always true and the guard did nothing.
+_AI_BRIDGE_PATH = os.getenv("ARCHIE_AI_BRIDGE_PATH") or "/mnt/archie_brain/ai_bridge"
+if _AI_BRIDGE_PATH not in sys.path:
+    sys.path.insert(0, _AI_BRIDGE_PATH)
 
 # ---------------------------------------------------------------------------
 # Helpers

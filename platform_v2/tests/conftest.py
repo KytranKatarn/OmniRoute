@@ -360,6 +360,62 @@ def db_conn(app):
         conn.close()
 
 
+# ── Detect module stubs that OUTLIVE their own test module (#6021) ────────────────────
+# THREE separate incidents, each fixed one file at a time before the class was addressed:
+#   #5665           a synthetic PARENT package aborted the ENTIRE run
+#   #6017 / #6018   sys.modules["...department_dispatcher"] -> 8 failures in
+#                   test_fleet_candidate_welfare_gate, which passes 8/8 alone
+#   #6016 / #2810   sys.modules["ai_bridge.agent_loop"]     -> 10 failures across
+#                   test_pr_merge_approval_dedup + test_tab_merge_freshness, both of
+#                   which pass in isolation
+#
+# pytest imports every test module during COLLECTION, so a module-level
+# `sys.modules[x] = stub` is SESSION-GLOBAL from that moment. Whichever module sorts first
+# wins, silently, and only in a full run — every victim passes alone, which reads as
+# flakiness rather than a collision. It also HIDES bugs: a NameError in
+# test_delegation_async_callback could never fire because a sibling's stub won the race
+# (KB #295045).
+#
+# ⚠️ DETECTION MUST USE __spec__, NOT __file__. These stubs carry a PEP 562 `__getattr__`
+# catch-all that returns a MagicMock for ANY attribute — including __file__ — so an
+# attribute-presence probe reports them as perfectly normal modules. Measured: the
+# agent_loop stub answers `__file__` with <MagicMock id=...>. `__spec__` is a REAL
+# attribute on types.ModuleType (always None), so __getattr__ is never consulted for it.
+# A genuinely imported first-party module always has a ModuleSpec.
+#
+# The fix for an offender is tests/modstub.stub_module_scoped in a module-scoped autouse
+# fixture — it restores BOTH sys.modules and the parent package attribute.
+
+_FIRST_PARTY_ROOTS = ("tools", "services", "ai_bridge")
+
+# Known offenders, with the file that installs each. This list may only SHRINK.
+_ALLOWED_STUB_LEAKS = {
+    "services.telegram_service": "test_delegation_service.py (sys.modules.setdefault)",
+    "tools.consciousness.translation_scanners.orchestrator": "test_delegation_service.py",
+    "ai_bridge.agent_loop": "test_hiring_service / test_propose_hire / "
+    "test_hiring_acronym_persist — removed by PR #2810",
+}
+
+_leaked_stubs: set = set()
+# How many items this run collected. The staleness half of the guard is only meaningful on
+# a FULL run — collect one file and nothing leaks, which would make every allowlist entry
+# look stale. Recorded rather than inferred so the test can skip honestly.
+_collected_count: int = 0
+
+
+def pytest_collection_finish(session):
+    """Record first-party modules left as stubs once every test module is imported."""
+    global _collected_count
+    _collected_count = len(session.items)
+    _leaked_stubs.clear()
+    for name in sorted(sys.modules):
+        if name.split(".")[0] not in _FIRST_PARTY_ROOTS:
+            continue
+        mod = sys.modules.get(name)
+        if mod is None or getattr(mod, "__spec__", None) is None:
+            _leaked_stubs.add(name)
+
+
 # ── Seed the one admin user the auth-gated tests assume exists (#6015) ────────────────
 # archie_test is built SCHEMA-ONLY from a prod dump, so `users` is EMPTY. Four test files
 # authenticate by writing a flask-login session directly:

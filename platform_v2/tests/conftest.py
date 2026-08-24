@@ -358,3 +358,72 @@ def db_conn(app):
         yield conn
         conn.rollback()
         conn.close()
+
+
+# ── Seed the one admin user the auth-gated tests assume exists (#6015) ────────────────
+# archie_test is built SCHEMA-ONLY from a prod dump, so `users` is EMPTY. Four test files
+# authenticate by writing a flask-login session directly:
+#     sess["_user_id"] = "2"
+# With no matching row the user_loader returns None, the request is unauthenticated, and
+# every assertion sees a 302-to-login (or a 401) instead of the status it expected —
+# 19 failures across test_browser_session_routes, test_account_link_routes,
+# test_signal_calendar_live_routes and test_backup_consolidation.
+#
+# The id is PINNED to 2 because those fixtures hardcode it. Seeding here rather than in each
+# file keeps one definition; a future auth test can rely on it instead of inventing another.
+#
+# ⚠️ Additive and idempotent, deliberately. Nothing asserts on a user COUNT (checked), and
+# test_agent_profile_patch's `SELECT MIN(id) FROM users` currently returns NULL — a seeded
+# row makes that query meaningful rather than breaking it.
+# Every id the auth-gated tests write into a flask-login session.
+#
+# ⚠️ Finding them takes TWO greps, not one. Direct assignments give 1, 2, 7:
+#     sess["_user_id"] = "7"
+# but test_backup_consolidation hides its id in a HELPER DEFAULT:
+#     def _login_as_admin(client, user_id=62):  ->  sess["_user_id"] = str(user_id)
+# Seeding only the literals left that file's 8 failures untouched and looking like a
+# different bug. If a new auth test 302s or 403s, check for an id in a helper signature
+# before assuming a new cause.
+_TEST_ADMIN_IDS = (1, 2, 7, 62)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _seed_admin_user(_isolated_test_db):
+    """Ensure the admin users the tests assume exist in archie_test.
+
+    Runs after the DB is built/restored."""
+    import psycopg2
+
+    import database
+
+    conn = psycopg2.connect(
+        host=os.environ.get("DB_HOST", "archie_database"),
+        port=os.environ.get("DB_PORT", "5432"),
+        user=os.environ.get("DB_USER", "archie"),
+        password=database._get_db_password(),
+        dbname=TEST_DB_NAME,
+    )
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            # Ask the CONNECTION which database it is on, not the environment: DB_NAME can be
+            # unset and still resolve to prod through a module-level default (#6016).
+            cur.execute("SELECT current_database()")
+            if cur.fetchone()[0] == PROD_DB_NAME:
+                raise RuntimeError("refusing to seed a test admin user into production")
+            for uid in _TEST_ADMIN_IDS:
+                # role='ADMIN' as well as is_admin: RBAC gates on the ROLE hierarchy
+                # (GUEST 5 ... ADMIN 50 ... SUPER_ADMIN 100), so is_admin alone still
+                # yields 403 on @admin_required routes. is_active matters for the loader.
+                cur.execute(
+                    """
+                    INSERT INTO users (id, username, password_hash, is_admin, role, is_active)
+                    VALUES (%s, %s, 'x-not-a-real-hash-tests-set-the-session-directly',
+                            TRUE, 'ADMIN', TRUE)
+                    ON CONFLICT (id) DO NOTHING
+                    """,
+                    (uid, f"kytran-test-admin-{uid}"),
+                )
+    finally:
+        conn.close()
+    yield

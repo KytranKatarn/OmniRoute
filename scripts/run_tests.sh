@@ -44,8 +44,36 @@ NET="${TEST_NET:-archie_network}"
 # container DB_NAME=archie is already set and a setdefault would be a silent no-op.
 : "${TEST_DB_NAME:=archie_test}"
 
+# Withhold the docker socket with TEST_DOCKER_SOCK=0 (see the mounts note below).
+DOCKER_SOCK_ARG=""
+if [ "${TEST_DOCKER_SOCK:-1}" != "0" ] && [ -S /var/run/docker.sock ]; then
+  DOCKER_SOCK_ARG="-v /var/run/docker.sock:/var/run/docker.sock"
+fi
+
 echo "[run_tests] image=$IMAGE mem=$MEM net=$NET db=$TEST_DB_NAME"
 echo "[run_tests] tree=$REPO/platform_v2 (this repo, NOT the sandbox copy)"
+
+# ---------------------------------------------------------------------------
+# MOUNTS (#6014). Several tests read repo directories. Without them they fail in a way that
+# is INDISTINGUISHABLE from a real defect — 15 of the 152 failures triaged on 2026-08-24
+# were nothing but missing mounts here (measured: 14 failed -> 25 passed as they were added).
+#
+# Rule: MIRROR archie_platform, which is what the tests were written against
+#   docker inspect archie_platform --format '{{range .Mounts}}{{.Source}}|{{.Destination}}|{{.RW}}{{"\n"}}{{end}}'
+# but mirror it NARROWLY. That container has 43 mounts, including /backups, .git and
+# website/ as READ-WRITE. A test is arbitrary code: nothing here gets write access it does
+# not need, and nothing is mounted that no failing test asked for.
+#
+#   .claude/{skills,commands,rules} -> tests/test_platform_registry_changes.py       (7)
+#   database/migrations             -> tests/migrations/*, test_secnet_followups.py  (4)
+#   /var/run/docker.sock            -> tests/test_platform_registry_services.py      (4)
+#
+# ⚠️ ON THE DOCKER SOCKET: it grants root-equivalent control of the host, so it earns a
+# pause — but it is NOT a new exposure. archie_platform ALREADY mounts it read-write, and
+# this runner uses THAT SAME IMAGE on THAT SAME HOST. The only delta is that test code runs
+# there instead of app code. TEST_DOCKER_SOCK=0 withholds it; those 4 tests then fail,
+# which is honest rather than hidden.
+# ---------------------------------------------------------------------------
 
 # ai_bridge is imported as a PACKAGE (`import ai_bridge.x`), so its PARENT must be on the
 # path — mounting ai_bridge alone is not enough. PYTHONPATH mirrors what docker-compose
@@ -59,6 +87,11 @@ exec docker run --rm \
   -v "$REPO/platform_v2:/app" \
   -v "$REPO/ai_bridge:/mnt/archie_brain/ai_bridge:ro" \
   -v "$REPO/scripts:/mnt/archie_brain/scripts:ro" \
+  -v "$REPO/.claude/skills:/mnt/archie_brain/.claude/skills:ro" \
+  -v "$REPO/.claude/commands:/mnt/archie_brain/.claude/commands:ro" \
+  -v "$REPO/.claude/rules:/mnt/archie_brain/.claude/rules:ro" \
+  -v "$REPO/database/migrations:/mnt/archie_brain/database/migrations:ro" \
+  $DOCKER_SOCK_ARG \
   --env-file "$REPO/.env" \
   -e "TEST_DB_NAME=$TEST_DB_NAME" \
   -e "PYTHONPATH=/mnt/archie_brain" \

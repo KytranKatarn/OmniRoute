@@ -22,6 +22,45 @@ CREDENTIALS_FILE = SUITE_DIR / "credentials.env"
 PROFILES_DIR = SUITE_DIR / "profiles"  # persistent browser profiles per agent
 
 BASE_URL = os.environ.get("ARCHIE_BASE_URL", "http://192.168.1.200:3000")
+
+# How long to wait for the platform before giving up. A browser test with no reachability
+# check does not fail when the target is down — it HANGS, which is what took the whole
+# suite out (#5990).
+_REACHABILITY_TIMEOUT_S = 5
+
+
+# NOTE — do NOT add a pytest_collection_modifyitems hook here to mark this directory.
+# A conftest's modifyitems hook receives EVERY item in the session, not just this
+# directory's, so marking `items` marked all 3,910 tests `browser` and the default run
+# deselected the ENTIRE suite (measured 2026-08-24: '3910 deselected / 0 selected').
+# It also ran AFTER pytest's own -m filter, so it could not have deselected anything
+# anyway. The module-level `pytestmark = pytest.mark.browser` in each test file is
+# applied during collection and is scoped correctly.
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _platform_must_be_reachable():
+    """Skip the whole suite FAST when the platform is not up.
+
+    Without this the tests block on page.goto() with no timeout and the run never ends.
+    A skip states plainly that they did not run; a hang states nothing at all.
+    """
+    import socket
+    from urllib.parse import urlparse
+
+    parsed = urlparse(BASE_URL)
+    host = parsed.hostname or "192.168.1.200"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=_REACHABILITY_TIMEOUT_S):
+            pass
+    except OSError as exc:
+        pytest.skip(
+            f"platform not reachable at {BASE_URL} ({exc}) — browser E2E skipped",
+            allow_module_level=True,
+        )
+
+
 # Admin credentials for reset operations (reads from env or defaults to dev creds)
 ADMIN_USER = os.environ.get("ARCHIE_ADMIN_USER", "admin")
 ADMIN_PASS = os.environ.get("ARCHIE_ADMIN_PASS", "")

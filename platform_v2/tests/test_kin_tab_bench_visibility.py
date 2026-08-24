@@ -63,10 +63,20 @@ def test_welfare_payload_exposes_stat_freshness():
 
 
 def test_bench_reason_distinguishes_failure_from_strand():
-    """'under verification' and 'lost by accident' need different operator responses."""
+    """'under verification' and 'lost by accident' need different operator responses.
+
+    Asserts the INVARIANT, not one exact spelling of the ternary. The original pinned
+    `\'"failure" if _benched_at else "stranded"\'` verbatim and broke the moment #5829 added a
+    third state (`stranded_working` — benched yet still dispatching). The behaviour was a
+    strict SUPERSET of what this test demands, so the test was wrong and the code was right.
+    A test that fails on a legitimate refinement trains people to ignore it.
+    """
     src = _read(_ROUTES)
     assert "failure_standby" in src, "must join the failure-standby Academy record"
-    assert '"failure" if _benched_at else "stranded"' in src
+    # failure is gated on the Academy record...
+    assert '"failure" if _benched_at' in src, "a failure bench must be driven by benched_at"
+    # ...and the absence of one must still be distinguishable as a strand.
+    assert '"stranded"' in src, "an accidental strand must remain its own reason"
 
 
 def test_benched_agents_sort_first():
@@ -95,9 +105,13 @@ def test_status_label_tests_benched_before_the_healthy_fallback():
     """
     js = _read(_JS)
     start = js.index("var statusLabel = a.benched")
-    chain = js[start : start + 900]
-    benched_pos = chain.find("a.benched")
-    healthy_pos = chain.find("'✓ active'")
+    # No fixed byte window. The original scanned `start : start + 900`, which stopped
+    # covering the chain the moment #5829 added an explanatory comment block inside it and
+    # pushed the healthy fallback past the cutoff — the test then reported "the healthy
+    # fallback should still exist" about code where it plainly still existed. A window
+    # measured in bytes is not a statement boundary.
+    benched_pos = js.find("a.benched", start)
+    healthy_pos = js.find("'✓ active'", start)
     assert benched_pos != -1, "status label must handle the benched state"
     assert healthy_pos != -1, "the healthy fallback should still exist"
     assert benched_pos < healthy_pos, "benched must be tested BEFORE the healthy fallback"

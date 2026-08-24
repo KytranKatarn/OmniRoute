@@ -81,13 +81,36 @@ def _patch(monkeypatch, cursor, rest_active):
     monkeypatch.setattr(fh, "is_fleet_rest_active", lambda: rest_active)
 
 
+# ⚠️ The hardware fields are LOAD-BEARING, not decoration (#5947).
+# _kin_fleet_warmth_policy gates every candidate through
+# fleet_resource_router.can_node_run_model(node, model), which reads gpu_available /
+# gpu_vram_gb / ram_gb / extra_capabilities straight off these rows. A fixture without
+# them presents as gpu 0 / ram 0, the predicate refuses EVERY model, and the policy
+# queues nothing — which is exactly how these tests started failing: three assertions
+# against an empty set, with the production code entirely correct.
+# Values mirror the real fleet (see .claude/rules/fleet.md).
 STARSHIP = {
     "id": 115,
     "node_name": "Starship-246",
     "deployment_mode": "starship",
     "models": ["qwen2.5:7b", "qwen2.5:1.5b"],
+    "gpu_available": True,
+    "gpu_vram_gb": 8.0,  # RTX 3070
+    "ram_gb": 32.0,
+    "ollama_available": True,
+    "extra_capabilities": {},
 }
-OUTPOST = {"id": 93, "node_name": "outpost-us", "deployment_mode": "outpost", "models": ["qwen2.5:1.5b", "llama3.2:3b"]}
+OUTPOST = {
+    "id": 93,
+    "node_name": "outpost-us",
+    "deployment_mode": "outpost",
+    "models": ["qwen2.5:1.5b", "llama3.2:3b"],
+    "gpu_available": False,  # CPU-only VPS
+    "gpu_vram_gb": 0,
+    "ram_gb": 7.8,
+    "ollama_available": True,
+    "extra_capabilities": {"max_model_gb": 4},
+}
 
 
 def test_rest_gate_skips_starship_keeps_outpost(monkeypatch):
@@ -159,3 +182,46 @@ def test_dedup_skips_node_with_inflight_warmth(monkeypatch):
     fleet_jobs._kin_fleet_warmth_policy()
 
     assert cur.inserts == [], "no enqueue when a warmth task is already in flight"
+
+
+def test_a_node_that_cannot_FIT_the_model_is_not_warmed(monkeypatch):
+    """The capacity gate (#5947) must still bind — pinned so the fixture update above
+    cannot silently disable it.
+
+    Adding the hardware fields to STARSHIP/OUTPOST is what made these tests pass again;
+    without this test, a future fixture that quietly satisfies everything would hide a
+    regression in the gate itself. Here the node is real but TOO SMALL for the model it
+    demands, so nothing may be queued for it.
+    """
+    tiny = {
+        "id": 120,
+        "node_name": "Starship-245",
+        "deployment_mode": "starship",
+        "models": ["qwen2.5:7b"],
+        "gpu_available": True,
+        "gpu_vram_gb": 4.0,  # RTX 3050 — cannot hold a 7B
+        "ram_gb": 3.0,  # and no room to CPU-demote either
+        "ollama_available": True,
+        "extra_capabilities": {"max_model_gb": 4},
+    }
+    cur = FakeCursor(
+        nodes=[tiny],
+        demand_by_node={120: [("qwen2.5:7b", 99)]},
+        welfare_by_node={},
+    )
+    _patch(monkeypatch, cur, rest_active=False)
+    fleet_jobs._kin_fleet_warmth_policy()
+
+    assert cur.inserts == [], "a node that cannot fit the model must not be warmed for it"
+
+
+def test_the_capacity_predicate_is_actually_consulted():
+    """Wiring, not intent: the gate must be CALLED from the warm path.
+
+    `can_node_run_model` existed and was correct long before anything in warm-up called
+    it — the #5194/#5862/#5863 shape. This asserts the call site still exists.
+    """
+    import inspect
+
+    src = inspect.getsource(fleet_jobs)
+    assert "can_node_run_model" in src, "warm-up must consult the capacity predicate"

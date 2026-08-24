@@ -25,7 +25,52 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from services.loop_log import NO_REASON_PREFIX, explain_failure  # noqa: E402
 
-REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+def _has(path: str, *names: str) -> bool:
+    return all(os.path.isdir(os.path.join(path, n)) for n in names)
+
+
+def _discover_repo_root() -> str:
+    """The repo root — never the FILESYSTEM root.
+
+    The old expression was `dirname(__file__)/../..`. On the host that is /mnt/archie_brain,
+    correct. In the container /app IS platform_v2, so that is one `..` too many and it
+    resolved to **"/"**: os.walk then crawled the whole container, picked up the stale copies
+    under /mnt/archie_sandbox/, and reported six "unwired" PRODUCTION files that were nothing
+    of the sort — while being slow enough to look like a hang in a full-suite run.
+    """
+    env = os.environ.get("ARCHIE_REPO_ROOT")
+    if env and _has(env, "platform_v2", "ai_bridge"):
+        return env
+    node = os.path.dirname(os.path.abspath(__file__))
+    while True:
+        if _has(node, "platform_v2", "ai_bridge"):
+            return node
+        parent = os.path.dirname(node)
+        if parent == node:
+            # Never fall through to "/" — see above.
+            return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        node = parent
+
+
+REPO_ROOT = _discover_repo_root()
+
+# These scans assert a REPO-WIDE invariant, so they are only meaningful where the whole repo
+# is present. In the container it is not: platform_v2 is bind-mounted at /app and the rest of
+# the repo (ai_bridge included) sits under /mnt/archie_brain WITHOUT platform_v2 — no single
+# tree holds both, and only 5 of the 6 _log_cycle implementations are reachable. The `>= 6`
+# floors below exist precisely to catch a partial scan, so letting them run there would either
+# fail for the wrong reason or, if the floors were lowered, pass vacuously.
+# A skip states plainly that the invariant was not checked. Run it on the host, or point
+# ARCHIE_REPO_ROOT at a complete checkout.
+_REPO_COMPLETE = _has(REPO_ROOT, "platform_v2", "ai_bridge")
+requires_full_repo = pytest.mark.skipif(
+    not _REPO_COMPLETE,
+    reason=(
+        f"repo-wide scan needs platform_v2/ and ai_bridge/ under one root; "
+        f"{REPO_ROOT!r} has neither pair (set ARCHIE_REPO_ROOT to a full checkout)"
+    ),
+)
 
 #: Directories the invariant walkers below must not descend into.
 #:
@@ -109,6 +154,7 @@ def test_long_messages_are_truncated():
     assert len(reason) <= 500
 
 
+@requires_full_repo
 def test_every_log_cycle_implementation_is_wired():
     """Invariant: a NEW _log_cycle copy cannot be added without the resolver.
 
@@ -137,6 +183,7 @@ def test_every_log_cycle_implementation_is_wired():
     assert not unwired, f"_log_cycle implementations missing the #5339 resolver: {unwired}"
 
 
+@requires_full_repo
 def test_the_wiring_search_actually_found_implementations():
     """Guard the guard: an empty search would make the test above vacuous."""
     found = 0
@@ -156,6 +203,7 @@ def test_the_wiring_search_actually_found_implementations():
     assert found >= 6, f"expected at least 6 _log_cycle implementations, found {found}"
 
 
+@requires_full_repo
 def test_resolver_call_is_guarded_in_every_log_cycle():
     """The resolver runs on the LOGGING path — it must never break it.
 
@@ -293,6 +341,7 @@ def test_details_reasons_are_truncated():
     assert len(reason) <= 500
 
 
+@requires_full_repo
 def test_every_log_cycle_passes_details_to_the_resolver():
     """Invariant: a 7th _log_cycle cannot be wired WITHOUT forwarding details.
 
@@ -331,6 +380,7 @@ def test_every_log_cycle_passes_details_to_the_resolver():
     assert not missing, f"_log_cycle does not forward `details` to explain_failure in: {missing}"
 
 
+@requires_full_repo
 def test_the_details_forwarding_search_is_not_vacuous():
     """Guard the guard — an empty walk would make the test above always pass."""
     import ast
@@ -358,6 +408,7 @@ def test_the_details_forwarding_search_is_not_vacuous():
     assert checked >= 6, f"expected >=6 explain_failure call sites inside _log_cycle, found {checked}"
 
 
+@requires_full_repo
 def test_weekly_knowledge_report_records_its_per_project_reasons():
     """The reason existed at the failure site and was dropped before the row.
 

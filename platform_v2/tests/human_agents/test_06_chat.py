@@ -22,6 +22,12 @@ from playwright.sync_api import Browser
 
 from conftest import BASE_URL, load_agents, login_as, logout
 
+# EVERY test here drives a real browser (#5990). Module-level pytestmark is applied
+# during COLLECTION, before pytest's own -m filter runs — a conftest
+# pytest_collection_modifyitems hook adds markers too LATE to be deselected, which is
+# why the first attempt at this fix did nothing and the suite kept hanging.
+pytestmark = pytest.mark.browser
+
 CHAT_URL = f"{BASE_URL}/tools/archie-chat"
 
 # API endpoints used by archie_chat module (from routes.py)

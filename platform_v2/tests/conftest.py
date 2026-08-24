@@ -282,26 +282,60 @@ def _isolated_test_db():
     yield
 
 
+# One built Flask app per app.py path, for the life of the pytest process (#5998).
+#
+# `spec.loader.exec_module()` below executes the WHOLE of app.py: every blueprint across
+# all 36 modules, the Jinja environment, the extensions. That is ~1 GB of objects, and
+# nothing releases them — the registrations, logging handlers and module-level globals in
+# the imported route modules keep each app reachable forever.
+#
+# The `app` fixture is function-scoped, so before this cache that ~1 GB was paid ONCE PER
+# TEST and never given back. Measured 2026-08-24: individual tests in test_coo_actions.py,
+# test_coo_consult.py and test_dhq_chat_routing.py each added 0.5-1.2 GB, and a full run
+# was OOM-killed at a 16 GiB ceiling around 57% (tests/test_dispatch_history_routes.py).
+# Doubling the ceiling from 8 GiB changed nothing except where it died — the growth is
+# unbounded, so no ceiling fixes it.
+#
+# Keyed by path so ARCHIE_APP_PY still gives a worktree/bundle run its OWN app.
+_FLASK_APP_CACHE: dict = {}
+
+
 def _load_flask_app():
     """Load app.py directly to avoid __init__.py package shadowing.
 
     Registers the module as sys.modules["app"] before exec so that any
     internal import (e.g. `from app import User`) resolves to this module
     rather than the /app/__init__.py package stub.
+
+    Built at most once per app.py path per process — see _FLASK_APP_CACHE above.
     """
     # Default to the live checkout; ARCHIE_APP_PY lets a bundle/worktree run
     # (feature branch synced to /tmp/wt) test its OWN app.py instead of /app.
     app_py = os.environ.get("ARCHIE_APP_PY", "/app/app.py")
+
+    cached = _FLASK_APP_CACHE.get(app_py)
+    if cached is not None:
+        # Re-assert the shadow: another test may have replaced sys.modules["app"], and
+        # `from app import User` must still resolve to the module this app was built from.
+        sys.modules["app"] = cached[0]
+        return cached[1]
+
     spec = importlib.util.spec_from_file_location("flask_app_module", app_py)
     mod = importlib.util.module_from_spec(spec)
     sys.modules["app"] = mod  # shadow the package stub before exec
     spec.loader.exec_module(mod)
+    _FLASK_APP_CACHE[app_py] = (mod, mod.app)
     return mod.app
 
 
 @pytest.fixture
 def app():
-    """Create Flask application for testing."""
+    """Create Flask application for testing.
+
+    Deliberately still FUNCTION-scoped: the test config is re-applied on every use, so a
+    test that changes TESTING/WTF_CSRF_ENABLED cannot leak into the next one. Only the
+    ~1 GB rebuild is cached (see _FLASK_APP_CACHE) — the fixture's contract is unchanged.
+    """
     flask_app = _load_flask_app()
     flask_app.config["TESTING"] = True
     flask_app.config["WTF_CSRF_ENABLED"] = False

@@ -1461,6 +1461,52 @@ def _diff_cap_for_model(strong: bool) -> int:
     return full if strong else min(full, _DIFF_MAX_7B)
 
 
+def _review_is_strong(review: dict) -> bool:
+    """Does this review take the Tier-3 strong path (gemma3:12b, full diff window)?
+
+    ONE definition, shared by the model selection in ``_structured_review`` and by the
+    coverage note's cap in ``_obtain_review_summary``. Duplicating ``tier >= 3`` in both
+    is how the note drifts away from the window the review actually got — which is the
+    defect this helper exists to prevent. Fails CLOSED to the narrow path: an unclassifiable
+    PR is treated as NOT strong, so the note errs toward flagging.
+    """
+    from tools.repair_bay.services.pr_review_service import classify_pr_tier  # noqa: PLC0415
+
+    try:
+        return classify_pr_tier(review) >= 3
+    except Exception:  # noqa: BLE001 — fail closed to the narrow cap
+        return False
+
+
+def _effective_coverage_cap(caps_used, planning_cap: int) -> int:
+    """The cap the coverage note must be measured at — what the review ACTUALLY saw.
+
+    #5836 measured coverage at a FIXED ``_diff_cap_for_model(strong=False)`` whatever ran.
+    That was accurate while every path used that cap, and stopped being accurate once
+    Tier-3 reviews began running on gemma3:12b at the window-aware cap. Measured 2026-08-24
+    on PR #2792: the note said "3 of 6 files, github_service.py about 39%" for a review that
+    received the whole 19,461-char diff at a 20,000 cap — and which then quoted a line found
+    ONLY in github_service.py, so it demonstrably read the file the note called truncated.
+
+    ⚠️ The fix is NOT "measure at the strong cap". ``_structured_review(...) or
+    _run_forge_review(...)`` means a Tier-3 pass can FAIL and fall back to freeform, which
+    always runs at the weak cap. Reporting the strong cap for a run that fell back would
+    OVERSTATE coverage — precisely the direction #5836 exists to prevent, and the reason the
+    original code erred small on purpose.
+
+    So: the NARROWEST cap any pass actually used, never the widest. A pass that recorded no
+    cap is UNKNOWN, not unlimited, and must not widen the result; with nothing recorded at
+    all this returns ``planning_cap``, i.e. the conservative pre-existing behaviour.
+    """
+    known = [c for c in (caps_used or []) if isinstance(c, int) and c > 0]
+    if not known:
+        return planning_cap
+    if len(known) != len(caps_used or []):
+        # An unknown pass is present — it may have been narrower than anything recorded.
+        return min([planning_cap, *known])
+    return min(known)
+
+
 def _review_max_chunks() -> int:
     """How many serial passes a review may take (#5848). Default 1 = today's behaviour.
 
@@ -1714,7 +1760,10 @@ def _structured_review(
         tier = 1
     kw = {}
     model_label = "default"
-    strong = tier >= 3  # ST-3: Tier-3 -> gemma3:12b (full diff window); else qwen2.5:7b (tighter cap)
+    # ST-3: Tier-3 -> gemma3:12b (full diff window); else qwen2.5:7b (tighter cap).
+    # Shared with the coverage note via _review_is_strong so the two cannot drift — the
+    # note must be measured at the cap this decision produced (#5836 follow-up).
+    strong = _review_is_strong(review)
     if strong:
         kw["prefer_model"] = _TIER3_REVIEW_MODEL
         model_label = _TIER3_REVIEW_MODEL
@@ -2116,14 +2165,27 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
 
     _summaries = []
     _retry_used = False
+    # #5836 follow-up — the cap each pass ACTUALLY ran at, so the coverage note can be
+    # measured against what the review saw rather than a fixed assumption. _strong is
+    # resolved once, from the same helper the model selection uses, so the two cannot drift.
+    _strong = _review_is_strong(review)
+    _caps_used = []
     for _idx, _chunk in enumerate(_chunks):
         _chunk_prov = _prov if _idx == 0 else []
         # ground_diff is ALWAYS the FULL diff (spec Decision 2). A finding whose evidence
         # lives in a different chunk is a genuine cross-chunk defect — the exact class that
         # splitting creates — and grounding against the chunk would drop precisely those.
-        summary = _structured_review(
-            review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov
-        ) or _run_forge_review(_build_prompt(review, _chunk), pr_number, repo, diff=diff)
+        # Split from the old `structured or freeform` one-liner so we can record WHICH path
+        # ran: the structured Tier-3 pass gets the wide window, the freeform fallback always
+        # runs at the weak cap. The coverage note must describe the cap actually used, and
+        # a fallback silently downgrades it (#5836 follow-up).
+        summary = _structured_review(review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov)
+        if summary:
+            _caps_used.append(_diff_cap_for_model(_strong))
+        else:
+            summary = _run_forge_review(_build_prompt(review, _chunk), pr_number, repo, diff=diff)
+            # The freeform fallback is ALWAYS the 7B at the tighter cap, whatever the tier.
+            _caps_used.append(_diff_cap_for_model(False))
         # #5287 — ONE structured retry per REVIEW, not per chunk. The retry is a path upgrade
         # for a degraded blocking verdict and its dispatch budget belongs to the review; a
         # persistent REQUEST CHANGES still stands whatever the retry says.
@@ -2143,6 +2205,22 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
                 + "\n[review-meta-note] degraded-path blocking verdict stood — structured retry unavailable (#5287)"
             )
         _summaries.append(summary)
+
+    # #5836 follow-up — RE-MEASURE coverage against the cap the passes actually ran at.
+    # The pre-loop _cov was computed at the conservative planning cap because the path was
+    # not yet known; now it is. Only ever WIDENS (the helper takes the narrowest pass), so a
+    # freeform fallback keeps the original conservative number and cannot overstate coverage.
+    _eff_cap = _effective_coverage_cap(_caps_used, _cap)
+    if _eff_cap > _cap:
+        _shown = "\n".join(_truncate_diff(_c, _eff_cap)[0] for _c in _chunks)
+        _cov = coverage(diff, _shown)
+        logger.info(
+            "[PR Review] PR #%s — coverage re-measured at the cap actually used (%d, was %d): %s",
+            pr_number,
+            _eff_cap,
+            _cap,
+            summarize(_cov),
+        )
 
     if len(_summaries) == 1:
         return annotate(_summaries[0], _cov)

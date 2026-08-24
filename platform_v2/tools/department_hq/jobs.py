@@ -1066,6 +1066,30 @@ def maintenance_window_driver(flask_app=None, scheduler=None):
     return result
 
 
+def proposer_draft():
+    """Draft a proposed manifest for the owner (#380 Task 5). Never opens a window.
+
+    dry_run=True deliberately: until the Plan 3 cockpit review screen exists there is
+    nowhere to review a real window, and creating unreviewable windows is how
+    maintenance_windows fills with noise. Flip to dry_run=False in Plan 3, in the
+    same PR that adds the review screen.
+    """
+    from services.proposer_service import propose_manifest
+
+    lane_prefixes = {
+        "codex": (
+            "platform_v2/tools/fitness/",
+            "platform_v2/tools/therapy/",
+            "platform_v2/tools/faith/",
+            "platform_v2/tools/brainstorm/",
+            "platform_v2/tools/doc/",
+            "platform_v2/tools/family_tree/",
+        ),
+        "engine": ("platform_v2/", "ai_bridge/", "scripts/", "docs/"),
+    }
+    return propose_manifest(lane_prefixes, repo="KytranKatarn/archie-platform", dry_run=True)
+
+
 def register_department_hq_jobs(scheduler, flask_app):
     """Central job registration — ALL department jobs go through here.
 
@@ -1315,6 +1339,18 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=5),
         id="maintenance_window_driver",
         name="Maintenance: announce/open/close scheduled windows",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # #380 Task 5 — daily proposed-manifest draft (07:00 ET). dry_run=True: never
+    # opens a window, just keeps the draft warm so the cockpit is never dormant.
+    scheduler.add_job(
+        with_ctx(proposer_draft),
+        trigger=CronTrigger(hour=7, minute=0, timezone="America/Toronto"),
+        id="proposer_draft",
+        name="Proposer: draft proposed manifest for owner review",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

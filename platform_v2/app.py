@@ -5702,6 +5702,43 @@ def api_internal_lane_liveness():
     return jsonify({"ok": True, **data})
 
 
+# propose_manifest performs no validation of its own -- repo flows verbatim onto
+# every item in the manifest it returns. The guard belongs HERE, at the endpoint,
+# not inside propose_manifest's contract (that function's callers may legitimately
+# pass any repo string; the caller-supplied HTTP surface may not).
+_PROPOSER_REPO_ALLOWLIST = ("KytranKatarn/archie-platform", "KytranKatarn/archie-code")
+
+
+@app.route("/api/internal/proposed-manifest", methods=["GET"])
+@_require_internal_key
+def internal_proposed_manifest():
+    """What the proposer would put in front of the owner right now.
+
+    Internal-key surface, not session-gated: the cockpit is a separate container
+    and carries the key, not a session (#2781).
+    """
+    from services.proposer_service import propose_manifest
+
+    lane_prefixes = {
+        "codex": (
+            "platform_v2/tools/fitness/",
+            "platform_v2/tools/therapy/",
+            "platform_v2/tools/faith/",
+            "platform_v2/tools/brainstorm/",
+            "platform_v2/tools/doc/",
+            "platform_v2/tools/family_tree/",
+        ),
+        "engine": ("platform_v2/", "ai_bridge/", "scripts/", "docs/"),
+    }
+    repo = request.args.get("repo", "KytranKatarn/archie-platform")
+    if repo not in _PROPOSER_REPO_ALLOWLIST:
+        return jsonify({"ok": False, "error": "unknown repo", "repo": repo}), 400
+    try:
+        return jsonify(propose_manifest(lane_prefixes, repo=repo, dry_run=True))
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "error": str(type(exc).__name__), "items": []}), 200
+
+
 @app.route("/api/internal/repair/count")
 @_require_internal_key
 def api_internal_repair_count():

@@ -30,6 +30,9 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from unittest.mock import MagicMock
 
+import pytest  # noqa: E402
+from tests.modstub import stub_module_scoped  # noqa: E402
+
 _TREE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _TREE_ROOT not in sys.path:
     sys.path.insert(0, _TREE_ROOT)
@@ -47,15 +50,25 @@ _stub_dispatcher.dispatch = MagicMock(return_value=MagicMock(success=False))
 # DispatchResult and resolve_department_escalation_owner each surfaced in turn.
 # Explicitly-set attributes above still win; this only catches the rest.
 _stub_dispatcher.__getattr__ = lambda _n: MagicMock()
-sys.modules["tools.department_hq.services.department_dispatcher"] = _stub_dispatcher
-_pkg_services.department_dispatcher = _stub_dispatcher
+# ── Scoped to THIS MODULE'S tests, not the whole session (#6018) ─────────────────────
+# This was a bare, permanent assignment at import time. pytest imports every test module
+# during COLLECTION, so from that point the stub was what the ENTIRE session saw and any
+# later module wanting the real dispatcher silently got the stub instead (#6017).
+_DISPATCHER = "tools.department_hq.services.department_dispatcher"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _dispatcher_stub():
+    """Install the dispatcher stub for this module only; restore both bindings after."""
+    with stub_module_scoped(_DISPATCHER, _stub_dispatcher):
+        yield
+
 
 _stub_telegram = types.ModuleType("services.telegram_service")
 _stub_telegram.send_info = MagicMock(return_value={"sent": True})
 _stub_telegram.send_system = MagicMock(return_value={"sent": True})
 sys.modules.setdefault("services.telegram_service", _stub_telegram)
 
-import pytest  # noqa: E402
 
 from services import delegation_service as ds  # noqa: E402
 

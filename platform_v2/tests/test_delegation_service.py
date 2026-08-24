@@ -12,7 +12,9 @@ import sys
 import types
 from unittest.mock import MagicMock, patch
 
-import pytest
+
+import pytest  # noqa: E402
+from tests.modstub import stub_module_scoped  # noqa: E402
 
 # Stub tools.department_hq.services.department_dispatcher in sys.modules
 # so patch() can target it. The real module pulls ``from db import ...``
@@ -30,8 +32,25 @@ _stub_dispatcher.dispatch = MagicMock(return_value=MagicMock(success=False))
 # DispatchResult and resolve_department_escalation_owner each surfaced in turn.
 # Explicitly-set attributes above still win; this only catches the rest.
 _stub_dispatcher.__getattr__ = lambda _n: MagicMock()
-sys.modules["tools.department_hq.services.department_dispatcher"] = _stub_dispatcher
-_pkg_services.department_dispatcher = _stub_dispatcher
+# ── Installed for THIS MODULE'S TESTS ONLY, not the whole session (#6018) ────────────
+# This used to be a bare, permanent assignment here at import time. pytest imports every
+# test module during COLLECTION, so from that moment the stub was what the ENTIRE session
+# saw, and any later module wanting the real dispatcher got the stub instead — silently,
+# and only when the suite ran as a whole. That is #6017: 8 tests in
+# test_fleet_candidate_welfare_gate failing together while passing 8/8 in isolation.
+#
+# Safe to defer because delegation_service imports the dispatcher LAZILY, inside a function
+# (services/delegation_service.py:999 `from ...department_dispatcher import dispatch`), so
+# the stub is only needed while these tests RUN — never at collection.
+_DISPATCHER = "tools.department_hq.services.department_dispatcher"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _dispatcher_stub():
+    """Scope the dispatcher stub to this module; restore both bindings afterwards."""
+    with stub_module_scoped(_DISPATCHER, _stub_dispatcher):
+        yield
+
 
 # Stub telegram_service too — hitting the live service during tests would
 # try to reach archie_comms (http://192.168.1.200:3002). delegation_service

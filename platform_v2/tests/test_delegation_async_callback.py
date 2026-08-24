@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import sys
 import types
+from unittest.mock import MagicMock  # noqa: E402  — used by the PEP 562 catch-all below (#6018)
 
-import pytest
+
+import pytest  # noqa: E402
+from tests.modstub import stub_module_scoped  # noqa: E402
 
 # Stub tools.department_hq.services.department_dispatcher in sys.modules so we
 # can swap `dispatch` without importing the real module (it pulls
@@ -31,8 +34,19 @@ _stub_dispatcher.dispatch = lambda **kw: None
 # DispatchResult and resolve_department_escalation_owner each surfaced in turn.
 # Explicitly-set attributes above still win; this only catches the rest.
 _stub_dispatcher.__getattr__ = lambda _n: MagicMock()
-sys.modules["tools.department_hq.services.department_dispatcher"] = _stub_dispatcher
-_pkg_services.department_dispatcher = _stub_dispatcher
+# ── Scoped to THIS MODULE'S tests, not the whole session (#6018) ─────────────────────
+# This was a bare, permanent assignment at import time. pytest imports every test module
+# during COLLECTION, so from that point the stub was what the ENTIRE session saw and any
+# later module wanting the real dispatcher silently got the stub instead (#6017).
+_DISPATCHER = "tools.department_hq.services.department_dispatcher"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _dispatcher_stub():
+    """Install the dispatcher stub for this module only; restore both bindings after."""
+    with stub_module_scoped(_DISPATCHER, _stub_dispatcher):
+        yield
+
 
 # emit_delegation_event lazily imports telegram_service; stub it defensively.
 _stub_telegram = types.ModuleType("services.telegram_service")

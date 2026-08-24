@@ -31,7 +31,11 @@ for _p in (str(_PV2), str(_PV2.parent / "ai_bridge")):
 _DD = "tools.department_hq.services.department_dispatcher"
 
 # ── Get the REAL dispatcher even when another test module has stubbed it (#6017) ──────
-# FIVE test modules do, at IMPORT time and permanently:
+# ⚠️ AS OF #6018 THIS IS DEFENCE IN DEPTH, NOT A LIVE FIX. The five modules below now scope
+# their stub to their own tests (tests/modstub.stub_module_scoped), and this file was
+# verified to pass with a PLAIN importorskip after three of them run first. The pop/restore
+# is retained deliberately: it costs nothing and it is the thing that fails loudly if anyone
+# reintroduces a permanent stub. Historically FIVE test modules did, at import time:
 #     sys.modules["tools.department_hq.services.department_dispatcher"] = _stub_dispatcher
 # (test_delegation_service, test_delegation_async_callback, test_delegation_worker_concurrency,
 #  test_delegate_late_result_salvage, test_coldload_gpu_routing)

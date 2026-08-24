@@ -29,6 +29,7 @@ normally. Patch both bindings instead, and import order stops mattering.
 ``monkeypatch`` undoes both, including deleting an attribute that did not previously exist.
 """
 
+import contextlib
 import importlib
 import sys
 import types
@@ -72,3 +73,54 @@ def uninstall_module(monkeypatch, dotted_name: str) -> None:
     parent = sys.modules.get(parent_name) if parent_name else None
     if parent is not None:
         monkeypatch.delattr(parent, child, raising=False)
+
+
+@contextlib.contextmanager
+def stub_module_scoped(dotted_name: str, stub):
+    """Install a PREBUILT stub module for the duration of the block, then restore (#6018).
+
+    `install_module_stub` above builds a stub from kwargs and reverts via monkeypatch, which
+    needs a fixture. This variant takes an already-constructed module and works anywhere a
+    `with` works — including a module-scoped autouse fixture, which is what a test file needs
+    when it must stub something for its OWN tests without poisoning the session.
+
+    WHY THIS EXISTS: five modules used to do, at import time and permanently,
+        sys.modules["tools.department_hq.services.department_dispatcher"] = _stub
+    pytest imports every test module during COLLECTION, so from the earliest such import the
+    stub was what the WHOLE session saw. Later modules wanting the real thing got the stub —
+    silently, and only when the suite ran as a whole (#6017: 8 tests that passed 8/8 alone).
+
+    Restores BOTH bindings, and the parent attribute is not optional: `from pkg import child`
+    reads the PARENT PACKAGE ATTRIBUTE, not sys.modules. Restoring only sys.modules regressed
+    6 tests in PR #2805's first attempt. Same trap as #5987.
+
+    Absence is restored as absence — if the name was not in sys.modules (or the attribute did
+    not exist), it is removed again rather than left bound to None, which is its own import
+    hazard (`None in sys.modules` raises ImportError on the next import).
+    """
+    parent_name, leaf = dotted_name.rsplit(".", 1)
+    parent = sys.modules.get(parent_name)
+
+    had_mod = dotted_name in sys.modules
+    prev_mod = sys.modules.get(dotted_name)
+    had_attr = parent is not None and hasattr(parent, leaf)
+    prev_attr = getattr(parent, leaf, None) if parent is not None else None
+
+    sys.modules[dotted_name] = stub
+    if parent is not None:
+        setattr(parent, leaf, stub)
+    try:
+        yield stub
+    finally:
+        if had_mod:
+            sys.modules[dotted_name] = prev_mod
+        else:
+            sys.modules.pop(dotted_name, None)
+        if parent is not None:
+            if had_attr:
+                setattr(parent, leaf, prev_attr)
+            else:
+                try:
+                    delattr(parent, leaf)
+                except AttributeError:
+                    pass

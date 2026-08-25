@@ -101,6 +101,34 @@ def _container_starts() -> dict:
         return {}
 
 
+def _real_dirt(porcelain: str) -> tuple[bool, bool]:
+    """(dirty, worktree_partial) from `git status --porcelain` output.
+
+    ⚠️ The worktree inside the hub containers is PARTIAL — `.git` is mounted but most of the
+    tree is not — so git reports every unmounted path as DELETED. Measured 2026-08-25: 2,499
+    entries in-container vs 0 on the host. Scoping by path does NOT fix this: even
+    `platform_v2` is partial (its `.claude/` is absent).
+
+    A worktree-DELETION is therefore ambiguous — "someone deleted it" and "it was never
+    mounted here" are byte-identical to git. A MODIFICATION is not ambiguous: the file is
+    present and its content differs. So deletions of absent paths are discarded as noise and
+    everything else still counts, which keeps the real signal (an uncommitted edit to running
+    code) while dropping the structural false positive.
+    """
+    dirty = False
+    partial = False
+    for line in porcelain.splitlines():
+        if len(line) < 4:
+            continue
+        code, path = line[:2], line[3:].strip().strip('"')
+        absent = not os.path.exists(os.path.join(REPO_ROOT, path))
+        if "D" in code and absent:
+            partial = True  # indistinguishable from an unmounted path — no signal
+            continue
+        dirty = True
+    return dirty, partial
+
+
 def derive_status(facts: dict) -> tuple[str, list]:
     """PURE. Facts in, (status, warnings) out — no git, no docker, no clock.
 
@@ -136,7 +164,8 @@ def derive_status(facts: dict) -> tuple[str, list]:
             f"but the running process has not loaded it. Restart to deploy."
         )
     if dirty:
-        warnings.append("The tree has uncommitted changes — the running code is in no commit.")
+        scope = " (in the mounted subtree)" if facts.get("worktree_partial") else ""
+        warnings.append(f"The tree has uncommitted changes{scope} — the running code is in no commit.")
     if fetch_age is not None and fetch_age > 24:
         warnings.append(
             f"origin was last fetched {fetch_age}h ago, so 'behind' is measured against a "
@@ -173,6 +202,7 @@ def hub_deploy_state() -> dict:
         "behind_main": None,
         "ahead_of_main": None,
         "dirty": None,
+        "worktree_partial": None,
         "origin_fetched_age_hours": None,
         "containers": [],
         "warnings": [],
@@ -203,8 +233,13 @@ def hub_deploy_state() -> dict:
     state["behind_main"] = int(behind) if (ok_b and behind.isdigit()) else None
     state["ahead_of_main"] = int(ahead) if (ok_a and ahead.isdigit()) else None
 
-    ok_d, dirty = _git("status", "--porcelain")
-    state["dirty"] = bool(dirty.strip()) if ok_d else None
+    # See _real_dirt: a partial mount makes every unmounted path look DELETED, which made
+    # `in_sync` unreachable from the only environment this module runs in.
+    ok_d, porcelain = _git("status", "--porcelain")
+    if ok_d:
+        state["dirty"], state["worktree_partial"] = _real_dirt(porcelain)
+    else:
+        state["dirty"], state["worktree_partial"] = None, None
 
     # How much to trust `behind_main`: this process deliberately does not fetch.
     try:

@@ -12,6 +12,7 @@ split out. An untestable verdict is one nobody can check.
 
 import pytest
 
+import services.hub_deploy_state as hub_deploy_state
 from services.hub_deploy_state import derive_status
 
 _CLEAN = {
@@ -137,3 +138,68 @@ def test_derive_status_is_pure_and_needs_no_repository():
         assert forbidden not in attrs, f"derive_status must stay pure — it calls .{forbidden}()"
     # premise check: the scan can see SOMETHING, so an empty result is not a silent pass
     assert "facts" in referenced and "warnings" in referenced
+
+
+# --- #5867 follow-up: a PARTIAL worktree made `dirty` structurally True -------------------
+#
+# Measured 2026-08-25, live in archie_platform: `git status --porcelain` returned 2,499
+# entries inside the container vs 0 on the host, because `.git` is mounted but most of the
+# tree is not — so every unmounted path reads as DELETED. `dirty` therefore fired on every
+# call and, since `dirty` outranks `in_sync`, `in_sync` was UNREACHABLE from the only
+# environment this module actually runs in. An alarm that always fires is not an alarm.
+
+
+def test_absent_path_deletions_are_not_dirt(monkeypatch):
+    """The false positive: deletions of paths that aren't on disk carry no signal."""
+    monkeypatch.setattr(hub_deploy_state.os.path, "exists", lambda p: False)
+    dirty, partial = hub_deploy_state._real_dirt(
+        " D .claude/hooks/session-init.sh\n D ai_bridge/agent_loop.py\n D scripts/dr/failover.sh"
+    )
+    assert dirty is False, "unmounted paths must not read as uncommitted work"
+    assert partial is True, "but the partial view must be reported, not hidden"
+
+
+def test_a_real_modification_still_counts(monkeypatch):
+    """The signal that must survive: an edit to a file that IS present."""
+    monkeypatch.setattr(hub_deploy_state.os.path, "exists", lambda p: True)
+    dirty, partial = hub_deploy_state._real_dirt(" M platform_v2/services/hub_deploy_state.py")
+    assert dirty is True
+    assert partial is False
+
+
+def test_real_dirt_survives_a_partial_view(monkeypatch):
+    """Noise must not mask a genuine edit sitting alongside it."""
+    present = {"/mnt/archie_brain/platform_v2/services/hub_deploy_state.py"}
+    monkeypatch.setattr(hub_deploy_state.os.path, "exists", lambda p: p in present)
+    dirty, partial = hub_deploy_state._real_dirt(
+        " D .claude/hooks/session-init.sh\n M platform_v2/services/hub_deploy_state.py"
+    )
+    assert dirty is True, "a real edit must not be swallowed by the deletion filter"
+    assert partial is True
+
+
+def test_in_sync_is_reachable():
+    """The regression this whole section exists for: `in_sync` must be an attainable state."""
+    status, warnings = hub_deploy_state.derive_status(
+        {
+            "branch": "main",
+            "on_default_branch": True,
+            "behind_main": 0,
+            "stale_containers": [],
+            "dirty": False,
+        }
+    )
+    assert status == "in_sync"
+    assert warnings == []
+
+
+def test_a_genuine_deletion_of_a_present_tree_still_reads_dirty(monkeypatch):
+    """Negative control: the filter must not turn every deletion into a silent skip.
+
+    When the worktree is whole (paths exist), `git status` reporting a staged deletion is
+    real work-in-progress and must still count.
+    """
+    monkeypatch.setattr(hub_deploy_state.os.path, "exists", lambda p: True)
+    dirty, partial = hub_deploy_state._real_dirt("D  platform_v2/services/gone.py")
+    assert dirty is True
+    assert partial is False

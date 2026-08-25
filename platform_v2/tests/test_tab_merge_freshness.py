@@ -13,7 +13,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from tests.repo_root import repo_root  # noqa: E402
+
+sys.path.insert(0, str(repo_root()))  # was parents[2] -> "/" in-container (#5994)
 
 from ai_bridge.agent_loop import tab_merge_refusal  # noqa: E402
 

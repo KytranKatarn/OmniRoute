@@ -67,6 +67,10 @@ echo "[run_tests] tree=$REPO/platform_v2 (this repo, NOT the sandbox copy)"
 #   .claude/{skills,commands,rules} -> tests/test_platform_registry_changes.py       (7)
 #   database/migrations             -> tests/migrations/*, test_secnet_followups.py  (4)
 #   /var/run/docker.sock            -> tests/test_platform_registry_services.py      (4)
+#   standalone/                     -> tests/test_media_hub_probe_honesty.py           (1)
+#     ^ read-only. That test skipped with "not mounted in this container" — TRUE, but the
+#       path it probed was "/standalone/..." (the #5994 root bug), so the message named the
+#       wrong cause. Fixing the path alone still skips; the tree has to be here too.
 #
 # ⚠️ ON THE DOCKER SOCKET: it grants root-equivalent control of the host, so it earns a
 # pause — but it is NOT a new exposure. archie_platform ALREADY mounts it read-write, and
@@ -91,6 +95,7 @@ exec docker run --rm \
   -v "$REPO/.claude/commands:/mnt/archie_brain/.claude/commands:ro" \
   -v "$REPO/.claude/rules:/mnt/archie_brain/.claude/rules:ro" \
   -v "$REPO/database/migrations:/mnt/archie_brain/database/migrations:ro" \
+  -v "$REPO/standalone:/mnt/archie_brain/standalone:ro" \
   $DOCKER_SOCK_ARG \
   --env-file "$REPO/.env" \
   -e "TEST_DB_NAME=$TEST_DB_NAME" \

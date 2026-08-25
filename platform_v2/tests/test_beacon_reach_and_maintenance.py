@@ -28,6 +28,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root
 
 _MARKER = Path("scripts") / "dr" / "beacon_flip.sh"
 
@@ -36,7 +37,7 @@ def _find_repo():
     for base in list(Path(__file__).resolve().parents) + [Path("/mnt/archie_brain")]:
         if (base / _MARKER).exists():
             return base
-    return Path(__file__).resolve().parents[2]
+    return repo_root()
 
 
 REPO = _find_repo()

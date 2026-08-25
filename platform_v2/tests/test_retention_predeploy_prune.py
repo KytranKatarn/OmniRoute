@@ -18,6 +18,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root
 
 # These are pure unit tests: no database, no /backups, no docker. The module under test
 # lives in scripts/, which the archie_platform container does NOT mount, so allow the path
@@ -25,7 +26,7 @@ import pytest
 # in-container. Repo-relative resolution is the default for a normal checkout run.
 _CANDIDATES = [
     os.environ.get("RETENTION_PRUNE_PATH"),
-    Path(__file__).resolve().parents[2] / "scripts" / "backup" / "retention_prune.py",
+    repo_root() / "scripts" / "backup" / "retention_prune.py",
 ]
 _MODULE_PATH = next(
     (Path(c) for c in _CANDIDATES if c and Path(c).is_file()),

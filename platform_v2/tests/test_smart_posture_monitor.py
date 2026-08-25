@@ -10,11 +10,12 @@ failing while sdc (152 realloc) is doing its job.
 import importlib.util
 from pathlib import Path
 
-# Repo-relative like test_dr_silent_success.py — resolves in-container
-# (/mnt/archie_brain is mounted) and on the host alike.
-_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "smart_posture_monitor.py"
-if not _SCRIPT.exists():
-    _SCRIPT = Path("/mnt/archie_brain/scripts/smart_posture_monitor.py")
+from tests.repo_root import repo_path
+
+# One shared resolver (#5994). This used to hand-roll a two-candidate fallback; four files
+# had grown their own slightly different copy of that idea, and the two files that did NOT
+# have one silently SKIPPED instead.
+_SCRIPT = repo_path("scripts", "smart_posture_monitor.py")
 
 _spec = importlib.util.spec_from_file_location("smart_posture_monitor", str(_SCRIPT))
 _mod = importlib.util.module_from_spec(_spec)

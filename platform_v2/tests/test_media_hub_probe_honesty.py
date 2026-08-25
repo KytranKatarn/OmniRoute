@@ -18,8 +18,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root
 
-_HO_PATH = Path(__file__).resolve().parents[2] / "standalone" / "media_hub" / "health_observer.py"
+_HO_PATH = repo_root() / "standalone" / "media_hub" / "health_observer.py"
 
 # The standalone tree is NOT mounted in archie_platform (only platform_v2 -> /app), so
 # parents[2] resolves to "/standalone/..." here and the file is absent. Skip honestly:

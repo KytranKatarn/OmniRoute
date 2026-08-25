@@ -7,6 +7,7 @@ rather than importing the modules.
 """
 
 from pathlib import Path
+from tests.repo_root import repo_root
 
 FILES = [
     "ai_bridge/emotional_intelligence.py",
@@ -23,7 +24,7 @@ FILES = [
 # to the nested-checkout shape.
 _CANDIDATE_ROOTS = [
     Path("/mnt/archie_brain"),
-    Path(__file__).resolve().parents[2],
+    repo_root(),
 ]
 
 

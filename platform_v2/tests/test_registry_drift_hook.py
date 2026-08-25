@@ -21,6 +21,7 @@ import importlib.util
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root
 
 
 def _find_hook() -> Path:
@@ -31,7 +32,7 @@ def _find_hook() -> Path:
     and the repo-relative guess misses. Try both rather than assume.
     """
     candidates = [
-        Path(__file__).resolve().parents[2] / "scripts" / "check_registry_drift.py",
+        repo_root() / "scripts" / "check_registry_drift.py",
         Path("/mnt/archie_brain/scripts/check_registry_drift.py"),
     ]
     for c in candidates:

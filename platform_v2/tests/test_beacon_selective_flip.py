@@ -17,6 +17,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root
 
 _MARKER = Path("scripts") / "dr" / "beacon_flip.sh"
 
@@ -31,7 +32,7 @@ def _find_repo():
     for base in list(Path(__file__).resolve().parents) + [Path("/mnt/archie_brain")]:
         if (base / _MARKER).exists():
             return base
-    return Path(__file__).resolve().parents[2]
+    return repo_root()
 
 
 REPO = _find_repo()
@@ -59,9 +60,7 @@ def _run_flip(tmp_path, args, caddy_validate_ok=True):
     # Stub the two remote binaries the helper shells out to.
     bindir = workdir / "bin"
     bindir.mkdir()
-    (bindir / "caddy").write_text(
-        "#!/bin/bash\nexit %d\n" % (0 if caddy_validate_ok else 1)
-    )
+    (bindir / "caddy").write_text("#!/bin/bash\nexit %d\n" % (0 if caddy_validate_ok else 1))
     (bindir / "systemctl").write_text("#!/bin/bash\nexit 0\n")
     for stub in ("caddy", "systemctl"):
         (bindir / stub).chmod(0o755)
@@ -83,9 +82,7 @@ def _run_flip(tmp_path, args, caddy_validate_ok=True):
         ).strip()
     )
 
-    proc = subprocess.run(
-        ["bash", str(driver)], capture_output=True, text=True, timeout=60
-    )
+    proc = subprocess.run(["bash", str(driver)], capture_output=True, text=True, timeout=60)
     return proc.returncode, proc.stdout + proc.stderr, caddyfile.read_text()
 
 
@@ -177,9 +174,7 @@ def test_reverting_all_dr_ports_is_idempotent(tmp_path):
             """
         ).strip()
     )
-    proc = subprocess.run(
-        ["bash", str(driver)], capture_output=True, text=True, timeout=60
-    )
+    proc = subprocess.run(["bash", str(driver)], capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert caddyfile.read_text() == BEACON_CADDYFILE.read_text()
 
@@ -192,9 +187,7 @@ def test_invalid_config_rolls_back_and_reports(tmp_path):
     detonates on the next unrelated reload.
     """
     original = BEACON_CADDYFILE.read_text()
-    rc, out, after = _run_flip(
-        tmp_path, f"{HUB} {DR} platform 3000", caddy_validate_ok=False
-    )
+    rc, out, after = _run_flip(tmp_path, f"{HUB} {DR} platform 3000", caddy_validate_ok=False)
     assert rc != 0
     assert after == original, "Caddyfile must be rolled back when validate fails"
     assert "ROLLED BACK" in out

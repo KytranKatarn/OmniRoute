@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root as _shared_repo_root
 
 _MARKER = Path("scripts") / "dr" / "watchdog" / "dr_watchdog.sh"
 
@@ -31,7 +32,7 @@ def _find_repo():
     for base in list(Path(__file__).resolve().parents) + [Path("/mnt/archie_brain")]:
         if (base / _MARKER).exists():
             return base
-    return Path(__file__).resolve().parents[2]
+    return _shared_repo_root()  # one resolver for the whole suite (#5994)
 
 
 REPO = _find_repo()

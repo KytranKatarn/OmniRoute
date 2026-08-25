@@ -24,6 +24,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+from tests.repo_root import repo_root as _shared_repo_root
 
 _MARKER = Path("scripts") / "dr" / "watchdog" / "dr_watchdog.sh"
 
@@ -48,7 +49,7 @@ def _find_repo() -> Path:
             return base
     # Fall back to the historical guess rather than raising at import: the tests below
     # already skip on a missing script, and a hard failure here would abort collection.
-    return Path(__file__).resolve().parents[2]
+    return _shared_repo_root()  # one resolver for the whole suite (#5994)
 
 
 _REPO = _find_repo()

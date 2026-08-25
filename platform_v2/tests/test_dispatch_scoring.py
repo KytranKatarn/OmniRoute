@@ -392,13 +392,46 @@ class TestHubAdmissionGeneralized:
     _DISPATCHER_PATH = "tools/department_hq/services/department_dispatcher.py"
 
     def _admission_block(self):
+        """The CODE of `_execute_llm`, with comments stripped.
+
+        This used to be a FIXED 2200-CHARACTER SLICE starting at "Hub admission control".
+        The explanatory comment above the guard grew, so the window stopped reaching the
+        code — and the failure mode was asymmetric and nasty:
+
+          * the two `assert X in block` tests FAILED, because the code had scrolled past
+            the window;
+          * `test_gate_uses_model_class_not_capability_tuple` kept PASSING, because
+            "_model_is_gpu_class(model)" also appears in the COMMENT that describes the
+            gate. It was green while asserting on prose.
+
+        A byte-count window over source is not a stable anchor. Parsing the function and
+        dropping comment lines fixes both directions at once: the positive assertions can
+        no longer be satisfied by a comment, and the negative one can no longer be broken
+        by a comment that merely MENTIONS the old shape.
+
+        Verified against production when this was written: all four probes below are
+        present in the real code, and `capability in HUB_CONTENDED_LANES` is absent — the
+        gate is correctly generalized. The test was wrong, not the dispatcher.
+        """
+        import ast
         import os
 
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         with open(os.path.join(base, self._DISPATCHER_PATH)) as f:
             src = f.read()
-        idx = src.index("Hub admission control")
-        return src[idx : idx + 2200]
+
+        fn = next(
+            (
+                n
+                for n in ast.walk(ast.parse(src))
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_execute_llm"
+            ),
+            None,
+        )
+        assert fn is not None, "_execute_llm is gone — the hub admission guard lives in it"
+
+        segment = ast.get_source_segment(src, fn) or ""
+        return "\n".join(line for line in segment.split("\n") if not line.strip().startswith("#"))
 
     def test_gate_uses_model_class_not_capability_tuple(self):
         block = self._admission_block()

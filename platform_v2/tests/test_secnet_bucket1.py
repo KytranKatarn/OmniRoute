@@ -18,6 +18,7 @@ here — it needs the restart + host access. What IS proven:
 """
 
 import os
+import re
 
 _MOD = os.path.join(os.path.dirname(__file__), "..", "tools", "security_network")
 _JSF = os.path.join(os.path.dirname(__file__), "..", "static", "js", "security-network-features.js")
@@ -58,10 +59,41 @@ def test_autoblock_matches_suggestion_type_prefix():
 
 
 # ---- job-count log accuracy ------------------------------------------------
-def test_job_count_log_is_22():
-    s = _src(os.path.join(_MOD, "jobs.py"))
-    assert "Registered 22 security/network jobs" in s
-    assert "Registered 21 security/network jobs" not in s
+def test_job_count_log_matches_the_jobs_actually_registered():
+    """The log must not LIE about how many jobs it registered.
+
+    This used to hardcode 22 ("Registered 22 security/network jobs"). Production is now at
+    23, so the test failed for the most boring possible reason: someone added a job. A
+    hardcoded count teaches nothing — the fix is always to bump the constant, which is
+    exactly the edit that would also hide a genuinely wrong number.
+
+    Counting the calls instead makes it self-maintaining AND strictly stronger: adding a job
+    and updating the log passes; adding a job WITHOUT updating the log fails, which is the
+    only failure mode worth a test here.
+
+    ⚠️ Counted by AST, not by grep. `grep -c 'add_job('` returns 24 on this file — it counts
+    text occurrences, including the one inside this module's own comments. The parser counts
+    CALLS. A grep-based version of this test would assert a number that is simply wrong.
+    """
+    import ast
+
+    src = _src(os.path.join(_MOD, "jobs.py"))
+
+    registered = 0
+    for node in ast.walk(ast.parse(src)):
+        if isinstance(node, ast.Call):
+            fn = node.func
+            if isinstance(fn, ast.Attribute) and fn.attr == "add_job":
+                registered += 1
+
+    m = re.search(r"Registered (\d+) security/network jobs", src)
+    assert m, "the registration summary log line is gone — it is the only signal operators see"
+    logged = int(m.group(1))
+
+    assert logged == registered, (
+        f"log claims {logged} jobs, module registers {registered}. "
+        "Update the log line in tools/security_network/jobs.py to match."
+    )
 
 
 # ---- info-leak hardening ---------------------------------------------------

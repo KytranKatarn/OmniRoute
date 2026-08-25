@@ -222,7 +222,15 @@ class TestExecuteKnownTools:
         suites = [{"id": 1, "name": "platform"}, {"id": 2, "name": "wtf"}]
 
         def _fake_run(sid, **kw):
-            return {1: [{"status": "pass"}], 2: [{"status": "pass"}, {"status": "fail"}]}[sid]
+            # qa_service.run_suite returns a SUMMARY DICT (total/passed/failed/errors),
+            # not a list of per-test rows. The old fake returned a list, so production's
+            # `res.get("passed")` raised AttributeError per suite, every suite was counted
+            # as an ERROR, and the scan reported failure — the test then blamed the
+            # feature ("scan ran → success, despite a red test") rather than the fake.
+            return {
+                1: {"total": 1, "passed": 1, "failed": 0, "errors": 0},
+                2: {"total": 2, "passed": 1, "failed": 1, "errors": 0},
+            }[sid]
 
         with patch("services.qa_service.get_suites", return_value=suites), patch(
             "services.qa_service.run_suite", side_effect=_fake_run
@@ -263,7 +271,13 @@ class TestExecuteKnownTools:
                     },
                 }
             )
-        run.assert_called_once_with()
+        # Production passes sources=[] for an UNSCOPED delegate call (scoped_sources is
+        # only populated for a git_hook trigger). That is equivalent to omitting it: the
+        # orchestrator does `sources = sources or EXTERNAL_SCAN_SOURCES`, so the empty
+        # list is falsy and falls back to ALL sources. Checked before updating this
+        # assertion — had it been `if sources is not None`, [] would mean "scan nothing"
+        # and this would be a production bug rather than a stale expectation.
+        run.assert_called_once_with(sources=[])
         assert result["success"] is True
         assert "gaps=7" in result["summary"]
         assert "auto_fixed=3" in result["summary"]
@@ -318,9 +332,32 @@ class TestExecuteKnownTools:
         assert "severity=warning" in result["summary"]
 
 
+def _dispatch_result(**kw):
+    """A dispatch-result double whose BOOLEAN FLAGS default to False, not to a MagicMock.
+
+    ⚠️ A bare `MagicMock()` answers EVERY attribute with a truthy MagicMock. When production
+    added `if getattr(dispatch_result, "queued", False):` ahead of the failure branch, every
+    test using a bare mock silently took the QUEUED path — so a test asserting
+    "Dispatcher refused" got
+        "Queued to fleet (queue #<MagicMock ...>, <MagicMock ...> warming)"
+    and the MagicMock repr in the message is the tell. Same catch-all trap as a PEP 562
+    `__getattr__` stub.
+
+    Every flag production branches on is pinned False here. Add a new one to this baseline
+    when production grows one, and the next such change fails loudly instead of rerouting
+    the test.
+    """
+    base = {"success": False, "queued": False, "queue_id": None, "error": None, "model_used": None}
+    base.update(kw)
+    m = MagicMock()
+    for k, v in base.items():
+        setattr(m, k, v)
+    return m
+
+
 class TestExecuteViaDispatcher:
     def test_unknown_capability_falls_through_to_dispatcher(self, delegation_service):
-        fake_dispatch_result = MagicMock()
+        fake_dispatch_result = _dispatch_result(success=True)
         fake_dispatch_result.success = True
         fake_dispatch_result.agent_name = "CODEX"
         fake_dispatch_result.model_used = "mistral:7b"
@@ -355,9 +392,7 @@ class TestExecuteViaDispatcher:
         assert result["result"]["agent"] == "CODEX"
 
     def test_dispatcher_failure_surfaces(self, delegation_service):
-        fake_dispatch_result = MagicMock()
-        fake_dispatch_result.success = False
-        fake_dispatch_result.error = "No agent available for capability"
+        fake_dispatch_result = _dispatch_result(success=False, error="No agent available for capability")
 
         with patch(
             "tools.department_hq.services.department_dispatcher.dispatch",

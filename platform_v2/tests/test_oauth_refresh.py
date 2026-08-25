@@ -44,7 +44,11 @@ def test_pyproject_version_is_1_1_0():
     import tomllib
     import pathlib
 
-    p = pathlib.Path("kytran-auth/pyproject.toml")
+    # Was cwd-relative ("kytran-auth/pyproject.toml"); cwd is /app in the container, so it
+    # resolved to /app/kytran-auth/... and never existed (#5994 family, #6016).
+    from tests.repo_root import repo_path
+
+    p = repo_path("kytran-auth", "pyproject.toml")
     with open(p, "rb") as f:
         data = tomllib.load(f)
     assert data["project"]["version"] == "1.1.0", f"Expected 1.1.0, got {data['project']['version']}"

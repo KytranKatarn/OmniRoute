@@ -51,6 +51,16 @@ def repo_root() -> Path:
     return _CONTAINER_REPO
 
 
+def platform_root() -> Path:
+    """The platform_v2 root — `/app` in the container, `<repo>/platform_v2` on the host.
+
+    Distinct from repo_root(): this is the tree that is bind-mounted, so a path under it is
+    reachable in BOTH environments without a mount. Prefer it over an absolute host path
+    like "/mnt/archie_brain/platform_v2/..." which simply does not exist in the container.
+    """
+    return Path(__file__).resolve().parents[1]
+
+
 def repo_path(*parts: str) -> Path:
     """`repo_root()` joined with `parts` — the shape almost every caller wants."""
     return repo_root().joinpath(*parts)

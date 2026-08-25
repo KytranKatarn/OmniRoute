@@ -68,6 +68,10 @@ echo "[run_tests] tree=$REPO/platform_v2 (this repo, NOT the sandbox copy)"
 #   database/migrations             -> tests/migrations/*, test_secnet_followups.py  (4)
 #   /var/run/docker.sock            -> tests/test_platform_registry_services.py      (4)
 #   standalone/                     -> tests/test_media_hub_probe_honesty.py           (1)
+#   kytran-auth/                    -> tests/test_oauth_refresh.py                     (1)
+#   .git                            -> tests/test_hub_deploy_provenance.py             (1)
+#     ^ .git is READ-ONLY here. archie_platform mounts it READ-WRITE; a test is arbitrary
+#       code and has no business writing to the repo's history.
 #     ^ read-only. That test skipped with "not mounted in this container" — TRUE, but the
 #       path it probed was "/standalone/..." (the #5994 root bug), so the message named the
 #       wrong cause. Fixing the path alone still skips; the tree has to be here too.
@@ -96,6 +100,8 @@ exec docker run --rm \
   -v "$REPO/.claude/rules:/mnt/archie_brain/.claude/rules:ro" \
   -v "$REPO/database/migrations:/mnt/archie_brain/database/migrations:ro" \
   -v "$REPO/standalone:/mnt/archie_brain/standalone:ro" \
+  -v "$REPO/kytran-auth:/mnt/archie_brain/kytran-auth:ro" \
+  -v "$REPO/.git:/mnt/archie_brain/.git:ro" \
   $DOCKER_SOCK_ARG \
   --env-file "$REPO/.env" \
   -e "TEST_DB_NAME=$TEST_DB_NAME" \

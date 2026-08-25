@@ -147,7 +147,11 @@ def test_all_capabilities_mapped_in_dispatcher():
     import ast
     import re
 
-    dispatcher_path = "/mnt/archie_brain/platform_v2/tools/department_hq/services/department_dispatcher.py"
+    # Was the absolute HOST path "/mnt/archie_brain/platform_v2/...", which does not exist
+    # in the test container — platform_v2 is bind-mounted AS /app (#5994 family, #6016).
+    from tests.repo_root import platform_root
+
+    dispatcher_path = platform_root() / "tools" / "department_hq" / "services" / "department_dispatcher.py"
     with open(dispatcher_path) as f:
         source = f.read()
 

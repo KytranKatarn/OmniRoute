@@ -22,14 +22,26 @@ import services.backup_posture_monitor as bpm  # noqa: E402
 
 
 class _Cur:
-    """Answers, in order: primary freshness age, primary failure count, then the two
-    fetchall queries (platform_settings overrides, per-tier off-site rollup)."""
+    """Fake cursor. Routes each fetchall by the QUERY IT SAW, not by call order.
 
-    def __init__(self, age_h, failures, tier_rows=None, settings_rows=None):
+    It used to answer "the two fetchall queries" positionally — platform_settings, then
+    the per-tier rollup — with `return settings_rows if "platform_settings" in q else
+    tier_rows`. #5619 then added a THIRD fetchall (the DISTINCT ON error_message lookup
+    that quotes each tier's real failure cause), which fell into the `else` and received
+    ROLLUP rows. Those have no `error_message`, so the whole off-site block produced
+    nothing and four tests failed with `assert 'offsite_gdrive_stale' in []`.
+
+    Production had moved and the fake had not — the same shape as #5993. Keying on query
+    CONTENT means the next added query returns [] (visibly empty) instead of silently
+    inheriting another query's rows.
+    """
+
+    def __init__(self, age_h, failures, tier_rows=None, settings_rows=None, error_rows=None):
         self._answers = [{"age_h": age_h}, {"n": failures}]
         self._i = -1
         self._tier_rows = tier_rows or []
         self._settings_rows = settings_rows or []
+        self._error_rows = error_rows or []
         self.sql = []
 
     def execute(self, q, params=None):
@@ -41,7 +53,13 @@ class _Cur:
 
     def fetchall(self):
         q = self.sql[-1] if self.sql else ""
-        return self._settings_rows if "platform_settings" in q else self._tier_rows
+        if "platform_settings" in q:
+            return self._settings_rows
+        if "error_message" in q:  # #5619 per-tier last-error lookup
+            return self._error_rows
+        if "success_age_h" in q:  # per-tier off-site rollup
+            return self._tier_rows
+        return []
 
 
 @pytest.fixture
@@ -58,8 +76,8 @@ def alerts(monkeypatch):
     # capture the BODY too — the assertions below check what the operator actually reads
     monkeypatch.setattr(ts, "send_system", lambda title, msg="", **kw: sent.append((title, msg, kw)) or {})
 
-    def _run(age_h, failures=0, tier_rows=None, settings_rows=None, **kw):
-        _cursor.cur = _Cur(age_h, failures, tier_rows, settings_rows)
+    def _run(age_h, failures=0, tier_rows=None, settings_rows=None, error_rows=None, **kw):
+        _cursor.cur = _Cur(age_h, failures, tier_rows, settings_rows, error_rows)
         res = bpm.check_backup_posture(**kw)
         return res, sent, _cursor.cur
 

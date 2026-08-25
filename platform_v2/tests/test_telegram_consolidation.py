@@ -209,17 +209,34 @@ class TestSendEscalationNotification:
 
         original_gdc = db_mod.get_db_cursor
 
+        # Patch database.get_db_cursor on the real module object so the coroutine's lazy
+        # `from database import get_db_cursor` resolves it. Set BEFORE the block below,
+        # because the coroutine is now driven inside it.
+        db_mod.get_db_cursor = fake_db_cursor
+
         try:
             with patch("ai_bridge.telegram_gateway.get_db", return_value=mock_conn), patch(
                 "asyncio.run_coroutine_threadsafe", capturing_run_coroutine
             ):
                 gw.send_escalation_notification(approval_id, context)
 
-            # Patch database.get_db_cursor on the real module object so the
-            # coroutine's lazy `from database import get_db_cursor` resolves it.
-            db_mod.get_db_cursor = fake_db_cursor
-            if future_holder:
-                loop.run_until_complete(future_holder[0])
+                # ⚠️ DRIVE THE COROUTINE INSIDE THE PATCH CONTEXT.
+                #
+                # `send_escalation_notification` only SCHEDULES `_send()`; the captured
+                # coroutine body does not execute until awaited. Running it after the
+                # `with` block meant the patches were already undone, so `_send` called the
+                # REAL get_db and the mock was never touched — measured: get_db called
+                # False, cursor() 0, bot.send_message 0, and its `except` swallowed the
+                # fallout silently.
+                #
+                # It passed historically only because the real DB had telegram_users rows,
+                # so the loop iterated and logged for real. Against archie_test — which has
+                # never held a row — it iterates zero times and logs nothing, so all three
+                # tests failed with "Calls: []" while looking like a production defect.
+                #
+                # A capture-then-run helper must run INSIDE every patch the coroutine needs.
+                if future_holder:
+                    loop.run_until_complete(future_holder[0])
         finally:
             db_mod.get_db_cursor = original_gdc
             ts_mod._log_message = original_log

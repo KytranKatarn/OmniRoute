@@ -147,38 +147,45 @@ def test_deploy_to_production_creates_improvement_deployment_row(app, db_conn):
         assert row[0] == "20260507_120000_pre_deploy"
 
 
-def test_retention_policy_reads_from_system_config(client, db_conn):
-    """retention-status should reflect system_config values, not hardcoded constants."""
-    with db_conn.cursor() as cur:
-        for key, val in [("retention_daily", "3"), ("retention_weekly", "2"), ("retention_monthly", "2")]:
-            cur.execute(
-                "INSERT INTO system_config (key, value, updated_at) VALUES (%s, %s, NOW()) "
-                "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
-                (key, val),
-            )
-    db_conn.commit()
+def test_retention_status_reports_the_canonical_engine_not_a_synthetic_triple(client):
+    """RETIRED SHAPE PINNED (#5141). This used to assert `retention_daily == 3` after
+    seeding system_config — i.e. it asserted the very thing the endpoint was changed to
+    stop reporting.
 
+    routes_operations.py calls the old synthesised "7 daily + 4 weekly + 6 monthly" answer
+    FICTION in as many words: nothing enforced those numbers. Retention is per-(component,
+    tier) in scripts/backup/retention_prune.py, run nightly. The endpoint now reports what
+    is real — the engine, the schedule, and the last canonical prune.
+
+    Asserting the ABSENCE of retention_daily is the anti-regression: restoring that key
+    would mean restoring a number no pruner reads.
+    """
     _login_as_admin(client)
     resp = client.get("/tools/backup-manager/retention-status")
-    data = resp.get_json()
     assert resp.status_code == 200
-    assert data.get("retention_daily") == 3
+    data = resp.get_json()
+    assert data["managed"] == "automatic"
+    assert "retention_prune.py" in data["engine"]
+    assert "retention_daily" not in data, "the synthetic global triple is back — nothing enforces it (#5141)"
 
 
-def test_put_retention_policy_updates_system_config(client, db_conn):
-    """PUT /retention-policy should update system_config keys."""
+def test_put_retention_policy_is_retired_and_refuses_honestly(client):
+    """RETIRED (#5141). This asserted 200 + success — the behaviour that was removed
+    BECAUSE it was a silent no-op: the canonical engine never read the system_config keys
+    this endpoint wrote, so "saving" reported success and changed nothing.
+
+    410 + retired:True is the fix, not a regression. Pinning it stops the no-op returning.
+    """
     _login_as_admin(client)
     resp = client.put(
         "/tools/backup-manager/retention-policy",
         json={"daily": 10, "weekly": 5, "monthly": 8},
         content_type="application/json",
     )
-    assert resp.status_code == 200
-    assert resp.get_json()["success"] is True
-
-    with db_conn.cursor() as cur:
-        cur.execute("SELECT value FROM system_config WHERE key = 'retention_daily'")
-        assert cur.fetchone()[0] == "10"
+    assert resp.status_code == 410, "a retired endpoint must refuse, not pretend to save"
+    body = resp.get_json()
+    assert body["retired"] is True
+    assert body["success"] is False
 
 
 def test_create_deployment_package_returns_job_id(client):

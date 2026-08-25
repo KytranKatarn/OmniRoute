@@ -168,7 +168,12 @@ def test_head_reader_works_against_this_actual_repository():
     here, check_hub_deploy() degrades to permanent fail_open and the monitor
     goes quiet without ever failing.
     """
-    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    # os.path flavour of the #5994 bug: /app/tests/../.. is "/" in the container, so the
+    # assertion below reported "could not read HEAD from /" — a real-looking monitor
+    # failure caused entirely by the path.
+    from tests.repo_root import repo_root as _rr
+
+    repo_root = str(_rr())
     sha = hdp.head_from_git_dir(repo_root)
     assert sha, f"could not read HEAD from {repo_root} — monitor would be permanently blind"
     assert len(sha) == 40 and all(c in "0123456789abcdef" for c in sha), sha

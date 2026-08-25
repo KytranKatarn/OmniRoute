@@ -235,6 +235,16 @@ def poll_open_prs(repo: str = None) -> dict:
                         title          = EXCLUDED.title,
                         state          = EXCLUDED.state,
                         diff_url       = EXCLUDED.diff_url,
+                        -- REFRESH the refs, do not just seed them on INSERT. They were
+                        -- absent from this SET list, so `base_branch` was written once
+                        -- and never again: 1,878 of 2,518 rows were NULL because a
+                        -- review stub had created the row first, and a poll can only
+                        -- ever UPDATE it. Stacked PRs make the staleness worse than the
+                        -- NULLs — GitHub RETARGETS a stacked PR when its parent merges,
+                        -- so the stored base is wrong exactly when it decides whether a
+                        -- merge ships or folds into a parent branch (#5866).
+                        base_branch    = EXCLUDED.base_branch,
+                        head_branch    = EXCLUDED.head_branch,
                         additions      = EXCLUDED.additions,
                         deletions      = EXCLUDED.deletions,
                         changed_files  = EXCLUDED.changed_files,
@@ -254,7 +264,7 @@ def poll_open_prs(repo: str = None) -> dict:
                         pr.get("title", ""),
                         pr.get("user") if isinstance(pr.get("user"), str) else (pr.get("user") or {}).get("login"),
                         pr.get("state", "open"),
-                        (pr.get("base") or {}).get("ref"),
+                        pr.get("base_ref") or (pr.get("base") or {}).get("ref"),
                         (pr.get("head") or {}).get("ref") or pr.get("head_ref"),
                         pr.get("diff_url"),
                         pr.get("additions"),
@@ -907,60 +917,122 @@ MERGE_STATE_COVERAGE_ONLY = "coverage_only"
 MERGE_STATE_CHANGES = "changes_requested"
 
 
-def merge_state(review_status: str | None, ai_summary: str | None) -> dict:
+def merge_state(
+    review_status: str | None,
+    ai_summary: str | None,
+    base_branch: str | None = None,
+    default_branch: str = "main",
+) -> dict:
     """Derive what the UI should render for one PR row. Pure — no DB, no Flask.
 
-    Returns {state, mergeable, label, hint, dropped_files}. `mergeable` means only "the
-    gate would not refuse outright"; coverage_only is mergeable ONLY with an explicit ack,
-    which the merge handler still enforces server-side.
+    Returns {state, mergeable, label, hint, dropped_files, base_branch, stacked}.
+    `mergeable` means only "the gate would not refuse outright"; coverage_only is
+    mergeable ONLY with an explicit ack, which the merge handler still enforces
+    server-side.
+
+    ⚠️ `base_branch` does NOT change `state` or `mergeable`. WHERE a PR lands is
+    orthogonal to WHETHER it is fit to land, so it decorates the label/hint only —
+    exactly like the Approvals category filter, which is presentation and can never
+    relax a gate. Merging a stacked PR into its parent is legitimate; it just is not
+    shipping, and the row must say so.
     """
     status = (review_status or "").strip().lower()
     summary = ai_summary or ""
 
     if status == "in_progress":
-        return {
-            "state": MERGE_STATE_REVIEWING,
-            "mergeable": False,
-            "label": "REVIEWING…",
-            "hint": "A review is running — wait for it to finish.",
-            "dropped_files": [],
-        }
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_REVIEWING,
+                "mergeable": False,
+                "label": "REVIEWING…",
+                "hint": "A review is running — wait for it to finish.",
+                "dropped_files": [],
+            },
+            base_branch,
+            default_branch,
+        )
     if not summary.strip() or status == "pending":
-        return {
-            "state": MERGE_STATE_AWAITING,
-            "mergeable": False,
-            "label": "WAITING FOR REVIEW",
-            "hint": "No stored verdict yet — nothing has reviewed this PR.",
-            "dropped_files": [],
-        }
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_AWAITING,
+                "mergeable": False,
+                "label": "WAITING FOR REVIEW",
+                "hint": "No stored verdict yet — nothing has reviewed this PR.",
+                "dropped_files": [],
+            },
+            base_branch,
+            default_branch,
+        )
 
     if verdict_is_approved(summary):
-        return {
-            "state": MERGE_STATE_APPROVED,
-            "mergeable": True,
-            "label": "APPROVED",
-            "hint": "",
-            "dropped_files": [],
-        }
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_APPROVED,
+                "mergeable": True,
+                "label": "APPROVED",
+                "hint": "",
+                "dropped_files": [],
+            },
+            base_branch,
+            default_branch,
+        )
 
     if coverage_only_demotion(summary):
         dropped = coverage_dropped_paths(summary) or []
-        return {
-            "state": MERGE_STATE_COVERAGE_ONLY,
-            "mergeable": True,  # only WITH an ack — the route still enforces it
-            "label": f"COVERAGE · {len(dropped)} unread",
-            # Reuse the refusal's own words so the row and the refusal agree.
-            "hint": _merge_hint(summary, False),
-            "dropped_files": dropped,
-        }
+        return _with_merge_target(
+            {
+                "state": MERGE_STATE_COVERAGE_ONLY,
+                "mergeable": True,  # only WITH an ack — the route still enforces it
+                "label": f"COVERAGE · {len(dropped)} unread",
+                # Reuse the refusal's own words so the row and the refusal agree.
+                "hint": _merge_hint(summary, False),
+                "dropped_files": dropped,
+            },
+            base_branch,
+            default_branch,
+        )
 
-    return {
-        "state": MERGE_STATE_CHANGES,
-        "mergeable": False,
-        "label": "CHANGES REQUESTED",
-        "hint": _merge_hint(summary, False),
-        "dropped_files": [],
-    }
+    return _with_merge_target(
+        {
+            "state": MERGE_STATE_CHANGES,
+            "mergeable": False,
+            "label": "CHANGES REQUESTED",
+            "hint": _merge_hint(summary, False),
+            "dropped_files": [],
+        },
+        base_branch,
+        default_branch,
+    )
+
+
+def _with_merge_target(result: dict, base_branch: str | None, default_branch: str) -> dict:
+    """Name the branch a merge would actually land on. PURE.
+
+    WHY: 2026-08-25, a 4-PR stack was shipped by clicking Merge on the TOP one. That
+    folded it into its own parent — a branch that already contained everything below it —
+    so the click was a no-op and `main` never moved. The row read "Merge" and gave no
+    hint that it was not shipping. `pr_reviews.base_branch` was already populated by
+    `poll_open_prs`; nothing had ever read it.
+
+    Stacked PRs stay MERGEABLE — merging into a parent is a legitimate act. The row just
+    has to say where it goes.
+    """
+    base = (base_branch or "").strip()
+    out = dict(result)
+    out["base_branch"] = base or None
+    out["stacked"] = bool(base) and base != default_branch
+    if not out["stacked"]:
+        return out
+    if out.get("mergeable"):
+        out["label"] = f"{out.get('label', 'MERGE')} → {base}"
+    warning = (
+        f"Merges into '{base}', NOT {default_branch} — this will NOT ship. "
+        f"Merge the PRs below it first (bottom-up); GitHub retargets each one as its "
+        f"parent lands."
+    )
+    existing = (out.get("hint") or "").strip()
+    out["hint"] = f"{warning} · {existing}" if existing else warning
+    return out
 
 
 def _merge_hint(summary: str, verdict_ok: bool) -> str:
@@ -996,7 +1068,7 @@ def list_reviews(state: str = None, review_status: str = None, limit: int = 50) 
     # make. Kept out of the SQL deliberately: the verdict rule is Python, and a second
     # copy of it in SQL would be the same duplication the JS copy would have been.
     for row in rows:
-        row["merge_state"] = merge_state(row.get("review_status"), row.get("ai_summary"))
+        row["merge_state"] = merge_state(row.get("review_status"), row.get("ai_summary"), row.get("base_branch"))
     return rows
 
 

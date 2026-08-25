@@ -1123,6 +1123,17 @@ def list_all_prs_enriched(state: str = "open", repo: str = None) -> Dict:
             "state": pr.get("state"),
             "user": (pr.get("user") or {}).get("login"),
             "head_ref": (pr.get("head") or {}).get("ref"),
+            # The BASE ref, flattened like head_ref beside it. Its absence here is why
+            # `pr_reviews.base_branch` was NULL on 1,878 of 2,518 rows: poll_open_prs
+            # reads `pr["base"]["ref"]`, and this payload has never carried a `base`
+            # key at all — so the writer read a key the producer does not emit and
+            # silently stored None every time (#5866, same shape as the _docker_exec
+            # `output`-vs-`stdout` phantom in #2622).
+            #
+            # It matters because it decides whether a merge SHIPS or folds into a
+            # parent branch: on 2026-08-25 a 4-PR stack was "merged" by clicking the
+            # TOP one, which landed in its own parent and never moved main.
+            "base_ref": (pr.get("base") or {}).get("ref"),
             "head_sha": (pr.get("head") or {}).get("sha"),
             "created_at": pr.get("created_at"),
             "updated_at": pr.get("updated_at"),

@@ -14,7 +14,13 @@ un-gated code fixes that don't need a live drive.
 import os
 
 _MOD = os.path.join(os.path.dirname(__file__), "..", "tools", "security_network")
-_MIG = os.path.join(os.path.dirname(__file__), "..", "..", "database", "migrations")
+# Was os.path.join(dirname(__file__), "..", "..", ...) = "/database/migrations" in the test
+# container, where platform_v2 is mounted AS /app — the os.path spelling of #5994. The
+# migration is on disk and mounted; only the path was wrong, so "migration 469 missing"
+# named the wrong cause.
+from tests.repo_root import repo_path  # noqa: E402
+
+_MIG = str(repo_path("database", "migrations"))
 _JSA = os.path.join(os.path.dirname(__file__), "..", "static", "js", "security-network-app.js")
 
 

@@ -259,8 +259,18 @@ def test_hire_proposals_cleared():
 
 
 def test_creed_violations_table_exists():
-    result = _db("SELECT COUNT(*) FROM information_schema.tables " "WHERE table_name='creed_violations'")
-    assert result.strip() == "1", "creed_violations table not found"
+    """information_schema.tables spans EVERY schema — qualify, or the count is not what you think.
+
+    This asserted == "1" and got "2": the database holds BOTH public.creed_violations and
+    sandbox.creed_violations (the sandbox-restore schema). The table was present all along;
+    the message "creed_violations table not found" was the opposite of the truth, which is
+    what made this look like a missing migration.
+    """
+    result = _db(
+        "SELECT COUNT(*) FROM information_schema.tables "
+        "WHERE table_name='creed_violations' AND table_schema='public'"
+    )
+    assert result.strip() == "1", f"public.creed_violations not found (got {result.strip()!r})"
 
 
 def test_creed_violations_insert_works():

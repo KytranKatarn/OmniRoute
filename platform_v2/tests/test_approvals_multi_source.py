@@ -193,8 +193,18 @@ class TestApprove:
                 row = cur.fetchone()
             assert row["status"] == "approved"
             assert row["approved_by"] == TEST_USER_ID
-            expected = datetime.now(timezone.utc) + timedelta(days=14)
-            assert abs((row["expires_at"].replace(tzinfo=None) - expected).total_seconds()) < 3600
+            # contractor_approval_requests.expires_at is `timestamp WITHOUT time zone`
+            # (so is created_at), so psycopg2 hands back a NAIVE datetime. The old code
+            # stripped tzinfo from the DB value — a no-op — and left `expected` AWARE, so
+            # the subtraction raised:
+            #     TypeError: can't subtract offset-naive and offset-aware datetimes
+            # Compare naive-to-naive, and strip on the side that is actually aware.
+            #
+            # ⚠️ This is a THIRD table deviating from the platform's TIMESTAMPTZ convention;
+            # .claude/rules/database.md already names agent_emotional_state.timestamp and
+            # agent_learning_records.learned_at. Check the column type before assuming.
+            expected = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=14)
+            assert abs((row["expires_at"] - expected).total_seconds()) < 3600
         finally:
             _cleanup(db, "contractor_approval_requests", row_id)
 

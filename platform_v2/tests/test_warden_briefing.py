@@ -106,13 +106,25 @@ def test_briefing_marks_partial_standalones():
         def __exit__(self, *a):
             pass
 
+    # NOTE: get_backup_retention_status is no longer patched — production does not call it.
+    # #2438 deleted that call deliberately; warden_briefing.py says why, in its own words:
+    # the delete_count was "a RETIRED single-triple pruner's projection for a policy the
+    # system does not enforce". The real engine is scripts/backup/retention_prune.py,
+    # per-component and per-tier. Patching a function nobody calls only hides that.
     with patch("tools.backup_manager._shared.get_backup_db_cursor", return_value=FakeCtx()), patch(
         "os.path.exists", return_value=False
-    ), patch("tools.backup_manager._shared.get_backup_retention_status", return_value={"delete_count": 2}):
+    ):
         result = _build_warden_briefing()
 
     assert "⚠️" in result
     assert "kso" in result
     assert "✅" in result
     assert "gov_watch" in result
-    assert "2 backup(s) eligible for pruning" in result
+
+    # The briefing reports the CANONICAL engine and the last real prune.
+    assert "Retention: automatic" in result
+
+    # ANTI-REGRESSION: this test used to assert "2 backup(s) eligible for pruning" — a
+    # projection from the retired pruner. Asserting its ABSENCE is what stops the fiction
+    # coming back; restoring that line would mean surfacing a number nothing enforces.
+    assert "eligible for pruning" not in result

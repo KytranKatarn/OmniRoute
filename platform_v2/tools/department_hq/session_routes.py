@@ -9,7 +9,6 @@ Two endpoints:
 
 from __future__ import annotations
 
-import hmac
 import logging
 import os
 
@@ -17,7 +16,6 @@ from flask import jsonify, request
 
 logger = logging.getLogger(__name__)
 
-_INTERNAL_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 # Platforms allowed for cookie-import → encrypted Playwright storage_state.
 # claude/deepseek added 2026-06-02 so S.C.O.U.T. authenticated_fetch can read
@@ -133,15 +131,24 @@ def save_session_state_handler(agent_id: int, platform: str):
 
 
 def get_session_state_handler(agent_id: int, platform: str):
-    """Handler shared with the app-level /api/internal/sessions/... route.
+    """archie_browser fetches Playwright storage_state for a (agent, platform).
 
-    Defined at module level (not nested inside register_session_routes) so app.py
-    can import it cleanly. See app.py for the @app.route registration.
+    NO auth here — must only be registered behind app.py's _require_internal_key
+    (Bearer INTERNAL_API_KEY), mirroring save_session_state_handler above.
+
+    ⚠️ This was DEAD CODE until #6020. Its docstring claimed "See app.py for the
+    @app.route registration", but app.py never imported it — it carried its own inline
+    copy of this logic, and the two disagreed on AUTH: this one checked an
+    ``X-Internal-Key`` header while app.py's decorator requires ``Authorization: Bearer``.
+    Two implementations of one endpoint, and the reachable one was not the one the
+    docstring pointed at. It had already misled a test — test_browser_session_routes'
+    TestGetState was written against THIS handler and failed for as long as anyone looked.
+    app.py now delegates here, exactly as it does for the POST.
+
+    The self-check is gone deliberately: it read a module-level key captured at IMPORT,
+    so the credential could not be rotated without a restart. app.py's decorator reads
+    the environment at CALL time.
     """
-    provided = request.headers.get("X-Internal-Key", "")
-    if not _INTERNAL_KEY or not hmac.compare_digest(provided, _INTERNAL_KEY):
-        return jsonify({"error": "unauthorized"}), 401
-
     from services import browser_session_service
 
     state = browser_session_service.load_session(agent_id, platform)

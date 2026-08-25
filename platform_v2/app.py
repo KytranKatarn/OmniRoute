@@ -4896,13 +4896,15 @@ def api_internal_get_session_state(agent_id, platform):
     Registered at app level (not on department_hq blueprint) because the
     /tools/department-hq/* prefix has invisible auth middleware that
     redirects all unauthenticated requests to /dashboard.
-    """
-    from services import browser_session_service
 
-    state = browser_session_service.load_session(agent_id, platform)
-    if state is None:
-        return jsonify({"error": "no active session"}), 404
-    return jsonify({"state": state}), 200
+    Delegates to session_routes, mirroring the POST below. Until #6020 this route
+    carried its own INLINE copy of that logic while the handler sat unregistered with
+    a DIFFERENT auth scheme (X-Internal-Key) — two implementations of one endpoint,
+    and the reachable one was not the one the handler's docstring pointed at.
+    """
+    from tools.department_hq.session_routes import get_session_state_handler
+
+    return get_session_state_handler(agent_id, platform)
 
 
 @app.route("/api/internal/sessions/<int:agent_id>/<platform>/state", methods=["POST"])

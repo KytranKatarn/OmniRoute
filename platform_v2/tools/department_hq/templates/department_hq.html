@@ -1527,7 +1527,7 @@ function _dhqCategoryOf(a) {
 function _dhqApprovalsSignature(list) {
     // Sensitive to everything that changes what is DRAWN: identity, type, and gating.
     return (list || []).map(function(a) {
-        return [a.id, a.action_type, (a.blocked_reasons || []).join('~')].join('|');
+        return [a.id, a.action_type, a.backup_actionable ? 'B' : '', (a.blocked_reasons || []).join('~')].join('|');
     }).join(';') + '#' + _dhqActiveCategory;
 }
 
@@ -1656,7 +1656,7 @@ function _dhqRenderApprovals(force) {
     var groups = [], byType = {};
     visible.forEach(function(a) {
         var t = a.action_type || 'other';
-        if (!byType[t]) { byType[t] = { type: t, items: [], bulkAll: a.bulk_all_allowed !== false, blocked: a.blocked_reasons || [], noBulkReason: a.bulk_all_reason || '' }; groups.push(byType[t]); }
+        if (!byType[t]) { byType[t] = { type: t, items: [], bulkAll: a.bulk_all_allowed !== false, blocked: a.blocked_reasons || [], noBulkReason: a.bulk_all_reason || '', backupActionable: a.backup_actionable === true }; groups.push(byType[t]); }
         byType[t].items.push(a);
     });
     groups.forEach(function(g) { container.appendChild(_renderApprovalGroup(g)); });
@@ -1717,6 +1717,62 @@ function _dhqUpdateBulkBar() {
     }
 }
 
+function _renderBackupNowButton() {
+    // The remedy for "no successful backup in the last Nh". Clicking it queues a
+    // backup_before_deploy approval AND approves it — an authenticated admin clicking
+    // this IS the approval, the same principle as human_override on merges (#953).
+    //
+    // The backup itself runs in archie_scheduler, NOT in this request: a database dump
+    // takes ~15 minutes and would hold a gunicorn worker for all of it. So the button
+    // reports "queued", never "done" — it must not claim an artifact that does not
+    // exist yet, which is the exact failure this whole feature exists to fix.
+    var b = document.createElement('button');
+    b.textContent = '💾 Back up now';
+    b.title = 'Take a fresh restore point so these deploys can proceed (~15 min, runs in the scheduler)';
+    b.style.cssText = 'background:transparent;border:1px solid #fbbf24;color:#fbbf24;' +
+        'padding:5px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;margin-left:10px;white-space:nowrap';
+    b.addEventListener('click', function() {
+        if (!confirm('Take a fresh backup now?\n\nIt runs in the scheduler and takes roughly 15 minutes. ' +
+                     'The blocked deploys clear once it finishes.')) { return; }
+        b.disabled = true;
+        b.textContent = 'Queueing\u2026';
+        b.style.opacity = '0.6';
+        fetch('/tools/department-hq/api/approvals/backup-now', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+        .then(function(res) {
+            var j = res.body || {};
+            // Report what the SERVER said happened, not what we hoped. `started:false`
+            // with success:true is the "already running" case and is a real answer.
+            if (j.success && j.started) {
+                b.textContent = '\u2713 Backup queued';
+                b.style.borderColor = '#22c55e';
+                b.style.color = '#22c55e';
+            } else if (j.success) {
+                b.textContent = '\u23F3 Already running';
+            } else {
+                b.disabled = false;
+                b.style.opacity = '1';
+                b.textContent = '💾 Back up now';
+                alert(j.message || 'Could not start the backup.');
+                return;
+            }
+            // Repaint so the prerequisite state on screen matches the server again.
+            setTimeout(loadDhqApprovals, 1500);
+        })
+        .catch(function(e) {
+            b.disabled = false;
+            b.style.opacity = '1';
+            b.textContent = '💾 Back up now';
+            alert('Could not reach the server: ' + e);
+        });
+    });
+    return b;
+}
+
 function _renderApprovalGroup(g) {
     var wrap = document.createElement('div');
     wrap.style.cssText = 'margin-bottom:20px';
@@ -1757,6 +1813,10 @@ function _renderApprovalGroup(g) {
         warn.style.cssText = 'color:#fbbf24;font-size:0.7rem;text-align:right;max-width:60%';
         warn.textContent = '\u23F8 ' + g.blocked.join('  •  ');
         head.appendChild(warn);
+        // A blocker with no remedy is a dead end. Before this the operator could only
+        // wait for the nightly cron while approved, sandbox-passed deploys expired.
+        // Gated on the SERVER's backup_actionable flag — never on the reason text.
+        if (g.backupActionable) { head.appendChild(_renderBackupNowButton()); }
     } else if (g.bulkAll) {
         // One-click shortcut, INTERNAL categories only. The server stamps
         // bulk_all_allowed so this rule lives in one place (approvals_bulk.py).

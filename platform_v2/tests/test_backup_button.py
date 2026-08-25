@@ -95,3 +95,77 @@ def test_threshold_falls_back_tight_not_loose():
     from tools.department_hq.services.approvals_bulk import _backup_fresh_hours
 
     assert _backup_fresh_hours() > 0
+
+
+# ------------------------------------------- the tier-1 auto-approval trap (live-caught)
+
+
+def test_a_tier1_action_type_never_passes_through_pending():
+    """The mechanism the endpoint rests on.
+
+    `_get_effective_tier` reads the tier-1 allowlist from `autonomy_config`
+    (`tier1_auto_approve.types`), and `request_approval` auto-approves tier 1 AT CREATION.
+    So a tier-1 row is `approved` the moment it exists and NEVER passes through `pending`.
+    An endpoint that then calls `_approve_autonomy` (which matches `WHERE status='pending'`)
+    gets False back and reports failure for work that is queued and fine.
+    """
+    from ai_bridge.agent_loop import _get_effective_tier
+
+    class _Cur:
+        def execute(self, *a, **k):
+            return None
+
+        def fetchone(self):
+            return {"config_value": {"types": ["backup_before_deploy"]}}
+
+    assert _get_effective_tier("backup_before_deploy", 2, _Cur()) == 1
+    # ...and a type NOT on the list keeps the caller's tier — negative control, so this
+    # cannot pass by always returning 1.
+    assert _get_effective_tier("something_else", 2, _Cur()) == 2
+
+
+def test_already_approved_reads_the_real_row_status(db_conn):
+    """THE regression test for the live-caught defect.
+
+    Measured 2026-08-25: clicking "Back up now" created row 12949, which `request_approval`
+    auto-approved as tier 1. The endpoint then called `_approve_autonomy`, got False because
+    nothing was `pending`, and returned 409 "could not be approved" — for a backup that was
+    queued and running. A status misreporting a healthy artifact, which is the exact failure
+    this whole feature exists to fix. An operator who believed it would click again and
+    queue a duplicate.
+    """
+    from tools.department_hq.approvals_routes import _already_approved
+
+    cur = db_conn.cursor()
+    made = []
+    for status in ("approved", "executed", "pending"):
+        cur.execute(
+            "INSERT INTO autonomy_approval_queue (action_type, action_data, reason, "
+            "requested_by, status, tier, priority) VALUES "
+            "('backup_before_deploy', '{}'::jsonb, 'pytest', 'pytest', %s, 1, 1) RETURNING id",
+            (status,),
+        )
+        made.append((status, cur.fetchone()[0]))
+    db_conn.commit()
+    try:
+        by_status = dict(made)
+        # approved/executed => nothing left to do => SUCCESS
+        assert _already_approved(by_status["approved"]) is True
+        assert _already_approved(by_status["executed"]) is True
+        # still pending => the caller MUST go on to approve it
+        assert _already_approved(by_status["pending"]) is False
+    finally:
+        cur.execute(
+            "DELETE FROM autonomy_approval_queue WHERE id = ANY(%s)",
+            ([i for _, i in made],),
+        )
+        db_conn.commit()
+        cur.close()
+
+
+def test_already_approved_is_false_for_an_unknown_row():
+    """Fails CLOSED. An uncertain read must never let the caller claim an approval it
+    cannot see — that would report success for a backup that does not exist."""
+    from tools.department_hq.approvals_routes import _already_approved
+
+    assert _already_approved(-1) is False

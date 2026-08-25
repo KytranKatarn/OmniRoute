@@ -63,6 +63,31 @@ def _build_escalation_chain(agent_display, department, agent_cache):
     return chain if len(chain) >= 2 else None
 
 
+def _already_approved(source_id: int) -> bool:
+    """True when the row is ALREADY past `pending` — i.e. nothing left to approve.
+
+    Tier-1 action types are auto-approved by `request_approval` at creation, so "not
+    pending" here means SUCCESS, not failure. Returns False on any error: an uncertain
+    read must not let a caller claim an approval it cannot see.
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT status FROM autonomy_approval_queue WHERE id = %s",
+                (source_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return False
+        status = (row["status"] if isinstance(row, dict) else row[0]) or ""
+        return status in ("approved", "executed")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[backup_now] could not read approval %s status: %s", source_id, exc)
+        return False
+
+
 def _approve_autonomy(source_id: int, user_id: int):
     """Approve an autonomy_approval_queue row. Returns (ok, action_type).
 
@@ -1092,7 +1117,17 @@ def register_approvals_routes(bp, admin_required_decorator):
                     )
                 created = True
 
-            ok, _action = _approve_autonomy(approval_id, current_user.id)
+            # ⚠️ `backup_before_deploy` is a TIER-1 action, and `request_approval`
+            # auto-approves tier 1 AT CREATION. So a freshly created row is already
+            # `approved`, and `_approve_autonomy` (which matches `WHERE status='pending'`)
+            # would find nothing and report failure for a backup that is queued and fine.
+            # Caught by a live drive: row 12949 was created, approved, and running while
+            # this endpoint returned 409 "could not be approved" — a status misreporting a
+            # healthy artifact, which is the exact failure this whole feature exists to fix.
+            # An operator who believed it would click again and queue a duplicate.
+            ok = _already_approved(approval_id)
+            if not ok:
+                ok, _action = _approve_autonomy(approval_id, current_user.id)
             if not ok:
                 return (
                     jsonify(

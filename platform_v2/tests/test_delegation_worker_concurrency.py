@@ -18,7 +18,7 @@ import threading
 import time
 import types
 from concurrent.futures import ThreadPoolExecutor
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 
 import pytest  # noqa: E402
@@ -51,10 +51,21 @@ def _dispatcher_stub():
         yield
 
 
-_stub_telegram = types.ModuleType("services.telegram_service")
-_stub_telegram.send_info = MagicMock(return_value={"sent": True})
-_stub_telegram.send_system = MagicMock(return_value={"sent": True})
-sys.modules.setdefault("services.telegram_service", _stub_telegram)
+# NOT a sys.modules stub (see test_delegate_late_result_salvage.py for the full note).
+# FIVE test modules each installed a bare `types.ModuleType("services.telegram_service")`
+# via setdefault at import time, with DIFFERENT attribute sets — one of them empty. Because
+# setdefault means first-writer-wins, whichever file pytest collected first silently defined
+# the telegram API that every later test saw, and the rest inherited it. Removing only one
+# handed the slot to a poorer stub and turned 10 failures into 38 errors.
+# Patching the real module keeps sys.modules honest and makes collection order irrelevant.
+@pytest.fixture(scope="module", autouse=True)
+def _telegram_quiet():
+    """Silence Telegram sends for this module without replacing the module object."""
+    with patch("services.telegram_service.send_info", MagicMock(return_value={"sent": True})), patch(
+        "services.telegram_service.send_system", MagicMock(return_value={"sent": True})
+    ):
+        yield
+
 
 from services import delegation_service as ds  # noqa: E402
 

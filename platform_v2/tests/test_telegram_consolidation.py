@@ -318,8 +318,19 @@ class TestTelegramServiceSync:
 
         # Should not raise even without a running asyncio loop.
         # We patch the outbound call to avoid needing a real bot token.
+        # source_agent is REQUIRED, and not as boilerplate: production added an
+        # A.R.C.H.I.E.-voice authorisation guard (_PRIVILEGED_SOURCES, telegram_service.py:159)
+        # that raises PermissionError for an unprivileged caller BEFORE any asyncio code runs.
+        # Without it this test died on AUTHORISATION while claiming to assert a SYNC-CALLABILITY
+        # property — it never reached the code under test. Passing a privileged source restores
+        # the original assertion instead of weakening the guard to accommodate the test.
         with patch("services.telegram_service._get_token", return_value=None):
-            result = ts_mod.send(category="info", title="Test", message="Test body")
+            result = ts_mod.send(
+                category="info",
+                title="Test",
+                message="Test body",
+                source_agent="A.R.C.H.I.E.",
+            )
 
         # Without a token it logs a failure — that's fine, the point is no asyncio error.
         assert isinstance(result, dict)

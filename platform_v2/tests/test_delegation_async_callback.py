@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import sys
 import types
-from unittest.mock import MagicMock  # noqa: E402  — used by the PEP 562 catch-all below (#6018)
+from unittest.mock import MagicMock, patch  # noqa: E402  — MagicMock used by the PEP 562 catch-all below (#6018)
 
 
 import pytest  # noqa: E402
@@ -49,8 +49,21 @@ def _dispatcher_stub():
 
 
 # emit_delegation_event lazily imports telegram_service; stub it defensively.
-_stub_telegram = types.ModuleType("services.telegram_service")
-sys.modules.setdefault("services.telegram_service", _stub_telegram)
+# NOT a sys.modules stub (see test_delegate_late_result_salvage.py for the full note).
+# FIVE test modules each installed a bare `types.ModuleType("services.telegram_service")`
+# via setdefault at import time, with DIFFERENT attribute sets — one of them empty. Because
+# setdefault means first-writer-wins, whichever file pytest collected first silently defined
+# the telegram API that every later test saw, and the rest inherited it. Removing only one
+# handed the slot to a poorer stub and turned 10 failures into 38 errors.
+# Patching the real module keeps sys.modules honest and makes collection order irrelevant.
+@pytest.fixture(scope="module", autouse=True)
+def _telegram_quiet():
+    """Silence Telegram sends for this module without replacing the module object."""
+    with patch("services.telegram_service.send_info", MagicMock(return_value={"sent": True})), patch(
+        "services.telegram_service.send_system", MagicMock(return_value={"sent": True})
+    ):
+        yield
+
 
 from services import delegation_service as ds  # noqa: E402
 

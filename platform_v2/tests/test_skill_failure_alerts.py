@@ -17,9 +17,11 @@ from unittest.mock import MagicMock, patch
 # Stub out telegram_service so the module can be imported without the full
 # platform stack.
 # ---------------------------------------------------------------------------
-telegram_stub = types.ModuleType("services.telegram_service")
-telegram_stub.send_warning = MagicMock()
-sys.modules.setdefault("services.telegram_service", telegram_stub)
+# Deliberately NOT a sys.modules stub. The previous version installed a bare
+# types.ModuleType carrying a fabricated `send_warning`, which production does not and
+# never did define — so this suite asserted against its own invention while the real alert
+# path was dead (see services/skill_failure_alerts.py). Patch the REAL module instead: an
+# attribute that disappears from production now breaks the test, which is the point.
 
 # Now import the module under test
 from services.skill_failure_alerts import alert_on_skill_failure  # noqa: E402
@@ -28,7 +30,12 @@ from services.skill_failure_alerts import alert_on_skill_failure  # noqa: E402
 class TestAlertOnSkillFailure(unittest.TestCase):
 
     def setUp(self):
-        telegram_stub.send_warning.reset_mock()
+        # Patch the REAL telegram_service attribute. If production stops exporting
+        # send_system, patch() raises AttributeError here and this suite fails loudly —
+        # which is exactly what the old fabricated-stub version could never do.
+        self._patcher = patch("services.telegram_service.send_system", MagicMock(return_value={"sent": True}))
+        self._send_system = self._patcher.start()
+        self.addCleanup(self._patcher.stop)
 
     # ------------------------------------------------------------------
     # Case 1 — success=True → no Telegram call
@@ -39,7 +46,7 @@ class TestAlertOnSkillFailure(unittest.TestCase):
             skill_name="linkedin_post",
             execution_result={"success": True, "url": "https://linkedin.com/feed/update/123"},
         )
-        telegram_stub.send_warning.assert_not_called()
+        self._send_system.assert_not_called()
 
     # ------------------------------------------------------------------
     # Case 2 — executed=True, no error → no Telegram call
@@ -50,7 +57,7 @@ class TestAlertOnSkillFailure(unittest.TestCase):
             skill_name="linkedin_company_post",
             execution_result={"executed": True, "post_id": "urn:li:share:999"},
         )
-        telegram_stub.send_warning.assert_not_called()
+        self._send_system.assert_not_called()
 
     # ------------------------------------------------------------------
     # Case 3 — success=False + error present → alert fires
@@ -65,8 +72,8 @@ class TestAlertOnSkillFailure(unittest.TestCase):
                 "_status": "failed",
             },
         )
-        telegram_stub.send_warning.assert_called_once()
-        call_kwargs = telegram_stub.send_warning.call_args
+        self._send_system.assert_called_once()
+        call_kwargs = self._send_system.call_args
         # Accept both positional and keyword invocations
         if call_kwargs.kwargs:
             title = call_kwargs.kwargs.get("title", "")
@@ -87,8 +94,8 @@ class TestAlertOnSkillFailure(unittest.TestCase):
             skill_name="send_email",
             execution_result={"success": False, "error": "Connection refused", "_status": "exception"},
         )
-        telegram_stub.send_warning.assert_called_once()
-        call_kwargs = telegram_stub.send_warning.call_args
+        self._send_system.assert_called_once()
+        call_kwargs = self._send_system.call_args
         if call_kwargs.kwargs:
             title = call_kwargs.kwargs.get("title", "")
         else:

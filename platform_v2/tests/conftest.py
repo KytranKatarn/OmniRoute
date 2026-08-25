@@ -390,10 +390,7 @@ _FIRST_PARTY_ROOTS = ("tools", "services", "ai_bridge")
 
 # Known offenders, with the file that installs each. This list may only SHRINK.
 _ALLOWED_STUB_LEAKS = {
-    "services.telegram_service": "test_delegation_service.py (sys.modules.setdefault)",
     "tools.consciousness.translation_scanners.orchestrator": "test_delegation_service.py",
-    "ai_bridge.agent_loop": "test_hiring_service / test_propose_hire / "
-    "test_hiring_acronym_persist — removed by PR #2810",
 }
 
 _leaked_stubs: set = set()
@@ -480,6 +477,31 @@ def _seed_admin_user(_isolated_test_db):
                     """,
                     (uid, f"kytran-test-admin-{uid}"),
                 )
+
+            # QA suite id 2. Three call sites across test_perf_gate_integration.py and
+            # test_qa_baseline_routes.py insert qa_test_runs rows against a hardcoded
+            # suite_id=2, commented "lowest active suite" — true of PRODUCTION, where the
+            # suites are seeded. archie_test has never held data, so all three hit
+            #   ForeignKeyViolation: Key (suite_id)=(2) is not present in qa_test_suites
+            # One of them writes the literal `VALUES (2, ...)` inline, so seeding the id the
+            # callers already assume is a smaller and less fragile change than rewiring
+            # three sites to thread a fixture value through.
+            # `name` and `spec` are NOT NULL; suite_type/is_active take their defaults.
+            cur.execute(
+                """
+                INSERT INTO qa_test_suites (id, name, description, spec)
+                VALUES (2, 'test-fixture-suite',
+                        'Seeded by tests/conftest.py so qa_test_runs.suite_id FK resolves',
+                        '{}'::jsonb)
+                ON CONFLICT (id) DO NOTHING
+                """
+            )
+            # Explicit ids do NOT advance the sequence, so a later plain INSERT would try to
+            # reuse id 2 and fail on the PK. Push the sequence past whatever is now present.
+            cur.execute(
+                "SELECT setval(pg_get_serial_sequence('qa_test_suites','id'),"
+                " GREATEST((SELECT COALESCE(MAX(id), 1) FROM qa_test_suites), 1))"
+            )
     finally:
         conn.close()
     yield

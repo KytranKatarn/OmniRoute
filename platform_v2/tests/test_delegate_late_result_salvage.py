@@ -28,7 +28,7 @@ import sys
 import types
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest  # noqa: E402
 from tests.modstub import stub_module_scoped  # noqa: E402
@@ -64,10 +64,30 @@ def _dispatcher_stub():
         yield
 
 
-_stub_telegram = types.ModuleType("services.telegram_service")
-_stub_telegram.send_info = MagicMock(return_value={"sent": True})
-_stub_telegram.send_system = MagicMock(return_value={"sent": True})
-sys.modules.setdefault("services.telegram_service", _stub_telegram)
+# NOT a sys.modules stub. This used to install a bare
+# `types.ModuleType("services.telegram_service")` via setdefault at MODULE level, which
+# leaked into every test collected after this file and caused 9 failures across
+# test_telegram_consolidation / test_pr_merge_surfaces / test_blocked_merge_escalation:
+#   AttributeError: <module 'services.telegram_service'> has no attribute 'send_with_buttons'
+#
+# A bare ModuleType is a REAL module object carrying only the attributes set on it, so the
+# error names a module that exists and looks legitimate — the failures read as "production
+# moved, tests didn't" rather than as contamination. Those three files pass 44/45 in
+# isolation; only collection ORDER made them fail.
+#
+# `setdefault` is what made it permanent: it wins whenever this file is collected before
+# anything imports the real module, and nothing ever removes it.
+#
+# The real module imports cleanly (20+ other test files import it), and no test here ever
+# referenced the stub — it existed only to keep delegation_service's import from doing real
+# Telegram work. Patching the real functions achieves that without touching sys.modules.
+@pytest.fixture(scope="module", autouse=True)
+def _telegram_quiet():
+    """Silence Telegram sends for this module without replacing the module object."""
+    with patch("services.telegram_service.send_info", MagicMock(return_value={"sent": True})), patch(
+        "services.telegram_service.send_system", MagicMock(return_value={"sent": True})
+    ):
+        yield
 
 
 from services import delegation_service as ds  # noqa: E402

@@ -25,8 +25,34 @@ from pathlib import Path
 
 import pytest
 
-_REPO = Path(__file__).resolve().parents[2]
-_WATCHDOG = _REPO / "scripts" / "dr" / "watchdog" / "dr_watchdog.sh"
+_MARKER = Path("scripts") / "dr" / "watchdog" / "dr_watchdog.sh"
+
+
+def _find_repo() -> Path:
+    """Locate the repo root by SEARCHING for a known file, not by counting parents (#5994).
+
+    `parents[2]` is correct on the HOST, where this file sits at
+    /mnt/archie_brain/platform_v2/tests/. Inside the test container `platform_v2` is mounted
+    AS /app, so the same expression resolves one level too shallow — to the FILESYSTEM ROOT.
+    Every path built from it became /scripts/dr/..., and 13 assertions failed on files that
+    exist perfectly well one directory over.
+
+    /mnt/archie_brain is appended because the container mounts the repo there read-only
+    while `__file__` lives under /app, so no ancestor of this file is the repo root.
+
+    Same approach already used by test_dr_watchdog_snooze_early_close.py — this file just
+    never adopted it.
+    """
+    for base in list(Path(__file__).resolve().parents) + [Path("/mnt/archie_brain")]:
+        if (base / _MARKER).exists():
+            return base
+    # Fall back to the historical guess rather than raising at import: the tests below
+    # already skip on a missing script, and a hard failure here would abort collection.
+    return Path(__file__).resolve().parents[2]
+
+
+_REPO = _find_repo()
+_WATCHDOG = _REPO / _MARKER
 _FAILBACK = _REPO / "scripts" / "dr" / "auto_failback.sh"
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="bash required")

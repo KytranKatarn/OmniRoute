@@ -19,9 +19,22 @@ logger = logging.getLogger(__name__)
 def _send_telegram(title: str, message: str) -> None:
     """Best-effort Telegram send via telegram_service. Never raises."""
     try:
-        from services.telegram_service import send_warning
+        # send_system, NOT send_warning: telegram_service has never defined send_warning
+        # (its senders are send/send_agent/send_forge/send_info/send_security/send_sync/
+        # send_system/send_with_buttons). The import raised ImportError on EVERY call and
+        # the best-effort `except` below swallowed it, so skill-failure alerts were never
+        # delivered — unmonitored while appearing monitored.
+        #
+        # The unit test did not catch it because it installed its own
+        # types.ModuleType("services.telegram_service") stub carrying a fabricated
+        # send_warning: the stub tested the mock, not the module.
+        #
+        # send_system takes the same (title, message) kwargs and routes through the
+        # director_reports inbox — the sanctioned A.R.C.H.I.E.-voice path, so it also
+        # clears the _PRIVILEGED_SOURCES guard that rejects raw send() callers.
+        from services.telegram_service import send_system
 
-        send_warning(title=title, message=message)
+        send_system(title=title, message=message)
     except Exception:
         logger.exception("[skill_failure_alerts] Telegram send failed")
 

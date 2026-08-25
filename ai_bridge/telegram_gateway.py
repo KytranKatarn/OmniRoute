@@ -911,8 +911,8 @@ class TelegramGateway:
             approved_by = user_info.get("display_name", "Kytran")
 
             if action == "rest8h":
-                from psycopg2.extras import RealDictCursor
-
+                # RealDictCursor is module-level (line 24). Importing it here shadowed it for
+                # the whole callback — the mirror image of the psycopg2 defect fixed below.
                 conn = psycopg2.connect(
                     host=os.getenv("DB_HOST", "192.168.1.200"),
                     port=int(os.getenv("DB_PORT", "5432")),
@@ -1014,9 +1014,13 @@ class TelegramGateway:
                 # Mark queue row as rejected so DHQ Approvals tab clears it
                 if queue_id:
                     try:
-                        import psycopg2
-                        from psycopg2.extras import RealDictCursor
-
+                        # psycopg2 + RealDictCursor are imported at MODULE level (lines 23-24).
+                        # Re-importing them HERE made both names function-LOCAL for the whole
+                        # of _welfare_callback, so the `rest8h` branch ~100 lines above — which
+                        # calls psycopg2.connect() without passing through this block — raised
+                        # UnboundLocalError. Same defect as #6022 in agent_loop.py; found by the
+                        # sweep added with that fix. The module-level imports do NOT protect you:
+                        # a local binding anywhere in a function shadows them everywhere in it.
                         _dc = psycopg2.connect(
                             host=os.getenv("DB_HOST", "192.168.1.200"),
                             port=int(os.getenv("DB_PORT", "5432")),

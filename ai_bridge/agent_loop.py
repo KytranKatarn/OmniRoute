@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import smtplib
+import threading
 import time
 from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
@@ -6378,8 +6379,13 @@ class AgentLoop:
                     )
                 else:
                     # Trigger Phase 4 auto-execution for non-audit proposals
-                    import threading
-
+                    # NOTE: `threading` is imported at MODULE level. It used to be imported
+                    # HERE, inside this `else:` branch — which made the name function-LOCAL
+                    # for the whole of _execute_approved_action (Python binds a name assigned
+                    # anywhere in a function as local throughout it, and an `import` is an
+                    # assignment). Any action type that did not pass through this branch then
+                    # hit `threading.Thread(...)` further down as an UnboundLocalError.
+                    # That is exactly what happened to the LinkedIn first-comment path (#6022).
                     def _run_auto_execute():
                         try:
                             import sys

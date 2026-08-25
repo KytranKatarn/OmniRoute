@@ -11015,6 +11015,132 @@ _INJECTION_PATTERNS = [
 ]
 
 
+# Poll cadence for the cold-load queue. The drain (`model_dispatch_worker`) runs every
+# 30s, so a tighter interval costs DB round-trips without landing the result sooner.
+_QUEUE_POLL_INTERVAL_S = 3
+
+
+def dispatch_awaiting_queue(
+    capability: str,
+    prompt: str,
+    *,
+    system_prompt: Optional[str] = None,
+    json_mode: bool = False,
+    module_id: str = "unknown",
+    local_only: bool = True,
+    poll_timeout_s: int = 240,
+    model_override: Optional[str] = None,
+    job_id: Optional[int] = None,
+    prefer_agent: Optional[str] = None,
+) -> Optional[str]:
+    """Dispatch one LLM step and WAIT if the model is cold. Returns the text, or None.
+
+    ## Why this lives HERE
+
+    `request_work` returns `queued=True` when the target model is cold — the work is
+    real, it is on `dispatch_pending_queue`, and `model_dispatch_worker` will run it.
+    A caller that does not poll sees a falsy result and treats live work as a failure
+    (KB #276153).
+
+    The platform has been fixing that PER CALLER for a year: `cluster_dispatch` and
+    `email_manager/fleet_dispatch` each grew their own near-identical
+    `queued_dispatch_text`, and seven modules call one or the other. The F.O.R.G.E.
+    review path is the caller that never got the workaround — so an escalated review
+    silently degraded to the weak model on a truncated diff (#6023).
+
+    N workarounds for one gap is why #276153 keeps recurring. This is the same
+    principle the merge gate already states: WIRE IT AT THE CHOKE POINT, never per
+    caller. Both existing helpers now delegate here.
+
+    ## Why `dispatch()` does NOT do this by default
+
+    ⚠️ `dispatch()`/`dispatch_json()` are called from WEB REQUEST paths. Blocking them
+    on a queue poll would hold a gunicorn worker for up to `poll_timeout_s` — the
+    "never sync-dispatch on the web thread" rule, and the shape of the #1901 timeout
+    cascade. So waiting is a SEPARATE, opt-in entry point. Background work (jobs,
+    workers, the scheduler sidecar) calls this; request handlers keep `dispatch()`.
+
+    Returns None on hard failure, a queued task that failed/expired, or poll timeout —
+    the caller decides the fallback. None NEVER means "the work was lost": a timed-out
+    poll leaves the queue row for the worker to finish and log.
+    """
+    import re as _re
+    import time as _time
+
+    from database import get_db_cursor
+
+    dispatcher = get_dispatcher()
+    result = dispatcher.request_work(
+        capability=capability,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        json_mode=json_mode,
+        module_id=module_id,
+        local_only=local_only,
+        user_id=None,
+        model_override=model_override,
+        job_id=job_id,
+        prefer_agent=prefer_agent,
+    )
+
+    if getattr(result, "success", False):
+        return (getattr(result, "response", "") or "").strip()
+
+    if not getattr(result, "queued", False):
+        logger.warning(
+            "[dispatch-await] hard failure cap=%s mod=%s: %s",
+            capability,
+            module_id,
+            getattr(result, "error", None),
+        )
+        return None
+
+    # Queued to the cold-load queue. Resolve the row id — preferring the structured
+    # attribute, falling back to parsing the error string for older call paths.
+    qid = getattr(result, "queue_id", None)
+    if not qid:
+        m = _re.search(r"id=(\d+)", getattr(result, "error", "") or "")
+        qid = int(m.group(1)) if m else None
+    if not qid:
+        logger.warning(
+            "[dispatch-await] queued without a queue id cap=%s: %s",
+            capability,
+            getattr(result, "error", None),
+        )
+        return None
+
+    logger.info(
+        "[dispatch-await] cap=%s mod=%s queued as #%s — polling up to %ss for the worker result",
+        capability,
+        module_id,
+        qid,
+        poll_timeout_s,
+    )
+    deadline = _time.time() + poll_timeout_s
+    while _time.time() < deadline:
+        with get_db_cursor() as (_conn, cur):
+            cur.execute(
+                "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
+                (qid,),
+            )
+            row = cur.fetchone()
+        if not row:
+            logger.warning("[dispatch-await] queue row #%s disappeared (cap=%s)", qid, capability)
+            return None
+        status = row["status"] if isinstance(row, dict) else row[0]
+        if status == "done":
+            resp = row["result_response"] if isinstance(row, dict) else row[1]
+            return (resp or "").strip()
+        if status in ("failed", "expired"):
+            err = row["error"] if isinstance(row, dict) else row[2]
+            logger.warning("[dispatch-await] queued task #%s %s cap=%s: %s", qid, status, capability, err)
+            return None
+        _time.sleep(_QUEUE_POLL_INTERVAL_S)
+
+    logger.warning("[dispatch-await] poll timeout (%ss) qid=%s cap=%s", poll_timeout_s, qid, capability)
+    return None
+
+
 def dispatch(
     capability: str,
     prompt: str,

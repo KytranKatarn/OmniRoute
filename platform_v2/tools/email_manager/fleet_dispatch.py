@@ -18,8 +18,6 @@ web thread (module-work-pattern.md).
 from __future__ import annotations
 
 import logging
-import re
-import time
 
 logger = logging.getLogger(__name__)
 
@@ -44,61 +42,18 @@ def queued_dispatch_text(
     - Returns None on hard failure, queued-task failure/expiry, or poll timeout —
       the caller decides the fallback (e.g. skip this item, retry next cycle).
     """
-    # Lazy imports (mirrors triage_service) so module import stays light and the
-    # ai_bridge/db sys.path is established by the app before first call.
-    from database import get_db_cursor
-    from tools.department_hq.services.department_dispatcher import get_dispatcher
+    # DELEGATES to the dispatcher (#6023). The polling logic lived here AND in
+    # services/cluster_dispatch.py — two near-identical copies of a workaround for one
+    # dispatcher-level gap, which is why KB #276153 kept recurring. The signature is
+    # unchanged, so this module's callers are unaffected.
+    from tools.department_hq.services.department_dispatcher import dispatch_awaiting_queue
 
-    dispatcher = get_dispatcher()
-    result = dispatcher.request_work(
-        capability=capability,
-        prompt=prompt,
+    return dispatch_awaiting_queue(
+        capability,
+        prompt,
         system_prompt=system_prompt,
         json_mode=json_mode,
         module_id=module_id,
         local_only=local_only,
-        user_id=None,
+        poll_timeout_s=poll_timeout_s,
     )
-
-    if getattr(result, "success", False):
-        return (getattr(result, "response", "") or "").strip()
-
-    if not getattr(result, "queued", False):
-        logger.warning("[mailhq-dispatch] hard failure cap=%s: %s", capability, getattr(result, "error", None))
-        return None
-
-    # Queued to the fleet cold-load queue — resolve the queue id and poll.
-    qid = getattr(result, "queue_id", None)
-    if not qid:
-        m = re.search(r"id=(\d+)", getattr(result, "error", "") or "")
-        qid = int(m.group(1)) if m else None
-    if not qid:
-        logger.warning(
-            "[mailhq-dispatch] queued without a queue id cap=%s: %s", capability, getattr(result, "error", None)
-        )
-        return None
-
-    logger.info("[mailhq-dispatch] cap=%s queued as #%s — polling for worker result", capability, qid)
-    deadline = time.time() + poll_timeout_s
-    while time.time() < deadline:
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
-                (qid,),
-            )
-            row = cur.fetchone()
-        if not row:
-            logger.warning("[mailhq-dispatch] queue row #%s disappeared (cap=%s)", qid, capability)
-            return None
-        status = row["status"] if isinstance(row, dict) else row[0]
-        if status == "done":
-            resp = row["result_response"] if isinstance(row, dict) else row[1]
-            return (resp or "").strip()
-        if status in ("failed", "expired"):
-            err = row["error"] if isinstance(row, dict) else row[2]
-            logger.warning("[mailhq-dispatch] queued task #%s %s cap=%s: %s", qid, status, capability, err)
-            return None
-        time.sleep(_POLL_INTERVAL_S)
-
-    logger.warning("[mailhq-dispatch] poll timeout (%ss) qid=%s cap=%s", poll_timeout_s, qid, capability)
-    return None

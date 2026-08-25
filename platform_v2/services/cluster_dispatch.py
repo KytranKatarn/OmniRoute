@@ -26,8 +26,6 @@ Import:
 from __future__ import annotations
 
 import logging
-import re
-import time
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -82,70 +80,28 @@ def queued_dispatch_text(
     forcing it. Both are optional and default to None, so every pre-existing
     caller behaves exactly as before (#5626).
     """
-    # Establish the ai_bridge/db sys.path the dispatcher chain needs, then
-    # lazy-import — so this works in the scheduler sidecar + bare exec, not just
-    # the web app boot path (KB #272154).
+    # ⚠️ `_ensure_import_paths()` STAYS HERE and must run BEFORE the dispatcher import.
+    # This module is the PATH-SAFE facade: the scheduler sidecar and bare execs cannot
+    # import department_dispatcher cold — it does `from db import ...` (ai_bridge) at
+    # module scope and raises ModuleNotFoundError (KB #272154). Measured while building
+    # #6023: importing the dispatcher directly from a bare exec failed exactly that way.
+    # Flattening this facade into the dispatcher would break every sidecar caller, and
+    # only at job time.
+    #
+    # The polling logic itself now lives in the dispatcher (one copy, at the choke
+    # point); this stays the safe front door. Signature unchanged.
     _ensure_import_paths()
-    from database import get_db_cursor
-    from tools.department_hq.services.department_dispatcher import get_dispatcher
+    from tools.department_hq.services.department_dispatcher import dispatch_awaiting_queue
 
-    dispatcher = get_dispatcher()
-    result = dispatcher.request_work(
-        capability=capability,
-        prompt=prompt,
+    return dispatch_awaiting_queue(
+        capability,
+        prompt,
         system_prompt=system_prompt,
         json_mode=json_mode,
         module_id=module_id,
         local_only=local_only,
-        user_id=None,
+        poll_timeout_s=poll_timeout_s,
         model_override=model_override,
         job_id=job_id,
         prefer_agent=prefer_agent,
     )
-
-    if getattr(result, "success", False):
-        return (getattr(result, "response", "") or "").strip()
-
-    if not getattr(result, "queued", False):
-        logger.warning(
-            "[cluster-dispatch] hard failure cap=%s mod=%s: %s", capability, module_id, getattr(result, "error", None)
-        )
-        return None
-
-    # Queued to the fleet cold-load queue — resolve the queue id and poll.
-    qid = getattr(result, "queue_id", None)
-    if not qid:
-        m = re.search(r"id=(\d+)", getattr(result, "error", "") or "")
-        qid = int(m.group(1)) if m else None
-    if not qid:
-        logger.warning(
-            "[cluster-dispatch] queued without a queue id cap=%s: %s", capability, getattr(result, "error", None)
-        )
-        return None
-
-    logger.info(
-        "[cluster-dispatch] cap=%s mod=%s queued as #%s — polling for worker result", capability, module_id, qid
-    )
-    deadline = time.time() + poll_timeout_s
-    while time.time() < deadline:
-        with get_db_cursor() as (conn, cur):
-            cur.execute(
-                "SELECT status, result_response, error FROM dispatch_pending_queue WHERE id = %s",
-                (qid,),
-            )
-            row = cur.fetchone()
-        if not row:
-            logger.warning("[cluster-dispatch] queue row #%s disappeared (cap=%s)", qid, capability)
-            return None
-        status = row["status"] if isinstance(row, dict) else row[0]
-        if status == "done":
-            resp = row["result_response"] if isinstance(row, dict) else row[1]
-            return (resp or "").strip()
-        if status in ("failed", "expired"):
-            err = row["error"] if isinstance(row, dict) else row[2]
-            logger.warning("[cluster-dispatch] queued task #%s %s cap=%s: %s", qid, status, capability, err)
-            return None
-        time.sleep(_POLL_INTERVAL_S)
-
-    logger.warning("[cluster-dispatch] poll timeout (%ss) qid=%s cap=%s", poll_timeout_s, qid, capability)
-    return None

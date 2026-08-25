@@ -390,6 +390,28 @@ def register_deploy_routes(bp, admin_required):
         },
     ]
 
+    @bp.route("/api/deploy/hub-state")
+    @login_required
+    @admin_required
+    def deploy_hub_state():
+        """The VOLUME-MOUNTED half of deploy provenance (#5867).
+
+        `/api/deploy/provenance` above answers it for image-baked products, where the
+        container holds a `COPY .` snapshot. `archie_platform` and `archie_scheduler` are
+        the opposite: they bind-mount the tree, so a GitHub merge deploys NOTHING and the
+        platform serves whatever branch the host checkout happens to be on.
+
+        Reports branch / behind-main / restarted-since-HEAD / dirty. Fails to `unknown`,
+        never to a confident `in_sync` — see services/hub_deploy_state.py.
+        """
+        try:
+            from services.hub_deploy_state import hub_deploy_state
+
+            return jsonify({"success": True, **hub_deploy_state()})
+        except Exception as e:  # noqa: BLE001
+            logger.error("[deploy/hub-state] failed: %s", e)
+            return jsonify({"success": False, "status": "unknown", "detail": str(e)}), 500
+
     @bp.route("/api/deploy/provenance")
     @login_required
     @admin_required

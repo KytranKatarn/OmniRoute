@@ -1461,21 +1461,54 @@ def _diff_cap_for_model(strong: bool) -> int:
     return full if strong else min(full, _DIFF_MAX_7B)
 
 
-def _review_is_strong(review: dict) -> bool:
-    """Does this review take the Tier-3 strong path (gemma3:12b, full diff window)?
+def _review_is_strong(review: dict, diff: str | None = None) -> bool:
+    """Does this review take the strong path (gemma3:12b, full diff window)?
 
     ONE definition, shared by the model selection in ``_structured_review`` and by the
-    coverage note's cap in ``_obtain_review_summary``. Duplicating ``tier >= 3`` in both
-    is how the note drifts away from the window the review actually got — which is the
-    defect this helper exists to prevent. Fails CLOSED to the narrow path: an unclassifiable
-    PR is treated as NOT strong, so the note errs toward flagging.
+    coverage note's cap in ``_obtain_review_summary``. Duplicating the rule in both is how
+    the note drifts away from the window the review actually got — which is the defect this
+    helper exists to prevent. Both callers MUST pass the same ``diff``.
+
+    TWO ways to be strong:
+
+    1. **Tier >= 3** — the original rule. Risk-based.
+    2. **The diff does not FIT the weak cap** (#6023). Size-based, added 2026-08-25.
+
+    WHY (2) EXISTS. `_diff_cap_for_model` gives the 7B ``_DIFF_MAX_7B`` (9,000) and the
+    patient gemma3:12b the full window-aware cap (~18,768). Nothing ensured a diff got a
+    model whose window could HOLD it, so a low-tier PR larger than 9,000 was simply CUT.
+    Measured on PR #2828: an 11,570-char diff truncated to **205 characters** — 2% — and
+    the reviewer still emitted ``confidence=1.0``. The coverage gate floored it correctly,
+    but a full ~10-minute GPU cycle produced a verdict about 205 characters.
+
+    ⚠️ Do NOT "fix" this by raising ``_DIFF_MAX_7B`` instead. That cap is not arbitrary:
+    the 7B must finish inside the 240s per-node dispatch window or it times out to the
+    weaker freeform path — the #1901 failure. Escalating to the patient model is the lever;
+    widening the impatient one re-opens a known bug.
+
+    ⚠️ HONEST TRADE-OFF: gemma3:12b measures ~56% fleet-wide (nothing here GPU-fits its
+    15.6GB), so this does not guarantee a good review — it fails over to freeform at the
+    weak cap, which is exactly where such a PR already was. So the change is strictly
+    non-worse: previously 100% of oversized diffs were reviewed at 2%; now the majority get
+    read in full and the remainder land where they used to.
+
+    Fails CLOSED to the narrow path on any error, so an unclassifiable PR still errs toward
+    flagging rather than toward a silent wide window.
     """
     from tools.repair_bay.services.pr_review_service import classify_pr_tier  # noqa: PLC0415
 
     try:
-        return classify_pr_tier(review) >= 3
-    except Exception:  # noqa: BLE001 — fail closed to the narrow cap
-        return False
+        if classify_pr_tier(review) >= 3:
+            return True
+    except Exception:  # noqa: BLE001 — fall through to the size rule, then fail closed
+        pass
+    try:
+        # Strictly greater: a diff that fits EXACTLY needs no escalation.
+        if diff and len(diff) > _diff_cap_for_model(False):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    return False
 
 
 def _effective_coverage_cap(caps_used, planning_cap: int) -> int:
@@ -1763,7 +1796,7 @@ def _structured_review(
     # ST-3: Tier-3 -> gemma3:12b (full diff window); else qwen2.5:7b (tighter cap).
     # Shared with the coverage note via _review_is_strong so the two cannot drift — the
     # note must be measured at the cap this decision produced (#5836 follow-up).
-    strong = _review_is_strong(review)
+    strong = _review_is_strong(review, diff)
     if strong:
         kw["prefer_model"] = _TIER3_REVIEW_MODEL
         model_label = _TIER3_REVIEW_MODEL
@@ -2176,9 +2209,13 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     _summaries = []
     _retry_used = False
     # #5836 follow-up — the cap each pass ACTUALLY ran at, so the coverage note can be
-    # measured against what the review saw rather than a fixed assumption. _strong is
-    # resolved once, from the same helper the model selection uses, so the two cannot drift.
-    _strong = _review_is_strong(review)
+    # measured against what the review saw rather than a fixed assumption.
+    #
+    # `_strong` is deliberately NOT resolved once here: `_structured_review` decides from the CHUNK it is handed, so
+    # deciding here from the whole diff would drift the moment chunking is enabled — the
+    # exact drift `_review_is_strong` exists to prevent. Computed per chunk inside the
+    # loop instead, from the same input the model selection sees. With chunking off
+    # (max_chunks=1) the chunk IS the diff, so this is byte-identical today.
     _caps_used = []
     for _idx, _chunk in enumerate(_chunks):
         _chunk_prov = _prov if _idx == 0 else []
@@ -2189,6 +2226,15 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
         # ran: the structured Tier-3 pass gets the wide window, the freeform fallback always
         # runs at the weak cap. The coverage note must describe the cap actually used, and
         # a fallback silently downgrades it (#5836 follow-up).
+        _strong = _review_is_strong(review, _chunk)
+        if _strong and len(_chunk or "") > _diff_cap_for_model(False):
+            logger.info(
+                "[PR Review] PR #%s — chunk is %d chars, over the weak cap %d: requesting the "
+                "patient model so the reviewer can actually read it (#6023)",
+                pr_number,
+                len(_chunk or ""),
+                _diff_cap_for_model(False),
+            )
         summary = _structured_review(review, _chunk, pr_number, repo, ground_diff=diff, dockerfile_findings=_chunk_prov)
         if summary:
             _caps_used.append(_diff_cap_for_model(_strong))

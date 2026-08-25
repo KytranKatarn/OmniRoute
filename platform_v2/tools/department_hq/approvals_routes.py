@@ -596,6 +596,7 @@ def register_approvals_routes(bp, admin_required_decorator):
 
             from tools.department_hq.services.approvals_bulk import (
                 BACKUP_FRESH_HOURS,
+                backup_is_actionable,
                 unsatisfied_prerequisites,
             )
 
@@ -669,6 +670,11 @@ def register_approvals_routes(bp, admin_required_decorator):
                 a["bulk_all_allowed"] = can_bulk_all(a.get("action_type"))
                 a["blocked_reasons"] = blocking_reasons(a.get("action_type"), unsatisfied)
                 a["bulk_all_reason"] = bulk_all_reason(a.get("action_type"))
+                # Drives the "Back up now" button. A FLAG, not the reason text — the UI
+                # must never key off prose (a reword would silently disable the remedy).
+                a["backup_actionable"] = backup_is_actionable(
+                    a.get("action_type"), unsatisfied, backup_in_flight=backup_in_flight
+                )
                 # Sub-tab grouping for the Approvals tab. Stamped here for the same
                 # reason as the fields above: a second copy of the taxonomy in JS would
                 # drift from the one the backend enforces.
@@ -1005,6 +1011,122 @@ def register_approvals_routes(bp, admin_required_decorator):
         except Exception as exc:
             logger.error("approvals_deny error: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500
+
+    @bp.route("/api/approvals/backup-now", methods=["POST"])
+    @admin_required_decorator
+    def approvals_backup_now():
+        """Take a fresh restore point NOW, so blocked deploys can proceed.
+
+        The Approvals tab shows "no successful backup in the last Nh" as a prerequisite
+        on every deploy row. Before this endpoint that message named a blocker with no
+        remedy anywhere in the UI — the operator could only wait for the nightly cron.
+
+        Three states, three different honest answers:
+          - a backup is ALREADY RUNNING -> say so, change nothing (a second concurrent
+            dump would just block on `acquire_backup_lock` and waste a queue slot)
+          - a backup approval is PENDING -> approve THAT one. "Back up now" means make it
+            happen, not make a duplicate.
+          - neither -> create one and approve it.
+
+        ⚠️ This does NOT run the backup in the request. A database dump takes ~14 minutes
+        and would hold a gunicorn worker for all of it. It marks the row approved and the
+        `archie_scheduler` approval executor picks it up — the SAME path a Telegram tap
+        uses, so there is no second implementation to drift.
+
+        An authenticated admin clicking this button IS the approval. That is the same
+        principle as `human_override` on merges (decision #953): the gate exists to
+        require a human, and a human is the one clicking.
+        """
+        try:
+            from database import get_db_cursor
+            from services.backup_autoraise import BACKUP_ACTION
+
+            with get_db_cursor() as (_conn, cur):
+                cur.execute(
+                    "SELECT id, status FROM autonomy_approval_queue "
+                    "WHERE action_type = %s "
+                    "  AND (status = 'pending' "
+                    "       OR (status = 'approved' AND executed_at IS NULL)) "
+                    "ORDER BY id DESC LIMIT 1",
+                    (BACKUP_ACTION,),
+                )
+                existing = cur.fetchone()
+
+            if existing:
+                existing = dict(existing)
+                if existing["status"] == "approved":
+                    return jsonify(
+                        {
+                            "success": True,
+                            "started": False,
+                            "already_running": True,
+                            "approval_id": existing["id"],
+                            "message": "A backup is already running — waiting for it to finish.",
+                        }
+                    )
+                approval_id = existing["id"]
+                created = False
+            else:
+                from ai_bridge.agent_loop import request_approval
+
+                approval_id = request_approval(
+                    action_type=BACKUP_ACTION,
+                    action_data={"trigger": "manual_button", "requested_by_user": current_user.id},
+                    reason="Manual 'Back up now' from the Approvals tab — taking a fresh restore point.",
+                    requested_by=f"user:{current_user.id}",
+                    priority=1,
+                )
+                if not approval_id:
+                    # request_approval signals its own dedup by returning None. Racing with
+                    # the auto-raise job is the likely cause and is harmless, but claiming
+                    # success for a row that does not exist is not.
+                    return (
+                        jsonify(
+                            {
+                                "success": False,
+                                "started": False,
+                                "message": "Could not queue the backup — a request may have just been created. Refresh and try again.",
+                            }
+                        ),
+                        409,
+                    )
+                created = True
+
+            ok, _action = _approve_autonomy(approval_id, current_user.id)
+            if not ok:
+                return (
+                    jsonify(
+                        {
+                            "success": False,
+                            "started": False,
+                            "approval_id": approval_id,
+                            "message": "The backup request could not be approved (it may have just been actioned elsewhere).",
+                        }
+                    ),
+                    409,
+                )
+
+            logger.info(
+                "[backup_now] user %s approved backup #%s (%s)",
+                current_user.id,
+                approval_id,
+                "new" if created else "existing pending request",
+            )
+            return jsonify(
+                {
+                    "success": True,
+                    "started": True,
+                    "approval_id": approval_id,
+                    "created": created,
+                    "message": (
+                        "Backup queued and approved. It runs in the scheduler and takes "
+                        "roughly 15 minutes — the deploy prerequisites clear once it finishes."
+                    ),
+                }
+            )
+        except Exception as e:
+            logger.error("[backup_now] failed: %s", e)
+            return jsonify({"success": False, "started": False, "message": str(e)}), 500
 
     @bp.route("/api/approvals/history", methods=["GET"])
     @admin_required_decorator

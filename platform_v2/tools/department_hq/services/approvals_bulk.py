@@ -192,7 +192,30 @@ def category_of(action_type):
 # must not slip through, and a backup is precisely the operation slow enough for that
 # window to be wide. Approval is an INTENT; the artifact is the FACT
 # (ADR-014 — gate on the artifact, not the status field).
-BACKUP_FRESH_HOURS = 6  # mirrors the threshold the approval itself complains about
+def _backup_fresh_hours(default: int = 6) -> int:
+    """The freshness window the DEPLOY GATE actually enforces — not a copy of it.
+
+    This was a hardcoded `BACKUP_FRESH_HOURS = 6` that "mirrors the threshold the approval
+    itself complains about". A mirror drifts: the gate is tunable at runtime via
+    system_config['backup_governance_gates'], so widening the medium tier there would leave
+    this UI still reporting "no successful backup in the last 6h" while the gate allowed
+    more — the operator reads one number and the deploy obeys another.
+
+    Reads the SAME config the gate reads. Falls back to the historical 6 on any error, so a
+    config problem tightens the message rather than loosening it.
+    """
+    try:
+        from services.backup_governance_service import _load_gate_config
+
+        gates = _load_gate_config() or {}
+        medium = gates.get("medium") or {}
+        hours = medium.get("max_age_hours")
+        return int(hours) if hours else default
+    except Exception:  # noqa: BLE001 - a display threshold must never break the queue
+        return default
+
+
+BACKUP_FRESH_HOURS = _backup_fresh_hours()
 
 
 def unsatisfied_prerequisites(pending_types, *, backup_in_flight=False, recent_backup_ok=True, pr_merge_open=None):
@@ -229,6 +252,30 @@ def unsatisfied_prerequisites(pending_types, *, backup_in_flight=False, recent_b
         unsat["backup_before_deploy"] = f"no successful backup in the last {BACKUP_FRESH_HOURS}h"
 
     return unsat
+
+
+def backup_is_actionable(action_type, unsatisfied, *, backup_in_flight=False):
+    """True when THIS row is blocked on backup age AND a new backup would fix it.
+
+    Drives the "Back up now" button. It lives here, beside `PREREQUISITES`, for the
+    same reason `blocking_reasons` does: the UI must not keep a second copy of the
+    prerequisite graph.
+
+    Deliberately FALSE while a backup is in flight — the remedy there is to wait, and
+    offering a button that starts a second concurrent dump would only serialise on
+    `acquire_backup_lock` and confuse the operator.
+
+    ⚠️ The UI must key off THIS, not off the reason TEXT. The three prerequisite states
+    all render as prose in `blocked_reasons`, and matching "no successful backup in the
+    last Nh" in JavaScript would silently stop working the day someone rewords it — the
+    substring-match trap that has cost this codebase repeatedly.
+    """
+    if backup_in_flight:
+        return False
+    if "backup_before_deploy" not in (unsatisfied or {}):
+        return False
+    prereqs = PREREQUISITES.get((action_type or "").strip().lower(), [])
+    return any(p == "backup_before_deploy" for p, _ in prereqs)
 
 
 def blocking_reasons(action_type, unsatisfied):

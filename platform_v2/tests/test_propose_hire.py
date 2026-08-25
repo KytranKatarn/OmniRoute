@@ -11,7 +11,9 @@ import sys
 import types
 from unittest.mock import MagicMock, patch
 
-import pytest
+
+import pytest  # noqa: E402
+from tests.modstub import stub_module_scoped  # noqa: E402
 
 # Stub ``ai_bridge.agent_loop`` in sys.modules so ``propose_hire``'s deferred
 # ``from ai_bridge.agent_loop import request_approval`` resolves without
@@ -26,8 +28,26 @@ _stub_agent_loop.request_approval = MagicMock(return_value=None)
 # even though the real ai_bridge/agent_loop.py DOES define it (line 523).
 # The explicit request_approval mock above still wins.
 _stub_agent_loop.__getattr__ = lambda _n: MagicMock()
-sys.modules["ai_bridge.agent_loop"] = _stub_agent_loop
-_stub_pkg.agent_loop = _stub_agent_loop
+# ── Scoped to THIS MODULE'S tests, not the whole session (#6016) ─────────────────────
+# This was a permanent, import-time assignment. pytest imports every test module during
+# COLLECTION, so from here on the stub was what the ENTIRE session saw — and the three
+# files that import from ai_bridge.agent_loop at module level sort AFTER these
+# alphabetically, so they silently got the stub: test_pr_merge_approval_dedup (5 failures)
+# and test_tab_merge_freshness (5), both of which pass in isolation.
+#
+# Exactly the shape fixed for the dispatcher in #6018. Safe to defer for the same reason:
+# agent_service imports agent_loop LAZILY inside a function (services/agent_service.py:867,
+# "Defer the import to avoid a module-load cycle"), so the stub is only needed while these
+# tests RUN — never at collection.
+_AGENT_LOOP = "ai_bridge.agent_loop"
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _agent_loop_stub():
+    """Install the agent_loop stub for this module only; restore both bindings after."""
+    with stub_module_scoped(_AGENT_LOOP, _stub_agent_loop):
+        yield
+
 
 from services import agent_service  # noqa: E402
 

@@ -105,6 +105,20 @@ def parse_dna_file(file_content: str, provider: str) -> ParsedDnaData:
 
         parts = line.split("\t")
 
+        # Column header, skipped BEFORE any column-count or rsID check.
+        #
+        # Both later attempts to catch it were unreachable for a REAL export:
+        #   * the skip inside `if len(parts) < 4:` only runs when the header has the WRONG
+        #     number of columns — a genuine 23andMe header has exactly 4;
+        #   * the skip inside `if not rsid.startswith("rs"):` never runs either, because
+        #     "rsid".startswith("rs") is TRUE. It was dead code for the one value it names.
+        #
+        # So a well-formed header fell through to the data path and raised
+        # "invalid position 'position' for SNP rsid" — i.e. parse_dna_file could not read an
+        # actual 23andMe or AncestryDNA export, only one with a malformed header.
+        if parts and parts[0].strip().lower() in ("rsid", "rs#", "snp"):
+            continue
+
         if provider == "23andme":
             # Format: rsid  chromosome  position  genotype
             if len(parts) < 4:

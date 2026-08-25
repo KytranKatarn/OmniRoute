@@ -39,11 +39,16 @@ async def test_run_geds_refresh_chains_passes_in_order():
 
     def fake_detect(conn, snap):
         calls.append("detect")
+        # Must mirror the FULL movement taxonomy in civic_geds_refresh.py — production
+        # reads movements["role_changed"] directly, so a partial fake raises KeyError
+        # rather than failing an assertion. Production gained "role_changed"; this fake
+        # did not follow.
         return {
             "new": 0,
             "departed": 0,
             "title_changed": 0,
             "org_changed": 0,
+            "role_changed": 0,
             "classification_changed": 0,
         }
 

@@ -15,7 +15,9 @@ import 16 (account 7) with a fake message_id; get_email is monkeypatched to rais
 import services.chronicle_gmail_attachments as mod
 
 SENTINEL_MSG = "__poison_pill_test__"
-IMPORT_ID = 16  # a real gmail import (account 7); its attachment candidates are fully drained
+# chronicle_import["import_id"] used to be 16 — a REAL production gmail import. archie_test has never held it,
+# so the INSERT below hit mailbox_emails_import_id_fkey. The `chronicle_import` fixture
+# (tests/conftest.py) creates its own import + email and cleans up after.
 
 
 class _Resp:
@@ -26,7 +28,7 @@ class _FakeHttpError(Exception):
     resp = _Resp()
 
 
-def test_deleted_message_marked_unavailable_and_excluded():
+def test_deleted_message_marked_unavailable_and_excluded(chronicle_import):
     from database import get_db_cursor
 
     email_id = None
@@ -36,12 +38,12 @@ def test_deleted_message_marked_unavailable_and_excluded():
             cur.execute(
                 "INSERT INTO mailbox_emails (import_id, message_id, has_attachments, subject) "
                 "VALUES (%s, %s, TRUE, 'poison pill test') RETURNING id",
-                (IMPORT_ID, SENTINEL_MSG),
+                (chronicle_import["import_id"], SENTINEL_MSG),
             )
             email_id = cur.fetchone()["id"]
 
         # It is a candidate before the run.
-        before = [e[0] for e in mod._candidate_emails(IMPORT_ID, 100000)]
+        before = [e[0] for e in mod._candidate_emails(chronicle_import["import_id"], 100000)]
         assert email_id in before, "sentinel should start as an attachment candidate"
 
         # get_email 404s for the sentinel (message gone); real ids pass through untouched.
@@ -51,7 +53,7 @@ def test_deleted_message_marked_unavailable_and_excluded():
             return orig_get_email(account_id, gmail_id)
 
         mod.gmail_service.get_email = _fake_get_email
-        mod.run_attachment_download(IMPORT_ID, limit=100000)
+        mod.run_attachment_download(chronicle_import["import_id"], limit=100000)
 
         with get_db_cursor(commit=False) as (conn, cur):
             cur.execute(
@@ -67,7 +69,7 @@ def test_deleted_message_marked_unavailable_and_excluded():
         assert row["has_attachments"] is True, "has_attachments must not be flipped"
 
         # It is no longer a candidate → no more spinning.
-        after = [e[0] for e in mod._candidate_emails(IMPORT_ID, 100000)]
+        after = [e[0] for e in mod._candidate_emails(chronicle_import["import_id"], 100000)]
         assert email_id not in after, "marked email must drop out of candidacy"
     finally:
         mod.gmail_service.get_email = orig_get_email

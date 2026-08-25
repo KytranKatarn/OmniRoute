@@ -97,28 +97,41 @@ def test_append_event_inserts_row(mock_db):
 
 
 # ---------------------------------------------------------------------------
-# Test 4: start_opencode spawns subprocess and stores it in _PROCESSES
+# Test 4: start_opencode registers an opencode SESSION against the shared server
 # ---------------------------------------------------------------------------
 
 
-@patch("tools.archie_chat.code_service.subprocess.Popen")
+@patch("tools.archie_chat.code_service._http_post")
+@patch("tools.archie_chat.code_service._ensure_server_running")
 @patch("tools.archie_chat.code_service.get_db_cursor")
-def test_start_opencode_stores_pid(mock_db, mock_popen):
+def test_start_opencode_registers_session(mock_db, mock_ensure, mock_post):
+    """The model changed: ONE shared opencode server, many sessions over HTTP.
+
+    This test used to patch subprocess.Popen and assert `_PROCESSES[99] is proc` — the old
+    one-process-per-session design. start_opencode now calls _ensure_server_running() and
+    POSTs to {_OPENCODE_URL}/session, tracking the result in _OPENCODE_SESSIONS.
+
+    Because _http_post was never stubbed, the test made a REAL HTTP call to a sidecar that
+    does not run in the test container, and failed with
+    `URLError: <urlopen error [Errno 111] Connection refused>` — an infrastructure-shaped
+    message for a design change. Stub the boundary and assert the current contract.
+    """
     cm, cur = _make_mock_db()
     mock_db.return_value = cm
-
-    proc = MagicMock()
-    proc.pid = 1234
-    proc.poll.return_value = None
-    proc.stdout.__iter__ = MagicMock(return_value=iter([]))
-    mock_popen.return_value = proc
+    mock_post.return_value = {"id": "oc-session-abc"}
 
     code_service.start_opencode(session_id=99)
-    assert code_service._PROCESSES.get(99) is proc
-    # cleanup
-    code_service._PROCESSES.pop(99, None)
-    code_service._SSE_QUEUES.pop(99, None)
-    code_service._SESSION_MODE.pop(99, None)
+    try:
+        assert code_service._OPENCODE_SESSIONS.get(99) == "oc-session-abc"
+        assert code_service._SESSION_MODE.get(99) == "structured"
+        assert 99 in code_service._SSE_QUEUES
+        mock_ensure.assert_called_once()
+        # the session is created against the shared server, not spawned per session
+        assert mock_post.call_args[0][0].endswith("/session")
+    finally:
+        code_service._OPENCODE_SESSIONS.pop(99, None)
+        code_service._SSE_QUEUES.pop(99, None)
+        code_service._SESSION_MODE.pop(99, None)
 
 
 # ---------------------------------------------------------------------------

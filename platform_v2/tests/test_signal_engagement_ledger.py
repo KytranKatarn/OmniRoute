@@ -15,9 +15,32 @@ from services import signal_engagement_service as es  # noqa: E402
 
 def test_post_urn_from_activity_id_is_stable_across_url_forms():
     base = "https://www.linkedin.com/feed/update/urn:li:activity:7474809144848429056/"
-    deep = base + "?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7474809144848429056%2C123)"
     assert es._post_urn_from(base) == "urn:li:activity:7474809144848429056"
-    assert es._post_urn_from(deep) == es._post_urn_from(base)  # same post → same urn
+    # Query junk must not change the key for a plain post link.
+    assert es._post_urn_from(base + "?utm_source=x") == es._post_urn_from(base)
+
+
+def test_a_comment_deep_link_keys_on_the_COMMENT_not_the_parent_post():
+    """DELIBERATE, and this test used to assert the opposite.
+
+    It previously required a `?commentUrn=` deep-link to collapse to its PARENT post urn
+    ("same post → same urn"). `_post_urn_from`'s docstring is explicit that it must not:
+    a comment-like "keys on the comment, not its parent post".
+
+    The old expectation is not merely stale, it is unsafe. This is the ENGAGEMENT LEDGER's
+    dedup key — collapsing to the parent means two DIFFERENT comments on the same post
+    share one key, so liking the second is deduped away as already-done. The ledger exists
+    to bound automated engagement; a key that over-merges silently drops real actions.
+    """
+    base = "https://www.linkedin.com/feed/update/urn:li:activity:7474809144848429056/"
+    deep = base + "?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7474809144848429056%2C123)"
+
+    assert es._post_urn_from(deep) == "urn:li:comment:(activity:7474809144848429056,123)"
+    assert es._post_urn_from(deep) != es._post_urn_from(base), "comment must not collapse to its post"
+
+    # The property that matters: two comments on the SAME post get DIFFERENT keys.
+    other = base + "?commentUrn=urn%3Ali%3Acomment%3A(activity%3A7474809144848429056%2C456)"
+    assert es._post_urn_from(deep) != es._post_urn_from(other)
 
 
 def test_post_urn_from_fallback_strips_query():

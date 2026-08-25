@@ -174,14 +174,22 @@ class TestDomainRegistry:
             if domain.get("active"):
                 assert "en" in domain["active_languages"], f"Domain {domain['name']} missing 'en'"
 
-    def test_two_active_domains(self):
+    def test_the_required_public_domains_are_active(self):
+        """The two public sites must be scanned. The COUNT is not the invariant.
+
+        This asserted `len(active) == 2` and now sees 8: the registry legitimately grew as
+        the watch products came online (gov / civic / legal / market + what-the-fact .com
+        and .tech). A pinned census fails every time the platform gains a site, and the
+        only available fix is to bump the number — which teaches nothing and would equally
+        hide a domain going dark.
+
+        What actually matters is that these two never silently drop out of the scan.
+        """
         from tools.consciousness.translation_scanners.domain_registry import EXTERNAL_DOMAINS
 
-        active = [d for d in EXTERNAL_DOMAINS if d.get("active")]
-        assert len(active) == 2
-        names = {d["name"] for d in active}
-        assert "kytranempowerment_com" in names
-        assert "creed_ai_org" in names
+        active = {d["name"] for d in EXTERNAL_DOMAINS if d.get("active")}
+        for required in ("kytranempowerment_com", "creed_ai_org"):
+            assert required in active, f"{required} is not active — active set is {sorted(active)}"
 
     def test_no_duplicate_names(self):
         from tools.consciousness.translation_scanners.domain_registry import EXTERNAL_DOMAINS

@@ -260,7 +260,21 @@ def test_validator_is_reusable_by_both_paths():
     """The validator is a module-level helper — importable by the owner/business path too."""
     assert callable(dps.validate_draft_no_fabrication)
     sig = inspect.signature(dps.validate_draft_no_fabrication)
-    assert len(sig.parameters) == 2  # (draft, inbound_text) — no collaborator-specific coupling
+    params = list(sig.parameters.values())
+
+    # The two REQUIRED inputs, in order. (Was `len(params) == 2`, which broke when #4959
+    # added `allowed_facts_text` for curated-facts grounding — a legitimate addition that a
+    # bare count cannot distinguish from collaborator-specific coupling.)
+    assert [p.name for p in params[:2]] == ["draft", "inbound_text"]
+
+    # THE ACTUAL INVARIANT: anything beyond those two must be OPTIONAL, so the
+    # owner/business path can still call it with two arguments and no knowledge of the
+    # collaborator feature. A new REQUIRED parameter would couple the paths — that is what
+    # this test exists to catch, and a count only caught it by accident.
+    for p in params[2:]:
+        assert p.default is not inspect.Parameter.empty, (
+            f"{p.name} is required — that couples the owner/business path to a " "collaborator-specific argument"
+        )
 
 
 # --------------------------------------------------------------------------- #

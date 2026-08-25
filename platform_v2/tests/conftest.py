@@ -389,9 +389,15 @@ def db_conn(app):
 _FIRST_PARTY_ROOTS = ("tools", "services", "ai_bridge")
 
 # Known offenders, with the file that installs each. This list may only SHRINK.
-_ALLOWED_STUB_LEAKS = {
-    "tools.consciousness.translation_scanners.orchestrator": "test_delegation_service.py",
-}
+# EMPTY, and it should stay that way. The last entry —
+# tools.consciousness.translation_scanners.orchestrator, leaked by test_delegation_service —
+# was scoped to its own module rather than tolerated. It was the cause of
+# tests/translation_scanners/test_orchestrator.py failing in a FULL run while passing alone.
+#
+# Before adding an entry here, try the fixture instead: wrap the stub in
+# `stub_module_scoped` (tests/modstub.py), which restores sys.modules AND the parent package
+# attribute. That is viable whenever the module under test imports its dependency LAZILY.
+_ALLOWED_STUB_LEAKS: dict = {}
 
 _leaked_stubs: set = set()
 # How many items this run collected. The staleness half of the guard is only meaningful on
@@ -505,3 +511,50 @@ def _seed_admin_user(_isolated_test_db):
     finally:
         conn.close()
     yield
+
+
+@pytest.fixture
+def chronicle_import():
+    """A throwaway mailbox_imports row + one mailbox_emails row, cleaned up after.
+
+    Chronicle tests used to key off `import_id=16` — Terry's LIVE Gmail import in
+    PRODUCTION. archie_test has never held it, so the SELECT returned None
+    ("TypeError: 'NoneType' object is not subscriptable") and the INSERT hit
+    mailbox_emails_import_id_fkey. Neither message pointed at the real cause: a test
+    depending on a specific production row.
+
+    filename and stored_path are NOT NULL with no default on mailbox_imports; import_id is
+    the only required column on mailbox_emails.
+    """
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (_conn, cur):
+        cur.execute(
+            # source_kind/source_account_id are REQUIRED by the gmail attachment path:
+            # run_attachment_download calls _account_for_import(import_id) and returns
+            # early with 0 processed when it is None — which looked like the feature not
+            # working ("404 email should be marked unavailable, got None") rather than a
+            # fixture missing a column.
+            "INSERT INTO mailbox_imports "
+            "(owner_id, filename, stored_path, status, source_kind, source_account_id) "
+            "VALUES (4, 'pytest-fixture.pst', '/tmp/pytest-chronicle', 'extracted', 'gmail', 7) "
+            "RETURNING id"
+        )
+        import_id = cur.fetchone()["id"]
+        cur.execute(
+            "INSERT INTO mailbox_emails (import_id, message_id, subject) "
+            "VALUES (%s, %s, 'pytest fixture email') RETURNING id",
+            (import_id, f"pytest-chronicle-{import_id}"),
+        )
+        email_id = cur.fetchone()["id"]
+
+    yield {"import_id": import_id, "email_id": email_id}
+
+    with get_db_cursor(commit=True) as (_conn, cur):
+        # attachments -> emails -> import (FK order)
+        cur.execute(
+            "DELETE FROM mailbox_attachments WHERE email_id IN " "(SELECT id FROM mailbox_emails WHERE import_id=%s)",
+            (import_id,),
+        )
+        cur.execute("DELETE FROM mailbox_emails WHERE import_id=%s", (import_id,))
+        cur.execute("DELETE FROM mailbox_imports WHERE id=%s", (import_id,))

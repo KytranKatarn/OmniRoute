@@ -79,10 +79,29 @@ _pkg_translation_scanners = sys.modules.setdefault(
     "tools.consciousness.translation_scanners",
     types.ModuleType("tools.consciousness.translation_scanners"),
 )
-_stub_orchestrator = types.ModuleType("tools.consciousness.translation_scanners.orchestrator")
+_ORCH = "tools.consciousness.translation_scanners.orchestrator"
+_stub_orchestrator = types.ModuleType(_ORCH)
 _stub_orchestrator.run_translation_coverage_scan = MagicMock(return_value={})
-sys.modules["tools.consciousness.translation_scanners.orchestrator"] = _stub_orchestrator
-_pkg_translation_scanners.orchestrator = _stub_orchestrator
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _orchestrator_stub():
+    """Install the orchestrator stub for THIS module only, restoring both bindings after.
+
+    It used to be written straight into sys.modules AND onto the parent package at import
+    time, permanently. That was the last entry in conftest's _ALLOWED_STUB_LEAKS, and it
+    made tests/translation_scanners/test_orchestrator.py fail in a FULL run while passing
+    alone and alongside its siblings — the classic order-dependent symptom.
+
+    Safe as a fixture because delegation_service imports the orchestrator LAZILY, inside
+    the function under test (delegation_service.py:868), so the stub only has to exist when
+    that function runs — not at collection.
+
+    stub_module_scoped restores sys.modules AND the parent attribute; restoring only the
+    former is the #5987 trap (`from pkg import child` reads the attribute).
+    """
+    with stub_module_scoped(_ORCH, _stub_orchestrator):
+        yield
 
 
 def _mock_cursor(row=None, rows=None):

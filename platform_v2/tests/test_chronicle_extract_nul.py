@@ -16,7 +16,7 @@ import services.chronicle_attachment_service as svc
 SENTINEL_SHA = "__nul_poison_pill_test__"
 
 
-def test_nul_text_stores_done_not_stuck_new():
+def test_nul_text_stores_done_not_stuck_new(chronicle_import):
     from database import get_db_cursor
 
     att_id = None
@@ -27,8 +27,11 @@ def test_nul_text_stores_done_not_stuck_new():
             fh.write(b"dummy")  # only needs to exist; extract_text_from_file is monkeypatched
 
         with get_db_cursor(commit=True) as (conn, cur):
-            cur.execute("SELECT id FROM mailbox_emails WHERE import_id=16 ORDER BY id LIMIT 1")
-            email_id = cur.fetchone()["id"]
+            # Was `WHERE import_id=16` — Terry's LIVE Gmail import in PRODUCTION. In
+            # archie_test that SELECT returns None, and None["id"] raises
+            # "TypeError: 'NoneType' object is not subscriptable" — a message that says
+            # nothing about the real cause. The fixture supplies its own row.
+            email_id = chronicle_import["email_id"]
             cur.execute(
                 "INSERT INTO mailbox_attachments "
                 "(email_id, filename, mime_type, size_bytes, sha256, stored_path, extract_status) "

@@ -49,10 +49,13 @@ def test_detect_movements_skips_first_run():
     cur.fetchone.return_value = None
 
     counts = detect_movements(conn, snapshot_id=1)
+    # "role_changed" is part of the movement taxonomy — an exact-dict assertion has to
+    # carry every key production returns, or it fails on a legitimate addition.
     assert counts == {
         "new": 0,
         "departed": 0,
         "title_changed": 0,
         "org_changed": 0,
+        "role_changed": 0,
         "classification_changed": 0,
     }

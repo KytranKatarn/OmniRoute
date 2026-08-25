@@ -129,6 +129,22 @@ def test_deploy_to_production_creates_improvement_deployment_row(app, db_conn):
             proposal_id = cur.fetchone()[0]
         db_conn.commit()
 
+        # W.A.R.D.E.N. CLEARANCE GATE (postdates this test). deploy_to_production now
+        # refuses without a fresh restore point:
+        #   "W.A.R.D.E.N. clearance denied: backup age 9999.0h exceeds medium limit of 6h"
+        # archie_test holds no backup_log history, so the deploy never ran and no
+        # improvement_deployments row was written — the assertion blamed the INSERT.
+        #
+        # Seed a recent SUCCESS on the primary tier rather than patching the gate out: the
+        # gate reads the last SUCCESS (not the newest row, per #2363), so this exercises
+        # the real clearance path instead of bypassing a safety check.
+        with db_conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO backup_log (backup_type, file_path, status, tier, created_at) "
+                "VALUES ('database', '/backups/pytest-clearance', 'success', 'primary', NOW())"
+            )
+        db_conn.commit()
+
         with patch("tools.backup_manager._shared.create_backup_programmatic") as mock_backup:
             mock_backup.return_value = {
                 "success": True,

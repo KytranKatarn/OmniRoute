@@ -5512,6 +5512,24 @@ class AgentLoop:
 
         A queue that has NEVER executed anything cannot page a fresh install:
         with no approved rows, condition 1 is false and we return early."""
+        # Before looking for a STALLED executor, look for a BLOCKED queue. They are
+        # different failures: the watchdog below asks "is the executor moving?", this
+        # asks "is there anything it is ALLOWED to move?". A deploy blocked on backup
+        # age is not stalled — nothing is in flight to stall — so the watchdog is
+        # structurally blind to it and returns early at `if not stalled`.
+        # Measured 2026-08-25: 6 deploy approvals blocked, backup 8.7h old, zero
+        # backup_before_deploy rows. Wrapped separately so it can never take the
+        # stall check down with it.
+        try:
+            import sys as _sys
+
+            _sys.path.insert(0, "/app")
+            from services.backup_autoraise import maybe_raise_backup_approval
+
+            maybe_raise_backup_approval()
+        except Exception as _ar:
+            logger.warning(f"[approval_watchdog] backup auto-raise skipped: {_ar}")
+
         try:
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)

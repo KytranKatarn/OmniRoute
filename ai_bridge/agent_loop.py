@@ -8128,6 +8128,13 @@ class AgentLoop:
 
                         _mode = get_dispatch_mode()
                     except Exception:
+                        # Bind the name on the failure path. `is_priority_project` is called
+                        # below under `if _mode != "auto"`, so the SENTINEL VALUE is the real
+                        # guard — "auto" means both "no profile" and "import failed". That
+                        # double duty is brittle: any future path that sets a non-auto mode
+                        # without this import leaves the name unbound. Binding to None makes
+                        # the guard explicit rather than incidental (#6022).
+                        is_priority_project = None
                         _mode = "auto"
                     _pool = slots * 6 if _mode != "auto" else slots
                     _eligible_types = tuple(CAP_MAP.keys())

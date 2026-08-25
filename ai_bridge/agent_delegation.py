@@ -545,6 +545,13 @@ def execute_with_delegation(
             tools_enabled = True
             available_tools = list_available_tools()
         except Exception:
+            # Bind the name on the failure path too. `execute_tool` is called ~120 lines
+            # below under `if tools_enabled and ...`, so this was correct — but only by
+            # the grace of a guard far away, and an inner `except Exception` there would
+            # have reported a NameError as "Tool execution error", hiding the real cause.
+            # Binding it to None makes the flag the ONLY control and removes the
+            # UnboundLocalError class entirely (#6022).
+            execute_tool = None
             tools_enabled = False
             available_tools = {}
 

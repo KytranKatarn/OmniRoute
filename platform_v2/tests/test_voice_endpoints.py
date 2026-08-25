@@ -24,6 +24,12 @@ def test_synthesize_wraps_synth(monkeypatch):
             assert agent_id == 2  # her canonical voice profile
             return {"success": True, "audio_base64": "QUJD", "cached": False}
 
+    # Neutralise the GPU-node path FIRST. synthesize() prefers the node sidecar and
+    # returns early (`via_node = _synthesize_via_node(...); if via_node is not None: return`),
+    # so patching get_voice_synthesizer alone tests a path that only runs when the node is
+    # DOWN. These two tests passed for ~as long as the node was broken and started failing
+    # the moment it came back healthy — asserting on a mock that was never consulted.
+    monkeypatch.setattr(vs, "_synthesize_via_node", lambda *a, **k: None)
     monkeypatch.setattr(vs, "get_voice_synthesizer", lambda: _Synth())
     out = vs.synthesize("hello", user_id=2)
     assert out["success"] is True
@@ -37,6 +43,12 @@ def test_synthesize_failsoft(monkeypatch):
     def boom():
         raise RuntimeError("kokoro down")
 
+    # Neutralise the GPU-node path FIRST. synthesize() prefers the node sidecar and
+    # returns early (`via_node = _synthesize_via_node(...); if via_node is not None: return`),
+    # so patching get_voice_synthesizer alone tests a path that only runs when the node is
+    # DOWN. These two tests passed for ~as long as the node was broken and started failing
+    # the moment it came back healthy — asserting on a mock that was never consulted.
+    monkeypatch.setattr(vs, "_synthesize_via_node", lambda *a, **k: None)
     monkeypatch.setattr(vs, "get_voice_synthesizer", boom)
     out = vs.synthesize("hi", user_id=2)
     assert out["success"] is False and "error" in out

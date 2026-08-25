@@ -385,20 +385,27 @@ def test_but_a_use_outside_EVERY_importing_branch_is_still_flagged():
 # ------------------------------------------------------------------------------- repo sweep
 
 
-# Known-safe findings the AST cannot prove. Each is the "flag-guarded optional import"
-# shape: the import sits in a try whose handler sets a BOOLEAN, and every use is wrapped in
-# `if <flag>:`. Correct at runtime, invisible to a static reachability check.
+# Findings the AST cannot prove safe. EMPTY, and it should stay that way.
 #
-# ⚠️ It is safe only as long as the flag guards EVERY use. Add an unguarded use and this
-# becomes a live UnboundLocalError with no test to catch it — the allowlist entry will still
-# be here saying "known safe". Prefer converting these to a module-level import with an
-# explicit `= None` fallback; tracked on #6022.
+# It briefly held two "flag-guarded optional import" entries — an import in a try whose
+# handler set a BOOLEAN (or a sentinel string), with every use wrapped in `if <flag>:`.
+# Correct at runtime, unprovable statically. Both were fixed instead of tolerated, by
+# binding the name to None on the failure path:
 #
-# Entries are (file_suffix, function, name). Keep this list SHRINKING.
-_ALLOWED = {
-    ("ai_bridge/agent_delegation.py", "execute_with_delegation", "execute_tool"),
-    ("ai_bridge/agent_loop.py", "_run_fleet_backlog_runner", "is_priority_project"),
-}
+#     except Exception:
+#         execute_tool = None          <- now bound on EVERY path
+#         tools_enabled = False
+#
+# That is strictly better than an allowlist entry. The flag stays the real control, the
+# UnboundLocalError class is gone, and nothing has to remember why an exception was fine.
+#
+# ⚠️ Before adding an entry here, try that two-line fix first. An allowlist entry says
+# "known safe" to every future reader, and stays saying it long after the code moves —
+# which is exactly how the class this file guards against survives.
+#
+# Entries are (file_suffix, function, name). test_the_allowlist_only_shrinks fails if one
+# stops firing, so a fixed entry cannot linger.
+_ALLOWED: set = set()
 
 
 def _py_files():
@@ -451,3 +458,66 @@ def test_the_allowlist_only_shrinks():
     assert not stale, "These _ALLOWED entries no longer produce a finding — delete them:\n" + "\n".join(
         f"  {e}" for e in sorted(stale)
     )
+
+
+# --------------------------------------------------- runtime proof of the chosen fix shape
+# The sweep above is static. These two execute the actual Python semantics, so the claim
+# "binding the name in the handler removes the failure mode" is demonstrated, not asserted.
+
+
+def _run(src):
+    """exec a snippet and call handle(); return the exception type or None."""
+    ns: dict = {}
+    exec(compile(src, "<shape>", "exec"), ns)
+    try:
+        ns["handle"]()
+    except Exception as exc:  # noqa: BLE001 — the exception IS the result here
+        return type(exc).__name__
+    return None
+
+
+_UNFIXED = (
+    "def handle():\n"
+    "    try:\n"
+    "        from nonexistent_module_xyz import helper\n"
+    "        enabled = True\n"
+    "    except Exception:\n"
+    "        enabled = False\n"
+    "    if not enabled:\n"
+    "        return None\n"
+    "    return helper()\n"
+)
+
+_FIXED = (
+    "def handle():\n"
+    "    try:\n"
+    "        from nonexistent_module_xyz import helper\n"
+    "        enabled = True\n"
+    "    except Exception:\n"
+    "        helper = None\n"
+    "        enabled = False\n"
+    "    if not enabled:\n"
+    "        return None\n"
+    "    return helper()\n"
+)
+
+
+def test_the_flag_guard_alone_survives_only_while_the_guard_is_correct():
+    """With the flag checked, the UNFIXED shape does not raise — which is exactly why the
+    two allowlisted cases were 'safe'. It is a property of the GUARD, not of the code."""
+    assert _run(_UNFIXED) is None
+
+
+def test_removing_the_guard_from_the_UNFIXED_shape_raises_NameError():
+    """The failure mode the fix eliminates. Drop the `if not enabled: return` line — as any
+    future refactor might — and the unfixed shape is an UnboundLocalError."""
+    unguarded = _UNFIXED.replace("    if not enabled:\n        return None\n", "")
+    # UnboundLocalError subclasses NameError, but type(exc).__name__ is the SUBCLASS name.
+    assert _run(unguarded) == "UnboundLocalError"
+
+
+def test_the_FIXED_shape_survives_losing_its_guard():
+    """The point of binding in the handler: the code is correct even if the guard is later
+    removed or bypassed. This is what took both entries off the allowlist."""
+    unguarded = _FIXED.replace("    if not enabled:\n        return None\n", "")
+    assert _run(unguarded) == "TypeError", "None is not callable — a clear error, not an unbound name"

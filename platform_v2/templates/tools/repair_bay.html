@@ -240,6 +240,9 @@
                 <button class="dp-filter active" data-filter="open" onclick="filterIssues('open')">Open</button>
                 <button class="dp-filter" data-filter="fixed" onclick="filterIssues('fixed')">Fixed</button>
                 <button class="dp-filter" data-filter="all" onclick="filterIssues('all')">All</button>
+                <!-- spec 2026-08-26 §6.6: the issues→proposals bridge had ZERO UI callers
+                     (and was schema-broken until Phase 1) — Diagnose was a dead-end island. -->
+                <button class="dp-filter" style="margin-left:auto;" onclick="issuesToProposals()" title="Group open issues by file+category into Repair Bay proposals (medium+ severity)">→ Proposals</button>
             </div>
             <div id="issuesList" class="dp-issue-list">
                 <div class="dp-empty" style="padding:30px;"><div class="dp-empty-desc">Loading issues...</div></div>
@@ -380,6 +383,7 @@
             <button class="dp-filter" data-pfilter="approved" onclick="filterProposals('approved')">Approved</button>
             <button class="dp-filter" data-pfilter="testing" onclick="filterProposals('testing')">Testing</button>
             <button class="dp-filter" data-pfilter="tested" onclick="filterProposals('tested')">Tested</button>
+            <button class="dp-filter" data-pfilter="pr_open" onclick="filterProposals('pr_open')">PR Open</button>
             <button class="dp-filter" data-pfilter="deployed" onclick="filterProposals('deployed')">Deployed</button>
             <button class="dp-filter" data-pfilter="fix_requested" onclick="filterProposals('fix_requested')">Fix Req</button>
         </div>
@@ -494,6 +498,14 @@
                         <div style="font-family:IBM Plex Mono,monospace;font-size:0.75rem;color:#f59e0b;">SANDBOX (no prod writes)</div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Gate Runs (spec 2026-08-26 §6.6): proposal rehearsals were invisible —
+                 399 tiered-gate P.R.O.B.E. runs had no UI surface. Now that ship_as_pr
+                 makes the gate MANDATORY on every deploy path, the evidence shows here. -->
+            <div style="background:rgba(0,0,0,0.25);border:1px solid rgba(0,212,255,0.2);border-radius:8px;padding:16px;margin-bottom:16px;">
+                <div style="font-family:Antonio,sans-serif;font-size:0.85rem;letter-spacing:2px;text-transform:uppercase;color:var(--archie-cyan,#00d4ff);margin-bottom:10px;">RECENT GATE RUNS</div>
+                <div id="gateRunsList" style="font-family:IBM Plex Mono,monospace;font-size:0.72rem;color:#94a3b8;">Loading gate runs...</div>
             </div>
 
             <!-- P.R.O.B.E. Gate -->
@@ -639,6 +651,13 @@
                     <div style="font-size:0.7rem;color:rgba(255,255,255,0.4);margin-top:2px;">Each image-baked product's running /version SHA vs its source-repo head — the same drift check the daily monitor + F.O.R.G.E. Dockerfile guard use</div>
                 </div>
                 <button id="provRefreshBtn" onclick="loadDeployProvenance(true)" style="background:rgba(0,229,255,0.1);color:#00e5ff;border:1px solid rgba(0,229,255,0.3);border-radius:4px;padding:8px 18px;font-size:0.8rem;font-family:Orbitron,sans-serif;letter-spacing:1px;cursor:pointer;">REFRESH</button>
+            </div>
+            <!-- Hub deploy state (spec 2026-08-26 §6.5): the volume-mounted half the
+                 product matrix below never covered — a merge deploys the hub only
+                 after checkout+pull+restart, and this card says when that is due. -->
+            <div id="hubStateCard" style="border:1px solid rgba(0,229,255,0.2);border-radius:6px;padding:12px 16px;margin-bottom:14px;">
+                <div style="font-family:Orbitron,sans-serif;font-size:0.8rem;color:#00e5ff;letter-spacing:1px;margin-bottom:6px;">HUB DEPLOY STATE</div>
+                <div id="hubStateBody" style="font-size:0.75rem;color:rgba(255,255,255,0.6);">Loading hub tree state...</div>
             </div>
             <div id="provList" style="display:flex;flex-direction:column;gap:10px;">
                 <div class="dp-empty" style="padding:40px;"><div class="dp-empty-desc">Loading deploy provenance...</div></div>
@@ -2280,6 +2299,45 @@ function loadIssues() {
         });
 }
 
+function issuesToProposals() {
+    // spec 2026-08-26 §6.6: Diagnose → Repair Bay bridge (fixed in Phase 1 — it
+    // was schema-broken AND had no UI caller). Groups open medium+ issues by
+    // file+category into one proposal each.
+    if (!confirm('Group open issues (medium+ severity) by file + category into Repair Bay proposals?')) return;
+    fetch(API + '/scan/issues-to-proposals', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({}),
+    }).then(function(r){return r.json();}).then(function(d){
+        if (d.success) {
+            alert('Created ' + d.proposals_created + ' proposal(s) from ' + d.issues_processed + ' issue(s). See the Repairs tab.');
+            loadIssues();
+        } else {
+            alert('Bridge failed: ' + (d.error || 'unknown error'));
+        }
+    }).catch(function(e){ alert('Bridge failed: ' + e); });
+}
+
+function loadGateRuns() {
+    var el = document.getElementById('gateRunsList');
+    if (!el) return;
+    fetch(API + '/sandbox/gate-runs').then(function(r){return r.json();}).then(function(d){
+        el.textContent = '';
+        var runs = (d && d.runs) || [];
+        if (!runs.length) { el.textContent = 'No gate runs recorded yet.'; return; }
+        runs.forEach(function(run) {
+            var line = document.createElement('div');
+            line.style.cssText = 'padding:3px 0;border-bottom:1px solid rgba(255,255,255,0.05);';
+            var ok = run.status === 'completed' && (run.failed === 0 || run.failed == null);
+            var when = run.started_at ? String(run.started_at).slice(0, 16).replace('T', ' ') : '—';
+            line.textContent = (ok ? '✓ ' : '✗ ') + when + ' · ' + (run.triggered_by || '?')
+                + ' · ' + (run.passed != null ? run.passed : '?') + '/' + (run.total_tests != null ? run.total_tests : '?');
+            line.style.color = ok ? '#00ff41' : '#ef4444';
+            el.appendChild(line);
+        });
+    }).catch(function(){ el.textContent = 'Gate runs unavailable.'; });
+}
+
 function filterIssues(f) {
     _currentIssueFilter = f;
     document.querySelectorAll('.dp-filter').forEach(function(b) { b.classList.toggle('active', b.dataset.filter === f); });
@@ -2448,13 +2506,14 @@ function renderProposals(proposals) {
         approved: '#00d4ff', code_generating: '#8b5cf6', testing: '#8b5cf6',
         tested: '#00ff41', deployed: '#00ff41', implemented: '#00ff41',
         rejected: '#ef4444', failed: '#ef4444', fix_requested: '#ef4444',
+        pr_open: '#00d4ff',
     };
     proposals.forEach(function(p) {
         var card = document.createElement('div');
         card.className = 'dp-proposal-card';
         card.style.setProperty('--prop-accent', statusColors[p.status] || '#6b7280');
         card.onclick = function(e) {
-            if (e.target.tagName === 'BUTTON') return;
+            if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A') return;
             showProposalDetail(p.id);
         };
 
@@ -2507,6 +2566,19 @@ function renderProposals(proposals) {
             bc.title = 'No pre-deploy backup clearance recorded yet';
         }
         meta.appendChild(bc);
+
+        // PR link (spec 2026-08-26 Phase 2): a pr_open proposal was shipped as a
+        // branch+PR — the governed merge is the apply. Link the human to it.
+        if (p.status === 'pr_open' && p.pr_url) {
+            var prLink = document.createElement('a');
+            prLink.className = 'dp-severity low';
+            prLink.href = p.pr_url;
+            prLink.target = '_blank';
+            prLink.rel = 'noopener';
+            prLink.textContent = 'PR ↗';
+            prLink.title = 'Shipped as a PR — merging it (after F.O.R.G.E. approval) is what applies the fix';
+            meta.appendChild(prLink);
+        }
 
         // Apply-honesty badge (spec 2026-08-26 Phase 1): since #5808,
         // status='deployed' means "backed up and cleared to apply", NOT "live".
@@ -2770,6 +2842,7 @@ function toggleDiffView() {
 function _esc(s) { var d=document.createElement('div'); d.textContent=String(s||''); return d.innerHTML; }
 
 function loadStagingStatus() {
+    loadGateRuns();
     fetch(API + '/sandbox/staging-status').then(function(r) { return r.json(); }).then(function(d) {
         var badge = document.getElementById('stagingHealthBadge');
         var lastRun = document.getElementById('stagingLastRun');
@@ -3330,7 +3403,40 @@ function loadWebsiteDeployStatus() {
     });
 }
 
+function loadHubDeployState() {
+    var body = document.getElementById('hubStateBody');
+    if (!body) return;
+    fetch(API + '/deploy/hub-state').then(function(r){return r.json();}).then(function(s){
+        body.textContent = '';
+        var pill = document.createElement('span');
+        var status = s.status || 'unknown';
+        // unknown renders as unknown, never as healthy (hub_deploy_state contract)
+        var color = status === 'in_sync' ? '#00ff41'
+                  : (status === 'needs_pull' || status === 'needs_restart') ? '#f59e0b'
+                  : '#6b7280';
+        pill.style.cssText = 'display:inline-block;padding:2px 10px;border-radius:10px;margin-right:10px;'
+            + 'font-family:Orbitron,sans-serif;font-size:0.7rem;letter-spacing:1px;'
+            + 'border:1px solid ' + color + ';color:' + color + ';';
+        pill.textContent = status.toUpperCase().replace('_', ' ');
+        body.appendChild(pill);
+        var txt = document.createElement('span');
+        var bits = [];
+        if (s.behind_main != null) bits.push('behind main: ' + s.behind_main);
+        if (s.head_sha) bits.push('HEAD ' + String(s.head_sha).slice(0, 9));
+        (s.warnings || []).forEach(function(w){ bits.push(w); });
+        if (status === 'needs_pull' || status === 'needs_restart') {
+            bits.push('Apply: git checkout main && git pull --ff-only, then restart archie_platform/archie_scheduler.');
+        }
+        txt.textContent = bits.join(' · ') || 'No details.';
+        body.appendChild(txt);
+    }).catch(function(e){
+        var body2 = document.getElementById('hubStateBody');
+        if (body2) body2.textContent = 'Hub state unavailable: ' + e;
+    });
+}
+
 function loadDeployProvenance(force) {
+    loadHubDeployState();
     var el = document.getElementById('provList');
     if (!el) return;
     el.innerHTML = '';

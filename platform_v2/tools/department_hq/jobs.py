@@ -658,6 +658,60 @@ def code_health_reconcile_job():
     return out
 
 
+def hub_deploy_state_monitor_job():
+    """'Advise when to deploy' (spec 2026-08-26 §6.5): watch the volume-mounted hub tree.
+
+    deploy_drift_monitor covers the 9 image-baked products; NOTHING watched the hub
+    half — a merged fix that never got checkout+restart is the #2718 trap, and with
+    ship_as_pr every repair now ends in a merge that needs exactly that. ADVISORY
+    ONLY: nothing restarts automatically. Dedup'd on a state fingerprint so a
+    standing condition pages once, not every 30 minutes.
+    Toggle: work-control key 'hub_deploy_advisor' (default ON)."""
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("hub_deploy_advisor", default=True):
+        return
+    try:
+        from services.hub_deploy_state import hub_deploy_state
+
+        state = hub_deploy_state()
+    except Exception as e:
+        logger.warning("hub_deploy_state_monitor: state read failed: %s", e)
+        return
+    status = state.get("status")
+    if status not in ("needs_pull", "needs_restart"):
+        return
+    fingerprint = f"{status}:{str(state.get('head_sha', ''))[:9]}:{state.get('behind_main', '')}"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'deploy:advisory:last'")
+            row = cur.fetchone()
+            if row and row["value"] == fingerprint:
+                return  # standing condition already advised — page once, not every 30 min
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, description)
+                   VALUES ('deploy:advisory:last', %s, 'hub deploy-advisory dedup fingerprint')
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (fingerprint,),
+            )
+    except Exception as e:
+        logger.warning("hub_deploy_state_monitor dedup failed (alerting anyway): %s", e)
+    try:
+        from services.telegram_service import send_system
+
+        send_system(
+            f"Hub deploy advised: {status}",
+            "The hub working tree has merged changes not yet running "
+            f"(behind_main={state.get('behind_main')}; warnings={'; '.join(state.get('warnings') or []) or 'none'}). "
+            "Apply: git checkout main && git pull --ff-only, then restart archie_platform/archie_scheduler "
+            "outside review windows.",
+        )
+    except Exception as e:
+        logger.warning("hub_deploy_state_monitor alert failed: %s", e)
+
+
 def code_health_reverify_job():
     """Daily loop closure: re-audit deployed proposals INDEPENDENTLY of audit-all.
 
@@ -1499,6 +1553,19 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=CronTrigger(hour=4, minute=40, timezone="America/Toronto"),
         id="code_health_reverify",
         name="Code Health: Re-verify deployed fixes (loop closure)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Hub deploy advisory — 'advise when to deploy' (spec 2026-08-26 §6.5).
+    # Complements deploy_drift_monitor (image-baked products) with the hub's
+    # volume-mounted half. Advisory only; dedup'd; toggle 'hub_deploy_advisor'.
+    scheduler.add_job(
+        with_ctx(hub_deploy_state_monitor_job),
+        trigger=IntervalTrigger(minutes=30),
+        id="hub_deploy_state_monitor",
+        name="Ship: Hub deploy advisory (volume-mounted tree)",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

@@ -952,7 +952,7 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                     import sys as _sys
 
                     _sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-                    from services.proposal_service import _sandbox_gate, deploy_to_production
+                    from services.proposal_service import _sandbox_gate, ship_as_pr
                     from database import get_db_cursor as _gdc
                     import logging as _logging
 
@@ -988,8 +988,9 @@ def _handle_callback(cur: RealDictCursor, task_id: int, response: str) -> None:
                         )
                         return
 
-                    # Gate passed — deploy
-                    result = deploy_to_production(proposal_id)
+                    # Gate passed — ship as a PR (spec 2026-08-26 §6.3: the governed
+                    # merge is the apply; skip_gate=True because the gate just ran).
+                    result = ship_as_pr(proposal_id, skip_gate=True)
                     _log.info(
                         "deploy_approve_gate: proposal #%s %s after gate %s/%s",
                         proposal_id,

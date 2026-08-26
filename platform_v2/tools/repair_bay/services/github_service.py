@@ -456,6 +456,28 @@ def create_pr(
     }
 
 
+def pr_merge_state(pr_number: int, repo: str = None) -> Optional[str]:
+    """'merged' | 'closed' (unmerged) | 'open' | None when GitHub is unreadable.
+
+    Spec 2026-08-26 §6.4: the proposal merge-completion scanner needs to tell a
+    MERGED PR (complete the proposal) from a CLOSED-unmerged one (fix_requested).
+    Same single-call, repo-aware, None-on-error contract as pr_is_open below —
+    and the same asymmetry: the caller must treat None as "leave the row alone".
+    """
+    target = repo or REPO_FULL
+    ok, data = _api_get(f"/repos/{target}/pulls/{pr_number}")
+    if not ok or not isinstance(data, dict):
+        return None
+    if data.get("merged_at") or data.get("merged"):
+        return "merged"
+    state = data.get("state")
+    if state == "closed":
+        return "closed"
+    if state == "open":
+        return "open"
+    return None
+
+
 def pr_is_open(pr_number: int, repo: str = None) -> Optional[bool]:
     """Is this PR still open on GitHub? ``None`` when it cannot be determined.
 

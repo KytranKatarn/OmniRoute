@@ -25,6 +25,39 @@ def register_sandbox_routes(bp, admin_required):
     def sandbox_list():
         return jsonify(sandbox_service.list_sandboxes())
 
+    @bp.route("/api/sandbox/gate-runs")
+    @login_required
+    @admin_required
+    def sandbox_gate_runs():
+        """Recent proposal rehearsals: sandbox-gate + post-deploy QA runs.
+
+        Spec 2026-08-26 §6.6 (Test Bay): the gate always ran invisibly — 399
+        P.R.O.B.E. suite-79 rehearsals had no UI surface. Static rule, so the
+        /api/sandbox/<module_id> converter below cannot swallow it.
+        """
+        from database import get_db_cursor
+
+        try:
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    """SELECT id, suite_id, status, triggered_by, total_tests, passed, failed, started_at
+                       FROM qa_test_runs
+                       WHERE triggered_by LIKE 'tiered_approval_gate_proposal_%%'
+                          OR triggered_by LIKE 'repair_bay_deploy:%%'
+                          OR triggered_by = 'staging_test_bay'
+                       ORDER BY id DESC LIMIT 20"""
+                )
+                runs = []
+                for r in cur.fetchall():
+                    d = dict(r)
+                    if d.get("started_at") is not None and hasattr(d["started_at"], "isoformat"):
+                        d["started_at"] = d["started_at"].isoformat()
+                    runs.append(d)
+            return jsonify({"success": True, "runs": runs})
+        except Exception as e:
+            logger.error("sandbox_gate_runs: %s", e)
+            return jsonify({"success": False, "error": str(e)}), 500
+
     @bp.route("/api/sandbox/<module_id>")
     @login_required
     @admin_required

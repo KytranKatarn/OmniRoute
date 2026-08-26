@@ -143,6 +143,29 @@ def _record_on_next_window(proposal: Dict, pr_result: Dict) -> None:
         logger.warning("[FORGE] could not record PR on a maintenance window: %s", exc)
 
 
+def _proposal_fix_fields(proposal: Dict) -> Dict:
+    """Resolve target file + fix diff across BOTH proposal generations.
+
+    The legacy shape used file_path/code_diff attributes; audit-pipeline rows keep
+    file_path in metadata jsonb and the unified diff in code_changes — there is NO
+    file_path column on improvement_proposals (information_schema, 2026-08-26).
+    Attribute names win when present so any legacy caller is byte-identical.
+    """
+    md = proposal.get("metadata") or {}
+    if isinstance(md, str):
+        try:
+            md = json.loads(md)
+        except Exception:
+            md = {}
+    if not isinstance(md, dict):
+        md = {}
+    return {
+        "file_path": proposal.get("file_path") or md.get("file_path") or "",
+        "code_diff": proposal.get("code_diff") or proposal.get("code_changes") or "",
+        "suggested_fix": proposal.get("suggested_fix") or "",
+    }
+
+
 def deploy_via_forge(
     proposal: Dict,
     deployment_id: int,
@@ -191,11 +214,13 @@ def deploy_via_forge(
             "error": f"Branch creation failed: {branch_result.get('error')}",
         }
 
-    # 3. Apply changes to branch
-    # Get the files that need to change from the proposal
-    file_path = proposal.get("file_path", "")
-    code_diff = proposal.get("code_diff", "")
-    suggested_fix = proposal.get("suggested_fix", "")
+    # 3. Apply changes to branch — resolve across BOTH proposal shapes (spec
+    # 2026-08-26 §6.2: audit-pipeline rows carry file_path in metadata and the
+    # diff in code_changes; the old direct reads refused every one of them).
+    fields = _proposal_fix_fields(proposal)
+    file_path = fields["file_path"]
+    code_diff = fields["code_diff"]
+    suggested_fix = fields["suggested_fix"]
 
     if not file_path:
         return {
@@ -450,3 +475,109 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
         "approved_by": [r.get("user") for r in approved],
         "method": "forge_merge",
     }
+
+
+def complete_proposal_after_merge(proposal_id: int, pr_number: int) -> bool:
+    """Flip a pr_open proposal to a REAL deployed state after its PR merged.
+
+    Spec 2026-08-26 §6.4. This is the ONLY writer that sets code_applied: true —
+    it fires exclusively on a confirmed GitHub merge, so 'deployed' finally means
+    'merged into the tree' (gate on the artifact, ADR-014). Also completes the
+    improvement_deployments row and invalidates the module's stale audit.
+    """
+    from database import get_db_cursor
+
+    with get_db_cursor(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE improvement_proposals
+               SET status = 'deployed',
+                   deployed_at = NOW(),
+                   metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+               WHERE id = %s AND status = 'pr_open'
+               RETURNING id""",
+            (
+                json.dumps(
+                    {"code_applied": True, "merged_pr": pr_number, "merged_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
+                ),
+                proposal_id,
+            ),
+        )
+        flipped = cur.fetchone() is not None
+        if flipped:
+            cur.execute(
+                """UPDATE improvement_deployments
+                   SET status = 'deployed', completed_at = NOW()
+                   WHERE proposal_id = %s AND status = 'deploying'""",
+                (proposal_id,),
+            )
+    if flipped:
+        # Bridge to Code Health (same derivation as deploy_via_merge's block).
+        try:
+            from database import get_db_cursor as _gdc
+
+            with _gdc() as (c2, cur2):
+                cur2.execute(
+                    "SELECT metadata->>'file_path' AS fp FROM improvement_proposals WHERE id = %s",
+                    (proposal_id,),
+                )
+                prow = cur2.fetchone()
+            fp = prow and prow.get("fp")
+            if fp:
+                parts = fp.split("/")
+                if "tools" in parts:
+                    idx = parts.index("tools")
+                    if idx + 1 < len(parts):
+                        from services.code_metrics_service import mark_stale_audits
+
+                        mark_stale_audits([parts[idx + 1]])
+        except Exception as bridge_err:
+            logger.warning(
+                "complete_proposal_after_merge: stale-audit bridge failed for #%s: %s", proposal_id, bridge_err
+            )
+    return flipped
+
+
+def complete_merged_fix_proposals() -> Dict:
+    """Settle every pr_open proposal against GitHub.
+
+    Called from pr_review_service.sync_closed_prs — the choke point all three PR
+    pollers share (#2736 pattern), so completion cannot depend on which poller ran.
+
+    FAIL-SAFE: pr_merge_state() None (GitHub unreadable) leaves the row ALONE —
+    a blip must never complete or fail a proposal (the pr_is_open None rule).
+    merged -> deployed with code_applied:true; closed-unmerged -> fix_requested.
+    """
+    from database import get_db_cursor
+
+    from .github_service import pr_merge_state
+
+    checked = completed = reopened = 0
+    with get_db_cursor() as (conn, cur):
+        cur.execute(
+            """SELECT id, (metadata->>'pr_number')::int AS pr_number
+               FROM improvement_proposals
+               WHERE status = 'pr_open' AND metadata->>'pr_number' IS NOT NULL
+               ORDER BY id"""
+        )
+        rows = [dict(r) for r in cur.fetchall()]
+    for row in rows:
+        checked += 1
+        state = pr_merge_state(row["pr_number"])
+        if state == "merged":
+            if complete_proposal_after_merge(row["id"], row["pr_number"]):
+                completed += 1
+        elif state == "closed":
+            with get_db_cursor(commit=True) as (conn, cur):
+                cur.execute(
+                    """UPDATE improvement_proposals
+                       SET status = 'fix_requested',
+                           metadata = COALESCE(metadata, '{}'::jsonb)
+                                      || jsonb_build_object('pr_closed_unmerged', %s)
+                       WHERE id = %s AND status = 'pr_open'""",
+                    (row["pr_number"], row["id"]),
+                )
+            reopened += 1
+        # 'open' or None: leave the row alone.
+    if checked:
+        logger.info("[FORGE] merged-fix sweep: checked=%s completed=%s reopened=%s", checked, completed, reopened)
+    return {"checked": checked, "completed": completed, "reopened": reopened}

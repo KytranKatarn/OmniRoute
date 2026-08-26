@@ -230,7 +230,12 @@ def register_proposal_routes(bp, admin_required):
     @login_required
     @admin_required
     def proposals_deploy(proposal_id):
-        result = proposal_service.deploy_to_production(proposal_id)
+        # Spec 2026-08-26 §6.3: the deploy action is ship_as_pr — sandbox gate
+        # (previously bypassed by this button) + branch + PR. The route path is
+        # unchanged so the existing UI button keeps working; the governed merge
+        # is what applies code. deploy_to_production (the #5808 no-op) is no
+        # longer reachable from any route.
+        result = proposal_service.ship_as_pr(proposal_id)
         if not result.get("success"):
             return jsonify(result), 500
         return jsonify(result)

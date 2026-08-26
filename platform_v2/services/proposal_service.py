@@ -1660,6 +1660,80 @@ def _apply_fix_to_sandbox(sandbox_path, code_changes):
                 pass
 
 
+def ship_as_pr(proposal_id, skip_gate=False):
+    """Terminal deploy action for BOTH deploy paths: sandbox-gate, then open a fix PR.
+
+    Spec 2026-08-26 §6.3: #5808 made direct production writes a dead end by design;
+    git is the apply mechanism — the merge, through the governed merge_pr choke
+    point, is what applies code. status='pr_open' until the merge-completion hook
+    flips it to a REAL 'deployed' (code_applied: true).
+
+    skip_gate=True is for deploy_approve_gate, which has ALREADY run the sandbox
+    gate. Gate failure returns {'success': False, 'gate': ...} — never raises.
+    """
+    conn = _get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    try:
+        cur.execute("SELECT * FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        proposal = cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+    if not proposal:
+        return {"success": False, "error": "Proposal not found"}
+    if proposal.get("status") not in ("approved", "ready_for_review", "fix_requested", "pending_approval"):
+        return {"success": False, "error": f"status '{proposal.get('status')}' is not shippable"}
+
+    if not skip_gate:
+        gate = _sandbox_gate(proposal_id, dict(proposal))
+        if not gate.get("passed"):
+            return {"success": False, "error": "sandbox gate failed", "gate": gate}
+
+    from database import get_db_cursor as _get_db_cursor
+
+    # deployment_type must be 'manual' — the valid_deployment_type CHECK admits only
+    # manual/auto_low_risk/auto_approved; forge_pr provenance lives in metadata.
+    # backup_name is NOT NULL: on the PR path the rollback mechanism is git revert
+    # of the merge (spec §2 principle 5), not a module backup — say so honestly.
+    with _get_db_cursor(commit=True) as (dconn, dcur):
+        dcur.execute(
+            """INSERT INTO improvement_deployments (proposal_id, backup_name, deployment_type, status)
+               VALUES (%s, 'forge_pr:git-revert', 'manual', 'deploying') RETURNING id""",
+            (proposal_id,),
+        )
+        deployment_id = dcur.fetchone()["id"]
+
+    from tools.repair_bay.services.forge_pipeline import deploy_via_forge  # late import
+
+    result = deploy_via_forge(dict(proposal), deployment_id)
+    if not result.get("success") or result.get("method") == "no_change":
+        # no_change: the code already matches the fix — leave status for reverify
+        # to settle; never claim a PR that does not exist.
+        return result
+
+    with _get_db_cursor(commit=True) as (uconn, ucur):
+        ucur.execute(
+            """UPDATE improvement_proposals
+               SET status = 'pr_open',
+                   metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+               WHERE id = %s""",
+            (
+                json.dumps(
+                    {
+                        "pr_number": result.get("pr_number"),
+                        "pr_url": result.get("pr_url"),
+                        "branch": result.get("branch"),
+                        "apply_mode": "forge_pr",
+                        "code_applied": False,
+                        "shipped_at": datetime.now().isoformat(),
+                    }
+                ),
+                proposal_id,
+            ),
+        )
+    return result
+
+
 def _sandbox_gate(proposal_id, proposal):
     """Apply fix to sandbox branch, restart archie_staging, run P.R.O.B.E. suite #79.
 

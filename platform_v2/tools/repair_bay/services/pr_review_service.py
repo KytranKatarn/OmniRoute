@@ -400,6 +400,17 @@ def sync_closed_prs(repo: str = None) -> int:
     except Exception as e:  # noqa: BLE001
         logger.warning("pr_review_service: approval reconcile skipped: %s", e)
 
+    # Proposal merge-completion sweep (spec 2026-08-26 §6.4) — same choke-point
+    # placement as the approvals reconcile above: all three pollers share this
+    # function, so a merged fix PR completes its proposal (code_applied: true)
+    # no matter which poller noticed. Fail-soft: the poller must never die on it.
+    try:
+        from .forge_pipeline import complete_merged_fix_proposals
+
+        complete_merged_fix_proposals()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("pr_review_service: merged-fix sweep skipped: %s", e)
+
     return updated
 
 

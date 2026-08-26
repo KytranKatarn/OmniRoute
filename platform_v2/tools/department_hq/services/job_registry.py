@@ -39,6 +39,16 @@ JOB_REGISTRY = {
         "source_file": "tools/department_hq/jobs.py",
     },
     # ── Code Health static tier (2026-07-11 spec) ──
+    "hub_deploy_advisor": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": (
+            "Hub deploy advisory (spec 2026-08-26): watches the volume-mounted hub tree; when merged "
+            "changes await checkout/restart it advises via Telegram (dedup'd). Advisory only — "
+            "nothing restarts automatically. DEFAULT ON."
+        ),
+        "interval": "every 30 min",
+    },
     "code_health_reverify": {
         "department": "Engineering & Technology",
         "director": "F.O.R.G.E.",

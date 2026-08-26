@@ -1291,19 +1291,25 @@ def _score_to_grade(score):
 
 
 def _get_commit_hash(repo_path="/mnt/archie_brain"):
-    """Get current git commit hash."""
+    """Get current git commit hash.
+
+    The scheduler container runs as a different uid than the host-owned checkout,
+    so bare git refuses with 'dubious ownership' — every snapshot since 2026-03-23
+    stored an empty hash, disabling change detection (#6046). Same trap and same
+    fix as services/hub_deploy_state.py: -C plus an explicit safe.directory.
+    """
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo_path,
+            ["git", "-C", repo_path, "-c", f"safe.directory={repo_path}", "rev-parse", "HEAD"],
             capture_output=True,
             text=True,
             timeout=10,
         )
         if result.returncode == 0:
             return result.stdout.strip()
-    except Exception:
-        pass
+        logger.warning("_get_commit_hash: %s", (result.stderr or "").strip()[:200])
+    except Exception as e:
+        logger.warning("_get_commit_hash: %s", e)
     return None
 
 

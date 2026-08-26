@@ -400,8 +400,11 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
                 # Bridge to Code Health: mark affected module audit as stale
                 cur2 = conn.cursor()
                 try:
+                    # #6045: there is no file_path column — it lives in metadata jsonb.
+                    # The old column SELECT raised into the swallowed except below, so
+                    # merged fixes never invalidated stale module audits.
                     cur2.execute(
-                        "SELECT file_path FROM improvement_proposals WHERE id = %s",
+                        "SELECT metadata->>'file_path' FROM improvement_proposals WHERE id = %s",
                         (proposal_id,),
                     )
                     prow = cur2.fetchone()

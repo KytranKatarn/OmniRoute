@@ -39,6 +39,16 @@ JOB_REGISTRY = {
         "source_file": "tools/department_hq/jobs.py",
     },
     # ── Code Health static tier (2026-07-11 spec) ──
+    "code_health_reverify": {
+        "department": "Engineering & Technology",
+        "director": "F.O.R.G.E.",
+        "description": (
+            "Daily re-audit of deployed proposals (loop closure, spec 2026-08-26): stamps "
+            "reverified=fixed/still_open independently of audit-all, and alerts when the "
+            "still_open population grows. DEFAULT ON."
+        ),
+        "interval": "daily 04:40 ET",
+    },
     "agent_code_health_autoheal": {
         "department": "Engineering & Technology",
         "director": "F.O.R.G.E.",

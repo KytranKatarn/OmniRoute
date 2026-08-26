@@ -20,11 +20,15 @@ def _has_open_proposal(file_path: str, category: str) -> bool:
 
     try:
         with get_db_cursor() as (conn, cur):
+            # #6045: there is no file_path COLUMN — it lives in metadata jsonb. The
+            # old column query raised, hit the bare except, and FAILED OPEN, so this
+            # dedup never deduped anything.
             cur.execute(
                 """SELECT 1 FROM improvement_proposals
-                   WHERE file_path = %s
+                   WHERE metadata->>'file_path' = %s
                      AND category = %s
-                     AND status IN ('proposed', 'in_review', 'approved')
+                     AND status IN ('proposed', 'pending', 'in_review', 'approved',
+                                    'ready_for_review', 'fix_requested', 'pr_open')
                    LIMIT 1""",
                 (file_path, category),
             )
@@ -346,12 +350,15 @@ def register_scan_routes(bp, admin_required):
                     logger.debug("Skipping duplicate proposal for %s / %s", file_path, category)
                     continue
 
+                # #6045: file_path lives in the metadata JSON built above (no such
+                # column); proposed_by is a nullable INTEGER, so the old scan_bridge
+                # string writer could never insert; priority is varchar.
                 cur.execute(
                     """INSERT INTO improvement_proposals
-                       (title, description, file_path, category, priority, status, proposed_at, proposed_by, metadata)
-                       VALUES (%s, %s, %s, %s, %s, 'proposed', NOW(), 'scan_bridge', %s::jsonb)
+                       (title, description, category, priority, status, proposed_at, metadata)
+                       VALUES (%s, %s, %s, %s, 'proposed', NOW(), %s::jsonb)
                        RETURNING id""",
-                    (title, description, file_path, category, priority, metadata),
+                    (title, description, category, str(priority), metadata),
                 )
                 proposal_id = cur.fetchone()["id"]
 

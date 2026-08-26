@@ -77,6 +77,17 @@ def list_proposals(status=None):
                 d["proposed_at"] = d["proposed_at"].isoformat()
             if d.get("backup_clearance_at"):
                 d["backup_clearance_at"] = d["backup_clearance_at"].isoformat()
+            # ISO like the rest — jsonify would otherwise emit RFC-1123 for these
+            # two, and a client parsing uniformly mis-reads one family.
+            for _k in ("deployed_at", "deployment_started_at"):
+                if d.get(_k) is not None and hasattr(d[_k], "isoformat"):
+                    d[_k] = d[_k].isoformat()
+            # Honesty flags (spec 2026-08-26 Phase 1): status='deployed' has meant
+            # "backed up and cleared to apply" since #5808 — code_applied says
+            # whether the fix is actually live; pr_url arrives with Phase 2.
+            _md = d.get("metadata") or {}
+            d["code_applied"] = _md.get("code_applied") is True
+            d["pr_url"] = _md.get("pr_url")
             out.append(d)
         return {"success": True, "proposals": out, "count": len(out)}
     except Exception as e:
@@ -521,7 +532,10 @@ def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True,
     try:
         conn = _get_db()
         cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id, status, plan_steps, title FROM improvement_proposals WHERE id = %s", (proposal_id,))
+        cur.execute(
+            "SELECT id, status, plan_steps, title, metadata FROM improvement_proposals WHERE id = %s",
+            (proposal_id,),
+        )
         proposal = cur.fetchone()
         cur.close()
         conn.close()
@@ -536,6 +550,10 @@ def run_proposal(proposal_id, user_id, skip_backup=False, use_orchestrator=True,
                 "error": 'No implementation plan found. Click "Regenerate Plan" first.',
                 "legacy": True,
             }
+
+        # #6044: _trigger_module_qa(prop_meta, ...) at the bottom of this function
+        # referenced a name that was never assigned — post-deploy QA never fired.
+        prop_meta = proposal.get("metadata") or {}
 
         # ── W.A.R.D.E.N. pre-deploy governance check ─────────────────────────────
         if not skip_backup:
@@ -930,8 +948,16 @@ def archive_proposal(proposal_id):
     try:
         conn = _get_db()
         cur = conn.cursor()
+        # #6045: there is no archived_at column — archive stamps live in metadata,
+        # matching audit_pipeline's writers (the 8,964 rows archived that way).
         cur.execute(
-            "UPDATE improvement_proposals SET status = 'archived', archived_at = NOW() WHERE id = %s", (proposal_id,)
+            """UPDATE improvement_proposals
+               SET status = 'archived',
+                   metadata = COALESCE(metadata, '{}'::jsonb)
+                              || jsonb_build_object('archived_at', NOW()::text,
+                                                    'archived_by', 'repair_bay_api')
+               WHERE id = %s""",
+            (proposal_id,),
         )
         if cur.rowcount == 0:
             return {"success": False, "error": "Proposal not found"}

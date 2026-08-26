@@ -2508,6 +2508,19 @@ function renderProposals(proposals) {
         }
         meta.appendChild(bc);
 
+        // Apply-honesty badge (spec 2026-08-26 Phase 1): since #5808,
+        // status='deployed' means "backed up and cleared to apply", NOT "live".
+        // code_applied (from metadata, serialised by list_proposals) says which.
+        if (p.status === 'deployed') {
+            var applied = document.createElement('span');
+            applied.className = 'dp-severity ' + (p.code_applied ? 'low' : 'high');
+            applied.textContent = p.code_applied ? 'LIVE' : 'NOT APPLIED';
+            applied.title = p.code_applied
+                ? 'The fix is applied in the running tree'
+                : 'Backed up and cleared to apply — the code was never written (#5808)';
+            meta.appendChild(applied);
+        }
+
         // Agent info row for agent-processed proposals
         var agentName = p.agent_display_name || p.agent_code_name || (p.metadata && p.metadata.assigned_agent_name);
         var agentModel = p.agent_model || (p.metadata && p.metadata.agent_model);

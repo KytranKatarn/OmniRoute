@@ -658,6 +658,56 @@ def code_health_reconcile_job():
     return out
 
 
+def code_health_reverify_job():
+    """Daily loop closure: re-audit deployed proposals INDEPENDENTLY of audit-all.
+
+    Before this job, reverified stamps rode only on the audit-all tail — if that
+    stalled, verdicts silently froze (last 'fixed' was 2026-06-02 while deploys
+    continued into August; KB #296234). Also the FIRST consumer of still_open:
+    growth means shipped fixes are not removing their findings — alert, dedup'd
+    on the count so a standing backlog pages once, not daily.
+    Toggle: work-control key 'code_health_reverify' (default ON)."""
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("code_health_reverify", default=True):
+        return
+    try:
+        from services.audit_pipeline import reverify_deployed_findings
+
+        reverify_deployed_findings()
+    except Exception as e:
+        logger.warning("code_health_reverify: reverify pass failed: %s", e)
+        return
+    try:
+        from database import get_db_cursor
+        from services.telegram_service import send_system
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                "SELECT count(*) AS n FROM improvement_proposals "
+                "WHERE status = 'deployed' AND metadata->>'reverified' = 'still_open'"
+            )
+            n = int(cur.fetchone()["n"])
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'code_health:reverify:last_still_open'")
+            row = cur.fetchone()
+            prev = int(row["value"]) if row and str(row["value"]).isdigit() else n
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, description)
+                   VALUES ('code_health:reverify:last_still_open', %s,
+                           'still_open count at last reverify run (growth-alert dedup)')
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (str(n),),
+            )
+        if n > prev:
+            send_system(
+                f"Code Health re-verify: still_open grew to {n}",
+                f"{n - prev} deployed fix(es) did not remove their finding (was {prev}). "
+                "Repair Bay → Repairs lists the affected proposals.",
+            )
+    except Exception as e:
+        logger.warning("code_health_reverify still_open alert failed: %s", e)
+
+
 def code_health_backlog_drain_job():
     """Frequent, welfare-gated drain of the STANDING Code Health fix backlog.
 
@@ -1434,6 +1484,21 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(hours=_ch_drain_interval),
         id="code_health_backlog_drain",
         name="Code Health: Backlog Drain (fix-gen, welfare-gated)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Code Health RE-VERIFY — daily loop closure (spec 2026-08-26 Phase 1). Before
+    # this job the reverify pass rode ONLY on the audit-all tail, so a stalled
+    # audit-all silently froze every fixed/still_open verdict while deploys
+    # continued (measured: last 'fixed' 2026-06-02, KB #296234). Runs at 04:40 ET,
+    # after the 02:00–03:30 scan/audit train. Toggle: 'code_health_reverify'.
+    scheduler.add_job(
+        with_ctx(code_health_reverify_job),
+        trigger=CronTrigger(hour=4, minute=40, timezone="America/Toronto"),
+        id="code_health_reverify",
+        name="Code Health: Re-verify deployed fixes (loop closure)",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

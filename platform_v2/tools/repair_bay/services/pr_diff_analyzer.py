@@ -532,6 +532,83 @@ def _asserts_no_defect(blob: str) -> bool:
     return bool(_APPROVAL_RE.search(blob)) and not _DEFECT_ASSERTION_RE.search(blob)
 
 
+# ---------------------------------------------------------------------------------------------
+# GATE 5 — DESCRIBING vs DOING (#6029)
+#
+# The four gates above ask: is the citation REAL (grounding), is it an ADDED line (polarity), is
+# the claim CHECKABLE from a diff (claim), does the label match the content (severity)? On a plan
+# or postmortem, ALL FOUR PASS CORRECTLY and the review is still wrong — because a document about
+# defects is a diff made almost entirely of defect DESCRIPTIONS.
+#
+# Measured 2026-08-25 on PR #2839 (a plan file + a revert script, no code). Verdict was REQUEST
+# CHANGES with four [CRITICAL]s, every one citing an added line that DESCRIBES a problem or
+# PRESCRIBES its fix:
+#   "Engine Bypassing Dispatcher"  <- "+- Route Lane 3 inference through the hub dispatcher..."
+#   "Exposed Secrets"              <- the +line WARNING not to run that command
+#   "Build Loop Inactivity"        <- "+- build_loop|pull_work|opened PR -> 0 log lines in 7 days"
+#   "LLM Call Failure Impact"      <- the +line PROPOSING the #5977 fix
+#
+# So the missing question is: IS THE ADDED LINE DESCRIBING A DEFECT, OR COMMITTING ONE?
+#
+# The signal lives in the EVIDENCE, not the title — which is why this predicate takes the issue
+# rather than a blob like its neighbours. Markdown prose structure (bullet / heading / table row /
+# blockquote) is the discriminator: prose cannot *commit* a defect, only describe one.
+#
+# ⚠️ DEMOTE-ONLY, and deliberately so. The asymmetry is the safety property: a wrong demotion
+# costs a human reading an INFO instead of a CRITICAL (the text is never dropped); a wrong
+# BLOCK costs an unmergeable document and trains the habit of overriding the gate. Given a
+# document diff cannot itself introduce a runtime defect, that trade is one-directional.
+_PROSE_EVIDENCE_RE = re.compile(
+    r"""^\+?\s*                     # optional diff marker
+        (?:
+            [-*+]\s+\S              # markdown bullet
+          | \#{1,6}\s+\S            # heading
+          | \|[^|]*\|               # table row
+          | >\s+\S                  # blockquote
+        )""",
+    re.VERBOSE,
+)
+# Code-ish structure that a prose bullet does not have. If ANY appears, we do NOT treat the
+# evidence as prose — a YAML list item (`+  - name: Build`) or a decorated call must stay
+# blockable. Keeps the gate off real code that merely starts with a dash.
+# ⚠️ Every alternative here was tightened after its first draft FALSE-POSITIVED on real prose:
+#   * `\w+\s*\(` matched the parenthetical in "does not use the cluster (the headline finding)".
+#     A call has NO space before its paren, so the space is now disallowed.
+#   * a `\b(?:def|class|import|from|return)\b` clause matched "the plan argues FROM the spec".
+#     Dropped entirely — it was also redundant: a bare `import x` / `return None` line has no
+#     markdown bullet, so _PROSE_EVIDENCE_RE already declines it.
+_CODE_SHAPE_RE = re.compile(
+    r"""(?:
+            \w+\s*=[^=]              # assignment
+          | \w+\([^)]*\)             # call — no space before "(", unlike a prose parenthetical
+          | ^[-*+]?\s*\w[\w.\-]*\s*:\s*\S   # key: value (YAML/JSON/dict)
+          | [{};]                    # block/statement punctuation
+        )""",
+    re.VERBOSE | re.MULTILINE,
+)
+
+
+def _evidence_is_prose_not_code(issue: dict) -> bool:
+    """True when the cited evidence is PROSE describing a defect, not code committing one.
+
+    Answers the one question the other four gates do not ask. Requires markdown-prose STRUCTURE
+    and the absence of code shape — both, so a YAML list entry or a dash-prefixed statement is
+    never mistaken for prose.
+    """
+    ev = str((issue or {}).get("evidence", "") or "").strip()
+    if not ev:
+        return False
+    # ⚠️ Strip the diff marker FIRST. Leaving it on let `+` satisfy the optional bullet char in
+    # the key:value alternative, so `+  - name: Build` never matched as code and a YAML list
+    # item was misread as prose.
+    ev = re.sub(r"^[+-]\s?", "", ev).strip()
+    if not ev:
+        return False
+    if not _PROSE_EVIDENCE_RE.search(ev):
+        return False
+    return not _CODE_SHAPE_RE.search(ev)
+
+
 def _normalize_severity(issues: list) -> list:
     """Demote non-blocking nit CATEGORIES (see _NONBLOCKING_CATEGORY_RE) to INFO regardless of the
     model's self-assigned severity — structured (dict) path. Mutates + returns the same list; stamps
@@ -547,6 +624,9 @@ def _normalize_severity(issues: list) -> list:
             or _asserts_no_defect(blob)
             or _is_design_observation(blob)
             or _is_speculative_coverage_claim(blob)
+            # #6029 — the evidence DESCRIBES a defect rather than committing one. Keyed on the
+            # evidence, not `blob`, because that is where the signal is.
+            or _evidence_is_prose_not_code(i)
         ):
             i["_demoted_from"] = str(i.get("severity", "")).upper()
             i["severity"] = "INFO"
@@ -563,11 +643,18 @@ def _demote_nonblocking_lines(review_text: str) -> str:
     out = []
     for line in review_text.splitlines():
         m = re.match(r"(\s*[-*]?\s*)\[\s*(?:CRITICAL|WARNING)\s*\](.*)", line, re.IGNORECASE)
+        # #6029: the freeform line carries its citation as a trailing "Evidence: <line>" rather
+        # than a field, so reconstruct the same shape the structured gate sees.
+        # ⚠️ Split on the FIRST occurrence, not the last: "Evidence:" is a FIELD MARKER in the
+        # rubric-mandated line shape, and everything after it is the citation — which may itself
+        # contain the word. rsplit would silently truncate such a citation to its tail.
+        _ev = m.group(2).split("Evidence:", 1)[1] if (m and "Evidence:" in m.group(2)) else ""
         if m and (
             _NONBLOCKING_CATEGORY_RE.search(m.group(2))
             or _asserts_no_defect(m.group(2))
             or _is_design_observation(m.group(2))
             or _is_speculative_coverage_claim(m.group(2))
+            or _evidence_is_prose_not_code({"evidence": _ev})
         ):
             line = f"{m.group(1)}[INFO]{m.group(2)}"
         out.append(line)

@@ -30,11 +30,22 @@ Names below are the 2026-06-04 canonical set (display `node_name` / mesh `given_
 | RAM | 7.8 GB |
 | GPU | None — CPU inference only |
 | OS | Ubuntu 22.04.5 LTS |
-| SSH user | `kytran` (passwordless sudo for docker) |
+| SSH user | `kytran` (passwordless sudo — **NOT limited to docker**, see note) |
 | Root login | Disabled |
 | Auth | SSH key `~/.ssh/id_ed25519` |
 
 ---
+
+> ⚠️ **`kytran`'s passwordless sudo is BROADER than docker** (measured 2026-08-26). This table said
+> "passwordless sudo for docker" until then; in fact `sudo -n true` succeeds and `sudo rm -rf` works.
+> It came up decommissioning the stale product tree: `static/img/*` logo files are **root-owned**, so
+> a plain `rm -rf` as `kytran` **partially failed** — 5 of 8 dirs removed, 3 refused. Read the `rm`
+> output; the command's exit status alone reads as success.
+>
+> **Product deployments were REMOVED from outpost-us on 2026-08-26** (`/opt/archie-products`
+> 98 MB → 4 K). The node is now genuinely infra-only, matching `operational-state.md`. Before
+> deleting any VPS product dir, run `git status` in it first — four of the eight were git checkouts
+> with dirty trees holding files that existed in no commit (KB #296223).
 
 ## Outpost Tier Capabilities
 

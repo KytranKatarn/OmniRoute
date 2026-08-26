@@ -10,7 +10,6 @@ Two endpoints:
 from __future__ import annotations
 
 import logging
-import os
 
 from flask import jsonify, request
 

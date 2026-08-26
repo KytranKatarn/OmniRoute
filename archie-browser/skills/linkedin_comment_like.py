@@ -27,6 +27,7 @@ if _SKILLS_DIR not in sys.path:
     sys.path.insert(0, _SKILLS_DIR)
 from _linkedin_common import (  # noqa: E402
     COMMENT_NODE_SEL,
+    canonical_comment_nav_url,
     comment_ids_from_urn,
     comment_node_selector_for_id,
 )
@@ -151,7 +152,10 @@ def execute(page, params: dict) -> dict:
     comment_author = (params.get("comment_author") or "").strip()
     comment_contains = (params.get("comment_contains") or "").strip()
 
-    nav_url = comment_url or post_url
+    # Navigate the activity named INSIDE the commentUrn — a notification url
+    # can carry a different `highlightedUpdateUrn`, and LinkedIn honours THAT,
+    # rendering the wrong post's thread (#6035).
+    nav_url = canonical_comment_nav_url(comment_url, post_url)
     if not nav_url:
         raise ValueError("comment_url (preferred) or post_url is required for linkedin_comment_like")
 
@@ -190,7 +194,7 @@ def execute(page, params: dict) -> dict:
     # 1) Precise: the comment whose data-id matches the commentUrn id.
     target = None
     target_idx = -1
-    cid = _target_comment_id(comment_url)
+    cid = _target_comment_id(comment_url or post_url)
     if cid:
         try:
             cand = page.locator(comment_node_selector_for_id(cid)).first

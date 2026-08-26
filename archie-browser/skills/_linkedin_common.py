@@ -15,7 +15,7 @@ runnable skill (#2599 — one place for the slug so skills stop drifting).
 """
 import os
 import re
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 # ---------------------------------------------------------------------------
 # Comment-node hooks (#5650). THREE skills carried byte-identical copies of a
@@ -104,6 +104,44 @@ def build_comment_deeplink(raw):
         f"https://www.linkedin.com/feed/update/urn:li:activity:{act}/"
         f"?commentUrn={quote(urn, safe='')}"
     )
+
+
+def canonical_comment_nav_url(*candidates):
+    """The URL to NAVIGATE for a comment thread, from the commentUrn's OWN activity.
+
+    ⚠️ **A LinkedIn notification URL can name TWO DIFFERENT activities**, and the one
+    that renders is not the one holding the comment. Measured 2026-08-26 on approval
+    #13182 (the first ``linkedin_comment_reply`` ever to execute)::
+
+        highlightedUpdateUrn = urn:li:activity:7498293581959462912       <- what renders
+        commentUrn = urn:li:comment:(activity:7498100752179986432, ...)  <- where the comment IS
+
+    Navigating that URL verbatim makes LinkedIn honour ``highlightedUpdateUrn`` and
+    render the WRONG post. The skill then correctly reports ``target_comment_not_found``
+    against a thread that was never the right one — a failure that reads like a missing
+    or deleted comment and is not.
+
+    This is the ``data-urn`` wrapper trap in another form: **the parent activity lives
+    inside the comment urn**, never in the surrounding notification envelope. Derive it,
+    do not trust the wrapper.
+
+    Returns a ``/feed/update/urn:li:activity:<parent>/?commentUrn=...`` permalink built
+    from the first candidate carrying a comment urn. Falls back to the first non-empty
+    candidate unchanged (a plain post permalink is still a legitimate target), and to
+    ``""`` when given nothing — callers already raise on an empty nav url.
+    """
+    for raw in candidates:
+        raw = (raw or "").strip()
+        if not raw:
+            continue
+        # Notification urls are percent-encoded; the urn regex needs the decoded form.
+        deep = build_comment_deeplink(unquote(raw))
+        if deep:
+            return deep
+    for raw in candidates:
+        if (raw or "").strip():
+            return raw.strip()
+    return ""
 
 
 # The Kytran Empowerment Inc. company page. The numeric id (106863155) and this

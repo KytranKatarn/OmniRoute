@@ -26,6 +26,35 @@ from tools.repair_bay.services.pr_review_service import (
 
 logger = logging.getLogger(__name__)
 
+# ── Reviewer != author (#6040) ────────────────────────────────────────────────
+# F.O.R.G.E. PLANS machine-authored fixes (the Repair Bay pipeline's
+# archie/forge/* branches via ship_as_pr, and the archie-code engine's engine/*
+# branches — both dispatch capability='code' with prefer_agent='F.O.R.G.E.').
+# Letting the same agent also REVIEW those PRs is self-review — the #2458 class
+# of defect survives it. For those branches the review seat moves to
+# P.R.O.B.E. (code_review Lv4, active). Human-authored branches keep default
+# routing. The separation is at the AGENT level (persona/system prompt +
+# accounting); the tier model may be the same — model choice stays with the
+# existing _review_is_strong / prefer_model logic, deliberately untouched.
+#
+# A ContextVar (set once in review_pr from pr_reviews.head_branch) rather than
+# threading a parameter through the whole summary/chunk call chain — the same
+# attribution pattern request_origin uses. The queued/cold-load path is safe:
+# prefer_agent is captured into the dispatch_pending_queue row at dispatch time.
+from contextvars import ContextVar
+
+_REVIEW_HEAD_BRANCH: ContextVar[str] = ContextVar("_review_head_branch", default="")
+_MACHINE_BRANCH_PREFIXES = ("archie/forge/", "engine/")
+
+
+def _review_prefer_agent() -> str | None:
+    """P.R.O.B.E. for machine-authored PRs; None (default routing) otherwise."""
+    branch = _REVIEW_HEAD_BRANCH.get() or ""
+    if any(branch.startswith(p) for p in _MACHINE_BRANCH_PREFIXES):
+        return "P.R.O.B.E."
+    return None
+
+
 _GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 # Read-only token for cross-repo diff fetches (watch-product repos). Prefer the
 # least-privilege FORGE_REVIEW_TOKEN; fall back to the write token for archie-platform.
@@ -114,6 +143,10 @@ def review_pr(pr_number: int, repo: str = None) -> dict:
         review = get_review(pr_number, repo)
     if not review:
         return {"ok": False, "pr_number": pr_number, "error": "PR not tracked"}
+
+    # Reviewer != author (#6040): remember the head branch for this review so the
+    # dispatch wrappers can move MACHINE-authored PRs to a different reviewer.
+    _REVIEW_HEAD_BRANCH.set(review.get("head_branch") or "")
 
     _repo = review.get("repo") or repo
     diff_url = review.get("diff_url")
@@ -1777,6 +1810,7 @@ def _dispatch_json_review(prompt: str, kw: dict):
     to the freeform fallback, exactly as before."""
     from tools.department_hq.services.department_dispatcher import dispatch
 
+    _pa = _review_prefer_agent()  # #6040: P.R.O.B.E. reviews machine-authored PRs
     try:
         result = dispatch(
             capability="code_review",
@@ -1785,6 +1819,7 @@ def _dispatch_json_review(prompt: str, kw: dict):
             json_mode=True,
             preferred_node=["starship_76583490e36955ab", "archie-starbase"],
             num_ctx=_review_num_ctx(),
+            **({"prefer_agent": _pa} if _pa else {}),
             **kw,
         )
     except Exception as exc:
@@ -2400,6 +2435,8 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff
                 "starship_76583490e36955ab",
                 "archie-starbase",
             ],  # node_id (rename-safe): Defiant(.246) RTX3070 then hub M4000; excludes 4GB Runabout (#4342)
+            # #6040: P.R.O.B.E. reviews machine-authored PRs (see _review_prefer_agent)
+            **({"prefer_agent": _pa} if (_pa := _review_prefer_agent()) else {}),
         )
         if getattr(result, "queued", False):
             qid = getattr(result, "queue_id", None)

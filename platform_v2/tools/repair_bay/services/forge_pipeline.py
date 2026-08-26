@@ -183,9 +183,17 @@ def _patched_content(file_path: str, diff_text: str) -> Optional[str]:
 
     from .github_service import REPO_PATH
 
-    src = os.path.join(REPO_PATH, file_path)
-    if not os.path.isfile(src):
-        logger.warning("[FORGE] _patched_content: %s not found under repo root", file_path)
+    # The archie_platform container does NOT mount the whole repo: platform_v2/
+    # lives at /app, while /mnt/archie_brain holds ai_bridge/, scripts/ etc.
+    # WITHOUT platform_v2 (measured 2026-08-26 — which also means push_changes'
+    # copy-from-REPO_PATH branch could never have served a platform_v2 file from
+    # this container). Resolve across both roots; content is identical either way.
+    candidates = [os.path.join(REPO_PATH, file_path)]
+    if file_path.startswith("platform_v2/"):
+        candidates.append(os.path.join("/app", file_path[len("platform_v2/") :]))
+    src = next((c for c in candidates if os.path.isfile(c)), None)
+    if src is None:
+        logger.warning("[FORGE] _patched_content: %s not found under any repo root", file_path)
         return None
     with tempfile.TemporaryDirectory() as td:
         dst = os.path.join(td, file_path)

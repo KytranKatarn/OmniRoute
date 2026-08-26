@@ -24,7 +24,7 @@ from db import _get_db_password
 import re as _re
 import requests
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List, Tuple, Union
 from dataclasses import dataclass
 
 # Bias sampling — 10% inline fairness monitoring (Project #358 T3)
@@ -2804,7 +2804,7 @@ class DepartmentDispatcher:
         station_code: str = "UNKNOWN",
         user_id: Optional[int] = None,
         job_id: Optional[int] = None,
-        json_mode: bool = False,
+        json_mode: Union[bool, Dict] = False,  # True = bare JSON; a dict = JSON SCHEMA
         timeout: int = 240,
     ) -> Optional[Dict]:
         """Dispatch a job to a fleet node's Ollama API.
@@ -2980,7 +2980,11 @@ class DepartmentDispatcher:
                 # tier silently degrades to free-text — the node model returns prose
                 # and every downstream parser fails. The hub path sets format=json;
                 # the fleet leg must match.
-                payload["format"] = "json"
+                #
+                # json_mode carries EITHER True (bare JSON) or a JSON SCHEMA dict.
+                # A dict is truthy, so it rides every existing `if json_mode:` and
+                # pass-through unchanged; only this leaf reads its value.
+                payload["format"] = json_mode if isinstance(json_mode, dict) else "json"
 
             # Use the fleet node's mesh_ip:port directly (canonical mesh transport).
             # Never use _node_url / build_options here — those resolve to hub Ollama.
@@ -4089,7 +4093,7 @@ class DepartmentDispatcher:
         model: str,
         prompt: str,
         system_prompt: Optional[str] = None,
-        json_mode: bool = False,
+        json_mode: Union[bool, Dict] = False,  # True = bare JSON; a dict = JSON SCHEMA
         prefer_gpu: bool = True,
         temperature: float = 0.5,
         timeout: int = 300,
@@ -4340,7 +4344,13 @@ class DepartmentDispatcher:
             # JSON mode
             if json_mode:
                 result = call_ollama_json(
-                    prompt, model=model, system_prompt=system_prompt, timeout=timeout, options=_llm_options
+                    prompt,
+                    model=model,
+                    system_prompt=system_prompt,
+                    timeout=timeout,
+                    options=_llm_options,
+                    # Schema when the caller sent one; None keeps the bare-"json" behaviour.
+                    schema=json_mode if isinstance(json_mode, dict) else None,
                 )
                 if result.get("success") and result.get("data"):
                     return {
@@ -5304,7 +5314,7 @@ class DepartmentDispatcher:
         capability: str,
         module_id: str,
         system_prompt: str = None,
-        json_mode: bool = False,
+        json_mode: Union[bool, Dict] = False,  # True = bare JSON; a dict = JSON SCHEMA
         timeout: int = 120,
         escalating_agent_id: Optional[int] = None,
         escalating_agent_name: Optional[str] = None,
@@ -6370,7 +6380,7 @@ class DepartmentDispatcher:
         context: Optional[Dict] = None,
         user_id: Optional[int] = None,
         priority: str = "normal",
-        json_mode: bool = False,
+        json_mode: Union[bool, Dict] = False,  # True = bare JSON; a dict = JSON SCHEMA
         timeout: int = 300,
         prefer_gpu: bool = True,
         job_id: Optional[int] = None,
@@ -11025,7 +11035,7 @@ def dispatch_awaiting_queue(
     prompt: str,
     *,
     system_prompt: Optional[str] = None,
-    json_mode: bool = False,
+    json_mode: Union[bool, Dict] = False,  # True = bare JSON; a dict = JSON SCHEMA
     module_id: str = "unknown",
     local_only: bool = True,
     poll_timeout_s: int = 240,
@@ -11147,7 +11157,7 @@ def dispatch(
     module_id: str = "unknown",
     system_prompt: Optional[str] = None,
     user_id: Optional[int] = None,
-    json_mode: bool = False,
+    json_mode: Union[bool, Dict] = False,  # True = bare JSON; a dict = JSON SCHEMA
     **kwargs,
 ) -> DispatchResult:
     """

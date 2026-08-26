@@ -4495,7 +4495,8 @@ def api_internal_dhq_chat():
     "F.O.R.G.E." for its plan step (#4256). Omitting them keeps the cockpit's
     A.R.C.H.I.E. conversation behavior unchanged.
 
-    Body: {prompt, system_prompt?, user_id?, capability?, prefer_agent?, module_id?}.
+    Body: {prompt, system_prompt?, user_id?, capability?, prefer_agent?, module_id?,
+           model?, format?}.  `format` is "json" or a JSON-schema object (#6038).
     `local_only` is always True (no cloud escalation; ADR-003 #4 / KB #269363).
 
     Service-to-service: Authorization: Bearer <INTERNAL_API_KEY>.
@@ -4515,6 +4516,28 @@ def api_internal_dhq_chat():
     # Optional model pin — the engine's plan step (#380 Phase 3) sends a coding model
     # (qwen2.5-coder:7b); model_override keeps it on hub Ollama. Omitted by the cockpit.
     model_override = (data.get("model") or "").strip() or None
+    # Optional structured-output constraint (#6038). Mirrors Ollama's own `format`:
+    #   "json"  -> bare JSON mode
+    #   {...}   -> a JSON SCHEMA, which constrains the SHAPE, not merely the syntax
+    # ⚠️ These are NOT interchangeable. The engine's build planner needs an ARRAY of
+    # ops; bare "json" routinely yields an object the array parser rejects, which is
+    # exactly why archie-code carries OPS_SCHEMA (#380 Phase 2). Without this
+    # passthrough the hub branch was unconstrained entirely, and a prompt containing
+    # an injected source file pulled the model into emitting Python instead of JSON.
+    # Rides the existing `json_mode` parameter: a non-empty dict is truthy, so it
+    # flows through every pass-through site unchanged and only the two leaf sites
+    # (hub `call_ollama_json`, fleet payload) read its value.
+    _fmt = data.get("format")
+    if isinstance(_fmt, dict) and _fmt:
+        json_mode = _fmt
+    elif isinstance(_fmt, str) and _fmt.strip().lower() == "json":
+        json_mode = True
+    elif _fmt in (None, "", {}):
+        json_mode = False
+    else:
+        # Fail LOUD rather than silently dropping the constraint — a caller that asked
+        # for structure and got free text has no way to tell the difference.
+        return jsonify({"success": False, "error": "format must be the string 'json' or a JSON-schema object"}), 400
     if not prompt:
         return jsonify({"success": False, "error": "prompt required"}), 400
 
@@ -4547,6 +4570,7 @@ def api_internal_dhq_chat():
             prefer_agent=prefer_agent,  # cockpit default = A.R.C.H.I.E.; engine plan step = F.O.R.G.E.
             model_override=model_override,  # cockpit chat -> COCKPIT_CHAT_MODEL (llama3.2:3b); engine = qwen2.5-coder:7b
             preferred_node=preferred_node,  # cockpit chat -> Starship-246 GPU (hub fallback); None otherwise
+            json_mode=json_mode,  # False | True (bare json) | schema dict (#6038)
             local_only=True,  # no cloud escalation; sovereign-only (ADR-003 #4 / KB #269363)
             # #4270: the interactive cockpit chat enters the interactive lane so it is
             # admitted ahead of queued batch; the engine plan step stays normal/batch.

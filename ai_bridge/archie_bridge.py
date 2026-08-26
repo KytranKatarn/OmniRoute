@@ -145,6 +145,7 @@ def call_ollama_json(
     max_retries=2,
     timeout=120,
     options=None,
+    schema=None,
 ):
     """
     Call Ollama with structured JSON output enforcement.
@@ -177,7 +178,12 @@ def call_ollama_json(
                     )
                 ),
                 "stream": False,
-                "format": "json",
+                # A JSON SCHEMA when the caller supplied one, else bare "json".
+                # ⚠️ These are not equivalent: bare "json" constrains only to *valid
+                # JSON*, which for an array-shaped contract routinely comes back as an
+                # OBJECT that the array parser rejects (archie-code #380 Phase 2). A
+                # schema constrains the SHAPE, which is the whole point.
+                "format": schema if schema else "json",
             }
             if system_prompt:
                 payload["system"] = system_prompt

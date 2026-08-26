@@ -323,13 +323,21 @@ def delete_branch(branch_name: str, remote: bool = True) -> Dict:
     return {"success": True, "branch": branch_name}
 
 
-def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dict:
+def push_changes(
+    branch_name: str, files: List[str], commit_message: str, content_overrides: Dict[str, str] = None
+) -> Dict:
     """Stage files, commit, and push to a branch — in the local clone (#3926).
 
     File CONTENT comes from REPO_PATH, where the pipeline wrote it (READING
     the shared tree is safe — we just never run git there): each listed path
     is copied into the clone, or staged as a deletion when missing. Sparse
     checkout of only the touched paths keeps tmpfs usage minimal.
+
+    content_overrides (spec 2026-08-26 principle 5): {path: content} written
+    into the CLONE directly instead of copied from REPO_PATH — so a fix can
+    ship as a PR without the shared (live, volume-mounted) tree ever being
+    written. Paths in it pass the same traversal/escape guards as everything
+    else in `files`.
     """
     allowed, rl = check_before_write(token=_get_token())
     if not allowed:
@@ -375,6 +383,7 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
     if not ok:
         return {"success": False, "error": f"Checkout failed: {err2}"}
 
+    overrides = content_overrides or {}
     clone_real = os.path.realpath(CLONE_PATH)
     for f in safe_files:
         src = os.path.join(REPO_PATH, f)
@@ -382,7 +391,14 @@ def push_changes(branch_name: str, files: List[str], commit_message: str) -> Dic
         # Symlinked dirs inside the clone could redirect dst outside tmpfs.
         if os.path.commonpath([os.path.realpath(dst), clone_real]) != clone_real:
             return {"success": False, "error": f"destination escapes clone: {f!r}"}
-        if os.path.exists(src):
+        if f in overrides:
+            dst_dir = os.path.dirname(dst)
+            if dst_dir:
+                os.makedirs(dst_dir, exist_ok=True)
+            with open(dst, "w") as fh:
+                fh.write(overrides[f])
+            _run_git_clone(["add", "--", f])
+        elif os.path.exists(src):
             dst_dir = os.path.dirname(dst)
             if dst_dir:
                 os.makedirs(dst_dir, exist_ok=True)

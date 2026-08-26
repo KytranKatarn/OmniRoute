@@ -233,3 +233,62 @@ class TestMergeCompletion:
             assert self._row(pid)["status"] == "pr_open"
         finally:
             self._rm(pid)
+
+
+class TestPatchedContent:
+    """_patched_content: the apply step that replaced the phantom applicator.
+
+    Found by the Task-14 acceptance drive: deploy_via_forge imported
+    apply_code_changes, which does not exist in sandbox_code_applicator —
+    the function had zero callers, so the ImportError had never fired."""
+
+    def test_applies_a_real_unified_diff_to_a_throwaway_copy(self, monkeypatch, tmp_path):
+        import os
+
+        import tools.repair_bay.services.github_service as gs
+        from tools.repair_bay.services.forge_pipeline import _patched_content
+
+        rel = "pkg/mod.py"
+        src = tmp_path / rel
+        os.makedirs(src.parent, exist_ok=True)
+        src.write_text("import os\nimport sys\n\nprint(sys.argv)\n")
+        monkeypatch.setattr(gs, "REPO_PATH", str(tmp_path))
+        diff = (
+            "--- a/pkg/mod.py\n"
+            "+++ b/pkg/mod.py\n"
+            "@@ -1,4 +1,3 @@\n"
+            "-import os\n"
+            " import sys\n"
+            " \n"
+            " print(sys.argv)\n"
+        )
+        out = _patched_content(rel, diff)
+        assert out == "import sys\n\nprint(sys.argv)\n"
+        # the SHARED tree copy is untouched (principle 5)
+        assert src.read_text().startswith("import os\n")
+
+    def test_drifted_diff_returns_none_not_garbage(self, monkeypatch, tmp_path):
+        import os
+
+        import tools.repair_bay.services.github_service as gs
+        from tools.repair_bay.services.forge_pipeline import _patched_content
+
+        rel = "pkg/mod.py"
+        src = tmp_path / rel
+        os.makedirs(src.parent, exist_ok=True)
+        src.write_text("completely different content\n")
+        monkeypatch.setattr(gs, "REPO_PATH", str(tmp_path))
+        diff = "--- a/pkg/mod.py\n+++ b/pkg/mod.py\n@@ -1,2 +1,1 @@\n-import os\n import sys\n"
+        assert _patched_content(rel, diff) is None
+
+    def test_missing_file_returns_none(self, monkeypatch, tmp_path):
+        import tools.repair_bay.services.github_service as gs
+        from tools.repair_bay.services.forge_pipeline import _patched_content
+
+        monkeypatch.setattr(gs, "REPO_PATH", str(tmp_path))
+        assert _patched_content("nope/gone.py", "--- a/x\n+++ b/x\n") is None
+
+    def test_phantom_applicator_import_is_gone(self):
+        src = Path("/app/tools/repair_bay/services/forge_pipeline.py").read_text()
+        assert "apply_code_changes" not in src, "the nonexistent applicator import is back"
+        assert "content_overrides=content_overrides" in src, "push must carry the patched content"

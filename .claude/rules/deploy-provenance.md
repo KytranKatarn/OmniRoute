@@ -35,6 +35,43 @@ the recurring watch-products drift (`reference_watch-products-deploy-drift`, KB 
    unstamped ("unknown") is never counted as drift. Endpoints are env-overridable (the hub
    host→own-published-port hairpin is unreliable under `userland-proxy=false`).
 
+## Dependabot scans the MANIFEST, not the ARTIFACT (2026-08-26, KB #296224)
+
+The image-baked trap has a third door, and this one actively reports success.
+
+**On an image-baked product, merging a Dependabot bump patches the file GitHub scans
+and leaves the image that runs untouched.** Measured: `standalone/media_hub/requirements.txt`
+carried `cryptography==50.0.0` from 2026-08-05 (`141decb85`, Dependabot PR #2568, merged)
+while `mediahub_app` ran **48.0.1** — because the image was built **2026-07-30, six days
+before the bump**. The alert closed. Nothing was patched.
+
+⚠️ **A repo can show ZERO open Dependabot alerts while every image in the fleet is months
+behind.** Alert count measures manifests. It says nothing about what is running.
+
+`deploy_drift_check.py` already caught this one — media_hub sat at `🔴 DRIFT`, baked
+`aae737a86` vs expected `141decb85`, and that expected SHA *is* the cryptography commit.
+**Two independent systems reported it and neither caused a rebuild**, because a drift row
+and a closed alert each look like someone else's problem.
+
+The only comparison that means anything:
+
+```bash
+grep '^<pkg>' <product>/requirements.txt                                  # what was REQUESTED
+docker exec <container> python3 -c "import <pkg>; print(<pkg>.__version__)"  # what RUNS
+```
+
+⚠️ **A version in a manifest is a request, not an observation.** In this same session
+"media_hub already runs 50.0.0" was asserted off the manifest and used as safety evidence
+for the bump; the container printed 48.0.1 and nothing in the fleet had ever run 50.0.0.
+Verify a new pin against a real interpreter (`docker run --rm python:3.12-slim`) before
+relying on it.
+
+**Also grep for the vulnerable API before treating a CVSS score as a severity.** CVE-2026-69247
+scored 8.2, and `pkcs7_decrypt`/`PKCS7`/`EnvelopedData`/`smime` appear nowhere in this repo —
+`archie-browser` uses `cryptography` for Fernet only. Exposure was nil. Bump anyway so the
+alert closes honestly, but size the urgency from the call sites, not the score.
+
+
 ## The OTHER half: volume-mounted hub code — a merge deploys NOTHING
 
 Everything above is about image-baked products, where the risk is a stale image. The hub has

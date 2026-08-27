@@ -709,6 +709,19 @@ def register_github_routes(bp, admin_required):
             return jsonify({"error": "not found"}), 404
         return jsonify({"review": review})
 
+    @bp.route("/api/forge/pr-reviews/<int:pr_number>/send-back", methods=["POST"])
+    @login_required
+    @admin_required
+    def forge_pr_review_send_back(pr_number):
+        """#5932 Phase 1: turn the stored review's blocking findings into
+        fix_requested proposals in the existing queue. Human-triggered only —
+        NO automatic execution happens here or downstream of this call."""
+        from .services.pr_review_service import create_fix_requests_from_review
+
+        data = request.get_json(silent=True) or {}
+        result = create_fix_requests_from_review(pr_number, repo=data.get("repo"))
+        return jsonify(result), (200 if result.get("success") else 422)
+
     _coderabbit_cache: dict = {}
     _CR_CACHE_TTL = 300  # 5 min — GH API is slow
 

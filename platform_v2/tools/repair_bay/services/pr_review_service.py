@@ -1153,6 +1153,132 @@ def get_review(pr_number: int, repo: str = None) -> dict | None:
         return dict(row) if row else None
 
 
+def create_fix_requests_from_review(pr_number: int, repo: str = None) -> dict:
+    """#5932 Phase 1 — make a REQUEST CHANGES actionable without Claude.
+
+    Human-triggered (the Repair Bay PR Review "Send back to coders" button): each
+    blocking finding (CRITICAL/WARNING) in the stored F.O.R.G.E. review becomes an
+    ``improvement_proposals`` row with ``status='fix_requested'``, carrying the
+    finding text AND its evidence line plus pr_number/repo/head_sha.
+    ``metadata.source='pr_review_finding'`` keeps it distinguishable from
+    'code_health_audit'. NO automatic execution in this phase: the proposal simply
+    appears in the existing queue that already consumes fix_requested rows.
+
+    A finding WITHOUT an evidence line is counted in ``skipped_no_evidence`` and
+    NOT created — the review integrity gates key off evidence, so a fix request
+    without one can never be verified as addressed (task #5932 gotcha). Nothing is
+    dropped silently. Idempotent: an already-open row for the same
+    (pr, repo, evidence) counts as a duplicate instead of minting a twin — the
+    #2896 lesson, dedup at CREATION.
+    """
+    repo = repo or _DEFAULT_REPO
+    review = get_review(pr_number, repo)
+    if not review:
+        return {"success": False, "error": f"no tracked review for PR #{pr_number} ({repo})"}
+    summary = review.get("ai_summary") or ""
+    if not summary.strip():
+        return {"success": False, "error": f"PR #{pr_number} has no stored F.O.R.G.E. review to send back"}
+
+    from .pr_diff_analyzer import _parse_freeform_issues  # canonical ISSUES-line parser
+
+    findings = _parse_freeform_issues(summary)
+    blocking = [f for f in findings if (f.get("severity") or "").upper() in ("CRITICAL", "WARNING")]
+    if not blocking:
+        return {
+            "success": False,
+            "error": "review has no CRITICAL/WARNING findings to send back",
+            "findings_total": len(findings),
+        }
+
+    try:
+        head_sha = pr_head_sha(pr_number, repo)
+    except Exception as e:  # a GitHub blip must not block a human send-back
+        logger.warning("send-back: could not resolve head_sha for PR #%s: %s", pr_number, e)
+        head_sha = None
+
+    created, duplicates, skipped_no_evidence = [], 0, 0
+    with get_db_cursor(commit=True) as (conn, cur):
+        for f in blocking:
+            evidence = (f.get("evidence") or "").strip()
+            if not evidence:
+                skipped_no_evidence += 1
+                continue
+            finding_title = (f.get("title") or "review finding").strip()
+            cur.execute(
+                """
+                SELECT id FROM improvement_proposals
+                 WHERE metadata->>'source' = 'pr_review_finding'
+                   AND metadata->>'pr_number' = %s
+                   AND COALESCE(metadata->>'repo', '') = %s
+                   AND metadata->>'evidence' = %s
+                   AND status NOT IN ('archived', 'rejected', 'deployed')
+                 LIMIT 1
+                """,
+                (str(pr_number), repo, evidence),
+            )
+            if cur.fetchone():
+                duplicates += 1
+                continue
+            title = f"[FIX REQUEST] PR #{pr_number}: {finding_title}"[:120]
+            description = (
+                f"Human send-back of a F.O.R.G.E. review finding on PR #{pr_number} ({repo}).\n\n"
+                f"**Severity:** {f.get('severity')}\n"
+                f"**Finding:** {finding_title}\n"
+                + (f"**Why it matters:** {f.get('why')}\n" if f.get("why") else "")
+                + f"**Evidence (the diff line the review cited):**\n```\n{evidence}\n```\n"
+                + (f"**Head SHA at send-back:** {head_sha}\n" if head_sha else "")
+            )
+            metadata = json.dumps(
+                {
+                    "source": "pr_review_finding",
+                    "pr_number": str(pr_number),
+                    "repo": repo,
+                    "head_sha": head_sha,
+                    "severity": (f.get("severity") or "").upper(),
+                    "finding_title": finding_title,
+                    "finding_why": f.get("why") or "",
+                    "evidence": evidence,
+                    "auto_generated": False,
+                }
+            )
+            cur.execute(
+                """
+                INSERT INTO improvement_proposals
+                    (title, category, description, code_changes, rationale,
+                     priority, risk_level, status, metadata, collaboration_enabled)
+                VALUES (%s, 'pr_review_fix', %s, '', %s, %s, 'medium', 'fix_requested', %s::jsonb, false)
+                RETURNING id
+                """,
+                (
+                    title,
+                    description,
+                    f"Owner-triggered send-back from Repair Bay PR Review (PR #{pr_number})",
+                    "critical" if (f.get("severity") or "").upper() == "CRITICAL" else "medium",
+                    metadata,
+                ),
+            )
+            created.append(cur.fetchone()["id"])
+
+    logger.info(
+        "[send-back] PR #%s (%s): %d fix request(s) created, %d duplicate(s), %d without evidence",
+        pr_number,
+        repo,
+        len(created),
+        duplicates,
+        skipped_no_evidence,
+    )
+    return {
+        "success": True,
+        "pr_number": pr_number,
+        "repo": repo,
+        "head_sha": head_sha,
+        "created": created,
+        "duplicates": duplicates,
+        "skipped_no_evidence": skipped_no_evidence,
+        "findings_total": len(findings),
+    }
+
+
 # ---- Tiered PR Merge Authority ----
 
 _TIER3_TITLE_KW = {"breaking", "migration", "security"}

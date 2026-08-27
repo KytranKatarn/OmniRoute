@@ -3810,6 +3810,44 @@ function showPRDetail(pr) {
         wrap.appendChild(noReview);
     }
 
+    // #5932 Phase 1 — send a REQUEST CHANGES back to the local coder queue. Gated on the
+    // SERVER-computed merge_state (never a client verdict parse); human-triggered, no auto-exec.
+    var msSendBack = pr.merge_state || null;
+    if (reviewText && msSendBack && msSendBack.state === 'changes_requested') {
+        var sbWrap = document.createElement('div');
+        sbWrap.style.cssText = 'margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;';
+        var sbBtn = document.createElement('button');
+        sbBtn.style.cssText = 'background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.45);color:#fbbf24;font-size:0.7rem;font-family:\'IBM Plex Mono\',monospace;letter-spacing:0.5px;padding:5px 12px;border-radius:4px;cursor:pointer;';
+        sbBtn.textContent = '⟲ SEND BACK TO CODERS';
+        var sbStatus = document.createElement('span');
+        sbStatus.style.cssText = 'font-size:0.68rem;font-family:\'IBM Plex Mono\',monospace;color:#94a3b8;';
+        sbBtn.onclick = function() {
+            if (!confirm('Create fix-request proposals from this review\'s blocking findings?\n\nNo automatic execution — they appear in the Repairs queue as fix_requested.')) return;
+            sbBtn.disabled = true;
+            sbStatus.textContent = 'Sending…';
+            fetch(API + '/forge/pr-reviews/' + pr.pr_number + '/send-back', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({repo: pr.repo})
+            }).then(function(r){ return r.json(); }).then(function(d) {
+                if (d.success) {
+                    sbStatus.textContent = 'Created ' + (d.created || []).length + ' fix request(s)' +
+                        (d.duplicates ? ' · ' + d.duplicates + ' already open' : '') +
+                        (d.skipped_no_evidence ? ' · ' + d.skipped_no_evidence + ' skipped (no evidence line)' : '');
+                } else {
+                    sbBtn.disabled = false;
+                    sbStatus.textContent = d.error || 'Send-back failed';
+                }
+            }).catch(function() {
+                sbBtn.disabled = false;
+                sbStatus.textContent = 'Send-back failed (network)';
+            });
+        };
+        sbWrap.appendChild(sbBtn);
+        sbWrap.appendChild(sbStatus);
+        wrap.appendChild(sbWrap);
+    }
+
     // CodeRabbit section — fetched async below the F.O.R.G.E. review
     var crSection = document.createElement('div');
     crSection.style.cssText = 'margin-top:14px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;';

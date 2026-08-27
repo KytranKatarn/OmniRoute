@@ -1354,6 +1354,30 @@ def _planner_node_fits(node: dict, model: str) -> bool:
         return True
 
 
+def review_fix_worker():
+    """#5934 Phase 3 — close the Review-to-Coder loop (every 15 min).
+
+    Drains the human-created pr_review_finding fix requests (Phase 1's send-back
+    button is the ONLY producer, so every row here was explicitly authorised by a
+    human click): one PR per cycle, fixes committed to the PR's OWN branch, then a
+    diff-grounded re-review. 2 failed attempts per finding -> Telegram escalation.
+    Never merges anything — the governance gate stays exactly as-is.
+    Toggle: work-control key 'review_fix_loop' (default ON — human-initiated rows only)."""
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("review_fix_loop", default=True):
+        return
+    try:
+        from tools.repair_bay.services.review_fix_service import run_review_fix_cycle
+
+        result = run_review_fix_cycle()
+    except Exception as e:
+        logger.warning("review_fix_worker failed: %s", e)
+        return
+    if result.get("prs_processed") or result.get("escalated"):
+        logger.info("[review_fix_worker] %s", result)
+
+
 def _register_own_jobs(scheduler, flask_app):
     """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -1390,6 +1414,19 @@ def _register_own_jobs(scheduler, flask_app):
         id="agent_code_metrics",
         name="Agent Loop: Daily Code Metrics Scan",
         replace_existing=True,
+    )
+
+    # #5934 — Review-to-Coder loop closer: drains human-created pr_review_finding
+    # fix requests (one PR / cycle), commits to the SAME PR branch, re-reviews,
+    # escalates after 2 failed attempts. Never merges. Toggle: work:review_fix_loop.
+    scheduler.add_job(
+        with_ctx(review_fix_worker),
+        trigger=CronTrigger(minute="*/15", timezone="America/Toronto"),
+        id="review_fix_worker",
+        name="Repair Bay: Review-Fix Loop (#5934)",
+        replace_existing=True,
+        coalesce=True,
+        max_instances=1,
     )
 
     # #4649 — Weekly WTF group image retry (Mon 07:30 ET; self-disables on

@@ -121,6 +121,26 @@ def _api_post(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Di
         return False, {"error": str(e)}
 
 
+def _api_put(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Dict]:
+    """GitHub API PUT request (Contents API commits — the #5934 review-fix loop)."""
+    allowed, rl = check_before_write(token=_get_token())
+    if not allowed:
+        return _rate_blocked("PUT", path, rl)
+    try:
+        resp = requests.put(
+            f"{API_BASE}{path}",
+            headers=_api_headers(),
+            json=data or {},
+            timeout=timeout,
+        )
+        observe(resp, is_write=True)
+        if resp.status_code < 300:
+            return True, resp.json()
+        return False, {"error": f"HTTP {resp.status_code}", "detail": resp.text[:200]}
+    except Exception as e:
+        return False, {"error": str(e)}
+
+
 def _api_patch(path: str, data: Dict = None, timeout: int = 15) -> Tuple[bool, Dict]:
     """GitHub API PATCH request."""
     allowed, rl = check_before_write(token=_get_token())

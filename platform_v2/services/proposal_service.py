@@ -1734,6 +1734,51 @@ def ship_as_pr(proposal_id, skip_gate=False):
     return result
 
 
+def record_engine_pr(proposal_id, pr_number, pr_url=None, branch=None):
+    """Converge an ENGINE-authored fix PR into the pr_open lane (spec 2026-08-26 Phase 3).
+
+    The archie-code engine plans its own fix for a proposal from the LIVE file (it
+    does not need the stored diff — its lane exists precisely for proposals whose
+    FIND/REPLACE fix-gen failed) and opens an engine/* PR. Recording it here gives
+    the proposal the SAME pr_open + metadata shape ship_as_pr writes, so
+    complete_merged_fix_proposals settles it on merge — ONE completion authority
+    for both coder lanes. apply_mode='engine_pr' keeps provenance distinct.
+    Idempotent-safe: only shippable statuses transition; a second call finds the
+    row already pr_open and reports failure without damage.
+    """
+    if not pr_number:
+        return {"success": False, "error": "pr_number required"}
+    from database import get_db_cursor as _gdc
+
+    with _gdc(commit=True) as (conn, cur):
+        cur.execute(
+            """UPDATE improvement_proposals
+               SET status = 'pr_open',
+                   metadata = COALESCE(metadata, '{}'::jsonb) || %s::jsonb
+               WHERE id = %s
+                 AND status IN ('approved', 'ready_for_review', 'fix_requested',
+                                'pending_approval', 'agent_assigned')
+               RETURNING id""",
+            (
+                json.dumps(
+                    {
+                        "pr_number": int(pr_number),
+                        "pr_url": pr_url,
+                        "branch": branch,
+                        "apply_mode": "engine_pr",
+                        "code_applied": False,
+                        "shipped_at": datetime.now().isoformat(),
+                    }
+                ),
+                proposal_id,
+            ),
+        )
+        row = cur.fetchone()
+    if not row:
+        return {"success": False, "error": "proposal not found or not in a shippable status"}
+    return {"success": True, "proposal_id": proposal_id, "status": "pr_open"}
+
+
 def _sandbox_gate(proposal_id, proposal):
     """Apply fix to sandbox branch, restart archie_staging, run P.R.O.B.E. suite #79.
 

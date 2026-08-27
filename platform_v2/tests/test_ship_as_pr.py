@@ -292,3 +292,84 @@ class TestPatchedContent:
         src = Path("/app/tools/repair_bay/services/forge_pipeline.py").read_text()
         assert "apply_code_changes" not in src, "the nonexistent applicator import is back"
         assert "content_overrides=content_overrides" in src, "push must carry the patched content"
+
+
+class TestEnginePrRecord:
+    """record_engine_pr (Phase 3): the ENGINE lane converges into the same
+    pr_open -> completion-sweep lane as ship_as_pr — one completion authority."""
+
+    def _mk(self, status="fix_requested"):
+        import json
+
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute(
+                """INSERT INTO improvement_proposals (title, description, status, proposed_at, metadata)
+                   VALUES ('t-engine-pr-record', 'throwaway', %s, NOW(), %s::jsonb) RETURNING id""",
+                (status, json.dumps({"source": "code_health_audit", "file_path": "tools/x.py"})),
+            )
+            return cur.fetchone()["id"]
+
+    def _rm(self, pid):
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("DELETE FROM improvement_deployments WHERE proposal_id = %s", (pid,))
+            cur.execute("DELETE FROM improvement_proposals WHERE id = %s", (pid,))
+
+    def test_fix_requested_flips_to_pr_open_with_engine_provenance(self):
+        from database import get_db_cursor
+        from services.proposal_service import record_engine_pr
+
+        pid = self._mk()
+        try:
+            res = record_engine_pr(pid, 777001, "https://github.com/x/pull/777001", "engine/fix-abc")
+            assert res["success"] is True
+            with get_db_cursor() as (conn, cur):
+                cur.execute("SELECT status, metadata FROM improvement_proposals WHERE id = %s", (pid,))
+                row = cur.fetchone()
+            md = row["metadata"] or {}
+            assert row["status"] == "pr_open"
+            assert md.get("apply_mode") == "engine_pr", "engine provenance must stay distinct from forge_pr"
+            assert md.get("pr_number") == 777001 and md.get("code_applied") is False
+        finally:
+            self._rm(pid)
+
+    def test_deployed_row_is_refused(self):
+        from services.proposal_service import record_engine_pr
+
+        pid = self._mk(status="deployed")
+        try:
+            res = record_engine_pr(pid, 777002)
+            assert res["success"] is False
+        finally:
+            self._rm(pid)
+
+    def test_missing_pr_number_is_refused(self):
+        from services.proposal_service import record_engine_pr
+
+        assert record_engine_pr(999999999, None)["success"] is False
+
+    def test_merged_engine_pr_completes_via_the_same_sweep(self, monkeypatch):
+        """The point of convergence: an engine-recorded PR is settled by the SAME
+        complete_merged_fix_proposals that settles ship_as_pr PRs."""
+        import tools.repair_bay.services.github_service as gs
+        from database import get_db_cursor
+        from services.proposal_service import record_engine_pr
+        from tools.repair_bay.services.forge_pipeline import complete_merged_fix_proposals
+
+        pid = self._mk()
+        try:
+            assert record_engine_pr(pid, 777003)["success"] is True
+            monkeypatch.setattr(gs, "pr_merge_state", lambda pr, repo=None: "merged")
+            complete_merged_fix_proposals()
+            with get_db_cursor() as (conn, cur):
+                cur.execute(
+                    "SELECT status, metadata->>'code_applied' AS applied FROM improvement_proposals WHERE id = %s",
+                    (pid,),
+                )
+                row = cur.fetchone()
+            assert row["status"] == "deployed" and row["applied"] == "true"
+        finally:
+            self._rm(pid)

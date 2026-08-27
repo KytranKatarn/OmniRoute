@@ -5563,6 +5563,28 @@ def api_internal_repair_proposals():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+@app.route("/api/internal/repair/proposals/<int:proposal_id>/pr", methods=["POST"])
+@_require_internal_key
+def api_internal_repair_proposal_pr(proposal_id):
+    """Record an ENGINE-authored fix PR on a proposal (spec 2026-08-26 Phase 3).
+
+    Body: {pr_number, pr_url?, branch?}. Flips the proposal to pr_open with the
+    ship_as_pr metadata shape (apply_mode='engine_pr'), so the merge-completion
+    sweep settles both coder lanes at one choke point. Bearer INTERNAL_API_KEY.
+    """
+    from services import proposal_service
+
+    data = request.get_json(silent=True) or {}
+    try:
+        res = proposal_service.record_engine_pr(
+            proposal_id, data.get("pr_number"), data.get("pr_url"), data.get("branch")
+        )
+        return jsonify(res), (200 if res.get("success") else 400)
+    except Exception as e:
+        logger.error(f"internal repair proposal pr record failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/internal/delegation/invokable-skills", methods=["GET"])
 @_require_internal_key
 def api_internal_invokable_skills():

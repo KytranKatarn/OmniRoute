@@ -123,20 +123,80 @@ def is_news_queue_row(capability: Optional[str], module_id: Optional[str]) -> bo
     return bool(mod) and any(k in mod for k in NEWS_MODULE_KEYWORDS)
 
 
-def queue_row_gets_priority(capability: Optional[str], module_id: Optional[str], mode: str) -> bool:
+# ── AUX POWER: optional module-family focus under PLATFORM mode (#6080) ──────
+#
+# When the operator selects PLATFORM in Fleet Command, an optional focus narrows
+# the queue boost from "everything non-news" to ONE module family — "auxiliary
+# power to Repair Bay". Families are matched on module_id ONLY: the NEWS_MODULE_
+# KEYWORDS lesson above applies doubly here, because capability matching would
+# promote the warm-up producers (kin_warmth alone was 6,359 of the last 7 days'
+# queue rows, all carrying real capabilities like code_review) — the exact
+# inversion of the operator's intent. Keep-warm infrastructure is additionally
+# excluded outright via NEVER_BOOST_MODULES as belt-and-braces.
+#
+# The focus lives in its OWN system_config key (fleet_dispatch_focus), NOT in
+# fleet_dispatch_mode: the dispatcher's node-ordering block 1a reads that key
+# raw and compares against the trio, so a composite value there would silently
+# turn the whole profile into a no-op for routing.
+MODULE_FAMILIES = {
+    "repair_bay": ("repair_bay", "audit_pipeline", "code_health", "forge", "archie_code_engine", "qa_pipeline"),
+    "consciousness": ("consciousness", "auto_tagger", "knowledge"),
+    "email": ("email_manager", "mailhq"),
+    "social": ("signal", "linkedin"),
+    "chronicle": ("mailbox_story", "chronicle"),
+}
+
+NEVER_BOOST_MODULES = ("kin_warmth", "fleet_warmup")
+
+
+def get_dispatch_focus() -> str:
+    """Return the active AUX POWER focus family, or '' when none/invalid.
+
+    Meaningful only while the mode is 'platform'; callers gate on that. The key
+    is independent of fleet_dispatch_mode (see the block comment above).
+    Fail-safe → '' (no focus, plain platform behaviour).
+    """
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=False) as (_c, cur):
+            cur.execute("SELECT value FROM system_config WHERE key='fleet_dispatch_focus'")
+            row = cur.fetchone()
+            focus = (row["value"] if row else "").strip().lower()
+        return focus if focus in MODULE_FAMILIES else ""
+    except Exception:
+        return ""
+
+
+def is_family_queue_row(module_id: Optional[str], family: str) -> bool:
+    """Is this queue row part of ``family``? module_id substring match only."""
+    mod = (module_id or "").strip().lower()
+    if not mod or any(k in mod for k in NEVER_BOOST_MODULES):
+        return False
+    keywords = MODULE_FAMILIES.get(family)
+    return bool(keywords) and any(k in mod for k in keywords)
+
+
+def queue_row_gets_priority(capability: Optional[str], module_id: Optional[str], mode: str, focus: str = "") -> bool:
     """Does this queued dispatch row get drained first under ``mode``?
 
     auto      → always False (no bias; drain order byte-identical to pre-profile).
-    news      → news rows first.
-    platform  → everything that is NOT news first.
+    news      → news rows first (focus ignored).
+    platform  → everything that is NOT news first; with an AUX POWER ``focus``,
+                ONLY that module family is promoted (everything else — other
+                platform rows and news alike — drains in plain priority order).
+
+    ``focus`` defaults to '' so every pre-#6080 caller is byte-identical.
+    The promotion stays a stable SPLIT, never a filter (#5372 / decision #995).
     """
     if not mode or mode == "auto":
         return False
-    is_news = is_news_queue_row(capability, module_id)
     if mode == "news":
-        return is_news
+        return is_news_queue_row(capability, module_id)
     if mode == "platform":
-        return not is_news
+        if focus and focus in MODULE_FAMILIES:
+            return is_family_queue_row(module_id, focus)
+        return not is_news_queue_row(capability, module_id)
     return False
 
 

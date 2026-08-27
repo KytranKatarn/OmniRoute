@@ -5753,7 +5753,7 @@ function toggleFleetRouting(enabled) {
     .catch(function() { _applyRoutingToggle(!enabled); });
 }
 
-function _applyDispatchMode(mode) {
+function _applyDispatchMode(mode, focus) {
     ['auto', 'news', 'platform'].forEach(function(m) {
         var btn = document.getElementById('fleetMode' + m.charAt(0).toUpperCase() + m.slice(1));
         if (!btn) return;
@@ -5762,6 +5762,12 @@ function _applyDispatchMode(mode) {
         btn.style.borderColor = active ? '#00bcd4' : 'rgba(255,255,255,0.2)';
         btn.style.color = active ? '#00bcd4' : 'var(--dhq-text-dim)';
     });
+    // #6080 AUX POWER: the focus sub-selector is a PLATFORM-only control.
+    var aux = document.getElementById('fleetAuxPower');
+    if (aux) aux.style.display = mode === 'platform' ? 'inline-flex' : 'none';
+    var sel = document.getElementById('fleetFocusSelect');
+    if (sel && focus !== undefined) sel.value = focus || '';
+    var activeFocus = (mode === 'platform' && sel) ? (sel.value || '') : '';
     // Read-back: show what the active profile is prioritising across
     // warmth (K.I.N.), routing, and the backlog runner.
     var status = document.getElementById('fleetModeStatus');
@@ -5769,34 +5775,75 @@ function _applyDispatchMode(mode) {
         var msg = mode === 'news'
                 ? '→ News & Media agents prioritised: warm slots + routing (outpost-us) + WTF/Watch/CREED backlog first'
             : mode === 'platform'
-                ? '→ Platform agents prioritised: warm GPU slots (incl. translate) + Starship routing + platform backlog first'
+                ? (activeFocus
+                    ? '→ ⚡ AUX POWER → ' + activeFocus.replace(/_/g, ' ').toUpperCase()
+                      + ': that family\'s queued LLM work drains FIRST (stable split — everything else still drains)'
+                    : '→ Platform agents prioritised: warm GPU slots (incl. translate) + Starship routing + platform backlog first')
                 : '→ Demand-driven: each node warms its hottest model; routing & backlog by priority';
         status.textContent = msg;
     }
 }
 
+function _populateFocusOptions(available) {
+    var sel = document.getElementById('fleetFocusSelect');
+    if (!sel || !Array.isArray(available)) return;
+    var current = sel.value;
+    while (sel.options.length > 1) sel.remove(1);  // keep "— none —"
+    available.forEach(function(fam) {
+        var opt = document.createElement('option');
+        opt.value = fam;                                  // textContent only — XSS-safe
+        opt.textContent = fam.replace(/_/g, ' ').toUpperCase();
+        sel.appendChild(opt);
+    });
+    sel.value = current || '';
+}
+
 function loadDispatchMode() {
     fetch('/tools/department-hq/api/fleet/dispatch-mode')
         .then(function(r) { return r.json(); })
-        .then(function(d) { if (d.success) _applyDispatchMode(d.mode || 'auto'); })
+        .then(function(d) {
+            if (!d.success) return;
+            _populateFocusOptions(d.available_focus);
+            _applyDispatchMode(d.mode || 'auto', d.focus || '');
+        })
         .catch(function() {});
 }
 
 function setFleetDispatchMode(mode) {
-    _applyDispatchMode(mode);  // optimistic UI
+    var sel = document.getElementById('fleetFocusSelect');
+    var focus = (mode === 'platform' && sel) ? (sel.value || '') : '';
+    _applyDispatchMode(mode, focus);  // optimistic UI
     fetch('/tools/department-hq/api/fleet/dispatch-mode', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({mode: mode})
+        body: JSON.stringify({mode: mode, focus: focus})
     })
     .then(function(r) { return r.json(); })
     .then(function(d) {
         if (d.success) {
-            _applyDispatchMode(d.mode);
+            _populateFocusOptions(d.available_focus);
+            _applyDispatchMode(d.mode, d.focus || '');
             var label = mode === 'news' ? '📰 NEWS MODE — WTF agents → outpost-us, platform → Starship'
                       : mode === 'platform' ? '🖥 PLATFORM MODE — platform agents → Starship-246 only'
                       : '✓ AUTO — balanced fleet-first routing';
             console.log('[Fleet] Dispatch profile:', label);
+        }
+    })
+    .catch(function() {});
+}
+
+function setFleetDispatchFocus(focus) {
+    _applyDispatchMode('platform', focus || '');  // optimistic UI
+    fetch('/tools/department-hq/api/fleet/dispatch-mode', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({mode: 'platform', focus: focus || ''})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.success) {
+            _applyDispatchMode(d.mode, d.focus || '');
+            console.log('[Fleet] AUX POWER →', d.focus || '(none)');
         }
     })
     .catch(function() {});

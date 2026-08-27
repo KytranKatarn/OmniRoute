@@ -814,6 +814,12 @@
             <button id="fleetModeAuto" onclick="setFleetDispatchMode('auto')" title="AUTO — demand-driven. No profile bias: K.I.N. warms each node's hottest model, routing & backlog follow pure priority." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">AUTO</button>
             <button id="fleetModeNews" onclick="setFleetDispatchMode('news')" title="NEWS — News & Media agents get priority across the cluster: K.I.N. reserves warm slots for them, routing favours outpost-us, and the backlog drains WTF/Watch/CREED work first." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">📰 NEWS</button>
             <button id="fleetModePlatform" onclick="setFleetDispatchMode('platform')" title="PLATFORM — core platform agents (incl. R.O.S.E.T.T.A./translate, C.O.D.E.X., F.O.R.G.E.) get priority: K.I.N. reserves warm GPU slots for them, routing favours Starship GPU, and the backlog drains platform work first." style="padding:2px 6px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);background:none;color:var(--dhq-text-dim);font-size:0.6rem;cursor:pointer;letter-spacing:0.5px;">🖥 PLATFORM</button>
+            <span id="fleetAuxPower" style="display:none;align-items:center;gap:3px;">
+              <span style="font-size:0.58rem;letter-spacing:0.5px;color:#ffb300;">⚡ AUX</span>
+              <select id="fleetFocusSelect" onchange="setFleetDispatchFocus(this.value)" title="AUX POWER — while PLATFORM mode is active, promote ONE module family's queued LLM work to the front of every drain claim pool. Stable split, never a filter: everything else still drains in priority order." style="padding:1px 4px;border-radius:3px;border:1px solid rgba(255,179,0,0.4);background:rgba(0,0,0,0.3);color:var(--dhq-text-dim);font-size:0.58rem;cursor:pointer;">
+                <option value="">— none —</option>
+              </select>
+            </span>
             <span id="fleetModeStatus" style="margin-left:8px;font-size:0.58rem;letter-spacing:0;color:var(--dhq-text-dim);text-transform:none;"></span>
           </span>
           <span style="display:inline-flex;align-items:center;gap:4px;font-size:0.63rem;letter-spacing:1px;color:var(--dhq-text-dim);">

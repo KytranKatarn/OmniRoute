@@ -544,6 +544,18 @@ def _get_profile_mode() -> str:
         return "auto"
 
 
+def _get_profile_focus(mode: str) -> str:
+    """#6080 AUX POWER: the module-family focus, meaningful only under 'platform'."""
+    if mode != "platform":
+        return ""
+    try:
+        from services.fleet_dispatch_profile import get_dispatch_focus
+
+        return get_dispatch_focus()
+    except Exception:
+        return ""
+
+
 def _profile_ordered_ids(rows: list[dict], mode: str, limit: int) -> list[int]:
     """#5372: stable-split a claim pool under the active mobility profile.
 
@@ -556,7 +568,8 @@ def _profile_ordered_ids(rows: list[dict], mode: str, limit: int) -> list[int]:
     try:
         from services.fleet_dispatch_profile import queue_row_gets_priority
 
-        tagged = [(r, queue_row_gets_priority(r.get("capability"), r.get("module_id"), mode)) for r in rows]
+        focus = _get_profile_focus(mode)  # #6080 AUX POWER — '' unless platform+focus set
+        tagged = [(r, queue_row_gets_priority(r.get("capability"), r.get("module_id"), mode, focus)) for r in rows]
         ordered = [r for r, p in tagged if p] + [r for r, p in tagged if not p]
         n_match = sum(1 for _, p in tagged if p)
         if 0 < n_match < len(tagged):

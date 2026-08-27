@@ -1771,8 +1771,35 @@ def register_dashboard_routes(bp, auth_decorator):
     @bp.route("/api/fleet/dispatch-mode", methods=["GET", "POST"])
     @auth_decorator
     def api_fleet_dispatch_mode():
-        """Get or set fleet dispatch profile (auto / news / platform)."""
+        """Get or set fleet dispatch profile (auto / news / platform).
+
+        #6080 AUX POWER: under 'platform', an optional ``focus`` (a module
+        family from fleet_dispatch_profile.MODULE_FAMILIES) promotes that
+        family's queued work to the front of every drain claim pool. The focus
+        lives in its OWN system_config key (fleet_dispatch_focus) so the trio
+        contract of fleet_dispatch_mode — which the dispatcher's node-ordering
+        block reads raw — is untouched. Selecting a non-platform mode clears
+        the focus so a stale boost cannot survive a mode change invisibly.
+        """
         VALID_MODES = ("auto", "news", "platform")
+        from services.fleet_dispatch_profile import MODULE_FAMILIES
+
+        def _set_config(key, value):
+            with get_db_cursor(commit=True) as (_, cur):
+                cur.execute(
+                    """INSERT INTO system_config (key, value, updated_at)
+                       VALUES (%s, %s, NOW())
+                       ON CONFLICT (key) DO UPDATE
+                         SET value=EXCLUDED.value, updated_at=NOW()""",
+                    (key, value),
+                )
+
+        def _get_config(key, default=""):
+            with get_db_cursor(commit=False) as (_, cur):
+                cur.execute("SELECT value FROM system_config WHERE key=%s", (key,))
+                row = cur.fetchone()
+                return (row["value"] if row else default).lower()
+
         try:
             if request.method == "POST":
                 data = request.get_json(silent=True) or {}
@@ -1782,21 +1809,37 @@ def register_dashboard_routes(bp, auth_decorator):
                         jsonify({"success": False, "error": f"Invalid mode '{mode}'"}),
                         400,
                     )
-                with get_db_cursor(commit=True) as (_, cur):
-                    cur.execute(
-                        """INSERT INTO system_config (key, value, updated_at)
-                           VALUES ('fleet_dispatch_mode', %s, NOW())
-                           ON CONFLICT (key) DO UPDATE
-                             SET value=EXCLUDED.value, updated_at=NOW()""",
-                        (mode,),
+                focus = str(data.get("focus", "") or "").lower()
+                if focus and focus not in MODULE_FAMILIES:
+                    return (
+                        jsonify({"success": False, "error": f"Invalid focus '{focus}'"}),
+                        400,
                     )
-                return jsonify({"success": True, "mode": mode})
+                if mode != "platform":
+                    focus = ""  # focus is a PLATFORM sub-selector only
+                _set_config("fleet_dispatch_mode", mode)
+                _set_config("fleet_dispatch_focus", focus)
+                return jsonify(
+                    {
+                        "success": True,
+                        "mode": mode,
+                        "focus": focus,
+                        "available_focus": sorted(MODULE_FAMILIES.keys()),
+                    }
+                )
             else:
-                with get_db_cursor(commit=False) as (_, cur):
-                    cur.execute("SELECT value FROM system_config WHERE key='fleet_dispatch_mode'")
-                    row = cur.fetchone()
-                    mode = (row["value"] if row else "auto").lower()
-                return jsonify({"success": True, "mode": mode})
+                mode = _get_config("fleet_dispatch_mode", "auto")
+                focus = _get_config("fleet_dispatch_focus", "")
+                if focus not in MODULE_FAMILIES:
+                    focus = ""
+                return jsonify(
+                    {
+                        "success": True,
+                        "mode": mode,
+                        "focus": focus if mode == "platform" else "",
+                        "available_focus": sorted(MODULE_FAMILIES.keys()),
+                    }
+                )
         except Exception as exc:
             logger.error("api_fleet_dispatch_mode: %s", exc)
             return jsonify({"success": False, "error": str(exc)}), 500

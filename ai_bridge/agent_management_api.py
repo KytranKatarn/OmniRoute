@@ -4,7 +4,6 @@ Agent Management API
 CRUD operations for managing AI agents
 """
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
 import json
 import os

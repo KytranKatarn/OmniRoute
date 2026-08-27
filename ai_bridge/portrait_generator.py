@@ -23,7 +23,6 @@ import os
 import time
 import urllib.request
 import urllib.error
-from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 try:

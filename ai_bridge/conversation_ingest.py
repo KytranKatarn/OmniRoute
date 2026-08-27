@@ -5,7 +5,6 @@ Processes with auto-tagging and emotional intelligence
 Stores in consciousness database for learning and retrieval
 """
 
-import os
 import sys
 import json
 import psycopg2

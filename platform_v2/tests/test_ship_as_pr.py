@@ -38,6 +38,13 @@ def test_no_deploy_path_reaches_the_noop_deploy():
     assert "proposal_service.deploy_to_production" not in routes
     assert "ship_as_pr(proposal_id, skip_gate=True)" in mds
     assert "import _sandbox_gate, deploy_to_production" not in mds
+    # The Telegram/DHQ approval executor (agent_loop, scheduler-side) is a THIRD
+    # deploy entry point. It is not a Flask route, so the pins above never covered
+    # it — and it kept routing to the no-op, which falsely marked 15 owner-approved
+    # proposals 'deployed' (no PR, no code applied) on 2026-08-27.
+    loop = Path("/mnt/archie_brain/ai_bridge/agent_loop.py").read_text()
+    assert "ship_as_pr(proposal_id, skip_gate=True)" in loop
+    assert "deploy_to_production" not in loop
 
 
 class TestShipAsPr:

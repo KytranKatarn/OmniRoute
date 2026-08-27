@@ -6474,7 +6474,7 @@ class AgentLoop:
                 return {"executed": False, "error": f"Backup failed: {_bk_err}"}
 
         elif action_type == "deploy_approve":
-            # Telegram-approved tiered deployment — run sandbox gate then deploy
+            # Telegram/DHQ-approved deploy — sandbox gate, then ship as a governed fix PR
             proposal_id = data.get("proposal_id")
             if not proposal_id:
                 return {"executed": False, "error": "No proposal_id in action_data"}
@@ -6482,7 +6482,7 @@ class AgentLoop:
                 import sys
 
                 sys.path.insert(0, "/mnt/archie_brain/platform_v2")
-                from services.proposal_service import _sandbox_gate, deploy_to_production
+                from services.proposal_service import _sandbox_gate, ship_as_pr
                 from database import get_db_cursor
 
                 with get_db_cursor() as (_conn, _cur):
@@ -6507,19 +6507,28 @@ class AgentLoop:
                         "sandbox": gate,
                     }
 
-                # Gate passed — deploy to production
-                result = deploy_to_production(proposal_id)
+                # Gate passed — ship as a fix PR (ADR-026: git is the apply mechanism;
+                # skip_gate=True because the gate above already rehearsed this proposal).
+                # This executor is a third deploy entry point beside the Repairs route and
+                # the queue drain — it is not a route, so the route-level pins never saw
+                # it, and it kept marking rows 'deployed' with no code applied (#5808
+                # shape, 15 rows on 2026-08-27).
+                result = ship_as_pr(proposal_id, skip_gate=True)
                 logger.info(
-                    "deploy_approve: proposal #%s deployed after sandbox gate %s/%s passed",
+                    "deploy_approve: proposal #%s shipped as PR %s after sandbox gate %s/%s passed",
                     proposal_id,
+                    result.get("pr_number"),
                     gate["passed_count"],
                     gate["total"],
                 )
                 return {
-                    "executed": result["success"],
+                    "executed": result.get("success", False),
                     "proposal_id": proposal_id,
                     "sandbox": gate,
-                    "error": result.get("error") if not result["success"] else None,
+                    "pr_number": result.get("pr_number"),
+                    "pr_url": result.get("pr_url"),
+                    "method": result.get("method"),
+                    "error": result.get("error") if not result.get("success") else None,
                 }
             except Exception as da_err:
                 logger.error("deploy_approve execution failed: %s", da_err)

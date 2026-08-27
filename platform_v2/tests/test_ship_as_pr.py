@@ -28,6 +28,21 @@ class TestProposalFixFields:
         assert _proposal_fix_fields({"metadata": "{not json"})["file_path"] == ""
         assert _proposal_fix_fields({})["code_diff"] == ""
 
+    def test_fix_fields_substitute_scanner_placeholders(self):
+        """Code Health rows carry module-tag placeholders that match no real path.
+        The sandbox gate substitutes them; ship-time resolution must agree, or every
+        such proposal dies at the applicator ('not found under any repo root') AFTER
+        passing its gate — measured on proposal 11181, 2026-08-27. The stored diff
+        headers already use the real path, so file_path alone needs the mapping."""
+        p = {"metadata": {"file_path": "[APP_CORE]/consciousness/memory_manager.py"}}
+        assert _proposal_fix_fields(p)["file_path"] == "platform_v2/consciousness/memory_manager.py"
+        p2 = {"metadata": {"file_path": "[AI_BRIDGE]/knowledge_cards.py"}}
+        assert _proposal_fix_fields(p2)["file_path"] == "ai_bridge/knowledge_cards.py"
+        # Synthetic non-file labels stay untouched — they must fail honestly downstream,
+        # not resolve to a guessed path that points at nothing.
+        p3 = {"metadata": {"file_path": "[dispatch_routing]/archie_engine"}}
+        assert _proposal_fix_fields(p3)["file_path"] == "[dispatch_routing]/archie_engine"
+
 
 def test_no_deploy_path_reaches_the_noop_deploy():
     """Both deploy choke points must terminate in ship_as_pr. deploy_to_production

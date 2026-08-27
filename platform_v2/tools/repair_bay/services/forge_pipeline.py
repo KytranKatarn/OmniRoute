@@ -159,8 +159,26 @@ def _proposal_fix_fields(proposal: Dict) -> Dict:
             md = {}
     if not isinstance(md, dict):
         md = {}
+    fp = proposal.get("file_path") or md.get("file_path") or ""
+    # Scanner rows carry module-tag placeholders ([APP_CORE]/..., [AI_BRIDGE]/...)
+    # that match no real path. The sandbox gate already substitutes them, but this
+    # resolver fed the raw token to the patch applicator, which refused every such
+    # proposal ("not found under any repo root" — measured on 11181, 2026-08-27).
+    # The stored diff headers use the REAL path, so only file_path needs mapping.
+    # resolve_proposal_source is the single source of truth for the substitution;
+    # its display_path is mount-independent (the abs/exists check is not, so only
+    # display is used here). 'skip' = synthetic non-file label, left unchanged.
+    if fp:
+        try:
+            from services.audit_pipeline import resolve_proposal_source
+
+            _abs, display, status = resolve_proposal_source(fp)
+            if status != "skip" and display:
+                fp = display
+        except ImportError:
+            pass  # resolver unavailable — keep the raw path (previous behavior)
     return {
-        "file_path": proposal.get("file_path") or md.get("file_path") or "",
+        "file_path": fp,
         "code_diff": proposal.get("code_diff") or proposal.get("code_changes") or "",
         "suggested_fix": proposal.get("suggested_fix") or "",
     }

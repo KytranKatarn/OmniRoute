@@ -4,7 +4,6 @@ Supervision Controls Service
 Schedule-based DNS blocking per device via AdGuard Home.
 """
 
-import json
 import logging
 from datetime import datetime
 

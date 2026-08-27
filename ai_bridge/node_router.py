@@ -13,7 +13,6 @@ Falls back to OLLAMA_HOST environment variable when no nodes available.
 import os
 import random
 import logging
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Optional, Dict, Any, List

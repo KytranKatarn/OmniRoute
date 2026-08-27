@@ -224,6 +224,28 @@ def test_gpu_affinity_completion_3955():
         assert nodes[0] != DEFIANT, f"{cap} must not make the Defiant its primary node"
 
 
+def test_code_review_prefers_runabout_5861():
+    """#5861: code_review's queue is the MERGE GATE and gets its own ordered list —
+    Runabout FIRST (measured 100% on both review models while the Defiant, preferred-
+    first for nine capabilities, produced the 600s-wall tail and the hub ran ~50%).
+    The Defiant stays as immediate overflow; _GPU_CLUSTER itself is unchanged."""
+    ns = _resolve_affinity_map()
+    aff = ns["CAPABILITY_NODE_AFFINITY"]
+    GPU = ns["_GPU_CLUSTER"]
+    RUNABOUT = ns["_RUNABOUT"]
+    DEFIANT = GPU[0]
+
+    assert aff["code_review"][0] == RUNABOUT, "code_review must prefer the Runabout first"
+    assert DEFIANT in aff["code_review"], "the Defiant must remain the immediate overflow"
+    assert GPU == [
+        "starship_76583490e36955ab",
+        "starship_5501c2766526e746",
+    ], "_GPU_CLUSTER order must be unchanged — the #5861 flip is code_review-scoped only"
+    # every other _GPU_CLUSTER consumer still prefers the Defiant first
+    for cap in ("code", "code_analysis", "debug", "research", "analyze"):
+        assert aff[cap][0] == DEFIANT, f"{cap} must be untouched by the #5861 flip"
+
+
 def test_director_skills_seeded():
     """Each director must have skills for their department's capabilities."""
     checks = [

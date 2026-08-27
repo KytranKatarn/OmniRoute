@@ -425,8 +425,20 @@ _RUNABOUT = "starship_5501c2766526e746"  # USS-245 Runabout — has moondream + 
 # WTF data and stays safe even if the cap kill-switch is ever flipped off (Citadel is the
 # expendable async node; the hub is the platform core). See the fact_check/bias entries.
 _WTF_CPU_FIRST = [_CITADEL, "archie-starbase"] + _GPU_CLUSTER
+# #5861 (2026-08-27): code_review gets its OWN ordered list — Runabout FIRST, Defiant
+# overflow. The #5810 timeout fix moved review failures from the 240s cap to the 600s
+# WALL ("did not return for model"): queue contention, not model fit. Measured 24h at
+# change time: Runabout served BOTH review models at 100% (qwen2.5:7b 11/11, coder:7b
+# 11/11; 7d qwen 112/114 = 98%, avg 182s) while the Defiant — preferred-first for NINE
+# capabilities since the 08-21 rebalance eroded its #1905 warm-review protection — sat
+# at 82%/57% and the hub at ~50% (avg ~400s, 70 wall-deaths/7d). Same principle as
+# #1905 (reviews deserve a protected queue), pointed at the node that HAS one. Scoped
+# to code_review only; _GPU_CLUSTER and its 8 other consumers unchanged; ladder spill
+# Runabout->Defiant->hub as before. Tripwire, stated in advance: fact_check@Runabout
+# (99% at change time) shares its qwen2.5:7b queue — if it degrades below ~90%, revisit.
+_REVIEW_CLUSTER = [_RUNABOUT, "starship_76583490e36955ab"]  # Runabout FIRST, then Defiant
 CAPABILITY_NODE_AFFINITY = {
-    "code_review": _GPU_CLUSTER,
+    "code_review": _REVIEW_CLUSTER,
     "code": _GPU_CLUSTER,
     "code_analysis": _GPU_CLUSTER,
     "debug": _GPU_CLUSTER,

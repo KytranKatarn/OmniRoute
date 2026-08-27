@@ -108,3 +108,35 @@ def test_commit_hash_capture_survives_uid_mismatch():
     hub_deploy_state.py invariant)."""
     src = Path("/app/services/code_metrics_service.py").read_text()
     assert '"-C", repo_path, "-c", f"safe.directory={repo_path}"' in src
+
+
+# --- honest dashboard tiles (2026-08-27, owner-approved) ----------------------------------
+
+
+def test_get_stats_reports_honest_tile_keys_with_consistent_arithmetic():
+    """The dashboard tiles read these server-side counts. The invariants must hold by
+    construction: `live` excludes archived+rejected; `completed_verified` is exactly the
+    proof-carrying slice of `deployed` (code_applied='true' — everything else is either
+    an explicit not_applied or an unverifiable legacy unknown)."""
+    from services.proposal_service import get_stats
+
+    result = get_stats()
+    assert result.get("success") is True, result
+    stats = result["stats"]
+    for key in ("archived", "live", "completed_verified", "shipped_24h"):
+        assert key in stats, f"missing additive stats key: {key}"
+    assert stats["live"] == stats["total"] - stats["archived"] - stats["rejected"]
+    assert stats["completed_verified"] == stats["deployed"] - stats["not_applied"] - stats["apply_unknown"]
+
+
+def test_dashboard_tiles_read_server_stats_not_raw_list_lengths():
+    """The 'Repairs' tile counted every row ever (75% archived sweepings), 'Completed'
+    counted no-op deploys, and loadProposals overwrote the tile with the length of a
+    FILTERED list. The tiles must read /proposals/stats and nothing else."""
+    src = Path("/app/templates/tools/repair_bay.html").read_text()
+    assert "/proposals/stats" in src
+    assert "Completed (Verified)" in src
+    assert "Completed (Total)" not in src
+    assert "document.getElementById('statProposals').textContent = arr.length" not in src
+    assert "document.getElementById('statProposals').textContent = proposals.length" not in src
+    assert "fetch(API + '/proposals?status=deployed')" not in src

@@ -80,7 +80,7 @@
             <div class="dp-stat-value" id="statDeployed">0</div>
         </div>
         <div class="dp-stat-card" style="--card-accent: #22d3ee;">
-            <div class="dp-stat-label">Completed (Total)</div>
+            <div class="dp-stat-label">Completed (Verified)</div>
             <div class="dp-stat-value" id="statCompleted">0</div>
         </div>
     </div>
@@ -2403,10 +2403,16 @@ function loadStats() {
         if (is.open > 0) { badge.textContent = is.open; badge.style.display = 'inline'; }
         else { badge.style.display = 'none'; }
     }).catch(function() {});
-    // Also load proposal/sandbox/deploy counts
-    fetch(API + '/proposals').then(function(r) { return r.json(); }).then(function(d) {
-        var arr = d.proposals || d || [];
-        if (Array.isArray(arr)) document.getElementById('statProposals').textContent = arr.length;
+    // Proposal tiles come from ONE server-side stats call (2026-08-27). The old raw
+    // list lengths lied three ways: "Repairs" counted 9.3k archived reconciler
+    // sweepings (75% noise), "Completed" counted #5808-era no-op deploys, and
+    // loadProposals overwrote the tile with whatever STATUS FILTER the tab had on.
+    // Semantics live in proposal_service.get_stats() — see the SQL comments there.
+    fetch(API + '/proposals/stats').then(function(r) { return r.json(); }).then(function(d) {
+        var ps = (d && d.stats) || {};
+        if (typeof ps.live === 'number') document.getElementById('statProposals').textContent = ps.live;
+        if (typeof ps.shipped_24h === 'number') document.getElementById('statDeployed').textContent = ps.shipped_24h;
+        if (typeof ps.completed_verified === 'number') document.getElementById('statCompleted').textContent = ps.completed_verified;
     }).catch(function() {});
     // "Test Runs" counted /sandbox/list — SANDBOX INSTANCES, not test runs (measured: 10
     // instances, 1 alive, tile showed 6) while qa_test_runs held 3,316 rows / 31 in 24h.
@@ -2416,37 +2422,6 @@ function loadStats() {
         if (typeof d.total_runs === 'number') {
             document.getElementById('statSandboxes').textContent = d.total_runs;
         }
-    }).catch(function() {});
-    fetch(API + '/proposals?status=deployed').then(function(r) { return r.json(); }).then(function(d) {
-        var raw = d.proposals || d || [];
-        if (!Array.isArray(raw)) raw = [];
-        // #5881 (root cause filed as #5899): status='deployed' can mean "backed up
-        // and cleared to apply, but the code was never actually applied" —
-        // deploy_to_production() writes metadata.code_applied=false for that path.
-        // The manual-apply safety behaviour is correct; the STATUS NAME is what
-        // lies, and that one word is what made this count lie too. Measured live:
-        // 17 proposals marked 'deployed' in one burst with none applied (proven by
-        // pyflakes still reporting the exact imports they claimed to remove).
-        // Exclude only rows that EXPLICITLY say code_applied=false; rows with no
-        // flag at all (older deploys, or a real PR-merge deploy — github_routes.py
-        // sets status='deployed' there because the merge itself applied the code)
-        // are left counted, since we cannot retroactively know their truth and a
-        // merge really did ship code. Do NOT rename the status here — see #5899.
-        var all = raw.filter(function(p) {
-            return !(p.metadata && p.metadata.code_applied === false);
-        });
-        var cutoff = Date.now() - 86400000;
-        var today = all.filter(function(p) {
-            // `implemented_at` DOES NOT EXIST on improvement_proposals (columns are
-            // deployed_at / deployment_started_at / test_completed_at). It read undefined
-            // and silently fell back to proposed_at — WHEN IT WAS CREATED, not when it
-            // shipped — so recently-deployed-but-long-proposed rows were filtered out and
-            // the tile read 0 while the DB held 4 deploys in 24h (measured 2026-08-20).
-            var ts = p.deployed_at || p.deployment_started_at;
-            return ts && new Date(ts).getTime() > cutoff;
-        });
-        document.getElementById('statDeployed').textContent = today.length;
-        document.getElementById('statCompleted').textContent = all.length;
     }).catch(function() {});
     fetch(API + '/forge/pr-reviews?limit=700').then(function(r) { return r.json(); }).then(function(d) {
         var reviews = d.reviews || [];
@@ -2476,9 +2451,9 @@ function loadProposals() {
         if (!Array.isArray(proposals)) proposals = [];
         _proposalsData = proposals;
         renderProposals(proposals);
-        // Update stat card
-        var pending = proposals.filter(function(p) { return p.status === 'pending' || p.status === 'proposed'; }).length;
-        document.getElementById('statProposals').textContent = proposals.length;
+        // Do NOT write statProposals here — with a status filter active this list is a
+        // SUBSET, and writing its length made the global "Repairs" tile show whatever
+        // filter the tab happened to have on. loadStats owns the tile (2026-08-27).
     }).catch(function() {
         var el = document.getElementById('proposalList');
         el.textContent = '';

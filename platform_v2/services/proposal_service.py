@@ -1368,6 +1368,21 @@ def get_stats():
                                    AND metadata->>'code_applied' = 'false') as not_applied,
                 COUNT(*) FILTER (WHERE (status = 'deployed' OR status = 'implemented')
                                    AND metadata->>'code_applied' IS NULL) as apply_unknown,
+                -- 2026-08-27 (owner-approved honest tiles): ADDITIVE like the #5899 keys.
+                -- `live` is what the "Repairs" tile shows — the raw list length counted
+                -- every row ever, including 9.3k archived reconciler sweepings (75% noise).
+                -- `completed_verified` counts only deploys with PROOF the code landed
+                -- (code_applied='true', sole writer complete_merged_fix_proposals).
+                -- `shipped_24h` mirrors the dashboard's exact former client-side filter:
+                -- deployed in the last 24h, excluding explicit code_applied='false'.
+                COUNT(*) FILTER (WHERE status = 'archived') as archived,
+                COUNT(*) FILTER (WHERE status NOT IN ('archived', 'rejected')) as live,
+                COUNT(*) FILTER (WHERE (status = 'deployed' OR status = 'implemented')
+                                   AND metadata->>'code_applied' = 'true') as completed_verified,
+                COUNT(*) FILTER (WHERE (status = 'deployed' OR status = 'implemented')
+                                   AND COALESCE(metadata->>'code_applied', '') <> 'false'
+                                   AND COALESCE(deployed_at, deployment_started_at)
+                                       > NOW() - INTERVAL '24 hours') as shipped_24h,
                 COUNT(*) FILTER (WHERE status = 'rejected') as rejected,
                 COUNT(*) FILTER (WHERE status = 'testing') as testing,
                 COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress

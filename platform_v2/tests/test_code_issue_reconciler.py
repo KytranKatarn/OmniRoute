@@ -190,3 +190,33 @@ def test_line_precise_does_not_leak_into_other_checkers():
     """line_number is only meaningful for line-length; other detectors ignore it."""
     assert finding_still_reproduces(PRINT, 'print("hi")\n', 1) is True
     assert finding_still_reproduces(SQLI, "x = 1\n", 1) is None
+
+
+# --- #6054: beyond-EOF close for UNRECOGNISED messages only ---------------------------------
+
+_PROSE = "The server is loading tools from the database, which could be slow and resource-intensive."
+_SHORT3 = "a = 1\nb = 2\nc = 3\n"
+
+
+def test_unrecognised_message_beyond_eof_closes():
+    """The #8393 shape: prose finding, no checker, cited line past EOF -> provably dead."""
+    assert finding_still_reproduces(_PROSE, _SHORT3, 25847) is False
+
+
+def test_unrecognised_message_in_range_stays_unverifiable():
+    assert finding_still_reproduces(_PROSE, _SHORT3, 2) is None
+
+
+def test_unrecognised_message_without_line_stays_unverifiable():
+    assert finding_still_reproduces(_PROSE, _SHORT3, None) is None
+
+
+def test_recognised_class_keeps_its_own_fallback_over_the_eof_rule():
+    """ORDER PIN: line-length's whole-file fallback must win over the #6054 rule --
+    a shrunken file with real debt elsewhere stays open (the existing
+    test_out_of_range_line_falls_back_to_whole_file contract)."""
+    assert finding_still_reproduces(LINELEN, MIXED, 999) is True
+
+
+def test_non_integer_line_number_is_safe():
+    assert finding_still_reproduces(_PROSE, _SHORT3, "not-a-number") is None

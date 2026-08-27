@@ -191,6 +191,23 @@ def finding_still_reproduces(message: str, file_text: str, line_number=None):
         # genuine fix, and must not keep a dead finding alive.
         return any(needle in line for line in findings)
 
+    # #6054 -- LAST resort, deliberately scoped to messages NO checker recognised.
+    # code_issues #8393 ('performance' prose at line 25847 of a 744-line file) had no
+    # deterministic checker, so it returned None here and stayed open forever -- until
+    # the engine pulled it and answered with a destructive rewrite (PR #2861). For an
+    # unrecognised message the cited line is the ONLY evidence we have, and a line
+    # beyond EOF is proof the anchor is dead (the caller skips unreadable files before
+    # calling, so file_text is a real read). Recognised classes keep their own
+    # fallbacks -- the line-length whole-file rule above stays authoritative, per
+    # test_out_of_range_line_falls_back_to_whole_file.
+    if line_number:
+        try:
+            _ln = int(line_number)
+        except (TypeError, ValueError):
+            _ln = 0
+        if _ln > 0 and _ln > len((file_text or "").splitlines()):
+            return False
+
     return None
 
 

@@ -21,7 +21,11 @@ BASE_URL = os.getenv("PROBE_BASE_URL", "http://192.168.1.200:3000")
 TEST_USER = os.getenv("PROBE_TEST_USER", "probe")
 # No hardcoded credential — must be supplied via the PROBE_TEST_PASS env var.
 # (Was previously a hardcoded default; removed so the secret never lives in git.)
-TEST_PASS = os.getenv('PROBE_TEST_PASS')
+import os
+from getpass import getpass
+
+# Ensure this is set securely in your environment or secure vault.
+TEST_PASS = getpass(prompt='Enter PROBE_TEST_PASS: ')
 SCREENSHOT_DIR = os.path.join(
     os.path.dirname(os.path.dirname(__file__)),
     "test-screenshots",

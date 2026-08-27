@@ -11,7 +11,6 @@ import re
 import subprocess
 import time
 
-import requests as http_requests
 from psycopg2.extras import Json
 
 from database import get_db_cursor

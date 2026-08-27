@@ -14,7 +14,6 @@ Usage:
     results = search("authentication", filters={"category": "pattern"})
 """
 
-import os
 import json
 import logging
 from typing import Optional

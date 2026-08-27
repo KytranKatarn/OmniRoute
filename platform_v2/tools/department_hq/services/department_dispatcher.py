@@ -2494,6 +2494,48 @@ class DepartmentDispatcher:
         except Exception:
             return 0
 
+    def _aux_focus_reserve(self, module_id) -> int:
+        """#6081 AUX POWER phase 2: extra streams held back from NON-family batch
+        work while a platform focus is active. Returns 0 when no focus is set,
+        when THIS dispatch is family work or keep-warm infrastructure (via the
+        PURE fleet_dispatch_profile.aux_reserve_applies), or on any error.
+
+        Size is tunable via platform_settings 'dispatch:node_cap:aux_reserve'
+        (default 1; set 0 to kill-switch phase 2's reserve without touching the
+        focus itself). Mode/focus reads are instance-cached ~60s like
+        _node_cap_reserve — this sits on the dispatch hot path.
+        """
+        try:
+            import time as _time
+
+            now = _time.time()
+            if getattr(self, "_aux_reserve_time", 0) and (now - self._aux_reserve_time) < 60:
+                mode, focus, size = self._aux_reserve_state
+            else:
+                from services.fleet_dispatch_profile import get_dispatch_focus, get_dispatch_mode
+
+                mode, focus = get_dispatch_mode(), get_dispatch_focus()
+                size = 1
+                try:
+                    conn = self._get_db()
+                    cur = conn.cursor()
+                    cur.execute("SELECT value FROM platform_settings WHERE key = 'dispatch:node_cap:aux_reserve'")
+                    row = cur.fetchone()
+                    conn.close()
+                    if row and str(row[0]).strip().lstrip("-").isdigit():
+                        size = max(0, int(str(row[0]).strip()))
+                except Exception:
+                    size = 1
+                self._aux_reserve_state = (mode, focus, size)
+                self._aux_reserve_time = now
+            if size <= 0:
+                return 0
+            from services.fleet_dispatch_profile import aux_reserve_applies
+
+            return size if aux_reserve_applies(module_id, mode, focus) else 0
+        except Exception:
+            return 0
+
     def _node_inflight_count(self, node_db_id) -> int:
         """Live running-job count for a node (#4343) — bridge_jobs status='running',
         resolving BOTH metadata node_id forms (varchar node_id AND int DB id). 20-min
@@ -6685,6 +6727,18 @@ class DepartmentDispatcher:
         # _node_at_cap below — one value so the soft ORDER-BY demotion and the hard skips agree.
         is_interactive = priority in ("high", "critical")
         _batch_reserve = 0 if is_interactive else self._node_cap_reserve()
+        # #6081 AUX POWER phase 2: while a platform focus is active, hold ONE extra
+        # stream back from NON-family BATCH work on capped fleet nodes, so focused
+        # work always finds a slot. Rides the existing reserve lane end-to-end:
+        # the same _batch_reserve is threaded into every cap check, _node_at_cap
+        # clamps max(cap - reserve, 1) so a 1-stream node reserves nothing, the hub
+        # is exempt by its WHERE clause, and interactive work keeps the full cap
+        # (the branch above already zeroed it). Family work + keep-warm pings are
+        # exempt via aux_reserve_applies (the reserve exists FOR the family, and
+        # the focus warm ping must never be starved by its own reservation).
+        # Kill-switch: platform_settings 'dispatch:node_cap:aux_reserve' = 0.
+        if not is_interactive:
+            _batch_reserve += self._aux_focus_reserve(module_id)
         if preferred_node and agent and not _agentic_eligible:
             _pn_candidates = list(preferred_node) if isinstance(preferred_node, (list, tuple)) else [preferred_node]
             _pn_model = (

@@ -218,3 +218,51 @@ def is_priority_project(project_name: Optional[str], mode: str) -> bool:
     if mode == "platform":
         return not is_news
     return False
+
+
+# ── AUX POWER phase 2: warm-pin + slot reserve while a focus is active (#6081) ─
+#
+# Phase 1 gave focused work right-of-way in the QUEUE. Phase 2 adds the two
+# hardware halves: (a) the family's key model takes a GPU node's warm slot so
+# focused work never pays a cold load, and (b) one extra stream is held back
+# from NON-family batch work on capped fleet nodes so focused work always finds
+# a slot (rides the EXISTING _node_at_cap reserve lane — same clamp, hub exempt,
+# interactive work keeps full cap exactly as before).
+FAMILY_WARM_MODELS = {
+    "repair_bay": "qwen2.5-coder:7b",
+    "consciousness": "mistral:7b",
+    "email": "qwen2.5:7b",
+    "social": "qwen2.5:7b",
+    "chronicle": "mistral:7b",
+}
+
+
+def get_focus_warm_model() -> str:
+    """The focused family's key model, or '' when no focus is active.
+
+    Gated on mode=='platform' AND a valid focus — reads both config keys.
+    Fail-safe '' (no warm-pin) on any error.
+    """
+    try:
+        if get_dispatch_mode() != "platform":
+            return ""
+        focus = get_dispatch_focus()
+        return FAMILY_WARM_MODELS.get(focus, "") if focus else ""
+    except Exception:
+        return ""
+
+
+def aux_reserve_applies(module_id: Optional[str], mode: str, focus: str) -> bool:
+    """PURE: should the aux slot reserve bind for THIS dispatch?
+
+    True only when a platform focus is active AND the dispatch is neither
+    family work (family gets the full cap — the reserve exists FOR it) nor
+    keep-warm infrastructure (5-min-TTL housekeeping, incl. the focus warm
+    ping itself, must never be starved by its own reservation).
+    """
+    if mode != "platform" or not focus or focus not in MODULE_FAMILIES:
+        return False
+    mod = (module_id or "").strip().lower()
+    if any(k in mod for k in NEVER_BOOST_MODULES):
+        return False
+    return not is_family_queue_row(module_id, focus)

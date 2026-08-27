@@ -125,3 +125,64 @@ def test_every_family_keyword_set_is_nonempty_and_disjoint_from_never_boost():
         for k in keywords:
             for banned in fdp.NEVER_BOOST_MODULES:
                 assert banned not in k, f"family {family} keyword {k} collides with never-boost"
+
+
+# ── #6081 AUX POWER phase 2: warm-pin + slot reserve ─────────────────────────
+
+
+def test_every_family_has_a_warm_model():
+    assert set(fdp.FAMILY_WARM_MODELS) == set(fdp.MODULE_FAMILIES)
+    assert all(fdp.FAMILY_WARM_MODELS.values())
+
+
+def test_focus_warm_model_is_gated_on_platform_plus_focus():
+    with mock.patch.object(fdp, "get_dispatch_mode", return_value="platform"), mock.patch.object(
+        fdp, "get_dispatch_focus", return_value="repair_bay"
+    ):
+        assert fdp.get_focus_warm_model() == "qwen2.5-coder:7b"
+    with mock.patch.object(fdp, "get_dispatch_mode", return_value="auto"):
+        assert fdp.get_focus_warm_model() == ""
+    with mock.patch.object(fdp, "get_dispatch_mode", return_value="platform"), mock.patch.object(
+        fdp, "get_dispatch_focus", return_value=""
+    ):
+        assert fdp.get_focus_warm_model() == ""
+
+
+def test_aux_reserve_applies_only_to_non_family_non_warmup_under_focus():
+    # binds for other work while a focus is active…
+    assert fdp.aux_reserve_applies("email_manager", "platform", "repair_bay") is True
+    assert fdp.aux_reserve_applies("wtf_hub", "platform", "repair_bay") is True
+    # …but never for the family itself (the reserve exists FOR it),
+    assert fdp.aux_reserve_applies("repair_bay", "platform", "repair_bay") is False
+    assert fdp.aux_reserve_applies("audit_pipeline", "platform", "repair_bay") is False
+    # …never for keep-warm infrastructure (incl. the focus warm ping itself),
+    assert fdp.aux_reserve_applies("kin_warmth", "platform", "repair_bay") is False
+    assert fdp.aux_reserve_applies("fleet_warmup", "platform", "repair_bay") is False
+    # …and never without an active platform focus.
+    assert fdp.aux_reserve_applies("email_manager", "auto", "repair_bay") is False
+    assert fdp.aux_reserve_applies("email_manager", "platform", "") is False
+    assert fdp.aux_reserve_applies("email_manager", "news", "repair_bay") is False
+
+
+def test_dispatcher_aux_reserve_fail_safe_and_family_exempt():
+    """_aux_focus_reserve via an unbound call — no live dispatcher, no live DB.
+    A broken settings read falls back to size 1; the family stays exempt; and
+    any unexpected exception returns 0 (a reserve must never break dispatch)."""
+    import types
+
+    from tools.department_hq.services.department_dispatcher import DepartmentDispatcher
+
+    def _boom():
+        raise RuntimeError("no db in this test")
+
+    fake = types.SimpleNamespace(_get_db=_boom)
+    with mock.patch.object(fdp, "get_dispatch_mode", return_value="platform"), mock.patch.object(
+        fdp, "get_dispatch_focus", return_value="repair_bay"
+    ):
+        assert DepartmentDispatcher._aux_focus_reserve(fake, "email_manager") == 1
+        assert DepartmentDispatcher._aux_focus_reserve(fake, "repair_bay") == 0
+    fake2 = types.SimpleNamespace(_get_db=_boom)
+    with mock.patch.object(fdp, "get_dispatch_mode", return_value="auto"), mock.patch.object(
+        fdp, "get_dispatch_focus", return_value=""
+    ):
+        assert DepartmentDispatcher._aux_focus_reserve(fake2, "email_manager") == 0

@@ -439,6 +439,21 @@ def _kin_fleet_warmth_policy():
                 # makes the AUTO/NEWS/PLATFORM buttons move who is "in the boot".
                 targets = _profile_warm_targets(cur, n["id"], profile_mode, available, TOP_K)
 
+                # #6081 AUX POWER phase 2: while a platform FOCUS is active, the
+                # family's key model takes the GPU node's warm slot first, so
+                # focused work never pays a cold load. Presence-gated on THIS
+                # node's live model list (never queue a pull), GPU nodes only
+                # (a 7B warm-pin on a CPU outpost is the outpost-vps.md trap).
+                # Fail-safe: any error leaves the profile/demand targets as-is.
+                try:
+                    from services.fleet_dispatch_profile import get_focus_warm_model
+
+                    _focus_model = get_focus_warm_model()
+                    if _focus_model and _focus_model in available and n.get("gpu_available"):
+                        targets = ([_focus_model] + [t for t in (targets or []) if t != _focus_model])[:TOP_K]
+                except Exception:
+                    pass
+
                 # DEMAND: otherwise warm the node's overall top models (last 6h).
                 if not targets:
                     cur.execute(

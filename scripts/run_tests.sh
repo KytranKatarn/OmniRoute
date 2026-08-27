@@ -83,6 +83,19 @@ echo "[run_tests] tree=$REPO/platform_v2 (this repo, NOT the sandbox copy)"
 # which is honest rather than hidden.
 # ---------------------------------------------------------------------------
 
+# ⚠️ NO LIVE SIDE CHANNELS FROM THE SUITE (#6015, measured 2026-08-27). --env-file passes
+# the FULL production .env, and ARCHIE_RUN_SCHEDULER defaults to "1" in app.py — so any
+# test that constructed the Flask app started the LIVE APScheduler inside this container:
+# "Agent Loop: Telegram Notifications (interval 15s)" ran DURING the suite, wrote 5
+# system_notifications rows into archie_test at 23:04 UTC, and built a real A.R.C.H.I.E.
+# escalation payload (real chat_id) that only failed to reach Telegram because it landed
+# in another test's HTTP mock — which is also how the suite's one "flaky" failure
+# (test_create_mailbox_accepts_quota_gb) happened: its mock caught the scheduler's POST
+# instead of the Stalwart call. ARCHIE_RUN_SCHEDULER=0 mirrors the production container
+# (PR #511 delegates jobs to the sidecar); both token variants are blanked belt-and-braces
+# so no in-suite code path can ever page the owner (token-exercising tests set their own
+# values via monkeypatch — verified before blanking).
+#
 # ai_bridge is imported as a PACKAGE (`import ai_bridge.x`), so its PARENT must be on the
 # path — mounting ai_bridge alone is not enough. PYTHONPATH mirrors what docker-compose
 # sets for archie_platform; it lives in `environment:`, NOT in .env, so --env-file does
@@ -106,6 +119,9 @@ exec docker run --rm \
   --env-file "$REPO/.env" \
   -e "TEST_DB_NAME=$TEST_DB_NAME" \
   -e "PYTHONPATH=/mnt/archie_brain" \
+  -e "ARCHIE_RUN_SCHEDULER=0" \
+  -e "TELEGRAM_BOT_TOKEN=" \
+  -e "ARCHIE_TELEGRAM_BOT_TOKEN=" \
   -w /app \
   "$IMAGE" \
   python3 -m pytest "$@"

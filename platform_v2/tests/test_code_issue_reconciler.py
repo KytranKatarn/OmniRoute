@@ -145,6 +145,38 @@ def test_pyflakes_syntax_error_is_none_not_resolved():
     assert finding_still_reproduces("F401 'os' imported but unused", UNPARSEABLE) is None
 
 
+def test_ruff_backtick_quoting_matches_pyflakes_output():
+    """ruff quotes names with BACKTICKS (`os`); pyflakes emits single quotes ('os').
+    Production F401 rows carry the ruff spelling, and the mismatch made every such finding
+    read as 'provably gone' while still present — archived daily by the reconciler, then
+    recreated by the next audit (the 11259/11235 oscillator, 2026-08-27)."""
+    pytest.importorskip("pyflakes")
+    msg = "F401 `os` imported but unused"
+    assert finding_still_reproduces(msg, "import os\n") is True
+    assert finding_still_reproduces(msg, "x = 1\n") is False
+
+
+def test_ruff_backtick_unused_import_not_excused_by_from_import():
+    """A bare `import psycopg2` left unused must stay open even when a USED
+    `from psycopg2.extras import ...` sits right beside it — pyflakes distinguishes the
+    bindings, and the needle match must not lose that by failing to match at all."""
+    pytest.importorskip("pyflakes")
+    src = "import psycopg2\nfrom psycopg2.extras import RealDictCursor\n\nx = RealDictCursor\n"
+    assert finding_still_reproduces("F401 `psycopg2` imported but unused", src) is True
+
+
+def test_finding_fingerprint_unifies_detector_spellings():
+    """The ruff (F401, backticks) and static (PYFLAKES, single quotes) spellings of the SAME
+    defect must share one fingerprint — that identity is what creation-time dedup keys on.
+    Different import names must NOT collide."""
+    from services.code_issue_reconciler import finding_fingerprint
+
+    ruff = finding_fingerprint("F401", "`psycopg2` imported but unused (line 15)")
+    pyf = finding_fingerprint("PYFLAKES", "'psycopg2' imported but unused (line 15)")
+    assert ruff and ruff == pyf
+    assert finding_fingerprint("F401", "`os` imported but unused (line 3)") != ruff
+
+
 # --- the module's contract ----------------------------------------------------------------
 
 

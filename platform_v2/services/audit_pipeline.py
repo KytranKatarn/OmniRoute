@@ -13,6 +13,7 @@ import difflib
 import json
 import logging
 import os
+import re
 import sys
 
 import psycopg2
@@ -385,7 +386,7 @@ def process_audit_findings(module_name, issues_list):
                 info_skipped += 1
                 continue
 
-            if _has_open_audit_proposal(file_path, issue_code):
+            if _has_open_audit_proposal(file_path, issue_code, issue.get("detail")):
                 skipped += 1
                 continue
 
@@ -582,9 +583,22 @@ def _audit_path_variants(file_path):
     return sorted(variants)
 
 
-def _has_open_audit_proposal(file_path, issue_code):
+# The ruff tier (F401, F811, …) and the static tier (blanket code PYFLAKES) report the
+# SAME pyflakes-class defect under DIFFERENT issue codes — cross-detector dedup below
+# only considers codes in this family, so unrelated codes can never over-dedup.
+_LINT_FAMILY_RE = re.compile(r"^(?:PYFLAKES|F\d{3})$")
+
+
+def _has_open_audit_proposal(file_path, issue_code, detail=None):
     """Check if an open proposal already exists for this file + issue code
-    (under ANY alias spelling of the path — see _audit_path_variants)."""
+    (under ANY alias spelling of the path — see _audit_path_variants).
+
+    An exact issue_code match alone minted twin rows when the ruff and static tiers
+    each reported the same finding (11235/11259, 2026-08-27 — both reached the owner's
+    Approvals tab and one burned a human approval on an already-merged fix). For
+    lint-family codes, a second pass compares detector-neutral fingerprints against
+    open rows carrying a DIFFERENT code."""
+    variants = _audit_path_variants(file_path)
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """
@@ -595,9 +609,34 @@ def _has_open_audit_proposal(file_path, issue_code):
               AND metadata->>'issue_code' = %s
             LIMIT 1
             """,
-            (_audit_path_variants(file_path), issue_code),
+            (variants, issue_code),
         )
-        return cur.fetchone() is not None
+        if cur.fetchone() is not None:
+            return True
+
+        if not detail or not _LINT_FAMILY_RE.match(issue_code or ""):
+            return False
+
+        from services.code_issue_reconciler import finding_fingerprint
+
+        mine = finding_fingerprint(issue_code, detail)
+        if not mine:
+            return False
+        cur.execute(
+            """
+            SELECT metadata->>'issue_code' AS code, metadata->>'detail' AS detail
+            FROM improvement_proposals
+            WHERE status NOT IN ('deployed', 'implemented', 'rejected', 'archived', 'failed')
+              AND metadata->>'source' = 'code_health_audit'
+              AND metadata->>'file_path' = ANY(%s)
+              AND metadata->>'issue_code' <> %s
+            """,
+            (variants, issue_code),
+        )
+        for row in cur.fetchall():
+            if _LINT_FAMILY_RE.match(row["code"] or "") and finding_fingerprint(row["code"], row["detail"]) == mine:
+                return True
+    return False
 
 
 def _approval_action_type(severity):

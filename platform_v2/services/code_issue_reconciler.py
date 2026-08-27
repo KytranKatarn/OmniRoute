@@ -113,6 +113,10 @@ def _needle_from_message(message: str) -> str:
     makes the two comparable.
     """
     text = _PYFLAKES_CODE_RE.sub("", (message or "").strip(), count=1).strip()
+    # ruff quotes names with BACKTICKS (`os`); pyflakes emits 'os'. Without unifying the
+    # quoting, every ruff-sourced row read as "provably gone" while still present — the
+    # reconciler archived it daily and the next audit recreated it (2026-08-27 oscillator).
+    text = text.replace("`", "'")
     return text.strip(" -:")
 
 
@@ -230,6 +234,15 @@ def proposal_message(issue_code: str, detail: str) -> str:
     """Finding text for a proposal, normalised for the checkers."""
     joined = " ".join(x for x in (issue_code or "", detail or "") if x).strip()
     return _TRAILING_LINE_RE.sub("", joined).strip()
+
+
+def finding_fingerprint(issue_code: str, detail: str) -> str:
+    """Detector-neutral identity for a finding: code prefix stripped, quoting unified,
+    trailing '(line N)' removed. Equal fingerprints mean the SAME defect reported by
+    different detectors (ruff F401 vs the static PYFLAKES tier) — the identity that
+    creation-time dedup in audit_pipeline keys on, so twin rows for one finding can
+    no longer be minted (the 11235/11259 double, 2026-08-27)."""
+    return _needle_from_message(proposal_message(issue_code, detail))
 
 
 def _read_proposal_file(runtime_file: str, file_path: str):

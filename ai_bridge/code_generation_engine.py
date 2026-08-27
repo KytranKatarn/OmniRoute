@@ -15,7 +15,6 @@ Date: 2026-01-15 (V2 refactor)
 
 import os
 from db import _get_db_password
-import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 

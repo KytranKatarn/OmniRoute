@@ -21,7 +21,6 @@ import re
 import threading
 from datetime import datetime
 from typing import Optional
-from dataclasses import asdict
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from db import get_db

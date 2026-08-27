@@ -16,7 +16,6 @@ Usage:
     result = service.generate_image("a cat in space", model="v1-5-pruned-emaonly.safetensors")
 """
 
-import base64
 import copy
 import json
 import logging

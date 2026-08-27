@@ -10,7 +10,6 @@ Tasks:
 - Weekly memory consolidation
 """
 
-import os
 import sys
 import logging
 import threading

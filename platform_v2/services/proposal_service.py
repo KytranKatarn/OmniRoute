@@ -1858,7 +1858,6 @@ def _sandbox_gate(proposal_id, proposal):
         )
 
     try:
-        import subprocess
         import time
 
         # Restart archie_staging so the applied change takes effect.

@@ -609,18 +609,6 @@ def backup_list_backup_files(service, folder_id: str) -> list[dict]:
     return out
 
 
-def backup_delete_file(service, file_id: str) -> None:
-    """Permanently delete a Drive file (bypasses Trash) to reclaim quota.
-
-    The gdrive tier is a quota-bound account (15 GB free tier): trashing does NOT
-    free quota — Google counts trashed files for ~30 days — so retention must
-    hard-delete to keep the tier bounded, matching how the primary/usb tiers prune
-    with rmtree. prune_gdrive only ever passes ids of recognised backup artifacts
-    (component in RETENTION, parseable run-dir timestamp), never arbitrary files.
-    """
-    service.files().delete(fileId=file_id).execute()
-
-
 def backup_download_file(service, file_id: str, output_path: str, on_progress=None) -> str:
     """
     Download a backup file from Google Drive.
@@ -694,6 +682,15 @@ def backup_list_files(service, folder_id: str) -> list:
 
 
 def backup_delete_file(service, file_id: str) -> bool:
-    """Delete a backup file from Drive (permanent delete)."""
+    """Permanently delete a Drive file (bypasses Trash) to reclaim quota.
+
+    The gdrive tier is a quota-bound account (15 GB free tier): trashing does NOT
+    free quota — Google counts trashed files for ~30 days — so retention must
+    hard-delete to keep the tier bounded, matching how the primary/usb tiers prune
+    with rmtree. prune_gdrive only ever passes ids of recognised backup artifacts
+    (component in RETENTION, parseable run-dir timestamp), never arbitrary files.
+    (An identical shadowed definition carried this docstring until the #F811 pass —
+    this, the surviving definition, is the one every import has always received.)
+    """
     service.files().delete(fileId=file_id).execute()
     return True

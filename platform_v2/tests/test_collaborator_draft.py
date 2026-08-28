@@ -342,7 +342,6 @@ def test_attachment_claim_rejected_even_with_facts():
 # --------------------------------------------------------------------------- #
 # Task 4: facts injected into the collaborator draft prompt + validator call (#4959)
 # --------------------------------------------------------------------------- #
-import tools.email_manager.draft_proposal_service as dps
 
 
 def _min_candidate():

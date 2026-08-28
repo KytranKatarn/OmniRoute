@@ -14,7 +14,6 @@ Usage:
     related = find_related(knowledge_id, relationship_types=["uses", "extends"])
 """
 
-import os
 import json
 import logging
 from typing import Optional

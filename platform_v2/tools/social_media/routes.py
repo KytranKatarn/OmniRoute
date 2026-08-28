@@ -958,12 +958,23 @@ def revoke_oauth_token(account_id):
     try:
         from .oauth_handler import delete_oauth_token, log_oauth_job
 
-        # Delete token
-        delete_oauth_token(account_id)
-
-        # Deactivate account
         conn = get_db_connection()
         cur = conn.cursor()
+
+        # Ownership check FIRST (found via the #6095 mutating-result review): the token
+        # delete below is destructive and was the ONE query in this module not scoped by
+        # user_id — any logged-in user could revoke another user's tokens by id. Only the
+        # later deactivation UPDATE carried the scope, so the damage was already done.
+        # 404 mirrors the file's idiom for unowned ids.
+        cur.execute(
+            "SELECT id FROM social_accounts WHERE id = %s AND user_id = %s",
+            (account_id, current_user.id),
+        )
+        if not cur.fetchone():
+            return jsonify({"success": False, "error": "Account not found"}), 404
+
+        # Delete token
+        delete_oauth_token(account_id)
 
         cur.execute(
             """

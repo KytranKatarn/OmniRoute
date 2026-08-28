@@ -328,7 +328,7 @@ async def send_email_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     template_id = arguments.get("template_id")
     template_vars = arguments.get("template_vars", {})
     send_at = arguments.get("send_at")  # ISO datetime for scheduled send
-    user_id = arguments.get("user_id", 2)
+    arguments.get("user_id", 2)
 
     if not to:
         return {"success": False, "error": "Recipient email (to) is required"}
@@ -449,7 +449,7 @@ async def schedule_event_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     is_recurring = arguments.get("is_recurring", False)
     recurrence_rule = arguments.get("recurrence_rule")  # e.g., "FREQ=DAILY;INTERVAL=1"
     action_config = arguments.get("action_config", {})
-    user_id = arguments.get("user_id", 2)
+    arguments.get("user_id", 2)
 
     if not name:
         return {"success": False, "error": "Event name is required"}

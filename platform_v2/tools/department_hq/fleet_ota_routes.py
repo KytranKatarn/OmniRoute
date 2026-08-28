@@ -75,7 +75,7 @@ def register_ota_routes(bp, auth_decorator):
                     "agent_count": len(crew_manifest),
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to push agent config to node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -107,7 +107,7 @@ def register_ota_routes(bp, auth_decorator):
                 sync_row = cur.fetchone()
 
             return jsonify({"success": True, "sync_id": sync_row["id"], "model": model_name})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to pull model for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -156,7 +156,7 @@ def register_ota_routes(bp, auth_decorator):
                     "message": f"Checkpoint download queued for {filename}",
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to queue checkpoint pull for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -328,7 +328,7 @@ def register_ota_routes(bp, auth_decorator):
                     "version": version,
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to push update to node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -386,7 +386,7 @@ def register_ota_routes(bp, auth_decorator):
                     "fields_updated": list(config_payload.keys()),
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to push config update to node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -440,7 +440,7 @@ def register_ota_routes(bp, auth_decorator):
                 sync_ids.append({"sync_type": "code_update", "sync_id": cur.fetchone()["id"]})
 
             return jsonify({"success": True, "sync_ids": sync_ids})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to resync node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -539,7 +539,7 @@ def register_ota_routes(bp, auth_decorator):
                 )
 
             return jsonify({"success": True, "logs": logs})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get sync log for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -575,7 +575,7 @@ def register_ota_routes(bp, auth_decorator):
                     """,
                     (node_id_str, json.dumps(code_payload)),
                 )
-                code_sync_id = cur.fetchone()["id"]
+                cur.fetchone()["id"]
 
                 # 2) Queue container rebuild
                 cur.execute(
@@ -587,7 +587,7 @@ def register_ota_routes(bp, auth_decorator):
                     """,
                     (node_id_str, json.dumps({"action": "rebuild"})),
                 )
-                restart_sync_id = cur.fetchone()["id"]
+                cur.fetchone()["id"]
 
             return jsonify(
                 {
@@ -596,7 +596,7 @@ def register_ota_routes(bp, auth_decorator):
                     "syncs_queued": 2,
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to queue v3.0 upgrade for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -687,7 +687,7 @@ def register_ota_routes(bp, auth_decorator):
                         "last_ack": last_ack_time,
                     }
                 )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get sync status for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 

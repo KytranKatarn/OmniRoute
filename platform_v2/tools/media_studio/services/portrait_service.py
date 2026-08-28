@@ -734,7 +734,7 @@ def _step_consult_agent(
         f"PERSONA: You are {agent_name}, {title}, {department}.\n"
         f"YOUR IDENTITY: {system_prompt[:400] if system_prompt else ''}\n\n"
         f"CONTEXT:\n" + "\n".join(context_lines) + "\n\n"
-        f"TASK: Your visual portrait is being updated. "
+        "TASK: Your visual portrait is being updated. "
         "What aspects of your appearance are most important to you? "
         "What should your portrait communicate about who you are and what you do? "
         "Answer in 2-3 sentences in your own voice."

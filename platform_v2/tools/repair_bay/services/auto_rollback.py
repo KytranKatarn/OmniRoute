@@ -159,7 +159,7 @@ class AutoRollbackManager:
                 """,
                     (
                         deployment["deployed_by"],
-                        f"Deployment Rolled Back",
+                        "Deployment Rolled Back",
                         f"Deployment #{deployment_id} was rolled back. Reason: {reason}",
                     ),
                 )

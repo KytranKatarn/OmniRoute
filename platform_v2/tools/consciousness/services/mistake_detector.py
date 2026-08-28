@@ -287,7 +287,7 @@ class MistakeDetector:
             content += f"## Solution\n{solution}\n\n"
             content += f"## Prevention\n{config['prevention']}\n\n"
             content += f"## Severity\n{config['severity']}\n\n"
-            content += f"## Context\n"
+            content += "## Context\n"
             content += json.dumps(
                 {
                     "route": context.get("route"),

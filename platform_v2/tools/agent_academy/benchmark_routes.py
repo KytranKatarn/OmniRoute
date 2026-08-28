@@ -115,7 +115,7 @@ def register_benchmark_routes(bp, admin_required):
         score = 0.0
 
         try:
-            payload = json.dumps(
+            json.dumps(
                 {
                     "model": model_name,
                     "prompt": test_prompt,

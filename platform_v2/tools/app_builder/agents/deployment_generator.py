@@ -2231,11 +2231,11 @@ if __name__ == "__main__":
     generator = DeploymentGenerator(project_id=1, project_plan=mock_plan)
     result = asyncio.run(generator.generate_deployment(docker=True, ci_cd=True, kubernetes=False))
 
-    print(f"\n✅ Deployment Generation Complete!")
+    print("\n✅ Deployment Generation Complete!")
     print(f"Total files: {result['file_count']}")
     print(f"Docker enabled: {result['docker_enabled']}")
     print(f"CI/CD enabled: {result['ci_cd_enabled']}")
-    print(f"\nGenerated deployment files:")
+    print("\nGenerated deployment files:")
     for deploy_file in result["deployment_files"][:15]:  # Show first 15
         print(f"  - {deploy_file['path']}")
     if result["file_count"] > 15:

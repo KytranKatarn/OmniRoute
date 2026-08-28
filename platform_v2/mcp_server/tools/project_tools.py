@@ -1972,7 +1972,7 @@ async def add_work_note_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
             "success": True,
             "note_id": note_id,
             "note_type": note_type,
-            "message": f"Note added to work session",
+            "message": "Note added to work session",
         }
 
     except Exception as e:

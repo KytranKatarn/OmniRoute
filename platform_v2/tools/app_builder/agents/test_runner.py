@@ -550,7 +550,7 @@ class TestRunner:
             # Coverage
             coverage = frontend.get("coverage", {})
             if coverage:
-                lines.append(f"Coverage:")
+                lines.append("Coverage:")
                 lines.append(f"  Statements: {coverage.get('statements', 0)}%")
                 lines.append(f"  Branches:   {coverage.get('branches', 0)}%")
                 lines.append(f"  Functions:  {coverage.get('functions', 0)}%")

@@ -1876,7 +1876,7 @@ def audit_single_module(module_name, module_path=None, module_data=None):
 
     # Only red (critical) issues count — yellow = warnings, info = advisory
     red_issues = [i for i in issues_list if i.get("severity") == "red"] if issues_list else []
-    has_critical = len(red_issues) > 0
+    len(red_issues) > 0
     # #5942 — GREEN NOW MEANS "NO FINDINGS AT ALL", not "no RED findings".
     # Measured 2026-08-22: 26 of 54 modules rendered a green "clean" tile while their
     # badge showed findings (app_builder: green with 21), because status counted RED

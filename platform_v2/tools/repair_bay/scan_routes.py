@@ -414,9 +414,9 @@ def register_scan_routes(bp, admin_required):
                                 body=gh_body,
                                 severity=max_severity,
                             )
-                            logger.info(f"[FORGE] GitHub issue created for %s (%s)", file_path, max_severity)
+                            logger.info("[FORGE] GitHub issue created for %s (%s)", file_path, max_severity)
                     except Exception as gh_err:
-                        logger.warning(f"[FORGE] GitHub issue creation failed: %s", gh_err)
+                        logger.warning("[FORGE] GitHub issue creation failed: %s", gh_err)
 
                 created += 1
 

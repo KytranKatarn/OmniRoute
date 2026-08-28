@@ -161,7 +161,7 @@ def register_mission_routes(bp, admin_required):
             mm = MissionManager()
             profile = mm.get_active_profile()
             return jsonify({"success": True, "profile": profile})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get active mission profile")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -175,7 +175,7 @@ def register_mission_routes(bp, admin_required):
             mm = MissionManager()
             profiles = mm.get_all_profiles()
             return jsonify({"success": True, "profiles": profiles})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to list mission profiles")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -191,7 +191,7 @@ def register_mission_routes(bp, admin_required):
             if profile:
                 return jsonify({"success": True, "profile": profile})
             return jsonify({"success": False, "error": "Profile not found"}), 404
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to activate mission profile")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -212,7 +212,7 @@ def register_mission_routes(bp, admin_required):
                 )
                 schedules = [dict(r) for r in cur.fetchall()]
             return jsonify({"success": True, "schedules": schedules})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to list mission schedules")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -242,7 +242,7 @@ def register_mission_routes(bp, admin_required):
                 )
                 new_id = cur.fetchone()[0] if cur.description else None
             return jsonify({"success": True, "id": new_id})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to add mission schedule")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -254,7 +254,7 @@ def register_mission_routes(bp, admin_required):
             with get_db_cursor(commit=True) as (conn, cur):
                 cur.execute("DELETE FROM mission_schedules WHERE id = %s", (schedule_id,))
             return jsonify({"success": True})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to delete mission schedule")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -282,7 +282,7 @@ def register_mission_routes(bp, admin_required):
                     }
                 )
             return jsonify({"success": True, "flows": flows})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to list flows")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -312,7 +312,7 @@ def register_mission_routes(bp, admin_required):
                 )
 
             return jsonify({"success": True, **result})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to start flow")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -337,7 +337,7 @@ def register_mission_routes(bp, admin_required):
                 )
 
             return jsonify({"success": True, **result})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to advance flow")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 

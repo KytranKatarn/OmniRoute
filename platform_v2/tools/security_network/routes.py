@@ -452,7 +452,7 @@ def external_tools_status():
                 tools["nagios"]["online"] = True
 
             return jsonify({"success": True, "tools": tools, "stacks": stacks})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # Fallback to socket-based check for legacy setup
@@ -479,7 +479,7 @@ def external_tools_status():
                 "host": config["host"],
                 "port": config["port"],
             }
-        except Exception as e:
+        except Exception:
             results[tool_name] = {
                 "online": False,
                 "host": config["host"],

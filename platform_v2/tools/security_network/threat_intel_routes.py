@@ -314,7 +314,7 @@ def register_threat_intel_routes(bp, admin_required_decorator):
                     """SELECT DISTINCT ioc_value FROM threat_intel_iocs
                        WHERE ioc_type = 'domain'"""
                 )
-                all_iocs = cur.fetchall()
+                cur.fetchall()
 
             # Filter by severity and get current rules
             with get_db_cursor() as (conn, cur):

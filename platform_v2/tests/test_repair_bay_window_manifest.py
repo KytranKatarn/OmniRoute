@@ -115,13 +115,13 @@ def test_falls_back_to_issue_type_then_a_default(monkeypatch):
 def test_add_item_refusal_is_logged_not_raised(monkeypatch):
     """add_item refuses once a window has OPENED — the owner approved a specific
     list. That refusal is expected, not an error."""
-    fake = _install(monkeypatch, _FakeSchedule(window={"id": 7}, add_result={"ok": False, "error": "window is 'open'"}))
+    _install(monkeypatch, _FakeSchedule(window={"id": 7}, add_result={"ok": False, "error": "window is 'open'"}))
     fp._record_on_next_window(_PROPOSAL, _PR)  # must not raise
 
 
 def test_exception_never_propagates(monkeypatch):
     """The PR already exists. Bookkeeping must never turn that into a failure."""
-    fake = _install(monkeypatch, _FakeSchedule(window={"id": 7}, raise_on_add=True))
+    _install(monkeypatch, _FakeSchedule(window={"id": 7}, raise_on_add=True))
     fp._record_on_next_window(_PROPOSAL, _PR)  # must not raise
 
 

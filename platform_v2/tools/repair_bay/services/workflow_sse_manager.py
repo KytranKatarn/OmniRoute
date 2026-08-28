@@ -112,7 +112,7 @@ class WorkflowSSEManager:
         try:
             message_queue.put_nowait(message)
         except queue.Full:
-            print(f"[SSE] Warning: Client queue full, dropping message")
+            print("[SSE] Warning: Client queue full, dropping message")
 
     def notify_workflow_started(self, proposal_id: int, workflow_id: str, commit_hash: str):
         """Notify that workflow has started"""

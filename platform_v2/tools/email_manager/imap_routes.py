@@ -716,7 +716,7 @@ def bulk_action():
         cur = conn.cursor()
 
         placeholders = ",".join(["%s"] * len(ids))
-        ownership = f" AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)"
+        ownership = " AND imap_setting_id IN (SELECT id FROM email_imap_settings WHERE user_id = %s)"
         params_with_user = ids + [current_user.id]
 
         if action == "mark_read":

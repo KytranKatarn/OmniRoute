@@ -94,7 +94,7 @@ def test_transition_cleared_cooldowns_skips_high_stress(setup_test_agent):
             (setup_test_agent,),
         )
 
-    result = transition_cleared_cooldowns()
+    transition_cleared_cooldowns()
 
     with get_db_cursor() as (conn, cur):
         cur.execute("SELECT shift_state FROM agents WHERE id = %s", (setup_test_agent,))

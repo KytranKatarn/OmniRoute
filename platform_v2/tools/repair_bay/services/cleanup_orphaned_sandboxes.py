@@ -89,7 +89,7 @@ def cleanup_orphaned_schemas():
     conn.close()
 
     print(f"\n{'='*80}")
-    print(f"CLEANUP COMPLETE")
+    print("CLEANUP COMPLETE")
     print(f"{'='*80}")
     print(f"✅ Schemas removed: {cleaned}")
     print(f"❌ Schemas failed: {failed}")

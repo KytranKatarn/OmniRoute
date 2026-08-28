@@ -117,7 +117,7 @@ class ConversationProcessor:
                     full_transcript = f.read()
 
             else:
-                logger.warning(f"[Conversation Processor] No conversation data found in snapshot")
+                logger.warning("[Conversation Processor] No conversation data found in snapshot")
 
             # Extract git timeline from snapshot
             git_timeline = snapshot.get("git_timeline", {})
@@ -126,7 +126,7 @@ class ConversationProcessor:
             insights = {}
             if messages:
                 insights = self.extract_insights(messages, git_timeline)
-                logger.info(f"[Conversation Processor] Extracted insights:")
+                logger.info("[Conversation Processor] Extracted insights:")
                 logger.info(f"   Code changes: {len(insights.get('code_changes', []))}")
                 logger.info(f"   Mistakes found: {len(insights.get('mistakes_found', []))}")
                 logger.info(f"   Categories: {insights.get('archie_categories', [])}")
@@ -1174,7 +1174,7 @@ if __name__ == "__main__":
                     print(f"✅ Session already processed: {session_id}")
                 else:
                     entries_created = result.get("entries_created", 0)
-                    print(f"✅ Processed conversation snapshot")
+                    print("✅ Processed conversation snapshot")
                     print(f"   Session ID: {session_id}")
                     print(f"   Knowledge entries created: {entries_created}")
                     print(f"   Snapshot: {snapshot_file}")

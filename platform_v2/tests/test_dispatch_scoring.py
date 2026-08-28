@@ -570,7 +570,7 @@ class TestAgentNameConsistency:
         scan_paths = [os.path.join(base, d) for d in self._SCAN_DIRS if os.path.isdir(os.path.join(base, d))]
 
         failures = []
-        pattern = re.compile(
+        re.compile(
             r'(prefer_agent|agent_name|target_agent)\s*=\s*["\']('
             + "|".join(re.escape(p) for p in self.PLAIN_FORMS)
             + r')["\']'

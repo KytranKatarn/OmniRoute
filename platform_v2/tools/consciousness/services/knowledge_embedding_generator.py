@@ -130,7 +130,7 @@ class KnowledgeEmbeddingGenerator:
                 embeddings[article_id] = embedding
                 print(f"[Embeddings] ✓ Generated {len(embedding)}-dim vector")
             else:
-                print(f"[Embeddings] ✗ Failed to generate embedding")
+                print("[Embeddings] ✗ Failed to generate embedding")
 
         return embeddings
 

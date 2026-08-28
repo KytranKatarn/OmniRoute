@@ -197,7 +197,7 @@ def generate_project_docs(project_id: int, gap_data: Optional[Dict] = None) -> D
                 "key_findings": [],
             }
 
-        title = response_data.get("title", f"Project Report: {project_name}")
+        response_data.get("title", f"Project Report: {project_name}")
         summary = response_data.get("summary", "")
         recommendations = response_data.get("recommendations", [])
         key_findings = response_data.get("key_findings", [])

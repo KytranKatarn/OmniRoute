@@ -88,7 +88,7 @@ def _win(wid, status, start_offset_min, duration=30):
 # --------------------------------------------------------------- close first ---
 def test_expired_open_window_is_closed(monkeypatch):
     """Otherwise DR stays suppressed forever."""
-    fake = _install(monkeypatch, [_win(1, "open", -120, duration=30)])
+    _install(monkeypatch, [_win(1, "open", -120, duration=30)])
     res = jobs.maintenance_window_driver()
     assert res["closed"] == [1]
 
@@ -142,14 +142,14 @@ def test_planned_window_at_start_time_is_announced_not_opened(monkeypatch):
 
 
 def test_announced_window_before_its_start_is_not_opened(monkeypatch):
-    fake = _install(monkeypatch, [_win(3, "announced", 30)])
+    _install(monkeypatch, [_win(3, "announced", 30)])
     res = jobs.maintenance_window_driver()
     assert res["opened"] == []
 
 
 def test_planned_window_far_out_is_not_announced_yet(monkeypatch):
     """Default lead is 60 min; announcing days early is noise."""
-    fake = _install(monkeypatch, [_win(2, "planned", 600)])
+    _install(monkeypatch, [_win(2, "planned", 600)])
     res = jobs.maintenance_window_driver()
     assert res["announced"] == []
 

@@ -363,7 +363,7 @@ class SandboxTestRunner:
             )
 
             print(f"\n{'='*80}")
-            print(f"TEST RESULTS SUMMARY")
+            print("TEST RESULTS SUMMARY")
             print(f"{'='*80}")
             print(f"Total Tests: {total_tests}")
             print(f"Passed: {passed}")

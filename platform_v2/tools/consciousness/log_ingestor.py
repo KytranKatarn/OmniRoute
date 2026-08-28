@@ -217,7 +217,7 @@ def ingest_log_file(filepath: str, dry_run: bool = False, conn=None) -> dict:
         metadata["log_type"] = parsed.get("type")
 
         # Generate title (use filename for uniqueness)
-        session_id = parsed.get("session_id") or "unknown"
+        parsed.get("session_id") or "unknown"
         if parsed.get("type") == "snapshot":
             title = f"Session Snapshot: {filename}"
         elif parsed.get("type") == "transcript":

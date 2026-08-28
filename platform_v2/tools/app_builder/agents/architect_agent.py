@@ -232,7 +232,7 @@ class ArchitectAgent:
 
         # 5. Generate architecture diagram
         architecture_diagram = self._generate_architecture_diagram()
-        print(f"  ✓ Generated architecture diagram")
+        print("  ✓ Generated architecture diagram")
 
         # 6. Define security architecture
         security_architecture = self._define_security_architecture()
@@ -240,13 +240,13 @@ class ArchitectAgent:
 
         # 7. Add deployment architecture
         deployment_architecture = self._define_deployment_architecture()
-        print(f"  ✓ Defined deployment architecture")
+        print("  ✓ Defined deployment architecture")
 
         # 8. AI enhancement (if available)
         ai_insights = {}
         if AI_AVAILABLE:
             ai_insights = await self._enhance_with_ai()
-            print(f"  ✓ Enhanced with AI insights")
+            print("  ✓ Enhanced with AI insights")
 
         self.architecture = {
             "er_diagram": er_diagram,
@@ -261,7 +261,7 @@ class ArchitectAgent:
             "version": "1.0",
         }
 
-        print(f"[Architect Agent] ✅ Architecture enhancement complete\n")
+        print("[Architect Agent] ✅ Architecture enhancement complete\n")
         return self.architecture
 
     def _generate_er_diagram(self) -> Dict[str, Any]:
@@ -308,7 +308,7 @@ class ArchitectAgent:
 
                 mermaid_lines.append(f"    {table_name} {{")
                 mermaid_lines.append(f"        {simple_type} {col_name}{pk_marker}{fk_marker}")
-                mermaid_lines.append(f"    }}")
+                mermaid_lines.append("    }")
 
                 # Extract relationships from foreign keys
                 if "REFERENCES" in col_type:
@@ -363,7 +363,7 @@ class ArchitectAgent:
         """
         tech_stack = self.plan.get("tech_stack", {})
         frontend = tech_stack.get("frontend", "React")
-        components_list = self.plan.get("components", [])
+        self.plan.get("components", [])
 
         # Build component hierarchy based on common patterns
         hierarchy = {
@@ -592,7 +592,7 @@ class ArchitectAgent:
             Dict with OpenAPI specification
         """
         tech_stack = self.plan.get("tech_stack", {})
-        backend = tech_stack.get("backend", "Flask")
+        tech_stack.get("backend", "Flask")
         endpoints = self.plan.get("api_endpoints", [])
         schema = self.plan.get("database_schema", {})
         tables = schema.get("tables", [])
@@ -906,7 +906,7 @@ class ArchitectAgent:
         Returns:
             Dict with deployment strategy and infrastructure requirements
         """
-        tech_stack = self.plan.get("tech_stack", {})
+        self.plan.get("tech_stack", {})
         complexity = self.plan.get("complexity", {})
 
         # Deployment strategy based on complexity
@@ -941,7 +941,7 @@ class ArchitectAgent:
 
         # Docker configuration
         docker_config = {
-            "frontend_dockerfile": f"""FROM node:18-alpine
+            "frontend_dockerfile": """FROM node:18-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -949,14 +949,14 @@ COPY . .
 RUN npm run build
 EXPOSE 3000
 CMD ["npm", "start"]""",
-            "backend_dockerfile": f"""FROM python:3.11-slim
+            "backend_dockerfile": """FROM python:3.11-slim
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 5000
 CMD ["python", "app.py"]""",
-            "docker_compose": f"""version: '3.8'
+            "docker_compose": """version: '3.8'
 services:
   backend:
     build: ./backend
@@ -1000,7 +1000,7 @@ volumes:
                 "Run smoke tests",
                 "Deploy to production",
             ],
-            "github_actions_example": f""".github/workflows/deploy.yml:
+            "github_actions_example": """.github/workflows/deploy.yml:
 name: Deploy
 on:
   push:
@@ -1187,7 +1187,7 @@ if __name__ == "__main__":
         architect = ArchitectAgent(project_id=1, plan=mock_plan)
         architecture = await architect.enhance_plan()
 
-        print(f"\n📊 Architecture Summary:")
+        print("\n📊 Architecture Summary:")
         print(
             f"  - ER Diagram: {architecture['er_diagram']['table_count']} tables, {architecture['er_diagram']['relationship_count']} relationships"
         )
@@ -1197,13 +1197,13 @@ if __name__ == "__main__":
         print(f"  - Security Layers: {len(architecture['security_architecture']['layers'])}")
         print(f"  - Deployment Strategy: {architecture['deployment_architecture']['strategy']}")
 
-        print(f"\n📝 ER Diagram (Mermaid):")
+        print("\n📝 ER Diagram (Mermaid):")
         print(architecture["er_diagram"]["mermaid"][:500] + "...")
 
-        print(f"\n🏗️ Architecture Diagram (Mermaid):")
+        print("\n🏗️ Architecture Diagram (Mermaid):")
         print(architecture["architecture_diagram"]["mermaid"][:500] + "...")
 
-        print(f"\n✅ Architect Agent test complete")
+        print("\n✅ Architect Agent test complete")
 
     asyncio.run(test_architect())
 

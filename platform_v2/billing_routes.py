@@ -406,7 +406,7 @@ def subscription_cancel():
         return jsonify({"error": "Subscription not found"}), 404
 
     try:
-        result = cancel_subscription(stripe_sub_id, immediate=immediate)
+        cancel_subscription(stripe_sub_id, immediate=immediate)
     except Exception as exc:
         logger.error("Cancel subscription failed: %s", exc)
         return jsonify({"error": "Failed to cancel subscription"}), 502
@@ -438,7 +438,7 @@ def subscription_reactivate():
         return jsonify({"error": "Subscription not found"}), 404
 
     try:
-        result = reactivate_subscription(stripe_sub_id)
+        reactivate_subscription(stripe_sub_id)
     except Exception as exc:
         logger.error("Reactivate subscription failed: %s", exc)
         return jsonify({"error": "Failed to reactivate subscription"}), 502

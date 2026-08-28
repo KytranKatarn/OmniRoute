@@ -1871,7 +1871,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
             )
         except subprocess.TimeoutExpired:
             return jsonify({"success": False, "error": "Headscale timeout"}), 500
-        except Exception as e:
+        except Exception:
             logger.exception("Error generating headscale key for %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -2354,7 +2354,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
 
                 if update_requested:
                     response["update_available"] = True
-                    response["update_url"] = f"/tools/fleet/api/nodes/client-package"
+                    response["update_url"] = "/tools/fleet/api/nodes/client-package"
                     response["latest_version"] = LATEST_CLIENT_VERSION
                     # Clear the flag so we only signal once
                     cur.execute(
@@ -4005,7 +4005,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
                     },
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get node status for node %s", node_id)
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -4139,7 +4139,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
                     "config": config,
                 }
             )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to request new node")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -4770,7 +4770,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
                 cmd_linux_oneliner = (
                     f"curl -fsSL '{hub_public_url}/tools/department-hq/install?token={setup_token}' | sudo bash"
                 )
-                cmd_win = _generate_setup_ps1(hub_public_url, node_id, setup_token, node_name)
+                _generate_setup_ps1(hub_public_url, node_id, setup_token, node_name)
                 cmd_win_oneliner = f"iex (iwr '{hub_public_url}/tools/department-hq/install?token={setup_token}' -UseBasicParsing).Content"
                 # Satellite: the "command" is the full bash script (no one-liner curl wrapper needed
                 # since the script itself is minimal and can be pasted directly into any terminal).
@@ -4853,7 +4853,7 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
                     mimetype="application/octet-stream",
                     headers={"Content-Disposition": f'attachment; filename="archie-setup-{node_id}.sh"'},
                 )
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to create new node setup script")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 

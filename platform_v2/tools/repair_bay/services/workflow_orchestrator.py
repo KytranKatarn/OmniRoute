@@ -79,7 +79,7 @@ class WorkflowOrchestrator:
 
             # Step 1: Generate Code
             workflow_log.append(f"\n{'='*60}")
-            workflow_log.append(f"Step 1: Code Generation")
+            workflow_log.append("Step 1: Code Generation")
             workflow_log.append(f"{'='*60}")
 
             transition_proposal_state(proposal_id, "generating_code", "Starting code generation")
@@ -93,7 +93,7 @@ class WorkflowOrchestrator:
             )
 
             if not code_result.get("success"):
-                workflow_log.append(f"❌ Code generation failed")
+                workflow_log.append("❌ Code generation failed")
                 transition_proposal_state(proposal_id, "failed", "Code generation failed")
                 return {
                     "success": False,
@@ -112,7 +112,7 @@ class WorkflowOrchestrator:
 
             # Step 2: Create Sandbox
             workflow_log.append(f"\n{'='*60}")
-            workflow_log.append(f"Step 2: Sandbox Creation")
+            workflow_log.append("Step 2: Sandbox Creation")
             workflow_log.append(f"{'='*60}")
 
             transition_proposal_state(proposal_id, "creating_sandbox", "Creating sandbox environment")
@@ -121,7 +121,7 @@ class WorkflowOrchestrator:
             sandbox_result = self._create_sandbox(proposal_id)
 
             if not sandbox_result.get("success"):
-                workflow_log.append(f"❌ Sandbox creation failed")
+                workflow_log.append("❌ Sandbox creation failed")
                 transition_proposal_state(proposal_id, "failed", "Sandbox creation failed")
                 return {
                     "success": False,
@@ -137,7 +137,7 @@ class WorkflowOrchestrator:
 
             # Step 3: Apply Code Changes
             workflow_log.append(f"\n{'='*60}")
-            workflow_log.append(f"Step 3: Applying Code Changes")
+            workflow_log.append("Step 3: Applying Code Changes")
             workflow_log.append(f"{'='*60}")
 
             transition_proposal_state(proposal_id, "applying_changes", "Applying code to sandbox")
@@ -146,7 +146,7 @@ class WorkflowOrchestrator:
             apply_result = apply_code_changes(proposal_id, changes)
 
             if not apply_result.get("success"):
-                workflow_log.append(f"❌ Code application failed")
+                workflow_log.append("❌ Code application failed")
                 workflow_log.extend(apply_result.get("application_log", []))
                 transition_proposal_state(proposal_id, "failed", "Code application failed")
                 return {
@@ -169,7 +169,7 @@ class WorkflowOrchestrator:
 
             # Step 4: Run Tests
             workflow_log.append(f"\n{'='*60}")
-            workflow_log.append(f"Step 4: Running Tests")
+            workflow_log.append("Step 4: Running Tests")
             workflow_log.append(f"{'='*60}")
 
             transition_proposal_state(proposal_id, "testing", "Running sandbox tests")
@@ -178,11 +178,11 @@ class WorkflowOrchestrator:
             test_result = self._run_tests(sandbox_id, proposal_id)
 
             if test_result.get("success"):
-                workflow_log.append(f"✅ Tests passed")
+                workflow_log.append("✅ Tests passed")
                 transition_proposal_state(proposal_id, "tested", "All tests passed")
                 states_completed.append("tested")
             else:
-                workflow_log.append(f"⚠️  Some tests failed")
+                workflow_log.append("⚠️  Some tests failed")
                 transition_proposal_state(proposal_id, "tested", "Tests completed with warnings")
                 states_completed.append("tested")
 
@@ -191,12 +191,12 @@ class WorkflowOrchestrator:
             states_completed.append("ready_for_review")
 
             workflow_log.append(f"\n{'='*60}")
-            workflow_log.append(f"✅ Workflow Complete - Ready for Review!")
+            workflow_log.append("✅ Workflow Complete - Ready for Review!")
             workflow_log.append(f"{'='*60}")
             workflow_log.append(f"📊 States completed: {len(states_completed)}")
             workflow_log.append(f"🧪 Sandbox ID: {sandbox_id}")
-            workflow_log.append(f"📋 View in sandbox to test changes")
-            workflow_log.append(f"🚀 Deploy when ready")
+            workflow_log.append("📋 View in sandbox to test changes")
+            workflow_log.append("🚀 Deploy when ready")
 
             return {
                 "success": True,
@@ -399,12 +399,12 @@ if __name__ == "__main__":
         result = execute_workflow(proposal_id)
 
         print(f"\n{'='*80}")
-        print(f"WORKFLOW RESULT")
+        print("WORKFLOW RESULT")
         print(f"{'='*80}")
         print(f"Success: {result.get('success')}")
         print(f"Final State: {result.get('final_state')}")
         print(f"Sandbox ID: {result.get('sandbox_id')}")
-        print(f"\nWorkflow Log:")
+        print("\nWorkflow Log:")
         for line in result.get("workflow_log", []):
             print(line)
     else:

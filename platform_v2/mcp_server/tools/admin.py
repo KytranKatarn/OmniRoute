@@ -54,10 +54,10 @@ async def assign_agent_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """
     agent_id = arguments.get("agent_id")
     station_code = arguments.get("station_code")
-    assignment_type = arguments.get("assignment_type", "primary")
-    shift_preference = arguments.get("shift_preference", "any")
-    notes = arguments.get("notes", "")
-    user_id = arguments.get("user_id", 2)  # Default to admin
+    arguments.get("assignment_type", "primary")
+    arguments.get("shift_preference", "any")
+    arguments.get("notes", "")
+    arguments.get("user_id", 2)  # Default to admin
 
     if not agent_id or not station_code:
         return {"success": False, "error": "agent_id and station_code are required"}

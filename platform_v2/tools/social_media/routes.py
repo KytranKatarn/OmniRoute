@@ -959,7 +959,7 @@ def revoke_oauth_token(account_id):
         from .oauth_handler import delete_oauth_token, log_oauth_job
 
         # Delete token
-        deleted = delete_oauth_token(account_id)
+        delete_oauth_token(account_id)
 
         # Deactivate account
         conn = get_db_connection()

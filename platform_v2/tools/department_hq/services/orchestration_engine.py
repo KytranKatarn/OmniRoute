@@ -315,7 +315,7 @@ class OrchestrationEngine:
                 logger.warning(f"Language detection failed: {e}")
 
             # --- Step 2: C.R.E.E.D. pre-check ---
-            creed_ok = self._step_creed_check(intent, steps, governance_events)
+            self._step_creed_check(intent, steps, governance_events)
 
             # --- Step 3: Agent welfare check ---
             # (deferred until after agent selection)
@@ -504,7 +504,7 @@ class OrchestrationEngine:
                     steps.append(
                         ThinkingStep(
                             step_type=StepType.FALLBACK.value,
-                            label=f"Multi-agent error → single agent",
+                            label="Multi-agent error → single agent",
                             data={"error": str(e)[:200]},
                             success=False,
                         )
@@ -1851,7 +1851,7 @@ Please try again or use the Team Management module directly.""",
             capabilities_json = json.dumps(capabilities)
             capabilities_str = ", ".join(capabilities) if capabilities else "general"
         else:
-            capabilities_json = json.dumps([capabilities])
+            json.dumps([capabilities])
             capabilities_str = str(capabilities)
 
         name = f"{first_name} {last_name}".strip()
@@ -2060,7 +2060,7 @@ Please try again or use the Team Management module directly.""",
     def _handle_status_query(self, message: str, user_id: int, intent: Dict, steps: List[ThinkingStep]) -> str:
         """Handle team/department status queries."""
         entities = intent.get("entities", {})
-        subtype = entities.get("subtype", "roster")
+        entities.get("subtype", "roster")
 
         conn = get_db()
         try:

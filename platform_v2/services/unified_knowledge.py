@@ -638,7 +638,7 @@ To avoid this error in the future:
             cur = conn.cursor(cursor_factory=RealDictCursor)
 
             # Create entries for each type of insight
-            archie_categories = insights.get("archie_categories", ["general"])
+            insights.get("archie_categories", ["general"])
 
             # If mistakes were found and solutions learned, create mistake entries
             mistakes = insights.get("mistakes_found", [])

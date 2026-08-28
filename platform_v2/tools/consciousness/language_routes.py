@@ -652,7 +652,7 @@ def register_language_routes(bp, admin_required):
                 self._line = 0
 
             def handle_starttag(self, tag, attrs):
-                attr_dict = dict(attrs)
+                dict(attrs)
                 if tag in self.SKIP_TAGS:
                     self._skip_depth += 1
                 # Check for data-i18n (any variant)

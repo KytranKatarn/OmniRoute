@@ -710,7 +710,7 @@ def register_routes(bp, admin_required):
                 pass
 
         # Save user message — store display_name + portrait in metadata for history rendering
-        user_msg = save_message(
+        save_message(
             conv["id"],
             "user",
             message,

@@ -402,7 +402,7 @@ class DeviceRegistryService:
     def get_stats(self) -> Dict[str, Any]:
         """Get device counts by zone, online/offline, registered/unregistered."""
         dns_clients = self._get_dns_active_clients()
-        dns_ips = set(dns_clients.keys())
+        set(dns_clients.keys())
 
         with get_db_cursor(commit=False) as (conn, cur):
             cur = conn.cursor(cursor_factory=RealDictCursor)

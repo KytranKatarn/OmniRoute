@@ -1688,7 +1688,7 @@ def sync_mcp_tool_registry():
                             f"_server_{server_name}",
                             "admin",
                             f"MCP Server: {server_name}",
-                            f"Auto-registered from .mcp.json",
+                            "Auto-registered from .mcp.json",
                         ),
                     )
                     synced += 1

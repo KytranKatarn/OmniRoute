@@ -812,7 +812,7 @@ def register_restore_routes(bp, admin_required):  # noqa: F811
         if os.path.exists(src_tpl):
             for f in os.listdir(src_tpl):
                 shutil.copy2(os.path.join(src_tpl, f), os.path.join(dst_tpl, f))
-            log.append(f"✓ templates/tools/ deployed to sandbox")
+            log.append("✓ templates/tools/ deployed to sandbox")
 
         # A restart that did not happen leaves the sandbox serving the OLD code, so the
         # rehearsal proves nothing. That was previously a "⚠ restart warning" attached to

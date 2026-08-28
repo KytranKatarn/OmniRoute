@@ -123,7 +123,7 @@ class FrontendGenerator:
         if self._has_authentication():
             auth_files = self._generate_auth_components()
             files.update(auth_files)
-            print(f"  ✓ Generated authentication components")
+            print("  ✓ Generated authentication components")
 
         # 7. Generate CRUD components
         crud_files = self._generate_crud_components()
@@ -133,12 +133,12 @@ class FrontendGenerator:
         # 8. Generate layout components
         layout_files = self._generate_layout_components()
         files.update(layout_files)
-        print(f"  ✓ Generated layout components")
+        print("  ✓ Generated layout components")
 
         # 9. Generate state management
         state_files = self._generate_state_management()
         files.update(state_files)
-        print(f"  ✓ Generated state management files")
+        print("  ✓ Generated state management files")
 
         # 10. Generate routing
         files["frontend/src/routes/AppRoutes.jsx"] = self._generate_react_routing()
@@ -147,7 +147,7 @@ class FrontendGenerator:
         # 11. Generate styles
         style_files = self._generate_styles()
         files.update(style_files)
-        print(f"  ✓ Generated style files")
+        print("  ✓ Generated style files")
 
         # 12. Generate .env.example
         files["frontend/.env.example"] = self._generate_frontend_env()
@@ -1382,26 +1382,26 @@ th {
         files = {}
 
         # Layout component
-        has_auth = self._has_authentication()
+        self._has_authentication()
         files[
             "frontend/src/components/Layout/Layout.jsx"
-        ] = f"""import React from 'react';
+        ] = """import React from 'react';
 import Header from './Header';
 import './Layout.css';
 
-const Layout = ({{ children }}) => {{
+const Layout = ({ children }) => {
   return (
     <div className="layout">
       <Header />
       <main className="main-content">
-        {{children}}
+        {children}
       </main>
       <footer className="footer">
-        <p>&copy; 2026 {{process.env.REACT_APP_NAME || 'App'}}. All rights reserved.</p>
+        <p>&copy; 2026 {process.env.REACT_APP_NAME || 'App'}. All rights reserved.</p>
       </footer>
     </div>
   );
-}};
+};
 
 export default Layout;
 """
@@ -2158,19 +2158,19 @@ if __name__ == "__main__":
         generator = FrontendGenerator(project_id=1, plan=mock_plan, architecture=mock_architecture)
         result = await generator.generate_frontend()
 
-        print(f"\n📊 Generation Summary:")
+        print("\n📊 Generation Summary:")
         print(f"  - Framework: {result['framework']}")
         print(f"  - Files Generated: {result['file_count']}")
         print(f"  - Generated At: {result['generated_at']}")
 
-        print(f"\n📁 File Structure:")
+        print("\n📁 File Structure:")
         for file in result["files"][:15]:  # Show first 15 files
             print(f"  - {file['file_path']} ({file['file_type']})")
 
         if len(result["files"]) > 15:
             print(f"  ... and {len(result['files']) - 15} more files")
 
-        print(f"\n✅ Frontend Generator test complete")
+        print("\n✅ Frontend Generator test complete")
 
     asyncio.run(test_frontend())
 

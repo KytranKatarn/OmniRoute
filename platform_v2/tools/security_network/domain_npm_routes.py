@@ -152,7 +152,7 @@ def register_domain_npm_routes(bp, admin_required_decorator):
                     500,
                 )
             steps["dns"] = {"success": True, "record": f"{subdomain} A {public_ip}"}
-        except Exception as e:
+        except Exception:
             steps["dns"] = {"success": False, "error": "DNS operation failed"}
             return jsonify({"success": False, "error": "DNS failed", "steps": steps}), 500
 

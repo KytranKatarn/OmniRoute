@@ -7,7 +7,7 @@ class TestStalwartService:
             mock_post.return_value = MagicMock(status_code=200)
             from tools.email_manager import stalwart_service
 
-            result = stalwart_service.create_mailbox("kytran@kytranempowerment.com", quota_gb=10)
+            stalwart_service.create_mailbox("kytran@kytranempowerment.com", quota_gb=10)
             assert mock_post.called
             call_json = mock_post.call_args[1]["json"]
             assert call_json.get("quota") == 10 * 1024 * 1024 * 1024

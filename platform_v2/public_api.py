@@ -537,7 +537,7 @@ def translate():
     try:
         from tools.department_hq.services.bridge_dispatcher import get_dispatcher
 
-        dispatcher = get_dispatcher()
+        get_dispatcher()
         prompt = (
             f"Translate the following text from {LANG_NAMES.get(source_lang, source_lang)} "
             f"to {LANG_NAMES.get(target_lang, target_lang)}. "

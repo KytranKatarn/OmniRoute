@@ -5720,7 +5720,7 @@ class DepartmentDispatcher:
                 escalated_provider="ollama_cloud",
                 capability=capability,
                 module_id=module_id,
-                reason=f"Throughput: awaiting cloud approval",
+                reason="Throughput: awaiting cloud approval",
                 failure_count=0,
                 approval_method="telegram",
                 success=None,
@@ -6174,7 +6174,7 @@ class DepartmentDispatcher:
             }
             department = _LEGACY.get(department, "Engineering & Technology")
 
-        floor = DEPARTMENT_FLOOR_MAP.get(department, "ENGINEERING")
+        DEPARTMENT_FLOOR_MAP.get(department, "ENGINEERING")
         suggested_name = approval_data.get("suggested_name", f"Auto-{capability}")
         suggested_model = approval_data.get(
             "suggested_model",
@@ -10855,7 +10855,7 @@ class DepartmentDispatcher:
                 size_gb = round(size_bytes / (1024**3), 1) if size_bytes else 0
 
                 # Determine tier from GPU offload
-                details = m.get("details", {})
+                m.get("details", {})
                 gpu_layers = m.get("size_vram", 0)
                 tier = "gpu" if gpu_layers and gpu_layers > 0 else "cpu"
 

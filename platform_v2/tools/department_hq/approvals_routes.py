@@ -271,7 +271,7 @@ def _deny_autonomy(source_id: int, user_id: int, reason: str) -> bool:
             preview = (action_data.get("content") or "")[:200]
 
             store_knowledge(
-                title=f"LinkedIn Draft Denied — Style Guide Entry",
+                title="LinkedIn Draft Denied — Style Guide Entry",
                 content=(
                     f"Kytran denied a LinkedIn post draft.\n\n"
                     f"**Reason:** {reason}\n\n"

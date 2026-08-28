@@ -4314,7 +4314,7 @@ def save_work_product_to_kb(product_id):
     try:
         from .collaboration_engine import get_collaboration_engine
 
-        engine = get_collaboration_engine()
+        get_collaboration_engine()
 
         # Find the work product
         conn = get_db()

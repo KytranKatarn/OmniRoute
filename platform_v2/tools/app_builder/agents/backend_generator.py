@@ -122,12 +122,12 @@ class BackendGenerator:
         if self._has_authentication():
             auth_files = self._generate_flask_auth()
             files.update(auth_files)
-            print(f"  ✓ Generated authentication files")
+            print("  ✓ Generated authentication files")
 
         # 7. Generate middleware
         middleware_files = self._generate_flask_middleware()
         files.update(middleware_files)
-        print(f"  ✓ Generated middleware files")
+        print("  ✓ Generated middleware files")
 
         # 8. Generate database initialization
         files["backend/init_db.py"] = self._generate_flask_db_init()
@@ -362,7 +362,7 @@ def create_app(config_name=None):
     {'login_manager.init_app(app)' if has_auth else ''}
 
     # Register blueprints
-{chr(10).join(f'    app.register_blueprint({resource}_bp)' for resource in ([f'auth_bp'] if has_auth else []) + [f'{r}_bp' for r in resources])}
+{chr(10).join(f'    app.register_blueprint({resource}_bp)' for resource in (['auth_bp'] if has_auth else []) + [f'{r}_bp' for r in resources])}
 
     # Error handlers
     register_error_handlers(app)
@@ -437,7 +437,7 @@ __all__ = [{', '.join([f"'{self._to_class_name(t['table_name'])}'" for t in tabl
         # Generate individual model files
         for table in tables:
             table_name = table["table_name"]
-            class_name = self._to_class_name(table_name)
+            self._to_class_name(table_name)
 
             files[f"backend/models/{table_name}.py"] = self._generate_model_file(table)
 
@@ -1435,19 +1435,19 @@ if __name__ == "__main__":
         generator = BackendGenerator(project_id=1, plan=mock_plan, architecture=mock_architecture)
         result = await generator.generate_backend()
 
-        print(f"\n📊 Generation Summary:")
+        print("\n📊 Generation Summary:")
         print(f"  - Framework: {result['framework']}")
         print(f"  - Files Generated: {result['file_count']}")
         print(f"  - Generated At: {result['generated_at']}")
 
-        print(f"\n📁 File Structure:")
+        print("\n📁 File Structure:")
         for file in result["files"][:10]:  # Show first 10 files
             print(f"  - {file['file_path']} ({file['file_type']})")
 
         if len(result["files"]) > 10:
             print(f"  ... and {len(result['files']) - 10} more files")
 
-        print(f"\n✅ Backend Generator test complete")
+        print("\n✅ Backend Generator test complete")
 
     asyncio.run(test_backend())
 

@@ -150,7 +150,7 @@ def edit_file(path, old_content, new_content, line_start=None, line_end=None, pr
         if old_content not in original_content:
             return {
                 "success": False,
-                "error": f"Content to replace not found in file",
+                "error": "Content to replace not found in file",
                 "suggestion": "Use read_file first to verify exact content",
             }
 
@@ -392,7 +392,7 @@ def search_code(pattern, directory=None, file_pattern="*.py", max_results=50):
 
                         if len(matches) >= max_results:
                             break
-            except Exception as e:
+            except Exception:
                 # Skip files that can't be read
                 continue
 
@@ -879,7 +879,7 @@ def query_database(query, description=None):
         if any(keyword in query_upper for keyword in dangerous_keywords):
             return {
                 "success": False,
-                "error": f"Query contains dangerous keywords. Only SELECT allowed.",
+                "error": "Query contains dangerous keywords. Only SELECT allowed.",
             }
 
         import psycopg2

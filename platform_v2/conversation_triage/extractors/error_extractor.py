@@ -73,7 +73,7 @@ class ErrorExtractor:
     def extract(self, content: str) -> List[ExtractedError]:
         """Extract all errors from conversation content."""
         errors = []
-        content_lower = content.lower()
+        content.lower()
 
         # Find error blocks
         for pattern, lang in self.ERROR_PATTERNS:

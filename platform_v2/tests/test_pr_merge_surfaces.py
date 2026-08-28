@@ -163,7 +163,7 @@ class TestGetPrStatusExposesMerged:
         payload = {"state": "closed", "merged": True, "merged_at": "2026-07-28T00:29:40Z", "title": "t"}
 
         def fake_get(path, params=None, timeout=15):
-            if path.endswith(f"/pulls/2522"):
+            if path.endswith("/pulls/2522"):
                 return True, payload
             return True, []
 

@@ -405,7 +405,7 @@ def retry_after_review_feedback(proposal_id: int, pr_number: int, review_comment
     if attempt > MAX_SANDBOX_RETRIES + MAX_REVIEW_RETRIES:
         escalate_to_human(
             proposal_id,
-            f"Max review retries exceeded",
+            "Max review retries exceeded",
             {"attempt": attempt, "pr": pr_number},
         )
         return {"success": False, "escalated": True}

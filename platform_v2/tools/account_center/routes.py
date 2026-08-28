@@ -582,7 +582,7 @@ Click the link below to accept your invitation (expires in 7 days):
 If you did not expect this invitation, you can ignore this email.
 """
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"Invitation to join Kytran Empowerment Platform"
+    msg["Subject"] = "Invitation to join Kytran Empowerment Platform"
     msg["From"] = _INVITE_FROM
     msg["To"] = to_email
     msg.attach(MIMEText(body, "plain"))

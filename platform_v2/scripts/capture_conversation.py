@@ -80,7 +80,7 @@ def format_conversation_transcript(messages: List[Dict]) -> str:
         return "No messages found"
 
     transcript = []
-    transcript.append(f"# Conversation Transcript")
+    transcript.append("# Conversation Transcript")
     transcript.append(f"**Session ID:** {messages[0]['session_id']}")
     transcript.append(f"**Project:** {messages[0].get('project', 'Unknown')}")
     transcript.append(f"**Captured:** {datetime.now().isoformat()}")
@@ -147,7 +147,7 @@ def save_conversation_snapshot(
     with open(snapshot_file, "w", encoding="utf-8") as f:
         json.dump(snapshot, f, indent=2, ensure_ascii=False)
 
-    print(f"✅ Conversation captured:")
+    print("✅ Conversation captured:")
     print(f"   Snapshot: {snapshot_file}")
     print(f"   Transcript: {transcript_file}")
     print(f"   Messages: {len(messages)}")
@@ -166,7 +166,7 @@ def main():
     session_id = sys.argv[1] if len(sys.argv) > 1 else get_current_session_id()
     output_dir = sys.argv[2] if len(sys.argv) > 2 else "/mnt/archie_brain/conversation_logs"
 
-    print(f"📸 Capturing conversation...")
+    print("📸 Capturing conversation...")
     print(f"   Session ID: {session_id or 'latest'}")
     print(f"   Output: {output_dir}")
     print("")

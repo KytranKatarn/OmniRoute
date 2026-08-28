@@ -771,8 +771,8 @@ def _execute_known_tool(capability: str, payload: Dict[str, Any], reason: str) -
             "summary": (
                 f"{capability} {payload.get('domain', '?')}: "
                 + ("success" if result.success else f"failed — {result.error}")
-                + (f" [retried]" if result.retried else "")
-                + (f" [rolled_back]" if result.rolled_back else "")
+                + (" [retried]" if result.retried else "")
+                + (" [rolled_back]" if result.rolled_back else "")
             ),
             "result": {
                 "domain": result.domain,

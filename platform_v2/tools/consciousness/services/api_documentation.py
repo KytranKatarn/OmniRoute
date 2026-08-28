@@ -132,7 +132,7 @@ def discover_routes_from_files():
 
             # Find all route decorators
             for match in route_pattern.finditer(content):
-                blueprint = match.group(1)
+                match.group(1)
                 path = match.group(2)
                 methods_str = match.group(3)
 
@@ -359,7 +359,7 @@ def document_all_routes(update_existing=True):
     conn.commit()
     conn.close()
 
-    print(f"\n📈 Summary:")
+    print("\n📈 Summary:")
     print(f"   Created: {stats['created']}")
     print(f"   Updated: {stats['updated']}")
     print(f"   Skipped: {stats['skipped']}")

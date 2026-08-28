@@ -1312,7 +1312,7 @@ def register_dashboard_routes(bp, auth_decorator):
                     }
                 )
             return jsonify({"success": True, "nodes": result})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to list nodes")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
@@ -1376,7 +1376,7 @@ def register_dashboard_routes(bp, auth_decorator):
                             pass
                     nodes.append(node)
             return jsonify({"success": True, "nodes": nodes})
-        except Exception as e:
+        except Exception:
             logger.exception("Failed to get fleet agents")
             return jsonify({"success": False, "error": "Internal server error"}), 500
 

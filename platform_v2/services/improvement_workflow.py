@@ -182,7 +182,7 @@ class ImprovementWorkflow:
                 logger.info(f"[Improvement Workflow] Found {len(result['results'])} relevant knowledge entries")
                 return result["results"]
             else:
-                logger.warning(f"[Improvement Workflow] Knowledge search returned no results")
+                logger.warning("[Improvement Workflow] Knowledge search returned no results")
                 return []
 
         except Exception as e:

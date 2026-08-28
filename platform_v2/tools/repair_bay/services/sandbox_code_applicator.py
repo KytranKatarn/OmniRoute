@@ -350,4 +350,4 @@ if __name__ == "__main__":
 
     applicator = SandboxCodeApplicator()
     print("\n✅ Sandbox Code Applicator loaded successfully!")
-    print(f"Supports: Schema sandboxes, Docker container sandboxes")
+    print("Supports: Schema sandboxes, Docker container sandboxes")

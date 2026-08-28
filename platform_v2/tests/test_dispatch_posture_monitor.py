@@ -244,7 +244,7 @@ def test_heartbeat_records_on_a_healthy_run(harness, monkeypatch):
     seen = {}
     monkeypatch.setattr(mod, "_record_run", lambda res: seen.update(res))
 
-    res = mod.check_dispatch_posture()
+    mod.check_dispatch_posture()
     assert seen, "a healthy run must still leave a trace"
     assert seen.get("ok") is True
     assert set(seen.get("checks", {})) == {"liveness", "failure_rate", "latency", "throughput"}

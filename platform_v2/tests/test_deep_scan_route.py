@@ -15,7 +15,7 @@ def _confirmed(module, rel_file, code="WRONG_KWARG", tool="ast_sweep", verified_
         "file": f"/app/x/{rel_file}",
         "line": 7,
         "tool": tool,
-        "message": f"boom (line 7)",
+        "message": "boom (line 7)",
         "module": module,
         "rel_file": rel_file,
         "capability": "code",

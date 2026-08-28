@@ -1248,7 +1248,7 @@ def register_fleet_routes(bp, auth_decorator):
                 cur.execute("SELECT value FROM platform_settings WHERE key = 'routing_mode'")
                 row = cur.fetchone()
                 return jsonify({"success": True, "routing_mode": row["value"] if row else "full"})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/routing-mode", methods=["POST"])
@@ -1272,7 +1272,7 @@ def register_fleet_routes(bp, auth_decorator):
                 )
                 logger.info(f"[Bridge] Routing mode changed to: {mode}")
                 return jsonify({"success": True, "routing_mode": mode})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/escalation-mode", methods=["GET"])
@@ -1285,7 +1285,7 @@ def register_fleet_routes(bp, auth_decorator):
                 row = cur.fetchone()
                 # Sovereign-by-default (#4659): no row → cloud OFF, not auto.
                 return jsonify({"success": True, "escalation_mode": row["value"] if row else "local_only"})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/escalation-mode", methods=["POST"])
@@ -1309,7 +1309,7 @@ def register_fleet_routes(bp, auth_decorator):
                 )
                 logger.info(f"[Bridge] Escalation mode changed to: {mode}")
                 return jsonify({"success": True, "escalation_mode": mode})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/escalation-log", methods=["GET"])
@@ -1339,7 +1339,7 @@ def register_fleet_routes(bp, auth_decorator):
                             d[k] = v.isoformat()
                     result.append(d)
                 return jsonify({"success": True, "escalations": result})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ======================================================================
@@ -1607,7 +1607,7 @@ def register_fleet_routes(bp, auth_decorator):
                         "creed_blocked_24h": creed_blocked_24h,
                     }
                 )
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/external-providers", methods=["POST"])
@@ -1681,7 +1681,7 @@ def register_fleet_routes(bp, auth_decorator):
                     logger.warning("external_providers module not available for cache invalidation")
 
                 return jsonify({"success": True, "provider": dict(row)})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/external-providers/<provider>/toggle", methods=["POST"])
@@ -1696,7 +1696,7 @@ def register_fleet_routes(bp, auth_decorator):
                     (provider,),
                 )
                 return jsonify({"success": True})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route(
@@ -1740,7 +1740,7 @@ def register_fleet_routes(bp, auth_decorator):
                     ),
                 )
                 return jsonify({"success": True, "model": model_name, "enabled": enabled})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     # ======================================================================
@@ -1770,7 +1770,7 @@ def register_fleet_routes(bp, auth_decorator):
                     d["updated_at"] = d["updated_at"].isoformat() if d["updated_at"] else None
                     providers.append(d)
                 return jsonify({"success": True, "providers": providers})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500
 
     @bp.route("/api/contractor-providers", methods=["POST"])
@@ -1845,5 +1845,5 @@ def register_fleet_routes(bp, auth_decorator):
                     logger.warning("external_providers module not available for cache invalidation")
 
                 return jsonify({"success": True, "provider": dict(row)})
-        except Exception as e:
+        except Exception:
             return jsonify({"success": False, "error": "Internal server error"}), 500

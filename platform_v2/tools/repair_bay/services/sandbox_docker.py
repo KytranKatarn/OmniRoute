@@ -132,7 +132,7 @@ class DockerSandboxManager:
             # Wait for containers to be healthy (max 30 seconds)
             wait_cmd = ["docker", "wait", "--condition", "running", container_name]
 
-            wait_result = subprocess.run(wait_cmd, capture_output=True, text=True, timeout=30)
+            subprocess.run(wait_cmd, capture_output=True, text=True, timeout=30)
 
             return {
                 "success": True,

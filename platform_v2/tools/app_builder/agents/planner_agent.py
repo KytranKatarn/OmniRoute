@@ -257,7 +257,7 @@ class PlannerAgent:
             # Parse preferences
             has_python = any("Python" in pref for pref in tech_prefs)
             has_node = any("Node" in pref or "JavaScript" in pref for pref in tech_prefs)
-            has_react = any("React" in pref for pref in tech_prefs)
+            any("React" in pref for pref in tech_prefs)
             has_vue = any("Vue" in pref for pref in tech_prefs)
 
             if has_python:

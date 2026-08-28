@@ -290,7 +290,7 @@ def audit_a2_dispatch_pipeline():
                 )
             else:
                 results.append(_fail("dispatch()", f"success={result.success} response={str(result.response)[:100]}"))
-    except Exception as exc:
+    except Exception:
         results.append(_err("dispatch()", traceback.format_exc(limit=3)))
 
     # Test 3: dispatch_json() — with 120s timeout
@@ -318,7 +318,7 @@ def audit_a2_dispatch_pipeline():
                 )
             else:
                 results.append(_fail("dispatch_json()", "returned None"))
-    except Exception as exc:
+    except Exception:
         results.append(_err("dispatch_json()", traceback.format_exc(limit=3)))
 
     return results
@@ -813,7 +813,7 @@ def audit_a6_repair_bay_pipeline():
             run_rows = cur.fetchall()
 
         print(f"\n  QA suites (active): {active_suites}")
-        print(f"  Recent runs:")
+        print("  Recent runs:")
         for name, status, passed, failed, started_at in run_rows:
             print(f"    {str(started_at)[:19]}  {status:<10}  pass={passed} fail={failed}  [{name}]")
 

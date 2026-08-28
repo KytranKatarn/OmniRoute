@@ -566,7 +566,7 @@ def improvements_chat():
         print(f"Conversation ID: {conversation_id}")
 
         # Process message with Claude Code-style engine
-        print(f"A.R.C.H.I.E. processing...")
+        print("A.R.C.H.I.E. processing...")
 
         # Import the chat function
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
@@ -648,7 +648,7 @@ def improvements_chat():
             }
         else:
             # A.R.C.H.I.E. handles it herself - NO DELEGATION
-            print(f"A.R.C.H.I.E. handled directly (no delegation needed)")
+            print("A.R.C.H.I.E. handled directly (no delegation needed)")
             result = {
                 "success": archie_result.get("success"),
                 "response": archie_result.get("response"),
@@ -1219,7 +1219,7 @@ def improvements_approve_proposal(proposal_id):
             (current_user.id, json.dumps(plan_steps), proposal_id),
         )
 
-        result = cur.fetchone()
+        cur.fetchone()
         conn.commit()
         cur.close()
         conn.close()
@@ -1430,7 +1430,7 @@ def improvements_regenerate_plan(proposal_id):
                 plan_steps = [
                     {
                         "step": 1,
-                        "description": f"Read and analyze the target file",
+                        "description": "Read and analyze the target file",
                         "action": "read_file",
                         "target": file_path,
                         "details": f"Read file to understand current implementation around line {line_number or 'N/A'}",
@@ -2965,7 +2965,7 @@ def create_sandbox_standalone():
         # Inside the container, always use schema_separation
         # Docker-based sandboxes require running from host, not inside container
         if sandbox_type == "docker_container":
-            print(f"[Sandbox] Running inside container, using schema_separation instead of docker_container")
+            print("[Sandbox] Running inside container, using schema_separation instead of docker_container")
             sandbox_type = "schema_separation"
 
         result = manager.create_sandbox(proposal_id, sandbox_type=sandbox_type)

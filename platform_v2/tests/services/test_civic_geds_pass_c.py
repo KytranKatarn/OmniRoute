@@ -22,10 +22,10 @@ async def test_enrich_quick_lists_tags_each_role():
     mp_dn = b64("OU=MP1,OU=DEPT,O=GC,C=CA")
 
     pages = {
-        f"?pgid=016&fid=10": f'<a href="?pgid=015&dn={min_dn}">Min, A.</a>',
-        f"?pgid=016&fid=11": f'<a href="?pgid=015&dn={dm_dn}">DM, B.</a>',
-        f"?pgid=016&fid=12": f'<a href="?pgid=015&dn={sen_dn}">Sen, C.</a>',
-        f"?pgid=016&fid=13": f'<a href="?pgid=015&dn={mp_dn}">MP, D.</a>',
+        "?pgid=016&fid=10": f'<a href="?pgid=015&dn={min_dn}">Min, A.</a>',
+        "?pgid=016&fid=11": f'<a href="?pgid=015&dn={dm_dn}">DM, B.</a>',
+        "?pgid=016&fid=12": f'<a href="?pgid=015&dn={sen_dn}">Sen, C.</a>',
+        "?pgid=016&fid=13": f'<a href="?pgid=015&dn={mp_dn}">MP, D.</a>',
     }
     client = AsyncMock()
     client.get.side_effect = lambda p: pages[p]
@@ -54,10 +54,10 @@ async def test_enrich_falls_back_to_synthetic_org_for_unmatched_person():
     mp_dn = b64("OU=MP1,OU=DEPT,O=GC,C=CA")
 
     pages = {
-        f"?pgid=016&fid=10": "",
-        f"?pgid=016&fid=11": "",
-        f"?pgid=016&fid=12": "",
-        f"?pgid=016&fid=13": f'<a href="?pgid=015&dn={mp_dn}">MP, D.</a>',
+        "?pgid=016&fid=10": "",
+        "?pgid=016&fid=11": "",
+        "?pgid=016&fid=12": "",
+        "?pgid=016&fid=13": f'<a href="?pgid=015&dn={mp_dn}">MP, D.</a>',
     }
     client = AsyncMock()
     client.get.side_effect = lambda p: pages[p]

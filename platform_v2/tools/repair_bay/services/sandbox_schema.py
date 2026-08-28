@@ -554,7 +554,7 @@ if __name__ == "__main__":
         cur = conn.cursor()
         cur.execute("SELECT version()")
         version = cur.fetchone()[0]
-        print(f"✓ Connected to PostgreSQL")
+        print("✓ Connected to PostgreSQL")
         print(f"  Version: {version[:50]}...")
         cur.close()
         conn.close()

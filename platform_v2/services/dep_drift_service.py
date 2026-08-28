@@ -260,7 +260,7 @@ def format_alert_message(result: Dict[str, Any]) -> str:
     """Compact Telegram / system-notifications message from a check_dep_drift result."""
     metrics = result["summary_metrics"]
     lines = [
-        f"F.O.R.G.E. — dependency drift audit",
+        "F.O.R.G.E. — dependency drift audit",
         f"Severity: *{result['severity'].upper()}* · " f"{result['anomaly_count']} drift item(s)",
         "",
         f"• missing from container: {metrics['missing']}",

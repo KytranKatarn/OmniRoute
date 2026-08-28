@@ -895,12 +895,15 @@ services:
     # This container restart-looped ever since (RestartCount 219; headscale node 15
     # archie-starbase-subnet last seen 2026-06-27 20:36).
     #
-    # Beacon (2.25.170.252) is now the sole front door for mesh.* — verified serving
-    # GET /key?v=113 -> HTTP 200. The URL must stay byte-identical to headscale's
-    # config.yaml `server_url: https://mesh.kytranempowerment.com`, so we repoint the
-    # pin rather than bypassing to the hub's :8095.
+    # Citadel (2.25.133.122) is the front door for mesh.* since 2026-08-28 — Beacon
+    # was removed by Hostinger; its role migrated to the 'beacon' docker container on
+    # Citadel (project #395), verified serving GET /key?v=118 -> HTTP 200 via the hub
+    # reverse tunnel. The URL must stay byte-identical to headscale's config.yaml
+    # `server_url: https://mesh.kytranempowerment.com`, so we repoint the pin rather
+    # than bypassing to the hub's :8095. Apply with `up -d --no-deps archie_tailscale`
+    # (restart does NOT apply extra_hosts).
     extra_hosts:
-      - "mesh.kytranempowerment.com:2.25.170.252"
+      - "mesh.kytranempowerment.com:2.25.133.122"
     volumes:
       - tailscale_hub_data:/var/lib/tailscale
       - /dev/net/tun:/dev/net/tun

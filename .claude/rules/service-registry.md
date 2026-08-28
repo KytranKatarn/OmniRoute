@@ -6,7 +6,7 @@
 
 # Service Registry
 
-**Collected**: 2026-08-22 19:58:08 EDT · **Provenance measured**: 2026-08-22 03:40:10 EDT
+**Collected**: 2026-08-28 13:07:58 EDT · **Provenance measured**: 2026-08-28 03:40:05 EDT
 
 48/50 hub containers running · 9 image-baked products · 0 absent.
 
@@ -25,7 +25,7 @@
 | `kso` | 🔴 DRIFT | `6da2c50e1` | `e821ce421` | http://192.168.1.200:8085/version |
 | `legal_watch` | ✅ in_sync | `234643e48` | `234643e48` | http://100.64.0.10:8100/version |
 | `market_watch` | ✅ in_sync | `f84dddaaf` | `f84dddaaf` | http://100.64.0.10:8101/version |
-| `media_hub` | 🔴 DRIFT | `aae737a86` | `141decb85` | http://192.168.1.200:8105/version |
+| `media_hub` | 🔴 DRIFT | `49a3fd5ab` | `141decb85` | http://192.168.1.200:8105/version |
 | `wtf_consumer` | 🔴 DRIFT | `d2ada8943` | `330bf9d5c` | http://100.64.0.10:8103/version |
 | `wtf_tech` | 🔴 DRIFT | `45cbe875f` | `330bf9d5c` | http://100.64.0.10:8104/version |
 

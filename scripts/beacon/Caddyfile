@@ -1,135 +1,135 @@
-# Beacon front-door Caddyfile — Phase 3: all hub subdomains
-# Route: public DNS -> Beacon (2.25.170.252) -> Headscale mesh -> hub/boston-2
-#
-# (platform_backend) is the ONE line failover.sh flips hub<->boston-2 in DR:
-#   sed 's#reverse_proxy http://100.64.0.4:3000#reverse_proxy http://100.64.0.4:3000#'
-# All platform aliases use `import platform_backend` so one flip covers them all.
-#
-# EXCLUDED from Beacon (DNS stays at hub IP 173.182.133.96):
-#   mail, mail-admin, mta-sts  — SMTP/IMAP clients use the A record directly
-#   n8n, voice                 — no known running service; dead DNS entries
-#
-# Hub mesh IP: 100.64.0.4  |  DR (boston-2) mesh IP: 100.64.0.4
+# ⚠️ BEACON THE VPS IS DEAD (Hostinger removed it 2026-08-28). This role now runs as the
+# docker container 'beacon' ON CITADEL (root@100.64.0.10:/opt/archie-ingress/Caddyfile —
+# THAT file is live; this is the repo mirror). Project #395. mesh. upstream = the hub
+# reverse tunnel bind on 172.17.0.1:8095 (docker0 gw; ufw allows 172.16/12 -> 8095).
+legal.kytranempowerment.com {
+    reverse_proxy 172.18.0.1:8100
+}
+market.kytranempowerment.com {
+    reverse_proxy 172.18.0.1:8101
+}
+
+gov.kytranempowerment.com {
+    reverse_proxy 172.18.0.1:8102
+}
+
+civic.kytranempowerment.com {
+    reverse_proxy 172.18.0.1:8099
+}
+
+wtf.kytranempowerment.com {
+    reverse_proxy 172.18.0.1:8103
+}
+what-the-fact.tech {
+    reverse_proxy 172.18.0.1:8104
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+# MTA-STS policy host (#mail-sec 2026-06-11). testing mode = report-only,
+# never rejects inbound mail. Flip mode->enforce after relay.kytranempowerment.com
+# gets a real cert (currently CN=localhost self-signed → would break enforce).
+mta-sts.kytranempowerment.com {
+	handle /.well-known/mta-sts.txt {
+		header Content-Type "text/plain"
+		respond `version: STSv1
+mode: enforce
+mx: mail.kytranempowerment.com
+mx: relay.kytranempowerment.com
+max_age: 604800
+` 200
+	}
+	respond 404
+}
+
+
+# ═══════════ BEACON ROLE — migrated 2026-08-28 (Beacon VPS removed by Hostinger) ═══════════
+# Hub-fronted services: public DNS -> Citadel ("beacon" container) -> Headscale mesh -> hub.
+# mesh. upstream is the REVERSE TUNNEL bind (hub archie-mesh-tunnel.service dials OUT here,
+# ssh -R 172.18.0.1:8095). NEVER 100.64.0.4:8095 = bootstrap deadlock (fleet.md).
+# NEVER add mail. here — hub-fronted, task #5245.
 
 (platform_backend) {
 	reverse_proxy http://100.64.0.4:3000
 }
-
-# ---------------------------------------------------------------------------
-# PLATFORM + ALIASES  (all -> archie_platform :3000; DR-flippable)
-# ---------------------------------------------------------------------------
-
 platform.kytranempowerment.com {
 	import platform_backend
 }
-
 api.kytranempowerment.com {
 	import platform_backend
 }
-
 bridge.kytranempowerment.com {
 	import platform_backend
 }
-
 consciousness.kytranempowerment.com {
 	import platform_backend
 }
-
 mediahub.kytranempowerment.com {
 	import platform_backend
 }
-
-# ---------------------------------------------------------------------------
-# HUB SERVICES  (hub-only; unavailable during hub outage)
-# ---------------------------------------------------------------------------
-
 archie.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:3002
 }
-
 claude.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:3002
 }
-
 business.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:8091
 }
-
 shop.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:8091
 }
-
 store.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:8091
 }
-
 server.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:8085
 }
-
 creed.kytranempowerment.com {
 	reverse_proxy http://100.64.0.4:8086
 }
-
-media.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:8105
-}
-
-mesh.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:8095
-}
-
-nagios.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:8082
-}
-
-plex.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:32400
-}
-
-jellyfin.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:8096
-}
-
-sandbox.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:3003
-}
-
-
-terminal.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:7681
-}
-
-codex.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:7683
-}
-
-
-adguard.kytranempowerment.com {
-	reverse_proxy http://100.64.0.4:5354
-}
-
-# ---------------------------------------------------------------------------
-# MAIL-ADJACENT WEB UIs  (SMTP/IMAP ports stay at hub IP; web-only here)
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
-# TEST (keep for smoke-testing the front-door)
-# ---------------------------------------------------------------------------
-
-fdtest.kytranempowerment.com {
-	import platform_backend
-}
-
 api.creed-ai.org {
 	reverse_proxy http://100.64.0.4:8086
 }
-
-# Watch-edge NA funnel (Phase 1, #4319; #4557 HTTP-01 managed certs) — TLS terminate -> local nginx wtf_edge :8088 -> Citadel origin over mesh
+media.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8105
+}
+nagios.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8082
+}
+plex.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:32400
+}
+jellyfin.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8096
+}
+sandbox.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:3003
+}
+terminal.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:7681
+}
+codex.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:7683
+}
+adguard.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:5354
+}
+mesh.kytranempowerment.com {
+	reverse_proxy http://172.17.0.1:8095
+}
+# WTF apex — served LOCALLY (wtf-consumer :8103 on this host); the Beacon NA edge died with Beacon
 what-the-fact.com {
-	reverse_proxy http://127.0.0.1:8088
+	reverse_proxy 172.18.0.1:8103
 }
 www.what-the-fact.com {
 	redir https://what-the-fact.com{uri} permanent
+}
+
+tdarr.kytranempowerment.com {
+	reverse_proxy http://100.64.0.4:8265
 }

@@ -17,7 +17,7 @@
 #   An ad-hoc `ssh -L` left running by hand is NOT sufficient -- that is precisely
 #   how Beacon and Citadel sat off the control plane for a month (KB #284829).
 #   Restart=always + boot enablement is the whole point of this unit.
-Description=A.R.C.H.I.E. mesh control-plane tunnel (hub Headscale :8095 -> Beacon loopback)
+Description=A.R.C.H.I.E. mesh control-plane tunnel (hub Headscale :8095 -> Citadel bridge-gw (Beacon removed 2026-08-28))
 Documentation=file:///mnt/archie_brain/.claude/rules/fleet.md
 After=network-online.target docker.service
 Wants=network-online.target
@@ -41,8 +41,8 @@ ExecStart=/usr/bin/ssh -NT \
     -o BatchMode=yes \
     -o StrictHostKeyChecking=accept-new \
     -o UserKnownHostsFile=/home/kytran/.ssh/known_hosts \
-    -R 127.0.0.1:8095:127.0.0.1:8095 \
-    root@2.25.170.252
+    -R 172.17.0.1:8095:127.0.0.1:8095 \
+    root@2.25.133.122
 
 Restart=always
 RestartSec=5

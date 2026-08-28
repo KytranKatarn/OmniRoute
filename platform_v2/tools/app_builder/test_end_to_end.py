@@ -6,7 +6,6 @@ Tests the complete workflow from project creation to deployment
 import sys
 import os
 import asyncio
-import json
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))

@@ -13,7 +13,6 @@ import os
 from database import _get_db_password
 import logging
 import psycopg2
-from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 

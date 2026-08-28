@@ -11,8 +11,6 @@ Analyzes traffic patterns for suspicious activity:
 import ipaddress
 import logging
 import os
-import time
-from datetime import datetime, timedelta
 
 from database import get_db_cursor
 

@@ -15,7 +15,6 @@ import threading
 import traceback
 
 import requests
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from flask import jsonify, request
 from flask_login import current_user, login_required
@@ -29,7 +28,6 @@ from .github_routes import (
     run_reindex_background,
     MAX_FILE_SIZE,
     MAX_CONTENT_STORE,
-    INDEXABLE_EXT,
 )
 
 logger = logging.getLogger(__name__)

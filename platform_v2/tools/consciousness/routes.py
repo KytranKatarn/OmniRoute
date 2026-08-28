@@ -32,10 +32,8 @@ import json
 import logging
 import os
 from database import _get_db_password
-import re
 import sys
 
-import requests
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +66,9 @@ def _safe_list(rows):
 
 # Add platform root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-from rbac import require_permission, Permission, has_permission
+from rbac import Permission, has_permission
 from logging_config import audit_log
-from services import project_service, agent_service
+from services import agent_service
 
 from . import consciousness_bp
 
@@ -671,7 +669,6 @@ def get_stats():
 
         return jsonify(result)
     except Exception as e:
-        import traceback
 
         logger.error("Error in get_consciousness_stats: %s", e, exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500

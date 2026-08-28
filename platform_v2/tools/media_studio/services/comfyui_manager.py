@@ -202,7 +202,6 @@ def get_best_comfyui_url(model_name: Optional[str] = None) -> Tuple[str, Optiona
     Uses extra_capabilities.comfyui_url + gpu_vram_gb from remote_nodes
     (populated by heartbeat), not metadata.gpu which is unreliable.
     """
-    import requests as _req
 
     hub_url = os.environ.get("COMFYUI_HOST", "http://host.docker.internal:8188")
     hub_vram_mb = 8192  # Quadro M4000 8 GB

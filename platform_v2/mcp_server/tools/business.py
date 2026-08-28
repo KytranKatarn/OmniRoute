@@ -13,8 +13,7 @@ import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
-import requests
+from typing import Dict, Any
 
 from . import register_tool
 

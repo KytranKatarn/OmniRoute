@@ -8,7 +8,6 @@ import base64
 import logging
 import os
 import shutil
-import threading
 from typing import Dict, List, Optional
 
 from database import get_db_cursor

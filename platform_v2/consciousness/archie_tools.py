@@ -9,7 +9,6 @@ from database import _get_db_password
 import re
 
 logger = logging.getLogger(__name__)
-import json
 import subprocess
 from pathlib import Path
 from datetime import datetime

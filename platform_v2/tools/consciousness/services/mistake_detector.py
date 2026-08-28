@@ -13,7 +13,7 @@ import logging
 import re
 import json
 from datetime import datetime
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 

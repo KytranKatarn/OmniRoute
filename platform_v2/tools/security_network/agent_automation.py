@@ -6,7 +6,6 @@ Default: suggest-only. Per-category auto-mode toggleable.
 Includes suggestion engine that scans integrations for actionable findings.
 """
 
-import os
 import json
 import logging
 import subprocess

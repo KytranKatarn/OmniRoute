@@ -12,7 +12,7 @@ import os
 from database import _get_db_password
 import re
 import time
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -423,7 +423,7 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
     Returns:
         {'success': True, 'sha': '...', 'pr_number': 123}
     """
-    from .github_service import get_pr_status, merge_pr, close_issue
+    from .github_service import get_pr_status, merge_pr
 
     # 1. Get PR status
     status = get_pr_status(pr_number)

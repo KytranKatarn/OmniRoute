@@ -17,13 +17,11 @@ import logging
 import os
 from database import _get_db_password
 import subprocess
-import threading
 import traceback
 
 import psycopg2
 import requests
 from psycopg2.extras import RealDictCursor
-from flask import current_app
 
 logger = logging.getLogger(__name__)
 

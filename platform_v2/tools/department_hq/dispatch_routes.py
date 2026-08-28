@@ -12,7 +12,6 @@ import os
 
 import requests as _req
 from flask import current_app, jsonify, request
-from flask_login import login_required
 
 from datetime import timedelta
 

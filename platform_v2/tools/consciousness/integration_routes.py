@@ -14,7 +14,7 @@ import urllib.request
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import jsonify, request
+from flask import jsonify
 from flask_login import login_required
 
 from services import project_service

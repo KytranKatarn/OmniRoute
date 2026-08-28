@@ -14,7 +14,7 @@ Date: 2026-03-14
 """
 
 import logging
-from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extras import Json
 
 from database import get_db_cursor
 

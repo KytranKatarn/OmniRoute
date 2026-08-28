@@ -403,9 +403,7 @@ class TestHistory:
         _login_as_admin(approvals_client)
         _approve_autonomy, _approve_contractor, _approve_bridge = _get_helpers()
         from tools.department_hq.approvals_routes import (
-            _deny_autonomy,
             _deny_contractor,
-            _deny_bridge,
         )
 
         aut_id = _seed_autonomy(db)

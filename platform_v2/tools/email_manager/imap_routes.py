@@ -7,7 +7,6 @@ Author: A.R.C.H.I.E. Platform
 Created: 2026-02-17
 """
 
-import json
 import logging
 import os
 from database import _get_db_password
@@ -16,7 +15,7 @@ import time
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from flask import current_app, jsonify, request
+from flask import jsonify, request
 from flask_login import current_user, login_required
 
 from .routes import email_manager_bp

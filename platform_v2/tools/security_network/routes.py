@@ -4,13 +4,12 @@ Security & Network Routes
 Dashboard for security monitoring, network health, and system status.
 """
 
-from flask import render_template, jsonify, request, redirect, url_for, flash, Response
+from flask import render_template, jsonify, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from functools import wraps
 import os
 import time
 import logging
-from datetime import datetime
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)

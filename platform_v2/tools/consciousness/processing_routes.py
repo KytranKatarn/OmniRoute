@@ -1101,17 +1101,12 @@ def get_processing_history():
 
 from services.loop_service import (  # noqa: E402
     VALID_LOOP_OPS,
-    _BACKOFF_DELAYS,
     _get_backoff_delay,
     _get_retry_state,
     _loop_failures,
-    _record_retry_failure,
-    _record_retry_success,
     get_server_loops,
-    server_loop_retrigger,
     set_server_loop,
     set_trigger_fn as _set_loop_trigger_fn,
-    startup_resume_loops,
 )
 
 _LOOP_CONFIG_KEY = "consciousness_server_loops"

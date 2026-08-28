@@ -11,11 +11,9 @@ Extracts: key insights, decisions, code patterns, action items.
 Author: A.R.C.H.I.E. Platform
 """
 
-import sys
 import json
 import logging
-from typing import Dict, List, Optional, Any
-from datetime import datetime
+from typing import Dict, Optional, Any
 
 logger = logging.getLogger("archie_platform")
 

@@ -16,10 +16,9 @@ import json
 import logging
 
 logger = logging.getLogger(__name__)
-import time
 import queue
 import threading
-from typing import Dict, List, Optional
+from typing import Dict
 from datetime import datetime
 from collections import defaultdict
 

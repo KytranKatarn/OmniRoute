@@ -4,20 +4,14 @@ Fleet Command — Shared helpers and caches
 Merged from starbase/helpers.py and starship/helpers.py during Fleet migration.
 """
 
-import hashlib
 import json
 import os
 import subprocess
-import sys
 import time
 import logging
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from flask import jsonify, request
-from flask_login import current_user
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from database import get_db_cursor, check_fleet_model_unique
+from database import get_db_cursor
 import requests
 
 try:
@@ -645,7 +639,6 @@ def get_fleet_rest_config() -> dict:
 
 def set_fleet_rest_config(enabled: bool, start_hour: int = 20, end_hour: int = 6) -> None:
     """Persist rest config to system_config."""
-    import pytz
 
     value = json.dumps({"enabled": enabled, "start_hour": start_hour, "end_hour": end_hour})
     with get_db_cursor(commit=True) as (_, cur):

@@ -5,8 +5,6 @@ profile is injected into DRAFTING prompts, so anything it carries can end up in 
 outbound text.
 """
 
-import pytest
-
 import services.chronicle_voice_service as V
 
 

@@ -8,7 +8,6 @@ This is the bridge between the CLI hub connector and the MCP tool handlers.
 """
 
 import os
-import json
 import logging
 import asyncio
 from functools import wraps

@@ -20,7 +20,6 @@ empty a component that still holds artifacts.
 
 import sys
 
-import pytest
 
 sys.path.insert(0, "/mnt/archie_brain/scripts/backup")
 sys.path.insert(0, "/app")

@@ -18,7 +18,6 @@ merge-not-replace tests below.
 
 import re
 
-import pytest
 
 import tools.repair_bay.services.pr_review_service as prs
 

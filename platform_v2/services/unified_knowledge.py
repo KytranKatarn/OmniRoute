@@ -15,9 +15,9 @@ Date: 2026-01-11
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from services.time_utils import now_local_str
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any
 import psycopg2
 from psycopg2.extras import RealDictCursor
 

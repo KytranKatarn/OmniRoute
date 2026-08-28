@@ -18,7 +18,6 @@ from psycopg2.extras import RealDictCursor
 import os
 from database import _get_db_password
 from typing import List, Dict, Any
-import re
 
 
 def get_db_connection():

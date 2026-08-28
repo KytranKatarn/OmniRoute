@@ -11,7 +11,7 @@ import re
 import socket
 import subprocess
 
-from flask import jsonify, request
+from flask import jsonify
 from flask_login import login_required
 
 from database import get_db_cursor

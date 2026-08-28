@@ -6,7 +6,7 @@ Migrated from proxy pattern in Project #103, Phase 2.
 
 import logging
 
-from flask import jsonify, request, session
+from flask import jsonify, request
 from flask_login import login_required, current_user
 
 logger = logging.getLogger(__name__)

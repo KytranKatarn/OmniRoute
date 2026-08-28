@@ -7,7 +7,7 @@ Creates knowledge entries of type: vault_note, improvement
 
 import re
 import logging
-from typing import List, Optional
+from typing import List
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)

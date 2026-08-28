@@ -16,7 +16,7 @@ import hashlib
 import json
 import logging
 import subprocess
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Tuple
 
 from database import get_db_cursor
 

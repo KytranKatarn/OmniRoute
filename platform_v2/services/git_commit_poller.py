@@ -12,7 +12,6 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-01-06
 """
 
-import os
 import time
 import subprocess
 import threading

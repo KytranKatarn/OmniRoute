@@ -60,7 +60,6 @@ _DD = "tools.department_hq.services.department_dispatcher"
 # sys.modules. Restoring only sys.modules regressed 6 tests in test_dhq_chat_routing,
 # test_coo_consult and test_mail_hq — they silently got the real dispatcher instead of their
 # stub. Same trap as #5987 (see tests/modstub.py).
-import importlib as _importlib
 
 _DD_PARENT, _DD_LEAF = _DD.rsplit(".", 1)
 _saved_dd = sys.modules.pop(_DD, None)

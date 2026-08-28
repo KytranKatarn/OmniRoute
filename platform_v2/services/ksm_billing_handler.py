@@ -15,7 +15,6 @@ from database import get_db_cursor
 
 from services.billing_webhook import register_billing_handler
 from services.stripe_service import (
-    get_subscription_by_stripe_id,
     update_subscription_from_stripe,
 )
 

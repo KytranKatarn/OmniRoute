@@ -14,7 +14,7 @@ import logging
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 # T3261 — C.R.E.E.D. privacy: PII detection patterns (compiled once at import)
 _PII_PATTERNS = [

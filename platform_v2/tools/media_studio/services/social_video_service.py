@@ -7,7 +7,6 @@ All DB access for social content goes through here.
 import json
 import os
 import random
-from datetime import datetime
 
 from database import get_db_cursor
 
@@ -429,7 +428,6 @@ def get_queue_stats():
 # AutoShorts social_video_queue (separate from social_content_queue)
 # ---------------------------------------------------------------------------
 
-import psycopg2.extras
 from typing import Dict, List, Optional
 
 _VALID_SVQ_STATUSES = ("draft", "rendering", "pending_approval", "scheduled", "posted", "failed")

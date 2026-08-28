@@ -26,7 +26,6 @@ that only pinned silence would pass on a watchdog that never alerts at all.
 import sys
 import types
 
-import pytest
 
 sys.path.insert(0, "/app")
 sys.path.insert(0, "/mnt/archie_brain")

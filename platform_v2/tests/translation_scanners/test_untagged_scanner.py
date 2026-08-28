@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import pytest
 
 from tools.consciousness.translation_scanners.untagged_scanner import (
     UntaggedScanner,

@@ -7,8 +7,6 @@ tests/test_skill_failure_alerts.py — Unit tests for skill_failure_alerts.py
   3. success=False with error → alert fired
 """
 
-import sys
-import types
 import unittest
 from unittest.mock import MagicMock, patch
 

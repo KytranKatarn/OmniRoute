@@ -17,8 +17,6 @@ These pin the contract: ask on every surface, execute on any surface, and
 already-merged is success.
 """
 
-import pytest
-
 import tools.repair_bay.services.pr_review_service as prs
 
 

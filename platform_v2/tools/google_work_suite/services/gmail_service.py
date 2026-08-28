@@ -4,7 +4,6 @@ Gmail Service — inbox sync, email fetch/send/draft, agent inbox processing.
 
 import base64
 import logging
-import sys
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 

@@ -10,7 +10,7 @@ import logging
 import time as time_mod
 
 import requests
-from flask import jsonify, request
+from flask import jsonify
 from flask_login import login_required
 
 logger = logging.getLogger(__name__)

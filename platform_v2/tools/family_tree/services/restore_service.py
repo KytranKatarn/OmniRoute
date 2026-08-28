@@ -11,7 +11,6 @@ Usage:
 
 import logging
 import os
-import shutil
 import time
 import uuid
 from dataclasses import dataclass, field

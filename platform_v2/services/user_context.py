@@ -12,7 +12,7 @@ Date: 2026-01-12
 """
 
 from functools import wraps
-from flask import abort, jsonify
+from flask import abort
 from flask_login import current_user
 
 

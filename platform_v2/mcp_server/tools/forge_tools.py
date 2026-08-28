@@ -394,7 +394,6 @@ async def repair_bay_status_handler(arguments: Dict[str, Any]) -> Dict[str, Any]
 async def repair_bay_run_handler(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """Queue all ready proposals through tiered approval (batch self-heal)."""
     try:
-        import json as _json
 
         risk_filter = arguments.get("risk_filter", ["low", "medium"])
         limit = arguments.get("limit", 10)

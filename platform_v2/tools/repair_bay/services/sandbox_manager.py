@@ -13,7 +13,7 @@ import subprocess
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
-from typing import Dict, Optional, Literal, List
+from typing import Dict, Literal, List
 import json
 import logging
 

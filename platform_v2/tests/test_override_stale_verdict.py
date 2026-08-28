@@ -16,8 +16,6 @@ plain-Exception sentinel would risk being swallowed by defensive handlers
 reason).
 """
 
-import pytest
-
 from tools.repair_bay.services import github_service, pr_review_service
 
 

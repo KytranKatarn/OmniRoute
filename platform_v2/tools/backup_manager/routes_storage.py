@@ -4,30 +4,21 @@ Split from the original backup_manager_routes.py monolith (Task #2699).
 All routes are registered via register_storage_routes(bp, admin_required).
 """
 
-from flask import jsonify, request, send_file, render_template, current_app
-from flask_login import current_user
+from flask import jsonify, request, send_file, current_app
 import os
 import json
 import shutil
-import subprocess
 import tempfile
 import tarfile
-import gzip
 import time
 import hashlib
-import hmac
-import requests
 from datetime import datetime, timedelta
-import psycopg2
-from psycopg2 import sql
 from psycopg2.extras import RealDictCursor
 
-from database import _get_db_password
 
 # Pull every shared helper / constant / programmatic function into module scope
 from ._shared import (
     BACKUP_DIR,
-    CLOUD_EXCLUDE_DIRS,
     EXTERNAL_BACKUP_DIR,
     PLATFORM_DIR,
     _cloud_progress,
@@ -35,10 +26,8 @@ from ._shared import (
     _gdrive_is_fully_configured,
     _get_cloud_config,
     _update_env_var,
-    admin_required,
     backup_database_python,
     copy_to_external_storage,
-    file_hash,
     generate_deploy_script,
     get_backup_db_cursor,
     get_backup_retention_status,

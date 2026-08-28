@@ -1,7 +1,7 @@
 """P.R.O.B.E. QA — Department HQ Module Tests."""
 
 import pytest
-from ..conftest import navigate_to, screenshot, check_tabs, check_responsive, assert_no_console_errors
+from ..conftest import navigate_to, screenshot, check_responsive, assert_no_console_errors
 
 
 @pytest.mark.asyncio

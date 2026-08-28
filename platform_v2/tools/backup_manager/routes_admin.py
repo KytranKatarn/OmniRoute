@@ -4,33 +4,19 @@ Split from the original backup_manager_routes.py monolith (Task #2699).
 All routes are registered via register_admin_routes(bp, admin_required).
 """
 
-from flask import jsonify, request, send_file, render_template, current_app
+from flask import jsonify, request
 from flask_login import current_user
 import os
 import json
-import shutil
-import subprocess
-import tempfile
-import tarfile
-import gzip
-import time
-import hashlib
-import hmac
-import requests
-from datetime import datetime, timedelta
-import psycopg2
-from psycopg2 import sql
+from datetime import datetime
 from psycopg2.extras import RealDictCursor
 
-from database import _get_db_password
 
 # Pull every shared helper / constant / programmatic function into module scope
 from ._shared import (
-    BACKUP_DIR,
     HOOKS_DIR,
     POST_HOOKS_DIR,
     PRE_HOOKS_DIR,
-    admin_required,
     get_backup_db_cursor,
 )
 

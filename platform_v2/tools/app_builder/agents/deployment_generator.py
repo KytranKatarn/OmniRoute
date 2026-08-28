@@ -4,8 +4,6 @@ Generates deployment configurations, Docker files, CI/CD pipelines
 Part of A.R.C.H.I.E. App Builder - Week 6: Deployment
 """
 
-import os
-import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 import asyncio

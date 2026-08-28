@@ -5,7 +5,6 @@ Dynamic resource pricing driven by supply/demand signals from world events.
 
 import logging
 
-import psycopg2.extras as pex
 
 from database import get_db_cursor
 from tools.game_studio import world_state_service

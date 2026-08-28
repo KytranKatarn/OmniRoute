@@ -1,5 +1,4 @@
 from __future__ import annotations
-import pytest
 from tools.agent_academy.ab_compare import (
     parse_model_selection,
     classify_run,

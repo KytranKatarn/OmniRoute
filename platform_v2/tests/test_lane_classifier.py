@@ -4,7 +4,7 @@ Deterministic on purpose: this feeds an authority decision, and no LLM belongs
 in a gate path. An LLM may later RANK candidates; it must never AUTHORISE one.
 """
 
-from services.lane_classifier import classify, KERNEL_PATTERNS
+from services.lane_classifier import classify
 
 # The caller passes its own prefixes — the platform must never hold a second
 # copy of PLATFORM_SCOPE (#5002: duplicating a scope list is how it drifts).

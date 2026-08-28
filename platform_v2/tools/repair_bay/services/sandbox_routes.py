@@ -9,7 +9,6 @@ from flask import (
     session,
     redirect,
     url_for,
-    request,
     g,
     flash,
 )
@@ -246,8 +245,7 @@ def proxy_admin_api(api_path):
     Proxy all admin API calls to the admin blueprint
     But with sandbox mode enabled so queries use sandbox schema
     """
-    from flask import current_app, request as flask_request, make_response
-    import json
+    from flask import current_app, request as flask_request
 
     # Set sandbox mode in session for the API call
     session["sandbox_mode"] = True
@@ -264,7 +262,6 @@ def proxy_admin_api(api_path):
     ):
         try:
             # Import the admin blueprint to access its view functions
-            from tools.admin.routes import admin_bp
 
             # Get the view function for this endpoint
             # Flask will match the route and call the appropriate function

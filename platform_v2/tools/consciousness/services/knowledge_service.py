@@ -10,7 +10,6 @@ Import:
 import json
 import logging
 
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from database import get_db_connection
 

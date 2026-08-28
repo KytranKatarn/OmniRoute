@@ -5,7 +5,6 @@ Provides firewall status, active connections, brute force detection,
 SSL certificate monitoring, and auto-block functionality.
 """
 
-import os
 import json
 import socket
 import ssl

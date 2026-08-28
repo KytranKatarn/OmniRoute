@@ -7,7 +7,7 @@ Creates knowledge entries of type: mistake_learned
 
 import re
 import logging
-from typing import List, Dict, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)

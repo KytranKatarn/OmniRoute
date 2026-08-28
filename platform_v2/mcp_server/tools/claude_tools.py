@@ -13,13 +13,11 @@ Specialized tools for Claude Code integration:
 
 import os
 from database import _get_db_password
-import json
 import logging
 import subprocess
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import requests
 
 from . import register_tool

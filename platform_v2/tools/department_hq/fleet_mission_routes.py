@@ -4,7 +4,6 @@ import json
 import time
 import logging
 from datetime import datetime, timezone
-from typing import List
 from flask import jsonify, request, Response, stream_with_context
 from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor

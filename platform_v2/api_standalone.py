@@ -11,7 +11,6 @@ Auth: Bearer {base64(client_id:client_secret)} validated against oauth_clients t
 import base64
 import logging
 import threading
-from datetime import datetime
 
 from flask import Blueprint, request, jsonify
 

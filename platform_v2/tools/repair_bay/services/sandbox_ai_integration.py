@@ -11,7 +11,6 @@ Features:
 
 import os
 from database import _get_db_password
-import sys
 import json
 import logging
 from datetime import datetime
@@ -26,7 +25,6 @@ logger = logging.getLogger(__name__)
 def get_db():
     """Get database connection"""
     import psycopg2
-    from psycopg2.extras import RealDictCursor
 
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "archie_database"),

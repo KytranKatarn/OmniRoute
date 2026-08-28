@@ -7,12 +7,9 @@ Pattern: register_*_routes(bp, admin_required) for sub-route files (ADR-045).
 """
 
 import logging
-import os
-import sys
 
-from flask import Blueprint, render_template, jsonify, request
-from flask_login import login_required, current_user
-from rbac import require_permission, Permission
+from flask import Blueprint, render_template, jsonify
+from flask_login import login_required
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)

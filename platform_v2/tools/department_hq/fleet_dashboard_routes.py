@@ -8,37 +8,25 @@ Author: A.R.C.H.I.E. Platform
 Date: 2026-04-08
 """
 
-import hashlib
-import json
 import os
-import subprocess
-import sys
 import time
 import logging
-from collections import deque
 from datetime import datetime, timezone
-from flask import Blueprint, render_template, jsonify, request
+from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
-from rbac import require_permission, Permission
-import psycopg2
-from psycopg2.extras import RealDictCursor
-from database import get_db_cursor, check_fleet_model_unique
+from database import get_db_cursor
 from services.fleet_resource_router import is_stale, utilization_pct
-import requests
 
 from .fleet_helpers import (
-    OLLAMA_LOCAL_URL,
     OLLAMA_LOCAL_HOST,
     OLLAMA_DEFAULT_PORT,
     _get_cached_ollama_tags,
     _get_cached_ollama_ps,
-    _get_cached_hw_capacity,
     check_ollama_status,
     get_ollama_models,
     _get_user_nodes,
     _compute_node_health,
     _compute_node_status,
-    push_agent_event,
     normalize_node_label,
 )
 

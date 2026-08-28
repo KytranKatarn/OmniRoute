@@ -1,5 +1,4 @@
 from pathlib import Path
-import pytest
 from services.civic_geds_parsers import (
     parse_department_list,
     parse_tree_node,

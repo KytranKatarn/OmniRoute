@@ -21,14 +21,12 @@ from flask import Blueprint, render_template, request, jsonify, current_app, abo
 from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
 import os
 from database import _get_db_password
 import json
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import re
 
 try:
     from rbac import Permission, has_permission

@@ -2257,7 +2257,6 @@ def _register_own_jobs(scheduler, flask_app):
         _dzr_start = _dzr_t.time()
         try:
             from database import get_db_cursor
-            from services.telegram_service import send_system
 
             with get_db_cursor(commit=True) as (_, cur):
                 # Expire stuck 'running' items (platform restart orphans, >30 min).

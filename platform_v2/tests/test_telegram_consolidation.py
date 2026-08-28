@@ -15,7 +15,6 @@ run without a live bot token or Telegram network access.
 import os
 import sys
 import asyncio
-import pytest
 from unittest.mock import MagicMock, patch, AsyncMock
 
 # Ensure platform_v2 is importable (mirrors agent_loop bootstrap).

@@ -7,7 +7,6 @@ and knowledge_base into per-module cards grouped by category.
 
 import logging
 
-import psycopg2
 from flask import jsonify, request
 from flask_login import login_required
 

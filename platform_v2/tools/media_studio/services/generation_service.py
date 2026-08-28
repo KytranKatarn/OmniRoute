@@ -1258,7 +1258,6 @@ def _generate_speech_local(queue_id: int, prompt: str, params: dict) -> Optional
 
 def _submit_and_poll_external_audio(queue_id: int, prompt: str, params: dict, audio_mode: str) -> Optional[str]:
     """Submit to external audio provider and poll for completion."""
-    import json
 
     provider = params.get("provider", "auto")
 

@@ -10,8 +10,8 @@ import sys
 import json
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Dict, List, Optional
 
 sys.path.insert(0, "/app/ai_bridge")
 sys.path.insert(0, "/mnt/archie_brain/ai_bridge")

@@ -12,8 +12,7 @@ Import:
 
 import json
 import logging
-from datetime import datetime
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, List
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)

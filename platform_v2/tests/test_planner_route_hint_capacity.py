@@ -17,8 +17,6 @@ and was reverted the same hour.
 A diagnostic that names an impossible node is worse than no diagnostic at all.
 """
 
-import pytest
-
 # Real fleet shapes, measured 2026-08-19.
 USS_245 = {  # RTX 3050, the node wrongly capped
     "node_name": "Starship - Runabout - USS-245",

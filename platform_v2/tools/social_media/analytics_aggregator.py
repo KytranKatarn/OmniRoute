@@ -13,8 +13,7 @@ import os
 from database import _get_db_password
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
-from collections import defaultdict
+from typing import Dict, List
 
 import psycopg2
 from psycopg2.extras import RealDictCursor

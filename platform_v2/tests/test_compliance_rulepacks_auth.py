@@ -9,7 +9,6 @@ by the live drive.
 import os
 import sys
 
-import pytest
 from flask import Flask
 
 sys.path.insert(0, "/app")

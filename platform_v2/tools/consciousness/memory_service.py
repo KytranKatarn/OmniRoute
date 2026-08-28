@@ -16,8 +16,7 @@ import json
 import requests
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 import logging
 
 logger = logging.getLogger(__name__)

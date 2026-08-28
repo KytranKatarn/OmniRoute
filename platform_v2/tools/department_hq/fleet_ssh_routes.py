@@ -16,13 +16,11 @@ Mount it via docker-compose volumes if not already present.
 """
 
 import logging
-import os
 import pathlib
 import subprocess
 
 from database import get_db_cursor
 from flask import jsonify, request
-from flask_login import current_user
 
 logger = logging.getLogger(__name__)
 

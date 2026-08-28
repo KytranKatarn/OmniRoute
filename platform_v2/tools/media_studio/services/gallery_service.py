@@ -5,7 +5,7 @@ All queries filter by owner for access control. Soft-delete only.
 
 import logging
 import os
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from database import get_db_cursor
 

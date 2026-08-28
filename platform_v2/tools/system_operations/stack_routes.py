@@ -14,7 +14,6 @@ from .helpers import (
     audit_log,
     require_reauth,
     find_compose_file,
-    parse_compose_host_port,
 )
 
 

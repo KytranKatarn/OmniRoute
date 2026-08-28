@@ -15,7 +15,7 @@ import json
 import logging
 from datetime import datetime
 from services.time_utils import now_local
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +30,6 @@ TROUBLESHOOTING_PATH = os.path.join(DOCS_PATH, "TROUBLESHOOTING.md")
 def get_db():
     """Get database connection"""
     import psycopg2
-    from psycopg2.extras import RealDictCursor
 
     return psycopg2.connect(
         host=os.getenv("DB_HOST", "archie_database"),

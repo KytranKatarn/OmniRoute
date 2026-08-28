@@ -1,6 +1,5 @@
 """Unit tests for qa_baseline_service."""
 
-import pytest
 from services import qa_baseline_service
 
 

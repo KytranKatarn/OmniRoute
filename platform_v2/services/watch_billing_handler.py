@@ -19,7 +19,6 @@ import requests
 from database import get_db_cursor
 
 from services.billing_webhook import register_billing_handler
-from services.subscription_service import resolve_tier_for_product
 
 logger = logging.getLogger(__name__)
 

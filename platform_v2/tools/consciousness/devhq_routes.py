@@ -5,7 +5,7 @@ import re
 import json as json_module
 import urllib.request
 import urllib.error
-from flask import render_template, jsonify, request, abort
+from flask import jsonify, request
 from flask_login import login_required, current_user
 from psycopg2.extras import RealDictCursor, Json
 from database import get_db_connection
@@ -1485,7 +1485,6 @@ def register_devhq_routes(bp, admin_required):
         Sends minimal prompts through the dispatcher to pre-load models into RAM.
         Routed through Bridge per ADR-013 — dispatcher handles model loading.
         """
-        from tools.department_hq.services.department_dispatcher import dispatch
 
         models = ["dolphin3-8k:latest", "arctic-embed-cpu:latest", "qwen25-classify:latest"]
         results = []

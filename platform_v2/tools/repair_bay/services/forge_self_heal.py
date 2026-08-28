@@ -15,9 +15,7 @@ import json
 import logging
 import os
 from database import _get_db_password
-import time
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 from services.governance_hmac import sign_event
 
 import psycopg2

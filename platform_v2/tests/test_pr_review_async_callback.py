@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 # ---- callback handler: writes the verdict back to pr_reviews -----------------
 def test_handle_callback_pr_review_writes_verdict():

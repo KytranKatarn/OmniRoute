@@ -12,7 +12,7 @@ from database import _get_db_password
 import time
 import logging
 import requests
-from typing import Dict, Optional, List
+from typing import Dict, List
 from datetime import datetime
 
 import psycopg2

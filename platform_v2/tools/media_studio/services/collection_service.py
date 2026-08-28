@@ -5,7 +5,7 @@ Smart collections store filter criteria as JSONB and execute dynamically.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from database import get_db_cursor
 

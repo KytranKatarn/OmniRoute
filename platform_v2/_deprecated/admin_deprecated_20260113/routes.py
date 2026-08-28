@@ -23,7 +23,7 @@ from functools import wraps
 import psycopg2
 import psycopg2.extras
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import os
 from database import _get_db_password
@@ -39,7 +39,6 @@ sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
 try:
     from improvement_chat import (
         chat_about_improvements,
-        discuss_proposal as discuss_proposal_chat,
         self_reflection_chat,
     )
     from improvement_engine import (
@@ -544,7 +543,6 @@ def improvements_chat():
         import sys
 
         sys.path.insert(0, "/mnt/archie_brain/ai_bridge")
-        from improvement_conversation_engine import process_improvement_message
 
         data = request.json
         user_message = data.get("message", "")
@@ -3781,7 +3779,6 @@ def restart_platform():
         import subprocess
         import threading
         import os
-        import json as json_lib
 
         # Check if deployment info exists for failsafe
         deployment_info_file = "/backups/last_deployment.json"

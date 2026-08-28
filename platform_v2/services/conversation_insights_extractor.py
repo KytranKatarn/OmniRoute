@@ -13,7 +13,7 @@ import re
 import json
 import sys
 import psycopg2
-from psycopg2.extras import RealDictCursor, Json
+from psycopg2.extras import Json
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import logging

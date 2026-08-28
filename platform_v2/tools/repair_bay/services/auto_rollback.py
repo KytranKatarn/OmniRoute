@@ -14,10 +14,8 @@ from database import _get_db_password
 import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict
 import subprocess
-import json
 
 sys.path.insert(0, "/mnt/archie_brain/platform_v2/tools/backup_manager")
 

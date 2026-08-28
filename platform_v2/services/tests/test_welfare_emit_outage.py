@@ -20,7 +20,6 @@ import pytest
 from database import get_db_cursor
 
 from services.welfare_emit import record_welfare_emit_outage
-from services import welfare_governance_service
 from services.welfare_governance_service import emit_welfare_snapshots
 
 _MARK = "ZZTEST_W4130_FIX3"

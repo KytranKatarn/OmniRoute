@@ -12,8 +12,7 @@ Enhanced with proposal_queue table for:
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List
 import os
 from database import _get_db_password
 import logging

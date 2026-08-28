@@ -19,7 +19,7 @@ from flask import Blueprint, render_template, request, jsonify, current_app
 from flask_login import login_required, current_user
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, date, time
 import os
 from database import _get_db_password
 import json

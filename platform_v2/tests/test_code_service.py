@@ -6,7 +6,6 @@ Uses unittest.mock.patch (decorator form) to mock get_db_cursor so no live DB is
 import sys
 import os
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

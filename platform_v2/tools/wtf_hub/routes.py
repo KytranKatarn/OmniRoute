@@ -35,7 +35,7 @@ def _parse_llm_json(text: str) -> dict:
     raise ValueError("no JSON object found in model response")
 
 
-from flask import jsonify, render_template, render_template_string, request
+from flask import jsonify, render_template, request
 from flask_login import login_required
 
 from . import wtf_hub_bp

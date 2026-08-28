@@ -33,7 +33,7 @@ def mock_service():
 def code_client(mock_service):
     """Minimal Flask test client with code routes + login disabled."""
     from flask import Flask, Blueprint
-    from flask_login import LoginManager, UserMixin
+    from flask_login import LoginManager
 
     # Inject mock code_service into the tools.archie_chat package namespace
     # so the relative import inside code_routes resolves correctly.

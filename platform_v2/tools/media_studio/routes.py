@@ -739,7 +739,6 @@ def api_refine_prompt(agent_id):
     Returns immediately: { "task_id": N, "status": "queued" }
     Poll GET /api/portraits/<id>/refine-status/<task_id> for result.
     """
-    import json as _json
     import psycopg2.extras
     from database import get_db_cursor
 

@@ -5,7 +5,6 @@ Run: docker exec archie_platform python -m pytest tests/test_portrait_pipeline.p
 
 from __future__ import annotations
 
-import os
 from unittest.mock import MagicMock, patch
 
 

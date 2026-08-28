@@ -18,7 +18,6 @@ social video generation. The assertions below exist to catch that.
 import inspect
 import re
 
-import pytest
 
 import tools.media_studio.services.social_video_worker as svw
 

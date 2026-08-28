@@ -17,7 +17,6 @@ Usage:
 """
 
 import os
-import base64
 import logging
 from cryptography.fernet import Fernet, InvalidToken
 

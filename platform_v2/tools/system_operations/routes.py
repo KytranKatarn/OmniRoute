@@ -24,28 +24,19 @@ from .helpers import (
     audit_log,
     record_metric,
     require_reauth,
-    parse_compose_host_port,
-    find_compose_file,
-    BASE_DIR,
-    HOST_DATA_FILE,
     load_host_monitor_data,
 )
 from .host_command_client import (
     submit_host_command,
-    submit_and_wait,
     get_queue_status,
     get_result as get_command_result,
-    HostCommandTimeout,
     HostCommandQueueUnavailable,
 )
 from .system_service import get_system_service
 
-import json as json_lib
 import time as time_mod
 from flask import jsonify, request
-import psycopg2
-from psycopg2.extras import RealDictCursor, Json
-from datetime import datetime
+from psycopg2.extras import RealDictCursor
 from flask_login import current_user
 
 # admin_required via rbac (ADR-045 — same decorator used in __init__.py)

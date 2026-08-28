@@ -10,8 +10,6 @@ from services.fleet_service import (
     list_nodes,
     list_providers,
     get_node_status,
-    get_node_agents,
-    get_provider_status,
     get_usage_summary,
     get_fleet_map_data,
     HUB_LOCATION,

@@ -24,11 +24,10 @@ from database import _get_db_password
 import json
 import asyncio
 import logging
-import hashlib
 import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import requests
 
 from mcp_server.dispatch_context import claude_request
@@ -130,7 +129,6 @@ class ArchieMCPServer:
         """Get database connection"""
         try:
             import psycopg2
-            from psycopg2.extras import RealDictCursor
 
             conn = psycopg2.connect(**DB_CONFIG)
             return conn

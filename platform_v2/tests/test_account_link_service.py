@@ -262,7 +262,6 @@ class TestSendVerificationEmail:
 
     def test_email_body_contains_verify_url_with_token(self, svc, monkeypatch):
         """Verify URL is constructed correctly and token appears in the message body."""
-        import base64
         import email as email_lib
 
         monkeypatch.setenv("SMTP_USER", "u")

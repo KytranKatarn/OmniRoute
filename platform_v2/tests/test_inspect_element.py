@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from unittest.mock import patch
 
 # The script is in scripts/, not on the Python path — import it directly
 # Inside Docker, platform_v2/ is mounted at /app/ and scripts/ at /mnt/archie_brain/scripts/

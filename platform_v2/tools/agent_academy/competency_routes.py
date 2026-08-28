@@ -11,7 +11,6 @@ import logging
 
 from flask import jsonify, request
 from database import get_db_cursor
-from psycopg2.extras import Json
 
 logger = logging.getLogger(__name__)
 

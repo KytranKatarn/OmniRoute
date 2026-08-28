@@ -19,7 +19,7 @@ Strategy:
 import os
 import sys
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 # Allow imports from the platform root (/app maps to platform_v2/ inside Docker)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

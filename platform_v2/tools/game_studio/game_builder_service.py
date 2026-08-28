@@ -6,7 +6,6 @@ Stages: concept -> level -> mechanics -> qa (with checkpoints at concept + qa)
 import json
 import logging
 import re
-import sys
 import threading
 from datetime import datetime
 

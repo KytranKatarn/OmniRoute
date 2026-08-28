@@ -15,7 +15,7 @@ import subprocess
 import socket
 from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any
 
 from . import register_tool
 

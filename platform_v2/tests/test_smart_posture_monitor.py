@@ -8,7 +8,6 @@ failing while sdc (152 realloc) is doing its job.
 """
 
 import importlib.util
-from pathlib import Path
 
 from tests.repo_root import repo_path
 

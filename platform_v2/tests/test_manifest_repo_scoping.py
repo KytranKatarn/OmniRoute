@@ -8,7 +8,6 @@ repos; an authority check keyed on the number alone crosses repo boundaries.
 import sys
 import types
 
-import pytest
 from tests.modstub import install_module_stub
 from tools.repair_bay.services import github_service as gs
 

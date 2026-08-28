@@ -19,7 +19,6 @@ import logging
 import os
 import subprocess
 import time
-import zipfile
 from dataclasses import dataclass, field
 from datetime import timezone
 from pathlib import Path

@@ -6,7 +6,7 @@ Extracted from routes.py during ADR-045 route split refactor.
 Endpoints: api_network, api_network_port_map, api_network_bandwidth, api_port_usage
 """
 
-from flask import jsonify, request
+from flask import jsonify
 from flask_login import login_required
 from psycopg2.extras import RealDictCursor
 import os

@@ -1,5 +1,4 @@
 import json
-import pytest
 
 
 def test_history_agents_returns_list(client):

@@ -5,7 +5,6 @@ Uses GitHub REST API + git subprocess for all operations.
 Runs inside Docker — no gh CLI dependency.
 """
 
-import json
 import logging
 import os
 import subprocess

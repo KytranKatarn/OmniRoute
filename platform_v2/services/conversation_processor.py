@@ -18,7 +18,6 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import glob
-import psycopg2
 from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger("archie_platform")

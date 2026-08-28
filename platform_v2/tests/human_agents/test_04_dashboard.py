@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import pytest
 import requests
-from playwright.sync_api import Browser, Page
+from playwright.sync_api import Browser
 
 from conftest import BASE_URL, load_agents, login_as, logout
 

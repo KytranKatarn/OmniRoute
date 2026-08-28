@@ -333,8 +333,6 @@ def _register_check(check_type):
     return decorator
 
 
-import time as _time
-
 # Cache for host file reads — avoids re-reading /etc/ssh/sshd_config 10 times
 _file_cache = {}
 

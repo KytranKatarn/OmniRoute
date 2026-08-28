@@ -6,10 +6,9 @@ Part of A.R.C.H.I.E. App Builder - Week 5: Testing Framework
 
 import os
 import json
-import subprocess
 import re
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from datetime import datetime, timezone
 import asyncio
 

@@ -2,7 +2,7 @@
 
 import logging
 from datetime import date, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from database import get_db_cursor
 

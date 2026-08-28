@@ -15,7 +15,7 @@ import datetime as _dt
 import logging
 import re
 import threading
-from typing import Any, Optional
+from typing import Any
 
 import requests
 

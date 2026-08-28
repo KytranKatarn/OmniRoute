@@ -8,8 +8,8 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from unittest.mock import patch, MagicMock
-from services.model_service import ModelService, ModelPriority
+from unittest.mock import patch
+from services.model_service import ModelService
 
 
 def test_ensure_model_ready_returns_tier_dict():

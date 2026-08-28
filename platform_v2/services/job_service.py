@@ -8,7 +8,7 @@ Runs alongside existing agent_loop.py with no conflicts.
 import logging
 import time
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 

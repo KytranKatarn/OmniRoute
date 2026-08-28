@@ -10,7 +10,7 @@ Classifies raw conversations by:
 
 import re
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)

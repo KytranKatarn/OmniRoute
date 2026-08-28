@@ -22,7 +22,6 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from tools.department_hq.services.approvals_bulk import (  # noqa: E402
-    ACTION_CATEGORY,
     CATEGORY_LABELS,
     CATEGORY_ORDER,
     CATEGORY_PRIORITY,

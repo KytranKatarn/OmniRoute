@@ -4,7 +4,6 @@ Also handles queue management: retry, cancel, cleanup, stats.
 """
 
 import logging
-import time
 from typing import Dict, List, Optional
 
 import psycopg2.extras

@@ -11,7 +11,6 @@ None, and None means "take a fresh backup".
 
 import os
 
-import pytest
 
 from services import predeploy_backup_reuse as R
 

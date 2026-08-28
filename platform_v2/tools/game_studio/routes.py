@@ -18,7 +18,6 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from . import game_studio_bp
 
-import sys
 
 from tools.department_hq.services.department_dispatcher import dispatch_json
 

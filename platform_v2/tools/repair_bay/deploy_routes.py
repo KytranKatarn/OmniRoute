@@ -462,7 +462,6 @@ def register_deploy_routes(bp, admin_required):
     @admin_required
     def website_deploy_status():
         """Return last deploy time, status, and pending portrait changes per domain."""
-        import os as _os
         from database import get_db_cursor
 
         rows = []
@@ -514,7 +513,6 @@ def register_deploy_routes(bp, admin_required):
         """
         import threading as _threading
         from services.deploy_service import run_deploy_pipeline
-        from database import get_db_cursor
 
         payload = request.get_json(force=True, silent=True) or {}
         target_domain = payload.get("domain")

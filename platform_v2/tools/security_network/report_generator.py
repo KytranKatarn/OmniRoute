@@ -10,7 +10,6 @@ Produces a structured report dict (and optional HTML) summarizing:
   - Speed test trend (if available)
 """
 
-import json
 import logging
 from datetime import datetime
 

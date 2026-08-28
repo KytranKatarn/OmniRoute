@@ -1,10 +1,9 @@
 """Process & Service Management Routes"""
 
 from flask import jsonify, request
-from flask_login import login_required, current_user
-from .helpers import get_db, audit_log, load_host_monitor_data
+from flask_login import login_required
+from .helpers import audit_log, load_host_monitor_data
 from .system_service import get_system_service
-from psycopg2.extras import RealDictCursor
 
 
 def register_process_routes(bp, admin_required_decorator):

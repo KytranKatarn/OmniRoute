@@ -11,7 +11,7 @@ only for non-agent tables (dept_work_sessions, bridge_jobs).
 """
 
 from functools import wraps
-from flask import render_template, jsonify, request
+from flask import render_template, jsonify
 from flask_login import current_user
 from database import get_db_cursor
 from services.agent_service import get_department_summary, get_org_chart

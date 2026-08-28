@@ -17,7 +17,6 @@ def register_ota_routes(bp, auth_decorator):
     @auth_decorator
     def api_push_agent_config(node_id):
         """Push current agent configuration to a node via mesh_sync_log."""
-        import psycopg2
 
         node = _get_node_for_user_by_int_id(node_id, current_user.id)
         if not node:
@@ -276,7 +275,6 @@ def register_ota_routes(bp, auth_decorator):
     @auth_decorator
     def api_push_code_update(node_id):
         """Push a code update request to a node."""
-        import psycopg2
 
         node = _get_node_for_user_by_int_id(node_id, current_user.id)
         if not node:

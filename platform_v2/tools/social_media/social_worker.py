@@ -17,7 +17,7 @@ from database import _get_db_password
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
@@ -113,7 +113,6 @@ def process_job(job: Dict) -> Dict:
         InstagramAPIError,
         TikTokAPIError,
     )
-    from .oauth_handler import get_oauth_token
 
     start_time = time.time()
     account_id = job["account_id"]

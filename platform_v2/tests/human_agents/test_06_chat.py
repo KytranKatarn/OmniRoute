@@ -20,7 +20,7 @@ import pytest
 import requests
 from playwright.sync_api import Browser
 
-from conftest import BASE_URL, load_agents, login_as, logout
+from conftest import BASE_URL, login_as, logout
 
 # EVERY test here drives a real browser (#5990). Module-level pytestmark is applied
 # during COLLECTION, before pytest's own -m filter runs — a conftest

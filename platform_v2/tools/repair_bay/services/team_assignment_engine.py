@@ -5,9 +5,9 @@ Automatically assigns agents to improvement proposals based on skills, availabil
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from datetime import datetime, timedelta
+from datetime import datetime
 from services.time_utils import now_local_str
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 import logging
 
 # Configure logging

@@ -23,9 +23,8 @@ import time
 import uuid
 import logging
 import requests
-import psycopg2
 from psycopg2.extras import RealDictCursor
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from enum import Enum
 from db import get_db

@@ -7,7 +7,6 @@ from datetime import datetime
 from flask import jsonify, request
 from psycopg2.extras import RealDictCursor
 from tools.backup_manager._shared import (
-    BACKUP_DIR,
     STANDALONE_PRODUCTS,
     backup_standalone,
     get_backup_db_cursor,

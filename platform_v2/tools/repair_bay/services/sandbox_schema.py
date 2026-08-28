@@ -14,7 +14,7 @@ from database import _get_db_password
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from psycopg2 import sql
-from typing import Dict, List, Optional
+from typing import Dict, List
 from datetime import datetime
 
 

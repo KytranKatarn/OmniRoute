@@ -1,5 +1,4 @@
 import os
-import pytest
 from services.audit_pipeline import resolve_proposal_source
 
 

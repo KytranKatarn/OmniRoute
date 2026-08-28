@@ -16,12 +16,10 @@ ENDPOINTS:
 import json
 import logging
 import os
-import sys
 
 from flask import jsonify, request
-from flask_login import login_required, current_user
+from flask_login import login_required
 from database import get_db_cursor
-from rbac import require_permission, Permission
 
 logger = logging.getLogger(__name__)
 

@@ -11,9 +11,8 @@ import os
 import subprocess
 import time
 import logging
-from datetime import datetime
 from flask import jsonify, request, Response, send_file
-from flask_login import login_required, current_user
+from flask_login import current_user
 from rbac import require_permission, Permission
 import psycopg2
 from database import get_db_cursor
@@ -30,9 +29,7 @@ from .fleet_helpers import (
 from .fleet_helpers import (
     _get_node_for_user,
     _get_node_for_user_by_int_id,
-    _get_user_nodes,
     _compute_node_status,
-    HEARTBEAT_TIMEOUT_SECONDS,
     LATEST_NODE_VERSION,
     validate_mesh_ip,
     node_inter_cluster_host,
@@ -4083,7 +4080,6 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
     @login_required
     def api_request_node():
         """Generate a setup token and pre-register a pending node for this user."""
-        import psycopg2
 
         user_id = current_user.id
         data = request.get_json() or {}
@@ -4641,7 +4637,6 @@ def register_node_routes(bp, login_required, admin_required):  # noqa: F811
           format      — json → return {command_linux, command_windows} for the UI modal
           deployment_mode — starship (default) | starbase_outpost
         """
-        import psycopg2
 
         user_id = current_user.id
         os_type = request.args.get("os", "linux").lower()

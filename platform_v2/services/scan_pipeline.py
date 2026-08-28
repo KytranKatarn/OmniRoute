@@ -10,7 +10,6 @@ Import:
 import json
 import logging
 
-from psycopg2.extras import RealDictCursor
 from database import get_db_cursor
 
 logger = logging.getLogger(__name__)

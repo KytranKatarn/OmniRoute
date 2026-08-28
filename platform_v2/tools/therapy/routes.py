@@ -1,7 +1,7 @@
 """Flask routes for the Therapy mental health companion tool."""
 
 from flask import render_template, jsonify, request
-from flask_login import login_required, current_user
+from flask_login import login_required
 from . import therapy_bp
 
 
@@ -20,9 +20,7 @@ from .services.therapy_service import (
     schedule_session,
     get_ai_context,
 )
-import sys
 import logging
-import re
 
 from tools.department_hq.services.department_dispatcher import dispatch_json
 

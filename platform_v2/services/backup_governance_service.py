@@ -6,7 +6,6 @@ Pre-deploy clearance checks + auto-snapshots before Repair Bay deploys.
 from __future__ import annotations
 import json
 import logging
-from datetime import datetime, timezone
 from typing import Any
 from database import get_db_cursor
 from services.backup_service import get_health_summary, snapshot_module

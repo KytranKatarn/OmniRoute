@@ -2,7 +2,6 @@
 """Unit tests for ollama_options helper (Phase 1 + 2a)."""
 from __future__ import annotations
 
-import datetime as _dt
 from unittest.mock import patch
 
 import pytest

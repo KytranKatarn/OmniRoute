@@ -8,7 +8,7 @@ Mirrors the Telegram approval flow so agents can be approved via either channel.
 import logging
 
 from flask import jsonify, request
-from flask_login import login_required, current_user
+from flask_login import current_user
 
 logger = logging.getLogger(__name__)
 

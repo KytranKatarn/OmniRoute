@@ -68,7 +68,6 @@ def _update_dns_records(new_ip):
     zone: [{name, type, ttl, records: [{content}]}]
     Only updates A records that point to a known old hub IP.
     """
-    import json
     import os
 
     import requests

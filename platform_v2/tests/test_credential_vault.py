@@ -5,7 +5,6 @@ Run: docker exec archie_platform python -m pytest tests/test_credential_vault.py
 
 from __future__ import annotations
 
-import json
 import os
 from unittest.mock import MagicMock, patch
 

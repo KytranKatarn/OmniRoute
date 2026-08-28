@@ -17,7 +17,6 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-import psycopg2.extras
 
 from database import get_db_cursor
 

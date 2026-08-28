@@ -19,7 +19,7 @@ from database import _get_db_password
 import re
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import psycopg2
 from psycopg2.extras import RealDictCursor

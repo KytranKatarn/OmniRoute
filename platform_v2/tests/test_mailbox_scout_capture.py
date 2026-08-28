@@ -3,10 +3,6 @@
 The archie_scraper HTTP calls and ingest_chat are stubbed — no network, no DB.
 """
 
-import types
-
-import pytest
-
 import services.mailbox_scout_capture as svc
 
 

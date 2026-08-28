@@ -12,7 +12,7 @@ Uses docker-compose to spin up complete sandbox environments with:
 import os
 import subprocess
 import json
-from typing import Dict, Optional
+from typing import Dict
 from datetime import datetime
 
 

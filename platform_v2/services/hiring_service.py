@@ -17,7 +17,6 @@ import json
 import logging
 from typing import Any, Optional
 
-import requests
 
 from database import get_db_cursor
 

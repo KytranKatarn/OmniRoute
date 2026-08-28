@@ -954,7 +954,6 @@ def api_deny_user(user_id):
 def _notify_user_approved(username, email):
     """Best-effort Telegram notification when a user is approved"""
     try:
-        import requests
 
         # Notify via platform's internal notification system
         with get_db_cursor() as (conn, cur):

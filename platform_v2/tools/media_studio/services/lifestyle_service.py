@@ -1,7 +1,7 @@
 """Lifestyle content generation — themed prompt building, M.U.S.E. refinement, caption + queue submit."""
 
 import logging
-from typing import Dict, Optional
+from typing import Dict
 
 from database import get_db_cursor
 

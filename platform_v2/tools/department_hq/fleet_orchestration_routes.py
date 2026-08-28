@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timezone
 
-from flask import current_app, jsonify, request
+from flask import jsonify, request
 
 from database import get_db_cursor
 

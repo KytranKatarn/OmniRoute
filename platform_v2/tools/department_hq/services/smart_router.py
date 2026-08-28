@@ -11,10 +11,8 @@ Implements the Hybrid LLM Optimization strategy:
 Based on the Claude Code CLI - Smart Usage & Hybrid LLM Optimization Guide
 """
 
-import json
 import logging
 import requests
-from decimal import Decimal
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum

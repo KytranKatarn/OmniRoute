@@ -121,7 +121,7 @@ These functions can be imported and called directly:
 LAST UPDATED: 2026-01-30
 """
 
-from flask import Blueprint, render_template, jsonify, request, send_file, current_app
+from flask import jsonify, request, current_app
 from functools import wraps
 from flask_login import current_user
 import logging
@@ -134,10 +134,7 @@ import subprocess
 import json
 from datetime import datetime, timedelta
 import shutil
-import tarfile
-import tempfile
 import psycopg2
-from psycopg2.extras import RealDictCursor
 import gzip
 import time
 import hashlib

@@ -1,6 +1,5 @@
 """Live Account Center briefing injected into R.E.S.O.L.V.E. chat context."""
 
-from psycopg2.extras import RealDictCursor
 from services.time_utils import now_local_str
 
 

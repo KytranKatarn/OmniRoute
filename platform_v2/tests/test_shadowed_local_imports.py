@@ -32,7 +32,6 @@ would have passed this file while the bug was live.
 import ast
 from pathlib import Path
 
-import pytest
 
 # Repo root: search for a marker rather than counting parents — inside the test container
 # platform_v2 is mounted AS /app, so parents[N] does not mean what it means on the host

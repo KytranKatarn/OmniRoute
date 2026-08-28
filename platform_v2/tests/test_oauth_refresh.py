@@ -1,7 +1,5 @@
 """Tests for OAuth refresh token flow and TTL changes."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 import time
 
 
@@ -42,7 +40,6 @@ def test_refresh_token_grant_recognized():
 def test_pyproject_version_is_1_1_0():
     """kytran-sdk pyproject.toml must declare version 1.1.0 with PyJWT dependency."""
     import tomllib
-    import pathlib
 
     # Was cwd-relative ("kytran-auth/pyproject.toml"); cwd is /app in the container, so it
     # resolved to /app/kytran-auth/... and never existed (#5994 family, #6016).

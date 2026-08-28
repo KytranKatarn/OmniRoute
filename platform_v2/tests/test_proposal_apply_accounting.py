@@ -19,7 +19,6 @@ import pathlib
 import re
 
 import pytest
-from tests.repo_root import repo_root
 
 _SVC = pathlib.Path(__file__).resolve().parents[1] / "services" / "proposal_service.py"
 # #5916, AGAIN: platform_v2 is bind-mounted at /app, so parents[2] from

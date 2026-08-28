@@ -1844,7 +1844,6 @@ class DepartmentDispatcher:
 
         Does NOT commit — caller owns the transaction.
         """
-        from psycopg2.extras import Json
 
         logger.info(
             "[ShiftLifecycle] %s (%d) → %s (reason: %s)",
@@ -5795,7 +5794,7 @@ class DepartmentDispatcher:
         try:
             # Relative intra-package import — smart_router lives alongside
             # this file in department_hq/services/ after Project #244 merge.
-            from .smart_router import get_router, TIER_ORDER
+            from .smart_router import get_router
 
             router = get_router()
             available = router.get_available_tiers()
@@ -9912,7 +9911,6 @@ class DepartmentDispatcher:
         Returns the result directly (synchronous within timeout).
         """
         try:
-            import requests
 
             # Find the right department for this capability
             department = get_dept_coordinator().resolve_department(capability)

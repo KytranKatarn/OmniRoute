@@ -8,8 +8,6 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from database import get_db_cursor
-
 
 def test_score_agent_blocks_inactive():
     """Agents with status != 'active' should score 0."""

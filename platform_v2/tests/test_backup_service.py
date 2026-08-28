@@ -4,7 +4,6 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import pytest
 
 
 def test_importable_without_flask():

@@ -16,7 +16,6 @@ from db import _get_db_password
 import secrets
 import sys
 import threading
-import time
 from datetime import datetime, timedelta
 from typing import Optional
 

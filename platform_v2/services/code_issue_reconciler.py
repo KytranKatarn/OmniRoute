@@ -279,6 +279,7 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
         "unverifiable": 0,
         "unreadable": 0,
         "archived": 0,
+        "cards_cancelled": 0,
         "dry_run": dry_run,
         "samples": [],
     }
@@ -344,7 +345,27 @@ def reconcile_open_proposals(limit: int = 3000, dry_run: bool = True, statuses=(
                 (PROPOSAL_STALE_REASON, to_archive, list(statuses)),
             )
             stats["archived"] = cur.rowcount
-        logger.info("[proposal-reconciler] archived %d stale proposal(s) of %d", stats["archived"], stats["examined"])
+            # An archived proposal's approval cards die WITH it — otherwise a
+            # stale ready_for_review twin keeps a live deploy_approve card that
+            # the owner can tap only to hit the sandbox gate's "patch does not
+            # apply" (6 taps burned on already-fixed findings, 2026-08-28).
+            cur.execute(
+                """UPDATE autonomy_approval_queue
+                   SET status = 'cancelled',
+                       rejected_reason = 'proposal archived: finding no longer reproduces (reconciler_5004)',
+                       updated_at = NOW()
+                   WHERE status = 'pending'
+                     AND action_type IN ('deploy_approve', 'improvement_approve_red')
+                     AND action_data->>'proposal_id' = ANY(%s)""",
+                ([str(pid) for pid in to_archive],),
+            )
+            stats["cards_cancelled"] = cur.rowcount
+        logger.info(
+            "[proposal-reconciler] archived %d stale proposal(s) of %d (%d approval card(s) cancelled)",
+            stats["archived"],
+            stats["examined"],
+            stats["cards_cancelled"],
+        )
     else:
         logger.info(
             "[proposal-reconciler] dry-run: %d stale / %d examined (%d present, %d unverifiable, %d unreadable)",

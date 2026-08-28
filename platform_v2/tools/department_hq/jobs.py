@@ -645,7 +645,13 @@ def code_health_reconcile_job():
         logger.warning("code_health_reconcile: issue pass failed: %s", exc)
         out["issues"] = {"error": str(exc)}
     try:
-        out["proposals"] = reconcile_open_proposals(limit=3000, dry_run=False)
+        # ready_for_review included since 2026-08-28: a built-but-undeployed fix whose
+        # finding another PR already resolved (the #2896 twin shape) was invisible to
+        # the approved-only default — it kept a live deploy_approve card that could
+        # only ever fail the sandbox gate with "patch does not apply".
+        out["proposals"] = reconcile_open_proposals(
+            limit=3000, dry_run=False, statuses=("approved", "ready_for_review")
+        )
     except Exception as exc:
         logger.warning("code_health_reconcile: proposal pass failed: %s", exc)
         out["proposals"] = {"error": str(exc)}

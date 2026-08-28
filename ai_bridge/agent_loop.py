@@ -348,6 +348,29 @@ def _check_existing_approval(action_type: str, action_data: dict, cur) -> bool:
             )
             return cur.fetchone() is not None
 
+    if action_type == "improvement_approve_red":
+        # Dedup on (action_type, proposal_id) — the FOURTH instance of the coarse-dedup
+        # trap (contractor_dispatch, linkedin_post #3944, pr_merge #5829, deploy_approve).
+        # Under the coarse check only ONE red finding could card at a time: 11 audit reds
+        # sat pending 5-16 days while autoheal's re-carder minted one card per day, each
+        # expiring in 24h (2026-08-28). Distinct red findings are independent owner
+        # decisions; the SAME proposal still can never queue twice, and a payload without
+        # proposal_id falls through to the coarse check rather than bypass dedup.
+        pid = (action_data or {}).get("proposal_id")
+        if pid:
+            cur.execute(
+                """
+                SELECT id FROM autonomy_approval_queue
+                WHERE action_type = %s
+                  AND status = 'pending'
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                  AND action_data->>'proposal_id' = %s
+                LIMIT 1
+                """,
+                (action_type, str(pid)),
+            )
+            return cur.fetchone() is not None
+
     if action_type == "contractor_dispatch":
         agent = (action_data or {}).get("agent")
         capability = (action_data or {}).get("capability")
@@ -6501,9 +6524,14 @@ class AgentLoop:
                         gate["passed_count"],
                         gate["total"],
                     )
+                    # Lead with the gate's own error when it has one — "0/0 P.R.O.B.E.
+                    # tests" hides the real cause (e.g. patch drift on an already-fixed
+                    # finding) three levels deep in the sandbox payload (2026-08-28).
+                    gate_error = (gate.get("error") or "").strip()
+                    reason = gate_error or f"{gate['passed_count']}/{gate['total']} P.R.O.B.E. tests passed"
                     return {
                         "executed": False,
-                        "error": f"Sandbox gate failed ({gate['passed_count']}/{gate['total']} P.R.O.B.E. tests). Production deploy blocked.",
+                        "error": f"Sandbox gate failed: {reason[:220]} Production deploy blocked.",
                         "sandbox": gate,
                     }
 

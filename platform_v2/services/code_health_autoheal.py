@@ -86,14 +86,21 @@ def _reverify_static(fingerprints):
 
 
 def _load_unapproved_reds():
-    """Red static proposals still awaiting owner permission with NO live pending
-    card — created before the red gate existed, or their 24h card expired."""
+    """Red proposals still awaiting owner permission with NO live pending card —
+    created before the red gate existed, or their 24h card expired.
+
+    Covers BOTH red producers: deep-scan statics (scan_tier='static') AND the
+    audit pipeline (source='code_health_audit'), which stamps no scan_tier at
+    all. Matching only the static stamp left 11 audit reds pending 5-16 days
+    with no card — invisible in the Approvals tab by construction (2026-08-28).
+    Unknown third-party producers stay out of scope on purpose."""
     from database import get_db_cursor
 
     with get_db_cursor(commit=False) as (conn, cur):
         cur.execute(
             """SELECT p.id, p.title FROM improvement_proposals p
-               WHERE p.metadata->>'scan_tier' = 'static'
+               WHERE (p.metadata->>'scan_tier' = 'static'
+                      OR p.metadata->>'source' = 'code_health_audit')
                  AND p.metadata->>'severity_tier' = 'red'
                  AND p.status = 'pending'
                  AND NOT EXISTS (

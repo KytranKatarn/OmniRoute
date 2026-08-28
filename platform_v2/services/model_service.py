@@ -69,6 +69,51 @@ _GPU_FIT_HEADROOM = 1.4
 # NOT the _GPU_FIT_HEADROOM-inflated figure — this is about compute, not fit.
 _CPU_VIABLE_MAX_GB = float(os.getenv("ARCHIE_CPU_VIABLE_MAX_GB", "4.0"))
 
+# Per-card GPU telemetry (#5273 / #6106): scripts/gpu_state_exporter.py (host cron,
+# 1-min) writes platform_v2/.runtime/gpu_state.json, bind-mounted into the
+# containers as /app/.runtime/gpu_state.json. Real per-card free VRAM replaces
+# get_gpu_fit_budget's worst-case guess whenever a FRESH file exists; a missing or
+# stale file falls back to the guess, so the exporter dying can only ever make
+# placement more conservative, never wrong. The second path serves host-side runs
+# (tests, scripts) where /app does not exist. Freshness window is 3 exporter
+# periods — one missed cron tick must not flap the budget source.
+_GPU_STATE_PATHS = (
+    # An explicit env path is the SOLE source — tests pin it to a nonexistent
+    # file (tests/conftest.py) so budget arithmetic never depends on whatever
+    # real telemetry happens to sit on the box running the suite.
+    (os.environ["ARCHIE_GPU_STATE_PATH"],)
+    if os.getenv("ARCHIE_GPU_STATE_PATH")
+    else (
+        "/app/.runtime/gpu_state.json",
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".runtime", "gpu_state.json"),
+    )
+)
+_GPU_STATE_MAX_AGE_S = float(os.getenv("ARCHIE_GPU_STATE_MAX_AGE_S", "180"))
+
+
+def read_gpu_state() -> Optional[Dict]:
+    """Fresh per-card telemetry from the host exporter, or None.
+
+    None means "no trustworthy per-card data" — unreadable, unparseable, empty
+    cards, or older than _GPU_STATE_MAX_AGE_S — and callers must fall back to
+    the worst-case budget. Never raises (json/os/time only, per this module's
+    no-DB-machinery constraint)."""
+    for path in _GPU_STATE_PATHS:
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                state = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        ts = state.get("ts")
+        cards = state.get("cards") or []
+        if not isinstance(ts, (int, float)) or not cards:
+            continue
+        if time.time() - ts > _GPU_STATE_MAX_AGE_S:
+            continue
+        return state
+    return None
+
+
 # Models required by the Consciousness / embedding pipeline — never evict first
 CONSCIOUSNESS_MODELS = {"arctic-embed-cpu:latest", "mistral:7b"}
 
@@ -246,8 +291,25 @@ class ModelService:
         correct) whereas under-estimating means a partial offload or an eviction
         of the warm set.
 
-        Removing the guesswork needs real per-card telemetry — task #5273.
+        PER-CARD TELEMETRY (#5273, delivered 2026-08-28): when the host exporter's
+        gpu_state.json is FRESH, the budget is the real free VRAM of the freest
+        card — nvidia-smi ground truth that also sees non-Ollama consumers
+        (ComfyUI). Measured the day this shipped: the worst-case guess read a
+        1.3 GB budget and sent qwen2.5-coder:7b/phi3.5 to CPU while the TITAN
+        held 5.7 GB free (mistral got GPU @ 10.5s avg; qwen2.5:7b on CPU ran
+        61s avg with 85 failures/6h). Still min()'d against the /api/ps
+        aggregate so a model mid-load in the 30s cache window cannot be
+        double-counted as free.
+
+        The worst-case guess below remains the FALLBACK for a missing/stale
+        file — an exporter that dies makes placement more conservative, never
+        wrong, and gpu_state_monitor alarms on the staleness.
         """
+        state = read_gpu_state()
+        if state is not None:
+            freest_card_gb = max((c.get("mem_free_mb") or 0) for c in state["cards"]) / 1024.0
+            return min(self.get_available_vram(), freest_card_gb)
+
         used = max(0.0, _VRAM_TOTAL_GB - self.get_available_vram())
         largest_card_free = max(0.0, _VRAM_LARGEST_GPU_GB - used)
         return min(self.get_available_vram(), largest_card_free)

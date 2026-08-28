@@ -718,6 +718,77 @@ def hub_deploy_state_monitor_job():
         logger.warning("hub_deploy_state_monitor alert failed: %s", e)
 
 
+def gpu_state_monitor_job():
+    """GPU/Xid watchdog (#5273 / #6106): an Xid 79 'fallen off the bus' hid as
+    'the hub is slow' for 8 days once (#5595) and again on 2026-08-28. Reads the
+    per-card telemetry file the host exporter writes (the SAME file
+    model_service.get_gpu_fit_budget places against) and pages on:
+
+      * STALE/MISSING file — the exporter died; placement silently fell back to
+        the worst-case budget. Unmonitored-while-appearing-monitored guard.
+      * recent NVRM Xid lines — a card is failing, not slow. Deliberately NOT
+        alarming on an idle/empty card: empty GPUs are a resting state.
+      * fewer cards than expected (a card fell off the bus entirely).
+
+    Advisory only; dedup'd on a condition fingerprint so a standing condition
+    pages once. Toggle: work-control key 'gpu_state_monitor' (default ON)."""
+    from services.work_control_service import is_enabled
+
+    if not is_enabled("gpu_state_monitor", default=True):
+        return
+    import json as _json
+    import os as _os
+    import time as _time
+
+    expected_cards = int(_os.getenv("ARCHIE_GPU_EXPECTED_CARDS", "2"))
+    path = _os.getenv("ARCHIE_GPU_STATE_PATH", "/app/.runtime/gpu_state.json")
+    condition = None
+    detail = ""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            state = _json.load(fh)
+        age_s = _time.time() - float(state.get("ts") or 0)
+        cards = state.get("cards") or []
+        xid = int(state.get("xid_recent") or 0)
+        if age_s > 600:
+            condition = "stale"
+            detail = f"telemetry {age_s/60:.0f} min old — exporter dead; placement is on the worst-case fallback"
+        elif xid > 0:
+            condition = "xid"
+            detail = f"{xid} NVRM Xid line(s) in the kernel journal (10-min window) — a GPU is FAILING, not slow"
+        elif len(cards) < expected_cards:
+            condition = "cards"
+            detail = f"only {len(cards)}/{expected_cards} GPUs visible to nvidia-smi"
+    except (OSError, ValueError, TypeError):
+        condition = "missing"
+        detail = f"{path} unreadable — exporter not installed or dead; placement is on the worst-case fallback"
+    if not condition:
+        return
+    fingerprint = f"{condition}:{detail[:60]}"
+    try:
+        from database import get_db_cursor
+
+        with get_db_cursor(commit=True) as (conn, cur):
+            cur.execute("SELECT value FROM platform_settings WHERE key = 'gpu_state:advisory:last'")
+            row = cur.fetchone()
+            if row and row["value"] == fingerprint:
+                return
+            cur.execute(
+                """INSERT INTO platform_settings (key, value, description)
+                   VALUES ('gpu_state:advisory:last', %s, 'gpu_state_monitor dedup fingerprint')
+                   ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()""",
+                (fingerprint,),
+            )
+    except Exception as e:
+        logger.warning("gpu_state_monitor dedup failed (alerting anyway): %s", e)
+    try:
+        from services.telegram_service import send_system
+
+        send_system(f"GPU watchdog: {condition}", detail)
+    except Exception as e:
+        logger.warning("gpu_state_monitor alert failed: %s", e)
+
+
 def code_health_reverify_job():
     """Daily loop closure: re-audit deployed proposals INDEPENDENTLY of audit-all.
 
@@ -1621,6 +1692,19 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=30),
         id="hub_deploy_state_monitor",
         name="Ship: Hub deploy advisory (volume-mounted tree)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # GPU/Xid watchdog (#5273/#6106): pages when a card is FAILING (Xid), lost,
+    # or when the per-card telemetry feeding placement goes stale. Never again
+    # should a dead GPU read as "the hub is slow" for a week (#5595).
+    scheduler.add_job(
+        with_ctx(gpu_state_monitor_job),
+        trigger=IntervalTrigger(minutes=5),
+        id="gpu_state_monitor",
+        name="Fleet: GPU per-card/Xid watchdog",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

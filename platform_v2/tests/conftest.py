@@ -78,6 +78,13 @@ os.environ.setdefault("DB_USER", "archie")
 os.environ.setdefault("DB_PASSWORD", "test_password")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("FLASK_SECRET_KEY", "test-secret-key")
+# GPU per-card telemetry (#5273): the REAL exporter file is bind-mounted at
+# /app/.runtime/gpu_state.json, so without this pin every budget/placement test
+# would compute against whatever the box's GPUs held at that moment. An env
+# path, when set, is the SOLE path model_service reads — pinning it to a
+# nonexistent file makes get_gpu_fit_budget deterministically use its
+# worst-case fallback; tests that WANT telemetry monkeypatch _GPU_STATE_PATHS.
+os.environ.setdefault("ARCHIE_GPU_STATE_PATH", "/nonexistent/gpu_state_test_pin.json")
 
 
 _SCHEMA_FINGERPRINT_SQL = """

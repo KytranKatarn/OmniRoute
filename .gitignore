@@ -203,3 +203,6 @@ platform_v2/static/media/thumbs/
 scripts/opencode
 OPERATIONAL_RUNBOOK.md
 account-center-snap.md
+
+# GPU per-card telemetry (#5273) — written by scripts/gpu_state_exporter.py host cron
+platform_v2/.runtime/

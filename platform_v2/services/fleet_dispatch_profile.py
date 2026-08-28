@@ -252,6 +252,20 @@ def get_focus_warm_model() -> str:
         return ""
 
 
+def focus_active(family: str) -> bool:
+    """True when PLATFORM mode is armed with an AUX POWER focus on ``family``.
+
+    The reusable predicate for focus-conditional behaviour outside the queue
+    drain (#6099): batch-size boosts, job pacing, any "while the operator has
+    full power on X" branch. Reads both config keys; fail-safe False so a DB
+    hiccup can never leave a boost stuck on.
+    """
+    try:
+        return get_dispatch_mode() == "platform" and get_dispatch_focus() == family
+    except Exception:
+        return False
+
+
 def aux_reserve_applies(module_id: Optional[str], mode: str, focus: str) -> bool:
     """PURE: should the aux slot reserve bind for THIS dispatch?
 

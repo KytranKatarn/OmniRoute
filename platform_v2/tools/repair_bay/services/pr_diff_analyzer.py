@@ -1802,6 +1802,26 @@ def _json_reprompt_enabled() -> bool:
     )
 
 
+def _review_preferred_nodes() -> list:
+    """Node preference for the 7B review dispatches — the dispatcher's ``_REVIEW_CLUSTER``
+    (#5861: Runabout FIRST, then Defiant — Runabout measured 98-100% on both review models
+    while Defiant timed out 3/3 at 600s on 2026-08-28; #6099 wired the sites here, which
+    until then carried an explicit pre-#5861 pin of Defiant+hub that WON over the
+    capability affinity and routed every direct review leg to the slow path).
+
+    Falls back to the old literal (Defiant, hub) if the import ever breaks, so a
+    dispatcher refactor cannot silently strand reviews with no preference at all.
+    NOTE: the gemma3:12b self-refute auditor deliberately does NOT use this — the 4GB
+    Runabout cannot hold a 12B (required 24GB > 11.7GB RAM), so it keeps Defiant+hub.
+    """
+    try:
+        from tools.department_hq.services.department_dispatcher import _REVIEW_CLUSTER
+
+        return list(_REVIEW_CLUSTER)
+    except Exception:
+        return ["starship_76583490e36955ab", "archie-starbase"]
+
+
 def _dispatch_json_review(prompt: str, kw: dict):
     """One structured (json_mode) review dispatch. Returns ``(parsed_dict_or_None, status)`` where
     status is 'parsed' | 'parse_fail' | 'queued' | 'error' | 'empty'. Shared by the first structured
@@ -1817,7 +1837,7 @@ def _dispatch_json_review(prompt: str, kw: dict):
             prompt=prompt,
             module_id="repair_bay",
             json_mode=True,
-            preferred_node=["starship_76583490e36955ab", "archie-starbase"],
+            preferred_node=_review_preferred_nodes(),  # #5861/#6099: Runabout-first
             num_ctx=_review_num_ctx(),
             **({"prefer_agent": _pa} if _pa else {}),
             **kw,
@@ -2426,15 +2446,14 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff
             prompt=prompt,
             module_id="repair_bay",
             num_ctx=_review_num_ctx(),
-            # Pin PR review to capable nodes (#4300): the RTX 3070 Defiant (246)
-            # when it's up, else the always-on hub M4000 — both run F.O.R.G.E.'s
-            # 7B reliably. This explicitly EXCLUDES the 4GB Runabout (245), where
-            # mistral:7b stalls mid-review and leaves the row stuck 'in_progress'.
-            # Explicit preferred_node wins over CAPABILITY_NODE_AFFINITY.
-            preferred_node=[
-                "starship_76583490e36955ab",
-                "archie-starbase",
-            ],  # node_id (rename-safe): Defiant(.246) RTX3070 then hub M4000; excludes 4GB Runabout (#4342)
+            # #5861/#6099: Runabout-first via the dispatcher's _REVIEW_CLUSTER. The old
+            # #4300/#4342 pin (Defiant then hub, Runabout EXCLUDED over a mistral:7b
+            # stall) is SUPERSEDED by measurement: reviews run qwen2.5/coder:7b now, and
+            # Runabout served them at 98-100% (incl. a 1,276s pass) while the explicit
+            # Defiant pin bought 600s timeouts. Explicit preferred_node wins over
+            # CAPABILITY_NODE_AFFINITY, which is exactly how the stale pin shadowed the
+            # #5861 fix for three days.
+            preferred_node=_review_preferred_nodes(),
             # #6040: P.R.O.B.E. reviews machine-authored PRs (see _review_prefer_agent)
             **({"prefer_agent": _pa} if (_pa := _review_prefer_agent()) else {}),
         )

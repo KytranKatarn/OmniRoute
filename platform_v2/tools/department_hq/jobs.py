@@ -826,6 +826,18 @@ def code_health_backlog_drain_job():
             logger.warning("deterministic fix pass failed (non-blocking): %s", _de)
 
         max_fixes = _drain_int_setting("work:code_health_backlog_drain:max_fixes", 15)
+        # #6099 AUX POWER: while the operator has PLATFORM focus armed on repair_bay,
+        # widen the drain batch — "full power to Repair Bay" should move fix THROUGHPUT,
+        # not just queue order. Own key so the boost is tunable without touching the
+        # everyday cap; focus_active is fail-safe False, so a config/DB hiccup can never
+        # leave the boost stuck on. Deploy stays human-gated regardless of batch size.
+        try:
+            from services.fleet_dispatch_profile import focus_active
+
+            if focus_active("repair_bay"):
+                max_fixes = _drain_int_setting("work:code_health_backlog_drain:focus_max_fixes", max_fixes * 2)
+        except Exception as _fe:
+            logger.warning("focus boost check failed (non-blocking): %s", _fe)
         result = dispatch_audit_proposals(limit=max_fixes) or {}
         logger.info("[CodeHealthBacklogDrain] %s (max_fixes=%s)", result, max_fixes)
         _log_cycle(

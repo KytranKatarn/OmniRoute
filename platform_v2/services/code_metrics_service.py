@@ -1939,58 +1939,15 @@ def log_audit(
         )
         audit_id = cur.fetchone()["id"]
 
-        # Bridge: create/update an improvement_proposal when issues are found
-        if issues_found > 0:
-            cur.execute(
-                """SELECT id FROM improvement_proposals
-                   WHERE module_name = %s
-                     AND proposal_source = 'code_health_scan'
-                     AND status NOT IN ('implemented', 'rejected', 'deployed')
-                   ORDER BY proposed_at DESC LIMIT 1""",
-                (module_name,),
-            )
-            existing = cur.fetchone()
-            priority = "high" if issues_found >= 10 else "medium"
-            meta = _json.dumps(
-                {
-                    "audit_id": audit_id,
-                    "files_reviewed": files_reviewed,
-                    "lines_before": lines_before,
-                    "lines_after": lines_after,
-                    "audit_profile": audit_profile,
-                    "trigger_reason": trigger_reason,
-                    "issues_fixed": issues_fixed,
-                }
-            )
-            if existing:
-                cur.execute(
-                    """UPDATE improvement_proposals
-                       SET title = %s, description = %s, priority = %s,
-                           metadata = %s::jsonb, proposed_at = NOW()
-                       WHERE id = %s""",
-                    (
-                        f"Code Health: {issues_found} issue(s) in {module_name}",
-                        notes or f"{issues_found} issue(s) detected by code health scan",
-                        priority,
-                        meta,
-                        existing["id"],
-                    ),
-                )
-            else:
-                cur.execute(
-                    """INSERT INTO improvement_proposals
-                           (title, description, category, priority, status,
-                            module_name, proposal_source, metadata)
-                       VALUES (%s, %s, 'code_quality', %s, 'proposed',
-                               %s, 'code_health_scan', %s::jsonb)""",
-                    (
-                        f"Code Health: {issues_found} issue(s) in {module_name}",
-                        notes or f"{issues_found} issue(s) detected by code health scan",
-                        priority,
-                        module_name,
-                        meta,
-                    ),
-                )
+        # The per-module roll-up proposal writer that lived here until 2026-08-28
+        # (proposal_source='code_health_scan', "Code Health: N issue(s) in X") is
+        # RETIRED — task #6107. It was a second sheet beside the per-finding
+        # proposals audit_pipeline.process_audit_findings mints from the same
+        # audit run: 44 duplicate rows that no code path ever read (zero readers
+        # of proposal_source='code_health_scan'), inflating every unfiltered
+        # Repair Bay count. improvement_proposals keyed by finding_fingerprint
+        # is the one master sheet; code_audit_log stays the raw audit history.
+        # Existing rows archived by scripts/2026-08-28_archive_rollup_proposals.sql.
 
         return audit_id
 

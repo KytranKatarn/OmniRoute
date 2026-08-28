@@ -1458,7 +1458,7 @@ def register_code_health_routes(bp, admin_required):
                        FROM improvement_proposals
                        WHERE metadata->>'source' = 'code_health_audit'
                          AND metadata->>'file_path' LIKE %s
-                         AND status NOT IN ('archived', 'rejected')
+                         AND status NOT IN ('archived', 'rejected', 'deployed')
                        ORDER BY id DESC
                        LIMIT 20""",
                     (module_path_pattern,),

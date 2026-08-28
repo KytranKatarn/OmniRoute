@@ -514,6 +514,7 @@ def deploy_via_merge(pr_number: int, proposal_id: int = None) -> Dict:
 
                                 mark_stale_audits([affected])
                                 logger.info(f"[FORGE] Marked {affected} audit stale after deploy")
+                                _reaudit_module(affected)
                 finally:
                     cur2.close()
             finally:
@@ -601,11 +602,41 @@ def complete_proposal_after_merge(proposal_id: int, pr_number: int) -> bool:
                         from services.code_metrics_service import mark_stale_audits
 
                         mark_stale_audits([parts[idx + 1]])
+                        _reaudit_module(parts[idx + 1])
         except Exception as bridge_err:
             logger.warning(
                 "complete_proposal_after_merge: stale-audit bridge failed for #%s: %s", proposal_id, bridge_err
             )
     return flipped
+
+
+# Post-merge re-audits already run for this module within the TTL are skipped —
+# a bulk approval settles several proposals for the same module in one poll
+# cycle, and one fresh audit covers them all.
+_REAUDIT_RECENT: Dict = {}
+_REAUDIT_TTL_S = 120
+
+
+def _reaudit_module(module_key):
+    """Re-run the static audit for one module right after its fix merges, so the
+    Code Health "Issues" count decrements within the poll cycle instead of
+    holding the pre-fix number until the nightly audit-all (mark_stale_audits
+    alone only flips a stale flag — the old count stays on screen, task #6107).
+    Best-effort: a failed audit never blocks merge settlement."""
+    import time as _time
+
+    now = _time.time()
+    if now - _REAUDIT_RECENT.get(module_key, 0) < _REAUDIT_TTL_S:
+        return
+    _REAUDIT_RECENT[module_key] = now
+    try:
+        from tools.consciousness.code_health_routes import run_code_health_audit
+
+        payload, _status = run_code_health_audit(module_key)
+        result = (payload.get("results") or [{}])[0] if payload.get("success") else {}
+        logger.info("[FORGE] post-merge re-audit of %s: issues now %s", module_key, result.get("issues", "unknown"))
+    except Exception:
+        logger.warning("[FORGE] post-merge re-audit failed for %s", module_key, exc_info=True)
 
 
 def complete_merged_fix_proposals() -> Dict:

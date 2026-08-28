@@ -83,6 +83,65 @@ class TestFocusActive:
         assert fdp.focus_active("repair_bay") is False
 
 
+class TestFocusDemotionNodes:
+    """#6099 p2 — steering NON-family direct dispatches off the focus cluster head."""
+
+    def _arm(self, monkeypatch, mode="platform", focus="repair_bay"):
+        monkeypatch.setattr(fdp, "get_dispatch_mode", lambda: mode)
+        monkeypatch.setattr(fdp, "get_dispatch_focus", lambda: focus)
+
+    def test_non_family_work_is_steered_off_runabout_under_focus(self, monkeypatch):
+        self._arm(monkeypatch)
+        assert fdp.focus_demotion_nodes("wtf_hub") == (_RUNABOUT,)
+        assert fdp.focus_demotion_nodes(None) == (_RUNABOUT,)
+
+    def test_family_work_is_NEVER_steered(self, monkeypatch):
+        self._arm(monkeypatch)
+        for mod in ("repair_bay", "code_health", "forge", "audit_pipeline"):
+            assert fdp.focus_demotion_nodes(mod) == ()
+
+    def test_keep_warm_infrastructure_is_NEVER_steered(self, monkeypatch):
+        # the warm ping must be able to warm the protected node itself
+        self._arm(monkeypatch)
+        for mod in ("kin_warmth", "fleet_warmup"):
+            assert fdp.focus_demotion_nodes(mod) == ()
+
+    def test_no_steering_outside_platform_mode_or_without_focus(self, monkeypatch):
+        self._arm(monkeypatch, mode="auto")
+        assert fdp.focus_demotion_nodes("wtf_hub") == ()
+        self._arm(monkeypatch, mode="platform", focus="")
+        assert fdp.focus_demotion_nodes("wtf_hub") == ()
+
+    def test_focus_family_without_protected_nodes_steers_nothing(self, monkeypatch):
+        self._arm(monkeypatch, focus="email")  # valid family, no FAMILY_FOCUS_NODES entry
+        assert fdp.focus_demotion_nodes("wtf_hub") == ()
+
+    def test_fail_safe_empty_when_config_read_raises(self, monkeypatch):
+        def _boom():
+            raise RuntimeError("db down")
+
+        monkeypatch.setattr(fdp, "get_dispatch_mode", _boom)
+        assert fdp.focus_demotion_nodes("wtf_hub") == ()
+
+    def test_protected_ids_are_varchar_node_ids_not_int_ids(self):
+        # fleet identity invariants: never the int remote_nodes.id
+        for nodes in fdp.FAMILY_FOCUS_NODES.values():
+            for n in nodes:
+                assert isinstance(n, str) and not n.isdigit()
+
+    def test_dispatcher_steer_matches_on_node_key_and_falls_through(self):
+        import inspect as _inspect
+
+        from tools.department_hq.services import department_dispatcher as dd
+
+        src = _inspect.getsource(dd.DepartmentDispatcher._find_fleet_agent_for_hub_agent)
+        assert "rn.node_id AS node_key" in src, "picker must expose the varchar node_id"
+        # the steer lives at the CALL SITE (request_work), mirrors the #4343 cap skip
+        module_src = _inspect.getsource(dd)
+        assert "focus_demotion_nodes(module_id)" in module_src
+        assert '_node_assign.get("node_key")' in module_src, "must match varchar, never int id"
+
+
 class TestDrainFocusBoostWiring:
     def test_drain_job_reads_focus_max_fixes_behind_focus_active(self):
         from tools.department_hq import jobs

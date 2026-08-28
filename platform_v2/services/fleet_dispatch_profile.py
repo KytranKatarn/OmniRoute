@@ -252,6 +252,43 @@ def get_focus_warm_model() -> str:
         return ""
 
 
+# ── AUX POWER phase 3 (#6099 p2): protected cluster-head node(s) per family ──
+#
+# While a focus is armed, NON-family direct dispatches are STEERED (never hard-
+# blocked) away from the family's cluster-head node so focused work always finds
+# its best hardware free. varchar remote_nodes.node_id values — NEVER the int
+# id (the fleet identity invariants trap). Only families with a measured cluster
+# head are listed; a missing entry means no steering for that focus.
+FAMILY_FOCUS_NODES = {
+    "repair_bay": ("starship_5501c2766526e746",),  # Runabout — the #5861 review cluster head
+}
+
+
+def focus_demotion_nodes(module_id: Optional[str]) -> tuple:
+    """varchar node_ids a NON-family dispatch should be steered away from.
+
+    Empty tuple (= no steering) unless ALL hold: platform mode, a valid armed
+    focus, that family has protected nodes, and THIS dispatch is neither family
+    work nor keep-warm infrastructure (the warm ping must be able to warm the
+    protected node itself). Fail-safe () on any error — steering is an
+    optimisation, never a correctness gate.
+    """
+    try:
+        if get_dispatch_mode() != "platform":
+            return ()
+        focus = get_dispatch_focus()
+        if not focus:
+            return ()
+        mod = (module_id or "").strip().lower()
+        if any(k in mod for k in NEVER_BOOST_MODULES):
+            return ()
+        if is_family_queue_row(module_id, focus):
+            return ()
+        return tuple(FAMILY_FOCUS_NODES.get(focus, ()))
+    except Exception:
+        return ()
+
+
 def focus_active(family: str) -> bool:
     """True when PLATFORM mode is armed with an AUX POWER focus on ``family``.
 

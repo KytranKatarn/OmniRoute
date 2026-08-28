@@ -2694,7 +2694,7 @@ class DepartmentDispatcher:
                 f"""
                 SELECT na.model,
                        COALESCE(na.display_name, a.display_name, a.name) AS display_name,
-                       rn.id as node_id, rn.node_name,
+                       rn.id as node_id, rn.node_id AS node_key, rn.node_name,
                        rn.hostname, rn.port, rn.vpn_ip, rn.mesh_ip,
                        rn.bridge_priority,
                        COALESCE(load_5m.task_count, 0) AS recent_load
@@ -6901,6 +6901,31 @@ class DepartmentDispatcher:
                         capability,
                     )
                     _node_assign = None
+                # #6099 p2 AUX POWER focus steer: while a platform focus is armed,
+                # NON-family work whose agent is stationed on the focus family's
+                # cluster-head node falls through to score-routing/hub instead of
+                # pinning that node — a soft steer mirroring the #4343 cap skip
+                # above (fall-through, never a drop). Family work + keep-warm are
+                # exempt INSIDE focus_demotion_nodes, which fail-safes to () so a
+                # config/DB hiccup can never affect routing. Matches on the
+                # varchar node_key (rn.node_id), never the int id (fleet
+                # identity invariants).
+                if _node_assign:
+                    try:
+                        from services.fleet_dispatch_profile import focus_demotion_nodes
+
+                        _steer = focus_demotion_nodes(module_id)
+                        if _steer and str(_node_assign.get("node_key") or "") in _steer:
+                            logger.info(
+                                "[BridgeDispatcher] Focus steer (#6099): non-family '%s' (module=%s) "
+                                "off protected node %s — falling through to score-routing/hub",
+                                capability,
+                                module_id,
+                                _node_assign["node_name"],
+                            )
+                            _node_assign = None
+                    except Exception:
+                        pass
                 if _node_assign:
                     logger.info(
                         "[BridgeDispatcher] Node-preference: %s@%s for '%s' (agent %s stationed on fleet)",

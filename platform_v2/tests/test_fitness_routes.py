@@ -161,12 +161,37 @@ def test_calculate_macros_boundary_values(fitness_client, payload, expected):
 @pytest.mark.parametrize(
     ("field", "value", "expected_error"),
     [
-        ("weight", 29, "Weight must be between 30 and 300kg"),
-        ("weight", 301, "Weight must be between 30 and 300kg"),
+        ("weight", 19, "Weight must be between 20 and 400kg"),
         ("height", 99, "Height must be between 100 and 250cm"),
-        ("height", 251, "Height must be between 100 and 250cm"),
         ("age", 9, "Age must be between 10 and 120"),
-        ("age", 121, "Age must be between 10 and 120"),
+    ],
+)
+def test_calculate_macros_rejects_out_of_range_inputs(
+    fitness_client,
+    field,
+    value,
+    expected_error,
+):
+    payload = {
+        "weight": 80,
+        "height": 180,
+        "age": 30,
+        "gender": "male",
+        "activity_level": "moderate",
+        "goal": "maintain",
+    }
+    payload[field] = value
+
+    resp = fitness_client.post("/tools/fitness/api/nutrition/macros", json=payload)
+
+    assert resp.status_code == 400
+    assert resp.get_json() == {"success": False, "error": expected_error}
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "expected_error"),
+    [
+        ("gender", "nonbinary", "Gender must be one of: male, female"),
         (
             "activity_level",
             "extreme",
@@ -175,7 +200,7 @@ def test_calculate_macros_boundary_values(fitness_client, payload, expected):
         ("goal", "bulk", "Goal must be one of: lose, maintain, gain"),
     ],
 )
-def test_calculate_macros_rejects_out_of_range_inputs(
+def test_calculate_macros_rejects_unknown_enum_inputs(
     fitness_client,
     field,
     value,

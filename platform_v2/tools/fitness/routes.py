@@ -407,7 +407,7 @@ def calculate_macros():
         )
 
     numeric_ranges = (
-        ("Weight", weight, 30, 300, "kg"),
+        ("Weight", weight, 20, 400, "kg"),
         ("Height", height, 100, 250, "cm"),
         ("Age", age, 10, 120, ""),
     )
@@ -424,7 +424,19 @@ def calculate_macros():
                 400,
             )
 
-    valid_activity_levels = {"sedentary", "light", "moderate", "active", "very_active"}
+    valid_genders = ("male", "female")
+    if gender not in valid_genders:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": "Gender must be one of: male, female",
+                }
+            ),
+            400,
+        )
+
+    valid_activity_levels = ("sedentary", "light", "moderate", "active", "very_active")
     if activity_level not in valid_activity_levels:
         return (
             jsonify(
@@ -436,7 +448,7 @@ def calculate_macros():
             400,
         )
 
-    valid_goals = {"lose", "maintain", "gain"}
+    valid_goals = ("lose", "maintain", "gain")
     if goal not in valid_goals:
         return (
             jsonify(

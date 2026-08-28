@@ -11,6 +11,7 @@ fleet-dispatched enhancement.
 
 import json
 import logging
+from typing import Optional
 
 from services.welfare_governance import (
     DEFAULT_SCORE_EWMA_ALPHA,

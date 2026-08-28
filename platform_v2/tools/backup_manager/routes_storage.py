@@ -1465,7 +1465,7 @@ def register_storage_routes(bp, admin_required):  # noqa: F811
                                 (_reason,),
                             )
                     except Exception as _db_err:
-                        logger.warning("backup_log INSERT failed for skipped gdrive upload: %s", _db_err)
+                        current_app.logger.warning("backup_log INSERT failed for skipped gdrive upload: %s", _db_err)
                     return
 
                 import tarfile as _tarfile

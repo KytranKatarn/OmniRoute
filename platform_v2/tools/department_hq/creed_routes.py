@@ -4046,8 +4046,6 @@ def _build_aida_assessment() -> dict:
         ),
     }
 
-    return assessment
-
 
 # ── CIFAR AI Catalyst grant application (T3270) ───────────────────────────────
 

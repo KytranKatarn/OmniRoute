@@ -142,7 +142,7 @@ def _normalize(kind: str, value) -> str | None:
             return ""
         try:
             s, e = raw.split("-")
-            si, ei = int(s), int(ei)
+            si, ei = int(s), int(e)
             if 0 <= si <= 23 and 0 <= ei <= 23:
                 return f"{si}-{ei}"
         except Exception:

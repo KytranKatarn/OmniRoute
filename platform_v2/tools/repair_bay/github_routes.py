@@ -841,7 +841,7 @@ def register_github_routes(bp, admin_required):
             if not stuck:
                 return jsonify({"status": "in_progress", "message": "Review already running — check back in 30s"}), 200
             # Fall through to re-trigger — reset to pending first
-            from .services.pr_review_service import mark_review_pending as _reset
+            from .services.pr_review_service import _DEFAULT_REPO, mark_review_pending as _reset
 
             _reset(pr_number, review.get("repo", _DEFAULT_REPO))
 

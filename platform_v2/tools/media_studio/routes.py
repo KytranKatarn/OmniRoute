@@ -7,7 +7,7 @@ per-user ownership. ComfyUI fleet status with GPU tiering.
 import logging
 import os
 
-from flask import jsonify, request, render_template
+from flask import current_app, jsonify, request, render_template
 from flask_login import login_required, current_user
 
 from . import admin_required, media_studio_bp

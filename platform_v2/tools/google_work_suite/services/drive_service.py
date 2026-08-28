@@ -254,7 +254,7 @@ def agent_create_report(account_id, agent_name, title, sections):
 def generate_daily_summary(account_id, agent_name):
     """Generate a daily activity summary as a Google Doc."""
     from database import get_db_cursor  # noqa: PLC0415
-    from datetime import datetime, timedelta  # noqa: PLC0415
+    from datetime import datetime, timedelta, timezone  # noqa: PLC0415
 
     yesterday = datetime.now(timezone.utc) - timedelta(hours=24)
 

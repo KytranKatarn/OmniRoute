@@ -1501,7 +1501,7 @@ def register_devhq_routes(bp, admin_required):
                 import urllib.request as _urllib
 
                 ollama_host = _os.getenv("OLLAMA_HOST", "http://host.docker.internal:11434")
-                payload = json.dumps({"model": model, "prompt": "warmup", "keep_alive": "5m"}).encode()
+                payload = json_module.dumps({"model": model, "prompt": "warmup", "keep_alive": "5m"}).encode()
                 req = _urllib.Request(
                     f"{ollama_host}/api/generate",
                     data=payload,

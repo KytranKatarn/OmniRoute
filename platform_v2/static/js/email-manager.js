@@ -265,6 +265,22 @@
         top.appendChild(addr);
         top.appendChild(statusBadge);
 
+        // #5849: a mailbox whose NEWEST sync signal is a failure gets a loud red
+        // badge — the owner mailbox failed IMAP auth for 9 days while rendering
+        // identically to a healthy one. textContent only (XSS-safe).
+        if (m.sync_broken) {
+          var syncBadge = document.createElement('span');
+          syncBadge.className = 'em-priority-chip';
+          syncBadge.style.background = '#ef4444';
+          syncBadge.style.color = '#fff';
+          syncBadge.style.fontWeight = 'bold';
+          syncBadge.textContent = '⛔ SYNC BROKEN';
+          var tip = m.last_sync_error || 'sync failing';
+          if (m.last_sync_error_at) tip += ' — since ' + m.last_sync_error_at;
+          syncBadge.title = tip;
+          top.appendChild(syncBadge);
+        }
+
         var meta = document.createElement('div');
         meta.className = 'em-msg-preview-text';
         meta.textContent = (m.display_name || m.agent_name || '') + ' · ' + m.mailbox_type.replace(/_/g, ' ');

@@ -9,6 +9,20 @@ from flask_login import login_required
 logger = logging.getLogger(__name__)
 
 
+def _sync_broken(last_ok_at, last_error_at) -> bool:
+    """PURE (#5849): is this mailbox's NEWEST sync signal a failure?
+
+    True only when an error stamp exists AND it is newer than the last success
+    (or no success has ever been recorded). Fail-safe False — a mailbox with no
+    stamps at all (fresh deploy, stamping disabled) must not page as broken.
+    """
+    if not last_error_at:
+        return False
+    if not last_ok_at:
+        return True
+    return last_error_at > last_ok_at
+
+
 def register_mailbox_routes(bp, admin_required):
 
     @bp.route("/api/email/mailboxes", methods=["GET"])
@@ -21,6 +35,7 @@ def register_mailbox_routes(bp, admin_required):
                 """
                 SELECT m.id, m.address, m.mailbox_type, m.display_name,
                        m.provisioned, m.provisioned_at, m.active,
+                       m.last_sync_ok_at, m.last_sync_error, m.last_sync_error_at,
                        a.name AS agent_name
                 FROM email_mailboxes m
                 LEFT JOIN agents a ON a.id = m.owner_agent_id
@@ -30,8 +45,11 @@ def register_mailbox_routes(bp, admin_required):
             )
             rows = [dict(r) for r in cur.fetchall()]
             for r in rows:
-                if r.get("provisioned_at"):
-                    r["provisioned_at"] = r["provisioned_at"].isoformat()
+                # #5849: derive BEFORE isoformat conversion (compare datetimes, not strings)
+                r["sync_broken"] = _sync_broken(r.get("last_sync_ok_at"), r.get("last_sync_error_at"))
+                for k in ("provisioned_at", "last_sync_ok_at", "last_sync_error_at"):
+                    if r.get(k):
+                        r[k] = r[k].isoformat()
         return jsonify({"mailboxes": rows})
 
     @bp.route("/api/email/mailboxes/<int:mailbox_id>/provision", methods=["POST"])

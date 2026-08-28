@@ -298,20 +298,47 @@ def run_email_imap_sync() -> dict:
     by_category: dict[str, int] = {"auth": 0, "connection": 0, "unknown": 0}
     failures: list[tuple[str, str, str]] = []  # (address, category, message)
 
+    ok_ids: list[int] = []
+    fail_rows: list[tuple[int, str, str]] = []  # (mailbox_id, category, message)
     for row in mailboxes:
         try:
             total_new += sync_single_mailbox_full(row["id"], row["address"], row["imap_password"])
             synced_ok += 1
+            ok_ids.append(row["id"])
         except MailboxSyncError as exc:
             by_category[exc.category] = by_category.get(exc.category, 0) + 1
             failures.append((exc.address, exc.category, str(exc.original)))
+            fail_rows.append((row["id"], exc.category, str(exc.original)))
             logger.error("[email_imap_sync] %s sync failed (%s): %s", exc.address, exc.category, exc.original)
         except Exception as exc:
             # Defence in depth: sync_single_mailbox_full now raises MailboxSyncError,
             # but never let an unexpected error type be silently counted as success.
             by_category["unknown"] += 1
             failures.append((row["address"], "unknown", str(exc)))
+            fail_rows.append((row["id"], "unknown", str(exc)))
             logger.error("[email_imap_sync] Unhandled error syncing %s: %s", row["address"], exc)
+
+    # #5849: persist per-mailbox sync health so a forked/auth-broken mailbox is
+    # VISIBLE in Email HQ instead of rendering identically to a healthy one (the
+    # OWNER mailbox failed auth for 9 days unseen — outcomes lived only in these
+    # log lines). Success clears the error; failure stamps category + message.
+    # One batch write after the loop; NEVER let stamping break the sync itself.
+    try:
+        with get_db_cursor(commit=True) as (_c2, cur2):
+            if ok_ids:
+                cur2.execute(
+                    "UPDATE email_mailboxes SET last_sync_ok_at = NOW(), "
+                    "last_sync_error = NULL, last_sync_error_at = NULL "
+                    "WHERE id = ANY(%s)",
+                    (ok_ids,),
+                )
+            for _mb_id, _cat, _msg in fail_rows:
+                cur2.execute(
+                    "UPDATE email_mailboxes SET last_sync_error = %s, last_sync_error_at = NOW() WHERE id = %s",
+                    ((_cat + ": " + _msg)[:300], _mb_id),
+                )
+    except Exception as _stamp_exc:
+        logger.warning("[email_imap_sync] sync-health stamping failed (non-blocking): %s", _stamp_exc)
 
     errors = len(failures)
     reasons = [f"{n} {cat} error(s)" for cat, n in by_category.items() if n]

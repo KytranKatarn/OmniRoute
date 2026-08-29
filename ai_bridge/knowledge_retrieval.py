@@ -13,7 +13,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 from psycopg2.extras import RealDictCursor
-import os
 import re
 import sys
 from typing import List, Dict, Optional

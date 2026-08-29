@@ -478,7 +478,7 @@ if __name__ == "__main__":
 
     # Get stats
     stats = get_export_stats()
-    print(f"\nExport Stats:")
+    print("\nExport Stats:")
     print(f"  Directory exists: {stats['directory_exists']}")
     if stats.get("subdirs"):
         for subdir, count in stats["subdirs"].items():

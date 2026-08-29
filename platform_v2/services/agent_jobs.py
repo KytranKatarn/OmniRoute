@@ -4579,7 +4579,9 @@ def register_agent_welfare_jobs(scheduler, flask_app):
     # Post performance check — every 12h, high-performers stored in KB for S.I.G.N.A.L.
     scheduler.add_job(
         with_ctx(signal_post_performance_check),
-        trigger=IntervalTrigger(hours=12),
+        # start_date anchors the slot — a bare interval resets on every
+        # scheduler restart and starves under daily deploys (see #6124)
+        trigger=IntervalTrigger(hours=12, start_date="2026-01-01 02:05:00"),
         id="signal_post_performance_check",
         name="S.I.G.N.A.L.: Post Performance → KB Insights",
         replace_existing=True,

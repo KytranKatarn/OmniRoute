@@ -3360,7 +3360,9 @@ def register_consciousness_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(deduplicate_knowledge),
-        trigger=IntervalTrigger(hours=24),
+        # start_date anchors the slot — a bare interval resets on every
+        # scheduler restart and starves under daily deploys (see #6124)
+        trigger=IntervalTrigger(hours=24, start_date="2026-01-01 05:40:00"),
         id="knowledge_deduplication",
         name="Agent Loop: Knowledge Deduplication",
         replace_existing=True,
@@ -3385,7 +3387,7 @@ def register_consciousness_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(index_claude_sessions),
-        trigger=IntervalTrigger(hours=12),
+        trigger=IntervalTrigger(hours=12, start_date="2026-01-01 01:10:00"),
         id="session_indexer",
         name="Agent Loop: Claude Session Indexer",
         replace_existing=True,
@@ -3429,7 +3431,7 @@ def register_consciousness_jobs(scheduler, flask_app):
 
     scheduler.add_job(
         with_ctx(github_auto_pull),
-        trigger=IntervalTrigger(hours=12),
+        trigger=IntervalTrigger(hours=12, start_date="2026-01-01 05:50:00"),
         id="agent_github_auto_pull",
         name="Agent Loop: GitHub Auto-Pull & Re-Index",
         replace_existing=True,

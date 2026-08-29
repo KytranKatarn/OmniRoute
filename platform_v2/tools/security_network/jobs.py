@@ -1817,7 +1817,11 @@ def register_security_jobs(scheduler, flask_app):
     # --- SSL certificate monitoring ---
     scheduler.add_job(
         with_ctx(check_ssl_expiry),
-        trigger=IntervalTrigger(hours=24),
+        # start_date anchors the fire time to a fixed clock slot; a bare
+        # IntervalTrigger resets to start+24h on every scheduler restart, and
+        # daily deploy restarts starved this job Aug 12-29 while creed-ai.org's
+        # cert expired unwatched (2026-08-29).
+        trigger=IntervalTrigger(hours=24, start_date="2026-01-01 05:20:00"),
         id="agent_ssl_expiry_check",
         name="Agent Loop: SSL Certificate Expiry Check",
         replace_existing=True,

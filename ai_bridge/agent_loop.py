@@ -1958,7 +1958,9 @@ class AgentLoop:
         # )
         self.scheduler.add_job(
             with_app_context(self._update_module_docs),
-            trigger=IntervalTrigger(hours=24),
+            # start_date anchors the slot — a bare interval resets on every
+            # scheduler restart and starves under daily deploys (see #6124)
+            trigger=IntervalTrigger(hours=24, start_date="2026-01-01 04:50:00"),
             id="module_docs_updater",
             name="Agent Loop: Module Documentation",
             replace_existing=True,

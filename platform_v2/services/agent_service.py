@@ -1035,11 +1035,30 @@ def deploy_to_node(agent_id, node_id):
         if not agent:
             return False
 
-        # Update shift state
-        cur.execute(
-            "UPDATE agents SET shift_state = 'deployed' WHERE id = %s",
-            (agent_id,),
+        # #5829: the shift flip goes through the logged single-writer — in-txn
+        # via _cur so it stays atomic with the node_agents upsert below. Was a
+        # raw UPDATE, which left node deployments with no shift_state_history
+        # row and no rotation-log closure (a deployed agent's bench provenance
+        # started from nothing when it later returned).
+        _tr = transition_shift_state(
+            agent_id,
+            "deployed",
+            reason=f"deployed to node {node_id}",
+            changed_by="agent_service.deploy_to_node",
+            _cur=cur,
         )
+        if not _tr.get("success"):
+            # Never block a node deployment on a logging problem — mirror
+            # reactivate_agent's fallback.
+            logger.warning(
+                "[agent_service] deploy_to_node %s: logged transition failed (%s) — writing directly",
+                agent_id,
+                _tr.get("error"),
+            )
+            cur.execute(
+                "UPDATE agents SET shift_state = 'deployed', updated_at = NOW() WHERE id = %s",
+                (agent_id,),
+            )
 
         # Create or reactivate node_agent
         cur.execute(
@@ -1065,10 +1084,35 @@ def deploy_to_node(agent_id, node_id):
 def return_from_node(agent_id):
     """Return agent from node to barracks."""
     with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "UPDATE agents SET shift_state = 'barracked' WHERE id = %s AND shift_state = 'deployed'",
-            (agent_id,),
-        )
+        # Preserve the deployed-only guard the old raw UPDATE carried in its
+        # WHERE clause: only a deployed agent is "returned" — this path must
+        # never yank an active/benched agent into barracks.
+        cur.execute("SELECT shift_state FROM agents WHERE id = %s", (agent_id,))
+        row = cur.fetchone()
+        if row and row["shift_state"] == "deployed":
+            # #5829: rotation-logged bench (in-txn). This is exactly the bench
+            # the task's four stranded agents sat on with zero provenance — a
+            # fleet-health return now leaves a rotation row with a reason and
+            # an age, so the K.I.N. tab and the stuck-agent reaper can tell a
+            # node-offline bench from a failure standby.
+            _tr = transition_shift_state(
+                agent_id,
+                "barracked",
+                reason="returned from node (node offline or recall)",
+                changed_by="agent_service.return_from_node",
+                _cur=cur,
+            )
+            if not _tr.get("success"):
+                logger.warning(
+                    "[agent_service] return_from_node %s: logged transition failed (%s) — writing directly",
+                    agent_id,
+                    _tr.get("error"),
+                )
+                cur.execute(
+                    "UPDATE agents SET shift_state = 'barracked', updated_at = NOW() "
+                    "WHERE id = %s AND shift_state = 'deployed'",
+                    (agent_id,),
+                )
         cur.execute(
             "UPDATE node_agents SET status = 'inactive' WHERE hub_agent_id = %s AND status = 'active'",
             (agent_id,),
@@ -1678,12 +1722,18 @@ WINDING_DOWN_SCORE_PENALTY = 0.30
 # ---------------------------------------------------------------------------
 
 
-def transition_shift_state(agent_id, new_state, reason="manual", changed_by="system"):
+def transition_shift_state(agent_id, new_state, reason="manual", changed_by="system", _cur=None):
     """Transition an agent to a new shift state with full rotation logging.
 
     Validates the new state, closes the previous rotation log entry,
     inserts a new one, and updates the agent record. If transitioning
     to cooldown, attempts to find a replacement in the same department.
+
+    Accepts an optional cursor ``_cur`` for transaction sharing (same
+    convention as ``find_replacement``): callers that must keep the state
+    flip atomic with their own writes — e.g. ``deploy_to_node``'s
+    node_agents upsert (#5829) — pass their open cursor instead of letting
+    this function open a second transaction.
 
     Returns dict with success, agent_name, new_state, and optional replacement.
     """
@@ -1698,68 +1748,75 @@ def transition_shift_state(agent_id, new_state, reason="manual", changed_by="sys
     # 'decommissioned' stays out on purpose: a terminal lifecycle state, not a shift.
     ROTATION_LOG_STATES = ("active", "winding_down", "cooldown", "off_duty", "barracked")
 
-    replacement = None
+    if _cur is not None:
+        return _transition_on_cursor(_cur, agent_id, new_state, reason, changed_by, ROTATION_LOG_STATES)
     with get_db_cursor(commit=True) as (conn, cur):
-        cur.execute(
-            "SELECT id, name, department, shift_state FROM agents WHERE id = %s",
-            (agent_id,),
-        )
-        agent = cur.fetchone()
-        if not agent:
-            return {"success": False, "error": f"Agent {agent_id} not found"}
+        return _transition_on_cursor(cur, agent_id, new_state, reason, changed_by, ROTATION_LOG_STATES)
 
-        agent_name = agent["name"]
-        department = agent["department"]
-        old_state = agent["shift_state"]
 
-        # Close previous open rotation log entry
+def _transition_on_cursor(cur, agent_id, new_state, reason, changed_by, rotation_log_states):
+    """The body of ``transition_shift_state`` against an open cursor."""
+    replacement = None
+    cur.execute(
+        "SELECT id, name, department, shift_state FROM agents WHERE id = %s",
+        (agent_id,),
+    )
+    agent = cur.fetchone()
+    if not agent:
+        return {"success": False, "error": f"Agent {agent_id} not found"}
+
+    agent_name = agent["name"]
+    department = agent["department"]
+    old_state = agent["shift_state"]
+
+    # Close previous open rotation log entry
+    cur.execute(
+        """
+        UPDATE agent_rotation_log
+        SET ended_at = NOW()
+        WHERE agent_id = %s AND ended_at IS NULL
+    """,
+        (agent_id,),
+    )
+
+    # Insert new rotation log entry (only if state is valid for rotation_log)
+    if new_state in rotation_log_states:
         cur.execute(
             """
-            UPDATE agent_rotation_log
-            SET ended_at = NOW()
-            WHERE agent_id = %s AND ended_at IS NULL
+            INSERT INTO agent_rotation_log
+                (agent_id, shift_state, reason, started_at)
+            VALUES (%s, %s, %s, NOW())
         """,
-            (agent_id,),
+            (agent_id, new_state, reason),
         )
 
-        # Insert new rotation log entry (only if state is valid for rotation_log)
-        if new_state in ROTATION_LOG_STATES:
-            cur.execute(
-                """
-                INSERT INTO agent_rotation_log
-                    (agent_id, shift_state, reason, started_at)
-                VALUES (%s, %s, %s, NOW())
-            """,
-                (agent_id, new_state, reason),
-            )
+    # Update the agent's shift_state. Bump updated_at too (bug #5155): without
+    # it the single-writer left the row's timestamp stale, so a woken/transitioned
+    # agent showed a frozen "last updated" in the K.I.N. tab (V.I.S.A.G.E. read
+    # 8 days old right after being woken to active). The reaper's raw SQL already
+    # sets updated_at=NOW(); this makes the canonical writer consistent.
+    cur.execute(
+        "UPDATE agents SET shift_state = %s, updated_at = NOW() WHERE id = %s",
+        (new_state, agent_id),
+    )
 
-        # Update the agent's shift_state. Bump updated_at too (bug #5155): without
-        # it the single-writer left the row's timestamp stale, so a woken/transitioned
-        # agent showed a frozen "last updated" in the K.I.N. tab (V.I.S.A.G.E. read
-        # 8 days old right after being woken to active). The reaper's raw SQL already
-        # sets updated_at=NOW(); this makes the canonical writer consistent.
-        cur.execute(
-            "UPDATE agents SET shift_state = %s, updated_at = NOW() WHERE id = %s",
-            (new_state, agent_id),
-        )
+    # Audit the transition for the K.I.N. shift calendar (Part C). The reaper
+    # restore-to-active writes in jobs.py bypass this fn, but those rest→active
+    # cycles are reconstructable from agent_rest_cycles.ended_at — so this chokepoint
+    # captures the deliberate transitions (cooldown / off_duty / barracked / manual).
+    cur.execute(
+        """
+        INSERT INTO shift_state_history (agent_id, from_state, to_state, reason, changed_by)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (agent_id, old_state, new_state, reason, changed_by),
+    )
 
-        # Audit the transition for the K.I.N. shift calendar (Part C). The reaper
-        # restore-to-active writes in jobs.py bypass this fn, but those rest→active
-        # cycles are reconstructable from agent_rest_cycles.ended_at — so this chokepoint
-        # captures the deliberate transitions (cooldown / off_duty / barracked / manual).
-        cur.execute(
-            """
-            INSERT INTO shift_state_history (agent_id, from_state, to_state, reason, changed_by)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
-            (agent_id, old_state, new_state, reason, changed_by),
-        )
+    logger.info("[Lifecycle] %s -> %s (reason=%s)", agent_name, new_state, reason)
 
-        logger.info("[Lifecycle] %s -> %s (reason=%s)", agent_name, new_state, reason)
-
-        # If entering cooldown, try to find a replacement
-        if new_state == "cooldown":
-            replacement = find_replacement(agent_id, department, _cur=cur)
+    # If entering cooldown, try to find a replacement
+    if new_state == "cooldown":
+        replacement = find_replacement(agent_id, department, _cur=cur)
 
     return {
         "success": True,

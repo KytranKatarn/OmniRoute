@@ -36,27 +36,29 @@ def export_modelfile(agent_name, model_base, system_prompt):
     safe_name = agent_name.lower().replace(" ", "-").replace(".", "")
     modelfile_path = os.path.join(MODELFILE_DIR, f"Modelfile.{safe_name}")
 
-    # Build Modelfile content
+    # Build Modelfile content (the on-disk AUDIT copy only — see below)
     # Escape triple quotes in system prompt
     escaped_prompt = system_prompt.replace('"""', '\\"\\"\\"')
     content = f'FROM {model_base}\n\nSYSTEM """\n{escaped_prompt}\n"""\n'
 
-    try:
-        # Write Modelfile to disk
-        os.makedirs(MODELFILE_DIR, exist_ok=True)
-        with open(modelfile_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        logger.info("Exported Modelfile for %s to %s", agent_name, modelfile_path)
-    except Exception as e:
-        logger.error("Failed to write Modelfile for %s: %s", agent_name, e)
-        return {"success": False, "message": f"File write failed: {e}"}
-
-    # Register with Ollama via API (create endpoint)
+    # 1. REGISTER WITH OLLAMA FIRST — the functional step, and it needs NO file on
+    #    disk (the payload is self-contained). The old order wrote the file first
+    #    and returned on failure, so from archie_platform — where /mnt/llm_drive is
+    #    mounted read-only (models subdir only) — registration was NEVER attempted
+    #    (#6115, hit live on the V.I.V.I.D./W.E.A.V.E. hires 2026-08-28).
+    #
+    #    Modern structured create: Ollama removed the legacy {"name","modelfile"}
+    #    fields from /api/create (the hub host service runs 0.16.2), so the old
+    #    payload would have failed even WITH the file written — two defects, one
+    #    function. {"model","from","system"} is the current schema.
+    registered = False
+    reg_err = ""
     try:
         payload = json.dumps(
             {
-                "name": safe_name,
-                "modelfile": content,
+                "model": safe_name,
+                "from": model_base,
+                "system": system_prompt,
             }
         ).encode("utf-8")
         req = urllib.request.Request(
@@ -66,25 +68,43 @@ def export_modelfile(agent_name, model_base, system_prompt):
             method="POST",
         )
         resp = urllib.request.urlopen(req, timeout=120)
-        # Ollama streams response — read to completion
-        resp.read()
-        logger.info("Ollama registered model %s from base %s", safe_name, model_base)
+        # Ollama streams JSON status lines; an error can arrive IN the stream with
+        # an HTTP 200, so read to completion and scan rather than trusting the code.
+        body = resp.read()
+        if b'"error"' in body:
+            reg_err = body[-300:].decode("utf-8", errors="replace")
+        else:
+            registered = True
+            logger.info("Ollama registered model %s from base %s", safe_name, model_base)
+    except Exception as e:
+        reg_err = str(e)
+
+    # 2. Best-effort audit copy. Writable only where /mnt/llm_drive is rw (host,
+    #    scheduler-adjacent tooling); from archie_platform this fails and MUST NOT
+    #    block or fail the sync — the registration above is what agents run on.
+    disk_note = ""
+    try:
+        os.makedirs(MODELFILE_DIR, exist_ok=True)
+        with open(modelfile_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        logger.info("Exported Modelfile audit copy for %s to %s", agent_name, modelfile_path)
+    except Exception as e:
+        logger.warning("Modelfile audit copy not written for %s (read-only mount is normal here): %s", agent_name, e)
+        disk_note = " (audit copy not written: read-only mount)"
+        modelfile_path = None
+
+    if registered:
         return {
             "success": True,
-            "message": f"Model {safe_name} created from {model_base}",
+            "message": f"Model {safe_name} created from {model_base}{disk_note}",
             "modelfile_path": modelfile_path,
         }
-    except Exception as e:
-        logger.warning(
-            "Ollama create failed for %s (Modelfile saved to disk): %s",
-            safe_name,
-            e,
-        )
-        return {
-            "success": True,  # File was written even if Ollama registration failed
-            "message": f"Modelfile saved but Ollama registration failed: {e}",
-            "modelfile_path": modelfile_path,
-        }
+    logger.warning("Ollama create failed for %s: %s", safe_name, reg_err)
+    return {
+        "success": False,
+        "message": f"Ollama registration failed: {reg_err}{disk_note}",
+        "modelfile_path": modelfile_path,
+    }
 
 
 def delete_modelfile(agent_name):

@@ -180,8 +180,18 @@ def changed_files_since(source_path: str, since_iso: Optional[str], limit: int =
         if len(out) >= limit:
             break
         try:
+            rel = p.relative_to(root)
+            # Git bookkeeping never ships: the deploy zip excludes .git/* and
+            # .gitignore, so they must not count as "changes" either. Before this
+            # filter, the website_content_autocommit job's commits touched .git/
+            # mtimes and the nightly deploy paged the owner with an approval whose
+            # reason was a raw dump of .git object paths — for a site whose actual
+            # content was byte-identical (approval #13856, 2026-08-29). Classify
+            # what SHIPS, not what the folder contains.
+            if ".git" in rel.parts or rel.name == ".gitignore":
+                continue
             if p.is_file() and p.stat().st_mtime > cutoff:
-                out.append(str(p.relative_to(root)))
+                out.append(str(rel))
         except OSError:
             continue  # vanished mid-walk / unreadable — never fatal
     return sorted(out)
@@ -516,7 +526,17 @@ def run_deploy_pipeline(capability: str, context: dict) -> DeployResult:
                     "is_translation": is_translation,
                     "container_name": context.get("container_name", ""),
                 },
-                reason=f"Deploy to {domain} includes non-static files ({changed_files}). Approve?",
+                # A human reads this in the Approvals tab / Telegram: summarize,
+                # never dump the raw list (approval #13856 was an unreadable wall
+                # of paths). Name the first few offenders and say what approving
+                # actually does.
+                reason=(
+                    f"Deploy website '{domain}': {len(changed_files)} changed file(s) are outside "
+                    f"the safe static set (e.g. {', '.join(str(f) for f in changed_files[:4])}"
+                    f"{f' +{len(changed_files) - 4} more' if len(changed_files) > 4 else ''}). "
+                    f"Approving republishes the FULL site to Hostinger, replacing what is live. "
+                    f"Reject if the content should not change."
+                ),
                 requested_by="deploy_service",
                 tier=2,
             )

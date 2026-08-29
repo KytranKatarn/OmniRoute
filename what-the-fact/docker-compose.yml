@@ -40,7 +40,7 @@ services:
       # Weekly digest + KBS CRM sync (#4899) — secrets live in the deploy-host
       # .env (append-only); these passthroughs let compose interpolate them.
       WTF_WEEKLY_DIGEST_ENABLED: ${WTF_WEEKLY_DIGEST_ENABLED:-false}
-      WTF_SMTP_HOST: ${WTF_SMTP_HOST:-100.64.0.2}
+      WTF_SMTP_HOST: ${WTF_SMTP_HOST:-100.64.0.10}
       WTF_SMTP_PORT: ${WTF_SMTP_PORT:-25}
       WTF_SMTP_USER: ${WTF_SMTP_USER:-}
       WTF_SMTP_FROM: ${WTF_SMTP_FROM:-}

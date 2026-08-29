@@ -11579,7 +11579,9 @@ class AgentLoop:
             from database import get_db_cursor
 
             WTF_LOCAL = "/mnt/archie_brain/what-the-fact"
-            WTF_VPS = "kytran@76.13.107.109:/opt/archie-products/what-the-fact/"
+            # Retargeted 2026-08-29 (#6104): WTF lives on Citadel since June; the old
+            # outpost-us path was deleted 08-26 and the node lapses Sep 25-26.
+            WTF_VPS = "root@100.64.0.10:/opt/archie-products/what-the-fact/"
             SSH_KEY = "/root/.ssh/id_ed25519"
 
             # 1. Get current git HEAD SHA for the WTF directory

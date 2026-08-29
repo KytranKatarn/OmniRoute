@@ -6,9 +6,9 @@
 
 # Service Registry
 
-**Collected**: 2026-08-28 13:07:58 EDT · **Provenance measured**: 2026-08-28 03:40:05 EDT
+**Collected**: 2026-08-29 09:17:51 EDT · **Provenance measured**: 2026-08-29 03:40:17 EDT
 
-48/50 hub containers running · 9 image-baked products · 0 absent.
+49/50 hub containers running · 9 image-baked products · 0 absent.
 
 > Regenerated from live sources. **`fail_open` is an UNKNOWN, not a fault** —
 > the product is unreachable or has no resolvable expected SHA. Do not read it
@@ -70,7 +70,7 @@
 | `media_prowlarr` | running | media-stack | 9696->9696/tcp | `lscr.io/linuxserver/prowlarr:2.3.5` |
 | `media_radarr` | running | media-stack | 7878->7878/tcp | `lscr.io/linuxserver/radarr:6.1.1` |
 | `media_sabnzbd` | running | media-stack | 8083->8080/tcp | `lscr.io/linuxserver/sabnzbd:4.5.5` |
-| `media_samba` ⚠ | exited | media-stack | — | `dperson/samba:latest` |
+| `media_samba` | running | media-stack | — | `dperson/samba:latest` |
 | `media_sonarr` | running | media-stack | 8989->8989/tcp | `lscr.io/linuxserver/sonarr:4.0.17` |
 | `mediahub_app` | running | media_hub | 8105->8105/tcp | `mediahub:standalone` |
 | `mediahub_db` | running | media_hub | — | `postgres:16.4-alpine` |

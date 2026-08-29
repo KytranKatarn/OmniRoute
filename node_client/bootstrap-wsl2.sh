@@ -8,7 +8,7 @@ set -euo pipefail
 # ── Config ──────────────────────────────────────────────────────────
 INSTALL_DIR="$HOME/archie-node"
 LAN_HUB="http://192.168.1.200:3000"
-MESH_HUB="http://100.64.0.2:3000"
+MESH_HUB="http://100.64.0.4:3000"
 HUB_API_BASE="/tools/starbase/api"
 NODE_FILES="docker-compose.node.yml Dockerfile.node node_sync.py node_api.py node_triage.py"
 

@@ -1225,7 +1225,7 @@ services:
       - DB_USER=archie
       - DB_PASSWORD=${DB_PASSWORD}
       - SCOUT_POOL_SIZE=3
-      - SCOUT_VPS_SOCKS=socks5://100.64.0.2:1080
+      - SCOUT_VPS_SOCKS=socks5://100.64.0.10:1080
       - SCOUT_PROXY_URL=${SCOUT_PROXY_URL:-}
       # #4007/#4014 browse-from-country: the per-outpost SOCKS5 proxies
       # (node_socks) run UNAUTHENTICATED — Chromium/Playwright (the session_fetch

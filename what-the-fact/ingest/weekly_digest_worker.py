@@ -27,7 +27,7 @@ _ENABLED = os.environ.get("WTF_WEEKLY_DIGEST_ENABLED", "false").lower() == "true
 # — the same proven path Legal Watch's daily digest uses from this host. Hub
 # Stalwart :587 is NOT reachable from Citadel containers (connection closed).
 # Setting WTF_SMTP_PASS switches to authenticated STARTTLS submission instead.
-_SMTP_HOST = os.environ.get("WTF_SMTP_HOST", "100.64.0.2")
+_SMTP_HOST = os.environ.get("WTF_SMTP_HOST", "100.64.0.10")
 _SMTP_PORT = int(os.environ.get("WTF_SMTP_PORT", "25"))
 _SMTP_USER = os.environ.get("WTF_SMTP_USER", "archie@kytranempowerment.com")
 _SMTP_PASS = os.environ.get("WTF_SMTP_PASS", "")

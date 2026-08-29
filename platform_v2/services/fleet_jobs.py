@@ -864,10 +864,13 @@ def renew_fleet_ssl():
 _vps_last_status = {}
 
 # Per-host probe config. Add a new host by appending a dict here.
+# Retargeted 2026-08-29 (#6104/decision #1049): the six products migrated to Citadel in
+# June, so the ssh probe against outpost-us attributed their health to the wrong box —
+# and outpost-us lapses Sep 25-26.
 _VPS_HOSTS = [
     {
-        "name": "US Outpost (76.13.107.109)",
-        "ssh_host": "76.13.107.109",
+        "name": "Citadel (2.25.133.122)",
+        "ssh_host": "2.25.133.122",
         "ssh_port": 22,
         "http_urls": [
             "https://what-the-fact.com/",

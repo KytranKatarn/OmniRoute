@@ -63,7 +63,8 @@ _FAILURE_STATUSES = ("failed", "partial")
 OFFSITE_STALE_HOURS = {
     "gdrive": 48.0,
     "dr": 48.0,
-    "vps": 48.0,
+    # "vps" retired 2026-08-29 (decision #1049): outposts lapse; historical rows remain
+    # in backup_log but the tier must not page as stale.
     "usb": 72.0,
 }
 

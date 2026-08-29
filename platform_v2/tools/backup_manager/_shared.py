@@ -12,7 +12,7 @@ Pipeline entry point: ``scripts/backup/run_backup.sh daily|weekly|monthly``
     → component_code.sh, component_gitbundle.sh, component_config.sh (AES-256),
       component_volumes.sh, component_convlogs.sh, component_kb_export.sh,
       component_vps_pull.sh, component_monthly_full.sh
-    → tier_sync_usb.py, tier_sync_gdrive.py, tier_sync_vps.sh
+    → tier_sync_usb.py, tier_sync_gdrive.py (vps tier retired 2026-08-29, decision #1049)
     → retention_prune.py + verify_backups.sh (weekly)
 
 Cron schedule: ``/etc/cron.d/archie-backup`` (installed by

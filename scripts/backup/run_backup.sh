@@ -176,7 +176,8 @@ PYEOF_PRESYNC
 
     "$SCRIPT_DIR/tier_sync_usb.py"    "$RUN_DIR"        || log_warn "USB tier sync had errors"
     "$SCRIPT_DIR/tier_sync_gdrive.py" "$RUN_DIR" "$MODE" || log_warn "GDrive tier sync had errors"
-    "$SCRIPT_DIR/tier_sync_vps.sh"    "$RUN_DIR"        || log_warn "VPS tier sync had errors"
+    # vps tier RETIRED 2026-08-29 (decision #1049 / #6104): the outposts lapse and the
+    # dr tier already lives on Citadel — a vps tier there would share its failure domain.
 fi
 
 if (( DO_RETENTION == 1 )); then

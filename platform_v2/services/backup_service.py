@@ -25,8 +25,9 @@ from database import get_db_cursor
 
 logger = logging.getLogger(__name__)
 
-# Tiers present in backup_log
-_KNOWN_TIERS = ("primary", "gdrive", "vps", "usb")
+# Tiers present in backup_log ("vps" retired 2026-08-29, decision #1049 — outposts lapse;
+# historical vps rows remain in backup_log but the tier is no longer written or reported)
+_KNOWN_TIERS = ("primary", "gdrive", "usb")
 
 # Default retention policy (conservative — keeps everything for a year)
 _DEFAULT_POLICY: dict[str, Any] = {
@@ -52,7 +53,6 @@ def get_health_summary() -> dict:
             "primary": {"last_run": ..., "status": ..., "age_hours": ...,
                         "last_success": ..., "last_success_age_hours": ...},
             "gdrive":  {...},
-            "vps":     {...},
             "usb":     {...},
         }
     }

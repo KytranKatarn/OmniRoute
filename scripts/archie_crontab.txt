@@ -6,7 +6,7 @@
 #
 # Backups route through the new Phase 1-5 pipeline at scripts/backup/:
 #   run_backup.sh daily|weekly|monthly  →  per-component scripts
-#                                        →  tier_sync_usb + tier_sync_gdrive + tier_sync_vps
+#                                        →  tier_sync_usb + tier_sync_gdrive
 #                                        →  retention_prune (covers pre-change cleanup)
 #
 # Log locations:
@@ -15,7 +15,7 @@
 # Spec: docs/superpowers/specs/2026-04-16-backup-system-design.md
 # ==============================================================================
 
-# Daily backup at 02:00 — DB, code, gitbundle, config, volumes + USB/GDrive/VPS tier sync
+# Daily backup at 02:00 — DB, code, gitbundle, config, volumes + USB/GDrive tier sync
 0 2 * * * /mnt/archie_brain/scripts/backup/run_backup.sh daily >> /var/log/archie_backup.log 2>&1
 
 # Weekly backup (Sunday at 03:00) — adds convlogs, kb_export, vps_pull

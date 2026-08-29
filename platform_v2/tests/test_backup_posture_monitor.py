@@ -187,12 +187,18 @@ class TestOffSiteTierFreshness:
             1.0,
             tier_rows=[
                 {"tier": "gdrive", "success_age_h": 500.0, "total_rows": 9},
+                {"tier": "dr", "success_age_h": 500.0, "total_rows": 9},
+                # "vps" retired 2026-08-29 (decision #1049): historical rows persist in
+                # backup_log, so a stale vps row will keep appearing here forever — it
+                # must NOT page.
                 {"tier": "vps", "success_age_h": 500.0, "total_rows": 9},
             ],
         )
         titles = [t for t, _m, _k in sent]
         assert len(set(titles)) == 2, "tiers must not share an alert title"
-        assert any("gdrive" in t for t in titles) and any("vps" in t for t in titles)
+        # quoted forms: a bare "dr" substring-matches inside "gdrive"
+        assert any("'gdrive'" in t for t in titles) and any("'dr'" in t for t in titles)
+        assert not any("'vps'" in t for t in titles), "retired tier must not alert"
 
     def test_offsite_measure_filters_on_success(self, alerts):
         """Same lesson as #5013/#5092: a failed sync also writes a row for that tier, so

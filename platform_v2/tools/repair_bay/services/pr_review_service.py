@@ -481,6 +481,39 @@ _SAFE_AUTOMERGE_PATTERNS = (
     r"^platform_v2/tests/",  # unit tests
 )
 
+# Per-repo allowlists for the NON-default repos permitted to auto-merge (owner
+# decision 2026-08-29: KSO is "software managed and created here", so it gets the
+# same auto-merge CLASS as the platform — docs and tests; service code, compose,
+# Dockerfile and rule_packs still require a human /merge-pr). A repo with no entry
+# here gets an EMPTY pattern set, so every file blocks — deny-by-default holds for
+# any repo someone adds to FORGE_AUTOMERGE_REPOS without also deciding its paths.
+# KSO is image-baked (COPY .), so a merge never deploys by itself either way.
+_SAFE_AUTOMERGE_PATTERNS_BY_REPO = {
+    "KytranKatarn/kytran-system-operations": (
+        r"\.md$",  # documentation anywhere
+        r"^docs/",
+        r"^tests/",
+        r"(^|/)test_[^/]+\.py$",  # KSO keeps test files beside the code
+    ),
+}
+
+# Repos where an UNATTENDED merge may be attempted at all. The watch products and
+# KBS stay review-only: the write token has NO access there (probed 2026-08-23,
+# #5981 — never reason about merge safety from assumed token absence, but here the
+# absence is measured). Env-tunable without a deploy; the list REPLACES the default.
+_DEFAULT_AUTOMERGE_REPOS = (
+    "KytranKatarn/archie-platform",
+    "KytranKatarn/kytran-system-operations",
+)
+
+
+def automerge_repos() -> tuple:
+    """The repos unattended merge may target. FORGE_AUTOMERGE_REPOS overrides."""
+    raw = os.getenv("FORGE_AUTOMERGE_REPOS", "").strip()
+    if raw:
+        return tuple(r.strip() for r in raw.split(",") if r.strip())
+    return _DEFAULT_AUTOMERGE_REPOS
+
 
 def _automerge_paths_allowed(pr_number: int, repo: str):
     """Return (allowed, blocking_files) for the auto-merge path allowlist.
@@ -488,9 +521,20 @@ def _automerge_paths_allowed(pr_number: int, repo: str):
     FAILS CLOSED: if the changed-file list cannot be determined, auto-merge is
     refused. Not knowing what a PR touches is not evidence that it is safe —
     that inversion is the exact failure mode this whole gate exists to stop.
+
+    Patterns are PER-REPO: the default repo keeps _SAFE_AUTOMERGE_PATTERNS (and the
+    FORGE_AUTOMERGE_SAFE_PATHS env override, which applies to the default repo only —
+    its historical contract); other repos read _SAFE_AUTOMERGE_PATTERNS_BY_REPO, and
+    an unlisted repo gets an empty set, blocking every file.
     """
-    raw = os.getenv("FORGE_AUTOMERGE_SAFE_PATHS", "").strip()
-    patterns = tuple(p.strip() for p in raw.split(",") if p.strip()) if raw else _SAFE_AUTOMERGE_PATTERNS
+    if (repo or _DEFAULT_REPO) == _DEFAULT_REPO:
+        raw = os.getenv("FORGE_AUTOMERGE_SAFE_PATHS", "").strip()
+        patterns = tuple(p.strip() for p in raw.split(",") if p.strip()) if raw else _SAFE_AUTOMERGE_PATTERNS
+    else:
+        patterns = _SAFE_AUTOMERGE_PATTERNS_BY_REPO.get(repo, ())
+    if not patterns:
+        # No allowlist for this repo — nothing is auto-mergeable in it.
+        return False, ["<no auto-merge path allowlist for this repo>"]
     try:
         from .github_service import _api_get
 
@@ -724,15 +768,18 @@ def mark_review_done(pr_number: int, summary: str, repo: str = None, auto_merge:
         )
         return
 
-    # REVIEW-ONLY GATE (#4494) — only the default repo (archie-platform) auto-merges.
-    # The auto-merge write token is archie-platform-scoped and FORGE_REVIEW_TOKEN is
-    # read-only, so an auto-merge on a watch-product repo can't succeed and (now that
-    # merge_pr is repo-aware) must never be attempted against the wrong repo. Watch
-    # PRs are auto-REVIEWED but gated to a human merge.
+    # AUTO-MERGE REPO ALLOWLIST (#4494, widened 2026-08-29 by owner decision: KSO is
+    # software managed and created here, so it auto-merges under the SAME safety gates
+    # as the platform). The original #4494 rationale said the write token was
+    # archie-platform-scoped; the 2026-08-23 probe (#5981) measured push+admin on
+    # kytran-system-operations too. The watch products and KBS stay review-only —
+    # there the token genuinely has no access. A repo outside automerge_repos() is
+    # auto-REVIEWED but gated to a human merge; a repo added to the list without a
+    # _SAFE_AUTOMERGE_PATTERNS_BY_REPO entry still blocks on paths (deny-by-default).
     _merge_repo = repo or _DEFAULT_REPO
-    if _merge_repo != _DEFAULT_REPO:
+    if _merge_repo not in automerge_repos():
         logger.info(
-            "[F.O.R.G.E.] PR #%s approved on %s — review-only (non-default repo), not auto-merged (#4494)",
+            "[F.O.R.G.E.] PR #%s approved on %s — review-only (repo not in automerge_repos), not auto-merged (#4494)",
             pr_number,
             _merge_repo,
         )

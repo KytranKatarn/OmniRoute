@@ -974,9 +974,11 @@ def merge_pr(
     operator running /merge-pr). Every automated path must leave it False.
 
     ``repo`` (owner/name) selects the target repo; defaults to REPO_FULL
-    (archie-platform). Threaded everywhere so a watch-product PR merges against
+    (archie-platform). Threaded everywhere so a non-default PR merges against
     its OWN repo instead of the hardcoded default (#4494). NOTE: the write token
-    is archie-platform-scoped, so a non-default merge needs a write-capable token.
+    has push+admin on archie-platform, archie-code, kytran-system-operations and
+    kytran-creed but NO access to the watch repos or KBS (probed 2026-08-23,
+    #5981) — a merge there fails at GitHub regardless of governance.
 
     Pre-merge conflict guard (#3709 Phase 1): refuses to merge when GitHub
     reports a definitive conflict with the base branch — stops a conflicted

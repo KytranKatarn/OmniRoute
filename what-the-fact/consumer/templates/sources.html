@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import lean_pill %}
 {% block title %}Canadian News Sources — Bias Profiles · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Bias profiles for 46 Canadian news outlets tracked by What The Fact. See rolling bias scores, article counts, and ownership for CBC, Globe and Mail, National Post, and more.">
@@ -8,39 +9,65 @@
 <meta name="twitter:card" content="summary">
 {% endblock %}
 {% block content %}
+{# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY).
 
-{% set BAND_COLOURS = {
-  'left': '#ef4444', 'center-left': '#f97316', 'center': '#22c55e',
-  'center-right': '#0ea5e9', 'right': '#2563eb', 'unscored': '#4b5563'
-} %}
+   TWO REAL BUGS FIXED HERE, both on the site's flagship transparency surface:
 
-<div style="max-width:900px;margin:48px auto;padding:0 16px;">
-  <div style="margin-bottom:28px;">
-    <div style="font-size:0.55rem;letter-spacing:3px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">What The Fact</div>
-    <h1 style="font-family:Georgia,serif;font-size:1.9rem;color:#f0f0f0;margin:0 0 8px;">Canadian News Sources</h1>
-    <p style="color:#6b7280;font-size:0.78rem;margin:0;">{{ sources|length }} outlets tracked · bias scored by AI on every article</p>
+   1. This page carried its OWN private BAND_COLOURS map hardcoding the RETIRED
+      lean ramp — left #ef4444, center-left #f97316, center #22c55e, center-right
+      #0ea5e9, right #2563eb. That is the scale phase 1 replaced: red vs orange
+      are near-identical under common colour-vision deficiencies, and GREEN AT
+      THE MIDPOINT reads as a quality judgement ("centre = good") — precisely the
+      editorial claim this site must not make. It is the bias legend for all 46
+      outlets, so it was the most load-bearing wrong use of colour on the site.
+
+   2. The legend DID NOT MATCH THE CARDS. Measured: 2 of 5 bands differed —
+      center-right rendered #0ea5e9 on the card and #3b82f6 in the legend; right
+      rendered #2563eb vs #8b5cf6. A reader consulting the legend got the wrong
+      colour->band mapping for 40% of the scale.
+
+   Both are now structurally impossible: BANDS below is the single list, and the
+   cards and the legend BOTH render from it, through lean_pill, through the
+   tokens. A future divergence would require editing one list. #}
+{% set BANDS = ['left', 'center-left', 'center', 'center-right', 'right'] %}
+{% set BAND_TOKEN = {'left': '--wtf-left', 'center-left': '--wtf-center-left',
+                     'center': '--wtf-center', 'center-right': '--wtf-center-right',
+                     'right': '--wtf-right', 'unscored': '--wtf-text-muted'} %}
+
+<div style="max-width:900px;margin:40px auto;padding:0 16px;">
+  <div style="margin-bottom:26px;">
+    <div class="wtf-a-tile-l" style="margin-bottom:8px;">What The Fact</div>
+    <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 8px;">Canadian news sources</h1>
+    <p class="wtf-a-tile-d" style="margin:0;">{{ sources|length }} outlets tracked · bias scored by AI on every article</p>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;">
+  <div class="wtf-a-grid">
     {% for s in sources %}
     {% set band = s.rolling_band or s.bias_lean or 'unscored' %}
-    {% set colour = BAND_COLOURS.get(band, '#4b5563') %}
-    <a href="/source/{{ s.slug }}" style="display:block;background:#0a0f1a;border:1px solid #1a2030;border-left:3px solid {{ colour }};border-radius:5px;padding:14px 16px;text-decoration:none;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">
-        <div style="font-size:0.82rem;color:#e0e0e0;font-weight:600;line-height:1.3;">{{ s.name }}</div>
-        <span style="font-size:0.58rem;color:{{ colour }};background:{{ colour }}22;border:1px solid {{ colour }}55;border-radius:3px;padding:2px 7px;white-space:nowrap;text-transform:uppercase;letter-spacing:0.5px;flex-shrink:0;">{{ band.replace('-',' ') }}</span>
-      </div>
-      <div style="display:flex;gap:14px;font-size:0.65rem;color:#4b5563;">
-        {% if s.owner_name %}<span>{{ s.owner_name }}</span>{% endif %}
-        <span style="margin-left:auto;">{{ s.total_articles | default(0) }} articles</span>
-        {% if s.articles_7d %}<span style="color:#374151;">{{ s.articles_7d }}/7d</span>{% endif %}
-      </div>
+    {# Colour NEVER appears without its text label — the spine is accompanied by
+       the band name in the pill, per the lean-scale rule. #}
+    <a class="wtf-a-pcard" href="/source/{{ s.slug }}">
+      <span class="wtf-a-spine" style="background:var({{ BAND_TOKEN.get(band, '--wtf-text-muted') }});" aria-hidden="true"></span>
+      <span style="flex:1;min-width:0;">
+        <span class="wtf-a-prow" style="align-items:flex-start;margin-bottom:6px;">
+          <span class="wtf-a-pname" style="font-size:16px;">{{ s.name }}</span>
+          {% if band in BANDS %}{{ lean_pill(band) }}{% else %}<span class="wtf-a-chip">Unscored</span>{% endif %}
+        </span>
+        <span class="wtf-a-tile-d" style="display:flex;gap:14px;">
+          {% if s.owner_name %}<span>{{ s.owner_name }}</span>{% endif %}
+          <span style="margin-left:auto;">{{ s.total_articles | default(0) }} articles</span>
+          {% if s.articles_7d %}<span>{{ s.articles_7d }}/7d</span>{% endif %}
+        </span>
+      </span>
     </a>
     {% endfor %}
   </div>
 
-  <div style="margin-top:24px;font-size:0.65rem;color:#374151;">
-    Bias bands: <span style="color:#ef4444;">LEFT</span> · <span style="color:#f97316;">CENTER-LEFT</span> · <span style="color:#22c55e;">CENTER</span> · <span style="color:#3b82f6;">CENTER-RIGHT</span> · <span style="color:#8b5cf6;">RIGHT</span>
+  {# Rendered from the SAME list as the cards — the mismatch that existed here
+     cannot recur without editing BANDS itself. #}
+  <div style="margin-top:24px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+    <span class="wtf-a-tile-l">Bias bands</span>
+    {% for b in BANDS %}{{ lean_pill(b) }}{% endfor %}
   </div>
 </div>
 {% endblock %}

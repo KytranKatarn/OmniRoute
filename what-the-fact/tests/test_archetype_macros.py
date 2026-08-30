@@ -140,3 +140,50 @@ class TestNoHardcodedColours:
         src = (TPL / "_archetypes.html").read_text()
         code = "\n".join(l for l in src.splitlines() if not l.strip().startswith("#"))
         assert not re.findall(r"#[0-9a-fA-F]{6}\b", code)
+
+
+class TestSourcesBiasLegendMatchesCards:
+    """#6149 phase 3 — /sources rendered its OWN lean scale, and its legend did
+    not describe its own cards.
+
+    Measured on the live page before the fix:
+      * BAND_COLOURS hardcoded the RETIRED ramp (left #ef4444, center-left
+        #f97316, center #22c55e, center-right #0ea5e9, right #2563eb) — the scale
+        phase 1 replaced because red/orange are near-identical under common
+        colour-vision deficiencies and GREEN AT THE MIDPOINT reads as a quality
+        judgement.
+      * 2 of 5 legend swatches differed from the cards they described
+        (center-right card #0ea5e9 vs legend #3b82f6; right #2563eb vs #8b5cf6),
+        so a reader got the wrong colour->band mapping for 40% of the scale.
+
+    This is the bias legend for all 46 outlets — the most load-bearing use of
+    colour on the site. Both failures are now structurally impossible: one BANDS
+    list feeds the cards and the legend, both through the tokens.
+    """
+
+    RETIRED = ["#ef4444", "#f97316", "#22c55e", "#0ea5e9", "#2563eb", "#3b82f6", "#8b5cf6"]
+
+    def _src(self):
+        return (TPL / "sources.html").read_text()
+
+    def test_no_retired_lean_hexes_remain(self):
+        code = "\n".join(
+            l for l in self._src().splitlines()
+            if "#ef4444" not in l or "RETIRED" not in l
+        )
+        # strip the Jinja comment block, which quotes the old values deliberately
+        import re
+        code = re.sub(r"\{#.*?#\}", "", code, flags=re.S)
+        found = [h for h in self.RETIRED if h in code]
+        assert not found, f"retired lean colours still painted on /sources: {found}"
+
+    def test_cards_and_legend_share_one_band_list(self):
+        src = self._src()
+        assert "{% set BANDS =" in src, "bands must come from a single list"
+        assert src.count("lean_pill(") >= 2, "cards and legend should both render via lean_pill"
+
+    def test_every_band_maps_to_a_token(self):
+        src = self._src()
+        for tok in ["--wtf-left", "--wtf-center-left", "--wtf-center",
+                    "--wtf-center-right", "--wtf-right"]:
+            assert tok in src, f"{tok} missing — band no longer tracks the palette"

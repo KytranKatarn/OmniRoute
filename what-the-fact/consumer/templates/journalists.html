@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import person_card %}
 {% block title %}Journalists — What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Track Canadian journalists across our news sources — beats, outlets, and coverage patterns by What The Fact.">
@@ -6,40 +7,37 @@
 <meta property="og:url" content="https://what-the-fact.com/journalists">
 {% endblock %}
 {% block content %}
-<style>
-.wtf-jr-head { padding:16px 0; border-bottom:1px solid #1a3a5a; margin-bottom:14px; }
-.wtf-jr-title { font-family:'Orbitron',sans-serif; font-size:18px; color:#e5e7eb; margin:0 0 6px; }
-.wtf-jr-sub { font-size:12px; color:#6b7280; }
-.wtf-jr-search input { width:100%; max-width:360px; background:#060d14; border:1px solid #1a3a5a; border-radius:4px; color:#e5e7eb; padding:8px 12px; font-size:13px; }
-.wtf-jr-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; margin-top:14px; }
-.wtf-jr-card { background:#060d14; border:1px solid #1a3a5a; border-radius:5px; padding:12px 14px; text-decoration:none; display:block; }
-.wtf-jr-card:hover { border-color:#0af; }
-.wtf-jr-name { font-size:13px; color:#e5e7eb; font-weight:600; line-height:1.3; }
-.wtf-jr-count { font-size:11px; color:#0af; font-family:'IBM Plex Mono',monospace; margin-top:5px; }
-</style>
+{# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY): search + filter row, then a card grid.
+   Was a bespoke .wtf-jr-* block with 11 hardcoded hexes, an 'Orbitron' heading
+   (a font the site never loaded, so it rendered as generic sans) and an emoji
+   title. Data contract unchanged: journalists[], total, q. #}
 
-<div class="wtf-jr-head">
-  <h1 class="wtf-jr-title">📝 Journalists</h1>
-  <div class="wtf-jr-sub">{{ total }} writers tracked, captured from bylines as articles are ingested. Coverage grows over time.</div>
+<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
+  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Journalists</h1>
+  <p class="wtf-a-tile-d" style="margin:0;">
+    {{ total }} writers tracked, captured from bylines as articles are ingested. Coverage grows over time.
+  </p>
 </div>
 
-<form class="wtf-jr-search" method="get" action="/journalists">
-  <input type="search" name="q" value="{{ q }}" placeholder="Search journalists…" autocomplete="off">
+<form method="get" action="/journalists" style="margin-bottom:16px;">
+  <label class="wtf-sr-only" for="jr-q">Search journalists</label>
+  <input id="jr-q" type="search" name="q" value="{{ q }}" placeholder="Search journalists…" autocomplete="off"
+         class="wtf-a-fbox" style="width:100%;max-width:360px;">
 </form>
 
 {% if journalists %}
-<div class="wtf-jr-grid">
+<div class="wtf-a-grid">
   {% for j in journalists %}
-  <a class="wtf-jr-card" href="/journalist/{{ j.id }}">
-    <div class="wtf-jr-name">{{ j.canonical_name }}</div>
-    <div class="wtf-jr-count">{{ j.article_count or 0 }} article{{ '' if j.article_count == 1 else 's' }}</div>
-  </a>
+  {{ person_card(
+       name=j.canonical_name,
+       sub=(j.article_count or 0)|string ~ ' article' ~ ('' if j.article_count == 1 else 's'),
+       href='/journalist/' ~ j.id) }}
   {% endfor %}
 </div>
 {% if journalists|length >= 200 %}
-<div style="font-size:11px;color:#6b7280;margin-top:14px;">Showing the top 200 by coverage volume — use search to narrow.</div>
+<p class="wtf-a-tile-d" style="margin-top:14px;">Showing the top 200 by coverage volume — use search to narrow.</p>
 {% endif %}
 {% else %}
-<div style="color:#6b7280;font-size:13px;padding:24px 0;">No journalists match &ldquo;{{ q }}&rdquo;.</div>
+<p class="wtf-a-nodata" style="padding:24px 0;">No journalists match &ldquo;{{ q }}&rdquo;.</p>
 {% endif %}
 {% endblock %}

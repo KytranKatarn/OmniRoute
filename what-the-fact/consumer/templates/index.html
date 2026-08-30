@@ -195,10 +195,34 @@ var PROVINCE_CODES = {
   "Nunavut":"NU","Ontario":"ON","Prince Edward Island":"PE","Quebec":"QC",
   "Saskatchewan":"SK","Yukon":"YT","Yukon Territory":"YT"
 };
+// #6149 — READ THE TOKENS, don't restate them.
+// This was a private map hardcoding the RETIRED ramp:
+//   left #dc2626 · center-left #f97316 · center #22c55e · center-right #0ea5e9 · right #2563eb
+// i.e. the scale phase 1 replaced — red/orange near-identical under common
+// colour-vision deficiencies, and GREEN AT THE MIDPOINT reading as a quality
+// judgement ("centre = good"), the one editorial claim this site must not make.
+// It painted the national coverage map, the most visible bias visualisation on
+// the site, and being private to this file the palette change could not reach it.
+// (Same defect found on /sources — fixed there in PR #2958.)
+//
+// Resolving from CSS means the map now tracks style.css automatically: change a
+// token once and the map, the legend, /sources and every chip move together.
+function _leanToken(name) {
+  var v = getComputedStyle(document.documentElement).getPropertyValue(name);
+  return (v || "").trim();
+}
 var BIAS_COLOURS = {
-  "left":"#dc2626","center-left":"#f97316","center":"#22c55e",
-  "center-right":"#0ea5e9","right":"#2563eb"
+  "left":         _leanToken("--wtf-left"),
+  "center-left":  _leanToken("--wtf-center-left"),
+  "center":       _leanToken("--wtf-center"),
+  "center-right": _leanToken("--wtf-center-right"),
+  "right":        _leanToken("--wtf-right")
 };
+// Fail-safe: if a token is ever missing the map must still render something
+// legible rather than transparent shapes on a dark ground.
+Object.keys(BIAS_COLOURS).forEach(function (k) {
+  if (!BIAS_COLOURS[k]) { BIAS_COLOURS[k] = "#929aa5"; }
+});
 
 var map = L.map("wtf-canada-map", {
   center: [60, -96], zoom: 3,
@@ -385,13 +409,30 @@ var PROVINCE_CENTROIDS = {
 var LEAN_MIN_N = 20;
 var LEAN_ANCHOR = -0.028;   // national mean of avg bias score
 var LEAN_SPREAD = 0.06;     // score delta from the anchor that saturates the ramp
+// #6149 — the poles were baked into ARITHMETIC: neutral (148,163,184),
+// left (220,38,38) = #dc2626, right (37,99,235) = #2563eb. Channel constants
+// track no palette at all, so this ramp kept the retired poles even after the
+// tokens changed. Now derived from --wtf-left / --wtf-center / --wtf-right, so
+// the choropleth, the discrete BIAS_COLOURS buckets and /sources cannot drift.
+function _rgb(hex) {
+  var h = (hex || "").trim().replace("#", "");
+  if (h.length !== 6) return null;
+  return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+}
+var _LEAN_NEUTRAL = _rgb(_leanToken("--wtf-center")) || [146, 154, 165];
+var _LEAN_L       = _rgb(_leanToken("--wtf-left"))   || [216, 75, 71];
+var _LEAN_R       = _rgb(_leanToken("--wtf-right"))  || [74, 114, 216];
+
 function leanColour(avgScore, count) {
+  // Insufficient data is GREY and explicitly not a lean reading — a province
+  // with too few articles must never be painted as if it leant somewhere.
   if (avgScore === null || avgScore === undefined || count < LEAN_MIN_N) return "#9ca3af";
   var t = Math.max(-1, Math.min(1, (avgScore - LEAN_ANCHOR) / LEAN_SPREAD));
-  // Interpolate neutral #94a3b8 → left-red #dc2626 (t<0) or right-blue #2563eb (t>0)
-  var k = Math.abs(t), r, g, b;
-  if (t < 0) { r = Math.round(148 + k * (220 - 148)); g = Math.round(163 - k * (163 - 38)); b = Math.round(184 - k * (184 - 38)); }
-  else       { r = Math.round(148 - k * (148 - 37));  g = Math.round(163 - k * (163 - 99)); b = Math.round(184 + k * (235 - 184)); }
+  var k = Math.abs(t);
+  var pole = t < 0 ? _LEAN_L : _LEAN_R;
+  var r = Math.round(_LEAN_NEUTRAL[0] + k * (pole[0] - _LEAN_NEUTRAL[0]));
+  var g = Math.round(_LEAN_NEUTRAL[1] + k * (pole[1] - _LEAN_NEUTRAL[1]));
+  var b = Math.round(_LEAN_NEUTRAL[2] + k * (pole[2] - _LEAN_NEUTRAL[2]));
   return "rgb(" + r + "," + g + "," + b + ")";
 }
 function leanLabel(avgScore, count) {
@@ -483,12 +524,20 @@ function loadArticlesGeo() {
           window._leanLegend.onAdd = function () {
             var div = L.DomUtil.create("div");
             div.style.cssText = "background:#0a1520cc;border:1px solid #1a3a5a;border-radius:3px;padding:4px 8px;font-family:monospace;font-size:9px;letter-spacing:0.5px;color:#9ca3af;";
+            // #6149 — the legend restated the poles as its own literals
+            // (#dc2626 / #94a3b8 / #2563eb): a THIRD copy in this file, and the
+            // exact defect found on /sources, where 2 of 5 legend swatches did
+            // not match the cards they described. Built from the same values the
+            // map paints with, so the legend cannot contradict the choropleth.
+            var _swatch = function (rgbArr, label) {
+              return "<span style='color:rgb(" + rgbArr.join(",") + ");'>&#9679;</span> " + label + " &nbsp;";
+            };
             div.innerHTML =
               "COVERAGE LEAN&nbsp; " +
-              "<span style='color:#dc2626;'>&#9679;</span> left &nbsp;" +
-              "<span style='color:#94a3b8;'>&#9679;</span> balanced &nbsp;" +
-              "<span style='color:#2563eb;'>&#9679;</span> right &nbsp;" +
-              "<span style='color:#6b7280;'>(Canadian party colours &middot; grey = &lt;" + LEAN_MIN_N + " articles)</span>";
+              _swatch(_LEAN_L, "left") +
+              _swatch(_LEAN_NEUTRAL, "balanced") +
+              _swatch(_LEAN_R, "right") +
+              "<span style='color:#6b7280;'>(grey = &lt;" + LEAN_MIN_N + " articles)</span>";
             return div;
           };
           window._leanLegend.addTo(map);

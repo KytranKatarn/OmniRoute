@@ -115,16 +115,48 @@ a { color: inherit; }
   color: #6b7280;
   text-transform: uppercase;
 }
-.wtf-nav-links { display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap; min-width: 0; row-gap: 0.5rem; }
-.wtf-nav-links a {
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
-  color: #c0c8d4;
-  text-decoration: none;
-  text-transform: uppercase;
-  white-space: nowrap;
+/* ── Grouped nav (#6149 phase 2) ───────────────────────────────────────────
+   Six sections replace the flat wall of links. Opens on hover AND on
+   focus-within, so it is reachable by keyboard, not only by pointer. */
+.wtf-nav-links { display: flex; gap: 0.35rem; align-items: center; min-width: 0; }
+.wtf-navgrp { position: relative; }
+.wtf-navgrp-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer;
+  padding: 7px 10px; border-radius: 4px;
+  font-family: var(--wtf-font-mono);
+  font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--wtf-text-2); white-space: nowrap;
 }
-.wtf-nav-links a:hover { color: #ffffff; }
+.wtf-navgrp-btn:hover,
+.wtf-navgrp:focus-within .wtf-navgrp-btn { color: var(--wtf-text); background: var(--wtf-bg-panel); }
+.wtf-nav-ico { flex-shrink: 0; opacity: 0.8; }
+.wtf-navgrp-menu {
+  display: none;
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 200;
+  min-width: 208px; padding: 6px;
+  background: var(--wtf-bg-card);
+  border: 1px solid var(--wtf-border);
+  border-radius: 6px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+}
+.wtf-navgrp:hover .wtf-navgrp-menu,
+.wtf-navgrp:focus-within .wtf-navgrp-menu { display: block; }
+.wtf-navgrp-menu a {
+  display: block; padding: 8px 10px; border-radius: 4px;
+  font-size: 0.8rem; letter-spacing: 0.01em; text-transform: none;
+  color: var(--wtf-text-2); text-decoration: none; white-space: nowrap;
+}
+.wtf-navgrp-menu a:hover { background: var(--wtf-bg-panel); color: var(--wtf-text); }
+.wtf-nav-search {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 4px;
+  color: var(--wtf-text-muted); text-decoration: none; flex-shrink: 0;
+}
+.wtf-nav-search:hover { color: var(--wtf-text); background: var(--wtf-bg-panel); }
+/* The 6 buttons no longer fit narrow desktops as a flat row — collapse to the
+   hamburger earlier than the old link wall did. */
+@media (max-width: 1080px) { .wtf-nav-links { display: none; } }
 .wtf-nav-live {
   display: flex;
   align-items: center;
@@ -225,6 +257,32 @@ a { color: inherit; }
   padding: 4px 1.5rem 12px;
 }
 .wtf-nav-mobile.open { display: flex; }
+/* Grouped drawer (#6149 phase 2): 52px rows per the design — the old rows were
+   ~38px, below the comfortable touch target. */
+.wtf-m-search {
+  display: flex; align-items: center; gap: 9px;
+  margin: 8px 0 12px; padding: 11px 12px;
+  border: 1px solid var(--wtf-border); border-radius: 6px;
+  background: var(--wtf-bg-card);
+  color: var(--wtf-text-muted); text-decoration: none; font-size: 0.82rem;
+}
+.wtf-m-search:hover { color: var(--wtf-text); }
+.wtf-m-grp {
+  display: flex; align-items: center; gap: 7px;
+  margin-top: 14px; padding-bottom: 6px;
+  font-family: var(--wtf-font-mono);
+  font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--wtf-text-muted);
+  border-bottom: 1px solid var(--wtf-border);
+}
+.wtf-nav-mobile a.wtf-m-item {
+  display: flex; align-items: center;
+  min-height: 52px; padding: 0 2px;
+  font-size: 0.9rem; letter-spacing: 0; text-transform: none;
+  color: var(--wtf-text-2); text-decoration: none;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.wtf-nav-mobile a.wtf-m-item:hover { color: var(--wtf-text); }
 .wtf-nav-mobile a {
   font-size: 0.8rem;
   color: #9ca3af;

@@ -1,3 +1,42 @@
+{# ── NAV: single source of truth (#6149 phase 2) ────────────────────────────
+   Six sections replacing a flat wall of links, per design-reference/
+   MobileNav.dc.html. Every destination below was probed live and returns 200 —
+   a regrouped nav full of 404s would be worse than the one it replaces.
+   /literacy and /alerts stay behind the auth gate they already had. #}
+{% set _news = [('/', 'Latest news'), ('/activity', 'Activity log'), ('/weather', 'Weather'),
+                ('/blindspot', 'Blindspot'), ('/divergence', 'Divergence')] %}
+{% set _politics = [('/mps', 'MPs & ridings'), ('/municipal', 'Municipal'), ('/lobbying', 'Lobbying'),
+                    ('/gic', 'Appointments'), ('/ethics', 'Ethics tracker'),
+                    ('/parliament/officers', 'Officers'), ('/rates', 'Rates')] %}
+{% set _money = [('/economy', 'Economy'), ('/cost', 'Cost of Parliament'), ('/markets', 'Markets')] %}
+{% set _media = [('/sources', 'Sources'), ('/owners', 'Owners'), ('/journalists', 'Journalists'),
+                 ('/crtc', 'CRTC')] %}
+{% set _data = [('/map', 'Coverage map'), ('/chain', 'Accountability chain'),
+                ('/cross-watch', 'Cross-Watch'), ('/claims', 'Claims'),
+                ('/api/docs', 'Developer API'), ('/edu', 'Education API')] %}
+{% set _about = [('https://what-the-fact.tech/transparency', 'Methodology'), ('/team', 'The newsroom'),
+                 ('/governance', 'Governance & ethics'), ('/score', 'Score an article')] %}
+{% if session.get('wtf_authenticated') %}
+  {% set _ = _news.append(('/alerts', 'My alerts')) %}
+  {% set _ = _about.append(('/literacy', 'Media literacy')) %}
+{% endif %}
+{% set nav_sections = [('News', _news), ('Politics', _politics), ('Money', _money),
+                       ('Media', _media), ('Data', _data), ('About', _about)] %}
+
+{# One 17px stroke icon per section. The live nav used emoji, and TWO of them
+   (Accountability Chain, Cross-Watch) were the SAME 🔗 glyph — indistinguishable
+   in a list. Emoji are gone entirely. #}
+{% macro wtf_nav_icon(section) -%}
+{%- set _p = {
+  'News':     '<path d="M4 5h13v14H4z"/><path d="M17 9h3v8a2 2 0 0 1-3 1.7"/><path d="M7 9h7M7 13h7M7 16h4"/>',
+  'Politics': '<path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/>',
+  'Money':    '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/>',
+  'Media':    '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/>',
+  'Data':     '<path d="M4 20V10M10 20V4M16 20v-8M22 20h-20"/>',
+  'About':    '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><circle cx="12" cy="7.8" r="0.6" fill="currentColor"/>'
+} -%}
+<svg class="wtf-nav-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">{{ _p.get(section, '') | safe }}</svg>
+{%- endmacro %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -32,30 +71,28 @@
       <span class="wtf-subbrand">CANADIAN AI NEWSROOM</span>
     </a>
     <div class="wtf-nav-links">
-      <a href="/">News</a>
-      <a href="/sources">Sources</a>
-      <a href="/owners">Owners</a>
-      <a href="/parliament/officers">Officers</a>
-      <a href="/crtc">CRTC</a>
-      <a href="/ethics">Ethics</a>
-      <a href="/rates">Rates</a>
-      <a href="/gic">GIC</a>
-      <a href="/lobbying">Lobbying</a>
-      <a href="/mps">MPs</a>
-      <a href="/cost">Cost</a>
-      <a href="/municipal">Municipal</a>
-      <a href="/journalists">Journalists</a>
-      <a href="/markets">Markets 📈</a>
-      <a href="/cross-watch">Cross-Watch</a>
-      <a href="/search">Search</a>
-      <a href="/chain">Chain</a>
-      <a href="/map">Map</a>
-      <a href="/team">Team</a>
-      {% if session.get('wtf_authenticated') %}<a href="/alerts">Alerts</a>
-      <a href="/literacy">Literacy</a>{% endif %}
-      <a href="/governance">Governance</a>
-      <a href="https://what-the-fact.tech/transparency">Methodology</a>
-      <a href="/score">Score an Article</a>
+      {# #6149 phase 2 — ONE nav definition, rendered by both the desktop bar and
+         the mobile drawer below. They were two hand-maintained lists and had
+         DRIFTED: desktop was missing /activity /weather /economy /blindspot
+         /divergence /edu, mobile was missing /sources /crtc /ethics /rates /gic
+         /lobbying /journalists /map /search. Mobile and desktop users were
+         navigating different sites. Adding a destination now means one line.
+         Sections + labels come from design-reference/MobileNav.dc.html. #}
+      {% for section, items in nav_sections %}
+      <div class="wtf-navgrp">
+        <button class="wtf-navgrp-btn" aria-expanded="false" aria-controls="navgrp-{{ loop.index }}">
+          {{ wtf_nav_icon(section) }}<span>{{ section }}</span>
+        </button>
+        <div class="wtf-navgrp-menu" id="navgrp-{{ loop.index }}">
+          {% for href, label in items %}
+          <a href="{{ href }}">{{ label }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+      <a href="/search" class="wtf-nav-search" aria-label="Search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      </a>
     </div>
     <div class="wtf-nav-live">
       <span class="wtf-live-dot"></span>
@@ -96,24 +133,18 @@
       <span class="wtf-live-dot"></span>
       LIVE &middot; {{ nav_source_count | default(source_count) | default(0) }} SOURCES
     </div>
-    <a href="/">News</a>
-    <a href="/activity">Activity Log</a>
-    <a href="/weather">Weather</a>
-    <a href="/economy">Economy</a>
-    <a href="/municipal">Municipal 🏙</a>
-    <a href="/blindspot">Blindspot</a>
-    <a href="/divergence">Divergence</a>
-    <a href="/owners">Owners 🏢</a>
-    <a href="/mps">MPs 🏛</a>
-    <a href="/cost">Cost of Parliament 💵</a>
-    <a href="/markets">Markets 📈</a>
-    <a href="/chain">Accountability Chain 🔗</a>
-    <a href="/cross-watch">Cross-Watch 🔗</a>
-    <a href="/team">Team</a>
-    <a href="/governance">Governance</a>
-    <a href="https://what-the-fact.tech/transparency">Methodology</a>
-    <a href="https://what-the-fact.tech/score">Score</a>
-    <a href="/edu">Education API</a>
+    {# Same nav_sections as the desktop bar — see the note there. This drawer was
+       19 flat items with emoji, two of which shared the 🔗 glyph. #}
+    <a href="/search" class="wtf-m-search">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      <span>Search stories, MPs, sources</span>
+    </a>
+    {% for section, items in nav_sections %}
+    <div class="wtf-m-grp">{{ wtf_nav_icon(section) }}<span>{{ section }}</span></div>
+    {% for href, label in items %}
+    <a href="{{ href }}" class="wtf-m-item">{{ label }}</a>
+    {% endfor %}
+    {% endfor %}
     {% if session.get('wtf_authenticated') %}
     <a href="/account" style="color:var(--wtf-accent);font-size:0.75rem;">Account</a>
     <a href="/logout"

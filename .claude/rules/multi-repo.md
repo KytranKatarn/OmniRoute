@@ -96,14 +96,28 @@ missing credential. The tokens live in the `archie_platform` container.
   naming an explicit `(repo, PR)` pair) is the control that actually binds. Re-probe before trusting
   this table — a token's grants can change without any code change.
 
-## Databases are separate too
+## Databases — KBS is NOT self-contained (corrected 2026-08-30, task #6129)
 
 | Product | Connect |
 |---|---|
 | platform | `docker exec archie_database psql -U archie -d archie` |
-| KBS | `docker exec kbs_postgres psql -U kbs -d kbs` — **user `kbs`, not `postgres`** |
+| **KBS** | **the SAME platform DB** — `docker exec archie_database psql -U archie -d archie` |
 
-KBS is multi-tenant by **schema**: `tenant_1` (= Kytran Empowerment), `tenant_9908/9914/9915`.
-`public` holds the shared `module_catalog`. ⚠️ `pg_stat_user_tables.n_live_tup` is a **stale
-estimate** — it reported `public.billing_subscriptions` as 0 when `COUNT(*)` returns 5. Use
-`COUNT(*)` for anything you will act on.
+The KBS app reads the **platform `archie` database**, not its own: `kbs_app` env is
+`KBS_DB_NAME=archie`, `KBS_DB_HOST=archie_database` (verified live from the running
+container 2026-08-30). This file previously said `kbs_postgres` was KBS's database — wrong.
+
+⚠️ **`kbs_postgres` is a RUNNING container holding a STALE, DIVERGENT copy.** It answers
+queries plausibly — it has its own `tenant_*` schemas (`tenant_1/95758/91408/90333/92898`,
+a DIFFERENT id set than live) — but the app never reads it; querying it misread live state
+as "0 tenants" (#6129). If you must inspect it anyway: `docker exec kbs_postgres psql -U kbs
+-d kbs` (user `kbs`, not `postgres`).
+
+The LIVE KBS tenant schemas are in the **archie** DB: `tenant_1` (= Kytran Empowerment),
+`tenant_9908/9914/9915`; `public` holds the shared `module_catalog`. This is THE
+KBS-independence constraint: KBS is not self-contained, so a real DB split (archie → its
+own postgres) comes BEFORE any move off-hub (owner decision: split-DB-before-move).
+
+⚠️ `pg_stat_user_tables.n_live_tup` is a **stale estimate** — it reported
+`public.billing_subscriptions` as 0 when `COUNT(*)` returns 5. Use `COUNT(*)` for anything
+you will act on.

@@ -6,7 +6,6 @@ CRUD operations for managing AI agents
 
 from psycopg2.extras import RealDictCursor
 import os
-from datetime import datetime
 from db import get_db
 
 # =============================================================================

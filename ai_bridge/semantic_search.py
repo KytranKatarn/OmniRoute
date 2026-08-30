@@ -493,7 +493,7 @@ if __name__ == "__main__":
 
     # Get stats
     stats = search_stats()
-    print(f"\nSearch Stats:")
+    print("\nSearch Stats:")
     for key, value in stats.items():
         print(f"  {key}: {value}")
 

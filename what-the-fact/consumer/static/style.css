@@ -1,48 +1,81 @@
 /* ===== WTF BRAND SYSTEM ===== */
 
-/* Light mode defaults */
+/* PREMIUM EDITORIAL DARK — the approved redesign direction (#6149 phase 1).
+   Source of truth: design-reference/DesignLanguage.dc.html.
+
+   The old block declared a LIGHT :root with dark only inside a
+   prefers-color-scheme media query — while `body` below hardcodes a dark
+   ground unconditionally. The tokens were therefore fighting what actually
+   rendered, and a light-mode visitor got light tokens on a dark body. Ink is
+   now the single ground. */
 :root {
-  --wtf-bg:           #f9fafb;
-  --wtf-bg-card:      #ffffff;
-  --wtf-bg-panel:     #f3f4f6;
-  --wtf-text:         #111111;
-  --wtf-text-muted:   #6b7280;
-  --wtf-border:       #e5e7eb;
+  --wtf-bg:           #0d1117;  /* ink / page      */
+  --wtf-bg-card:      #11161f;  /* ink-2 / panel   */
+  --wtf-bg-panel:     #171e2a;  /* ink-3 / raised  */
+  --wtf-text:         #f2f1ed;  /* text / paper    */
+  --wtf-text-2:       #b9bdc5;
+  --wtf-text-muted:   #7d8590;
+  --wtf-border:       #222b39;  /* hairline        */
   --wtf-accent:       #dc2626;
   --wtf-map-bg:       #0d1117;
 
-  --wtf-left:         #dc2626;
-  --wtf-center-left:  #f97316;
-  --wtf-center:       #22c55e;
-  --wtf-center-right: #0ea5e9;
-  --wtf-right:        #2563eb;
+  /* LEAN SCALE — diverging red pole / NEUTRAL centre / blue pole.
+     The previous ramp was #dc2626 red, #f97316 orange, #22c55e GREEN,
+     #0ea5e9 sky, #2563eb blue. Two defects, both fixed here:
+       1. red vs orange are near-identical under common colour-vision
+          deficiencies, so the two left-most buckets were indistinguishable;
+       2. green at the midpoint reads as a QUALITY JUDGEMENT — "centre = good"
+          — which is precisely the editorial claim this site must not make.
+     Rule that travels with these tokens: lean colour NEVER appears without its
+     text label. Same rule for party colour bars. */
+  --wtf-left:         #d84b47;
+  --wtf-center-left:  #cf8b80;
+  --wtf-center:       #929aa5;
+  --wtf-center-right: #7fa3cf;
+  --wtf-right:        #4a72d8;
 
+  /* Verdict chips (informative, never a score) */
+  --wtf-established:  #10b981;
+  --wtf-developing:   #f59e0b;
+  --wtf-contested:    #e05252;
+
+  /* Agent identity */
   --wtf-fact:    #dc2626;
   --wtf-bias:    #f59e0b;
   --wtf-verify:  #10b981;
   --wtf-local:   #3b82f6;
-  --wtf-aurora:  #7c3aed;
-}
+  --wtf-aurora:  #8b5cf6;
 
-/* Dark mode overrides */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --wtf-bg:         #0d1117;
-    --wtf-bg-card:    #0a0f1a;
-    --wtf-bg-panel:   #060d14;
-    --wtf-text:       #f9fafb;
-    --wtf-text-muted: #6b7280;
-    --wtf-border:     #1f2937;
-  }
+  /* Type — declared for a decade, loaded as of #6149 (see base.html) */
+  --wtf-font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
+  --wtf-font-body:  'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  --wtf-font-mono:  'IBM Plex Mono', Consolas, 'Courier New', monospace;
 }
 
 /* Reset */
 *, *::before, *::after { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: 'IBM Plex Mono', 'Courier New', monospace;
-  background: #050d1a;
-  color: #c0c8d4;
+  /* Was 'IBM Plex Mono' for the ENTIRE body — every paragraph on the site set
+     in a monospace face that was never actually loaded, so it rendered as
+     Courier. Mono is now reserved for data labels (.mono / .k), per the design
+     language. Ground + text come from the tokens rather than being hardcoded
+     to values (#050d1a / #c0c8d4) that matched no token. */
+  font-family: var(--wtf-font-body);
+  background: var(--wtf-bg);
+  color: var(--wtf-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Type roles from the design language. */
+.serif { font-family: var(--wtf-font-serif); }
+.mono  { font-family: var(--wtf-font-mono); }
+/* .k — the small uppercase mono key/label used for data captions */
+.k {
+  font-family: var(--wtf-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 a { color: inherit; }
 
@@ -69,7 +102,7 @@ a { color: inherit; }
   flex-shrink: 0;
 }
 .wtf-wordmark {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--wtf-font-serif);
   font-size: 1.15rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -376,7 +409,7 @@ a { color: inherit; }
   color: #6b7280;
 }
 .wtf-card-title {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--wtf-font-serif);
   font-size: 14px;
   line-height: 1.4;
   color: #e0e0e0;
@@ -424,7 +457,7 @@ a { color: inherit; }
   gap: 6px;
 }
 .wtf-team-hero h1 {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--wtf-font-serif);
   font-size: 28px;
   letter-spacing: 4px;
   color: #f9fafb;
@@ -502,7 +535,7 @@ a { color: inherit; }
   margin-bottom: 10px;
 }
 .wtf-team-desc {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--wtf-font-serif);
   font-size: 12px;
   color: #6b7280;
   line-height: 1.6;

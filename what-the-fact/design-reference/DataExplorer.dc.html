@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .fchip { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 14px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #b9bdc5; white-space: nowrap; }
+    .tile { display: flex; flex-direction: column; gap: 8px; padding: 22px; border: 1px solid #222b39; background: #11161f; }
+    .tilen { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 34px; font-weight: 600; line-height: 1; }
+    .tilel { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; }
+    .tiled { font-size: 12px; color: #55606e; }
+    table { border-collapse: collapse; width: 100%; }
+    th { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; text-align: left; font-weight: 500; padding: 0 16px 10px 0; border-bottom: 1px solid #222b39; }
+    td { font-size: 14px; color: #d5d4cf; padding: 13px 16px 13px 0; border-bottom: 1px solid #1a212e; }
+    .seg { display: inline-flex; align-items: center; height: 34px; padding: 0 13px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.08em; color: #7d8590; border: 1px solid #222b39; border-left: none; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <a href="#" style="font-size: 13px; color: #b9bdc5;">Sign in</a>
+      <a href="#" style="display: inline-flex; align-items: center; height: 30px; padding: 0 16px; background: #dc2626; color: #fff; font-size: 13px; font-weight: 600;">Subscribe</a>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink">News</a>
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink">Data</a>
+        <a href="#" class="navlink">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- head -->
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; padding: 34px 40px 22px 40px;">
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      <span class="k" style="color: #dc2626;">Politics &mdash; influence</span>
+      <span class="serif" style="font-size: 42px; font-weight: 600; line-height: 1;">Lobbying tracker</span>
+      <span class="mono" style="font-size: 11px; color: #7d8590;">Who is lobbying whom, from the federal registry &mdash; updated daily</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <div style="display: inline-flex;">
+        <span class="seg" style="border-left: 1px solid #222b39;">30D</span>
+        <span class="seg" style="color: #f2f1ed; background: #1b2330;">12M</span>
+        <span class="seg">5Y</span>
+        <span class="seg">ALL</span>
+      </div>
+      <a href="#" class="chip" style="color: #b9bdc5;">Download CSV</a>
+    </div>
+  </div>
+
+  <!-- stat tiles -->
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 0 40px 28px 40px;">
+    <div class="tile"><span class="tilel">Communications</span><span class="tilen">18,442</span><span class="tiled">+12% vs previous 12 months</span></div>
+    <div class="tile"><span class="tilel">Organizations</span><span class="tilen">1,207</span><span class="tiled">Registered lobbying entities</span></div>
+    <div class="tile"><span class="tilel">MPs contacted</span><span class="tilen">311</span><span class="tiled">of 343 seats</span></div>
+    <div class="tile"><span class="tilel">Busiest month</span><span class="tilen">Mar</span><span class="tiled">2,104 communications</span></div>
+  </div>
+
+  <!-- charts -->
+  <div style="display: grid; grid-template-columns: 1fr 480px; gap: 28px; padding: 0 40px 34px 40px;">
+
+    <div style="display: flex; flex-direction: column; gap: 14px; border: 1px solid #222b39; padding: 24px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span class="serif" style="font-size: 22px; font-weight: 600;">Communications per month</span>
+        <span class="mono" style="font-size: 10px; color: #55606e;">HOVER FOR EXACT COUNTS</span>
+      </div>
+      <svg width="860" height="230" viewBox="0 0 860 230">
+        <line x1="44" y1="20" x2="860" y2="20" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="44" y1="70" x2="860" y2="70" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="44" y1="120" x2="860" y2="120" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="44" y1="170" x2="860" y2="170" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="44" y1="196" x2="860" y2="196" stroke="#222b39" stroke-width="1"></line>
+        <text x="36" y="24" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">2.4k</text>
+        <text x="36" y="74" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">1.8k</text>
+        <text x="36" y="124" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">1.2k</text>
+        <text x="36" y="174" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">600</text>
+        <path d="M60 150 L128 132 L196 158 L264 104 L332 126 L400 62 L468 92 L536 140 L604 78 L672 108 L740 134 L808 46 L808 196 L60 196 Z" fill="#b9bdc5" fill-opacity="0.07"></path>
+        <path d="M60 150 L128 132 L196 158 L264 104 L332 126 L400 62 L468 92 L536 140 L604 78 L672 108 L740 134 L808 46" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+        <line x1="808" y1="20" x2="808" y2="196" stroke="#dc2626" stroke-width="1" stroke-dasharray="3 3"></line>
+        <circle cx="808" cy="46" r="5" fill="#dc2626" stroke="#0d1117" stroke-width="2"></circle>
+        <rect x="700" y="8" width="152" height="30" fill="#171e2a" stroke="#2c3648" stroke-width="1"></rect>
+        <text x="712" y="21" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="9">AUG 2026</text>
+        <text x="712" y="33" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="11">2,104 communications</text>
+        <text x="60" y="216" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">SEP</text>
+        <text x="264" y="216" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">DEC</text>
+        <text x="468" y="216" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">MAR</text>
+        <text x="672" y="216" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">JUN</text>
+        <text x="808" y="216" text-anchor="middle" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="9">AUG</text>
+      </svg>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; border: 1px solid #222b39; padding: 24px;">
+      <span class="serif" style="font-size: 22px; font-weight: 600;">Most active organizations</span>
+      <svg width="430" height="230" viewBox="0 0 430 230">
+        <rect x="0" y="6" width="300" height="20" fill="#dc2626"></rect>
+        <text x="0" y="-2" fill="#f2f1ed" font-family="IBM Plex Sans, sans-serif" font-size="12" dy="0"></text>
+        <text x="308" y="21" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="11">844</text>
+        <text x="0" y="44" fill="#d5d4cf" font-family="IBM Plex Sans, sans-serif" font-size="12">Canadian Fuels Association</text>
+        <rect x="0" y="52" width="238" height="20" fill="#55606e"></rect>
+        <text x="246" y="67" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="11">671</text>
+        <text x="0" y="90" fill="#d5d4cf" font-family="IBM Plex Sans, sans-serif" font-size="12">Business Council of Canada</text>
+        <rect x="0" y="98" width="196" height="20" fill="#55606e"></rect>
+        <text x="204" y="113" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="11">552</text>
+        <text x="0" y="136" fill="#d5d4cf" font-family="IBM Plex Sans, sans-serif" font-size="12">Aluminium Association of Canada</text>
+        <rect x="0" y="144" width="150" height="20" fill="#55606e"></rect>
+        <text x="158" y="159" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="11">423</text>
+        <text x="0" y="182" fill="#d5d4cf" font-family="IBM Plex Sans, sans-serif" font-size="12">Canadian Bankers Association</text>
+        <rect x="0" y="190" width="118" height="20" fill="#55606e"></rect>
+        <text x="126" y="205" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="11">331</text>
+        <text x="0" y="228" fill="#d5d4cf" font-family="IBM Plex Sans, sans-serif" font-size="12">Fisheries Council of Canada</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- table -->
+  <div style="padding: 0 40px 36px 40px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span class="serif" style="font-size: 22px; font-weight: 600; margin-right: auto;">Recent communications</span>
+      <span class="fchip">All parties<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7d8590" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      <span class="fchip">All subjects<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7d8590" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"></polyline></svg></span>
+      <div style="display: inline-flex; align-items: center; gap: 8px; height: 40px; width: 240px; padding: 0 12px; border: 1px solid #222b39; box-sizing: border-box;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+        <span class="mono" style="font-size: 11px; color: #55606e;">Search organizations&hellip;</span>
+      </div>
+    </div>
+    <table>
+      <tr><th style="width: 110px;">Date</th><th style="width: 230px;">MP</th><th style="width: 160px;">Party</th><th>Organization</th><th style="width: 150px;">Subject</th></tr>
+      <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-29</td><td><a href="#">Dominic LeBlanc</a></td><td><span class="mono" style="font-size: 11px; color: #d84b47;">LIBERAL</span></td><td><a href="#">Canadian Fuels Association</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">ENERGY</td></tr>
+      <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-29</td><td><a href="#">Michelle Rempel Garner</a></td><td><span class="mono" style="font-size: 11px; color: #4a72d8;">CONSERVATIVE</span></td><td><a href="#">Business Council of Canada</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">TAXATION</td></tr>
+      <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-28</td><td><a href="#">Anita Anand</a></td><td><span class="mono" style="font-size: 11px; color: #d84b47;">LIBERAL</span></td><td><a href="#">Aluminium Association of Canada</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">TRADE</td></tr>
+      <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-28</td><td><a href="#">Alexandre Boulerice</a></td><td><span class="mono" style="font-size: 11px; color: #cf8b80;">NDP</span></td><td><a href="#">Canadian Labour Congress</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">LABOUR</td></tr>
+      <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-27</td><td><a href="#">Yves-Fran&ccedil;ois Blanchet</a></td><td><span class="mono" style="font-size: 11px; color: #7fa3cf;">BLOC</span></td><td><a href="#">Fisheries Council of Canada</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">FISHERIES</td></tr>
+    </table>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span class="mono" style="font-size: 11px; color: #55606e;">SHOWING 5 OF 18,442</span>
+      <div style="display: flex; gap: 8px;">
+        <a href="#" class="chip" style="color: #55606e;">&larr; Prev</a>
+        <a href="#" class="chip" style="color: #b9bdc5;">Next &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+      <a href="#" class="mono" style="font-size: 11px; color: #7d8590;">Methodology</a>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

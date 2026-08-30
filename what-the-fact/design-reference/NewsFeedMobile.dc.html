@@ -1,0 +1,148 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .ph { position: relative; overflow: hidden; background: radial-gradient(130% 100% at 18% 8%, #243040 0%, #161e2a 52%, #0f1520 100%); }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .gauge { position: relative; height: 5px; width: 48px; background: linear-gradient(90deg, #d84b47 0%, #cf8b80 28%, #3a414c 50%, #7fa3cf 72%, #4a72d8 100%); }
+    .gdot { position: absolute; top: -3px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #0d1117; box-sizing: border-box; }
+    .fchip { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 14px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #b9bdc5; white-space: nowrap; }
+    .tok { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 13px; background: #1b2330; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.08em; color: #f2f1ed; }
+    .lp { display: inline-block; padding: 2px 6px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 8px; letter-spacing: 0.08em; }
+  </style>
+</helmet>
+<div style="width: 390px; background: #0d1117;">
+
+  <!-- header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 6px 0 4px; border-bottom: 1px solid #222b39;">
+    <a href="#" aria-label="Menu" style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f2f1ed" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></a>
+    <a href="#" class="serif" style="font-size: 20px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+    <a href="#" aria-label="Search" style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- title -->
+  <div style="display: flex; flex-direction: column; gap: 6px; padding: 20px 16px 14px 16px;">
+    <span class="k" style="color: #dc2626;">Live &mdash; AI newsroom</span>
+    <span class="serif" style="font-size: 32px; font-weight: 600; line-height: 1;">Latest news</span>
+    <span class="mono" style="font-size: 10px; color: #7d8590;">121,329 articles &middot; 37 sources &middot; newest first</span>
+  </div>
+
+  <!-- filter row -->
+  <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 16px 16px 16px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; gap: 8px; overflow: hidden;">
+      <span class="fchip" style="color: #f2f1ed; border-color: #dc2626;">All beats</span>
+      <span class="fchip">Parliament</span>
+      <span class="fchip">Business</span>
+      <span class="fchip">Economy</span>
+      <span class="fchip">Climate</span>
+      <span class="fchip" style="gap: 7px;"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="7" y1="12" x2="17" y2="12"></line><line x1="10" y1="18" x2="14" y2="18"></line></svg>Filters</span>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+      <span class="tok">Ontario<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7d8590" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>
+      <span class="tok">Ctr-left<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7d8590" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></span>
+      <span class="mono" style="font-size: 9px; color: #55606e;">2 active filters</span>
+    </div>
+  </div>
+
+  <!-- cards -->
+  <div style="display: flex; flex-direction: column; padding: 0 16px;">
+
+    <div style="display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="mono" style="font-size: 9px; color: #7d8590;">THE GLOBE AND MAIL &middot; 12:16</span>
+          <span class="lp" style="color: #929aa5; background: #1a1f28;">CENTER</span>
+        </div>
+        <a href="#" class="serif" style="font-size: 18px; font-weight: 500; line-height: 1.3;">Mercury beat Tempo 101-69 with second-highest win margin this season</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #f59e0b; border-color: #3a3120;">Developing</span>
+          <div class="gauge"><div class="gdot" style="left: 22px; background: #929aa5;"></div></div>
+        </div>
+      </div>
+      <div class="ph" style="width: 92px; height: 70px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="mono" style="font-size: 9px; color: #7d8590;">THE GLOBE AND MAIL &middot; 12:11</span>
+          <span class="lp" style="color: #929aa5; background: #1a1f28;">CENTER</span>
+        </div>
+        <a href="#" class="serif" style="font-size: 18px; font-weight: 500; line-height: 1.3;">Death toll rises to 38 from Russia&rsquo;s deadliest attack on Ukraine this year</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge"><div class="gdot" style="left: 18px; background: #929aa5;"></div></div>
+        </div>
+      </div>
+      <div class="ph" style="width: 92px; height: 70px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="mono" style="font-size: 9px; color: #7d8590;">THE HUB &middot; ON &middot; 12:04</span>
+          <span class="lp" style="color: #7fa3cf; background: #131c2c;">CTR-RIGHT</span>
+        </div>
+        <a href="#" class="serif" style="font-size: 18px; font-weight: 500; line-height: 1.3;">Canada&rsquo;s economy can withstand an escalated trade war with U.S., say banks</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge"><div class="gdot" style="left: 31px; background: #7fa3cf;"></div></div>
+        </div>
+      </div>
+      <div class="ph" style="width: 92px; height: 70px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 16px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="mono" style="font-size: 9px; color: #7d8590;">CABIN RADIO &middot; NT &middot; 12:00</span>
+          <span class="lp" style="color: #929aa5; background: #1a1f28;">CENTER</span>
+        </div>
+        <a href="#" class="serif" style="font-size: 18px; font-weight: 500; line-height: 1.3;">&lsquo;I&rsquo;m so excited&rsquo;: dentist prepares to open new Inuvik practice</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge"><div class="gdot" style="left: 18px; background: #929aa5;"></div></div>
+        </div>
+      </div>
+      <div class="ph" style="width: 92px; height: 70px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 16px 0;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="mono" style="font-size: 9px; color: #7d8590;">WINNIPEG FREE PRESS &middot; 11:58</span>
+          <span class="lp" style="color: #929aa5; background: #1a1f28;">CENTER</span>
+        </div>
+        <a href="#" class="serif" style="font-size: 18px; font-weight: 500; line-height: 1.3;">Iran&rsquo;s leader calls for Muslim unity amid a volatile week in the Mideast</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #f59e0b; border-color: #3a3120;">Developing</span>
+          <div class="gauge"><div class="gdot" style="left: 22px; background: #929aa5;"></div></div>
+        </div>
+      </div>
+      <div class="ph" style="width: 92px; height: 70px; flex-shrink: 0;"></div>
+    </div>
+
+  </div>
+
+  <!-- load more -->
+  <div style="padding: 8px 16px 28px 16px;">
+    <a href="#" style="display: inline-flex; align-items: center; justify-content: center; height: 48px; width: 100%; border: 1px solid #222b39; color: #b9bdc5; font-size: 14px;">Load more</a>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

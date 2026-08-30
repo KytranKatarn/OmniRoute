@@ -1,0 +1,203 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .para { font-size: 17px; line-height: 1.75; color: #d5d4cf; margin: 0 0 20px 0; }
+    .h2 { font-family: 'Newsreader', Georgia, serif; font-size: 28px; font-weight: 600; line-height: 1.2; margin: 34px 0 14px 0; }
+    .toc { font-size: 13px; color: #7d8590; padding: 7px 0 7px 14px; border-left: 1px solid #222b39; display: block; }
+    .toc:hover { color: #f2f1ed; border-left-color: #dc2626; }
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    .flabel { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; }
+    .fbox { display: flex; align-items: center; height: 44px; padding: 0 14px; border: 1px solid #222b39; background: #11161f; font-size: 14px; color: #d5d4cf; box-sizing: border-box; }
+    .toggle { width: 40px; height: 22px; border-radius: 11px; position: relative; flex-shrink: 0; }
+    .knob { position: absolute; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #f2f1ed; }
+    .srow { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #1a212e; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <span style="font-size: 13px; color: #b9bdc5;">kytran@kytranempowerment.com</span>
+      <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Starter</span>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink">News</a>
+        <a href="#" class="navlink">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink">Data</a>
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- editorial page -->
+  <div style="display: grid; grid-template-columns: 240px 760px 1fr; gap: 48px; padding: 44px 40px 20px 40px;">
+
+    <div style="display: flex; flex-direction: column; gap: 4px; align-self: start;">
+      <span class="k" style="color: #7d8590; margin-bottom: 10px;">On this page</span>
+      <a href="#" class="toc" style="color: #f2f1ed; border-left-color: #dc2626;">How we score bias</a>
+      <a href="#" class="toc">Fact-check verdicts</a>
+      <a href="#" class="toc">Source selection</a>
+      <a href="#" class="toc">What the AI does not do</a>
+      <a href="#" class="toc">Corrections policy</a>
+      <a href="#" class="toc">Governance &amp; ethics</a>
+    </div>
+
+    <div style="display: flex; flex-direction: column;">
+      <span class="k" style="color: #dc2626; margin-bottom: 14px;">About &mdash; methodology</span>
+      <h1 class="serif" style="font-size: 46px; font-weight: 600; line-height: 1.12; margin: 0 0 18px 0;">How we score bias, check facts, and decide what counts as a source</h1>
+      <div style="font-size: 18px; line-height: 1.55; color: #b9bdc5; margin-bottom: 26px;">Every number on this site comes from a documented process run by named agents on our own hardware. This page explains each step and where it can go wrong.</div>
+      <div style="display: flex; align-items: center; gap: 14px; padding: 16px 0; border-top: 1px solid #222b39; border-bottom: 1px solid #222b39; margin-bottom: 30px;">
+        <span class="mono" style="font-size: 10px; color: #7d8590;">LAST REVIEWED AUG 2026 &middot; 6 MIN READ</span>
+        <span class="chip" style="color: #b9bdc5; margin-left: auto;">C.R.E.E.D. certified &middot; A+</span>
+      </div>
+
+      <h2 class="h2" style="margin-top: 0;">How we score bias</h2>
+      <p class="para">Bias scoring runs in two passes. An outlet-level score is built from that publisher&rsquo;s history across every article we have indexed; an article-level score reads the piece itself &mdash; framing, sourcing, which voices appear and in what order. The two are reported separately, because a centrist outlet publishes left- and right-leaning pieces and averaging them hides exactly what a reader wants to see.</p>
+      <p class="para">Scores land on a five-point scale from left to right with a neutral midpoint. The colour is never the whole signal: every score ships with its text label, and subscribers see the rationale that produced it.</p>
+
+      <div style="border-left: 2px solid #dc2626; padding: 6px 0 6px 26px; margin: 6px 0 30px 0;">
+        <div class="serif" style="font-size: 24px; font-style: italic; font-weight: 500; line-height: 1.4;">A score you cannot interrogate is a score you should not trust. Every one on this site opens into its reasoning.</div>
+      </div>
+
+      <h2 class="h2">Fact-check verdicts</h2>
+      <p class="para">V.E.R.I.F.Y. assigns one of six verdicts, constrained to a fixed vocabulary so the label always means the same thing: established, mostly true, mixed, disputed, unverifiable, and descriptive reporting. A claim is only marked established when it is attributed in the original piece and consistent with at least one independent source we already hold.</p>
+
+      <h2 class="h2">What the AI does not do</h2>
+      <p class="para">No agent writes original reporting, and none rewrites a publisher&rsquo;s words. Summaries are extractive &mdash; sentences selected from the source, never generated prose presented as the outlet&rsquo;s. Nothing publishes to this site without passing the governance checks described below.</p>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 16px; align-self: start; border: 1px solid #222b39; background: #11161f; padding: 24px;">
+      <span class="k" style="color: #7d8590;">The agents behind this</span>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span class="mono" style="font-size: 12px; color: #f2f1ed;">B.I.A.S.</span>
+          <span style="font-size: 12px; color: #7d8590;">Bias scoring</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span class="mono" style="font-size: 12px; color: #f2f1ed;">V.E.R.I.F.Y.</span>
+          <span style="font-size: 12px; color: #7d8590;">Fact-checking</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="width: 8px; height: 8px; border-radius: 50%; background: #3b82f6;"></span>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span class="mono" style="font-size: 12px; color: #f2f1ed;">L.O.C.A.L.</span>
+          <span style="font-size: 12px; color: #7d8590;">Geography &amp; ridings</span>
+        </div>
+      </div>
+      <a href="#" class="mono" style="font-size: 11px; color: #dc2626; padding-top: 6px; border-top: 1px solid #1a212e;">Meet the newsroom &rarr;</a>
+    </div>
+  </div>
+
+  <!-- account settings variant -->
+  <div style="border-top: 1px solid #222b39; margin-top: 30px; padding: 40px;">
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 8px;">
+      <span class="k" style="color: #dc2626;">Same shell, account variant</span>
+      <span class="mono" style="font-size: 10px; color: #55606e;">Account, alerts, API keys and connect all use this two-column settings form</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 240px 640px 1fr; gap: 48px; padding-top: 22px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span class="k" style="color: #7d8590; margin-bottom: 10px;">Account</span>
+        <a href="#" class="toc" style="color: #f2f1ed; border-left-color: #dc2626;">Profile</a>
+        <a href="#" class="toc">Subscription</a>
+        <a href="#" class="toc">Alerts &amp; follows</a>
+        <a href="#" class="toc">Beats</a>
+        <a href="#" class="toc">API keys</a>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 26px;">
+        <span class="serif" style="font-size: 30px; font-weight: 600;">Profile</span>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;">
+          <div class="field"><span class="flabel">Display name</span><div class="fbox">Kytran</div></div>
+          <div class="field"><span class="flabel">Email</span><div class="fbox" style="color: #7d8590;">kytran@kytranempowerment.com</div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 2px;">
+          <span class="flabel" style="margin-bottom: 10px;">Email preferences</span>
+          <div class="srow">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 14px;">Weekly bias digest</span>
+              <span style="font-size: 12px; color: #7d8590;">Top stories and outlet bias averages, Mondays</span>
+            </div>
+            <div class="toggle" style="background: #dc2626;"><span class="knob" style="right: 3px;"></span></div>
+          </div>
+          <div class="srow">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 14px;">Blindspot alerts</span>
+              <span style="font-size: 12px; color: #7d8590;">When a story one side isn&rsquo;t covering crosses your beats</span>
+            </div>
+            <div class="toggle" style="background: #dc2626;"><span class="knob" style="right: 3px;"></span></div>
+          </div>
+          <div class="srow" style="border-bottom: none;">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 14px;">Followed entity updates</span>
+              <span style="font-size: 12px; color: #7d8590;">New records for MPs and organizations you follow</span>
+            </div>
+            <div class="toggle" style="background: #2a3240;"><span class="knob" style="left: 3px; background: #7d8590;"></span></div>
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <a href="#" style="display: inline-flex; align-items: center; height: 44px; padding: 0 22px; background: #dc2626; color: #fff; font-size: 14px; font-weight: 600;">Save changes</a>
+          <a href="#" style="display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border: 1px solid #222b39; color: #b9bdc5; font-size: 14px;">Cancel</a>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 14px; align-self: start; border: 1px solid #222b39; padding: 24px;">
+        <span class="k" style="color: #7d8590;">Your plan</span>
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <span class="serif" style="font-size: 30px; font-weight: 600;">Starter</span>
+          <span class="mono" style="font-size: 12px; color: #7d8590;">$4.99/mo</span>
+        </div>
+        <div style="font-size: 13px; line-height: 1.6; color: #b9bdc5;">Bias rationale, fact-check deep dives, MP mentions and source history.</div>
+        <a href="#" class="mono" style="font-size: 11px; color: #dc2626; padding-top: 8px; border-top: 1px solid #1a212e;">Manage billing &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+      <a href="#" class="mono" style="font-size: 11px; color: #7d8590;">Governance</a>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

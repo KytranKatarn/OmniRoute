@@ -1,0 +1,342 @@
+{
+  "artboards": [
+    {
+      "file": "DesignLanguage.dc.html",
+      "page": "page-1",
+      "x": 0,
+      "y": 0,
+      "w": 1240,
+      "h": 1980,
+      "title": "Design Language"
+    },
+    {
+      "file": "Main.dc.html",
+      "page": "page-1",
+      "x": 1360,
+      "y": 0,
+      "w": 1440,
+      "h": 3600,
+      "title": "Homepage — Desktop"
+    },
+    {
+      "file": "NewsFeed.dc.html",
+      "page": "page-1",
+      "x": 2920,
+      "y": 0,
+      "w": 1440,
+      "h": 1750,
+      "title": "Latest News — Desktop"
+    },
+    {
+      "file": "Article.dc.html",
+      "page": "page-1",
+      "x": 4480,
+      "y": 0,
+      "w": 1440,
+      "h": 2050,
+      "title": "Article — Desktop"
+    },
+    {
+      "file": "HomeMobile.dc.html",
+      "page": "page-1",
+      "x": 1360,
+      "y": 3760,
+      "w": 390,
+      "h": 1850,
+      "title": "Homepage — Mobile"
+    },
+    {
+      "file": "NewsFeedMobile.dc.html",
+      "page": "page-1",
+      "x": 1870,
+      "y": 3760,
+      "w": 390,
+      "h": 1100,
+      "title": "Latest News — Mobile"
+    },
+    {
+      "file": "EntityProfile.dc.html",
+      "page": "page-2",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1600,
+      "title": "Archetype 1 — Entity profile"
+    },
+    {
+      "file": "Directory.dc.html",
+      "page": "page-2",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Archetype 2 — Directory"
+    },
+    {
+      "file": "DataExplorer.dc.html",
+      "page": "page-2",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 1300,
+      "title": "Archetype 3 — Data explorer"
+    },
+    {
+      "file": "MapGeo.dc.html",
+      "page": "page-2",
+      "x": 4680,
+      "y": 0,
+      "w": 1440,
+      "h": 1300,
+      "title": "Archetype 4 — Map / geo"
+    },
+    {
+      "file": "EditorialAccount.dc.html",
+      "page": "page-2",
+      "x": 6240,
+      "y": 0,
+      "w": 1440,
+      "h": 1900,
+      "title": "Archetype 5 — Editorial + account"
+    },
+    {
+      "file": "Weather.dc.html",
+      "page": "page-3",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 2100,
+      "title": "Weather — full page"
+    },
+    {
+      "file": "ChainExplorer.dc.html",
+      "page": "page-3",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 1650,
+      "title": "Accountability Chain"
+    },
+    {
+      "file": "ToolsActivity.dc.html",
+      "page": "page-3",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 1750,
+      "title": "Score tool + Activity log"
+    },
+    {
+      "file": "MobileNav.dc.html",
+      "page": "page-3",
+      "x": 4680,
+      "y": 0,
+      "w": 390,
+      "h": 1700,
+      "title": "Mobile nav drawer"
+    },
+    {
+      "file": "WeatherMap.dc.html",
+      "page": "page-4",
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1750,
+      "title": "Weather map — interactive"
+    },
+    {
+      "file": "WeatherCity.dc.html",
+      "page": "page-4",
+      "x": 1560,
+      "y": 0,
+      "w": 1440,
+      "h": 1900,
+      "title": "City detail — history + forecast"
+    },
+    {
+      "file": "ForecastAccuracy.dc.html",
+      "page": "page-4",
+      "x": 3120,
+      "y": 0,
+      "w": 1440,
+      "h": 1800,
+      "title": "Forecast accuracy — the scoreboard"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "direction-note",
+      "page": "page-1",
+      "x": 0,
+      "y": -340,
+      "w": 480,
+      "text": "PREMIUM EDITORIAL DARK — approved direction.\nKeeps: #0d1117 ink ground, #dc2626 red accent, verdict + agent colour meanings, mono data labels (the brand DNA).\nNew: Newsreader headline serif + IBM Plex Sans body (fonts actually loaded this time), photo-led cards, designed coverage map (no more API-key watermark), nav grouped 24 links into 6, riding chip wall collapsed into a filter bar."
+    },
+    {
+      "id": "lean-scale-note",
+      "page": "page-1",
+      "x": 520,
+      "y": -340,
+      "w": 420,
+      "text": "LEAN SCALE CHANGE: the old red / orange / green / sky / blue scale failed colour-vision checks (red vs orange nearly identical) and used green at the midpoint, which reads as a quality judgement. New diverging ramp: red pole, neutral grey centre, blue pole. Lean colour never appears without its text label."
+    },
+    {
+      "id": "photo-note",
+      "page": "page-1",
+      "x": 980,
+      "y": -340,
+      "w": 340,
+      "text": "All photos are placeholders (dark duotone blocks with the source credit). The real build pulls og:image thumbnails already collected at ingest, with this block as the no-image fallback."
+    },
+    {
+      "id": "filter-note",
+      "page": "page-1",
+      "x": 2920,
+      "y": -340,
+      "w": 400,
+      "text": "The filter bar replaces the 87-chip riding wall: beats row + province select + riding search + scope segments. Active filters render as removable tokens (see the mobile feed artboard for the token style)."
+    },
+    {
+      "id": "archetype-intro",
+      "page": "page-2",
+      "x": 0,
+      "y": -520,
+      "w": 560,
+      "text": "FIVE ARCHETYPES COVER THE REMAINING 40 PAGES.\nAll 46 templates extend base.html, so the shell from the Core loop page (nav, masthead, footer, tokens, type) lifts every page automatically. What is designed here is each page BODY — one pattern per repeating shape, not one design per page.\nEmoji headings on the live site (🏛 🏢 🌦) are replaced by the inline SVG icon set throughout."
+    },
+    {
+      "id": "a1-note",
+      "page": "page-2",
+      "x": 640,
+      "y": -520,
+      "w": 380,
+      "text": "ARCHETYPE 1 — ENTITY PROFILE\nCovers: mp, senator, entity, journalist, source, owner detail.\nIdentity header + 4 stat tiles + record tabs + one chart + a records table, with a rail for news mentions, coverage lean and Cross-Watch links. Today mp.html is two bare tables and no visualisation."
+    },
+    {
+      "id": "a2-note",
+      "page": "page-2",
+      "x": 1560,
+      "y": -520,
+      "w": 380,
+      "text": "ARCHETYPE 2 — DIRECTORY\nCovers: mps, journalists, officers, owners, gic, sources.\nSearch + filter row, then a card grid with a party/lean spine on each card. Grid/Table toggle for people who want to sort. The party colour bar always sits beside a text label — same rule as the lean scale."
+    },
+    {
+      "id": "a3-note",
+      "page": "page-2",
+      "x": 3120,
+      "y": -520,
+      "w": 400,
+      "text": "ARCHETYPE 3 — DATA EXPLORER\nCovers: lobbying, economy, rates, cost, markets, crtc, claims, municipal, blindspot, divergence.\nStat tiles → one time-series → one ranked bar chart → a filterable table with CSV export. These pages have NO charts at all today; magnitude is drawn in neutral slate with the red accent reserved for the highlighted value, so chart colour never collides with lean colour."
+    },
+    {
+      "id": "a4-note",
+      "page": "page-2",
+      "x": 4680,
+      "y": -520,
+      "w": 400,
+      "text": "ARCHETYPE 4 — MAP / GEO\nCovers: map, weather, municipal.\nLayer switcher (volume / lean / blindspot / fire weather / city conditions), map panel, ranked side rail, and the selected region's feed below. Circle AREA encodes volume. Regions with no data for the active layer are greyed explicitly rather than rendered as zero."
+    },
+    {
+      "id": "a5-note",
+      "page": "page-2",
+      "x": 6240,
+      "y": -520,
+      "w": 400,
+      "text": "ARCHETYPE 5 — EDITORIAL + ACCOUNT\nCovers: methodology, team, governance, ethics, literacy, edu, api_docs (top half) and account, alerts, beats, api_keys, connect (bottom half).\nOne shell, two fills: a table-of-contents + prose column + agent rail for reference pages; the same three-column frame with form fields and toggles for settings."
+    },
+    {
+      "id": "map-bug-note",
+      "page": "page-2",
+      "x": 5120,
+      "y": -520,
+      "w": 340,
+      "text": "SEPARATE FROM DESIGN: the live homepage and map render 'API KEY REQUIRED' watermark tiles. That is a missing Carto basemap key (or a swap to a free tile provider), not something a redesign fixes — filed as its own task."
+    },
+    {
+      "id": "p3-intro",
+      "page": "page-3",
+      "x": 0,
+      "y": -560,
+      "w": 540,
+      "text": "THE FOUR PAGES A GENERIC PATTERN COULD NOT SERVE.\nWeather is the site's most complex page (807 lines) and needed its own city grid + forecast strip. The Accountability Chain is the product's whole thesis and fits no template shape. Score-an-article is a tool, not a page. The mobile nav drawer was a real gap — the live menu is a flat 19-item list."
+    },
+    {
+      "id": "p3-weather",
+      "page": "page-3",
+      "x": 600,
+      "y": -560,
+      "w": 400,
+      "text": "WEATHER — the honesty rules are visible in the design:\n• A dash means NO GUST REPORTED, never a gust of zero (the feed sends <gust>00</gust> on ~94% of periods).\n• \"Calm\" is a measured wind, not missing data.\n• Per-layer freshness (city obs 3h, forecast 12h, fire 48h) — a 40-hour-old reading must not render as current.\n• Fire stations and hotspots cover disjoint halves of the country, so switching layer greys the regions that layer cannot see."
+    },
+    {
+      "id": "p3-chain",
+      "page": "page-3",
+      "x": 1560,
+      "y": -560,
+      "w": 400,
+      "text": "ACCOUNTABILITY CHAIN — Money → MP → Vote → Policy → Contract → Market → Coverage → Public, each node naming its public source. The 'what this does not prove' panel is deliberate: a link means two records name the same entity, not that influence occurred. Feeds from Gov / Legal / Market / Civic Watch."
+    },
+    {
+      "id": "p3-nav",
+      "page": "page-3",
+      "x": 4680,
+      "y": -560,
+      "w": 380,
+      "text": "MOBILE NAV — the live drawer is 19 flat items with emoji icons, two of which (Accountability Chain, Cross-Watch) use the SAME 🔗 glyph. Regrouped into the six sections with SVG icons, a search field, and 52px rows."
+    },
+    {
+      "id": "p4-data",
+      "page": "page-4",
+      "x": 0,
+      "y": -620,
+      "w": 560,
+      "text": "MEASURED AGAINST THE LIVE DATABASE, NOT ASSUMED.\nwtf.aurora_city_obs: 4,098 rows · 25 cities · 2026-08-18 → 2026-08-30 = 11.8 DAYS of history.\nwtf.aurora_city_forecast: max period_index = 12, i.e. Today → Saturday. THE ECCC PUBLIC FEED HAS NO 14-DAY FORECAST AND NO CLOUD GRID.\nSo: 1-day and 5-day ship on data we already hold; 14-day, cloud cover and precipitation need Open-Meteo (free, no API key, commercial use permitted)."
+    },
+    {
+      "id": "p4-prov",
+      "page": "page-4",
+      "x": 620,
+      "y": -620,
+      "w": 420,
+      "text": "PROVENANCE IS THE DESIGN CONSTRAINT.\nECCC and Open-Meteo values are never blended into one number. Each carries a source chip — blue for Environment Canada, violet for Open-Meteo — on the layer button, the range control, the forecast footer and the extended-range banner. For a site whose whole pitch is showing where data comes from, a silently-mixed forecast would be the worst possible tell."
+    },
+    {
+      "id": "p4-honesty",
+      "page": "page-4",
+      "x": 1560,
+      "y": -620,
+      "w": 420,
+      "text": "THREE HONESTY RULES DRAWN INTO THE UI:\n• The temperature shading is INTERPOLATED between 25 stations — the caption says so, and only the station dots are real measurements.\n• Extremes are labelled \"in our record so far\", never \"record high\" — we have 12 days, not a climate baseline.\n• A dash means the value was not issued (no gust, no chance-of-precipitation), never zero."
+    },
+    {
+      "id": "p4-verify",
+      "page": "page-4",
+      "x": 3120,
+      "y": -620,
+      "w": 440,
+      "text": "EVERY NUMBER ON THIS ARTBOARD IS REAL — computed from the live wtf DB, not invented:\n3,481 forecast/outcome pairs since 2026-08-18. Same-day MAE 1.31°C (n=656) → 6-day 2.22°C (n=336). Mean bias −1.20°C at day 5–6: ECCC systematically UNDER-calls the high at long range.\nPer city (leads 1–5): Kelowna ±3.89 / −2.19 · Regina ±2.63 / −1.99 · Yellowknife ±2.60 · Whitehorse ±2.55 / +0.39 · London ±2.09 / +1.53 (the one warm-running city) · Calgary ±1.92 · Charlottetown ±1.56 / −0.10 (best calibrated).\nThe skill curve rising smoothly with lead time is itself evidence the join is sound."
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "page-4"
+  },
+  "pages": [
+    {
+      "id": "page-1",
+      "name": "Core loop"
+    },
+    {
+      "id": "page-2",
+      "name": "Page archetypes"
+    },
+    {
+      "id": "page-3",
+      "name": "Flagship pages"
+    },
+    {
+      "id": "page-4",
+      "name": "Weather deep-dive"
+    }
+  ]
+}

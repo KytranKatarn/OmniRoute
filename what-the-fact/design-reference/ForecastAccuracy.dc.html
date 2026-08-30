@@ -1,0 +1,314 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .prov { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .p-eccc { background: #12212c; color: #7fa3cf; }
+    .p-om { background: #2a2140; color: #a78bfa; }
+    table { border-collapse: collapse; width: 100%; }
+    th { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; text-align: left; font-weight: 500; padding: 0 16px 11px 0; border-bottom: 1px solid #222b39; }
+    td { font-size: 14px; color: #d5d4cf; padding: 13px 16px 13px 0; border-bottom: 1px solid #1a212e; }
+    .tile { display: flex; flex-direction: column; gap: 9px; padding: 22px; border: 1px solid #222b39; background: #11161f; }
+    .tilen { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 34px; font-weight: 600; line-height: 1; }
+    .tilel { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; }
+    .tiled { font-size: 12px; color: #55606e; line-height: 1.5; }
+    .biasbar { position: relative; height: 6px; width: 130px; background: #1a212e; }
+    .biasmid { position: absolute; left: 50%; top: -3px; width: 1px; height: 12px; background: #3a414c; }
+    .biasfill { position: absolute; top: 0; height: 6px; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <a href="#" style="font-size: 13px; color: #b9bdc5;">Sign in</a>
+      <a href="#" style="display: inline-flex; align-items: center; height: 30px; padding: 0 16px; background: #dc2626; color: #fff; font-size: 13px; font-weight: 600;">Subscribe</a>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">News</a>
+        <a href="#" class="navlink">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink">Data</a>
+        <a href="#" class="navlink">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- hero -->
+  <div style="padding: 34px 40px 26px 40px; display: flex; flex-direction: column; gap: 16px;">
+    <span class="k" style="color: #dc2626;">A.U.R.O.R.A. &mdash; forecast accountability</span>
+    <span class="serif" style="font-size: 46px; font-weight: 600; line-height: 1.08; max-width: 980px;">We keep score on the weather forecast, the same way we keep score on the news</span>
+    <span style="font-size: 17px; line-height: 1.6; color: #b9bdc5; max-width: 820px;">Every forecast published for these 25 cities is stored, then checked against what actually happened. Nobody else in Canada publishes this. These are our own measurements, not a claim from the forecaster.</span>
+  </div>
+
+  <!-- headline tiles -->
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; padding: 0 40px 30px 40px;">
+    <div class="tile">
+      <span class="tilel">Same-day accuracy</span>
+      <span class="tilen">&plusmn;1.31&deg;</span>
+      <span class="tiled">Average miss on today&rsquo;s high, across 656 checks</span>
+    </div>
+    <div class="tile">
+      <span class="tilel">Six-day accuracy</span>
+      <span class="tilen">&plusmn;2.22&deg;</span>
+      <span class="tiled">The forecast loses about 0.15&deg; of precision per day out</span>
+    </div>
+    <div class="tile">
+      <span class="tilel">Long-range bias</span>
+      <span class="tilen" style="color: #7fa3cf;">&minus;1.20&deg;</span>
+      <span class="tiled">Day 5&ndash;6 forecasts run <strong style="color: #7fa3cf;">cold</strong> &mdash; they under-call the high</span>
+    </div>
+    <div class="tile">
+      <span class="tilel">Checks performed</span>
+      <span class="tilen">3,481</span>
+      <span class="tiled">Forecast/outcome pairs since 18 Aug 2026</span>
+    </div>
+  </div>
+
+  <!-- skill curve + finding -->
+  <div style="display: grid; grid-template-columns: 1fr 430px; gap: 28px; padding: 0 40px 34px 40px;">
+    <div style="border: 1px solid #222b39; padding: 26px; display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span class="serif" style="font-size: 22px; font-weight: 600;">How accuracy decays with lead time</span>
+        <span class="mono" style="font-size: 10px; color: #55606e;">AVERAGE MISS ON THE DAILY HIGH</span>
+      </div>
+      <svg width="850" height="250" viewBox="0 0 850 250">
+        <line x1="52" y1="20" x2="850" y2="20" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="52" y1="75" x2="850" y2="75" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="52" y1="130" x2="850" y2="130" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="52" y1="185" x2="850" y2="185" stroke="#171e2a" stroke-width="1"></line>
+        <line x1="52" y1="205" x2="850" y2="205" stroke="#222b39" stroke-width="1"></line>
+        <text x="44" y="24" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">2.5°</text>
+        <text x="44" y="79" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">2.0°</text>
+        <text x="44" y="134" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">1.5°</text>
+        <text x="44" y="189" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">1.0°</text>
+
+        <path d="M96 151 L206 127 L316 119 L426 109 L536 79 L646 52 L756 51 L756 205 L96 205 Z" fill="#b9bdc5" fill-opacity="0.06"></path>
+        <path d="M96 151 L206 127 L316 119 L426 109 L536 79 L646 52 L756 51" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></path>
+        <circle cx="96" cy="151" r="5" fill="#b9bdc5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="206" cy="127" r="5" fill="#b9bdc5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="316" cy="119" r="5" fill="#b9bdc5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="426" cy="109" r="5" fill="#b9bdc5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="536" cy="79" r="5" fill="#b9bdc5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="646" cy="52" r="5" fill="#b9bdc5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="756" cy="51" r="6" fill="#dc2626" stroke="#0d1117" stroke-width="2"></circle>
+
+        <text x="96" y="141" text-anchor="middle" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="11">1.31°</text>
+        <text x="756" y="40" text-anchor="middle" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="11">2.22°</text>
+
+        <g fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">
+          <text x="96" y="226" text-anchor="middle">TODAY</text>
+          <text x="206" y="226" text-anchor="middle">+1 DAY</text>
+          <text x="316" y="226" text-anchor="middle">+2</text>
+          <text x="426" y="226" text-anchor="middle">+3</text>
+          <text x="536" y="226" text-anchor="middle">+4</text>
+          <text x="646" y="226" text-anchor="middle">+5</text>
+          <text x="756" y="226" text-anchor="middle">+6</text>
+        </g>
+        <g fill="#3a414c" font-family="IBM Plex Mono, monospace" font-size="8">
+          <text x="96" y="242" text-anchor="middle">n=656</text>
+          <text x="206" y="242" text-anchor="middle">606</text>
+          <text x="316" y="242" text-anchor="middle">549</text>
+          <text x="426" y="242" text-anchor="middle">497</text>
+          <text x="536" y="242" text-anchor="middle">444</text>
+          <text x="646" y="242" text-anchor="middle">393</text>
+          <text x="756" y="242" text-anchor="middle">336</text>
+        </g>
+      </svg>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+      <div style="border: 1px solid #2c3648; background: #11161f; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span class="k" style="color: #dc2626;">What we found</span>
+        <span class="serif" style="font-size: 23px; font-weight: 600; line-height: 1.25;">The long-range forecast runs cold</span>
+        <div style="font-size: 14px; line-height: 1.65; color: #b9bdc5;">Five and six days out, the published high comes in <strong style="color: #7fa3cf;">1.2&deg;C below</strong> what the day actually reached &mdash; consistently, not randomly. Same-day forecasts show almost no bias at all (&minus;0.09&deg;).</div>
+        <div style="font-size: 13px; line-height: 1.6; color: #7d8590; border-top: 1px solid #1a212e; padding-top: 12px;">A consistent bias is a correctable one. That is what A.U.R.O.R.A. does next.</div>
+      </div>
+
+      <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span class="k" style="color: #7d8590;">Coming: corrected forecasts</span>
+        <div style="font-size: 14px; line-height: 1.65; color: #b9bdc5;">Once a city has enough history, A.U.R.O.R.A. adjusts the published number by that station&rsquo;s measured error &mdash; standard statistical post-processing, shown beside the raw forecast, never replacing it.</div>
+        <div style="display: flex; align-items: center; gap: 10px; padding-top: 6px;">
+          <span class="chip" style="color: #7d8590;">Raw 23&deg;</span>
+          <svg width="16" height="10" viewBox="0 0 16 10"><line x1="0" y1="5" x2="10" y2="5" stroke="#55606e" stroke-width="1.5"></line><path d="M10 2l4 3-4 3" fill="none" stroke="#55606e" stroke-width="1.5"></path></svg>
+          <span class="chip" style="color: #f2f1ed; border-color: #dc2626;">Corrected 24.2&deg;</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- per-city scoreboard -->
+  <div style="padding: 0 40px 36px 40px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <span class="serif" style="font-size: 26px; font-weight: 600; margin-right: auto;">Accuracy by city</span>
+      <span class="chip" style="color: #f2f1ed; border-color: #dc2626;">Hardest first</span>
+      <span class="chip" style="color: #7d8590;">A&ndash;Z</span>
+      <span class="chip" style="color: #7d8590;">Most biased</span>
+      <a href="#" class="chip" style="color: #b9bdc5;">Download CSV</a>
+    </div>
+    <table>
+      <tr>
+        <th style="width: 300px;">City</th>
+        <th style="width: 130px;">Checks</th>
+        <th style="width: 170px;">Average miss</th>
+        <th style="width: 300px;">Direction of error</th>
+        <th>Reads</th>
+      </tr>
+      <tr>
+        <td><a href="#">Kelowna</a> <span class="mono" style="font-size: 11px; color: #55606e;">BC</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">95</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;3.89&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="right: 50%; width: 34%; background: #7fa3cf;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #7fa3cf;">&minus;2.19&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">Hardest city to forecast &mdash; mountain valley</td>
+      </tr>
+      <tr>
+        <td><a href="#">Regina</a> <span class="mono" style="font-size: 11px; color: #55606e;">SK</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">100</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;2.63&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="right: 50%; width: 31%; background: #7fa3cf;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #7fa3cf;">&minus;1.99&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">Runs cold &mdash; prairie heat under-called</td>
+      </tr>
+      <tr>
+        <td><a href="#">Yellowknife</a> <span class="mono" style="font-size: 11px; color: #55606e;">NT</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">111</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;2.60&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="right: 50%; width: 20%; background: #7fa3cf;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #7fa3cf;">&minus;1.29&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">Sparse northern station network</td>
+      </tr>
+      <tr>
+        <td><a href="#">Whitehorse</a> <span class="mono" style="font-size: 11px; color: #55606e;">YT</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">111</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;2.55&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="left: 50%; width: 6%; background: #cf8b80;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #cf8b80;">+0.39&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">Wide misses, but no consistent direction</td>
+      </tr>
+      <tr>
+        <td><a href="#">London</a> <span class="mono" style="font-size: 11px; color: #55606e;">ON</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">108</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;2.09&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="left: 50%; width: 24%; background: #d84b47;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #d84b47;">+1.53&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">The one city that runs consistently <strong style="color: #d84b47;">warm</strong></td>
+      </tr>
+      <tr>
+        <td><a href="#">Calgary</a> <span class="mono" style="font-size: 11px; color: #55606e;">AB</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">108</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;1.92&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="right: 50%; width: 20%; background: #7fa3cf;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #7fa3cf;">&minus;1.31&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">Chinook country &mdash; volatile by nature</td>
+      </tr>
+      <tr>
+        <td><a href="#">Charlottetown</a> <span class="mono" style="font-size: 11px; color: #55606e;">PE</span></td>
+        <td class="mono" style="font-size: 12px; color: #7d8590;">95</td>
+        <td class="mono" style="font-size: 14px; color: #f2f1ed;">&plusmn;1.56&deg;</td>
+        <td>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div class="biasbar"><div class="biasmid"></div><div class="biasfill" style="right: 50%; width: 2%; background: #929aa5;"></div></div>
+            <span class="mono" style="font-size: 12px; color: #929aa5;">&minus;0.10&deg;</span>
+          </div>
+        </td>
+        <td style="font-size: 13px; color: #b9bdc5;">Best-calibrated city in the country</td>
+      </tr>
+    </table>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <span class="mono" style="font-size: 11px; color: #55606e;">SHOWING 7 OF 25 CITIES &middot; LEAD TIMES 1&ndash;5 DAYS</span>
+      <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">All 25 cities &rarr;</a>
+    </div>
+  </div>
+
+  <!-- source comparison + methodology -->
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; padding: 0 40px 40px 40px;">
+    <div style="border: 1px solid #222b39; padding: 26px; display: flex; flex-direction: column; gap: 16px;">
+      <span class="k" style="color: #7d8590;">Source comparison</span>
+      <span class="serif" style="font-size: 22px; font-weight: 600;">Which forecaster is right more often?</span>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <span class="prov p-eccc" style="width: 118px; box-sizing: border-box;">Environment Canada</span>
+          <div style="flex: 1; height: 22px; background: #1a212e; position: relative;"><div style="width: 62%; height: 22px; background: #7fa3cf;"></div></div>
+          <span class="mono" style="font-size: 13px; width: 56px; text-align: right;">&plusmn;1.75&deg;</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <span class="prov p-om" style="width: 118px; box-sizing: border-box;">Open-Meteo</span>
+          <div style="flex: 1; height: 22px; background: #1a212e; position: relative;"><div style="width: 40%; height: 22px; background: #2a3240;"></div></div>
+          <span class="mono" style="font-size: 13px; width: 56px; text-align: right; color: #55606e;">pending</span>
+        </div>
+      </div>
+      <div style="font-size: 13px; line-height: 1.6; color: #7d8590; border-top: 1px solid #1a212e; padding-top: 14px;">Open-Meteo scoring begins the day it is ingested. We will not publish a comparison until both sources have been checked over the same period against the same observations.</div>
+    </div>
+
+    <div style="border: 1px solid #222b39; padding: 26px; display: flex; flex-direction: column; gap: 14px;">
+      <span class="k" style="color: #7d8590;">How this is measured</span>
+      <div style="font-size: 14px; line-height: 1.7; color: #b9bdc5;">Each published daily high is stored with the moment it was issued. When that day ends, we take the highest temperature the station actually recorded and compare. <strong style="color: #f2f1ed;">Average miss</strong> is the mean absolute difference &mdash; how far off, ignoring direction. <strong style="color: #f2f1ed;">Direction of error</strong> is the mean signed difference &mdash; whether it leans cold or warm.</div>
+      <div style="font-size: 13px; line-height: 1.6; color: #f59e0b; border-top: 1px solid #1a212e; padding-top: 14px;">Our record begins 18 August 2026. Twelve days is enough to see a bias, not enough to call it seasonal. The window is stated on every figure and deepens daily.</div>
+      <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">Full methodology &rarr;</a>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT &mdash; forecasts scored against Environment Canada station observations</span>
+    <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

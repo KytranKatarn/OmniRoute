@@ -1,0 +1,243 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .lbtn { display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 15px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #b9bdc5; white-space: nowrap; }
+    .lbtn:hover { border-color: #3a414c; color: #f2f1ed; }
+    .seg { display: inline-flex; align-items: center; height: 42px; padding: 0 18px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.1em; color: #7d8590; border: 1px solid #222b39; border-left: none; }
+    .prov { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+    .p-eccc { background: #12212c; color: #7fa3cf; }
+    .p-om { background: #2a2140; color: #a78bfa; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <a href="#" style="font-size: 13px; color: #b9bdc5;">Sign in</a>
+      <a href="#" style="display: inline-flex; align-items: center; height: 30px; padding: 0 16px; background: #dc2626; color: #fff; font-size: 13px; font-weight: 600;">Subscribe</a>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">News</a>
+        <a href="#" class="navlink">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink">Data</a>
+        <a href="#" class="navlink">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- head -->
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; padding: 30px 40px 18px 40px;">
+    <div style="display: flex; flex-direction: column; gap: 9px;">
+      <span class="k" style="color: #dc2626;">A.U.R.O.R.A. &mdash; environmental intelligence</span>
+      <span class="serif" style="font-size: 40px; font-weight: 600; line-height: 1;">Weather map</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span class="prov p-eccc"><span style="width: 5px; height: 5px; border-radius: 50%; background: #7fa3cf;"></span>Environment Canada</span>
+      <span class="prov p-om"><span style="width: 5px; height: 5px; border-radius: 50%; background: #a78bfa;"></span>Open-Meteo</span>
+      <span class="mono" style="font-size: 10px; color: #55606e;">EVERY VALUE CARRIES ITS SOURCE</span>
+    </div>
+  </div>
+
+  <!-- controls -->
+  <div style="display: flex; align-items: center; gap: 10px; padding: 0 40px 16px 40px; flex-wrap: wrap;">
+    <span class="k" style="color: #7d8590; margin-right: 4px;">Layer</span>
+    <a href="#" class="lbtn" style="color: #f2f1ed; border-color: #dc2626;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.8" stroke-linecap="round"><path d="M12 14V4a2 2 0 1 1 4 0v10"></path><circle cx="14" cy="17" r="3.5"></circle></svg>Temperature</a>
+    <a href="#" class="lbtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="1.8" stroke-linecap="round"><path d="M17 16H7a4 4 0 1 1 1-7.9A5 5 0 0 1 17.5 9a3.5 3.5 0 0 1-.5 7z"></path></svg>Cloud cover<span class="prov p-om" style="margin-left: 4px;">OM</span></a>
+    <a href="#" class="lbtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="1.8" stroke-linecap="round"><path d="M17 13H7a4 4 0 1 1 1-7.9A5 5 0 0 1 17.5 6a3.5 3.5 0 0 1-.5 7z"></path><path d="M9 17l-1 3M13 17l-1 3M17 17l-1 3"></path></svg>Precipitation<span class="prov p-om" style="margin-left: 4px;">OM</span></a>
+    <a href="#" class="lbtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="1.8" stroke-linecap="round"><path d="M4 9h11a3 3 0 1 0-3-3"></path><path d="M4 14h13a3 3 0 1 1-3 3"></path></svg>Wind</a>
+    <a href="#" class="lbtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="1.8" stroke-linecap="round"><path d="M12 3c1 4 5 5 5 9a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3 1-6 1-8z"></path></svg>Fire weather</a>
+    <div style="width: 1px; height: 28px; background: #222b39; margin: 0 6px;"></div>
+    <span class="k" style="color: #7d8590; margin-right: 4px;">Range</span>
+    <div style="display: inline-flex;">
+      <span class="seg" style="border-left: 1px solid #222b39; color: #f2f1ed; background: #1b2330;">1 day</span>
+      <span class="seg">5 days</span>
+      <span class="seg">14 days<span class="prov p-om" style="margin-left: 7px;">OM</span></span>
+    </div>
+  </div>
+
+  <!-- map -->
+  <div style="display: grid; grid-template-columns: 1fr 400px; border-top: 1px solid #222b39; border-bottom: 1px solid #222b39;">
+    <div style="position: relative; background: #11161f; padding: 22px 30px 10px 30px;">
+      <svg width="980" height="470" viewBox="0 0 980 470" style="display: block;">
+        <!-- temperature field, coarse cells from the 25 point stations -->
+        <g opacity="0.30">
+          <rect x="40" y="200" width="110" height="90" fill="#7fa3cf"></rect>
+          <rect x="150" y="185" width="110" height="105" fill="#cf8b80"></rect>
+          <rect x="260" y="180" width="110" height="110" fill="#cf8b80"></rect>
+          <rect x="370" y="190" width="110" height="100" fill="#d84b47"></rect>
+          <rect x="480" y="205" width="110" height="95" fill="#d84b47"></rect>
+          <rect x="590" y="215" width="110" height="95" fill="#cf8b80"></rect>
+          <rect x="700" y="205" width="110" height="100" fill="#929aa5"></rect>
+          <rect x="810" y="225" width="110" height="95" fill="#7fa3cf"></rect>
+          <rect x="150" y="80" width="220" height="105" fill="#929aa5"></rect>
+          <rect x="370" y="70" width="220" height="120" fill="#7fa3cf"></rect>
+        </g>
+
+        <!-- city points -->
+        <circle cx="96" cy="248" r="6" fill="#7fa3cf" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="96" y="232" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="10">17&deg;</text>
+        <circle cx="206" cy="226" r="6" fill="#cf8b80" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="206" y="210" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="10">24&deg;</text>
+        <circle cx="300" cy="218" r="6" fill="#cf8b80" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="300" y="202" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="10">23&deg;</text>
+        <circle cx="416" cy="234" r="6" fill="#d84b47" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="416" y="218" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="10">29&deg;</text>
+        <circle cx="512" cy="246" r="6" fill="#d84b47" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="512" y="230" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="10">28&deg;</text>
+
+        <!-- hovered city: tooltip -->
+        <circle cx="622" cy="272" r="9" fill="#dc2626" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="622" cy="272" r="15" fill="none" stroke="#dc2626" stroke-width="1" opacity="0.5"></circle>
+        <rect x="648" y="228" width="216" height="92" fill="#0d1117" stroke="#dc2626" stroke-width="1"></rect>
+        <text x="662" y="248" fill="#f2f1ed" font-family="Newsreader, serif" font-size="16" font-weight="600">Toronto, ON</text>
+        <text x="662" y="270" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="22" font-weight="600">22&deg;</text>
+        <text x="712" y="270" fill="#b9bdc5" font-family="IBM Plex Sans, sans-serif" font-size="12">Mainly sunny</text>
+        <text x="662" y="290" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="10">WIND 14 KM/H SW · HUM 54%</text>
+        <text x="662" y="308" fill="#dc2626" font-family="IBM Plex Mono, monospace" font-size="10">CLICK FOR HISTORY + FORECAST →</text>
+
+        <circle cx="712" cy="252" r="6" fill="#929aa5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="762" cy="242" r="6" fill="#929aa5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="856" cy="268" r="6" fill="#7fa3cf" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="856" y="252" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="10">15&deg;</text>
+        <circle cx="912" cy="196" r="6" fill="#7fa3cf" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="206" cy="122" r="6" fill="#929aa5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="336" cy="106" r="6" fill="#929aa5" stroke="#0d1117" stroke-width="2"></circle>
+        <circle cx="476" cy="92" r="6" fill="#7fa3cf" stroke="#0d1117" stroke-width="2"></circle>
+        <text x="476" y="76" text-anchor="middle" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="10">6&deg;</text>
+
+        <!-- scale -->
+        <line x1="0" y1="404" x2="980" y2="404" stroke="#222b39" stroke-width="1"></line>
+        <rect x="0" y="422" width="42" height="10" fill="#7fa3cf"></rect>
+        <rect x="42" y="422" width="42" height="10" fill="#929aa5"></rect>
+        <rect x="84" y="422" width="42" height="10" fill="#cf8b80"></rect>
+        <rect x="126" y="422" width="42" height="10" fill="#d84b47"></rect>
+        <text x="0" y="448" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">0°</text>
+        <text x="84" y="448" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">15°</text>
+        <text x="168" y="448" text-anchor="end" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">30°+</text>
+        <text x="200" y="431" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">SHADED CELLS ARE INTERPOLATED FROM 25 REPORTING STATIONS — NOT A MODEL GRID</text>
+      </svg>
+
+      <div style="position: absolute; right: 42px; top: 36px; display: flex; flex-direction: column; border: 1px solid #222b39; background: #0d1117;">
+        <a href="#" aria-label="Zoom in" style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-bottom: 1px solid #222b39;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg></a>
+        <a href="#" aria-label="Zoom out" style="display: flex; align-items: center; justify-content: center; width: 36px; height: 36px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14"></path></svg></a>
+      </div>
+    </div>
+
+    <!-- rail -->
+    <div style="border-left: 1px solid #222b39; padding: 26px; display: flex; flex-direction: column; gap: 22px;">
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <span class="k" style="color: #7d8590;">Showing</span>
+        <span class="serif" style="font-size: 22px; font-weight: 600;">Temperature &mdash; now</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="prov p-eccc">Environment Canada</span>
+          <span class="mono" style="font-size: 10px; color: #10b981;">38 min old</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px; border-top: 1px solid #1a212e; padding-top: 20px;">
+        <span class="k" style="color: #7d8590;">Warmest right now</span>
+        <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 14px;">Regina, SK</span><span class="mono" style="font-size: 13px; color: #d84b47;">29&deg;</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 14px;">Winnipeg, MB</span><span class="mono" style="font-size: 13px; color: #d84b47;">28&deg;</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 14px;">Calgary, AB</span><span class="mono" style="font-size: 13px; color: #cf8b80;">24&deg;</span></div>
+        <span class="k" style="color: #7d8590; padding-top: 8px;">Coldest</span>
+        <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 14px;">Iqaluit, NU</span><span class="mono" style="font-size: 13px; color: #7fa3cf;">6&deg;</span></div>
+        <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 14px;">St John&rsquo;s, NL</span><span class="mono" style="font-size: 13px; color: #7fa3cf;">13&deg;</span></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #1a212e; padding-top: 20px;">
+        <span class="k" style="color: #7d8590;">About this layer</span>
+        <div style="font-size: 13px; line-height: 1.6; color: #b9bdc5;">Temperature comes from <strong style="color: #f2f1ed;">25 reporting stations</strong>, one per major city. The shading between them is interpolation, not measurement &mdash; zoom in and only the station dots are real.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- time scrubber -->
+  <div style="padding: 20px 40px 26px 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <a href="#" aria-label="Play" style="display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid #222b39;"><svg width="14" height="14" viewBox="0 0 24 24" fill="#f2f1ed" stroke="none"><path d="M8 5l11 7-11 7z"></path></svg></a>
+        <span class="serif" style="font-size: 20px; font-weight: 600;">Sunday 30 August &mdash; 12:00 EDT</span>
+        <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Now</span>
+      </div>
+      <span class="mono" style="font-size: 10px; color: #55606e;">DRAG TO SCRUB &middot; PLAY TO ANIMATE THE NEXT 24 HOURS</span>
+    </div>
+    <svg width="1360" height="56" viewBox="0 0 1360 56">
+      <line x1="0" y1="28" x2="1360" y2="28" stroke="#222b39" stroke-width="2"></line>
+      <line x1="0" y1="28" x2="340" y2="28" stroke="#55606e" stroke-width="2"></line>
+      <g fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">
+        <line x1="0" y1="22" x2="0" y2="34" stroke="#3a414c" stroke-width="1"></line><text x="0" y="50">00:00</text>
+        <line x1="170" y1="24" x2="170" y2="32" stroke="#2a3240" stroke-width="1"></line><text x="170" y="50" text-anchor="middle">06:00</text>
+        <line x1="340" y1="22" x2="340" y2="34" stroke="#3a414c" stroke-width="1"></line>
+        <line x1="510" y1="24" x2="510" y2="32" stroke="#2a3240" stroke-width="1"></line><text x="510" y="50" text-anchor="middle">18:00</text>
+        <line x1="680" y1="22" x2="680" y2="34" stroke="#3a414c" stroke-width="1"></line><text x="680" y="50" text-anchor="middle">MON</text>
+        <line x1="1020" y1="22" x2="1020" y2="34" stroke="#3a414c" stroke-width="1"></line><text x="1020" y="50" text-anchor="middle">TUE</text>
+        <line x1="1360" y1="22" x2="1360" y2="34" stroke="#3a414c" stroke-width="1"></line><text x="1360" y="50" text-anchor="end">WED</text>
+      </g>
+      <text x="340" y="50" text-anchor="middle" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="9">12:00</text>
+      <circle cx="340" cy="28" r="9" fill="#dc2626" stroke="#0d1117" stroke-width="3"></circle>
+      <rect x="680" y="6" width="680" height="6" fill="#a78bfa" fill-opacity="0.25"></rect>
+      <text x="1020" y="0" text-anchor="middle" fill="#a78bfa" font-family="IBM Plex Mono, monospace" font-size="8" dy="16">EXTENDED RANGE · OPEN-METEO</text>
+    </svg>
+  </div>
+
+  <!-- provenance strip -->
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; padding: 30px 40px 40px 40px;">
+    <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="prov p-eccc">Environment Canada</span>
+        <span class="mono" style="font-size: 10px; color: #55606e;">MSC DATAMART</span>
+      </div>
+      <span class="serif" style="font-size: 20px; font-weight: 600;">Observations and the 7-day forecast</span>
+      <div style="font-size: 13px; line-height: 1.6; color: #b9bdc5;">Every current condition, and forecasts out to seven days, come from Canada&rsquo;s national weather service. This is the authoritative source and it is what we show by default.</div>
+    </div>
+    <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="prov p-om">Open-Meteo</span>
+        <span class="mono" style="font-size: 10px; color: #55606e;">EXTENDED RANGE &amp; GRIDS</span>
+      </div>
+      <span class="serif" style="font-size: 20px; font-weight: 600;">Days 8&ndash;14, cloud and precipitation</span>
+      <div style="font-size: 13px; line-height: 1.6; color: #b9bdc5;">Environment Canada&rsquo;s public city feed stops at seven days and carries no cloud grid. Anything beyond that horizon is modelled by Open-Meteo and is always labelled as such &mdash; the two sources are never blended into one number.</div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+    <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

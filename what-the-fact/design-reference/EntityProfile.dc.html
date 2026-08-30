@@ -1,0 +1,210 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .ph { position: relative; overflow: hidden; background: radial-gradient(130% 100% at 18% 8%, #243040 0%, #161e2a 52%, #0f1520 100%); }
+    .phi { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0.16; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .stat { display: flex; flex-direction: column; gap: 6px; }
+    .statn { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 30px; font-weight: 600; line-height: 1; }
+    .statl { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; }
+    table { border-collapse: collapse; width: 100%; }
+    th { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #7d8590; text-align: left; font-weight: 500; padding: 0 16px 10px 0; border-bottom: 1px solid #222b39; }
+    td { font-size: 14px; color: #d5d4cf; padding: 13px 16px 13px 0; border-bottom: 1px solid #1a212e; vertical-align: top; }
+    .tabn { font-size: 13px; font-weight: 600; color: #7d8590; padding: 14px 0; }
+    .tabn:hover { color: #f2f1ed; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <a href="#" style="font-size: 13px; color: #b9bdc5;">Sign in</a>
+      <a href="#" style="display: inline-flex; align-items: center; height: 30px; padding: 0 16px; background: #dc2626; color: #fff; font-size: 13px; font-weight: 600;">Subscribe</a>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink">News</a>
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink">Data</a>
+        <a href="#" class="navlink">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- identity header -->
+  <div style="padding: 32px 40px 0 40px;">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 22px;">
+      <a href="#" class="k" style="color: #7d8590;">Politics</a>
+      <span class="mono" style="font-size: 10px; color: #3a414c;">/</span>
+      <a href="#" class="k" style="color: #7d8590;">MPs</a>
+      <span class="mono" style="font-size: 10px; color: #3a414c;">/</span>
+      <span class="k" style="color: #dc2626;">Dominic LeBlanc</span>
+    </div>
+    <div style="display: grid; grid-template-columns: 132px 1fr 420px; gap: 32px; align-items: start;">
+      <div class="ph" style="width: 132px; height: 160px;">
+        <svg class="phi" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#f2f1ed" stroke-width="1.2"><circle cx="12" cy="8" r="4"></circle><path d="M4 21v-1a8 8 0 0 1 16 0v1"></path></svg>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <h1 class="serif" style="font-size: 44px; font-weight: 600; line-height: 1.05; margin: 0;">Dominic LeBlanc</h1>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #d84b47; border-color: #3a2020;">Liberal</span>
+          <span class="chip" style="color: #b9bdc5;">Beaus&eacute;jour &middot; NB</span>
+          <span class="chip" style="color: #b9bdc5;">Elected 2000</span>
+        </div>
+        <div style="font-size: 15px; line-height: 1.6; color: #b9bdc5; max-width: 560px;">Tracked across lobbying registrations, travel and hospitality disclosures, contract records and news coverage. Every figure below links to its public source.</div>
+        <div style="display: flex; gap: 10px;">
+          <a href="#" class="chip" style="color: #f2f1ed; border-color: #dc2626;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>Follow this MP</a>
+          <a href="#" class="chip" style="color: #b9bdc5;">Open accountability chain</a>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px; border-left: 1px solid #222b39; padding-left: 32px;">
+        <div class="stat"><span class="statn">128</span><span class="statl">Lobbying contacts</span></div>
+        <div class="stat"><span class="statn">14</span><span class="statl">Organizations</span></div>
+        <div class="stat"><span class="statn">$41,208</span><span class="statl">Travel &amp; hospitality</span></div>
+        <div class="stat"><span class="statn">306</span><span class="statl">News mentions</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- tabs -->
+  <div style="display: flex; align-items: center; gap: 30px; padding: 28px 40px 0 40px; border-bottom: 1px solid #222b39; margin-top: 26px;">
+    <a href="#" class="tabn" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">Lobbying</a>
+    <a href="#" class="tabn">Travel &amp; hospitality</a>
+    <a href="#" class="tabn">Contracts</a>
+    <a href="#" class="tabn">In the news</a>
+    <a href="#" class="tabn">Votes</a>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 400px; gap: 40px; padding: 30px 40px 44px 40px;">
+
+    <div style="display: flex; flex-direction: column; gap: 26px;">
+      <!-- volume chart -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="serif" style="font-size: 22px; font-weight: 600;">Lobbying contacts per month</span>
+          <span class="mono" style="font-size: 10px; color: #55606e;">LAST 12 MONTHS &middot; SOURCE: LOBBYING REGISTRY</span>
+        </div>
+        <svg width="880" height="180" viewBox="0 0 880 180">
+          <line x1="0" y1="150" x2="880" y2="150" stroke="#222b39" stroke-width="1"></line>
+          <line x1="0" y1="100" x2="880" y2="100" stroke="#171e2a" stroke-width="1"></line>
+          <line x1="0" y1="50" x2="880" y2="50" stroke="#171e2a" stroke-width="1"></line>
+          <rect x="6" y="112" width="56" height="38" fill="#55606e"></rect>
+          <rect x="80" y="96" width="56" height="54" fill="#55606e"></rect>
+          <rect x="154" y="124" width="56" height="26" fill="#55606e"></rect>
+          <rect x="228" y="80" width="56" height="70" fill="#55606e"></rect>
+          <rect x="302" y="104" width="56" height="46" fill="#55606e"></rect>
+          <rect x="376" y="60" width="56" height="90" fill="#55606e"></rect>
+          <rect x="450" y="88" width="56" height="62" fill="#55606e"></rect>
+          <rect x="524" y="118" width="56" height="32" fill="#55606e"></rect>
+          <rect x="598" y="72" width="56" height="78" fill="#55606e"></rect>
+          <rect x="672" y="92" width="56" height="58" fill="#55606e"></rect>
+          <rect x="746" y="110" width="56" height="40" fill="#55606e"></rect>
+          <rect x="820" y="34" width="56" height="116" fill="#dc2626"></rect>
+          <text x="848" y="26" text-anchor="middle" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="11">23</text>
+          <text x="34" y="168" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">SEP</text>
+          <text x="256" y="168" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">DEC</text>
+          <text x="478" y="168" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">MAR</text>
+          <text x="700" y="168" text-anchor="middle" fill="#55606e" font-family="IBM Plex Mono, monospace" font-size="9">JUN</text>
+          <text x="848" y="168" text-anchor="middle" fill="#f2f1ed" font-family="IBM Plex Mono, monospace" font-size="9">AUG</text>
+        </svg>
+      </div>
+
+      <!-- table -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between;">
+          <span class="serif" style="font-size: 22px; font-weight: 600;">Recent registered contacts</span>
+          <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">Download CSV &darr;</a>
+        </div>
+        <table>
+          <tr><th style="width: 110px;">Date</th><th>Lobbyist</th><th>Organization</th><th style="width: 130px;">Subject</th></tr>
+          <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-22</td><td>Marie Chen</td><td><a href="#" style="color: #f2f1ed;">Canadian Fuels Association</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">ENERGY</td></tr>
+          <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-19</td><td>David Okonkwo</td><td><a href="#" style="color: #f2f1ed;">Aluminium Association of Canada</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">TRADE</td></tr>
+          <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-14</td><td>Sarah Blanchette</td><td><a href="#" style="color: #f2f1ed;">Fisheries Council of Canada</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">FISHERIES</td></tr>
+          <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-08-08</td><td>Marie Chen</td><td><a href="#" style="color: #f2f1ed;">Canadian Fuels Association</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">ENERGY</td></tr>
+          <tr><td class="mono" style="font-size: 12px; color: #7d8590;">2026-07-31</td><td>Alain Roy</td><td><a href="#" style="color: #f2f1ed;">Port of Saint John</a></td><td class="mono" style="font-size: 11px; color: #7d8590;">INFRASTRUCTURE</td></tr>
+        </table>
+        <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">All 128 contacts &rarr;</a>
+      </div>
+    </div>
+
+    <!-- rail -->
+    <div style="display: flex; flex-direction: column; gap: 26px;">
+      <div style="border: 1px solid #222b39; background: #11161f; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+        <span class="k" style="color: #dc2626;">In the news</span>
+        <div style="display: flex; flex-direction: column; gap: 7px; padding-bottom: 14px; border-bottom: 1px solid #1a212e;">
+          <span class="mono" style="font-size: 10px; color: #7d8590;">THE HUB &middot; 12:04</span>
+          <a href="#" class="serif" style="font-size: 17px; font-weight: 500; line-height: 1.3;">Canada&rsquo;s economy can withstand an escalated trade war, say banks</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 7px; padding-bottom: 14px; border-bottom: 1px solid #1a212e;">
+          <span class="mono" style="font-size: 10px; color: #7d8590;">LE DEVOIR &middot; AUG 28</span>
+          <a href="#" class="serif" style="font-size: 17px; font-weight: 500; line-height: 1.3;">Ottawa d&eacute;fend son approche face aux tarifs am&eacute;ricains</a>
+        </div>
+        <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">All 306 mentions &rarr;</a>
+      </div>
+
+      <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 14px;">
+        <span class="k" style="color: #7d8590;">Coverage lean of mentions</span>
+        <div style="display: flex; gap: 2px; height: 10px;">
+          <div style="width: 22%; background: #d84b47;"></div>
+          <div style="width: 26%; background: #cf8b80;"></div>
+          <div style="width: 30%; background: #55606e;"></div>
+          <div style="width: 14%; background: #7fa3cf;"></div>
+          <div style="width: 8%; background: #4a72d8;"></div>
+        </div>
+        <span class="mono" style="font-size: 10px; color: #55606e;">306 mentions &middot; lean of the outlets covering him, left to right</span>
+      </div>
+
+      <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span class="k" style="color: #7d8590;">Cross-Watch</span>
+        <div style="font-size: 14px; line-height: 1.6; color: #b9bdc5;">Appears in <strong style="color: #f2f1ed;">3</strong> other Watch products.</div>
+        <div style="display: flex; flex-direction: column; gap: 9px;">
+          <a href="#" style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #b9bdc5;">Gov Watch &mdash; 8 contracts<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"></polyline></svg></a>
+          <a href="#" style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #b9bdc5;">Legal Watch &mdash; 1 item<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"></polyline></svg></a>
+          <a href="#" style="display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #b9bdc5;">Civic Watch &mdash; 2 items<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"></polyline></svg></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+      <a href="#" class="mono" style="font-size: 11px; color: #7d8590;">Methodology</a>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

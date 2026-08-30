@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .ph { position: relative; overflow: hidden; background: radial-gradient(130% 100% at 18% 8%, #243040 0%, #161e2a 52%, #0f1520 100%); }
+    .phi { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0.16; }
+    .phc { position: absolute; left: 12px; bottom: 10px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.12em; color: rgba(242,241,237,0.45); text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .gauge { position: relative; height: 8px; background: linear-gradient(90deg, #d84b47 0%, #cf8b80 28%, #3a414c 50%, #7fa3cf 72%, #4a72d8 100%); }
+    .gdot { position: absolute; top: -3px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #0d1117; box-sizing: border-box; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .lp { display: inline-block; padding: 2px 7px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.08em; }
+    .para { font-size: 17px; line-height: 1.75; color: #d5d4cf; margin: 0 0 22px 0; }
+    .fact { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #1a212e; }
+    .mpchip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid #222b39; font-size: 12px; color: #b9bdc5; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <!-- utility strip -->
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <a href="#" style="font-size: 13px; color: #b9bdc5;">Sign in</a>
+      <a href="#" style="display: inline-flex; align-items: center; height: 30px; padding: 0 16px; background: #dc2626; color: #fff; font-size: 13px; font-weight: 600;">Subscribe</a>
+    </div>
+  </div>
+
+  <!-- compact masthead row -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">News</a>
+        <a href="#" class="navlink">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink">Data</a>
+        <a href="#" class="navlink">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- article -->
+  <div style="display: grid; grid-template-columns: 880px 440px; gap: 40px; padding: 40px;">
+
+    <!-- main column -->
+    <div style="display: flex; flex-direction: column;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 18px;">
+        <a href="#" class="k" style="color: #7d8590;">News</a>
+        <span class="mono" style="font-size: 10px; color: #3a414c;">/</span>
+        <a href="#" class="k" style="color: #dc2626;">Business</a>
+      </div>
+      <h1 class="serif" style="font-size: 44px; font-weight: 600; line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 18px 0;">Canada&rsquo;s economy can withstand an escalated trade war with U.S., say banks &mdash; but certain sectors will get hit hard</h1>
+      <div style="font-size: 18px; line-height: 1.55; color: #b9bdc5; margin-bottom: 24px;">Bank economists say diversified exports and a weaker dollar give Canada room to absorb new tariffs &mdash; while steel, aluminum and auto parts brace for the worst of it.</div>
+      <div style="display: flex; align-items: center; gap: 18px; padding: 16px 0; border-top: 1px solid #222b39; border-bottom: 1px solid #222b39; margin-bottom: 28px;">
+        <div style="width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; font-weight: 600; background: #1b2330; color: #b9bdc5;">HUB</div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          <span style="font-size: 14px; font-weight: 600;">The Hub</span>
+          <span class="mono" style="font-size: 10px; color: #7d8590;">ONTARIO &middot; PUBLISHED AUG 30, 12:04 EDT &middot; 4 MIN READ</span>
+        </div>
+        <span class="lp" style="color: #7fa3cf; background: #131c2c; margin-left: 8px;">CTR-RIGHT OUTLET</span>
+        <div style="display: flex; gap: 10px; margin-left: auto;">
+          <a href="#" aria-label="Copy link" style="display: inline-flex; padding: 8px; border: 1px solid #222b39;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"></path><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"></path></svg></a>
+          <a href="#" aria-label="Share" style="display: inline-flex; padding: 8px; border: 1px solid #222b39;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"></line><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"></line></svg></a>
+        </div>
+      </div>
+
+      <div class="ph" style="width: 880px; height: 440px; margin-bottom: 10px;">
+        <svg class="phi" width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#f2f1ed" stroke-width="1.2"><rect x="3" y="3" width="18" height="18"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-5-5-9 9"></path></svg>
+        <span class="phc">Photo &middot; The Hub</span>
+      </div>
+      <div class="mono" style="font-size: 10px; color: #55606e; margin-bottom: 30px;">Container terminals at the Port of Vancouver. Export diversification is central to the banks&rsquo; assessment.</div>
+
+      <div style="display: inline-flex; align-items: center; gap: 10px; margin-bottom: 24px;">
+        <span class="chip" style="color: #8b5cf6; border-color: #2a2140;">AI summary &mdash; extractive</span>
+        <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">Read the original at The Hub &nearr;</a>
+      </div>
+
+      <p class="para">Canada&rsquo;s largest banks say the economy can absorb an escalated trade war with the United States, pointing to record export diversification and a currency that has already priced in much of the risk. Economists at three of the Big Five banks released assessments this week arguing the country&rsquo;s position is stronger than in the 2018 tariff round.</p>
+      <p class="para">The assessments land as Ottawa weighs its response to the latest round of U.S. measures. The banks caution that their outlook assumes retaliation stays targeted &mdash; a broad counter-tariff package would change the arithmetic quickly.</p>
+
+      <div style="border-left: 2px solid #dc2626; padding: 6px 0 6px 26px; margin: 10px 0 32px 0;">
+        <div class="serif" style="font-size: 26px; font-style: italic; font-weight: 500; line-height: 1.4; color: #f2f1ed;">&ldquo;The economy as a whole bends, but does not break. The pain is concentrated &mdash; and that concentration is the policy problem.&rdquo;</div>
+        <div class="mono" style="font-size: 10px; color: #7d8590; margin-top: 10px;">SENIOR ECONOMIST, QUOTED IN THE ORIGINAL REPORTING</div>
+      </div>
+
+      <p class="para">Steel, aluminum and auto parts remain the exposed flank. The sector-level analysis suggests output losses concentrated in southwestern Ontario and Quebec&rsquo;s aluminum belt, with knock-on effects for regional employment that could persist beyond the tariff window itself.</p>
+      <p class="para">The banks&rsquo; view contrasts with more pessimistic readings from industry associations, which argue the models understate supply-chain integration. Both readings agree on one thing: the longer the escalation lasts, the less the diversification story helps.</p>
+    </div>
+
+    <!-- analysis rail -->
+    <div style="display: flex; flex-direction: column; gap: 0; align-self: start; border: 1px solid #222b39; background: #11161f; padding: 28px;">
+      <span class="k" style="color: #dc2626; margin-bottom: 20px;">The analysis</span>
+
+      <div style="margin-bottom: 24px;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px;">
+          <span class="k" style="color: #7d8590;">Article lean</span>
+          <span class="mono" style="font-size: 12px; color: #7fa3cf;">CTR-RIGHT &middot; 0.31</span>
+        </div>
+        <div class="gauge" style="width: 100%;"><div class="gdot" style="left: 68%; background: #7fa3cf;"></div></div>
+        <div style="display: flex; justify-content: space-between; margin-top: 8px;">
+          <span class="mono" style="font-size: 9px; color: #d84b47;">LEFT</span>
+          <span class="mono" style="font-size: 9px; color: #929aa5;">BALANCED</span>
+          <span class="mono" style="font-size: 9px; color: #4a72d8;">RIGHT</span>
+        </div>
+        <div style="font-size: 13px; line-height: 1.6; color: #b9bdc5; margin-top: 12px;">Framing favours the banks&rsquo; assessment; industry counter-view appears late. Language is measured, sourcing is named.</div>
+        <a href="#" class="mono" style="font-size: 10px; color: #dc2626; display: inline-block; margin-top: 8px;">Full rationale &mdash; subscribers &rarr;</a>
+      </div>
+
+      <div style="border-top: 1px solid #1a212e; padding-top: 22px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>Established</span>
+          <span class="mono" style="font-size: 10px; color: #7d8590;">FACT CHECK &middot; V.E.R.I.F.Y.</span>
+        </div>
+        <div class="fact">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span style="font-size: 13px; line-height: 1.5; color: #d5d4cf;">Three bank assessments published this week &mdash; attributed and verifiable</span>
+        </div>
+        <div class="fact">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span style="font-size: 13px; line-height: 1.5; color: #d5d4cf;">Export diversification trend consistent with StatCan trade data</span>
+        </div>
+        <div class="fact" style="border-bottom: none;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round" style="flex-shrink: 0; margin-top: 2px;"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>
+          <span style="font-size: 13px; line-height: 1.5; color: #d5d4cf;">Sector-level employment projections not independently confirmed</span>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #1a212e; padding-top: 22px; margin-bottom: 24px;">
+        <span class="k" style="color: #7d8590; display: block; margin-bottom: 14px;">Covered by 6 outlets</span>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 13px; color: #b9bdc5;">The Globe and Mail</span><span class="lp" style="color: #929aa5; background: #1a1f28;">CENTER</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 13px; color: #b9bdc5;">Financial Post</span><span class="lp" style="color: #7fa3cf; background: #131c2c;">CTR-RIGHT</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 13px; color: #b9bdc5;">Toronto Star</span><span class="lp" style="color: #cf8b80; background: #241a1a;">CTR-LEFT</span>
+          </div>
+        </div>
+        <a href="#" class="mono" style="font-size: 10px; color: #dc2626; display: inline-block; margin-top: 14px;">Compare all 6 framings &rarr;</a>
+      </div>
+
+      <div style="border-top: 1px solid #1a212e; padding-top: 22px; margin-bottom: 24px;">
+        <span class="k" style="color: #7d8590; display: block; margin-bottom: 14px;">Mentioned</span>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+          <a href="#" class="mpchip">Dominic LeBlanc <span class="mono" style="font-size: 9px; color: #55606e;">MP</span></a>
+          <a href="#" class="mpchip">Port of Vancouver</a>
+          <a href="#" class="mpchip">Steel sector</a>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #1a212e; padding-top: 20px; display: flex; align-items: center; justify-content: space-between;">
+        <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+        <a href="#" class="mono" style="font-size: 10px; color: #7d8590;">How we score &rarr;</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- related -->
+  <div style="padding: 8px 40px 44px 40px;">
+    <span class="serif" style="font-size: 26px; font-weight: 600; display: block; margin-bottom: 20px;">Related coverage</span>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px;">
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="ph" style="height: 200px;"></div>
+        <span class="mono" style="font-size: 10px; color: #7d8590;">FINANCIAL POST &middot; 2H AGO</span>
+        <a href="#" class="serif" style="font-size: 20px; font-weight: 500; line-height: 1.3;">Loonie steadies as markets shrug off tariff talk</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="ph" style="height: 200px;"></div>
+        <span class="mono" style="font-size: 10px; color: #7d8590;">THE GLOBE AND MAIL &middot; 5H AGO</span>
+        <a href="#" class="serif" style="font-size: 20px; font-weight: 500; line-height: 1.3;">Ontario auto-parts towns prepare for a long fight</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <div class="ph" style="height: 200px;"></div>
+        <span class="mono" style="font-size: 10px; color: #7d8590;">LE DEVOIR &middot; 6H AGO</span>
+        <a href="#" class="serif" style="font-size: 20px; font-weight: 500; line-height: 1.3;">L&rsquo;aluminium qu&eacute;b&eacute;cois face aux tarifs: le calcul des alumineries</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- slim footer -->
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+      <a href="#" class="mono" style="font-size: 11px; color: #7d8590;">Methodology</a>
+      <a href="#" class="mono" style="font-size: 11px; color: #7d8590;">Developer hub</a>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

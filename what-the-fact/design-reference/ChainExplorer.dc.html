@@ -1,0 +1,222 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 16px 2px; }
+    .navlink:hover { color: #f2f1ed; }
+    .node { display: flex; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid #222b39; background: #11161f; width: 100%; box-sizing: border-box; }
+    .node:hover { border-color: #dc2626; }
+    .nlabel { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase; color: #55606e; }
+    .nval { font-family: 'Newsreader', Georgia, serif; font-size: 19px; font-weight: 600; line-height: 1.2; }
+    .nmeta { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; color: #7d8590; }
+    .src { display: inline-flex; align-items: center; gap: 5px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.06em; color: #55606e; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 1440px; background: #0d1117;">
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 42px; padding: 0 40px; border-bottom: 1px solid #1a212e;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+      <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+      <span class="k" style="color: #7d8590;">37 sources &middot; 121,329 articles indexed</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 18px;">
+      <a href="#" class="k" style="color: #7d8590;">FR</a>
+      <a href="#" style="font-size: 13px; color: #b9bdc5;">Sign in</a>
+      <a href="#" style="display: inline-flex; align-items: center; height: 30px; padding: 0 16px; background: #dc2626; color: #fff; font-size: 13px; font-weight: 600;">Subscribe</a>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 0 40px; border-bottom: 1px solid #222b39;">
+    <div style="display: flex; align-items: center; gap: 40px;">
+      <a href="#" class="serif" style="font-size: 22px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+      <div style="display: flex; align-items: center; gap: 30px;">
+        <a href="#" class="navlink">News</a>
+        <a href="#" class="navlink">Politics</a>
+        <a href="#" class="navlink">Money</a>
+        <a href="#" class="navlink">Media</a>
+        <a href="#" class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">Data</a>
+        <a href="#" class="navlink">About</a>
+      </div>
+    </div>
+    <a href="#" aria-label="Search" style="display: inline-flex;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+  </div>
+
+  <!-- head -->
+  <div style="padding: 34px 40px 24px 40px; display: flex; flex-direction: column; gap: 16px;">
+    <span class="k" style="color: #dc2626;">Data &mdash; the accountability chain</span>
+    <span class="serif" style="font-size: 44px; font-weight: 600; line-height: 1.05; max-width: 900px;">Follow one dollar from a donation to the coverage you read about it</span>
+    <span style="font-size: 17px; line-height: 1.6; color: #b9bdc5; max-width: 780px;">Eight datasets nobody had connected before &mdash; Elections Canada, Hansard, the lobbying registry, CanadaBuys, SEDAR and 37 newsrooms &mdash; resolved to the same people and organizations. Pick any entity to walk its chain.</span>
+    <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
+      <div style="display: inline-flex; align-items: center; gap: 10px; height: 48px; width: 420px; padding: 0 16px; border: 1px solid #222b39; background: #11161f; box-sizing: border-box;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg>
+        <span style="font-size: 14px; color: #55606e;">Start from an MP, a company, or a contract&hellip;</span>
+      </div>
+      <a href="#" style="display: inline-flex; align-items: center; height: 48px; padding: 0 22px; background: #dc2626; color: #fff; font-size: 14px; font-weight: 600;">Trace the chain</a>
+      <span class="mono" style="font-size: 10px; color: #55606e;">452,000 ENTITIES INDEXED</span>
+    </div>
+  </div>
+
+  <!-- the chain -->
+  <div style="background: #11161f; border-top: 1px solid #222b39; border-bottom: 1px solid #222b39; padding: 34px 40px;">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px;">
+      <span class="serif" style="font-size: 24px; font-weight: 600;">Worked example &mdash; the aluminium tariff file</span>
+      <span class="mono" style="font-size: 10px; color: #55606e;">EVERY LINK OPENS ITS PUBLIC SOURCE RECORD</span>
+    </div>
+
+    <!-- row 1 -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; align-items: stretch;">
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">1 &middot; Money</span>
+          <span class="nval">Aluminium Association of Canada</span>
+          <span class="nmeta">$412,000 in registered activity</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>ELECTIONS CANADA</span>
+        </div>
+        <svg width="34" height="14" viewBox="0 0 34 14" style="flex-shrink: 0;"><line x1="0" y1="7" x2="26" y2="7" stroke="#dc2626" stroke-width="1.5"></line><path d="M26 3l6 4-6 4" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">2 &middot; MP</span>
+          <span class="nval">Dominic LeBlanc</span>
+          <span class="nmeta">14 registered contacts, 2026</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>LOBBYING REGISTRY</span>
+        </div>
+        <svg width="34" height="14" viewBox="0 0 34 14" style="flex-shrink: 0;"><line x1="0" y1="7" x2="26" y2="7" stroke="#dc2626" stroke-width="1.5"></line><path d="M26 3l6 4-6 4" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">3 &middot; Vote</span>
+          <span class="nval">Bill C-42, third reading</span>
+          <span class="nmeta">Yea &middot; 2026-05-14</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>HANSARD</span>
+        </div>
+        <svg width="34" height="14" viewBox="0 0 34 14" style="flex-shrink: 0;"><line x1="0" y1="7" x2="26" y2="7" stroke="#dc2626" stroke-width="1.5"></line><path d="M26 3l6 4-6 4" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">4 &middot; Policy</span>
+          <span class="nval">Tariff remission order</span>
+          <span class="nmeta">In force 2026-06-01</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>CANADA GAZETTE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- connector down -->
+    <div style="display: flex; justify-content: flex-end; padding: 4px 0;">
+      <svg width="120" height="34" viewBox="0 0 120 34"><path d="M110 0v14H10v10" fill="none" stroke="#dc2626" stroke-width="1.5"></path><path d="M6 20l4 6 4-6" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+    </div>
+
+    <!-- row 2 -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; align-items: stretch;">
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">5 &middot; Contract</span>
+          <span class="nval">Supply agreement, $8.4M</span>
+          <span class="nmeta">Awarded 2026-06-20</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>CANADABUYS &middot; GOV WATCH</span>
+        </div>
+        <svg width="34" height="14" viewBox="0 0 34 14" style="flex-shrink: 0;"><line x1="0" y1="7" x2="26" y2="7" stroke="#dc2626" stroke-width="1.5"></line><path d="M26 3l6 4-6 4" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">6 &middot; Market</span>
+          <span class="nval">Share price +4.1%</span>
+          <span class="nmeta">Five sessions after the award</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>SEDAR &middot; MARKET WATCH</span>
+        </div>
+        <svg width="34" height="14" viewBox="0 0 34 14" style="flex-shrink: 0;"><line x1="0" y1="7" x2="26" y2="7" stroke="#dc2626" stroke-width="1.5"></line><path d="M26 3l6 4-6 4" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center;">
+        <div class="node" style="border-color: #dc2626;">
+          <span class="nlabel" style="color: #dc2626;">7 &middot; Coverage</span>
+          <span class="nval">6 outlets covered the award</span>
+          <div style="display: flex; gap: 2px; height: 8px;">
+            <div style="width: 16%; background: #d84b47;"></div>
+            <div style="width: 34%; background: #cf8b80;"></div>
+            <div style="width: 28%; background: #55606e;"></div>
+            <div style="width: 14%; background: #7fa3cf;"></div>
+            <div style="width: 8%; background: #4a72d8;"></div>
+          </div>
+          <span class="nmeta">Leans centre-left overall &middot; 2 fact-checked</span>
+        </div>
+        <svg width="34" height="14" viewBox="0 0 34 14" style="flex-shrink: 0;"><line x1="0" y1="7" x2="26" y2="7" stroke="#dc2626" stroke-width="1.5"></line><path d="M26 3l6 4-6 4" fill="none" stroke="#dc2626" stroke-width="1.5"></path></svg>
+      </div>
+      <div style="display: flex; align-items: center;">
+        <div class="node">
+          <span class="nlabel">8 &middot; Public</span>
+          <span class="nval">You are reading it now</span>
+          <span class="nmeta">Chain assembled from 5 public datasets</span>
+          <span class="src"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#55606e" stroke-width="3"><path d="M7 17L17 7M17 7H8M17 7v9"></path></svg>WHAT&middot;THE&middot;FACT</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- gaps + coverage -->
+  <div style="display: grid; grid-template-columns: 1fr 420px; gap: 40px; padding: 34px 40px 40px 40px;">
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <span class="serif" style="font-size: 24px; font-weight: 600;">The stories in this chain</span>
+      <div style="display: flex; flex-direction: column;">
+        <div style="display: flex; align-items: center; gap: 20px; padding: 16px 0; border-top: 1px solid #1a212e;">
+          <span class="mono" style="font-size: 10px; color: #55606e; width: 90px; flex-shrink: 0;">LINK 7</span>
+          <a href="#" class="serif" style="font-size: 19px; font-weight: 500; line-height: 1.3; flex: 1;">Ottawa awards $8.4M aluminium supply deal weeks after tariff order</a>
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px; padding: 16px 0; border-top: 1px solid #1a212e;">
+          <span class="mono" style="font-size: 10px; color: #55606e; width: 90px; flex-shrink: 0;">LINK 4</span>
+          <a href="#" class="serif" style="font-size: 19px; font-weight: 500; line-height: 1.3; flex: 1;">Remission order quietly exempts three aluminium categories</a>
+          <span class="chip" style="color: #f59e0b; border-color: #3a3120;">Developing</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px; padding: 16px 0; border-top: 1px solid #1a212e; border-bottom: 1px solid #1a212e;">
+          <span class="mono" style="font-size: 10px; color: #55606e; width: 90px; flex-shrink: 0;">LINK 3</span>
+          <a href="#" class="serif" style="font-size: 19px; font-weight: 500; line-height: 1.3; flex: 1;">C-42 clears third reading with cross-party support</a>
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 24px;">
+      <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <span class="k" style="color: #dc2626;">What this chain does not prove</span>
+        <div style="font-size: 14px; line-height: 1.65; color: #b9bdc5;">A link means two records name the same entity &mdash; it is a documented sequence, not a finding of influence or wrongdoing. Every step shows its source so you can judge it yourself.</div>
+        <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">How chains are built &rarr;</a>
+      </div>
+
+      <div style="border: 1px solid #222b39; padding: 24px; display: flex; flex-direction: column; gap: 14px;">
+        <span class="k" style="color: #7d8590;">Datasets feeding the chain</span>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 13px; color: #b9bdc5;">Gov Watch &mdash; procurement</span><span class="mono" style="font-size: 11px; color: #10b981;">Live</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 13px; color: #b9bdc5;">Legal Watch &mdash; rulings</span><span class="mono" style="font-size: 11px; color: #10b981;">Live</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 13px; color: #b9bdc5;">Market Watch &mdash; filings</span><span class="mono" style="font-size: 11px; color: #10b981;">Live</span></div>
+          <div style="display: flex; align-items: center; justify-content: space-between;"><span style="font-size: 13px; color: #b9bdc5;">Civic Watch &mdash; municipal</span><span class="mono" style="font-size: 11px; color: #10b981;">Live</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; padding: 24px 40px; border-top: 1px solid #222b39;">
+    <span class="mono" style="font-size: 11px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+    <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. certified &middot; A+</span>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

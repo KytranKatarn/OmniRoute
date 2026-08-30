@@ -1,0 +1,195 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .sec { border-top: 1px solid #222b39; padding: 30px 0; }
+    .sw { display: flex; flex-direction: column; gap: 8px; }
+    .swb { width: 108px; height: 56px; border: 1px solid #1a212e; }
+    .swl { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.06em; color: #7d8590; line-height: 1.5; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .gauge { position: relative; height: 8px; width: 220px; background: linear-gradient(90deg, #d84b47 0%, #cf8b80 28%, #3a414c 50%, #7fa3cf 72%, #4a72d8 100%); }
+    .gdot { position: absolute; top: -3px; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #0d1117; box-sizing: border-box; }
+    .lp { display: inline-block; padding: 2px 7px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.08em; }
+    .navlink { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; color: #b9bdc5; display: inline-flex; align-items: center; gap: 5px; padding: 14px 2px; }
+    .srcm { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; font-weight: 600; background: #1b2330; border: 2px solid #0d1117; color: #b9bdc5; box-sizing: border-box; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+    .note { font-size: 13px; line-height: 1.6; color: #b9bdc5; max-width: 560px; }
+  </style>
+</helmet>
+<div style="width: 1240px; background: #0d1117; padding: 40px; box-sizing: border-box;">
+
+  <div style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 30px;">
+    <span class="k" style="color: #dc2626;">what-the-fact.com &mdash; redesign</span>
+    <span class="serif" style="font-size: 38px; font-weight: 600; line-height: 1.1;">Design language v1 &mdash; premium editorial dark</span>
+    <span class="note">Keeps the ink ground, the red accent and the verdict/agent colour meanings from the current site. Replaces the terminal-only look with an editorial type system, photography, and designed data components.</span>
+  </div>
+
+  <!-- colors -->
+  <div class="sec">
+    <span class="k" style="color: #7d8590; display: block; margin-bottom: 22px;">01 &mdash; Colour</span>
+    <div style="display: flex; flex-direction: column; gap: 26px;">
+      <div style="display: flex; gap: 16px;">
+        <div class="sw"><div class="swb" style="background: #0d1117;"></div><span class="swl">INK / PAGE<br>#0d1117</span></div>
+        <div class="sw"><div class="swb" style="background: #11161f;"></div><span class="swl">INK-2 / PANEL<br>#11161f</span></div>
+        <div class="sw"><div class="swb" style="background: #171e2a;"></div><span class="swl">INK-3 / RAISED<br>#171e2a</span></div>
+        <div class="sw"><div class="swb" style="background: #222b39;"></div><span class="swl">HAIRLINE<br>#222b39</span></div>
+        <div class="sw"><div class="swb" style="background: #f2f1ed;"></div><span class="swl">TEXT / PAPER<br>#f2f1ed</span></div>
+        <div class="sw"><div class="swb" style="background: #b9bdc5;"></div><span class="swl">TEXT-2<br>#b9bdc5</span></div>
+        <div class="sw"><div class="swb" style="background: #7d8590;"></div><span class="swl">MUTED<br>#7d8590</span></div>
+        <div class="sw"><div class="swb" style="background: #dc2626;"></div><span class="swl">ACCENT RED<br>#dc2626 (kept)</span></div>
+      </div>
+      <div style="display: flex; align-items: flex-start; gap: 40px;">
+        <div style="display: flex; gap: 16px;">
+          <div class="sw"><div class="swb" style="background: #d84b47; width: 84px;"></div><span class="swl">LEFT<br>#d84b47</span></div>
+          <div class="sw"><div class="swb" style="background: #cf8b80; width: 84px;"></div><span class="swl">CTR-LEFT<br>#cf8b80</span></div>
+          <div class="sw"><div class="swb" style="background: #929aa5; width: 84px;"></div><span class="swl">CENTER<br>#929aa5</span></div>
+          <div class="sw"><div class="swb" style="background: #7fa3cf; width: 84px;"></div><span class="swl">CTR-RIGHT<br>#7fa3cf</span></div>
+          <div class="sw"><div class="swb" style="background: #4a72d8; width: 84px;"></div><span class="swl">RIGHT<br>#4a72d8</span></div>
+        </div>
+        <span class="note" style="max-width: 380px;">Lean scale is now a true diverging ramp: red pole, neutral grey centre, blue pole. The old scale&rsquo;s red/orange pair failed colour-vision separation and its green centre implied &ldquo;good&rdquo; rather than &ldquo;middle&rdquo;. Lean colour never appears without its text label.</span>
+      </div>
+      <div style="display: flex; gap: 16px;">
+        <div class="sw"><div class="swb" style="background: #10b981; width: 84px;"></div><span class="swl">ESTABLISHED<br>#10b981 (kept)</span></div>
+        <div class="sw"><div class="swb" style="background: #f59e0b; width: 84px;"></div><span class="swl">DEVELOPING<br>#f59e0b (kept)</span></div>
+        <div class="sw"><div class="swb" style="background: #e05252; width: 84px;"></div><span class="swl">CONTESTED<br>#e05252</span></div>
+        <div class="sw"><div class="swb" style="background: #3b82f6; width: 84px;"></div><span class="swl">L.O.C.A.L.<br>#3b82f6 (kept)</span></div>
+        <div class="sw"><div class="swb" style="background: #8b5cf6; width: 84px;"></div><span class="swl">A.U.R.O.R.A.<br>#8b5cf6 (kept)</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- type -->
+  <div class="sec">
+    <span class="k" style="color: #7d8590; display: block; margin-bottom: 22px;">02 &mdash; Type</span>
+    <div style="display: flex; flex-direction: column; gap: 18px;">
+      <div class="serif" style="font-size: 44px; font-weight: 600; line-height: 1.12;">Newsreader 600 &mdash; headlines that read like news</div>
+      <div class="serif" style="font-size: 26px; font-weight: 500; line-height: 1.25;">Newsreader 500 &mdash; card and list headlines</div>
+      <div style="font-size: 16px; line-height: 1.7; color: #d5d4cf; max-width: 720px;">IBM Plex Sans 400 &mdash; body, deks and UI copy. Chosen as the sibling of the mono the brand already speaks, so data labels and prose feel like one voice.</div>
+      <div class="mono" style="font-size: 12px; letter-spacing: 0.12em; color: #7d8590;">IBM PLEX MONO 500 &mdash; DATA LABELS, TIMESTAMPS, KICKERS. THE TERMINAL DNA, KEPT SMALL AND DELIBERATE.</div>
+      <span class="note">Note: the current site declares IBM Plex Mono but never loads it &mdash; most visitors see Courier New. The redesign actually ships the fonts.</span>
+    </div>
+  </div>
+
+  <!-- components -->
+  <div class="sec">
+    <span class="k" style="color: #7d8590; display: block; margin-bottom: 22px;">03 &mdash; Signature components</span>
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 48px;">
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="swl">LEAN GAUGE &mdash; diverging track, dot = this article / outlet</span>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div class="gauge"><div class="gdot" style="left: 64px; background: #cf8b80;"></div></div>
+          <span class="mono" style="font-size: 10px; color: #7d8590;">CTR-LEFT &middot; -0.28</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="swl">COVERAGE SPLIT &mdash; how the outlets covering a story lean</span>
+        <div style="display: flex; gap: 2px; height: 10px; width: 260px;">
+          <div style="width: 18%; background: #d84b47;"></div>
+          <div style="width: 30%; background: #cf8b80;"></div>
+          <div style="width: 34%; background: #55606e;"></div>
+          <div style="width: 12%; background: #7fa3cf;"></div>
+          <div style="width: 6%; background: #4a72d8;"></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="swl">VERDICT CHIPS &mdash; status colour + icon + label, never colour alone</span>
+        <div style="display: flex; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"></polyline></svg>Established</span>
+          <span class="chip" style="color: #f59e0b; border-color: #3a3120;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>Developing</span>
+          <span class="chip" style="color: #e05252; border-color: #3a2020;"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#e05252" stroke-width="2.5" stroke-linecap="round"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>Contested</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="swl">LEAN PILLS &mdash; category identity, label always present</span>
+        <div style="display: flex; gap: 8px;">
+          <span class="lp" style="color: #d84b47; background: #2a1414;">LEFT</span>
+          <span class="lp" style="color: #cf8b80; background: #241a1a;">CTR-LEFT</span>
+          <span class="lp" style="color: #929aa5; background: #1a1f28;">CENTER</span>
+          <span class="lp" style="color: #7fa3cf; background: #131c2c;">CTR-RIGHT</span>
+          <span class="lp" style="color: #4a72d8; background: #131a30;">RIGHT</span>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="swl">SOURCE STACK + LIVE INDICATOR</span>
+        <div style="display: flex; align-items: center; gap: 28px;">
+          <div style="display: flex; align-items: center;">
+            <div class="srcm" style="z-index: 3;">CTV</div>
+            <div class="srcm" style="margin-left: -8px; z-index: 2;">TS</div>
+            <div class="srcm" style="margin-left: -8px; z-index: 1;">GM</div>
+            <span class="mono" style="font-size: 11px; color: #7d8590; margin-left: 10px;">+ 3 more</span>
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 7px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span></div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <span class="swl">BUTTONS &mdash; sharp corners, one red per view</span>
+        <div style="display: flex; gap: 12px;">
+          <a href="#" style="display: inline-flex; align-items: center; height: 44px; padding: 0 22px; background: #dc2626; color: #fff; font-size: 14px; font-weight: 600;">Start with Starter</a>
+          <a href="#" style="display: inline-flex; align-items: center; height: 44px; padding: 0 20px; border: 1px solid #222b39; color: #b9bdc5; font-size: 14px;">Sign in</a>
+          <a href="#" class="chip" style="color: #b9bdc5; height: 26px;">Quick score</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- nav shell -->
+  <div class="sec" style="padding-bottom: 10px;">
+    <span class="k" style="color: #7d8590; display: block; margin-bottom: 22px;">04 &mdash; Nav shell: 24 links become 6 groups</span>
+    <div style="border: 1px solid #222b39;">
+      <div style="display: flex; align-items: center; gap: 30px; padding: 0 24px; border-bottom: 1px solid #222b39; background: #0d1117;">
+        <span class="serif" style="font-size: 18px; font-weight: 700;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</span>
+        <span class="navlink" style="color: #f2f1ed; box-shadow: inset 0 -2px 0 #dc2626;">News</span>
+        <span class="navlink" style="color: #f2f1ed; background: #11161f;">Politics<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5" stroke-linecap="round"><polyline points="18 15 12 9 6 15"></polyline></svg></span>
+        <span class="navlink">Money</span>
+        <span class="navlink">Media</span>
+        <span class="navlink">Data</span>
+        <span class="navlink">About</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 24px; background: #11161f;">
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span class="swl">REPRESENTATION</span>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">MPs &amp; ridings</a>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">GIC appointments</a>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Officers of Parliament</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span class="swl">INFLUENCE</span>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Lobbying</a>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Municipal</a>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Ethics tracker</a>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <span class="swl">FOLLOW THE CHAIN</span>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Accountability chain</a>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Cross-Watch</a>
+          <a href="#" style="font-size: 13px; color: #b9bdc5;">Parliament votes</a>
+        </div>
+      </div>
+    </div>
+    <div class="note" style="margin-top: 16px;">Groups: <span class="mono" style="font-size: 11px;">NEWS</span> (feed, blindspot, divergence, weather) &middot; <span class="mono" style="font-size: 11px;">POLITICS</span> (MPs, GIC, officers, lobbying, municipal, ethics) &middot; <span class="mono" style="font-size: 11px;">MONEY</span> (markets, economy, cost, rates) &middot; <span class="mono" style="font-size: 11px;">MEDIA</span> (sources, owners, journalists, CRTC) &middot; <span class="mono" style="font-size: 11px;">DATA</span> (map, chain, cross-watch, claims, API) &middot; <span class="mono" style="font-size: 11px;">ABOUT</span> (team, methodology, governance, score-an-article, literacy).</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

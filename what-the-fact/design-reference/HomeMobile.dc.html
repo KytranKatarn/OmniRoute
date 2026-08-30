@@ -1,0 +1,196 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..800;1,6..72,400..800&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
+  <style>
+    body { margin: 0; background: #0d1117; color: #f2f1ed; font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: #f2f1ed; text-decoration: none; }
+    a:hover { color: #dc2626; }
+    .serif { font-family: 'Newsreader', Georgia, serif; }
+    .mono { font-family: 'IBM Plex Mono', Consolas, monospace; }
+    .k { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .ph { position: relative; overflow: hidden; background: radial-gradient(130% 100% at 18% 8%, #243040 0%, #161e2a 52%, #0f1520 100%); }
+    .phi { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); opacity: 0.16; }
+    .phc { position: absolute; left: 10px; bottom: 8px; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 8px; letter-spacing: 0.12em; color: rgba(242,241,237,0.45); text-transform: uppercase; }
+    .chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid #222b39; font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+    .gauge { position: relative; height: 5px; width: 64px; background: linear-gradient(90deg, #d84b47 0%, #cf8b80 28%, #3a414c 50%, #7fa3cf 72%, #4a72d8 100%); }
+    .gdot { position: absolute; top: -3px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid #0d1117; box-sizing: border-box; }
+    .beat { font-family: 'IBM Plex Mono', Consolas, monospace; font-size: 10px; letter-spacing: 0.12em; color: #7d8590; padding: 13px 2px; white-space: nowrap; }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.35; } 100% { opacity: 1; } }
+    .live { width: 6px; height: 6px; border-radius: 50%; background: #dc2626; animation: pulse 2s ease-in-out infinite; }
+  </style>
+</helmet>
+<div style="width: 390px; background: #0d1117;">
+
+  <!-- utility micro strip -->
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 34px; padding: 0 16px; border-bottom: 1px solid #1a212e;">
+    <div style="display: inline-flex; align-items: center; gap: 6px;"><span class="live"></span><span class="k" style="color: #dc2626;">Live</span><span class="k" style="color: #55606e;">37 sources</span></div>
+    <span class="k" style="color: #55606e;">Sun Aug 30</span>
+  </div>
+
+  <!-- header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 6px 0 4px; border-bottom: 1px solid #222b39;">
+    <a href="#" aria-label="Menu" style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f2f1ed" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></a>
+    <a href="#" class="serif" style="font-size: 20px; font-weight: 700; letter-spacing: 0.02em;">WHAT<span style="color: #dc2626;">&middot;</span>THE<span style="color: #dc2626;">&middot;</span>FACT</a>
+    <div style="display: flex; align-items: center;">
+      <a href="#" aria-label="Search" style="display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b9bdc5" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.5" y2="16.5"></line></svg></a>
+    </div>
+  </div>
+
+  <!-- beat scroll -->
+  <div style="display: flex; gap: 20px; padding: 0 16px; border-bottom: 1px solid #1a212e; overflow: hidden;">
+    <a href="#" class="beat" style="color: #dc2626;">All</a>
+    <a href="#" class="beat">Parliament</a>
+    <a href="#" class="beat">Business</a>
+    <a href="#" class="beat">Economy</a>
+    <a href="#" class="beat">Climate</a>
+    <a href="#" class="beat">Health</a>
+    <a href="#" class="beat">Crime</a>
+  </div>
+
+  <!-- hero -->
+  <div style="display: flex; flex-direction: column;">
+    <div class="ph" style="width: 390px; height: 220px;">
+      <svg class="phi" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f2f1ed" stroke-width="1.2"><rect x="3" y="3" width="18" height="18"></rect><circle cx="9" cy="9" r="2"></circle><path d="M21 15l-5-5-9 9"></path></svg>
+      <span class="phc">Photo &middot; CTV News</span>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 12px; padding: 16px;">
+      <span class="k" style="color: #dc2626;">Top story &mdash; 6 outlets</span>
+      <a href="#" class="serif" style="font-size: 28px; font-weight: 600; line-height: 1.15;">Ford unveils &lsquo;Lake Ontario Now and Always&rsquo; sign at Ontario Place</a>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span class="chip" style="color: #f59e0b; border-color: #3a3120;">Developing</span>
+        <div class="gauge"><div class="gdot" style="left: 18px; background: #cf8b80;"></div></div>
+        <span class="mono" style="font-size: 9px; color: #7d8590;">CTR-LEFT</span>
+        <span class="mono" style="font-size: 10px; color: #7d8590;">12 min ago</span>
+      </div>
+      <div style="display: flex; gap: 2px; height: 8px;">
+        <div style="width: 18%; background: #d84b47;"></div>
+        <div style="width: 30%; background: #cf8b80;"></div>
+        <div style="width: 34%; background: #55606e;"></div>
+        <div style="width: 12%; background: #7fa3cf;"></div>
+        <div style="width: 6%; background: #4a72d8;"></div>
+      </div>
+      <span class="mono" style="font-size: 9px; color: #55606e;">6 outlets &middot; lean of coverage, left to right</span>
+      <a href="#" class="mono" style="font-size: 11px; color: #dc2626;">How 6 outlets covered it &rarr;</a>
+    </div>
+  </div>
+
+  <!-- latest rows -->
+  <div style="display: flex; flex-direction: column; padding: 4px 16px 8px 16px;">
+    <span class="k" style="color: #7d8590; padding: 14px 0 6px 0; border-top: 1px solid #222b39;">Latest</span>
+
+    <div style="display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <span class="mono" style="font-size: 9px; color: #7d8590;">THE HUB &middot; 12:04</span>
+        <a href="#" class="serif" style="font-size: 17px; font-weight: 500; line-height: 1.3;">Canada&rsquo;s economy can withstand an escalated trade war, say banks</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge" style="width: 48px;"><div class="gdot" style="left: 31px; background: #7fa3cf;"></div></div>
+          <span class="mono" style="font-size: 9px; color: #55606e;">CTR-RIGHT</span>
+        </div>
+      </div>
+      <div class="ph" style="width: 96px; height: 72px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <span class="mono" style="font-size: 9px; color: #7d8590;">THE GLOBE AND MAIL &middot; 12:11</span>
+        <a href="#" class="serif" style="font-size: 17px; font-weight: 500; line-height: 1.3;">Death toll rises to 38 from Russia&rsquo;s deadliest attack on Ukraine this year</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge" style="width: 48px;"><div class="gdot" style="left: 19px; background: #929aa5;"></div></div>
+          <span class="mono" style="font-size: 9px; color: #55606e;">CENTER</span>
+        </div>
+      </div>
+      <div class="ph" style="width: 96px; height: 72px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #1a212e;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <span class="mono" style="font-size: 9px; color: #7d8590;">CABIN RADIO &middot; NT &middot; 12:00</span>
+        <a href="#" class="serif" style="font-size: 17px; font-weight: 500; line-height: 1.3;">&lsquo;I&rsquo;m so excited&rsquo;: dentist prepares to open new Inuvik practice</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge" style="width: 48px;"><div class="gdot" style="left: 19px; background: #929aa5;"></div></div>
+          <span class="mono" style="font-size: 9px; color: #55606e;">CENTER</span>
+        </div>
+      </div>
+      <div class="ph" style="width: 96px; height: 72px; flex-shrink: 0;"></div>
+    </div>
+
+    <div style="display: flex; gap: 14px; padding: 14px 0;">
+      <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+        <span class="mono" style="font-size: 9px; color: #7d8590;">WINNIPEG FREE PRESS &middot; 11:53</span>
+        <a href="#" class="serif" style="font-size: 17px; font-weight: 500; line-height: 1.3;">Two sailors missing after French trawler sinks near a British port</a>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="chip" style="color: #10b981; border-color: #1b3a2e;">Established</span>
+          <div class="gauge" style="width: 48px;"><div class="gdot" style="left: 19px; background: #929aa5;"></div></div>
+          <span class="mono" style="font-size: 9px; color: #55606e;">CENTER</span>
+        </div>
+      </div>
+      <div class="ph" style="width: 96px; height: 72px; flex-shrink: 0;"></div>
+    </div>
+  </div>
+
+  <!-- map teaser -->
+  <div style="margin: 8px 16px 20px 16px; border: 1px solid #222b39; background: #11161f; padding: 18px; display: flex; flex-direction: column; gap: 12px;">
+    <span class="k" style="color: #7d8590;">Live coverage across Canada</span>
+    <svg width="322" height="120" viewBox="0 0 322 120" style="display: block;">
+      <circle cx="40" cy="78" r="7" fill="#929aa5" fill-opacity="0.85"></circle>
+      <text x="40" y="102" text-anchor="middle" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="8">BC</text>
+      <circle cx="90" cy="70" r="8" fill="#7fa3cf" fill-opacity="0.85"></circle>
+      <text x="90" y="102" text-anchor="middle" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="8">AB</text>
+      <circle cx="140" cy="72" r="12" fill="#929aa5" fill-opacity="0.85"></circle>
+      <text x="140" y="102" text-anchor="middle" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="8">MB</text>
+      <circle cx="196" cy="66" r="22" fill="#cf8b80" fill-opacity="0.9"></circle>
+      <text x="196" y="102" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="8">ON</text>
+      <circle cx="258" cy="56" r="24" fill="#d84b47" fill-opacity="0.9"></circle>
+      <text x="258" y="102" text-anchor="middle" fill="#b9bdc5" font-family="IBM Plex Mono, monospace" font-size="8">QC</text>
+      <circle cx="302" cy="74" r="9" fill="#cf8b80" fill-opacity="0.85"></circle>
+      <text x="302" y="102" text-anchor="middle" fill="#7d8590" font-family="IBM Plex Mono, monospace" font-size="8">NS</text>
+    </svg>
+    <a href="#" style="display: inline-flex; align-items: center; justify-content: center; height: 44px; border: 1px solid #222b39; color: #b9bdc5; font-size: 14px;">Open the full map</a>
+  </div>
+
+  <!-- subscribe band -->
+  <div style="background: #11161f; border-top: 1px solid #222b39; border-bottom: 1px solid #222b39; padding: 28px 16px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;">
+    <span class="serif" style="font-size: 24px; font-weight: 600;">Unlock the full analysis</span>
+    <span style="font-size: 13px; color: #b9bdc5;">Bias rationale &middot; fact-checks &middot; MP mentions</span>
+    <a href="#" style="display: inline-flex; align-items: center; justify-content: center; height: 48px; width: 100%; background: #dc2626; color: #fff; font-size: 15px; font-weight: 600; margin-top: 6px;">Start with Starter &mdash; $4.99/mo</a>
+  </div>
+
+  <!-- footer micro -->
+  <div style="padding: 24px 16px; display: flex; flex-direction: column; gap: 16px;">
+    <div style="display: flex; justify-content: space-between;">
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <a href="#" style="font-size: 13px; color: #7d8590;">Blindspot</a>
+        <a href="#" style="font-size: 13px; color: #7d8590;">Divergence</a>
+        <a href="#" style="font-size: 13px; color: #7d8590;">Coverage map</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <a href="#" style="font-size: 13px; color: #7d8590;">Methodology</a>
+        <a href="#" style="font-size: 13px; color: #7d8590;">Team</a>
+        <a href="#" style="font-size: 13px; color: #7d8590;">Governance</a>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 9px;">
+        <a href="#" style="font-size: 13px; color: #7d8590;">Sources</a>
+        <a href="#" style="font-size: 13px; color: #7d8590;">Owners</a>
+        <a href="#" style="font-size: 13px; color: #7d8590;">API</a>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #1a212e; padding-top: 16px;">
+      <span class="mono" style="font-size: 10px; color: #55606e;">&copy; 2026 WHAT&middot;THE&middot;FACT</span>
+      <span class="chip" style="color: #b9bdc5;">C.R.E.E.D. A+</span>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

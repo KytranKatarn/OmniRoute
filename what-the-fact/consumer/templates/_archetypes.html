@@ -1,0 +1,239 @@
+{# ═══════════════════════════════════════════════════════════════════════════
+   ARCHETYPE MACROS (#6149 phase 2b)
+
+   Five patterns cover ~40 of the 47 templates. From the canvas annotation
+   (archetype-intro): "one pattern per repeating shape, not one design per page."
+   All 47 extend base.html, so the shell already supplies nav, type and tokens —
+   these compose each page BODY.
+
+   Usage:
+       {% from "_archetypes.html" import stat_tiles, data_table, lean_pill %}
+
+   Styling lives in static/style.css under "ARCHETYPE COMPONENTS" (prefix
+   wtf-a-). Do NOT inline colours here: a page that hardcodes a hex stops
+   tracking the palette, which is the class of bug #6149 phase 1 had to undo.
+
+   ⚠️ EVERY macro escapes by default. WTF renders external news content, and the
+   XSS rule for this product is absolute (.claude/rules/wtf.md): never place
+   RSS/scraped text into markup unescaped. Jinja autoescaping does that here —
+   do not add |safe to any caller-supplied value.
+   ═══════════════════════════════════════════════════════════════════════════ #}
+
+
+{# ── shared ──────────────────────────────────────────────────────────────── #}
+
+{% macro chip(label, title=None) -%}
+<span class="wtf-a-chip"{% if title %} title="{{ title }}"{% endif %}>{{ label }}</span>
+{%- endmacro %}
+
+{% macro segment(label, href="#", active=False) -%}
+<a class="wtf-a-seg{% if active %} is-active{% endif %}" href="{{ href }}"
+   {% if active %}aria-current="true"{% endif %}>{{ label }}</a>
+{%- endmacro %}
+
+{# Removable filter token. Replaces the 87-chip riding wall (annotation
+   filter-note): active filters render as tokens you can dismiss. #}
+{% macro filter_chip(label, remove_href=None) -%}
+<a class="wtf-a-fchip" href="{{ remove_href or '#' }}">
+  <span>{{ label }}</span>{% if remove_href %}<span class="wtf-a-fchip-x" aria-hidden="true">&times;</span>
+  <span class="wtf-sr-only">remove filter</span>{% endif %}
+</a>
+{%- endmacro %}
+
+{# Dark duotone block. The real build swaps in the og:image already collected at
+   ingest and keeps this as the no-image fallback (annotation photo-note). #}
+{% macro photo(credit=None, css="") -%}
+<div class="wtf-a-ph" {% if css %}style="{{ css }}"{% endif %}>
+  {%- if credit %}<span class="wtf-a-ph-credit">{{ credit }}</span>{% endif -%}
+</div>
+{%- endmacro %}
+
+{# LEAN PILL — colour + LABEL, never colour alone.
+   The whole point of the new diverging scale: red pole / neutral centre / blue
+   pole, because the old ramp failed colour-vision checks and put GREEN at the
+   midpoint (reads as "centre = good", an editorial claim this site must not
+   make). If you ever render lean as a bare swatch, you have reintroduced that
+   bug. `bucket` is one of: left, center-left, center, center-right, right. #}
+{% macro lean_pill(bucket, label=None) -%}
+{%- set _tok = {'left':'--wtf-left','center-left':'--wtf-center-left','center':'--wtf-center',
+                'center-right':'--wtf-center-right','right':'--wtf-right'} -%}
+<span class="wtf-a-chip">
+  <span style="width:9px;height:9px;border-radius:2px;background:var({{ _tok.get(bucket, '--wtf-center') }});display:inline-block;" aria-hidden="true"></span>
+  {{ label or bucket|replace('-', ' ')|title }}
+</span>
+{%- endmacro %}
+
+{# tiles: list of dicts {label, value, detail} #}
+{% macro stat_tiles(tiles) -%}
+<div class="wtf-a-tiles">
+  {%- for t in tiles %}
+  <div class="wtf-a-tile">
+    <span class="wtf-a-tile-l">{{ t.label }}</span>
+    <span class="wtf-a-tile-n">{{ t.value }}</span>
+    {%- if t.detail %}<span class="wtf-a-tile-d">{{ t.detail }}</span>{% endif %}
+  </div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+
+{# ── archetype 1: ENTITY PROFILE ─────────────────────────────────────────────
+   mp, senator, entity, journalist, source, owner detail #}
+
+{% macro entity_header(name, meta_chips=None, photo_credit=None) -%}
+<div class="wtf-a-idhdr">
+  {{ photo(photo_credit) }}
+  <div>
+    <h1 class="wtf-a-idname">{{ name }}</h1>
+    {%- if meta_chips %}
+    <div class="wtf-a-idmeta">{% for c in meta_chips %}{{ chip(c) }}{% endfor %}</div>
+    {%- endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro record_tabs(tabs, active=None) -%}
+<nav class="wtf-a-tabs" aria-label="Records">
+  {%- for label, href in tabs %}
+  <a class="wtf-a-tab{% if label == active %} is-active{% endif %}" href="{{ href }}"
+     {% if label == active %}aria-current="page"{% endif %}>{{ label }}</a>
+  {%- endfor %}
+</nav>
+{%- endmacro %}
+
+
+{# ── archetype 2: DIRECTORY ──────────────────────────────────────────────────
+   mps, journalists, officers, owners, gic, sources
+   `spine_token` colours the left rule; it MUST be accompanied by the text in
+   `sub` naming the affiliation — colour alone is never the signal. #}
+
+{% macro person_card(name, sub=None, href="#", spine_token=None, right=None) -%}
+<a class="wtf-a-pcard" href="{{ href }}">
+  <span class="wtf-a-spine"{% if spine_token %} style="background:var({{ spine_token }});"{% endif %} aria-hidden="true"></span>
+  {{ photo() }}
+  <span style="flex:1;min-width:0;">
+    <span class="wtf-a-prow">
+      <span class="wtf-a-pname">{{ name }}</span>
+      {%- if right %}<span class="wtf-a-tile-l">{{ right }}</span>{% endif %}
+    </span>
+    {%- if sub %}<span class="wtf-a-tile-d">{{ sub }}</span>{% endif %}
+  </span>
+</a>
+{%- endmacro %}
+
+{% macro directory_grid() -%}
+<div class="wtf-a-grid">{{ caller() }}</div>
+{%- endmacro %}
+
+
+{# ── archetype 3: DATA EXPLORER ──────────────────────────────────────────────
+   lobbying, economy, rates, cost, markets, crtc, claims, municipal, blindspot,
+   divergence. Shape: tiles -> time series -> ranked bars -> filterable table.
+
+   Magnitude is NEUTRAL slate; the accent is reserved for the highlighted value
+   so chart colour can never collide with lean colour (annotation a3-note). #}
+
+{% macro ranked_bars(rows, highlight=None) -%}
+{%- set _max = (rows | map(attribute='value') | max) if rows else 0 -%}
+<div class="wtf-a-ranked">
+  {%- for r in rows %}
+  <div class="wtf-a-ranked-row">
+    <span>{{ r.label }}</span>
+    <span class="wtf-a-bar-track">
+      <span class="wtf-a-bar-fill{% if highlight and r.label == highlight %} is-highlight{% endif %}"
+            style="width: {{ ((r.value / _max) * 100) | round(1) if _max else 0 }}%;"></span>
+    </span>
+    <span class="wtf-a-ranked-v">{{ r.display | default(r.value) }}</span>
+  </div>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+{# columns: list of (header, align) where align is '' or 'num'
+   rows: list of lists, already formatted for display #}
+{% macro data_table(columns, rows, empty="No records match these filters.") -%}
+<div class="wtf-a-tblwrap">
+  <table class="wtf-a-tbl">
+    <thead><tr>
+      {%- for head, align in columns %}<th{% if align == 'num' %} class="wtf-a-num"{% endif %}>{{ head }}</th>{% endfor %}
+    </tr></thead>
+    <tbody>
+      {%- if rows %}
+      {%- for row in rows %}
+      <tr>{% for cell in row %}<td{% if columns[loop.index0][1] == 'num' %} class="wtf-a-num"{% endif %}>{{ cell }}</td>{% endfor %}</tr>
+      {%- endfor %}
+      {%- else %}
+      <tr><td colspan="{{ columns | length }}" class="wtf-a-nodata">{{ empty }}</td></tr>
+      {%- endif %}
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+
+{# ── archetype 4: MAP / GEO ──────────────────────────────────────────────────
+   map, weather, municipal.
+
+   ⚠️ Two honesty rules travel with this archetype and must not be dropped:
+   1. A region with NO DATA for the active layer is greyed EXPLICITLY — never
+      rendered as zero. The fire layers cover disjoint halves of the country,
+      so a single choropleth is a lie either way (annotation p3-weather).
+   2. Freshness is PER LAYER (city obs 3h / forecast 12h / fire 48h). A
+      40-hour-old reading must not render as current. #}
+
+{% macro layer_switch(layers, active=None) -%}
+<div class="wtf-a-layers" role="group" aria-label="Map layer">
+  {%- for label, href in layers %}{{ segment(label, href, active=(label == active)) }}{% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro freshness(text, stale=False) -%}
+<span class="wtf-a-fresh{% if stale %} is-stale{% endif %}">{{ text }}</span>
+{%- endmacro %}
+
+{# value=None means NOT REPORTED and renders an em dash — never 0.
+   The ECCC feed sends <gust>00</gust> for "no gust" on ~94% of periods, so
+   coercing None to zero fabricates a measurement (annotation p4-honesty). #}
+{% macro measurement(value, unit="", absent="—") -%}
+{%- if value is none or value == "" -%}<span class="wtf-a-nodata">{{ absent }}</span>
+{%- else -%}<span class="wtf-a-num">{{ value }}{{ unit }}</span>{%- endif -%}
+{%- endmacro %}
+
+{% macro layer_row(label, value=None, unit="") -%}
+<div class="wtf-a-lrow"><span>{{ label }}</span>{{ measurement(value, unit) }}</div>
+{%- endmacro %}
+
+
+{# ── archetype 5: EDITORIAL + ACCOUNT ────────────────────────────────────────
+   methodology, team, governance, ethics, literacy, edu, api_docs (prose half)
+   + account, alerts, beats, api_keys, connect (settings half). One shell,
+   two fills. #}
+
+{% macro doc_shell(toc) -%}
+<div class="wtf-a-doc">
+  <nav class="wtf-a-toc" aria-label="On this page">
+    {%- for label, anchor in toc %}<a href="{{ anchor }}">{{ label }}</a>{% endfor %}
+  </nav>
+  <div>{{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{% macro setting_row(label, description=None, checked=False, name=None) -%}
+<div class="wtf-a-srow">
+  <span>
+    <span style="display:block;">{{ label }}</span>
+    {%- if description %}<span class="wtf-a-tile-d">{{ description }}</span>{% endif %}
+  </span>
+  <button type="button" class="wtf-a-toggle" role="switch"
+          aria-checked="{{ 'true' if checked else 'false' }}"
+          {% if name %}data-setting="{{ name }}"{% endif %}
+          aria-label="{{ label }}"><span class="wtf-a-knob"></span></button>
+</div>
+{%- endmacro %}
+
+{% macro field(label, value="", readonly=True) -%}
+<div class="wtf-a-field">
+  <span class="wtf-a-flabel">{{ label }}</span>
+  <div class="wtf-a-fbox">{{ value }}</div>
+</div>
+{%- endmacro %}

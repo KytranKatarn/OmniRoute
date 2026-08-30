@@ -1,7 +1,9 @@
 """WTF Consumer — Kytran OAuth SSO + subscription gating."""
+import hmac
 import json
 import logging
 import os
+import secrets
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -81,16 +83,42 @@ def current_username() -> str | None:
     return session.get("wtf_username")
 
 
+def _safe_next(target: str | None, default: str = "/") -> str:
+    """Return ``target`` only if it is a same-site relative path.
+
+    Anything a browser would resolve to a foreign origin falls back to
+    ``default``: absolute URLs (``https://evil.com``), protocol-relative
+    (``//evil.com``) and backslash-normalised (``/\\evil.com``) — browsers
+    normalise the backslash to ``/``, so it must be folded BEFORE the check.
+    """
+    if not target or not isinstance(target, str):
+        return default
+    candidate = target.strip().replace("\\", "/")
+    if not candidate.startswith("/") or candidate.startswith("//"):
+        return default
+    return candidate
+
+
 @auth_bp.get("/login")
 def login():
-    next_url = request.args.get("next", "/")
+    # Sanitise on the way IN so a hostile value never reaches the session.
+    # It is sanitised again on the way out (defence in depth: an existing
+    # cookie may already carry a pre-fix value).
+    next_url = _safe_next(request.args.get("next"))
     session["wtf_next"] = next_url
+    # CSRF: mint a single-use state. The platform authorize endpoint echoes it
+    # back on the callback redirect (oauth_provider.py), and the callback
+    # REQUIRES it to match — without this there is nothing to validate and any
+    # attacker-supplied code logs the victim into the attacker's account.
+    state = secrets.token_urlsafe(32)
+    session["wtf_oauth_state"] = state
     callback_url = _CALLBACK_URL or (request.url_root.rstrip("/") + "/auth/callback")
     authorize_url = (
         f"{_PLATFORM}/oauth/authorize"
         f"?client_id={urllib.parse.quote(_CLIENT_ID)}"
         f"&redirect_uri={urllib.parse.quote(callback_url)}"
         f"&response_type=code"
+        f"&state={urllib.parse.quote(state)}"
     )
     return redirect(authorize_url)
 
@@ -100,6 +128,24 @@ def callback():
     code = request.args.get("code")
     if not code:
         return redirect("/")
+
+    # CSRF: the state must be PRESENT and match the one /login minted.
+    # Both halves are load-bearing. Comparing two absent values authorises a
+    # forged callback -- the state-omission bypass that hit the shared
+    # kytran_auth client across the fleet (KB #299307). popping it makes the
+    # state single-use, so a captured callback URL cannot be replayed.
+    state = request.args.get("state")
+    expected = session.pop("wtf_oauth_state", None)
+    if not state or not expected or not hmac.compare_digest(state, expected):
+        logger.warning(
+            "WTF OAuth callback rejected: state %s",
+            "missing" if not state else ("no session state" if not expected else "mismatched"),
+        )
+        # Distinct destination on purpose: a token-exchange failure also
+        # redirects to "/", so without this marker an acceptance probe cannot
+        # tell "rejected at the state check" from "got past it and failed
+        # later" -- which is exactly how a vulnerable build reads as fixed.
+        return redirect("/?login=state_error")
 
     callback_url = _CALLBACK_URL or (request.url_root.rstrip("/") + "/auth/callback")
     try:
@@ -139,7 +185,7 @@ def callback():
     session["wtf_entitlements"] = user.get("entitlements") or []
     session["wtf_authenticated"] = True
 
-    return redirect(session.pop("wtf_next", "/"))
+    return redirect(_safe_next(session.pop("wtf_next", "/")))
 
 
 @auth_bp.get("/logout")

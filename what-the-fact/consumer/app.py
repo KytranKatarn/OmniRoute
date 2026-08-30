@@ -26,6 +26,14 @@ def create_app():
                 "Set it, or export WTF_ALLOW_INSECURE_SECRET=1 for local dev."
             )
     app.secret_key = _secret
+    # LOAD-BEARING for the OAuth state check in auth.py. The callback arrives as
+    # a top-level GET navigation from platform.kytranempowerment.com, i.e.
+    # cross-site: "Lax" still sends the cookie (so the minted state is readable
+    # back), "Strict" would NOT and every real login would fail the check.
+    # This was previously unset and worked only on the browser default; stating
+    # it makes the dependency explicit and immune to a default change.
+    app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+    app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
     from .billing import billing_bp
     from .db import init_billing_table
     init_billing_table()

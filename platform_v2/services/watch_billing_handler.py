@@ -47,6 +47,13 @@ BUNDLE_PRODUCTS: dict[str, list[str]] = {
 # All product_ids this handler owns (including bundles)
 WATCH_PRODUCT_IDS: set[str] = set(PRODUCT_STANDALONE_URLS) | set(BUNDLE_PRODUCTS)
 
+# Platform membership (kytranempowerment.com). Unlike the watch products, this
+# is NOT pushed to a standalone — it grants the tier on the platform itself via a
+# billing_subscriptions row whose module is 'membership_platform', which is what
+# services.subscription_service.get_user_membership_tier() looks for.
+_PLATFORM_PRODUCT = "platform"
+_PLATFORM_MEMBERSHIP_MODULE = "membership_platform"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -166,8 +173,15 @@ def _push_tier_for_product_id(product_id: str, user_id: int, tier: str, email: s
     return results
 
 
-def _update_billing_subscription(stripe_sub: dict, user_id: int, price_id: str, product_id: str, tier: str):
-    """Upsert billing_subscriptions row from a Stripe subscription object."""
+def _update_billing_subscription(
+    stripe_sub: dict, user_id: int, price_id: str, product_id: str, tier: str, module: str | None = None
+):
+    """Upsert billing_subscriptions row from a Stripe subscription object.
+
+    ``module`` defaults to ``product_id`` (the watch-product convention). Pass an
+    explicit value for the platform membership, which must be stored as
+    ``membership_platform`` so ``get_user_membership_tier`` recognises it.
+    """
     from datetime import datetime, timezone
 
     def _ts(val):
@@ -176,6 +190,7 @@ def _update_billing_subscription(stripe_sub: dict, user_id: int, price_id: str, 
     sub_id = stripe_sub.get("id") or getattr(stripe_sub, "id", None)
     if not sub_id:
         return
+    module = module or product_id
     status = stripe_sub.get("status", "active")
     interval = (stripe_sub.get("plan") or {}).get("interval", "month")
     cycle = "year" if interval == "year" else "month"
@@ -214,7 +229,7 @@ def _update_billing_subscription(stripe_sub: dict, user_id: int, price_id: str, 
                     billing_customer_id,
                     sub_id,
                     price_id,
-                    product_id,
+                    module,
                     status,
                     cycle,
                     tier,
@@ -271,6 +286,11 @@ def handle_checkout_completed(event: dict) -> str:
     price_id = items[0]["price"]["id"]
     product_id, tier = _lookup_product_for_price(price_id)
 
+    if product_id == _PLATFORM_PRODUCT:
+        # Platform membership — grant the tier on the platform itself (no standalone push)
+        _update_billing_subscription(sub, user_id, price_id, product_id, tier, module=_PLATFORM_MEMBERSHIP_MODULE)
+        return f"Platform membership: user={user_id} tier={tier}"
+
     if product_id not in WATCH_PRODUCT_IDS:
         # Not a Watch product — try KSM fallthrough
         try:
@@ -305,6 +325,12 @@ def handle_subscription_updated(event: dict) -> str:
     price_id = items[0]["price"]["id"]
     product_id, tier = _lookup_product_for_price(price_id)
 
+    if product_id == _PLATFORM_PRODUCT:
+        _update_billing_subscription(
+            subscription, user_id, price_id, product_id, tier, module=_PLATFORM_MEMBERSHIP_MODULE
+        )
+        return f"Platform membership updated: user={user_id} tier={tier}"
+
     if product_id not in WATCH_PRODUCT_IDS:
         try:
             from services.ksm_billing_handler import handle_ksm_subscription_updated  # noqa: PLC0415
@@ -337,6 +363,20 @@ def handle_subscription_deleted(event: dict) -> str:
 
     price_id = items[0]["price"]["id"]
     product_id, _old_tier = _lookup_product_for_price(price_id)
+
+    if product_id == _PLATFORM_PRODUCT:
+        sub_id = subscription.get("id")
+        if sub_id:
+            try:
+                with get_db_cursor(commit=True) as (conn, cur):
+                    cur.execute(
+                        "UPDATE billing_subscriptions SET status = 'canceled', updated_at = NOW() "
+                        "WHERE stripe_subscription_id = %s",
+                        (sub_id,),
+                    )
+            except Exception as exc:
+                logger.error("Failed to cancel platform membership for user=%s: %s", user_id, exc)
+        return f"Platform membership canceled: user={user_id}"
 
     if product_id not in WATCH_PRODUCT_IDS:
         try:

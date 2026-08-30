@@ -197,7 +197,11 @@ def get_user_membership_tier(user_id, user_role=None):
         module = sub["module"] or ""
         # Membership modules are prefixed with "membership_"
         if module.startswith("membership_"):
-            tier = _resolve_tier_from_price(sub["stripe_price_id"])
+            # DB-backed resolution (billing_product_plans) with legacy keyword
+            # fallback built in. The old keyword-only matcher scanned the opaque
+            # Stripe price ID and always fell through to "viewer", so no real
+            # membership price ever resolved to its tier.
+            tier = resolve_tier_for_product(sub["stripe_price_id"])
             rank = tier_rank.get(tier, 1)
             if rank > best_rank:
                 best_rank = rank

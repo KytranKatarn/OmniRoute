@@ -17,7 +17,6 @@ Usage:
 import logging
 from typing import Optional
 from dataclasses import dataclass
-import psycopg2
 from psycopg2.extras import RealDictCursor
 
 from ai_bridge.embedding_service import generate_embedding

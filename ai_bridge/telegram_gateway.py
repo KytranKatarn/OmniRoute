@@ -83,7 +83,6 @@ class TelegramGateway:
         in the main thread.
         """
         try:
-            from telegram import Update
             from telegram.ext import (
                 ApplicationBuilder,
                 CallbackQueryHandler,

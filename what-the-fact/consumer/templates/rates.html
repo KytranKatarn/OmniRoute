@@ -1,83 +1,89 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import stat_tiles, data_table, chip, segment %}
 {% block title %}Bank of Canada Rate Decisions · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Bank of Canada overnight rate decision history. Every cut, hike, and hold since 2000 — with basis-point changes.">
 {% endblock %}
 {% block content %}
-<style>
-.wtf-rate-header { padding:20px 0 16px; border-bottom:1px solid #0a2a0a; margin-bottom:20px; }
-.wtf-rate-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
-.wtf-rate-hero { display:flex; align-items:baseline; gap:12px; margin-bottom:6px; }
-.wtf-rate-big { font-family:'Orbitron',sans-serif; font-size:36px; color:#22c55e; }
-.wtf-rate-sub { font-size:12px; color:#6b7280; }
-.wtf-rate-as-of { font-size:11px; color:#6b7280; margin-left:4px; }
-.wtf-rate-list { display:flex; flex-direction:column; gap:6px; }
-.wtf-rate-row { background:#060d14; border:1px solid #0a2a0a; border-radius:4px; padding:10px 14px; display:flex; align-items:center; gap:10px; }
-.wtf-rate-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px; min-width:44px; text-align:center; letter-spacing:0.5px; }
-.badge-cut  { background:#dc262622; color:#f87171; border:1px solid #dc262644; }
-.badge-hike { background:#22c55e22; color:#4ade80; border:1px solid #22c55e44; }
-.wtf-rate-date { font-size:12px; color:#9ca3af; min-width:90px; }
-.wtf-rate-pct  { font-family:'Orbitron',sans-serif; font-size:14px; color:#e5e7eb; min-width:54px; }
-.wtf-rate-bps  { font-size:12px; min-width:60px; }
-.bps-cut  { color:#f87171; }
-.bps-hike { color:#4ade80; }
-</style>
+{# #6149 phase 2b — first page migrated to ARCHETYPE 3 (DATA EXPLORER), which
+   covers lobbying, economy, rates, cost, markets, crtc, claims, municipal,
+   blindspot and divergence. Shape: stat tiles → ranked/table → source note.
 
-<div class="wtf-rate-header">
-  <h1 class="wtf-rate-title">🏦 Bank of Canada Rate Decisions</h1>
-  {% if current %}
-  <div class="wtf-rate-hero">
-    <span class="wtf-rate-big">{{ "%.2f"|format(current.rate_pct|float) }}%</span>
-    <span class="wtf-rate-sub">Overnight Rate Target</span>
-    <span class="wtf-rate-as-of">· as of {{ current.decision_date.strftime('%B %-d, %Y') if current.decision_date.strftime is defined else current.decision_date }}</span>
-  </div>
-  {% endif %}
-  <div class="wtf-rate-sub">{{ decisions|length }} significant decisions · 2000–2026 · Bank of Canada Valet API</div>
+   What this page was doing before:
+     • 'Orbitron' for every number — a font the site NEVER LOADED, so it
+       silently rendered as a generic sans;
+     • ~20 hardcoded hexes (#22c55e, #0a2a0a, #060d14 …) that tracked no token,
+       so the palette change in phase 1 could not reach it;
+     • emoji headings (🏦 🔒) the design replaces with the SVG icon set;
+     • a bespoke row list where the archetype's table already exists.
+   Data contract is UNCHANGED: current, decisions[], is_subscriber. The paywall
+   gate below is preserved exactly — this page is Starter+ gated. #}
+
+<div style="padding:20px 0 16px;border-bottom:1px solid var(--wtf-border);margin-bottom:4px;">
+  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">
+    Bank of Canada rate decisions
+  </h1>
+  <p class="wtf-a-tile-d" style="margin:0;">
+    Every cut, hike and hold since 2000 · Bank of Canada Valet API (series V122514)
+  </p>
 </div>
+
+{% set _tiles = [] %}
+{% if current %}
+  {% set _ = _tiles.append({
+      'label': 'Overnight rate target',
+      'value': "%.2f%%"|format(current.rate_pct|float),
+      'detail': 'as of ' ~ (current.decision_date.strftime('%B %-d, %Y') if current.decision_date.strftime is defined else current.decision_date)
+  }) %}
+{% endif %}
+{% set _ = _tiles.append({'label': 'Decisions on record', 'value': decisions|length, 'detail': '2000–2026'}) %}
+{{ stat_tiles(_tiles) }}
 
 {% if is_subscriber %}
-<div class="wtf-rate-list">
-{% for r in decisions %}
-{% set bps = r.change_bps %}
-<div class="wtf-rate-row">
-  {% if bps and bps < 0 %}
-  <span class="wtf-rate-badge badge-cut">CUT</span>
-  {% elif bps and bps > 0 %}
-  <span class="wtf-rate-badge badge-hike">HIKE</span>
-  {% else %}
-  <span class="wtf-rate-badge" style="background:#1a1a2e;color:#6b7280;border:1px solid #2a2a3a;">FIRST</span>
-  {% endif %}
-  <span class="wtf-rate-date">
-    {{ r.decision_date.strftime('%b %-d, %Y') if r.decision_date.strftime is defined else r.decision_date }}
-  </span>
-  <span class="wtf-rate-pct">{{ "%.2f"|format(r.rate_pct|float) }}%</span>
-  {% if bps %}
-  <span class="wtf-rate-bps {% if bps < 0 %}bps-cut{% else %}bps-hike{% endif %}">
-    {% if bps < 0 %}▼ {{ (bps * -1)|abs }} bps{% else %}▲ {{ bps }} bps{% endif %}
-  </span>
-  {% endif %}
-</div>
-{% endfor %}
-</div>
+  {# Direction carries a TEXT label (CUT / HIKE / FIRST), never colour alone —
+     the same rule the lean scale is built on. #}
+  {% set _rows = [] %}
+  {% for r in decisions %}
+    {% set bps = r.change_bps %}
+    {% set _dir = 'CUT' if (bps and bps < 0) else ('HIKE' if (bps and bps > 0) else 'FIRST') %}
+    {% set _ = _rows.append([
+        _dir,
+        (r.decision_date.strftime('%b %-d, %Y') if r.decision_date.strftime is defined else r.decision_date),
+        "%.2f%%"|format(r.rate_pct|float),
+        (('−' ~ (bps * -1)|abs ~ ' bps') if (bps and bps < 0) else (('+' ~ bps ~ ' bps') if bps else '—'))
+    ]) %}
+  {% endfor %}
+  {{ data_table(
+       [('Direction', ''), ('Decision date', ''), ('Rate', 'num'), ('Change', 'num')],
+       _rows,
+       empty='No rate decisions on record.') }}
 {% else %}
-<div style="background:#060d14;border:1px solid #0a2a0a;border-radius:8px;padding:24px;text-align:center;margin:8px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Rate Decision History — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Every BoC rate cut and hike from 2000–2026 with basis-point changes. Follow the money behind Canadian economic policy.</div>
-  <a href="/login?next=/rates" style="display:inline-block;background:#22c55e;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-</div>
+  {# Paywall — preserved verbatim in behaviour (Starter+), restyled onto tokens. #}
+  <div style="background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;padding:26px;text-align:center;margin:18px 0;">
+    <div class="wtf-a-tile-l" style="margin-bottom:10px;">Rate decision history — Starter+</div>
+    <p class="wtf-a-para" style="font-size:14px;margin:0 auto 18px;max-width:52ch;">
+      Every Bank of Canada rate cut and hike from 2000&ndash;2026 with basis-point
+      changes. Follow the money behind Canadian economic policy.
+    </p>
+    <a href="/login?next=/rates"
+       style="display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:0.06em;padding:11px 26px;border-radius:4px;text-decoration:none;">
+      Unlock with Starter &rarr;
+    </a>
+    <div style="margin-top:12px;"><a href="/join" class="wtf-a-tile-d" style="text-decoration:none;">See plans</a></div>
+  </div>
 {% endif %}
 
-<div style="margin-top:24px;padding:12px 14px;background:#060d14;border:1px solid #0a2a0a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
-  <strong style="color:#9ca3af;">About the overnight rate</strong><br>
-  The Bank of Canada sets the target for the overnight rate — the interest rate at which major financial institutions borrow and lend one-day funds.
-  Changes ripple through prime rates, mortgages, and the Canadian dollar.
-  The BoC announces rate decisions 8 times per year at fixed dates.
-  Data sourced from the <a href="https://www.bankofcanada.ca/valet/docs" target="_blank" rel="noopener" style="color:#22c55e;font-size:11px;">Bank of Canada Valet API</a> (series V122514).
-  <br><br>
-  <a href="https://www.bankofcanada.ca/core-functions/monetary-policy/key-interest-rate/" target="_blank" rel="noopener" style="color:#22c55e;font-size:11px;">BoC Key Interest Rate ↗</a>
+<div style="margin-top:26px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">About the overnight rate</div>
+  <p class="wtf-a-para" style="font-size:14px;margin-bottom:10px;">
+    The Bank of Canada sets the target for the overnight rate — the interest rate at
+    which major financial institutions borrow and lend one-day funds. Changes ripple
+    through prime rates, mortgages and the Canadian dollar. The BoC announces rate
+    decisions 8 times per year at fixed dates.
+  </p>
+  <a href="https://www.bankofcanada.ca/core-functions/monetary-policy/key-interest-rate/"
+     target="_blank" rel="noopener" class="wtf-a-tile-d" style="color:var(--wtf-accent);text-decoration:none;">BoC key interest rate &nearr;</a>
   &nbsp;&nbsp;
-  <a href="/parliament/officers" style="color:#6b7280;font-size:11px;">Officers of Parliament →</a>
+  <a href="/parliament/officers" class="wtf-a-tile-d" style="text-decoration:none;">Officers of Parliament &rarr;</a>
 </div>
-
 {% endblock %}

@@ -619,3 +619,204 @@ a { color: inherit; }
   background: #050d1a;
 }
 .wtf-team-footer a { color: var(--wtf-accent); text-decoration: none; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARCHETYPE COMPONENTS (#6149 phase 2b)
+   Source: design-reference/{DesignLanguage,EntityProfile,Directory,
+           DataExplorer,MapGeo,EditorialAccount}.dc.html
+
+   Five patterns cover ~40 of the 47 templates — "one pattern per repeating
+   shape, not one design per page" (canvas annotation archetype-intro). All
+   47 extend base.html, so the shell already carries nav/type/tokens; what is
+   defined here is each page BODY.
+
+   Everything below resolves through the tokens. The artboards carry literal
+   hexes (#11161f, #222b39, …) because a static mockup has no token layer —
+   copying those literals in is how a codebase ends up with colours that no
+   longer track the palette. Every one is mapped to its token instead.
+   Prefix: wtf-a- (archetype), so these can never collide with page styles.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── shared primitives ───────────────────────────────────────────────────── */
+.wtf-a-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--wtf-border);
+  font-family: var(--wtf-font-mono); font-size: 10px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--wtf-text-2); border-radius: 3px;
+}
+.wtf-a-seg {
+  display: inline-flex; align-items: center; height: 34px; padding: 0 13px;
+  font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--wtf-text-muted);
+  border: 1px solid var(--wtf-border); background: none;
+  cursor: pointer; text-decoration: none;
+}
+.wtf-a-seg + .wtf-a-seg { border-left: none; }
+.wtf-a-seg:hover { color: var(--wtf-text); background: var(--wtf-bg-panel); }
+.wtf-a-seg[aria-pressed="true"], .wtf-a-seg.is-active {
+  color: var(--wtf-text); background: var(--wtf-bg-panel);
+  border-color: var(--wtf-text-muted);
+}
+/* filter chip — carries a removable token (the filter bar that replaces the
+   87-chip riding wall, annotation filter-note) */
+.wtf-a-fchip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 40px; padding: 0 14px;
+  border: 1px solid var(--wtf-border); border-radius: 4px;
+  background: var(--wtf-bg-card);
+  font-family: var(--wtf-font-mono); font-size: 11px;
+  letter-spacing: 0.06em; color: var(--wtf-text-2);
+  text-decoration: none; cursor: pointer;
+}
+.wtf-a-fchip:hover { color: var(--wtf-text); border-color: var(--wtf-text-muted); }
+.wtf-a-fchip-x { color: var(--wtf-text-muted); font-size: 13px; line-height: 1; }
+.wtf-a-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 16px 0; }
+
+/* photo placeholder — dark duotone block; the real build swaps in the og:image
+   already collected at ingest and keeps this as the no-image fallback
+   (annotation photo-note) */
+.wtf-a-ph {
+  position: relative; overflow: hidden; border-radius: 4px;
+  background: radial-gradient(130% 100% at 18% 8%, #243040 0%, #161e2a 52%, #0f1520 100%);
+}
+.wtf-a-ph-credit {
+  position: absolute; left: 8px; bottom: 6px;
+  font-family: var(--wtf-font-mono); font-size: 9px; letter-spacing: 0.06em;
+  color: var(--wtf-text-muted);
+}
+
+/* stat tile — used by EntityProfile (.stat) and DataExplorer (.tile) */
+.wtf-a-tiles {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin: 18px 0;
+}
+.wtf-a-tile {
+  display: flex; flex-direction: column; gap: 8px; padding: 22px;
+  border: 1px solid var(--wtf-border); background: var(--wtf-bg-card);
+  border-radius: 4px;
+}
+.wtf-a-tile-l {
+  font-family: var(--wtf-font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--wtf-text-muted);
+}
+.wtf-a-tile-n {
+  font-family: var(--wtf-font-mono); font-size: 34px; font-weight: 600;
+  line-height: 1; color: var(--wtf-text);
+  font-variant-numeric: tabular-nums;
+}
+.wtf-a-tile-d { font-size: 12px; color: var(--wtf-text-muted); }
+
+/* ── archetype 1: ENTITY PROFILE ─────────────────────────────────────────
+   mp, senator, entity, journalist, source, owner detail */
+.wtf-a-idhdr { display: flex; gap: 18px; align-items: flex-start; margin-bottom: 20px; }
+.wtf-a-idhdr .wtf-a-ph { width: 84px; height: 84px; flex-shrink: 0; }
+.wtf-a-idname { font-family: var(--wtf-font-serif); font-size: 30px; font-weight: 600; line-height: 1.15; margin: 0; }
+.wtf-a-idmeta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 9px; }
+.wtf-a-tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--wtf-border); margin: 22px 0 18px; }
+.wtf-a-tab {
+  font-size: 13px; font-weight: 600; color: var(--wtf-text-muted);
+  padding: 14px 0; text-decoration: none; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; white-space: nowrap;
+}
+.wtf-a-tab:hover { color: var(--wtf-text-2); }
+.wtf-a-tab.is-active { color: var(--wtf-text); border-bottom-color: var(--wtf-accent); }
+.wtf-a-split { display: grid; gap: 26px; grid-template-columns: minmax(0,1fr) 300px; }
+@media (max-width: 900px) { .wtf-a-split { grid-template-columns: 1fr; } }
+.wtf-a-rail { display: flex; flex-direction: column; gap: 18px; }
+
+/* ── archetype 2: DIRECTORY ──────────────────────────────────────────────
+   mps, journalists, officers, owners, gic, sources */
+.wtf-a-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+.wtf-a-pcard {
+  display: flex; gap: 16px; padding: 18px;
+  border: 1px solid var(--wtf-border); background: var(--wtf-bg-card);
+  border-radius: 4px; text-decoration: none;
+}
+.wtf-a-pcard:hover { border-color: var(--wtf-text-muted); }
+/* party/lean spine — ALWAYS beside a text label, never colour alone
+   (annotation a2-note + the lean-scale rule) */
+.wtf-a-spine { width: 3px; align-self: stretch; border-radius: 2px; flex-shrink: 0; background: var(--wtf-center); }
+.wtf-a-pcard .wtf-a-ph { width: 46px; height: 46px; flex-shrink: 0; border-radius: 50%; }
+.wtf-a-pname { font-family: var(--wtf-font-serif); font-size: 20px; font-weight: 600; line-height: 1.2; color: var(--wtf-text); }
+.wtf-a-prow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+
+/* ── archetype 3: DATA EXPLORER ──────────────────────────────────────────
+   lobbying, economy, rates, cost, markets, crtc, claims, municipal,
+   blindspot, divergence.
+   Chart magnitude is NEUTRAL slate with the accent reserved for the
+   highlighted value, so chart colour can never collide with lean colour
+   (annotation a3-note). */
+.wtf-a-bar-track { background: var(--wtf-bg-panel); border-radius: 2px; height: 8px; overflow: hidden; }
+.wtf-a-bar-fill { background: var(--wtf-text-muted); height: 100%; border-radius: 2px; }
+.wtf-a-bar-fill.is-highlight { background: var(--wtf-accent); }
+.wtf-a-ranked { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; }
+.wtf-a-ranked-row { display: grid; grid-template-columns: minmax(120px, 1.4fr) 1fr auto; gap: 12px; align-items: center; font-size: 13px; }
+.wtf-a-ranked-v { font-family: var(--wtf-font-mono); font-size: 12px; color: var(--wtf-text-2); font-variant-numeric: tabular-nums; }
+.wtf-a-tblwrap { overflow-x: auto; }
+.wtf-a-tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wtf-a-tbl th {
+  text-align: left; padding: 10px 12px; white-space: nowrap;
+  font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--wtf-text-muted);
+  border-bottom: 1px solid var(--wtf-border);
+}
+.wtf-a-tbl td { padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,0.045); color: var(--wtf-text-2); }
+.wtf-a-tbl tr:hover td { background: var(--wtf-bg-card); }
+.wtf-a-num { font-family: var(--wtf-font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+/* ── archetype 4: MAP / GEO ──────────────────────────────────────────────
+   map, weather, municipal. Circle AREA encodes volume (annotation a4-note).
+   A region with no data for the ACTIVE layer is greyed EXPLICITLY, never
+   rendered as zero — the fire layers cover disjoint halves of the country. */
+.wtf-a-layers { display: flex; flex-wrap: wrap; gap: 0; margin-bottom: 14px; }
+.wtf-a-maprow { display: grid; gap: 22px; grid-template-columns: minmax(0,1fr) 290px; }
+@media (max-width: 900px) { .wtf-a-maprow { grid-template-columns: 1fr; } }
+.wtf-a-lrow {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 0; border-bottom: 1px solid var(--wtf-border); font-size: 13px;
+}
+.wtf-a-nodata { color: var(--wtf-text-muted); font-style: italic; }
+/* freshness stamp — per-layer, so a 40-hour-old reading cannot render as
+   current (annotation p3-weather) */
+.wtf-a-fresh { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: 0.08em; color: var(--wtf-text-muted); }
+.wtf-a-fresh.is-stale { color: var(--wtf-developing); }
+
+/* ── archetype 5: EDITORIAL + ACCOUNT ────────────────────────────────────
+   methodology, team, governance, ethics, literacy, edu, api_docs (prose)
+   + account, alerts, beats, api_keys, connect (settings) — one shell, two fills */
+.wtf-a-doc { display: grid; gap: 32px; grid-template-columns: 210px minmax(0,1fr); }
+@media (max-width: 900px) { .wtf-a-doc { grid-template-columns: 1fr; } }
+.wtf-a-toc { position: sticky; top: 78px; align-self: start; display: flex; flex-direction: column; }
+.wtf-a-toc a {
+  font-size: 13px; color: var(--wtf-text-muted); text-decoration: none;
+  padding: 7px 0 7px 14px; border-left: 1px solid var(--wtf-border);
+}
+.wtf-a-toc a:hover, .wtf-a-toc a.is-active { color: var(--wtf-text); border-left-color: var(--wtf-accent); }
+.wtf-a-h2 { font-family: var(--wtf-font-serif); font-size: 28px; font-weight: 600; line-height: 1.2; margin: 34px 0 14px; }
+.wtf-a-para { font-size: 17px; line-height: 1.75; color: var(--wtf-text-2); margin: 0 0 20px; max-width: 68ch; }
+.wtf-a-field { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+.wtf-a-flabel { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--wtf-text-muted); }
+.wtf-a-fbox {
+  display: flex; align-items: center; height: 44px; padding: 0 14px;
+  border: 1px solid var(--wtf-border); background: var(--wtf-bg-card);
+  font-size: 14px; color: var(--wtf-text-2); border-radius: 4px;
+}
+.wtf-a-srow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--wtf-border); }
+.wtf-a-toggle {
+  width: 40px; height: 22px; border-radius: 11px; position: relative; flex-shrink: 0;
+  background: var(--wtf-bg-panel); border: 1px solid var(--wtf-border); cursor: pointer;
+}
+.wtf-a-toggle[aria-checked="true"] { background: var(--wtf-accent); border-color: var(--wtf-accent); }
+.wtf-a-knob { position: absolute; top: 2px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--wtf-text); transition: transform 140ms ease; }
+.wtf-a-toggle[aria-checked="true"] .wtf-a-knob { transform: translateX(17px); }
+
+/* visually-hidden but announced by screen readers */
+.wtf-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}

@@ -32,8 +32,12 @@ def create_app():
     # back), "Strict" would NOT and every real login would fail the check.
     # This was previously unset and worked only on the browser default; stating
     # it makes the dependency explicit and immune to a default change.
-    app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
-    app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+    # NOT setdefault(): Flask PRE-POPULATES both keys (SAMESITE=None,
+    # HTTPONLY=True), so the key already exists and setdefault is a silent
+    # no-op — measured live, the Set-Cookie header still carried no SameSite.
+    # Direct assignment is the only thing that takes effect here.
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
     from .billing import billing_bp
     from .db import init_billing_table
     init_billing_table()

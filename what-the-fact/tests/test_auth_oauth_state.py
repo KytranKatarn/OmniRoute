@@ -73,6 +73,46 @@ class TestSafeNext:
         assert _safe_next("//evil.com", default="/home") == "/home"
 
 
+class TestSessionCookieSameSite:
+    """The state check depends on the session cookie surviving the callback.
+
+    The callback is a top-level GET from platform.kytranempowerment.com, i.e.
+    cross-site: "Lax" still sends the cookie, "Strict" would not and every real
+    login would fail the check. It must therefore be stated, not inherited from
+    a browser default.
+    """
+
+    def test_setdefault_is_a_noop_on_flask_config(self):
+        """Why app.py must use direct assignment.
+
+        Flask PRE-POPULATES SESSION_COOKIE_SAMESITE with None, so the key
+        already exists and setdefault() never fires. Measured live: the first
+        version of this fix used setdefault and the Set-Cookie header still
+        carried no SameSite at all.
+        """
+        from flask import Flask
+
+        probe = Flask(__name__)
+        assert "SESSION_COOKIE_SAMESITE" in probe.config  # key exists, value None
+        probe.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+        assert probe.config["SESSION_COOKIE_SAMESITE"] is None, "setdefault should be inert"
+        probe.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+        assert probe.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+
+    def test_app_factory_sets_samesite_effectively(self):
+        """Assert on the SOURCE of the factory, not a hand-built test app.
+
+        The `client` fixture sets SameSite itself, so it can never catch a
+        factory that fails to — which is precisely how the setdefault bug
+        survived a green suite.
+        """
+        src = (ROOT / "consumer" / "app.py").read_text()
+        assert 'app.config["SESSION_COOKIE_SAMESITE"] = "Lax"' in src, (
+            "the factory must assign SameSite directly; setdefault is inert here"
+        )
+        assert 'setdefault("SESSION_COOKIE_SAMESITE"' not in src
+
+
 class TestLoginMintsState:
     def test_authorize_url_carries_a_state(self, client):
         r = client.get("/login")

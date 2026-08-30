@@ -425,6 +425,14 @@ def news():
             return Response("Faceted /news is rate-limited for crawlers — see /robots.txt.",
                             429, {"Retry-After": "300"})
 
+    # UA-BLIND ceiling. The guard above only fires for a SELF-DECLARED crawler,
+    # so a fleet presenting browser UAs walked straight past it on 2026-08-30 and
+    # wedged all 4 workers (~378 faceted req/min). This one asks only "is this a
+    # faceted request?", which is what actually costs a DB query.
+    if _req.args and not _facet_any_rate_ok():
+        return Response("Faceted /news is busy — retry shortly, or browse /news unfiltered.",
+                        429, {"Retry-After": "60"})
+
     _ck = (band_filter, province_filter, beat_filter, scope_filter, riding_filter, page)
     _cached = _news_cache_get(_ck)
     if _cached is not None:
@@ -3741,6 +3749,46 @@ def _crawler_facet_rate_ok() -> bool:
         if len(_CRAWLER_FACET_BUCKET) >= _CRAWLER_FACET_LIMIT:
             return False
         _CRAWLER_FACET_BUCKET.append(now)
+        return True
+    except Exception:
+        return True
+
+
+# ── UA-INDEPENDENT faceted ceiling (2026-08-30 outage) ──────────────────────
+# The guard above keys on _is_crawler_ua, i.e. on a SELF-DECLARED User-Agent,
+# which is attacker-controlled. On 2026-08-30 a fleet walked /news facets
+# presenting ordinary browser UAs ("Chrome/145.0.0.0 Edg/145.0.0.0" 6,913 hits,
+# "Mac OS X 10_15_7" 2,264) — matching NOTHING in the named-bot allowlist — so
+# the tight 6/min guard never fired. They fell through to _news_rate_ok's
+# generous 180/min PER IP, which a handful of source IPs clears trivially:
+# measured ~378 faceted req/min sustained 17:42-18:05, all 4 workers saturated,
+# then WEDGED — the site stayed 502 for ~10 minutes AFTER the flood stopped.
+#
+# The expensive thing is not "a crawler". It is "a faceted /news request that
+# misses the cache by construction", which is true of ANY sender. So this bucket
+# is deliberately UA-BLIND. It sits ABOVE realistic human faceted browsing and
+# far BELOW fleet volume, so it never bites a real reader.
+#
+# Per-worker like its sibling: 4 sync workers ⇒ aggregate ≈ 4×. Default 30/min
+# /worker ≈ 120/min aggregate vs the ~378/min incident rate and vs a human, who
+# changes a filter a handful of times a minute at most.
+# Clean /news (no query string) is NEVER throttled here — only facets.
+_FACET_ANY_BUCKET: list = []
+_FACET_ANY_LIMIT = int(os.environ.get("WTF_FACET_ANY_LIMIT", "30"))
+
+
+def _facet_any_rate_ok() -> bool:
+    """Ceiling on faceted /news for EVERY caller, whatever UA it claims.
+
+    Fail-open on any error: a bug in the limiter must never take the page down,
+    which is the failure mode this whole guard exists to prevent.
+    """
+    try:
+        now = time.time()
+        _FACET_ANY_BUCKET[:] = [t for t in _FACET_ANY_BUCKET if t > now - 60]
+        if len(_FACET_ANY_BUCKET) >= _FACET_ANY_LIMIT:
+            return False
+        _FACET_ANY_BUCKET.append(now)
         return True
     except Exception:
         return True

@@ -21,4 +21,16 @@ ENV WTF_BUILD_TIME=$BUILD_TIME
 
 EXPOSE 8103
 USER nobody
-CMD ["gunicorn", "--bind", "0.0.0.0:8103", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "consumer.app:create_app()"]
+# --max-requests / --max-requests-jitter added 2026-08-30 after a faceted-/news
+# flood WEDGED all four workers. The flood stopped at 18:05; the site was STILL
+# 502 at 18:15 with traffic down to 2-9 req/min — far too little to saturate 4
+# workers. They never recovered on their own; a manual restart fixed it in 0.2s.
+# Recycling a worker after ~800 requests bounds any state a request can leave
+# behind (leaked connection, wedged socket) so the pool self-heals instead of
+# needing a human. The jitter staggers the recycles so all four never restart on
+# the same request and hand Caddy a momentary 502 of our own making.
+# Not a substitute for the rate limits in routes.py — this is the backstop for
+# when something gets through them anyway.
+CMD ["gunicorn", "--bind", "0.0.0.0:8103", "--workers", "4", "--timeout", "120", \
+     "--max-requests", "800", "--max-requests-jitter", "200", \
+     "--access-logfile", "-", "consumer.app:create_app()"]

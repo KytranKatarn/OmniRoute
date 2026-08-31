@@ -52,6 +52,37 @@ def _compute_wellness(stress, mood):
     return "green"
 
 
+def _fetch_skill_map():
+    """{agent_id: {"count": n, "top": [name, ...]}} for the roster Skills column.
+
+    ONE query for the whole page, mirroring _fetch_wellness_map. A per-agent
+    lookup here would be 159 round-trips on the default roster — the roster is
+    the heaviest read in DHQ and an N+1 is how it gets slow quietly.
+
+    `top` carries the highest-proficiency few for the cell's tooltip; ties break
+    on name so the order is stable between refreshes (an unstable order makes
+    the 15s auto-refresh rewrite the DOM for no reason — see #5862).
+    """
+    skills = {}
+    try:
+        with get_db_cursor() as (conn, cur):
+            cur.execute(
+                """
+                SELECT agent_id,
+                       count(*) AS n,
+                       (array_agg(skill_name ORDER BY proficiency_level DESC NULLS LAST,
+                                                    skill_name))[1:4] AS top
+                  FROM agent_skills
+                 GROUP BY agent_id
+                """
+            )
+            for row in cur.fetchall():
+                skills[row["agent_id"]] = {"count": int(row["n"]), "top": list(row["top"] or [])}
+    except Exception:
+        pass  # table missing / query failure -> every agent renders an em dash, never a crash
+    return skills
+
+
 def _fetch_wellness_map():
     """Fetch latest emotional state per agent, return {agent_id: {wellness_status, stress_level}}."""
     wellness = {}
@@ -132,11 +163,13 @@ def register_roster_routes(bp, admin_required):
 
             # Fetch wellness data for all agents
             wellness_map = _fetch_wellness_map()
+            skill_map = _fetch_skill_map()
 
             # Trim to the fields the original endpoint returned
             trimmed = []
             for a in agents:
                 w = wellness_map.get(a["id"], {})
+                sk = skill_map.get(a["id"], {})
                 trimmed.append(
                     {
                         "id": a["id"],
@@ -155,6 +188,11 @@ def register_roster_routes(bp, admin_required):
                         "avatar_updated_at": a.get("updated_at").isoformat() if a.get("updated_at") else None,
                         "bio": a.get("bio"),
                         "worker_type": a.get("worker_type"),
+                        # Skills column (#6240). A count plus the top few names —
+                        # the full list lives in the agent profile modal. Absent
+                        # entry means NO skills, which renders as an em dash, not 0.
+                        "skill_count": sk.get("count"),
+                        "skill_top": sk.get("top") or [],
                         # DECIMAL columns come back from psycopg2 as
                         # decimal.Decimal, which jsonify serializes as a
                         # STRING ("99.98"), not a JSON number — the roster's

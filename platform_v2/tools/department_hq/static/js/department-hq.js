@@ -556,6 +556,7 @@ var ROSTER_COLS = [
     {key:'floor',                 label:'Floor'},
     {key:'shift_state',           label:'Shift'},
     {key:'title',                 label:'Role'},
+    {key:'skill_count',           label:'Skills'},
     {key:'worker_type',           label:'Type'},
     {key:'performance_score',     label:'Perf'},
     {key:'success_rate',          label:'Success'},
@@ -622,6 +623,18 @@ function renderRoster(data) {
         return '<td>' + av + esc(shownName) + acr + '</td>';
     }
 
+    function skillCell(a) {
+        // An agent with no skills renders an em dash, matching fmtCell's rule that
+        // absent is NOT zero. The top few names ride along as a title tooltip; the
+        // full list stays in the agent profile modal rather than bloating the row.
+        var n = a.skill_count;
+        if (n === null || n === undefined || n === 0) return '<td>\u2014</td>';
+        var top = Array.isArray(a.skill_top) ? a.skill_top : [];
+        var tip = top.length ? top.join(', ') + (n > top.length ? ', +' + (n - top.length) + ' more' : '') : '';
+        return '<td><span class="dhq-skill-count"' + (tip ? ' title="' + esc(tip) + '"' : '') + '>'
+             + esc(String(n)) + '</span></td>';
+    }
+
     function bodyFor(list) {
         // dhq-roster-row + data-agent-id: the row is clickable to open the
         // profile modal (see _rosterRowClickHandler, delegated on the
@@ -633,6 +646,7 @@ function renderRoster(data) {
                  + (rosterSelection.has(a.id) ? ' checked' : '') + ' onchange="toggleRosterSel(' + a.id + ',this.checked)"></td>'
                  + ROSTER_COLS.map(function(c){
                        if (c.key === 'display_name') return agentCell(a);
+                       if (c.key === 'skill_count') return skillCell(a);
                        return '<td>' + esc(fmtCell(a[c.key])) + '</td>';
                    }).join('') + '</tr>';
         }).join('');

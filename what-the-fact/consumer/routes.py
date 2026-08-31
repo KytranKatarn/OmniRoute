@@ -891,43 +891,99 @@ def _activity_agent_queries(S):
     """Per-agent event-feed branch queries (shared by the feed page + total)."""
     return {
         "F.A.C.T.": f"""
-            SELECT 'F.A.C.T.' AS agent, a.id AS article_id, a.title AS title,
+            SELECT 'F.A.C.T.' AS agent, NULL::text AS performed_by,
+                   a.id AS article_id, a.title AS title,
                    'ingested' AS result, at.created_at AS ts, s.name AS source
             FROM {S}.audit_trail at
             JOIN {S}.articles a ON a.id = at.article_id
             JOIN {S}.sources s ON s.id = a.source_id
             WHERE at.event_type = 'ingested'""",
         "B.I.A.S.": f"""
-            SELECT 'B.I.A.S.' AS agent, a.id AS article_id, a.title AS title,
+            SELECT 'B.I.A.S.' AS agent, bs.agent_name AS performed_by,
+                   a.id AS article_id, a.title AS title,
                    bs.band AS result, bs.computed_at AS ts, s.name AS source
             FROM {S}.bias_scores bs
             JOIN {S}.articles a ON a.id = bs.article_id
             JOIN {S}.sources s ON s.id = a.source_id""",
         "V.E.R.I.F.Y.": f"""
-            SELECT 'V.E.R.I.F.Y.' AS agent, a.id AS article_id, a.title AS title,
+            SELECT 'V.E.R.I.F.Y.' AS agent, fc.agent_name AS performed_by,
+                   a.id AS article_id, a.title AS title,
                    fc.overall_verdict AS result, fc.checked_at AS ts, s.name AS source
             FROM {S}.fact_checks fc
             JOIN {S}.articles a ON a.id = fc.article_id
             JOIN {S}.sources s ON s.id = a.source_id""",
         "L.O.C.A.L.": f"""
-            SELECT 'L.O.C.A.L.' AS agent, a.id AS article_id, a.title AS title,
+            SELECT 'L.O.C.A.L.' AS agent, NULL::text AS performed_by,
+                   a.id AS article_id, a.title AS title,
                    a.province_code AS result, at.created_at AS ts, s.name AS source
             FROM {S}.articles a
             JOIN {S}.sources s ON s.id = a.source_id
             JOIN {S}.audit_trail at ON at.article_id = a.id AND at.event_type = 'ingested'
             WHERE a.province_code IS NOT NULL""",
         "D.R.A.F.T.": f"""
-            SELECT 'D.R.A.F.T.' AS agent, NULL::int AS article_id,
+            SELECT 'D.R.A.F.T.' AS agent, NULL::text AS performed_by,
+                   NULL::int AS article_id,
                    sc.representative_title AS title,
                    'summarized' AS result, su.created_at AS ts, NULL::text AS source
             FROM {S}.summaries su
             JOIN {S}.story_clusters sc ON sc.id = su.cluster_id""",
         "I.N.K.": f"""
-            SELECT 'I.N.K.' AS agent, NULL::int AS article_id,
+            SELECT 'I.N.K.' AS agent, NULL::text AS performed_by,
+                   NULL::int AS article_id,
                    representative_title AS title,
                    CONCAT(article_count::text, ' article', CASE WHEN article_count = 1 THEN '' ELSE 's' END) AS result,
                    created_at AS ts, NULL::text AS source
             FROM {S}.story_clusters""",
+    }
+
+
+def _newsroom_agents(S):
+    """Who ACTUALLY did the work in the last 24h — read from the data, never a list.
+
+    ⚠️ THE BUG THIS REPLACES: the six "agents" on this page are PIPELINE STAGES
+    whose names were hardcoded as SQL string literals (`SELECT 'V.E.R.I.F.Y.' AS
+    agent ...`). News & Media has 22 agents and dispatch selects by CAPABILITY,
+    with K.I.N. welfare-gating routing around a busy one by design — so measured
+    over 7 days V.E.R.I.F.Y. performed only 19% of fact_checks while P.R.O.O.F.,
+    E.C.H.O., V.E.T., A.X.I.O.M., C.O.N.D.U.I.T., T.A.L.O.N. and R.A.N.G.E.R. did
+    the rest, and every one was published here as "V.E.R.I.F.Y."
+
+    Same failure as the weather page advertising a hardcoded source list while
+    holding no data: a template that hardcodes what should be looped goes stale
+    silently, and K.I.N. can hire all it likes without the page ever noticing.
+
+    NULL agent_name is NOT counted as anyone. It means the performer was not
+    recorded (migration 059 is forward-only — the dispatcher's choice was
+    discarded at write time and cannot be recovered). It is reported separately
+    as `unattributed` so the total still reconciles, rather than being quietly
+    folded into whichever name would make the numbers look complete.
+    """
+    with _db().begin() as c:
+        c.execute(text("SET LOCAL jit = off"))
+        rows = c.execute(text(f"""
+            SELECT agent, SUM(n)::bigint AS events,
+                   SUM(CASE WHEN task = 'fact-check' THEN n ELSE 0 END)::bigint AS fact_checks,
+                   SUM(CASE WHEN task = 'bias'       THEN n ELSE 0 END)::bigint AS bias_scores
+              FROM (
+                SELECT COALESCE(agent_name, '') AS agent, 'fact-check' AS task, COUNT(*) AS n
+                  FROM {S}.fact_checks
+                 WHERE checked_at > NOW() - INTERVAL '24 hours'
+                 GROUP BY 1
+                UNION ALL
+                SELECT COALESCE(agent_name, ''), 'bias', COUNT(*)
+                  FROM {S}.bias_scores
+                 WHERE computed_at > NOW() - INTERVAL '24 hours'
+                 GROUP BY 1
+              ) t
+             GROUP BY agent
+             ORDER BY events DESC
+        """)).mappings().all()
+    agents = [dict(r) for r in rows if r["agent"]]
+    unattributed = sum(int(r["events"]) for r in rows if not r["agent"])
+    return {
+        "agents": agents,
+        "unattributed": unattributed,
+        "attributed": sum(int(a["events"]) for a in agents),
     }
 
 
@@ -937,6 +993,14 @@ def _activity_bundle(S):
     ent = _ACTIVITY_CACHE.get("bundle")
     if ent and ent[0] > time.time():
         return ent[1]
+    # Newsroom roster rides the same cached snapshot. Both halves are indexed
+    # range scans (idx_fact_checks_agent_checked / idx_bias_scores_agent_computed
+    # from migration 059), so it adds nothing meaningful to a bundle that is
+    # already ~40 whole-table COUNTs.
+    try:
+        _newsroom = _newsroom_agents(S)
+    except Exception as _exc:  # a roster failure must not take the page down
+        _newsroom = {"agents": [], "unattributed": 0, "attributed": 0, "error": str(_exc)[:120]}
     with _db().begin() as c:
         c.execute(text("SET LOCAL jit = off"))
         source_count = c.execute(
@@ -1160,6 +1224,7 @@ def _activity_bundle(S):
         "geo_rate": geo_rate,
         "sparklines": sparklines,
         "source_health": source_health,
+        "newsroom": _newsroom,
     }
     _ACTIVITY_CACHE["bundle"] = (time.time() + _ACTIVITY_CACHE_TTL, B)
     return B
@@ -1218,10 +1283,17 @@ def activity():
             LIMIT {PAGE_SIZE} OFFSET {offset}
         """)).fetchall()
 
+    # ⚠️ POSITIONAL ACCESS — the column ORDER in _activity_agent_queries is a
+    # contract with this mapping. Adding `performed_by` as the 2nd column shifted
+    # every index and produced `TypeError: 'int' object is not subscriptable`
+    # (article_id landed where title was expected). Same family as the
+    # RealDictCursor int-indexing trap in security-network.md. If you add a
+    # column to those UNION branches, update this line in the same commit.
     events = [
-        {"agent": r[0], "article_id": r[1], "title": (r[2] or "")[:120],
-         "result": r[3] or "", "source": r[5] or "",
-         "ts": r[4].isoformat() if r[4] else None}
+        {"agent": r[0], "performed_by": r[1], "article_id": r[2],
+         "title": (r[3] or "")[:120],
+         "result": r[4] or "", "source": r[6] or "",
+         "ts": r[5].isoformat() if r[5] else None}
         for r in rows
     ]
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
@@ -1241,6 +1313,11 @@ def activity():
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, agent_filter=agent_filter,
                            stats=stats, source_health=B["source_health"],
+                           # ⚠️ MUST be passed explicitly — this route enumerates
+                           # its context keys, so a bundle key that is not listed
+                           # here renders the panel's EMPTY state, which reads as
+                           # "no agents did any work" rather than "not wired".
+                           newsroom=B.get("newsroom") or {},
                            sparklines=B["sparklines"],
                            agent_stats=_fetch_agent_stats(),
                            trends=B["trends"],

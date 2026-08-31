@@ -380,6 +380,39 @@
       {{ total }} events &middot; page {{ page }} / {{ total_pages }}
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
+  <!-- Newsroom roster — LOOPED FROM THE DATA. The six "agents" above are
+       pipeline STAGES whose names were hardcoded as SQL literals; News & Media
+       has 22 agents and dispatch picks by capability, so V.E.R.I.F.Y. performed
+       only 19% of fact_checks over 7 days while seven other agents did the rest
+       and were all published as "V.E.R.I.F.Y.". Never hardcode this list. -->
+  <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:12px 14px;margin:0 0 14px;">
+    <div style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;margin-bottom:8px;">
+      Newsroom · who did the work (last 24h)
+    </div>
+    {% set nr = newsroom or {} %}
+    {% if nr.agents %}
+    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;">
+      {% for a in nr.agents %}
+      <span style="font-size:0.7rem;color:#9ca3af;background:#060d14;border:1px solid #1a2a3a;border-radius:3px;padding:3px 8px;">
+        <b style="color:#e5e7eb;">{{ a.agent }}</b>
+        <span style="color:#6b7280;">{{ "{:,}".format(a.events) }}</span>
+        {% if a.fact_checks %}<span style="color:#10b981;font-size:0.6rem;" title="fact-checks">✓{{ a.fact_checks }}</span>{% endif %}
+        {% if a.bias_scores %}<span style="color:#f59e0b;font-size:0.6rem;" title="bias scores">◐{{ a.bias_scores }}</span>{% endif %}
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div style="font-size:0.7rem;color:#6b7280;">No attributed work yet in this window.</div>
+    {% endif %}
+    <div style="font-size:0.6rem;color:#4b5563;margin-top:8px;">
+      {{ "{:,}".format(nr.attributed or 0) }} attributed
+      {% if nr.unattributed %}
+        · {{ "{:,}".format(nr.unattributed) }} not recorded
+        <span title="Written before agent attribution existed. Reported separately so the total reconciles, rather than folded into whichever name would make it look complete.">(pre-attribution)</span>
+      {% endif %}
+    </div>
+  </div>
+
       {% set agents = [('all','All'),('F.A.C.T.','F.A.C.T.'),('B.I.A.S.','B.I.A.S.'),('V.E.R.I.F.Y.','V.E.R.I.F.Y.'),('L.O.C.A.L.','L.O.C.A.L.'),('D.R.A.F.T.','D.R.A.F.T.'),('I.N.K.','I.N.K.')] %}
       {% for val, label in agents %}
       <a href="/activity?agent={{ val }}&page=1"
@@ -393,7 +426,8 @@
     <table class="wtf-act-table" id="wtf-act-table">
       <thead>
         <tr>
-          <th>Agent</th>
+          <th title="Pipeline stage — NOT the agent. These six are stages; the newsroom has 22 agents.">Stage</th>
+          <th title="The agent that actually performed this work, per the dispatcher. — means it predates attribution (migration 059 is forward-only).">Performed by</th>
           <th>Article</th>
           <th>Source</th>
           <th>Result</th>
@@ -407,6 +441,13 @@
             <span class="wtf-act-agent wtf-act-agent--{{ {'F.A.C.T.':'fact','B.I.A.S.':'bias','V.E.R.I.F.Y.':'verify','L.O.C.A.L.':'local','D.R.A.F.T.':'draft','I.N.K.':'ink'}.get(ev.agent,'bias') }}">
               {{ ev.agent }}
             </span>
+          </td>
+          <td>
+            {% if ev.performed_by %}
+              <span style="color:#e5e7eb;font-weight:600;">{{ ev.performed_by }}</span>
+            {% else %}
+              <span style="color:#4b5563;" title="Performer not recorded — this row predates agent attribution. Not attributed to anyone rather than guessed.">—</span>
+            {% endif %}
           </td>
           <td>
             {% if ev.article_id %}

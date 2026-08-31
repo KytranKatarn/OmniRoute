@@ -1,165 +1,133 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import record_card, record_links, stat_tiles, lean_pill, segment, paywall %}
 {% block title %}Media Owners — Who Controls Canadian News · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Who owns Canadian news outlets? Ownership map, bias profiles, and outlet counts for every media owner tracked by What The Fact.">
 {% endblock %}
 {% block content %}
-<style>
-.wtf-own-header { padding:20px 0 16px; border-bottom:1px solid #1a3a5a; margin-bottom:24px; }
-.wtf-own-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
-.wtf-own-sub { font-size:12px; color:#6b7280; }
-.wtf-own-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px; }
-.wtf-own-filter { font-size:11px; padding:4px 12px; border-radius:12px; border:1px solid #1a3a5a; background:#060d14; color:#9ca3af; cursor:pointer; text-decoration:none; }
-.wtf-own-filter.active { border-color:#0af; color:#0af; background:#0a1a2a; }
-.wtf-own-grid { display:flex; flex-direction:column; gap:16px; }
-.wtf-own-card { background:#060d14; border:1px solid #1a3a5a; border-radius:6px; padding:16px; }
-.wtf-own-card-header { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
-.wtf-own-type-icon { width:36px; height:36px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
-.wtf-own-name { font-family:'Orbitron',sans-serif; font-size:14px; color:#e5e7eb; margin:0 0 4px; }
-.wtf-own-meta { font-size:11px; color:#6b7280; display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-.wtf-own-type-pill { font-size:10px; padding:2px 8px; border-radius:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
-.wtf-own-outlets { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-.wtf-own-outlet { font-size:11px; padding:4px 10px; border-radius:4px; background:#0a1520; border:1px solid #1a3a5a; color:#9ca3af; text-decoration:none; display:flex; align-items:center; gap:5px; }
-.wtf-own-outlet:hover { border-color:#0af; color:#0af; }
-.wtf-own-bias-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.wtf-own-stats { display:flex; gap:16px; margin-top:12px; padding-top:12px; border-top:1px solid #0d1f2d; }
-.wtf-own-stat { text-align:center; }
-.wtf-own-stat strong { display:block; font-size:18px; font-family:'IBM Plex Mono',monospace; color:#e5e7eb; }
-.wtf-own-stat span { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.05em; }
-</style>
+{# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY). A CORRECTNESS fix, not a restyle.
 
-<div class="wtf-own-header">
-  <h1 class="wtf-own-title">◈ Media Ownership Map</h1>
-  <div class="wtf-own-sub">
+   This page defined its OWN lean ramp with GREEN AT THE MIDPOINT (the retired
+   scale) and drew it as a BARE dot labelled only by a title="" attribute —
+   breaking both halves of the rule lean_pill exists to enforce: a green centre
+   reads as "centre = good" (an editorial claim this site must not make), and
+   colour alone is unreadable under common colour-vision deficiencies. Lean now
+   goes through lean_pill: diverging token AND text label, always.
+   Rationale + the other four instances: KB, PR #2968.
+
+   record_card, not person_card — each owner lists outlets as links.
+   Data contract unchanged: owners[], source_count, unattributed, is_subscriber. #}
+
+{% set TYPE_LABEL = {'corporate':'Corporate', 'public':'Public',
+                     'non_profit':'Non-profit', 'independent':'Independent'} %}
+
+<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:18px;">
+  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Media ownership map</h1>
+  <p class="wtf-a-tile-d" style="margin:0;">
     Who controls Canadian news — {{ owners|length }} owners · {{ source_count }} outlets tracked
-    {% if unattributed %} · {{ unattributed }} outlets unattributed{% endif %}
-  </div>
+    {%- if unattributed %} · {{ unattributed }} unattributed{% endif %}
+  </p>
 </div>
 
-{# ── Concentration summary strip ─────────────────────────────────────────── #}
-{% set corporate_owners = owners | selectattr('owner_type', 'equalto', 'corporate') | list %}
-{% set public_owners    = owners | selectattr('owner_type', 'equalto', 'public')    | list %}
-{% set nonprofit_owners = owners | selectattr('owner_type', 'equalto', 'non_profit') | list %}
-{% set indie_owners     = owners | selectattr('owner_type', 'equalto', 'independent') | list %}
-{% set corp_outlets  = corporate_owners | sum(attribute='outlet_count') %}
-{% set pub_outlets   = public_owners    | sum(attribute='outlet_count') %}
-{% set indie_outlets = indie_owners     | sum(attribute='outlet_count') %}
-{% set corp_pct  = ((corp_outlets  / source_count * 100) | round(0) | int) if source_count else 0 %}
-{% set pub_pct   = ((pub_outlets   / source_count * 100) | round(0) | int) if source_count else 0 %}
-{% set indie_pct = ((indie_outlets / source_count * 100) | round(0) | int) if source_count else 0 %}
-<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
-  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #ef444433;border-left:3px solid #ef4444;border-radius:6px;padding:12px 14px;">
-    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#ef4444;font-weight:700;">{{ corporate_owners|length }}</div>
-    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Corporate</div>
-    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ corp_outlets }} outlets · {{ corp_pct }}% of tracked</div>
-  </div>
-  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #3b82f633;border-left:3px solid #3b82f6;border-radius:6px;padding:12px 14px;">
-    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#3b82f6;font-weight:700;">{{ public_owners|length }}</div>
-    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Public</div>
-    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ pub_outlets }} outlets · {{ pub_pct }}% of tracked</div>
-  </div>
-  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #22c55e33;border-left:3px solid #22c55e;border-radius:6px;padding:12px 14px;">
-    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#22c55e;font-weight:700;">{{ nonprofit_owners|length }}</div>
-    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Non-profit</div>
-    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ (nonprofit_owners | sum(attribute='outlet_count')) }} outlets</div>
-  </div>
-  <div style="flex:1;min-width:130px;background:#060d14;border:1px solid #a78bfa33;border-left:3px solid #a78bfa;border-radius:6px;padding:12px 14px;">
-    <div style="font-size:22px;font-family:'IBM Plex Mono',monospace;color:#a78bfa;font-weight:700;">{{ indie_owners|length }}</div>
-    <div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.05em;margin-top:2px;">Independent</div>
-    <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ indie_outlets }} outlets · {{ indie_pct }}% of tracked</div>
-  </div>
-</div>
+{# ── concentration summary ───────────────────────────────────────────────────
+   Was four tiles carrying four hardcoded hexes. The ownership TYPE is a
+   category, not a magnitude, and no token backs those colours — the label
+   already names it, so the colour was decoration. Same call as the officers
+   cross-product tags in #2966. #}
+{% set tiles = [] %}
+{% for key in ['corporate', 'public', 'non_profit', 'independent'] %}
+  {% set group = owners | selectattr('owner_type', 'equalto', key) | list %}
+  {% set outlets = group | sum(attribute='outlet_count') %}
+  {% set pct = ((outlets / source_count * 100) | round(0) | int) if source_count else 0 %}
+  {% if tiles.append({
+       'label': TYPE_LABEL.get(key, key),
+       'value': group | length,
+       'detail': outlets ~ ' outlet' ~ ('' if outlets == 1 else 's') ~ (' · ' ~ pct ~ '% of tracked' if source_count else '')
+     }) %}{% endif %}
+{% endfor %}
+{{ stat_tiles(tiles) }}
 
-{# ── Type filter tabs ──────────────────────────────────────────────────── #}
-<div class="wtf-own-filters">
-  <a class="wtf-own-filter active" href="/owners">All</a>
-  <a class="wtf-own-filter" href="/owners?type=corporate">Corporate</a>
-  <a class="wtf-own-filter" href="/owners?type=public">Public</a>
-  <a class="wtf-own-filter" href="/owners?type=non_profit">Non-profit</a>
-  <a class="wtf-own-filter" href="/owners?type=independent">Independent</a>
+<div class="wtf-a-layers" style="margin:18px 0 16px;">
+  {{ segment('All', '/owners', active=True) }}
+  {% for key in ['corporate', 'public', 'non_profit', 'independent'] %}
+    {{ segment(TYPE_LABEL[key], '/owners?type=' ~ key) }}
+  {% endfor %}
 </div>
-
-{# ── Owner cards ───────────────────────────────────────────────────────── #}
-{% set TYPE_ICONS = {'corporate':'🏢', 'public':'🏛', 'non_profit':'🤝', 'independent':'👤'} %}
-{% set TYPE_COLOURS = {'corporate':'#ef4444', 'public':'#3b82f6', 'non_profit':'#22c55e', 'independent':'#a78bfa'} %}
-{% set BIAS_COLOURS = {'left':'#ef4444','center-left':'#f97316','center':'#22c55e','center-right':'#0ea5e9','right':'#2563eb'} %}
 
 {% if is_subscriber %}
-<div class="wtf-own-grid">
-{% for o in owners %}
-{% set tc = TYPE_COLOURS.get(o.owner_type or '', '#6b7280') %}
-{% set ti = TYPE_ICONS.get(o.owner_type or '', '📰') %}
-<div class="wtf-own-card" style="border-left:3px solid {{ tc }};">
-  <div class="wtf-own-card-header">
-    <div class="wtf-own-type-icon" style="background:{{ tc }}22;color:{{ tc }};">{{ ti }}</div>
-    <div style="flex:1;">
-      <div class="wtf-own-name">{{ o.owner_name }}</div>
-      <div class="wtf-own-meta">
-        <span class="wtf-own-type-pill" style="background:{{ tc }}22;color:{{ tc }};border:1px solid {{ tc }}44;">
-          {{ (o.owner_type or 'unknown') | replace('_',' ') | title }}
-        </span>
-        <span>{{ o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }} ({{ ((o.outlet_count / 46) * 100) | round(0) | int }}% of tracked)</span>
-        {% if o.avg_bias is not none %}
-        <span style="color:#6b7280;">Avg bias: <strong style="color:#e5e7eb;">{% if o.bias_band %}{{ o.bias_band | upper }}{% elif o.avg_bias is not none %}{{ "%.2f"|format(o.avg_bias|float) }}{% endif %}</strong></span>
-        {% endif %}
-      </div>
-    </div>
-  </div>
+  {% for o in owners %}
+    {% set chips = [] %}
+    {% if chips.append(TYPE_LABEL.get(o.owner_type or '', 'Unknown')) %}{% endif %}
 
-  {# Outlets list #}
-  <div class="wtf-own-outlets">
-    {% for outlet in o.outlets %}
-    {% set bias_col = BIAS_COLOURS.get(outlet.bias_lean or '', '#6b7280') %}
-    <a class="wtf-own-outlet" href="/source/{{ outlet.slug }}" title="{{ outlet.bias_lean or 'unscored' }}">
-      <span class="wtf-own-bias-dot" style="background:{{ bias_col }};"></span>
-      {{ outlet.name }}
-    </a>
-    {% endfor %}
-  </div>
+    {% set meta %}
+      {{- o.outlet_count }} outlet{{ 's' if o.outlet_count != 1 else '' }}
+      {%- if source_count %} · {{ ((o.outlet_count / source_count * 100) | round(0) | int) }}% of tracked{% endif -%}
+    {% endset %}
 
-  {# Bias breakdown mini-stat #}
-  {% if o.outlets | selectattr('bias_lean') | list %}
-  <div class="wtf-own-stats">
-    {% set lean_counts = {} %}
-    {% for outlet in o.outlets %}
-      {% if outlet.bias_lean %}
-        {% if lean_counts.update({outlet.bias_lean: (lean_counts.get(outlet.bias_lean, 0) + 1)}) %}{% endif %}
+    {% call record_card(title=o.owner_name, meta=meta|trim, chips=chips) %}
+      {# Average lean, as a LABELLED pill — never a bare swatch, and it must say
+         it is an AGGREGATE: an owner at opposite poles averages to the CENTRE,
+         describing a polarised portfolio as a centrist one. Measured live,
+         Postmedia already spans 2 bands over 9 outlets. See PR #2968. #}
+      {% if o.bias_band %}
+        {% set scored = o.outlets | selectattr('bias_lean') | list %}
+        {% set bands = scored | map(attribute='bias_lean') | unique | list %}
+        <div style="margin-top:10px;">
+          <span class="wtf-a-tile-l">Average across {{ scored|length }} scored outlet{{ '' if scored|length == 1 else 's' }}</span>
+          {{ lean_pill(o.bias_band, o.bias_band|replace('-', ' ')|title) }}
+          {%- if o.avg_bias is not none %}
+          <span class="wtf-a-tile-d">score {{ "%.2f"|format(o.avg_bias|float) }}</span>
+          {%- endif %}
+          {%- if bands|length > 1 %}
+          <span class="wtf-a-tile-d">— spans {{ bands|length }} bands, listed below</span>
+          {%- endif %}
+        </div>
       {% endif %}
-    {% endfor %}
-    {% for lean, count in lean_counts.items() %}
-    <div class="wtf-own-stat">
-      <strong style="color:{{ BIAS_COLOURS.get(lean, '#6b7280') }};">{{ count }}</strong>
-      <span>{{ lean | replace('-',' ') }}</span>
-    </div>
-    {% endfor %}
-  </div>
-  {% endif %}
-</div>
-{% endfor %}
-</div>
 
+      {# Outlets, grouped by lean so the colour is never the only signal. #}
+      {% set unscored = o.outlets | rejectattr('bias_lean') | list %}
+      {% for bucket in ['left', 'center-left', 'center', 'center-right', 'right'] %}
+        {% set in_bucket = o.outlets | selectattr('bias_lean', 'equalto', bucket) | list %}
+        {% if in_bucket %}
+        <div class="wtf-a-lrow" style="align-items:flex-start;">
+          {{ lean_pill(bucket) }}
+          <span style="flex:1;text-align:right;">
+            {%- for outlet in in_bucket %}
+            <a class="wtf-a-rlink" href="/source/{{ outlet.slug }}">{{ outlet.name }}</a>{% if not loop.last %}<span class="wtf-a-tile-d"> · </span>{% endif %}
+            {%- endfor %}
+          </span>
+        </div>
+        {% endif %}
+      {% endfor %}
+      {% if unscored %}
+      <div class="wtf-a-lrow" style="align-items:flex-start;">
+        <span class="wtf-a-nodata">Not yet scored</span>
+        <span style="flex:1;text-align:right;">
+          {%- for outlet in unscored %}
+          <a class="wtf-a-rlink" href="/source/{{ outlet.slug }}">{{ outlet.name }}</a>{% if not loop.last %}<span class="wtf-a-tile-d"> · </span>{% endif %}
+          {%- endfor %}
+        </span>
+      </div>
+      {% endif %}
+    {% endcall %}
+  {% endfor %}
 {% else %}
-<div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:28px;text-align:center;margin:8px 0 24px;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 Ownership Map — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;max-width:400px;margin-left:auto;margin-right:auto;">
-    See who owns every Canadian outlet, their bias profiles, and how ownership shapes the news you read.
-  </div>
-  <a href="/login?next=/owners" style="display:inline-block;background:#0af;color:#000;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-</div>
+{{ paywall(
+     title='Ownership Map — Starter+',
+     blurb='See who owns every Canadian outlet, their bias profiles, and how ownership shapes the news you read.',
+     next_url='/owners') }}
 {% endif %}
 
-{# ── What this means ───────────────────────────────────────────────────── #}
-<div style="margin-top:32px;padding:16px;background:#060d14;border:1px solid #1a3a5a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
-  <strong style="color:#9ca3af;">Why ownership matters</strong><br>
-  Media ownership shapes editorial direction, hiring decisions, and what stories get amplified.
-  Corporate consolidation in Canada has concentrated news production into a small number of hands —
-  <strong style="color:#e5e7eb;">Postmedia</strong> alone owns over a third of daily newspapers.
-  Bias scores are rolling averages computed from our AI analysis pipeline.
-  <br><br>
-  <a href="/sources" style="color:#0af;text-decoration:none;">Browse all sources →</a>
-  &nbsp;&nbsp;
-  <a href="https://what-the-fact.tech/transparency" target="_blank" rel="noopener" style="color:#6b7280;">How we score bias ↗</a>
+<div style="margin-top:28px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">Why ownership matters</div>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
+    Media ownership shapes editorial direction, hiring decisions, and what stories get amplified.
+    Corporate consolidation in Canada has concentrated news production into a small number of hands —
+    Postmedia alone owns over a third of daily newspapers.
+    Bias scores are rolling averages computed from our AI analysis pipeline.
+  </p>
+  {{ record_links([
+       ('Browse all sources →', '/sources', False),
+       ('How we score bias', 'https://what-the-fact.tech/transparency', True)]) }}
 </div>
-
 {% endblock %}

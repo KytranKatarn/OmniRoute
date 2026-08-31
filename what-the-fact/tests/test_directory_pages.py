@@ -78,6 +78,40 @@ GIC = [
 ]
 
 
+OWNERS = [
+    {
+        "owner_name": "Postmedia Network", "owner_type": "corporate",
+        "outlet_count": 3, "avg_bias": 0.42, "bias_band": "center-right",
+        "outlets": [
+            {"slug": "national-post", "name": "National Post", "bias_lean": "right"},
+            {"slug": "montreal-gazette", "name": "Montreal Gazette", "bias_lean": "center"},
+            # an UNSCORED outlet — must render as "not yet scored", never as centre
+            {"slug": "regina-leaderpost", "name": "Regina Leader-Post", "bias_lean": None},
+        ],
+    },
+    {
+        "owner_name": "CBC/Radio-Canada", "owner_type": "public",
+        "outlet_count": 1, "avg_bias": None, "bias_band": None,
+        "outlets": [{"slug": "cbc", "name": "CBC News", "bias_lean": "center-left"}],
+    },
+    # SINGLE-BAND owner: proves the "spans N bands" note appears only when the
+    # portfolio actually spreads, rather than on every card.
+    {
+        "owner_name": "Canadaland", "owner_type": "independent",
+        "outlet_count": 1, "avg_bias": -0.61, "bias_band": "left",
+        "outlets": [{"slug": "canadaland", "name": "Canadaland", "bias_lean": "left"}],
+    },
+]
+
+# The RETIRED ramp this page used to define privately. Green at the midpoint.
+RETIRED_RAMP = ["#ef4444", "#f97316", "#22c55e", "#0ea5e9", "#2563eb"]
+
+
+def owners_html(env, *, subscriber):
+    return env.get_template("owners.html").render(
+        owners=OWNERS, source_count=46, unattributed=2, is_subscriber=subscriber)
+
+
 def officers_html(env, *, subscriber):
     return env.get_template("officers.html").render(officers=OFFICERS, is_subscriber=subscriber)
 
@@ -180,3 +214,111 @@ class TestExternalTextIsEscaped:
         html = officers_html(env, subscriber=True)
         assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
         assert "<script>alert(1)" not in html
+
+
+class TestOwnersLeanIsHonest:
+    """The reason /owners was migrated. Not cosmetic — editorial integrity.
+
+    The page privately defined the RETIRED ramp (green at the midpoint) and drew
+    lean as a bare 8px dot whose only text was a title="" attribute.
+    """
+
+    def test_the_retired_ramp_is_gone(self, env):
+        html = owners_html(env, subscriber=True)
+        for hexcode in RETIRED_RAMP:
+            assert hexcode not in html, (
+                f"{hexcode} is from the retired lean scale — /owners must not "
+                "redefine the palette"
+            )
+
+    def test_no_green_is_used_for_the_centre(self, env):
+        """A green midpoint reads as 'centre = good' — an editorial claim this
+        site must not make. The diverging scale is red pole / neutral / blue."""
+        html = owners_html(env, subscriber=True)
+        assert "#22c55e" not in html and "22c55e" not in html
+
+    def test_every_lean_carries_a_TEXT_label_not_just_colour(self, env):
+        """Colour alone fails common colour-vision deficiencies."""
+        html = owners_html(env, subscriber=True)
+        # every bucket present in the fixture must appear as readable text
+        for label in ("Right", "Center", "Center Left", "Center Right"):
+            assert label in html, f"lean {label!r} rendered without its text label"
+
+    def test_lean_uses_the_shared_tokens(self, env):
+        html = owners_html(env, subscriber=True)
+        for token in ("--wtf-right", "--wtf-center", "--wtf-center-left"):
+            assert f"var({token})" in html, f"{token} not used — page is off-palette"
+
+    def test_an_unscored_outlet_is_not_silently_called_centre(self, env):
+        """Absence of a score and a centre score are different facts."""
+        html = owners_html(env, subscriber=True)
+        assert "Not yet scored" in html
+        assert "Regina Leader-Post" in html
+
+    def test_an_owner_with_no_band_still_renders(self, env):
+        """CBC has avg_bias=None/bias_band=None — it must not vanish."""
+        html = owners_html(env, subscriber=True)
+        assert "CBC/Radio-Canada" in html and "CBC News" in html
+
+    def test_the_average_says_it_is_an_average_and_over_how_many(self, env):
+        """F.O.R.G.E. #2968: a single pill presented as THE owner's lean reads
+        as uniform. Postmedia really does span two bands over 9 outlets live."""
+        html = owners_html(env, subscriber=True)
+        assert "Average across 2 scored outlets" in html, (
+            "the aggregate must name itself an average and state its N"
+        )
+
+    def test_a_multi_band_portfolio_says_so(self, env):
+        """An owner at opposite poles averages to the CENTRE — describing a
+        polarised portfolio as centrist. Same shape as the green-midpoint bug."""
+        html = owners_html(env, subscriber=True)
+        assert "spans 2 bands" in html
+
+    def test_a_single_band_owner_does_NOT_claim_a_spread(self, env):
+        """The note must be EARNED, not printed on every card.
+
+        Renders the single-band owner ALONE. An earlier version of this test
+        sliced the full page on the owner name and passed no matter what — the
+        name occurs twice (owner and outlet), so [-1] landed in the footer,
+        which never contains "spans". Mutating the condition to
+        `bands|length > 0` did not fail it. A single-owner render cannot be
+        trivially true this way.
+        """
+        single = [o for o in OWNERS if o["owner_name"] == "Canadaland"]
+        html = env.get_template("owners.html").render(
+            owners=single, source_count=46, unattributed=0, is_subscriber=True)
+        assert "Canadaland" in html, "fixture did not render"
+        assert "Average across 1 scored outlet" in html
+        assert "spans" not in html, "a one-band portfolio must not claim a spread"
+
+
+class TestOwnersPageShape:
+    def test_concentration_tiles_render(self, env):
+        html = owners_html(env, subscriber=True)
+        for label in ("Corporate", "Public", "Non-profit", "Independent"):
+            assert label in html
+
+    def test_anonymous_gets_the_shared_paywall_not_a_cyan_one(self, env):
+        html = owners_html(env, subscriber=False)
+        assert "wtf-a-pay" in html and "/login?next=/owners" in html
+        assert "#0af" not in html, "the old cyan-on-black CTA is back"
+
+    def test_no_gated_owner_leaks_to_anonymous(self, env):
+        html = owners_html(env, subscriber=False)
+        for secret in ("Postmedia Network", "National Post", "CBC/Radio-Canada"):
+            assert secret not in html
+
+    @pytest.mark.parametrize("sub", [True, False])
+    def test_anchor_depth_is_at_most_one(self, env, sub):
+        html = owners_html(env, subscriber=sub)
+        depth = worst = 0
+        for tok in re.findall(r"</?a\b", html):
+            depth += 1 if tok == "<a" else -1
+            worst = max(worst, depth)
+        assert worst <= 1, f"nested anchors (depth {worst})"
+
+    def test_no_orbitron_and_no_literal_hex(self, env):
+        html = owners_html(env, subscriber=True)
+        assert "Orbitron" not in html
+        hexes = set(re.findall(r"#[0-9a-fA-F]{6}\b", html))
+        assert not hexes, f"owners.html hardcodes {sorted(hexes)}"

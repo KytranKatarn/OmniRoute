@@ -4068,11 +4068,69 @@ def api_v1_bias_distribution():
 # ───────────────────────────────────────────────────────────────────────────
 
 
+_BLINDSPOT_WINDOWS = (3, 7, 14, 30)
+
+
+def _blindspot_rows(days=7, limit=20, max_gap=0.15):
+    """Rows behind BOTH /blindspot and /api/v1/blindspot.
+
+    Extracted so the page and the API cannot drift: a blindspot shown to a
+    reader and one returned to an API client must be the same story set.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            SELECT sc.id, sc.representative_title, sc.article_count,
+                   sc.source_count, sc.coverage_gap_score, sc.certainty_label,
+                   sc.earliest_published_at, sc.latest_published_at,
+                   sm.headline, sm.brief
+            FROM {S}.story_clusters sc
+            LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
+            WHERE sc.coverage_gap_score > 0
+              AND sc.coverage_gap_score <= :max_gap
+              AND sc.article_count >= 2
+              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+              AND EXISTS (
+                  SELECT 1 FROM {S}.articles a
+                  WHERE a.cluster_id = sc.id
+                    AND (a.country_code = 'CA'
+                         OR a.geo_scope IN ('national', 'provincial'))
+              )
+            ORDER BY sc.coverage_gap_score ASC, sc.latest_published_at DESC
+            LIMIT :n
+        """), {"max_gap": max_gap, "days": days, "n": limit}).mappings().all()
+
+
 @bp.get("/blindspot")
 def blindspot_page():
-    """Dedicated Blindspot Feed page."""
+    """Dedicated Blindspot Feed page — rendered SERVER-SIDE.
+
+    ⚠️ This page shipped as an empty <div id="bs-list"> waiting for JavaScript
+    that was never written: no <script> in the template, and nothing anywhere
+    in static/js/ referenced `bs-list` or `wtf-bs-`. /api/v1/blindspot has been
+    returning 20 real stories the whole time, and the page is linked from the
+    main nav — so every visitor got a heading, four dead filter buttons, and
+    nothing else. Rendering from the shared helper needs no client JS at all.
+
+    The window buttons are now plain links (?days=N), so filtering works
+    without JavaScript too.
+
+    (The old call also passed a hardcoded source_count=46. It was dead — the
+    nav reads `nav_source_count` from a context processor, which takes
+    precedence — and a hardcoded constant standing in for a live count is the
+    defect class that made /owners' shares sum to 149%.)
+    """
+    from flask import request as _req
+    try:
+        days = int(_req.args.get("days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    if days not in _BLINDSPOT_WINDOWS:
+        days = 7
     return render_template("blindspot.html",
-                           source_count=46,
+                           blindspots=_blindspot_rows(days=days),
+                           days=days,
+                           windows=_BLINDSPOT_WINDOWS,
                            is_subscriber=is_subscriber())
 
 
@@ -4096,28 +4154,8 @@ def api_v1_blindspot():
     limit = min(int(_req.args.get("limit", 20)), 100)
     days = min(int(_req.args.get("days", 7)), 90)
     max_gap = float(_req.args.get("max_gap_score", 0.15))
-    S = _schema()
-    with _db().begin() as c:
-        rows = c.execute(text(f"""
-            SELECT sc.id, sc.representative_title, sc.article_count,
-                   sc.source_count, sc.coverage_gap_score, sc.certainty_label,
-                   sc.earliest_published_at, sc.latest_published_at,
-                   sm.headline, sm.brief
-            FROM {S}.story_clusters sc
-            LEFT JOIN {S}.summaries sm ON sm.cluster_id = sc.id
-            WHERE sc.coverage_gap_score > 0
-              AND sc.coverage_gap_score <= :max_gap
-              AND sc.article_count >= 2
-              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
-              AND EXISTS (
-                  SELECT 1 FROM {S}.articles a
-                  WHERE a.cluster_id = sc.id
-                    AND (a.country_code = 'CA'
-                         OR a.geo_scope IN ('national', 'provincial'))
-              )
-            ORDER BY sc.coverage_gap_score ASC, sc.latest_published_at DESC
-            LIMIT :n
-        """), {"max_gap": max_gap, "days": days, "n": limit}).mappings().all()
+    # Same helper the PAGE renders from — the two cannot drift apart.
+    rows = _blindspot_rows(days=days, limit=limit, max_gap=max_gap)
     return _api_cors_response({
         "ok": True,
         "days": days,

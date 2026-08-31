@@ -49,8 +49,14 @@
 /* totals read as a stacked sidebar rail here, not a wide banner row */
 .wtf-wx-col-side .wtf-wx-stats { flex-direction:column; gap:6px; margin:0 0 18px; }
 .wtf-wx-col-side .wtf-wx-stat { width:100%; }
-.wtf-wx-mapwrap { position:relative; background:#060d14; border:1px solid #0a1a2a; border-radius:6px; overflow:hidden; }
-#wtf-wx-map { height:420px; width:100%; background:#050a10; }
+.wtf-wx-mapwrap { position:relative; background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; overflow:hidden; }
+/* The map ground. With the raster basemap removed the container's own
+   background IS the ocean/void behind Canada, so it must be a real
+   design decision rather than a near-black leftover: one step darker
+   than the page so the landmass reads as lifted off it. */
+#wtf-wx-map { height:460px; width:100%; background:var(--wtf-map-bg, #0a0e14); }
+/* Leaflet paints a white div behind panes when no tiles are present. */
+.wtf-wx-mapwrap .leaflet-container { background:var(--wtf-map-bg, #0a0e14); }
 .wtf-wx-layerbar { display:flex; gap:4px; padding:8px 10px; border-bottom:1px solid #0a1a2a; }
 .wtf-wx-layer-btn { background:transparent; border:1px solid #16304a; color:#6b7280; border-radius:4px;
   padding:4px 10px; font-size:10px; font-family:inherit; cursor:pointer; letter-spacing:.04em; }
@@ -407,13 +413,26 @@
   var NO_DATA = "#1b2430";   // grey = this layer does not cover the area
   var selected = null, activeLayer = "fire";
 
-  var map = L.map("wtf-wx-map", { center:[60,-96], zoom:3, zoomControl:true, scrollWheelZoom:false });
-  // Attribution stays ON. index.html suppresses it; that is a licensing
-  // obligation to CARTO/OSM, so it is not a pattern worth copying.
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    subdomains:"abcd", maxZoom:19,
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-  }).addTo(map);
+  // ── BASEMAP: none, deliberately ────────────────────────────────────────────
+  // This was a CARTO dark_all raster: a whole-world basemap with its own roads,
+  // labels and foreign coastlines sitting UNDER a Canada-only choropleth. It
+  // competed with the data for attention, imported a third party's palette into
+  // a page that has its own, cost a network round-trip per tile, and carried an
+  // attribution obligation.
+  //
+  // The province GeoJSON already draws Canada's coastline and internal borders,
+  // which IS the geography this map is about. Rendering only that leaves the
+  // data as the sole thing with colour on the page — the point of a choropleth.
+  //
+  // ⚠️ With no tiles, panning off Canada would show empty space, so the view is
+  // BOUNDED. Do not remove maxBounds without restoring a basemap.
+  var map = L.map("wtf-wx-map", {
+    center:[62,-96], zoom:3, minZoom:3, maxZoom:7,
+    zoomControl:true, scrollWheelZoom:false,
+    maxBounds: L.latLngBounds([38.0, -150.0], [86.0, -45.0]),
+    maxBoundsViscosity: 0.85,
+    attributionControl: false   // no third-party tiles => nothing to attribute
+  });
   map.createPane("provPane"); map.getPane("provPane").style.zIndex = 400;
   map.createPane("stnPane");  map.getPane("stnPane").style.zIndex  = 500;
 
@@ -421,12 +440,25 @@
     for (var i = 0; i < stops.length; i++) if (v <= stops[i][0]) return stops[i][1];
     return stops[stops.length - 1][1];
   }
-  var FIRE_STOPS = [[0,"#1e3a5a"],[10,"#78350f"],[100,"#b45309"],[500,"#ea580c"],[2000,"#dc2626"],[1e9,"#7f1d1d"]];
-  var FWI_STOPS  = [[5,"#1d4ed8"],[11,"#0891b2"],[21,"#ca8a04"],[38,"#ea580c"],[1e9,"#dc2626"]];
+
+  // ⚠️ EACH STOP CARRIES ITS OWN LABEL, and drawLegend() DERIVES the legend from
+  // these arrays. The legend used to re-declare its colours by hand and had
+  // silently drifted — two colours were painted on the map and appeared NOWHERE
+  // in the legend, both of them the ones that matter most:
+  //   #7f1d1d  fire, 2,000+ hotspots — the most severe category on the page
+  //   #3730a3  cities, -20 to -10 C — an ordinary Canadian winter temperature
+  // A reader could see either colour and find no entry explaining it. Adding a
+  // stop below now adds its legend entry automatically; the two can no longer
+  // disagree. Do NOT reintroduce a hand-written stop list in drawLegend().
+  var FIRE_STOPS = [[0,"#1e3a5a","0"],[10,"#78350f","10+"],[100,"#b45309","100+"],
+                    [500,"#ea580c","500+"],[2000,"#dc2626","2,000+"],[1e9,"#7f1d1d","5,000+"]];
+  var FWI_STOPS  = [[5,"#1d4ed8","FWI 0-5"],[11,"#0891b2","5-11"],[21,"#ca8a04","11-21"],
+                    [38,"#ea580c","21-38"],[1e9,"#dc2626","38+"]];
   // Air temperature. Wider span than the fire ramps because Canadian city obs
   // legitimately run from about -40 to +35.
-  var TEMP_STOPS = [[-20,"#312e81"],[-10,"#3730a3"],[0,"#1d4ed8"],[8,"#0891b2"],
-                    [16,"#22c55e"],[24,"#f59e0b"],[31,"#ea580c"],[1e9,"#dc2626"]];
+  var TEMP_STOPS = [[-20,"#312e81","-20 °C"],[-10,"#3730a3","-10"],[0,"#1d4ed8","0"],
+                    [8,"#0891b2","8"],[16,"#22c55e","16"],[24,"#f59e0b","24"],
+                    [31,"#ea580c","31"],[1e9,"#dc2626","31+"]];
 
   // A city observation older than this is shown as stale. The number is DERIVED
   // from wtf.aurora_layer_status.stale_after_hours (city_obs = 3h) and passed in
@@ -469,11 +501,17 @@
     var code = PROVINCE_CODES[f.properties.name];
     var m = code ? metricFor(code) : null;
     var isSel = selected && code === selected;
+    // With no raster underneath, these shapes ARE the map, so they carry full
+    // opacity instead of the 0.62 wash that used to let tiles bleed through —
+    // that wash was what made every colour read as muddy. A province with no
+    // data on the active layer stays deliberately dim and desaturated: absence
+    // must remain visibly different from a low value, never just a darker one.
     return {
       fillColor: m ? m.col : NO_DATA,
-      fillOpacity: m ? (isSel ? 0.88 : 0.62) : 0.30,
-      color: isSel ? "#93c5fd" : "#0f2942",
-      weight: isSel ? 2.4 : 1,
+      fillOpacity: m ? (isSel ? 1 : 0.92) : 0.45,
+      color: isSel ? "#e6edf6" : "#0b1220",
+      weight: isSel ? 2.2 : 0.8,
+      dashArray: m ? null : "3,3"   // no-data provinces read as hatched, not filled
     };
   }
 
@@ -574,21 +612,27 @@
     var el = document.getElementById("wtf-wx-legend");
     el.textContent = "";
     var row = document.createElement("div"); row.className = "wtf-wx-legend-row";
-    var stops;
-    if (activeLayer === "fire") {
-      stops = [["#1e3a5a","0"],["#78350f","10+"],["#b45309","100+"],["#ea580c","500+"],["#dc2626","2,000+"]];
-    } else if (activeLayer === "cities") {
-      stops = [["#312e81","-20 °C"],["#1d4ed8","-10"],["#0891b2","0"],["#22c55e","8"],
-               ["#f59e0b","16"],["#ea580c","24"],["#dc2626","31+"]];
-    } else {
-      stops = [["#1d4ed8","FWI 0-5"],["#0891b2","5-11"],["#ca8a04","11-21"],["#ea580c","21-38"],["#dc2626","38+"]];
-    }
-    stops.forEach(function (s) {
+    // DERIVED from the ramp — never re-listed. Every colour the map can paint
+    // therefore has an entry, including the extremes the old hand-written list
+    // had dropped (2,000+ hotspots and the -20 to -10 C band).
+    var source = activeLayer === "fire" ? FIRE_STOPS
+               : activeLayer === "cities" ? TEMP_STOPS
+               : FWI_STOPS;
+    source.forEach(function (s) {
       var sp = document.createElement("span");
-      var sw = document.createElement("i"); sw.className = "wtf-wx-swatch"; sw.style.background = s[0];
-      sp.appendChild(sw); sp.appendChild(document.createTextNode(s[1]));
+      var sw = document.createElement("i"); sw.className = "wtf-wx-swatch"; sw.style.background = s[1];
+      sp.appendChild(sw); sp.appendChild(document.createTextNode(s[2]));
       row.appendChild(sp);
     });
+    // The grey that means "this layer does not cover here" is part of what the
+    // map paints, so it belongs in the key too — a reader seeing grey should
+    // not have to guess whether it means zero.
+    var na = document.createElement("span");
+    var naSw = document.createElement("i");
+    naSw.className = "wtf-wx-swatch"; naSw.style.background = NO_DATA;
+    naSw.style.opacity = "0.55";
+    na.appendChild(naSw); na.appendChild(document.createTextNode("no data on this layer"));
+    row.appendChild(na);
     var g = document.createElement("span");
     var gs = document.createElement("i"); gs.className = "wtf-wx-swatch"; gs.style.background = NO_DATA;
     g.appendChild(gs); g.appendChild(document.createTextNode("no data on this layer"));

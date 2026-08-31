@@ -317,3 +317,126 @@ def test_map_does_not_depend_on_the_layer_status_block():
         "the map is nested inside `{% if layers %}` — an empty layer-status "
         "view would silently remove the whole map"
     )
+
+
+class TestProvinceVocabularyIsComplete:
+    """Every province code the LIVE feeds emit must canonicalise to a known province.
+
+    Measured 2026-08-30: the three feeds do NOT agree on a vocabulary.
+      firewx  (CWFIS)    : AB BC MB NB NF NS NT NU ON PE QC SA YT
+      hotspots(CWFIS)    : AB BC MB NB NL NS NT NU ON QC SK YT
+      city obs(Datamart) : AB BC MB NB NL NS NT NU ON PE QC SK YT
+
+    NF/NL was already handled. **SA was not** — `_canon_prov("SA")` returned
+    "SA", which is in neither _PROV_ORDER nor _PROV_NAMES, so 129 Saskatchewan
+    fire-weather stations (1,542 rows) landed in a phantom province rendered as
+    the bare string "SA" while the choropleth — keyed on SK — painted
+    Saskatchewan as having NO fire-weather coverage.
+
+    This test enumerates the real vocabulary so a fourth spelling from a new
+    source fails here rather than silently deleting a province from the map.
+    """
+
+    LIVE_CODES = ["AB", "BC", "MB", "NB", "NF", "NL", "NS", "NT", "NU",
+                  "ON", "PE", "QC", "SA", "SK", "YT"]
+
+    def _mod(self):
+        import importlib.util, pathlib
+        p = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "aurora_map.py"
+        spec = importlib.util.spec_from_file_location("aurora_map_probe", p)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_every_live_code_maps_to_a_named_province(self):
+        m = self._mod()
+        unmapped = [c for c in self.LIVE_CODES if m._canon_prov(c) not in m._PROV_NAMES]
+        assert not unmapped, f"these codes would render as a phantom province: {unmapped}"
+
+    def test_sa_is_saskatchewan(self):
+        m = self._mod()
+        assert m._canon_prov("SA") == "SK"
+        assert m._PROV_NAMES[m._canon_prov("SA")] == "Saskatchewan"
+
+    def test_nf_is_still_newfoundland(self):
+        """The original defect must not regress while fixing its sibling."""
+        m = self._mod()
+        assert m._canon_prov("NF") == "NL"
+
+    def test_absent_code_is_none_not_a_guess(self):
+        """19 stations carry a blank prov but valid coords — they are plotted
+        without being attributed, never guessed into a province."""
+        m = self._mod()
+        assert m._canon_prov("") is None and m._canon_prov(None) is None
+
+
+class TestCapitalMarking:
+    """The city grid is 13 provincial/territorial capitals + 12 other major
+    cities — verified 2026-08-30 against the live 25-site ECCC set.
+
+    Two traps this pins:
+      * OTTAWA IS NOT ONTARIO'S CAPITAL. It is the NATIONAL capital, and ECCC
+        ships it as "Ottawa (Kanata - Orléans)". A substring match in either
+        direction would wrongly promote it over Toronto.
+      * Accents. Feeds send "Québec" and "Quebec"; both must behave the same, or
+        Quebec's capital silently stops being marked.
+    """
+
+    def _mod(self):
+        import importlib.util, pathlib
+        p = pathlib.Path(__file__).resolve().parents[1] / "consumer" / "aurora_map.py"
+        spec = importlib.util.spec_from_file_location("aurora_cap_probe", p)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    LIVE_SITES = [
+        ("Calgary", "AB", False), ("Edmonton", "AB", True),
+        ("Kelowna", "BC", False), ("Vancouver", "BC", False), ("Victoria", "BC", True),
+        ("Winnipeg", "MB", True), ("Fredericton", "NB", True),
+        ("Moncton", "NB", False), ("Saint John", "NB", False),
+        ("St. John's", "NL", True), ("Halifax", "NS", True), ("Sydney", "NS", False),
+        ("Yellowknife", "NT", True), ("Iqaluit", "NU", True),
+        ("Hamilton", "ON", False), ("London", "ON", False), ("Ottawa", "ON", False),
+        ("Toronto", "ON", True), ("Windsor", "ON", False),
+        ("Charlottetown", "PE", True), ("Montréal", "QC", False), ("Québec", "QC", True),
+        ("Regina", "SK", True), ("Saskatoon", "SK", False), ("Whitehorse", "YT", True),
+    ]
+
+    def test_exactly_thirteen_capitals_in_the_live_set(self):
+        m = self._mod()
+        caps = [n for n, p, _ in self.LIVE_SITES if m._is_capital(n, p)]
+        assert len(caps) == 13, f"expected 13 capitals, got {len(caps)}: {caps}"
+
+    def test_every_live_site_classifies_correctly(self):
+        m = self._mod()
+        wrong = [(n, p) for n, p, want in self.LIVE_SITES if m._is_capital(n, p) is not want]
+        assert not wrong, f"misclassified: {wrong}"
+
+    def test_ottawa_is_not_ontarios_capital(self):
+        """The national capital is not the provincial one — Toronto is."""
+        m = self._mod()
+        assert m._is_capital("Ottawa", "ON") is False
+        assert m._is_capital("Ottawa (Kanata - Orléans)", "ON") is False
+        assert m._is_capital("Toronto", "ON") is True
+
+    def test_accent_insensitive(self):
+        m = self._mod()
+        assert m._is_capital("Quebec", "QC") is True
+        assert m._is_capital("Québec", "QC") is True
+        assert m._is_capital("Montreal", "QC") is False
+
+    def test_right_city_wrong_province_is_not_a_capital(self):
+        m = self._mod()
+        assert m._is_capital("Toronto", "QC") is False
+
+    def test_uses_canonical_province_so_SA_still_resolves(self):
+        """Capitals key on the CANONICAL code, so the CWFIS 'SA' spelling for
+        Saskatchewan cannot desync this from _canon_prov."""
+        m = self._mod()
+        assert m._is_capital("Regina", m._canon_prov("SA")) is True
+
+    def test_missing_input_is_never_a_capital(self):
+        m = self._mod()
+        for n, p in [("", "ON"), (None, "ON"), ("Toronto", None), ("Toronto", ""), (None, None)]:
+            assert m._is_capital(n, p) is False

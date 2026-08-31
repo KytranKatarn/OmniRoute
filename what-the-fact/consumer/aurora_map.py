@@ -15,7 +15,21 @@ used, so dicts work equally well in tests.
 # other page on this site) says "NL". Canonicalise ONCE, here, at the payload
 # boundary — 60 stations silently vanished from the map before this existed,
 # and a map that is quietly missing a province is worse than no map.
-_PROV_CANON = {"NF": "NL", "PQ": "QC", "NF ": "NL"}
+# One canonicalisation boundary for province codes — a second one is how a
+# province goes missing.
+#
+# ⚠️ "SA" -> "SK" added 2026-08-30. CWFIS fire-weather emits SA for Saskatchewan
+# (measured live: 1,542 rows across 129 stations) while Datamart, the hotspot
+# feed and the GeoJSON all use SK. Unmapped, _canon_prov returned "SA"
+# unchanged, which is in neither _PROV_ORDER nor _PROV_NAMES — so those stations
+# were bucketed into a phantom province rendered as the bare string "SA", and
+# the choropleth (keyed on SK) painted SASKATCHEWAN AS HAVING NO FIRE-WEATHER
+# COVERAGE. Exactly the NF/NL defect this dict already existed to fix, one
+# province over.
+#
+# Adding a code here is the ONLY correct place. If a source turns up with yet
+# another spelling, extend this map — never special-case it at a call site.
+_PROV_CANON = {"NF": "NL", "NF ": "NL", "PQ": "QC", "SA": "SK"}
 _PROV_ORDER = ["BC", "AB", "SK", "MB", "ON", "QC", "NB", "NS", "PE", "NL",
                "YT", "NT", "NU"]
 _PROV_NAMES = {
@@ -38,6 +52,39 @@ def _canon_prov(code):
         return None
     c = str(code).strip().upper()
     return _PROV_CANON.get(c, c) or None
+
+
+# Provincial / territorial capitals, keyed by CANONICAL province code so this
+# cannot drift from _canon_prov (the SA/SK bug is what that costs).
+# All 13 are present in the 25-site ECCC set — verified 2026-08-30 — so the city
+# grid partitions into 13 capitals + 12 other major cities with no remainder.
+_CAPITALS = {
+    "AB": "Edmonton", "BC": "Victoria", "MB": "Winnipeg", "NB": "Fredericton",
+    "NL": "St. John's", "NS": "Halifax", "NT": "Yellowknife", "NU": "Iqaluit",
+    "ON": "Toronto", "PE": "Charlottetown", "QC": "Québec", "SK": "Regina",
+    "YT": "Whitehorse",
+}
+
+
+def _is_capital(name, prov):
+    """Is this site the capital of its province/territory?
+
+    Matched on the DISPLAY name, which is why the coalesce at the call site
+    matters: ECCC ships "Ottawa (Kanata - Orléans)" and Ottawa is NOT Ontario's
+    capital — Toronto is. A substring match either way would wrongly promote it.
+
+    Accent-insensitive so "Québec"/"Quebec" and "Montréal"/"Montreal" behave the
+    same regardless of which spelling a feed sends.
+    """
+    if not name or not prov:
+        return False
+    import unicodedata  # noqa: PLC0415
+
+    def _fold(s):
+        s = unicodedata.normalize("NFKD", str(s))
+        return "".join(c for c in s if not unicodedata.combining(c)).strip().casefold()
+
+    return _fold(name) == _fold(_CAPITALS.get(prov, ""))
 
 
 def _r(v, nd=1):
@@ -169,10 +216,21 @@ def _aurora_city_payload(city_rows, forecast_rows):
     cities = []
     for r in city_rows:
         code = r["site_code"]
+        _prov = _canon_prov(r["source_prov"])
+        # ⚠️ display_name is the OVERRIDE, name_en the fallback — and it is
+        # populated for exactly 1 of 25 sites (measured 2026-08-30). It exists to
+        # shorten ECCC's label ("Ottawa (Kanata - Orléans)" -> "Ottawa"), so
+        # reading display_name ALONE would blank 24 cards. The coalesce is
+        # load-bearing, not defensive.
+        _name = r["display_name"] or r["name_en"]
         cities.append({
             "code": code,
-            "name": r["display_name"] or r["name_en"],
-            "prov": _canon_prov(r["source_prov"]),
+            "name": _name,
+            "prov": _prov,
+            # Capital of its province/territory. All 13 are in the 25-site set
+            # (verified 2026-08-30), so this partitions the grid cleanly into
+            # 13 capitals + 12 other major cities with nothing left over.
+            "is_capital": _is_capital(_name, _prov),
             "lat": _r(r["lat"], 3),
             "lon": _r(r["lon"], 3),
             "status": r["last_obs_status"],

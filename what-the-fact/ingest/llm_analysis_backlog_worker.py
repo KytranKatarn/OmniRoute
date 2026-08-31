@@ -267,15 +267,20 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
         else:
             # No claims extracted — record sentinel so the consumer can show
             # "No verifiable claims detected" rather than "not yet checked".
+            #
+            # :overall, NOT a hardcoded 'unverifiable'. The prompt instructs the
+            # model to answer `descriptive_reporting` for a claim-free article
+            # (market summary, sports score, wire copy); the literal threw that
+            # away and asserted "we tried to verify and could not" instead.
             c.execute(
                 text(f"""
                     INSERT INTO {schema}.fact_checks
                         (article_id, claim, verdict, evidence, checker,
                          analyzed_by, claims, overall_verdict)
                     VALUES (:aid, 'No verifiable claims detected.', 'unverified', '',
-                            'fact_v1', 'llm_v1', '[]'::JSONB, 'unverifiable')
+                            'fact_v1', 'llm_v1', '[]'::JSONB, :overall)
                 """),
-                {"aid": article_id},
+                {"aid": article_id, "overall": overall},
             )
 
 

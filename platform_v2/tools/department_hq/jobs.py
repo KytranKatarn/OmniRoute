@@ -1467,6 +1467,48 @@ def review_fix_worker():
         logger.info("[review_fix_worker] %s", result)
 
 
+# ── WTF fact-check verdict vocabulary ────────────────────────────────────────
+# Mirrors what-the-fact/ingest/verdicts.py (#6242). The WTF ingest containers and
+# this platform module are separate deployables with no shared import path, so
+# this is a MIRROR, not a second opinion: any change goes in verdicts.py first.
+#
+# ⚠️ `descriptive_reporting` was ABSENT from both _OVERALL_MAP copies in this
+# file, so the model's correct verdict for a claim-free article fell through
+# `.get()` and became `unverifiable` — "we tried to verify and could not" in
+# place of "this article makes no checkable claim". Two different statements on
+# a public accountability page. Same omission was found and fixed in
+# tech/routes.py earlier today; these were the 4th and 5th instances.
+_WTF_OVERALL_VERDICTS = frozenset(
+    {"verified", "mostly_true", "mixed", "disputed", "unverifiable", "descriptive_reporting"}
+)
+_WTF_OVERALL_ALIASES = {
+    "true": "verified",
+    "false": "disputed",
+    "mostly_false": "disputed",
+    "unverified": "unverifiable",  # per-CLAIM vocabulary in the per-ARTICLE column
+    "verified_facts": "verified",
+    "most_factual": "mostly_true",
+    "factual_reporting": "descriptive_reporting",
+    "descriptive": "descriptive_reporting",
+    "no_claims": "descriptive_reporting",
+}
+
+
+def _wtf_canonical_overall(value, default="unverifiable"):
+    """Model output -> a valid wtf.fact_checks.overall_verdict.
+
+    `default` is what an UNRECOGNISED label becomes. It stays `unverifiable` to
+    preserve existing behaviour for garbage input — but callers handling the
+    NO-CLAIMS case must pass the model's own verdict here rather than hardcoding
+    a literal, because the prompt explicitly instructs the model to answer
+    `descriptive_reporting` for a claim-free article.
+    """
+    v = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if v in _WTF_OVERALL_VERDICTS:
+        return v
+    return _WTF_OVERALL_ALIASES.get(v, default)
+
+
 def _register_own_jobs(scheduler, flask_app):
     """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -4477,16 +4519,6 @@ def _register_own_jobs(scheduler, flask_app):
             "unverifiable": "unverified",
             "unverified": "unverified",
         }
-        _OVERALL_MAP = {
-            "verified": "verified",
-            "true": "verified",
-            "mostly_true": "mostly_true",
-            "mixed": "mixed",
-            "disputed": "disputed",
-            "false": "disputed",
-            "unverifiable": "unverifiable",
-            "unverified": "unverifiable",
-        }
 
         def _check_one(app, row):
             with app.app_context():
@@ -4518,8 +4550,13 @@ def _register_own_jobs(scheduler, flask_app):
                 except Exception:
                     parsed = {}
                 claims = parsed.get("claims") or []
-                overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower()
-                overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+                # NOT `or "unverifiable"`. A parse failure leaves parsed={}, and the
+                # `or` default then FABRICATES a confident "we tried and could not
+                # verify" out of a missing answer — the same absent-vs-measured bug
+                # fixed in bias today. None flows through to a NULL overall_verdict,
+                # which honestly means "no adjudication recorded".
+                overall_raw = parsed.get("overall_verdict")
+                overall = _wtf_canonical_overall(overall_raw, default=None)
                 claims_json = _json.dumps(claims)
                 try:
                     with _wtf_cur(commit=True) as cur:
@@ -4561,9 +4598,9 @@ def _register_own_jobs(scheduler, flask_app):
                                     (article_id, claim, verdict, evidence, checker,
                                      analyzed_by, claims, overall_verdict, agent_name)
                                 VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
-                                        'fact_v1', 'dhq_v1', '[]'::jsonb, 'unverifiable', %s)
+                                        'fact_v1', 'dhq_v1', '[]'::jsonb, %s, %s)
                                 """,
-                                (aid, getattr(result, "agent_name", None) or None),
+                                (aid, overall, getattr(result, "agent_name", None) or None),
                             )
                     return aid, True
                 except Exception as persist_exc:
@@ -4737,16 +4774,6 @@ def _register_own_jobs(scheduler, flask_app):
                 "unverifiable": "unverified",
                 "unverified": "unverified",
             }
-            _OVERALL_MAP = {
-                "verified": "verified",
-                "true": "verified",
-                "mostly_true": "mostly_true",
-                "mixed": "mixed",
-                "disputed": "disputed",
-                "false": "disputed",
-                "unverifiable": "unverifiable",
-                "unverified": "unverifiable",
-            }
 
             while processed + failed < _WTF_MAX_PER_CYCLE:
                 with _wtf_cur() as cur:
@@ -4803,8 +4830,13 @@ def _register_own_jobs(scheduler, flask_app):
                             except (_json.JSONDecodeError, TypeError, ValueError):
                                 parsed = {}
                             claims = parsed.get("claims") or []
-                            overall_raw = (parsed.get("overall_verdict") or "unverifiable").lower().strip()
-                            overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+                            # NOT `or "unverifiable"`. A parse failure leaves parsed={}, and the
+                            # `or` default then FABRICATES a confident "we tried and could not
+                            # verify" out of a missing answer — the same absent-vs-measured bug
+                            # fixed in bias today. None flows through to a NULL overall_verdict,
+                            # which honestly means "no adjudication recorded".
+                            overall_raw = parsed.get("overall_verdict")
+                            overall = _wtf_canonical_overall(overall_raw, default=None)
                             claims_json = _json.dumps(claims)
                             with _wtf_cur(commit=True) as cur:
                                 cur.execute(
@@ -4835,9 +4867,9 @@ def _register_own_jobs(scheduler, flask_app):
                                             (article_id, claim, verdict, evidence, checker,
                                              analyzed_by, claims, overall_verdict)
                                         VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
-                                                'fact_v1', 'dhq_backlog_v1', '[]'::jsonb, 'unverifiable')
+                                                'fact_v1', 'dhq_backlog_v1', '[]'::jsonb, %s)
                                         """,
-                                        (aid,),
+                                        (aid, overall),
                                     )
                             processed += 1
                             consecutive_failures = 0

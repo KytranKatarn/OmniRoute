@@ -646,10 +646,15 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                         INSERT INTO {schema}.fact_checks
                             (article_id, claim, verdict, evidence, checker,
                              analyzed_by, claims, overall_verdict)
+                        -- :overall, NOT a hardcoded 'unverifiable'. The prompt
+                        -- instructs the model to answer `descriptive_reporting`
+                        -- for a claim-free article (market summary, sports score,
+                        -- wire copy); writing a literal here THREW THAT AWAY and
+                        -- asserted "we tried to verify and could not" instead.
                         VALUES (:aid, 'No verifiable claims detected.', 'unverified', '',
-                                'fact_v1', 'llm_v1', '[]'::JSONB, 'unverifiable')
+                                'fact_v1', 'llm_v1', '[]'::JSONB, :overall)
                     """),
-                    {"aid": article_id},
+                    {"aid": article_id, "overall": overall},
                 )
     except Exception as exc:
         _logger.exception(

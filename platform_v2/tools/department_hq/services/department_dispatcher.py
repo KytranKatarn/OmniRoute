@@ -416,15 +416,29 @@ _CITADEL = "outpost_e834ff6949a3d7a6"  # Citadel / boston-2 — has mistral:7b i
 # Vision is low-volume + cold-load-tolerant (describe_portrait accepts a 60-90s load), so no keep-warm.
 _RUNABOUT = "starship_5501c2766526e746"  # USS-245 Runabout — has moondream + minicpm-v
 # WTF CPU-first tier (#3955 owner decision, 2026-07-05): the platform's highest-volume
-# heavy-7B work (WTF fact-check/bias, ~40k/7d, all qwen2.5:7b) prefers CPU — Citadel
-# (boston-2, co-locates the WTF stack, cap=5, has qwen2.5:7b) then hub — with the GPU
-# cluster as OVERFLOW only. dispatch:node_cap:enabled is ON, so the preferred_node loop
-# spills to the next candidate when a node is at cap: load spreads Citadel->hub->GPU and
-# the Defiant is reached only when both CPU nodes saturate, keeping its 8GB free for
-# interactive F.O.R.G.E. reviews (#1905). Citadel-first (not hub) both co-locates with the
-# WTF data and stays safe even if the cap kill-switch is ever flipped off (Citadel is the
-# expendable async node; the hub is the platform core). See the fact_check/bias entries.
-_WTF_CPU_FIRST = [_CITADEL, "archie-starbase"] + _GPU_CLUSTER
+# heavy-7B work (WTF fact-check/bias, ~40k/7d, all qwen2.5:7b) prefers CPU — hub first,
+# with the GPU cluster as OVERFLOW only. dispatch:node_cap:enabled is ON, so the
+# preferred_node loop spills to the next candidate when a node is at cap: load spreads
+# hub->GPU and the Defiant is reached only when the hub saturates, keeping its 8GB free
+# for interactive F.O.R.G.E. reviews (#1905).
+#
+# ⚠️ CITADEL REMOVED 2026-08-31 (#6216, owner decision). It was FIRST here and could
+# never serve: `can_node_run_model(Citadel, 'qwen2.5:7b')` returns False — no GPU, so the
+# CPU branch compares required 8.0GB against extra_capabilities.max_model_gb, which is 6
+# today and was 5 when #3955 was written. So the tier was NEVER functional; every one of
+# those ~40k dispatches/7d tried Citadel, was refused on capacity, and spilled to the hub.
+#
+# The original comment said Citadel "has qwen2.5:7b" — and it does, the model is PULLED
+# there. But PRESENCE IS NOT CAPACITY (#5862): node_has_model and can_node_run_model
+# answer different questions, and only the second decides placement.
+#
+# Citadel-first also encoded a survivability intent — if the LAN cluster is unreachable,
+# WTF should run on the box that hosts what-the-fact.com. That guarantee was nominal for
+# the same reason, and the owner has now settled the trade-off differently: Citadel is the
+# DR warm-standby serving 5 live products, so it does NOT carry an 8GB inference model.
+# Cluster-down WTF degrades to a READ-ONLY archive served from the local DR replica
+# (122k articles, ~2s lag) with no LLM — see the DR degraded-mode design.
+_WTF_CPU_FIRST = ["archie-starbase"] + _GPU_CLUSTER
 # #5861 (2026-08-27): code_review gets its OWN ordered list — Runabout FIRST, Defiant
 # overflow. The #5810 timeout fix moved review failures from the 240s cap to the 600s
 # WALL ("did not return for model"): queue contention, not model fit. Measured 24h at

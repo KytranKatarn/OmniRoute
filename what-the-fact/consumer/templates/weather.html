@@ -418,43 +418,6 @@
   var NO_DATA = "#1b2430";   // grey = this layer does not cover the area
   var selected = null, activeLayer = "fire";
 
-  // ── BASEMAP: none, deliberately ────────────────────────────────────────────
-  // This was a CARTO dark_all raster: a whole-world basemap with its own roads,
-  // labels and foreign coastlines sitting UNDER a Canada-only choropleth. It
-  // competed with the data for attention, imported a third party's palette into
-  // a page that has its own, cost a network round-trip per tile, and carried an
-  // attribution obligation.
-  //
-  // The province GeoJSON already draws Canada's coastline and internal borders,
-  // which IS the geography this map is about. Rendering only that leaves the
-  // data as the sole thing with colour on the page — the point of a choropleth.
-  //
-  // ⚠️ With no tiles, panning off Canada would show empty space, so the view is
-  // BOUNDED. Do not remove maxBounds without restoring a basemap.
-  var map = L.map("wtf-wx-map", {
-    center:[62,-96], zoom:3, minZoom:3, maxZoom:7,
-    zoomControl:true, scrollWheelZoom:false,
-    maxBounds: L.latLngBounds([38.0, -150.0], [86.0, -45.0]),
-    maxBoundsViscosity: 0.85,
-    attributionControl: false   // no third-party tiles => nothing to attribute
-  });
-  map.createPane("provPane"); map.getPane("provPane").style.zIndex = 400;
-  map.createPane("stnPane");  map.getPane("stnPane").style.zIndex  = 500;
-
-  function ramp(stops, v) {
-    for (var i = 0; i < stops.length; i++) if (v <= stops[i][0]) return stops[i][1];
-    return stops[stops.length - 1][1];
-  }
-
-  // ⚠️ EACH STOP CARRIES ITS OWN LABEL, and drawLegend() DERIVES the legend from
-  // these arrays. The legend used to re-declare its colours by hand and had
-  // silently drifted — two colours were painted on the map and appeared NOWHERE
-  // in the legend, both of them the ones that matter most:
-  //   #7f1d1d  fire, 2,000+ hotspots — the most severe category on the page
-  //   #3730a3  cities, -20 to -10 C — an ordinary Canadian winter temperature
-  // A reader could see either colour and find no entry explaining it. Adding a
-  // stop below now adds its legend entry automatically; the two can no longer
-  // disagree. Do NOT reintroduce a hand-written stop list in drawLegend().
   var FIRE_STOPS = [[0,"#1e3a5a","0"],[10,"#78350f","10+"],[100,"#b45309","100+"],
                     [500,"#ea580c","500+"],[2000,"#dc2626","2,000+"],[1e9,"#7f1d1d","5,000+"]];
   var FWI_STOPS  = [[5,"#1d4ed8","FWI 0-5"],[11,"#0891b2","5-11"],[21,"#ca8a04","11-21"],
@@ -485,185 +448,12 @@
     return set;
   })();
 
-  function metricFor(code) {
-    // The city layer deliberately does NOT colour provinces by temperature.
-    // 25 cities across 13 provinces & territories is one or two point readings
-    // per province; painting the whole province from that asserts a provincial
-    // average nobody measured. Coverage is the honest provincial fact here, so
-    // a province with a reporting city gets one flat tint and nothing more —
-    // the temperature lives on the city markers, where it was actually taken.
-    if (activeLayer === "cities") {
-      return CITY_PROVS[code] ? { v: null, col: "#14344f" } : null;
-    }
-    var p = A.provinces[code];
-    if (!p) return null;
-    return activeLayer === "fire"
-      ? (p.hotspots === null ? null : { v: p.hotspots, col: ramp(FIRE_STOPS, p.hotspots) })
-      : (p.max_fwi === null || !p.stations ? null : { v: p.max_fwi, col: ramp(FWI_STOPS, p.max_fwi) });
-  }
 
-  function styleFor(f) {
-    var code = PROVINCE_CODES[f.properties.name];
-    var m = code ? metricFor(code) : null;
-    var isSel = selected && code === selected;
-    // With no raster underneath, these shapes ARE the map, so they carry full
-    // opacity instead of the 0.62 wash that used to let tiles bleed through —
-    // that wash was what made every colour read as muddy. A province with no
-    // data on the active layer stays deliberately dim and desaturated: absence
-    // must remain visibly different from a low value, never just a darker one.
-    return {
-      fillColor: m ? m.col : NO_DATA,
-      fillOpacity: m ? (isSel ? 1 : 0.92) : 0.45,
-      color: isSel ? "#e6edf6" : "#0b1220",
-      weight: isSel ? 2.2 : 0.8,
-      dashArray: m ? null : "3,3"   // no-data provinces read as hatched, not filled
-    };
-  }
-
-  var provLayer = null;
-  fetch("/static/canada-provinces.geojson").then(function (r) { return r.json(); }).then(function (gj) {
-    provLayer = L.geoJSON(gj, {
-      pane: "provPane", style: styleFor,
-      onEachFeature: function (f, lyr) {
-        var code = PROVINCE_CODES[f.properties.name];
-        var p = code ? A.provinces[code] : null;
-        var bits = [f.properties.name];
-        if (p && p.hotspots !== null) bits.push(p.hotspots.toLocaleString() + " hotspots (72h)");
-        if (p && p.stations) bits.push(p.stations + " fire-weather stations");
-        // Tooltips bind once, so they must be true on EVERY layer, not just the
-        // fire ones: a province can have a reporting city and no fire coverage,
-        // and the old wording called that "no layer covers this area".
-        var nCity = ((CITIES && CITIES.cities) || []).filter(function (c) {
-          return c.prov === code && cityIsFresh(c);
-        }).length;
-        if (nCity) bits.push(nCity + (nCity === 1 ? " city" : " cities") + " reporting weather");
-        if (!nCity && (!p || (p.hotspots === null && !p.stations))) {
-          bits.push("no A.U.R.O.R.A. layer covers this area");
-        }
-        lyr.bindTooltip(bits.join(" · "), { sticky: true });
-        lyr.on("click", function () { select(code === selected ? null : code); });
-        lyr.on("mouseover", function () { lyr.setStyle({ weight: 2.4, color: "#60a5fa" }); });
-        lyr.on("mouseout",  function () { provLayer.resetStyle(lyr); if (selected) restyle(); });
-      }
-    }).addTo(map);
-    restyle();
-  }).catch(function () {
-    // Never leave a silent blank rectangle — say the geometry failed to load.
-    var el = document.getElementById("wtf-wx-legend");
-    if (el) el.textContent = "Province outlines could not be loaded; station markers below are unaffected.";
-  });
-
-  var stnLayer = L.layerGroup([], { pane: "stnPane" }).addTo(map);
-  function drawStations() {
-    stnLayer.clearLayers();
-    if (activeLayer === "cities") { drawCities(); return; }
-    if (activeLayer !== "wx") return;   // stations measure fire WEATHER, not fire activity
-    A.stations.forEach(function (s) {
-      if (s.lat === null || s.lon === null) return;
-      if (selected && s.p !== selected) return;
-      var t = s.t === null ? null : s.t;
-      var col = t === null ? "#6b7280" : ramp([[0,"#3b82f6"],[10,"#0891b2"],[18,"#22c55e"],[25,"#f59e0b"],[1e9,"#dc2626"]], t);
-      var m = L.circleMarker([s.lat, s.lon], {
-        pane:"stnPane", radius: s.w === null ? 3 : Math.min(3 + Math.sqrt(s.w) * 0.9, 9),
-        fillColor: col, fillOpacity: 0.85, color: "#020617", weight: 1
-      });
-      var lines = [s.n];
-      if (s.t !== null) lines.push(s.t + " °C");
-      if (s.w !== null) lines.push("wind " + s.w + " km/h" + (s.g !== null ? " (gust " + s.g + ")" : ""));
-      if (s.h !== null) lines.push(s.h + "% RH");
-      if (s.f !== null) lines.push("FWI " + s.f);
-      if (!s.p) lines.push("province not reported by the source");
-      m.bindTooltip(lines.join(" · "), { sticky: true });
-      stnLayer.addLayer(m);
-    });
-  }
-
-  function drawCities() {
-    ((CITIES && CITIES.cities) || []).forEach(function (c) {
-      if (c.lat === null || c.lon === null) return;
-      if (selected && c.prov !== selected) return;
-      var fresh = cityIsFresh(c);
-      var m = L.circleMarker([c.lat, c.lon], {
-        pane: "stnPane",
-        radius: 6,
-        fillColor: fresh ? ramp(TEMP_STOPS, c.temp) : NO_DATA,
-        fillOpacity: fresh ? 0.9 : 0.35,
-        color: fresh ? "#020617" : "#6b7280",
-        weight: fresh ? 1 : 1.5,
-        dashArray: fresh ? null : "2,2"
-      });
-
-      var lines = [c.name];
-      if (c.temp !== null) lines.push(c.temp + " °C");
-      if (c.condition) lines.push(c.condition);
-      // "Calm" is a MEASUREMENT with no number; a missing wind reading is an
-      // ABSENCE. Rendering both as "0 km/h" would merge two different facts.
-      if (c.calm) lines.push("wind calm");
-      else if (c.wind !== null) lines.push("wind " + c.wind + " km/h"
-              + (c.dir ? " " + c.dir : "") + (c.gust !== null ? " (gust " + c.gust + ")" : ""));
-      if (c.humidity !== null) lines.push(c.humidity + "% RH");
-      if (!fresh) {
-        lines.push(c.temp === null ? "no current reading"
-                 : "reading " + Math.round(c.age_min / 60) + "h old — shown as stale");
-      }
-      m.bindTooltip(lines.join(" · "), { sticky: true });
-      stnLayer.addLayer(m);
-    });
-  }
-
-  function restyle() { if (provLayer) provLayer.setStyle(styleFor); drawStations(); drawLegend(); }
-
-  function drawLegend() {
-    var el = document.getElementById("wtf-wx-legend");
-    el.textContent = "";
-    var row = document.createElement("div"); row.className = "wtf-wx-legend-row";
-    // DERIVED from the ramp — never re-listed. Every colour the map can paint
-    // therefore has an entry, including the extremes the old hand-written list
-    // had dropped (2,000+ hotspots and the -20 to -10 C band).
-    var source = activeLayer === "fire" ? FIRE_STOPS
-               : activeLayer === "cities" ? TEMP_STOPS
-               : FWI_STOPS;
-    source.forEach(function (s) {
-      var sp = document.createElement("span");
-      var sw = document.createElement("i"); sw.className = "wtf-wx-swatch"; sw.style.background = s[1];
-      sp.appendChild(sw); sp.appendChild(document.createTextNode(s[2]));
-      row.appendChild(sp);
-    });
-    // The grey that means "this layer does not cover here" is part of what the
-    // map paints, so it belongs in the key too — a reader seeing grey should
-    // not have to guess whether it means zero. This block ALREADY EXISTED; a
-    // second copy of it was briefly added and shipped, rendering the entry
-    // twice, because the original sat just past the window I had read. Check
-    // the whole function before adding to it.
-    var g = document.createElement("span");
-    var gs = document.createElement("i"); gs.className = "wtf-wx-swatch"; gs.style.background = NO_DATA;
-    g.appendChild(gs); g.appendChild(document.createTextNode("no data on this layer"));
-    row.appendChild(g);
-    el.appendChild(row);
-
-    // State the coverage limits in the legend, not in a footnote nobody reads.
-    var cov = document.createElement("div");
-    cov.style.marginTop = "5px";
-    if (activeLayer === "cities") {
-      var provs = Object.keys(CITY_PROVS).sort();
-      var total = ((CITIES && CITIES.cities) || []).length;
-      var reporting = ((CITIES && CITIES.cities) || []).filter(cityIsFresh).length;
-      cov.textContent = "Temperature is shown at the " + reporting + " of " + total
-        + " cities currently reporting, across " + provs.length
-        + " of 13 provinces & territories: " + provs.join(", ")
-        + ". Provinces are tinted only to show which have a reporting city — the shade is"
-        + " NOT a provincial temperature, because one or two city readings do not average a"
-        + " province. Hollow markers are stale or not reporting.";
-      el.appendChild(cov);
-      return;
-    }
-    var covered = activeLayer === "fire" ? A.coverage.hotspot_provinces : A.coverage.station_provinces;
-    cov.textContent = (activeLayer === "fire"
-        ? "Satellite hotspots reported in " : "Fire-weather stations reporting in ")
-      + covered.length + " of 13 provinces & territories: " + covered.join(", ")
-      + ". Grey areas are not covered by this layer — that is not a reading of zero.";
-    el.appendChild(cov);
-  }
+  // ── MAP ────────────────────────────────────────────────────────────────────
+  // Rendered by the SHARED component (static/js/wtf-map.js) — see ADR-018.
+  // The DOMAIN stays here (what each layer measures, what counts as fresh,
+  // what each layer covers); the plumbing moved out. A layer is a registration.
+  var wtfmap = null;
 
   function fireMetric(code) {
     var p = A.provinces[code];
@@ -787,6 +577,31 @@
       tooltip: provinceTooltip, coverageNote: cityCoverage, points: cityPoints }
   ];
 
+  wtfmap = WTFMap.create({
+    el: "wtf-wx-map",
+    legendEl: "wtf-wx-legend",
+    layers: WX_LAYERS,
+    active: "fire",
+    // One selection, one filtered view: a province chosen on the map drives
+    // the A.U.R.O.R.A. panel, station cards and city grid — and vice versa.
+    onSelect: function (code) {
+      selected = code || null;
+      document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
+        b.classList.toggle("active", (b.getAttribute("data-prov") || "") === (selected || ""));
+      });
+      if (selected && CENTROIDS[selected]) wtfmap.map.flyTo(CENTROIDS[selected], 5, { duration: 0.6 });
+      else wtfmap.map.flyTo([60, -96], 3, { duration: 0.6 });
+      renderAurora(); renderCards(); renderCities();
+    },
+    onLayer: function (id) {
+      activeLayer = id;
+      document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (x) {
+        x.classList.toggle("active", x.getAttribute("data-layer") === id);
+      });
+    }
+  });
+
+  function restyle() { if (wtfmap) wtfmap.refresh(); }
 
   function bar(parent, label, value, display, pct, colour) {
     var w = document.createElement("div"); w.className = "wtf-wx-metric";
@@ -888,14 +703,12 @@
     });
   }
 
+  // Selecting from anywhere goes THROUGH the map component, which then calls
+  // back via onSelect to update the panel, cards and grid. Routing every path
+  // through one place is what keeps the scope buttons and the map from holding
+  // two different ideas of what is selected.
   function select(code) {
-    selected = code || null;
-    document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
-      b.classList.toggle("active", (b.getAttribute("data-prov") || "") === (selected || ""));
-    });
-    if (selected && CENTROIDS[selected]) map.flyTo(CENTROIDS[selected], 5, { duration: 0.6 });
-    else map.flyTo([60, -96], 3, { duration: 0.6 });
-    restyle(); renderAurora(); renderCards(); renderCities();
+    if (wtfmap) wtfmap.select(code || null);
   }
 
   document.querySelectorAll(".wtf-wx-scope-btn").forEach(function (b) {
@@ -903,11 +716,7 @@
   });
   document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (b) {
     b.addEventListener("click", function () {
-      activeLayer = b.getAttribute("data-layer");
-      document.querySelectorAll(".wtf-wx-layer-btn").forEach(function (x) {
-        x.classList.toggle("active", x === b);
-      });
-      restyle();
+      if (wtfmap) wtfmap.setLayer(b.getAttribute("data-layer"));
     });
   });
 

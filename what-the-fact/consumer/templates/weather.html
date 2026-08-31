@@ -390,6 +390,11 @@
 {% if aurora_map %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+{# Shared map component — MUST load after Leaflet and before the inline script
+   below, which calls WTFMap.create(). Referencing the path in a comment does
+   not load it: this tag was missing on the first pass and the page would have
+   thrown "WTFMap is not defined", taking the whole map with it. #}
+<script src="{{ url_for('static', filename='js/wtf-map.js') }}"></script>
 <script>
 (function () {
   "use strict";
@@ -659,6 +664,129 @@
       + ". Grey areas are not covered by this layer — that is not a reading of zero.";
     el.appendChild(cov);
   }
+
+  function fireMetric(code) {
+    var p = A.provinces[code];
+    if (!p || p.hotspots === null) return null;
+    return { v: p.hotspots, col: WTFMap.ramp(FIRE_STOPS, p.hotspots) };
+  }
+  function wxMetric(code) {
+    var p = A.provinces[code];
+    if (!p || p.max_fwi === null || !p.stations) return null;
+    return { v: p.max_fwi, col: WTFMap.ramp(FWI_STOPS, p.max_fwi) };
+  }
+  function cityMetric(code) {
+    // Deliberately NOT coloured by temperature: 25 cities over 13 provinces is
+    // one or two readings each, so painting a province asserts an average
+    // nobody measured. A reporting province gets one FLAT TINT; the temperature
+    // lives on the city markers, where it was actually taken.
+    return CITY_PROVS[code] ? { v: null, col: "#14344f" } : null;
+  }
+
+  function provinceTooltip(code) {
+    var p = A.provinces[code];
+    var name = null;
+    for (var k in WTFMap.PROVINCE_CODES) {
+      if (WTFMap.PROVINCE_CODES[k] === code) { name = k; break; }
+    }
+    var bits = [name || code];
+    if (p && p.hotspots !== null) bits.push(p.hotspots.toLocaleString() + " hotspots (72h)");
+    if (p && p.stations) bits.push(p.stations + " fire-weather stations");
+    // Tooltips bind once, so they must be true on EVERY layer, not just the
+    // fire ones: a province can have a reporting city and no fire coverage,
+    // and the old wording called that "no layer covers this area".
+    var nCity = ((CITIES && CITIES.cities) || []).filter(function (c) {
+      return c.prov === code && cityIsFresh(c);
+    }).length;
+    if (nCity) bits.push(nCity + (nCity === 1 ? " city" : " cities") + " reporting weather");
+    if (!nCity && (!p || (p.hotspots === null && !p.stations))) {
+      bits.push("no A.U.R.O.R.A. layer covers this area");
+    }
+    return bits.join(" · ");
+  }
+
+  function stationPoints(sel) {
+    return A.stations.filter(function (s) {
+      return s.lat !== null && s.lon !== null && (!sel || s.p === sel);
+    }).map(function (s) {
+      var lines = [s.n];
+      if (s.t !== null) lines.push(s.t + " °C");
+      if (s.w !== null) lines.push("wind " + s.w + " km/h" + (s.g !== null ? " (gust " + s.g + ")" : ""));
+      if (s.h !== null) lines.push(s.h + "% RH");
+      if (s.f !== null) lines.push("FWI " + s.f);
+      if (!s.p) lines.push("province not reported by the source");
+      return {
+        lat: s.lat, lon: s.lon,
+        r: s.w === null ? 3 : Math.min(3 + Math.sqrt(s.w) * 0.9, 9),
+        col: s.t === null ? "#6b7280" : WTFMap.ramp(STATION_TEMP_STOPS, s.t),
+        tip: lines.join(" · ")
+      };
+    });
+  }
+
+  function cityPoints(sel) {
+    return ((CITIES && CITIES.cities) || []).filter(function (c) {
+      return c.lat !== null && c.lon !== null && (!sel || c.prov === sel);
+    }).map(function (c) {
+      var fresh = cityIsFresh(c);
+      var lines = [c.name];
+      if (c.temp !== null) lines.push(c.temp + " °C");
+      if (c.condition) lines.push(c.condition);
+      // "Calm" is a MEASUREMENT with no number; a missing wind reading is an
+      // ABSENCE. Rendering both as "0 km/h" would merge two different facts.
+      if (c.calm) lines.push("wind calm");
+      else if (c.wind !== null) lines.push("wind " + c.wind + " km/h"
+              + (c.dir ? " " + c.dir : "") + (c.gust !== null ? " (gust " + c.gust + ")" : ""));
+      if (c.humidity !== null) lines.push(c.humidity + "% RH");
+      if (!fresh) {
+        lines.push(c.temp === null ? "no current reading"
+                 : "reading " + Math.round(c.age_min / 60) + "h old — shown as stale");
+      }
+      return {
+        lat: c.lat, lon: c.lon, r: 6,
+        col: fresh ? WTFMap.ramp(TEMP_STOPS, c.temp) : WTFMap.NO_DATA,
+        faded: !fresh,
+        tip: lines.join(" · ")
+      };
+    });
+  }
+
+  // Fire-weather stations use their own narrower air-temp ramp; their legend
+  // is the FWI scale, not this.
+  var STATION_TEMP_STOPS = [[0,"#3b82f6",""],[10,"#0891b2",""],[18,"#22c55e",""],
+                            [25,"#f59e0b",""],[1e9,"#dc2626",""]];
+
+  function fireCoverage() {
+    var c = A.coverage.hotspot_provinces;
+    return "Satellite hotspots reported in " + c.length + " of 13 provinces & territories: "
+      + c.join(", ") + ". Grey areas are not covered by this layer — that is not a reading of zero.";
+  }
+  function wxCoverage() {
+    var c = A.coverage.station_provinces;
+    return "Fire-weather stations reporting in " + c.length + " of 13 provinces & territories: "
+      + c.join(", ") + ". Grey areas are not covered by this layer — that is not a reading of zero.";
+  }
+  function cityCoverage() {
+    var provs = Object.keys(CITY_PROVS).sort();
+    var total = ((CITIES && CITIES.cities) || []).length;
+    var reporting = ((CITIES && CITIES.cities) || []).filter(cityIsFresh).length;
+    return "Temperature is shown at the " + reporting + " of " + total
+      + " cities currently reporting, across " + provs.length
+      + " of 13 provinces & territories: " + provs.join(", ")
+      + ". Provinces are tinted only to show which have a reporting city — the shade is"
+      + " NOT a provincial temperature, because one or two city readings do not average a"
+      + " province. Hollow markers are stale or not reporting.";
+  }
+
+  var WX_LAYERS = [
+    { id: "fire",   label: "Fire activity",   ramp: FIRE_STOPS, metric: fireMetric,
+      tooltip: provinceTooltip, coverageNote: fireCoverage },
+    { id: "wx",     label: "Fire weather",    ramp: FWI_STOPS,  metric: wxMetric,
+      tooltip: provinceTooltip, coverageNote: wxCoverage, points: stationPoints },
+    { id: "cities", label: "Current weather", ramp: TEMP_STOPS, metric: cityMetric,
+      tooltip: provinceTooltip, coverageNote: cityCoverage, points: cityPoints }
+  ];
+
 
   function bar(parent, label, value, display, pct, colour) {
     var w = document.createElement("div"); w.className = "wtf-wx-metric";

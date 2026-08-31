@@ -142,7 +142,8 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
         text(
             f"""
             UPDATE {schema}.bias_scores
-               SET band = COALESCE(:band, band),
+               SET agent_name = COALESCE(:agent_name, agent_name),
+                   band = COALESCE(:band, band),
                    score = COALESCE(:score, score),
                    rationale = :rationale,
                    trigger_phrases = CAST(:trig AS JSONB),
@@ -152,6 +153,7 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
         ),
         {
             "id": article_id,
+            "agent_name": payload.get("agent") or None,
             "band": bias.get("band"),
             "score": bias.get("score"),
             "rationale": bias.get("rationale"),
@@ -172,8 +174,10 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
             text(
                 f"""
                 INSERT INTO {schema}.fact_checks
-                    (article_id, claim, verdict, evidence, checker, analyzed_by)
-                VALUES (:id, :claim, :verdict, :evidence, :checker, :analyzed_by)
+                    (article_id, claim, verdict, evidence, checker, analyzed_by,
+                     agent_name)
+                VALUES (:id, :claim, :verdict, :evidence, :checker, :analyzed_by,
+                        :agent_name)
                 """
             ),
             {
@@ -183,6 +187,10 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
                 "evidence": (cl.get("reasoning") or "")[:1000],
                 "checker": agent,
                 "analyzed_by": agent,
+                # migration 059 — the agent, in its own column. `checker` also
+                # carries pipeline versions and EXTERNAL partners (GoogleFCT:*),
+                # so it cannot be trusted as an agent field on read.
+                "agent_name": payload.get("agent") or None,
             },
         )
 

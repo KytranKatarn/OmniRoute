@@ -4169,15 +4169,26 @@ def _register_own_jobs(scheduler, flask_app):
                             """
                             INSERT INTO wtf.bias_scores
                                 (article_id, band, score, heuristic_version, rationale,
-                                 analyzed_by, trigger_phrases, confidence, computed_at)
-                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW())
+                                 analyzed_by, trigger_phrases, confidence, computed_at,
+                                 agent_name)
+                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW(),
+                                    %s)
                             ON CONFLICT (article_id) DO UPDATE
                               SET band = EXCLUDED.band, score = EXCLUDED.score,
                                   rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
                                   trigger_phrases = EXCLUDED.trigger_phrases,
-                                  confidence = EXCLUDED.confidence, computed_at = NOW()
+                                  confidence = EXCLUDED.confidence, computed_at = NOW(),
+                                  agent_name = EXCLUDED.agent_name
                             """,
-                            (aid, band, score, rationale, trigger_phrases, confidence),
+                            (
+                                aid,
+                                band,
+                                score,
+                                rationale,
+                                trigger_phrases,
+                                confidence,
+                                getattr(result, "agent_name", None) or None,
+                            ),
                         )
                     return aid, True
                 except Exception as persist_exc:
@@ -4530,21 +4541,29 @@ def _register_own_jobs(scheduler, flask_app):
                                     """
                                     INSERT INTO wtf.fact_checks
                                         (article_id, claim, verdict, evidence, checker,
-                                         analyzed_by, claims, overall_verdict)
-                                    VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s)
+                                         analyzed_by, claims, overall_verdict, agent_name)
+                                    VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s, %s)
                                     """,
-                                    (aid, claim_text, verdict, evidence, claims_json, overall),
+                                    (
+                                        aid,
+                                        claim_text,
+                                        verdict,
+                                        evidence,
+                                        claims_json,
+                                        overall,
+                                        getattr(result, "agent_name", None) or None,
+                                    ),
                                 )
                         else:
                             cur.execute(
                                 """
                                 INSERT INTO wtf.fact_checks
                                     (article_id, claim, verdict, evidence, checker,
-                                     analyzed_by, claims, overall_verdict)
+                                     analyzed_by, claims, overall_verdict, agent_name)
                                 VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
-                                        'fact_v1', 'dhq_v1', '[]'::jsonb, 'unverifiable')
+                                        'fact_v1', 'dhq_v1', '[]'::jsonb, 'unverifiable', %s)
                                 """,
-                                (aid,),
+                                (aid, getattr(result, "agent_name", None) or None),
                             )
                     return aid, True
                 except Exception as persist_exc:
@@ -4952,15 +4971,26 @@ def _register_own_jobs(scheduler, flask_app):
                             """
                             INSERT INTO wtf.bias_scores
                                 (article_id, band, score, heuristic_version, rationale,
-                                 analyzed_by, trigger_phrases, confidence, computed_at)
-                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW())
+                                 analyzed_by, trigger_phrases, confidence, computed_at,
+                                 agent_name)
+                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW(),
+                                    %s)
                             ON CONFLICT (article_id) DO UPDATE
                               SET band = EXCLUDED.band, score = EXCLUDED.score,
                                   rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
                                   trigger_phrases = EXCLUDED.trigger_phrases,
-                                  confidence = EXCLUDED.confidence, computed_at = NOW()
+                                  confidence = EXCLUDED.confidence, computed_at = NOW(),
+                                  agent_name = EXCLUDED.agent_name
                             """,
-                            (aid, band, score, rationale, trigger_phrases, confidence),
+                            (
+                                aid,
+                                band,
+                                score,
+                                rationale,
+                                trigger_phrases,
+                                confidence,
+                                getattr(result, "agent_name", None) or None,
+                            ),
                         )
                     return aid, True
                 except Exception as persist_exc:

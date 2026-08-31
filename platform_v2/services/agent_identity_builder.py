@@ -25,6 +25,8 @@ from services.agent_name_generator import (
     _normalize,
     _parse_json,
     _valid_letters,
+    capability_phrase,
+    capability_words,
 )
 
 logger = logging.getLogger(__name__)
@@ -140,8 +142,8 @@ def _fallback_identity(
     if existing_name:
         letters = _normalize(existing_name)
         name = existing_name if existing_name.endswith(".") else _dotify(letters)
-        words = re.sub(r"[^a-z ]", " ", capability.lower().replace("_", " ")).split()
-        expansion = " ".join(w.capitalize() for w in words) or "Agent Core Unit"
+        words = capability_words(capability)
+        expansion = capability_phrase(words) or "Agent Core Unit"
         title = f"{role.title()} Specialist"
     else:
         fb = _fallback_name(capability, avoid)
@@ -166,6 +168,33 @@ def _fallback_identity(
         "portrait_prompt": _build_portrait_prompt(name=name, expansion=expansion, title=title, department=department),
         "source": "fallback",
     }
+
+
+def _coerce_expansion(value: Any) -> str:
+    """Expansion as a STRING, whatever shape the model returned (#6237).
+
+    The prompt asks for `"expansion":"..."` but a local model regularly answers
+    with a JSON ARRAY of the per-letter words. `str()` on that yields the Python
+    repr — and 17 live agents carry exactly that, verbatim:
+
+        A.R.C.H.E.L. -> "['Architect', 'Engine', 'Lead']"
+        I.N.T.E.G.R. -> "['Integrator', 'Agent', ' Bridge']"
+
+    department-hq.js renders acronym_expansion straight onto the roster card, so
+    the repr was displayed to the user as-is. Note the leading space in ' Bridge':
+    a split(',') with no strip upstream, which is why each part is stripped here.
+
+    A dict is accepted too (letter -> word) since that is the other shape a model
+    reaches for; anything else falls back to str() as before, so this can only
+    widen what is handled, never narrow it.
+    """
+    if isinstance(value, (list, tuple)):
+        parts = [str(v).strip() for v in value if str(v).strip()]
+        return " · ".join(parts)
+    if isinstance(value, dict):
+        parts = [str(v).strip() for v in value.values() if str(v).strip()]
+        return " · ".join(parts)
+    return str(value or "").strip()
 
 
 def build_identity(
@@ -201,7 +230,7 @@ def build_identity(
             letters = _normalize(str(data.get("name") or ""))
             name = _dotify(letters)
             name_ok = _valid_letters(letters) and letters not in avoid
-        expansion = str(data.get("expansion") or "").strip()
+        expansion = _coerce_expansion(data.get("expansion"))
         title = str(data.get("title") or "").strip() or f"{role.title()} Specialist"
         if name_ok and expansion:
             sysp = _assemble_system_prompt(

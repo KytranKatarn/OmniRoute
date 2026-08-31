@@ -263,6 +263,65 @@ _FALLBACK_POOL: list[tuple[str, str]] = [
 ]
 
 
+def capability_words(capability: str) -> list[str]:
+    """Split a capability into display words, KEEPING digits.
+
+    The old split was `[^a-z ]` -> " ", which deletes digits: "e2e_automation"
+    became ["e", "e", "automation"] and rendered as "E E Automation". Digits are
+    part of real capability names (e2e, s3, oauth2), and dropping them produces a
+    caption that is wrong rather than merely terse.
+
+    Digits never reach a NAME — _normalize() strips non-alpha for the acronym — so
+    this only affects the human-readable expansion.
+    """
+    return re.sub(r"[^a-z0-9 ]", " ", (capability or "").lower().replace("_", " ")).split()
+
+
+def capability_phrase(words: list[str]) -> str:
+    """Title-case words for display. A word containing a digit is UPPERCASED
+    ("e2e" -> "E2E"), because .capitalize() would render it "E2e"."""
+    return " ".join(w.upper() if any(c.isdigit() for c in w) else w.capitalize() for w in words)
+
+
+def _capability_candidates(words: list[str]) -> list[tuple[str, str]]:
+    """Meaningful (letters, expansion) candidates derived from the capability's own
+    words, best-first. Filtering is the caller's job — this only proposes.
+
+    Each candidate's expansion DESCRIBES the capability rather than being a strict
+    letter-by-letter backronym. That is deliberate: proper backronyms come from the
+    LLM path, and this deterministic fallback's job is to be truthful and specific
+    ("E.D.G.E." / "Edge Computing"), never poetic. A wrong-but-pretty expansion is
+    worse than a plain accurate one — the whole defect being fixed here is names
+    that read well and mean nothing.
+    """
+    words = [w for w in words if w]
+    if not words:
+        return []
+    phrase = capability_phrase(words)
+    out: list[tuple[str, str]] = []
+
+    def add(raw: str, expansion: str) -> None:
+        letters = _normalize(raw)
+        if letters and all(letters != prev for prev, _ in out):
+            out.append((letters, expansion))
+
+    # 1. The first word itself — "edge_computing" -> EDGE, the most recognisable
+    #    handle for the job. Trimmed to the 7-letter house maximum.
+    add(words[0][:7], phrase)
+    # 2. A later word, when the first is too short/long to be valid on its own
+    #    ("api_testing" -> TESTING).
+    for w in words[1:]:
+        add(w[:7], phrase)
+    # 3. First word + the initials of the rest — "api_testing" -> APIT. Keeps the
+    #    leading concept and still distinguishes siblings sharing that concept.
+    if len(words) > 1:
+        add(words[0][:5] + "".join(w[0] for w in words[1:]), phrase)
+    # 4. The words run together, trimmed — last meaningful shape before the
+    #    generic pool ("edge_computing" -> EDGECOM).
+    add("".join(words)[:7], phrase)
+    return out
+
+
 def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
     """Guaranteed-valid, guaranteed-unique acronym for a net-new hire. Tries the
     capability's own word-initials ONLY if that already yields a pronounceable,
@@ -272,17 +331,36 @@ def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
     falling back further to a deterministic collision-safe extra-letter tail as
     a last resort. Either way the UI never again shows a gibberish blob like
     "I.A.A.G." (the old AGENTCOREUNIT-padding bug fixed in task #4960)."""
-    words = re.sub(r"[^a-z ]", " ", capability.lower().replace("_", " ")).split()
+    words = capability_words(capability)
     initials = _normalize("".join(w[0] for w in words if w))
     title = f"{capability.replace('_', ' ').title()} Specialist"
 
     if initials and _valid_letters(initials) and initials not in avoid:
         return {
             "name": _dotify(initials),
-            "expansion": " ".join(w.capitalize() for w in words),
+            "expansion": capability_phrase(words),
             "title": title,
             "source": "fallback",
         }
+
+    # ── capability-derived names, BEFORE the generic pool (#6237) ────────────
+    # The initials branch above only fires when the initials themselves are 4-7
+    # letters, so a TWO-WORD capability can never use it: edge_computing -> "EC"
+    # (2 letters) fails _valid_letters and drops straight to the generic pool.
+    # That is why a 30-entry pool was exhausted by one ~40-agent batch on
+    # 2026-08-04 and ten unrelated specialists ended up as P.O.R.T.A.L.,
+    # P.O.R.T.A.L.A. ... P.O.R.T.A.L.Y. — names carrying NO information about the
+    # job (P.O.R.T.A.L.O. is the Edge Computing Specialist) and all sharing one
+    # expansion. Deriving from the capability first keeps the name meaningful AND
+    # leaves the shared pool for capabilities that genuinely cannot yield one.
+    for letters, expansion in _capability_candidates(words):
+        if _valid_letters(letters) and letters not in avoid:
+            return {
+                "name": _dotify(letters),
+                "expansion": expansion,
+                "title": title,
+                "source": "fallback",
+            }
 
     # Randomize among ALL valid, unused pool entries (not "first unused") so
     # repeated clicks for the same capability don't always return the same
@@ -302,17 +380,31 @@ def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
             "source": "fallback",
         }
 
-    # Implausible corner: every curated pool entry collided with `avoid`.
+    # Every capability-derived candidate AND every curated pool entry collided.
     # Disambiguate with one extra pronounceable letter — NEVER reintroduce the
     # old "AGENTCOREUNIT" padding blob.
-    for acronym, expansion in _FALLBACK_POOL:
-        base = _normalize(acronym)[:6]
+    #
+    # ⚠️ CAPABILITY-DERIVED BASES GO FIRST. Suffixing a POOL entry is what produced
+    # P.O.R.T.A.L.A. / .B. / .C. ... — the suffix order here is literally
+    # "AEIOUYBCD...", which is the exact sequence found in the roster. Those names
+    # describe nothing, and worse, they inherited the pool entry's expansion, so
+    # ten different specialists advertised one identity. A suffixed EDGE is still
+    # about edge computing; a suffixed PORTAL is about nothing.
+    cap_candidates = _capability_candidates(words)
+    # (letters, expansion, from_capability) — the flag decides whether the
+    # expansion already describes THIS agent or is a borrowed pool entry.
+    suffix_bases = [(letters, expansion, True) for letters, expansion in cap_candidates]
+    suffix_bases += [(_normalize(a), e, False) for a, e in _FALLBACK_POOL]
+    for base_letters, expansion, from_capability in suffix_bases:
+        base = base_letters[:6]
         for ch in "AEIOUYBCDFGHJKLMNPQRSTVWXZ":
             trial = base + ch
             if _valid_letters(trial) and trial not in avoid:
                 return {
                     "name": _dotify(trial),
-                    "expansion": f"{expansion} Extended",
+                    # Keep the expansion tied to THIS agent's capability where it
+                    # came from one; only a pool-derived base gets " Extended".
+                    "expansion": expansion if from_capability else f"{expansion} Extended",
                     "title": title,
                     "source": "fallback",
                 }

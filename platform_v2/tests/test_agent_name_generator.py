@@ -205,3 +205,117 @@ def test_fallback_pool_expansions_spell_their_acronyms():
         assert acronym.isascii(), f"{acronym} is not all-ASCII"
         assert acronym not in seen, f"{acronym} duplicated in _FALLBACK_POOL"
         seen.add(acronym)
+
+
+# ── #6237: the P.O.R.T.A.L. family ───────────────────────────────────────────
+# On 2026-08-04 a ~40-agent batch exhausted the 30-entry _FALLBACK_POOL and the
+# last-resort suffix loop emitted P.O.R.T.A.L., P.O.R.T.A.L.A. ... P.O.R.T.A.L.Y.
+# — ten unrelated specialists sharing one name stem AND one expansion. The suffix
+# order in that loop is "AEIOUYBCD...", which is exactly the sequence found in the
+# roster. Root cause: _valid_letters requires 4-7 letters, so a TWO-WORD capability
+# ("edge_computing" -> initials "EC") could never use the meaningful branch and
+# went straight to a generic pool slot.
+
+
+def _pool_exhausted():
+    """The Aug-4 condition: every curated pool entry already taken."""
+    from services.agent_name_generator import _FALLBACK_POOL, _normalize
+
+    return {_normalize(a) for a, _ in _FALLBACK_POOL}
+
+
+def test_two_word_capability_gets_a_name_from_its_own_words_not_the_pool():
+    from services.agent_name_generator import _fallback_name
+
+    got = _fallback_name("edge_computing", _pool_exhausted())
+    assert got["name"] == "E.D.G.E."
+    assert got["expansion"] == "Edge Computing"
+
+
+def test_exhausted_pool_never_produces_the_portal_family():
+    """The regression itself: with the pool fully consumed, the six capabilities
+    that became P.O.R.T.A.L.* must now each get a name describing their own job."""
+    from services.agent_name_generator import _fallback_name
+
+    caps = [
+        "edge_computing",
+        "container_orchestration",
+        "distributed_systems",
+        "failure_analysis",
+        "deployment_automation",
+        "api_testing",
+    ]
+    avoid = _pool_exhausted()
+    for cap in caps:
+        got = _fallback_name(cap, set(avoid))
+        assert not got["name"].startswith("P.O.R.T.A.L"), f"{cap} regressed to the pool stem"
+        # the expansion must describe THIS capability, not a borrowed pool entry
+        assert got["expansion"].lower().replace(" ", "_") == cap.replace("_", " ").title().lower().replace(" ", "_")
+
+
+def test_a_large_batch_yields_unique_meaningful_names():
+    """40 net-new hires in one batch — the exact shape that broke. Every name must
+    be unique and valid; none may fall back to the shared pool stem."""
+    from services.agent_name_generator import _fallback_name, _normalize, _valid_letters
+
+    caps = [
+        "edge_computing",
+        "api_testing",
+        "container_orchestration",
+        "distributed_systems",
+        "failure_analysis",
+        "deployment_automation",
+        "code_quality_analysis",
+        "ci_cd_pipeline",
+        "database_validation",
+        "api_integration",
+        "api_architecture",
+        "framework_implementation",
+        "load_testing",
+        "secret_scanning",
+        "log_aggregation",
+        "service_mesh",
+        "chaos_engineering",
+        "schema_migration",
+        "cache_strategy",
+        "queue_management",
+        "observability_tracing",
+        "incident_response",
+        "capacity_planning",
+        "cost_optimization",
+        "access_review",
+        "patch_management",
+        "backup_verification",
+        "network_policy",
+        "image_scanning",
+        "runtime_security",
+        "config_drift",
+        "release_orchestration",
+        "feature_flagging",
+        "canary_analysis",
+        "rollback_automation",
+        "dependency_audit",
+        "e2e_automation",
+        "interface_design",
+        "qa_sandbox_restore",
+        "infrastructure_architecture",
+    ]
+    avoid, seen = set(), []
+    for cap in caps:
+        got = _fallback_name(cap, avoid)
+        letters = _normalize(got["name"])
+        assert _valid_letters(letters), f"{cap} produced an invalid name {got['name']}"
+        assert letters not in avoid, f"{cap} produced duplicate {got['name']}"
+        avoid.add(letters)
+        seen.append(got["name"])
+    assert len(set(seen)) == len(caps)
+    assert not [n for n in seen if n.startswith("P.O.R.T.A.L")]
+
+
+def test_curated_pool_is_still_used_when_the_capability_cannot_yield_a_name():
+    """The pool is not dead code — a capability whose words cannot form a valid
+    pronounceable acronym must still get a curated on-theme name."""
+    from services.agent_name_generator import _fallback_name, _valid_letters, _normalize
+
+    got = _fallback_name("qa", set())
+    assert _valid_letters(_normalize(got["name"]))

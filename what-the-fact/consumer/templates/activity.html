@@ -14,12 +14,12 @@
 <div style="max-width:1100px;margin:0 auto;padding:16px 16px 0;">
   <div style="background:#050d1a;border:1px solid #1a2a3a;border-radius:4px;padding:10px 14px;margin-bottom:14px;display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;font-size:0.7rem;color:#9ca3af;">
     <span style="color:#6b7280;letter-spacing:2px;text-transform:uppercase;font-size:0.6rem;" title="Trends (↑↓) compare to the previous 24h window">Last 24 hours <span style="font-size:0.55rem;color:#374151;letter-spacing:0;text-transform:none;font-weight:400;">(↕ vs prev. day)</span></span>
-    <span><b style="color:#dc2626;">{{ "{:,}".format(stats.articles_24h) }}</b> ingested{% if trends.ingested is not none and trends.ingested > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.ingested }}%</span>{% elif trends.ingested is not none and trends.ingested < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.ingested }}%</span>{% endif %}</span>
-    <span><b style="color:#f59e0b;">{{ "{:,}".format(stats.bias_24h) }}</b> bias-scored{% if trends.bias is not none and trends.bias > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.bias }}%</span>{% elif trends.bias is not none and trends.bias < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.bias }}%</span>{% endif %}</span>
-    <span><b style="color:#10b981;">{{ "{:,}".format(stats.verify_24h) }}</b> fact-checked{% if trends.verify is not none and trends.verify > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.verify }}%</span>{% elif trends.verify is not none and trends.verify < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.verify }}%</span>{% endif %}</span>
-    <span><b style="color:#3b82f6;">{{ "{:,}".format(stats.draft_24h) }}</b> summarized</span>
-    <span><b style="color:#9ca3af;">{{ "{:,}".format(stats.ink_24h) }}</b> new clusters</span>
-    <span><b style="color:#dc2626;">{{ "{:,}".format(stats.llm_24h) }}</b> LLM-analyzed</span>
+    <span><b class="lv-num" data-lv="articles_24h" style="color:#dc2626;">{{ "{:,}".format(stats.articles_24h) }}</b><span class="lv-bump" data-lv-bump="articles_24h" aria-hidden="true"></span> ingested{% if trends.ingested is not none and trends.ingested > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.ingested }}%</span>{% elif trends.ingested is not none and trends.ingested < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.ingested }}%</span>{% endif %}</span>
+    <span><b class="lv-num" data-lv="bias_24h" style="color:#f59e0b;">{{ "{:,}".format(stats.bias_24h) }}</b><span class="lv-bump" data-lv-bump="bias_24h" aria-hidden="true"></span> bias-scored{% if trends.bias is not none and trends.bias > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.bias }}%</span>{% elif trends.bias is not none and trends.bias < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.bias }}%</span>{% endif %}</span>
+    <span><b class="lv-num" data-lv="verify_24h" style="color:#10b981;">{{ "{:,}".format(stats.verify_24h) }}</b><span class="lv-bump" data-lv-bump="verify_24h" aria-hidden="true"></span> fact-checked{% if trends.verify is not none and trends.verify > 10 %} <span style="color:#4ade80;font-size:0.65rem;">↑ +{{ trends.verify }}%</span>{% elif trends.verify is not none and trends.verify < -10 %} <span style="color:#ef4444;font-size:0.65rem;">↓ {{ trends.verify }}%</span>{% endif %}</span>
+    <span><b class="lv-num" data-lv="draft_24h" style="color:#3b82f6;">{{ "{:,}".format(stats.draft_24h) }}</b><span class="lv-bump" data-lv-bump="draft_24h" aria-hidden="true"></span> summarized</span>
+    <span><b class="lv-num" data-lv="ink_24h" style="color:#9ca3af;">{{ "{:,}".format(stats.ink_24h) }}</b><span class="lv-bump" data-lv-bump="ink_24h" aria-hidden="true"></span> new clusters</span>
+    <span><b class="lv-num" data-lv="llm_24h" style="color:#dc2626;">{{ "{:,}".format(stats.llm_24h) }}</b><span class="lv-bump" data-lv-bump="llm_24h" aria-hidden="true"></span> LLM-analyzed</span>
   </div>
 
   {# C.R.E.E.D. governance banner — PUBLIC (above the subscriber gate): governance
@@ -596,6 +596,108 @@
   if (filter) {
     filter.addEventListener('change', applyFilter);
   }
+})();
+</script>
+
+<style>
+  .lv-bump{display:inline-block;margin-left:4px;font-size:0.6rem;font-weight:700;color:#4ade80;
+           opacity:0;transform:translateY(3px);transition:opacity .25s ease,transform .25s ease;}
+  .lv-bump.on{opacity:1;transform:translateY(-2px);}
+  .lv-num.lv-flash{animation:lvflash 1.1s ease-out;}
+  @keyframes lvflash{0%{filter:brightness(2.2);}100%{filter:none;}}
+  @media (prefers-reduced-motion:reduce){
+    .lv-num.lv-flash{animation:none;}
+    .lv-bump{transition:none;}
+  }
+</style>
+<script>
+/* /activity live counters (#6219).
+   The page was fully server-rendered, so the numbers only moved on a refresh.
+
+   ⚠️ This polls a SEPARATE cheap endpoint on purpose. The /activity page bundle
+   is ~40 whole-table COUNTs measured at 20-36s; polling THAT from a public page
+   is what wedged all four workers for 30 minutes (KB #299315). /api/activity/live
+   is six index-only scans behind a 10s server cache, so N viewers cost one query
+   per 10s per worker, not N.
+
+   Client-side rules that follow from the same lesson:
+     - a hidden tab does not poll at all
+     - failures back off and then stop; a dead ticker is cosmetic, and hammering
+       a struggling server to refresh a number is the wrong trade
+     - every write is textContent — /activity renders external headline text and
+       the XSS rule for this codebase is absolute
+*/
+(function () {
+  var els = document.querySelectorAll('.lv-num[data-lv]');
+  if (!els.length || !window.fetch) return;
+
+  var BASE_MS = 20000, MAX_FAILS = 5;
+  var fails = 0, timer = null;
+  var last = {};
+  els.forEach(function (el) {
+    var n = parseInt((el.textContent || '').replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(n)) last[el.getAttribute('data-lv')] = n;
+  });
+
+  function fmt(n) { return n.toLocaleString('en-CA'); }
+
+  function bump(key, delta) {
+    var chip = document.querySelector('.lv-bump[data-lv-bump="' + key + '"]');
+    if (!chip) return;
+    chip.textContent = '+' + fmt(delta);
+    chip.classList.add('on');
+    setTimeout(function () {
+      chip.classList.remove('on');
+      setTimeout(function () { chip.textContent = ''; }, 300);
+    }, 4000);
+  }
+
+  function apply(counters) {
+    els.forEach(function (el) {
+      var key = el.getAttribute('data-lv');
+      if (!(key in counters)) return;
+      var next = counters[key];
+      if (typeof next !== 'number' || !isFinite(next)) return;
+      var prev = last[key];
+      if (prev === undefined) { last[key] = next; return; }
+      if (next === prev) return;
+      el.textContent = fmt(next);
+      last[key] = next;
+      /* A 24h rolling window can legitimately go DOWN as old events age out.
+         Only an increase is news; a decrease updates silently. */
+      if (next > prev) {
+        bump(key, next - prev);
+        el.classList.remove('lv-flash');
+        void el.offsetWidth;            /* restart the animation */
+        el.classList.add('lv-flash');
+      }
+    });
+  }
+
+  function schedule(ms) {
+    clearTimeout(timer);
+    timer = setTimeout(tick, ms);
+  }
+
+  function tick() {
+    if (document.hidden) { schedule(BASE_MS); return; }
+    fetch('/api/activity/live', { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (d) {
+        if (d && d.ok && d.counters) { fails = 0; apply(d.counters); }
+        schedule(BASE_MS);
+      })
+      .catch(function () {
+        fails += 1;
+        if (fails >= MAX_FAILS) return;   /* stop; the page is still correct */
+        schedule(BASE_MS * Math.pow(2, fails));
+      });
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && fails < MAX_FAILS) schedule(1500);
+  });
+  schedule(BASE_MS);
 })();
 </script>
 

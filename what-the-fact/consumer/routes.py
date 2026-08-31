@@ -1257,6 +1257,94 @@ def activity():
                            is_subscriber=is_subscriber())
 
 
+# ── /activity live counters (#6219) ────────────────────────────────────────
+# The page's numbers only moved on a full refresh. This is the cheap half of
+# /activity, polled by the client so the counters tick up in place.
+#
+# ⚠️ IT MUST NOT TOUCH _activity_bundle. That bundle is ~40 whole-table COUNTs
+# measured at 20-36s, cached 5 min per worker; polling it would re-trigger that
+# on every cache miss, from a PUBLIC url, across N viewers. That is precisely
+# the shape that wedged all four workers and served 502 for 30 minutes
+# (KB #299315). Only rolling-window counters live here, and every one of them
+# was verified to be an INDEX-ONLY SCAN before shipping:
+#   idx_audit_trail_event_created · idx_bias_scores_computed
+#   idx_fact_checks_checked · idx_summaries_created
+#   idx_story_clusters_created · idx_articles_ai_analyzed_at
+# All-time totals stay OFF this path — they are the expensive ones and they
+# move slowly enough that the 5-min bundle is the right cadence for them.
+#
+# ⚠️ THE CACHE IS THE REAL LIMITER. With a 10s TTL, N pollers cost at most one
+# query per 10s per worker no matter how large N gets — it bounds the EXPENSIVE
+# OPERATION rather than the caller, which is the lesson from that outage (a
+# guard keyed on who is asking is opt-in; a guard on what it costs is not).
+# The aggregate ceiling below is a second layer, not the primary one.
+_ACTIVITY_LIVE_CACHE: dict = {}
+_ACTIVITY_LIVE_TTL = int(os.environ.get("WTF_ACTIVITY_LIVE_TTL", "10"))
+_ACTIVITY_LIVE_BUCKET: list = []
+_ACTIVITY_LIVE_LIMIT = int(os.environ.get("WTF_ACTIVITY_LIVE_LIMIT", "120"))  # per worker per min
+
+
+def _activity_live_rate_ok() -> bool:
+    """UA-blind aggregate ceiling. Fail-OPEN: a bug in the limiter must never
+    take the endpoint down, and a stalled counter is a cosmetic failure."""
+    try:
+        now = time.time()
+        _ACTIVITY_LIVE_BUCKET[:] = [t for t in _ACTIVITY_LIVE_BUCKET if t > now - 60]
+        if len(_ACTIVITY_LIVE_BUCKET) >= _ACTIVITY_LIVE_LIMIT:
+            return False
+        _ACTIVITY_LIVE_BUCKET.append(now)
+        return True
+    except Exception:
+        return True
+
+
+def _activity_live_counters(S):
+    """The six rolling counters, cached _ACTIVITY_LIVE_TTL seconds."""
+    ent = _ACTIVITY_LIVE_CACHE.get("live")
+    if ent and ent[0] > time.time():
+        return ent[1]
+    with _db().begin() as c:
+        c.execute(text("SET LOCAL jit = off"))
+        row = c.execute(text(f"""
+            SELECT
+              (SELECT COUNT(*) FROM {S}.audit_trail
+                 WHERE event_type='ingested'
+                   AND created_at > NOW() - INTERVAL '24 hours')            AS articles_24h,
+              (SELECT COUNT(*) FROM {S}.bias_scores
+                 WHERE computed_at > NOW() - INTERVAL '24 hours')           AS bias_24h,
+              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks
+                 WHERE checked_at > NOW() - INTERVAL '24 hours')            AS verify_24h,
+              (SELECT COUNT(*) FROM {S}.summaries
+                 WHERE created_at > NOW() - INTERVAL '24 hours')            AS draft_24h,
+              (SELECT COUNT(*) FROM {S}.story_clusters
+                 WHERE created_at > NOW() - INTERVAL '24 hours')            AS ink_24h,
+              (SELECT COUNT(*) FROM {S}.articles
+                 WHERE ai_analyzed_at > NOW() - INTERVAL '24 hours')        AS llm_24h
+        """)).mappings().first()
+    out = {k: int(v or 0) for k, v in dict(row or {}).items()}
+    _ACTIVITY_LIVE_CACHE["live"] = (time.time() + _ACTIVITY_LIVE_TTL, out)
+    return out
+
+
+@bp.get("/api/activity/live")
+def activity_live():
+    """Rolling 24h counters for the /activity ticker. Cheap, cached, public.
+
+    Returns 200 with `stale: true` rather than an error when the counters
+    cannot be read — a ticker that stops updating should degrade quietly, not
+    put an error banner on a page that is otherwise fine.
+    """
+    if not _activity_live_rate_ok():
+        return jsonify({"ok": False, "stale": True, "reason": "rate"}), 429
+    try:
+        return jsonify({"ok": True, "stale": False, "counters": _activity_live_counters(_schema())})
+    except Exception as exc:
+        from flask import current_app
+
+        current_app.logger.warning("activity_live failed: %s", exc)
+        return jsonify({"ok": False, "stale": True, "reason": "unavailable"}), 200
+
+
 @bp.get("/team")
 def team():
     S = _schema()

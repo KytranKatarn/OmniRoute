@@ -125,6 +125,60 @@
 <div class="wtf-a-grid">{{ caller() }}</div>
 {%- endmacro %}
 
+{# RECORD CARD — the Directory card for records that carry their OWN links.
+   person_card is a single <a>, so a record with internal links (an OIC source
+   link, an outlet list, an official site) cannot use it: nesting <a> in <a> is
+   invalid HTML and browsers silently reflow it. officers / gic / owners are all
+   this shape, which is why the archetype needs both cards, not one.
+
+   spine_token colours the left rule; as with person_card it is DECORATION —
+   `meta` must still name in text whatever the colour implies. #}
+{% macro record_card(title, meta=None, chips=None, spine_token=None, stack=False) -%}
+<div class="wtf-a-rcard{% if stack %} is-stack{% endif %}"
+     {% if spine_token %}style="border-left-color:var({{ spine_token }});"{% endif %}>
+  <div class="wtf-a-rhead">
+    <div class="wtf-a-rtitle-wrap">
+      <h2 class="wtf-a-rtitle">{{ title }}</h2>
+      {%- if meta %}<div class="wtf-a-tile-d">{{ meta }}</div>{% endif %}
+    </div>
+    {%- if chips %}<div class="wtf-a-rchips">{% for c in chips %}{{ chip(c) }}{% endfor %}</div>{% endif %}
+  </div>
+  {{ caller() }}
+</div>
+{%- endmacro %}
+
+{% macro record_links(links) -%}
+{#- links: list of (label, href, external) -#}
+<div class="wtf-a-rlinks">
+  {%- for label, href, external in links %}
+  <a class="wtf-a-rlink" href="{{ href }}"{% if external %} target="_blank" rel="noopener"{% endif %}>{{ label }}{% if external %} <span aria-hidden="true">&#8599;</span>{% endif %}</a>
+  {%- endfor %}
+</div>
+{%- endmacro %}
+
+
+{# ── shared: PAYWALL ─────────────────────────────────────────────────────────
+   Not one of the five archetypes — it is MORE common than any of them. The
+   identical four-part block (lock + title / blurb / CTA / "see plans") appears
+   in 14 templates, hand-rolled every time, and had drifted to FOUR different
+   CTA colours — a red used on twelve pages, a second near-identical red, a
+   BLUE on /gic, and a cyan-on-black on /owners. Not one of them was
+   --wtf-accent, so the site's primary conversion button matched no token
+   anywhere. (Codes deliberately not quoted: a literal hex in this file trips
+   the no-hardcoded-colour guard in tests/test_archetype_macros.py, and that
+   guard is worth more than the citation.)
+
+   One definition, so the button that asks for money looks the same everywhere
+   and moves with the palette. #}
+{% macro paywall(title, blurb, next_url, plans_href="/join") -%}
+<div class="wtf-a-pay">
+  <div class="wtf-a-pay-t">{{ title }}</div>
+  <p class="wtf-a-pay-b">{{ blurb }}</p>
+  <a class="wtf-a-pay-cta" href="/login?next={{ next_url }}">Unlock with Starter &rarr;</a>
+  <div><a class="wtf-a-pay-plans" href="{{ plans_href }}">See plans</a></div>
+</div>
+{%- endmacro %}
+
 
 {# ── archetype 3: DATA EXPLORER ──────────────────────────────────────────────
    lobbying, economy, rates, cost, markets, crtc, claims, municipal, blindspot,

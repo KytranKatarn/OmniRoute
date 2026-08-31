@@ -122,8 +122,8 @@
 .wtf-wx-city-temp { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums;
   font-size:30px; font-weight:600; line-height:1; color:var(--wtf-text);
   margin:9px 0 3px; letter-spacing:-0.02em; }
-.wtf-wx-city-temp .u { font-size:15px; color:var(--wtf-text-muted); font-weight:400; }
 /* An absent reading is an em dash, never 0 — same rule as the map. */
+.wtf-wx-city-temp .wtf-wx-u { font-size:15px; color:var(--wtf-text-muted); font-weight:400; }
 .wtf-wx-city-temp.is-absent { color:var(--wtf-text-muted); font-size:22px; }
 .wtf-wx-city-cond { font-size:11.5px; color:var(--wtf-text-2); min-height:16px; }
 .wtf-wx-city-row { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums;
@@ -800,7 +800,7 @@
         t.title = "No current reading";
       } else {
         t.textContent = c.temp;
-        var u = document.createElement("span"); u.className = "u"; u.textContent = "°C";
+        var u = document.createElement("span"); u.className = "wtf-wx-u"; u.textContent = "°C";
         t.appendChild(u);
       }
       card.appendChild(t);

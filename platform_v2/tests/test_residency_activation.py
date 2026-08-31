@@ -241,3 +241,133 @@ def test_found_tier_is_the_tier_FOUND_not_the_tier_achieved(wired, monkeypatch):
     assert e["ready"] is True, "a warm-booted model is READY"
     assert e["found_tier"] == "cold", "and it was FOUND cold — that is not a failure"
     assert "tier" not in e, "the ambiguous key must be gone, not merely aliased"
+
+
+# ── warm_for_backlog: the scheduled caller (#6217) ─────────────────────────
+@pytest.fixture
+def backlog(monkeypatch):
+    """Armed by default; individual tests disarm one gate at a time."""
+    import services.residency_profiles as rp
+
+    settings = {ra._BACKLOG_ENABLED_KEY: "true"}
+    monkeypatch.setattr(rp, "_read_setting", lambda k: settings.get(k))
+    monkeypatch.setattr(ra, "status", lambda: {"active": False})
+    return settings
+
+
+def test_warm_for_backlog_is_OFF_unless_explicitly_armed(backlog, monkeypatch):
+    """This ships inert. An unset flag must not warm anything — the setting is
+    the owner's decision, and 'absent' is not 'yes'."""
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: pytest.fail("must not activate"))
+    for value in (None, "", "false", "1", "yes", "off"):
+        backlog[ra._BACKLOG_ENABLED_KEY] = value
+        r = ra.warm_for_backlog()
+        assert r["warmed"] is False, f"{value!r} armed the warm-up"
+    backlog[ra._BACKLOG_ENABLED_KEY] = "true"
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: {"requested": [{"model": "m"}]})
+    assert ra.warm_for_backlog()["warmed"] is True, "'true' must arm it"
+
+
+def test_case_and_whitespace_in_the_flag_still_arm_it(backlog, monkeypatch):
+    """Deliberately forgiving. A trailing space or a capital in a hand-typed
+    platform_settings row is a typo, not a different intent — and a flag that
+    silently ignores 'TRUE ' is a support ticket, not a safety feature."""
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: {"requested": [{"model": "m"}]})
+    for value in ("TRUE ", " true", "True"):
+        backlog[ra._BACKLOG_ENABLED_KEY] = value
+        assert ra.warm_for_backlog()["warmed"] is True, f"{value!r} should arm it"
+
+
+def test_an_active_profile_is_not_re_warmed(backlog, monkeypatch):
+    """The throttle. Three producers call this; only the first should act."""
+    monkeypatch.setattr(ra, "status", lambda: {"active": True, "profile": "news", "seconds_remaining": 900})
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: pytest.fail("re-warmed a live profile"))
+    r = ra.warm_for_backlog()
+    assert r["warmed"] is False and r["reason"] == "already active"
+
+
+def test_a_lapsed_profile_IS_re_warmed(backlog, monkeypatch):
+    """...and the throttle must actually expire, or one warm-up is all we ever get."""
+    monkeypatch.setattr(ra, "status", lambda: {"active": False, "lapsed": True})
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: {"requested": [{"model": "m"}]})
+    assert ra.warm_for_backlog()["warmed"] is True
+
+
+def test_a_fully_refused_activation_is_NOT_reported_as_warmed(backlog, monkeypatch):
+    """activate() writes the TTL even when every model was refused by the
+    capacity/presence gates, so status() will read `active` for the whole
+    window. That is deliberate upstream — the refusals are structural — but it
+    means `active` says "we asked", not "it is warm". Reporting that as a
+    successful warm-up would put a false success in the job log."""
+    monkeypatch.setattr(
+        ra,
+        "activate",
+        lambda *a, **k: {"ok": True, "requested": [], "refused": [{"reason": "capacity gate"}]},
+    )
+    r = ra.warm_for_backlog()
+    assert r["warmed"] is False
+    assert r["reason"] == "nothing requestable"
+    assert r["result"]["refused"], "the refusals must survive to the caller"
+
+
+def test_warm_for_backlog_never_raises_into_the_drain(backlog, monkeypatch):
+    """A backlog cycle that cannot warm must still drain. This is the whole
+    reason the call is safe to put at the top of three scheduled jobs."""
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    r = ra.warm_for_backlog("wtf_factcheck_backlog")
+    assert r["warmed"] is False and "boom" in r["reason"]
+
+
+def test_a_broken_settings_read_disarms_rather_than_raising(monkeypatch):
+    import services.residency_profiles as rp
+
+    monkeypatch.setattr(rp, "_read_setting", lambda k: (_ for _ in ()).throw(RuntimeError("db down")))
+    assert ra.warm_for_backlog()["warmed"] is False
+
+
+def test_profile_and_ttl_are_configurable_with_sane_defaults(backlog, monkeypatch):
+    seen = {}
+
+    def _cap(name, ttl_minutes=None, dry_run=True):
+        seen.update(name=name, ttl=ttl_minutes, dry_run=dry_run)
+        return {"requested": [{"model": "m"}]}
+
+    monkeypatch.setattr(ra, "activate", _cap)
+    ra.warm_for_backlog()
+    assert seen["name"] == ra._BACKLOG_DEFAULT_PROFILE
+    assert seen["ttl"] == ra._DEFAULT_TTL_MIN
+    assert seen["dry_run"] is False, "the scheduled caller must actually warm"
+
+    backlog[ra._BACKLOG_PROFILE_KEY] = "aux"
+    backlog[ra._BACKLOG_TTL_KEY] = "30"
+    ra.warm_for_backlog()
+    assert seen["name"] == "aux" and seen["ttl"] == 30
+
+
+def test_a_garbage_ttl_setting_falls_back_instead_of_raising(backlog, monkeypatch):
+    backlog[ra._BACKLOG_TTL_KEY] = "not-a-number"
+    seen = {}
+    monkeypatch.setattr(
+        ra, "activate", lambda n, ttl_minutes=None, dry_run=True: seen.update(ttl=ttl_minutes) or {"requested": [1]}
+    )
+    ra.warm_for_backlog()
+    assert seen["ttl"] == ra._DEFAULT_TTL_MIN
+
+
+def test_all_three_wtf_backlog_producers_call_the_warm_up():
+    """STRUCTURAL PIN. tools/department_hq/jobs.py has no test that EXECUTES it
+    (the same gap the K.I.N. tab work hit), so a call site added there is
+    otherwise unverifiable and can be dropped by a future edit without any test
+    going red. Grepping the source is the honest substitute — same approach as
+    tests/test_merge_state_ui.py.
+
+    All THREE must call it: they share one agent pool, and warming in front of
+    only one leaves the other two paying the cold-load cost anyway.
+    """
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parents[1] / "tools/department_hq/jobs.py").read_text()
+    for job in ("wtf_factcheck_backlog", "wtf_bias_backlog", "wtf_geo_backlog"):
+        assert (
+            f"warm_for_backlog('{job}')" in src or f'warm_for_backlog("{job}")' in src
+        ), f"{job} no longer warms its residency profile"

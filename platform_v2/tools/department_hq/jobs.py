@@ -4667,6 +4667,16 @@ def _register_own_jobs(scheduler, flask_app):
         import time as _wfcb_t
 
         _wfcb_start = _wfcb_t.time()
+        # Warm the residency profile BEFORE the cycle dispatches (#6217).
+        # OFF by default (platform_settings warmboot:wtf_backlog:enabled);
+        # never raises, bounded at 45s, and self-throttles on the DB TTL so
+        # only the first of these three producers per window actually warms.
+        try:
+            from services.residency_activation import warm_for_backlog
+
+            warm_for_backlog("wtf_factcheck_backlog")
+        except Exception:  # a cycle that cannot warm must still drain
+            pass
         try:
             import json as _json
             from tools.department_hq.services.department_dispatcher import dispatch
@@ -4860,6 +4870,16 @@ def _register_own_jobs(scheduler, flask_app):
         import time as _wbb_t
 
         _wbb_start = _wbb_t.time()
+        # Warm the residency profile BEFORE the cycle dispatches (#6217).
+        # OFF by default (platform_settings warmboot:wtf_backlog:enabled);
+        # never raises, bounded at 45s, and self-throttles on the DB TTL so
+        # only the first of these three producers per window actually warms.
+        try:
+            from services.residency_activation import warm_for_backlog
+
+            warm_for_backlog("wtf_bias_backlog")
+        except Exception:  # a cycle that cannot warm must still drain
+            pass
         # Pool skill is bias_analysis (the bias_backlog capability has no dedicated skill —
         # it routes to the bias_analysis pool), so gate on that pool's 24h headroom.
         if _wtf_backlog_pool_over_budget("bias_analysis"):
@@ -5045,6 +5065,16 @@ def _register_own_jobs(scheduler, flask_app):
         import time as _wgb_t
 
         _wgb_start = _wgb_t.time()
+        # Warm the residency profile BEFORE the cycle dispatches (#6217).
+        # OFF by default (platform_settings warmboot:wtf_backlog:enabled);
+        # never raises, bounded at 45s, and self-throttles on the DB TTL so
+        # only the first of these three producers per window actually warms.
+        try:
+            from services.residency_activation import warm_for_backlog
+
+            warm_for_backlog("wtf_geo_backlog")
+        except Exception:  # a cycle that cannot warm must still drain
+            pass
         if _wtf_backlog_pool_over_budget("geo_extraction"):
             logger.info(
                 "[WTFGeoBacklog] geo pool over 24h token budget"

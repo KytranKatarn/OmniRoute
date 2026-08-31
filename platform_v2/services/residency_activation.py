@@ -355,3 +355,91 @@ def plan(profile_name: Optional[str] = None) -> List[Dict[str, Any]]:
     """The dry-run plan only — convenience for the Fleet tab and for operators
     who want to see what an activation WOULD do before doing it."""
     return activate(profile_name, dry_run=True).get("requested", [])
+
+
+# ── the scheduled caller: WTF backlog drain (#6217) ────────────────────────
+# WHY THE POLICY LIVES HERE and not in jobs.py: the part worth testing is the
+# decision to warm, not the call. tools/department_hq/jobs.py has no test that
+# executes it, so anything conditional placed there is unverifiable. The three
+# producers get one line each; every refusal lives in this module, under test.
+#
+# ⚠️ OFF BY DEFAULT — this ships INERT. Arm with platform_settings:
+#     warmboot:wtf_backlog:enabled = 'true'    ← nothing happens without this
+#     warmboot:wtf_backlog:profile = 'news'    ← optional, default below
+#     warmboot:wtf_backlog:ttl_min = '90'      ← optional, default _DEFAULT_TTL_MIN
+#
+# ⚠️ THE THROTTLE IS THE DB-BACKED TTL, NOT AN IN-MEMORY TIMER. These producers
+# run in archie_scheduler (one process) so a module-level timestamp would work
+# today — but archie_platform runs `--workers 4`, and a route calling this would
+# then warm up to 4x because each worker holds its own timer (KB #282671, same
+# class of bug). status()['active'] is the durable answer, shared by every
+# process, and it lapses on its own.
+#
+# ⚠️ `active` MEANS "WE ASKED", NOT "IT IS WARM". activate() calls
+# _record_active() on every non-dry run, including one where every model was
+# refused by the capacity/presence gates. That is deliberate upstream — those
+# refusals are STRUCTURAL (a 4GB card does not grow between cycles), so retrying
+# every 30s would burn cycles for nothing. But it means we must not report a
+# fully-refused activation as a warm-up: `warmed` below is True only when at
+# least one model was actually requested.
+
+_BACKLOG_ENABLED_KEY = "warmboot:wtf_backlog:enabled"
+_BACKLOG_PROFILE_KEY = "warmboot:wtf_backlog:profile"
+_BACKLOG_TTL_KEY = "warmboot:wtf_backlog:ttl_min"
+_BACKLOG_DEFAULT_PROFILE = "news"
+
+
+def warm_for_backlog(job_type: str = "wtf_backlog") -> Dict[str, Any]:
+    """Warm the WTF backlog's residency profile before a drain cycle.
+
+    Called at the top of the three WTF backlog producers. The measured lever for
+    that backlog is RESIDENCY, not model choice: a cold 7B costs roughly 45x a
+    warm one, and all three producers dispatch into the same pool — so warming
+    once in front of them is worth more than any per-job model swap.
+
+    NEVER raises and never blocks past _WARM_DEADLINE_S (45s): a cycle that
+    cannot warm must still drain. `warmed=False` is the normal, expected case.
+    """
+    try:
+        from services import residency_profiles as rp
+
+        if (rp._read_setting(_BACKLOG_ENABLED_KEY) or "").strip().lower() != "true":
+            return {"warmed": False, "reason": "disabled"}
+
+        st = status()
+        if st.get("active"):
+            return {
+                "warmed": False,
+                "reason": "already active",
+                "profile": st.get("profile"),
+                "seconds_remaining": st.get("seconds_remaining"),
+            }
+
+        profile = (rp._read_setting(_BACKLOG_PROFILE_KEY) or "").strip() or _BACKLOG_DEFAULT_PROFILE
+        try:
+            ttl = int(rp._read_setting(_BACKLOG_TTL_KEY) or _DEFAULT_TTL_MIN)
+        except (TypeError, ValueError):
+            ttl = _DEFAULT_TTL_MIN
+
+        res = activate(profile, ttl_minutes=ttl, dry_run=False)
+        n_req = len(res.get("requested") or [])
+        n_ref = len(res.get("refused") or [])
+        logger.info(
+            "[warmboot] %s profile=%s ok=%s requested=%d refused=%d skipped=%d elapsed=%ss",
+            job_type,
+            profile,
+            res.get("ok"),
+            n_req,
+            n_ref,
+            len(res.get("skipped") or []),
+            res.get("elapsed_s"),
+        )
+        if not n_req:
+            # Every model refused or every node offline. activate() still wrote
+            # the TTL (see the note above), so we will not retry until it lapses
+            # — correct, because these refusals do not resolve on their own.
+            return {"warmed": False, "reason": "nothing requestable", "result": res}
+        return {"warmed": True, "reason": "activated", "profile": profile, "result": res}
+    except Exception as exc:  # the backlog must drain even if warming cannot
+        logger.warning("[warmboot] %s warm skipped: %s", job_type, exc)
+        return {"warmed": False, "reason": f"error: {exc}"}

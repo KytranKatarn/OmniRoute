@@ -844,7 +844,10 @@
     return h < 48 ? h + " h ago" : Math.round(h / 24) + " d ago";
   }
 
-  renderAurora(); renderCards(); renderCities(); drawLegend();
+  // The component draws its own legend once the geometry loads, so the page
+  // no longer calls drawLegend() here — that call outlived the function it
+  // named and threw ReferenceError on every page load.
+  renderAurora(); renderCards(); renderCities();
 })();
 </script>
 {% endif %}

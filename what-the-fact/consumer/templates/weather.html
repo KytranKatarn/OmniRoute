@@ -626,13 +626,10 @@
     });
     // The grey that means "this layer does not cover here" is part of what the
     // map paints, so it belongs in the key too — a reader seeing grey should
-    // not have to guess whether it means zero.
-    var na = document.createElement("span");
-    var naSw = document.createElement("i");
-    naSw.className = "wtf-wx-swatch"; naSw.style.background = NO_DATA;
-    naSw.style.opacity = "0.55";
-    na.appendChild(naSw); na.appendChild(document.createTextNode("no data on this layer"));
-    row.appendChild(na);
+    // not have to guess whether it means zero. This block ALREADY EXISTED; a
+    // second copy of it was briefly added and shipped, rendering the entry
+    // twice, because the original sat just past the window I had read. Check
+    // the whole function before adding to it.
     var g = document.createElement("span");
     var gs = document.createElement("i"); gs.className = "wtf-wx-swatch"; gs.style.background = NO_DATA;
     g.appendChild(gs); g.appendChild(document.createTextNode("no data on this layer"));

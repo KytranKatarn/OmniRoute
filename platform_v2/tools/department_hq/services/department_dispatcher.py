@@ -366,6 +366,13 @@ CAPABILITY_DEPARTMENT_MAP = {
 # Safe at module scope: agent_service imports only stdlib + `database`, so there is no cycle.
 from services.agent_service import DEPARTMENT_FLOOR_MAP  # noqa: E402
 
+# agent_id -> canonical agents.name, for _canonical_agent_name (#6238). Module-level
+# so every dispatcher instance shares it; refreshed on a TTL rather than per-dispatch
+# because _log_execution is on the hot path of every single dispatch.
+_CANON_NAME_BY_ID: Dict[int, str] = {}
+_CANON_NAME_REFRESHED: List[float] = [0.0]
+_CANON_NAME_TTL_S = 300
+
 FLOOR_DEPARTMENTS = {}
 for _dept, _flr in DEPARTMENT_FLOOR_MAP.items():
     FLOOR_DEPARTMENTS.setdefault(_flr, []).append(_dept)
@@ -4689,6 +4696,57 @@ class DepartmentDispatcher:
             return "timeout"
         return result
 
+    def _canonical_agent_name(self, agent_id: Optional[int], fallback: Optional[str]) -> Optional[str]:
+        """The agent's CANONICAL `agents.name` for logging (#6238).
+
+        `task_execution_log.agent_name` is joined as a STRING all over the platform
+        (A.R.M.A.D.A. breakdowns, /activity, the roster's run counts). Different
+        dispatch paths were writing different fields for the same agent —
+        `_find_fleet_agent` selects `COALESCE(na.display_name, …, na.name)` while
+        the hub path writes `name` — so one agent's history split across two
+        strings. Measured 2026-08-31, 10,266 rows were filed under a display_name:
+
+            S.I.F.T.     630 as 'S.I.F.T.'  vs  9,752 as 'Sift — Beat Classification Specialist'
+            T.R.I.A.G.E. 12,672             vs  116   as 'Classify Specialist'
+            T.A.L.O.N.   7,327              vs  369   as 'Fact Check Specialist'
+
+        …and S.I.F.T. was still misfiling the day this was written. Resolving from
+        `agent_id` here fixes every path at once — per-caller patching is how the
+        divergence appeared (same principle as the merge_pr and node_has_model
+        choke points).
+
+        THREE things are deliberately NOT rewritten, because they are not agents:
+          - agent_id absent -> warm-up/infra markers, which are unattributed ON
+            PURPOSE (agent_id NULL, agent_name kept as a note of which model was
+            warmed). Rewriting them would invent an owner.
+          - a composed escalation label already containing '→' (CONTRACTOR→x).
+          - an id the cache cannot resolve -> keep the caller's string. Fail-OPEN:
+            a wrong-but-present name beats losing the row's only identifier.
+        """
+        if not agent_id:
+            return fallback
+        if fallback and "→" in fallback:
+            return fallback
+        try:
+            now = time.time()
+            idx = _CANON_NAME_BY_ID
+            if agent_id not in idx or (now - _CANON_NAME_REFRESHED[0]) > _CANON_NAME_TTL_S:
+                from services.agent_service import get_agent_cache
+
+                fresh = {}
+                for entry in (get_agent_cache() or {}).values():
+                    aid, nm = entry.get("id"), entry.get("name")
+                    if aid and nm:
+                        fresh[aid] = nm
+                if fresh:  # never blank a populated index on a bad read
+                    idx.clear()
+                    idx.update(fresh)
+                    _CANON_NAME_REFRESHED[0] = now
+            return idx.get(agent_id) or fallback
+        except Exception as e:
+            logger.debug("canonical agent-name lookup failed for %s: %s", agent_id, e)
+            return fallback
+
     def _log_execution(
         self,
         result: DispatchResult,
@@ -4724,11 +4782,22 @@ class DepartmentDispatcher:
             # left untouched below so welfare update, agent memory, and
             # performance-metric crediting behave exactly as before this fix.
             log_agent_id = result.agent_id
-            log_agent_name = result.agent_name
+            # #6238: resolve the CANONICAL agents.name from agent_id. Some paths
+            # (notably _find_fleet_agent's COALESCE(display_name, …)) hand us a
+            # display_name, which split one agent's history across two strings.
+            # result.agent_name itself is left untouched so welfare update, agent
+            # memory and performance crediting behave exactly as before.
+            log_agent_name = self._canonical_agent_name(result.agent_id, result.agent_name)
             if is_contractor and getattr(result, "escalating_agent_id", None):
                 log_agent_id = result.escalating_agent_id
-                esc_name = result.escalating_agent_name or "?"
-                log_agent_name = f"{esc_name} →{result.agent_name}" if result.agent_name else esc_name
+                # canonicalise BOTH halves of the composed label, not just one
+                esc_name = (
+                    self._canonical_agent_name(
+                        result.escalating_agent_id, getattr(result, "escalating_agent_name", None)
+                    )
+                    or "?"
+                )
+                log_agent_name = f"{esc_name} →{log_agent_name}" if log_agent_name else esc_name
 
             # Warm-up keep-alive is INFRASTRUCTURE overhead, not agent work (decision:
             # warm-up pseudo-agent = NO — warm-up is infra, stays unattributed). Log it

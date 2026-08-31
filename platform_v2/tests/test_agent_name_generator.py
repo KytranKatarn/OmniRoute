@@ -224,18 +224,25 @@ def _pool_exhausted():
     return {_normalize(a) for a, _ in _FALLBACK_POOL}
 
 
-def test_two_word_capability_gets_a_name_from_its_own_words_not_the_pool():
-    from services.agent_name_generator import _fallback_name
+def _suffix_clones(names):
+    """Names that are another name plus appended letters — the ACTUAL defect.
 
-    got = _fallback_name("edge_computing", _pool_exhausted())
-    assert got["name"] == "E.D.G.E."
-    assert got["expansion"] == "Edge Computing"
+    P.O.R.T.A.L. on its own is a legitimate curated pool entry. What was wrong on
+    2026-08-04 was the FAMILY: P.O.R.T.A.L.A. / .B. / .C. ... ten unrelated jobs
+    wearing one stem. An earlier version of this test asserted
+    `not name.startswith("P.O.R.T.A.L")`, which also forbids the valid base name —
+    it encoded the symptom instead of the property, and failed on correct output.
+    """
+    from services.agent_name_generator import _normalize
+
+    keys = {_normalize(n) for n in names}
+    return {k for k in keys if any(other != k and k.startswith(other) for other in keys)}
 
 
-def test_exhausted_pool_never_produces_the_portal_family():
-    """The regression itself: with the pool fully consumed, the six capabilities
-    that became P.O.R.T.A.L.* must now each get a name describing their own job."""
-    from services.agent_name_generator import _fallback_name
+def test_exhausted_pool_falls_back_to_the_capability_not_a_suffixed_stem():
+    """With the pool drained, each capability must yield a name derived from its
+    OWN words rather than a pool entry with a letter stapled on."""
+    from services.agent_name_generator import _fallback_name, _normalize, _valid_letters
 
     caps = [
         "edge_computing",
@@ -243,19 +250,34 @@ def test_exhausted_pool_never_produces_the_portal_family():
         "distributed_systems",
         "failure_analysis",
         "deployment_automation",
-        "api_testing",
     ]
     avoid = _pool_exhausted()
+    names = []
     for cap in caps:
         got = _fallback_name(cap, set(avoid))
-        assert not got["name"].startswith("P.O.R.T.A.L"), f"{cap} regressed to the pool stem"
-        # the expansion must describe THIS capability, not a borrowed pool entry
-        assert got["expansion"].lower().replace(" ", "_") == cap.replace("_", " ").title().lower().replace(" ", "_")
+        assert _valid_letters(_normalize(got["name"])), f"{cap} -> invalid {got['name']}"
+        names.append(got["name"])
+    assert not _suffix_clones(names), f"suffixed clone family returned: {_suffix_clones(names)}"
 
 
-def test_a_large_batch_yields_unique_meaningful_names():
-    """40 net-new hires in one batch — the exact shape that broke. Every name must
-    be unique and valid; none may fall back to the shared pool stem."""
+def test_expansion_initials_always_spell_the_name():
+    """House contract (#4960): the expansion's word-initials spell the acronym.
+    A capability-derived name must honour it too — 'Edge Computing' for E.D.G.E.
+    spells EC, which is why build_backronym composes per letter."""
+    from services.agent_name_generator import _fallback_name, _normalize
+
+    avoid = _pool_exhausted()
+    for cap in ["edge_computing", "failure_analysis", "container_orchestration", "api_testing"]:
+        got = _fallback_name(cap, set(avoid))
+        initials = "".join(w[0] for w in got["expansion"].split())
+        assert initials == _normalize(got["name"]), (
+            f"{cap}: expansion {got['expansion']!r} spells {initials}, " f"name is {_normalize(got['name'])}"
+        )
+
+
+def test_a_large_batch_yields_unique_names_with_no_clone_family():
+    """40 net-new hires in one batch — the shape that broke. Unique, valid, and
+    no stem reused with suffixes."""
     from services.agent_name_generator import _fallback_name, _normalize, _valid_letters
 
     caps = [
@@ -304,18 +326,18 @@ def test_a_large_batch_yields_unique_meaningful_names():
     for cap in caps:
         got = _fallback_name(cap, avoid)
         letters = _normalize(got["name"])
-        assert _valid_letters(letters), f"{cap} produced an invalid name {got['name']}"
+        assert _valid_letters(letters), f"{cap} produced invalid {got['name']}"
         assert letters not in avoid, f"{cap} produced duplicate {got['name']}"
         avoid.add(letters)
         seen.append(got["name"])
     assert len(set(seen)) == len(caps)
-    assert not [n for n in seen if n.startswith("P.O.R.T.A.L")]
+    assert not _suffix_clones(seen), f"clone family: {_suffix_clones(seen)}"
 
 
-def test_curated_pool_is_still_used_when_the_capability_cannot_yield_a_name():
-    """The pool is not dead code — a capability whose words cannot form a valid
-    pronounceable acronym must still get a curated on-theme name."""
-    from services.agent_name_generator import _fallback_name, _valid_letters, _normalize
+def test_digits_survive_in_capability_words():
+    """'e2e_automation' rendered as 'E E Automation' — [^a-z ] deleted the digit."""
+    from services.agent_name_generator import capability_phrase, capability_words
 
-    got = _fallback_name("qa", set())
-    assert _valid_letters(_normalize(got["name"]))
+    assert capability_phrase(capability_words("e2e_automation")) == "E2E Automation"
+    assert capability_phrase(capability_words("s3_lifecycle")) == "S3 Lifecycle"
+    assert capability_phrase(capability_words("edge_computing")) == "Edge Computing"

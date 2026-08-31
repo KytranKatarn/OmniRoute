@@ -283,6 +283,67 @@ def capability_phrase(words: list[str]) -> str:
     return " ".join(w.upper() if any(c.isdigit() for c in w) else w.capitalize() for w in words)
 
 
+# Themed filler for backronym letters the capability's own words cannot supply.
+# On-theme for this platform so a generated expansion still reads like a crew role.
+_BACKRONYM_WORDS = {
+    "A": ["Analysis", "Automation", "Agent", "Assurance"],
+    "B": ["Bridge", "Builder", "Baseline"],
+    "C": ["Control", "Coordination", "Coverage", "Core"],
+    "D": ["Delivery", "Diagnostics", "Design", "Data"],
+    "E": ["Engine", "Evaluation", "Execution", "Edge"],
+    "F": ["Framework", "Fabric", "Flow"],
+    "G": ["Gateway", "Governance", "Guard"],
+    "H": ["Handler", "Health", "Hub"],
+    "I": ["Infrastructure", "Integration", "Inspection", "Intelligence"],
+    "J": ["Journal", "Junction"],
+    "K": ["Kernel", "Keeper"],
+    "L": ["Logic", "Layer", "Lifecycle"],
+    "M": ["Monitoring", "Management", "Mesh"],
+    "N": ["Network", "Node", "Navigator"],
+    "O": ["Operations", "Orchestration", "Oversight"],
+    "P": ["Pipeline", "Planning", "Protocol", "Platform"],
+    "Q": ["Quality", "Queue"],
+    "R": ["Reliability", "Routing", "Runtime", "Review"],
+    "S": ["Systems", "Service", "Safety", "Scanning"],
+    "T": ["Technology", "Testing", "Tracking", "Toolkit"],
+    "U": ["Unit", "Uptime", "Utility"],
+    "V": ["Validation", "Verification", "Vector"],
+    "W": ["Workflow", "Watch", "Warden"],
+    "X": ["Exchange", "Index"],
+    "Y": ["Yield", "Yardstick"],
+    "Z": ["Zone", "Zenith"],
+}
+
+
+def build_backronym(letters: str, words: list[str]) -> str:
+    """An expansion whose word-initials SPELL `letters`, exactly.
+
+    House contract, asserted by test_fallback_name_uses_curated_pool_not_padding:
+    `"".join(w[0] for w in expansion.split()) == letters`. A capability-derived
+    name like EDGE cannot use the capability phrase ("Edge Computing" -> "EC"),
+    so the expansion is composed per letter — preferring the capability's OWN
+    words where one starts with that letter, and falling back to themed filler.
+
+    Returns "" if any letter cannot be supplied, so the caller can reject the
+    candidate rather than emit an expansion that violates the contract.
+    """
+    pool_by_initial: dict[str, list[str]] = {}
+    for w in words:
+        if w:
+            pool_by_initial.setdefault(w[0].upper(), []).append(w.capitalize())
+    out: list[str] = []
+    used: set[str] = set()
+    for ch in letters:
+        pick = next((w for w in pool_by_initial.get(ch, []) if w not in used), None)
+        if pick is None:
+            pick = next((w for w in _BACKRONYM_WORDS.get(ch, []) if w not in used), None)
+        if pick is None:
+            return ""
+        used.add(pick)
+        out.append(pick)
+    return " ".join(out)
+
+
 def _capability_candidates(words: list[str]) -> list[tuple[str, str]]:
     """Meaningful (letters, expansion) candidates derived from the capability's own
     words, best-first. Filtering is the caller's job — this only proposes.
@@ -297,28 +358,32 @@ def _capability_candidates(words: list[str]) -> list[tuple[str, str]]:
     words = [w for w in words if w]
     if not words:
         return []
-    phrase = capability_phrase(words)
     out: list[tuple[str, str]] = []
 
-    def add(raw: str, expansion: str) -> None:
+    def add(raw: str, _unused: str = "") -> None:
         letters = _normalize(raw)
-        if letters and all(letters != prev for prev, _ in out):
+        if not letters or any(letters == prev for prev, _ in out):
+            return
+        # The expansion MUST spell the name (house contract). A candidate whose
+        # backronym cannot be composed is dropped rather than emitted broken.
+        expansion = build_backronym(letters, words)
+        if expansion:
             out.append((letters, expansion))
 
     # 1. The first word itself — "edge_computing" -> EDGE, the most recognisable
     #    handle for the job. Trimmed to the 7-letter house maximum.
-    add(words[0][:7], phrase)
+    add(words[0][:7])
     # 2. A later word, when the first is too short/long to be valid on its own
     #    ("api_testing" -> TESTING).
     for w in words[1:]:
-        add(w[:7], phrase)
+        add(w[:7])
     # 3. First word + the initials of the rest — "api_testing" -> APIT. Keeps the
     #    leading concept and still distinguishes siblings sharing that concept.
     if len(words) > 1:
-        add(words[0][:5] + "".join(w[0] for w in words[1:]), phrase)
+        add(words[0][:5] + "".join(w[0] for w in words[1:]))
     # 4. The words run together, trimmed — last meaningful shape before the
     #    generic pool ("edge_computing" -> EDGECOM).
-    add("".join(words)[:7], phrase)
+    add("".join(words)[:7])
     return out
 
 
@@ -343,25 +408,6 @@ def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
             "source": "fallback",
         }
 
-    # ── capability-derived names, BEFORE the generic pool (#6237) ────────────
-    # The initials branch above only fires when the initials themselves are 4-7
-    # letters, so a TWO-WORD capability can never use it: edge_computing -> "EC"
-    # (2 letters) fails _valid_letters and drops straight to the generic pool.
-    # That is why a 30-entry pool was exhausted by one ~40-agent batch on
-    # 2026-08-04 and ten unrelated specialists ended up as P.O.R.T.A.L.,
-    # P.O.R.T.A.L.A. ... P.O.R.T.A.L.Y. — names carrying NO information about the
-    # job (P.O.R.T.A.L.O. is the Edge Computing Specialist) and all sharing one
-    # expansion. Deriving from the capability first keeps the name meaningful AND
-    # leaves the shared pool for capabilities that genuinely cannot yield one.
-    for letters, expansion in _capability_candidates(words):
-        if _valid_letters(letters) and letters not in avoid:
-            return {
-                "name": _dotify(letters),
-                "expansion": expansion,
-                "title": title,
-                "source": "fallback",
-            }
-
     # Randomize among ALL valid, unused pool entries (not "first unused") so
     # repeated clicks for the same capability don't always return the same
     # name (task #4969 — this was the "always PORTAL" bug). The two safety
@@ -373,6 +419,32 @@ def _fallback_name(capability: str, avoid: set[str]) -> dict[str, Any]:
     ]
     if candidates:
         letters, expansion = random.choice(candidates)
+        return {
+            "name": _dotify(letters),
+            "expansion": expansion,
+            "title": title,
+            "source": "fallback",
+        }
+
+    # ── capability-derived names, ONLY once the curated pool is EXHAUSTED (#6237) ──
+    # Placement is the whole point. The curated pool stays PRIMARY, so every
+    # existing behaviour (and its tests) is untouched on the normal path. This
+    # branch replaces the old last-resort SUFFIX loop, which is what produced
+    # P.O.R.T.A.L., P.O.R.T.A.L.A. ... P.O.R.T.A.L.Y. — ten unrelated specialists
+    # sharing one stem and one expansion after a ~40-agent batch drained a
+    # 30-entry pool on 2026-08-04.
+    #
+    # A first attempt put this BEFORE the pool; that overrode the pool on every
+    # call and broke three #4960/#4969 invariants (pool-primacy, and the
+    # randomisation that stops repeated clicks returning one name). Exhaustion is
+    # the only moment the old code had nothing meaningful left to say.
+    cap_usable = [
+        (letters, expansion)
+        for letters, expansion in _capability_candidates(words)
+        if _valid_letters(letters) and letters not in avoid
+    ]
+    if cap_usable:
+        letters, expansion = random.choice(cap_usable)
         return {
             "name": _dotify(letters),
             "expansion": expansion,

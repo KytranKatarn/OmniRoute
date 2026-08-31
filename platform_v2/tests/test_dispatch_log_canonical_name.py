@@ -39,8 +39,8 @@ def resolve(monkeypatch):
     monkeypatch.setitem(sys.modules, "services.agent_service", fake)
     dd._CANON_NAME_BY_ID.clear()
     dd._CANON_NAME_REFRESHED[0] = 0.0
-    return dd.BridgeDispatcher.__dict__["_canonical_agent_name"].__get__(
-        object.__new__(dd.BridgeDispatcher), dd.BridgeDispatcher
+    return dd.DepartmentDispatcher.__dict__["_canonical_agent_name"].__get__(
+        object.__new__(dd.DepartmentDispatcher), dd.DepartmentDispatcher
     )
 
 
@@ -89,8 +89,8 @@ def test_a_broken_cache_never_raises_into_the_dispatch_path(monkeypatch):
     monkeypatch.setitem(sys.modules, "services.agent_service", boom)
     dd._CANON_NAME_BY_ID.clear()
     dd._CANON_NAME_REFRESHED[0] = 0.0
-    fn = dd.BridgeDispatcher.__dict__["_canonical_agent_name"].__get__(
-        object.__new__(dd.BridgeDispatcher), dd.BridgeDispatcher
+    fn = dd.DepartmentDispatcher.__dict__["_canonical_agent_name"].__get__(
+        object.__new__(dd.DepartmentDispatcher), dd.DepartmentDispatcher
     )
     assert fn(432, "Sift — Beat Classification Specialist") == "Sift — Beat Classification Specialist"
 
@@ -105,8 +105,8 @@ def test_an_empty_cache_read_does_not_blank_a_populated_index(monkeypatch):
     monkeypatch.setitem(sys.modules, "services.agent_service", good)
     dd._CANON_NAME_BY_ID.clear()
     dd._CANON_NAME_REFRESHED[0] = 0.0
-    fn = dd.BridgeDispatcher.__dict__["_canonical_agent_name"].__get__(
-        object.__new__(dd.BridgeDispatcher), dd.BridgeDispatcher
+    fn = dd.DepartmentDispatcher.__dict__["_canonical_agent_name"].__get__(
+        object.__new__(dd.DepartmentDispatcher), dd.DepartmentDispatcher
     )
     assert fn(432, "x") == "S.I.F.T."
 

@@ -260,7 +260,7 @@ def _ensure_test_db():
     )
     if dump.returncode != 0:
         raise RuntimeError(f"test-db schema dump failed: {dump.stderr[:400]}")
-    subprocess.run(
+    restore = subprocess.run(
         ["psql", "-h", host, "-p", port, "-U", user, "-d", TEST_DB_NAME, "-v", "ON_ERROR_STOP=0", "-q"],
         input=dump.stdout,
         env=env,
@@ -268,6 +268,49 @@ def _ensure_test_db():
         text=True,
         timeout=restore_timeout,
     )
+
+    # VERIFY THE ARTIFACT, NOT THE EXIT CODE (#6239).
+    #
+    # The dump's returncode is checked above; the restore's was not checked AT ALL,
+    # and its stderr was captured and thrown away. With ON_ERROR_STOP=0 psql exits 0
+    # having skipped whatever failed, so a HALF-BUILT archie_test looked like a
+    # successful clone and _ensure_test_db() returned normally.
+    #
+    # The damage surfaced ~480 lines later as an unreadable symptom: _seed_admin_user
+    # died on `ON CONFLICT (id)` with "there is no unique or exclusion constraint
+    # matching the ON CONFLICT specification" — because the tables had restored but
+    # their PRIMARY KEYs had not. That error names neither the restore nor the clone,
+    # so every db-backed test in the suite errored with no path back to the cause.
+    #
+    # ON_ERROR_STOP=0 stays: a fresh clone legitimately emits benign noise (extensions
+    # that already exist, role grants). What changes is that we now confirm the
+    # RESULT — re-fingerprint and require it to match prod, the same property the
+    # reclone was triggered on. Same discipline as backup_triage judging the archive
+    # with `gzip -t` rather than trusting tar's exit status.
+    verify = _connect(TEST_DB_NAME)
+    try:
+        with verify.cursor() as cur:
+            rebuilt_fp = _schema_fingerprint(cur)
+    finally:
+        verify.close()
+
+    prod = _connect(PROD_DB_NAME)
+    try:
+        with prod.cursor() as cur:
+            expected_fp = _schema_fingerprint(cur)
+    finally:
+        prod.close()
+
+    if rebuilt_fp != expected_fp:
+        tail = (restore.stderr or "").strip().splitlines()
+        raise RuntimeError(
+            f"test-db schema restore INCOMPLETE: {TEST_DB_NAME} fingerprint "
+            f"{rebuilt_fp[:12]} != {PROD_DB_NAME} {expected_fp[:12]}.\n"
+            f"psql rc={restore.returncode}; last errors:\n  "
+            + "\n  ".join(tail[-8:] or ["(psql reported nothing on stderr)"])
+            + f"\nRe-run with TEST_DB_REBUILD=1, or raise TEST_DB_RESTORE_TIMEOUT "
+            f"(currently {restore_timeout}s) if the restore is being cut short."
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)

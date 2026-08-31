@@ -50,6 +50,7 @@ from ingest import (
     scout_body_backlog_worker,
     bias_v2_backlog_worker,
     beat_backlog_worker,
+    tier2_precompute_worker,
     alerts_digest_worker,
     factcheck_partner_worker,
     weekly_digest_worker,
@@ -634,6 +635,7 @@ def main():
             llm_analysis_backlog_worker,
             bias_v2_backlog_worker,
             beat_backlog_worker,       # WTF_BEAT_BACKLOG_ENABLED=true to activate
+            tier2_precompute_worker,   # WTF_TIER2_PRECOMPUTE_ENABLED=true to activate
         )
         with ThreadPoolExecutor(max_workers=len(_backlog_workers)) as pool:
             future_to_worker = {

@@ -386,7 +386,13 @@ def plan(profile_name: Optional[str] = None) -> List[Dict[str, Any]]:
 _BACKLOG_ENABLED_KEY = "warmboot:wtf_backlog:enabled"
 _BACKLOG_PROFILE_KEY = "warmboot:wtf_backlog:profile"
 _BACKLOG_TTL_KEY = "warmboot:wtf_backlog:ttl_min"
-_BACKLOG_DEFAULT_PROFILE = "news"
+# ⚠️ MUST NAME A PROFILE THAT EXISTS. residency_profiles ships exactly one
+# fallback profile today ('default'); 'news' is planned but not written yet.
+# Pointing at an absent profile makes activate() return "declares no nodes",
+# which this wrapper would report as `nothing requestable` — indistinguishable
+# from "every model was refused by the gates". The feature would be silently
+# off while looking like it had run. Caught live before the first armed cycle.
+_BACKLOG_DEFAULT_PROFILE = "default"
 
 
 def warm_for_backlog(job_type: str = "wtf_backlog") -> Dict[str, Any]:
@@ -416,6 +422,21 @@ def warm_for_backlog(job_type: str = "wtf_backlog") -> Dict[str, Any]:
             }
 
         profile = (rp._read_setting(_BACKLOG_PROFILE_KEY) or "").strip() or _BACKLOG_DEFAULT_PROFILE
+        # A typo in a settings row must not silently disable warming. Say the
+        # name out loud and degrade to a profile that exists — a warm-up is an
+        # optimisation, so failing safe means still warming something sensible.
+        known = rp.all_profiles()
+        if profile not in known:
+            logger.warning(
+                "[warmboot] %s: unknown profile %r (known: %s) — falling back to %r",
+                job_type,
+                profile,
+                ", ".join(sorted(known)) or "none",
+                _BACKLOG_DEFAULT_PROFILE,
+            )
+            if _BACKLOG_DEFAULT_PROFILE not in known:
+                return {"warmed": False, "reason": f"unknown profile: {profile}"}
+            profile = _BACKLOG_DEFAULT_PROFILE
         try:
             ttl = int(rp._read_setting(_BACKLOG_TTL_KEY) or _DEFAULT_TTL_MIN)
         except (TypeError, ValueError):

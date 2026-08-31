@@ -252,6 +252,7 @@ def backlog(monkeypatch):
     settings = {ra._BACKLOG_ENABLED_KEY: "true"}
     monkeypatch.setattr(rp, "_read_setting", lambda k: settings.get(k))
     monkeypatch.setattr(ra, "status", lambda: {"active": False})
+    monkeypatch.setattr(rp, "all_profiles", lambda: {"default": {}, "aux": {}})
     return settings
 
 
@@ -371,3 +372,39 @@ def test_all_three_wtf_backlog_producers_call_the_warm_up():
         assert (
             f"warm_for_backlog('{job}')" in src or f'warm_for_backlog("{job}")' in src
         ), f"{job} no longer warms its residency profile"
+
+
+def test_the_default_profile_must_actually_EXIST():
+    """The bug this pins: _BACKLOG_DEFAULT_PROFILE was 'news', a profile that is
+    planned but not written. activate() answers "declares no nodes", which the
+    wrapper reported as `nothing requestable` — identical to "every model was
+    refused". The feature would have been silently off while looking like it ran.
+    """
+    import services.residency_profiles as rp
+
+    assert ra._BACKLOG_DEFAULT_PROFILE in rp.all_profiles(), (
+        f"default profile {ra._BACKLOG_DEFAULT_PROFILE!r} does not exist; " f"known: {sorted(rp.all_profiles())}"
+    )
+
+
+def test_a_typo_in_the_profile_setting_degrades_loudly_instead_of_silently_off(backlog, monkeypatch):
+    """A hand-typed settings row will eventually contain a typo. Warming is an
+    optimisation, so the safe failure is 'warn and warm the known-good profile',
+    not 'quietly stop warming and report a plausible-looking refusal'."""
+    seen = {}
+    monkeypatch.setattr(
+        ra, "activate", lambda n, ttl_minutes=None, dry_run=True: seen.update(name=n) or {"requested": [1]}
+    )
+    backlog[ra._BACKLOG_PROFILE_KEY] = "newz"
+    r = ra.warm_for_backlog()
+    assert r["warmed"] is True
+    assert seen["name"] == ra._BACKLOG_DEFAULT_PROFILE, "a typo must fall back, not warm nothing"
+
+
+def test_if_even_the_default_is_missing_it_says_so_rather_than_pretending(backlog, monkeypatch):
+    import services.residency_profiles as rp
+
+    monkeypatch.setattr(rp, "all_profiles", lambda: {})
+    monkeypatch.setattr(ra, "activate", lambda *a, **k: pytest.fail("must not activate a missing profile"))
+    r = ra.warm_for_backlog()
+    assert r["warmed"] is False and r["reason"].startswith("unknown profile:")

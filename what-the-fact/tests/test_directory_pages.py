@@ -292,6 +292,54 @@ class TestOwnersLeanIsHonest:
         assert "spans" not in html, "a one-band portfolio must not claim a spread"
 
 
+class TestOwnershipSharesAreArithmeticallyPossible:
+    """Shares of one population cannot exceed 100%.
+
+    Found live AFTER deploy: the four concentration tiles read
+    55% + 10% + 45% + 39% = 149%. `source_count` counted outlets that had
+    PUBLISHED IN THE LAST 48 HOURS (31 of 46) while `outlet_count` counts ALL of
+    an owner's outlets — two different populations. The header also claimed
+    "31 outlets tracked" for a site tracking 46. Fixed in routes.py by counting
+    every source; pinned here at BOTH ends, because the template is arithmetic
+    and the route is the denominator.
+    """
+
+    def test_the_shares_cannot_exceed_one_hundred_percent(self, env):
+        total = sum(o["outlet_count"] for o in OWNERS)
+        html = env.get_template("owners.html").render(
+            owners=OWNERS, source_count=total, unattributed=0, is_subscriber=True)
+
+        # Scope to the CONCENTRATION TILES. The per-owner cards use the same
+        # "% of tracked" wording, and those are the same population counted a
+        # second time — summing every match on the page double-counts and the
+        # assertion fails on correct markup. (It did; that is why this is
+        # scoped.) The tiles are the only set that must partition to 100%.
+        tiles = html.split('class="wtf-a-tiles"', 1)
+        assert len(tiles) == 2, "tile block not found — assertion would be vacuous"
+        block = tiles[1].split("</div>\n</div>", 1)[0]
+
+        pcts = [int(m) for m in re.findall(r"(\d+)% of tracked", block)]
+        assert pcts, "no tile shares rendered — this assertion would be vacuous"
+        # one point of slack per share for independent rounding
+        assert sum(pcts) <= 100 + len(pcts), (
+            f"tile shares sum to {sum(pcts)}% — the denominator does not match "
+            "the population being partitioned"
+        )
+
+    def test_the_route_denominator_is_not_time_windowed(self):
+        """Route-level guard: the count feeding every share must not filter on
+        recency. Read from source, so it needs no database."""
+        src = (TPL.parents[1] / "consumer" / "routes.py").read_text()
+        start = src.index("def owners_listing():")
+        body = src[start:src.index("\n@bp.", start)]
+        line = [ln for ln in body.splitlines() if "source_count =" in ln]
+        assert line, "source_count assignment not found in owners_listing"
+        assert "INTERVAL" not in line[0] and "ingested_at" not in line[0], (
+            "source_count is time-windowed again — shares will not sum to 100% "
+            "and the header will understate how many outlets are tracked"
+        )
+
+
 class TestOwnersPageShape:
     def test_concentration_tiles_render(self, env):
         html = owners_html(env, subscriber=True)

@@ -2713,7 +2713,18 @@ def owners_listing():
             SELECT COUNT(*) FROM {S}.sources WHERE owner_name IS NULL
         """)).scalar() or 0
 
-        source_count = c.execute(text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")).scalar() or 0
+        # ⚠️ source_count is the DENOMINATOR of every ownership share on this
+        # page, so it must count the same population as owner.outlet_count —
+        # which is every source, not the recently-active ones.
+        #
+        # It used to be COUNT(DISTINCT s.id) ... JOIN articles ... ingested_at >
+        # NOW() - INTERVAL '48 hours', i.e. outlets that PUBLISHED in the last
+        # two days: 31 of 46 when this was measured. The header therefore
+        # claimed "31 outlets tracked" while the site tracks 46, and each share
+        # divided a 46-population count by 31 — so the four concentration tiles
+        # read 55% + 10% + 45% + 39% = 149%, which is visibly impossible on a
+        # page whose whole subject is ownership concentration.
+        source_count = c.execute(text(f"SELECT COUNT(*) FROM {S}.sources")).scalar() or 0
 
     owners = [dict(r) for r in owner_rows]
     return render_template("owners.html", owners=owners, unattributed=unattributed,

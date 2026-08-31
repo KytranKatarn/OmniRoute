@@ -1,89 +1,69 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import record_card, record_links, segment, paywall %}
 {% block title %}GIC Appointments — Governor in Council Patronage · What The Fact{% endblock %}
 {% block meta %}
 <meta name="description" content="Every Governor in Council appointment in Canada — judges, Crown corp executives, regulatory boards, and federal tribunals. Patronage tracking via Orders-in-Council.">
 {% endblock %}
 {% block content %}
-<style>
-.wtf-gic-header { padding:20px 0 16px; border-bottom:1px solid #0a1a2a; margin-bottom:20px; }
-.wtf-gic-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
-.wtf-gic-sub { font-size:12px; color:#6b7280; }
-.wtf-gic-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
-.wtf-gic-filter { font-size:10px; padding:3px 10px; border-radius:10px; background:#0a1a2a; color:#9ca3af; border:1px solid #1a2a3a; text-decoration:none; cursor:pointer; }
-.wtf-gic-filter.active,.wtf-gic-filter:hover { background:#1a3a5a; color:#60a5fa; border-color:#2563eb; }
-.wtf-gic-list { display:flex; flex-direction:column; gap:6px; }
-.wtf-gic-row { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid #3b82f6; border-radius:4px; padding:10px 14px; }
-.wtf-gic-pc { font-size:10px; color:#3b82f6; font-family:'IBM Plex Mono',monospace; }
-.wtf-gic-dept { font-size:10px; padding:1px 6px; border-radius:8px; background:#1e3a5a; color:#60a5fa; border:1px solid #2563eb44; margin-left:6px; }
-.wtf-gic-date { font-size:11px; color:#6b7280; margin-left:8px; }
-.wtf-gic-name { font-size:13px; color:#e5e7eb; font-weight:600; margin-top:4px; }
-.wtf-gic-subject { font-size:12px; color:#9ca3af; margin-top:2px; }
-.wtf-gic-org { font-size:11px; color:#60a5fa; margin-top:2px; }
-.wtf-gic-oic-link { font-size:11px; color:#6b7280; text-decoration:none; margin-left:8px; }
-.wtf-gic-oic-link:hover { color:#9ca3af; }
-</style>
+{# #6149 phase 3 — ARCHETYPE 2 (DIRECTORY), stacked record-card variant.
+   Was a bespoke .wtf-gic-* block: 16 hardcoded hexes, an 'Orbitron' heading (a
+   font this site has never loaded), an emoji title, and a hand-rolled paywall
+   whose CTA was BLUE (#3b82f6) while the same button is red on 12 other pages.
 
-<div class="wtf-gic-header">
-  <h1 class="wtf-gic-title">🏛 Governor in Council Appointments</h1>
-  <div class="wtf-gic-sub">
+   Each row carries its own Orders-in-Council link, so record_card, not
+   person_card. stack=True gives the denser row rhythm this list had.
+
+   Data contract unchanged: appointments[], depts[], dept, is_subscriber. #}
+
+<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
+  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Governor in Council appointments</h1>
+  <p class="wtf-a-tile-d" style="margin:0;">
     {{ appointments|length }} appointments · Orders-in-Council · Privy Council Office
-  </div>
+  </p>
 </div>
 
 {% if is_subscriber %}
-<div class="wtf-gic-filters">
-  <a class="wtf-gic-filter {% if dept == 'all' %}active{% endif %}" href="/gic">All</a>
-  {% for d in depts %}
-  <a class="wtf-gic-filter {% if dept == d %}active{% endif %}" href="/gic?dept={{ d }}">{{ d }}</a>
-  {% endfor %}
+<div class="wtf-a-layers" style="margin-bottom:16px;">
+  {{ segment('All', '/gic', active=(dept == 'all')) }}
+  {% for d in depts %}{{ segment(d, '/gic?dept=' ~ d, active=(dept == d)) }}{% endfor %}
 </div>
 
-<div class="wtf-gic-list">
 {% for a in appointments %}
-<div class="wtf-gic-row">
-  <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px;">
+  {% set meta %}
+    {%- if a.oic_date %}{{ a.oic_date.strftime('%b %-d, %Y') if a.oic_date.strftime is defined else a.oic_date }}{% endif -%}
+  {% endset %}
+  {% set chips = [] %}
+  {% if a.department %}{% if chips.append(a.department) %}{% endif %}{% endif %}
+
+  {% call record_card(title=(a.appointee_name or a.subject),
+                      meta=meta|trim or None, chips=chips or None, stack=True) %}
+    {% if a.appointee_name %}<p class="wtf-a-rbody" style="margin-top:6px;">{{ a.subject }}</p>{% endif %}
+    {% if a.organization %}<p class="wtf-a-rbody" style="margin-top:2px;">&rarr; {{ a.organization }}</p>{% endif %}
     {% if a.oic_url %}
-    <a class="wtf-gic-pc" href="{{ a.oic_url }}" target="_blank" rel="noopener">{{ a.pc_number }}</a>
+      {{ record_links([(a.pc_number, a.oic_url, True)]) }}
     {% else %}
-    <span class="wtf-gic-pc">{{ a.pc_number }}</span>
+      <div class="wtf-a-rlinks"><span class="wtf-a-rlink">{{ a.pc_number }}</span></div>
     {% endif %}
-    {% if a.department %}
-    <span class="wtf-gic-dept">{{ a.department }}</span>
-    {% endif %}
-    {% if a.oic_date %}
-    <span class="wtf-gic-date">{{ a.oic_date.strftime('%b %-d, %Y') if a.oic_date.strftime is defined else a.oic_date }}</span>
-    {% endif %}
-  </div>
-  {% if a.appointee_name %}
-  <div class="wtf-gic-name">{{ a.appointee_name }}</div>
-  {% endif %}
-  <div class="wtf-gic-subject">{{ a.subject }}</div>
-  {% if a.organization %}
-  <div class="wtf-gic-org">→ {{ a.organization }}</div>
-  {% endif %}
-</div>
+  {% endcall %}
 {% endfor %}
-</div>
 
 {% else %}
-<div style="background:#060d14;border:1px solid #0a1a2a;border-radius:8px;padding:24px;text-align:center;margin:8px 0;">
-  <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 GIC Appointments — Starter+</div>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Every Governor in Council appointment — judges, Crown corp executives, regulatory board members, and federal tribunal appointees. Track the patronage pipeline.</div>
-  <a href="/login?next=/gic" style="display:inline-block;background:#3b82f6;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-  <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-</div>
+{{ paywall(
+     title='GIC Appointments — Starter+',
+     blurb='Every Governor in Council appointment — judges, Crown corp executives, regulatory board members, and federal tribunal appointees. Track the patronage pipeline.',
+     next_url='/gic') }}
 {% endif %}
 
-<div style="margin-top:24px;padding:12px 14px;background:#060d14;border:1px solid #0a1a2a;border-radius:6px;font-size:12px;color:#6b7280;line-height:1.8;">
-  <strong style="color:#9ca3af;">About GIC appointments</strong><br>
-  The Governor General appoints individuals to federal positions on the advice of Cabinet — these are Orders-in-Council (OICs).
-  They cover federal judges, Crown corporation executives, regulatory board members (CRTC, CIRB, IRB), deputy ministers,
-  and hundreds of federal tribunal members. Every appointment is an exercise of executive patronage.
-  Data sourced from the <a href="https://orders-in-council.canada.ca/" target="_blank" rel="noopener" style="color:#3b82f6;font-size:11px;">Privy Council OIC database ↗</a>.
-  <br><br>
-  <a href="/parliament/officers" style="color:#6b7280;font-size:11px;">Officers of Parliament →</a>
-  &nbsp;&nbsp;
-  <a href="/ethics" style="color:#6b7280;font-size:11px;">Ethics rulings →</a>
+<div style="margin-top:24px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">About GIC appointments</div>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
+    The Governor General appoints individuals to federal positions on the advice of Cabinet — these are Orders-in-Council (OICs).
+    They cover federal judges, Crown corporation executives, regulatory board members (CRTC, CIRB, IRB), deputy ministers,
+    and hundreds of federal tribunal members. Every appointment is an exercise of executive patronage.
+  </p>
+  {{ record_links([
+       ('Privy Council OIC database', 'https://orders-in-council.canada.ca/', True),
+       ('Officers of Parliament →', '/parliament/officers', False),
+       ('Ethics rulings →', '/ethics', False)]) }}
 </div>
-
 {% endblock %}

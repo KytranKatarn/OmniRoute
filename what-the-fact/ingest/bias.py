@@ -256,11 +256,28 @@ def score_bias(title: str, body: str) -> dict:
             total += contribution
             weight += abs(contribution)
 
+    # ⚠️ `weight == 0` means NO trigger term matched — the detector found NOTHING,
+    # which is NOT the same as measuring a lean of zero. The old
+    # `total / weight if weight else 0.0` collapsed those two, and _band_for(0.0)
+    # then returned 'center', so "we detected no loaded vocabulary" was published
+    # as "this article is politically centrist". 41,369 rows say exactly that in
+    # their own rationale: "triggers: none — defaulted center".
+    #
+    # Same absent-vs-measured collapse as `float(x or 0.0)` in the LLM bias
+    # writers and `or "unverifiable"` in the fact-check writers — this one is in
+    # the detector itself.
+    #
+    # score/band still carry the schema-required values (score is NOT NULL, band
+    # is CHECK-constrained to five POLITICAL values with no "undetermined"
+    # member), but `signal_detected` now says whether they mean anything. The
+    # outlet rollup averages only signal-bearing rows — see ingest/outlet_bias.py.
+    signal_detected = weight > 0
     score = total / weight if weight else 0.0
     score = max(-1.0, min(1.0, score))
     return {
         "band": _band_for(score),
         "score": round(score, 3),
-        "rationale": "triggers: " + (", ".join(hits) if hits else "none — defaulted center"),
+        "signal_detected": signal_detected,
+        "rationale": "triggers: " + (", ".join(hits) if hits else "none — NO SIGNAL DETECTED (not a centrist finding)"),
         "heuristic_version": "v3",
     }

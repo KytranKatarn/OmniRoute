@@ -125,8 +125,9 @@ def upsert_article(
         aid = row[0]
         c.execute(
             text(f"""
-                INSERT INTO {S}.bias_scores (article_id, band, score, heuristic_version, rationale)
-                VALUES (:aid, :band, :score, :v, :rat)
+                INSERT INTO {S}.bias_scores (article_id, band, score, heuristic_version, rationale,
+                                             signal_detected)
+                VALUES (:aid, :band, :score, :v, :rat, :sig)
             """),
             {
                 "aid": aid,
@@ -134,6 +135,11 @@ def upsert_article(
                 "score": bias["score"],
                 "v": bias["heuristic_version"],
                 "rat": bias["rationale"],
+                # False = the detector matched NO trigger term. score/band carry
+                # schema-required values but assert nothing; the outlet rollup
+                # excludes these rows. Default True keeps any caller that predates
+                # score_bias returning the key from silently marking rows no-signal.
+                "sig": bias.get("signal_detected", True),
             },
         )
         c.execute(

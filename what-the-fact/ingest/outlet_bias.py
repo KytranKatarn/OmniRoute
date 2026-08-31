@@ -34,12 +34,22 @@ def recompute_outlet_bias(engine) -> dict:
         with engine.begin() as c:
             rows = c.execute(
                 text(f"""
+                    -- ⚠️ signal_detected IS NOT FALSE, not a bare AVG.
+                    -- A row where the detector matched NOTHING carries score 0.0
+                    -- for schema reasons only; averaging it in drags the outlet
+                    -- toward centre and UNDER-REPORTS its lean. Measured: removing
+                    -- these roughly DOUBLED the measured lean at every major outlet
+                    -- (CTV News -0.013 -> -0.031, 57.7% of its rows were no-signal).
+                    -- These averages roll up into Media-Sources / Owners /
+                    -- Journalists / CRTC, so the distortion reaches named orgs.
+                    -- `IS NOT FALSE` (not `= true`) so legacy NULLs still count.
                     SELECT a.source_id,
                            COUNT(*)                    AS n,
                            AVG(b.score)                AS avg_score
                     FROM {S}.articles a
                     JOIN {S}.bias_scores b ON b.article_id = a.id
                     WHERE a.ingested_at >= now() - INTERVAL '{WINDOW_DAYS} days'
+                      AND b.signal_detected IS NOT FALSE
                     GROUP BY a.source_id
                 """)
             ).fetchall()

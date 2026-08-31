@@ -868,6 +868,29 @@ a { color: inherit; }
 }
 .wtf-a-pay-plans:hover { color: var(--wtf-text-2); text-decoration: underline; }
 
+/* ── shared map component (wtf-map.js) ─────────────────────────────────────
+   One component for every layered map on this site. The legend is DERIVED
+   from the active layer's ramp, so a colour the map can paint always has an
+   entry — see the honesty rules at the top of wtf-map.js. */
+.wtf-map-ground { background: var(--wtf-map-bg, #0a0e14); }
+.wtf-map-ground .leaflet-container { background: var(--wtf-map-bg, #0a0e14); }
+.wtf-map-legend-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.wtf-map-legend-row span {
+  display: inline-flex; align-items: center;
+  font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: .04em;
+  color: var(--wtf-text-muted);
+}
+.wtf-map-swatch {
+  display: inline-block; width: 11px; height: 11px; border-radius: 2px;
+  margin-right: 5px; border: 1px solid #00000055; flex-shrink: 0;
+}
+/* absence is dimmed AND dashed on the map; the key echoes that so the swatch
+   cannot be mistaken for another band of the ramp */
+.wtf-map-swatch.is-nodata { opacity: .55; border-style: dashed; }
+.wtf-map-legend-note {
+  margin-top: 6px; font-size: 11px; line-height: 1.6; color: var(--wtf-text-muted);
+}
+
 /* visually-hidden but announced by screen readers */
 .wtf-sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

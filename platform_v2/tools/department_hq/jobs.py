@@ -1509,6 +1509,74 @@ def _wtf_canonical_overall(value, default="unverifiable"):
     return _WTF_OVERALL_ALIASES.get(v, default)
 
 
+# ── WTF bias reading ─────────────────────────────────────────────────────────
+# Mirrors what-the-fact/ingest/bias_parse.py (#6243). Separate deployables, no
+# shared import path — this is a MIRROR, not a second opinion. Change bias_parse
+# first.
+#
+# ⚠️ BOTH dhq bias sites did this, twice over:
+#       band  = (parsed.get("band")  or "center")
+#       score = float(parsed.get("score") or 0.0)
+# so a model that returned NO reading produced `band='center', score=0.0` — an
+# assertion of political centrism manufactured from an absence. Measured:
+# **45,070 dhq_v1 rows** with score 0.0, band center and an EMPTY rationale.
+#
+# ⚠️ These roll UP. bias_scores feeds outlet_bias_scores and the Media-Sources /
+# Owners / Journalists / CRTC views, so a fabricated centre is not one mislabelled
+# article — it is a manufactured claim about a named outlet, owner or journalist.
+#
+# I MISSED THESE IN PR #3008 and said "both writers" / "all four writers" while
+# fixing only the two in what-the-fact/. Same completeness failure this codebase
+# keeps repeating: fix what is in front of you, then assert the set is closed
+# without enumerating it.
+def _wtf_bias_score_or_none(raw):
+    """Model score -> float, or None when ABSENT. Never truthiness: 0.0 and "0"
+    are real measurements ("dead centre") and must survive."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        return max(-1.0, min(1.0, float(raw)))
+    if isinstance(raw, str):
+        t = raw.strip()
+        if not t:
+            return None
+        try:
+            return max(-1.0, min(1.0, float(t)))
+        except ValueError:
+            return None
+    return None
+
+
+def _wtf_parse_llm_bias(parsed):
+    """LLM bias payload -> a usable reading, or None to write NOTHING.
+
+    None when the model gave no score: a band with no score is a partial parse,
+    not a measurement, and the heuristic row it would overwrite is deterministic
+    and inspectable.
+    """
+    if not isinstance(parsed, dict):
+        return None
+    score = _wtf_bias_score_or_none(parsed.get("score"))
+    if score is None:
+        return None
+    band = str(parsed.get("band") or "").strip().lower()
+    if band not in ("left", "center-left", "center", "center-right", "right"):
+        band = "center"
+    conf = parsed.get("confidence")
+    if isinstance(conf, bool) or not isinstance(conf, (int, float)):
+        conf = None
+    triggers = parsed.get("trigger_phrases")
+    if not isinstance(triggers, list):
+        triggers = []
+    return {
+        "band": band,
+        "score": score,
+        "rationale": str(parsed.get("rationale") or "")[:2000],
+        "confidence": conf,
+        "trigger_phrases": triggers,
+    }
+
+
 def _register_own_jobs(scheduler, flask_app):
     """Register Department HQ's own background jobs with the scheduler."""
     from apscheduler.triggers.interval import IntervalTrigger
@@ -4184,13 +4252,11 @@ def _register_own_jobs(scheduler, flask_app):
                 except Exception:
                     parsed = {}
 
-                band = (parsed.get("band") or "center").lower().strip()
-                if band not in ("left", "center-left", "center", "center-right", "right"):
-                    band = "center"
-                score = float(parsed.get("score") or 0.0)
-                rationale = str(parsed.get("rationale") or "")[:2000]
-                trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
-                confidence = parsed.get("confidence")
+                # `reading is None` => the model returned NO score. Writing one would
+                # fabricate an assertion of political centrism from an absence, which
+                # then rolls up into outlet / owner / journalist / CRTC views. The
+                # bias row is SKIPPED; the analysis itself is still recorded below.
+                reading = _wtf_parse_llm_bias(parsed)
 
                 try:
                     with _wtf_cur(commit=True) as cur:
@@ -4207,31 +4273,38 @@ def _register_own_jobs(scheduler, flask_app):
                             "UPDATE wtf.articles SET ai_analyzed = true, ai_analyzed_at = NOW() WHERE id = %s",
                             (aid,),
                         )
-                        cur.execute(
-                            """
-                            INSERT INTO wtf.bias_scores
-                                (article_id, band, score, heuristic_version, rationale,
-                                 analyzed_by, trigger_phrases, confidence, computed_at,
-                                 agent_name)
-                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW(),
-                                    %s)
-                            ON CONFLICT (article_id) DO UPDATE
-                              SET band = EXCLUDED.band, score = EXCLUDED.score,
-                                  rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
-                                  trigger_phrases = EXCLUDED.trigger_phrases,
-                                  confidence = EXCLUDED.confidence, computed_at = NOW(),
-                                  agent_name = EXCLUDED.agent_name
-                            """,
-                            (
+                        if reading is None:
+                            logger.info(
+                                "[WTF bias] article=%s SKIPPED — model returned no score "
+                                "(heuristic row left intact)",
                                 aid,
-                                band,
-                                score,
-                                rationale,
-                                trigger_phrases,
-                                confidence,
-                                getattr(result, "agent_name", None) or None,
-                            ),
-                        )
+                            )
+                        else:
+                            cur.execute(
+                                """
+                                INSERT INTO wtf.bias_scores
+                                    (article_id, band, score, heuristic_version, rationale,
+                                     analyzed_by, trigger_phrases, confidence, computed_at,
+                                     agent_name)
+                                VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW(),
+                                        %s)
+                                ON CONFLICT (article_id) DO UPDATE
+                                  SET band = EXCLUDED.band, score = EXCLUDED.score,
+                                      rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
+                                      trigger_phrases = EXCLUDED.trigger_phrases,
+                                      confidence = EXCLUDED.confidence, computed_at = NOW(),
+                                      agent_name = EXCLUDED.agent_name
+                                """,
+                                (
+                                    aid,
+                                    reading["band"],
+                                    reading["score"],
+                                    reading["rationale"],
+                                    _json.dumps(reading["trigger_phrases"]),
+                                    reading["confidence"],
+                                    getattr(result, "agent_name", None) or None,
+                                ),
+                            )
                     return aid, True
                 except Exception as persist_exc:
                     logger.warning("[WTFLLMJob] persist failed article=%s: %s", aid, persist_exc)
@@ -4977,13 +5050,11 @@ def _register_own_jobs(scheduler, flask_app):
                     )
                 except Exception:
                     parsed = {}
-                band = (parsed.get("band") or "center").lower().strip()
-                if band not in ("left", "center-left", "center", "center-right", "right"):
-                    band = "center"
-                score = float(parsed.get("score") or 0.0)
-                rationale = str(parsed.get("rationale") or "")[:2000]
-                trigger_phrases = _json.dumps(parsed.get("trigger_phrases") or [])
-                confidence = parsed.get("confidence")
+                # `reading is None` => the model returned NO score. Writing one would
+                # fabricate an assertion of political centrism from an absence, which
+                # then rolls up into outlet / owner / journalist / CRTC views. The
+                # bias row is SKIPPED; the analysis itself is still recorded below.
+                reading = _wtf_parse_llm_bias(parsed)
                 try:
                     with _wtf_cur(commit=True) as cur:
                         cur.execute(
@@ -4999,31 +5070,38 @@ def _register_own_jobs(scheduler, flask_app):
                             "UPDATE wtf.articles SET ai_analyzed = true, ai_analyzed_at = NOW() WHERE id = %s",
                             (aid,),
                         )
-                        cur.execute(
-                            """
-                            INSERT INTO wtf.bias_scores
-                                (article_id, band, score, heuristic_version, rationale,
-                                 analyzed_by, trigger_phrases, confidence, computed_at,
-                                 agent_name)
-                            VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW(),
-                                    %s)
-                            ON CONFLICT (article_id) DO UPDATE
-                              SET band = EXCLUDED.band, score = EXCLUDED.score,
-                                  rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
-                                  trigger_phrases = EXCLUDED.trigger_phrases,
-                                  confidence = EXCLUDED.confidence, computed_at = NOW(),
-                                  agent_name = EXCLUDED.agent_name
-                            """,
-                            (
+                        if reading is None:
+                            logger.info(
+                                "[WTF bias] article=%s SKIPPED — model returned no score "
+                                "(heuristic row left intact)",
                                 aid,
-                                band,
-                                score,
-                                rationale,
-                                trigger_phrases,
-                                confidence,
-                                getattr(result, "agent_name", None) or None,
-                            ),
-                        )
+                            )
+                        else:
+                            cur.execute(
+                                """
+                                INSERT INTO wtf.bias_scores
+                                    (article_id, band, score, heuristic_version, rationale,
+                                     analyzed_by, trigger_phrases, confidence, computed_at,
+                                     agent_name)
+                                VALUES (%s, %s, %s, 'dhq_v1', %s, 'dhq_v1', %s::jsonb, %s, NOW(),
+                                        %s)
+                                ON CONFLICT (article_id) DO UPDATE
+                                  SET band = EXCLUDED.band, score = EXCLUDED.score,
+                                      rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
+                                      trigger_phrases = EXCLUDED.trigger_phrases,
+                                      confidence = EXCLUDED.confidence, computed_at = NOW(),
+                                      agent_name = EXCLUDED.agent_name
+                                """,
+                                (
+                                    aid,
+                                    reading["band"],
+                                    reading["score"],
+                                    reading["rationale"],
+                                    _json.dumps(reading["trigger_phrases"]),
+                                    reading["confidence"],
+                                    getattr(result, "agent_name", None) or None,
+                                ),
+                            )
                     return aid, True
                 except Exception as persist_exc:
                     logger.warning("[WTFBiasBacklog] persist failed article=%s: %s", aid, persist_exc)

@@ -139,6 +139,23 @@ def _sanitize(result: dict) -> dict:
     return cleaned
 
 
+def _fill_if_blank(result: dict, key: str, value):
+    """Apply a default when `key` is missing OR present-but-empty.
+
+    ⚠️ NEVER use dict.setdefault() on a dict that has been through _sanitize().
+    Sanitize's entire job is turning the LLM's "null"/"none"/"" into a real
+    None, which leaves the KEY PRESENT. setdefault only fills a MISSING key, so
+    it silently does nothing and the default never lands.
+
+    That is not hypothetical (#6210): L.O.C.A.L. returns country_code="null" on
+    the ordinary Canadian path, so `result.setdefault("country_code", "CA")` was
+    a no-op for 21 days straight — 4,460 provincial articles in one week, ONE of
+    which had a country. /map then coloured every pin the same "unknown" grey.
+    """
+    if result.get(key) is None:
+        result[key] = value
+
+
 def extract_geo(article_id, title, body, source_slug=None):
     """Extract geo info via L.O.C.A.L. agent. Falls back to heuristic if agent unavailable.
 
@@ -160,7 +177,9 @@ def extract_geo(article_id, title, body, source_slug=None):
         pc = result["province_code"]
         if not result.get("lat") and pc in PROVINCE_CENTROIDS:
             result["lat"], result["lng"] = PROVINCE_CENTROIDS[pc]
-        result.setdefault("country_code", "CA")
+        # A valid Canadian province IS in Canada — this is definitional, not a
+        # guess, so it overwrites a blank rather than merely defaulting one.
+        _fill_if_blank(result, "country_code", "CA")
         return result
 
     # International path (#2960 Phase B): country_code set, no province
@@ -170,7 +189,10 @@ def extract_geo(article_id, title, body, source_slug=None):
             if not result.get("lat") and cc in _COUNTRY_CENTROIDS:
                 result["lat"], result["lng"] = _COUNTRY_CENTROIDS[cc]
             result["province_code"] = None
-            result.setdefault("geo_scope", "international")
+            # Same trap as above — latent here only because this path is rare
+            # (14 rows/week). A sanitized geo_scope="null" would have left the
+            # column NULL rather than "international".
+            _fill_if_blank(result, "geo_scope", "international")
             return result
 
     # Heuristic fallback — Canadian province first (preserve existing logic)

@@ -11,11 +11,11 @@
 <style>
 .wtf-wx-header { padding:20px 0 16px; border-bottom:1px solid #0a1a2a; margin-bottom:20px; }
 .wtf-wx-eyebrow { font-size:9px; letter-spacing:2px; color:#7c3aed; text-transform:uppercase; margin-bottom:6px; }
-.wtf-wx-title { font-family:'Orbitron',sans-serif; font-size:20px; color:#e5e7eb; margin:0 0 6px; }
+.wtf-wx-title { font-family:var(--wtf-font-serif); font-size:30px; font-weight:600; color:var(--wtf-text); margin:0 0 6px; }
 .wtf-wx-sub { font-size:12px; color:#6b7280; line-height:1.6; }
 .wtf-wx-stats { display:flex; flex-wrap:wrap; gap:8px; margin:16px 0 22px; }
 .wtf-wx-stat { background:#060d14; border:1px solid #0a1a2a; border-radius:4px; padding:8px 14px; min-width:104px; }
-.wtf-wx-stat-n { font-family:'Orbitron',sans-serif; font-size:16px; color:#60a5fa; }
+.wtf-wx-stat-n { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:18px; font-weight:600; color:var(--wtf-text); }
 .wtf-wx-stat-l { font-size:9px; color:#6b7280; text-transform:uppercase; letter-spacing:.06em; margin-top:2px; }
 .wtf-wx-section-title { font-size:11px; color:#9ca3af; text-transform:uppercase; letter-spacing:.08em; margin:22px 0 10px; }
 .wtf-wx-article-list { display:flex; flex-direction:column; gap:6px; }
@@ -64,11 +64,11 @@
   padding-bottom:9px; border-bottom:1px solid #1e1b4b; }
 .wtf-wx-aurora-badge { font-size:8px; letter-spacing:1.6px; color:#a78bfa; background:#2e1065;
   border-radius:3px; padding:3px 7px; text-transform:uppercase; }
-.wtf-wx-aurora-scope { font-family:'Orbitron',sans-serif; font-size:13px; color:#e5e7eb; }
+.wtf-wx-aurora-scope { font-family:var(--wtf-font-mono); font-size:13px; color:var(--wtf-text); }
 .wtf-wx-metric { margin-bottom:9px; }
 .wtf-wx-metric-top { display:flex; justify-content:space-between; align-items:baseline; font-size:11px; }
 .wtf-wx-metric-l { color:#6b7280; }
-.wtf-wx-metric-v { color:#e5e7eb; font-family:'Orbitron',sans-serif; font-size:13px; }
+.wtf-wx-metric-v { color:var(--wtf-text); font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:13px; }
 /* Bars are plain divs sized by percentage — this site carries NO chart library
    by deliberate choice (see static/js/cost.js). Do not add one for one page. */
 .wtf-wx-bar { height:4px; background:#0f1620; border-radius:2px; margin-top:4px; overflow:hidden; }
@@ -82,30 +82,66 @@
 .wtf-wx-card-name { font-size:12px; color:#e5e7eb; margin-bottom:2px; overflow:hidden;
   text-overflow:ellipsis; white-space:nowrap; }
 .wtf-wx-card-prov { font-size:9px; color:#4b5563; text-transform:uppercase; letter-spacing:.08em; }
-.wtf-wx-card-temp { font-family:'Orbitron',sans-serif; font-size:19px; color:#60a5fa; margin:5px 0 3px; }
+.wtf-wx-card-temp { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:20px; font-weight:600; color:var(--wtf-text); margin:5px 0 3px; }
 .wtf-wx-card-row { font-size:10px; color:#6b7280; display:flex; gap:9px; flex-wrap:wrap; }
 /* ── city cards (Phase 2, task #5760) ────────────────────────────────────── */
-.wtf-wx-citygrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(196px,1fr)); gap:9px; margin-bottom:22px; }
-.wtf-wx-citycard { background:#060d14; border:1px solid #0a1a2a; border-left:3px solid #38bdf8;
-  border-radius:5px; padding:12px 13px; }
-.wtf-wx-citycard.is-stale { border-left-color:#f59e0b; }
-.wtf-wx-citycard.is-silent { border-left-color:#6b7280; opacity:.72; }
+/* ── CITY GRID (#6149) ───────────────────────────────────────────────────
+   25 sites = all 13 provincial/territorial capitals + 12 other major cities.
+   Capitals render first and carry a marker, so the grid reads as a deliberate
+   national set rather than an arbitrary 25.
+
+   Was: 9 hardcoded hexes tracking no token, and the temperature set in
+   'Orbitron' — a font the site NEVER LOADED, so every reading on this page
+   rendered in a fallback sans. Numbers are now IBM Plex Mono with
+   tabular-nums, which is the point of a data face: digits share a width, so a
+   column of temperatures aligns and stops shimmering as values update. */
+.wtf-wx-citygrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(208px,1fr));
+  gap:10px; margin-bottom:22px; }
+.wtf-wx-citycard {
+  background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
+  border-left:3px solid var(--wtf-local);
+  border-radius:5px; padding:13px 14px;
+  transition:border-color 140ms ease, transform 140ms ease;
+}
+.wtf-wx-citycard:hover { border-color:var(--wtf-text-muted); transform:translateY(-1px); }
+/* Freshness is PER CARD — one blanket "updated N min ago" would be a single
+   claim about 25 independent feeds. Stale and silent are different states. */
+.wtf-wx-citycard.is-stale  { border-left-color:var(--wtf-developing); }
+.wtf-wx-citycard.is-silent { border-left-color:var(--wtf-text-muted); opacity:.72; }
+.wtf-wx-citycard.is-capital { border-left-width:4px; }
 .wtf-wx-city-top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
-.wtf-wx-city-name { font-size:13px; color:#e5e7eb; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.wtf-wx-city-prov { font-size:9px; color:#4b5563; letter-spacing:.09em; }
-.wtf-wx-city-temp { font-family:'Orbitron',sans-serif; font-size:26px; color:#60a5fa; margin:6px 0 1px; }
-.wtf-wx-city-cond { font-size:11px; color:#9ca3af; min-height:15px; }
-.wtf-wx-city-row { font-size:10px; color:#6b7280; display:flex; flex-wrap:wrap; gap:9px; margin-top:6px; }
-.wtf-wx-city-fc { margin-top:8px; padding-top:7px; border-top:1px solid #0f1620;
-  display:flex; gap:7px; overflow-x:auto; }
-.wtf-wx-fc-day { flex:0 0 auto; text-align:center; min-width:46px; }
-.wtf-wx-fc-lbl { font-size:8.5px; color:#4b5563; text-transform:uppercase; letter-spacing:.05em; }
-.wtf-wx-fc-t { font-size:11px; color:#e5e7eb; margin-top:2px; }
-.wtf-wx-fc-pop { font-size:9px; color:#38bdf8; }
-.wtf-wx-city-age { font-size:9px; margin-top:6px; }
-.wtf-wx-age-ok { color:#4b5563; }
-.wtf-wx-age-stale { color:#f59e0b; }
-.wtf-wx-age-silent { color:#9ca3af; }
+.wtf-wx-city-name { font-size:14px; font-weight:600; color:var(--wtf-text);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wtf-wx-city-prov { font-family:var(--wtf-font-mono); font-size:9px;
+  color:var(--wtf-text-muted); letter-spacing:.12em; flex-shrink:0; }
+/* Capital marker — a text label, never colour alone. */
+.wtf-wx-capital-tag { font-family:var(--wtf-font-mono); font-size:8px;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--wtf-local);
+  border:1px solid var(--wtf-border); border-radius:2px; padding:1px 5px;
+  margin-left:6px; flex-shrink:0; vertical-align:middle; }
+.wtf-wx-city-temp { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums;
+  font-size:30px; font-weight:600; line-height:1; color:var(--wtf-text);
+  margin:9px 0 3px; letter-spacing:-0.02em; }
+.wtf-wx-city-temp .u { font-size:15px; color:var(--wtf-text-muted); font-weight:400; }
+/* An absent reading is an em dash, never 0 — same rule as the map. */
+.wtf-wx-city-temp.is-absent { color:var(--wtf-text-muted); font-size:22px; }
+.wtf-wx-city-cond { font-size:11.5px; color:var(--wtf-text-2); min-height:16px; }
+.wtf-wx-city-row { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums;
+  font-size:10px; color:var(--wtf-text-muted); display:flex; flex-wrap:wrap;
+  gap:10px; margin-top:7px; }
+.wtf-wx-city-fc { margin-top:9px; padding-top:8px; border-top:1px solid var(--wtf-border);
+  display:flex; gap:8px; overflow-x:auto; scrollbar-width:thin; }
+.wtf-wx-fc-day { flex:0 0 auto; text-align:center; min-width:48px; }
+.wtf-wx-fc-lbl { font-family:var(--wtf-font-mono); font-size:8.5px;
+  color:var(--wtf-text-muted); text-transform:uppercase; letter-spacing:.08em; }
+.wtf-wx-fc-t { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums;
+  font-size:11.5px; color:var(--wtf-text-2); margin-top:3px; }
+.wtf-wx-fc-pop { font-family:var(--wtf-font-mono); font-size:9px; color:var(--wtf-local); }
+.wtf-wx-city-age { font-family:var(--wtf-font-mono); font-size:9px;
+  letter-spacing:.04em; margin-top:7px; }
+.wtf-wx-age-ok     { color:var(--wtf-text-muted); }
+.wtf-wx-age-stale  { color:var(--wtf-developing); }
+.wtf-wx-age-silent { color:var(--wtf-text-2); }
 @media (max-width: 860px) {
   .wtf-wx-maprow { grid-template-columns:1fr; }
   .wtf-wx-below { grid-template-columns:1fr; gap:16px; }
@@ -117,7 +153,7 @@
 
 <div class="wtf-wx-header">
   <div class="wtf-wx-eyebrow">A.U.R.O.R.A. · Atmospheric &amp; Universal Resource for Observation, Research &amp; Analysis</div>
-  <h1 class="wtf-wx-title">🌦 Weather &amp; Climate Intelligence</h1>
+  <h1 class="wtf-wx-title">Weather &amp; climate intelligence</h1>
   <div class="wtf-wx-sub">
     Canadian wildfire, fire-weather and climate coverage. Every layer below names its
     source and when it was last pulled — because in Canada, the weather IS the news.
@@ -267,7 +303,7 @@
         {% for L in layers %}
         <div style="background:#060d14;border:1px solid {% if L.is_stale %}#7f1d1d{% else %}#1a3a5a{% endif %};border-radius:4px;padding:9px 13px;min-width:190px;">
           <div style="font-size:9px;letter-spacing:1.5px;color:#6b7280;text-transform:uppercase;">{{ L.layer_label }}</div>
-          <div style="font-size:15px;font-family:'Orbitron',sans-serif;color:{% if L.is_stale %}#ef4444{% else %}#60a5fa{% endif %};margin-top:3px;">
+          <div style="font-size:15px;font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums;color:{% if L.is_stale %}var(--wtf-developing){% else %}var(--wtf-text){% endif %};margin-top:3px;">
             {{ '{:,}'.format(L.record_count or 0) }}
           </div>
           <div style="font-size:9px;color:#6b7280;margin-top:4px;line-height:1.5;">
@@ -717,6 +753,13 @@
     if (!wrap || !CITIES.cities) return;
     wrap.textContent = "";
     var list = CITIES.cities.filter(function (c) { return !selected || c.prov === selected; });
+    // Capitals first, then other major cities, each alphabetical. The 25-site
+    // set is 13 capitals + 12 majors, so this reads as a deliberate national
+    // roster rather than an arbitrary 25 in feed order.
+    list = list.slice().sort(function (a, b) {
+      if (!!b.is_capital !== !!a.is_capital) return b.is_capital ? 1 : -1;
+      return (a.name || "").localeCompare(b.name || "", "en");
+    });
     if (!list.length) {
       var d = document.createElement("div"); d.className = "wtf-wx-nodata";
       d.textContent = "No city in this area is in the A.U.R.O.R.A. city set yet.";
@@ -728,17 +771,38 @@
       // A city MSC stopped publishing must not look like a fresh reading.
       var stale = c.age_min !== null && c.age_min > 180;
       var silent = c.temp === null;
-      card.className = "wtf-wx-citycard" + (silent ? " is-silent" : (stale ? " is-stale" : ""));
+      card.className = "wtf-wx-citycard" + (silent ? " is-silent" : (stale ? " is-stale" : ""))
+                     + (c.is_capital ? " is-capital" : "");
 
       var top = document.createElement("div"); top.className = "wtf-wx-city-top";
       var nm = document.createElement("span"); nm.className = "wtf-wx-city-name";
       nm.textContent = c.name; nm.title = c.name;
       var pv = document.createElement("span"); pv.className = "wtf-wx-city-prov";
       pv.textContent = c.prov || "";
-      top.appendChild(nm); top.appendChild(pv); card.appendChild(top);
+      top.appendChild(nm);
+      // Capital marked with a TEXT label, never colour alone — the same rule
+      // the lean scale is built on. Title spells it out for a screen reader.
+      if (c.is_capital) {
+        var cap = document.createElement("span");
+        cap.className = "wtf-wx-capital-tag";
+        cap.textContent = "CAPITAL";
+        cap.title = c.name + " is the capital of " + (c.prov || "its province");
+        top.appendChild(cap);
+      }
+      top.appendChild(pv); card.appendChild(top);
 
-      var t = document.createElement("div"); t.className = "wtf-wx-city-temp";
-      t.textContent = c.temp === null ? "—" : c.temp + "°";
+      var t = document.createElement("div");
+      // An absent reading is an em dash and is styled as absent, never a 0 and
+      // never the same weight as a real measurement.
+      t.className = "wtf-wx-city-temp" + (c.temp === null ? " is-absent" : "");
+      if (c.temp === null) {
+        t.textContent = "—";
+        t.title = "No current reading";
+      } else {
+        t.textContent = c.temp;
+        var u = document.createElement("span"); u.className = "u"; u.textContent = "°C";
+        t.appendChild(u);
+      }
       card.appendChild(t);
 
       var cond = document.createElement("div"); cond.className = "wtf-wx-city-cond";
@@ -747,10 +811,13 @@
 
       var row = document.createElement("div"); row.className = "wtf-wx-city-row";
       // calm is a MEASUREMENT (say so); a missing wind reading is omitted.
-      if (c.calm) row.appendChild(_chip("💨 calm"));
-      else if (c.wind !== null) row.appendChild(_chip("💨 " + c.wind + " km/h" + (c.gust !== null ? " g" + c.gust : "")));
-      if (c.humidity !== null) row.appendChild(_chip("💧 " + c.humidity + "%"));
-      if (c.humidex !== null) row.appendChild(_chip("🌡 fl " + c.humidex + "°"));
+      // Emoji replaced with mono field labels (#6149): they read as data rather
+      // than decoration, they align in a tabular row, and they survive fonts
+      // and screen readers that render emoji unpredictably.
+      if (c.calm) row.appendChild(_chip("WIND calm"));
+      else if (c.wind !== null) row.appendChild(_chip("WIND " + c.wind + " km/h" + (c.gust !== null ? " · g" + c.gust : "")));
+      if (c.humidity !== null) row.appendChild(_chip("RH " + c.humidity + "%"));
+      if (c.humidex !== null) row.appendChild(_chip("FEELS " + c.humidex + "°"));
       card.appendChild(row);
 
       if (c.forecast && c.forecast.length) {

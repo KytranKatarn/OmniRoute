@@ -1755,6 +1755,10 @@ def article(article_id: int):
                    b.band AS bias_band, b.score AS bias_score,
                    b.rationale AS bias_rationale, b.trigger_phrases,
                    b.confidence AS bias_confidence, b.analyzed_by AS bias_analyzed_by,
+                   -- FALSE = the detector matched no trigger term. score/band are
+                   -- schema fillers and assert NOTHING; the template must not draw
+                   -- a needle from them. See migration 063.
+                   b.signal_detected AS bias_signal_detected,
                    obs.avg_score AS outlet_avg_score, obs.band AS outlet_rolling_band,
                    (SELECT COUNT(*) FROM {S}.articles a2
                     WHERE a2.source_id = a.source_id) AS outlet_article_count,

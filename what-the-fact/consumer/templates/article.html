@@ -140,10 +140,44 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   {% if a.bias_ensemble_band or a.bias_band %}
   <div class="wtf-bias-panel">
     <div class="wtf-panel-label">B.I.A.S. ANALYSIS</div>
-    {% set display_band = a.bias_ensemble_band or a.bias_band or 'center' %}
+    {#
+      `bias_signal_detected is false` => the detector matched NO trigger term.
+      score (0.0) and band ('center') are schema fillers ONLY — score is NOT NULL
+      and band is CHECK-constrained to five political values with no "undetermined"
+      member, so the row HAS to carry something. Drawing a needle from them told
+      the reader "this article is centrist" when the truth is "we found nothing".
+
+      ⚠️ An ML/ensemble score is a REAL measurement even when the keyword
+      heuristic found nothing, so the indeterminate state applies only when there
+      is no ensemble score either.
+    #}
+    {% set has_ensemble = a.bias_ensemble_score is not none %}
+    {% set no_signal = (a.bias_signal_detected is false) and not has_ensemble %}
+    {% if no_signal %}
+    <div class="wtf-band-label" style="color:#6b7280;border-color:#374151;">NOT DETERMINED</div>
+    <div class="wtf-bias-bar-wrap" style="opacity:.28;">
+      <div class="wtf-bias-bar" style="width:100%"></div>
+      {# deliberately NO marker — there is no position to plot #}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-bottom:6px;">
+      <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
+    </div>
+    <div style="font-size:10px;color:#9ca3af;margin-bottom:6px;padding:6px 8px;background:#0a0a0a;border-radius:3px;border-left:2px solid #6b7280;">
+      No bias signal detected in this article — <strong>this is not a finding of neutrality</strong>.
+      The detector looks for loaded political vocabulary and found none here.
+    </div>
+    {% else %}
+    {#
+      `is not none`, NOT `or` — a REAL score of 0.0 is falsy in Jinja, so the old
+      `a.bias_ensemble_score or a.bias_score or 0` silently fell through a genuine
+      dead-centre measurement to the next source, and to 0 when both were absent.
+    #}
+    {% set display_band = a.bias_ensemble_band if a.bias_ensemble_band
+                          else (a.bias_band if a.bias_band else 'center') %}
     {% set band_class = display_band.lower().replace(' ', '-') %}
     <div class="wtf-band-label wtf-band-{{ band_class }}">{{ display_band.upper().replace('-',' ') }}</div>
-    {% set score_val = (a.bias_ensemble_score or a.bias_score or 0)|float %}
+    {% set score_val = (a.bias_ensemble_score if a.bias_ensemble_score is not none
+                        else (a.bias_score if a.bias_score is not none else 0))|float %}
     {% set pct = ((score_val + 1) / 2 * 100)|int %}
     <div class="wtf-bias-bar-wrap">
       <div class="wtf-bias-bar" style="width:100%"></div>
@@ -152,6 +186,7 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     <div style="display:flex;justify-content:space-between;font-size:9px;color:#555;margin-bottom:6px;">
       <span>LEFT</span><span>CENTER</span><span>RIGHT</span>
     </div>
+    {% endif %}
     {% if a.bias_v2_score is not none or a.bias_score is not none %}
     <details style="margin-bottom:6px;">
       <summary style="font-size:10px;color:#4b5563;cursor:pointer;">Signal breakdown</summary>

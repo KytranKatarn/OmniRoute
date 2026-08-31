@@ -4737,124 +4737,39 @@ def upgrade_tier2(article_id: int):
     Synchronous: hub call can take up to 90s for cold qwen2.5:7b. Client UI
     already shows "this may take up to 90 seconds" wait state.
     """
-    import json as _json
     from flask import jsonify
+
+    from ingest import tier2_upgrade
+
     if not is_subscriber():
         return jsonify({"ok": False, "error": "subscriber_required"}), 402
 
-    S = _schema()
-    hub_url = os.environ.get("WTF_HUB_URL", "")
-    hub_token = os.environ.get("WTF_HUB_TOKEN", "")
-    if not hub_url or not hub_token:
-        return jsonify({"ok": False, "error": "hub_not_configured"}), 503
+    # ONE implementation, shared with tier2_precompute_worker. This used to carry
+    # its own ~90 lines of dispatch + persist; a second copy in the worker is how
+    # queued_dispatch_text ended up with two divergent versions.
+    res = tier2_upgrade.upgrade_article(_db(), _schema(), article_id)
+    status = res.get("status")
 
-    # Fetch article context
-    with _db().begin() as c:
-        row = c.execute(text(f"""
-            SELECT a.id, a.title, a.body, a.analysis_tier, s.slug AS source_slug
-            FROM {S}.articles a
-            JOIN {S}.sources s ON s.id = a.source_id
-            WHERE a.suppressed_reason IS NULL AND a.id = :id
-        """), {"id": article_id}).mappings().first()
-    if not row:
-        return jsonify({"ok": False, "error": "not_found"}), 404
-    if row["analysis_tier"] == "quick_v1+full":
-        return jsonify({"ok": True, "result": "already_upgraded"})
-
-    # Dispatch to hub
-    try:
-        import requests as _req
-        resp = _req.post(
-            f"{hub_url}/tools/wtf-hub/api/analyze",
-            json={
-                "task": "deep_analysis",
-                "article_id": article_id,
-                "title": row["title"] or "",
-                "body": (row["body"] or "")[:3000],
-                "source_slug": row["source_slug"] or "",
-            },
-            headers={
-                "Authorization": f"Bearer {hub_token}",
-                "Content-Type": "application/json",
-            },
-            timeout=int(os.environ.get("WTF_HUB_TIMEOUT", "90")),
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except _req.Timeout:
-        return jsonify({"ok": False, "error": "hub_timeout"}), 504
-    except Exception as exc:
-        return jsonify({"ok": False, "error": f"dispatch_failed: {str(exc)[:200]}"}), 502
-
-    if not data.get("ok"):
-        return jsonify({"ok": False, "error": data.get("error") or "hub_rejected"}), 502
-    if data.get("rate_limited"):
-        return jsonify({"ok": False, "error": "hub_rate_limited", "retry_after": data.get("retry_after")}), 429
-
-    result = data.get("result") or {}
-    bias_summary = result.get("bias_summary") or {}
-    claims = result.get("key_claims") or []
-
-    # Persist the upgrade. wtf.bias_scores + wtf.fact_checks rows may already
-    # exist from Tier-1 (synthesized). UPDATE in place — single transaction.
-    with _db().begin() as c:
-        # Bias upgrade — fill rationale + trigger_phrases + score
-        c.execute(text(f"""
-            UPDATE {S}.bias_scores
-            SET band = COALESCE(:band, band),
-                score = COALESCE(:score, score),
-                rationale = :rationale,
-                trigger_phrases = CAST(:trig AS JSONB),
-                confidence = COALESCE(:conf, confidence)
-            WHERE article_id = :id
-        """), {
-            "id": article_id,
-            "band": bias_summary.get("band"),
-            "score": bias_summary.get("score"),
-            "rationale": bias_summary.get("rationale"),
-            "trig": _json.dumps(bias_summary.get("trigger_phrases") or []),
-            "conf": bias_summary.get("confidence"),
+    if status == "upgraded":
+        return jsonify({
+            "ok": True,
+            "analysis_tier": "quick_v1+full",
+            "bias_summary": res.get("bias_summary") or {},
+            "claims_count": res.get("claims", 0),
+            "agent": res.get("agent") or "",
         })
-
-        # Fact-check upgrade — replace synthesized rows with real verdicts.
-        # Delete existing rows then insert fresh ones (claim list shape changes).
-        c.execute(text(f"DELETE FROM {S}.fact_checks WHERE article_id = :id"),
-                  {"id": article_id})
-        for cl in claims:
-            verdict_raw = (cl.get("verdict") or "unverifiable").strip().lower()
-            verdict = {
-                "verified": "true", "true": "true",
-                "mostly true": "mostly_true", "mostly_true": "mostly_true",
-                "mixed": "mixed", "partly true": "mixed", "disputed": "mixed",
-                "false": "false", "misleading": "false",
-                "unverifiable": "unverified", "unverified": "unverified",
-            }.get(verdict_raw, "unverified")
-            c.execute(text(f"""
-                INSERT INTO {S}.fact_checks
-                    (article_id, claim, verdict, evidence, checker, analyzed_by)
-                VALUES (:id, :claim, :verdict, :evidence, 'V.E.R.I.F.Y.', 'V.E.R.I.F.Y.')
-            """), {
-                "id": article_id,
-                "claim": (cl.get("text") or "(claim text missing)")[:500],
-                "verdict": verdict,
-                "evidence": (cl.get("reasoning") or "")[:1000],
-            })
-
-        # Tier marker
-        c.execute(text(f"""
-            UPDATE {S}.articles
-            SET analysis_tier = 'quick_v1+full',
-                tier2_at = NOW(),
-                tier2_pending = FALSE
-            WHERE id = :id
-        """), {"id": article_id})
-
-    return jsonify({
-        "ok": True,
-        "analysis_tier": "quick_v1+full",
-        "bias_summary": bias_summary,
-        "claims_count": len(claims),
-    })
+    if status == "already":
+        return jsonify({"ok": True, "result": "already_upgraded"})
+    if status == "not_found":
+        return jsonify({"ok": False, "error": "not_found"}), 404
+    if status == "rate_limited":
+        return jsonify({"ok": False, "error": "hub_rate_limited",
+                        "retry_after": res.get("retry_after")}), 429
+    if status == "timeout":
+        return jsonify({"ok": False, "error": "hub_timeout"}), 504
+    if res.get("error") == "hub_not_configured":
+        return jsonify({"ok": False, "error": "hub_not_configured"}), 503
+    return jsonify({"ok": False, "error": res.get("error") or "dispatch_failed"}), 502
 
 
 # ---------------------------------------------------------------------------

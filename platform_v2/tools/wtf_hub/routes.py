@@ -318,7 +318,22 @@ def analyze():
                 parsed = _parse_llm_json(result.response)
             except Exception:
                 parsed = {"raw": result.response}
-            return jsonify({"ok": True, "result": parsed, "agent": agent_names[task]})
+            # ⚠️ REPORT THE AGENT THAT ACTUALLY RAN IT, not the nominal one.
+            # `agent_names` is a hardcoded task->agent map (bias_analysis->B.I.A.S.,
+            # fact_check->V.E.R.I.F.Y., ...). But dispatch() selects by CAPABILITY and
+            # K.I.N. welfare-gating routes around a busy agent — by design. Measured
+            # over 7 days, V.E.R.I.F.Y. performed only 19% of fact_checks; P.R.O.O.F.,
+            # E.C.H.O., V.E.T., A.X.I.O.M., C.O.N.D.U.I.T., T.A.L.O.N. and R.A.N.G.E.R.
+            # did the rest — and every one of them was reported to the caller, and
+            # published on what-the-fact.com/activity, as "V.E.R.I.F.Y.".
+            # The map stays only as a fallback for a result with no agent_name.
+            return jsonify(
+                {
+                    "ok": True,
+                    "result": parsed,
+                    "agent": getattr(result, "agent_name", None) or agent_names[task],
+                }
+            )
         else:
             return jsonify({"ok": False, "error": result.error or "dispatch failed"}), 500
     except Exception as exc:

@@ -335,16 +335,43 @@ def _load_nodes() -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def _declared():
+    """The declared profile, from the resolver — with IMPLICIT_PROFILE as a
+    last-resort local fallback.
+
+    Step 2 moved the intent into platform_settings (services/residency_profiles)
+    so the DECLARATION and the thing that CHECKS the declaration stop being two
+    hand-maintained copies that can silently disagree — which is the whole
+    failure mode this observer exists to catch (#1905 eroded exactly that way).
+
+    ⚠️ Falls back to the local literals if the resolver is unavailable, so the
+    observer keeps reporting rather than going dark. An observer that stops
+    reporting is indistinguishable from a fleet with nothing to report.
+    """
+    try:
+        from services import residency_profiles as rp
+
+        nodes = rp.nodes_for()
+        if nodes:
+            return nodes, rp.active_name(), rp.source()
+    except Exception as exc:  # noqa: BLE001 - observer must never raise
+        logger.debug("residency_monitor: resolver unavailable (%s); using literals", exc)
+    return IMPLICIT_PROFILE, "default", "monitor_literals"
+
+
 def check_residency() -> Dict[str, Any]:
     """Entry point. NEVER raises — an observer that can break its caller is worse
     than no observer."""
     try:
         actual = _load_actual()
         nodes = _load_nodes()
-        findings = derive_findings(IMPLICIT_PROFILE, actual, nodes)
+        declared, profile_name, profile_source = _declared()
+        findings = derive_findings(declared, actual, nodes)
         return {
             "ok": True,
-            "nodes_evaluated": len(IMPLICIT_PROFILE),
+            "profile": profile_name,
+            "profile_source": profile_source,
+            "nodes_evaluated": len(declared),
             "residency_rows": sum(len(v) for v in actual.values()),
             "findings": findings,
             "counts": _tally(findings),

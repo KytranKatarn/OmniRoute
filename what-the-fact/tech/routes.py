@@ -633,9 +633,9 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                         text(f"""
                             INSERT INTO {schema}.fact_checks
                                 (article_id, claim, verdict, evidence, checker,
-                                 analyzed_by, claims, overall_verdict)
+                                 analyzed_by, claims, overall_verdict, analysis_tier)
                             VALUES (:aid, :claim, :verdict, :ev, 'fact_v1',
-                                    'llm_v1', CAST(:claims AS JSONB), :overall)
+                                    'llm_v1', CAST(:claims AS JSONB), :overall, 'on_demand')
                         """),
                         {"aid": article_id, "claim": ct, "verdict": vr,
                          "ev": ev, "claims": claims_json, "overall": overall},
@@ -645,14 +645,14 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                     text(f"""
                         INSERT INTO {schema}.fact_checks
                             (article_id, claim, verdict, evidence, checker,
-                             analyzed_by, claims, overall_verdict)
+                             analyzed_by, claims, overall_verdict, analysis_tier)
                         -- :overall, NOT a hardcoded 'unverifiable'. The prompt
                         -- instructs the model to answer `descriptive_reporting`
                         -- for a claim-free article (market summary, sports score,
                         -- wire copy); writing a literal here THREW THAT AWAY and
                         -- asserted "we tried to verify and could not" instead.
                         VALUES (:aid, 'No verifiable claims detected.', 'unverified', '',
-                                'fact_v1', 'llm_v1', '[]'::JSONB, :overall)
+                                'fact_v1', 'llm_v1', '[]'::JSONB, :overall, 'on_demand')
                     """),
                     {"aid": article_id, "overall": overall},
                 )

@@ -98,8 +98,14 @@ def _update_article_tier(engine, schema: str, article_id: int, tier_meta: dict) 
         )
 
 
-def _persist(engine, schema: str, article_id: int, result: dict) -> None:
+def _persist(engine, schema: str, article_id: int, result: dict,
+             analysis_tier: str | None = None) -> None:
     """Persist V.E.R.I.F.Y. fact-check result into wtf.fact_checks.
+
+    `analysis_tier` records HOW the verdict was produced, on the row itself.
+    ⚠️ `quick_v1` means TIER 1 ONLY — claims extracted but NEVER verified,
+    with a SYNTHESIZED overall_verdict. Without this column such a row is
+    indistinguishable from a real adjudication (~88,000 were).
 
     Schema reality: NOT NULL columns are (article_id, claim, verdict, evidence,
     checker, checked_at). Nullable JSONB columns (claims, overall_verdict) hold
@@ -140,10 +146,10 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
                 text(f"""
                     INSERT INTO {schema}.fact_checks
                         (article_id, claim, verdict, evidence, checker,
-                         analyzed_by, claims, overall_verdict)
+                         analyzed_by, claims, overall_verdict, analysis_tier)
                     VALUES (:article_id, :claim, :verdict, :evidence,
                             'V.E.R.I.F.Y.', 'V.E.R.I.F.Y.',
-                            CAST(:claims AS JSONB), :overall)
+                            CAST(:claims AS JSONB), :overall, :tier)
                 """),
                 {
                     "article_id": article_id,
@@ -152,6 +158,7 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
                     "evidence": row["evidence"],
                     "claims": claims_json if i == 0 else None,
                     "overall": overall,
+                    "tier": analysis_tier,
                 },
             )
 
@@ -197,7 +204,8 @@ def run_backlog(engine, schema: str = "wtf") -> dict:
                 )
             else:
                 try:
-                    _persist(engine, schema, article["id"], outcome["result"])
+                    _persist(engine, schema, article["id"], outcome["result"],
+                             analysis_tier=tier_meta.get("analysis_tier"))
                     _update_article_tier(engine, schema, article["id"], tier_meta)
                     processed += 1
                     logger.info(

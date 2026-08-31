@@ -4578,8 +4578,8 @@ def _register_own_jobs(scheduler, flask_app):
                                     """
                                     INSERT INTO wtf.fact_checks
                                         (article_id, claim, verdict, evidence, checker,
-                                         analyzed_by, claims, overall_verdict, agent_name)
-                                    VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s, %s)
+                                         analyzed_by, claims, overall_verdict, agent_name, analysis_tier)
+                                    VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_v1', %s::jsonb, %s, %s, 'direct')
                                     """,
                                     (
                                         aid,
@@ -4596,9 +4596,9 @@ def _register_own_jobs(scheduler, flask_app):
                                 """
                                 INSERT INTO wtf.fact_checks
                                     (article_id, claim, verdict, evidence, checker,
-                                     analyzed_by, claims, overall_verdict, agent_name)
+                                     analyzed_by, claims, overall_verdict, agent_name, analysis_tier)
                                 VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
-                                        'fact_v1', 'dhq_v1', '[]'::jsonb, %s, %s)
+                                        'fact_v1', 'dhq_v1', '[]'::jsonb, %s, %s, 'direct')
                                 """,
                                 (aid, overall, getattr(result, "agent_name", None) or None),
                             )
@@ -4855,8 +4855,8 @@ def _register_own_jobs(scheduler, flask_app):
                                             """
                                             INSERT INTO wtf.fact_checks
                                                 (article_id, claim, verdict, evidence, checker,
-                                                 analyzed_by, claims, overall_verdict)
-                                            VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_backlog_v1', %s::jsonb, %s)
+                                                 analyzed_by, claims, overall_verdict, analysis_tier)
+                                            VALUES (%s, %s, %s, %s, 'fact_v1', 'dhq_backlog_v1', %s::jsonb, %s, 'direct')
                                             """,
                                             (aid, claim_text, verdict, evidence, claims_json, overall),
                                         )
@@ -4865,9 +4865,9 @@ def _register_own_jobs(scheduler, flask_app):
                                         """
                                         INSERT INTO wtf.fact_checks
                                             (article_id, claim, verdict, evidence, checker,
-                                             analyzed_by, claims, overall_verdict)
+                                             analyzed_by, claims, overall_verdict, analysis_tier)
                                         VALUES (%s, 'No verifiable claims detected.', 'unverified', '',
-                                                'fact_v1', 'dhq_backlog_v1', '[]'::jsonb, %s)
+                                                'fact_v1', 'dhq_backlog_v1', '[]'::jsonb, %s, 'direct')
                                         """,
                                         (aid, overall),
                                     )

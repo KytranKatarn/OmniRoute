@@ -213,20 +213,33 @@ def _persist(engine, schema: str, article_id: int, sections: dict, tier_meta: di
                 )
 
 
-def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) -> None:
+def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict,
+                       analysis_tier: str | None = None) -> None:
     """Write F.A.C.T. scan results to wtf.fact_checks.
 
     Deletes existing heuristic-only rows for this article and replaces with
     LLM-derived claims (verdict + evidence). If the LLM found no claims,
     inserts a single 'no claims found' placeholder so the consumer can
     distinguish 'not yet checked' from 'checked — nothing found'.
+
+    `analysis_tier` records HOW the verdict was produced, on the row itself.
+    ⚠️ `quick_v1` means TIER 1 ONLY: claims were extracted but never verified,
+    and overall_verdict is a SYNTHESIZED placeholder from
+    tier_router._factcheck_tier1_only. That function sets `_tier_synthesized`
+    and its docstring promises the consumer "can show badge" — but the flag was
+    never persisted, so ~88,000 unverified placeholders were indistinguishable
+    from real adjudications. This parameter is what makes the badge possible.
     """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_persist_factcheck: disallowed schema {schema!r}")
 
     claims = fc_result.get("claims") or []
-    overall_raw = (fc_result.get("overall_verdict") or "unverifiable").lower()
-    overall = canonical_overall(overall_raw) or "unverifiable"
+    # NOT `or "unverifiable"` — twice over, as this line used to be. An absent
+    # verdict is not a finding of unverifiability; canonical_overall returns None
+    # and that becomes a NULL, meaning "no adjudication recorded". Same
+    # absent-vs-measured bug fixed in bias (`float(x or 0.0)`) and in
+    # department_hq/jobs.py today.
+    overall = canonical_overall(fc_result.get("overall_verdict"))
     claims_json = json.dumps(claims)
 
     with engine.begin() as c:
@@ -251,9 +264,9 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
                     text(f"""
                         INSERT INTO {schema}.fact_checks
                             (article_id, claim, verdict, evidence, checker,
-                             analyzed_by, claims, overall_verdict)
+                             analyzed_by, claims, overall_verdict, analysis_tier)
                         VALUES (:aid, :claim, :verdict, :evidence, 'fact_v1',
-                                'llm_v1', CAST(:claims AS JSONB), :overall)
+                                'llm_v1', CAST(:claims AS JSONB), :overall, :tier)
                     """),
                     {
                         "aid": article_id,
@@ -262,6 +275,7 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
                         "evidence": evidence,
                         "claims": claims_json,
                         "overall": overall,
+                        "tier": analysis_tier,
                     },
                 )
         else:
@@ -276,11 +290,11 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
                 text(f"""
                     INSERT INTO {schema}.fact_checks
                         (article_id, claim, verdict, evidence, checker,
-                         analyzed_by, claims, overall_verdict)
+                         analyzed_by, claims, overall_verdict, analysis_tier)
                     VALUES (:aid, 'No verifiable claims detected.', 'unverified', '',
-                            'fact_v1', 'llm_v1', '[]'::JSONB, :overall)
+                            'fact_v1', 'llm_v1', '[]'::JSONB, :overall, :tier)
                 """),
-                {"aid": article_id, "overall": overall},
+                {"aid": article_id, "overall": overall, "tier": analysis_tier},
             )
 
 
@@ -342,7 +356,10 @@ def _process_article(engine, schema: str, article: dict) -> tuple[str, int]:
                 cluster_size=int(article.get("cluster_size") or 0),
             )
             if fc_outcome["status"] == "ok" and fc_outcome.get("result"):
-                _persist_factcheck(engine, schema, aid, fc_outcome["result"])
+                _persist_factcheck(
+                    engine, schema, aid, fc_outcome["result"],
+                    analysis_tier=(fc_outcome.get("tier_meta") or {}).get("analysis_tier"),
+                )
                 logger.info(
                     "[llm_backlog] article=%s factcheck persisted tier=%s claims=%d",
                     aid,

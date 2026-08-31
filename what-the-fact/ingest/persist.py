@@ -199,7 +199,24 @@ def upsert_article(
 
 
 def save_geo(engine, article_id: int, schema: str, geo: dict) -> None:
-    """Save geocoder result to article geo columns."""
+    """Save geocoder result to article geo columns.
+
+    ⚠️ This is the INGEST-TIME geo write — it runs for every article, so it is
+    the path that decides what the map sees. It must persist EVERY field
+    extract_geo() produces.
+
+    country_code was missing from this UPDATE entirely (#6210). The geocoder
+    computed it correctly and this function silently dropped it on the floor,
+    which is why /map coloured every pin the same "unknown" grey. The two other
+    writers (run.py's orchestrator UPDATE, geo_backlog_worker) always included
+    the column, but run.py's is scoped `WHERE geo_scope IN ('national')` and the
+    backlog worker only sees rows this path failed to fill — so neither covered
+    the ordinary article.
+
+    ⚠️ Adding a field to extract_geo() means adding it HERE too. A value that is
+    computed but never written is indistinguishable, in the database, from one
+    that was never computed at all.
+    """
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"save_geo: disallowed schema {schema!r}")
     if not geo or not article_id:
@@ -208,13 +225,16 @@ def save_geo(engine, article_id: int, schema: str, geo: dict) -> None:
         with engine.begin() as c:
             c.execute(
                 text(
-                    f"UPDATE {schema}.articles SET province_code = :pc, city = :city, lat = :lat, lng = :lng, geo_scope = :scope WHERE id = :aid"
+                    f"UPDATE {schema}.articles SET province_code = :pc, city = :city, "
+                    f"lat = :lat, lng = :lng, country_code = :country, geo_scope = :scope "
+                    f"WHERE id = :aid"
                 ),
                 {
                     "pc": geo.get("province_code"),
                     "city": geo.get("city"),
                     "lat": geo.get("lat"),
                     "lng": geo.get("lng"),
+                    "country": geo.get("country_code"),
                     "scope": geo.get("geo_scope", "national"),
                     "aid": article_id,
                 },

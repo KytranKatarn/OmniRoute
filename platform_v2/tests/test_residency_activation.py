@@ -134,7 +134,9 @@ def test_a_real_activation_records_the_profile(wired, monkeypatch):
     monkeypatch.setattr("services.model_service.get_model_service", lambda: _Svc())
     r = ra.activate(dry_run=False)
     assert recorded and recorded[0][0] == "default"
-    assert r["requested"][0]["tier"] == "gpu"
+    # `found_tier`, not `tier` — see test_found_tier_is_the_tier_FOUND below.
+    assert r["requested"][0]["found_tier"] == "gpu"
+    assert r["requested"][0]["ready"] is True
 
 
 # ── never raises ───────────────────────────────────────────────────────────
@@ -179,3 +181,63 @@ def test_status_distinguishes_never_activated_from_lapsed(monkeypatch):
     assert (
         s["active"] is False and s["lapsed"] is True
     ), "an operator must tell 'never activated' from 'activated and lapsed'"
+
+
+# ── bounded warm-up (the 174.6s serial version blocked three jobs) ──────────
+def test_a_slow_warm_up_does_not_block_past_the_deadline(wired, monkeypatch):
+    """The reason this exists: serial warming took 174.6s and was about to be
+    called at the top of three scheduled backlog jobs."""
+    import time
+
+    monkeypatch.setattr(ra, "_WARM_DEADLINE_S", 1)
+    monkeypatch.setattr(ra, "_record_active", lambda n, t: None)
+
+    class _Slow:
+        def ensure_model_ready(self, *a):
+            time.sleep(30)  # far past the wall
+            return {"ready": True, "tier": "gpu"}
+
+    monkeypatch.setattr("services.model_service.get_model_service", lambda: _Slow())
+    t0 = time.time()
+    r = ra.activate(dry_run=False)
+    elapsed = time.time() - t0
+    assert elapsed < 15, f"caller was held {elapsed:.1f}s despite a 1s deadline"
+    assert r["ok"] is True
+
+
+def test_a_timed_out_warm_up_is_not_reported_as_a_failure(wired, monkeypatch):
+    """The deadline does not cancel the load — Ollama keeps warming and the
+    model lands resident shortly after. Calling that 'failed' would be wrong."""
+    import time
+
+    monkeypatch.setattr(ra, "_WARM_DEADLINE_S", 1)
+    monkeypatch.setattr(ra, "_record_active", lambda n, t: None)
+
+    class _Slow:
+        def ensure_model_ready(self, *a):
+            time.sleep(30)
+            return {"ready": True, "tier": "gpu"}
+
+    monkeypatch.setattr("services.model_service.get_model_service", lambda: _Slow())
+    e = ra.activate(dry_run=False)["requested"][0]
+    assert e.get("timed_out") is True
+    assert "load continues" in (e.get("note") or "")
+
+
+def test_found_tier_is_the_tier_FOUND_not_the_tier_achieved(wired, monkeypatch):
+    """model_service's warm-boot SUCCESS path hardcodes
+    {"ready": True, "tier": "cold"} — so ready=True with 'cold' means "it WAS
+    cold, we loaded it, it is now resident". The field was called `tier`, which
+    read as an outcome and misled me into reporting a success as a failure.
+    """
+    monkeypatch.setattr(ra, "_record_active", lambda n, t: None)
+
+    class _Booted:
+        def ensure_model_ready(self, *a):
+            return {"ready": True, "tier": "cold", "warm_boot_ms": 22775}
+
+    monkeypatch.setattr("services.model_service.get_model_service", lambda: _Booted())
+    e = ra.activate(dry_run=False)["requested"][0]
+    assert e["ready"] is True, "a warm-booted model is READY"
+    assert e["found_tier"] == "cold", "and it was FOUND cold — that is not a failure"
+    assert "tier" not in e, "the ambiguous key must be gone, not merely aliased"

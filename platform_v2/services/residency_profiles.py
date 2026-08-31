@@ -71,9 +71,24 @@ _FALLBACK_PROFILES: Dict[str, Dict[str, Any]] = {
                 "7B; gemma3 6.3GB + 7B ~5GB cannot coexist there.",
             },
             "starship_5501c2766526e746": {  # USS-245 Runabout, 4GB
-                "expect_resident": ["qwen2.5:7b"],
-                "why": "#5861 — code_review is Runabout-FIRST; it served both "
-                "review models at 100% when that change was made.",
+                # ⚠️ qwen2.5:7b REMOVED 2026-08-31. #5861 made code_review
+                # Runabout-FIRST, but that is a ROUTING preference and says
+                # nothing about whether the model can be made RESIDENT here.
+                # It cannot: 8.0GB required vs a 4GB card, so it falls to CPU
+                # and the warm-boot TIMES OUT — measured ready=False after
+                # 143,000ms against model_service.py:806's 150000ms lock-timeout
+                # return.
+                #
+                # The residency observer had been reporting this since #2987 on
+                # EVERY run — "profile_exceeds_gpu ... qwen2.5:7b (~8.0GB)
+                # exceeds gpu_vram_gb=4.0" — and it was declared here anyway.
+                # The tool worked; the reading of it did not.
+                #
+                # llama3.2:3b (5.0 required) is what this node can actually hold
+                # warm, and it is in its documented warm set.
+                "expect_resident": ["llama3.2:3b"],
+                "why": "4GB card — 7B models cannot be resident here (measured "
+                "warm-boot timeout). llama3.2:3b is its real warm-set member.",
             },
             "archie-starbase": {  # hub — 12GB largest card / 20GB total / 128GB RAM
                 "expect_resident": ["gemma3:12b"],

@@ -48,6 +48,12 @@ _EXPIRES_KEY = "fleet:residency:active_expires"
 _DEFAULT_TTL_MIN = 90
 _MAX_TTL_MIN = 480  # 8h. Beyond this it is not an activation, it is a config change.
 
+# Bounded so a scheduled job can call this without being held for minutes.
+# Measured serially: 3 models took 174.6s, one timing out at 143s. Parallel
+# plus a wall makes the CALLER's cost predictable regardless of load times.
+_WARM_WORKERS = 3
+_WARM_DEADLINE_S = 45
+
 
 def _node_rows() -> Dict[str, Dict[str, Any]]:
     """Online nodes keyed by the VARCHAR node_id (never the int id)."""
@@ -123,6 +129,7 @@ def activate(
         report["ttl_minutes"] = ttl
 
         live = _node_rows()
+        pending = []  # (entry, model, target_host, node_id)
         try:
             from services.fleet_resource_router import (
                 can_node_run_model,
@@ -197,20 +204,12 @@ def activate(
                     report["requested"].append(entry)
                     continue
 
-                try:
-                    from services.model_service import get_model_service
-
-                    svc = get_model_service()
-                    res = svc.ensure_model_ready("residency_activation", model, _target_host(node)) or {}
-                    entry.update(
-                        ready=bool(res.get("ready")),
-                        tier=res.get("tier"),
-                        warm_boot_ms=res.get("warm_boot_ms"),
-                    )
-                except Exception as exc:
-                    entry.update(ready=False, error=str(exc)[:200])
-                    report["errors"].append(f"{node_id}/{model}: {exc}")
+                # Collected, then warmed in PARALLEL under a wall (see _warm_all).
+                pending.append((entry, model, _target_host(node), node_id))
                 report["requested"].append(entry)
+
+        if not dry_run and pending:
+            _warm_all(pending, report)
 
         if not dry_run:
             _record_active(name, ttl)
@@ -221,6 +220,80 @@ def activate(
         logger.warning("residency_activation: activate failed: %s", exc, exc_info=True)
         report.update(ok=False, errors=report["errors"] + [str(exc)])
         return report
+
+
+def _warm_all(pending, report) -> None:
+    """Warm every declared model in PARALLEL, under a HARD deadline.
+
+    ⚠️ WHY THIS EXISTS. The first serial version took 174.6s for three models
+    and was about to be called at the top of three scheduled backlog jobs.
+    Blocking a drain cycle for ~3 minutes to warm it — when that cycle may then
+    defer for welfare or backpressure anyway — is a worse trade than the cold
+    loads it removes. Mirrors fleet_jobs.warmup_fleet_models: small pool, wall
+    on as_completed. Same shape, same reason.
+
+    ⚠️ THE DEADLINE DOES NOT CANCEL THE LOAD. Ollama keeps warming in the
+    background and the model lands resident shortly after; we simply stop
+    WAITING. That is the point — a warm-up is an optimisation and no caller
+    should be held hostage to one. Unfinished work is reported timed_out=True,
+    NOT as a failure, because it usually is not one.
+
+    ⚠️ found_tier is the tier the model was FOUND in, not the tier achieved.
+    model_service's warm-boot SUCCESS path hardcodes {"ready": True,
+    "tier": "cold"} — so ready=True with 'cold' means "it was cold, we loaded
+    it, it is now resident". Reporting that raw field as the outcome reads as a
+    failure when it is a success, which is exactly how it misled me once.
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _one(model, host):
+        from services.model_service import get_model_service
+
+        return get_model_service().ensure_model_ready("residency_activation", model, host) or {}
+
+    # ⚠️ NOT a `with` block. ThreadPoolExecutor.__exit__ calls
+    # shutdown(wait=True), which blocks until EVERY outstanding future finishes
+    # — so the as_completed deadline fires and then the context manager waits
+    # anyway. The wall becomes decorative. Caught by
+    # test_a_slow_warm_up_does_not_block_past_the_deadline: 30s elapsed against
+    # a 1s deadline.
+    #
+    # ⚠️ services/fleet_jobs.warmup_fleet_models has this SAME shape
+    # (`with ThreadPoolExecutor(...)` + `as_completed(..., timeout=90)`), so its
+    # 90s bound is not real either. Not changed here — separate concern, its own
+    # change.
+    pool = ThreadPoolExecutor(max_workers=_WARM_WORKERS)
+    try:
+        futures = {pool.submit(_one, model, host): (entry, node_id, model) for entry, model, host, node_id in pending}
+        try:
+            for fut in as_completed(futures, timeout=_WARM_DEADLINE_S):
+                entry, node_id, model = futures[fut]
+                try:
+                    res = fut.result()
+                    entry.update(
+                        ready=bool(res.get("ready")),
+                        found_tier=res.get("tier"),
+                        warm_boot_ms=res.get("warm_boot_ms"),
+                    )
+                except Exception as exc:
+                    entry.update(ready=False, error=str(exc)[:200])
+                    report["errors"].append(f"{node_id}/{model}: {exc}")
+        except Exception:
+            pass  # as_completed raises on the wall; unfinished handled below
+    finally:
+        # Return to the caller NOW. cancel_futures drops anything not yet
+        # started; anything already running keeps going in the background and
+        # lands the model resident shortly after — which is the desired outcome,
+        # just not one we wait for.
+        pool.shutdown(wait=False, cancel_futures=True)
+
+    for entry, _m, _h, _n in pending:
+        if "ready" not in entry:
+            entry.update(
+                ready=False,
+                timed_out=True,
+                note="still warming when the deadline hit; the load continues",
+            )
 
 
 def _record_active(name: str, ttl_minutes: int) -> None:

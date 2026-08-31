@@ -342,8 +342,22 @@ function loadMapData() {
         // (The old MODE-band fill rendered ~every province the same 'center'
         // green; avg_bias is the tech map-data endpoint's continuous mean.)
         var colour = pd ? leanColour(pd.avg_bias, pd.articles) : "#1a3a5a";
-        var opacity = pd ? Math.min(0.3 + pd.articles / 50, 0.85) : 0.15;
-        return { fillColor: colour, fillOpacity: opacity, color: "#1a3a5a", weight: 1 };
+        var measurable = pd && leanIsSufficient(pd.avg_bias, pd.articles);
+        // Opacity scales with volume, but ONLY where a lean was actually
+        // measured. Applying it to an unmeasurable province made a 19-article
+        // province look almost as solid as a 20-article one across the
+        // measurable/unmeasurable boundary — the very distinction being drawn.
+        var opacity = measurable ? Math.min(0.3 + pd.articles / 50, 0.85)
+                    : (pd ? 0.4 : 0.15);
+        return {
+          fillColor: colour,
+          fillOpacity: opacity,
+          color: "#1a3a5a",
+          weight: 1,
+          // Second channel, so the difference survives a colourblind reader and
+          // a bad monitor: a province we cannot measure is DASHED.
+          dashArray: measurable ? null : "4,3"
+        };
       },
       onEachFeature: function(feature, layer) {
         var name = feature.properties.name || "";
@@ -425,10 +439,25 @@ var _LEAN_NEUTRAL = _rgb(_leanToken("--wtf-center")) || [146, 154, 165];
 var _LEAN_L       = _rgb(_leanToken("--wtf-left"))   || [216, 75, 71];
 var _LEAN_R       = _rgb(_leanToken("--wtf-right"))  || [74, 114, 216];
 
+// ONE predicate for "can this be measured at all". The fill, the tooltip label,
+// the dashed outline and the legend all ask THIS function, so they cannot end up
+// disagreeing about whether a province is measurable.
+function leanIsSufficient(avgScore, count) {
+  return !(avgScore === null || avgScore === undefined || count < LEAN_MIN_N);
+}
+
+// #6211 — "insufficient data" used to be #9ca3af while the ramp's BALANCED
+// centre is #929aa5. Ten points per channel apart: indistinguishable. So a
+// province we cannot measure and a province whose coverage is genuinely centred
+// painted the SAME colour, and only the legend's wording told them apart.
+// Absence and a reading must never look alike, so this is now (a) far darker
+// than any point on the ramp and (b) dashed — two channels, not one.
+var LEAN_INSUFFICIENT = "#454e5c";
+
 function leanColour(avgScore, count) {
-  // Insufficient data is GREY and explicitly not a lean reading — a province
-  // with too few articles must never be painted as if it leant somewhere.
-  if (avgScore === null || avgScore === undefined || count < LEAN_MIN_N) return "#9ca3af";
+  // Insufficient data is explicitly not a lean reading — a province with too few
+  // articles must never be painted as if it leant somewhere.
+  if (!leanIsSufficient(avgScore, count)) return LEAN_INSUFFICIENT;
   var t = Math.max(-1, Math.min(1, (avgScore - LEAN_ANCHOR) / LEAN_SPREAD));
   var k = Math.abs(t);
   var pole = t < 0 ? _LEAN_L : _LEAN_R;
@@ -438,7 +467,7 @@ function leanColour(avgScore, count) {
   return "rgb(" + r + "," + g + "," + b + ")";
 }
 function leanLabel(avgScore, count) {
-  if (avgScore === null || avgScore === undefined || count < LEAN_MIN_N) return " · lean: insufficient data";
+  if (!leanIsSufficient(avgScore, count)) return " · lean: insufficient data";
   var d = avgScore - LEAN_ANCHOR;
   if (d < -0.015) return " · coverage leans left";
   if (d > 0.015) return " · coverage leans right";
@@ -499,6 +528,10 @@ function loadArticlesGeo() {
           var circle = L.circleMarker(centroid, {
             pane: 'clusterPane', radius: radius,
             fillColor: colour, fillOpacity: 0.85, color: "#ffffff", weight: 1.5,
+            // Same rule as the choropleth: a badge whose lean could not be
+            // measured is dashed. The count on it is still a real number — only
+            // the COLOUR is withheld — so the badge stays fully opaque.
+            dashArray: leanIsSufficient(avgScore, count) ? null : "3,2"
           });
           circle.bindTooltip(pc + " · " + count.toLocaleString() + " stories" + leanLabel(avgScore, count));
           var pname = (PROVINCE_LIST.find(function(p){ return p.code === pc; }) || {}).name || pc;
@@ -534,12 +567,20 @@ function loadArticlesGeo() {
             var _swatch = function (rgbArr, label) {
               return "<span style='color:rgb(" + rgbArr.join(",") + ");'>&#9679;</span> " + label + " &nbsp;";
             };
+            // #6211 — the "insufficient data" hint was TEXT coloured #6b7280,
+            // a grey that appears nowhere on the map, while the actual fill was
+            // a near-twin of the "balanced" swatch. The reader was given no way
+            // to tell an unmeasurable province from a genuinely centred one.
+            // It now carries its own swatch in the REAL fill colour, and says
+            // "not measured" rather than naming a colour the map may not use.
             div.innerHTML =
               "COVERAGE LEAN&nbsp; " +
               _swatch(_LEAN_L, "left") +
               _swatch(_LEAN_NEUTRAL, "balanced") +
               _swatch(_LEAN_R, "right") +
-              "<span style='color:#6b7280;'>(grey = &lt;" + LEAN_MIN_N + " articles)</span>";
+              "<span style='color:" + LEAN_INSUFFICIENT + ";'>&#9679;</span> " +
+              "<span style='color:#6b7280;'>not measured (&lt;" + LEAN_MIN_N +
+              " articles, shown dashed)</span>";
             return div;
           };
           window._leanLegend.addTo(map);

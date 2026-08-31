@@ -1061,6 +1061,17 @@
 
 /* ── Roster Table ── */
 
+/* The table's `th { white-space: nowrap }` below gives it an intrinsic minimum
+   width of ~934px, which `width: 100%` cannot shrink below. Without a scroll
+   container that minimum propagates all the way up and the PAGE BODY scrolls
+   horizontally — measured 2026-08-31 on a Fold5 unfolded (884 CSS px viewport):
+   documentElement.scrollWidth 1062 vs clientWidth 884, with all 609 overflowing
+   elements descendants of this one table. 884px sits in the gap between the
+   platform's 768px and 1024px breakpoints, so no existing media query caught it.
+   Per frontend.md: wide content scrolls inside its OWN container; the body never
+   scrolls horizontally. Verified live — scrollWidth returns to exactly 884. */
+#rosterContent { overflow-x: auto; }
+
 .dhq-roster-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .dhq-roster-table th { text-align: left; padding: 8px; border-bottom: 2px solid var(--archie-border); white-space: nowrap; }
 .dhq-roster-table td { padding: 6px 8px; border-bottom: 1px solid var(--archie-border); }

@@ -231,10 +231,16 @@ def _get_portrait_lookup() -> dict:
 
 
 def _db():
-    global _engine
-    if _engine is None:
-        _engine = create_engine(os.environ["WTF_DATABASE_URL"], pool_pre_ping=True)
-    return _engine
+    """The engine for this request.
+
+    Delegates to dr_mode so a hub outage serves the read-only DR archive instead
+    of a dead site (#6216). With WTF_DATABASE_URL_FALLBACK unset — the normal
+    deployment — this is byte-for-byte today's behaviour: the primary engine,
+    no probe, no added latency.
+    """
+    from consumer import dr_mode
+
+    return dr_mode.get_engine()
 
 
 def _schema():

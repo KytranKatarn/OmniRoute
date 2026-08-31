@@ -609,8 +609,30 @@ function renderRoster(data) {
     function agentCell(a) {
         // Avatar thumb + name + acronym (spec A §5). 131/140 have an avatar;
         // the rest fall back to initials, same pattern the old card used.
-        var initials = (a.display_name || a.name || '?').split(' ')
-            .map(function(w){ return w[0]; }).join('').substring(0, 2).toUpperCase();
+        // Initials for the no-portrait fallback badge. Splitting on SPACES works for
+        // a human name ("Maya Singh" -> MS) but yields ONE letter for a dotted
+        // acronym, which is a single token: "A.T.L.A.S." -> "A". That regressed when
+        // five agents were renamed from a job title to their acronym — "Model Ops
+        // Specialist" had given MO, "A.T.L.A.S." gives A.
+        // Dotted acronyms therefore take their first two LETTERS (A.T.L.A.S. -> AT);
+        // everything else keeps the word-initials behaviour unchanged.
+        // A SINGLE-word name ("Oracle", "Sage", "Nexus") also yielded one letter —
+        // pre-existing, not caused by the rename, but the same weak badge. When the
+        // word-initials give fewer than two characters, take the name's first two
+        // letters instead. '?' has none and stays '?'.
+        var _nm = (a.display_name || a.name || '?');
+        var _letters = _nm.replace(/[^A-Za-z0-9]/g, '');
+        var initials = /^([A-Za-z]\.){2,}$/.test(_nm)
+            ? _letters.substring(0, 2).toUpperCase()          // dotted acronym
+            : (function () {
+                  // Keep only alphanumeric word-initials: "Codex (CLI)" gave "C(" —
+                  // two chars, so a length check alone accepts the punctuation.
+                  var words = _nm.split(' ')
+                      .map(function (w) { return w[0]; })
+                      .join('')
+                      .replace(/[^A-Za-z0-9]/g, '');
+                  return (words.length >= 2 ? words : _letters || _nm).substring(0, 2).toUpperCase();
+              })();
         var av = a.avatar_url
             ? '<img class="dhq-row-av" src="' + esc(bust(a.avatar_url, a.avatar_updated_at))
               + '" alt="" loading="lazy" onerror="this.style.display=\'none\'">'

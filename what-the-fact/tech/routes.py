@@ -437,16 +437,60 @@ def get_article(article_id: int):
 
 
 _VALID_BANDS = frozenset({"left", "center-left", "center", "center-right", "right"})
-_VERDICT_MAP = {
-    "true": "true", "mostly_true": "mostly_true", "mixed": "mixed",
-    "false": "false", "unverified": "unverified", "unverifiable": "unverified",
-    "disputed": "mixed", "mostly_false": "false",
+# Verdict vocabulary — mirrors ingest/verdicts.py (#6242). tech/ ships as its own
+# container with no import path into ingest/, so it cannot share the module; what it
+# MUST NOT do is drift. Any change here goes in verdicts.py first.
+#   per-claim: true | mostly_true | mixed | false | unverified   (CHECK-enforced)
+_CLAIM_ALIASES = {
+    "verified": "true",
+    "unverifiable": "unverified",
+    "disputed": "mixed",
+    "mostly_false": "false",
+    "descriptive_reporting": "unverified",
 }
-_OVERALL_MAP = {
-    "verified": "verified", "mostly_true": "mostly_true", "mixed": "mixed",
-    "disputed": "disputed", "unverifiable": "unverifiable",
-    "true": "verified", "false": "disputed", "unverified": "unverifiable",
+
+
+def canonical_claim(value) -> str:
+    """Model output -> a valid per-claim verdict; unknown becomes 'unverified'."""
+    v = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if v in {"true", "mostly_true", "mixed", "false", "unverified"}:
+        return v
+    return _CLAIM_ALIASES.get(v, "unverified")
+
+
+#   per-article: verified | mostly_true | mixed | disputed | unverifiable |
+#                descriptive_reporting          (CHECK-enforced, migration 060)
+#
+# `descriptive_reporting` was ABSENT from the old _OVERALL_MAP, so a legitimate
+# rubric value fell through .get() and was silently rewritten to `unverifiable`
+# — "we tried and could not verify" instead of "this article makes no checkable
+# claim". Two different statements, on a public accountability page.
+_OVERALL_ALIASES = {
+    "unverified": "unverifiable",  # per-CLAIM vocabulary in the per-ARTICLE column
+    "true": "verified",
+    "false": "disputed",
+    "mostly_false": "disputed",
+    "verified_facts": "verified",
+    "most_factual": "mostly_true",
+    "factual_reporting": "descriptive_reporting",
+    "descriptive": "descriptive_reporting",
+    "no_claims": "descriptive_reporting",
 }
+
+
+def canonical_overall(value) -> str:
+    """Model output -> a valid overall_verdict.
+
+    Mirrors ingest/verdicts.canonical_overall with ONE deliberate difference:
+    that one returns None for an unrecognised label (honest absence), this one
+    keeps tech/'s long-standing `unverifiable` fallback. Changing that default
+    is a product decision, not a refactor — it is left alone on purpose.
+    """
+    v = str(value or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if v in {"verified", "mostly_true", "mixed", "disputed",
+             "unverifiable", "descriptive_reporting"}:
+        return v
+    return _OVERALL_ALIASES.get(v, "unverifiable")
 
 
 def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
@@ -504,8 +548,7 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
 
             fc = results.get("factcheck") or {}
             claims = fc.get("claims") or []
-            overall_raw = (fc.get("overall_verdict") or "unverifiable").lower()
-            overall = _OVERALL_MAP.get(overall_raw, "unverifiable")
+            overall = canonical_overall(fc.get("overall_verdict"))
             claims_json = _json.dumps(claims)
             c.execute(
                 text(f"DELETE FROM {schema}.fact_checks WHERE article_id = :aid"),
@@ -516,7 +559,7 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                     ct = (cl.get("text") or "").strip()[:2000]
                     if not ct:
                         continue
-                    vr = _VERDICT_MAP.get((cl.get("verdict") or "unverified").lower(), "unverified")
+                    vr = canonical_claim(cl.get("verdict"))
                     ev = (cl.get("reasoning") or cl.get("evidence") or "").strip()[:4000]
                     c.execute(
                         text(f"""

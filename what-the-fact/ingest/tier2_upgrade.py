@@ -35,19 +35,12 @@ log = logging.getLogger(__name__)
 
 # Verdict vocabulary is CONSTRAINED downstream — an unmapped value must land on
 # 'unverified', never pass through raw.
-_VERDICT_MAP = {
-    "verified": "true",
-    "true": "true",
-    "mostly true": "mostly_true",
-    "mostly_true": "mostly_true",
-    "mixed": "mixed",
-    "partly true": "mixed",
-    "disputed": "mixed",
-    "false": "false",
-    "misleading": "false",
-    "unverifiable": "unverified",
-    "unverified": "unverified",
-}
+# Verdict vocabulary lives in verdicts.py — ONE definition (#6242). This file
+# carried its own copy; FOUR copies existed and ingest/run.py had NONE.
+try:
+    from ingest.verdicts import canonical_claim
+except ImportError:  # pragma: no cover
+    from verdicts import canonical_claim
 
 
 def hub_config() -> tuple:
@@ -183,7 +176,7 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
             {
                 "id": article_id,
                 "claim": (cl.get("text") or "(claim text missing)")[:500],
-                "verdict": _VERDICT_MAP.get(verdict_raw, "unverified"),
+                "verdict": canonical_claim(verdict_raw),
                 "evidence": (cl.get("reasoning") or "")[:1000],
                 "checker": agent,
                 "analyzed_by": agent,

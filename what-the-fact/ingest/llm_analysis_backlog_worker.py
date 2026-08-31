@@ -49,31 +49,19 @@ _CONCURRENCY = int(os.environ.get("WTF_LLM_BACKLOG_CONCURRENCY", "1"))
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
 _VALID_BIAS_BANDS = frozenset({"left", "center-left", "center", "center-right", "right"})
 
-# fact_checks.verdict CHECK constraint: true/mostly_true/mixed/false/unverified
-# LLM may return "unverifiable" — map to the closest valid value
-_VERDICT_MAP = {
-    "true": "true",
-    "mostly_true": "mostly_true",
-    "mixed": "mixed",
-    "false": "false",
-    "unverified": "unverified",
-    "unverifiable": "unverified",
-    "disputed": "mixed",
-    "mostly_false": "false",
-}
-
-# fact_checks.overall_verdict CHECK: verified/mostly_true/mixed/disputed/unverifiable/NULL
-_OVERALL_VERDICT_MAP = {
-    "verified": "verified",
-    "mostly_true": "mostly_true",
-    "mixed": "mixed",
-    "disputed": "disputed",
-    "unverifiable": "unverifiable",
-    "true": "verified",
-    "false": "disputed",
-    "unverified": "unverifiable",
-}
-
+# Verdict vocabularies live in ONE place (verdicts.py, #6242). These names are
+# kept so existing call sites are unchanged; the mapping is no longer duplicated
+# here — a second copy is how ingest/run.py ended up with NO mapping at all while
+# this module had a correct one.
+#
+# NOTE the old comment here claimed "fact_checks.overall_verdict CHECK:
+# verified/mostly_true/mixed/disputed/unverifiable/NULL". There was NO such
+# constraint until migration 060 — the comment described an invariant nothing
+# enforced, which is precisely how the drift went unnoticed.
+try:
+    from ingest.verdicts import CLAIM_VERDICTS, OVERALL_VERDICTS, canonical_claim, canonical_overall  # noqa: F401
+except ImportError:  # pragma: no cover
+    from verdicts import CLAIM_VERDICTS, OVERALL_VERDICTS, canonical_claim, canonical_overall  # noqa: F401
 
 def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
     if schema not in _ALLOWED_SCHEMAS:
@@ -227,7 +215,7 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
 
     claims = fc_result.get("claims") or []
     overall_raw = (fc_result.get("overall_verdict") or "unverifiable").lower()
-    overall = _OVERALL_VERDICT_MAP.get(overall_raw, "unverifiable")
+    overall = canonical_overall(overall_raw) or "unverifiable"
     claims_json = json.dumps(claims)
 
     with engine.begin() as c:
@@ -243,7 +231,7 @@ def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) ->
                 if not claim_text:
                     continue
                 verdict_raw = (claim_item.get("verdict") or "unverified").lower().strip()
-                verdict = _VERDICT_MAP.get(verdict_raw, "unverified")
+                verdict = canonical_claim(verdict_raw)
                 # "reasoning" is the key the tier_router uses; fallback to "evidence"
                 evidence = (
                     claim_item.get("reasoning") or claim_item.get("evidence") or ""

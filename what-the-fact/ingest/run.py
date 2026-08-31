@@ -1,6 +1,11 @@
 """Entry point for wtf-ingest. Polls each source hourly, normalizes, scores, persists."""
 import datetime
 import json
+
+try:  # runs as `python -m ingest.run` (package) AND as a script
+    from ingest.verdicts import canonical_overall
+except ImportError:  # pragma: no cover
+    from verdicts import canonical_overall
 import logging
 import os
 import time
@@ -251,7 +256,10 @@ def run_once(engine) -> dict:
                         """),
                         {
                             "claims": json.dumps(verify_result.get("claims", [])),
-                            "verdict": verify_result.get("overall_verdict"),
+                            # #6242: was the model's RAW output into an unconstrained column,
+                            # which produced factual_reporting / most_factual /
+                            # verified_facts and leaked per-claim `unverified` in.
+                            "verdict": canonical_overall(verify_result.get("overall_verdict")),
                             "aid": article_id,
                         },
                     )

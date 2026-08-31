@@ -29,23 +29,17 @@ _ALLOWED_SCHEMAS = frozenset({"wtf"})
 
 # LLM returns verdicts per the wtf-hub prompt: verified|mixed|disputed|unverifiable
 # wtf.fact_checks.verdict CHECK constraint allows: true|mostly_true|mixed|false|unverified
-_VERDICT_MAP = {
-    "verified": "true",
-    "true": "true",
-    "mostly true": "mostly_true",
-    "mostly_true": "mostly_true",
-    "partly true": "mixed",
-    "mixed": "mixed",
-    "disputed": "mixed",
-    "misleading": "false",
-    "false": "false",
-    "unverified": "unverified",
-    "unverifiable": "unverified",
-}
+# Verdict vocabulary lives in verdicts.py — ONE definition (#6242). This file
+# carried its own copy; FOUR copies existed and ingest/run.py had NONE.
+try:
+    from ingest.verdicts import canonical_claim, canonical_overall
+except ImportError:  # pragma: no cover
+    from verdicts import canonical_claim, canonical_overall
 
 
 def _normalize_verdict(raw) -> str:
-    return _VERDICT_MAP.get((raw or "").strip().lower(), "unverified")
+    """Per-CLAIM verdict. Thin wrapper kept so call sites are unchanged."""
+    return canonical_claim(raw)
 
 
 def _fetch_batch(engine, schema: str, limit: int) -> list[dict]:
@@ -117,13 +111,18 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
     if schema not in _ALLOWED_SCHEMAS:
         raise ValueError(f"_persist: disallowed schema {schema!r}")
     claims = result.get("claims") or []
-    overall = _normalize_verdict(result.get("overall_verdict"))
+    # TWO columns, TWO vocabularies (#6242). `overall` previously used the
+    # per-CLAIM normalizer and was written to BOTH `verdict` and `overall_verdict`,
+    # so the per-article column received `unverified` — which migration 060's
+    # constraint now correctly rejects.
+    overall = canonical_overall(result.get("overall_verdict"))
+    placeholder_verdict = canonical_claim(result.get("overall_verdict"))
     claims_json = json.dumps(claims)
 
     if not claims:
         rows = [{
             "claim": "(no factual claims extracted)",
-            "verdict": overall,
+            "verdict": placeholder_verdict,
             "evidence": "(model returned no claims for this article)",
         }]
     else:

@@ -360,3 +360,56 @@ predicted. **If you cannot state the prediction in advance, you are not ready to
 nothing in this fleet can GPU-fit its 15.6GB. That is a MODEL-FIT problem for the owner to decide
 (retire it / move consumers to `qwen2.5:7b` at 90.3%), **not** something to fix by shuffling caps.
 Placement fixes where work runs; it cannot make an oversized model fit the hardware.
+
+---
+
+## 🔥 Warm residency profiles (2026-08-31, PRs #2987–#2992)
+
+Placement decides WHERE work runs. Residency decides whether the model is already
+**warm** when it gets there — and on this fleet a cold 7B costs roughly **45x** a warm one.
+Three services, each doing one thing:
+
+| service | verb | notes |
+|---|---|---|
+| `services/residency_monitor.py` | **observe** | pure `derive_findings()`; findings carry `confidence` |
+| `services/residency_profiles.py` | **declare** | `all_profiles()` / `nodes_for()` / `active_name()`; RLock-safe |
+| `services/residency_activation.py` | **act** | `activate()` **dry-run by DEFAULT**, `status()`, `plan()`, `warm_for_backlog()` |
+
+Activation asks nodes to load via `model_service.ensure_model_ready` (ADR-013 — never a
+direct Ollama call). It **never evicts**, never changes routing, never pins VRAM: the worst
+case of a wrong profile is wasted warm-up. **Both** `can_node_run_model` (capacity) and
+`node_has_model` (presence) gate every request before it is queued — see #5809/#5862; the two
+predicates answer different questions and disagree on real nodes.
+
+**Only caller today**: the three WTF backlog producers in `tools/department_hq/jobs.py`
+(`_run_wtf_{factcheck,bias,geo}_backlog`), each calling `warm_for_backlog()`. **OFF by
+default** — `platform_settings warmboot:wtf_backlog:enabled='true'` arms it;
+`…:profile` (default `default`) and `…:ttl_min` (default 90) tune it. **The TTL is the
+throttle**, DB-backed on purpose: `archie_platform` runs `--workers 4`, so an in-memory timer
+would warm up to 4x (KB #282671). Operator guide **KB #300144**, contract **KB #300146**.
+
+### ⚠️ Four traps, all of them already made once
+
+- **`status()['active']` means "we asked", NOT "it is warm."** `_record_active()` fires on
+  every non-dry activation, including one where every model was refused by the gates. For
+  actual residency use `residency_monitor.check_residency()`.
+- **`ensure_model_ready`'s `tier` is the tier FOUND, not achieved.** Its warm-boot SUCCESS
+  path hardcodes `{"ready": True, "tier": "cold"}` — so `ready=True, tier='cold'` means "it
+  WAS cold, we loaded it, it is now resident". Surfaced as **`found_tier`** for exactly this
+  reason. And `model_service.py:806` returns **`warm_boot_ms=150000` on a LOCK TIMEOUT**, so a
+  ~143,000ms reading is a lock wait, not a load.
+- 🔴 **`with ThreadPoolExecutor(...)` makes a deadline DECORATIVE** — `__exit__` calls
+  `shutdown(wait=True)`, so the caller is held until the slowest task finishes regardless of
+  any wall on `as_completed`. Use `shutdown(wait=False, cancel_futures=True)`.
+  ⚠️ **`fleet_jobs.warmup_fleet_models` still has this — its 90s bound is not real.**
+- 🔴 **A profile NAME in a constant is a REFERENCE; assert it resolves.**
+  `_BACKLOG_DEFAULT_PROFILE` shipped as `'news'`, a profile that does not exist. An absent
+  profile makes `activate()` answer *"declares no nodes"*, which read as `nothing requestable`
+  — **indistinguishable from "every model refused by the gates"**. Armed, it would have warmed
+  nothing forever while logging plausibly. Same family as the phantom `backups` table and the
+  declared-but-unapplied gdrive/vps retention tiers. KB mistake **#300145**.
+
+### Not built yet
+Step 4 — an A.R.M.A.D.A. Fleet-tab profile selector. Step 5 — `warmup_fleet_models` reading
+the active profile instead of its hardcoded capability list. A `news` profile does not exist
+yet; writing one is what makes step 4 worth having.

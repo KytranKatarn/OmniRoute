@@ -4386,6 +4386,45 @@ def map_page():
     return render_template("map.html", source_count=46, is_subscriber=is_subscriber())
 
 
+# The 13 Canadian provinces & territories. This is an ALLOWLIST on purpose:
+# articles.province_code is not exclusively Canadian — it also holds US state
+# codes (KY, NY), and one row even carries 'CA', a COUNTRY code in the province
+# column. Deriving "Canadian" from "has a province_code" would therefore file
+# Kentucky under Canada.
+_CA_PROVINCES = frozenset(
+    ["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]
+)
+
+
+def _pin_country(country_code, province_code):
+    """Country for a map pin, plus HOW we know it.
+
+    articles.country_code stopped being populated at some point — every one of
+    the 4,291 geocoded articles in the current 7-day window has it NULL while
+    5,475 older rows carry 'CA'. /map colours pins by country, so the whole map
+    rendered a single "unknown" grey and the legend advertised two categories
+    that could never appear.
+
+    A province code IS a statement about the country, so we can recover most of
+    it. Two rules keep that honest:
+
+      1. A REPORTED country always wins. There are 89 rows with country 'US' and
+         province 'ON'; trusting the province there would relabel them Canadian.
+      2. Only the 13 real Canadian codes derive a country. Anything else stays
+         unknown rather than being guessed at.
+
+    Returns (code, source) where source is reported | derived | unknown, so the
+    UI can distinguish a reading from an inference instead of flattening both.
+    """
+    cc = (country_code or "").strip().upper()
+    if cc and cc != "??":
+        return cc, "reported"
+    pc = (province_code or "").strip().upper()
+    if pc in _CA_PROVINCES:
+        return "CA", "derived"
+    return "??", "unknown"
+
+
 @bp.get("/api/v1/map-data")
 def api_map_data():
     """JSON pin data for /map. Aggregates by (lat, lng) cluster to avoid
@@ -4427,10 +4466,14 @@ def api_map_data():
         """), params).mappings().all()
     pins = []
     for r in rows:
+        country, source = _pin_country(r["country_code"], r["province_code"])
         pins.append({
             "lat": float(r["lat"]),
             "lng": float(r["lng"]),
-            "country_code": r["country_code"],
+            "country_code": country,
+            # How we know the country. The map colours by country, so a guess and
+            # a reading must not render alike — see _pin_country.
+            "country_source": source,
             "province_code": r["province_code"],
             "article_count": int(r["article_count"]),
             "samples": [

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_archetypes.html" import paywall %}
 {% block title %}News Map — What The Fact{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -20,15 +21,29 @@
 {% if is_subscriber %}
 <div style="max-width:1200px;margin:0 auto;padding:8px 16px 24px;">
   <div id="wtfMap" style="width:100%;height:560px;background:#050d0d;border:1px solid #1a2a3a;border-radius:4px;"></div>
-  <div id="wtfMapLegend" style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:10px;font-size:0.7rem;color:#9ca3af;">
-    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;margin-right:4px;"></span>Canadian</span>
-    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;margin-right:4px;"></span>International</span>
-    <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6b7280;margin-right:4px;"></span>Unknown country</span>
-    <span style="margin-left:auto;color:#6b7280;font-size:0.6rem;font-family:'IBM Plex Mono', monospace;">
-      <span id="wtfMapPinCount">--</span> pins
-    </span>
-  </div>
+  <!-- The legend is BUILT FROM THE PINS (see drawLegend), not hand-written. A
+       hardcoded list is how this page came to advertise three categories while
+       every pin rendered the same grey: articles.country_code stopped being
+       populated, so nothing was ever Canadian or International again and nobody
+       could see it from the markup. A category with no pins is not shown. -->
+  <div id="wtfMapLegend" class="wtf-nm-legend"></div>
 </div>
+
+<style>
+  /* Namespaced wtf-nm-* (news map). Class names are created in JS as well as
+     matched here, so a rename must change BOTH — an earlier pass renamed only
+     the CSS and silently unstyled the element. */
+  .wtf-nm-legend { display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+                   margin-top:10px; font-size:.7rem; color:var(--wtf-text-dim,#9ca3af); }
+  .wtf-nm-dot { display:inline-block; width:8px; height:8px; border-radius:50%;
+                margin-right:5px; vertical-align:middle; }
+  .wtf-nm-count { margin-left:auto; color:var(--wtf-text-faint,#6b7280);
+                  font-size:.6rem; font-family:'IBM Plex Mono',monospace; }
+  /* The derivation note takes the full row so it reads as a sentence about the
+     data rather than a fourth legend category. */
+  .wtf-nm-note { flex-basis:100%; color:var(--wtf-text-faint,#6b7280);
+                 font-size:.62rem; line-height:1.5; }
+</style>
 
 <script>
 (function() {
@@ -43,10 +58,19 @@
     subdomains: 'abcd',
   }).addTo(map);
 
-  function pinColor(cc) {
-    if (cc === 'CA') return '#10b981';
-    if (cc === '??' || !cc) return '#6b7280';
-    return '#3b82f6';
+  // Three buckets, each with the colour AND the words used in the legend, so a
+  // swatch and its label cannot describe different things.
+  var BUCKETS = {
+    ca:      { key: 'ca',      colour: '#10b981', label: 'Canadian' },
+    intl:    { key: 'intl',    colour: '#3b82f6', label: 'International' },
+    unknown: { key: 'unknown', colour: '#6b7280', label: 'Country not resolved' }
+  };
+
+  function bucketFor(pin) {
+    var cc = pin.country_code;
+    if (cc === 'CA') return BUCKETS.ca;
+    if (!cc || cc === '??') return BUCKETS.unknown;
+    return BUCKETS.intl;
   }
 
   function pinRadius(count) {
@@ -60,9 +84,12 @@
     .then(function(r) { return r.json(); })
     .then(function(data) {
       if (!data.ok || !data.pins) return;
-      document.getElementById('wtfMapPinCount').textContent = data.pins.length;
+      var tally = { ca: 0, intl: 0, unknown: 0 }, derived = 0;
       data.pins.forEach(function(pin) {
-        var color = pinColor(pin.country_code);
+        var bucket = bucketFor(pin);
+        tally[bucket.key] += 1;
+        if (pin.country_source === 'derived') derived += 1;
+        var color = bucket.colour;
         var circle = L.circleMarker([pin.lat, pin.lng], {
           radius: pinRadius(pin.article_count),
           color: color,
@@ -70,9 +97,13 @@
           fillColor: color,
           fillOpacity: 0.45,
         });
+        // "??/ON" was rendered to readers for every Canadian pin. A province on
+        // its own is the more informative label anyway, so the country is only
+        // shown when it adds something the province does not already imply.
         var label = pin.province_code
-          ? pin.country_code + '/' + pin.province_code
-          : (pin.country_code === '??' ? 'Unknown' : pin.country_code);
+          ? (bucket === BUCKETS.ca ? pin.province_code
+                                   : pin.country_code + '/' + pin.province_code)
+          : (bucket === BUCKETS.unknown ? 'Location not resolved' : pin.country_code);
         var popup = '<div style="font-family:system-ui,sans-serif;min-width:240px;max-width:320px;">'
                   + '<div style="font-weight:600;color:#0a0f0a;font-size:0.75rem;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">'
                   + esc(label) + ' · ' + pin.article_count + ' article' + (pin.article_count === 1 ? '' : 's')
@@ -87,20 +118,54 @@
         circle.bindPopup(popup);
         circle.addTo(map);
       });
+      drawLegend(tally, derived, data.pins.length);
     })
     .catch(function(e) {
       console.error('map load failed:', e);
+      var box = document.getElementById('wtfMapLegend');
+      // Never leave the legend silently empty — an empty legend under an empty
+      // map reads as "no news anywhere" rather than "the request failed".
+      if (box) box.textContent = 'Map data could not be loaded.';
     });
+
+  // Built from the pins actually drawn. A bucket with no pins is omitted rather
+  // than shown at zero, so the legend always describes what is on screen.
+  function drawLegend(tally, derived, total) {
+    var box = document.getElementById('wtfMapLegend');
+    if (!box) return;
+    box.textContent = '';
+    ['ca', 'intl', 'unknown'].forEach(function(k) {
+      if (!tally[k]) return;
+      var b = BUCKETS[k];
+      var span = document.createElement('span');
+      var dot = document.createElement('i');
+      dot.className = 'wtf-nm-dot';
+      dot.style.background = b.colour;
+      span.appendChild(dot);
+      span.appendChild(document.createTextNode(b.label + ' · ' + tally[k]));
+      box.appendChild(span);
+    });
+    var count = document.createElement('span');
+    count.className = 'wtf-nm-count';
+    count.textContent = total + (total === 1 ? ' pin' : ' pins');
+    box.appendChild(count);
+    if (derived) {
+      // State the recovery rather than passing it off as a reading: the country
+      // field is empty for these and was inferred from the province code.
+      var note = document.createElement('div');
+      note.className = 'wtf-nm-note';
+      note.textContent = 'Country was not recorded for ' + derived
+        + (derived === 1 ? ' pin' : ' pins')
+        + ' and has been taken from the province code.';
+      box.appendChild(note);
+    }
+  }
 })();
 </script>
 {% else %}
-<div style="max-width:800px;margin:0 auto;padding:16px;">
-  <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:8px;padding:24px;text-align:center;">
-    <div style="font-family:'Orbitron',sans-serif;font-size:13px;color:#e5e7eb;margin-bottom:8px;">🔒 News Map — Starter+</div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:16px;">Geographic coverage map — where Canadian and international stories originate, sized by article volume.</div>
-    <a href="/login?next=/map" style="display:inline-block;background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:10px 24px;border-radius:4px;text-decoration:none;">Unlock with Starter →</a>
-    <div style="margin-top:10px;"><a href="/join" style="font-size:11px;color:#6b7280;text-decoration:none;">See plans</a></div>
-  </div>
-</div>
+{{ paywall(
+     "🔒 News Map — Starter+",
+     "Geographic coverage map — where Canadian and international stories originate, sized by article volume.",
+     "/map") }}
 {% endif %}
 {% endblock %}

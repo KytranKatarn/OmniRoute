@@ -592,7 +592,11 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                         UPDATE {schema}.bias_scores
                         SET band = :band, score = :score, rationale = :rationale,
                             analyzed_by = 'llm_v1', trigger_phrases = CAST(:tp AS JSONB),
-                            confidence = :confidence, computed_at = NOW()
+                            confidence = :confidence, computed_at = NOW(),
+                            -- ⚠️ MUST be reset. The heuristic may have written FALSE
+                            -- earlier; this write IS a real reading, and leaving the
+                            -- stale FALSE hides it behind "NOT DETERMINED".
+                            signal_detected = TRUE
                         WHERE article_id = :aid
                     """),
                     bias_params,
@@ -609,7 +613,8 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
                               SET band=EXCLUDED.band, score=EXCLUDED.score,
                                   rationale=EXCLUDED.rationale, analyzed_by=EXCLUDED.analyzed_by,
                                   trigger_phrases=EXCLUDED.trigger_phrases,
-                                  confidence=EXCLUDED.confidence, computed_at=NOW()
+                                  confidence=EXCLUDED.confidence, computed_at=NOW(),
+                                  signal_detected=TRUE
                         """),
                         bias_params,
                     )

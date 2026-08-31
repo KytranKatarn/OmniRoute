@@ -140,7 +140,13 @@ def persist_upgrade(conn, schema: str, article_id: int, payload: Dict[str, Any])
                    score = COALESCE(:score, score),
                    rationale = :rationale,
                    trigger_phrases = CAST(:trig AS JSONB),
-                   confidence = COALESCE(:conf, confidence)
+                   confidence = COALESCE(:conf, confidence),
+                   -- ⚠️ CONDITIONAL, unlike the other writers. This site uses
+                   -- COALESCE(:score, score) — it only overwrites the measurement
+                   -- when the payload actually carries one, so signal_detected may
+                   -- only be claimed in that same case.
+                   signal_detected = CASE WHEN :score IS NOT NULL
+                                          THEN TRUE ELSE signal_detected END
              WHERE article_id = :id
             """
         ),

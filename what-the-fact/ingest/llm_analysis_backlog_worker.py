@@ -188,7 +188,10 @@ def _persist(engine, schema: str, article_id: int, sections: dict, tier_meta: di
                         analyzed_by       = 'llm_v1',
                         trigger_phrases   = CAST(:tp AS JSONB),
                         confidence        = :confidence,
-                        computed_at       = NOW()
+                        computed_at       = NOW(),
+                        -- ⚠️ stale FALSE from the heuristic pass would hide this
+                        -- real reading behind "NOT DETERMINED" on the article page
+                        signal_detected   = TRUE
                     WHERE article_id = :aid
                 """),
                 bias_params,
@@ -207,7 +210,8 @@ def _persist(engine, schema: str, article_id: int, sections: dict, tier_meta: di
                           SET band = EXCLUDED.band, score = EXCLUDED.score,
                               rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
                               trigger_phrases = EXCLUDED.trigger_phrases,
-                              confidence = EXCLUDED.confidence, computed_at = NOW()
+                              confidence = EXCLUDED.confidence, computed_at = NOW(),
+                              signal_detected = TRUE
                     """),
                     bias_params,
                 )

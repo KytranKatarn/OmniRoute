@@ -4293,7 +4293,10 @@ def _register_own_jobs(scheduler, flask_app):
                                       rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
                                       trigger_phrases = EXCLUDED.trigger_phrases,
                                       confidence = EXCLUDED.confidence, computed_at = NOW(),
-                                      agent_name = EXCLUDED.agent_name
+                                      agent_name = EXCLUDED.agent_name,
+                                      -- ⚠️ stale FALSE from the heuristic pass would
+                                      -- hide this reading behind "NOT DETERMINED"
+                                      signal_detected = TRUE
                                 """,
                                 (
                                     aid,
@@ -5090,7 +5093,10 @@ def _register_own_jobs(scheduler, flask_app):
                                       rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
                                       trigger_phrases = EXCLUDED.trigger_phrases,
                                       confidence = EXCLUDED.confidence, computed_at = NOW(),
-                                      agent_name = EXCLUDED.agent_name
+                                      agent_name = EXCLUDED.agent_name,
+                                      -- ⚠️ stale FALSE from the heuristic pass would
+                                      -- hide this reading behind "NOT DETERMINED"
+                                      signal_detected = TRUE
                                 """,
                                 (
                                     aid,

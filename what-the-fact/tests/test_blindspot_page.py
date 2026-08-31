@@ -56,9 +56,10 @@ BLINDSPOTS = [
 ]
 
 
-def page(env, *, rows=BLINDSPOTS, days=7, subscriber=False):
+def page(env, *, rows=BLINDSPOTS, days=7, subscriber=False, total=2883):
     return env.get_template("blindspot.html").render(
-        blindspots=rows, days=days, windows=WINDOWS, is_subscriber=subscriber)
+        blindspots=rows, total_in_window=total, days=days, windows=WINDOWS,
+        is_subscriber=subscriber)
 
 
 class TestTheStoriesActuallyRender:
@@ -180,3 +181,24 @@ class TestPageAndApiShareOneQuery:
         api_body = src[api_start:src.index("\n@bp.", api_start)]
         assert "_blindspot_rows(" in api_body, "API no longer shares the helper"
         assert "story_clusters" not in api_body, "API re-inlined its own SQL — it can drift"
+
+
+class TestTheCountIsThePopulationNotThePageSize:
+    """`blindspots|length` is the LIMIT (20). Measured live: 255 stories
+    qualify in 3 days and 2,883 in 30. Printing 20 as "stories in window" tells
+    a reader there are twenty blind spots in a month when there are nearly
+    three thousand — the same shape as /owners' 149% shares."""
+
+    def test_the_tile_shows_the_qualifying_total(self, env):
+        html = page(env, total=2883)
+        assert "2,883" in html, "the tile shows the page size, not the population"
+
+    def test_the_page_size_is_stated_separately(self, env):
+        html = page(env, total=2883)
+        assert f"showing {len(BLINDSPOTS)} most recent" in html
+
+    def test_the_two_numbers_are_not_conflated(self, env):
+        """A window with more qualifying stories than fit on the page must not
+        report the page size as the total."""
+        html = page(env, total=255, days=3)
+        assert "255" in html and "showing 2 most recent" in html

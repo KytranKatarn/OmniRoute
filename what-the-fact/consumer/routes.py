@@ -4071,11 +4071,46 @@ def api_v1_bias_distribution():
 _BLINDSPOT_WINDOWS = (3, 7, 14, 30)
 
 
+def _blindspot_total(days=7, max_gap=0.15):
+    """How many stories QUALIFY in this window — not how many are shown.
+
+    ⚠️ These differ by orders of magnitude: measured 255 qualifying in 3 days
+    and 2,883 in 30, against a page size of 20. Labelling the page size as
+    "stories in window" would tell a reader there are 20 blind spots in a month
+    when there are nearly three thousand.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            SELECT count(*) FROM {S}.story_clusters sc
+            WHERE sc.coverage_gap_score > 0
+              AND sc.coverage_gap_score <= :max_gap
+              AND sc.article_count >= 2
+              AND sc.latest_published_at >= NOW() - INTERVAL '1 day' * :days
+              AND EXISTS (
+                  SELECT 1 FROM {S}.articles a
+                  WHERE a.cluster_id = sc.id
+                    AND (a.country_code = 'CA'
+                         OR a.geo_scope IN ('national', 'provincial'))
+              )
+        """), {"max_gap": max_gap, "days": days}).scalar() or 0
+
+
 def _blindspot_rows(days=7, limit=20, max_gap=0.15):
     """Rows behind BOTH /blindspot and /api/v1/blindspot.
 
     Extracted so the page and the API cannot drift: a blindspot shown to a
     reader and one returned to an API client must be the same story set.
+
+    ⚠️ ORDERING CAVEAT (measured 2026-08-31): ~2,981 clusters are TIED at the
+    minimum coverage_gap_score, so `coverage_gap_score ASC` barely
+    discriminates and `latest_published_at DESC` is the real sort. With 255
+    qualifying stories already inside the 3-day window, the top `limit` is the
+    same set for every window — widening to 30 days adds candidates that all
+    rank below it. The window therefore changes the POPULATION but not this
+    page's visible list. Surfaced honestly via _blindspot_total(); making the
+    control change the list is an editorial decision about what "blind spot"
+    should rank on, not a rendering fix.
     """
     S = _schema()
     with _db().begin() as c:
@@ -4129,6 +4164,7 @@ def blindspot_page():
         days = 7
     return render_template("blindspot.html",
                            blindspots=_blindspot_rows(days=days),
+                           total_in_window=_blindspot_total(days=days),
                            days=days,
                            windows=_BLINDSPOT_WINDOWS,
                            is_subscriber=is_subscriber())

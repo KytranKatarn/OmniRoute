@@ -29,9 +29,14 @@
   </p>
 </div>
 
+{# ⚠️ The first tile MUST be the QUALIFYING COUNT, not blindspots|length —
+   that is the page size (20). Measured: 255 qualifying in 3 days, 2,883 in 30.
+   Labelling 20 as "stories in window" would tell a reader there are twenty
+   blind spots in a month when there are nearly three thousand. #}
 {{ stat_tiles([
-     {'label': 'Stories in window', 'value': blindspots|length,
-      'detail': 'last ' ~ days ~ ' day' ~ ('' if days == 1 else 's')},
+     {'label': 'Blind spots in window', 'value': '{:,}'.format(total_in_window),
+      'detail': 'last ' ~ days ~ ' day' ~ ('' if days == 1 else 's') ~
+                ' · showing ' ~ blindspots|length ~ ' most recent'},
      {'label': 'Coverage threshold', 'value': '≤15%',
       'detail': 'share of tracked outlets that ran it'},
 ]) }}

@@ -437,6 +437,63 @@ def get_article(article_id: int):
 
 
 _VALID_BANDS = frozenset({"left", "center-left", "center", "center-right", "right"})
+
+
+# Bias parsing — mirrors ingest/bias_parse.py (#6243). tech/ ships as its own
+# container with no import path into ingest/, so it cannot share the module; what
+# it MUST NOT do is drift. Any change goes in ingest/bias_parse.py first.
+#
+# THE BUG: `float(bias.get("score") or 0.0)` collapsed a MISSING score, an explicit
+# JSON null, and a real 0.0 into the same number, while keeping the model's band —
+# producing rows like band='right', score=0.0, rationale=''. 34,275 rows carried
+# that fabricated zero; 3,629 were publicly labelled `right` on a score of zero.
+# Measured: across 745 sampled rows the model returned a literal 0 **zero** times,
+# and in 400 it explicitly said "score": null.
+def _score_or_none(raw):
+    """Coerce a model score to float, or None when ABSENT. Never uses truthiness:
+    0.0 and "0" are real measurements and must survive."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    if isinstance(raw, (int, float)):
+        return max(-1.0, min(1.0, float(raw)))
+    if isinstance(raw, str):
+        text_val = raw.strip()
+        if not text_val:
+            return None
+        try:
+            return max(-1.0, min(1.0, float(text_val)))
+        except ValueError:
+            return None
+    return None
+
+
+def _parse_llm_bias(bias):
+    """LLM bias section -> usable reading, or None to leave the heuristic alone.
+
+    None when the model supplied no score: a band without a score is a partial
+    parse, not a measurement.
+    """
+    if not isinstance(bias, dict):
+        return None
+    score = _score_or_none(bias.get("score"))
+    if score is None:
+        return None
+    band = str(bias.get("band") or "").strip().lower()
+    if band not in _VALID_BANDS:
+        band = "center"
+    confidence = bias.get("confidence")
+    if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+        confidence = None
+    triggers = bias.get("trigger_phrases")
+    if not isinstance(triggers, list):
+        triggers = []
+    return {
+        "band": band,
+        "score": score,
+        "rationale": (bias.get("rationale") or "").strip(),
+        "confidence": confidence,
+        "trigger_phrases": triggers,
+    }
 # Verdict vocabulary — mirrors ingest/verdicts.py (#6242). tech/ ships as its own
 # container with no import path into ingest/, so it cannot share the module; what it
 # MUST NOT do is drift. Any change here goes in verdicts.py first.
@@ -509,42 +566,53 @@ def _persist_on_demand(article_id: int, results: dict, schema: str) -> None:
     # ── Phase 1: bias + fact_checks (best-effort) ────────────────────────
     try:
         with _db().begin() as c:
-            bias = results.get("bias") or {}
-            band = (bias.get("band") or "center").lower().strip()
-            if band not in _VALID_BANDS:
-                band = "center"
-            score = float(bias.get("score") or 0.0)
-            rationale = (bias.get("rationale") or "").strip()
-            tp = _json.dumps(bias.get("trigger_phrases") or [])
-            confidence = bias.get("confidence")
-            updated = c.execute(
-                text(f"""
-                    UPDATE {schema}.bias_scores
-                    SET band = :band, score = :score, rationale = :rationale,
-                        analyzed_by = 'llm_v1', trigger_phrases = CAST(:tp AS JSONB),
-                        confidence = :confidence, computed_at = NOW()
-                    WHERE article_id = :aid
-                """),
-                {"band": band, "score": score, "rationale": rationale,
-                 "tp": tp, "confidence": confidence, "aid": article_id},
-            )
-            if updated.rowcount == 0:
-                c.execute(
-                    text(f"""
-                        INSERT INTO {schema}.bias_scores
-                            (article_id, band, score, heuristic_version, rationale,
-                             analyzed_by, trigger_phrases, confidence)
-                        VALUES (:aid, :band, :score, 'llm_v1', :rationale,
-                                'llm_v1', CAST(:tp AS JSONB), :confidence)
-                        ON CONFLICT (article_id) DO UPDATE
-                          SET band=EXCLUDED.band, score=EXCLUDED.score,
-                              rationale=EXCLUDED.rationale, analyzed_by=EXCLUDED.analyzed_by,
-                              trigger_phrases=EXCLUDED.trigger_phrases,
-                              confidence=EXCLUDED.confidence, computed_at=NOW()
-                    """),
-                    {"aid": article_id, "band": band, "score": score,
-                     "rationale": rationale, "tp": tp, "confidence": confidence},
+            # `reading is None` => the model returned NO score. Writing one would
+            # fabricate a measurement (see _parse_llm_bias), so the bias write is
+            # SKIPPED and the heuristic row — deterministic and inspectable — is
+            # left intact. Deliberately a plain conditional, NOT an early return
+            # or raise: the fact_checks writes below share this transaction and
+            # must still run.
+            reading = _parse_llm_bias(results.get("bias"))
+            if reading is None:
+                _logger.info(
+                    "deep-dive bias skipped for article %s — model returned no score",
+                    article_id,
                 )
+            else:
+                bias_params = {
+                    "aid": article_id,
+                    "band": reading["band"],
+                    "score": reading["score"],
+                    "rationale": reading["rationale"],
+                    "tp": _json.dumps(reading["trigger_phrases"]),
+                    "confidence": reading["confidence"],
+                }
+                updated = c.execute(
+                    text(f"""
+                        UPDATE {schema}.bias_scores
+                        SET band = :band, score = :score, rationale = :rationale,
+                            analyzed_by = 'llm_v1', trigger_phrases = CAST(:tp AS JSONB),
+                            confidence = :confidence, computed_at = NOW()
+                        WHERE article_id = :aid
+                    """),
+                    bias_params,
+                )
+                if updated.rowcount == 0:
+                    c.execute(
+                        text(f"""
+                            INSERT INTO {schema}.bias_scores
+                                (article_id, band, score, heuristic_version, rationale,
+                                 analyzed_by, trigger_phrases, confidence)
+                            VALUES (:aid, :band, :score, 'llm_v1', :rationale,
+                                    'llm_v1', CAST(:tp AS JSONB), :confidence)
+                            ON CONFLICT (article_id) DO UPDATE
+                              SET band=EXCLUDED.band, score=EXCLUDED.score,
+                                  rationale=EXCLUDED.rationale, analyzed_by=EXCLUDED.analyzed_by,
+                                  trigger_phrases=EXCLUDED.trigger_phrases,
+                                  confidence=EXCLUDED.confidence, computed_at=NOW()
+                        """),
+                        bias_params,
+                    )
 
             fc = results.get("factcheck") or {}
             claims = fc.get("claims") or []

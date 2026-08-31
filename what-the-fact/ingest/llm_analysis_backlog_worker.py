@@ -33,6 +33,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy import text
 
 from . import ai_dispatcher, tier_router  # noqa: F401 — ai_dispatcher kept for any remaining single-tier callers
+from .bias_parse import parse_llm_bias
 
 logger = logging.getLogger("wtf-ingest")
 
@@ -47,7 +48,8 @@ _RUN_FACTCHECK = os.environ.get("WTF_LLM_BACKLOG_RUN_FACTCHECK", "true").lower()
 _CONCURRENCY = int(os.environ.get("WTF_LLM_BACKLOG_CONCURRENCY", "1"))
 
 _ALLOWED_SCHEMAS = frozenset({"wtf"})
-_VALID_BIAS_BANDS = frozenset({"left", "center-left", "center", "center-right", "right"})
+# Band validation moved into bias_parse.VALID_BANDS with the score parsing it
+# belongs beside — the local copy became unreachable and was removed.
 
 # Verdict vocabularies live in ONE place (verdicts.py, #6242). These names are
 # kept so existing call sites are unchanged; the mapping is no longer duplicated
@@ -110,15 +112,12 @@ def _persist(engine, schema: str, article_id: int, sections: dict, tier_meta: di
     tier2_pending = bool(tier_meta.get("tier2_pending"))
     failed_delta = 1 if (tier2_ran and tier2_status not in ("ok", "skipped")) else 0
 
-    # Extract bias from sections for bias_scores update
-    bias = (sections.get("bias_summary") or {})
-    band = (bias.get("band") or "center").lower().strip()
-    if band not in _VALID_BIAS_BANDS:
-        band = "center"
-    score = float(bias.get("score") or 0.0)
-    rationale = (bias.get("rationale") or "").strip()
-    trigger_phrases = json.dumps(bias.get("trigger_phrases") or [])
-    confidence = bias.get("confidence")
+    # Extract bias from sections for bias_scores update.
+    # `reading is None` => the model gave NO score, so there is nothing to write
+    # and the heuristic row is left intact. See ingest/bias_parse.py: the old
+    # `float(bias.get("score") or 0.0)` fabricated a 0.0 from an absent score
+    # while keeping the model's band, producing self-contradictory rows.
+    reading = parse_llm_bias(sections.get("bias_summary"))
 
     with engine.begin() as c:
         c.execute(
@@ -152,54 +151,66 @@ def _persist(engine, schema: str, article_id: int, sections: dict, tier_meta: di
                 "failed_delta": failed_delta,
             },
         )
-        # Replace heuristic bias score with LLM result.
-        # Only update when the LLM gave a real signal (rationale or non-center band).
-        updated = c.execute(
-            text(f"""
-                UPDATE {schema}.bias_scores
-                SET band              = :band,
-                    score             = :score,
-                    rationale         = :rationale,
-                    analyzed_by       = 'llm_v1',
-                    trigger_phrases   = CAST(:tp AS JSONB),
-                    confidence        = :confidence,
-                    computed_at       = NOW()
-                WHERE article_id = :aid
-            """),
-            {
-                "band": band,
-                "score": score,
-                "rationale": rationale,
-                "tp": trigger_phrases,
-                "confidence": confidence,
-                "aid": article_id,
-            },
-        )
-        if updated.rowcount == 0:
-            # Row missing (shouldn't happen for articles that went through ingest)
-            # Insert a fallback row so the consumer always has something to render.
-            c.execute(
-                text(f"""
-                    INSERT INTO {schema}.bias_scores
-                        (article_id, band, score, heuristic_version, rationale,
-                         analyzed_by, trigger_phrases, confidence)
-                    VALUES (:aid, :band, :score, 'llm_v1', :rationale,
-                            'llm_v1', CAST(:tp AS JSONB), :confidence)
-                    ON CONFLICT (article_id) DO UPDATE
-                      SET band = EXCLUDED.band, score = EXCLUDED.score,
-                          rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
-                          trigger_phrases = EXCLUDED.trigger_phrases,
-                          confidence = EXCLUDED.confidence, computed_at = NOW()
-                """),
-                {
-                    "aid": article_id,
-                    "band": band,
-                    "score": score,
-                    "rationale": rationale,
-                    "tp": trigger_phrases,
-                    "confidence": confidence,
-                },
+        # Replace the heuristic bias row with the LLM result — ONLY when the model
+        # actually returned a score.
+        #
+        # ⚠️ THE GUARD IS NOW REAL. The comment here used to read "Only update when
+        # the LLM gave a real signal (rationale or non-center band)" above a bare
+        # `WHERE article_id = :aid` — the condition existed nowhere in the SQL. That
+        # is how 34,275 rows got a fabricated 0.0 (3,629 of them publicly labelled
+        # `right` on a score of zero). Second phantom invariant found in THIS FILE:
+        # the first was a comment asserting a CHECK constraint on overall_verdict
+        # that had never been created (PR #3007).
+        #
+        # A band with no score is a partial parse, not a measurement. Leaving the
+        # heuristic row alone is strictly better — it is deterministic and
+        # inspectable, and the fixed pipeline can re-analyse the article later.
+        if reading is None:
+            logger.info(
+                "[llm_backlog] article=%s bias skipped — model returned no score "
+                "(heuristic row left intact)", article_id,
             )
+        else:
+            bias_params = {
+                "band": reading["band"],
+                "score": reading["score"],
+                "rationale": reading["rationale"],
+                "tp": json.dumps(reading["trigger_phrases"]),
+                "confidence": reading["confidence"],
+                "aid": article_id,
+            }
+            updated = c.execute(
+                text(f"""
+                    UPDATE {schema}.bias_scores
+                    SET band              = :band,
+                        score             = :score,
+                        rationale         = :rationale,
+                        analyzed_by       = 'llm_v1',
+                        trigger_phrases   = CAST(:tp AS JSONB),
+                        confidence        = :confidence,
+                        computed_at       = NOW()
+                    WHERE article_id = :aid
+                """),
+                bias_params,
+            )
+            if updated.rowcount == 0:
+                # Row missing (shouldn't happen for articles that went through ingest)
+                # Insert a fallback row so the consumer always has something to render.
+                c.execute(
+                    text(f"""
+                        INSERT INTO {schema}.bias_scores
+                            (article_id, band, score, heuristic_version, rationale,
+                             analyzed_by, trigger_phrases, confidence)
+                        VALUES (:aid, :band, :score, 'llm_v1', :rationale,
+                                'llm_v1', CAST(:tp AS JSONB), :confidence)
+                        ON CONFLICT (article_id) DO UPDATE
+                          SET band = EXCLUDED.band, score = EXCLUDED.score,
+                              rationale = EXCLUDED.rationale, analyzed_by = EXCLUDED.analyzed_by,
+                              trigger_phrases = EXCLUDED.trigger_phrases,
+                              confidence = EXCLUDED.confidence, computed_at = NOW()
+                    """),
+                    bias_params,
+                )
 
 
 def _persist_factcheck(engine, schema: str, article_id: int, fc_result: dict) -> None:

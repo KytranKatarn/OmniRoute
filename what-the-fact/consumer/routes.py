@@ -1854,8 +1854,31 @@ def article(article_id: int):
             JOIN {S}.sources s ON s.id = a.source_id
             LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
             LEFT JOIN {S}.outlet_bias_scores obs ON obs.source_id = a.source_id
-            LEFT JOIN {S}.fact_checks fc
-                ON fc.article_id = a.id AND fc.checker NOT LIKE 'GoogleFCT%%'
+            -- ⚠️ LATERAL + ORDER BY id DESC LIMIT 1, never a bare LEFT JOIN.
+            --
+            -- fact_checks has NO unique constraint on article_id and eight
+            -- INSERT sites across six files, none of which upsert — so it holds
+            -- 431,295 rows for 121,123 articles (3.6x). A plain LEFT JOIN
+            -- fanned out across those duplicates and `.first()` then took an
+            -- ARBITRARY one, with no ordering to make the choice stable.
+            --
+            -- For the 6,906 articles whose duplicates DISAGREE, that means the
+            -- published verdict was non-deterministic. Article 200618 carries
+            -- 2x 'unverifiable' (llm_v1, 2026-06-08) and 4x 'verified'
+            -- (dhq_v1, 2026-06-14): the page could show either, and the stale
+            -- one is just as likely. Newest-wins is the only defensible rule.
+            --
+            -- The LIST view (see the #5719 rewrite above) already did this
+            -- correctly; the article page did not. Same query, same table,
+            -- two different answers.
+            LEFT JOIN LATERAL (
+                SELECT fc2.overall_verdict, fc2.claims, fc2.analyzed_by
+                  FROM {S}.fact_checks fc2
+                 WHERE fc2.article_id = a.id
+                   AND fc2.checker NOT LIKE 'GoogleFCT%%'
+                 ORDER BY fc2.id DESC
+                 LIMIT 1
+            ) fc ON TRUE
             WHERE a.id = :id
         """), {"id": article_id}).mappings().first()
     if not row:

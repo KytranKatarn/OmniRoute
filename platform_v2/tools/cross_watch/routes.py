@@ -19,6 +19,7 @@ GET    /api/cross-watch/search               — unified free-text search across
 
 import logging
 import os
+import re
 import time
 from threading import Lock
 
@@ -35,6 +36,60 @@ _entity_cache: list = []
 _entity_cache_at: float = 0.0
 _entity_cache_lock = Lock()
 _ENTITY_CACHE_TTL = 60  # seconds
+
+
+def _entity_ids_matching_title(title: str) -> list:
+    """Entity ids whose name or alias appears in `title` as a WHOLE WORD.
+
+    ⚠️ WORD BOUNDARIES ARE THE WHOLE POINT. This was four copies of a naive
+    `alias.lower() in title_lower` substring test, which fires on ordinary
+    English because several aliases are two letters:
+
+        "Cape Breton hockey player…"      -> bre(TO)n        -> Toronto
+        "Storm watch … Dartmouth"         -> wa(TC)h         -> Transport Canada
+        "Saskatchewan teacher strike"     -> saska(TC)hewan  -> Transport Canada
+        "Doctors warn about flu season"   -> doc(TO)rs       -> Toronto
+
+    Measured live: a hockey story about a moose returned 5 "Related Parliament
+    Votes", every one attached to Toronto, purely because "Breton" contains
+    "to". Meanwhile "Carney government tables budget bill on carbon pricing in
+    Parliament" returned ZERO — so the matcher false-positived on irrelevant
+    stories while missing the obviously relevant one.
+
+    The two-letter aliases (TO, HC, TC) are the dangerous ones; CRA/DND/MTL are
+    long enough to be safe by luck, not by design. Boundaries fix the class,
+    not just the instances.
+
+    ONE definition, called by all four endpoints. Four copies is how three of
+    them stay broken after someone fixes the fourth.
+    """
+    return [e["id"] for e in _entities_matching_title(title)]
+
+
+def _entities_matching_title(title: str) -> list:
+    """Full entity dicts whose name/alias appears in `title` as a whole word.
+
+    The WRITE path (ingest_signal) needs the objects; the four READ endpoints
+    need only ids. Both go through here so the boundary rule cannot be fixed in
+    one and left broken in the other — which is exactly the state this file was
+    in: five copies of the same substring test, one of them spelled
+    `headline_lower` instead of `title_lower` and therefore invisible to a grep
+    for the other four.
+    """
+    if not title:
+        return []
+    title_lower = title.lower()
+    matched = []
+    for ent in _get_entities():
+        needles = [ent["name"]] + list(ent.get("aliases") or [])
+        for needle in needles:
+            if not needle:
+                continue
+            # \b on both sides: "TO" matches "TO" and "to," but never "Breton".
+            if re.search(r"\b" + re.escape(needle.lower()) + r"\b", title_lower):
+                matched.append(ent)
+                break
+    return matched
 
 
 def _get_entities() -> list:
@@ -149,20 +204,14 @@ def ingest_signal():
     if not all([signal_type, source_product, source_item_id, headline]):
         return jsonify({"error": "missing required fields: signal_type, source_product, source_item_id, headline"}), 400
 
-    # Match entities by name/alias substring in headline
-    entities = _get_entities()
-    headline_lower = headline.lower()
-    matched = []
-    for ent in entities:
-        name_lower = ent["name"].lower()
-        if name_lower in headline_lower:
-            matched.append(ent)
-            continue
-        aliases = ent.get("aliases") or []
-        for alias in aliases:
-            if alias and alias.lower() in headline_lower:
-                matched.append(ent)
-                break
+    # Match entities by name/alias as a WHOLE WORD in the headline.
+    #
+    # ⚠️ This is the WRITE path — it creates the entity->signal links the four
+    # read endpoints later surface, so a false match here persists as bad data
+    # rather than just a bad render. It was a fifth copy of the same substring
+    # bug, spelled `headline_lower` instead of `title_lower`, which is why it
+    # survived a grep that found the other four.
+    matched = _entities_matching_title(headline)
 
     if not matched:
         return jsonify({"signals_created": 0, "entities_matched": []}), 200
@@ -394,17 +443,10 @@ def get_procurement_signals():
         limit = 5
 
     # Reuse cached entity list + same substring matching as ingest_signal
-    entities = _get_entities()
-    title_lower = title.lower()
-    matched_ids = []
-    for ent in entities:
-        if ent["name"].lower() in title_lower:
-            matched_ids.append(ent["id"])
-            continue
-        for alias in ent.get("aliases") or []:
-            if alias and alias.lower() in title_lower:
-                matched_ids.append(ent["id"])
-                break
+    # Word-boundary matching — see _entity_ids_matching_title. A substring test
+    # here matched "Toronto" inside "Breton" and put Parliament votes on a
+    # hockey story.
+    matched_ids = _entity_ids_matching_title(title)
 
     if not matched_ids:
         return jsonify({"tenders": [], "count": 0}), 200
@@ -470,17 +512,10 @@ def get_parliament_votes():
     except (ValueError, TypeError):
         limit = 5
 
-    entities = _get_entities()
-    title_lower = title.lower()
-    matched_ids = []
-    for ent in entities:
-        if ent["name"].lower() in title_lower:
-            matched_ids.append(ent["id"])
-            continue
-        for alias in ent.get("aliases") or []:
-            if alias and alias.lower() in title_lower:
-                matched_ids.append(ent["id"])
-                break
+    # Word-boundary matching — see _entity_ids_matching_title. A substring test
+    # here matched "Toronto" inside "Breton" and put Parliament votes on a
+    # hockey story.
+    matched_ids = _entity_ids_matching_title(title)
 
     if not matched_ids:
         return jsonify({"votes": [], "count": 0}), 200
@@ -550,17 +585,10 @@ def get_legal_rulings():
     except (ValueError, TypeError):
         limit = 5
 
-    entities = _get_entities()
-    title_lower = title.lower()
-    matched_ids = []
-    for ent in entities:
-        if ent["name"].lower() in title_lower:
-            matched_ids.append(ent["id"])
-            continue
-        for alias in ent.get("aliases") or []:
-            if alias and alias.lower() in title_lower:
-                matched_ids.append(ent["id"])
-                break
+    # Word-boundary matching — see _entity_ids_matching_title. A substring test
+    # here matched "Toronto" inside "Breton" and put Parliament votes on a
+    # hockey story.
+    matched_ids = _entity_ids_matching_title(title)
 
     if not matched_ids:
         return jsonify({"rulings": [], "count": 0}), 200
@@ -630,17 +658,10 @@ def get_civic_events():
     except (ValueError, TypeError):
         limit = 5
 
-    entities = _get_entities()
-    title_lower = title.lower()
-    matched_ids = []
-    for ent in entities:
-        if ent["name"].lower() in title_lower:
-            matched_ids.append(ent["id"])
-            continue
-        for alias in ent.get("aliases") or []:
-            if alias and alias.lower() in title_lower:
-                matched_ids.append(ent["id"])
-                break
+    # Word-boundary matching — see _entity_ids_matching_title. A substring test
+    # here matched "Toronto" inside "Breton" and put Parliament votes on a
+    # hockey story.
+    matched_ids = _entity_ids_matching_title(title)
 
     if not matched_ids:
         return jsonify({"events": [], "count": 0}), 200

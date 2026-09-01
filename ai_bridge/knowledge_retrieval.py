@@ -12,7 +12,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-import os
 import sys
 from typing import List, Dict, Optional
 from db import get_db

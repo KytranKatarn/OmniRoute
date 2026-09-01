@@ -2049,15 +2049,30 @@ def article(article_id: int):
                 _where, _param = "a2.province_code = :key", _prov
                 local_place = _PN.get(_prov, _prov)
             with _db().begin() as c:
+                # ⚠️ DISTINCT ON (title) — the same story is ingested more than
+                # once. Measured 2026-09-01: 794 duplicate (title, source_id)
+                # groups in 14 days, 948 redundant rows. Without this the panel
+                # listed "Atlantic Canada's largest used book sale returns to
+                # Saint John" TWICE in six slots, which reads as two separate
+                # stories and wastes a third of the panel.
+                #
+                # Dedup on title alone, not (title, source): the same wire copy
+                # runs at several outlets, and showing it once is the point.
+                # The inner ORDER BY picks the newest row per title; the outer
+                # one restores recency order for display.
                 local_rows = c.execute(text(f"""
-                    SELECT a2.id, a2.title, a2.published_at, s2.name AS source_name
-                      FROM {S}.articles a2
-                      JOIN {S}.sources s2 ON s2.id = a2.source_id
-                     WHERE {_where}
-                       AND a2.id <> :aid
-                       AND a2.published_at > NOW() - INTERVAL '14 days'
-                     ORDER BY a2.published_at DESC
-                     LIMIT 6
+                    SELECT * FROM (
+                        SELECT DISTINCT ON (a2.title)
+                               a2.id, a2.title, a2.published_at, s2.name AS source_name
+                          FROM {S}.articles a2
+                          JOIN {S}.sources s2 ON s2.id = a2.source_id
+                         WHERE {_where}
+                           AND a2.id <> :aid
+                           AND a2.published_at > NOW() - INTERVAL '14 days'
+                         ORDER BY a2.title, a2.published_at DESC
+                    ) d
+                    ORDER BY d.published_at DESC
+                    LIMIT 6
                 """), {"key": _param, "aid": article_id}).mappings().all()
             local_articles = [dict(r) for r in local_rows]
     except Exception:

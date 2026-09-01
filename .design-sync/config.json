@@ -1,0 +1,8 @@
+{
+  "shape": "styles-only",
+  "readmeHeader": ".design-sync/conventions.md",
+  "sourceCssDir": "platform_v2/static/css",
+  "loadOrderSource": "platform_v2/templates/base.html",
+  "defaultTheme": "lcars-classic",
+  "outDir": "ds-bundle"
+}

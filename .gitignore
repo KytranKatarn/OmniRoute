@@ -206,3 +206,6 @@ account-center-snap.md
 
 # GPU per-card telemetry (#5273) — written by scripts/gpu_state_exporter.py host cron
 platform_v2/.runtime/
+
+# /design-sync build output (regenerated; .design-sync/ holds the durable config)
+ds-bundle/

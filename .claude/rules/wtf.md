@@ -2,6 +2,34 @@
 
 **Creating new file** — no prior state. Documents 3-container VPS architecture, XSS rule, deploy patterns, DB location.
 
+## ⚠️ WTF is IN the platform monorepo — it is NOT its own repo
+
+**Source: `KytranKatarn/archie-platform`, path `what-the-fact/`.** Verify with
+`git -C what-the-fact rev-parse --show-toplevel` → `/mnt/archie_brain`.
+
+WTF is the **only** watch product not in its own repo — gov/legal/market/civic each have one
+(sources under `/mnt/standalone/kytran-*-watch/`). Reason: WTF was created by folding
+`kytran_news` INTO the platform (2026-04-18, "WTF + TheNews consolidation", #143), so it never
+went through extraction. Deliberate today, not drift — in-tree it gets F.O.R.G.E. auto-review,
+a write token, and the full merge pipeline, which the standalone watch repos do NOT have
+(they are review-only / human-merge). Split decision: task **#6254** (recommendation: not yet).
+
+| You want | Look in |
+|---|---|
+| Consumer pages (`/blindspot`, `/divergence`, `/economy`, `/municipal`, `/weather`, `/entity/<id>`, `/map`) | `what-the-fact/consumer/routes.py` — ONE large file; `/map` ≈ L4933, `/blindspot` renders ≈ L4715 |
+| Page markup / tier gating | `what-the-fact/consumer/templates/*.html` — gates are often a bare `{% if is_subscriber %}` in the TEMPLATE while the route itself is ungated |
+| Ingest, clustering, scoring | `what-the-fact/ingest/` |
+| Migrations | `what-the-fact/migrations/` |
+
+🔴 **`KytranKatarn/what-the-fact-site` is NOT the app.** It is the pre-app static marketing
+page (`website/what-the-fact.com/`, 5 files, last touched 2026-04-14), per the `*-site` naming
+convention. `what-the-fact.com` resolves to Citadel and is served by the **Flask app**, so that
+repo serves nothing. Pointing a coding agent at it means editing a dead repo — this nearly
+happened with Claude Design on 2026-09-01. Retire-or-keep is task **#6255**.
+
+⚠️ `deploy_drift_check.py` already handles the in-tree placement (`repo=_ARCHIE`,
+`path="what-the-fact"`, path-aware like media_hub). Do not "fix" it to point at a WTF repo.
+
 ## 3-Container Architecture (Citadel / boston-2)
 
 | Container | Port | Domain | Purpose |

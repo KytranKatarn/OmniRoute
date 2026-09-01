@@ -599,6 +599,9 @@ from .aurora_map import (  # pure, DB-free (see module docstring)
     _aurora_map_payload,
     _aurora_city_payload,
 )
+from .aurora_verify import (  # pure, DB-free (see module docstring)
+    verification_payload as _verification_payload,
+)
 
 
 @bp.get("/weather")
@@ -781,6 +784,67 @@ def weather():
                            aurora_map=map_payload,
                            aurora_cities=city_payload,
                            obs_time=obs_time,
+                           is_subscriber=is_subscriber())
+
+
+@bp.get("/weather/accuracy")
+def weather_accuracy():
+    """A.U.R.O.R.A. — how accurate the forecast actually turned out to be.
+
+    We already store every published daily high alongside the moment it was
+    issued, and we observe the stations hourly. Joining the two lets us say
+    something nobody else publishes for Canada: how far off the forecast was,
+    per city, per lead time.
+
+    Two things this route is careful about, both of which would otherwise
+    flatter the numbers:
+
+    * Only EVEN period_index rows carry a daytime high (odd ones are nights),
+      so joining without that filter silently compares a high against a
+      low and manufactures a large fake error.
+    * The observed high is the MAX of the station's readings for that day. A
+      day we did not observe produces no row at all — the aggregation in
+      `aurora_verify` skips it rather than scoring it as a perfect forecast.
+
+    All arithmetic lives in `consumer.aurora_verify`, which is stdlib-only so
+    its guard tests can never silently skip (KB #290497).
+    """
+    S = _schema()
+    with _db().connect() as c:
+        pairs = c.execute(text(f"""
+            WITH fc AS (
+                SELECT site_code,
+                       (period_index / 2) AS lead_days,
+                       temp_high_c AS forecast_c,
+                       ((issued_utc AT TIME ZONE 'UTC')::date
+                        + (period_index / 2)) AS target_day
+                  FROM {S}.aurora_city_forecast
+                 WHERE temp_high_c IS NOT NULL
+                   AND period_index % 2 = 0
+            ),
+            ob AS (
+                SELECT site_code,
+                       (observed_utc AT TIME ZONE 'UTC')::date AS obs_day,
+                       max(temp_c) AS observed_c,
+                       max(station_name) AS station_name
+                  FROM {S}.aurora_city_obs
+                 WHERE temp_c IS NOT NULL
+                 GROUP BY 1, 2
+            )
+            SELECT fc.site_code, fc.lead_days, fc.forecast_c,
+                   ob.observed_c,
+                   COALESCE(s.display_name, s.name_en, ob.station_name) AS city,
+                   s.source_prov AS province, fc.target_day
+              FROM fc
+              JOIN ob ON ob.site_code = fc.site_code
+                     AND ob.obs_day  = fc.target_day
+              LEFT JOIN {S}.aurora_city_site s ON s.site_code = fc.site_code
+             WHERE fc.target_day < CURRENT_DATE
+        """)).mappings().all()
+
+    payload = _verification_payload([dict(r) for r in pairs])
+    return render_template("forecast_accuracy.html",
+                           verification=payload,
                            is_subscriber=is_subscriber())
 
 

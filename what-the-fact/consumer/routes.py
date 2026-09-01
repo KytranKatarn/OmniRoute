@@ -1928,7 +1928,15 @@ def article(article_id: int):
             if _city:
                 _where, _param, local_place = "a2.city = :key", _city, _city
             else:
-                _where, _param, local_place = "a2.province_code = :key", _prov, _prov
+                # Display the province NAME, not the two-letter code: "Local
+                # coverage · Alberta" reads as a place, "· AB" reads as a
+                # database value. Reuses the aurora_map map rather than adding a
+                # second copy — a divergent duplicate is how a province goes
+                # missing (see _canon_prov's NF/NL note there). Falls back to
+                # the raw code for anything unmapped, never to a blank heading.
+                from .aurora_map import _PROV_NAMES as _PN
+                _where, _param = "a2.province_code = :key", _prov
+                local_place = _PN.get(_prov, _prov)
             with _db().begin() as c:
                 local_rows = c.execute(text(f"""
                     SELECT a2.id, a2.title, a2.published_at, s2.name AS source_name

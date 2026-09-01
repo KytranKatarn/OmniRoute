@@ -22,7 +22,6 @@ import logging
 from datetime import date, datetime
 from typing import Optional
 from dataclasses import dataclass
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from db import get_db
 

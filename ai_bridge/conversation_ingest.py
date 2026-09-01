@@ -7,7 +7,6 @@ Stores in consciousness database for learning and retrieval
 
 import sys
 import json
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 from typing import Dict, List, Optional

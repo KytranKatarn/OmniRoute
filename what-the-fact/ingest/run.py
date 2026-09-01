@@ -397,11 +397,21 @@ def main():
     _last_dept_contracts_date = None  # dept contract-award rollup mirror (#373 Contract link, daily)
     _last_issuer_contracts_date = None  # issuer contract rollup mirror (#373 Contract->Market L6, daily)
     while True:
-        # Weekly geo report on Mondays
+        _cycle_started = time.monotonic()
+        # Weekly geo report on Mondays.
+        # ⚠️ The ONLY call in this loop outside a try/except — the other 28 steps
+        # are each wrapped. run_geo_report guards its own I/O (query failure
+        # returns, write failure logs), and there is no outer guard around
+        # `while True`, so anything that escapes here kills the PROCESS, not just
+        # the cycle. Wrapped for symmetry with every other step.
         today = datetime.date.today()
         if today.weekday() == 0 and _last_report_date != today:
-            run_geo_report(engine)
-            _last_report_date = today
+            try:
+                run_geo_report(engine)
+                _last_report_date = today
+            except Exception:
+                log.exception("geo_report crashed — skipping this week")
+                _last_report_date = today
 
         # Weekly parliamentary sync on Sundays (MPs, votes, ballots, article tagging)
         if today.weekday() == 6 and _last_parliament_date != today:
@@ -693,7 +703,33 @@ def main():
         except Exception:
             log.exception("newsletter_kbs_sync crashed")
 
-        time.sleep(POLL_SECS)
+        # Sleep the REMAINDER of the period, not a fixed block after the work.
+        #
+        # This was a bare `time.sleep(POLL_SECS)`, which made the effective
+        # period `work + POLL_SECS` rather than POLL_SECS. Measured over 48h on
+        # the hourly aurora task: gaps of 77/90-96/162/179/186/231/290 minutes —
+        # a median of ~93 min and a worst case of 4.8 hours, with 60 minutes
+        # never once achieved. Every cadence in this loop drifted the same way,
+        # because they all ride this one sleep: the "30-minute" RSS poll was
+        # really ~93 minutes.
+        #
+        # It also fired a false alarm downstream: wtf.aurora_layer_status marks
+        # city observations stale after 3h, so a 290-minute cycle reported a
+        # healthy feed as stale.
+        #
+        # ⚠️ max(0, ...) is load-bearing. A cycle that overruns the period must
+        # start the next one IMMEDIATELY, never sleep a negative or skip — but
+        # it must not "catch up" by running several in a row either, which is
+        # why this yields the remainder rather than tracking an absolute
+        # schedule. A slow cycle degrades to back-to-back, not to a burst.
+        _elapsed = time.monotonic() - _cycle_started
+        _remaining = max(0.0, POLL_SECS - _elapsed)
+        if _elapsed > POLL_SECS:
+            log.warning(
+                "cycle took %.1f min, longer than the %.1f min period — "
+                "starting the next one immediately (no drift compensation "
+                "possible beyond this)", _elapsed / 60.0, POLL_SECS / 60.0)
+        time.sleep(_remaining)
 
 
 if __name__ == "__main__":

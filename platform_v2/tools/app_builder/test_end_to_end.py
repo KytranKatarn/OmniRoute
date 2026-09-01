@@ -25,7 +25,6 @@ try:
     from agents.frontend_generator import FrontendGenerator
     from agents.database_generator import DatabaseGenerator
     from agents.test_generator import TestGenerator
-    from agents.test_runner import TestRunner
     from agents.deployment_generator import DeploymentGenerator
 
     print("✅ All agents imported successfully")

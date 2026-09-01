@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import threading
 from sqlalchemy import text
 
@@ -61,6 +62,29 @@ def _schema() -> str:
 # CONTAINS the publisher's name is untouched.
 _JUNK_TITLE_MAX_LEN = 60
 
+# A publisher's 24/7 live-stream page, re-announced in the feed as though it were a
+# story. There is no article, no claim to check and no bias to measure, but 212 of
+# them were ingested, clustered and queued for analysis like anything else
+# (migration 071). Both shapes are anchored and literal — see the WARNING there:
+# an unanchored-with-suffix attempt (`^LIVE[0-9]* Digital Channel$`) matched ZERO
+# rows because every real title carries ` - <publisher>`, and that empty result
+# read as "already clean".
+#
+# ⚠️ Keep this NARROW. Recurring radio-programme titles ("Morning vibes with Bounce
+# 99.9") look superficially similar and are deliberately NOT matched — no rule
+# separates a programme slot from a real segment without guessing, and guessing
+# here silently drops journalism.
+_NON_ARTICLE_STREAM_RE = re.compile(r"^LIVE[0-9]* Digital Channel - ")
+_NON_ARTICLE_STREAM_EXACT = frozenset({"CTVNews - CTV News"})
+
+
+def is_non_article_stream_title(title):
+    """True when `title` is a live-stream/channel landing page, not a story."""
+    if not title:
+        return False
+    t = title.strip()
+    return bool(_NON_ARTICLE_STREAM_RE.match(t)) or t in _NON_ARTICLE_STREAM_EXACT
+
 
 def is_publisher_suffix_title(title, source_name):
     """True when `title` carries no information beyond the publisher's name."""
@@ -94,6 +118,13 @@ def upsert_article(
     # Reject a title that is only the publisher's name BEFORE it costs a bias
     # score and a fact-check. Treated as a dedupe (return None), not an error:
     # the feed is working, this one item simply carries no headline.
+    if is_non_article_stream_title(article.get("title")):
+        logger.warning(
+            "persist: dropping live-stream channel page from source %s: %r",
+            source_id, (article.get("title") or "")[:80],
+        )
+        return None
+
     if is_publisher_suffix_title(article.get("title"), source_slug or article.get("source_name")):
         logger.warning(
             "persist: dropping publisher-suffix title from source %s: %r",

@@ -7,7 +7,10 @@ import time
 import urllib.parse
 import urllib.request
 
-from flask import Blueprint, render_template, abort, Response, request, jsonify, session
+from flask import (
+    Blueprint, render_template, abort, Response, request, jsonify, session,
+    redirect, url_for,
+)
 
 from sqlalchemy import create_engine, text
 from . import rate_limit as _rate_limit  # shared bucket store (#5747/#5748)
@@ -1852,6 +1855,8 @@ def article(article_id: int):
                    -- measurement, and #065 already removed them from the outlet
                    -- average for the same reason.
                    a.content_type,
+                   -- drive the 301/410 immediately below
+                   a.suppressed_reason, a.canonical_article_id,
                    a.analysis_tier, a.tier2_pending,
                    a.bias_v2_score, a.bias_v2_label,
                    a.bias_ensemble_score, a.bias_ensemble_band,
@@ -1914,6 +1919,30 @@ def article(article_id: int):
         """), {"id": article_id}).mappings().first()
     if not row:
         abort(404)
+
+    # A suppressed article must not RENDER. #3036 hid ~8,300 re-fetched duplicates
+    # from every listing, feed and sitemap — but this route kept serving each one at
+    # 200, so the hidden article was still a live, indexable page reachable by direct
+    # link. Removing something from the navigation is not the same as removing it
+    # from the web.
+    #
+    # 301 (not 404) where we know the survivor: these are real fetches of a real
+    # story that already have inbound links and search-engine history. A 301 hands
+    # that to the canonical copy and tells crawlers to consolidate; a 404 throws it
+    # away and leaves the reader at a dead end.
+    #
+    # 410 (not 404) where we don't: `publisher_suffix_title` articles are junk with
+    # no survivor to point at. 410 GONE is the honest answer — it says "this will not
+    # come back", which 404 ("not found, maybe later") does not, and crawlers drop a
+    # 410 faster. Migration 070 supplies the pointer that makes this distinction
+    # possible at all; before it, the table recorded THAT a row was a duplicate but
+    # never OF WHAT.
+    if row["suppressed_reason"]:
+        canonical_id = row["canonical_article_id"]
+        if canonical_id:
+            return redirect(url_for(".article", article_id=canonical_id), code=301)
+        abort(410)
+
     # GoogleFCT partner fact-checks — free to all users (third-party public verdicts)
     with _db().begin() as c:
         gfct_rows = c.execute(text(f"""

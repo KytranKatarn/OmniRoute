@@ -136,8 +136,38 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
     {% endif %}
   </div>
 
-  <!-- Bias Panel -->
-  {% if a.bias_ensemble_band or a.bias_band %}
+  {# Press release / newswire copy: say what it is, and do NOT show a partisan
+     reading. A corporate announcement has no lean to measure, so a "CENTER"
+     verdict here is not a cautious finding — it is a number with no referent.
+     Migration 065 removed these from outlet averages for the same reason
+     (Financial Post: 43% wire at -0.023 pulling journalism's -0.191 to a
+     published -0.107). Showing the label instead of the score is the honest
+     version of what we actually know about this item. #}
+  {% if is_wire %}
+  <div style="background:#0d1117;border:1px solid #2a2a1a;border-radius:4px;padding:13px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#a89050;text-transform:uppercase;margin-bottom:6px;">📰 Press release · not journalism</div>
+    <div style="font-size:11.5px;color:#8b949e;line-height:1.6;">
+      This item was distributed by a newswire on behalf of its subject, and carried by
+      {{ a.source_name or 'the outlet' }} as supplied content. <strong style="color:#c9d6e2;">No political bias score is shown</strong> —
+      a company announcement has no partisan lean to measure. It is also excluded from
+      {{ a.source_name or 'the outlet' }}'s rolling bias average, so promotional copy cannot
+      move an outlet's measured position.
+    </div>
+  </div>
+  {% endif %}
+
+  {% if tickers %}
+  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:13px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:8px;">Listed securities named in this item</div>
+    {% for tk in tickers %}
+    <span style="display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#0af;border:1px solid #123;background:#0a1520;border-radius:3px;padding:3px 8px;margin:0 6px 6px 0;">{{ tk }}</span>
+    {% endfor %}
+    <div style="font-size:9px;color:#374151;margin-top:4px;">Extracted from the article text.</div>
+  </div>
+  {% endif %}
+
+  <!-- Bias Panel — suppressed for wire copy (see above) -->
+  {% if (a.bias_ensemble_band or a.bias_band) and not is_wire %}
   <div class="wtf-bias-panel">
     <div class="wtf-panel-label">B.I.A.S. ANALYSIS</div>
     {#

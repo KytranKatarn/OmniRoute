@@ -50,6 +50,16 @@ def recompute_outlet_bias(engine) -> dict:
                     JOIN {S}.bias_scores b ON b.article_id = a.id
                     WHERE a.ingested_at >= now() - INTERVAL '{WINDOW_DAYS} days'
                       AND b.signal_detected IS NOT FALSE
+                      -- Wire/press-release copy carries no partisan lean to
+                      -- average. Same family as signal_detected above: an
+                      -- absence of signal, not a measurement of centrism.
+                      -- Measured on Financial Post, 30d: 43% of its scored
+                      -- articles were wire at avg -0.023, against journalism
+                      -- at -0.191 — pulling the PUBLISHED figure to -0.107,
+                      -- the midpoint of two unrelated populations. That is
+                      -- the difference between reporting the outlet as
+                      -- "center" and "center-left". Migration 065.
+                      AND a.content_type <> 'wire'
                     GROUP BY a.source_id
                 """)
             ).fetchall()

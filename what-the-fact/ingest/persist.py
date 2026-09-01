@@ -6,6 +6,11 @@ import os
 import threading
 from sqlalchemy import text
 
+try:  # container runs `python -m ingest.run` (package); tests import as a script
+    from ingest import content_kind
+except ImportError:  # pragma: no cover
+    import content_kind
+
 # ── Cross-Watch signal (fire-and-forget, Task #3023) ──────────────────────────
 _CW_HUB = os.getenv("CROSS_WATCH_HUB_URL", "")
 _CW_TOKEN = os.getenv("CROSS_WATCH_SERVICE_TOKEN", "")
@@ -99,8 +104,9 @@ def upsert_article(
     with engine.begin() as c:
         r = c.execute(
             text(f"""
-                INSERT INTO {S}.articles (source_id, external_id, title, body, url, published_at)
-                VALUES (:sid, :eid, :t, :b, :u,
+                INSERT INTO {S}.articles (source_id, external_id, title, body, url,
+                                          content_type, published_at)
+                VALUES (:sid, :eid, :t, :b, :u, :ctype,
                         -- Clamp a wildly-future published_at (source date-parse error) so a
                         -- bogus date can't pin the article atop every feed (front page,
                         -- clusters, digests all sort by it). NULL / normal dates pass through
@@ -116,6 +122,13 @@ def upsert_article(
                 "t": article["title"],
                 "b": article["body"],
                 "u": article["url"],
+                # Classify at ingest so the bias rollup never averages a press
+                # release into an outlet's partisan lean (migration 065).
+                # Fail-safe: content_kind.classify never raises and defaults to
+                # 'journalism', so a detector problem can only ever UNDER-flag —
+                # a false positive would silently delete a real signal from a
+                # public statistic, which is the worse direction.
+                "ctype": content_kind.classify(article.get("title"), article.get("body")),
                 "p": article["published_at"],
             },
         )

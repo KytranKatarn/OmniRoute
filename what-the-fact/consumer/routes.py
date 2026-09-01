@@ -1815,6 +1815,12 @@ def article(article_id: int):
                    -- province_code covers ~64%, so the section keys on city
                    -- ONLY when it exists and falls back to province.
                    a.city, a.geo_scope,
+                   -- 'wire' = press release / newswire copy. The political bias
+                   -- panel is SUPPRESSED for these: a corporate announcement has
+                   -- no partisan lean, so a "CENTER" reading there is not a
+                   -- measurement, and #065 already removed them from the outlet
+                   -- average for the same reason.
+                   a.content_type,
                    a.analysis_tier, a.tier2_pending,
                    a.bias_v2_score, a.bias_v2_label,
                    a.bias_ensemble_score, a.bias_ensemble_band,
@@ -1965,6 +1971,24 @@ def article(article_id: int):
     except Exception:
         pass
 
+    # Exchange tickers named in the body (TSXV: AVCR, NASDAQ: ..., etc).
+    # Pure regex over text we already hold — no model, no extra fetch, and the
+    # answer is exact rather than inferred. Present in ~1.5% of articles overall
+    # but concentrated in the wire/business population, which is precisely where
+    # a reader most wants the market link.
+    # Renders only when non-empty (see the template) — an empty "Listed
+    # securities" heading would assert a company that isn't there.
+    # ⚠️ ONE definition, imported — not a second copy of the regex here.
+    # Dockerfile.consumer does `COPY ingest/ /app/ingest/`, so the consumer can
+    # import it directly; a duplicated pattern would drift from the classifier
+    # that sets content_type and the two would disagree about the same article.
+    tickers = []
+    try:
+        from ingest.content_kind import extract_tickers as _extract_tickers
+        tickers = _extract_tickers(a.get("body"))
+    except Exception:
+        tickers = []
+
     # ------------------------------------------------------------------
     # Local coverage — other reporting from the same place.
     #
@@ -2081,6 +2105,8 @@ def article(article_id: int):
                            sparkline=sparkline,
                            local_articles=local_articles,
                            local_place=local_place,
+                           tickers=tickers,
+                           is_wire=(a.get("content_type") == "wire"),
                            mp_claims=mp_claims,
                            cross_watch_entities=cross_watch_entities)
 

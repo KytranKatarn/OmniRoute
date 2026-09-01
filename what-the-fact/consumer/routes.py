@@ -2132,7 +2132,91 @@ def article(article_id: int):
         # Never break article rendering on the teaser
         pass
 
+    # ── People & organisations named in this story ───────────────────────────
+    #
+    # Distinct from the Cross-Watch teaser above: that one lists only entities
+    # that ALSO appear in another Watch product (an accountability hook). This
+    # lists who the story is ABOUT.
+    #
+    # ⚠️ THIS PANEL EXISTED IN DRAFT AND WAS DELIBERATELY NOT SHIPPED UNTIL THE
+    # DATA WAS HONEST. Measured 2026-09-01, before the #3032 purge: 66% of
+    # product='wtf' entity mentions named an entity whose name appears NOWHERE in
+    # the article. An article titled "For Hamiltonians battling addiction, peer
+    # support is a dose of empathy" was tagged with MP Wade Grant at confidence
+    # 0.950, because the matcher tested `"grant" in text` and the body contained
+    # "granted". Publishing that panel would have printed a sitting MP's name on
+    # a story they have nothing to do with. After the purge: 1,064 of 1,064
+    # person mentions in the last 7 days are grounded at a word boundary.
+    #
+    # ⚠️ JOURNALISTS ARE EXCLUDED. A byline is who WROTE the story, not who it is
+    # about, and those rows come from a different producer (author_resolver) with
+    # a different validity question — the name legitimately need not appear in
+    # the body at all, so it cannot be grounded the same way.
+    article_entities = []
+    try:
+        SH = os.environ.get("WTF_SHARED_SCHEMA", "shared")
+        with _db().begin() as c:
+            ent_rows = c.execute(text(f"""
+                SELECT e.id, e.canonical_name, e.entity_type,
+                       EXISTS (
+                           SELECT 1 FROM {SH}.entity_mentions x
+                            WHERE x.entity_id = e.id AND x.product <> 'wtf'
+                       ) AS in_other_watch
+                  FROM {SH}.entity_mentions em
+                  JOIN {SH}.entities e
+                    ON e.id = em.entity_id AND e.status = 'active'
+                  JOIN {S}.articles art ON art.id = em.content_id::int
+                 WHERE em.product = 'wtf'
+                   AND em.content_type = 'article'
+                   AND em.content_id = :aid_text
+                   AND e.entity_type <> 'journalist'
+                   -- ⚠️ THE NAME WE PRINT MUST APPEAR IN THE ARTICLE WE PRINT IT ON.
+                   -- Not "a tag exists" — the tag can be right in the graph and
+                   -- still wrong to publish. The surviving family-name tier from
+                   -- #3032 matches a capitalised SURNAME at a word boundary, which
+                   -- is enough for the entity graph but NOT for a public label:
+                   -- live examples were MP "Roman Baber" on a house-fire story and
+                   -- MP "Grant Jackson" on a US Federal Reserve story, both from a
+                   -- lone surname elsewhere in the body.
+                   --
+                   -- Requiring the FULL canonical name verbatim drops 769 of 1,154
+                   -- mentions (7d) and keeps 385 across 326 articles — every one of
+                   -- which a reader can find by searching the page. A name we
+                   -- cannot point at is not shown at all.
+                   AND (COALESCE(art.title,'') || ' ' || COALESCE(art.body,''))
+                       ~* ('\\y' || regexp_replace(
+                              e.canonical_name,
+                              '([.^$*+?()\\[\\]{{}}|\\\\])', '\\\\\\1', 'g') || '\\y')
+                 GROUP BY e.id, e.canonical_name, e.entity_type
+                 ORDER BY e.canonical_name
+                 LIMIT 8
+            """), {"aid_text": str(article_id)}).mappings().all()
+        article_entities = [
+            {"id": r["id"], "name": r["canonical_name"], "type": r["entity_type"],
+             "in_other_watch": bool(r["in_other_watch"])}
+            for r in ent_rows
+        ]
+    except Exception:
+        pass
+
+    # ── Key figures — VERBATIM sentences containing a quantified figure ──────
+    #
+    # Quotes, never summarises: every string is a span copied out of the body, so
+    # the reader can check it against the source and we cannot invent a statistic.
+    # On a site whose product is fact-checking, a fabricated number is the worst
+    # defect available. Returns [] for a short/absent body, and the panel then
+    # renders nothing rather than an empty box.
+    key_figures = []
+    try:
+        from ingest.content_kind import extract_key_figures
+        if not is_paywalled and not is_limited_body:
+            key_figures = extract_key_figures(a.get("body"))
+    except Exception:
+        pass
+
     return render_template("article.html", a=a,
+                           article_entities=article_entities,
+                           key_figures=key_figures,
                            is_subscriber=subscribed,
                            is_paywalled=is_paywalled,
                            is_limited_body=is_limited_body,

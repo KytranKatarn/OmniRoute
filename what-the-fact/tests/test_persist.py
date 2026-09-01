@@ -17,8 +17,13 @@ def test_upsert_inserts_then_dedupes(clean_schema, engine, monkeypatch):
     art = {"external_id": "g-1", "title": "T", "body": "b",
            "url": "http://x", "published_at": datetime(2026, 4, 18)}
     bias = {"band": "center", "score": 0.0, "heuristic_version": "v1", "rationale": "none"}
-    assert upsert_article(engine, sid, art, bias) is True   # inserted
-    assert upsert_article(engine, sid, art, bias) is False  # dedupe no-op
+    # upsert_article returns the ARTICLE ID on insert and None on dedupe (see its
+    # docstring). This asserted `is True` / `is False` against a return type that
+    # had already changed to int|None — a stale assertion that only surfaced once
+    # the test schema was repaired enough for the test to reach it at all.
+    first = upsert_article(engine, sid, art, bias)
+    assert isinstance(first, int) and first > 0, 'insert returns the new article id'
+    assert upsert_article(engine, sid, art, bias) is None, 'dedupe returns None'
 
     with engine.begin() as c:
         cnt = c.execute(text("SELECT COUNT(*) FROM wtf_test.articles")).scalar()

@@ -106,13 +106,54 @@ def upsert_article(
             text(f"""
                 INSERT INTO {S}.articles (source_id, external_id, title, body, url,
                                           content_type, published_at)
-                VALUES (:sid, :eid, :t, :b, :u, :ctype,
+                SELECT :sid, :eid, :t, :b, :u, :ctype,
                         -- Clamp a wildly-future published_at (source date-parse error) so a
                         -- bogus date can't pin the article atop every feed (front page,
                         -- clusters, digests all sort by it). NULL / normal dates pass through
                         -- unchanged. (WTF front-page freeze, 2026-07-14)
                         CASE WHEN :p IS NOT NULL AND :p > NOW() + INTERVAL '2 hours'
-                             THEN NOW() + INTERVAL '2 hours' ELSE :p END)
+                             THEN NOW() + INTERVAL '2 hours' ELSE :p END
+                -- ⚠️ RE-FETCH DEDUPE. Neither unique key catches this class.
+                --
+                -- 10 of 46 sources are ingested through a GOOGLE NEWS PROXY, which
+                -- re-encodes the same story under a NEW opaque token on a later
+                -- poll — so external_id AND url both change while the article is
+                -- identical. Measured over 14 days: 796 same-source same-title
+                -- groups, 953 redundant rows (6.3% of all articles), and 792 of
+                -- those 796 had DIFFERENT urls. CTV News alone was 571.
+                --
+                -- Example: the same CTV story arrived twice with identical
+                -- published_at and two different news.google.com/rss/articles/CBMi…
+                -- tokens. `ON CONFLICT (source_id, external_id)` cannot see it, and
+                -- neither could a URL constraint.
+                --
+                -- ⚠️ THE 6-HOUR WINDOW IS LOAD-BEARING, NOT A ROUND NUMBER.
+                -- Spread within duplicate groups, 14d:
+                --      < 1h   623 groups   ← the re-fetch signature
+                --      1-6h    79
+                --      6-24h   28
+                --      24-72h   8
+                --      > 72h   58   ← NOT duplicates
+                -- The >72h bucket is RECURRING CONTENT that legitimately reuses a
+                -- headline: "Today's horoscope" x8, "Before the Bell…" x10 (a daily
+                -- column), "Transaction in Own Shares" x8. Deduping on title alone,
+                -- or with a window of a day or more, would silently delete a
+                -- publisher's daily column down to a single copy. 6h sits above the
+                -- entire re-fetch population and far below any daily recurrence.
+                --
+                -- Done as WHERE NOT EXISTS inside the INSERT, not a read-then-write,
+                -- so two ingest passes cannot interleave past it.
+                --
+                -- NOT filtered on suppressed_reason: a copy already suppressed as a
+                -- duplicate must still block a THIRD copy.
+                 WHERE NOT EXISTS (
+                     SELECT 1 FROM {S}.articles d
+                      WHERE d.source_id = :sid
+                        AND d.title = :t
+                        AND d.published_at
+                            BETWEEN COALESCE(CAST(:p AS timestamptz), NOW()) - INTERVAL '6 hours'
+                                AND COALESCE(CAST(:p AS timestamptz), NOW()) + INTERVAL '6 hours'
+                 )
                 ON CONFLICT (source_id, external_id) DO NOTHING
                 RETURNING id
             """),
@@ -134,6 +175,34 @@ def upsert_article(
         )
         row = r.fetchone()
         if not row:
+            # Both no-row paths return None, so without this the re-fetch dedupe
+            # would be INVISIBLE — indistinguishable from the ordinary
+            # already-seen-this-guid case, and nobody could tell whether the new
+            # guard was firing, over-firing, or dead. One extra cheap query on
+            # the ~6% of items that dedupe.
+            try:
+                dup = c.execute(
+                    text(f"""
+                        SELECT id FROM {S}.articles
+                         WHERE source_id = :sid AND title = :t
+                           AND external_id IS DISTINCT FROM :eid
+                           AND published_at
+                               BETWEEN COALESCE(CAST(:p AS timestamptz), NOW()) - INTERVAL '6 hours'
+                                   AND COALESCE(CAST(:p AS timestamptz), NOW()) + INTERVAL '6 hours'
+                         LIMIT 1
+                    """),
+                    {"sid": source_id, "t": article["title"],
+                     "eid": article["external_id"], "p": article["published_at"]},
+                ).fetchone()
+                if dup:
+                    logger.info(
+                        "persist: re-fetch duplicate skipped — source=%s keeps id=%s, "
+                        "new guid=%r title=%r",
+                        source_id, dup[0], str(article["external_id"])[:40],
+                        (article["title"] or "")[:70],
+                    )
+            except Exception:
+                pass  # observability must never break ingestion
             return None
         aid = row[0]
         c.execute(

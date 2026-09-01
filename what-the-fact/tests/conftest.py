@@ -15,19 +15,56 @@ def engine():
     return eng
 
 
+# ⚠️ THE TEST SCHEMA MUST CARRY EVERY COLUMN THE CODE UNDER TEST WRITES.
+#
+# clean_schema applied ONLY 001_wtf_schema.sql, so every column added by a later
+# migration was invisible here. When migration 065 added `articles.content_type`
+# and ingest/persist.py started writing it, `test_upsert_inserts_then_dedupes`
+# began failing with `column "content_type" does not exist` — the test was red for
+# a schema reason, not a behaviour reason, which is the worst kind of red because
+# it looks like the feature is broken.
+#
+# List a migration here whenever it adds a column/table that production code
+# writes or reads on a path a test exercises. Data backfills and migrations that
+# touch other schemas are deliberately NOT applied — they are not what the test
+# schema is for.
+# ⚠️ REPLAYING THE MIGRATION FILES DOES NOT WORK HERE, and it is worth saying why
+# so the next person does not try it again: each later migration also touches
+# columns added by migrations this schema deliberately skips (063 needs
+# `analyzed_by`, and so on), so applying the file fails as a whole and takes its
+# ALTERs with it. What the test schema needs is the COLUMNS, not the migrations.
+#
+# Add a line here whenever production code starts writing a new column on a path a
+# test exercises. Keep the migration number so the origin stays traceable.
+_SCHEMA_PATCHES = (
+    # 065 — written by ingest/persist.py on every insert.
+    "ALTER TABLE wtf_test.articles "
+    "ADD COLUMN IF NOT EXISTS content_type TEXT NOT NULL DEFAULT 'journalism'",
+    # 063 — written by ingest/persist.py alongside every bias score.
+    "ALTER TABLE wtf_test.bias_scores "
+    "ADD COLUMN IF NOT EXISTS signal_detected BOOLEAN",
+)
+
+
+def _apply(conn, path):
+    with open(path) as f:
+        sql = f.read().replace("wtf.", "wtf_test.").replace("SCHEMA wtf", "SCHEMA wtf_test")
+    for stmt in sql.split(";\n"):
+        if stmt.strip():
+            conn.execute(text(stmt))
+
+
 @pytest.fixture()
 def clean_schema(engine):
-    """Drop + recreate wtf_test schema, apply migration, yield."""
+    """Drop + recreate wtf_test schema, apply base migration + column patches."""
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA IF EXISTS wtf_test CASCADE"))
         conn.execute(text("CREATE SCHEMA wtf_test"))
-    # Apply migration with schema substitution
-    with open("what-the-fact/migrations/001_wtf_schema.sql") as f:
-        sql = f.read().replace("wtf.", "wtf_test.").replace("SCHEMA wtf", "SCHEMA wtf_test")
     with engine.begin() as conn:
-        for stmt in sql.split(";\n"):
-            if stmt.strip():
-                conn.execute(text(stmt))
+        _apply(conn, "what-the-fact/migrations/001_wtf_schema.sql")
+    with engine.begin() as conn:
+        for stmt in _SCHEMA_PATCHES:
+            conn.execute(text(stmt))
     yield
     with engine.begin() as conn:
         conn.execute(text("DROP SCHEMA IF EXISTS wtf_test CASCADE"))

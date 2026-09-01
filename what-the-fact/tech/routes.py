@@ -767,7 +767,38 @@ def analyze_article(article_id: int):
     if not article:
         return jsonify({"ok": False, "error": "article not found"}), 404
 
-    if article.ai_analyzed:
+    # ⚠️ SHORT-CIRCUIT ON THE TIER, NOT ON ai_analyzed.
+    #
+    # This read `if article.ai_analyzed:` — which made the "Upgrade to Full
+    # Analysis" button STRUCTURALLY DEAD. That button is only offered when an
+    # article sits at quick_v1, and reaching quick_v1 sets ai_analyzed=true, so
+    # the upgrade request always matched this guard and was answered with the
+    # cached quick-tier result. Measured on article 2037632:
+    #     POST .../analyze -> {"ok":true,"done":true,"cached":true,
+    #                          "tier":"quick_v1"}
+    # ok:true and done:true, tier UNCHANGED. The caller cannot tell a completed
+    # upgrade from a refusal, so the UI reported success and nothing happened —
+    # for every article, every time.
+    #
+    # Correct test: has a DEEPER pass already run? Only then is there nothing
+    # to do. 'pending' and 'quick_v1' must fall through and be upgraded.
+    #
+    # ⚠️ MATCH THE REAL TIER VOCABULARY, not the one the name suggests. Measured
+    # live over 123,432 articles:
+    #
+    #     pending              54,791   -> upgrade
+    #     quick_v1             45,694   -> upgrade   (the button's whole purpose)
+    #     quick_v1+full        20,869   -> done
+    #     quick_v1_failed+full  2,076   -> done
+    #     deep_dive                 2   -> done
+    #
+    # A bare `"full" in tier` covers four of the five and MISSES 'deep_dive' —
+    # which is the DEEPEST tier, so falling through would re-analyse it and
+    # overwrite it with a shallower result. Only two rows, but that is a
+    # DOWNGRADE of the best analysis on the site, not merely wasted work.
+    _COMPLETE_MARKERS = ("full", "deep")
+    _tier = (article.analysis_tier or "").lower()
+    if article.ai_analyzed and any(m in _tier for m in _COMPLETE_MARKERS):
         return jsonify({"ok": True, "done": True, "cached": True,
                         "article_id": article_id, "tier": article.analysis_tier})
 

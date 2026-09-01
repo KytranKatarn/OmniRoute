@@ -21,6 +21,16 @@ _NAV_MARKER = re.compile(
     re.I,
 )
 
+# Standalone CMS block labels. Matched with fullmatch against a whole paragraph
+# so a sentence merely CONTAINING these words is never dropped — only a line
+# that is nothing but the label.
+_CMS_LABEL = re.compile(
+    r"(?:Article content|Story continues below|Advertisement \d*|"
+    r"This advertisement has not loaded yet\.?|Recommended from Editorial|"
+    r"Share this article in your social network|Latest National Stories)\s*",
+    re.I,
+)
+
 
 def execute(page, params: dict) -> dict:
     url = params.get("url", "").strip()
@@ -150,6 +160,16 @@ def execute(page, params: dict) -> dict:
             _nav = _NAV_MARKER.search(text)
             if _nav and _nav.start() > 200:
                 text = text[: _nav.start()].rstrip()
+
+            # Drop CMS section labels that sit between paragraphs. Postmedia
+            # emits a bare "Article content" before every block, so a single
+            # story carried FOURTEEN of them — invisible behind a 600-char
+            # excerpt, unmissable at 2,500. They are not prose: they are the
+            # editor's furniture, and they also pad LENGTH(body) toward the
+            # tier-2 gate without adding a word of article.
+            _lines2 = [ln for ln in text.split("\n\n")
+                       if not _CMS_LABEL.fullmatch(ln.strip())]
+            text = "\n\n".join(_lines2)
             if len(text) > 200:
                 body = text[:8000]
                 break

@@ -22,10 +22,11 @@ from sqlalchemy import text
 logger = logging.getLogger("wtf-ingest")
 
 _ENABLED = os.environ.get("WTF_WEEKLY_DIGEST_ENABLED", "false").lower() == "true"
-# Default = the cluster SMTP egress relay on outpost-us (mesh IP, port 25,
-# unauthenticated from mesh peers, handles DKIM + PTR relay.kytranempowerment.com)
-# — the same proven path Legal Watch's daily digest uses from this host. Hub
-# Stalwart :587 is NOT reachable from Citadel containers (connection closed).
+# Default = the cluster SMTP egress relay on Citadel/boston-2 (mesh IP, port 25,
+# unauthenticated from mesh peers, handles DKIM). The relay moved here from
+# outpost-us in the 2026-08-29 outpost sunset (decision #1051); outpost-us keeps
+# a rollback relay until Mar 2027. Hub Stalwart :587 is NOT reachable from
+# Citadel containers (connection closed).
 # Setting WTF_SMTP_PASS switches to authenticated STARTTLS submission instead.
 _SMTP_HOST = os.environ.get("WTF_SMTP_HOST", "100.64.0.10")
 _SMTP_PORT = int(os.environ.get("WTF_SMTP_PORT", "25"))

@@ -5771,9 +5771,16 @@ def _register_own_jobs(scheduler, flask_app):
     # Runs every 30 min at :15 and :45. Only processes articles <7 days old.
     # Rate-limited to 25/cycle (archie_browser max 60/hr, job runs 2×/hr).
     _WTF_SCOUT_PER_CYCLE = 25
-    # Body length below which an article is considered a stub worth re-scraping.
-    # Covers RSS snippets (<300) and short descriptions (300-500).
-    _WTF_SCOUT_STUB_THRESHOLD = 500
+    # Body length below which an article is worth capturing.
+    #
+    # ⚠️ DERIVED from the tier-2 analysis floor, never an independent literal.
+    # These two numbers were written separately — capture at <500, analysis at
+    # >=3000 — which opened a band no job could reach: an 800-char article was
+    # too long to re-capture and too short to analyse. Measured 2026-08-31 that
+    # band held 7,401 articles, and 47% of every SUCCESSFUL capture landed in
+    # it, so roughly half the scraper's output was unreachable by design.
+    # Capture's job is "make this analysable", so its ceiling IS the floor.
+    _WTF_SCOUT_STUB_THRESHOLD = _WTF_BACKLOG_MIN_BODY_CHARS
 
     def _run_wtf_scout():
         import time as _wsc_t
@@ -5793,6 +5800,15 @@ def _register_own_jobs(scheduler, flask_app):
                         FROM wtf.articles a
                         WHERE LENGTH(COALESCE(a.body, '')) < %s
                           AND a.url IS NOT NULL
+                          -- ⚠️ Never re-capture what Playwright already fetched.
+                          -- Raising the ceiling to the tier-2 floor (above) would
+                          -- otherwise sweep in 2,143 articles this scraper has
+                          -- already read. Re-running them yields nothing: five
+                          -- measured re-captures moved +76, -12, +69, 0, 0 chars.
+                          -- A short body there is the publisher having less text,
+                          -- not a failed fetch — so retrying burns the 25/cycle
+                          -- budget on work whose answer is already known.
+                          AND a.body_source IS DISTINCT FROM 'playwright'
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND a.id != ALL(%s)
                         ORDER BY a.published_at DESC
@@ -5818,9 +5834,18 @@ def _register_own_jobs(scheduler, flask_app):
                         try:
                             with _wtf_cur(commit=True) as cur:
                                 cur.execute(
+                                    # ⚠️ Only ever REPLACE A SHORTER BODY. The old
+                                    # guard was `LENGTH(body) < THRESHOLD`, which was
+                                    # safe only while THRESHOLD was 500 — raising it
+                                    # to the tier-2 floor would let a 250-char scrape
+                                    # (the acceptance test is merely `len > 200`)
+                                    # overwrite a 2,000-char RSS body. Comparing
+                                    # against the incoming length instead makes the
+                                    # write monotonic and independent of the ceiling:
+                                    # capture can improve an article, never degrade it.
                                     "UPDATE wtf.articles SET body = %s, body_source = 'playwright'"
                                     " WHERE id = %s AND LENGTH(COALESCE(body,'')) < %s",
-                                    (body, aid, _WTF_SCOUT_STUB_THRESHOLD),
+                                    (body, aid, len(body)),
                                 )
                             processed += 1
                             consecutive_failures = 0

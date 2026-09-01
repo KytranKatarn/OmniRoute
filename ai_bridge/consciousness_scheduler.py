@@ -15,7 +15,6 @@ import logging
 import threading
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
-import psycopg2
 from psycopg2.extras import RealDictCursor
 import requests
 import json

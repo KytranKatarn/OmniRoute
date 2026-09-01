@@ -1760,6 +1760,17 @@ def article(article_id: int):
                    -- a needle from them. See migration 063.
                    b.signal_detected AS bias_signal_detected,
                    obs.avg_score AS outlet_avg_score, obs.band AS outlet_rolling_band,
+                   -- ⚠️ TWO DIFFERENT POPULATIONS — keep them labelled apart.
+                   -- outlet_sample_count/window_days are what the rolling average
+                   -- was actually computed from (30-day window, signal-bearing
+                   -- rows only — ingest/outlet_bias.py). outlet_article_count is
+                   -- every article ever ingested from this outlet. Rendering the
+                   -- lifetime figure under the average claimed 5,737 articles of
+                   -- evidence for a number built from 919 (Global News, measured
+                   -- 2026-08-31) — a 6x overstatement of how well-evidenced the
+                   -- reading is.
+                   obs.article_count AS outlet_sample_count,
+                   obs.window_days   AS outlet_window_days,
                    (SELECT COUNT(*) FROM {S}.articles a2
                     WHERE a2.source_id = a.source_id) AS outlet_article_count,
                    fc.overall_verdict, fc.claims AS fact_check_claims,
@@ -1854,18 +1865,31 @@ def article(article_id: int):
             """), {"cid": a["cluster_id"], "aid": article_id}).mappings().all()
         cluster_articles = [dict(r) for r in siblings]
 
-    # Outlet sparkline — daily avg bias score for the past 7 days
+    # Outlet sparkline — daily avg bias score over the outlet's last 7 days of COVERAGE.
+    #
+    # ⚠️ Buckets by a.published_at, NOT bs.computed_at. computed_at is when the
+    # ANALYSIS ran, so a backlog pass plots decade-old articles as today's bias:
+    # measured 2026-08-31, one pilot run put 2,105 points on a single day for
+    # Global News, 1,954 of them (93%) articles published more than 7 days
+    # earlier. A chart captioned "7-day bias trend" must describe the outlet's
+    # last 7 days of journalism, not our last 7 days of compute.
+    #
+    # ⚠️ signal_detected IS NOT FALSE — same exclusion the outlet rollup uses
+    # (ingest/outlet_bias.py, #3012). A no-signal row carries score 0.0 / band
+    # 'center' as schema-required placeholders and asserts nothing; averaging
+    # them in halved the reading (-0.108 shown vs -0.226 real on that same day).
     sparkline = []
     try:
         with _db().begin() as c:
             sp_rows = c.execute(text(f"""
-                SELECT bs.computed_at::date AS d,
+                SELECT a2.published_at::date AS d,
                        AVG(bs.score)::float AS avg_score,
                        MODE() WITHIN GROUP (ORDER BY bs.band) AS modal_band
                 FROM {S}.bias_scores bs
                 JOIN {S}.articles a2 ON a2.id = bs.article_id
                 WHERE a2.source_id = (SELECT source_id FROM {S}.articles WHERE id = :aid)
-                  AND bs.computed_at > NOW() - INTERVAL '7 days'
+                  AND a2.published_at > NOW() - INTERVAL '7 days'
+                  AND bs.signal_detected IS NOT FALSE
                 GROUP BY 1 ORDER BY 1
             """), {"aid": article_id}).fetchall()
         sparkline = [{"score": round(float(r[1]), 3), "band": r[2] or "center"} for r in sp_rows]
@@ -2394,16 +2418,23 @@ def outlet_bias_trend(source_id: int):
     S = _schema()
     with _db().begin() as c:
         rows = c.execute(text(f"""
+            -- ⚠️ Buckets by a.published_at, NOT bs.computed_at — see the article
+            -- sparkline above. A backlog pass would otherwise collapse a year of
+            -- journalism into whichever month we happened to run the analyzer,
+            -- which is the opposite of a drift tracker.
+            -- ⚠️ signal_detected IS NOT FALSE — a no-signal row's 0.0/'center'
+            -- are placeholders, not a centrist finding (#3012).
             SELECT
-                TO_CHAR(DATE_TRUNC('month', bs.computed_at), 'YYYY-MM') AS month,
+                TO_CHAR(DATE_TRUNC('month', a.published_at), 'YYYY-MM') AS month,
                 ROUND(AVG(bs.score)::numeric, 3)                         AS avg_score,
                 MODE() WITHIN GROUP (ORDER BY bs.band)                   AS band,
                 COUNT(*)                                                  AS article_count
             FROM {S}.bias_scores bs
             JOIN {S}.articles a ON a.id = bs.article_id
             WHERE a.source_id = :sid
-              AND bs.computed_at >= NOW() - INTERVAL '12 months'
-            GROUP BY DATE_TRUNC('month', bs.computed_at)
+              AND a.published_at >= NOW() - INTERVAL '12 months'
+              AND bs.signal_detected IS NOT FALSE
+            GROUP BY DATE_TRUNC('month', a.published_at)
             ORDER BY 1 ASC
         """), {"sid": source_id}).mappings().all()
     return jsonify({

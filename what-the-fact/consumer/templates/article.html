@@ -263,10 +263,16 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
         <div style="font-size:13px;font-weight:600;color:{{ ob_colour }};">{{ ob.upper().replace('-',' ') }}</div>
         {% if a.outlet_avg_score is not none %}
         <div style="font-size:10px;color:#4b5563;font-family:'IBM Plex Mono',monospace;">avg {{ "%.3f"|format(a.outlet_avg_score|float) }}</div>
+        {# The sample the average was actually built from — NOT the lifetime
+           count below. Both were shown as one figure until 2026-08-31, which
+           advertised 6x the evidence the reading has. #}
+        {% if a.outlet_sample_count %}
+        <div style="font-size:10px;color:#4b5563;">from {{ "{:,}".format(a.outlet_sample_count|int) }} scored articles · last {{ a.outlet_window_days|int }}d</div>
+        {% endif %}
         {% endif %}
         {% endif %}
         {% if a.outlet_article_count %}
-        <div style="font-size:10px;color:#4b5563;margin-top:4px;">{{ "{:,}".format(a.outlet_article_count|int) }} articles tracked</div>
+        <div style="font-size:10px;color:#374151;margin-top:4px;">{{ "{:,}".format(a.outlet_article_count|int) }} articles tracked all-time</div>
         {% endif %}
       </div>
     </div>

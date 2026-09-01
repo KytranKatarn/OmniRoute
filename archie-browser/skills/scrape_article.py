@@ -74,7 +74,19 @@ def execute(page, params: dict) -> dict:
             if el.count() == 0:
                 continue
             text = el.inner_text()
-            text = " ".join(text.split())
+            # Collapse whitespace WITHIN a line, but keep the line breaks.
+            #
+            # This was `" ".join(text.split())`, which flattened the whole
+            # article to a single line. inner_text() already reflects the page's
+            # block structure as newlines, so that threw away every paragraph
+            # boundary at capture time — unrecoverably, since only the flattened
+            # string was stored. It went unnoticed while the page rendered a
+            # 600-char excerpt; at 2,500 the same body is a wall of text.
+            #
+            # ⚠️ Forward-looking only. Bodies already captured hold zero
+            # newlines and cannot be repaired without re-scraping.
+            _lines = [" ".join(ln.split()) for ln in text.splitlines()]
+            text = "\n\n".join(ln for ln in _lines if ln)
             if len(text) > 200:
                 body = text[:8000]
                 break

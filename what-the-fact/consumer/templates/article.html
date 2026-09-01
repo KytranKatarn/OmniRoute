@@ -519,7 +519,18 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   {% elif a.body %}
   <div style="background:#060d14;border:1px solid #1a3a5a;border-radius:4px;padding:14px 16px;margin-bottom:14px;">
     <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">Article Excerpt</div>
-    <div class="wtf-art-body" style="margin-bottom:10px;">{{ a.body[:600] }}{% if a.body|length > 600 %}…{% endif %}</div>
+    {# 2,500 chars, cut on a WORD boundary (truncate killwords=False) rather than
+       mid-word as the old a.body[:600] slice did. The stored body is untouched
+       and complete — this caps DISPLAY only, so the full text stays available
+       for analysis and for retrieving detail later.
+
+       white-space: pre-line renders the paragraph breaks the capture skill now
+       preserves. It is CSS, not markup, so autoescaping still applies and no
+       HTML from the publisher can execute. ⚠️ Bodies captured before that skill
+       fix hold ZERO newlines (the old " ".join(text.split()) collapsed them),
+       so those still render as one block until re-captured — pre-line is
+       forward-looking, not retroactive. #}
+    <div class="wtf-art-body" style="margin-bottom:10px;white-space:pre-line;">{{ a.body|truncate(2500, False, '…') }}</div>
     {% if a.url %}
     <a href="{{ a.url }}" target="_blank" rel="noopener" style="font-size:11px;color:#0af;text-decoration:none;">Read full article at {{ a.source_name or 'source' }} ↗</a>
     {% endif %}

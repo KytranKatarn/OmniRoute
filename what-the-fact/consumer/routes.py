@@ -350,7 +350,12 @@ def api_stats():
                 WHERE suppressed_reason IS NULL) AS articles,
               (SELECT COUNT(*) FROM {S}.articles
                 WHERE ai_analyzed=true AND suppressed_reason IS NULL) AS llm_analyzed,
-              (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
+              -- ⚠️ Join the article to exclude suppressed ones. Counting bias_scores
+              -- flat published MORE articles bias-scored (115,353) than articles
+              -- exist (115,279) — impossible arithmetic, visible on the public API.
+              (SELECT COUNT(*) FROM {S}.bias_scores b
+                 JOIN {S}.articles a ON a.id = b.article_id
+                WHERE a.suppressed_reason IS NULL) AS bias_scored,
               (SELECT COUNT(*) FROM {S}.story_clusters) AS clusters
         """)).mappings().first()
     return jsonify(dict(row))
@@ -1081,9 +1086,21 @@ def _activity_bundle(S):
               -- Transparency page: the one place a wrong count is worst.
               (SELECT COUNT(*) FROM {S}.articles
                 WHERE suppressed_reason IS NULL) AS total_articles,
-              (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
-              (SELECT COUNT(*) FROM {S}.fact_checks) AS fact_checked,
-              (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS fact_checked_articles,
+              -- ⚠️ Every article-derived count on this page MUST exclude suppressed
+              -- articles. These are the numbers the transparency page publishes; an
+              -- unfiltered COUNT credits the site for work on articles it does not
+              -- serve. Before migration 069 that was 27,317 fact-checks on hidden
+              -- duplicates; the 74 publisher_suffix_title rows remain the reason the
+              -- filter (not the delete) is the actual fix.
+              (SELECT COUNT(*) FROM {S}.bias_scores b
+                 JOIN {S}.articles a ON a.id = b.article_id
+                WHERE a.suppressed_reason IS NULL) AS bias_scored,
+              (SELECT COUNT(*) FROM {S}.fact_checks f
+                 JOIN {S}.articles a ON a.id = f.article_id
+                WHERE a.suppressed_reason IS NULL) AS fact_checked,
+              (SELECT COUNT(DISTINCT f.article_id) FROM {S}.fact_checks f
+                 JOIN {S}.articles a ON a.id = f.article_id
+                WHERE a.suppressed_reason IS NULL) AS fact_checked_articles,
               (SELECT COUNT(*) FROM {S}.articles WHERE province_code IS NOT NULL) AS geo_mapped,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested') AS fact_ingested,
               (SELECT COUNT(*) FROM {S}.audit_trail WHERE event_type='ingested' AND created_at > NOW() - INTERVAL '24 hours') AS articles_24h,
@@ -1091,8 +1108,10 @@ def _activity_bundle(S):
               (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks WHERE checked_at > NOW() - INTERVAL '24 hours') AS verify_24h,
               (SELECT COUNT(*) FROM {S}.summaries WHERE created_at > NOW() - INTERVAL '24 hours') AS draft_24h,
               (SELECT COUNT(*) FROM {S}.story_clusters WHERE created_at > NOW() - INTERVAL '24 hours') AS ink_24h,
-              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed_at > NOW() - INTERVAL '24 hours') AS llm_24h,
-              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed_at > NOW() - INTERVAL '1 hour') AS llm_analyzed_1h,
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed_at > NOW() - INTERVAL '24 hours'
+                 AND suppressed_reason IS NULL) AS llm_24h,
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed_at > NOW() - INTERVAL '1 hour'
+                 AND suppressed_reason IS NULL) AS llm_analyzed_1h,
               (SELECT COUNT(*) FROM {S}.story_clusters WHERE article_count = 1) AS cluster_singletons,
               (SELECT COUNT(*) FROM {S}.story_clusters WHERE article_count BETWEEN 2 AND 3) AS cluster_small,
               (SELECT COUNT(*) FROM {S}.story_clusters WHERE article_count BETWEEN 4 AND 9) AS cluster_medium,
@@ -1100,10 +1119,14 @@ def _activity_bundle(S):
               (SELECT COUNT(*) FROM {S}.summaries) AS draft_summarized,
               (SELECT COUNT(*) FROM {S}.story_clusters) AS ink_clustered,
               (SELECT COUNT(*) FROM {S}.articles WHERE cluster_id IS NOT NULL) AS ink_articles_clustered,
-              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed,
-              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='pending') AS tier_pending,
-              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1') AS tier_quick_v1,
-              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1+full') AS tier_quick_v1_full,
+              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true
+                 AND suppressed_reason IS NULL) AS llm_analyzed,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='pending'
+                 AND suppressed_reason IS NULL) AS tier_pending,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1'
+                 AND suppressed_reason IS NULL) AS tier_quick_v1,
+              (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier='quick_v1+full'
+                 AND suppressed_reason IS NULL) AS tier_quick_v1_full,
               (SELECT COUNT(*) FROM {S}.articles WHERE analysis_tier IN ('quick_v1_failed', 'quick_v1_failed+full', 'quick_v1+failed')) AS tier_quick_v1_failed,
               (SELECT COUNT(*) FROM {S}.articles WHERE tier2_pending=true) AS tier2_pending_count,
               (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS verify_total,

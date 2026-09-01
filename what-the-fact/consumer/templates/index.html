@@ -232,8 +232,19 @@ var map = L.map("wtf-canada-map", {
   attributionControl: false
 });
 
+// ⚠️ ATTRIBUTION IS REQUIRED, NOT DECORATIVE (#6145).
+// CARTO's free basemap terms and the OSM licence both require visible credit.
+// This map ran with `attributionControl: false` and no `attribution` option, i.e.
+// no credit at all — and on 2026-08-30 the basemap rendered as repeating
+// "API KEY REQUIRED / carto.com/basemaps" watermark tiles. Watermarking is the
+// standard enforcement for unattributed free-tier use.
+// Keep this control on. If the watermark returns even WITH attribution, the next
+// step is a provider swap or a paid key — see the task, not a re-deletion of this.
+L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
+
 L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-  subdomains: "abcd", maxZoom: 19
+  subdomains: "abcd", maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
 }).addTo(map);
 
 // Custom panes so clusters + pins always sit above province polygons

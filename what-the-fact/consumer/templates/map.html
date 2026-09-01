@@ -54,8 +54,14 @@
     maxZoom: 8,
     attributionControl: false,
   });
+  // ⚠️ ATTRIBUTION IS REQUIRED, NOT DECORATIVE (#6145) — see index.html for the
+  // full note. CARTO's free basemap terms and the OSM licence both require visible
+  // credit; this map carried none, and the basemap watermarked on 2026-08-30.
+  L.control.attribution({ prefix: false, position: 'bottomright' }).addTo(map);
+
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
   }).addTo(map);
 
   // Three buckets, each with the colour AND the words used in the legend, so a

@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import logging
-import re
 from typing import Any, Optional
 
 from services.agent_name_generator import (

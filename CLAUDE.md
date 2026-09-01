@@ -196,7 +196,9 @@ platform_v2/services/telegram_service.py                         - Unified Teleg
 - All agent mutations go through `agent_service.py` — no direct SQL on agent tables
 
 ### UI
-- Live glow: `sc-live` (pulsing teal) vs `sc-static` (dim)
+- 🔴 **`sc-live` / `sc-static` DO NOT EXIST** (corrected 2026-09-01) — defined in no
+  stylesheet; `department-hq-orchestration.js:31` still sets them and wipes the badge's
+  other classes doing it. Details + replacement guidance in `.claude/rules/frontend.md`.
 - Single status badge per agent
 - `_renderUnifiedAgentCard()` for all agent cards
 - `openAgentProfileFromBridge(hubAgentId)` for profiles

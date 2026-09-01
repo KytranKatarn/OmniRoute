@@ -47,7 +47,14 @@ Overview, Org Chart, Roster, K.I.N., C.R.E.E.D., S.I.G.N.A.L., S.C.O.U.T., Auton
 
 ## UI Patterns
 - LCARS tablet modals: `bm-overlay` + `bm-shell` + `bm-frame` + `bm-content`
-- Live data glow: `sc-live` (pulsing teal) vs `sc-static` (dim)
+- 🔴 **`sc-live` / `sc-static` DO NOT EXIST** — corrected 2026-09-01. This line described
+  them as "live data glow: `sc-live` (pulsing teal) vs `sc-static` (dim)", but neither class
+  is defined in ANY stylesheet (`grep -rn '\.sc-live\|\.sc-static' platform_v2/static/css/`
+  → empty). `station-ops.css`, where they were assumed to live, is a deprecated 3-line shim
+  (`@import url('department-ops.css')`) that nothing loads. `department-hq-orchestration.js:31`
+  still assigns them via `badge.className = …`, which additionally WIPES the badge's existing
+  classes — so ACTIVE and STANDBY render identically apart from their text. Style live/static
+  state with a real class or inline style; do not add new `sc-*` usages.
 - Single status badge: ON DUTY / DEPLOYED / WORKING / BARRACKED / OFF DUTY
 - Model load/unload: LCARS confirm modal (cyan load, red unload)
 - Node disconnect: LCARS red alert modal

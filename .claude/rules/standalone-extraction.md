@@ -111,25 +111,38 @@ outage). Exempt all `/api/` paths — they carry their own auth (service token /
 
 ### CSS dependency tree — ship the WHOLE stack
 
-`platform_v2/templates/base.html` loads **16 CSS files** in a specific order. The module's own stylesheet (`<module>.css`) assumes every one of those upstream files has already declared its tokens and resets. Shipping only `<module>.css` + a couple of LCARS chrome files leaves the UI stuck in light-mode-forever (body-level dark tokens never declared, browser defaults win).
+`platform_v2/templates/base.html` loads **2 CDN stylesheets + 15 local CSS files** in a specific order. The module's own stylesheet (`<module>.css`) assumes every one of those upstream files has already declared its tokens and resets. Shipping only `<module>.css` + a couple of LCARS chrome files leaves the UI stuck in light-mode-forever (body-level dark tokens never declared, browser defaults win).
 
-Audit your standalone base template against this list before considering a module "extracted":
+⚠️ **CORRECTED 2026-09-01 — the list below previously did not match `base.html`.** It claimed 16 files, put `base.css` SECOND, and listed `category-nav.css` and `lcars-header.css`, **neither of which base.html loads**. Since this section's whole point is that a wrong order leaves a standalone visually broken, that made the trap it warns about. Re-derive from the template, never from memory:
+`grep -oP 'href="[^"]*\.css[^"]*"' platform_v2/templates/base.html`
+
+Audit your standalone base template against this list before considering a module "extracted" — **this is base.html's real order**:
 
 ```
-theme.css              — --archie-* design tokens, dark-mode defaults
-base.css               — html/body reset, typography
+(CDN) bootstrap@5.3.2 + bootstrap-icons@1.11.1   — loaded FIRST, before all of ours
+theme.css              — 268 --archie-* tokens; IS the default 'lcars-classic' theme
 animations.css         — LCARS transitions + transforms
 archie-breakpoints.css — responsive breakpoints
-components.css         — cards, buttons, badges, pills
-category-nav.css       — module category navigation strip
+components.css         — semantic components + a Tailwind-shaped utility layer
 lcars-frames.css       — elbow corners + frame borders
-lcars-header.css       — top bar w/ language/theme/alerts
 lcars-modals.css       — bm-overlay + bm-shell modals
+admin-ops.css          — admin page chrome (global, not module-scoped)
+department-ops.css     — department/station chrome (global)
+light-mode.css         — re-declares --archie-* under body.light-mode (see below)
+themes/<theme>.css     — ONLY when the theme is not lcars-classic
+layouts/<family>-layout.css — corporate | elegant | minimal
 mobile.css             — 480/768/1024px overrides
-<module>.css           — module-specific styles (LAST)
+agent-badge.css
+archie-chat.css
+base.css               — html/body reset + typography — LOADED LAST, deliberately
+<module>.css           — module-specific styles
 ```
 
-**Do NOT ship `light-mode.css`** without also shipping its matching `themes/<theme>.css` override — without the override it wins on every selector and the standalone is visually broken. Load order: tokens → resets → animations → breakpoints → components → nav → chrome → modals → mobile → module.
+⚠️ **`base.css` is LAST, not second.** Its resets and typography are meant to win over the component layers; hoisting it to the top (as this file used to show) silently changes the cascade.
+
+⚠️ **`.row` / `.col-*` come from the Bootstrap CDN, not from us.** Our CSS defines `.btn` and `.card` but NOT `.row` — a standalone that drops the CDN loses its grid.
+
+**`light-mode.css` is safe to ship on its own** — 114 of its 118 rule blocks are scoped to `body.light-mode` and it has zero unscoped `:root`/`body` rules, so it is inert until the class is set. ⚠️ This paragraph previously said the opposite ("do NOT ship it without a `themes/<theme>.css` override — it wins on every selector"); that is false and would have led to shipping an unnecessary theme override that DOES override the default look. base.html ships light-mode.css unconditionally.
 
 ### Asset dependency tree — not just CSS
 

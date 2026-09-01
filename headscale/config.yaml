@@ -66,16 +66,38 @@ dns:
   search_domains: []
   # Padlock-over-mesh (#4287): push these A records via MagicDNS so mesh clients resolve
   # them CLIENT-SIDE (no :53-over-mesh dependency) → https://archie.*/platform.* over mesh
-  # hits Beacon's real Let's Encrypt cert on 2.25.170.252:443. Repointed from the hub's NPM
-  # (100.64.0.4:443) on 2026-06-27 — NPM decommissioned, Beacon is the sole hub front door
-  # (ADR-853, KB #276161). Targeted override; all other names still use the nameservers above.
+  # hits a real Let's Encrypt cert on :443. Targeted override; all other names still use
+  # the nameservers above.
+  #
+  # ⚠️ THESE OVERRIDE ADGUARD ON EVERY MESH NODE. MagicDNS is the system resolver on a
+  # Tailscale-joined machine, so a name listed here is answered from this file no matter
+  # what the AdGuard rewrite says. That makes this a SECOND source of truth for the same
+  # mapping — and it has now gone stale twice, each time silently:
+  #
+  #   2026-06-27  hub NPM (100.64.0.4:443) -> Beacon 2.25.170.252   (NPM decommissioned)
+  #   2026-08-29  Beacon RETIRED (decision #1051) — these were NOT updated
+  #   2026-09-01  Beacon 80 AND 443 both closed; every mesh node resolved platform./archie.
+  #               to a dead host. AdGuard and public DNS were BOTH already correct
+  #               (2.25.133.122) — only this file was wrong, which is exactly why the
+  #               symptom read as "AdGuard isn't routing".
+  #
+  # ⚠️ RULE: when the front door moves, THIS FILE MOVES WITH IT. Grep for the old IP in
+  # headscale/config.yaml as part of any front-door change — the AdGuard rewrite alone is
+  # not the whole picture. Same family as the archie_tailscale extra_hosts pin and the
+  # mesh. rewrite (see .claude/rules/fleet.md): a DNS record left pointing at a host that
+  # cannot serve the scheme, discovered only when someone tries to use it.
+  #
+  # Verified 2026-09-01 before repointing: 2.25.133.122:443 with SNI
+  # platform.kytranempowerment.com -> 302, archie.kytranempowerment.com -> 200, both on a
+  # valid cert. Never point these at 100.64.0.4 or 192.168.1.200 — the hub has had NO :443
+  # listener since NPM was decommissioned.
   extra_records:
     - name: "archie.kytranempowerment.com"
       type: "A"
-      value: "2.25.170.252"
+      value: "2.25.133.122"
     - name: "platform.kytranempowerment.com"
       type: "A"
-      value: "2.25.170.252"
+      value: "2.25.133.122"
 
 # Unix socket for headscale CLI
 unix_socket: /var/run/headscale/headscale.sock

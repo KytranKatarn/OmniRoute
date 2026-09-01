@@ -1746,6 +1746,11 @@ def article(article_id: int):
         row = c.execute(text(f"""
             SELECT a.id, a.title, a.body, a.url, a.published_at,
                    a.ai_analyzed, a.ai_analyzed_at, a.province_code, a.cluster_id,
+                   -- city/geo_scope feed the "Local coverage" section below.
+                   -- ⚠️ city is present on only ~10% of articles while
+                   -- province_code covers ~64%, so the section keys on city
+                   -- ONLY when it exists and falls back to province.
+                   a.city, a.geo_scope,
                    a.analysis_tier, a.tier2_pending,
                    a.bias_v2_score, a.bias_v2_label,
                    a.bias_ensemble_score, a.bias_ensemble_band,
@@ -1896,6 +1901,49 @@ def article(article_id: int):
     except Exception:
         pass
 
+    # ------------------------------------------------------------------
+    # Local coverage — other reporting from the same place.
+    #
+    # Keyed on CITY when the article has one, else PROVINCE. That order is
+    # not cosmetic: city is populated on only ~10% of articles while
+    # province_code covers ~64%, so a city-only section would be absent from
+    # nine articles in ten. Measured 2026-08-31: 69.6% of the last 30 days
+    # carry at least one of the two.
+    #
+    # ⚠️ Match on CITY ALONE, never (city, province). Toronto is recorded
+    # 1,288 times with province_code='ON' and 1,146 times with province_code
+    # NULL — the geo extractor fills city without province on roughly half of
+    # them. Joining on the pair would silently drop half of Toronto's coverage
+    # and present the remainder as the whole.
+    #
+    # ⚠️ geo_scope='unmappable' (30% of articles) means the extractor found no
+    # place at all. Those must render NO section rather than an empty one — an
+    # empty "Local coverage" heading reads as "nothing happened there", which
+    # is a claim we have not made.
+    local_articles, local_place = [], None
+    try:
+        _city = (a.get("city") or "").strip()
+        _prov = (a.get("province_code") or "").strip()
+        if (a.get("geo_scope") or "") != "unmappable" and (_city or _prov):
+            if _city:
+                _where, _param, local_place = "a2.city = :key", _city, _city
+            else:
+                _where, _param, local_place = "a2.province_code = :key", _prov, _prov
+            with _db().begin() as c:
+                local_rows = c.execute(text(f"""
+                    SELECT a2.id, a2.title, a2.published_at, s2.name AS source_name
+                      FROM {S}.articles a2
+                      JOIN {S}.sources s2 ON s2.id = a2.source_id
+                     WHERE {_where}
+                       AND a2.id <> :aid
+                       AND a2.published_at > NOW() - INTERVAL '14 days'
+                     ORDER BY a2.published_at DESC
+                     LIMIT 6
+                """), {"key": _param, "aid": article_id}).mappings().all()
+            local_articles = [dict(r) for r in local_rows]
+    except Exception:
+        local_articles, local_place = [], None
+
     # MP election claims — tagged MPs for this article × claim_tracker (#3013)
     mp_claims = []
     try:
@@ -1959,6 +2007,8 @@ def article(article_id: int):
                            reading_time_min=reading_time_min,
                            article_type=article_type,
                            sparkline=sparkline,
+                           local_articles=local_articles,
+                           local_place=local_place,
                            mp_claims=mp_claims,
                            cross_watch_entities=cross_watch_entities)
 

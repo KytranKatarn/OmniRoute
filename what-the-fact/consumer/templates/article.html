@@ -526,6 +526,30 @@ mark.wtf-trigger-hl { background: rgba(245,158,11,0.18); color: #fbbf24; border-
   </div>
   {% endif %}
 
+  {# Local coverage — other reporting from the same place.
+     Rendered ONLY when there are real rows: an empty "Local coverage" heading
+     would read as "nothing else happened there", which is a claim we have not
+     made. Titles use textContent-equivalent Jinja autoescaping (never |safe) —
+     these are external headlines. #}
+  {% if local_articles %}
+  <div style="background:#080d12;border:1px solid #1a2a3a;border-radius:4px;padding:14px;margin-bottom:14px;">
+    <div style="font-size:10px;letter-spacing:1.5px;color:#4b5563;text-transform:uppercase;margin-bottom:10px;">
+      Local coverage · {{ local_place }}
+    </div>
+    {% for la in local_articles %}
+    <div style="padding:7px 0;{% if not loop.last %}border-bottom:1px solid #131f2b;{% endif %}">
+      <a href="/article/{{ la.id }}" style="font-size:12.5px;color:#c9d6e2;text-decoration:none;line-height:1.45;display:block;">{{ la.title }}</a>
+      <div style="font-size:10px;color:#4b5563;margin-top:3px;">
+        {{ la.source_name }}{% if la.published_at %} · {{ la.published_at.strftime('%b %-d') }}{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    <div style="font-size:9px;color:#374151;margin-top:8px;">
+      Last 14 days, matched on {{ 'city' if a.city else 'province' }}.
+    </div>
+  </div>
+  {% endif %}
+
   <!-- How We Scored This -->
   <details class="wtf-how-scored">
     <summary>How we scored this article</summary>

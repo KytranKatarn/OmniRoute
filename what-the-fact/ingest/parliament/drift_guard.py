@@ -81,6 +81,12 @@ _MAX_AGE_DAYS = {
     # lives in wtf.aurora_layer_status.stale_after_hours.
     "aurora_city_obs": int(os.environ.get("WTF_DRIFT_AURORA_CITY_OBS_DAYS", "1")),
     "aurora_city_forecast": int(os.environ.get("WTF_DRIFT_AURORA_CITY_FCST_DAYS", "1")),
+    # Weekly subscriber digest (#6233). It crashed EVERY Monday for weeks with no
+    # observable signal — same shape as the five feeds above, so it belongs here.
+    # 10 days, NOT 21: the send is weekly, so a healthy age never exceeds 7. Ten
+    # alarms roughly three days after a single missed Monday while tolerating a
+    # late run; 21 would let three consecutive Mondays fail before anyone heard.
+    "weekly_digest": int(os.environ.get("WTF_DRIFT_DIGEST_DAYS", "10")),
 }
 
 # Tasks that MUST have run at least once. The freshness loop below skips a task
@@ -88,7 +94,15 @@ _MAX_AGE_DAYS = {
 # predates ingest_log — but for a NEW puller it means one that never runs at all
 # reports green forever. Anything listed here alarms on absence instead.
 _REQUIRED_TASKS = {"aurora_firewx", "aurora_fire",
-                   "aurora_city_obs", "aurora_city_forecast"}
+                   "aurora_city_obs", "aurora_city_forecast",
+                   # weekly_digest has ZERO rows as of 2026-09-01 (verified), so
+                   # without this line the freshness loop would skip it as "not yet
+                   # tracked" and it would report green forever — which is exactly
+                   # the state that let it crash every Monday unnoticed (#6233).
+                   # Safe to require: WTF_WEEKLY_DIGEST_ENABLED=true in prod (verified
+                   # on Citadel). If the digest is ever deliberately turned OFF, remove
+                   # it from here too, or this alarms honestly but uselessly forever.
+                   "weekly_digest"}
 
 
 def _source_freshness(engine) -> list:

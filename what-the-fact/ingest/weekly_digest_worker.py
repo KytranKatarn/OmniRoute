@@ -207,8 +207,61 @@ def _send_digest(recipient: str, html_body: str, week_str: str) -> bool:
         return False
 
 
+_HEARTBEAT_TASK = "weekly_digest"
+
+
+def _heartbeat(engine, *, sent: int = 0, error: str | None = None) -> None:
+    """Write one parliament.ingest_log row so drift_guard can see this task at all.
+
+    ⚠️ WHY THIS EXISTS (#6233): the digest crashed EVERY Monday for weeks with zero
+    observable signal — run.py logs only when sent/errors is truthy, the crash
+    log.exception lines die with each container rebuild, and there was no heartbeat.
+    drift_guard._source_freshness measures MAX(run_at) FILTER (error = ''), i.e. the
+    last SUCCESS, so a task with no rows at all is invisible rather than alarming.
+    This is the same failure the _MAX_AGE_DAYS comment block documents for the five
+    feeds that rotted 2-3 months.
+
+    ⚠️ NEVER call this on the not_monday or disabled paths. The worker returns
+    not_monday six days out of seven; writing a success row there would keep the
+    freshness alarm permanently green and reproduce the exact "unmonitored while
+    APPEARING monitored" bug this is meant to close. A heartbeat must mean
+    "the weekly send actually ran", not "the process woke up".
+
+    Never raises: a bookkeeping failure must not take down the send.
+    """
+    try:
+        with engine.begin() as conn:
+            if error:
+                conn.execute(
+                    text(
+                        "INSERT INTO parliament.ingest_log (task, error) "
+                        "VALUES (:t, :e)"
+                    ),
+                    {"t": _HEARTBEAT_TASK, "e": str(error)[:500]},
+                )
+            else:
+                conn.execute(
+                    text(
+                        "INSERT INTO parliament.ingest_log "
+                        "(task, records_fetched, records_upserted) VALUES (:t, :n, :n)"
+                    ),
+                    {"t": _HEARTBEAT_TASK, "n": sent},
+                )
+    except Exception as exc:  # pragma: no cover - bookkeeping must never break the send
+        logger.warning("[weekly_digest] heartbeat write failed: %s", exc)
+
+
 def run_weekly_digest(engine, schema: str = "wtf") -> dict:
-    """Send weekly digest to all active alert subscribers. Returns counters."""
+    """Send weekly digest to all active alert subscribers. Returns counters.
+
+    Writes a parliament.ingest_log heartbeat on every path that represents a real
+    weekly run — success, all-sends-failed, and crash — so drift_guard alarms on a
+    missed Monday. See _heartbeat for which paths deliberately write nothing.
+
+    Never raises. A digest that crashes the ingest loop is worse than one that
+    records the error and retries next week (same contract as
+    securities_issuer_contracts.run_issuer_contracts_sync).
+    """
     if not _ENABLED:
         return {"sent": 0, "errors": 0, "stopped": "disabled"}
 
@@ -216,11 +269,29 @@ def run_weekly_digest(engine, schema: str = "wtf") -> dict:
     if today.weekday() != 0:  # Monday only
         return {"sent": 0, "errors": 0, "stopped": "not_monday"}
 
+    try:
+        return _run_weekly_digest_inner(engine, schema, today)
+    except Exception as exc:
+        # Previously this propagated into run.py, which logs only when sent/errors
+        # is truthy — so the crash vanished. Now it lands in the heartbeat.
+        logger.exception("[weekly_digest] run failed: %s", exc)
+        _heartbeat(engine, error=str(exc))
+        return {"sent": 0, "errors": 0, "stopped": "error", "error": str(exc)}
+
+
+def _run_weekly_digest_inner(engine, schema: str, today: datetime.date) -> dict:
+    """The Monday body. Raises on failure — run_weekly_digest converts that to a
+    heartbeat + an error dict."""
     if _already_sent_this_week(engine, schema):
+        # A real successful state for this week, not a no-op: the send happened.
+        _heartbeat(engine, sent=0)
         return {"sent": 0, "errors": 0, "stopped": "already_sent"}
 
     recipients = _fetch_recipients(engine, schema)
     if not recipients:
+        # A genuine run that had nothing to send. Recorded as a success so an empty
+        # list does not read as a dead job — the subscriber count is a separate signal.
+        _heartbeat(engine, sent=0)
         return {"sent": 0, "errors": 0, "stopped": "no_subscribers"}
 
     data = _fetch_digest_data(engine, schema)
@@ -245,5 +316,15 @@ def run_weekly_digest(engine, schema: str = "wtf") -> dict:
     if sent > 0:
         _mark_sent(engine, schema)
         logger.info("[weekly_digest] sent=%d errors=%d week=%s", sent, errors, week_str)
+        _heartbeat(engine, sent=sent)
+    else:
+        # Recipients existed but NOTHING got through. That is a failed weekly run,
+        # not a quiet one — record it as an error so drift_guard's last-SUCCESS
+        # clock keeps ticking and the freshness alarm eventually fires.
+        logger.error(
+            "[weekly_digest] every send failed: recipients=%d errors=%d week=%s",
+            len(recipients), errors, week_str,
+        )
+        _heartbeat(engine, error=f"all {errors} sends failed for {len(recipients)} recipients")
 
     return {"sent": sent, "errors": errors, "stopped": "complete"}

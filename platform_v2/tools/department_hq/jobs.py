@@ -4864,7 +4864,14 @@ def _register_own_jobs(scheduler, flask_app):
                           -- tier-2 gate: only deep-review-worthy articles get a full 7B
                           -- fact-check; shallow items ride the Tier-1 quick lane (#4536)
                           AND (LENGTH(a.body) >= %s OR a.tier2_pending = true)
-                        ORDER BY a.published_at ASC
+                        -- ⚠️ DESC — newest first. This ran ASC (oldest first),
+                        -- so the least-read articles were verified before the
+                        -- ones anyone is looking at. A backlog measured in weeks
+                        -- of compute may never reach the end, which makes the
+                        -- ORDER BY the actual prioritisation decision: work
+                        -- backwards from today so value lands immediately and an
+                        -- interrupted run has still done the useful half.
+                        ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
                         (_WTF_BACKLOG_MIN_BODY_CHARS, _WTF_BATCH),
@@ -5137,7 +5144,12 @@ def _register_own_jobs(scheduler, flask_app):
                           -- bias pass; shallow items ride the Tier-1 quick lane (#4536)
                           AND (LENGTH(a.body) >= %s OR a.tier2_pending = true)
                           AND a.id != ALL(%s)
-                        ORDER BY a.published_at ASC
+                        -- ⚠️ DESC — newest first; see the fact-check backlog above.
+                        -- Bias additionally feeds the outlet rollup, whose window
+                        -- is the last 30 days of ingest: working oldest-first meant
+                        -- the backlog spent most of its compute on articles that
+                        -- can never enter the average it is meant to improve.
+                        ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
                         (_WTF_BACKLOG_MIN_BODY_CHARS, list(tried_ids) or [0], _WTF_BATCH),
@@ -5322,7 +5334,10 @@ def _register_own_jobs(scheduler, flask_app):
                           AND a.geo_scope <> 'unmappable'
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND a.id != ALL(%s)
-                        ORDER BY a.published_at ASC
+                        -- ⚠️ DESC — newest first; see the fact-check backlog above.
+                        -- Geo also feeds the live map, so oldest-first placed pins
+                        -- on stories nobody is currently reading.
+                        ORDER BY a.published_at DESC
                         LIMIT %s
                         """,
                         (list(tried_ids) or [0], _WTF_BATCH),

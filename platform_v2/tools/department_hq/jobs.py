@@ -4329,6 +4329,11 @@ def _register_own_jobs(scheduler, flask_app):
                         JOIN wtf.sources s ON s.id = a.source_id
                         LEFT JOIN wtf.story_clusters sc ON sc.id = a.cluster_id
                         WHERE a.ai_analyzed = false
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
@@ -4495,6 +4500,11 @@ def _register_own_jobs(scheduler, flask_app):
                         SELECT a.id, a.title, a.body
                         FROM wtf.articles a
                         WHERE a.province_code IS NULL
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND a.city IS NULL
                           AND a.geo_scope <> 'unmappable'
                           AND a.published_at > NOW() - INTERVAL '90 days'
@@ -4697,6 +4707,11 @@ def _register_own_jobs(scheduler, flask_app):
                         SELECT a.id, a.title, a.body
                         FROM wtf.articles a
                         WHERE a.published_at > NOW() - INTERVAL '90 days'
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.fact_checks fc
                               WHERE fc.article_id = a.id AND fc.analyzed_by = 'dhq_v1'
@@ -4858,6 +4873,11 @@ def _register_own_jobs(scheduler, flask_app):
                         SELECT a.id, a.title, a.body
                         FROM wtf.articles a
                         WHERE a.published_at > NOW() - INTERVAL '90 days'
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.fact_checks fc WHERE fc.article_id = a.id
                           )
@@ -5136,6 +5156,11 @@ def _register_own_jobs(scheduler, flask_app):
                         JOIN wtf.sources s ON s.id = a.source_id
                         LEFT JOIN wtf.story_clusters sc ON sc.id = a.cluster_id
                         WHERE a.ai_analyzed = false
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND a.published_at > NOW() - INTERVAL '90 days'
                           AND NOT EXISTS (
                               SELECT 1 FROM wtf.llm_analyses la WHERE la.article_id = a.id
@@ -5330,6 +5355,11 @@ def _register_own_jobs(scheduler, flask_app):
                         SELECT a.id, a.title, a.body
                         FROM wtf.articles a
                         WHERE a.province_code IS NULL
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND a.city IS NULL
                           AND a.geo_scope <> 'unmappable'
                           AND a.published_at > NOW() - INTERVAL '90 days'
@@ -5799,6 +5829,11 @@ def _register_own_jobs(scheduler, flask_app):
                         SELECT a.id, a.url
                         FROM wtf.articles a
                         WHERE LENGTH(COALESCE(a.body, '')) < %s
+                          -- Suppressed rows are hidden from every READER path but were still
+                          -- queued for WORK: 3,911 analysis + 4,358 geo backlog items pointed at
+                          -- articles nobody can see (#3036 duplicate_refetch). Dedupe only saves
+                          -- agent time if the producers honour it.
+                          AND a.suppressed_reason IS NULL
                           AND a.url IS NOT NULL
                           -- ⚠️ Never re-capture what Playwright already fetched.
                           -- Raising the ceiling to the tier-2 floor (above) would
@@ -6016,6 +6051,9 @@ def _register_own_jobs(scheduler, flask_app):
                             WHERE NOT EXISTS (
                                 SELECT 1 FROM wtf.bias_scores b WHERE b.article_id = a.id
                             ) AND a.published_at > NOW() - INTERVAL '90 days'
+                              -- Suppressed rows are hidden from every READER path but were
+                              -- still counted as WORK (#3036 duplicate_refetch).
+                              AND a.suppressed_reason IS NULL
                         """
                         )
                         _wtf_bias_row = _wc_b.fetchone()

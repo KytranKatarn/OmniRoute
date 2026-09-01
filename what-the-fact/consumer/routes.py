@@ -342,8 +342,14 @@ def api_stats():
         row = c.execute(text(f"""
             SELECT
               (SELECT COUNT(*) FROM {S}.sources) AS sources,
-              (SELECT COUNT(*) FROM {S}.articles) AS articles,
-              (SELECT COUNT(*) FROM {S}.articles WHERE ai_analyzed=true) AS llm_analyzed,
+              -- Count what the site SHOWS. These are published figures, and a
+              -- suppressed row is one the site deliberately hides — counting it
+              -- overstates the corpus by the exact number we chose not to serve
+              -- (8,288 duplicate_refetch after #3036, plus migration 056's).
+              (SELECT COUNT(*) FROM {S}.articles
+                WHERE suppressed_reason IS NULL) AS articles,
+              (SELECT COUNT(*) FROM {S}.articles
+                WHERE ai_analyzed=true AND suppressed_reason IS NULL) AS llm_analyzed,
               (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
               (SELECT COUNT(*) FROM {S}.story_clusters) AS clusters
         """)).mappings().first()
@@ -1072,7 +1078,9 @@ def _activity_bundle(S):
         ).scalar() or 0
         stats = c.execute(text(f"""
             SELECT
-              (SELECT COUNT(*) FROM {S}.articles) AS total_articles,
+              -- Transparency page: the one place a wrong count is worst.
+              (SELECT COUNT(*) FROM {S}.articles
+                WHERE suppressed_reason IS NULL) AS total_articles,
               (SELECT COUNT(*) FROM {S}.bias_scores) AS bias_scored,
               (SELECT COUNT(*) FROM {S}.fact_checks) AS fact_checked,
               (SELECT COUNT(DISTINCT article_id) FROM {S}.fact_checks) AS fact_checked_articles,
@@ -4021,6 +4029,10 @@ def sitemap_xml():
     with _db().begin() as c:
         total, newest = c.execute(text(f"""
             SELECT COUNT(*), MAX(published_at) FROM {S}.articles
+            -- Must match the paged listing's filter EXACTLY. If the count includes
+            -- rows the listing excludes, the index advertises a page number the
+            -- listing cannot fill and search engines fetch an empty sitemap.
+            WHERE suppressed_reason IS NULL
         """)).fetchone()
     pages = max(1, -(-int(total or 0) // _SITEMAP_ARTICLE_PAGE))
     newest_tag = (f"<lastmod>{newest.strftime('%Y-%m-%d')}</lastmod>"
@@ -4079,6 +4091,16 @@ def sitemap_articles(page: int):
         rows = c.execute(text(f"""
             SELECT id, published_at
             FROM {S}.articles
+            -- ⚠️ NEVER ADVERTISE A PAGE THE SITE SUPPRESSES.
+            -- This query had NO WHERE CLAUSE, so every suppressed article was
+            -- submitted to search engines — and a suppressed article still serves
+            -- a full HTTP 200 page (measured: 55,861 bytes with a real <title>).
+            -- After #3036 that is ~8,300 duplicate-content pages this site's own
+            -- sitemap points Google at, plus the pre-existing suppressed_reason
+            -- population from migration 056.
+            -- Proof it was including them: the index advertised 4 article pages
+            -- (123,641 / 40,000) where the visible count gives 3 (115,279).
+            WHERE suppressed_reason IS NULL
             ORDER BY published_at ASC, id ASC
             LIMIT :lim OFFSET :off
         """), {"lim": _SITEMAP_ARTICLE_PAGE,

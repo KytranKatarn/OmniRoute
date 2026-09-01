@@ -507,7 +507,7 @@ if __name__ == "__main__":
 
     # Get stats
     stats = graph_stats()
-    print(f"\nGraph Stats:")
+    print("\nGraph Stats:")
     for key, value in stats.items():
         if key != "by_type":
             print(f"  {key}: {value}")

@@ -40,3 +40,12 @@ drifts from the Jinja2 templates.
   not `.row`). The header tells the agent to use `.grid`/`.flex` instead.
 - Re-validate the header after any CSS change: the validator greps every documented token
   and class against `ds-bundle/**/*.css`, including the example snippet's classes.
+
+## Sibling site syncs (2026-09-01)
+Three more styles-only design systems live in per-site `.design-sync/` dirs INSIDE this
+repo (each pins its own Claude Design project — repo-root config is the LCARS platform):
+- `website/kytranempowerment.com/` → "Kytran Empowerment Website" (cyan/pink glass)
+- `website/creed-ai.org/` → "creed-ai.org" (gold variant) — ⚠️ SYMLINK to /mnt/standalone/websites/creed-ai.org, its OWN git repo; config committed there
+- `what-the-fact/` → "What The Fact" (wtf-* tokens; consumer style.css only, tech excluded)
+Each has its own conventions.md + NOTES.md; validate with the same grep harness
+(tokens + backtick classes + snippet classes vs ds-bundle/**/*.css).

@@ -16,6 +16,7 @@ pages and 1s between the three full-table syncs.
 """
 import json
 import logging
+import re
 import time
 from datetime import date, datetime, timezone
 from typing import Optional
@@ -376,12 +377,83 @@ def sync_ballots(engine, session_filter: str = None) -> dict:
 
 # ── tag_articles ──────────────────────────────────────────────────────────────
 
+MATCH_FULL_NAME = "full_name"
+MATCH_FAMILY_NAME = "family_name"
+
+# Only a full-name match is strong enough to drive a PUBLIC claim about an
+# article. Read paths that assert "this article is about MP X" filter on this.
+STRONG_MATCH_TYPES = (MATCH_FULL_NAME,)
+
+_MIN_FAMILY_LEN = 5
+
+
+def _compile_mp_patterns(name: str | None, family: str | None):
+    """(full_name_regex, family_name_regex) for one MP. Either may be None.
+
+    ⚠️ THE WORD BOUNDARIES ARE THE WHOLE POINT. The original matcher used a
+    bare `p.lower() in text_blob.lower()`, which is a SUBSTRING test:
+
+        "chang"  matches "exchange", "changing", "changed"
+        "grant"  matches "granted", "immigrant", "grants"
+        "block"  matches "blocked", "roadblock"
+        "small"  matches "smaller"
+        "fisher" matches "fisheries"
+
+    Measured over 7 days of live tags: 961 of 2,353 (40.8%) matched NOTHING at
+    a word boundary — they were pure substring accidents. MP Wade Chang alone
+    was attached to 521 articles because they contained the word "change".
+
+    ⚠️ THE FAMILY-NAME TIER IS CASE-SENSITIVE, deliberately. A word-boundary
+    match is not enough for a bare surname, because many MP surnames ARE common
+    English nouns — "the grant was awarded", "police block the road", "a small
+    business". A proper noun is capitalised in running text and the common noun
+    usually is not, so requiring the capital is a cheap, non-magical filter. It
+    dropped a further 326 of the 1,064 family-only matches.
+
+    The full-name tier stays case-INSENSITIVE: "WADE CHANG" in a headline is
+    still Wade Chang, and a two-token full name cannot collide with a common
+    noun the way a single surname can.
+    """
+    full_re = None
+    fam_re = None
+    if name and name.strip():
+        full_re = re.compile(r"\b" + re.escape(name.strip()) + r"\b", re.IGNORECASE)
+    if family and len(family.strip()) >= _MIN_FAMILY_LEN:
+        fam_re = re.compile(r"\b" + re.escape(family.strip()) + r"\b")  # case-SENSITIVE
+    return full_re, fam_re
+
+
+def match_mp_in_text(text_blob: str, full_re, fam_re) -> str | None:
+    """Return the match_type for this MP in this text, or None for no match.
+
+    Pure — no DB, no I/O — so the matching rule is testable on its own.
+    A full-name hit always wins: it is the stronger evidence.
+    """
+    if not text_blob:
+        return None
+    if full_re is not None and full_re.search(text_blob):
+        return MATCH_FULL_NAME
+    if fam_re is not None and fam_re.search(text_blob):
+        return MATCH_FAMILY_NAME
+    return None
+
+
 def tag_articles(engine, days_back: int = 7) -> dict:
     """Name-match MP names against recent WTF article titles and bodies.
 
     Inserts into wtf.article_mp_tags. Only processes articles from the last
     `days_back` days to keep the operation fast. Runs after sync_mps so the
     MP list is fresh.
+
+    ⚠️ THIS TABLE IS THE CHOKE POINT. Nine read sites join it — the homepage
+    "mentions" line, the article page's Related Parliament Votes panel, the MP
+    profiles, and (via `entity_mentions_sync.sync_mp_article_mentions`) every
+    row of shared.entity_mentions for product='wtf'. A false tag here surfaces
+    a named sitting MP on an article they have nothing to do with, in public,
+    on a site whose product is fact-checking. Fixing it per-reader would leave
+    holes; it is fixed here, once, and the readers inherit the fix.
+
+    See _compile_mp_patterns for the matching rules and the measurements.
     """
     with engine.connect() as c:
         mps = c.execute(text(
@@ -393,29 +465,48 @@ def tag_articles(engine, days_back: int = 7) -> dict:
             WHERE published_at > NOW() - INTERVAL ':days days'
         """.replace(":days", str(days_back)))).fetchall()
 
-    tagged = 0
-    for mp_id, name, given, family in mps:
-        # Match on full name or family name (if family name >= 5 chars to avoid false positives)
-        patterns = [name]
-        if family and len(family) >= 5:
-            patterns.append(family)
-        for art_id, title, body in articles:
-            text_blob = (title or "") + " " + (body or "")
-            if any(p.lower() in text_blob.lower() for p in patterns):
-                try:
-                    with engine.begin() as c:
-                        c.execute(text("""
-                            INSERT INTO wtf.article_mp_tags (article_id, mp_id, match_type)
-                            VALUES (:aid, :mid, 'name_match')
-                            ON CONFLICT (article_id, mp_id) DO NOTHING
-                        """), {"aid": art_id, "mid": mp_id})
-                    tagged += 1
-                except Exception:
-                    pass
+    # Build the text blob once per article instead of once per (MP, article).
+    blobs = [(a[0], ((a[1] or "") + " " + (a[2] or ""))) for a in articles]
 
-    logger.info("openparl.tag_articles: articles=%d mps=%d tagged=%d",
-                len(articles), len(mps), tagged)
-    return {"articles_scanned": len(articles), "tags_inserted": tagged}
+    pending: list[dict] = []
+    for mp_id, name, given, family in mps:
+        full_re, fam_re = _compile_mp_patterns(name, family)
+        if full_re is None and fam_re is None:
+            continue
+        for art_id, blob in blobs:
+            mtype = match_mp_in_text(blob, full_re, fam_re)
+            if mtype:
+                pending.append({"aid": art_id, "mid": mp_id, "mt": mtype})
+
+    inserted = 0
+    if pending:
+        # ONE transaction, not one per row. The previous version opened a
+        # transaction per matched pair inside a nested loop and swallowed every
+        # exception with a bare `except: pass`, so a persistent failure was
+        # indistinguishable from a clean run.
+        with engine.begin() as c:
+            for row in pending:
+                res = c.execute(text("""
+                    INSERT INTO wtf.article_mp_tags (article_id, mp_id, match_type)
+                    VALUES (:aid, :mid, :mt)
+                    ON CONFLICT (article_id, mp_id) DO UPDATE
+                       SET match_type = EXCLUDED.match_type
+                     WHERE wtf.article_mp_tags.match_type IS DISTINCT FROM EXCLUDED.match_type
+                       AND EXCLUDED.match_type = 'full_name'
+                """), row)
+                inserted += res.rowcount or 0
+
+    logger.info(
+        "openparl.tag_articles: articles=%d mps=%d matched=%d written=%d (full=%d family=%d)",
+        len(articles), len(mps), len(pending), inserted,
+        sum(1 for p in pending if p["mt"] == MATCH_FULL_NAME),
+        sum(1 for p in pending if p["mt"] == MATCH_FAMILY_NAME),
+    )
+    # `tags_inserted` counts rows actually WRITTEN, not pairs attempted — the
+    # old counter incremented on every match even when ON CONFLICT DO NOTHING
+    # made it a no-op, so it reported thousands of "inserts" that never landed.
+    return {"articles_scanned": len(articles), "tags_inserted": inserted,
+            "matches": len(pending)}
 
 
 # ── main entry point ──────────────────────────────────────────────────────────

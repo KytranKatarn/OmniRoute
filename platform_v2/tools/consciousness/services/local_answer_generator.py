@@ -21,7 +21,6 @@ sys.path.insert(0, "/mnt/archie_brain/platform_v2")
 
 try:
     import psycopg2
-    from psycopg2.extras import RealDictCursor
 except ImportError:
     psycopg2 = None
 

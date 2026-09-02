@@ -82,6 +82,13 @@ def _persist(engine, schema: str, article_id: int, result: dict) -> None:
                     lng           = :lng,
                     country_code  = :country,
                     geo_scope     = :geo_scope,
+                    -- migration 073 (#6263): stamp on EVERY write, including an
+                    -- 'unmappable' one. Both outcomes remove the article from the
+                    -- pending set (province_code IS NULL AND geo_scope <>
+                    -- 'unmappable'), so both are L.O.C.A.L. finishing its work.
+                    -- Counting only successes would understate the drain rate and
+                    -- reproduce the too-optimistic ETA this replaces.
+                    geo_processed_at = NOW(),
                     analysis_tier = CASE
                         WHEN analysis_tier = 'pending' THEN 'quick_v1'
                         ELSE analysis_tier

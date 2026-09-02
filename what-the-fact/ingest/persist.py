@@ -344,8 +344,13 @@ def save_geo(engine, article_id: int, schema: str, geo: dict) -> None:
         with engine.begin() as c:
             c.execute(
                 text(
+                    # geo_processed_at (migration 073) is stamped on EVERY geo
+                    # write, so `/activity` can measure real throughput. Before
+                    # it, nothing recorded WHEN geocoding happened and the rate
+                    # was computed from a column that did not exist (#6263).
                     f"UPDATE {schema}.articles SET province_code = :pc, city = :city, "
-                    f"lat = :lat, lng = :lng, country_code = :country, geo_scope = :scope "
+                    f"lat = :lat, lng = :lng, country_code = :country, geo_scope = :scope, "
+                    f"geo_processed_at = NOW() "
                     f"WHERE id = :aid"
                 ),
                 {

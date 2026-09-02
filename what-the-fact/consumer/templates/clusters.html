@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_archetypes.html" import record_card, record_links, segment, stat_tiles, lean_pill %}
+{% block title %}Story Clusters · What The Fact{% endblock %}
+{% block meta %}
+<meta name="description" content="One event, many tellings — Canadian stories grouped across outlets, ranked by how far the framing spreads.">
+{% endblock %}
+{% block content %}
+{# #6149 Design phase 2 — ARCHETYPE 3 (DATA EXPLORER), modelled on blindspot.html.
+
+   The nav has linked News > Clusters since the phase-2 nav rebuild, and it
+   returned 404. Only /cluster/<id> existed, reachable purely from links on
+   other pages, so the cluster corpus had no front door.
+
+   ⚠️ THE DESIGN PROTOTYPE OVERSTATES THE DATA, deliberately not copied:
+     · its cards read "22 OUTLETS" — the widest real cluster is 8
+     · its six cards each carry a DIFFERENT lean pill, implying framing
+       diversity is the norm. Measured over 7 days: 546 clusters qualify and
+       only 106 (19%) show any spread at all. 81% are single-band.
+     · its card bodies are written prose ("Framing splits on which government
+       the findings land on"). `story_clusters.framing_summary` is NULL on all
+       5,485 rows — nothing has ever written that column, and no other column
+       can produce that sentence.
+   So the bodies are derived from the bands actually scored, and the "no
+   spread" case says so in words instead of being hidden. Showing 40 varied
+   pills would sell a diversity of framing this corpus does not have.
+
+   Ordered by SPREAD, not recency — spread is the page's entire claim, so the
+   ordering is stated on the page rather than left for a reader to infer.
+
+   Data: clusters[], totals{qualifying,with_spread,widest}, days, windows[], shown. #}
+
+<div style="padding:16px 0;border-bottom:1px solid var(--wtf-border);margin-bottom:16px;">
+  <h1 style="font-family:var(--wtf-font-serif);font-size:30px;font-weight:600;margin:0 0 4px;">Story clusters</h1>
+  <p class="wtf-a-tile-d" style="margin:0;max-width:72ch;">
+    One event, many tellings. Articles describing the same story are grouped across the outlets we
+    track, so the spread of framing sits in one place. Clusters carried by at least two outlets appear
+    here, widest framing spread first.
+  </p>
+</div>
+
+{# ⚠️ Tile 1 is the QUALIFYING count, not clusters|length — that is the page
+   size. The same mislabelling is called out in blindspot.html. Tile 2 is the
+   honest headline of this dataset: most clusters do NOT diverge. #}
+{% set pct_spread = ((totals.with_spread / totals.qualifying * 100) | round(0) | int) if totals.qualifying else 0 %}
+{{ stat_tiles([
+     {'label': 'Clusters in window', 'value': '{:,}'.format(totals.qualifying),
+      'detail': 'two or more outlets · last ' ~ days ~ ' day' ~ ('' if days == 1 else 's') ~
+                ' · showing ' ~ shown},
+     {'label': 'Showing framing spread', 'value': '{:,}'.format(totals.with_spread),
+      'detail': pct_spread ~ '% of them — most coverage of an event shares one band'},
+     {'label': 'Widest cluster', 'value': totals.widest,
+      'detail': 'outlets on a single story'},
+]) }}
+
+<div class="wtf-a-layers" style="margin:16px 0;" role="group" aria-label="Time window">
+  {% for w in windows %}{{ segment(w ~ ' days', '/clusters?days=' ~ w, active=(w == days)) }}{% endfor %}
+</div>
+
+{% for cl in clusters %}
+  {% set chips = [] %}
+  {# 'developing' is 99.6% of rows, so it carries no information — show the
+     label only when it is one of the rare, meaningful ones. #}
+  {% if cl.certainty_label and cl.certainty_label != 'developing' %}
+    {% if chips.append(cl.certainty_label) %}{% endif %}
+  {% endif %}
+
+  {% set meta %}
+    {{- cl.outlets }} outlet{{ '' if cl.outlets == 1 else 's' }} ·
+    {{ cl.articles }} article{{ '' if cl.articles == 1 else 's' }} ·
+    updated {{ cl.age_text }}
+  {% endset %}
+
+  {% call record_card(title=cl.representative_title,
+                      meta=meta|trim, chips=chips, spine_token='--wtf-accent') %}
+    <div style="margin-bottom:8px;">{{ lean_pill(cl.median_band, cl.median_band|title ~ ' median') }}</div>
+    <p class="wtf-a-rbody">{{ cl.spread_text }}</p>
+    {{ record_links([('Compare ' ~ cl.outlets ~ ' outlets →', '/cluster/' ~ cl.id, False)]) }}
+  {% endcall %}
+{% else %}
+  <p class="wtf-a-nodata" style="padding:28px 0;">
+    No story was carried by two or more tracked outlets in the last {{ days }} days.
+  </p>
+{% endfor %}
+
+<div style="margin-top:26px;padding:16px 18px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:6px;">
+  <div class="wtf-a-tile-l" style="margin-bottom:8px;">How a cluster's lean is reported</div>
+  <p style="font-size:13px;color:var(--wtf-text-2);line-height:1.75;margin:0 0 12px;">
+    The median lean is the middle band across the cluster, not an average. Averaging a bimodal
+    cluster — half Left, half Right — would report a centre that nobody actually published. The
+    spread line names the two ends of the range, so a tight cluster and a split one can never read
+    the same. Bands are scored per article, not fixed to an outlet: the same newsroom can land in
+    different bands on different stories.
+  </p>
+  {{ record_links([
+       ('Coverage divergence →', '/divergence', False),
+       ('Coverage blind spots →', '/blindspot', False),
+       ('How we score bias →', 'https://what-the-fact.tech/transparency', True)]) }}
+</div>
+{% endblock %}

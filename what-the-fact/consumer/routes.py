@@ -2646,6 +2646,191 @@ def frame_cluster(cluster_id: int):
         return jsonify({"ok": False, "error": str(exc)[:200]}), 500
 
 
+_CLUSTER_WINDOWS = (3, 7, 30)
+_CLUSTER_LIMIT = 40
+
+# The lean scale as an ORDINAL. Declared once because the median, the spread
+# bounds and the label all have to agree; two copies drift and the page starts
+# reporting a median that is not one of the bands it displays.
+_BAND_ORDER = ("left", "center-left", "center", "center-right", "right")
+_BAND_ORD_SQL = (
+    "CASE b.band WHEN 'left' THEN 0 WHEN 'center-left' THEN 1 WHEN 'center' THEN 2 "
+    "WHEN 'center-right' THEN 3 WHEN 'right' THEN 4 END"
+)
+
+
+def _band_label(ordinal) -> str:
+    """Ordinal -> display label. Returns '' for None so a caller cannot print 'None'."""
+    if ordinal is None:
+        return ""
+    try:
+        return _BAND_ORDER[int(ordinal)].title()   # "center-right" -> "Center-Right"
+    except (IndexError, ValueError, TypeError):
+        return ""
+
+
+def _spread_sentence(outlets: int, scored: int, lo, hi) -> str:
+    """The card body, derived from the data — never generated, never invented.
+
+    ⚠️ `story_clusters.framing_summary` is NULL on ALL 5,485 rows in a 7-day
+    window (measured 2026-09-02) — the column exists but nothing has ever
+    written it. The design prototype's card bodies are prose like "Framing
+    splits on which government the findings land on", which no column in this
+    schema can produce. Deriving a factual sentence from the bands we actually
+    scored is the only honest option, and it needs no LLM in the render path.
+    """
+    if not scored:
+        return "No outlet in this cluster has been scored for bias yet."
+    if lo is None or hi is None or lo == hi:
+        return (
+            f"All {scored} scored outlet{'' if scored == 1 else 's'} landed in the same "
+            f"band — {_band_label(lo)}. No framing spread."
+        )
+    return (
+        f"Framing runs from {_band_label(lo)} to {_band_label(hi)} across "
+        f"{outlets} outlets."
+    )
+
+
+def _age_text(dt) -> str:
+    """Relative age, e.g. '3h ago'.
+
+    ⚠️ Deliberately RELATIVE, not an absolute timestamp. `latest_published_at`
+    is `timestamp WITHOUT time zone` holding UTC, and this app registers NO
+    Jinja filters at all — there is no `|localtime` here the way there is in
+    the platform (using one raises TemplateAssertionError and 500s the page).
+    A relative age cannot be rendered in the wrong zone, so it sidesteps the
+    problem rather than getting it subtly wrong.
+
+    Compared against a NAIVE utcnow to match the column; mixing naive and
+    aware raises TypeError.
+    """
+    from datetime import datetime as _dt, timezone as _tz
+    if dt is None:
+        return "—"
+    try:
+        secs = (_dt.now(_tz.utc).replace(tzinfo=None) - dt).total_seconds()
+    except TypeError:                      # an aware value slipped through
+        secs = (_dt.now(_tz.utc) - dt).total_seconds()
+    if secs < 0:                           # clock skew — never print "-2m ago"
+        return "just now"
+    if secs < 3600:
+        return f"{int(secs // 60)}m ago"
+    if secs < 86400:
+        return f"{int(secs // 3600)}h ago"
+    return f"{int(secs // 86400)}d ago"
+
+
+def _cluster_index_rows(days: int, limit: int = _CLUSTER_LIMIT):
+    """Clusters carried by 2+ outlets, widest framing spread first.
+
+    Counts are computed LIVE from articles rather than read from the
+    denormalised `story_clusters.source_count`/`article_count`, for one reason:
+    they must agree with /cluster/<id>, which filters `suppressed_reason IS
+    NULL`. (Spot-checked 2026-09-02: the denormalised values happen to match on
+    current rows, but a metric refreshed on a different filter is exactly how
+    a list page comes to disagree with the detail page it links to.)
+    """
+    S = _schema()
+    with _db().begin() as c:
+        return c.execute(text(f"""
+            WITH m AS (
+              SELECT a.cluster_id                                         AS cid,
+                     COUNT(DISTINCT a.source_id)                          AS outlets,
+                     COUNT(DISTINCT a.id)                                 AS articles,
+                     MAX(a.published_at)                                  AS last_pub,
+                     COUNT(b.band)                                        AS scored,
+                     percentile_disc(0.5) WITHIN GROUP (
+                       ORDER BY {_BAND_ORD_SQL})                          AS med,
+                     MIN({_BAND_ORD_SQL})                                 AS lo,
+                     MAX({_BAND_ORD_SQL})                                 AS hi
+                FROM {S}.articles a
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+               WHERE a.suppressed_reason IS NULL
+                 AND a.cluster_id IS NOT NULL
+                 AND a.published_at > NOW() - make_interval(days => :days)
+               GROUP BY a.cluster_id
+              HAVING COUNT(DISTINCT a.source_id) >= 2
+            )
+            SELECT m.cid AS id, m.outlets, m.articles, m.last_pub,
+                   m.scored, m.med, m.lo, m.hi,
+                   (m.hi - m.lo) AS spread,
+                   sc.representative_title, sc.certainty_label
+              FROM m JOIN {S}.story_clusters sc ON sc.id = m.cid
+             ORDER BY (m.hi - m.lo) DESC NULLS LAST, m.outlets DESC, m.last_pub DESC
+             LIMIT :lim
+        """), {"days": days, "lim": limit}).mappings().all()
+
+
+def _cluster_index_totals(days: int) -> dict:
+    """Qualifying totals for the header tiles.
+
+    ⚠️ These are the WINDOW totals, never `rows|length` — the same trap called
+    out in blindspot.html. Measured 2026-09-02 over 7 days: 546 clusters
+    qualify and only 106 of them (19%) show any framing spread at all. A page
+    that showed 40 cards each with a different lean pill would imply a
+    diversity of framing this corpus does not have.
+    """
+    S = _schema()
+    with _db().begin() as c:
+        row = c.execute(text(f"""
+            WITH m AS (
+              SELECT a.cluster_id,
+                     COUNT(DISTINCT a.source_id) AS outlets,
+                     MIN({_BAND_ORD_SQL}) AS lo,
+                     MAX({_BAND_ORD_SQL}) AS hi
+                FROM {S}.articles a
+                LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+               WHERE a.suppressed_reason IS NULL
+                 AND a.cluster_id IS NOT NULL
+                 AND a.published_at > NOW() - make_interval(days => :days)
+               GROUP BY a.cluster_id
+              HAVING COUNT(DISTINCT a.source_id) >= 2
+            )
+            SELECT COUNT(*)                                        AS qualifying,
+                   COUNT(*) FILTER (WHERE hi > lo)                 AS with_spread,
+                   COALESCE(MAX(outlets), 0)                       AS widest
+              FROM m
+        """), {"days": days}).mappings().first()
+    return dict(row) if row else {"qualifying": 0, "with_spread": 0, "widest": 0}
+
+
+@bp.get("/clusters")
+def clusters_index():
+    """Story-cluster index — 'one event, many tellings' (#6149 Design phase 2).
+
+    Linked from the main nav (News > Clusters) but returned 404 until now; the
+    only cluster surface was the /cluster/<id> detail page, reachable solely
+    from a link on another page.
+
+    Ordered by framing SPREAD, not recency, because spread is the page's whole
+    claim. The ordering is stated on the page rather than left implicit.
+    """
+    from flask import request as _req
+    try:
+        days = int(_req.args.get("days", 7))
+    except (TypeError, ValueError):
+        days = 7
+    if days not in _CLUSTER_WINDOWS:
+        days = 7
+
+    rows = [dict(r) for r in _cluster_index_rows(days)]
+    for r in rows:
+        r["median_band"] = (
+            _BAND_ORDER[int(r["med"])] if r["med"] is not None else "center"
+        )
+        r["spread_text"] = _spread_sentence(
+            r["outlets"], r["scored"], r["lo"], r["hi"]
+        )
+        r["age_text"] = _age_text(r["last_pub"])
+    return render_template("clusters.html",
+                           clusters=rows,
+                           totals=_cluster_index_totals(days),
+                           days=days,
+                           windows=_CLUSTER_WINDOWS,
+                           shown=len(rows))
+
+
 @bp.get("/cluster/<int:cluster_id>")
 def cluster_comparison(cluster_id: int):
     """Side-by-side outlet comparison for a story cluster (#3069)."""

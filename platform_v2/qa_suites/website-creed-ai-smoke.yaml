@@ -269,3 +269,58 @@ tests:
     method: GET
     skip_auth: true
     expect: { status: 200, title_contains: "Programmes" }
+
+  # ── DOM RENDER GUARDS (type: e2e — real Chromium, not requests) ────────────
+  #
+  # The title assertions above prove the SERVER sent our page. They cannot see
+  # whether JavaScript then rendered anything — the "page loads 200, correct
+  # title, content area empty" failure (mistake #281727, and the reason suite
+  # #110 exists). These close that.
+  #
+  # ⚠️ type MUST be e2e: js_eval is honoured only by qa_e2e_runner. A js_eval on
+  # an api/page_load test is silently ignored. A throwing expression FAILS the
+  # test (qa_e2e_runner.py ~L441), so these are fail-closed.
+  #
+  # Every threshold is grounded in a live measurement, with margin, and sits well
+  # ABOVE the no-JS baseline so it can only pass if scripts actually ran:
+  #   /                raw HTML text 4,190 chars -> rendered 10,177
+  #   /governance.html                          -> rendered 15,361
+  # A floor between the two is what distinguishes "JS ran" from "shell only".
+
+  - name: creed-home-dom-renders
+    path: /
+    type: e2e
+    skip_auth: true
+    expect:
+      js_eval:
+        # If the bundle 404s or throws on load these are undefined — the single
+        # cheapest signal that the page's JS engine is alive at all.
+        - name: js_engine_loaded
+          expr: "typeof window.gsap !== 'undefined' && typeof window.barba !== 'undefined'"
+          equals: true
+        - name: hero_rendered
+          expr: "/C\\.R\\.E\\.E\\.D/.test(((document.querySelector('h1')||{}).textContent)||'')"
+          equals: true
+        # 7000 sits between the no-JS shell (4,190) and the rendered page
+        # (10,177): passes only if JS added content, fails on a dead bundle.
+        - name: content_beyond_no_js_shell
+          expr: "(document.body.textContent||'').trim().length > 7000"
+          equals: true
+
+  - name: creed-governance-dom-renders
+    path: /governance.html
+    type: e2e
+    skip_auth: true
+    expect:
+      js_eval:
+        # This page fetches the live CREED score client-side. A dead fetch leaves
+        # the node present but stuck on a placeholder — 200 + right title + no data.
+        - name: live_score_node_present
+          expr: "!!document.querySelector('[id*=\"score\" i], [class*=\"score\" i]')"
+          equals: true
+        - name: not_stuck_on_placeholder
+          expr: "!/loading|--\\s*$/i.test((document.body.textContent||'').trim().slice(0,400))"
+          equals: true
+        - name: content_beyond_no_js_shell
+          expr: "(document.body.textContent||'').trim().length > 9000"
+          equals: true

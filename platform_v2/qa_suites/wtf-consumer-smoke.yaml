@@ -162,3 +162,39 @@ tests:
   # NOTE: /api/v1/featured-story.story is curated and can be null (no featured
   # story selected right now) — intentionally NOT asserted to avoid flaky false
   # failures. The reliable data-nonempty signals are /api/stats + /api/v1/articles.
+
+  # ── DOM RENDER GUARDS (type: e2e — real Chromium) ─────────────────────────
+  #
+  # This is the site where JS matters most. Measured on the live homepage:
+  #   no-JS raw HTML : 2,341 chars of text,  8 article/cluster links
+  #   rendered       : 45,123 chars,        21 article links
+  # So a dead bundle still returns 200 with the correct title and a near-empty
+  # page. The title assertions cannot see that; these can.
+  #
+  # ⚠️ type MUST be e2e — js_eval is honoured only by qa_e2e_runner; on an
+  # api/page_load test it is silently ignored. A throwing expr FAILS (fail-closed).
+  #
+  # Floors sit between the no-JS baseline and the rendered value, with margin for
+  # normal news-volume variation, so they track "did JS run" and not "how busy
+  # was the feed today".
+
+  - name: wtf-home-dom-renders
+    path: /
+    type: e2e
+    skip_auth: true
+    expect:
+      js_eval:
+        # raw HTML carries 8; rendered carries 21. 12 can only be reached if the
+        # client-side feed actually populated.
+        - name: feed_populated_by_js
+          expr: "document.querySelectorAll('a[href*=\"/article/\"], a[href*=\"/cluster/\"]').length >= 12"
+          equals: true
+        # 10000 is >4x the no-JS shell (2,341) and well under the rendered 45,123.
+        - name: content_beyond_no_js_shell
+          expr: "(document.body.textContent||'').trim().length > 10000"
+          equals: true
+        # A feed stuck on its loading placeholder is the specific silent failure:
+        # container present, 200 served, nothing in it.
+        - name: feed_not_stuck_loading
+          expr: "(function(el){ if(!el) return true; var t=(el.textContent||'').trim(); return t.length > 100 && !/^loading/i.test(t); })(document.querySelector('#wtf-feed-articles'))"
+          equals: true

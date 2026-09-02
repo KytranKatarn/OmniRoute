@@ -664,6 +664,37 @@ def code_health_reconcile_job():
     return out
 
 
+def academy_standby_expiry_job():
+    """Release Academy Standby once its TTL elapses (#383).
+
+    Standby holds ~109 background work controls so a benchmark measures the
+    MODEL rather than the queue. Its TTL is the only thing between a forgotten
+    standby and an indefinitely starved platform, and `expire_if_due()` is the
+    only thing that acts on it — so without this caller the TTL is a comment.
+
+    ⚠️ Standby must NOT be armed for real until this job is deployed. That is
+    not caution for its own sake: the failure mode is silent. Everything simply
+    goes quiet, which looks like a fleet problem, not like a switch somebody
+    left on.
+
+    `expire_if_due()` is a cheap no-op when standby is not armed (one settings
+    read) and never raises; the try/except here is belt-and-braces so a job
+    failure can never be the reason a hold outlives its TTL.
+    """
+    try:
+        from services.academy_standby import expire_if_due
+
+        result = expire_if_due()
+        if result.get("expired"):
+            logger.info(
+                "academy_standby: TTL elapsed — released %d control(s), %d failed",
+                len(result.get("restored") or []),
+                len(result.get("failed") or []),
+            )
+    except Exception as exc:  # never let the reaper be the thing that breaks
+        logger.warning("academy_standby_expiry: %s", exc)
+
+
 def hub_deploy_state_monitor_job():
     """'Advise when to deploy' (spec 2026-08-26 §6.5): watch the volume-mounted hub tree.
 
@@ -1802,6 +1833,27 @@ def _register_own_jobs(scheduler, flask_app):
         trigger=IntervalTrigger(minutes=30),
         id="hub_deploy_state_monitor",
         name="Ship: Hub deploy advisory (volume-mounted tree)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Academy Standby TTL enforcement (#383). WITHOUT THIS JOB THE TTL IS
+    # DECORATIVE — `academy_standby.arm()` records an expiry that nothing acts
+    # on, which is the declared-but-never-applied shape (the vps retention tier
+    # declared for 10 components with no pruner, #5616; the phantom `backups`
+    # table, #2366). Standby holds ~109 background controls, so a forgotten one
+    # starves the platform indefinitely and the symptom — everything quietly
+    # idle — looks nothing like the cause.
+    #
+    # 5 minutes, against a 5..240 minute TTL: tight enough that an expiry is
+    # honoured promptly, cheap enough to be free (a settings read and, when not
+    # armed, nothing else).
+    scheduler.add_job(
+        with_ctx(academy_standby_expiry_job),
+        trigger=IntervalTrigger(minutes=5),
+        id="academy_standby_expiry",
+        name="Academy: release standby when its TTL elapses",
         replace_existing=True,
         max_instances=1,
         coalesce=True,

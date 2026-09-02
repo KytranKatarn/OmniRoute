@@ -9,9 +9,27 @@ Data and About sections. The work was a design review that turned into a
 rebuild — the notes throughout call out where the live site's own numbers
 contradict each other, and those corrections are part of the deliverable.
 
-Target: `what-the-fact.com` (the deployed newsroom, ~30 Flask routes). **Not**
-`KytranKatarn/what-the-fact-site`, which is the April 2026 "Coming Soon"
+## Where this goes
+
+**Repo:** `KytranKatarn/archie-platform`, branch `main`, subdirectory
+`what-the-fact/`. The newsroom is a subdirectory of a monorepo, not its own
+repo — `KytranKatarn/what-the-fact-site` is the April 2026 "Coming Soon"
 landing page and a different codebase.
+
+**The app:** `what-the-fact/consumer/` — Flask. `routes.py` (268KB, ~30
+routes), `templates/` (49 Jinja templates), `static/style.css` (the shared
+shell). Each design file maps to a template; the mapping table is in
+`reference/github.md`.
+
+**Out of scope:** `what-the-fact/tech/` is a separate domain with its own
+stylesheet. `what-the-fact/design-reference/` holds 19 `.dc.html` artboards
+from an earlier design session — `.design-sync/NOTES.md` says explicitly that
+they are unrelated and should not be uploaded. Do not treat them as the
+current design.
+
+**`.design-sync/` is not a push path.** It bundles `consumer/static/style.css`
+*into* the design system, one-way, styles only. Nothing in this handoff reaches
+the repo through it.
 
 ## About the design files
 
@@ -25,6 +43,38 @@ Where a page here has a `<script>` block computing values from `wtf-corpus.js`,
 that logic belongs in the Flask view. Where it filters or sorts client-side
 (archive, feed, rosters), keep that client-side — it is deliberate, since the
 whole point is exploring a result set without a round trip.
+
+## House conventions — follow these exactly
+
+From `.design-sync/conventions.md` and `NOTES.md` in the repo:
+
+- **Every class is `wtf-`-prefixed, and a new page gets its own sub-namespace.**
+  Existing pages use `wtf-bs-` (blindspot), `wtf-dv-` (divergence), `wtf-ec-`
+  (economy), `wtf-mu-` (municipal), `wtf-wx-` (weather). The namespaces in this
+  bundle already follow the pattern: `wtf-pg-` for the Politics record pages
+  and `wtf-pl-` for the Parliament floor plans. Keep them.
+- **Page-level styles belong in the template's own `<style>` block**, not in
+  `static/style.css`. That separation is deliberate — page styles are not
+  extractable into the design-system bundle, and the shared stylesheet is meant
+  to stay the shell only.
+- **There is no bare `.wtf-card`.** The card is `.wtf-article-card` plus a
+  per-lean modifier (`--left`, `--center-left`, `--center`, `--center-right`,
+  `--right`). Do not invent base classes.
+- Shell vocabulary already exists and should be reused rather than reinvented:
+  `.wtf-nav`, `.wtf-nav-brand`, `.wtf-nav-links`, `.wtf-nav-live`,
+  `.wtf-nav-search`, `.wtf-nav-subscribe`, `.wtf-wordmark`,
+  `.wtf-section-label`, `.wtf-top-story`, `.wtf-card-title`, `.wtf-card-meta`,
+  `.wtf-card-badge`, `.wtf-bias-pill`, `.wtf-badge-ai`, `.wtf-live-dot`,
+  `.wtf-footer`.
+- Utility classes `.serif` and `.mono` switch font family inline.
+- Never paint a page background — `body` already carries `--wtf-bg`.
+- **Colour tokens carry meaning and must never be repurposed decoratively.**
+  This is house rule and it is also defects #2 and #4 in the table below.
+
+The class names in this bundle are prototype names written before I could read
+the repo. Where a shell class already exists for something, use the repo's name;
+where the design introduces genuinely new page-level structure, the `wtf-pg-` /
+`wtf-pl-` namespaces are correct by the convention above.
 
 ## Fidelity
 
@@ -417,8 +467,101 @@ Shared: `wtf-shell.css` (nav, footer, wrap, stat tiles, cards) ·
 241 rows across 24 stories — **replace with database queries**) ·
 `wtf-parliament.js` (seat coordinates, party colours, rosters) ·
 `wtf-mps.js` · `wtf-activity.js` · `_nav.html` (canonical nav markup).
-Reference: `reference/reference-live-site.md`,
-`reference/reference-templates.md`, `reference/github.md`.
+Reference: `reference/reference-live-site.md` (live-site audit),
+`reference/reference-templates.md` (template inventory),
+`reference/github.md` (repo location, conventions, and the full
+design-file → template mapping table).
+
+## Deploying this
+
+The goal is to get these changes live and testable. This is the order that
+keeps the site deployable at every step rather than broken until the end.
+
+### Ground rules
+
+- **One PR per phase below.** Each phase leaves the site working. Do not open a
+  single PR touching 39 templates.
+- **Never edit `consumer/static/style.css` and page styles in the same commit.**
+  The stylesheet is synced into the design system by `.design-sync/`, so a
+  change there has a second consumer.
+- **Page styles go in the template's own `<style>` block.** Only genuinely
+  shared shell changes belong in `static/style.css`.
+- `routes.py` is 268KB. Add new routes at the end of the relevant section
+  rather than reorganising it, and keep the diff readable.
+- Test each template against a real database read before moving on. Every
+  number in these prototypes is sample data.
+
+### Phase 1 — the shell (blocks everything else)
+
+`consumer/templates/base.html` + `consumer/static/style.css`.
+
+The nav IA changed, so this phase alone is visible on every page. Recreate
+`_nav.html` into `base.html`'s nav block and add the shell rules from
+`wtf-shell.css` to `static/style.css`.
+
+Six groups: News (Latest, Full archive, Activity log, Weather, Blindspot,
+Divergence, Clusters) · Politics (MPs & ridings, Municipal, Lobbying,
+Appointments, Ethics tracker, Officers, Rates) · Money (Economy, Cost of
+Parliament, Markets) · Media (Sources, Owners, Journalists, CRTC) · Data
+(Coverage map, Accountability chain, Cross-Watch, Claims, Developer API,
+Education API, Search everything) · About (Methodology, The newsroom,
+Governance & ethics, C.R.E.E.D., Media literacy, Score an article).
+
+**Deploy and check before Phase 2:** every existing route still renders, the
+dropdowns open on hover AND on tap, and nothing is clipped. The clipping trap
+is documented in the Shell section above — do not add `overflow` to `.wtf-nav`.
+
+### Phase 2 — new routes that need no data work
+
+`/archive`, `/search`, `/score`, `/activity` if it does not exist yet.
+
+These are additive: new route, new template, no changes to existing pages. Safe
+to deploy independently and the fastest way to get something new live.
+
+### Phase 3 — the core reading loop
+
+`index.html`, `news.html`, `article.html`.
+
+Highest traffic, so deploy these one at a time and watch. The corrections in
+the table above that matter here: the fact-checked count must be per story not
+per outlet row (#5), and the homepage feed's eight free cards are selected for
+spread, not recency.
+
+Client-side filtering stays client-side. Server-side: the corpus queries that
+`wtf-corpus.js` stands in for.
+
+### Phase 4 — weather
+
+`weather.html` and its city view. Largest single page and self-contained, so
+it carries no risk to the rest of the site. Serve a trimmed local
+`canada-provinces.geojson` from `consumer/static/` rather than the 2MB CDN
+file.
+
+### Phase 5 — Parliament
+
+`mps.html`. Needs real party, riding and province values from the database.
+
+**This phase has a hard requirement.** The prototype leaves riding and province
+blank for 338 of 343 members and all 96 senators, and derives party from seat
+arc position. Fill all three from the database. Do not ship the derivation, and
+do not reintroduce a hash-based fallback — that produced confident false claims
+about named MPs, which is the one failure mode this site cannot afford.
+
+### Phase 6 — the rest
+
+Politics, Media, Data and About sections. Independent of each other, so they
+can go out in any order or together.
+
+### Verifying live
+
+Per phase: the route renders, numbers match a direct database query, the nav
+works on a real phone, `prefers-reduced-motion` is honoured, and no page paints
+its own background over `--wtf-bg`.
+
+Two things worth watching after Phase 3, because they are the corrections most
+likely to regress under real data: any count that should be per-story rather
+than per-article-row, and any place a verdict or lean colour ends up used for
+something that is not a verdict or a lean.
 
 ## Suggested order
 

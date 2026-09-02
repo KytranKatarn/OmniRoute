@@ -1065,12 +1065,35 @@ def _newsroom_agents(S):
     }
 
 
-def _activity_bundle(S):
+def _activity_bundle(S, force: bool = False):
     """Everything on /activity except the paginated event feed — one shared
     snapshot cached _ACTIVITY_CACHE_TTL seconds."""
-    ent = _ACTIVITY_CACHE.get("bundle")
-    if ent and ent[0] > time.time():
-        return ent[1]
+    if not force:
+        ent = _ACTIVITY_CACHE.get("bundle")
+        if ent and ent[0] > time.time():
+            return ent[1]
+
+        # SHARED snapshot (migration 072). The in-process dict above is per
+        # gunicorn worker — with --workers 4 that is four caches, and
+        # --max-requests recycles workers back to empty, so the ~10s compute
+        # recurred forever instead of warming once. Reading a row that another
+        # process computed makes worker count and recycling irrelevant.
+        # Fail-soft: any problem here falls through to the inline compute below,
+        # which is exactly the behaviour that shipped before this existed.
+        try:
+            from . import activity_snapshot as _snap
+            with _db().begin() as _c:
+                _hit = _snap.read_snapshot(_c)
+        except Exception:
+            _hit = None
+        if _hit:
+            _B, _at = _hit
+            _B = dict(_B)
+            _B["computed_at"] = _at
+            _ACTIVITY_CACHE["bundle"] = (time.time() + _ACTIVITY_CACHE_TTL, _B)
+            return _B
+
+    _started = time.time()
     # Newsroom roster rides the same cached snapshot. Both halves are indexed
     # range scans (idx_fact_checks_agent_checked / idx_bias_scores_agent_computed
     # from migration 059), so it adds nothing meaningful to a bundle that is
@@ -1158,7 +1181,13 @@ def _activity_bundle(S):
 
         # --- Extra analytics queries (activity page enrichments) ---
         beat_breakdown, top_stories, throughput_sparkline, bias_spectrum = [], [], [], []
-        llm_rate, geo_rate = 0.0, 0.0
+        # geo_rate defaults to None, NOT 0.0 — "we cannot measure this" is not the
+        # same claim as "the rate is zero", and on a transparency page the
+        # difference matters. There is no correct query to substitute: geo_scope
+        # is a CATEGORY, not the confidence number geo_hr was written against, so
+        # what this should measure is a product decision, tracked as #6263.
+        # Downstream must treat None as unknown (see the geo_days_left guard).
+        llm_rate, geo_rate = 0.0, None
         c.execute(text("SAVEPOINT extra_analytics"))
         try:
             beat_rows = c.execute(text(f"""
@@ -1199,13 +1228,19 @@ def _activity_bundle(S):
             """)).mappings().all()
             bias_spectrum = [{"lean": r["lean"], "cnt": int(r["cnt"])} for r in bias_spectrum_rows]
 
-            rate_rows = c.execute(text(f"""
-                SELECT
-                    (SELECT COUNT(*) FROM {S}.llm_analyses WHERE completed_at > NOW() - INTERVAL '6 hours') / 6.0 AS llm_hr,
-                    (SELECT COUNT(*) FROM {S}.articles WHERE geo_confidence > 0 AND published_at > NOW() - INTERVAL '6 hours') / 6.0 AS geo_hr
-            """)).mappings().first()
-            llm_rate = float(rate_rows["llm_hr"] or 0)
-            geo_rate = float(rate_rows["geo_hr"] or 0)
+            # ⚠️ llm_hr and geo_hr were ONE statement. geo_hr references
+            # `articles.geo_confidence`, a column that DOES NOT EXIST (the table
+            # has only geo_scope), so the whole statement raised, the except
+            # below swallowed it, and BOTH rates stayed at their 0.0 defaults.
+            # llm_rate was collateral damage from geo_rate's bad column — it has
+            # been reading 0/hr on the live page, not because the LLM stopped but
+            # because its neighbour could not compile. Splitting them means one
+            # broken metric can no longer zero a working one. (#6263)
+            llm_rate = float(c.execute(text(f"""
+                SELECT COUNT(*) / 6.0 AS llm_hr
+                FROM {S}.llm_analyses
+                WHERE completed_at > NOW() - INTERVAL '6 hours'
+            """)).scalar() or 0)
         except Exception as _e:
             import logging; logging.getLogger(__name__).warning("Extra analytics queries failed: %s", _e)
             try: c.execute(text("ROLLBACK TO SAVEPOINT extra_analytics"))
@@ -1324,8 +1359,68 @@ def _activity_bundle(S):
         "source_health": source_health,
         "newsroom": _newsroom,
     }
+    # Publish for every OTHER worker (and for workers not yet born — a recycled
+    # one starts with an empty dict but a populated table). Best-effort: a failed
+    # write costs the next reader a recompute, nothing more.
+    _dur = int((time.time() - _started) * 1000)
+    try:
+        from . import activity_snapshot as _snap
+        with _db().begin() as _c:
+            _snap.write_snapshot(_c, B, _dur)
+    except Exception:
+        pass
+    # Stamped AFTER the write so the page can say "as of HH:MM" honestly. A
+    # transparency page should state its staleness rather than imply live.
+    # NB: this module does `import datetime` (the MODULE), so `datetime.now()`
+    # is a NameError here. Same local-alias style as elsewhere in this file.
+    from datetime import datetime as _dt, timezone as _tz
+    B["computed_at"] = _dt.now(_tz.utc)
     _ACTIVITY_CACHE["bundle"] = (time.time() + _ACTIVITY_CACHE_TTL, B)
     return B
+
+
+@bp.post("/api/internal/activity-snapshot/refresh")
+def refresh_activity_snapshot():
+    """Recompute the /activity bundle off the request path and publish it.
+
+    Called once per ingest cycle. Intended to run on wtf-ingest-api, NOT on the
+    public wtf-consumer workers — same reasoning as the entity-graph ingest
+    endpoint (incident KB #273424): a multi-second job on a public worker starves
+    real page loads. The job TRIGGERS the compute rather than containing it, so
+    the ~260 lines of bundle SQL stay in one place instead of being duplicated
+    into the ingest image.
+
+    Auth mirrors ingest_entity_graph(): a missing key is 503 (misconfigured, not
+    open), a wrong key is 401. Never expose this without the key — it is a
+    deliberate several-second CPU/DB burn and would be a free DoS lever.
+    """
+    import os as _os
+    from flask import request as _req, jsonify as _jsonify
+
+    expected = _os.environ.get("INTERNAL_API_KEY", "")
+    if not expected:
+        return _jsonify({"error": "internal key not configured"}), 503
+    if _req.headers.get("X-Internal-Key", "") != expected:
+        return _jsonify({"error": "unauthorized"}), 401
+
+    started = time.time()
+    try:
+        # force=True bypasses BOTH caches: the point of a refresh is to do the
+        # expensive work, so honouring a cache here would make the endpoint a
+        # no-op that still reports success.
+        B = _activity_bundle(_schema(), force=True)
+    except Exception as exc:
+        logging.getLogger(__name__).exception("activity snapshot refresh failed")
+        return _jsonify({"ok": False, "error": str(exc)[:200]}), 500
+
+    return _jsonify({
+        "ok": True,
+        "duration_ms": int((time.time() - started) * 1000),
+        "computed_at": str(B.get("computed_at")),
+        # Echoed so a caller can spot a bundle that succeeded but came back
+        # empty — "it returned 200" is not the same as "it computed something".
+        "stats_fields": len(B.get("stats") or {}),
+    })
 
 
 @bp.get("/activity")
@@ -1401,12 +1496,40 @@ def activity():
     llm_pending_count = int(stats.get("llm_pending") or 0)
     geo_pending_count = int(stats.get("geo_pending") or 0)
     llm_days_left = round(llm_pending_count / (llm_rate * 24), 1) if llm_rate > 0 else None
-    geo_days_left = round(geo_pending_count / (geo_rate * 24), 1) if geo_rate > 0 else None
+    # `geo_rate > 0` would raise TypeError now that geo_rate can be None
+    # (unknown). Truthiness covers both None and 0.0 — neither can divide.
+    geo_days_left = round(geo_pending_count / (geo_rate * 24), 1) if geo_rate else None
     llm_hours_left = round(llm_pending_count / llm_rate, 1) if llm_rate and llm_rate > 0 else None
 
     creed_scan = _fetch_creed_scan()
 
+    # "as of H:MM AM/PM EDT" for the stats bar. The bundle is precomputed off the
+    # request path (migration 072), so it can be up to ~30 min old — a
+    # TRANSPARENCY page states its staleness rather than implying live. The
+    # counts themselves are still EXACT; only their age is approximate.
+    #
+    # Formatted HERE, the single point of use, because BOTH bundle paths (a
+    # snapshot read and a fresh compute) set `computed_at`; formatting at each
+    # write site would be two copies to drift apart.
+    #
+    # The consumer has NO timezone layer — every other template does a raw
+    # .strftime() on whatever the DB returned — so this converts explicitly
+    # rather than rendering a UTC clock that reads 4 hours wrong to a Canadian
+    # audience. %Z prints EDT/EST, so the reader never has to guess.
+    stats_as_of = None
+    _ca = B.get("computed_at")
+    if _ca is not None:
+        try:
+            from zoneinfo import ZoneInfo
+            stats_as_of = _ca.astimezone(
+                ZoneInfo("America/Toronto")).strftime("%-I:%M %p %Z")
+        except Exception:
+            # Deliberately renders NO label rather than a wrong one: making no
+            # claim about freshness is honest, stating the wrong time is not.
+            stats_as_of = None
+
     return render_template("activity.html", events=events,
+                           stats_as_of=stats_as_of,
                            source_count=B["source_count"],
                            total=total, page=page, total_pages=total_pages,
                            page_size=PAGE_SIZE, agent_filter=agent_filter,

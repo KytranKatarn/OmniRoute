@@ -9,6 +9,7 @@ except ImportError:  # pragma: no cover
 import logging
 import os
 import time
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy import create_engine, text
 
@@ -702,6 +703,48 @@ def main():
                 log.info("newsletter_kbs_sync: %s", result)
         except Exception:
             log.exception("newsletter_kbs_sync crashed")
+
+        # Refresh the precomputed /activity stats bundle (migration 072).
+        #
+        # /activity measured 10,737ms cold vs ~850ms warm. `_ACTIVITY_CACHE` is a
+        # per-process dict and wtf-consumer runs `--workers 4 --max-requests 800`,
+        # so there were four caches and recycled workers restarted empty — the
+        # ~5.5s compute (about 40 whole-table COUNTs plus a 1.6s union COUNT)
+        # landed on real visitors indefinitely. Doing it here means it lands on
+        # nobody.
+        #
+        # ⚠️ Targets wtf-ingest-api (port 8106), NOT the public wtf-consumer:
+        # a multi-second job on a public worker starves page loads, which is the
+        # whole reason that service exists (incident KB #273424).
+        #
+        # This is a TRIGGER, not the computation — the ~260 lines of bundle SQL
+        # stay in consumer/routes.py rather than being duplicated into this image.
+        try:
+            _snap_url = os.environ.get(
+                "WTF_ACTIVITY_REFRESH_URL",
+                "http://wtf-ingest-api:8106/api/internal/activity-snapshot/refresh",
+            )
+            _snap_key = os.environ.get("INTERNAL_API_KEY", "")
+            if not _snap_key:
+                # Say so once per cycle rather than failing silently: an
+                # unconfigured key means the page quietly keeps paying the cold
+                # cost, which is exactly the kind of thing that hides for months.
+                log.warning("activity snapshot refresh skipped: INTERNAL_API_KEY unset")
+            else:
+                _req = urllib.request.Request(
+                    _snap_url, data=b"{}", method="POST",
+                    headers={"X-Internal-Key": _snap_key,
+                             "Content-Type": "application/json"},
+                )
+                # Generous timeout: the compute is ~5.5s and grows with the
+                # tables. Too tight and we abandon a refresh that was about to
+                # succeed, leaving visitors on the slow path.
+                with urllib.request.urlopen(_req, timeout=120) as _r:
+                    log.info("activity snapshot refreshed: %s", _r.read()[:200].decode())
+        except Exception:
+            # Never fatal: a stale snapshot degrades to the old inline compute,
+            # it does not break the page.
+            log.exception("activity snapshot refresh failed (page unaffected)")
 
         # Sleep the REMAINDER of the period, not a fixed block after the work.
         #

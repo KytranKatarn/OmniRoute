@@ -12,6 +12,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from consumer import activity_snapshot as snap  # noqa: E402
@@ -168,7 +170,32 @@ def test_write_upserts_rather_than_appending():
     assert "on conflict (id) do update" in sql.replace("\n", " ")
 
 
-# NOTE: the guards for the REFRESHER (ingest/run.py) and the "as of" template
-# label live with the wiring PR, not here. This PR adds the storage layer only —
-# `activity_snapshot.py` has no callers yet, so it can land inert and be reviewed
-# on its own merits.
+# --------------------------------------------------------------------------
+# The refresher
+# --------------------------------------------------------------------------
+
+def test_ingest_run_imports_urllib_request():
+    """The refresh POST lives inside a try/except that logs and continues.
+
+    Without the import that block raises NameError on EVERY cycle and refreshes
+    NOTHING, while looking like a handled error in the logs — unmonitored while
+    appearing monitored. This caught exactly that before it shipped.
+    """
+    src = (Path(__file__).resolve().parents[1] / "ingest" / "run.py").read_text()
+    assert "import urllib.request" in src
+    assert "activity-snapshot/refresh" in src
+
+
+def test_refresh_targets_the_internal_api_not_the_public_consumer():
+    """A multi-second job on a public worker starves page loads — which is the
+    entire reason wtf-ingest-api exists as a separate service."""
+    src = (Path(__file__).resolve().parents[1] / "ingest" / "run.py").read_text()
+    assert "wtf-ingest-api:8106" in src
+
+
+@pytest.mark.parametrize("needle", ["stats_as_of", "as of "])
+def test_activity_template_discloses_staleness(needle):
+    """A transparency page states when it measured, rather than implying live."""
+    tpl = (Path(__file__).resolve().parents[1]
+           / "consumer" / "templates" / "activity.html").read_text()
+    assert needle in tpl

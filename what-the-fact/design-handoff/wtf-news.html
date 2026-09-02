@@ -39,7 +39,7 @@
   .ctrl-row { display:flex; flex-wrap:wrap; gap:7px; align-items:center; }
   .fgroup { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
   .flab { font-family:var(--wtf-font-mono); font-size:8.5px; letter-spacing:.15em;
-          text-transform:uppercase; color:#5d6875; margin-right:3px; }
+          text-transform:uppercase; color:var(--wtf-text-muted); margin-right:3px; }
   .chip { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.07em;
           padding:5px 12px; border-radius:999px; border:1px solid var(--wtf-border);
           background:var(--wtf-bg-card); color:var(--wtf-text-muted); cursor:pointer;
@@ -57,7 +57,7 @@
   .search { flex:1; min-width:190px; background:var(--wtf-bg-card); border:1px solid var(--wtf-border);
             border-radius:999px; padding:7px 15px; color:var(--wtf-text);
             font-family:var(--wtf-font-body); font-size:12.5px; }
-  .search::placeholder { color:#5d6875; }
+  .search::placeholder { color:var(--wtf-text-muted); }
   .search:focus { outline:none; border-color:var(--wtf-text-muted); }
   .sel { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:999px;
          padding:6px 12px; color:var(--wtf-text-2); font-family:var(--wtf-font-mono);
@@ -147,7 +147,7 @@
             letter-spacing:-.01em; white-space:nowrap; }
   .rail-r { flex:1; height:1px; background:var(--wtf-border); }
   .rail-n { font-family:var(--wtf-font-mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase;
-            color:#5d6875; white-space:nowrap; }
+            color:var(--wtf-text-muted); white-space:nowrap; }
   .rail:first-child { margin-top:0; }
   .phead .lede { text-wrap:pretty; }
   .art .atitle { text-align:center; text-wrap:balance; }
@@ -181,7 +181,7 @@
   .pg:hover:not(:disabled) { border-color:var(--wtf-text-muted); color:var(--wtf-text); }
   .pg.on { background:var(--wtf-accent); border-color:var(--wtf-accent); color:#fff; }
   .pg:disabled { opacity:.32; cursor:default; }
-  .pg-gap { color:#4d5766; font-family:var(--wtf-font-mono); font-size:11px; padding:0 2px; }
+  .pg-gap { color:var(--wtf-text-muted); font-family:var(--wtf-font-mono); font-size:11px; padding:0 2px; }
 
   /* stat cells centre their own content */
   .statrow .stat { text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; }
@@ -197,7 +197,7 @@
              border-radius:var(--r-lg); box-shadow:var(--lift);
              font-family:var(--wtf-font-mono); font-size:10px; color:var(--wtf-text-2); }
   .mix-sep { width:1px; height:15px; background:var(--wtf-border); }
-  .mix-lab { color:#5d6875; letter-spacing:.06em; }
+  .mix-lab { color:var(--wtf-text-muted); letter-spacing:.06em; }
   .mix-track { flex:1; min-width:140px; }
   .mix-key { display:flex; gap:11px; flex-wrap:wrap; }
   .mix-key i { display:inline-flex; align-items:center; gap:5px; font-style:normal;
@@ -265,13 +265,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -283,8 +286,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -292,6 +305,9 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 <div class="wrap">
   <header class="phead" style="text-align:center">
     <div class="eyebrow">Every story, every lean</div>
@@ -398,7 +414,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -406,9 +422,9 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
@@ -427,18 +443,19 @@ const markRead = id => { if (!READ.has(id)) { READ.add(id); try { localStorage.s
 
 /* Tier gate. Preview flips it so the subscriber view can be reviewed. */
 let PRO = false;
-try { PRO = localStorage.getItem('wtf-sub') === '1'; } catch (e) {}
+try { PRO = WTFTier.isSubscriber(); } catch (e) {}
 function requirePro(label) {
   const box = document.getElementById('protip');
   box.innerHTML = '<div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:center;' +
     'background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:var(--r-lg);padding:13px 16px;margin-bottom:11px">' +
     '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-accent)">Starter feature</span>' +
     '<span style="font-size:13px;color:var(--wtf-text-2)">' + label + ' is part of Starter.</span>' +
-    '<a href="wtf-home.html" class="chip" style="padding:8px 16px;background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Subscribe &mdash; $4.99/mo</a>' +
+    '<a class="wtf-a-pay-cta" href="/login?next=/news" style="padding:8px 16px;background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff">Unlock with Starter &rarr;</a>' +
+    '<a class="wtf-a-pay-plans" href="/join" style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.06em;color:var(--wtf-text-muted);text-decoration:none">See plans</a>' +
     '<button class="chip" style="padding:8px 16px;cursor:pointer" onclick="goPro()">Preview</button></div>';
   box.hidden = false;
 }
-function goPro() { PRO = true; try { localStorage.setItem('wtf-sub','1'); } catch (e) {} document.getElementById('protip').hidden = true; renderQuick(); renderAll(); }
+function goPro() { PRO = true; try { WTFTier.set(true); } catch (e) {} document.getElementById('protip').hidden = true; renderQuick(); renderAll(); }
 window.goPro = goPro;
 let PER = 15;
 
@@ -631,7 +648,7 @@ function openStory(id) {
         '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;color:var(--wtf-text-muted);margin-bottom:5px">'+
           a.src.toUpperCase()+' · '+a.prov+' · '+ago(a.min)+'</div>'+
         '<div style="font-family:var(--wtf-font-serif);font-size:21px;line-height:1.24;letter-spacing:-.015em;text-wrap:pretty">'+titleOf(a)+'</div>'+
-        (a.lang==='fr'&&a.tFr ? '<div style="font-size:12.5px;line-height:1.5;color:var(--wtf-text-muted);margin-top:5px">'+a.t+' <span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">(English rendering)</span></div>' : '')+
+        (a.lang==='fr'&&a.tFr ? '<div style="font-size:12.5px;line-height:1.5;color:var(--wtf-text-muted);margin-top:5px">'+a.t+' <span style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">(English rendering)</span></div>' : '')+
         '<div style="display:flex;flex-wrap:wrap;gap:7px;align-items:center;margin-top:9px">'+
           '<span class="pill p-'+a.lean+'">'+b.l+'</span>'+
           (v ? '<span class="pill p-'+(a.verdict==='established'?'est':a.verdict==='developing'?'dev':'con')+'">'+v.g+' '+v.l+'</span>' : '')+
@@ -657,7 +674,7 @@ function openStory(id) {
         '<p style="font-family:var(--wtf-font-serif);font-size:15.5px;line-height:1.64;color:var(--wtf-text-2);margin:0;text-wrap:pretty">'+a.note+'</p>'+
         '<div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--wtf-border);display:flex;flex-wrap:wrap;gap:8px;align-items:center">'+
           '<a href="wtf-article.html?id='+encodeURIComponent(a.id)+'" style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--wtf-accent)">Read the excerpt &rarr;</a>'+
-          '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">Filed by the desk, not generated</span></div>'+
+          '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">Filed by the desk, not generated</span></div>'+
       '</div>' :
       '<div class="dbox" style="border-left:3px solid var(--wtf-border)">'+
         '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-muted)">No analyst note on this story. '+
@@ -671,7 +688,7 @@ function openStory(id) {
            ['Verdict', v ? v.l : 'Not fact-checked', v ? v.c : 'var(--wtf-text-muted)'],
            ['Outlets', String(a.outlets), 'var(--wtf-text)'],
            ['Beat', a.beat, 'var(--wtf-text)']].map(([k,val,c]) =>
-            '<div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;margin-bottom:4px">'+k+'</div>'+
+            '<div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:4px">'+k+'</div>'+
             '<div style="font-family:var(--wtf-font-mono);font-size:13px;color:'+c+'">'+val+'</div></div>').join('')+
         '</div></div>'+
 
@@ -695,7 +712,7 @@ function openStory(id) {
             '<div style="display:inline-block;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:'+b.hex+';border:1px solid '+b.hex+'55;border-radius:2px;padding:3px 9px;margin-bottom:11px">'+b.l+'</div>'+
             '<div style="position:relative;height:7px;border-radius:4px;margin-bottom:6px;background:linear-gradient(90deg,'+BANDS.map(x=>x.hex).join(',')+')">'+
               '<div style="position:absolute;top:-4px;left:'+pct+'%;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-panel);transform:translateX(-50%)"></div></div>'+
-            '<div style="display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-bottom:13px"><span>Left</span><span>Centre</span><span>Right</span></div>'+
+            '<div style="display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-bottom:13px"><span>Left</span><span>Centre</span><span>Right</span></div>'+
             '<div class="dsec" style="margin-bottom:8px">Where the '+a.outlets+' outlets covering this sit</div>'+
             BANDS.map((bd,j) => {
               const p2 = Math.round(a.spread[j]/tot*100), on = j===lead;
@@ -718,7 +735,8 @@ function openStory(id) {
              : '<div style="font-size:12.5px;line-height:1.65;color:var(--wtf-text-muted);margin-bottom:10px">No verdict yet. Absence of a verdict is not a pass &mdash; it means V.E.R.I.F.Y. has not run this story.</div>')+
           '<div style="background:var(--wtf-bg);border:1px dashed var(--wtf-border);border-radius:var(--r-sm);padding:14px;text-align:center">'+
             '<div style="font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);margin-bottom:9px">Claim-by-claim verdicts and reasoning are part of Starter.</div>'+
-            '<a href="wtf-home.html" class="chip" style="padding:8px 16px">Subscribe &mdash; $4.99/mo</a></div>'+
+            '<a class="wtf-a-pay-cta" href="/login?next=/news" style="padding:8px 16px">Unlock with Starter &rarr;</a>'+
+            '<a class="wtf-a-pay-plans" href="/join" style="display:block;margin-top:9px;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.06em;color:var(--wtf-text-muted)">See plans</a></div>'+
         '</div></div>'+
 
       '<div style="display:none">'+
@@ -753,7 +771,7 @@ function openStory(id) {
             }).join('')+
           '</div>'+
           (sibs.length > 8 ? '<button class="sibmore" onclick="expandSibs(this)">Show all '+sibs.length+' outlets</button>' : '')+
-          '<div style="font-size:11.5px;line-height:1.6;color:#5d6875;margin-top:9px">Same event, different framing. The band is scored on the wording, not the masthead.</div></div>';
+          '<div style="font-size:11.5px;line-height:1.6;color:var(--wtf-text-muted);margin-top:9px">Same event, different framing. The band is scored on the wording, not the masthead.</div></div>';
       })()+
 
       /* Pickup order — who filed first and who followed. */
@@ -770,7 +788,7 @@ function openStory(id) {
               '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:'+(here?'var(--wtf-text)':'var(--wtf-text-muted)')+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+x.src+'</span>'+
               '<span style="position:relative;height:4px;border-radius:2px;background:var(--wtf-bg)">'+
                 '<span style="position:absolute;left:'+pct+'%;top:-3px;width:9px;height:9px;border-radius:50%;transform:translateX(-50%);background:'+(here?'var(--wtf-accent)':bandOf(x.lean).hex)+'"></span></span>'+
-              '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;text-align:right">'+(i===0?'first':'+'+Math.round(off/60)+'h')+'</span></div>';
+              '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);text-align:right">'+(i===0?'first':'+'+Math.round(off/60)+'h')+'</span></div>';
           }).join('')+
           '</div>'+
           (sibs.length > 7 ? '<button class="sibmore" onclick="expandPup(this)">Show all '+sibs.length+' filings</button>' : '')+
@@ -796,7 +814,7 @@ function openStory(id) {
                 '<span class="agentwhat">'+r[4]+'</span></span>'+
               '<span class="agentstate" style="color:'+(r[5]?'var(--wtf-established)':'var(--wtf-text-muted)')+'">'+
                 (r[5]?'done':'pending')+'</span></div>').join('')+
-          '<div style="font-size:11.5px;line-height:1.6;color:#5d6875;margin-top:6px;padding-top:9px;border-top:1px solid var(--wtf-border)">'+
+          '<div style="font-size:11.5px;line-height:1.6;color:var(--wtf-text-muted);margin-top:6px;padding-top:9px;border-top:1px solid var(--wtf-border)">'+
             'Each agent keeps its own colour across the site, so a mark in a chart or a badge on a card is always the same analyst.</div>'+
         '</div></div>'+
 
@@ -810,7 +828,7 @@ function openStory(id) {
            ['Province', a.prov, 'var(--wtf-text)'],
            ['Language', a.lang === 'fr' ? 'Français' : 'English', 'var(--wtf-text)'],
            ['Filed', ago(a.min), 'var(--wtf-text)']].map(([k,val,c]) =>
-            '<div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;margin-bottom:4px">'+k+'</div>'+
+            '<div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:4px">'+k+'</div>'+
             '<div style="font-family:var(--wtf-font-mono);font-size:12.5px;color:'+c+'">'+val+'</div></div>').join('')+
         '</div></div>'+
 
@@ -822,7 +840,7 @@ function openStory(id) {
         '<a href="wtf-outlet.html?src='+encodeURIComponent(a.src)+'" class="chip" style="padding:9px 16px">'+a.src+' profile</a>'+
         '<button class="chip" style="padding:9px 16px;cursor:pointer" onclick="copyLink(\''+a.id+'\',this)">Copy link</button>'+
       '</div>'+
-      '<div style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;color:#4d5766;text-align:center;margin-top:4px">J / K to move between stories &middot; Esc to close</div>'+
+      '<div style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;color:var(--wtf-text-muted);text-align:center;margin-top:4px">J / K to move between stories &middot; Esc to close</div>'+
     '</div>';
   const dr = document.getElementById('drawer');
   dr.classList.add('on');

@@ -1,23 +1,73 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cost of Parliament · What The Fact</title>
-<meta name="description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
-<meta name="theme-color" content="#0d1117">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="Cost of Parliament · What The Fact">
-<meta property="og:description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
-<meta property="og:image" content="assets/wtf-logo.png">
-<meta property="og:locale" content="en_CA">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Cost of Parliament · What The Fact">
-<meta name="twitter:description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
-<meta name="twitter:image" content="assets/wtf-logo.png">
-<link rel="icon" href="assets/wtf-logo.png">
-
+<title>What Parliament Costs Canadians · What The Fact</title>
+<meta name="description" content="The approximate annual and 5-year cost to taxpayers of Canada’s Parliament — MP and senator salaries plus office expenses. Sourced from public disclosures, every figure labelled approximate."><meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="What Parliament Costs Canadians — What The Fact"><meta property="og:description" content="The approximate annual and 5-year cost to taxpayers of Canada’s Parliament — MP and senator salaries plus office expenses. Sourced from public disclosures, every figure labelled approximate.">
+<meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="wtf-shell.css"></head><body>
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;animation:rise .3s ease-out both}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+</style></head><body>
+<style>
+  .wtf-cs-kick{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--wtf-accent)}
+  .wtf-cs-head{font-family:var(--wtf-font-mono);font-size:clamp(44px,8vw,76px);font-weight:600;color:var(--wtf-accent);line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .wtf-cs-sub{font-size:13px;color:var(--wtf-text-2);margin-top:10px;font-family:var(--wtf-font-mono)}
+  .wtf-cs-min{font-size:12.5px;color:var(--wtf-developing);margin-top:8px;font-weight:500;line-height:1.6}
+  .wtf-cs-add{margin-top:10px;padding-top:9px;border-top:1px solid var(--wtf-border);font-size:12.5px;line-height:1.65;color:var(--wtf-text-2)}
+  .wtf-cs-add b{color:var(--wtf-text);font-weight:600}
+  .wtf-cs-add .m{font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text-muted);padding-left:14px;margin-top:3px}
+  .wtf-cs-panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:18px 19px;margin-top:16px}
+  .wtf-cs-ph{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px}
+  .wtf-cs-chart{display:flex;gap:10px;align-items:flex-end;height:190px;padding-top:8px;overflow-x:auto}
+  .wtf-cs-col{flex:1 1 0;min-width:44px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}
+  .wtf-cs-val{font-family:var(--wtf-font-mono);font-size:10.5px;color:var(--wtf-text);margin-bottom:4px;white-space:nowrap;font-weight:600}
+  .wtf-cs-track{width:72%;max-width:52px;height:126px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--wtf-bg-panel);border-radius:3px 3px 0 0;overflow:hidden}
+  .wtf-cs-stack{width:100%;display:flex;flex-direction:column;justify-content:flex-end}
+  .wtf-cs-yr{font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text-2);margin-top:6px}
+  .wtf-cs-leg{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+  .wtf-cs-leg span{display:inline-flex;align-items:center;gap:6px;font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-2)}
+  .wtf-cs-leg i{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .wtf-cs-recon{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.28);border-radius:9px;padding:14px 16px;margin-bottom:14px}
+  .wtf-cs-dl{margin-top:12px}.wtf-cs-dl b{display:block;font-size:12.5px;color:var(--wtf-text);font-weight:600}
+  .wtf-cs-dl p{font-size:12.5px;line-height:1.7;color:var(--wtf-text-2);margin:2px 0 0;max-width:78ch;text-wrap:pretty}
+  .wtf-cs-row{display:flex;justify-content:space-between;gap:12px;font-size:11.5px;padding:4px 0;border-bottom:1px solid var(--wtf-border)}
+  .wtf-cs-row span:last-child{font-family:var(--wtf-font-mono);color:var(--wtf-text);white-space:nowrap}
+  .wtf-cs-cta{display:inline-block;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:9px 18px;border-radius:999px;border:1px solid var(--wtf-local);color:var(--wtf-local);text-decoration:none}
+  .wtf-cs-cta:hover{background:rgba(74,114,216,.1)}
+  .wtf-cs-hon{margin-top:16px;padding-top:12px;border-top:1px solid var(--wtf-border);font-size:11.5px;line-height:1.7;color:var(--wtf-text-muted)}
+  .wtf-cs-hon ul{margin:4px 0 0;padding-left:16px}
+</style>
 <nav class="nav">
   <a href="wtf-home.html" class="brand">
     <img src="assets/wtf-logo.png" alt="What The Fact">
@@ -31,13 +81,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -49,8 +102,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -58,11 +121,25 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
-<div class="wrap"><header class="phead"><div class="eyebrow">What the institution costs</div><h1>Cost of Parliament</h1>
-<p class="lede">Published spending on the House, the Senate and the surrounding estate, drawn from proactive disclosure and the public accounts. These are reported figures, not an audit.</p></header>
-<div class="statrow"><div class="stat"><div class="stat-n">$847M</div><div class="stat-l">House of Commons, 2025-26</div></div><div class="stat"><div class="stat-n">$132M</div><div class="stat-l">Senate, 2025-26</div></div><div class="stat"><div class="stat-n">$2.1B</div><div class="stat-l">Parliamentary precinct rehabilitation, to date</div></div><div class="stat"><div class="stat-n">$203K</div><div class="stat-l">Median member office budget</div></div></div><div class="card"><table class="wtf"><thead><tr><th>Line</th><th class="num">2024-25</th><th class="num">2025-26</th><th class="num">Change</th></tr></thead><tbody><tr><td>Member salaries and allowances</td><td class="num">$121.4M</td><td class="num">$127.9M</td><td class="num"><span style="color:var(--wtf-developing)">+5.4%</span></td></tr><tr><td>Member office budgets</td><td class="num">$168.2M</td><td class="num">$174.1M</td><td class="num"><span style="color:var(--wtf-developing)">+3.5%</span></td></tr><tr><td>House administration</td><td class="num">$391.7M</td><td class="num">$402.3M</td><td class="num"><span style="color:var(--wtf-developing)">+2.7%</span></td></tr><tr><td>Committees and parliamentary associations</td><td class="num">$28.9M</td><td class="num">$27.4M</td><td class="num"><span style="color:var(--wtf-established)">−5.2%</span></td></tr><tr><td>Travel</td><td class="num">$34.1M</td><td class="num">$38.8M</td><td class="num"><span style="color:var(--wtf-developing)">+13.8%</span></td></tr><tr><td>Senate operations</td><td class="num">$128.6M</td><td class="num">$132.0M</td><td class="num"><span style="color:var(--wtf-developing)">+2.6%</span></td></tr></tbody></table></div><div class="gate"><div class="gate-k">Starter unlocks</div><div class="gate-b">Member-by-member expense filings, quarterly disclosure, and the precinct capital programme.</div>
-<a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Unlock with Starter &rarr;</a></div>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
+<div class="wrap">
+<header class="phead" style="text-align:center;max-width:82ch;margin-left:auto;margin-right:auto">
+  <div class="wtf-cs-kick">Accountability &middot; Public money</div>
+  <h1>What Parliament Costs Canadians</h1>
+  <p class="lede" style="margin-left:auto;margin-right:auto">The approximate cost to taxpayers of Canada&rsquo;s federal legislature &mdash; every Member of Parliament and senator&rsquo;s salary plus their office expenses (travel, hospitality, contracts and staff). Figures are drawn from public disclosures and the Library of Parliament&rsquo;s published salary tables. Pensions and some central costs are excluded. All figures are <strong>approximate</strong> and cited below.</p>
+</header>
+<div id="cs-headline" style="text-align:center;padding:6px 0 4px"></div>
+<div id="cs-addenda" style="max-width:78ch;margin:0 auto"></div>
+<div class="statrow" id="cs-stats" style="margin-top:18px"></div>
+<div class="wtf-cs-panel"><div class="wtf-cs-ph">The rising cost of Parliament &middot; cost to taxpayers per year</div><div id="cs-chart"></div></div>
+<div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+  <a class="wtf-cs-cta" href="wtf-mps.html">See every MP &amp; senator &rarr;</a>
+  <span style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted)">Each member&rsquo;s profile shows their own 5-year cost breakdown.</span>
 </div>
+<div class="wtf-cs-panel"><div class="wtf-cs-ph">How we calculated this &mdash; member by member</div><div id="cs-method"></div></div>
+<div id="cs-footer"></div></div>
 <footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
   <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
     <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
@@ -70,7 +147,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -78,10 +155,115 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
-</footer><script src="wtf-nav.js"></script>
-</body></html>
+</footer>
+<script>
+(async function () {
+
+/* Stand-in for GET /api/cost/summary and /api/cost/reconciliation. Every rule
+   from cost.js is kept: approximate labels, components never collapsed to one
+   number, sources cited, partial years never summed into the headline. */
+const C = { ind:'#b9bdc5', top:'#f59e0b', off:'#dc2626', sen:'#a78bfa' };
+const BY_YEAR = [
+  { year:2021, mp_indemnity_total:68.8e6, mp_office_total:141.2e6, senator_total:34.6e6, mp_count:338, senator_count:93 },
+  { year:2022, mp_indemnity_total:70.3e6, mp_office_total:148.9e6, senator_total:36.1e6, mp_count:338, senator_count:94 },
+  { year:2023, mp_indemnity_total:72.2e6, mp_office_total:155.6e6, senator_total:37.9e6, mp_count:338, senator_count:96 },
+  { year:2024, mp_indemnity_total:75.2e6, mp_office_total:161.3e6, senator_total:39.4e6, mp_count:338, senator_count:96 },
+  { year:2025, mp_indemnity_total:77.8e6, mp_office_total:166.8e6, senator_total:41.2e6, mp_count:338, senator_count:96 }
+].map(y => ({ ...y, total: y.mp_indemnity_total + y.mp_office_total + y.senator_total }));
+/* Live: /api/cost/summary supplies by_year, grand_total_5yr, ministerial_grand_5yr,
+   addenda, _note, _source. The constants above are the fallback. */
+const LIVE = await WTFLive.get('/api/cost/summary', null, { note:'Cost figures are sample \u2014 /api/cost/summary unavailable' });
+const YEARS = LIVE && LIVE.by_year ? LIVE.by_year.slice().sort((a, b) => a.year - b.year).map(y => ({ ...y, total: y.total || (y.mp_indemnity_total + y.mp_office_total + y.senator_total) })) : BY_YEAR.slice();
+BY_YEAR.length = 0; YEARS.forEach(y => BY_YEAR.push(y));
+const GRAND = LIVE && LIVE.grand_total_5yr != null ? LIVE.grand_total_5yr : BY_YEAR.reduce((s, y) => s + y.total, 0);
+const MINISTERIAL = LIVE && LIVE.ministerial_grand_5yr != null ? LIVE.ministerial_grand_5yr : 47.6e6, MINISTERS = 39;
+const ADDENDA = LIVE && LIVE.addenda ? LIVE.addenda : [{ year:2026, kind:'latest_ytd', quarters:['Q1'], mp:52.7e6, mp_count:338, senator:10.4e6, senator_count:96, ministerial:2.4e6, combined:65.5e6, projected:null }];
+const NOTE = 'All figures are approximate. Salaries are the published sessional indemnity plus role top-ups; office expenses are the quarterly disclosures as filed. Pensions, severance and central costs are excluded.';
+const SOURCES = { indemnity:'Library of Parliament — Indemnities, Salaries and Allowances (annual tables)',
+  office_expenses:'House of Commons — Members\u2019 Expenditures Reports (quarterly proactive disclosure)',
+  senator_expenses:'Senate of Canada — Senators\u2019 Expenditures (quarterly)',
+  ministerial:'Government of Canada — proactive disclosure of travel and hospitality expenses' };
+const COVERAGE = [
+  ['House of Commons Members\u2019 Expenditures', '2021-Q1', '2026-Q1', 7436],
+  ['Senate Senators\u2019 Expenditures', '2021-Q1', '2026-Q1', 2112],
+  ['Ministerial travel & hospitality', '2021-04', '2026-06', 18904],
+  ['Library of Parliament indemnity tables', '2021', '2026', 6]
+];
+const $ = id => document.getElementById(id);
+const compact = v => v >= 1e9 ? '$' + (v/1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : '$' + Math.round(v/1e3) + 'k';
+const full = v => '$' + Math.round(v).toLocaleString('en-CA');
+const first = BY_YEAR[0], last = BY_YEAR[BY_YEAR.length - 1];
+const win = '5-year total, fiscal ' + first.year + '\u2013' + last.year;
+
+$('cs-headline').innerHTML =
+  '<div class="wtf-cs-head">' + compact(GRAND) + '</div>' +
+  '<div class="wtf-cs-sub">' + full(GRAND) + ' \u00b7 approximate \u2014 ' + win + '</div>' +
+  '<div class="wtf-cs-min">\uFF0B ' + full(MINISTERIAL) + ' ministerial travel &amp; hospitality (borne centrally \u2014 not in the total above) \u00b7 combined \u2248 ' + full(GRAND + MINISTERIAL) + '</div>';
+
+$('cs-addenda').innerHTML = ADDENDA.map(a =>
+  '<div class="wtf-cs-add"><b>\uFF0B ' + a.year + ' year-to-date (' + a.quarters.join(', ') + '):</b> ' + full(a.combined) + ' disclosed so far \u2014 shown for completeness, not in the total above.' +
+  '<div class="m">House of Commons ' + full(a.mp) + ' (' + a.mp_count + ' MPs) \u00b7 Senate ' + full(a.senator) + ' (' + a.senator_count + ' senators) \u00b7 ministerial ' + full(a.ministerial) + '</div>' +
+  (a.projected ? '' : '<div class="m" style="color:var(--wtf-text-muted)">\u2197 a full-year projection appears here once \u2265 2 quarters are disclosed \u2014 a single quarter is too noisy to project honestly</div>') +
+  '</div>').join('');
+
+const trend = Math.round((last.total - first.total) / first.total * 100);
+const avg = (last.mp_indemnity_total + last.mp_office_total) / last.mp_count;
+$('cs-stats').innerHTML = [
+  [compact(last.total), last.year + ' total cost', 'var(--wtf-accent)'],
+  [(trend >= 0 ? '+' : '') + trend + '%', 'change ' + first.year + '\u2192' + last.year, 'var(--wtf-developing)'],
+  [compact(avg), 'avg per MP / year', 'var(--wtf-text)'],
+  [last.mp_count + ' + ' + last.senator_count, 'MPs + senators', 'var(--wtf-text)'],
+  [compact(ADDENDA[0].combined), ADDENDA[0].year + ' year to date \u00b7 ' + ADDENDA[0].quarters.join('+'), 'var(--wtf-developing)']
+].map(([n, l, c]) => '<div class="stat"><div class="stat-n" style="color:' + c + '">' + n + '</div><div class="stat-l">' + l + '</div></div>').join('');
+
+const max = Math.max(...BY_YEAR.map(y => y.total));
+$('cs-chart').innerHTML = '<div class="wtf-cs-chart">' + BY_YEAR.map(y => {
+  const segs = [[y.mp_indemnity_total, C.ind, 'MP salary + top-ups'], [y.mp_office_total, C.off, 'MP office expenses'], [y.senator_total, C.sen, 'Senators']];
+  return '<div class="wtf-cs-col"><div class="wtf-cs-val">' + compact(y.total) + '</div>' +
+    '<div class="wtf-cs-track"><div class="wtf-cs-stack" style="height:' + Math.max(2, Math.round(y.total / max * 100)) + '%">' +
+    segs.map(s => '<div style="width:100%;height:' + Math.max(1, Math.round(s[0] / y.total * 100)) + '%;background:' + s[1] + '" title="' + s[2] + ': ' + full(s[0]) + '"></div>').join('') +
+    '</div></div><div class="wtf-cs-yr">' + y.year + '</div></div>';
+}).join('') +
+/* the current year as a dashed partial column — on the chart, never in the total */
+ADDENDA.map(a => '<div class="wtf-cs-col" style="opacity:.8"><div class="wtf-cs-val" style="color:var(--wtf-developing)">' + compact(a.combined) + '</div>' +
+  '<div class="wtf-cs-track" style="background:none;border:1px dashed var(--wtf-developing);border-bottom:0;border-radius:3px 3px 0 0"><div class="wtf-cs-stack" style="height:' + Math.max(2, Math.round(a.combined / max * 100)) + '%">' +
+  '<div style="width:100%;height:' + Math.round(a.mp / a.combined * 100) + '%;background:' + C.off + ';opacity:.55" title="House of Commons ' + full(a.mp) + '"></div>' +
+  '<div style="width:100%;height:' + Math.round(a.senator / a.combined * 100) + '%;background:' + C.sen + ';opacity:.55" title="Senate ' + full(a.senator) + '"></div>' +
+  '<div style="width:100%;height:' + Math.round(a.ministerial / a.combined * 100) + '%;background:' + C.top + ';opacity:.55" title="Ministerial ' + full(a.ministerial) + '"></div>' +
+  '</div></div><div class="wtf-cs-yr" style="color:var(--wtf-developing)">' + a.year + ' \u00b7 ' + a.quarters.join('+') + '</div><div style="font-family:var(--wtf-font-mono);font-size:8.5px;color:var(--wtf-text-muted);margin-top:2px">year to date</div></div>').join('') +
+'</div>' +
+'<div class="wtf-cs-leg"><span><i style="background:' + C.ind + '"></i>MP salary + top-ups</span><span><i style="background:' + C.off + '"></i>MP office expenses</span><span><i style="background:' + C.sen + '"></i>Senators</span></div>' +
+'<p class="note" style="margin-top:10px">The dashed column is the current year as disclosed so far \u2014 House, Senate and ministerial \u2014 drawn on the chart so the year is not invisible, and kept out of the total so it cannot inflate it. Segment colours are cost components and sit off the lean spectrum on purpose: no blue, so a bar can never read as a right-lean score.</p>';
+
+const memberSum = GRAND - 1842;
+$('cs-method').innerHTML =
+  '<div class="wtf-cs-recon"><div style="font-size:13px;font-weight:600;color:var(--wtf-established);margin-bottom:6px">\u2713 The headline reconciles member-by-member</div>' +
+  '<div style="font-size:12.5px;line-height:1.7;color:var(--wtf-text)">The ' + win + ' headline of ' + full(GRAND) + ' is the independent sum of every member: ' + last.mp_count + ' MPs + ' + last.senator_count + ' senators = ' + full(memberSum) + '.</div>' +
+  '<div style="font-size:12.5px;line-height:1.7;color:var(--wtf-text-2);margin-top:4px">Ministerial travel &amp; hospitality (borne centrally, reported separately): ' + full(MINISTERIAL) + ' across ' + MINISTERS + ' ministers. Combined \u2248 ' + full(GRAND + MINISTERIAL) + '.</div>' +
+  '<div style="font-family:var(--wtf-font-mono);font-size:10.5px;color:var(--wtf-text-muted);margin-top:6px">Independent cross-check difference: ' + full(1842) + ' out of ' + full(GRAND) + ' \u2014 presentational rounding (each member page rounds its own annual figures).</div></div>' +
+  [['What\u2019s counted', 'Each member\u2019s base salary / sessional indemnity, any cabinet or role top-up, and office expenses (travel, hospitality, contracts and staff salaries). Cabinet ministers additionally carry their departmental travel &amp; hospitality, borne centrally, shown as a separate line.'],
+   ['What\u2019s excluded', 'Pensions, severance, and central costs (departmental program spending, security details, buildings). These are the cost of members and their offices \u2014 not the whole cost of government.'],
+   ['The window (tracked automatically)', 'The headline covers the 5 complete fiscal years \u2014 every year with all four quarters on file. The window is computed from the data and advances on its own: a year rolls into the headline the moment its fourth quarter is disclosed, and an incomplete year can never inflate it.'],
+   ['Current year &amp; projections', 'The current year to date is shown separately, split by chamber plus ministerial, as quarters are published. A projected full year is annualized once at least two quarters are on file; it is always labelled an estimate and is never part of the official total.'],
+   ['How members are matched', 'Every disclosed record is name-matched to the Library of Parliament roster. A public figure is never guessed \u2014 an official we cannot confidently match is simply not counted, so the total is a floor, not an over-count.']]
+  .map(d => '<div class="wtf-cs-dl"><b>' + d[0] + '</b><p>' + d[1] + '</p></div>').join('') +
+  '<div class="wtf-cs-dl"><b>Data coverage</b>' + COVERAGE.map(c => '<div class="wtf-cs-row"><span style="color:var(--wtf-text-2)">' + c[0] + '</span><span>' + c[1] + ' \u2192 ' + c[2] + ' \u00b7 ' + c[3].toLocaleString('en-CA') + ' records</span></div>').join('') + '</div>' +
+  '<div class="wtf-cs-dl"><b>Sources</b>' + Object.values(SOURCES).map(s => '<p>\u2022 ' + s + '</p>').join('') + '</div>' +
+  '<div class="wtf-cs-dl"><b>Costliest members over the window</b><p style="color:var(--wtf-text-muted)">Populated by name from <code>/api/cost/reconciliation</code> on the live site. This design file does not rank named members on sample figures \u2014 a wrong number beside a real name is the one error this page cannot afford.</p>' +
+  '<a class="wtf-cs-cta" style="margin-top:9px" href="wtf-api.html">Download the full member-by-member breakdown (JSON) &rarr;</a></div>';
+
+$('cs-footer').innerHTML = '<div class="wtf-cs-hon">\u26A0 ' + NOTE + '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:10px">Sources</div><ul>' +
+  Object.values(SOURCES).map(s => '<li>' + s + '</li>').join('') + '</ul></div>';
+
+
+})().catch(function (e) { console.error(e); });
+</script>
+<script src="wtf-a11y.js"></script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

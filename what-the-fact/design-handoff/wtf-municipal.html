@@ -3,7 +3,7 @@
 <title>Municipal Intelligence — L.O.C.A.L. · What The Fact</title>
 <meta name="description" content="Local government coverage across Canadian cities, from What The Fact."><meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="CRTC decisions — What The Fact"><meta property="og:description" content="Rulings from the Canadian Radio-television and Telecommunications Commission affecting the outlets What The Fact tracks.">
+<meta property="og:title" content="Municipal Intelligence — L.O.C.A.L. — What The Fact"><meta property="og:description" content="Local government coverage across Canadian cities, from What The Fact.">
 <meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,8 +32,8 @@
   .scale{position:relative;height:7px;border-radius:4px}
   .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
   .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
-  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
-  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
   .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
   .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
   .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
@@ -51,7 +51,7 @@
   .wtf-pg-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .wtf-pg-chip{font-family:var(--wtf-font-mono);font-size:9px;padding:3px 8px;border-radius:3px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);color:var(--wtf-text-2)}
   .wtf-pg-tbl{width:100%;border-collapse:collapse}
-  .wtf-pg-tbl th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--wtf-border)}
+  .wtf-pg-tbl th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--wtf-border)}
   .wtf-pg-tbl td{padding:10px;border-bottom:1px solid var(--wtf-border);font-size:12.5px;color:var(--wtf-text-2)}
   .wtf-pg-tbl tr:hover{background:var(--wtf-bg-card)}
   .wtf-pg-num{font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums;text-align:right}
@@ -100,13 +100,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -118,8 +121,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -127,6 +140,9 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 <div class="wrap">
 <header class="phead" style="text-align:center;max-width:80ch;margin-left:auto;margin-right:auto">
   <div class="eyebrow" style="color:var(--wtf-local)">L.O.C.A.L. &middot; Local Observation, Coverage &amp; Accountability Layer</div>
@@ -145,6 +161,12 @@
   </div>
 </div>
 
+<div class="panel" style="margin-top:12px">
+  <div class="psec">Council structure &mdash; the layer below the mayor</div>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0 0 13px;max-width:76ch;text-wrap:pretty">A mayor gets the coverage; a ward councillor decides the zoning on one street. Toronto alone has 25 wards, each with a councillor voting on development, transit and policing in that ward &mdash; and almost none of those seats are covered individually.</p>
+  <div id="m-council"></div>
+</div>
+
 <div class="panel" style="margin-top:12px;border-left:3px solid var(--wtf-developing)">
   <div class="psec" style="color:var(--wtf-developing)">Why municipal coverage is thin</div>
   <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0 0 10px;max-width:74ch;text-wrap:pretty">Council meetings run long, produce no press release, and generate stories only when something goes wrong. Newsroom cuts hit local desks first. The result is that a rezoning affecting thousands of residents is often reported by nobody, while a federal statement affecting no one immediately is reported by everybody.</p>
@@ -158,7 +180,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -166,25 +188,32 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
 <script src="wtf-corpus.js"></script>
 <script>
-/* Cities are read from the headline text, not assigned. A story only carries a
-   city pill when it actually names one, so a chip count is a real count. */
-const CITY_NAMES = ['Toronto','Montr\u00e9al','Vancouver','Calgary','Edmonton','Ottawa','Winnipeg',
-  'Halifax','Qu\u00e9bec City','Hamilton','London','Saskatoon','Regina','Victoria','Mississauga',
-  'Brampton','Surrey','Gatineau','Sherbrooke','Sudbury','Thunder Bay','Kelowna','St. John\u2019s',
-  'Moncton','Fredericton','Charlottetown','Whitehorse','Yellowknife','Iqaluit'];
+/* THE reporting city list \u2014 the same 66 the weather page and the elections
+   calendar read, so "cities we report on" means one thing across the site. A
+   hand-typed subset here meant the municipal beat could only ever see part of
+   the network it claims to cover. */
+const CITY_LIST = [{"n":"Victoria","p":"BC","cap":true,"age":22},{"n":"Vancouver","p":"BC","cap":false,"age":8},{"n":"Kelowna","p":"BC","cap":false,"age":19},{"n":"Prince George","p":"BC","cap":false,"age":23},{"n":"Kamloops","p":"BC","cap":false,"age":16},{"n":"Nanaimo","p":"BC","cap":false,"age":34},{"n":"Fort St. John","p":"BC","cap":false,"age":41},{"n":"Edmonton","p":"AB","cap":true,"age":14},{"n":"Calgary","p":"AB","cap":false,"age":13},{"n":"Red Deer","p":"AB","cap":false,"age":26},{"n":"Lethbridge","p":"AB","cap":false,"age":18},{"n":"Fort McMurray","p":"AB","cap":false,"age":12},{"n":"Grande Prairie","p":"AB","cap":false,"age":29},{"n":"Regina","p":"SK","cap":true,"age":31},{"n":"Saskatoon","p":"SK","cap":false,"age":27},{"n":"Prince Albert","p":"SK","cap":false,"age":35},{"n":"Moose Jaw","p":"SK","cap":false,"age":44},{"n":"La Ronge","p":"SK","cap":false,"age":52},{"n":"Winnipeg","p":"MB","cap":true,"age":18},{"n":"Brandon","p":"MB","cap":false,"age":33},{"n":"Thompson","p":"MB","cap":false,"age":28},{"n":"Churchill","p":"MB","cap":false,"age":241},{"n":"Toronto","p":"ON","cap":true,"age":9},{"n":"Ottawa","p":"ON","cap":false,"age":7},{"n":"Hamilton","p":"ON","cap":false,"age":15},{"n":"London","p":"ON","cap":false,"age":20},{"n":"Windsor","p":"ON","cap":false,"age":24},{"n":"Sudbury","p":"ON","cap":false,"age":13},{"n":"Thunder Bay","p":"ON","cap":false,"age":21},{"n":"Kenora","p":"ON","cap":false,"age":37},{"n":"Timmins","p":"ON","cap":false,"age":30},{"n":"Kingston","p":"ON","cap":false,"age":17},{"n":"Québec City","p":"QC","cap":true,"age":12},{"n":"Montréal","p":"QC","cap":false,"age":10},{"n":"Gatineau","p":"QC","cap":false,"age":29},{"n":"Sherbrooke","p":"QC","cap":false,"age":25},{"n":"Trois-Rivières","p":"QC","cap":false,"age":32},{"n":"Saguenay","p":"QC","cap":false,"age":19},{"n":"Val-d'Or","p":"QC","cap":false,"age":46},{"n":"Rimouski","p":"QC","cap":false,"age":22},{"n":"Fredericton","p":"NB","cap":true,"age":26},{"n":"Moncton","p":"NB","cap":false,"age":17},{"n":"Saint John","p":"NB","cap":false,"age":14},{"n":"Bathurst","p":"NB","cap":false,"age":49},{"n":"Halifax","p":"NS","cap":true,"age":16},{"n":"Sydney","p":"NS","cap":false,"age":255},{"n":"Truro","p":"NS","cap":false,"age":31},{"n":"Yarmouth","p":"NS","cap":false,"age":23},{"n":"Charlottetown","p":"PE","cap":true,"age":20},{"n":"Summerside","p":"PE","cap":false,"age":38},{"n":"St. John's","p":"NL","cap":true,"age":11},{"n":"Corner Brook","p":"NL","cap":false,"age":27},{"n":"Gander","p":"NL","cap":false,"age":21},{"n":"Labrador City","p":"NL","cap":false,"age":196},{"n":"Happy Valley-Goose Bay","p":"NL","cap":false,"age":42},{"n":"Whitehorse","p":"YT","cap":true,"age":38},{"n":"Dawson City","p":"YT","cap":false,"age":63},{"n":"Watson Lake","p":"YT","cap":false,"age":58},{"n":"Yellowknife","p":"NT","cap":true,"age":24},{"n":"Inuvik","p":"NT","cap":false,"age":51},{"n":"Hay River","p":"NT","cap":false,"age":36},{"n":"Fort Smith","p":"NT","cap":false,"age":47},{"n":"Iqaluit","p":"NU","cap":true,"age":44},{"n":"Rankin Inlet","p":"NU","cap":false,"age":67},{"n":"Arviat","p":"NU","cap":false,"age":72},{"n":"Cambridge Bay","p":"NU","cap":false,"age":null}];
+const CITY_NAMES = CITY_LIST.map(c => c.n);
+const CITY_BY = {}; CITY_LIST.forEach(c => CITY_BY[c.n] = c);
+const PROV_FULL = {ON:'Ontario',QC:'Qu\u00e9bec',BC:'British Columbia',AB:'Alberta',MB:'Manitoba',
+  SK:'Saskatchewan',NS:'Nova Scotia',NB:'New Brunswick',NL:'Newfoundland & Labrador',
+  PE:'Prince Edward Island',YT:'Yukon',NT:'Northwest Territories',NU:'Nunavut'};
 const $ = id => document.getElementById(id);
 
+/* Longest name first, so "Quebec City" is never swallowed by "Quebec" and
+   "Saint John" is never read as "St. John's". */
+const CITY_MATCH = CITY_NAMES.slice().sort((a, b) => b.length - a.length);
 const cityOf = a => {
   const hay = a.t + ' ' + (a.note || '');
-  return CITY_NAMES.find(c => hay.includes(c)) || null;
+  return CITY_MATCH.find(c => hay.includes(c)) || null;
 };
 
 /* Municipal beat, plus any story that names a city — which is how a council
@@ -201,16 +230,49 @@ let active = '';
 
 $('m-stats').innerHTML = [
   [String(MUNI.length), 'Municipal stories'],
-  [String(cities.length), 'Cities covered'],
+  [cities.length + ' / ' + CITY_LIST.length, 'Cities with coverage'],
+  [String(CITY_LIST.length - cities.length), 'Cities with none'],
   [String(new Set(MUNI.map(m => m.a.src)).size), 'Outlets in feed'],
   [String(MUNI.filter(m => m.a.blind).length), 'Blindspot flags']
 ].map(([n, l]) => '<div class="stat"><div class="stat-n">' + n + '</div><div class="stat-l">' + l + '</div></div>').join('');
 
+/* The silent cities are the point of this page: a council spending money with
+   nobody in the room. Naming them is more useful than a coverage total. */
+(function () {
+  const silent = CITY_LIST.filter(c => !counts[c.n]);
+  const byProv = {};
+  silent.forEach(c => (byProv[c.p] = byProv[c.p] || []).push(c));
+  const provs = Object.keys(byProv).sort((a, b) => byProv[b].length - byProv[a].length);
+  const host = document.createElement('div');
+  host.className = 'wtf-pg-none';
+  host.style.cssText = 'text-align:left;border-style:solid;border-left:3px solid var(--wtf-developing);padding:16px 17px;margin-bottom:14px';
+  host.innerHTML =
+    '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-developing);margin-bottom:9px">' +
+      silent.length + ' of ' + CITY_LIST.length + ' cities have no municipal story in this window</div>' +
+    provs.map(p => {
+      const names = byProv[p];
+      /* Cap each province: the headline is the gap, not a directory. Naming
+         every one made the absence panel taller than the coverage it sits above. */
+      const shown = names.slice(0, 6).map(c => c.n + (c.cap ? ' (capital)' : '')).join(', ');
+      const rest = names.length - 6;
+      return '<div style="font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);margin-bottom:5px">' +
+      '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)">' + (PROV_FULL[p] || p) +
+        ' <b style="color:var(--wtf-developing)">' + names.length + '</b></span> &middot; ' + shown +
+        (rest > 0 ? ' <span style="color:var(--wtf-text-muted)">and ' + rest + ' more</span>' : '') + '</div>';
+    }).join('') +
+    '<div style="font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:10px;max-width:74ch">' +
+      'These are cities the newsroom tracks, not cities without news. A council that meets, budgets and rezones ' +
+      'with no story filed is the gap this page exists to show \u2014 and several of them vote this autumn. ' +
+      '<a href="wtf-elections.html#coverage" style="color:var(--wtf-local)">Election coverage readiness &rarr;</a></div>';
+  $('m-chips').parentNode.insertBefore(host, $('m-chips'));
+})();
+
 function drawChips() {
   $('m-chips').innerHTML =
     '<button class="wtf-mu-chip' + (active ? '' : ' on') + '" data-c="">All <b>' + MUNI.length + '</b></button>' +
-    cities.map(c => '<button class="wtf-mu-chip' + (active === c ? ' on' : '') + '" data-c="' + c + '">' +
-      c + ' <b>' + counts[c] + '</b></button>').join('');
+    cities.map(c => '<button class="wtf-mu-chip' + (active === c ? ' on' : '') + '" data-c="' + c +
+      '" title="' + (PROV_FULL[(CITY_BY[c] || {}).p] || '') + '">' +
+      c + (((CITY_BY[c] || {}).cap) ? ' \u2605' : '') + ' <b>' + counts[c] + '</b></button>').join('');
 }
 $('m-chips').addEventListener('click', e => {
   const b = e.target.closest('.wtf-mu-chip'); if (!b) return;
@@ -245,8 +307,64 @@ function render() {
   }).join('');
 }
 
-drawChips(); render();
+drawChips(); /* Ward counts are the real council structures. The point of the table is the
+   ratio: one mayor covered, N ward seats not. */
+(function () {
+  const COUNCILS = [
+    { c:'Toronto',     p:'ON', wards:25, at:0,  pop:2794356, note:'ward councillors, no at-large seats' },
+    { c:'Montr\u00e9al',    p:'QC', wards:103, at:0, pop:1762949, note:'19 boroughs; borough and city councillors' },
+    { c:'Calgary',     p:'AB', wards:14, at:0,  pop:1306784, note:'ward councillors' },
+    { c:'Ottawa',      p:'ON', wards:24, at:0,  pop:1017449, note:'ward councillors' },
+    { c:'Edmonton',    p:'AB', wards:12, at:0,  pop:1010899, note:'ward councillors' },
+    { c:'Winnipeg',    p:'MB', wards:15, at:0,  pop:749607,  note:'ward councillors' },
+    { c:'Vancouver',   p:'BC', wards:0,  at:10, pop:662248,  note:'at-large \u2014 no wards at all' },
+    { c:'Hamilton',    p:'ON', wards:15, at:0,  pop:569353,  note:'ward councillors' },
+    { c:'Qu\u00e9bec City', p:'QC', wards:21, at:0,  pop:549459,  note:'district councillors' },
+    { c:'Surrey',      p:'BC', wards:0,  at:8,  pop:568322,  note:'at-large' },
+    { c:'Halifax',     p:'NS', wards:16, at:0,  pop:439819,  note:'district councillors' },
+    { c:'Mississauga', p:'ON', wards:11, at:0,  pop:717961,  note:'ward councillors' }
+  ];
+  const host = $('m-council');
+  if (!host) return;
+  const totalSeats = COUNCILS.reduce(function (n, c) { return n + c.wards + c.at; }, 0);
+  const warded = COUNCILS.filter(function (c) { return c.wards > 0; }).length;
+  const covered = COUNCILS.filter(function (c) { return counts[c.c]; }).length;
+
+  host.innerHTML =
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px">' +
+    [[String(totalSeats), 'Council seats in these 12 cities'],
+     [String(COUNCILS.length), 'Cities'],
+     [warded + ' / ' + COUNCILS.length, 'Elect by ward'],
+     [covered + ' / ' + COUNCILS.length, 'With any coverage here']]
+    .map(function (r) {
+      return '<div class="stat"><div class="stat-n">' + r[0] + '</div><div class="stat-l">' + r[1] + '</div></div>';
+    }).join('') + '</div>' +
+    '<div style="overflow-x:auto"><table class="wtf-pg-tbl"><thead><tr>' +
+      '<th>City</th><th>How council is elected</th><th class="wtf-pg-num">Seats</th>' +
+      '<th class="wtf-pg-num">Residents per seat</th><th class="wtf-pg-num">Stories</th>' +
+    '</tr></thead><tbody>' +
+    COUNCILS.slice().sort(function (a, b) { return (b.wards + b.at) - (a.wards + a.at); }).map(function (c) {
+      const seats = c.wards + c.at;
+      const per = Math.round(c.pop / seats);
+      const st = counts[c.c] || 0;
+      return '<tr><td style="color:var(--wtf-text)">' + c.c +
+          ' <span style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">' + c.p + '</span></td>' +
+        '<td>' + c.note + '</td>' +
+        '<td class="wtf-pg-num" style="color:var(--wtf-text)">' + seats + '</td>' +
+        '<td class="wtf-pg-num">' + per.toLocaleString() + '</td>' +
+        '<td class="wtf-pg-num" style="color:' + (st ? 'var(--wtf-text)' : 'var(--wtf-contested)') + '">' + st + '</td></tr>';
+    }).join('') + '</tbody></table></div>' +
+    '<p style="font-size:11.5px;line-height:1.68;color:var(--wtf-text-muted);max-width:76ch;margin-top:11px">' +
+    'Vancouver and Surrey elect their councils at-large, so every councillor answers to the whole city and no single ' +
+    'councillor is accountable for one neighbourhood. Montr\u00e9al runs the opposite extreme with 103 seats across 19 boroughs. ' +
+    'Residents per seat is the closest available measure of how much one councillor decides for how many people \u2014 and the ' +
+    'story count beside it is how much of that gets written about. ' +
+    '<a href="wtf-races.html#municipal" style="color:var(--wtf-local)">Ward races and candidates &rarr;</a></p>';
+})();
+
+render();
 </script>
+<script src="wtf-a11y.js"></script>
 <script src="wtf-nav.js"></script>
 </body>
 </html>

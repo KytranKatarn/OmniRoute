@@ -1,4 +1,4 @@
-# Handoff: What The Fact — newsroom rebuild (39 pages)
+# Handoff: What The Fact — newsroom rebuild (46 pages)
 
 ## Overview
 
@@ -46,7 +46,78 @@ whole point is exploring a result set without a round trip.
 
 ## House conventions — follow these exactly
 
-From `.design-sync/conventions.md` and `NOTES.md` in the repo:
+The repo already has an **archetype macro system** at
+`consumer/templates/_archetypes.html`. Five archetypes cover ~40 of the 47
+templates, from its own comment: *"one pattern per repeating shape, not one
+design per page."* **Compose these pages from those macros rather than the
+prototype class names in this bundle.**
+
+- **Archetype 1 Entity profile** — `entity_header`, `record_tabs` (mp,
+  senator, entity, journalist, source, owner detail)
+- **Archetype 2 Directory** — `person_card`, `record_card`,
+  `directory_grid`, `record_links` (mps, journalists, officers, owners, gic,
+  sources). `person_card` is a single `<a>`, so a record carrying its own
+  links **must** use `record_card` — nesting anchors is invalid HTML.
+- **Archetype 3 Data explorer** — `stat_tiles`, `ranked_bars`, `data_table`
+  (lobbying, economy, rates, cost, markets, crtc, claims, municipal, blindspot,
+  divergence)
+- **Archetype 4 Map / geo** — `layer_switch`, `freshness`, `measurement`,
+  `layer_row` (map, weather, municipal)
+- **Archetype 5 Editorial + account** — `doc_shell`, `setting_row`, `field`
+- Shared — `chip`, `segment`, `filter_chip`, `photo`, `lean_pill`, `paywall`
+
+**Four honesty rules travel with these macros and must not be dropped.** Each
+is written into the macro comments, and each matches a correction in the table
+above — arrived at independently, which is worth knowing:
+
+1. `lean_pill` renders **colour plus a text label, never colour alone.** The
+   comment records that the old ramp put GREEN at the midpoint, which "reads as
+   *centre = good*, an editorial claim this site must not make." Rendering lean
+   as a bare swatch reintroduces that bug.
+2. `ranked_bars`: **magnitude is neutral slate; the accent marks only the
+   highlighted value**, so chart colour can never collide with lean colour.
+3. Map archetype: **a region with no data for the active layer is greyed
+   explicitly, never rendered as zero** — the fire layers cover disjoint halves
+   of the country, so a single choropleth lies either way. And **freshness is
+   per layer** (city obs 3h / forecast 12h / fire 48h); a 40-hour reading must
+   not render as current.
+4. `measurement(value)`: **`None` renders an em dash, never 0.** The ECCC feed
+   sends `<gust>00</gust>` for "no gust" on ~94% of periods, so coercing to
+   zero fabricates a measurement. This is the same reason the MP ridings in
+   this bundle are blank rather than derived.
+
+### Two more corrections applied in this pass
+
+**Emoji removed.** Our archive page used 🔒 in two labels and `/lobbying` used
+`&#128274;` in its gate title. Both are now stroked SVG padlocks. Live still
+carries emoji headings on `/search`, `/activity`, `/source`, `/senator` and
+`/mp` gate titles (🔒) — replace them with the icon set when those templates
+are touched, as the repo comments already do elsewhere.
+
+**`journalist.html` still has the forbidden ramp.** Live's journalist template
+colours its bias bar with a five-stop scale that puts **green at the centre**,
+which is exactly the pattern `_archetypes.html` documents as removed: *"reads
+as centre = good, an editorial claim this site must not make."* Our
+`/journalists` page uses `lean_pill` semantics instead — the band name as
+text with the spectrum colour, no green anywhere. **When `journalist.html` is
+implemented, port it onto `lean_pill` and delete the local ramp.** It is the
+last page carrying the old scale.
+
+**Every paywall CTA in this bundle now points at `/login?next=<route>` with a
+`/join` "See plans" partner.** They previously pointed at the design bundle's
+own home page, which would have shipped as dead links. Verified: 0 CTAs without
+a route, 0 gates without a plans link, across all 39 pages.
+
+**XSS rule is absolute** (`.claude/rules/wtf.md`): every macro escapes by
+default, the product renders scraped RSS text, and **`|safe` must never be
+added to a caller-supplied value.**
+
+Styling for the archetypes lives in `static/style.css` under "ARCHETYPE
+COMPONENTS", prefix `wtf-a-`. A page that hardcodes a hex stops tracking the
+palette — there is a guard for it in
+`tests/test_archetype_macros.py`. Run that test.
+
+From `.design-sync/conventions.md` and `NOTES.md`:
 
 - **Every class is `wtf-`-prefixed, and a new page gets its own sub-namespace.**
   Existing pages use `wtf-bs-` (blindspot), `wtf-dv-` (divergence), `wtf-ec-`
@@ -413,14 +484,15 @@ log.
 | --- | --- | --- |
 | `wtf-read` | localStorage | Story ids opened |
 | `wtf-saved` | localStorage | Starred story ids |
-| `wtf-preview` | localStorage | Archive preview mode |
+| `wtf-gate-preview` | sessionStorage | Paywall preview on every gated page (design review only) |
 | `wtf-default-city` | localStorage | Weather default city |
 | `wtf-dens` | localStorage | Feed density |
 | `wtf-home-y`, `wtf-archive-y` | sessionStorage | Scroll restore |
 | URL hash | — | Archive filters, sort, view, page |
 | URL `?id=` | — | Article page |
 
-Nothing else is persisted. Never clear a key you did not write.
+Nothing else is persisted. Never clear a key you did not write. `wtf-sub` and
+`wtf-preview` were earlier keys and are gone; nothing reads them.
 
 ## Design tokens
 
@@ -461,18 +533,122 @@ Radii 14 / 10 / 7px, pills 999px. Gutter
 
 ## Files
 
-Pages: the 39 `wtf-*.html` files in this bundle.
+Pages: the 46 `wtf-*.html` files in this bundle.
 Shared: `wtf-shell.css` (nav, footer, wrap, stat tiles, cards) ·
 `wtf-nav.js` (dropdown behaviour) · `wtf-corpus.js` (sample article corpus,
 241 rows across 24 stories — **replace with database queries**) ·
 `wtf-parliament.js` (seat coordinates, party colours, rosters) ·
-`wtf-mps.js` · `wtf-activity.js` · `_nav.html` (canonical nav markup).
+`wtf-accountability.js` (officers, findings, vacancies) · `wtf-record-context.js` ·
+`wtf-promises.js` · `wtf-candidates.js` · `wtf-elections-extra.js` · `wtf-brand.js` ·
+per-page scripts (`wtf-mps.js`, `wtf-mp.js`, `wtf-senator.js`, `wtf-ridings.js`,
+`wtf-elections.js`, `wtf-races.js`, `wtf-parties*.js`, `wtf-platforms.js`,
+`wtf-officers.js`, `wtf-ethics.js`, `wtf-cross-watch.js`, `wtf-activity.js`,
+`wtf-blindspot.js`) · `_nav.html` (canonical nav markup).
+The **Migration manifest** at the end of this file maps every page to its
+route, nav group and scripts.
 Reference: `reference/reference-live-site.md` (live-site audit),
 `reference/reference-templates.md` (template inventory),
 `reference/github.md` (repo location, conventions, and the full
 design-file → template mapping table).
 
+## Paywall — the real contract
+
+Read from `consumer/tiers.py`, `consumer/access.py` and
+`consumer/templates/_archetypes.html`. **Do not invent gating logic.**
+
+### Tier vocabulary
+
+`tiers.py` holds the single source of truth, `SUBSCRIBED_TIERS`:
+`starter`, `solo`, `team`, `agency`, `pro`, `enterprise`, plus elevated
+identities `kytran`, `owner`, `admin`, plus legacy names `professional`,
+`vip`, `business` kept for pre-canonical stored rows.
+
+The file's own docstring records why: `auth.py`, `billing.py` and `access.py`
+each carried a private drifted copy that omitted `solo`/`team`/`agency`, so a
+paying subscriber was paywalled after paying. **Semantics are grant-only —
+adding a name can only widen access.** Never narrow the set, never re-fork it.
+
+Gating helpers, all in `access.py`: `is_authenticated()`, `get_tier()`,
+`has_paid_tier()` (checks the tier set, then `wtf-starter` in
+`wtf_entitlements` for bundle holders), `user_has_beat_access(slug)`, and the
+`@require_product_access(slug)` decorator which redirects unauthenticated users
+to `/login?next=` and returns 402 JSON for authenticated free tier.
+
+### The paywall block
+
+One macro, `paywall(title, blurb, next_url, plans_href="/join")` in
+`_archetypes.html`. Its comment records that this identical four-part block was
+hand-rolled in **14 templates** and had drifted to **four different CTA
+colours** — a red on twelve pages, a second near-identical red, a blue on
+`/gic`, and a cyan-on-black on `/owners` — and not one of them was
+`--wtf-accent`. Use the macro. Do not restyle the button.
+
+Shape: `.wtf-a-pay` → `.wtf-a-pay-t` title → `.wtf-a-pay-b` blurb →
+`.wtf-a-pay-cta` to `/login?next=<route>` reading "Unlock with Starter →" →
+`.wtf-a-pay-plans` to `/join` reading "See plans".
+
+Prices in the live templates: **Starter $4.99/mo** (article gate, checkout at
+`/billing/checkout/starter`), **beat subscription $2/mo CAD** at
+`/subscribe/beat/<slug>`.
+
+### What is gated, per page
+
+Corrected in this bundle to match the live templates. The design files carry a
+"Design review" toggle that reveals the subscriber view — it uses its own
+`sessionStorage` key and is **not** a tier flag. Delete it on implementation.
+
+| Route | Free | Starter+ |
+| --- | --- | --- |
+| `/parliament/officers` | Header, count, **all 8 offices with mandate and establishing year**, "why they matter" note, cross-links | Current holder, appointment date, latest tabled report, cross-product links |
+| `/rates` | `stat_tiles` (current target, decisions on record) | The whole decisions table |
+| `/gic` | Header and appointment count | The list **and** the department segment filter |
+| `/ethics` | Everything — no gate | — |
+| `/lobbying` | Tiles, orgs all-time, most-lobbied MPs | Recent activity detail |
+| `/owners` | Tiles and list | Detail |
+| `/map` | Base map | Layer detail |
+| `/blindspot`, `/divergence` | Story list | Bias-score breakdown per cluster |
+| `/mp/<slug>`, `/senator/<slug>` | Cost-to-taxpayer figures (deliberately public — the templates note that paywalling a public salary "reads as charging for a public record") | Voting record and coverage detail |
+| `/beat/<slug>` | Preview | Full beat at $2/mo, separate from Starter |
+
+**Data contracts** the templates declare in their own comments, unchanged:
+`officers[], is_subscriber` · `current, decisions[], is_subscriber` ·
+`appointments[], depts[], dept, is_subscriber`.
+
+### One deliberate divergence from live: `/parliament/officers`
+
+**This is the only place the bundle does not match the live gating, and it is
+intentional.** Live wraps the entire `{% for o in officers %}` loop in
+`{% if is_subscriber %}`, so a free reader sees a gate and an ungated note
+arguing that these offices matter — with no way to learn what any of them do.
+The gate hid the evidence for its own argument.
+
+A mandate and an establishing statute are public statutory facts. Charging for
+them reads the same way the `mp.html` comment describes charging for an MP's
+public salary: *"paywalling it buys no exclusivity and reads as charging for a
+public record."*
+
+Moved: all 8 offices, mandates and establishing years are now **free**. The
+gate sits below them and withholds what is genuinely the newsroom's work —
+**current holder, appointment date, latest tabled report, and the Cross-Watch
+links tying each finding to the coverage it generated.** The gate's own copy
+changed from "Full profiles… mandates, current holders, and cross-product
+intelligence links" to "Who holds each office right now, when they were
+appointed, their latest tabled report, and the coverage each finding
+generated," so it names what it actually withholds.
+
+Implementation: keep `{% if is_subscriber %}` around the holder fields
+(`o.current_holder`, `o.appointed_at`, `o.report_url`, `o.cross_links`) and
+move `o.title`, `o.mandate_summary` and the establishing year outside it. The
+`officers[]` data contract does not change. Holders with no value on record
+render an em dash, per `measurement()` — never a fabricated name.
+
 ## Deploying this
+
+> **Runbook:** `deploy/DEPLOY.md` has the exact commands — landing this bundle
+> in the repo, the per-phase PR rules, `./deploy.sh consumer`, the live smoke
+> test (`deploy/smoke-test.html`) and rollback. `deploy/CLAUDE_CODE_BRIEF.md`
+> is the Phase 1 brief. `deploy/sync-diff.md` lists what this bundle changes
+> against the `design-handoff/` snapshot already in the repo.
 
 The goal is to get these changes live and testable. This is the order that
 keeps the site deployable at every step rather than broken until the end.
@@ -572,3 +748,143 @@ something that is not a verdict or a lean.
 3. Weather — largest single page, self-contained.
 4. MPs — needs real party and riding data from the database.
 5. Politics, Media, Data, About sections.
+
+---
+
+### Rebuilt to live contracts — 2026-09-02 afternoon
+
+Nine pages were rebuilt against the repo templates read the same day (captured
+in `reference/money-media-contracts.md`), so their structure now matches what
+`routes.py` already sends:
+
+| Page | Live source | What changed |
+| --- | --- | --- |
+| `wtf-cost.html` | `cost.html` + `static/js/cost.js` | Headline 5-year total, year-to-date addenda that never sum into the headline, stat tiles, stacked bars per year, member-by-member reconciliation, honesty footer. Reads `/api/cost/summary` and `/api/cost/reconciliation` on the live site. Cost components stay off the lean spectrum (no blue). |
+| `wtf-economy.html` | `economy.html` | M.A.R.K.E.T. framing, Market Watch attribution and CTA, beat pills, `/news?beat=` links, story counts — plus six indicator cards with 24-month history, each naming its StatCan table or Valet series and release. |
+| `wtf-rates.html` | `rates.html` | 2000–2026 decision-path chart with six era notes as public background; the decision table stays Starter+. Decisions after March 2025 are flagged placeholder until Valet V122514 is wired. |
+| `wtf-journalists.html` | `journalists.html` + `journalist.html` | Directory (cards/table, search, group by medium or outlet) and the full profile in one page: photo slot (initials until `photo_url`), every rated post with a band filter, outlets, recent coverage; bias lean, volume by month and co-mentions Starter+. |
+| `wtf-crtc.html` | `crtc.html` | Ownership-concentration panel with top-3 badge and owner bars (owner type by shape, avg bias on the lean scale), type filters, Starter+ ruling list with outlet cross-links. |
+| `wtf-cross-watch.html` | `cross_watch.html` + `entity.html` | The six Watch product badges on every entity, mentions, and the entity footprint view: product tiles, recent coverage, Competition Bureau items (Legal Watch), listed-contractor line (Market Watch); accountability chain and co-mentions Starter+. |
+| `wtf-chain.html` | `chain.html` | The 8-link rail (Money → MP → Vote → Policy → Contract → Market → Coverage → Public) with live/no-data positions, search, entity view with per-link blocks and hop-through samples. Reads `/api/public/chain/*` on the live site. |
+| `wtf-governance.html` | `governance.html` | The C.R.E.E.D. scan of the newsroom: overall/100, grade, event counts, six pillars with provisional marking under 100 events, the badge scale (green ≥90 · blue ≥80 · yellow ≥70 · red <60), and how the newsroom participates. |
+| `wtf-creed.html` | creed-ai.org | The organization as it describes itself: Montreal nonprofit, 178 rules in five packs scanned every six hours, E.T.H.O.S., four programs, and the disclosed Kytran relationship. |
+
+Two reconciliations to make on implementation: C.R.E.E.D.'s case study cites an
+A+ badge for this newsroom while the scan on the Governance page returns 58 —
+show whichever `/api/creed-badge` returns, never a hand-entered grade; and the
+Rates page's post-March-2025 decisions are placeholders, not assertions.
+
+## Migration manifest — generated 2026-09-02 14:32Z
+
+Produced by reading the files in this bundle, not by hand, so it cannot drift
+from what is actually here. Re-run the sweep after any edit.
+
+### Final sweep result
+
+- **46 pages** load with **zero runtime errors** (each page fetched, an
+  error hook injected before its scripts, then loaded and settled).
+- **Shared nav on 45 pages** (`wtf-ridings.html` is a redirect stub), shared
+  footer on all, 7 groups, no overflow at 1280 / 1000 / 800 px.
+- **Every internal href, script src and stylesheet resolves.** Every hash deep
+  link in the nav lands on a real pane (`#senate`, `#ridings`, `#federal`,
+  `#provincial`, `#municipal`, `#coverage`, `#accuracy`).
+- **Every `?slug=` / `?party=` / `?id=` / `?src=` / `?q=` route resolves** to a
+  populated page.
+- Handoff copy is byte-identical to the working files.
+
+Fixed in the sweep: `drawWave`/`drawBills` had been dropped from `wtf-mps.js`
+while still called (threw, and blocked the `#senate`/`#ridings` deep links
+behind it); the ridings tab never initialised on a deep link because
+`wtf-ridings.js` loads after the hash handler runs; four pages built from the
+CRTC donor still carried its inline script (`chain`, `edu`, `governance`,
+`score`); social metadata on 37 pages was CRTC boilerplate; the lobbying
+organisation drill-down (`/lobbying/<org>`) had been lost in the table
+rebuild; seven dead `href="#"` on journalists; map page had no footer; the
+inline accuracy section did not link to the full report; three different
+paywall-preview keys were in play and the archive deleted the one the feed used.
+
+### Shared layer — becomes static assets
+
+| File | What it holds | On implementation |
+| --- | --- | --- |
+| `wtf-accountability.js` | OFFICERS with enforcement kind, FINDINGS (named, cited), GIC_VACANCIES, FINDING_KINDS, NO_REMOVAL. One source for officers, ethics, cross-watch, party records. | as-is |
+| `wtf-brand.js` | window.WTFBrand — monogram tiles and wordmarks; swap in logoUrl when a licensed asset exists. | as-is |
+| `wtf-candidates.js` | RACES with confirmed / declared candidates. | nominations table. |
+| `wtf-corpus.js` | Sample article corpus (241 rows / 24 stories), BANDS, VERDICTS, entity map. | replace with DB queries; keep the field names. |
+| `wtf-parliament.js` | SEAT_XY / SENATOR_XY floor plans (lifted from live mps.html), rosters, party + caucus colours, BILLS, RETIRE_WAVE. | riding, province, party come from the DB; keep the coordinates. |
+| `wtf-promises.js` | Platform commitments and PARTY_META. | promise tracker table. |
+| `wtf-record-context.js` | Context, caveat and source per party-record entry, keyed partyId|title. Editorial — desk review before publish. | as-is |
+
+Load order matters where a page reads globals: `wtf-corpus.js` and
+`wtf-parliament.js` before any page script; `wtf-accountability.js` before
+`wtf-officers.js` / `wtf-ethics.js` / `wtf-cross-watch.js`; `wtf-brand.js`
+before `wtf-parties.js` / `wtf-platforms.js` / `wtf-races.js`; `wtf-nav.js`
+last on every page. The ridings tab (`wtf-ridings.js`) must initialise itself
+if its pane is already showing when it loads — see the note at the end of that
+file — or a `#ridings` deep link renders an empty pane.
+
+### Page → route → dependencies
+
+| Design file | Live route | Nav group | Page scripts | CDN | Gate |
+| --- | --- | --- | --- | --- | --- |
+| `wtf-accuracy.html` | `/forecast-accuracy` | News › Weather | — | — | — |
+| `wtf-activity.html` | `/activity` | News | `wtf-corpus.js` `wtf-activity.js` | — | — |
+| `wtf-api.html` | `/api` | Data | — | — | yes |
+| `wtf-archive.html` | `/archive` | News | `wtf-corpus.js` | — | yes |
+| `wtf-article.html` | `/article/<id>` | News (detail) | `wtf-corpus.js` | — | yes |
+| `wtf-blindspot.html` | `/blindspot` | News | `wtf-corpus.js` `wtf-blindspot.js` | — | — |
+| `wtf-chain.html` | `/chain` | Data | — | — | — |
+| `wtf-city.html` | `/weather/city/<name>` | News › Weather (detail) | _inline_ | — | — |
+| `wtf-claims.html` | `/claims` | Data | — | — | yes |
+| `wtf-clusters.html` | `/clusters` | News | — | — | — |
+| `wtf-cost.html` | `/cost` | Money | — | — | yes |
+| `wtf-creed.html` | `/creed` | About | — | — | — |
+| `wtf-cross-watch.html` | `/cross-watch` | Data | `wtf-accountability.js` `wtf-corpus.js` `wtf-cross-watch.js` | — | — |
+| `wtf-crtc.html` | `/crtc` | Media | `wtf-corpus.js` | — | — |
+| `wtf-divergence.html` | `/divergence` | News | — | — | yes |
+| `wtf-economy.html` | `/economy` | Money | — | — | yes |
+| `wtf-edu.html` | `/edu` | Data | — | — | — |
+| `wtf-elections.html` | `/elections (#federal #provincial #municipal #coverage)` | Elections | `wtf-corpus.js` `wtf-candidates.js` `wtf-elections.js` `wtf-elections-extra.js` | d3 @7.9.0 topojson-client @3.1.0 | — |
+| `wtf-ethics.html` | `/ethics` | Politics | `wtf-accountability.js` `wtf-record-context.js` `wtf-ethics.js` | — | — |
+| `wtf-gic.html` | `/gic` | Politics | `wtf-corpus.js` `wtf-accountability.js` | — | yes |
+| `wtf-governance.html` | `/governance` | About | — | — | — |
+| `wtf-home.html` | `/` | Home | _inline_ | d3 @7.9.0 topojson-client @3.1.0 | yes |
+| `wtf-journalists.html` | `/journalists` | Media | — | — | yes |
+| `wtf-literacy.html` | `/literacy` | About | — | — | — |
+| `wtf-lobbying.html` | `/lobbying, /lobbying/<org>` | Politics | `wtf-corpus.js` `wtf-parliament.js` | — | yes |
+| `wtf-map.html` | `/map` | Data | _inline_ | d3 @7.9.0 topojson-client @3.1.0 | — |
+| `wtf-markets.html` | `/markets` | Money | — | — | yes |
+| `wtf-methodology.html` | `/methodology` | About | — | — | — |
+| `wtf-mp.html` | `/mp/<slug>` | Politics (detail) | `wtf-parliament.js` `wtf-corpus.js` `wtf-mp.js` | — | yes |
+| `wtf-mps.html` | `/mps (#hoc #senate #ridings)` | Politics | `wtf-parliament.js` `wtf-mps.js` `wtf-ridings.js` | d3 @7.9.0 topojson-client @3.1.0 | — |
+| `wtf-municipal.html` | `/municipal` | Politics | `wtf-corpus.js` | — | — |
+| `wtf-news.html` | `/news` | News | `wtf-corpus.js` | — | yes |
+| `wtf-officers.html` | `/officers` | Politics | `wtf-accountability.js` `wtf-record-context.js` `wtf-officers.js` | — | yes |
+| `wtf-outlet.html` | `/source/<name>` | Media (detail) | `wtf-corpus.js` | — | — |
+| `wtf-owners.html` | `/owners` | Media | `wtf-corpus.js` | — | — |
+| `wtf-parties.html` | `/parties, /parties/<id>` | Politics | `wtf-brand.js` `wtf-record-context.js` `wtf-parties.js` `wtf-promises.js` `wtf-parties-app.js` | — | — |
+| `wtf-platforms.html` | `/platforms` | Politics | `wtf-brand.js` `wtf-promises.js` `wtf-platforms.js` | — | — |
+| `wtf-races.html` | `/races, /races/<id>` | Elections | `wtf-brand.js` `wtf-candidates.js` `wtf-races.js` | — | — |
+| `wtf-rates.html` | `/rates` | Money | `wtf-corpus.js` | — | yes |
+| `wtf-ridings.html` | `(redirect)` | redirect → mps#ridings | _inline_ | — | — |
+| `wtf-score.html` | `/score` | About | _inline_ | — | — |
+| `wtf-search.html` | `/search?q=` | Data | `wtf-corpus.js` | — | — |
+| `wtf-senator.html` | `/senator/<slug>` | Politics (detail) | `wtf-parliament.js` `wtf-senator.js` | — | yes |
+| `wtf-sources.html` | `/sources` | Media | `wtf-corpus.js` | — | — |
+| `wtf-team.html` | `/team` | About | — | — | — |
+| `wtf-weather.html` | `/weather` | News | _inline_ | d3 @7.9.0 topojson-client @3.1.0 | — |
+
+CDN: `d3 @7.9.0` and `topojson-client @3.1.0` from unpkg (pinned, with
+integrity hashes on the pages that were built first); Natural Earth geometry
+from jsDelivr on the weather, map and elections pages — **serve a trimmed
+`canada-provinces.geojson` from `consumer/static/` instead** (the CDN file is
+~2 MB). The ridings tab and the search page call the **Represent API**
+(represent.opennorth.ca, CORS-enabled) live; on the live site the same fields
+come from the newsroom database.
+
+### Preview / paywall state
+
+Every gate on the site now reads **one key**: `sessionStorage['wtf-gate-preview']`.
+It is a design-review toggle, never a tier flag, and it is per-tab. Production
+replaces every read of it with the real tier check from `consumer/access.py`;
+nothing else on any page should decide what a subscriber sees.

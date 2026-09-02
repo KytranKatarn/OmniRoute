@@ -1,4 +1,4 @@
-:root{--wtf-bg:#0d1117;--wtf-bg-card:#11161f;--wtf-bg-panel:#171e2a;--wtf-border:#222b39;
+:root{--wtf-fact:#dc2626;--wtf-bias:#f59e0b;--wtf-verify:#10b981;--wtf-local:#4a72d8;--wtf-aurora:#7c3aed;--wtf-brand:#14bef0;--wtf-brand-deep:#1e7fd0;--wtf-bg:#0d1117;--wtf-bg-card:#11161f;--wtf-bg-panel:#171e2a;--wtf-border:#222b39;
 --wtf-text:#f2f1ed;--wtf-text-2:#b9bdc5;--wtf-text-muted:#7d8590;--wtf-accent:#dc2626;
 --wtf-left:#d84b47;--wtf-center-left:#cf8b80;--wtf-center:#929aa5;--wtf-center-right:#7fa3cf;--wtf-right:#4a72d8;
 --wtf-established:#10b981;--wtf-developing:#f59e0b;--wtf-contested:#e05252;
@@ -130,3 +130,25 @@ box-shadow:0 0 0 1px rgba(255,255,255,.07),0 2px 10px -4px rgba(0,0,0,.9)}
 .nav-right{margin-left:auto}}
 /* Dropdowns must never be clipped by an ancestor. */
 .nav,.navgrp{overflow:visible}
+
+/* language toggle */
+#wtf-lang > .grp{cursor:pointer;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-2);display:inline-flex;align-items:center;gap:6px;padding:6px 2px}
+#wtf-lang .navgrp-menu{left:auto;right:-12px}
+.lang-btn{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;padding:7px 10px;border-radius:3px;font-size:12.5px;color:var(--wtf-text-2);cursor:pointer;font-family:var(--wtf-font-body)}
+.lang-btn:hover{background:#1f2836;color:var(--wtf-text)}
+.lang-btn.active{color:var(--wtf-text)}.lang-btn.active .wtf-lang-code{color:var(--wtf-brand)}
+.wtf-lang-code{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.08em;color:var(--wtf-text-muted)}
+[dir="rtl"] .navgrp-menu{left:auto;right:-12px;text-align:right}[dir="rtl"] .nav-right{margin-left:0;margin-right:auto}
+/* narrow screens */
+@media(max-width:720px){
+  .statrow{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .phead h1,h1{font-size:30px}
+  .wrap{padding-top:18px}
+  #tablewrap,.wtf-rt-tbl,.wtf-jr-tbl,.wtf-pg-tbl,.wtf-mp-tbl{display:block;overflow-x:auto}
+  .wtf-el-row,.wtf-cw-row,.wtf-of-f,.wtf-gv-ev-row,.wtf-ch-block .wtf-ch-bh,.rd-provbar,.wtf-crtc-bar,.wtf-cs-row{grid-template-columns:1fr;display:grid}
+  .wtf-el-row>*,.wtf-cw-row>*{text-align:left}
+  .wtf-mp-hero{flex-direction:column}
+  .wtf-pl-tabs,.wtf-el-count{gap:5px}
+  .wtf-pv{flex-direction:column;align-items:stretch}
+}
+@media(max-width:900px){#below,.art-grid,.grid2,.wx-row,#main,.wtf-main{grid-template-columns:minmax(0,1fr)!important}}

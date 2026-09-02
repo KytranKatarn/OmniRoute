@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>WTF smoke test</title>
+<style>
+body{background:#0d1117;color:#b9bdc5;font:12.5px/1.5 "IBM Plex Mono",monospace;padding:18px;margin:0}
+h1{font:600 18px/1.2 Newsreader,Georgia,serif;color:#f2f1ed;margin:0 0 6px}
+p{margin:0 0 10px;color:#7d8590;max-width:90ch}
+table{border-collapse:collapse;width:100%;margin-top:12px}
+th,td{text-align:left;padding:6px 9px;border-bottom:1px solid #222b39;vertical-align:top}
+th{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#7d8590}
+.ok{color:#10b981}.bad{color:#e05252}.warn{color:#f59e0b}
+iframe{width:1280px;height:800px;border:1px solid #222b39;display:block;margin-top:14px;opacity:.35}
+#sum{font-size:14px;color:#f2f1ed;margin:10px 0}
+code{color:#b9bdc5}
+</style></head><body>
+<h1>What The Fact — smoke test</h1>
+<p>Loads every route <strong>from this origin</strong>, with an error hook written into each page before its
+scripts run, then checks: zero runtime errors · shared nav and footer present · body has content ·
+no <code>undefined</code>/<code>NaN</code> leaked into text · no broken images · no dead <code>href="#"</code>.
+Serve this file from the app (<code>/static/dev/smoke-test.html</code>) so the fetches are same-origin.
+Override the list with <code>?pages=/a,/b</code>; add <code>&amp;settle=4000</code> for slow pages.</p>
+<div id="sum">starting…</div>
+<table><thead><tr><th>Route</th><th>ms</th><th>Errors</th><th>Nav</th><th>Footer</th><th>Text</th><th>Leaks</th><th>Imgs</th><th>Tier in page</th><th>href="#"</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+<iframe id="fr"></iframe>
+<script>
+const q = new URLSearchParams(location.search);
+/* Live routes, from the handoff's migration manifest. Parametrised routes carry
+   a real sample so the detail templates are exercised too. */
+const DEFAULT = ['/', '/news', '/archive', '/activity', '/weather', '/forecast-accuracy', '/blindspot', '/divergence',
+  '/clusters', '/parties', '/parties/lib', '/mps', '/mps#senate', '/mps#ridings', '/mp/mark-carney', '/platforms', '/municipal',
+  '/lobbying', '/gic', '/ethics', '/officers', '/elections', '/elections#provincial', '/elections#municipal', '/races',
+  '/economy', '/rates', '/cost', '/markets', '/sources', '/owners', '/journalists', '/crtc', '/map', '/chain',
+  '/cross-watch', '/claims', '/api', '/edu', '/search?q=carney', '/methodology', '/team', '/governance', '/creed',
+  '/literacy', '/score'];
+const PAGES = q.get('pages') ? q.get('pages').split(',') : DEFAULT;
+const SETTLE = +(q.get('settle') || 2500);
+const IGNORE = /history state|replaceState|pushState|about:blank/i;
+const HOOK = '<script>window.__errs=[];addEventListener("error",function(e){__errs.push((e.message||"error")+" @ "+String(e.filename||"").split("/").pop()+":"+(e.lineno||0))});' +
+  'addEventListener("unhandledrejection",function(e){__errs.push("rejection: "+(e.reason&&(e.reason.message||e.reason)))});' +
+  '(function(){var c=console.error.bind(console);console.error=function(){__errs.push("console.error: "+Array.prototype.map.call(arguments,String).join(" ").slice(0,160));c.apply(console,arguments)}})();<\/script>';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const results = [];
+
+async function probe(route) {
+  const old = document.getElementById('fr');
+  const fr = document.createElement('iframe'); fr.id = 'fr'; old.parentNode.replaceChild(fr, old);
+  const w = fr.contentWindow;
+  const t0 = performance.now();
+  const r = { route, errs: [], nav: null, footer: null, text: 0, leaks: 0, imgs: 0, dead: 0, ms: 0, tierLeak: 0 };
+  let html;
+  try {
+    const res = await fetch(route, { cache: 'no-store', credentials: 'same-origin' });
+    if (!res.ok) { r.errs.push('HTTP ' + res.status); results.push(r); return r; }
+    html = await res.text();
+  } catch (e) { r.errs.push('fetch failed: ' + e.message); results.push(r); return r; }
+  /* hash routes: the page reads location.hash, which about:blank cannot carry —
+     set it on the frame's location before writing so the handler sees it */
+  /* production must never decide tier in the page: the preview key may exist only inside wtf-tier.js */
+  r.tierLeak = /wtf-gate-preview/.test(html.replace(/<script[^>]*src="[^"]*wtf-tier\.js"[^>]*><\/script>/g, '')) ? 1 : 0;
+  const hash = route.includes('#') ? route.slice(route.indexOf('#')) : '';
+  const base = '<base href="' + new URL(route.split('#')[0], location.href).href + '">';
+  const injected = /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, m => m + base + HOOK) : base + HOOK + html;
+  const loaded = new Promise(res => { fr.addEventListener('load', res, { once: true }); setTimeout(res, 15000); });
+  try { if (hash) w.location.hash = hash; } catch (e) {}
+  const d0 = w.document; d0.open(); d0.write(injected); d0.close();
+  await loaded;
+  await sleep(SETTLE);
+  r.ms = Math.round(performance.now() - t0);
+  try {
+    const d = w.document;
+    (w.__errs || []).forEach(e => { if (!IGNORE.test(e)) r.errs.push(e); });
+    r.nav = !!d.querySelector('.wtf-nav, .nav');
+    r.footer = !!d.querySelector('footer');
+    const text = (d.body.innerText || '');
+    r.text = text.replace(/\s+/g, ' ').length;
+    r.leaks = (text.match(/\bundefined\b|\bNaN\b|\[object Object\]/g) || []).length;
+    r.imgs = [...d.images].filter(i => i.complete && i.naturalWidth === 0 && i.getAttribute('src')).length;
+    r.dead = d.querySelectorAll('a[href="#"]').length;
+  } catch (e) { r.errs.push('probe-read: ' + e.message); }
+  results.push(r);
+  return r;
+}
+function row(r) {
+  const bad = r.errs.length || r.nav === false || r.footer === false || r.text < 300 || r.leaks || r.imgs;
+  const cell = (v, good) => '<td class="' + (good ? 'ok' : 'bad') + '">' + v + '</td>';
+  return '<tr><td>' + r.route + '</td><td>' + r.ms + '</td>' +
+    cell(r.errs.length ? r.errs.slice(0, 3).join('<br>') : '0', !r.errs.length) +
+    cell(r.nav ? 'yes' : 'no', r.nav) + cell(r.footer ? 'yes' : 'no', r.footer) +
+    cell(r.text, r.text >= 300) + cell(r.leaks, !r.leaks) + cell(r.imgs, !r.imgs) + '<td class="' + (r.tierLeak ? 'warn' : 'ok') + '">' + (r.tierLeak ? 'yes' : 'no') + '</td>' +
+    '<td class="' + (r.dead ? 'warn' : 'ok') + '">' + r.dead + '</td>' +
+    '<td class="' + (bad ? 'bad' : 'ok') + '">' + (bad ? 'FAIL' : 'pass') + '</td></tr>';
+}
+(async () => {
+  const tb = document.getElementById('rows'), sum = document.getElementById('sum');
+  for (let i = 0; i < PAGES.length; i++) {
+    sum.textContent = (i + 1) + ' / ' + PAGES.length + ' — ' + PAGES[i];
+    const r = await probe(PAGES[i]);
+    tb.insertAdjacentHTML('beforeend', row(r));
+  }
+  const fails = results.filter(r => r.errs.length || r.nav === false || r.footer === false || r.text < 300 || r.leaks || r.imgs).length;
+  sum.innerHTML = fails ? '<span class="bad">' + fails + ' of ' + results.length + ' routes failed</span>' : '<span class="ok">All ' + results.length + ' routes passed</span>';
+  window.__SMOKE = { done: true, results };
+})();
+</script></body></html>

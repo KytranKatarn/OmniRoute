@@ -8,12 +8,12 @@
 <meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="A.U.R.O.R.A. weather — What The Fact">
+<meta property="og:title" content="Weather &amp; Climate Intelligence — A.U.R.O.R.A. — What The Fact">
 <meta property="og:description" content="Canadian weather, wildfire activity and fire-spread prediction, with forecast accuracy published openly.">
 <meta property="og:image" content="assets/wtf-logo.png">
 <meta property="og:locale" content="en_CA">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="A.U.R.O.R.A. weather — What The Fact">
+<meta name="twitter:title" content="Weather &amp; Climate Intelligence — A.U.R.O.R.A. — What The Fact">
 <meta name="twitter:description" content="Canadian weather, wildfire activity and fire-spread prediction, with forecast accuracy published openly.">
 <meta name="twitter:image" content="assets/wtf-logo.png">
 <link rel="icon" href="assets/wtf-logo.png">
@@ -24,7 +24,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
+  :root {--wtf-fact:#dc2626;--wtf-bias:#f59e0b;--wtf-verify:#10b981;--wtf-local:#4a72d8;--wtf-aurora:#7c3aed;--wtf-brand:#14bef0;--wtf-brand-deep:#1e7fd0;
     --wtf-bg:#0d1117; --wtf-bg-card:#11161f; --wtf-bg-panel:#171e2a; --wtf-border:#222b39;
     --wtf-text:#f2f1ed; --wtf-text-2:#b9bdc5; --wtf-text-muted:#7d8590; --wtf-accent:#dc2626;
     --wtf-left:#d84b47; --wtf-center-left:#cf8b80; --wtf-center:#929aa5;
@@ -229,7 +229,7 @@
   .lx i { width:9px; height:9px; border-radius:2px; display:inline-block; }
   .lx .nm { font-size:11.5px; color:var(--wtf-text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lx .vv { font-family:var(--wtf-font-mono); font-variant-numeric:tabular-nums; font-size:10.5px; color:var(--wtf-text); }
-  .lx .vv.none { color:#4d5766; }
+  .lx .vv.none { color:var(--wtf-text-muted); }
   .mapwrap { background:var(--wtf-bg-card); border:1px solid var(--wtf-border); border-radius:6px; overflow:hidden; }
   .layerbar { display:flex; gap:5px; padding:9px 11px; border-bottom:1px solid var(--wtf-border); flex-wrap:wrap; }
   .layer-btn { font-family:var(--wtf-font-mono); font-size:10px; letter-spacing:.08em; padding:5px 11px; border-radius:4px;
@@ -264,7 +264,7 @@
   .now-chip.past { border-color:#3f3016; background:rgba(245,158,11,.1); color:var(--wtf-developing); }
   .now-chip.fcast { border-color:#1e3a6b; background:rgba(74,114,216,.12); color:#8fb0e8; }
   .now-chip.outlook { border-color:#2e1065; background:rgba(124,58,237,.14); color:var(--wtf-aurora); }
-  .scrub-mark { position:absolute; top:5px; width:1px; height:13px; background:#4d5766; }
+  .scrub-mark { position:absolute; top:5px; width:1px; height:13px; background:var(--wtf-text-muted); }
   .scrub-ticks span { position:absolute; }
 
   .scrubbar { display:flex; align-items:center; gap:14px; padding:11px 15px; border-top:1px solid var(--wtf-border); }
@@ -279,7 +279,7 @@
                 border:2px solid var(--wtf-brand); transform:translateX(-50%); box-shadow:0 0 0 4px rgba(20,190,240,.14);
                 transition:left .18s linear; }
   .scrub-ticks { position:absolute; top:17px; left:0; right:0; height:10px;
-                 font-family:var(--wtf-font-mono); font-size:8px; color:#4d5766; pointer-events:none; }
+                 font-family:var(--wtf-font-mono); font-size:8px; color:var(--wtf-text-muted); pointer-events:none; }
   .maplegend { padding:10px 12px; border-top:1px solid var(--wtf-border); display:flex; flex-wrap:wrap; gap:5px 14px; }
   .lg { display:flex; align-items:center; gap:6px; font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.05em; color:var(--wtf-text-2); }
   .lg i { width:10px; height:10px; border-radius:2px; display:inline-block; flex-shrink:0; }
@@ -519,7 +519,7 @@
   .mslot figcaption { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline;
                       padding:10px 14px; border-top:1px solid var(--wtf-border); background:var(--wtf-bg-card); }
   .mslot figcaption b { font-weight:400; font-size:12px; color:var(--wtf-text-2); }
-  .mslot figcaption span { font-family:var(--wtf-font-mono); font-size:9.5px; color:#5d6875; margin-left:auto; }
+  .mslot figcaption span { font-family:var(--wtf-font-mono); font-size:9.5px; color:var(--wtf-text-muted); margin-left:auto; }
   @media (prefers-reduced-motion:reduce) { .mslot[data-state='empty'] .mslot-frame::after { animation:none; } }
 
 @media(max-width:1180px){.nav .live-label{display:none}}
@@ -528,6 +528,28 @@
 @media(max-width:940px){.nav{gap:8px}.wtf-nav-ico{display:none}}
 @media(max-width:820px){.nav{flex-wrap:wrap;height:auto;padding-top:8px;padding-bottom:8px;row-gap:4px}}
 .nav,.navgrp{overflow:visible}
+
+/* language toggle */
+#wtf-lang > .grp{cursor:pointer;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-2);display:inline-flex;align-items:center;gap:6px;padding:6px 2px}
+#wtf-lang .navgrp-menu{left:auto;right:-12px}
+.lang-btn{display:flex;justify-content:space-between;gap:12px;width:100%;text-align:left;background:none;border:0;padding:7px 10px;border-radius:3px;font-size:12.5px;color:var(--wtf-text-2);cursor:pointer;font-family:var(--wtf-font-body)}
+.lang-btn:hover{background:#1f2836;color:var(--wtf-text)}
+.lang-btn.active{color:var(--wtf-text)}.lang-btn.active .wtf-lang-code{color:var(--wtf-brand)}
+.wtf-lang-code{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.08em;color:var(--wtf-text-muted)}
+[dir="rtl"] .navgrp-menu{left:auto;right:-12px;text-align:right}[dir="rtl"] .nav-right{margin-left:0;margin-right:auto}
+/* narrow screens */
+@media(max-width:720px){
+  .statrow{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .phead h1,h1{font-size:30px}
+  .wrap{padding-top:18px}
+  #tablewrap,.wtf-rt-tbl,.wtf-jr-tbl,.wtf-pg-tbl,.wtf-mp-tbl{display:block;overflow-x:auto}
+  .wtf-el-row,.wtf-cw-row,.wtf-of-f,.wtf-gv-ev-row,.wtf-ch-block .wtf-ch-bh,.rd-provbar,.wtf-crtc-bar,.wtf-cs-row{grid-template-columns:1fr;display:grid}
+  .wtf-el-row>*,.wtf-cw-row>*{text-align:left}
+  .wtf-mp-hero{flex-direction:column}
+  .wtf-pl-tabs,.wtf-el-count{gap:5px}
+  .wtf-pv{flex-direction:column;align-items:stretch}
+}
+@media(max-width:900px){#below,.art-grid,.grid2,.wx-row,#main,.wtf-main{grid-template-columns:minmax(0,1fr)!important}}
 </style>
 </head>
 <body>
@@ -545,13 +567,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -563,8 +588,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -572,6 +607,9 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 
 <div class="wrap">
 
@@ -665,7 +703,7 @@
 
   <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:22px;align-items:start;margin-top:26px" id="below">
     <div>
-      <div class="slabel" style="margin-bottom:10px" id="cities">City conditions <span id="city-count" style="text-transform:none;letter-spacing:0;color:#5d6875"></span></div>
+      <div class="slabel" style="margin-bottom:10px" id="cities">City conditions <span id="city-count" style="text-transform:none;letter-spacing:0;color:var(--wtf-text-muted)"></span></div>
       <div class="citygrid" id="citygrid"></div>
     </div>
 
@@ -692,7 +730,8 @@
     <div class="eyebrow">Scoring the forecaster</div>
     <h2 style="font-family:var(--wtf-font-serif);font-size:26px;font-weight:600;margin:7px 0 7px">Forecast accuracy</h2>
     <p class="sub" style="margin-bottom:18px">Every A.U.R.O.R.A. outlook is written down when it is issued and compared against
-      what was actually measured. A forecaster that never publishes its misses is not a forecaster, so the misses are here too.</p>
+      what was actually measured. A forecaster that never publishes its misses is not a forecaster, so the misses are here too.
+      <a href="wtf-accuracy.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-accent);white-space:nowrap">Full accuracy report &rarr;</a></p>
 
     <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start">
       <div>
@@ -803,7 +842,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -811,9 +850,9 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
@@ -1583,7 +1622,7 @@ function emit(sel, grow, dur, base) {
 
 Promise.all([
   d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json'),
-  d3.json('https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/ne_50m_admin_1_states_provinces.geojson')
+  WTFLive.geo('canada-provinces.geojson', 'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@v5.1.2/geojson/ne_50m_admin_1_states_provinces.geojson')
 ]).then(([topo, fc]) => {
   allFeat = topojson.feature(topo, topo.objects.countries);
   canadaFeat = allFeat.features.find(f => f.id === '124');
@@ -1874,7 +1913,7 @@ function draw() {
     .attr('x', d => projection([d.p.lon, d.p.lat])[0])
     .attr('y', d => projection([d.p.lon, d.p.lat])[1])
     .attr('text-anchor', 'middle').attr('font-family', 'var(--wtf-font-mono)').attr('font-size', 10)
-    .attr('fill', d => (selected && selected !== d.p.c) ? '#4d5766' : 'var(--wtf-text)')
+    .attr('fill', d => (selected && selected !== d.p.c) ? 'var(--wtf-text-muted)' : 'var(--wtf-text)')
     .attr('paint-order', 'stroke').attr('stroke', '#0d1117').attr('stroke-width', 2.6)
     .attr('pointer-events', 'none')
     .text(d => d.p.c);
@@ -2105,7 +2144,7 @@ function seasonBreakdown(codes, worst, fmt) {
   const scale = Math.max(worst, ...codes.map(k => SEASON[k].last));
   return '<div style="margin-top:12px;padding:13px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:5px">' +
     '<div style="display:grid;grid-template-columns:26px minmax(0,1fr) 52px 52px 58px;gap:9px;padding:0 7px 7px;border-bottom:1px solid var(--wtf-border);' +
-      'font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:#5d6875">' +
+      'font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--wtf-text-muted)">' +
       '<span></span><span>This year against last</span>' +
       '<span style="text-align:right">' + SEASON_YEAR + '</span>' +
       '<span style="text-align:right">' + SEASON_LAST + '</span>' +
@@ -2120,7 +2159,7 @@ function seasonBreakdown(codes, worst, fmt) {
           '<span style="height:6px;border-radius:2px;background:#0f1620;overflow:hidden">' +
             '<span style="display:block;height:100%;width:' + (d.ha / scale * 100) + '%;background:' + c + ';opacity:.85;border-radius:2px"></span></span>' +
           '<span style="height:6px;border-radius:2px;background:#0f1620;overflow:hidden">' +
-            '<span style="display:block;height:100%;width:' + (d.last / scale * 100) + '%;background:#5d6875;border-radius:2px"></span></span></span>' +
+            '<span style="display:block;height:100%;width:' + (d.last / scale * 100) + '%;background:var(--wtf-text-muted);border-radius:2px"></span></span></span>' +
         '<span style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text);text-align:right">' + fmt(d.ha) + '</span>' +
         '<span style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-align:right">' + fmt(d.last) + '</span>' +
         '<span style="font-family:var(--wtf-font-mono);font-size:10px;color:' + c + ';text-align:right">' + (pct > 0 ? '+' : '') + pct + '%</span>' +
@@ -2185,7 +2224,7 @@ function renderSeason() {
           '</button>';
         }).join('') +
       '</div>' +
-      '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin-top:10px">' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-top:10px">' +
         'Grey tick marks the ten-year average for each province to September 1 &middot; source: CIFFC national situation reports</div>' +
     '</div>';
 }
@@ -2239,7 +2278,7 @@ function renderOutlook() {
       '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:12px">' +
         '<span style="font-family:var(--wtf-font-mono);font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:#c4b5fd;background:#2e1065;border-radius:3px;padding:3px 7px">A.U.R.O.R.A.</span>' +
         '<span class="slabel" style="margin:0">The week ahead &middot; ' + name + '</span>' +
-        '<span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">Written from the values on this page &middot; regenerated hourly</span>' +
+        '<span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">Written from the values on this page &middot; regenerated hourly</span>' +
       '</div>' +
       paras.map((t, i) => '<p style="font-family:var(--wtf-font-serif);font-size:' + (i === 0 ? '17px' : '15px') +
         ';line-height:1.62;color:var(--wtf-text' + (i === 0 ? '' : '-2') + ');margin:0 0 10px;text-wrap:pretty">' + t + '</p>').join('') +
@@ -2269,7 +2308,7 @@ function renderSide() {
         (off ? 'var(--wtf-text-muted)' : L.stale ? 'var(--wtf-developing)' : 'var(--wtf-text)') + ';margin-top:3px">' +
         (off ? 'not forecast' : n.toLocaleString()) + '</div>' +
       '<div style="font-size:10.5px;line-height:1.55;color:var(--wtf-text-muted);margin-top:5px">' + L.body +
-        '<br><span style="color:#4d5766">' + L.id + ' · ' + sub + '</span><br>' +
+        '<br><span style="color:var(--wtf-text-muted)">' + L.id + ' · ' + sub + '</span><br>' +
         (L.stale ? '<span style="color:var(--wtf-contested)">⚠ Stale — last pull ' + L.pull + '</span>'
                  : 'pulled ' + L.pull + ' UTC') + '</div></div>';
   }).join('');
@@ -2636,7 +2675,7 @@ function openCity(name) {
               '<div style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:' + col + '">' +
                 k.ico + ' ' + SEV_LABEL[a.sev] + ' &middot; ' + k.label + '</div>' +
               '<div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:4px">' + a.area + '</div>' +
-              '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:3px">Issued ' + a.issued +
+              '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:3px">Issued ' + a.issued +
                 ' &middot; province-wide, may not cover ' + c.n + '</div></div>';
           }).join('') : '') +
         '</div>';
@@ -2674,11 +2713,11 @@ function openCity(name) {
         '</div></div>' +
 
         '<div class="dw-pane" data-p="d14">' +
-          f.day14.map(d => '<div class="d5"><span class="d5-d">' + d.lbl + '<br><u style="color:#5d6875;font-size:9px;text-decoration:none">' + d.date + '</u></span>' +
+          f.day14.map(d => '<div class="d5"><span class="d5-d">' + d.lbl + '<br><u style="color:var(--wtf-text-muted);font-size:9px;text-decoration:none">' + d.date + '</u></span>' +
             '<span class="d5-c" style="display:flex;align-items:center;gap:7px">' + wxIcon(d.cond, 19) + d.cond + '</span>' +
             '<span class="d5-p">' + (d.pop !== null ? d.pop + '%' : '') + '</span>' +
             '<span class="d5-t">' + d.hi + '° <u>' + d.lo + '°</u></span></div>').join('') +
-          '<div style="font-size:11px;line-height:1.6;color:#5d6875;margin-top:9px">Days 1–7 are MSC forecast periods. ' +
+          '<div style="font-size:11px;line-height:1.6;color:var(--wtf-text-muted);margin-top:9px">Days 1–7 are MSC forecast periods. ' +
             'Days 8–14 are model extrapolation and are the first place this page stops being a measurement.</div>' +
         '</div>' +
 
@@ -2695,7 +2734,7 @@ function openCity(name) {
           'forecast above, never merged into it — a prediction and an observation are different kinds of number.' +
         '</div></div>' +
 
-      '<div style="font-size:11px;line-height:1.65;color:#5d6875">Observations MSC Datamart &middot; msc.citypage. ' +
+      '<div style="font-size:11px;line-height:1.65;color:var(--wtf-text-muted)">Observations MSC Datamart &middot; msc.citypage. ' +
         'Forecast periods are model output. Values are measured unless labelled otherwise.</div>' +
     '</div>';
 
@@ -2850,7 +2889,7 @@ function renderAlertStrip() {
               '<span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;white-space:nowrap;color:' + c + '">' +
                 SEV_LABEL[a.sev] + ' &middot; ' + k.label + '</span></div>' +
             '<div style="font-size:12px;color:var(--wtf-text);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">' + a.area + '</div>' +
-            '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:3px">' + a.p + ' &middot; issued ' + a.issued +
+            '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:3px">' + a.p + ' &middot; issued ' + a.issued +
               (a.aqhi ? ' &middot; AQHI ' + a.aqhi : '') + '</div>' +
           '</button>';
         }).join('') +
@@ -3047,7 +3086,7 @@ document.getElementById('lx-list').addEventListener('click', e => {
   }).join('');
   document.getElementById('acc-axis').innerHTML = leads.map(n =>
     '<div style="flex:1;text-align:center;font-family:var(--wtf-font-mono);font-size:8.5px;color:' +
-    (n <= 7 ? 'var(--wtf-text-muted)' : '#5d6875') + '">' + n + '</div>').join('');
+    (n <= 7 ? 'var(--wtf-text-muted)' : 'var(--wtf-text-muted)') + '">' + n + '</div>').join('');
 
   const inRange = leads.filter(n => n <= 7);
   const wins = inRange.filter(n => mae(n) < eccc(n)).length;
@@ -3263,7 +3302,7 @@ document.getElementById('lx-list').addEventListener('click', e => {
     const kv = (k, v, n) => '<div style="background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:4px;padding:10px 12px">' +
       '<div style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--wtf-text-muted)">' + k + '</div>' +
       '<div style="font-family:var(--wtf-font-mono);font-size:15px;color:var(--wtf-text);margin-top:4px">' + v + '</div>' +
-      (n ? '<div style="font-size:10px;color:#5d6875;margin-top:3px">' + n + '</div>' : '') + '</div>';
+      (n ? '<div style="font-size:10px;color:var(--wtf-text-muted);margin-top:3px">' + n + '</div>' : '') + '</div>';
 
     document.getElementById('drawer').innerHTML =
       '<div class="dw-head"><div>' +
@@ -3317,7 +3356,7 @@ document.getElementById('lx-list').addEventListener('click', e => {
                 kv('Scoopers', String(fl.skim)) + kv('Retardant tankers', String(fl.heavy)) + kv('Total tankers', String(fl.total)) +
               '</div>' +
               '<div style="font-size:11.5px;line-height:1.7;color:var(--wtf-text-muted);margin-top:10px">' + fl.note + '</div>' +
-              '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin-top:7px">Source: ' + fl.src + '</div>' +
+              '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-top:7px">Source: ' + fl.src + '</div>' +
               '<div style="font-size:11.5px;line-height:1.7;color:var(--wtf-text-2);margin-top:10px;padding-top:9px;border-top:1px solid var(--wtf-border)">' +
                 'That fleet covers the entire province, not this fire. Canada&rsquo;s whole dispatch-ready core is about ' + NATIONAL_READY +
                 ' water bombers, so a bad week in two provinces at once already exceeds what the country holds — which is why aid moves ' +
@@ -3340,7 +3379,7 @@ document.getElementById('lx-list').addEventListener('click', e => {
               const dist = OPS[k] && OPS[k].bl ? KM([p.lon, p.lat], OPS[k].bl) : null;
               const reach = fl.skim === 0 ? '\u2014' : dist === null ? '\u2014'
                 : dist < 900 ? 'same day' : dist < 2200 ? 'next day' : '2+ days';
-              const reachCol = fl.skim === 0 ? '#5d6875'
+              const reachCol = fl.skim === 0 ? 'var(--wtf-text-muted)'
                 : reach === 'same day' ? 'var(--wtf-established)'
                 : reach === 'next day' ? 'var(--wtf-developing)' : 'var(--wtf-contested)';
               return '<div style="display:grid;grid-template-columns:26px minmax(0,1fr) 54px 30px 62px;gap:8px;align-items:center;padding:6px 7px;border-radius:3px;' +
@@ -3350,13 +3389,13 @@ document.getElementById('lx-list').addEventListener('click', e => {
                   '<span style="font-size:11.5px;color:' + (here ? 'var(--wtf-text)' : 'var(--wtf-text-muted)') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + names[k] + '</span>' +
                   '<span style="flex:1;min-width:22px;height:4px;border-radius:2px;background:#0f1620;overflow:hidden">' +
                     '<span style="display:block;height:100%;width:' + Math.round((fl.skim / maxS) * 100) + '%;background:' + (fl.skim ? (here ? r.col : '#38bdf8') : 'transparent') + '"></span></span></span>' +
-                '<span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:' + (fl.skim ? 'var(--wtf-text)' : '#5d6875') + ';text-align:right">' + fl.skim + ' scp</span>' +
-                '<span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:' + (fl.heavy ? 'var(--wtf-text-2)' : '#5d6875') + ';text-align:right">' + fl.heavy + '</span>' +
+                '<span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:' + (fl.skim ? 'var(--wtf-text)' : 'var(--wtf-text-muted)') + ';text-align:right">' + fl.skim + ' scp</span>' +
+                '<span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:' + (fl.heavy ? 'var(--wtf-text-2)' : 'var(--wtf-text-muted)') + ';text-align:right">' + fl.heavy + '</span>' +
                 '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:' + reachCol + ';text-align:right">' + (here ? 'in place' : reach) + '</span>' +
               '</div>';
             }).join('');
             return '<div style="background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:5px;padding:12px 13px">' +
-              '<div style="display:grid;grid-template-columns:26px minmax(0,1fr) 54px 30px 62px;gap:8px;padding:0 7px 7px;border-bottom:1px solid var(--wtf-border);font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:#5d6875">' +
+              '<div style="display:grid;grid-template-columns:26px minmax(0,1fr) 54px 30px 62px;gap:8px;padding:0 7px 7px;border-bottom:1px solid var(--wtf-border);font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--wtf-text-muted)">' +
                 '<span></span><span>Province</span><span style="text-align:right">Scoopers</span><span style="text-align:right">Tnk</span><span style="text-align:right">Ferry</span></div>' +
               '<div style="display:flex;flex-direction:column;gap:2px;margin-top:5px">' + rowsHtml + '</div>' +
               '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:11px">' +
@@ -3368,7 +3407,7 @@ document.getElementById('lx-list').addEventListener('click', e => {
                 'Ferry time is straight-line from each province&rsquo;s main base to this fire, not a routed flight plan or an offer of aid. ' +
                 'Every aircraft in this table is already assigned somewhere: a province lends only what its own fire load allows, ' +
                 'which is why help arrives after the bad week starts rather than before it.</div>' +
-              '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin-top:7px">Sources per province listed above &middot; interprovincial movement coordinated through CIFFC</div>' +
+              '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-top:7px">Sources per province listed above &middot; interprovincial movement coordinated through CIFFC</div>' +
             '</div>';
           })() + '</div>' +
 
@@ -3395,7 +3434,7 @@ document.getElementById('lx-list').addEventListener('click', e => {
            'cwfis.perims &middot; pulled 2026-09-01 14:38 UTC',
            'msc.citypage &middot; pulled 2026-09-01 15:04 UTC',
            'Natural Earth admin-1 &middot; province geometry'
-          ].map(d => '<div style="color:#5d6875">' + d + '</div>').join('') + '</div></div>' +
+          ].map(d => '<div style="color:var(--wtf-text-muted)">' + d + '</div>').join('') + '</div></div>' +
 
         '<div style="background:rgba(224,82,82,.07);border:1px solid #7f1d1d;border-radius:5px;padding:13px 14px">' +
           '<div style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-contested);margin-bottom:6px">This is not a dispatch order</div>' +
@@ -3529,6 +3568,7 @@ function routeHash() {
 addEventListener('hashchange', routeHash);
 if (location.hash) setTimeout(routeHash, 260);
 </script>
+<script src="wtf-a11y.js"></script>
 <script src="wtf-nav.js"></script>
 </body>
 </html>

@@ -41,7 +41,7 @@ const HEALTH = [
 ];
 
 const TIERS = [
-  ['50,922', 'Pending',        'awaiting first-pass analysis',              '#5d6875'],
+  ['50,922', 'Pending',        'awaiting first-pass analysis',              'var(--wtf-text-muted)'],
   ['42,706', 'Tier 1 only',    'fast triage — band, claims, geo',           '#7fa3cf'],
   ['19,694', 'Tier 1 + full',  'deep review — rationale, verdicts, sources','#10b981'],
   ['8,030',  'Tier 2 pending', 'qualified for deep review',                 '#f59e0b'],

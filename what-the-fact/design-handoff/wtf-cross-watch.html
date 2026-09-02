@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cross-Watch · What The Fact</title>
-<meta name="description" content="The same person or organisation tracked across news coverage, the lobbying registry, appointments, ethics filings and procurement — so a name in one r"><meta name="theme-color" content="#0d1117">
+<title>Cross-Watch — one name, every register · What The Fact</title>
+<meta name="description" content="Names matched across officer findings, the lobbying registry, appointments and news coverage. A match is where an inquiry starts, not where it concludes."><meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="CRTC decisions — What The Fact"><meta property="og:description" content="Rulings from the Canadian Radio-television and Telecommunications Commission affecting the outlets What The Fact tracks.">
+<meta property="og:title" content="Cross-Watch — one name, every register — What The Fact"><meta property="og:description" content="Names matched across officer findings, the lobbying registry, appointments and news coverage. A match is where an inquiry starts, not where it concludes.">
 <meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,13 +32,199 @@
   .scale{position:relative;height:7px;border-radius:4px}
   .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
   .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
-  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
-  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
   .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
   .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
   .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
   a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+  .wtf-cw-badges{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  .wtf-cw-badge{font-family:var(--wtf-font-mono);font-size:8px;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid;background:var(--wtf-bg)}
+  .wtf-cw-mentions{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-left:4px}
+  .wtf-cw-prod{display:flex;align-items:center;gap:12px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-left-width:3px;border-radius:7px;padding:10px 14px;min-width:200px}
+  .wtf-cw-prod-l{display:block;font-size:12px;color:var(--wtf-text)}.wtf-cw-prod-s{display:block;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)}
+  .wtf-cw-prod-n{font-family:var(--wtf-font-mono);font-size:18px;font-weight:600;margin-left:auto;font-variant-numeric:tabular-nums}
+  .wtf-cw-link{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid #161d29}
+  .wtf-pv{margin:14px 0;padding:11px 15px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:10px;display:flex;flex-wrap:wrap;gap:11px;align-items:center}
+  .wtf-pv button{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:none;color:var(--wtf-text-2);cursor:pointer}
+  .wtf-a-pay{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:24px;text-align:center}
+  .wtf-a-pay-t{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px}
+  .wtf-a-pay-b{font-size:13.5px;line-height:1.7;color:var(--wtf-text-2);margin:0 auto 16px;max-width:54ch}
+  .wtf-a-pay-cta{display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em;padding:11px 26px;border-radius:4px;text-decoration:none}
+  .wtf-a-pay-plans{display:inline-block;margin-top:12px;font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-decoration:none}
 </style></head><body>
+<style>
+  /* wtf-pl-* : Parliament. Party colour is deliberately a DIFFERENT visual
+     language from the bias spectrum — party dots are solid fills on the floor
+     plan only, and never appear as a pill next to a lean band, so a
+     Conservative blue is never mistaken for a right-lean score. */
+  .wtf-pl-tabs{display:flex;gap:7px;margin:18px 0 14px;flex-wrap:wrap}
+  .wtf-pl-tab{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.11em;text-transform:uppercase;padding:9px 17px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s}
+  .wtf-pl-tab:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .wtf-pl-tab.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .wtf-pl-pane{display:none}.wtf-pl-pane.on{display:block}
+  .wtf-pl-chamber{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:15px 16px;margin-bottom:14px}
+  .wtf-pl-chamber svg{display:block;width:100%;max-width:100%;height:auto}
+  .wtf-pl-legend{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:11px}
+  .wtf-pl-lchip{display:inline-flex;align-items:center;gap:6px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:999px;padding:4px 11px;font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-2);cursor:pointer;transition:all .15s}
+  .wtf-pl-lchip:hover{border-color:#2f3d52}
+  .wtf-pl-lchip.off{opacity:.34}
+  .wtf-pl-lchip i{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .wtf-pl-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:13px}
+  .wtf-pl-ctrl input[type=search],.wtf-pl-ctrl select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 11px}
+  .wtf-pl-ctrl input[type=search]{flex:1;min-width:200px}
+  .wtf-pl-sec{margin-bottom:18px}
+  .wtf-pl-shead{display:flex;align-items:center;gap:9px;font-family:var(--wtf-font-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-2);padding-bottom:8px;margin-bottom:11px;border-bottom:1px solid var(--wtf-border)}
+  .wtf-pl-shead i{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .wtf-pl-shead span{color:var(--wtf-text-muted);font-size:9.5px}
+  .wtf-pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px}
+  .wtf-pl-card{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-top:2px solid var(--pc);border-radius:9px;padding:12px 11px;text-align:center;text-decoration:none;transition:transform .16s,border-color .16s}
+  .wtf-pl-card:hover{transform:translateY(-2px);border-color:#2f3d52}
+  .wtf-pl-ph{width:46px;height:46px;border-radius:50%;margin:0 auto 8px;background:var(--wtf-bg-panel);border:1.5px solid var(--wtf-border);display:flex;align-items:center;justify-content:center;font-family:var(--wtf-font-mono);font-size:14px;letter-spacing:.03em;overflow:hidden}
+  .wtf-pl-ph img{width:100%;height:100%;object-fit:cover}
+  .wtf-pl-nm{font-size:12.5px;line-height:1.3;color:var(--wtf-text);font-weight:500}
+  .wtf-pl-rd{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:4px}
+  .wtf-pl-role{display:inline-block;font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.06em;padding:2px 7px;border-radius:999px;margin-top:6px;background:rgba(245,158,11,.13);color:var(--wtf-developing);border:1px solid rgba(245,158,11,.3)}
+  .wtf-pl-arts{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:6px}
+  .wtf-pl-tip{position:fixed;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:6px;padding:7px 11px;font-size:11.5px;color:var(--wtf-text);pointer-events:none;display:none;z-index:900;box-shadow:0 10px 26px rgba(0,0,0,.6)}
+  .wtf-pl-tip b{display:block;margin-bottom:2px}
+  .wtf-pl-tip em{font-style:normal;font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)}
+  .wtf-pl-bar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:11px 0 6px;background:#0f1620}
+  .wtf-pl-bar i{display:flex;align-items:center;justify-content:center;font-family:var(--wtf-font-mono);font-size:9.5px;color:#fff;min-width:0}
+  .wtf-pl-maj{position:relative;height:16px;margin-bottom:12px}
+  .wtf-pl-maj i{position:absolute;top:0;width:2px;height:11px;background:var(--wtf-text)}
+  .wtf-pl-maj span{position:absolute;top:0;transform:translateX(-50%);font-family:var(--wtf-font-mono);font-size:8.5px;color:var(--wtf-text-muted);padding-top:12px}
+  .wtf-pl-none{padding:30px;text-align:center;background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:12px}
+
+  /* ridings tab — rd- sub-namespace */
+  #rd-map{position:relative;background:var(--wtf-map-bg,#0b1017);border:1px solid var(--wtf-border);border-radius:12px;overflow:hidden;touch-action:none;cursor:grab}
+  #rd-map:active{cursor:grabbing}
+  .rd-zoom{position:absolute;right:11px;top:11px;display:flex;flex-direction:column;gap:5px;z-index:5}
+  .rd-zoom button{width:30px;height:30px;border-radius:7px;border:1px solid var(--wtf-border);background:rgba(13,17,23,.86);color:var(--wtf-text-2);font-family:var(--wtf-font-mono);font-size:15px;line-height:1;cursor:pointer;backdrop-filter:blur(3px)}
+  .rd-zoom button:hover{border-color:var(--wtf-accent);color:var(--wtf-accent)}
+  #rd-tip{position:fixed;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:6px;padding:7px 11px;font-size:11.5px;color:var(--wtf-text);pointer-events:none;display:none;z-index:900;box-shadow:0 10px 26px rgba(0,0,0,.6)}
+  #rd-tip b{display:block;margin-bottom:2px}
+  #rd-tip em{font-style:normal;font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)}
+  .rd-pcbox{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:18px;margin:4px 0 18px}
+  .rd-pcrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .rd-pcrow input{flex:1;min-width:180px;background:var(--wtf-bg);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-mono);font-size:15px;letter-spacing:.14em;text-transform:uppercase;padding:12px 14px}
+  .rd-pcrow button{background:var(--wtf-accent);color:#fff;border:0;border-radius:7px;font-family:var(--wtf-font-mono);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:13px 24px;cursor:pointer}
+  .rd-pc{margin-top:12px;padding:14px 15px;border-radius:9px;font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);background:var(--wtf-bg-panel);border:1px solid var(--wtf-border)}
+  .rd-pc--ok{border-color:var(--wtf-established)}
+  .rd-pc--bad{border-color:var(--wtf-contested)}
+  .rd-pc:empty{display:none}
+  .rd-ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 12px}
+  .rd-ctrl input[type=search],.rd-ctrl select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 11px}
+  .rd-ctrl input[type=search]{flex:1;min-width:200px}
+  .rd-az{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
+  .rd-az-l{font-family:var(--wtf-font-mono);font-size:10px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px solid var(--wtf-border);border-radius:5px;color:var(--wtf-text-muted);text-decoration:none}
+  .rd-az-l:hover{border-color:var(--wtf-accent);color:var(--wtf-accent)}
+  .rd-grp{margin-bottom:18px;scroll-margin-top:70px}
+  .rd-grp-h{font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.14em;color:var(--wtf-text-2);padding-bottom:7px;margin-bottom:10px;border-bottom:1px solid var(--wtf-border)}
+  .rd-grp-h span{color:var(--wtf-text-muted);font-size:9px}
+  .rd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:7px}
+  .rd-card{text-align:left;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid #2a3547;border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color .15s,transform .15s;display:flex;flex-direction:column;gap:4px}
+  .rd-card:hover{border-color:#2f3d52;transform:translateY(-1px)}
+  .rd-card.on{border-left-color:var(--wtf-accent);background:rgba(220,38,38,.08)}
+  .rd-card-n{font-size:12.5px;line-height:1.35;color:var(--wtf-text)}
+  .rd-card-m{font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.06em;color:var(--wtf-text-muted)}
+  .rd-chip{display:inline-flex;align-items:center;gap:5px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:5px;padding:6px 12px;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.05em;color:var(--wtf-text-2)}
+  .rd-chip:hover{border-color:#2f3d52;color:var(--wtf-text)}
+  .rd-dt{background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:12px;padding:17px 18px;margin-top:12px}
+  .rd-dt-h{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+  .rd-dt-n{font-family:var(--wtf-font-serif);font-size:22px;font-weight:600;letter-spacing:-.02em}
+  .rd-x{margin-left:auto;background:none;border:1px solid var(--wtf-border);border-radius:999px;color:var(--wtf-text-muted);font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;padding:5px 12px;cursor:pointer}
+  .rd-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);max-width:74ch}
+  .rd-provbar{display:grid;grid-template-columns:150px minmax(0,1fr) 34px;gap:10px;align-items:center;width:100%;background:none;border:0;padding:5px 6px;border-radius:5px;cursor:pointer;text-align:left;transition:background .14s}
+  .rd-provbar:hover{background:var(--wtf-bg-panel)}
+  .rd-provbar.on{background:rgba(220,38,38,.1)}
+  .rd-provbar-n{font-size:12.5px;color:var(--wtf-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rd-provbar-t{height:6px;border-radius:3px;background:var(--wtf-bg);overflow:hidden}
+  .rd-provbar-t i{display:block;height:100%;border-radius:3px;background:var(--wtf-local)}
+  .rd-provbar-v{font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text);text-align:right;font-variant-numeric:tabular-nums}
+  .rd-none{padding:26px;text-align:center;background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:12px;color:var(--wtf-text-muted);font-size:13px}
+  @media (prefers-reduced-motion:reduce){.rd-card:hover{transform:none}}
+  .wtf-cw-badges{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  .wtf-cw-badge{font-family:var(--wtf-font-mono);font-size:8px;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid;background:var(--wtf-bg)}
+  .wtf-cw-mentions{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-left:4px}
+  .wtf-cw-prod{display:flex;align-items:center;gap:12px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-left-width:3px;border-radius:7px;padding:10px 14px;min-width:200px}
+  .wtf-cw-prod-l{display:block;font-size:12px;color:var(--wtf-text)}.wtf-cw-prod-s{display:block;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)}
+  .wtf-cw-prod-n{font-family:var(--wtf-font-mono);font-size:18px;font-weight:600;margin-left:auto;font-variant-numeric:tabular-nums}
+  .wtf-cw-link{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid #161d29}
+  .wtf-pv{margin:14px 0;padding:11px 15px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:10px;display:flex;flex-wrap:wrap;gap:11px;align-items:center}
+  .wtf-pv button{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:none;color:var(--wtf-text-2);cursor:pointer}
+  .wtf-a-pay{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:24px;text-align:center}
+  .wtf-a-pay-t{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px}
+  .wtf-a-pay-b{font-size:13.5px;line-height:1.7;color:var(--wtf-text-2);margin:0 auto 16px;max-width:54ch}
+  .wtf-a-pay-cta{display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em;padding:11px 26px;border-radius:4px;text-decoration:none}
+  .wtf-a-pay-plans{display:inline-block;margin-top:12px;font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-decoration:none}
+</style><style>
+  /* wtf-of-* : officers of Parliament. */
+  .wtf-of-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 12px}
+  .wtf-of-ctrl select,.wtf-of-ctrl input[type=search]{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 11px}
+  .wtf-of-ctrl input[type=search]{flex:1;min-width:200px}
+  .wtf-of-card{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--oc);border-radius:12px;padding:15px 16px;margin-bottom:10px}
+  .wtf-of-h{display:flex;flex-wrap:wrap;gap:9px;align-items:baseline;margin-bottom:8px}
+  .wtf-of-n{font-family:var(--wtf-font-serif);font-size:18px;font-weight:600;letter-spacing:-.016em;color:var(--wtf-text)}
+  .wtf-of-tag{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.09em;padding:2px 8px;border-radius:999px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);color:var(--wtf-text-2);white-space:nowrap}
+  .wtf-of-mand{font-size:13px;line-height:1.65;color:var(--wtf-text-2);max-width:74ch;margin-bottom:8px}
+  .wtf-of-pow{font-size:12.5px;line-height:1.6;color:var(--wtf-text-muted);padding:9px 11px;background:var(--wtf-bg-panel);border-radius:7px;border-left:2px solid var(--oc)}
+  .wtf-of-fh{display:flex;align-items:center;gap:9px;margin:12px 0 8px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--wtf-text-muted)}
+  .wtf-of-fh::after{content:'';flex:1;height:1px;background:var(--wtf-border)}
+  .wtf-of-f{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:11px;align-items:start;padding:9px 0;border-bottom:1px solid #161d29}
+  .wtf-of-fy{font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text-2);padding-top:1px}
+  .wtf-of-fs{font-size:13px;line-height:1.4;color:var(--wtf-text);font-weight:500}
+  .wtf-of-fr{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin:3px 0 4px}
+  .wtf-of-fd{font-size:12.5px;line-height:1.6;color:var(--wtf-text-2)}
+  .wtf-of-un{margin-top:6px;font-size:11.5px;line-height:1.55;color:var(--wtf-text-muted);padding:7px 9px;background:var(--wtf-bg);border-radius:6px;border-left:2px solid var(--wtf-text-muted)}
+  .wtf-of-none{padding:16px 0;font-size:12.5px;color:var(--wtf-text-muted)}
+  .wtf-of-note{font-size:11.5px;line-height:1.68;color:var(--wtf-text-muted);max-width:78ch}
+  .wtf-of-kinds{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+  .wtf-of-kind{background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-left:3px solid var(--kc);border-radius:8px;padding:11px 13px}
+  .wtf-cw-badges{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  .wtf-cw-badge{font-family:var(--wtf-font-mono);font-size:8px;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid;background:var(--wtf-bg)}
+  .wtf-cw-mentions{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-left:4px}
+  .wtf-cw-prod{display:flex;align-items:center;gap:12px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-left-width:3px;border-radius:7px;padding:10px 14px;min-width:200px}
+  .wtf-cw-prod-l{display:block;font-size:12px;color:var(--wtf-text)}.wtf-cw-prod-s{display:block;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)}
+  .wtf-cw-prod-n{font-family:var(--wtf-font-mono);font-size:18px;font-weight:600;margin-left:auto;font-variant-numeric:tabular-nums}
+  .wtf-cw-link{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid #161d29}
+  .wtf-pv{margin:14px 0;padding:11px 15px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:10px;display:flex;flex-wrap:wrap;gap:11px;align-items:center}
+  .wtf-pv button{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:none;color:var(--wtf-text-2);cursor:pointer}
+  .wtf-a-pay{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:24px;text-align:center}
+  .wtf-a-pay-t{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px}
+  .wtf-a-pay-b{font-size:13.5px;line-height:1.7;color:var(--wtf-text-2);margin:0 auto 16px;max-width:54ch}
+  .wtf-a-pay-cta{display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em;padding:11px 26px;border-radius:4px;text-decoration:none}
+  .wtf-a-pay-plans{display:inline-block;margin-top:12px;font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-decoration:none}
+</style><style>
+  .wtf-cw-ent{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--ec);border-radius:12px;padding:15px 16px;margin-bottom:10px}
+  .wtf-cw-h{display:flex;flex-wrap:wrap;gap:9px;align-items:baseline;margin-bottom:10px}
+  .wtf-cw-n{font-family:var(--wtf-font-serif);font-size:19px;font-weight:600;letter-spacing:-.016em;color:var(--wtf-text)}
+  .wtf-cw-regs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:11px}
+  .wtf-cw-reg{display:inline-flex;align-items:center;gap:6px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px}
+  .wtf-cw-reg i{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .wtf-cw-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:11px;align-items:start;padding:8px 0;border-bottom:1px solid #161d29}
+  .wtf-cw-rk{font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;color:var(--rc);padding-top:2px}
+  .wtf-cw-rt{font-size:12.5px;line-height:1.6;color:var(--wtf-text-2)}
+  .wtf-cw-rt b{color:var(--wtf-text);font-weight:500}
+  .wtf-cw-score{margin-left:auto;font-family:var(--wtf-font-mono);font-size:10px;padding:3px 10px;border-radius:999px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);color:var(--wtf-text-2)}
+  .wtf-cw-legend{display:flex;flex-wrap:wrap;gap:10px}
+  .wtf-cw-legend i{display:inline-flex;align-items:center;gap:6px;font-style:normal;font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)}
+  .wtf-cw-legend i::before{content:'';width:9px;height:9px;border-radius:50%;background:var(--c)}
+  .wtf-cw-badges{display:inline-flex;gap:4px;flex-wrap:wrap;align-items:center;margin-left:auto}
+  .wtf-cw-badge{font-family:var(--wtf-font-mono);font-size:8px;letter-spacing:.09em;text-transform:uppercase;padding:2px 7px;border-radius:2px;border:1px solid;background:var(--wtf-bg)}
+  .wtf-cw-mentions{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-left:4px}
+  .wtf-cw-prod{display:flex;align-items:center;gap:12px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-left-width:3px;border-radius:7px;padding:10px 14px;min-width:200px}
+  .wtf-cw-prod-l{display:block;font-size:12px;color:var(--wtf-text)}.wtf-cw-prod-s{display:block;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)}
+  .wtf-cw-prod-n{font-family:var(--wtf-font-mono);font-size:18px;font-weight:600;margin-left:auto;font-variant-numeric:tabular-nums}
+  .wtf-cw-link{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid #161d29}
+  .wtf-pv{margin:14px 0;padding:11px 15px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:10px;display:flex;flex-wrap:wrap;gap:11px;align-items:center}
+  .wtf-pv button{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:none;color:var(--wtf-text-2);cursor:pointer}
+  .wtf-a-pay{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:24px;text-align:center}
+  .wtf-a-pay-t{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px}
+  .wtf-a-pay-b{font-size:13.5px;line-height:1.7;color:var(--wtf-text-2);margin:0 auto 16px;max-width:54ch}
+  .wtf-a-pay-cta{display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em;padding:11px 26px;border-radius:4px;text-decoration:none}
+  .wtf-a-pay-plans{display:inline-block;margin-top:12px;font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-decoration:none}
+</style>
 <nav class="nav">
   <a href="wtf-home.html" class="brand">
     <img src="assets/wtf-logo.png" alt="What The Fact">
@@ -52,13 +238,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -70,8 +259,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -79,32 +278,57 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 <div class="wrap">
-<header class="phead" style="text-align:center;max-width:78ch;margin-left:auto;margin-right:auto">
+<header class="phead" style="text-align:center;max-width:82ch;margin-left:auto;margin-right:auto">
   <div class="eyebrow">One name, every register</div>
   <h1>Cross-Watch</h1>
-  <p class="lede" style="margin-left:auto;margin-right:auto">The same person or organisation tracked across news coverage, the lobbying registry, appointments, ethics filings and procurement — so a name in one register can be matched to the same name in another.</p>
+  <p class="lede" style="margin-left:auto;margin-right:auto">The same name matched across officer findings, the lobbying registry, appointments and news coverage. A name in two registers is where an inquiry starts &mdash; not where it concludes.</p>
 </header>
 
-<div class="statrow">
-  <div class="stat"><div class="stat-n">—</div><div class="stat-l">Entities cross-matched</div></div>
-  <div class="stat"><div class="stat-n">5</div><div class="stat-l">Registers joined</div></div>
-  <div class="stat"><div class="stat-n">—</div><div class="stat-l">Names in two or more</div></div>
-  <div class="stat"><div class="stat-n">—</div><div class="stat-l">Matches this window</div></div>
+<div class="statrow" id="cw-stats"></div>
+<div class="wtf-pv" style="margin-top:0">
+  <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted)">Design review</span>
+  <span style="font-size:12.5px;color:var(--wtf-text-2);margin-right:auto">Footprint, coverage, Competition Bureau and listed-contractor lines are public. The accountability chain and co-mentions are Starter+.</span>
+  <button id="cw-pv">Show subscriber view</button>
 </div>
 
-<div class="panel" style="margin-top:18px">
-  <div class="psec">Why this page exists</div>
-  <p style="font-size:13.5px;line-height:1.75;color:var(--wtf-text-2);margin:0;max-width:74ch;text-wrap:pretty">A match across registers is a fact about paperwork, not a finding about a person. Two records sharing a name is where an inquiry starts, not where it concludes.</p>
-</div>
-
-<div class="panel" style="margin-top:12px;border-left:3px solid var(--wtf-developing)">
-  <div class="psec" style="color:var(--wtf-developing)">Not yet built</div>
-  <p style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);margin:0 0 11px;max-width:70ch">This page is in the live navigation and its data contract exists, but the interface has not been rebuilt here yet. Dashes above are unmeasured values, shown as dashes rather than zeros.</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <a href="wtf-methodology.html" class="chip" style="padding:9px 16px">How we measure &rarr;</a>
-    <a href="wtf-api.html" class="chip" style="padding:9px 16px">Developer API &rarr;</a>
+<div class="panel" style="border-left:3px solid var(--wtf-contested)">
+  <div class="psec" style="color:var(--wtf-contested)">Read this page carefully</div>
+  <div style="font-size:13px;line-height:1.8;color:var(--wtf-text-2);max-width:78ch;text-wrap:pretty">
+    <p style="margin:0 0 10px"><strong>A match across registers is a fact about paperwork, not a finding about a person.</strong> Two records sharing a name means both records exist. It does not mean they are connected, and it does not imply wrongdoing in either. Appearing in the lobbying registry means an organisation complied with the law that requires registration.</p>
+    <p style="margin:0 0 10px">There is <strong>no score and no ranking</strong> here. Entities are ordered by how many registers they appear in, which is a count of records rather than a measure of influence or of conduct. A person with four appearances is not four times as significant as one with one.</p>
+    <p style="margin:0">Names are matched exactly. Common names will produce false matches in any system that does this, which is why every row shows the source register and the specific record rather than only the name.</p>
   </div>
+</div>
+
+<div class="panel">
+  <div class="psec">The six Watch products &middot; every entity carries the badges of the products it appears in</div>
+  <div class="wtf-cw-legend" id="cw-legend"></div>
+  <p class="wtf-of-note" style="margin-top:10px">Each register is collected by one of the Watch series. A row tells you which collection the record came from, so a claim can be traced to a source rather than to this page.</p>
+</div>
+
+<div id="cw-detail"></div>
+
+<div class="wtf-of-ctrl">
+  <input type="search" id="cw-q" placeholder="Name, organisation, register&hellip;" aria-label="Search entities">
+  <select id="cw-min" aria-label="Minimum registers">
+    <option value="1">In any register</option>
+    <option value="2" selected>In two or more</option>
+    <option value="3">In three or more</option>
+  </select>
+  <select id="cw-type" aria-label="Type"></select>
+  <span id="cw-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-left:auto"></span>
+</div>
+
+<div id="cw-list"></div>
+
+<div style="display:flex;justify-content:space-between;gap:12px;margin-top:16px;flex-wrap:wrap">
+  <a href="wtf-officers.html" class="wtf-of-tag" style="padding:9px 16px;text-decoration:none">Officers &rarr;</a>
+  <a href="wtf-lobbying.html" class="wtf-of-tag" style="padding:9px 16px;text-decoration:none">Lobbying &rarr;</a>
+  <a href="wtf-gic.html" class="wtf-of-tag" style="padding:9px 16px;text-decoration:none">Appointments &rarr;</a>
 </div>
 </div>
 
@@ -115,7 +339,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -123,56 +347,16 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
+<script src="wtf-accountability.js"></script>
 <script src="wtf-corpus.js"></script>
-<script>const S = { q:'', type:'' };
-document.getElementById('stats').innerHTML = [
-  [String(CRTC.length),'Decisions listed'],
-  [String(new Set(CRTC.map(d => d.type)).size),'Decision types'],
-  [String(CRTC.filter(d => d.outlet).length),'Name a tracked outlet'],
-  [String(CRTC.filter(d => d.scope === 'National').length),'National scope'],
-  [String(CRTC.filter(d => d.type === 'enforcement').length),'Enforcement']
-].map(([n,l]) => '<div class="stat"><div class="stat-n">'+n+'</div><div class="stat-l">'+l+'</div></div>').join('');
-document.getElementById('chips').innerHTML = Object.keys(CRTC_TYPES).map(t =>
-  '<button class="chip" data-t="'+t+'">'+CRTC_TYPES[t][0]+'</button>').join('');
-document.getElementById('chips').onclick = e => {
-  const b = e.target.closest('.chip'); if (!b) return;
-  S.type = S.type === b.dataset.t ? '' : b.dataset.t;
-  document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x.dataset.t === S.type));
-  draw();
-};
-function draw() {
-  const q = S.q.trim().toLowerCase();
-  const list = CRTC.filter(d =>
-    (!S.type || d.type === S.type) &&
-    (!q || (d.num+' '+d.subject+' '+d.desc+' '+d.outlet+' '+d.scope).toLowerCase().includes(q)));
-  document.getElementById('list').innerHTML = list.length ? list.map(d => {
-    const t = CRTC_TYPES[d.type] || ['Other','#6b7280'];
-    const known = d.outlet && OUTLET_STATS[d.outlet];
-    return '<div class="panel" style="border-left:3px solid '+t[1]+'">' +
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">' +
-        '<span style="font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.06em;color:var(--wtf-text)">CRTC '+d.num+'</span>' +
-        '<span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;' +
-          'color:'+t[1]+';background:'+t[1]+'1f;border:1px solid '+t[1]+'44;border-radius:2px;padding:2px 8px">'+t[0]+'</span>' +
-        '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">'+d.scope+' &middot; '+ago(d.min)+'</span>' +
-        (known ? '<a href="wtf-outlet.html?src='+encodeURIComponent(d.outlet)+'" style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--wtf-accent)">'+d.outlet+' profile &rarr;</a>'
-               : (d.outlet ? '<span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">'+d.outlet+' &middot; not in corpus</span>' : '')) +
-      '</div>' +
-      '<div style="font-family:var(--wtf-font-serif);font-size:17px;font-weight:600;letter-spacing:-.014em;line-height:1.35;text-wrap:pretty">'+d.subject+'</div>' +
-      '<div style="font-size:13px;line-height:1.65;color:var(--wtf-text-2);margin-top:6px;max-width:74ch;text-wrap:pretty">'+d.desc+'</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
-        '<a class="btn" href="https://crtc.gc.ca/eng/archive/" target="_blank" rel="noopener">Read the ruling &#x2197;</a>' +
-        '<a class="btn" href="wtf-news.html?q='+encodeURIComponent(d.subject.split(' ').slice(0,3).join(' '))+'">Coverage of this</a>' +
-      '</div></div>';
-  }).join('') :
-  '<div class="panel" style="text-align:center;color:var(--wtf-text-muted);font-size:13px">No decisions match that filter.</div>';
-}
-document.getElementById('q').oninput = e => { S.q = e.target.value; draw(); };
-draw();</script>
+<script src="wtf-cross-watch.js"></script>
+<script src="wtf-a11y.js"></script>
 <script src="wtf-nav.js"></script>
-</body></html>
+</body>
+</html>

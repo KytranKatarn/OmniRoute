@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Governance & ethics · What The Fact</title>
-<meta name="description" content="The rules this newsroom runs under: what the agents may and may not do, who reviews their output, how errors are corrected, and the standing C.R.E.E.D"><meta name="theme-color" content="#0d1117">
+<title>AI Newsroom Governance · What The Fact</title>
+<meta name="description" content="The live C.R.E.E.D. governance score of the What The Fact AI newsroom: overall grade, six pillars, event counts — published including the failing pillar."><meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="CRTC decisions — What The Fact"><meta property="og:description" content="Rulings from the Canadian Radio-television and Telecommunications Commission affecting the outlets What The Fact tracks.">
+<meta property="og:title" content="AI Newsroom Governance — What The Fact"><meta property="og:description" content="The live C.R.E.E.D. governance score of the What The Fact AI newsroom: overall grade, six pillars, event counts — published including the failing pillar.">
 <meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,13 +32,39 @@
   .scale{position:relative;height:7px;border-radius:4px}
   .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
   .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
-  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
-  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
   .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
   .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
   .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
   a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
 </style></head><body>
+<style>
+  .wtf-gv-score{background:var(--wtf-bg-card);border:1px solid #4c1d95;border-radius:12px;padding:22px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .wtf-gv-big{font-family:var(--wtf-font-serif);font-size:58px;line-height:1;color:#c4b5fd;font-variant-numeric:tabular-nums}
+  .wtf-gv-big small{font-size:22px;color:var(--wtf-aurora)}
+  .wtf-gv-grade{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:6px}
+  .wtf-gv-grade b{color:#a78bfa;font-size:13px}
+  .wtf-gv-meta{flex:1;min-width:220px;font-size:12.5px;line-height:1.75;color:var(--wtf-text-2)}
+  .wtf-gv-meta em{font-style:normal;color:#a78bfa;text-transform:capitalize}
+  .wtf-gv-badge{display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)}
+  .wtf-gv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+  .wtf-gv-pill{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:9px;padding:13px 15px}
+  .wtf-gv-pill.low{border-color:rgba(224,82,82,.45)}
+  .wtf-gv-ph{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+  .wtf-gv-cat{font-size:13px;font-weight:600;color:var(--wtf-text);text-transform:capitalize}
+  .wtf-gv-n{font-family:var(--wtf-font-serif);font-size:20px;color:#a78bfa;font-variant-numeric:tabular-nums}
+  .wtf-gv-n small{font-size:11px;color:var(--wtf-text-muted)}
+  .wtf-gv-n.low{color:var(--wtf-contested)}
+  .wtf-gv-ev{font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);margin-top:7px;line-height:1.6}
+  .wtf-gv-prov{color:#b45309;border:1px solid rgba(180,83,9,.4);border-radius:3px;padding:0 5px;margin-left:5px;font-size:9px;letter-spacing:.06em}
+  .wtf-gv-note{font-size:12px;line-height:1.7;color:var(--wtf-text-2);margin-top:5px}
+  .wtf-gv-bar{height:4px;border-radius:2px;background:var(--wtf-bg);overflow:hidden;margin-top:9px}
+  .wtf-gv-bar i{display:block;height:100%;border-radius:2px}
+  .wtf-gv-foot{font-size:12px;line-height:1.75;color:var(--wtf-text-muted);max-width:78ch}
+  .wtf-gv-foot a{color:var(--wtf-aurora)}
+  .wtf-gv-ev-row{display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:11px;align-items:start;padding:8px 0;border-bottom:1px solid #161d29;font-size:12px}
+</style>
 <nav class="nav">
   <a href="wtf-home.html" class="brand">
     <img src="assets/wtf-logo.png" alt="What The Fact">
@@ -52,13 +78,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -70,8 +99,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -79,35 +118,39 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 <div class="wrap">
 <header class="phead" style="text-align:center;max-width:78ch;margin-left:auto;margin-right:auto">
-  <div class="eyebrow">How the newsroom is held to account</div>
-  <h1>Governance &amp; ethics</h1>
-  <p class="lede" style="margin-left:auto;margin-right:auto">The rules this newsroom runs under: what the agents may and may not do, who reviews their output, how errors are corrected, and the standing C.R.E.E.D. audit of our own compliance.</p>
+  <div class="eyebrow" style="color:var(--wtf-aurora)">Radical transparency</div>
+  <h1>AI Newsroom Governance</h1>
+  <p class="lede" style="margin-left:auto;margin-right:auto">What The Fact is produced by an AI newsroom. Every editorial action our agents take &mdash; bias scoring, fact-checking, publishing &mdash; emits a governance event to <a href="https://creed-ai.org" target="_blank" rel="noopener" style="color:var(--wtf-aurora)">C.R.E.E.D.</a>, an independent ethics layer. This page shows the <strong>live score of our own newsroom</strong> (the <code style="color:var(--wtf-aurora)">what-the-fact</code> organization) &mdash; not a self-audit, and not C.R.E.E.D.&rsquo;s score of itself.</p>
 </header>
-
-<div class="statrow">
-  <div class="stat"><div class="stat-n">F</div><div class="stat-l">Current C.R.E.E.D. grade</div></div>
-  <div class="stat"><div class="stat-n">58%</div><div class="stat-l">Compliance</div></div>
-  <div class="stat"><div class="stat-n">453</div><div class="stat-l">Governance events logged</div></div>
-  <div class="stat"><div class="stat-n">6 of 6</div><div class="stat-l">Dimensions audited</div></div>
+<div id="gv-score"></div>
+<div style="margin-top:22px"><div class="psec">Pillars</div><div class="wtf-gv-grid" id="gv-pillars"></div></div>
+<p class="wtf-gv-foot" style="margin-top:14px">Pillars under 100 events are marked <em>provisional</em> and excluded from the overall &mdash; a low-volume pillar never inflates (or fakes) confidence. Methodology: <a href="https://what-the-fact.tech/transparency" target="_blank" rel="noopener">what-the-fact.tech/transparency</a> &middot; Watch the agents work live on the <a href="wtf-activity.html">Activity Log</a> &middot; Meet the team on <a href="wtf-team.html">Team</a>.</p>
+<div class="panel" style="margin-top:18px;border-left:3px solid var(--wtf-contested)">
+  <div class="psec" style="color:var(--wtf-contested)">Why the grade is failing, and why it is published anyway</div>
+  <div id="gv-why" style="font-size:13px;line-height:1.8;color:var(--wtf-text-2);max-width:78ch;text-wrap:pretty"></div>
 </div>
-
-<div class="panel" style="margin-top:18px">
-  <div class="psec">Why this page exists</div>
-  <p style="font-size:13.5px;line-height:1.75;color:var(--wtf-text-2);margin:0;max-width:74ch;text-wrap:pretty">The grade is failing and published anyway. Fairness is the dimension we fail: bias scoring is measurably less reliable on French-language and small-market outlets, and hiding that would make the rest of the site worth less.</p>
-</div>
-
-<div class="panel" style="margin-top:12px;border-left:3px solid var(--wtf-developing)">
-  <div class="psec" style="color:var(--wtf-developing)">Not yet built</div>
-  <p style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);margin:0 0 11px;max-width:70ch">This page is in the live navigation and its data contract exists, but the interface has not been rebuilt here yet. Dashes above are unmeasured values, shown as dashes rather than zeros.</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap">
-    <a href="wtf-methodology.html" class="chip" style="padding:9px 16px">How we measure &rarr;</a>
-    <a href="wtf-api.html" class="chip" style="padding:9px 16px">Developer API &rarr;</a>
+<div class="panel" style="margin-top:12px"><div class="psec">The scale the badge uses &middot; C.R.E.E.D.&rsquo;s published thresholds</div>
+  <div id="gv-scale" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+  <p class="note" style="margin-top:10px">Badge colour is set by C.R.E.E.D. from the score, not by us: green at 90% and above, blue at 80%, yellow at 70%, red below 60%. The scan runs every six hours against 178 compliance rules in five rule packs; every result is public through a no-auth API, which is how a reader can check the figure on this page against the source.</p></div>
+<div class="panel" style="margin-top:12px"><div class="psec">How this newsroom participates</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px">
+    <div class="wtf-gv-pill"><div class="wtf-gv-cat">Every action emits an event</div><div class="wtf-gv-note">Bias scores, verdicts, summaries and publishes each send a governance event to C.R.E.E.D., where it is scored against the rule packs. Nothing is sampled.</div></div>
+    <div class="wtf-gv-pill"><div class="wtf-gv-cat">Every agent publishes a model card</div><div class="wtf-gv-note">B.I.A.S., V.E.R.I.F.Y., D.R.A.F.T. and the rest disclose their model, prompt and known limitations, so a reader sees which system shaped a story and how it can fail.</div></div>
+    <div class="wtf-gv-pill"><div class="wtf-gv-cat">Method is disclosed, not just results</div><div class="wtf-gv-note">Lean scoring follows a published methodology with outlet-level and article-level breakdowns, so the public can challenge the scoring itself &mdash; the standard C.R.E.E.D. asks of every monitored system.</div></div>
+    <div class="wtf-gv-pill"><div class="wtf-gv-cat">The grade is theirs, and it is public</div><div class="wtf-gv-note">C.R.E.E.D. scores the <code>what-the-fact</code> organization; we display the result. A failing pillar stays on the page until the events say otherwise.</div></div>
   </div>
-</div>
-</div>
-
+  <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase"><a href="wtf-creed.html" style="color:var(--wtf-aurora)">About C.R.E.E.D. &rarr;</a><a href="https://creed-ai.org" target="_blank" rel="noopener" style="color:var(--wtf-text-muted)">creed-ai.org &#8599;</a><a href="wtf-activity.html" style="color:var(--wtf-text-muted)">Activity log &rarr;</a></div></div>
+<div class="panel" style="margin-top:12px"><div class="psec">Recent governance events &middot; the agents&rsquo; own audit trail</div><div id="gv-events"></div>
+  <p class="note" style="margin-top:10px">An event is emitted when an agent takes an editorial action. The pillar is C.R.E.E.D.&rsquo;s classification; the outcome is whether the action met that pillar&rsquo;s rule. Only outcomes are shown here &mdash; the underlying article is on the <a href="wtf-activity.html" style="color:var(--wtf-local)">Activity Log</a>.</p></div>
+<div class="panel" style="margin-top:12px;border-left:3px solid var(--wtf-developing)">
+  <div class="psec" style="color:var(--wtf-developing)">When the score cannot be reached</div>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0;max-width:76ch">Governance data is temporarily unavailable &mdash; the C.R.E.E.D. scoring service could not be reached. The score returns automatically; nothing is cached or fabricated in the meantime. <span style="color:var(--wtf-text-muted)">(This is the page&rsquo;s empty state, shown here so it is designed rather than improvised.)</span></p>
+</div></div>
 <footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
   <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
     <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
@@ -115,7 +158,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -123,56 +166,77 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
-<script src="wtf-corpus.js"></script>
-<script>const S = { q:'', type:'' };
-document.getElementById('stats').innerHTML = [
-  [String(CRTC.length),'Decisions listed'],
-  [String(new Set(CRTC.map(d => d.type)).size),'Decision types'],
-  [String(CRTC.filter(d => d.outlet).length),'Name a tracked outlet'],
-  [String(CRTC.filter(d => d.scope === 'National').length),'National scope'],
-  [String(CRTC.filter(d => d.type === 'enforcement').length),'Enforcement']
-].map(([n,l]) => '<div class="stat"><div class="stat-n">'+n+'</div><div class="stat-l">'+l+'</div></div>').join('');
-document.getElementById('chips').innerHTML = Object.keys(CRTC_TYPES).map(t =>
-  '<button class="chip" data-t="'+t+'">'+CRTC_TYPES[t][0]+'</button>').join('');
-document.getElementById('chips').onclick = e => {
-  const b = e.target.closest('.chip'); if (!b) return;
-  S.type = S.type === b.dataset.t ? '' : b.dataset.t;
-  document.querySelectorAll('#chips .chip').forEach(x => x.classList.toggle('on', x.dataset.t === S.type));
-  draw();
+<script>
+
+/* Stand-in for the C.R.E.E.D. scan payload: overall, grade, event counts, and
+   by_category with {score, events, provisional, note}. Figures match the
+   Activity Log panel so the two pages cannot disagree. */
+/* Live: base.html injects window.__WTF_SCAN = {{ scan|tojson }} from the C.R.E.E.D.
+   service. When it is absent the sample below renders and the page says so. */
+const SCAN = WTFLive.injected('__WTF_SCAN', null) || {
+  overall: 58, grade: 'F', event_count: 453, freshness: { events_30d: 187 },
+  by_category: {
+    transparency:   { score: 100, events: 188 },
+    accountability: { score: 100, events: 141 },
+    fairness:       { score: 58,  events: 124, note: 'Bias scoring is measurably less reliable on French-language and small-market outlets.' },
+    privacy:        { score: 100, events: 28,  provisional: true },
+    safety:         { score: 100, events: 19,  provisional: true },
+    environmental:  { score: 100, events: 16,  provisional: true, note: 'Compute footprint per analysis, reported not yet audited.' }
+  }
 };
-function draw() {
-  const q = S.q.trim().toLowerCase();
-  const list = CRTC.filter(d =>
-    (!S.type || d.type === S.type) &&
-    (!q || (d.num+' '+d.subject+' '+d.desc+' '+d.outlet+' '+d.scope).toLowerCase().includes(q)));
-  document.getElementById('list').innerHTML = list.length ? list.map(d => {
-    const t = CRTC_TYPES[d.type] || ['Other','#6b7280'];
-    const known = d.outlet && OUTLET_STATS[d.outlet];
-    return '<div class="panel" style="border-left:3px solid '+t[1]+'">' +
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">' +
-        '<span style="font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.06em;color:var(--wtf-text)">CRTC '+d.num+'</span>' +
-        '<span style="font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;' +
-          'color:'+t[1]+';background:'+t[1]+'1f;border:1px solid '+t[1]+'44;border-radius:2px;padding:2px 8px">'+t[0]+'</span>' +
-        '<span style="font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">'+d.scope+' &middot; '+ago(d.min)+'</span>' +
-        (known ? '<a href="wtf-outlet.html?src='+encodeURIComponent(d.outlet)+'" style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--wtf-accent)">'+d.outlet+' profile &rarr;</a>'
-               : (d.outlet ? '<span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875">'+d.outlet+' &middot; not in corpus</span>' : '')) +
-      '</div>' +
-      '<div style="font-family:var(--wtf-font-serif);font-size:17px;font-weight:600;letter-spacing:-.014em;line-height:1.35;text-wrap:pretty">'+d.subject+'</div>' +
-      '<div style="font-size:13px;line-height:1.65;color:var(--wtf-text-2);margin-top:6px;max-width:74ch;text-wrap:pretty">'+d.desc+'</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">' +
-        '<a class="btn" href="https://crtc.gc.ca/eng/archive/" target="_blank" rel="noopener">Read the ruling &#x2197;</a>' +
-        '<a class="btn" href="wtf-news.html?q='+encodeURIComponent(d.subject.split(' ').slice(0,3).join(' '))+'">Coverage of this</a>' +
-      '</div></div>';
-  }).join('') :
-  '<div class="panel" style="text-align:center;color:var(--wtf-text-muted);font-size:13px">No decisions match that filter.</div>';
-}
-document.getElementById('q').oninput = e => { S.q = e.target.value; draw(); };
-draw();</script>
+const $ = id => document.getElementById(id);
+if (typeof window.__WTF_SCAN === 'undefined') WTFLive.mark('Sample scan \u2014 C.R.E.E.D. data not injected');
+const qualifying = Object.keys(SCAN.by_category).filter(k => !SCAN.by_category[k].provisional);
+$('gv-score').innerHTML =
+  '<div class="wtf-gv-score"><div><div class="wtf-gv-big">' + SCAN.overall + '<small>/100</small></div>' +
+  '<div class="wtf-gv-grade">Grade <b>' + SCAN.grade + '</b></div></div>' +
+  '<div class="wtf-gv-meta"><div>' + SCAN.event_count.toLocaleString('en-CA') + ' governance events tracked</div>' +
+  '<div>' + SCAN.freshness.events_30d.toLocaleString('en-CA') + ' events in the last 30 days</div>' +
+  '<div>Overall is computed from pillars with &ge;100 events: <em>' + qualifying.join(', ') + '</em></div></div>' +
+  '<a class="wtf-gv-badge" href="wtf-creed.html"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. &middot; what-the-fact</a></div>';
+
+$('gv-pillars').innerHTML = Object.keys(SCAN.by_category).map(k => {
+  const p = SCAN.by_category[k], low = p.score < 70;
+  return '<div class="wtf-gv-pill' + (low ? ' low' : '') + '"><div class="wtf-gv-ph"><span class="wtf-gv-cat">' + k + '</span>' +
+    '<span class="wtf-gv-n' + (low ? ' low' : '') + '">' + Math.round(p.score) + '<small>/100</small></span></div>' +
+    '<div class="wtf-gv-bar"><i style="width:' + p.score + '%;background:' + (low ? 'var(--wtf-contested)' : '#a78bfa') + '"></i></div>' +
+    '<div class="wtf-gv-ev">' + p.events.toLocaleString('en-CA') + ' events' + (p.provisional ? '<span class="wtf-gv-prov">provisional</span>' : '') +
+    (p.note ? '<div class="wtf-gv-note">' + p.note + '</div>' : '') + '</div></div>';
+}).join('');
+
+$('gv-why').innerHTML =
+  '<p style="margin:0 0 10px">Fairness is the pillar we fail. B.I.A.S. scores French-language and small-market outlets less reliably than the national English press, so a lean band on a Le Devoir story carries more uncertainty than the same band on a Globe story &mdash; and the scale does not yet show that difference to the reader.</p>' +
+  '<p style="margin:0">The grade stays on the page because hiding it would make everything else here worth less. A newsroom that scores other people&rsquo;s fairness and buries its own score has no standing to publish either. The fix is under way &mdash; per-outlet confidence intervals on the lean scale &mdash; and the score will move when the events do, not when we say so.</p>';
+
+/* C.R.E.E.D.'s published badge bands. The current badge colour follows from
+   the score, so the page cannot show a green badge over a failing number. */
+const SCALE = [['\u2265 90%', 'Green', 'var(--wtf-established)'], ['\u2265 80%', 'Blue', 'var(--wtf-local)'], ['\u2265 70%', 'Yellow', 'var(--wtf-developing)'], ['< 60%', 'Red', 'var(--wtf-contested)']];
+const band = SCAN.overall >= 90 ? 0 : SCAN.overall >= 80 ? 1 : SCAN.overall >= 70 ? 2 : 3;
+$('gv-scale').innerHTML = SCALE.map((s, i) => '<span style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:10px;padding:5px 11px;border-radius:999px;border:1px solid ' + (i === band ? s[2] : 'var(--wtf-border)') + ';color:' + (i === band ? s[2] : 'var(--wtf-text-muted)') + '"><i style="width:8px;height:8px;border-radius:50%;background:' + s[2] + '"></i>' + s[1] + ' ' + s[0] + (i === band ? ' \u00b7 current' : '') + '</span>').join('');
+const badge = document.querySelector('.wtf-gv-badge');
+if (badge) { badge.style.borderColor = SCALE[band][2]; badge.style.color = SCALE[band][2]; }
+const EVENTS = [
+  ['transparency', 'B.I.A.S. published its rationale with the lean band', 'met', '4m'],
+  ['fairness', 'Lean band issued on a French-language article below the confidence floor', 'flagged', '11m'],
+  ['accountability', 'V.E.R.I.F.Y. verdict cites two primary documents', 'met', '19m'],
+  ['transparency', 'D.R.A.F.T. summary marked as generated, not reported', 'met', '26m'],
+  ['fairness', 'Small-market outlet scored on headline only \u2014 body unavailable', 'flagged', '41m'],
+  ['privacy', 'L.O.C.A.L. geo-tag resolved to province, not address', 'met', '1h'],
+  ['accountability', 'Correction logged against a published verdict', 'met', '2h']
+];
+$('gv-events').innerHTML = EVENTS.map(e =>
+  '<div class="wtf-gv-ev-row"><span style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:' + (e[0] === 'fairness' ? 'var(--wtf-contested)' : '#a78bfa') + '">' + e[0] + '</span>' +
+  '<span style="color:var(--wtf-text-2)">' + e[1] + '</span>' +
+  '<span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:' + (e[2] === 'met' ? 'var(--wtf-established)' : 'var(--wtf-developing)') + ';white-space:nowrap">' + e[2] + ' \u00b7 ' + e[3] + '</span></div>').join('');
+
+</script>
+<script src="wtf-a11y.js"></script>
 <script src="wtf-nav.js"></script>
-</body></html>
+</body>
+</html>

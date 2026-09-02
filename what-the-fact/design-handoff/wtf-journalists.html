@@ -1,23 +1,77 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Journalists · What The Fact</title>
-<meta name="description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
-<meta name="theme-color" content="#0d1117">
-<meta property="og:type" content="website">
-<meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="Journalists · What The Fact">
-<meta property="og:description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
-<meta property="og:image" content="assets/wtf-logo.png">
-<meta property="og:locale" content="en_CA">
-<meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Journalists · What The Fact">
-<meta name="twitter:description" content="What The Fact — Canadian news scored for bias story by story, with open methodology.">
-<meta name="twitter:image" content="assets/wtf-logo.png">
-<link rel="icon" href="assets/wtf-logo.png">
-
+<meta name="description" content="Track Canadian journalists across our news sources — beats, outlets, and coverage patterns by What The Fact."><meta name="theme-color" content="#0d1117">
+<meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
+<meta property="og:title" content="Journalists — What The Fact"><meta property="og:description" content="Track Canadian journalists across our news sources — beats, outlets, and coverage patterns by What The Fact.">
+<meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="wtf-shell.css"></head><body>
+<link rel="stylesheet" href="wtf-shell.css">
+<style>
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;animation:rise .3s ease-out both}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+</style></head><body>
+<style>
+  .wtf-a-pay{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:24px;text-align:center;margin:16px 0}
+  .wtf-a-pay-t{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:10px}
+  .wtf-a-pay-b{font-size:13.5px;line-height:1.7;color:var(--wtf-text-2);margin:0 auto 16px;max-width:54ch}
+  .wtf-a-pay-cta{display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em;padding:11px 26px;border-radius:4px;text-decoration:none}
+  .wtf-a-pay-plans{display:inline-block;margin-top:12px;font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted);text-decoration:none}
+  .wtf-pv{margin:14px 0;padding:11px 15px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:10px;display:flex;flex-wrap:wrap;gap:11px;align-items:center}
+  .wtf-pv button{font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.08em;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:none;color:var(--wtf-text-2);cursor:pointer}
+
+  .wtf-jr-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 12px}
+  .wtf-jr-ctrl input{flex:1;min-width:220px;max-width:360px;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 11px}
+  .wtf-jr-seg{display:inline-flex;border:1px solid var(--wtf-border);border-radius:999px;overflow:hidden}
+  .wtf-jr-seg button{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:7px 13px;border:0;background:none;color:var(--wtf-text-muted);cursor:pointer}
+  .wtf-jr-seg button.on{background:var(--wtf-bg-panel);color:var(--wtf-text)}
+  .wtf-jr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:9px}
+  .wtf-jr-card{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:9px;padding:13px 12px;text-align:center;cursor:pointer;transition:border-color .15s,transform .15s}
+  .wtf-jr-card:hover{border-color:#2f3d52;transform:translateY(-2px)}
+  .wtf-jr-av{width:44px;height:44px;border-radius:50%;margin:0 auto 8px;background:var(--wtf-bg-panel);border:1.5px solid var(--wtf-border);display:flex;align-items:center;justify-content:center;font-family:var(--wtf-font-mono);font-size:13px;color:var(--wtf-text-2)}
+  .wtf-jr-nm{font-size:13px;color:var(--wtf-text);font-weight:500}
+  .wtf-jr-sub{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:4px}
+  .wtf-jr-tbl{width:100%;border-collapse:collapse}
+  .wtf-jr-tbl th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--wtf-border)}
+  .wtf-jr-tbl td{padding:9px 10px;border-bottom:1px solid #161d29;font-size:12.5px;color:var(--wtf-text-2)}
+  .wtf-jr-tbl tr.r{cursor:pointer}.wtf-jr-tbl tr.r:hover td{background:var(--wtf-bg-card)}
+  .wtf-jr-tbl .num{text-align:right;font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums}
+  .wtf-jr-band{font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.05em;padding:2px 7px;border-radius:2px}
+  .wtf-jr-prof{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid var(--wtf-local);border-radius:12px;padding:18px 19px;margin-bottom:16px}
+  .wtf-jr-chip{display:inline-flex;align-items:center;gap:6px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:5px;padding:5px 11px;font-size:11.5px;color:var(--wtf-text-2);text-decoration:none}
+  .wtf-jr-chip b{font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-local);font-weight:500}
+  .wtf-jr-row{display:grid;grid-template-columns:10px minmax(0,1fr);gap:10px;padding:8px 0;border-bottom:1px solid #161d29;align-items:start}
+  .wtf-jr-bar{display:grid;grid-template-columns:96px minmax(0,1fr) 34px;gap:9px;align-items:center;padding:4px 0;font-family:var(--wtf-font-mono);font-size:10.5px}
+  .wtf-jr-bar i{display:block;height:6px;border-radius:3px}
+</style>
 <nav class="nav">
   <a href="wtf-home.html" class="brand">
     <img src="assets/wtf-logo.png" alt="What The Fact">
@@ -31,13 +85,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -49,8 +106,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -58,11 +125,24 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
-<div class="wrap"><header class="phead"><div class="eyebrow">Bylines in the index</div><h1>Journalists</h1>
-<p class="lede">Reporters whose bylines appear in the index, the outlets they file for, and the beats they cover. Nothing here scores a journalist — the lean column reports where their stories landed, which is a property of the stories.</p></header>
-<div class="card"><table class="wtf"><thead><tr><th>Journalist</th><th>Outlets</th><th>Beat</th><th class="num">Articles, 90d</th><th>Median band</th></tr></thead><tbody><tr><td><a href="#">A. Marchand</a></td><td>Le Devoir</td><td>Québec politics</td><td class="num">143</td><td><span class="pill p-left">Left</span></td></tr><tr><td><a href="#">J. Whitfield</a></td><td>The Globe and Mail</td><td>Finance</td><td class="num">128</td><td><span class="pill p-center">Center</span></td></tr><tr><td><a href="#">S. Nakamura</a></td><td>CBC News</td><td>Parliament</td><td class="num">119</td><td><span class="pill p-center-left">Center-Left</span></td></tr><tr><td><a href="#">R. Kaur</a></td><td>Toronto Star</td><td>Housing</td><td class="num">104</td><td><span class="pill p-center-left">Center-Left</span></td></tr><tr><td><a href="#">D. Boisvert</a></td><td>National Post</td><td>Energy</td><td class="num">97</td><td><span class="pill p-right">Right</span></td></tr><tr><td><a href="#">M. Cardinal</a></td><td>APTN News</td><td>Indigenous affairs</td><td class="num">81</td><td><span class="pill p-left">Left</span></td></tr><tr><td><a href="#">T. Osei</a></td><td>CTV News</td><td>Health</td><td class="num">76</td><td><span class="pill p-center">Center</span></td></tr></tbody></table></div><div class="gate"><div class="gate-k">Starter unlocks</div><div class="gate-b">Journalist profiles, co-mention networks, and the lean trend of each byline over time.</div>
-<a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Unlock with Starter &rarr;</a></div>
-</div>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
+<div class="wrap">
+<header class="phead" style="text-align:center;max-width:80ch;margin-left:auto;margin-right:auto">
+  <div class="eyebrow">Bylines in the index</div>
+  <h1>Journalists</h1>
+  <p class="lede" style="margin-left:auto;margin-right:auto"><span id="jr-total"></span> writers tracked, captured from bylines as articles are ingested; coverage grows over time. Nothing here scores a journalist &mdash; the lean column reports where their stories landed, which is a property of the stories.</p>
+</header>
+<div id="jr-prof"></div>
+<div class="wtf-jr-ctrl"><input type="search" id="jr-q" placeholder="Search journalists&hellip;" aria-label="Search journalists" autocomplete="off">
+  <span class="wtf-jr-seg"><button class="on" data-v="cards">Cards</button><button data-v="table">Table</button></span>
+  <span class="wtf-jr-seg" id="jr-group"><button class="on" data-g="">Flat</button><button data-g="medium">By medium</button><button data-g="outlet">By outlet</button></span>
+  <select id="jr-med" aria-label="Medium" style="background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:12.5px;padding:8px 10px"></select>
+  <span id="jr-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-left:auto"></span></div>
+<div id="jr-list"></div>
+<p class="note" style="margin-top:10px">Showing the top 200 by coverage volume on the live page &mdash; use search to narrow. Bylines are captured from RSS feeds as articles are ingested.</p>
+<div class="wtf-pv"><span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted)">Design review</span><span style="font-size:12.5px;color:var(--wtf-text-2);margin-right:auto">Outlets and recent coverage are public on a profile. Bias lean, volume by month and co-mentions are Starter+.</span><button id="jr-pv">Show subscriber view</button></div></div>
 <footer class="footer" style="flex-direction:column;align-items:stretch;gap:18px">
   <div style="display:flex;flex-wrap:wrap;gap:14px 26px;align-items:center">
     <span style="font-family:var(--wtf-font-serif);font-size:15px;color:var(--wtf-text-2)">Built on radical transparency.</span>
@@ -70,7 +150,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -78,10 +158,120 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
-</footer><script src="wtf-nav.js"></script>
-</body></html>
+</footer>
+<script src="wtf-corpus.js"></script>
+<script>
+let PREVIEW=false;try{PREVIEW=WTFTier.isSubscriber()}catch(e){}
+function bindPv(id, redraw){const b=document.getElementById(id);if(!b)return;const lab=()=>{b.textContent=PREVIEW?'Show the gate':'Show subscriber view';b.style.color=PREVIEW?'var(--wtf-accent)':''};lab();
+b.addEventListener('click',()=>{PREVIEW=!PREVIEW;try{WTFTier.set(PREVIEW)}catch(e){}lab();redraw()})}
+const $ = id => document.getElementById(id);
+const BAND_HEX = {}; BANDS.forEach(b => BAND_HEX[b.k] = b.hex);
+const J = [
+  ['A. Marchand','Le Devoir','Qu\u00e9bec politics',143,'left',['Le Devoir',131],['La Presse',12]],
+  ['J. Whitfield','The Globe and Mail','Finance',128,'center',['The Globe and Mail',128]],
+  ['S. Nakamura','CBC News','Parliament',119,'center-left',['CBC News',104],['CBC New Brunswick',15]],
+  ['R. Kaur','Toronto Star','Housing',104,'center-left',['Toronto Star',97],['Halifax Examiner',7]],
+  ['D. Boisvert','National Post','Energy',97,'right',['National Post',81],['Financial Post',16]],
+  ['M. Cardinal','APTN News','Indigenous affairs',81,'left',['APTN News',81]],
+  ['T. Osei','CTV News','Health',76,'center',['CTV News',76]],
+  ['L. Fortin','La Presse','Economy',69,'center-left',['La Presse',69]],
+  ['K. Beaulieu','Radio-Canada','Parliament',64,'center-left',['Radio-Canada',64]],
+  ['P. Grewal','Business in Vancouver','Business',58,'center-right',['Business in Vancouver',51],['Financial Post',7]],
+  ['E. Kirkland','Calgary Herald','Energy',52,'center-right',['Calgary Herald',52]],
+  ['H. Bissonnette','Winnipeg Free Press','Municipal',47,'center',['Winnipeg Free Press',47]]
+].map(r => ({ name:r[0], outlet:r[1], beat:r[2], n:r[3], band:r[4], outlets:r.slice(5), photo:null }));
+/* Medium is a property of the outlet, so it is looked up rather than typed per
+   journalist \u2014 a writer who files for a broadcaster and a daily shows under both. */
+const MEDIUM = { 'CBC News':'broadcaster', 'CBC New Brunswick':'broadcaster', 'CTV News':'broadcaster', 'Radio-Canada':'broadcaster', 'APTN News':'broadcaster',
+  'The Globe and Mail':'daily', 'Toronto Star':'daily', 'National Post':'daily', 'Le Devoir':'daily', 'La Presse':'digital daily', 'Calgary Herald':'daily', 'Winnipeg Free Press':'daily',
+  'Financial Post':'business', 'Business in Vancouver':'business', 'Halifax Examiner':'independent digital' };
+const MEDIUM_ORDER = ['broadcaster','daily','digital daily','business','independent digital'];
+const mediumOf = j => [...new Set(j.outlets.map(o => MEDIUM[o[0]] || 'other'))];
+const initials = n => n.split(' ').map(w => w[0]).join('').replace('.', '');
+let S = { q:'', view:'cards', group:'', med:'', open:new URLSearchParams(location.search).get('j') || '' };
+$('jr-med').innerHTML = '<option value="">Every medium</option>' + MEDIUM_ORDER.map(m => '<option value="' + m + '">' + m.charAt(0).toUpperCase() + m.slice(1) + '</option>').join('');
+$('jr-total').textContent = '1,284';
+const lbl = k => (BANDS.find(b => b.k === k) || {}).l || k;
+function list() {
+  const q = S.q.toLowerCase();
+  const rows = J.filter(j => (!q || (j.name + ' ' + j.outlet + ' ' + j.beat).toLowerCase().includes(q)) && (!S.med || mediumOf(j).includes(S.med))).sort((a, b) => b.n - a.n);
+  $('jr-count').textContent = rows.length + ' of ' + J.length + ' shown';
+  if (!rows.length) { $('jr-list').innerHTML = '<p class="note" style="padding:24px 0">No journalists match &ldquo;' + S.q.replace(/</g,'&lt;') + '&rdquo;.</p>'; return; }
+  const av = j => '<div class="wtf-jr-av">' + (j.photo ? '<img src="' + j.photo + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : initials(j.name)) + '</div>';
+  const cards = list => '<div class="wtf-jr-grid">' + list.map(j => '<div class="wtf-jr-card" data-j="' + j.name + '">' + av(j) + '<div class="wtf-jr-nm">' + j.name + '</div><div class="wtf-jr-sub">' + j.n + ' articles \u00b7 ' + j.outlet + '</div>' +
+    '<div class="wtf-jr-sub" style="color:' + BAND_HEX[j.band] + '">median ' + lbl(j.band) + '</div></div>').join('') + '</div>';
+  const table = list => '<div class="panel" style="padding:14px 15px"><div style="overflow-x:auto"><table class="wtf-jr-tbl"><thead><tr><th>Journalist</th><th>Outlets</th><th>Medium</th><th>Beat</th><th class="num">Articles, 90d</th><th>Median band</th></tr></thead><tbody>' +
+      list.map(j => '<tr class="r" data-j="' + j.name + '"><td style="color:var(--wtf-text)">' + j.name + '</td><td>' + j.outlets.map(o => o[0]).join(', ') + '</td><td style="font-family:var(--wtf-font-mono);font-size:10px">' + mediumOf(j).join(', ') + '</td><td>' + j.beat + '</td><td class="num" style="color:var(--wtf-text)">' + j.n + '</td>' +
+        '<td><span class="wtf-jr-band" style="color:' + BAND_HEX[j.band] + ';border:1px solid ' + BAND_HEX[j.band] + '55">' + lbl(j.band) + '</span></td></tr>').join('') + '</tbody></table></div></div>';
+  const render = list => S.view === 'cards' ? cards(list) : table(list);
+  if (!S.group) { $('jr-list').innerHTML = render(rows) + '<p class="note" style="margin-top:9px">Median band is the median of the bands their stories received. It describes the stories, not the writer.</p>'; return; }
+  /* grouped: a writer with two outlets appears under each \u2014 that is the point of grouping by outlet */
+  const groups = {};
+  rows.forEach(j => (S.group === 'medium' ? mediumOf(j) : j.outlets.map(o => o[0])).forEach(k => (groups[k] = groups[k] || []).push(j)));
+  const keys = Object.keys(groups).sort((a, b) => S.group === 'medium' ? MEDIUM_ORDER.indexOf(a) - MEDIUM_ORDER.indexOf(b) : groups[b].length - groups[a].length);
+  $('jr-list').innerHTML = keys.map(k => '<div style="margin-bottom:18px"><div class="psec" style="display:flex;gap:9px;align-items:baseline">' + k + ' <span style="color:var(--wtf-text-muted);letter-spacing:0;text-transform:none">(' + groups[k].length + (S.group === 'outlet' ? ' \u00b7 ' + (MEDIUM[k] || 'other') : '') + ')</span>' +
+    (S.group === 'outlet' ? '<a href="wtf-outlet.html?src=' + encodeURIComponent(k) + '" style="margin-left:auto;font-size:9px;color:var(--wtf-local);text-decoration:none;letter-spacing:.1em">outlet profile &rarr;</a>' : '') + '</div>' + render(groups[k]) + '</div>').join('') +
+    '<p class="note">A writer who files for more than one outlet appears under each. Medium is a property of the outlet, not the writer.</p>';
+}
+function profile() {
+  const j = J.find(x => x.name === S.open); const host = $('jr-prof');
+  if (!j) { host.innerHTML = ''; return; }
+  const posts = ARTICLES.filter(a => j.outlets.some(o => o[0] === a.src)).sort((a, b) => a.min - b.min);
+  const recent = posts.slice(0, 5);
+  const dist = BANDS.map(b => posts.filter(a => a.lean === b.k).length);
+  const seed = j.name.length * 7;
+  const bias = BANDS.map((b, i) => [b, Math.max(0, Math.round(j.n * [0.08,0.22,0.4,0.22,0.08][(i + seed) % 5]))]);
+  const months = ['Mar','Apr','May','Jun','Jul','Aug'].map((m, i) => [m, Math.round(j.n / 6 * (0.7 + ((seed >> i) % 5) / 6))]);
+  const co = [['Mark Carney','person',14],['Bank of Canada','institution',9],['Pierre Poilievre','person',7],['Canadian Bankers Association','organisation',4]];
+  const mx = Math.max(...bias.map(b => b[1]), 1);
+  host.innerHTML = '<div class="wtf-jr-prof"><a href="wtf-journalists.html" style="font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted);text-decoration:none">&larr; All journalists</a>' +
+    '<div style="display:flex;gap:16px;align-items:center;margin-top:10px;flex-wrap:wrap">' +
+      /* photo_url from the byline record when present; initials otherwise \u2014 a real
+         person never gets a stand-in face. */
+      '<div class="wtf-jr-av" style="width:72px;height:72px;font-size:20px;margin:0;border-color:var(--wtf-local)">' + (j.photo ? '<img src="' + j.photo + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : initials(j.name)) + '</div>' +
+      '<div><h2 style="font-family:var(--wtf-font-serif);font-size:26px;font-weight:600;margin:0 0 3px;letter-spacing:-.02em">' + j.name + '</h2>' +
+      '<div style="font-family:var(--wtf-font-mono);font-size:10px;color:var(--wtf-text-muted)">Declared outlets: ' + j.outlets.map(o => o[0]).join(', ') + ' \u00b7 ' + mediumOf(j).join(', ') + ' \u00b7 beat: ' + j.beat + (j.photo ? '' : ' \u00b7 no photo on file') + '</div></div></div>' +
+    '<div class="statrow" style="margin:12px 0 16px"><div class="stat"><div class="stat-n" style="color:var(--wtf-local)">' + j.n + '</div><div class="stat-l">Articles</div></div><div class="stat"><div class="stat-n" style="color:var(--wtf-established)">' + j.outlets.length + '</div><div class="stat-l">Outlets</div></div></div>' +
+    '<div class="psec">Outlets \u2014 where they publish</div><div style="display:flex;flex-wrap:wrap;gap:8px">' + j.outlets.map(o => '<a class="wtf-jr-chip" href="wtf-outlet.html?src=' + encodeURIComponent(o[0]) + '">' + o[0] + ' <b>' + o[1] + '</b></a>').join('') + '</div>' +
+    '<div class="psec" style="margin-top:16px">Every post on record \u00b7 ' + posts.length + ' \u00b7 each with the band its story received</div>' +
+    '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-bottom:8px">' + BANDS.map((b, i) => '<i style="display:block;width:' + (posts.length ? dist[i] / posts.length * 100 : 0) + '%;background:' + b.hex + '"></i>').join('') + '</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px" id="jr-bandf"><button class="wtf-jr-band" data-b="" style="cursor:pointer;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);color:var(--wtf-text)">All ' + posts.length + '</button>' +
+      BANDS.map((b, i) => '<button class="wtf-jr-band" data-b="' + b.k + '" style="cursor:pointer;background:none;color:' + b.hex + ';border:1px solid ' + b.hex + '55">' + b.l + ' ' + dist[i] + '</button>').join('') + '</div>' +
+    '<div id="jr-posts" style="max-height:340px;overflow-y:auto;scrollbar-width:thin">' + posts.map(a => { const b = bandOf(a.lean);
+      return '<div class="wtf-jr-row" data-band="' + a.lean + '"><span style="width:8px;height:8px;border-radius:50%;background:' + b.hex + ';margin-top:6px"></span><span><a href="wtf-article.html?id=' + encodeURIComponent(a.id) + '" style="font-size:13px;color:var(--wtf-text);text-decoration:none">' + titleOf(a) + '</a>' +
+        '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:2px">' + a.src + ' \u00b7 ' + ago(a.min) + ' \u00b7 <span style="color:' + b.hex + '">' + b.l + '</span>' + (a.verdict ? ' \u00b7 ' + VERDICTS[a.verdict].l : '') + '</div></span></div>'; }).join('') + '</div>' +
+    '<p class="note" style="margin-top:8px">The band is the story\u2019s, from B.I.A.S., not a rating of the writer. On the live page this list is every byline-matched article; here it is the outlet\u2019s stories in the current window.</p>' +
+    '<div class="psec" style="margin-top:16px">Recent coverage</div>' + (recent.length ? recent.map(a => { const b = bandOf(a.lean);
+      return '<div class="wtf-jr-row"><span style="width:8px;height:8px;border-radius:50%;background:' + b.hex + ';margin-top:6px"></span><span><a href="wtf-article.html?id=' + encodeURIComponent(a.id) + '" style="font-size:13px;color:var(--wtf-text);text-decoration:none">' + titleOf(a) + '</a>' +
+        '<div style="font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:2px">' + a.src + ' \u00b7 ' + ago(a.min) + '</div></span></div>'; }).join('') : '<p class="note">No linked articles yet \u2014 byline tagging runs as articles are ingested.</p>') +
+    (PREVIEW
+      ? '<div class="psec" style="margin-top:16px">Bias lean \u2014 outlet bias of their coverage</div>' + bias.map(b => '<div class="wtf-jr-bar"><span style="color:var(--wtf-text-2)">' + b[0].l + '</span><span style="background:var(--wtf-bg);border-radius:3px;overflow:hidden"><i style="width:' + Math.round(b[1] / mx * 100) + '%;background:' + b[0].hex + '"></i></span><span style="color:var(--wtf-text);text-align:right">' + b[1] + '</span></div>').join('') +
+        '<p class="note" style="margin-top:6px">The distribution of bands the stories received. It is not a score of the journalist.</p>' +
+        '<div class="psec" style="margin-top:16px">Volume by month</div>' + months.map(m => '<div class="wtf-jr-bar" style="grid-template-columns:64px minmax(0,1fr) 34px"><span style="color:var(--wtf-text-muted)">' + m[0] + '</span><span style="background:var(--wtf-bg);border-radius:3px;overflow:hidden"><i style="width:' + Math.round(m[1] / Math.max(...months.map(x => x[1])) * 100) + '%;background:var(--wtf-local)"></i></span><span style="color:var(--wtf-text);text-align:right">' + m[1] + '</span></div>').join('') +
+        '<div class="psec" style="margin-top:16px">Who they cover \u2014 co-mentioned in their articles</div><div style="display:flex;flex-wrap:wrap;gap:8px">' + co.map(c => '<a class="wtf-jr-chip" href="wtf-cross-watch.html?entity=' + encodeURIComponent(c[0]) + '">' + c[0] + ' <span style="color:var(--wtf-text-muted)">' + c[1] + '</span> <b>' + c[2] + '</b></a>').join('') + '</div>'
+      : '<div class="wtf-a-pay"><div class="wtf-a-pay-t">Coverage analysis \u2014 Starter+</div><p class="wtf-a-pay-b">Bias lean, volume trends, and who this journalist covers (co-mentioned MPs &amp; entities) are available to subscribers.</p><a class="wtf-a-pay-cta" href="/login?next=/journalists">Unlock with Starter &rarr;</a><div><a class="wtf-a-pay-plans" href="/join">See plans</a></div></div>') +
+    '</div>';
+}
+$('jr-q').addEventListener('input', e => { S.q = e.target.value.trim(); list(); });
+document.querySelector('.wtf-jr-seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.view = b.dataset.v; document.querySelectorAll('.wtf-jr-seg button').forEach(x => x.classList.toggle('on', x === b)); list(); });
+$('jr-list').addEventListener('click', e => { const el = e.target.closest('[data-j]'); if (!el) return; S.open = el.dataset.j; history.replaceState(null, '', '?j=' + encodeURIComponent(S.open)); profile(); scrollTo({ top: 0, behavior: 'smooth' }); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('#jr-bandf [data-b]'); if (!b) return;
+  document.querySelectorAll('#jr-posts .wtf-jr-row').forEach(r => { r.style.display = !b.dataset.b || r.dataset.band === b.dataset.b ? '' : 'none'; });
+  document.querySelectorAll('#jr-bandf [data-b]').forEach(x => x.style.background = x === b ? 'var(--wtf-bg-panel)' : 'none');
+});
+$('jr-group').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.group = b.dataset.g; document.querySelectorAll('#jr-group button').forEach(x => x.classList.toggle('on', x === b)); list(); });
+$('jr-med').addEventListener('change', e => { S.med = e.target.value; list(); });
+bindPv('jr-pv', profile);
+list(); profile();
+
+</script>
+<script src="wtf-a11y.js"></script>
+<script src="wtf-nav.js"></script>
+</body>
+</html>

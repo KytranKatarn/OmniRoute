@@ -3,7 +3,7 @@
 <title>Lobbying Tracker · What The Fact</title>
 <meta name="description" content="Who lobbies Canadian MPs — registered communications from the federal Lobbying Registry, by organization and by MP."><meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="CRTC decisions — What The Fact"><meta property="og:description" content="Rulings from the Canadian Radio-television and Telecommunications Commission affecting the outlets What The Fact tracks.">
+<meta property="og:title" content="Lobbying Tracker — What The Fact"><meta property="og:description" content="Who lobbies Canadian MPs — registered communications from the federal Lobbying Registry, by organization and by MP.">
 <meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,12 +32,15 @@
   .scale{position:relative;height:7px;border-radius:4px}
   .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
   .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
-  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
-  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
   .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
   .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
   .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
   a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+  tr.l-row{cursor:pointer}
+  tr.l-row.on td{background:rgba(245,158,11,.09)}
+  tr.l-row:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:-2px}
 </style></head><body>
 <style>
   .wtf-pg-ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 13px}
@@ -51,7 +54,7 @@
   .wtf-pg-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
   .wtf-pg-chip{font-family:var(--wtf-font-mono);font-size:9px;padding:3px 8px;border-radius:3px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);color:var(--wtf-text-2)}
   .wtf-pg-tbl{width:100%;border-collapse:collapse}
-  .wtf-pg-tbl th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#5d6875;text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--wtf-border)}
+  .wtf-pg-tbl th{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);text-align:left;padding:0 10px 9px;border-bottom:1px solid var(--wtf-border)}
   .wtf-pg-tbl td{padding:10px;border-bottom:1px solid var(--wtf-border);font-size:12.5px;color:var(--wtf-text-2)}
   .wtf-pg-tbl tr:hover{background:var(--wtf-bg-card)}
   .wtf-pg-num{font-family:var(--wtf-font-mono);font-variant-numeric:tabular-nums;text-align:right}
@@ -60,8 +63,20 @@
   .wtf-pg-track i{display:block;height:100%;border-radius:3px}
   .wtf-pg-gate{background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:12px;padding:26px 24px;text-align:center;margin:18px 0}
   .wtf-pg-none{padding:30px;text-align:center;background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:12px;color:var(--wtf-text-muted);font-size:13px}
+  .wtf-pg-bars{cursor:pointer;border-radius:4px;transition:background .14s}
+  .wtf-pg-bars:hover{background:var(--wtf-bg-card)}
+  .wtf-pg-bars.on{background:rgba(245,158,11,.09)}
+  .wtf-pg-dt{background:var(--wtf-bg-card);border:1px solid var(--wtf-developing);border-radius:12px;padding:17px 18px;margin-top:12px}
+  .wtf-pg-dt-h{display:flex;flex-wrap:wrap;gap:11px;align-items:baseline;margin-bottom:13px;padding-bottom:11px;border-bottom:1px solid var(--wtf-border)}
+  .wtf-pg-dt-n{font-family:var(--wtf-font-serif);font-size:21px;font-weight:600;letter-spacing:-.018em}
+  .wtf-pg-x{margin-left:auto;background:none;border:1px solid var(--wtf-border);border-radius:999px;color:var(--wtf-text-muted);font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;padding:5px 12px;cursor:pointer}
+  .wtf-pg-spark{display:flex;align-items:flex-end;gap:3px;height:38px;margin:7px 0 5px}
+  .wtf-pg-spark i{flex:1;background:var(--wtf-developing);border-radius:1px;opacity:.8;min-height:2px}
 
 .wtf-pg-tbl th.wtf-pg-num,.wtf-pg-tbl td.wtf-pg-num{text-align:right}
+  tr.l-row{cursor:pointer}
+  tr.l-row.on td{background:rgba(245,158,11,.09)}
+  tr.l-row:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:-2px}
 </style>
 <nav class="nav">
   <a href="wtf-home.html" class="brand">
@@ -76,13 +91,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -94,8 +112,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -103,6 +131,9 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 <div class="wrap">
 <header class="phead" style="text-align:center;max-width:80ch;margin-left:auto;margin-right:auto">
   <div class="eyebrow">Office of the Commissioner of Lobbying</div>
@@ -116,10 +147,12 @@
   <div class="wtf-pg-ctrl" style="margin-top:0">
     <input type="search" id="l-q" placeholder="Organisation or sector&hellip;" aria-label="Search organisations">
     <select id="l-sector" aria-label="Sector"></select>
-    <span id="l-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin-left:auto"></span>
+    <span id="l-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-left:auto"></span>
   </div>
   <div style="overflow-x:auto"><table class="wtf-pg-tbl" id="l-orgs"></table></div>
+  <p class="note" style="margin-top:9px">Select an organisation for its record &mdash; filings by month, subjects declared and the office holders contacted.</p>
 </div>
+<div id="l-detail"></div>
 
 <div class="panel" style="margin-top:12px">
   <div class="psec">Most-lobbied MPs &mdash; last 12 months</div>
@@ -130,9 +163,10 @@
 <div class="panel" style="margin-top:12px">
   <div class="psec">Recent activity</div>
   <div class="wtf-pg-gate" style="margin:4px 0 0">
-    <div style="font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text);margin-bottom:8px">&#128274; Contact-level detail &mdash; Starter+</div>
+    <div class="wtf-a-pay-t" style="font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:8px"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Contact-level detail &mdash; Starter+</div>
     <div style="font-size:13px;line-height:1.7;color:var(--wtf-text-2);margin:0 auto 16px;max-width:54ch">Organization and MP totals are free. The individual meeting record &mdash; who met whom, on what date &mdash; is available to subscribers.</div>
-    <a href="wtf-home.html" class="btn-sub" style="padding:11px 22px">Unlock with Starter &rarr;</a>
+    <a class="wtf-a-pay-cta" href="/login?next=/lobbying" style="display:inline-block;background:var(--wtf-accent);color:#fff;font-size:12px;font-weight:600;letter-spacing:.06em;padding:11px 26px;border-radius:4px;text-decoration:none">Unlock with Starter &rarr;</a>
+    <div style="margin-top:12px"><a class="wtf-a-pay-plans" href="/join" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.06em;color:var(--wtf-text-muted);text-decoration:none">See plans</a></div>
   </div>
 </div>
 
@@ -150,7 +184,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -158,13 +192,12 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
-<script src="wtf-corpus.js"></script>
 <script src="wtf-parliament.js"></script>
 <script>
 const ORGS = [
@@ -186,7 +219,7 @@ const ORGS = [
   ['Canadian Real Estate Association','Housing',103,36,'2026-08-15']
 ];
 const $ = id => document.getElementById(id);
-let S = { q:'', sector:'' };
+let S = { q:'', sector:'', org:'' };
 
 const comms = ORGS.reduce((s,o)=>s+o[2],0);
 $('l-stats').innerHTML = [
@@ -209,7 +242,7 @@ function render() {
     '<thead><tr><th>Organization</th><th>Sector</th><th class="wtf-pg-num">Communications</th>' +
     '<th class="wtf-pg-num">MPs</th><th>Most recent</th></tr></thead><tbody>' +
     (list.length ? list.map(o =>
-      '<tr><td style="color:var(--wtf-text)">'+o[0]+'</td>' +
+      '<tr class="l-row'+(S.org===o[0]?' on':'')+'" data-org="'+o[0].replace(/"/g,'&quot;')+'" tabindex="0"><td style="color:var(--wtf-text)">'+o[0]+'</td>' +
       '<td style="font-family:var(--wtf-font-mono);font-size:10.5px;color:var(--wtf-text-muted)">'+o[1]+'</td>' +
       '<td class="wtf-pg-num" style="color:var(--wtf-text)">'+o[2].toLocaleString()+'</td>' +
       '<td class="wtf-pg-num">'+o[3]+'</td>' +
@@ -227,15 +260,81 @@ $('l-mps').innerHTML =
     const k = m.name.length * 7 + m.riding.length;
     return '<tr><td style="color:var(--wtf-text)">'+m.name+'</td>' +
       '<td><span style="color:'+m.colour+'">'+m.party+'</span></td>' +
-      '<td>'+m.riding+' <span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875">'+m.provKnown+'</span></td>' +
+      '<td>'+m.riding+' <span style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)">'+m.provKnown+'</span></td>' +
       '<td class="wtf-pg-num" style="color:var(--wtf-text)">'+(40+k%120)+'</td>' +
       '<td class="wtf-pg-num">'+(8+k%22)+'</td></tr>';
   }).join('') + '</tbody>';
 
 $('l-q').addEventListener('input', e => { S.q = e.target.value.trim(); render(); });
 $('l-sector').addEventListener('change', e => { S.sector = e.target.value; render(); });
+/* Organisation record. Contacts by date are Starter+ on the live page, so the
+   drill-down shows the shape of the record — volume over time, subjects, and
+   which office holders — with the meeting-level detail behind the gate. */
+const SUBJ = [['Taxation',287],['Health',241],['Environment',218],['Industry',196],
+  ['Transport',163],['Housing',141],['Energy',128],['Agriculture',97],['Defence',74]];
+const MONTHS = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug'];
+const hh = x => { let n = 0; for (const c of x) n = (n * 31 + c.charCodeAt(0)) % 99991; return n; };
+const contactsFor = org => {
+  /* Only MPs with a riding on record, for the same reason the MP table is
+     limited: a contact attributed to a wrong member would be a fabricated claim. */
+  const k = hh(org);
+  return KNOWN.filter((m, i) => (k >> (i % 13)) % 3 !== 0).slice(0, 6);
+};
+function detail(name) {
+  const o = ORGS.find(x => x[0] === name); if (!o) return;
+  const k = hh(name), n = o[2];
+  const series = MONTHS.map((m, i) => Math.max(2, Math.round(n / 12 * (0.55 + ((k >> i) % 9) / 7))));
+  const peak = Math.max.apply(null, series);
+  const subj = SUBJ.filter((_, i) => (k >> i) % 3 !== 0).slice(0, 4);
+  const smax = Math.max.apply(null, subj.map(x => x[1]).concat([1]));
+  const met = contactsFor(name);
+  $('l-detail').innerHTML =
+    '<div class="panel" style="margin-top:12px;border:1px solid var(--wtf-developing)">' +
+      '<div style="display:flex;flex-wrap:wrap;gap:11px;align-items:baseline;margin-bottom:13px;padding-bottom:11px;border-bottom:1px solid var(--wtf-border)">' +
+        '<span style="font-family:var(--wtf-font-serif);font-size:21px;font-weight:600;letter-spacing:-.018em">' + name + '</span>' +
+        '<span class="wtf-pg-chip">' + o[1] + '</span>' +
+        '<span style="font-family:var(--wtf-font-mono);font-size:10.5px;color:var(--wtf-text-2)">' + n.toLocaleString() + ' communications \u00b7 ' + o[3] + ' MPs \u00b7 latest ' + o[4] + '</span>' +
+        '<button class="chip" onclick="clearDetail()" style="margin-left:auto;cursor:pointer">Close</button></div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px">' +
+        '<div><div class="psec" style="margin-bottom:4px">Filings by month</div>' +
+          '<div style="display:flex;align-items:flex-end;gap:3px;height:38px;margin:7px 0 5px">' +
+            series.map(v => '<i style="flex:1;background:var(--wtf-developing);border-radius:1px;opacity:.8;min-height:2px;height:' + Math.round(v / peak * 100) + '%" title="' + v + '"></i>').join('') + '</div>' +
+          '<div style="display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)"><span>' + MONTHS[0] + '</span><span>peak ' + peak + '</span><span>' + MONTHS[11] + '</span></div></div>' +
+        '<div><div class="psec" style="margin-bottom:6px">Subjects declared</div>' +
+          subj.map(x => '<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px 40px;gap:10px;align-items:center;padding:5px 0">' +
+            '<span style="font-size:12px;color:var(--wtf-text-2)">' + x[0] + '</span>' +
+            '<span style="height:6px;border-radius:3px;background:#0f1620;overflow:hidden;display:block"><i style="display:block;height:100%;width:' + Math.round(x[1] / smax * 100) + '%;background:var(--wtf-local)"></i></span>' +
+            '<span class="wtf-pg-num" style="font-size:10.5px;color:var(--wtf-text)">' + x[1] + '</span></div>').join('') + '</div>' +
+      '</div>' +
+      '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--wtf-border)">' +
+        '<div class="psec" style="margin-bottom:8px">Public office holders contacted</div>' +
+        (met.length
+          ? '<div style="display:flex;flex-wrap:wrap;gap:7px">' + met.map(m =>
+              '<a class="wtf-pg-chip" style="text-decoration:none" href="wtf-mp.html?slug=' + encodeURIComponent(m.slug) + '">' + m.name +
+              ' <span style="color:' + m.colour + '">' + m.party + '</span></a>').join('') + '</div>'
+          : '<div class="note">No contacted member has a riding on record in this rebuild.</div>') +
+        '<div class="note" style="margin-top:9px">A recorded contact means a meeting was declared as the Lobbying Act requires, not that a position was adopted. Individual meeting dates are Starter+. ' +
+        '<a href="https://lobbycanada.gc.ca" target="_blank" rel="noopener" style="color:var(--wtf-local)">Registry &#8599;</a></div>' +
+      '</div>' +
+    '</div>';
+  $('l-detail').scrollIntoView && 0;
+}
+function clearDetail() { S.org = ''; $('l-detail').innerHTML = ''; render(); }
+window.clearDetail = clearDetail;
+$('l-orgs').addEventListener('click', e => {
+  const row = e.target.closest('tr.l-row'); if (!row) return;
+  S.org = S.org === row.dataset.org ? '' : row.dataset.org;
+  render();
+  if (S.org) detail(S.org); else $('l-detail').innerHTML = '';
+});
+$('l-orgs').addEventListener('keydown', e => {
+  const row = e.target.closest('tr.l-row'); if (!row) return;
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+});
+
 render();
 </script>
+<script src="wtf-a11y.js"></script>
 <script src="wtf-nav.js"></script>
 </body>
 </html>

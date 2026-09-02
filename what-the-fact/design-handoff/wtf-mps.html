@@ -3,7 +3,7 @@
 <title>MPs &amp; ridings · What The Fact</title>
 <meta name="description" content="Every MP and senator, seated on the real floor plan of both chambers, with coverage counts and party standings."><meta name="theme-color" content="#0d1117">
 <meta property="og:type" content="website"><meta property="og:site_name" content="What The Fact">
-<meta property="og:title" content="CRTC decisions — What The Fact"><meta property="og:description" content="Rulings from the Canadian Radio-television and Telecommunications Commission affecting the outlets What The Fact tracks.">
+<meta property="og:title" content="MPs &amp; ridings — What The Fact"><meta property="og:description" content="Every MP and senator, seated on the real floor plan of both chambers, with coverage counts and party standings.">
 <meta property="og:image" content="assets/wtf-logo.png"><link rel="icon" href="assets/wtf-logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,600;6..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -32,13 +32,47 @@
   .scale{position:relative;height:7px;border-radius:4px}
   .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
   .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
-  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:5px}
-  .foot-note{font-size:11.5px;line-height:1.65;color:#5d6875;margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
   .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
   .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
   .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
   a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
-</style></head><body>
+</style><style>
+  /* ridings tab */
+  :root{--r-lg:14px;--r-md:10px;--r-sm:7px;--lift:0 1px 0 rgba(255,255,255,.045) inset,0 8px 22px -12px rgba(0,0,0,.85);--ease:cubic-bezier(.32,.72,0,1)}
+  html{font-optical-sizing:auto;text-rendering:optimizeLegibility}body{letter-spacing:-.006em}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  .phead{margin-bottom:18px;animation:rise .3s ease-out both}
+  .eyebrow{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--wtf-accent)}
+  h1{font-family:var(--wtf-font-serif);font-size:38px;font-weight:600;letter-spacing:-.027em;line-height:1.05;margin:7px 0 10px;text-wrap:balance}
+  .lede{font-size:14px;line-height:1.7;color:var(--wtf-text-muted);max-width:76ch;margin:0;text-wrap:pretty}
+  .statrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px;margin:18px 0}
+  .stat{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:14px;box-shadow:var(--lift);text-align:center}
+  .stat-n{font-family:var(--wtf-font-mono);font-size:22px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat-l{font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--wtf-text-muted);margin-top:4px}
+  .panel{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-lg);padding:16px 17px;box-shadow:var(--lift);margin-bottom:12px;transition:border-color .18s var(--ease)}
+  .panel:hover{border-color:#2a3547}
+  .psec{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--wtf-text-muted);margin-bottom:11px}
+  .ctrl{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:14px}
+  input[type=search],select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:var(--r-sm);color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 12px}
+  input[type=search]{flex:1;min-width:200px}
+  .chip{font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.07em;padding:6px 12px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-card);color:var(--wtf-text-muted);cursor:pointer;transition:all .16s var(--ease)}
+  .chip:hover{color:var(--wtf-text-2);border-color:#2f3d52}
+  .chip.on{background:rgba(220,38,38,.13);border-color:var(--wtf-accent);color:#f0a3a3}
+  .scale{position:relative;height:7px;border-radius:4px}
+  .scale i{position:absolute;top:-4px;width:3px;height:15px;border-radius:2px;background:var(--wtf-text);box-shadow:0 0 0 2px var(--wtf-bg-card);transform:translateX(-50%)}
+  .scale b{position:absolute;top:0;height:7px;border-radius:4px;background:rgba(255,255,255,.18)}
+  .scale-l{display:flex;justify-content:space-between;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:5px}
+  .foot-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);margin-top:11px;padding-top:10px;border-top:1px solid var(--wtf-border)}
+  .btn{display:inline-block;font-family:var(--wtf-font-mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;padding:8px 15px;border-radius:999px;border:1px solid var(--wtf-border);background:var(--wtf-bg-panel);color:var(--wtf-text-2);cursor:pointer;transition:all .16s var(--ease)}
+  .btn:hover{border-color:var(--wtf-text-muted);color:var(--wtf-text)}
+  .btn-p{background:var(--wtf-accent);border-color:var(--wtf-accent);color:#fff}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--wtf-brand);outline-offset:2px}
+</style>
+<script src="https://unpkg.com/d3@7.9.0/dist/d3.min.js"></script>
+<script src="https://unpkg.com/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+</head><body>
 <style>
   /* wtf-pl-* : Parliament. Party colour is deliberately a DIFFERENT visual
      language from the bias spectrum — party dots are solid fills on the floor
@@ -62,15 +96,16 @@
   .wtf-pl-sec{margin-bottom:18px}
   .wtf-pl-shead{display:flex;align-items:center;gap:9px;font-family:var(--wtf-font-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--wtf-text-2);padding-bottom:8px;margin-bottom:11px;border-bottom:1px solid var(--wtf-border)}
   .wtf-pl-shead i{width:10px;height:10px;border-radius:50%;flex-shrink:0}
-  .wtf-pl-shead span{color:#5d6875;font-size:9.5px}
+  .wtf-pl-shead span{color:var(--wtf-text-muted);font-size:9.5px}
   .wtf-pl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px}
   .wtf-pl-card{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-top:2px solid var(--pc);border-radius:9px;padding:12px 11px;text-align:center;text-decoration:none;transition:transform .16s,border-color .16s}
   .wtf-pl-card:hover{transform:translateY(-2px);border-color:#2f3d52}
-  .wtf-pl-ph{width:46px;height:46px;border-radius:50%;margin:0 auto 8px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);display:flex;align-items:center;justify-content:center;color:#3a4657}
+  .wtf-pl-ph{width:46px;height:46px;border-radius:50%;margin:0 auto 8px;background:var(--wtf-bg-panel);border:1.5px solid var(--wtf-border);display:flex;align-items:center;justify-content:center;font-family:var(--wtf-font-mono);font-size:14px;letter-spacing:.03em;overflow:hidden}
+  .wtf-pl-ph img{width:100%;height:100%;object-fit:cover}
   .wtf-pl-nm{font-size:12.5px;line-height:1.3;color:var(--wtf-text);font-weight:500}
   .wtf-pl-rd{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:4px}
   .wtf-pl-role{display:inline-block;font-family:var(--wtf-font-mono);font-size:8.5px;letter-spacing:.06em;padding:2px 7px;border-radius:999px;margin-top:6px;background:rgba(245,158,11,.13);color:var(--wtf-developing);border:1px solid rgba(245,158,11,.3)}
-  .wtf-pl-arts{font-family:var(--wtf-font-mono);font-size:9px;color:#5d6875;margin-top:6px}
+  .wtf-pl-arts{font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted);margin-top:6px}
   .wtf-pl-tip{position:fixed;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:6px;padding:7px 11px;font-size:11.5px;color:var(--wtf-text);pointer-events:none;display:none;z-index:900;box-shadow:0 10px 26px rgba(0,0,0,.6)}
   .wtf-pl-tip b{display:block;margin-bottom:2px}
   .wtf-pl-tip em{font-style:normal;font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)}
@@ -80,6 +115,55 @@
   .wtf-pl-maj i{position:absolute;top:0;width:2px;height:11px;background:var(--wtf-text)}
   .wtf-pl-maj span{position:absolute;top:0;transform:translateX(-50%);font-family:var(--wtf-font-mono);font-size:8.5px;color:var(--wtf-text-muted);padding-top:12px}
   .wtf-pl-none{padding:30px;text-align:center;background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:12px}
+
+  /* ridings tab — rd- sub-namespace */
+  #rd-map{position:relative;background:var(--wtf-map-bg,#0b1017);border:1px solid var(--wtf-border);border-radius:12px;overflow:hidden;touch-action:none;cursor:grab}
+  #rd-map:active{cursor:grabbing}
+  .rd-zoom{position:absolute;right:11px;top:11px;display:flex;flex-direction:column;gap:5px;z-index:5}
+  .rd-zoom button{width:30px;height:30px;border-radius:7px;border:1px solid var(--wtf-border);background:rgba(13,17,23,.86);color:var(--wtf-text-2);font-family:var(--wtf-font-mono);font-size:15px;line-height:1;cursor:pointer;backdrop-filter:blur(3px)}
+  .rd-zoom button:hover{border-color:var(--wtf-accent);color:var(--wtf-accent)}
+  #rd-tip{position:fixed;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:6px;padding:7px 11px;font-size:11.5px;color:var(--wtf-text);pointer-events:none;display:none;z-index:900;box-shadow:0 10px 26px rgba(0,0,0,.6)}
+  #rd-tip b{display:block;margin-bottom:2px}
+  #rd-tip em{font-style:normal;font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted)}
+  .rd-pcbox{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:12px;padding:18px;margin:4px 0 18px}
+  .rd-pcrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+  .rd-pcrow input{flex:1;min-width:180px;background:var(--wtf-bg);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-mono);font-size:15px;letter-spacing:.14em;text-transform:uppercase;padding:12px 14px}
+  .rd-pcrow button{background:var(--wtf-accent);color:#fff;border:0;border-radius:7px;font-family:var(--wtf-font-mono);font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;padding:13px 24px;cursor:pointer}
+  .rd-pc{margin-top:12px;padding:14px 15px;border-radius:9px;font-size:12.5px;line-height:1.6;color:var(--wtf-text-2);background:var(--wtf-bg-panel);border:1px solid var(--wtf-border)}
+  .rd-pc--ok{border-color:var(--wtf-established)}
+  .rd-pc--bad{border-color:var(--wtf-contested)}
+  .rd-pc:empty{display:none}
+  .rd-ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 12px}
+  .rd-ctrl input[type=search],.rd-ctrl select{background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-radius:7px;color:var(--wtf-text);font-family:var(--wtf-font-body);font-size:13px;padding:9px 11px}
+  .rd-ctrl input[type=search]{flex:1;min-width:200px}
+  .rd-az{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px}
+  .rd-az-l{font-family:var(--wtf-font-mono);font-size:10px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:1px solid var(--wtf-border);border-radius:5px;color:var(--wtf-text-muted);text-decoration:none}
+  .rd-az-l:hover{border-color:var(--wtf-accent);color:var(--wtf-accent)}
+  .rd-grp{margin-bottom:18px;scroll-margin-top:70px}
+  .rd-grp-h{font-family:var(--wtf-font-mono);font-size:11px;letter-spacing:.14em;color:var(--wtf-text-2);padding-bottom:7px;margin-bottom:10px;border-bottom:1px solid var(--wtf-border)}
+  .rd-grp-h span{color:var(--wtf-text-muted);font-size:9px}
+  .rd-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:7px}
+  .rd-card{text-align:left;background:var(--wtf-bg-card);border:1px solid var(--wtf-border);border-left:3px solid #2a3547;border-radius:8px;padding:10px 12px;cursor:pointer;transition:border-color .15s,transform .15s;display:flex;flex-direction:column;gap:4px}
+  .rd-card:hover{border-color:#2f3d52;transform:translateY(-1px)}
+  .rd-card.on{border-left-color:var(--wtf-accent);background:rgba(220,38,38,.08)}
+  .rd-card-n{font-size:12.5px;line-height:1.35;color:var(--wtf-text)}
+  .rd-card-m{font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.06em;color:var(--wtf-text-muted)}
+  .rd-chip{display:inline-flex;align-items:center;gap:5px;background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:5px;padding:6px 12px;font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.05em;color:var(--wtf-text-2)}
+  .rd-chip:hover{border-color:#2f3d52;color:var(--wtf-text)}
+  .rd-dt{background:var(--wtf-bg-card);border:1px solid var(--wtf-accent);border-radius:12px;padding:17px 18px;margin-top:12px}
+  .rd-dt-h{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+  .rd-dt-n{font-family:var(--wtf-font-serif);font-size:22px;font-weight:600;letter-spacing:-.02em}
+  .rd-x{margin-left:auto;background:none;border:1px solid var(--wtf-border);border-radius:999px;color:var(--wtf-text-muted);font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;padding:5px 12px;cursor:pointer}
+  .rd-note{font-size:11.5px;line-height:1.65;color:var(--wtf-text-muted);max-width:74ch}
+  .rd-provbar{display:grid;grid-template-columns:150px minmax(0,1fr) 34px;gap:10px;align-items:center;width:100%;background:none;border:0;padding:5px 6px;border-radius:5px;cursor:pointer;text-align:left;transition:background .14s}
+  .rd-provbar:hover{background:var(--wtf-bg-panel)}
+  .rd-provbar.on{background:rgba(220,38,38,.1)}
+  .rd-provbar-n{font-size:12.5px;color:var(--wtf-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rd-provbar-t{height:6px;border-radius:3px;background:var(--wtf-bg);overflow:hidden}
+  .rd-provbar-t i{display:block;height:100%;border-radius:3px;background:var(--wtf-local)}
+  .rd-provbar-v{font-family:var(--wtf-font-mono);font-size:11px;color:var(--wtf-text);text-align:right;font-variant-numeric:tabular-nums}
+  .rd-none{padding:26px;text-align:center;background:var(--wtf-bg-card);border:1px dashed var(--wtf-border);border-radius:12px;color:var(--wtf-text-muted);font-size:13px}
+  @media (prefers-reduced-motion:reduce){.rd-card:hover{transform:none}}
 </style>
 <nav class="nav">
   <a href="wtf-home.html" class="brand">
@@ -94,13 +178,16 @@
     <a href="wtf-news.html">Latest news</a><a href="wtf-archive.html">Full archive</a><a href="wtf-activity.html">Activity log</a><a href="wtf-weather.html">Weather</a><a href="wtf-blindspot.html">Blindspot</a><a href="wtf-divergence.html">Divergence</a><a href="wtf-clusters.html">Clusters</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-mps.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V10M19 21V10M9 21V10M15 21V10"/><path d="M12 3l9 5H3z"/></svg>Politics</a><div class="navgrp-menu">
-    <a href="wtf-mps.html">MPs &amp; ridings</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a><a href="wtf-rates.html">Rates</a>
+    <a href="wtf-parties.html">Political parties</a><a href="wtf-mps.html">MPs, Senate &amp; ridings</a><a href="wtf-platforms.html">Promise tracker</a><a href="wtf-municipal.html">Municipal</a><a href="wtf-lobbying.html">Lobbying</a><a href="wtf-gic.html">Appointments</a><a href="wtf-ethics.html">Ethics tracker</a><a href="wtf-officers.html">Officers</a>
+  </div></div>
+  <div class="navgrp"><a class="grp" href="wtf-elections.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 12l5 5L20 6"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg>Elections</a><div class="navgrp-menu">
+    <a href="wtf-elections.html">Election calendar</a><a href="wtf-races.html">Candidates &amp; races</a><a href="wtf-platforms.html">Platforms &amp; promises</a><a href="wtf-parties.html">Party records</a><a href="wtf-elections.html#federal">Federal</a><a href="wtf-elections.html#provincial">Provincial</a><a href="wtf-elections.html#municipal">Municipal</a><a href="wtf-elections.html#coverage">Coverage readiness</a><a href="wtf-mps.html#ridings">Ridings</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-economy.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h5M9.5 14.5h5"/></svg>Money</a><div class="navgrp-menu">
-    <a href="wtf-economy.html">Economy</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-markets.html">Markets</a>
+    <a href="wtf-economy.html">Economy</a><a href="wtf-rates.html">Bank of Canada rates</a><a href="wtf-cost.html">Cost of Parliament</a><a href="wtf-global.html">Global Affairs spending</a><a href="wtf-debt.html">Debt tracker</a><a href="wtf-debt.html#departments">Where the money goes</a><a href="wtf-markets.html">Markets</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-sources.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 9h6M7 13h10M7 16h4"/></svg>Media</a><div class="navgrp-menu">
-    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a>
+    <a href="wtf-sources.html">Sources</a><a href="wtf-owners.html">Owners</a><a href="wtf-journalists.html">Journalists</a><a href="wtf-crtc.html">CRTC</a><a href="wtf-echo.html">Echo — slogans &amp; phrases</a>
   </div></div>
   <div class="navgrp"><a class="grp" href="wtf-map.html"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Data</a><div class="navgrp-menu">
     <a href="wtf-map.html">Coverage map</a><a href="wtf-chain.html">Accountability chain</a><a href="wtf-cross-watch.html">Cross-Watch</a><a href="wtf-claims.html">Claims</a><a href="wtf-api.html">Developer API</a><a href="wtf-edu.html">Education API</a><a href="wtf-search.html">Search everything</a>
@@ -112,8 +199,18 @@
   <div class="nav-right">
     <a href="wtf-activity.html" title="Live agent activity" style="display:flex;align-items:center;gap:6px;margin-right:4px;text-decoration:none">
       <span style="width:6px;height:6px;border-radius:50%;background:var(--wtf-brand);animation:blink 1.8s ease-in-out infinite"></span>
-      <span style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)" class="live-label">Live &middot; 41 sources</span>
+      <span class="live-label" style="font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--wtf-brand)">Live &middot; 41 sources</span>
     </a>
+    <div class="navgrp" id="wtf-lang"><button class="grp" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Language" style="background:none;border:0"><svg class="wtf-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span class="wtf-lang-cur">EN</span></button><div class="navgrp-menu" role="menu" style="min-width:150px">
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="en" lang="en"><span>English</span><span class="wtf-lang-code">EN</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="fr" lang="fr"><span>Français</span><span class="wtf-lang-code">FR</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="es" lang="es"><span>Español</span><span class="wtf-lang-code">ES</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="pt" lang="pt"><span>Português</span><span class="wtf-lang-code">PT</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="de" lang="de"><span>Deutsch</span><span class="wtf-lang-code">DE</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="zh" lang="zh"><span>中文</span><span class="wtf-lang-code">中文</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="ar" lang="ar"><span>العربية</span><span class="wtf-lang-code">عربي</span></button>
+      <button class="lang-btn" type="button" role="menuitemradio" data-lang="he" lang="he"><span>עברית</span><span class="wtf-lang-code">עברית</span></button>
+    </div></div>
     <a href="wtf-search.html" class="icon-btn" aria-label="Search">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
     </a>
@@ -121,11 +218,14 @@
     <a href="wtf-home.html" class="btn-sub">Subscribe</a>
   </div>
 </nav>
+<script src="wtf-tier.js"></script>
+<script src="wtf-i18n.js"></script>
+<script src="wtf-live.js"></script>
 <div class="wrap">
 <header class="phead" style="text-align:center;max-width:80ch;margin-left:auto;margin-right:auto">
   <div class="eyebrow">Both chambers</div>
-  <h1>MPs &amp; ridings</h1>
-  <p class="lede" style="margin-left:auto;margin-right:auto">Every member of the House of Commons and the Senate, seated where they actually sit. Coverage counts show how often each is written about &mdash; volume, not favour.</p>
+  <h1>MPs &amp; Senate</h1>
+  <p class="lede" style="margin-left:auto;margin-right:auto">Every member of the House of Commons and the Senate, seated where they actually sit. Coverage counts show how often each is written about &mdash; volume, not favour. Looking for a riding? <a href="#ridings" onclick="showPane('ridings');return false" style="color:var(--wtf-local)">Find yours by postal code &rarr;</a></p>
 </header>
 
 <div class="statrow" id="pl-stats"></div>
@@ -133,6 +233,7 @@
 <div class="wtf-pl-tabs">
   <button class="wtf-pl-tab on" data-pane="hoc">House of Commons</button>
   <button class="wtf-pl-tab" data-pane="senate">Senate</button>
+  <button class="wtf-pl-tab" data-pane="ridings">Ridings</button>
 </div>
 
 <!-- ─── House ─────────────────────────────────────────────────────── -->
@@ -156,7 +257,7 @@
       <option value="arts">Most covered</option>
       <option value="name">Alphabetical</option>
     </select>
-    <span id="pl-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin-left:auto"></span>
+    <span id="pl-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-left:auto"></span>
   </div>
   <div id="pl-roster"></div>
 </div>
@@ -171,12 +272,85 @@
     <p class="note" style="margin-top:9px">Source: Senate of Canada, roster as of May 2026. Caucus colours are the live site&rsquo;s own. <strong>96 seats are mapped and 96 senators are listed</strong> &mdash; the live page states 96 but renders 93, with three non-affiliated rows missing a region. Regions are not carried here, so every row says so.</p>
   </div>
 
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:14px">
+    <div class="wtf-pl-chamber" style="margin:0">
+      <div class="psec" style="margin:0 0 9px">Forced turnover to 2036</div>
+      <div id="pl-wave"></div>
+    </div>
+    <div class="wtf-pl-chamber" style="margin:0">
+      <div class="psec" style="margin:0 0 6px">Why the Senate can stop a bill</div>
+      <p style="font-size:12.5px;line-height:1.75;color:var(--wtf-text-2);margin:0;text-wrap:pretty">Senators face no election, so the chamber can take a position the House will not. Most bills pass unchanged; the ones that do not are where the two chambers actually disagree — tracked below.</p>
+      <a href="#bills" class="wtf-pl-tab" style="margin-top:11px;display:inline-block">Both chambers on one bill &darr;</a>
+    </div>
+  </div>
+
   <div class="wtf-pl-ctrl">
     <input type="search" id="pl-sq" placeholder="Find a senator&hellip;" aria-label="Find a senator">
     <select id="pl-caucus" aria-label="Caucus"></select>
-    <span id="pl-scount" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:#5d6875;margin-left:auto"></span>
+    <select id="pl-sensort" aria-label="Sort senators">
+      <option value="caucus">Group by caucus</option>
+      <option value="retire">Retiring soonest</option>
+      <option value="appointed">Longest serving</option>
+      <option value="arts">Most covered</option>
+      <option value="name">Alphabetical</option>
+    </select>
+    <span id="pl-scount" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-left:auto"></span>
   </div>
   <div id="pl-senroster"></div>
+
+  <div class="wtf-pl-sec" id="bills" style="margin-top:22px;scroll-margin-top:70px">
+    <div class="wtf-pl-shead">Same bill, both chambers <span>(current session)</span></div>
+    <div id="pl-bills"></div>
+    <p class="rd-note">A bill numbered C- starts in the House, S- in the Senate. Vote tallies are the division records each chamber publishes; the bar is the yea share of that vote, not support in the country.</p>
+  </div>
+</div>
+
+<!-- ─── Ridings ───────────────────────────────────────────────────── -->
+<div class="wtf-pl-pane" id="pane-ridings">
+  <p class="lede" style="max-width:78ch;margin:0 0 4px">Every federal electoral district with its real boundary. A riding is the unit that decides who sits in the House, and most people cannot name their own &mdash; so this starts with a postal code.</p>
+
+
+<div class="rd-pcbox">
+  <div class="psec">Find your riding</div>
+  <div class="rd-pcrow">
+    <input id="rd-postal" placeholder="K1A 0A6" maxlength="7" aria-label="Postal code" autocomplete="postal-code">
+    <button onclick="lookup()">Look up</button>
+  </div>
+  <div class="rd-pc" id="rd-postal-out"></div>
+</div>
+
+<div class="statrow" id="rd-stats"></div>
+
+<div class="wtf-pl-chamber" style="margin-bottom:14px">
+  <div class="psec" style="margin:0 0 10px">Seats by province</div>
+  <div id="rd-provbars"></div>
+</div>
+
+<div id="rd-map"><div id="rd-tip"></div>
+  <div class="rd-zoom">
+    <button onclick="zoomBy(1.6)" aria-label="Zoom in" title="Zoom in">+</button>
+    <button onclick="zoomBy(0.625)" aria-label="Zoom out" title="Zoom out">&minus;</button>
+    <button onclick="zoomReset()" aria-label="Reset zoom" title="Reset view" style="font-size:8.5px;letter-spacing:.08em">RESET</button>
+  </div>
+</div>
+<p class="rd-note" style="margin-top:9px">Each dot is a riding centroid on a Lambert conformal projection. Scroll or pinch to zoom, drag to pan. Select a riding and the map flies to its boundary &mdash; one at a time, because 338 polygons at once is neither fast nor readable. <span id="rd-status" style="font-family:var(--wtf-font-mono);color:var(--wtf-text-muted)">Loading&hellip;</span></p>
+
+<div id="rd-detail"></div>
+
+<div class="rd-ctrl">
+  <input type="search" id="rd-q" placeholder="Riding name or FED number&hellip;" aria-label="Search ridings">
+  <select id="rd-prov" aria-label="Province"></select>
+  <span id="rd-count" style="font-family:var(--wtf-font-mono);font-size:9.5px;color:var(--wtf-text-muted);margin-left:auto"></span>
+</div>
+
+<div class="rd-az" id="rd-az"></div>
+<div id="rd-list"></div>
+
+<div class="panel" style="margin-top:18px">
+  <div class="psec">Where this data comes from</div>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0 0 10px;max-width:74ch;text-wrap:pretty">Boundaries, names and the postal-code lookup are read from the Represent API, maintained by OpenNorth from Elections Canada source data. The set loaded here is the representation order Represent currently serves; the House presently seats 343 members, so a redistribution can leave the two briefly out of step.</p>
+  <p style="font-size:13px;line-height:1.75;color:var(--wtf-text-2);margin:0;max-width:74ch;text-wrap:pretty">On the live site this comes from the newsroom database, which also holds the riding-to-member join. That is why no member is named on this page &mdash; the mapping is not in this project, and inferring it from geography would put a real person in the wrong seat.</p>
+
 </div>
 
 <div class="wtf-pl-tip" id="pl-tip"></div>
@@ -195,7 +369,7 @@
     <a href="wtf-api.html" style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase">Developer hub &rarr;</a>
     <a href="wtf-governance.html" style="display:inline-flex;align-items:center;gap:7px;font-family:var(--wtf-font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:5px 11px;border:1px solid var(--wtf-established);border-radius:999px;color:var(--wtf-established)">
       <span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>C.R.E.E.D. Certified</a>
-    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">41 sources tracked &middot; scores are per-story, not permanent labels</span>
+    <span style="margin-left:auto;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">41 sources tracked &middot; scores are per-story, not permanent labels</span>
   </div>
   <div style="display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;padding-top:14px;border-top:1px solid var(--wtf-border)">
     <div style="min-width:0">
@@ -203,14 +377,16 @@
       <div style="font-size:12.5px;color:var(--wtf-text-2);margin-top:3px">Top stories and outlet bias averages, Mondays.</div>
     </div>
     <a href="wtf-home.html" class="btn-sub" style="padding:9px 18px">Subscribe</a>
-    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:#4d5766">
+    <span style="margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-family:var(--wtf-font-mono);font-size:9px;color:var(--wtf-text-muted)">
       <span>what-the-fact.tech</span><span>creed-ai.org</span>
-      <span>EN &middot; <a href="wtf-home.html" style="color:#4d5766">FR</a> &middot; <a href="wtf-home.html" style="color:#4d5766">ES</a></span>
+      <span>EN &middot; FR &middot; ES &middot; PT &middot; DE &middot; 中文 &middot; عربي &middot; עברית &mdash; <button type="button" onclick="document.getElementById('wtf-lang').classList.add('open');document.getElementById('wtf-lang').scrollIntoView===0" style="background:none;border:0;padding:0;color:var(--wtf-brand);font:inherit;cursor:pointer">choose a language</button></span>
     </span>
   </div>
 </footer>
 <script src="wtf-parliament.js"></script>
 <script src="wtf-mps.js"></script>
+<script src="wtf-ridings.js"></script>
+<script src="wtf-a11y.js"></script>
 <script src="wtf-nav.js"></script>
 </body>
 </html>

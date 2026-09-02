@@ -141,7 +141,16 @@ a { color: inherit; }
   box-shadow: 0 12px 28px rgba(0,0,0,0.45);
 }
 .wtf-navgrp:hover .wtf-navgrp-menu,
-.wtf-navgrp:focus-within .wtf-navgrp-menu { display: block; }
+.wtf-navgrp:focus-within .wtf-navgrp-menu,
+/* Tap: a touch device fires no :hover, and :focus-within only helps once the
+   button is focused — on iOS the first tap did nothing visible. wtf-nav.js
+   toggles .open. */
+.wtf-navgrp.open .wtf-navgrp-menu { display: block; }
+/* The menu is absolutely positioned and escapes the bar; any scroll container
+   on an ancestor clips it silently, with no error and no visual clue. Both are
+   `visible` by default — stated so a later "fix the narrow nav with
+   overflow-x:auto" cannot quietly delete every dropdown. */
+.wtf-nav, .wtf-navgrp { overflow: visible; }
 .wtf-navgrp-menu a {
   display: block; padding: 8px 10px; border-radius: 4px;
   font-size: 0.8rem; letter-spacing: 0.01em; text-transform: none;
@@ -154,8 +163,17 @@ a { color: inherit; }
   color: var(--wtf-text-muted); text-decoration: none; flex-shrink: 0;
 }
 .wtf-nav-search:hover { color: var(--wtf-text); background: var(--wtf-bg-panel); }
-/* The 6 buttons no longer fit narrow desktops as a flat row — collapse to the
-   hamburger earlier than the old link wall did. */
+/* Seven groups (Elections joined in the newsroom rebuild) no longer fit a narrow
+   desktop. Shed ornament before structure, so the bar stays one row as long as
+   possible and only then collapses to the hamburger:
+     <=1200px  drop the 17px group icons  (~160px back)
+     <=1180px  drop the LIVE wording, keep the dot (~110px back)
+     <=1080px  hand over to .wtf-nav-mobile
+   The 1080 handover is unchanged — this app has a real mobile drawer, which the
+   design prototype does not, so its "wrap the bar at 820px" rule would put a
+   wrapped bar and the drawer on screen together. Deliberate divergence. */
+@media (max-width: 1200px) { .wtf-nav-links .wtf-nav-ico { display: none; } }
+@media (max-width: 1180px) { .wtf-nav-live .wtf-live-label { display: none; } }
 @media (max-width: 1080px) { .wtf-nav-links { display: none; } }
 .wtf-nav-live {
   display: flex;
@@ -165,7 +183,11 @@ a { color: inherit; }
   letter-spacing: 0.15em;
   color: var(--wtf-accent);
   white-space: nowrap;
+  /* Now an <a> to /activity rather than a dead <div>; suppress the default
+     underline so the pill looks unchanged. */
+  text-decoration: none;
 }
+.wtf-nav-live:hover .wtf-live-label { text-decoration: underline; }
 .wtf-live-dot {
   width: 8px;
   height: 8px;

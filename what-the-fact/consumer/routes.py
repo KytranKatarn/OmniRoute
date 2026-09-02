@@ -6343,3 +6343,127 @@ def api_docs_page():
         key_header=_rate_limit.API_KEY_HEADER,
         signed_in=bool(_user_email()),
     )
+
+
+# ---------------------------------------------------------------------------
+# Newsroom rebuild — Phase 1 placeholders
+#
+# The rebuilt nav (design-handoff/_nav.html) has seven groups; nine of their
+# destinations have no route yet. A nav full of 404s is worse than the nav it
+# replaces, so each gets a real page that says plainly it is not built.
+#
+# Copy is Design's own (title/h1/lede lifted from the matching wtf-*.html), so
+# the placeholder and the finished page describe the same thing. `blocker`
+# names what each is actually waiting on — verified against the live schema on
+# 2026-09-02, not guessed:
+#
+#   parliament.* holds SITTING-MEMBER data (mps 343, senators 107,
+#   mp_promises 5,561, votes, expenses, ec_contributions). There is no table
+#   for elections, candidates, races, party records, platform documents,
+#   fiscal aggregates or phrase counts. Five of these nine need an ingest that
+#   does not exist; they are not "nearly done".
+#
+# Each becomes a real view in its phase; deleting an entry here is what
+# "shipped" looks like.
+# ---------------------------------------------------------------------------
+
+_COMING_SOON = {
+    "parties": (
+        "Political parties — 25 years of record",
+        "Political parties",
+        "Twenty-five years of party record — seats, votes, promises kept and "
+        "broken, read from the same sources as the rest of the newsroom.",
+        "Waiting on a party-record ingest. `parliament.mps` carries a party "
+        "label per member, but there is no party entity, no historical seat or "
+        "vote series, and no per-party promise rollup to read from yet.",
+    ),
+    "platforms": (
+        "Platforms and promises — did they do what they said?",
+        "Did they do what they said?",
+        "Every commitment quoted from the platform that made it, with the "
+        "document it came from and the evidence for where it now stands.",
+        "Waiting on platform documents. `parliament.mp_promises` holds 5,561 "
+        "rows of member commitments, but nothing yet links them to the "
+        "platform text they came from, which is what this page is built to "
+        "quote.",
+    ),
+    "elections": (
+        "Elections — federal, provincial and municipal",
+        "Elections",
+        "Every Canadian election on one calendar — federal, provincial and "
+        "municipal, with how soon each legislature must go to the polls.",
+        "Waiting on an election-calendar ingest. No table records election "
+        "dates, fixed-date rules or writ periods today.",
+    ),
+    "races": (
+        "Candidates and races",
+        "Candidates and races",
+        "Who is running where, and what the newsroom has published about them.",
+        "Waiting on a candidate and riding-race ingest. Nothing records "
+        "candidates or contests today — only sitting members.",
+    ),
+    "global": (
+        "Global Affairs spending — what Canada sends abroad",
+        "Global Affairs spending",
+        "What Canada sends abroad from tax dollars — development assistance, "
+        "humanitarian aid, multilateral contributions and Ukraine support — "
+        "and who receives it.",
+        "Waiting on a Global Affairs spending ingest. Not yet collected.",
+    ),
+    "debt": (
+        "Debt tracker — taxes, spending and the federal debt",
+        "Debt tracker",
+        "Taxes in, spending out, and what the gap has added to the federal "
+        "debt across ten fiscal years.",
+        "Waiting on fiscal aggregates. Departmental contracts are ingested, "
+        "but revenue, total programme spending and the debt series are not.",
+    ),
+    "echo": (
+        "Echo — slogans, phrases and who keeps saying them",
+        "Echo",
+        "How often a slogan, a phrase or a name repeats across Canadian "
+        "coverage — when it was first heard, when it peaked, and which outlets "
+        "carry it.",
+        "Waiting on phrase extraction. The article corpus is here; the "
+        "repeated-phrase index this page reads is not built.",
+    ),
+    "methodology": (
+        "Methodology",
+        "Methodology",
+        "Every number on this site comes from somewhere, and every method here "
+        "can be argued with. This is the plain-language summary.",
+        "The full methodology currently lives at "
+        "what-the-fact.tech/transparency and is being brought onto this site. "
+        "Until it is, that page remains the complete version.",
+    ),
+    "creed": (
+        "C.R.E.E.D. — the ethics layer this newsroom answers to",
+        "C.R.E.E.D.",
+        "The independent ethics layer this newsroom answers to — a Canadian "
+        "nonprofit, founded in Montreal, building enforceable AI governance.",
+        "The live score already drives the footer badge and the Governance "
+        "page; this fuller view of the organisation is designed but not "
+        "wired.",
+    ),
+}
+
+
+def _register_coming_soon(slug, title, h1, lede, blocker):
+    """Register one placeholder. Closure per slug so each endpoint is distinct —
+    a shared function object would collide on Flask's endpoint name."""
+
+    def view():
+        return render_template(
+            "_coming_soon.html",
+            page_title=f"{title} · What The Fact",
+            page_h1=h1,
+            page_lede=lede,
+            page_blocker=blocker,
+        )
+
+    view.__name__ = f"coming_soon_{slug}"
+    bp.get(f"/{slug}")(view)
+
+
+for _slug, _copy in _COMING_SOON.items():
+    _register_coming_soon(_slug, *_copy)

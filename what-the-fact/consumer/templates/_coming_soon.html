@@ -1,0 +1,47 @@
+{# Placeholder view for a nav destination whose page is not built yet.
+   Phase 1 of the newsroom rebuild adds seven nav groups; nine of their
+   destinations have no route. An unrouted nav link 404s, which is worse than
+   the nav it replaces — so each gets this page until its real one lands.
+
+   WHY IT SAYS "NOT YET LIVE" SO LOUDLY. The lede is Design's, and it describes
+   what the finished page WILL show ("every commitment quoted from the platform
+   that made it"). Rendering that promise over an empty page would tell a
+   reader they are looking at the thing being described. On a site whose entire
+   claim is that its numbers are traceable, a page that implies data it does
+   not have is the one failure mode that costs the most. So the status block is
+   not a footnote — it is the content, and the lede is framed as intent.
+
+   Page styles live here, not in static/style.css: the stylesheet is synced
+   into the design system by .design-sync/ and has a second consumer. #}
+{% extends "base.html" %}
+{% block title %}{{ page_title }}{% endblock %}
+{% block content %}
+<style>
+  .wtf-cs { max-width: 720px; margin: 0 auto; padding: 56px 20px 80px; }
+  .wtf-cs h1 { font-family: var(--wtf-font-serif); font-size: 2.1rem; line-height: 1.15;
+               color: var(--wtf-text); margin: 0 0 14px; }
+  .wtf-cs-lede { font-size: 1.02rem; line-height: 1.6; color: var(--wtf-text-2); margin: 0 0 28px; }
+  .wtf-cs-card { border: 1px solid var(--wtf-border); border-left: 3px solid var(--wtf-accent);
+                 background: var(--wtf-bg-card); border-radius: 6px; padding: 18px 20px; }
+  .wtf-cs-tag { font-family: var(--wtf-font-mono); font-size: 0.62rem; letter-spacing: 0.16em;
+                text-transform: uppercase; color: var(--wtf-accent); display: block; margin-bottom: 8px; }
+  .wtf-cs-card p { margin: 0 0 10px; font-size: 0.88rem; line-height: 1.55; color: var(--wtf-text-2); }
+  .wtf-cs-card p:last-child { margin-bottom: 0; }
+  .wtf-cs-back { display: inline-block; margin-top: 26px; font-family: var(--wtf-font-mono);
+                 font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+                 color: var(--wtf-text-muted); text-decoration: none; }
+  .wtf-cs-back:hover { color: var(--wtf-text); }
+</style>
+<div class="wtf-cs">
+  <h1>{{ page_h1 }}</h1>
+  <p class="wtf-cs-lede">{{ page_lede }}</p>
+  <div class="wtf-cs-card">
+    <span class="wtf-cs-tag">Not yet live</span>
+    <p>This page is designed but not built. Nothing is being measured or
+       withheld here — the description above is what it will show once it is,
+       not a summary of data already collected.</p>
+    <p>{{ page_blocker }}</p>
+  </div>
+  <a class="wtf-cs-back" href="/">&larr; Back to the newsroom</a>
+</div>
+{% endblock %}

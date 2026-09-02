@@ -245,7 +245,29 @@ def warmup_fleet_models():
             "creative",
             "Synthesize: 'ping'",
         ),  # M.U.S.E. mistral:7b — portrait-refine synthesis (T3454 keep-alive: this stage cold-loaded + timed out, task 3461)
-        ("workforce_planning", "Status: 'ping'"),  # K.I.N. gemma3:12b — fleet dispatch
+        # ⚠️ REMOVED 2026-09-01 (#6261): ("workforce_planning", "Status: 'ping'") — K.I.N. gemma3:12b.
+        #
+        # WARMING IS NOT FREE. It is a VRAM RESERVATION held for the whole KEEP_ALIVE
+        # (currently 60m), and gemma3:12b is 9.9GB — HALF the hub's 20GB across both cards.
+        # Measured 2026-09-01, 90-minute window:
+        #     SELECT capability, module_source, count(*) FROM task_execution_log
+        #      WHERE model_used LIKE 'gemma3%' AND created_at > now()-interval '90 minutes'
+        #      GROUP BY 1,2;
+        #     -> workforce_planning | fleet_warmup | 4      AND NOTHING ELSE
+        # i.e. this ping was the ONLY thing loading gemma3:12b. It warmed a model that no
+        # real work consumed, and while resident it left ~3GB free per card — too little for
+        # a 5.9GB qwen2.5:7b, the platform's HIGHEST-VOLUME model, which then demoted to CPU
+        # at ~8.5 MINUTES per request. A keep-alive job caused the cold-load starvation it
+        # exists to prevent.
+        #
+        # This is the operational face of a fit problem fleet.md already records: gemma3:12b
+        # runs at 56% fleet-wide "because nothing in this fleet can GPU-fit its 15.6GB".
+        # A model that cannot GPU-fit must not be pre-warmed — warming only denies residency
+        # to models that CAN.
+        #
+        # COST ACCEPTED: the first workforce_planning dispatch now cold-loads. That is the
+        # right trade — one cold-load beats an hour-long 9.9GB reservation for a 56% model.
+        # Re-add ONLY if gemma3:12b gets a real consumer AND hardware that can hold it.
         ("security", "Check: 'ping'"),  # S.H.I.E.L.D. qwen2.5:7b — fleet dispatch (was gemma2-cpu)
         ("conversation", "Hi"),  # D.R.A.F.T./A.C.C.O.R.D. dolphin3 — fleet dispatch
         (

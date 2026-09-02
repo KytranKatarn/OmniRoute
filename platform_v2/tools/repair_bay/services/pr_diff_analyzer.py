@@ -2381,7 +2381,17 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
         if summary:
             _caps_used.append(_diff_cap_for_model(_strong))
         else:
-            summary = _run_forge_review(_build_prompt(review, _chunk), pr_number, repo, diff=diff)
+            # #6247: when there is more than one pass, WAIT for a cold model instead of
+            # letting `queued` read as a lost pass. Gated on len(_chunks) > 1 so the
+            # single-pass path (the default, max_chunks=1) keeps its fast return + async
+            # callback and stays byte-identical. See _run_forge_review's docstring.
+            summary = _run_forge_review(
+                _build_prompt(review, _chunk),
+                pr_number,
+                repo,
+                diff=diff,
+                await_queue=len(_chunks) > 1,
+            )
             # The freeform fallback is ALWAYS the 7B at the tighter cap, whatever the tier.
             _caps_used.append(_diff_cap_for_model(False))
         # #5287 — ONE structured retry per REVIEW, not per chunk. The retry is a path upgrade
@@ -2429,7 +2439,13 @@ def _obtain_review_summary(review: dict, diff: str, pr_number: int = None, repo:
     return annotate(_merge_chunk_summaries(_summaries, _cov), _cov)
 
 
-def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff: str = None) -> str | None:
+def _run_forge_review(
+    prompt: str,
+    pr_number: int = None,
+    repo: str = None,
+    diff: str = None,
+    await_queue: bool = False,
+) -> str | None:
     """Dispatch the review prompt to F.O.R.G.E. via Bridge.
 
     Returns the summary string from F.O.R.G.E., or ``None``. ``None`` means
@@ -2437,9 +2453,50 @@ def _run_forge_review(prompt: str, pr_number: int = None, repo: str = None, diff
     queue — in the queued case an async ``pr_review_result`` callback is
     attached (when ``pr_number`` is known) so the verdict lands when the model
     warms, instead of the review staying stuck pending.
+
+    ``await_queue`` (#6247) — WAIT for a cold-loading model instead of returning
+    ``None``. Used ONLY by the CHUNKED path, and the distinction is the whole bug:
+
+    * SINGLE pass: returning fast + landing the verdict via the async callback is
+      correct and deliberate. Do not make this blocking — the callback writes the
+      one review row, and a caller on a web thread must not hold a worker.
+    * CHUNKED: the merge needs EVERY pass in hand before it can fold them, so a
+      ``None`` is indistinguishable from a lost pass. ``_merge_chunk_summaries``
+      then applies the fail-closed lattice and a clean APPROVE is demoted to
+      NEEDS REVIEW — which ``parse_verdict`` reads, so the PR can only be merged
+      by human override. Reliability got WORSE as chunk count rose, which is very
+      likely why max_chunks was flipped 1->3 and rolled back the same day (#5861).
+      Per-chunk callbacks would also be wrong: N callbacks racing to overwrite the
+      SAME ``pr_reviews`` row with one chunk's verdict.
+
+    ⚠️ Fail-closed itself is CORRECT and stays. The bug was only ever
+    misclassifying "queued" (live work) as "unparseable" (lost work) — KB #276153,
+    now reaching the chunked reviewer.
     """
     try:
         from tools.department_hq.services.department_dispatcher import dispatch
+
+        if await_queue:
+            from tools.department_hq.services.department_dispatcher import dispatch_awaiting_queue
+
+            text = dispatch_awaiting_queue(
+                capability="code_review",
+                prompt=prompt,
+                module_id="repair_bay",
+                num_ctx=_review_num_ctx(),
+                preferred_node=_review_preferred_nodes(),
+                **({"prefer_agent": _pa} if (_pa := _review_prefer_agent()) else {}),
+            )
+            if not text:
+                # Poll timeout / hard failure. The queue row survives for the worker,
+                # so nothing is lost — but THIS pass has no content, and the caller's
+                # fail-closed merge is the right answer for a pass we cannot read.
+                logger.warning(
+                    "[PR Review] chunked pass produced no text after awaiting the queue — "
+                    "failing closed for this pass (#6247)"
+                )
+                return None
+            return _gate_freeform_review(text.strip(), diff, pr_number, repo)
 
         result = dispatch(
             capability="code_review",

@@ -11214,6 +11214,8 @@ def dispatch_awaiting_queue(
     model_override: Optional[str] = None,
     job_id: Optional[int] = None,
     prefer_agent: Optional[str] = None,
+    preferred_node=None,
+    num_ctx: Optional[int] = None,
 ) -> Optional[str]:
     """Dispatch one LLM step and WAIT if the model is cold. Returns the text, or None.
 
@@ -11263,6 +11265,14 @@ def dispatch_awaiting_queue(
         model_override=model_override,
         job_id=job_id,
         prefer_agent=prefer_agent,
+        # #6247: forwarded ONLY when set, so every existing caller is byte-identical.
+        # The PR reviewer cannot use this helper without them — its routing (#5861
+        # Runabout-first) and its review window (QW-5 num_ctx) both ride these, and a
+        # swap that silently dropped them would trade a fail-closed verdict for a
+        # quietly-degraded one. Widening the shared helper is the fix; a third local
+        # poll facade is exactly what this function exists to prevent.
+        **({"preferred_node": preferred_node} if preferred_node else {}),
+        **({"num_ctx": num_ctx} if num_ctx else {}),
     )
 
     if getattr(result, "success", False):

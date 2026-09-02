@@ -1,0 +1,271 @@
+# P.R.O.B.E. — Website: creed-ai.org
+#
+# REWRITTEN 2026-09-02. The previous version of this suite was 23 tests, all
+# `type: api`, asserting only `status: 200`.
+#
+# ⚠️ WHY THAT WAS NOT ENOUGH — this is not hypothetical. On 2026-09-02 the site
+# served a Hostinger PARKING page ("Parked Domain name on Hostinger DNS system")
+# to every visitor, on every path, WITH A 200 STATUS. A status-only suite goes
+# green through that. The owner found it by looking at the site; the suite could
+# not have. Its own description claimed it "catches failed Hostinger deploys".
+#
+# Same blind spot already recorded on suite #110: "entirely type:api, which
+# cannot see whether anything RENDERS". Documented for DHQ, never generalised.
+#
+# THE FIX, and the rule for any public site:
+#   - `type: page_load` (NOT api) — only that runner honours title/body assertions.
+#   - every test asserts `title_contains`, a case-insensitive REGEX matched against
+#     the page's <title>, and the pattern is DISTINCTIVE TO THAT PAGE. A shared
+#     match like "C.R.E.E.D." would catch a parking page but still pass if two
+#     pages were swapped; a per-page pattern catches both.
+#
+# ⚠️ Patterns deliberately avoid HTML entities and regex metacharacters present in
+# the real titles — "News &amp; Updates", "Accountability &amp; Redress",
+# "&Agrave; propos", and the "|" in the 404 title. Match the stable prose instead.
+#
+# Coverage: 32 pages (was 23). The 9 added were live and untested: accountability,
+# directory, get-scored, incidents, oversight, remediation, standard, public/, 404.
+# Source of truth: /mnt/standalone/websites/creed-ai.org (symlink -> creed-ai-site repo).
+#
+# KB #301853 (the parking page) · KB #301854 (this suite's gap).
+
+suite:
+  name: "Website — creed-ai.org"
+  base_url: "https://creed-ai.org"
+  description: >-
+    All 32 public pages: EN, FR, white papers and registries. Every test asserts a
+    page-distinctive <title>, not just a 200 — a parked domain, a blank vhost and a
+    wrong-page mixup all return 200 and must fail here.
+
+tests:
+  # --- core ---------------------------------------------------------------
+  - name: creed-home
+    path: /
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Preventive Ethics", max_load_ms: 10000 }
+
+  - name: creed-about
+    path: /about.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "About" }
+
+  - name: creed-governance
+    path: /governance.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Governance Transparency" }
+
+  - name: creed-manifesto
+    path: /manifesto.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Manifesto" }
+
+  - name: creed-principles
+    path: /principles.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Principles" }
+
+  - name: creed-programs
+    path: /programs.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Programs" }
+
+  - name: creed-platform
+    path: /platform.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Platform" }
+
+  - name: creed-research
+    path: /research.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Research" }
+
+  - name: creed-news
+    path: /news.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "News" }
+
+  - name: creed-case-studies
+    path: /case-studies.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Case Studies" }
+
+  - name: creed-partners
+    path: /partners.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Partners" }
+
+  - name: creed-get-involved
+    path: /get-involved.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Get Involved" }
+
+  - name: creed-donate
+    path: /donate.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Donate" }
+
+  - name: creed-contact
+    path: /contact.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Contact" }
+
+  - name: creed-policy
+    path: /policy.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Policy Tracker" }
+
+  - name: creed-press
+    path: /press.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Press" }
+
+  # --- registries + standard (ADDED — were live but untested) --------------
+  - name: creed-accountability
+    path: /accountability.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Accountability" }
+
+  - name: creed-directory
+    path: /directory.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Transparency Directory" }
+
+  - name: creed-get-scored
+    path: /get-scored.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Get Scored" }
+
+  - name: creed-incidents
+    path: /incidents.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Incident Log" }
+
+  - name: creed-oversight
+    path: /oversight.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Human Oversight" }
+
+  - name: creed-remediation
+    path: /remediation.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Remediation" }
+
+  - name: creed-standard
+    path: /standard.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Event Schema" }
+
+  - name: creed-public
+    path: /public/index.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Public Governance" }
+
+  # 404.html is a real deployed file; fetching it directly returns 200.
+  # This asserts the custom error page still SHIPS — not that missing paths 404.
+  - name: creed-404-page
+    path: /404.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Page Not Found" }
+
+  # --- white papers -------------------------------------------------------
+  - name: creed-wp-001
+    path: /papers/wp-001-transparency-standards.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "WP-001" }
+
+  - name: creed-wp-002
+    path: /papers/wp-002-agent-welfare.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "WP-002" }
+
+  - name: creed-wp-003
+    path: /papers/wp-003-compliance-gap.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "WP-003" }
+
+  # --- French -------------------------------------------------------------
+  # Patterns are French-only words, so an FR page silently falling back to its
+  # English twin fails rather than passing on a shared brand string.
+  - name: creed-fr-home
+    path: /fr/index.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "ventive" }
+
+  - name: creed-fr-about
+    path: /fr/about.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "propos" }
+
+  - name: creed-fr-manifesto
+    path: /fr/manifesto.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Manifeste" }
+
+  - name: creed-fr-programs
+    path: /fr/programs.html
+    type: page_load
+    method: GET
+    skip_auth: true
+    expect: { status: 200, title_contains: "Programmes" }

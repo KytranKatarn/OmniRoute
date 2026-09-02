@@ -896,3 +896,78 @@ a { color: inherit; }
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WTF redesign — Phase 1 shell refresh (#6149 follow-on, Design handoff)
+
+   SCOPE IS DELIBERATELY NARROW. The nav itself was already rebuilt and
+   deployed in #6149 phase 2 (PR #2954) with the same six groups and icons the
+   handoff specifies — and ours is better in ways the prototype is not: a LIVE
+   source count rather than a hardcoded "41", <button aria-expanded> dropdowns
+   rather than hover-only divs, auth-aware items, and one nav_sections
+   definition driving BOTH the desktop bar and the mobile drawer (they had
+   previously drifted, so mobile and desktop users navigated different sites).
+   Rebuilding from the prototype would have traded all of that away.
+
+   So this adds ONLY what was measured missing, and deliberately does NOT
+   restyle existing components — no blanket card shadows or hover transforms.
+   Those tokens are defined here so later phases can adopt them per-page,
+   which keeps the blast radius of this PR to typography and a11y.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Brand cyan, sampled from the logo. Defined in the handoff's wtf-shell.css
+     and used 201x across the bundle; our stylesheet had NO --wtf-brand at all,
+     so every `var(--wtf-brand)` the handoff carries would have silently failed
+     to paint (an undefined var with no fallback is an invalid declaration). */
+  --wtf-brand: #14bef0;
+  --wtf-brand-deep: #1e7fd0;
+
+  /* Content gutter: bands run full-bleed while content centres at 1180px. */
+  --gut: max(18px, calc((100vw - 1180px) / 2));
+
+  --wtf-r-lg: 14px;
+  --wtf-r-md: 10px;
+  --wtf-r-sm: 7px;
+  --wtf-ease: cubic-bezier(.32, .72, 0, 1);
+  --wtf-shadow-card: 0 1px 0 rgba(255,255,255,.045) inset, 0 8px 22px -12px rgba(0,0,0,.85);
+  --wtf-shadow-raised: 0 1px 0 rgba(255,255,255,.07) inset, 0 16px 38px -14px rgba(0,0,0,.9);
+}
+
+/* Newsreader carries an optical-size axis and base.html already requests it
+   (opsz 6..72). Without this the browser never uses it — the handoff calls
+   turning it on "the single biggest quality gain available". */
+html { font-optical-sizing: auto; }
+
+/* Values must not jitter as they animate or update. */
+body { font-variant-numeric: tabular-nums lining-nums; }
+
+h1, h2, h3, .wtf-card-title { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* A visible keyboard focus ring. The stylesheet had exactly two :focus rules,
+   both :focus-within on the nav dropdown — so keyboard users had no ring
+   anywhere else on the site. :focus-visible keeps it off mouse clicks. */
+:focus-visible {
+  outline: 2px solid var(--wtf-brand);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ⚠️ CLIPPING GUARD — do NOT put `overflow` on the nav or a nav group.
+   A scroll container cannot have visible overflow on the other axis, so a
+   single `overflow-x:auto` silently clips EVERY dropdown. Nothing sets it
+   today (verified), so this is a guard against a future one-line regression
+   that would be very hard to trace back. */
+.wtf-nav, .wtf-nav-links, .wtf-navgrp { overflow: visible; }
+
+/* Full reduced-motion fallback — the stylesheet had none. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .wtf-live-dot { animation: none !important; }
+}

@@ -1586,8 +1586,10 @@ def index():
         source_count = c.execute(
             text(f"SELECT COUNT(DISTINCT s.id) FROM {S}.sources s JOIN {S}.articles a ON a.source_id = s.id AND a.ingested_at > NOW() - INTERVAL '48 hours'")
         ).scalar() or 0
+    sub = is_subscriber()
     return render_template("index.html", articles=rows,
-                           source_count=source_count, is_subscriber=is_subscriber())
+                           top_stories=_home_top_stories(rows, is_sub=sub),
+                           source_count=source_count, is_subscriber=sub)
 
 
 # ───────────────────────────────────────────────────────────────────────────
@@ -2829,6 +2831,78 @@ def clusters_index():
                            days=days,
                            windows=_CLUSTER_WINDOWS,
                            shown=len(rows))
+
+
+_HOME_TOP_N = 5
+_HOME_SPREAD_HOURS = 48
+
+
+def _home_top_stories(recent_rows, is_sub: bool):
+    """The homepage TOP STORIES list.
+
+    SIGNED IN  -> recency, byte-identical to what shipped before this change.
+    SIGNED OUT -> the same slots ranked by FRAMING SPREAD, because spread is
+                  what this site is for and it is the honest thing to show a
+                  first-time reader. Falls back to recency for any shortfall,
+                  so the list is never short.
+
+    ⚠️ SCOPE. Design's Phase 3 says "the homepage feed's eight free cards are
+    selected for spread". THIS SITE HAS NO SUCH FEED: the main feed is rendered
+    client-side into #wtf-feed-articles, and `is_subscriber` gates an upsell
+    box, not a card count. The only server-rendered story selection a logged-out
+    reader sees is this 5-item sidebar, so that is what the correction maps onto
+    here. Owner-confirmed 2026-09-02. Do not widen it to the JS feed without
+    asking again — that is a different, larger change.
+
+    ⚠️ MEASURED BEFORE BUILDING (2026-09-02), because a ranking with nothing to
+    rank is worse than none: clusters with ANY band spread number 13 in 24h,
+    36 in 48h, 117 in 7d. 48h comfortably fills 5. But **zero** clusters in 48h
+    span 3+ bands, so "widest spread" here means a one- or two-band difference.
+    Do not add UI copy implying dramatic divergence — the data does not support it.
+
+    Never raises: any failure returns the recency list the page would have shown.
+    """
+    fallback = list(recent_rows[:_HOME_TOP_N])
+    if is_sub:
+        return fallback
+    try:
+        S = _schema()
+        with _db().begin() as c:
+            spread = c.execute(text(f"""
+                WITH m AS (
+                  SELECT a.cluster_id                       AS cid,
+                         MIN(a.id)                          AS article_id,
+                         MIN(a.title)                       AS title,
+                         MAX(a.published_at)                AS published_at,
+                         COUNT(DISTINCT a.source_id)        AS outlets,
+                         MAX({_BAND_ORD_SQL}) - MIN({_BAND_ORD_SQL}) AS spread
+                    FROM {S}.articles a
+                    LEFT JOIN {S}.bias_scores b ON b.article_id = a.id
+                   WHERE a.suppressed_reason IS NULL
+                     AND a.cluster_id IS NOT NULL
+                     AND a.published_at > NOW() - make_interval(hours => :hrs)
+                     AND a.published_at <= NOW() + INTERVAL '2 hours'
+                   GROUP BY a.cluster_id
+                )
+                SELECT article_id AS id, title, published_at
+                  FROM m
+                 WHERE spread > 0
+                 ORDER BY spread DESC, outlets DESC, published_at DESC
+                 LIMIT :lim
+            """), {"hrs": _HOME_SPREAD_HOURS, "lim": _HOME_TOP_N}).mappings().all()
+    except Exception:
+        return fallback
+
+    picked = [dict(r) for r in spread]
+    seen = {r["id"] for r in picked}
+    # Top up with recency so a quiet news day cannot leave the sidebar short.
+    for r in fallback:
+        if len(picked) >= _HOME_TOP_N:
+            break
+        if r["id"] not in seen:
+            picked.append(dict(r))
+            seen.add(r["id"])
+    return picked[:_HOME_TOP_N]
 
 
 _ARCHIVE_WINDOWS = (7, 30, 90, 365)

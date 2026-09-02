@@ -145,7 +145,10 @@
 
     <div class="wtf-section-label" style="margin-top:10px;color:#dc2626;">F.A.C.T. TOP STORIES</div>
     <div id="wtf-top-stories">
-      {% for a in articles[:5] %}
+      {# top_stories: recency for signed-in readers (unchanged), ranked by
+         framing spread for signed-out ones. Built in _home_top_stories();
+         falls back to recency on any shortfall or error. #}
+      {% for a in top_stories %}
       <div class="wtf-top-story">
         <a href="/article/{{ a.id }}" style="color:#ccc;text-decoration:none;">{{ a.title[:80] }}</a>
         {% if a.published_at %}<span class="wtf-ago" data-ts="{{ a.published_at.isoformat() }}" style="color:#6b7280;font-size:10px;margin-left:6px;white-space:nowrap;"></span>{% endif %}

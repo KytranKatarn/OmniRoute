@@ -1,60 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-{# #6149: this page carried its OWN :root block plus a body rule. Because a
-   page <style> renders AFTER base.html's stylesheet link, it silently won —
-   so the home page kept the old lean scale, re-forced mono body text, and
-   flipped --wtf-accent from brand red to cyan (#0af), no matter what
-   style.css said. Design tokens have ONE source of truth: static/style.css.
-   Verified in a browser: before this, getComputedStyle reported
-   --wtf-center as #22c55e (green) on the live home page while style.css
-   declared #929aa5.
-   A page may style ITS OWN components below; it may not redefine a global
-   token or restyle <body>. #}
-#wtf-map-zone { background: var(--wtf-bg-card); padding: 14px; border-bottom: 1px solid var(--wtf-border); }
-#wtf-map-zone h2 { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: .16em;
-  text-transform: uppercase; color: var(--wtf-text-muted); margin: 0 0 9px; }
-#wtf-canada-map { height: 340px; border-radius: 5px; border: 1px solid var(--wtf-border); }
-#wtf-main { display: flex; min-height: 400px; }
-#wtf-editorial { flex: 0 0 38%; background: #060d14; padding: 14px; border-right: 1px solid #112233; overflow-y: auto; }
-#wtf-feed { flex: 1; background: #060a10; padding: 14px; overflow-y: auto; }
-.wtf-section-label { font-family: var(--wtf-font-mono); font-size: 10px; letter-spacing: .14em;
-  text-transform: uppercase; color: var(--wtf-text-muted); margin: 0 0 10px; }
-.wtf-activity-item { background: #0a1520; border-radius: 3px; padding: 8px; margin-bottom: 6px; display: flex; gap: 8px; align-items: flex-start; }
-.wtf-agent-icon { width: 24px; height: 24px; border-radius: 50%; background: #1a2a3a; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; flex-shrink: 0; }
-.wtf-activity-text { font-size: 11px; color: #aaa; }
-.wtf-activity-time { font-size: 9px; color: #555; }
-.wtf-top-story { font-size: 11px; color: #ccc; padding: 5px 0; border-bottom: 1px solid #112233; }
-.wtf-article-card { background: #0a1520; border-radius: 3px; padding: 10px; margin-bottom: 8px; border-left: 3px solid #333; }
-.wtf-article-card--left { border-left-color: var(--wtf-left); }
-.wtf-article-card--center-left { border-left-color: var(--wtf-center-left); }
-.wtf-article-card--center { border-left-color: var(--wtf-center); }
-.wtf-article-card--center-right { border-left-color: var(--wtf-center-right); }
-.wtf-article-card--right { border-left-color: var(--wtf-right); }
-.wtf-card-meta { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 10px; color: #666; }
-.wtf-card-title { font-size: 12px; color: #e0e0e0; text-decoration: none; display: block; }
-.wtf-card-title:hover { color: var(--wtf-accent); }
-.wtf-card-badge { font-size: 9px; padding: 2px 6px; border-radius: 2px; }
-.wtf-badge-ai { background: #0a2a1a; color: #4a9; }
-.wtf-badge-quick { background: #1a1a0a; color: #aa9; }
-.wtf-bias-pill { font-size: 9px; padding: 2px 6px; border-radius: 2px; }
-.wtf-bias-left { background: #2d0a0a; color: var(--wtf-left); }
-.wtf-bias-center-left { background: #2d1100; color: var(--wtf-center-left); }
-.wtf-bias-center { background: #0a2010; color: var(--wtf-center); }
-.wtf-bias-center-right { background: #062030; color: var(--wtf-center-right); }
-.wtf-bias-right { background: #0a1540; color: var(--wtf-right); }
-.wtf-map-toggle { display:flex; gap:6px; }
-.wtf-map-btn { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.14em; padding:5px 11px; border-radius:3px; border:1px solid var(--wtf-border); background:var(--wtf-bg-panel); color:var(--wtf-text-muted); cursor:pointer; text-transform:uppercase; }
-.wtf-map-btn.active { background:#0a1f3a; color:var(--wtf-accent); border-color:var(--wtf-accent); }
-.wtf-beat-pill { font-family:var(--wtf-font-mono); font-size:9px; letter-spacing:.14em; padding:4px 10px; border-radius:3px; border:1px solid var(--wtf-border); background:var(--wtf-bg-panel); color:var(--wtf-text-muted); cursor:pointer; text-transform:uppercase; }
-.wtf-beat-pill.active { background:#0a1f3a; color:var(--wtf-accent); border-color:var(--wtf-accent); }
-</style>
+{# Page CSS lives in static/style.css ("Phase 2: the HOMEPAGE" block).
+   An inline page stylesheet renders AFTER base.html's stylesheet link, so
+   anything declared here silently outranks the design system — which is how
+   this page kept the old navy palette while :root already held the correct
+   tokens. tests/test_clusters_index.py and test_archive_index.py assert the
+   same rule for their pages. Do not reintroduce one here. #}
 
 <!-- Leaflet CSS -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 
 <!-- Beat Filter Pills — update map + article panel in place (like CANADA/WORLD toggle) -->
-<div id="wtf-beat-strip" style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#050d1a;border-bottom:1px solid #112233;">
+<div id="wtf-beat-strip">
   <button class="wtf-beat-pill active" data-beat="all" onclick="setBeat(this,'all')">ALL</button>
   <button class="wtf-beat-pill" data-beat="sports" onclick="setBeat(this,'sports')">SPORTS</button>
   <button class="wtf-beat-pill" data-beat="healthcare" onclick="setBeat(this,'healthcare')">HEALTH</button>
@@ -66,21 +23,21 @@
 </div>
 
 <!-- Beat context banner — shown when a non-ALL beat is active -->
-<div id="wtf-beat-banner" style="display:none;padding:7px 14px;border-bottom:1px solid #112233;align-items:center;justify-content:space-between;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;transition:background 0.2s;">
+<div id="wtf-beat-banner" style="display:none;">
   <span id="wtf-beat-banner-label" style="font-weight:700;letter-spacing:0.08em;color:#fff;"></span>
   <span style="color:#9ca3af;font-size:9px;">Showing filtered results — map + feed updated</span>
   <a id="wtf-beat-banner-link" href="#" style="color:#fff;text-decoration:none;border:1px solid currentColor;padding:2px 8px;border-radius:3px;font-size:9px;white-space:nowrap;opacity:0.85;">View full feed →</a>
 </div>
 
 <!-- Province context banner — shown when a province is selected -->
-<div id="wtf-province-banner" style="display:none;padding:5px 14px;border-bottom:1px solid #0af3;background:#00aaff0d;align-items:center;justify-content:space-between;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:10px;">
+<div id="wtf-province-banner" style="display:none;">
   <span id="wtf-province-banner-label" style="font-weight:700;letter-spacing:0.08em;color:#0af;"></span>
   <span style="color:#9ca3af;font-size:9px;">Map + feed filtered to this province</span>
   <button onclick="clearProvince()" style="background:none;border:1px solid #0af6;color:#0af;font-family:inherit;font-size:9px;padding:2px 8px;border-radius:3px;cursor:pointer;">✕ Clear</button>
 </div>
 
 <!-- Featured Story Strip -->
-<div id="wtf-featured-strip" style="display:none;padding:8px 12px;background:#050d1a;border-bottom:1px solid #112233;border-left:3px solid var(--wtf-accent);max-height:80px;box-sizing:border-box;overflow:hidden;">
+<div id="wtf-featured-strip" style="display:none;">
   <div style="display:flex;align-items:baseline;gap:10px;">
     <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--wtf-accent);white-space:nowrap;flex-shrink:0;">TODAY'S TOP STORY</span>
     <a id="wtf-featured-headline" href="#" style="font-family:var(--wtf-font-serif);font-size:14px;font-weight:600;color:var(--wtf-text);text-decoration:none;line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"></a>
@@ -123,8 +80,8 @@
       <!-- Province selector -->
       <div style="position:relative;" id="wtf-province-selector">
         <button id="wtf-province-btn" class="wtf-map-btn" onclick="toggleProvinceDropdown(event)">📍 PROVINCE ▾</button>
-        <div id="wtf-province-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:#0a1520;border:1px solid #1a3a5a;border-radius:3px;z-index:9999;min-width:160px;max-height:220px;overflow-y:auto;box-shadow:0 4px 12px #00000080;">
-          <div onclick="clearProvince()" style="padding:7px 12px;font-size:9px;letter-spacing:1px;cursor:pointer;color:#6b7280;border-bottom:1px solid #112233;" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
+        <div id="wtf-province-dropdown" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:var(--wtf-bg-panel);border:1px solid var(--wtf-border);border-radius:var(--wtf-r-sm);z-index:9999;min-width:160px;max-height:220px;overflow-y:auto;box-shadow:var(--wtf-shadow-raised);">
+          <div onclick="clearProvince()" style="padding:7px 12px;font-size:9px;letter-spacing:1px;cursor:pointer;color:var(--wtf-text-muted);border-bottom:1px solid var(--wtf-border);" onmouseover="this.style.background='#1a2a3a'" onmouseout="this.style.background='transparent'">ALL PROVINCES</div>
         </div>
       </div>
       <div class="wtf-map-toggle">
@@ -150,7 +107,7 @@
          falls back to recency on any shortfall or error. #}
       {% for a in top_stories %}
       <div class="wtf-top-story">
-        <a href="/article/{{ a.id }}" style="color:#ccc;text-decoration:none;">{{ a.title[:80] }}</a>
+        <a href="/article/{{ a.id }}">{{ a.title[:80] }}</a>
         {% if a.published_at %}<span class="wtf-ago" data-ts="{{ a.published_at.isoformat() }}" style="color:#6b7280;font-size:10px;margin-left:6px;white-space:nowrap;"></span>{% endif %}
       </div>
       {% endfor %}
@@ -179,7 +136,9 @@
       <div style="color:#555;font-size:11px;padding:8px 0;">Loading...</div>
     </div>
     {% if not is_subscriber %}
-    <div style="margin-top:12px;padding:14px 16px;background:#060d14;border:1px solid #2a1a00;border-radius:6px;text-align:center;">
+    {# The handoff's `.gate` treatment, applied to the upsell box we already
+       render — card surface, token border, amber accent on the left edge. #}
+    <div class="wtf-gate">
       <div style="font-family:var(--wtf-font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--wtf-developing);margin-bottom:6px;">Unlock AI analysis</div>
       <div style="font-size:11px;color:#9ca3af;margin-bottom:10px;">Bias scoring · Fact-check · MP mentions · Source deep-dive</div>
       <a href="/join" style="display:inline-block;background:#f59e0b;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:4px;text-decoration:none;">Start with Starter →</a>
